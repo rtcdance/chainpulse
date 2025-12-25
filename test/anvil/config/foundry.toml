@@ -1,0 +1,28 @@
+[profile.default]
+src = 'src'
+out = 'out'
+libs = ['lib']
+test = 'test'
+
+# See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
+ffi = true
+fuzz_runs = 256
+gas_reports = ["*"]
+
+[profile.default.rpc_storage_caching]
+chains = [1, 5, 137, 42161, 43114, 10, 8453, 84531]
+endpoints = ["alchemy", "infura", "pokt", "anvil"]
+
+[profile.anvil]
+src = 'contracts'
+out = 'out'
+test = 'test'
+script = 'script'
+broadcast = 'broadcast'
+
+# Anvil-specific settings
+block_number = 1
+chain_id = 31337  # Default Anvil chain ID
+gas_limit = 18446744073709551615
+gas_price = 0
+block_base_fee_per_gas = 0

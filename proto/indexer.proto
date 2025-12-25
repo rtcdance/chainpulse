@@ -1,0 +1,117 @@
+syntax = "proto3";
+
+package indexer;
+option go_package = "chainpulse/proto/indexer";
+
+// Service definition for the indexer
+service IndexerService {
+  // Get events with pagination
+  rpc GetEvents(GetEventsRequest) returns (GetEventsResponse);
+  
+  // Get event by transaction hash
+  rpc GetEventByTxHash(GetEventByTxHashRequest) returns (GetEventByTxHashResponse);
+  
+  // Get events by block number
+  rpc GetEventsByBlockNumber(GetEventsByBlockNumberRequest) returns (GetEventsByBlockNumberResponse);
+  
+  // Get contracts
+  rpc GetContracts(GetContractsRequest) returns (GetContractsResponse);
+  
+  // Get contract by address
+  rpc GetContractByAddress(GetContractByAddressRequest) returns (GetContractByAddressResponse);
+  
+  // Get indexer statistics
+  rpc GetStats(GetStatsRequest) returns (GetStatsResponse);
+  
+  // Health check
+  rpc Health(HealthRequest) returns (HealthResponse);
+}
+
+// Request/Response messages for events
+message GetEventsRequest {
+  int32 page = 1;
+  int32 limit = 2;
+}
+
+message GetEventsResponse {
+  repeated Event events = 1;
+  int32 page = 2;
+  int32 limit = 3;
+  int64 total = 4;
+}
+
+message GetEventByTxHashRequest {
+  string tx_hash = 1;
+}
+
+message GetEventByTxHashResponse {
+  Event event = 1;
+}
+
+message GetEventsByBlockNumberRequest {
+  int64 block_number = 1;
+}
+
+message GetEventsByBlockNumberResponse {
+  repeated Event events = 1;
+  int64 block_number = 2;
+  int64 total = 3;
+}
+
+// Request/Response messages for contracts
+message GetContractsRequest {}
+
+message GetContractsResponse {
+  repeated Contract contracts = 1;
+  int64 total = 2;
+}
+
+message GetContractByAddressRequest {
+  string address = 1;
+}
+
+message GetContractByAddressResponse {
+  Contract contract = 1;
+}
+
+// Request/Response messages for stats
+message GetStatsRequest {}
+
+message GetStatsResponse {
+  int64 total_events = 1;
+  int64 total_contracts = 2;
+  int64 latest_block = 3;
+}
+
+// Request/Response messages for health
+message HealthRequest {}
+
+message HealthResponse {
+  string status = 1;
+  string service = 2;
+  string time = 3;
+}
+
+// Common data types
+message Event {
+  uint32 id = 1;
+  string block_number = 2;  // Using string to represent big.Int
+  string tx_hash = 3;
+  string event_name = 4;
+  string contract = 5;
+  string from = 6;
+  string to = 7;
+  string token_id = 8;
+  string value = 9;
+  int64 timestamp = 10;  // Unix timestamp
+}
+
+message Contract {
+  uint32 id = 1;
+  string address = 2;
+  string name = 3;
+  string symbol = 4;
+  string type = 5;  // ERC20, ERC721, ERC1155, etc.
+  int64 created_at = 11;  // Unix timestamp
+  int64 updated_at = 12;  // Unix timestamp
+}

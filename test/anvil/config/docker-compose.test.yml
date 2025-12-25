@@ -1,0 +1,70 @@
+version: '3.8'
+
+services:
+  anvil:
+    image: ghcr.io/foundry-rs/foundry:latest
+    container_name: chainpulse-anvil
+    command: >
+      sh -c "
+        anvil 
+        --host 0.0.0.0 
+        --port 8545 
+        --chain-id 31337 
+        --block-time 1 
+        --derivation-path "m/44'/60'/0'/0/"
+      "
+    ports:
+      - "8545:8545"
+    networks:
+      - chainpulse-test
+    environment:
+      - ANVIL_HOST=0.0.0.0
+      - ANVIL_PORT=8545
+      - ANVIL_CHAIN_ID=31337
+
+  chainpulse-test:
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+    container_name: chainpulse-web3-service-test
+    depends_on:
+      - anvil
+    environment:
+      - WEB3_RPC_URL=http://anvil:8545
+      - WEB3_PRIVATE_KEY=0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d
+      - WEB3_CHAIN_ID=31337
+      - REDIS_URL=redis://redis:6379
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/chainpulse_test
+    networks:
+      - chainpulse-test
+    ports:
+      - "8080:8080"
+
+  redis:
+    image: redis:7-alpine
+    container_name: chainpulse-redis-test
+    networks:
+      - chainpulse-test
+    ports:
+      - "6379:6379"
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: chainpulse-postgres-test
+    environment:
+      POSTGRES_DB: chainpulse_test
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    networks:
+      - chainpulse-test
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data_test:/var/lib/postgresql/data
+
+networks:
+  chainpulse-test:
+    driver: bridge
+
+volumes:
+  postgres_data_test:
