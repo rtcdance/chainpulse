@@ -1,0 +1,241 @@
+version: '3.8'
+
+services:
+  # ============================================
+  # Blockchain Nodes (Anvil)
+  # ============================================
+
+  # Ethereum (Chain ID: 31337)
+  anvil-ethereum:
+    image: ghcr.io/foundry-rs/foundry:latest
+    container_name: chainpulse-anvil-ethereum
+    ports:
+      - "8545:8545"
+    environment:
+      ANVIL_IP_ADDR: 0.0.0.0
+      ANVIL_PORT: 8545
+      ANVIL_CHAIN_ID: 31337
+    command: >
+      anvil
+      --host 0.0.0.0
+      --port 8545
+      --chain-id 31337
+      --accounts 10
+      --balance 10000
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8545"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - chainpulse-network
+
+  # Polygon (Chain ID: 137)
+  anvil-polygon:
+    image: ghcr.io/foundry-rs/foundry:latest
+    container_name: chainpulse-anvil-polygon
+    ports:
+      - "8546:8545"
+    environment:
+      ANVIL_IP_ADDR: 0.0.0.0
+      ANVIL_PORT: 8545
+      ANVIL_CHAIN_ID: 137
+    command: >
+      anvil
+      --host 0.0.0.0
+      --port 8545
+      --chain-id 137
+      --accounts 10
+      --balance 10000
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8545"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - chainpulse-network
+
+  # Arbitrum (Chain ID: 42161)
+  anvil-arbitrum:
+    image: ghcr.io/foundry-rs/foundry:latest
+    container_name: chainpulse-anvil-arbitrum
+    ports:
+      - "8547:8545"
+    environment:
+      ANVIL_IP_ADDR: 0.0.0.0
+      ANVIL_PORT: 8545
+      ANVIL_CHAIN_ID: 42161
+    command: >
+      anvil
+      --host 0.0.0.0
+      --port 8545
+      --chain-id 42161
+      --accounts 10
+      --balance 10000
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8545"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - chainpulse-network
+
+  # ============================================
+  # Infrastructure Services
+  # ============================================
+
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: chainpulse-postgres
+    environment:
+      POSTGRES_USER: chainpulse
+      POSTGRES_PASSWORD: chainpulse_password
+      POSTGRES_DB: chainpulse
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U chainpulse"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - chainpulse-network
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: chainpulse-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - chainpulse-network
+
+  # Kafka Message Queue
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: chainpulse-kafka
+    depends_on:
+      - zookeeper
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    ports:
+      - "9092:9092"
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions.sh", "--bootstrap-server", "localhost:9092"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - chainpulse-network
+
+  # Zookeeper (required by Kafka)
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: chainpulse-zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+    healthcheck:
+      test: ["CMD", "echo", "ruok", "|", "nc", "localhost", "2181"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - chainpulse-network
+
+  # ChainPulse Application
+  chainpulse:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: chainpulse-app
+    depends_on:
+      anvil-ethereum:
+        condition: service_healthy
+      anvil-polygon:
+        condition: service_healthy
+      anvil-arbitrum:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    environment:
+      # Multi-chain configuration
+      CHAINPULSE_CHAINS: ethereum,polygon,arbitrum
+
+      # Ethereum configuration
+      CHAINPULSE_ETHEREUM_NODE_URL: http://anvil-ethereum:8545
+      CHAINPULSE_ETHEREUM_CHAIN_ID: 31337
+      CHAINPULSE_ETHEREUM_START_BLOCK: 0
+
+      # Polygon configuration
+      CHAINPULSE_POLYGON_NODE_URL: http://anvil-polygon:8545
+      CHAINPULSE_POLYGON_CHAIN_ID: 137
+      CHAINPULSE_POLYGON_START_BLOCK: 0
+
+      # Arbitrum configuration
+      CHAINPULSE_ARBITRUM_NODE_URL: http://anvil-arbitrum:8545
+      CHAINPULSE_ARBITRUM_CHAIN_ID: 42161
+      CHAINPULSE_ARBITRUM_START_BLOCK: 0
+
+      # Logging and deployment
+      CHAINPULSE_LOG_LEVEL: INFO
+      CHAINPULSE_DEPLOYMENT_MODE: monolithic
+      CHAINPULSE_API_PORT: 8080
+      CHAINPULSE_GRPC_PORT: 50051
+      CHAINPULSE_METRICS_PORT: 8081
+      CHAINPULSE_DATA_PULLER_TYPE: https_jsonrpc
+      CHAINPULSE_PULLER_POLL_INTERVAL_MS: 1000
+
+      # Cache configuration
+      CHAINPULSE_CACHE_TYPE: redis
+      CHAINPULSE_CACHE_TTL_SECONDS: 3600
+
+      # Database configuration
+      CHAINPULSE_DATABASE_TYPE: postgres
+      CHAINPULSE_DATABASE_URL: postgres://chainpulse:chainpulse_password@postgres:5432/chainpulse
+
+      # Message queue configuration
+      CHAINPULSE_MQ_TYPE: kafka
+      CHAINPULSE_MQ_BROKERS: kafka:29092
+    ports:
+      - "8080:8080"
+      - "50051:50051"
+      - "8081:8081"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 3s
+      start_period: 5s
+      retries: 3
+    networks:
+      - chainpulse-network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  chainpulse-network:
+    driver: bridge

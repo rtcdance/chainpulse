@@ -1,0 +1,170 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: chainpulse-microservice
+  namespace: chainpulse
+  labels:
+    app: chainpulse-microservice
+spec:
+  selector:
+    app: chainpulse-microservice
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+    - name: grpc
+      port: 50051
+      targetPort: 50051
+    - name: metrics
+      port: 9090
+      targetPort: 9090
+  type: LoadBalancer
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: chainpulse-microservice
+  namespace: chainpulse
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: chainpulse-microservice
+  template:
+    metadata:
+      labels:
+        app: chainpulse-microservice
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - chainpulse-microservice
+              topologyKey: kubernetes.io/hostname
+      containers:
+      - name: chainpulse
+        image: chainpulse:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8080
+          name: http
+        - containerPort: 50051
+          name: grpc
+        - containerPort: 9090
+          name: metrics
+        env:
+        - name: DEPLOYMENT_MODE
+          value: "microservice"
+        - name: SERVICE_NAME
+          value: "chainpulse-service"
+        - name: INSTANCE_ID
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: LOG_LEVEL
+          valueFrom:
+            configMapKeyRef:
+              name: chainpulse-config
+              key: LOG_LEVEL
+        - name: API_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: chainpulse-config
+              key: API_PORT
+        - name: GRPC_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: chainpulse-config
+              key: GRPC_PORT
+        - name: METRICS_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: chainpulse-config
+              key: METRICS_PORT
+        - name: DATABASE_TYPE
+          valueFrom:
+            configMapKeyRef:
+              name: chainpulse-config
+              key: DATABASE_TYPE
+        - name: DATABASE_URL
+          valueFrom:
+            configMapKeyRef:
+              name: chainpulse-config
+              key: DATABASE_URL
+        - name: CACHE_TYPE
+          valueFrom:
+            configMapKeyRef:
+              name: chainpulse-config
+              key: CACHE_TYPE
+        - name: CACHE_URL
+          valueFrom:
+            configMapKeyRef:
+              name: chainpulse-config
+              key: CACHE_URL
+        - name: MQ_TYPE
+          valueFrom:
+            configMapKeyRef:
+              name: chainpulse-config
+              key: MQ_TYPE
+        - name: MQ_BROKERS
+          valueFrom:
+            configMapKeyRef:
+              name: chainpulse-config
+              key: MQ_BROKERS
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: chainpulse-microservice-hpa
+  namespace: chainpulse
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: chainpulse-microservice
+  minReplicas: 3
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80

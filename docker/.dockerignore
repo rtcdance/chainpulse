@@ -1,0 +1,50 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Build artifacts
+bin/
+dist/
+*.o
+*.a
+*.so
+
+# Test files
+*_test.go
+*.test
+coverage.out
+*.cover
+
+# Documentation
+docs/
+README.md
+LICENSE
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.travis.yml
+
+# Dependencies
+vendor/
+node_modules/
+
+# Temporary files
+*.tmp
+*.log
+.env.local
+.env.*.local
+
+# Docker
+Dockerfile
+docker-compose.yml
+.dockerignore

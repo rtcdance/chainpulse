@@ -1,0 +1,280 @@
+package websocket
+
+import (
+	"fmt"
+	"net/http"
+	"sync"
+
+	"github.com/gorilla/websocket"
+
+	"chainpulse/pkg/plugins/api/core"
+	"chainpulse/pkg/plugins/api/shared"
+)
+
+// WebSocketPlugin implements the WebSocket protocol handler
+type WebSocketPlugin struct {
+	name       string
+	port       int
+	wssPort    int
+	apiLayer   *core.APILayer
+	upgrader   websocket.Upgrader
+	server     *http.Server
+	wssServer  *http.Server
+	tlsManager *shared.TLSManager
+	processor  core.RequestProcessor
+	mu         sync.RWMutex
+	running    bool
+	middleware []core.Middleware
+	clients    map[*websocket.Conn]bool
+	clientsMu  sync.RWMutex
+	router     *core.APIRouter
+}
+
+// NewWebSocketPlugin creates a new WebSocket plugin
+func NewWebSocketPlugin(name string, port int, apiLayer *core.APILayer) *WebSocketPlugin {
+	processor := core.NewDefaultRequestProcessor(apiLayer)
+	return &WebSocketPlugin{
+		name:       name,
+		port:       port,
+		wssPort:    port + 443, // Default WSS port offset
+		apiLayer:   apiLayer,
+		upgrader:   websocket.Upgrader{CheckOrigin: func(r *http.Request) bool { return true }},
+		processor:  processor,
+		middleware: make([]core.Middleware, 0),
+		clients:    make(map[*websocket.Conn]bool),
+		router:     core.NewAPIRouter(),
+	}
+}
+
+// NewWebSocketPluginWithTLS creates a new WebSocket plugin with TLS support
+func NewWebSocketPluginWithTLS(name string, port int, wssPort int, certFile, keyFile string, apiLayer *core.APILayer) (*WebSocketPlugin, error) {
+	tlsManager, err := shared.NewTLSManager(certFile, keyFile)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create TLS manager: %w", err)
+	}
+
+	processor := core.NewDefaultRequestProcessor(apiLayer)
+	return &WebSocketPlugin{
+		name:       name,
+		port:       port,
+		wssPort:    wssPort,
+		apiLayer:   apiLayer,
+		upgrader:   websocket.Upgrader{CheckOrigin: func(r *http.Request) bool { return true }},
+		tlsManager: tlsManager,
+		processor:  processor,
+		middleware: make([]core.Middleware, 0),
+		clients:    make(map[*websocket.Conn]bool),
+		router:     core.NewAPIRouter(),
+	}, nil
+}
+
+// Start starts the WebSocket server
+func (p *WebSocketPlugin) Start() error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	if p.running {
+		return fmt.Errorf("WebSocket plugin already running")
+	}
+
+	// Create HTTP server
+	mux := http.NewServeMux()
+	mux.HandleFunc("/ws", p.handleWebSocket)
+
+	p.server = &http.Server{
+		Addr:    fmt.Sprintf(":%d", p.port),
+		Handler: mux,
+	}
+
+	p.running = true
+
+	// Start WebSocket server in background
+	go func() {
+		if err := p.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			fmt.Printf("WebSocket server error: %v\n", err)
+		}
+	}()
+
+	// Start WSS server if TLS manager is configured
+	if p.tlsManager != nil {
+		if err := p.startWSS(mux); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// startWSS starts the WSS (WebSocket Secure) server
+func (p *WebSocketPlugin) startWSS(mux *http.ServeMux) error {
+	p.wssServer = &http.Server{
+		Addr:      fmt.Sprintf(":%d", p.wssPort),
+		Handler:   mux,
+		TLSConfig: p.tlsManager.GetConfig(),
+	}
+
+	// Start WSS server in background
+	go func() {
+		if err := p.wssServer.ListenAndServeTLS("", ""); err != nil && err != http.ErrServerClosed {
+			fmt.Printf("WSS server error: %v\n", err)
+		}
+	}()
+
+	return nil
+}
+
+// Stop stops the WebSocket server
+func (p *WebSocketPlugin) Stop() error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	if !p.running {
+		return fmt.Errorf("WebSocket plugin not running")
+	}
+
+	// Close all client connections
+	p.clientsMu.Lock()
+	for conn := range p.clients {
+		_ = conn.Close()
+	}
+	p.clients = make(map[*websocket.Conn]bool)
+	p.clientsMu.Unlock()
+
+	if p.server != nil {
+		if err := p.server.Close(); err != nil {
+			return err
+		}
+	}
+
+	if p.wssServer != nil {
+		if err := p.wssServer.Close(); err != nil {
+			return err
+		}
+	}
+
+	p.running = false
+	return nil
+}
+
+// GetName returns the plugin name
+func (p *WebSocketPlugin) GetName() string {
+	return p.name
+}
+
+// GetProtocolName returns the protocol name (implements ProtocolHandler)
+func (p *WebSocketPlugin) GetProtocolName() string {
+	return p.name
+}
+
+// IsRunning returns whether the plugin is running
+func (p *WebSocketPlugin) IsRunning() bool {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	return p.running
+}
+
+// handleWebSocket handles incoming WebSocket connections
+func (p *WebSocketPlugin) handleWebSocket(w http.ResponseWriter, r *http.Request) {
+	conn, err := p.upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		fmt.Printf("WebSocket upgrade error: %v\n", err)
+		return
+	}
+	defer func() { _ = conn.Close() }()
+
+	// Register client
+	p.clientsMu.Lock()
+	p.clients[conn] = true
+	p.clientsMu.Unlock()
+
+	// Unregister client on disconnect
+	defer func() {
+		p.clientsMu.Lock()
+		delete(p.clients, conn)
+		p.clientsMu.Unlock()
+	}()
+
+	// Handle messages
+	for {
+		messageType, data, err := conn.ReadMessage()
+		if err != nil {
+			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
+				fmt.Printf("WebSocket error: %v\n", err)
+			}
+			break
+		}
+
+		// Only handle text messages
+		if messageType != websocket.TextMessage {
+			continue
+		}
+
+		// Create request adapter
+		req := NewWebSocketRequest(r, data)
+
+		// Process through API layer
+		result := p.apiLayer.Handle(req)
+
+		// Send response back through WebSocket
+		if err := conn.WriteMessage(websocket.TextMessage, result.Body()); err != nil {
+			fmt.Printf("WebSocket write error: %v\n", err)
+			break
+		}
+	}
+}
+
+// Use adds middleware (implements ProtocolHandler)
+func (p *WebSocketPlugin) Use(middleware ...core.Middleware) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	if p.running {
+		return fmt.Errorf("cannot add middleware while handler is running")
+	}
+
+	p.middleware = append(p.middleware, middleware...)
+	p.router.Use(middleware...)
+	return nil
+}
+
+// RegisterRoute registers a route handler (implements ProtocolHandler)
+func (p *WebSocketPlugin) RegisterRoute(path string, handler core.Handler) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	if p.running {
+		return fmt.Errorf("cannot register route while handler is running")
+	}
+
+	p.router.Register(path, handler)
+	return nil
+}
+
+// GetClientCount returns the number of connected clients
+func (p *WebSocketPlugin) GetClientCount() int {
+	p.clientsMu.RLock()
+	defer p.clientsMu.RUnlock()
+	return len(p.clients)
+}
+
+// SetWSSPort sets the WSS port
+func (p *WebSocketPlugin) SetWSSPort(port int) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.wssPort = port
+}
+
+// GetWSSPort returns the WSS port
+func (p *WebSocketPlugin) GetWSSPort() int {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	return p.wssPort
+}
+
+// GetTLSMetrics returns TLS metrics
+func (p *WebSocketPlugin) GetTLSMetrics() map[string]interface{} {
+	if p.tlsManager == nil {
+		return nil
+	}
+	return p.tlsManager.GetMetrics()
+}

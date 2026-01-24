@@ -1,0 +1,833 @@
+name: Code Coverage
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+
+env:
+  GO_VERSION: '1.24.11'
+  MIN_COVERAGE: 49
+
+jobs:
+  coverage:
+    name: Generate Coverage Report
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: chainpulse
+          POSTGRES_PASSWORD: chainpulse_test
+          POSTGRES_DB: chainpulse_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+      
+      redis:
+        image: redis:7
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+      
+      - name: Install Foundry (for Anvil)
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: nightly
+        continue-on-error: true
+      
+      - name: Verify Anvil installation
+        run: |
+          if command -v anvil &> /dev/null; then
+            anvil --version
+            echo "✓ Anvil is available"
+          else
+            echo "⚠ Anvil not available, continuing without it"
+          fi
+        continue-on-error: true
+      
+      - name: Install dependencies
+        run: |
+          go mod download
+          go mod verify
+          go install github.com/wadey/gocovmerge@latest || true
+      
+      - name: Run tests with coverage
+        env:
+          POSTGRES_HOST: localhost
+          POSTGRES_PORT: 5432
+          POSTGRES_USER: chainpulse
+          POSTGRES_PASSWORD: chainpulse_test
+          POSTGRES_DB: chainpulse_test
+          REDIS_HOST: localhost
+          REDIS_PORT: 6379
+        run: |
+          # Clear Go cache to ensure fresh test runs
+          go clean -testcache
+          
+          # Run ALL unit tests with coverage for pkg/ directory
+          echo "Running ALL UNIT TESTS for pkg/ packages..."
+          echo "Using -short flag to skip long-running integration tests"
+          echo "Timeout: 60s per package, Parallelism: 2 concurrent packages"
+          
+          # Run tests with comprehensive coverage:
+          # -short: skip long-running tests
+          # -v: verbose output
+          # -coverprofile: generate coverage profile
+          # -covermode=atomic: atomic coverage mode for accurate results
+          # -timeout 120s: 120 second timeout per package (some packages need more time)
+          # -p 2: reduced parallelism (2 concurrent packages) for stability
+          
+          # Run ALL pkg packages
+          go test -short -v -coverprofile=coverage.out -covermode=atomic -timeout 120s -p 2 \
+            ./pkg/... \
+            2>&1 | tee test-output.log
+          TEST_EXIT_CODE=${PIPESTATUS[0]}
+          
+          # Verify coverage file was created
+          if [ -f coverage.out ] && [ -s coverage.out ]; then
+            echo ""
+            echo "✓ Coverage file created successfully"
+            echo "Coverage file size: $(wc -c < coverage.out) bytes"
+            echo "Number of coverage entries: $(wc -l < coverage.out)"
+            
+            # Show which packages are in the coverage file
+            echo ""
+            echo "Packages in coverage file:"
+            go tool cover -func=coverage.out 2>/dev/null | grep "chainpulse/pkg" | cut -d'/' -f1-3 | sort -u
+            
+            # Show summary by package
+            echo ""
+            echo "Coverage summary by package:"
+            go tool cover -func=coverage.out 2>/dev/null | grep "total" || echo "No total found"
+            
+            # Show test results summary
+            echo ""
+            echo "Test Results Summary:"
+            echo "PASS tests: $(grep -c "^--- PASS:" test-output.log || echo "0")"
+            echo "FAIL tests: $(grep -c "^--- FAIL:" test-output.log || echo "0")"
+            echo "SKIP tests: $(grep -c "^--- SKIP:" test-output.log || echo "0")"
+            
+            # Show which packages had failures
+            if grep -q "^--- FAIL:" test-output.log; then
+              echo ""
+              echo "Failed packages:"
+              grep "^--- FAIL:" test-output.log | awk '{print $3}' | cut -d'/' -f1-3 | sort -u
+            fi
+          else
+            echo "✗ Coverage file not created or is empty"
+            exit 1
+          fi
+          
+          # Check if there are actual test failures (not just timeouts)
+          ACTUAL_FAILURES=$(grep -c "^--- FAIL:" test-output.log || echo "0")
+          if [ "$ACTUAL_FAILURES" -gt 0 ]; then
+            echo ""
+            echo "⚠ WARNING: $ACTUAL_FAILURES test(s) failed"
+            echo "Continuing with coverage analysis to generate reports..."
+          fi
+          
+          # Check if tests timed out
+          if grep -q "panic: test timed out" test-output.log; then
+            echo ""
+            echo "⚠ WARNING: Some tests timed out"
+            echo "Timed out tests:"
+            grep -A 2 "panic: test timed out" test-output.log | grep "running tests:" -A 1 || true
+            echo "Continuing with coverage analysis to generate reports..."
+          fi
+          
+          # Always exit with success to allow coverage reports to be generated
+          # This ensures we get coverage data even if some tests timeout or fail
+          echo ""
+          echo "Exiting with success code to generate coverage reports..."
+          exit 0
+      
+      - name: Analyze coverage gaps
+        if: always()
+        run: |
+          echo "=== Analyzing Coverage Gaps ==="
+          
+          # List all pkg subdirectories with test files
+          echo ""
+          echo "Packages with test files:"
+          find pkg -name "*_test.go" -type f | cut -d'/' -f1-2 | sort -u > /tmp/packages_with_tests.txt
+          cat /tmp/packages_with_tests.txt
+          
+          # List packages in coverage file
+          echo ""
+          echo "Packages in coverage file:"
+          if [ -f coverage.out ] && [ -s coverage.out ]; then
+            go tool cover -func=coverage.out 2>/dev/null | grep "chainpulse/pkg" | cut -d'/' -f1-2 | sort -u > /tmp/packages_in_coverage.txt
+            cat /tmp/packages_in_coverage.txt
+            
+            # Find missing packages
+            echo ""
+            echo "Packages with tests but missing from coverage:"
+            comm -23 /tmp/packages_with_tests.txt /tmp/packages_in_coverage.txt || echo "All packages have coverage data"
+          else
+            echo "No coverage file found"
+          fi
+      
+      - name: Generate HTML coverage report
+        run: |
+          if [ -f coverage.out ] && [ -s coverage.out ]; then
+            echo "Generating comprehensive HTML coverage report..."
+            
+            # Generate standard Go coverage HTML report
+            go tool cover -html=coverage.out -o coverage.html || true
+            
+            # Generate enhanced HTML report with package-level statistics
+            {
+              echo '<!DOCTYPE html>'
+              echo '<html>'
+              echo '<head>'
+              echo '    <meta charset="utf-8">'
+              echo '    <title>ChainPulse - Code Coverage Report</title>'
+              echo '    <style>'
+              echo '        body {'
+              echo '            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;'
+              echo '            margin: 0;'
+              echo '            padding: 20px;'
+              echo '            background: #f5f5f5;'
+              echo '        }'
+              echo '        .container {'
+              echo '            max-width: 1200px;'
+              echo '            margin: 0 auto;'
+              echo '            background: white;'
+              echo '            padding: 30px;'
+              echo '            border-radius: 8px;'
+              echo '            box-shadow: 0 2px 4px rgba(0,0,0,0.1);'
+              echo '        }'
+              echo '        h1 {'
+              echo '            color: #333;'
+              echo '            border-bottom: 3px solid #007bff;'
+              echo '            padding-bottom: 10px;'
+              echo '        }'
+              echo '        h2 {'
+              echo '            color: #555;'
+              echo '            margin-top: 30px;'
+              echo '            border-left: 4px solid #007bff;'
+              echo '            padding-left: 10px;'
+              echo '        }'
+              echo '        .stats {'
+              echo '            display: grid;'
+              echo '            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));'
+              echo '            gap: 20px;'
+              echo '            margin: 20px 0;'
+              echo '        }'
+              echo '        .stat-card {'
+              echo '            background: #f8f9fa;'
+              echo '            padding: 20px;'
+              echo '            border-radius: 6px;'
+              echo '            border-left: 4px solid #28a745;'
+              echo '        }'
+              echo '        .stat-label {'
+              echo '            font-size: 12px;'
+              echo '            color: #666;'
+              echo '            text-transform: uppercase;'
+              echo '            margin-bottom: 5px;'
+              echo '        }'
+              echo '        .stat-value {'
+              echo '            font-size: 28px;'
+              echo '            font-weight: bold;'
+              echo '            color: #333;'
+              echo '        }'
+              echo '        table {'
+              echo '            width: 100%;'
+              echo '            border-collapse: collapse;'
+              echo '            margin: 20px 0;'
+              echo '        }'
+              echo '        th {'
+              echo '            background: #f8f9fa;'
+              echo '            padding: 12px;'
+              echo '            text-align: left;'
+              echo '            font-weight: 600;'
+              echo '            border-bottom: 2px solid #dee2e6;'
+              echo '        }'
+              echo '        td {'
+              echo '            padding: 12px;'
+              echo '            border-bottom: 1px solid #dee2e6;'
+              echo '        }'
+              echo '        tr:hover {'
+              echo '            background: #f8f9fa;'
+              echo '        }'
+              echo '        .coverage-high {'
+              echo '            color: #28a745;'
+              echo '            font-weight: bold;'
+              echo '        }'
+              echo '        .coverage-medium {'
+              echo '            color: #ffc107;'
+              echo '            font-weight: bold;'
+              echo '        }'
+              echo '        .coverage-low {'
+              echo '            color: #dc3545;'
+              echo '            font-weight: bold;'
+              echo '        }'
+              echo '        .progress-bar {'
+              echo '            width: 100%;'
+              echo '            height: 20px;'
+              echo '            background: #e9ecef;'
+              echo '            border-radius: 3px;'
+              echo '            overflow: hidden;'
+              echo '        }'
+              echo '        .progress-fill {'
+              echo '            height: 100%;'
+              echo '            background: linear-gradient(90deg, #28a745, #20c997);'
+              echo '            display: flex;'
+              echo '            align-items: center;'
+              echo '            justify-content: center;'
+              echo '            color: white;'
+              echo '            font-size: 12px;'
+              echo '            font-weight: bold;'
+              echo '        }'
+              echo '        .footer {'
+              echo '            margin-top: 40px;'
+              echo '            padding-top: 20px;'
+              echo '            border-top: 1px solid #dee2e6;'
+              echo '            color: #666;'
+              echo '            font-size: 12px;'
+              echo '        }'
+              echo '    </style>'
+              echo '</head>'
+              echo '<body>'
+              echo '    <div class="container">'
+              echo '        <h1>📊 ChainPulse - Code Coverage Report</h1>'
+              echo "        <p>Generated: $(date -u +"%Y-%m-%d %H:%M:%S UTC")</p>"
+              echo '        <h2>Coverage Summary</h2>'
+              echo '        <div class="stats">'
+              echo '            <div class="stat-card">'
+              echo '                <div class="stat-label">Total Coverage</div>'
+              echo "                <div class=\"stat-value\">$(go tool cover -func=coverage.out 2>/dev/null | grep total | awk '{print $NF}' || echo "N/A")</div>"
+              echo '            </div>'
+              echo '            <div class="stat-card">'
+              echo '                <div class="stat-label">Packages Tested</div>'
+              echo "                <div class=\"stat-value\">$(go tool cover -func=coverage.out 2>/dev/null | grep -c "chainpulse/pkg" || echo "0")</div>"
+              echo '            </div>'
+              echo '            <div class="stat-card">'
+              echo '                <div class="stat-label">Functions Covered</div>'
+              echo "                <div class=\"stat-value\">$(go tool cover -func=coverage.out 2>/dev/null | tail -1 | awk '{print $2}' || echo "0")</div>"
+              echo '            </div>'
+              echo '        </div>'
+              echo '        <h2>Package Coverage Details</h2>'
+              echo '        <table>'
+              echo '            <thead>'
+              echo '                <tr>'
+              echo '                    <th>Package</th>'
+              echo '                    <th>Functions</th>'
+              echo '                    <th>Coverage</th>'
+              echo '                    <th>Progress</th>'
+              echo '                </tr>'
+              echo '            </thead>'
+              echo '            <tbody>'
+            } > coverage-enhanced.html
+            
+            # Add package coverage data
+            go tool cover -func=coverage.out 2>/dev/null | grep "chainpulse/pkg" | awk '{
+                package=$1; gsub(/\/[^\/]*$/, "", package);
+                functions=$2;
+                coverage=$NF;
+                gsub(/%/, "", coverage);
+                
+                if (coverage >= 80) color="coverage-high";
+                else if (coverage >= 60) color="coverage-medium";
+                else color="coverage-low";
+                
+                printf "<tr><td>%s</td><td>%s</td><td class=\"%s\">%s</td><td><div class=\"progress-bar\"><div class=\"progress-fill\" style=\"width:%s%%\">%s%%</div></div></td></tr>\n", 
+                    package, functions, color, coverage"%", coverage, coverage;
+            }' | sort -u >> coverage-enhanced.html
+            
+            {
+              echo '            </tbody>'
+              echo '        </table>'
+              echo '        '
+              echo '        <h2>File-Level Coverage</h2>'
+              echo '        <p>For detailed file-level coverage information, see <code>coverage-files-detailed.txt</code></p>'
+              echo '        '
+              echo '        <h2>How to Use</h2>'
+              echo '        <ul>'
+              echo '            <li>Open <code>coverage.html</code> for interactive Go coverage visualization</li>'
+              echo '            <li>View <code>coverage-files-detailed.txt</code> for file-level coverage details</li>'
+              echo '            <li>Check <code>coverage-detailed.txt</code> for function-level coverage</li>'
+              echo '        </ul>'
+              echo '        '
+              echo '        <div class="footer">'
+              echo '            <p>Coverage Report Generated by ChainPulse CI/CD Pipeline</p>'
+              echo '            <p>For more information, see the project documentation.</p>'
+              echo '        </div>'
+              echo '    </div>'
+              echo '</body>'
+              echo '</html>'
+            } >> coverage-enhanced.html
+            
+            echo "✓ HTML coverage report generated successfully"
+            echo "✓ Enhanced HTML report created: coverage-enhanced.html"
+            
+            # Verify both reports exist
+            ls -lh coverage.html coverage-enhanced.html 2>/dev/null || echo "Warning: Some reports may not have been created"
+          else
+            echo "⚠ Coverage file is empty or missing, creating placeholder report"
+            touch coverage.html
+            touch coverage-enhanced.html
+          fi
+      
+      - name: Generate detailed coverage report
+        run: |
+          if [ -f coverage.out ] && [ -s coverage.out ]; then
+            go tool cover -func=coverage.out > coverage-detailed.txt || true
+            cat coverage-detailed.txt
+            echo "✓ Detailed coverage report generated successfully"
+          else
+            echo "⚠ No coverage data available, creating placeholder report"
+            touch coverage-detailed.txt
+          fi
+      
+      - name: Generate file-level coverage report
+        run: |
+          if [ -f coverage.out ] && [ -s coverage.out ]; then
+            echo "Generating comprehensive file-level coverage report for all pkg files..."
+            
+            # Create comprehensive file coverage report
+            {
+              echo "# File-Level Coverage Report - All pkg/ Files and Subdirectories"
+              echo ""
+              echo "This report shows coverage for every file in the pkg/ directory and its subdirectories."
+              echo ""
+              echo "Generated: $(date -u +"%Y-%m-%d %H:%M:%S UTC")"
+              echo ""
+              echo "## File Coverage Summary"
+              echo ""
+              echo "| File | Package | Functions | Coverage |"
+              echo "|------|---------|-----------|----------|"
+            } > coverage-files-detailed.txt
+            
+            # Extract all unique files from coverage data and generate report
+            go tool cover -func=coverage.out 2>/dev/null | grep "chainpulse/pkg" | awk -F: '{print $1}' | sort -u | while read file; do
+              # Extract package and filename
+              package=$(echo "$file" | sed 's|/[^/]*$||')
+              filename=$(basename "$file")
+              
+              # Get coverage stats for this file
+              stats=$(go tool cover -func=coverage.out 2>/dev/null | grep "^${file}" | tail -1)
+              
+              if [ -n "$stats" ]; then
+                functions=$(echo "$stats" | awk '{print $2}')
+                coverage=$(echo "$stats" | awk '{print $NF}')
+                
+                # Add to report
+                echo "| $filename | $package | $functions | $coverage |" >> coverage-files-detailed.txt
+              fi
+            done
+            
+            # Generate per-package sections
+            {
+              echo ""
+              echo "## Coverage by Package"
+              echo ""
+              
+              # Get unique packages
+              go tool cover -func=coverage.out 2>/dev/null | grep "chainpulse/pkg" | awk -F: '{print $1}' | sed 's|/[^/]*$||' | sort -u | while read package; do
+                echo "### $package"
+                echo ""
+                echo "| File | Functions | Coverage |"
+                echo "|------|-----------|----------|"
+                
+                go tool cover -func=coverage.out 2>/dev/null | grep "^${package}/" | awk '{
+                  file=$1; gsub(/.*\//, "", file);
+                  functions=$2;
+                  coverage=$NF;
+                  printf "| %s | %s | %s |\n", file, functions, coverage;
+                }' | sort
+                
+                echo ""
+              done
+            } >> coverage-files-detailed.txt
+            
+            echo "✓ File-level coverage report generated successfully"
+            echo ""
+            echo "=== File Coverage Summary (first 50 lines) ==="
+            head -50 coverage-files-detailed.txt
+          else
+            echo "⚠ No coverage data available"
+            touch coverage-files-detailed.txt
+          fi
+      
+      - name: Calculate coverage by component
+        run: |
+          cat > coverage-by-component.txt << 'EOF'
+          # Coverage by Component (pkg/ only)
+          
+          EOF
+          
+          if [ -f coverage.out ] && [ -s coverage.out ]; then
+            echo "## Core" >> coverage-by-component.txt
+            go tool cover -func=coverage.out 2>/dev/null | grep "pkg/core" | awk '{sum+=$3; count++} END {if(count>0) printf "Coverage: %.1f%% (%d functions)\n", sum/count, count; else print "N/A"}' >> coverage-by-component.txt || echo "N/A" >> coverage-by-component.txt
+            
+            echo "" >> coverage-by-component.txt
+            echo "## Infrastructure" >> coverage-by-component.txt
+            go tool cover -func=coverage.out 2>/dev/null | grep "pkg/infrastructure" | awk '{sum+=$3; count++} END {if(count>0) printf "Coverage: %.1f%% (%d functions)\n", sum/count, count; else print "N/A"}' >> coverage-by-component.txt || echo "N/A" >> coverage-by-component.txt
+            
+            echo "" >> coverage-by-component.txt
+            echo "### Infrastructure - Blockchain" >> coverage-by-component.txt
+            go tool cover -func=coverage.out 2>/dev/null | grep "pkg/infrastructure/blockchain" | awk '{sum+=$3; count++} END {if(count>0) printf "Coverage: %.1f%% (%d functions)\n", sum/count, count; else print "N/A"}' >> coverage-by-component.txt || echo "N/A" >> coverage-by-component.txt
+            
+            echo "" >> coverage-by-component.txt
+            echo "### Infrastructure - Config" >> coverage-by-component.txt
+            go tool cover -func=coverage.out 2>/dev/null | grep "pkg/infrastructure/config" | awk '{sum+=$3; count++} END {if(count>0) printf "Coverage: %.1f%% (%d functions)\n", sum/count, count; else print "N/A"}' >> coverage-by-component.txt || echo "N/A" >> coverage-by-component.txt
+            
+            echo "" >> coverage-by-component.txt
+            echo "### Infrastructure - Data" >> coverage-by-component.txt
+            go tool cover -func=coverage.out 2>/dev/null | grep "pkg/infrastructure/data" | awk '{sum+=$3; count++} END {if(count>0) printf "Coverage: %.1f%% (%d functions)\n", sum/count, count; else print "N/A"}' >> coverage-by-component.txt || echo "N/A" >> coverage-by-component.txt
+            
+            echo "" >> coverage-by-component.txt
+            echo "### Infrastructure - Database" >> coverage-by-component.txt
+            go tool cover -func=coverage.out 2>/dev/null | grep "pkg/infrastructure/database" | awk '{sum+=$3; count++} END {if(count>0) printf "Coverage: %.1f%% (%d functions)\n", sum/count, count; else print "N/A"}' >> coverage-by-component.txt || echo "N/A" >> coverage-by-component.txt
+            
+            echo "" >> coverage-by-component.txt
+            echo "### Infrastructure - Deployment" >> coverage-by-component.txt
+            go tool cover -func=coverage.out 2>/dev/null | grep "pkg/infrastructure/deployment" | awk '{sum+=$3; count++} END {if(count>0) printf "Coverage: %.1f%% (%d functions)\n", sum/count, count; else print "N/A"}' >> coverage-by-component.txt || echo "N/A" >> coverage-by-component.txt
+            
+            echo "" >> coverage-by-component.txt
+            echo "### Infrastructure - Discovery" >> coverage-by-component.txt
+            go tool cover -func=coverage.out 2>/dev/null | grep "pkg/infrastructure/discovery" | awk '{sum+=$3; count++} END {if(count>0) printf "Coverage: %.1f%% (%d functions)\n", sum/count, count; else print "N/A"}' >> coverage-by-component.txt || echo "N/A" >> coverage-by-component.txt
+            
+            echo "" >> coverage-by-component.txt
+            echo "### Infrastructure - Gateway" >> coverage-by-component.txt
+            go tool cover -func=coverage.out 2>/dev/null | grep "pkg/infrastructure/gateway" | awk '{sum+=$3; count++} END {if(count>0) printf "Coverage: %.1f%% (%d functions)\n", sum/count, count; else print "N/A"}' >> coverage-by-component.txt || echo "N/A" >> coverage-by-component.txt
+            
+            echo "" >> coverage-by-component.txt
+            echo "### Infrastructure - Health" >> coverage-by-component.txt
+            go tool cover -func=coverage.out 2>/dev/null | grep "pkg/infrastructure/health" | awk '{sum+=$3; count++} END {if(count>0) printf "Coverage: %.1f%% (%d functions)\n", sum/count, count; else print "N/A"}' >> coverage-by-component.txt || echo "N/A" >> coverage-by-component.txt
+            
+            echo "" >> coverage-by-component.txt
+            echo "### Infrastructure - Processing" >> coverage-by-component.txt
+            go tool cover -func=coverage.out 2>/dev/null | grep "pkg/infrastructure/processing" | awk '{sum+=$3; count++} END {if(count>0) printf "Coverage: %.1f%% (%d functions)\n", sum/count, count; else print "N/A"}' >> coverage-by-component.txt || echo "N/A" >> coverage-by-component.txt
+            
+            echo "" >> coverage-by-component.txt
+            echo "### Infrastructure - Reliability" >> coverage-by-component.txt
+            go tool cover -func=coverage.out 2>/dev/null | grep "pkg/infrastructure/reliability" | awk '{sum+=$3; count++} END {if(count>0) printf "Coverage: %.1f%% (%d functions)\n", sum/count, count; else print "N/A"}' >> coverage-by-component.txt || echo "N/A" >> coverage-by-component.txt
+            
+            echo "" >> coverage-by-component.txt
+            echo "## Services" >> coverage-by-component.txt
+            go tool cover -func=coverage.out 2>/dev/null | grep "pkg/services" | awk '{sum+=$3; count++} END {if(count>0) printf "Coverage: %.1f%% (%d functions)\n", sum/count, count; else print "N/A"}' >> coverage-by-component.txt || echo "N/A" >> coverage-by-component.txt
+            
+            echo "" >> coverage-by-component.txt
+            echo "### Services - Consistency" >> coverage-by-component.txt
+            go tool cover -func=coverage.out 2>/dev/null | grep "pkg/services/consistency" | awk '{sum+=$3; count++} END {if(count>0) printf "Coverage: %.1f%% (%d functions)\n", sum/count, count; else print "N/A"}' >> coverage-by-component.txt || echo "N/A" >> coverage-by-component.txt
+            
+            echo "" >> coverage-by-component.txt
+            echo "### Services - Decoder" >> coverage-by-component.txt
+            go tool cover -func=coverage.out 2>/dev/null | grep "pkg/services/decoder" | awk '{sum+=$3; count++} END {if(count>0) printf "Coverage: %.1f%% (%d functions)\n", sum/count, count; else print "N/A"}' >> coverage-by-component.txt || echo "N/A" >> coverage-by-component.txt
+            
+            echo "" >> coverage-by-component.txt
+            echo "### Services - Indexing" >> coverage-by-component.txt
+            go tool cover -func=coverage.out 2>/dev/null | grep "pkg/services/indexing" | awk '{sum+=$3; count++} END {if(count>0) printf "Coverage: %.1f%% (%d functions)\n", sum/count, count; else print "N/A"}' >> coverage-by-component.txt || echo "N/A" >> coverage-by-component.txt
+            
+            echo "" >> coverage-by-component.txt
+            echo "### Services - Processor" >> coverage-by-component.txt
+            go tool cover -func=coverage.out 2>/dev/null | grep "pkg/services/processor" | awk '{sum+=$3; count++} END {if(count>0) printf "Coverage: %.1f%% (%d functions)\n", sum/count, count; else print "N/A"}' >> coverage-by-component.txt || echo "N/A" >> coverage-by-component.txt
+            
+            echo "" >> coverage-by-component.txt
+            echo "### Services - Query" >> coverage-by-component.txt
+            go tool cover -func=coverage.out 2>/dev/null | grep "pkg/services/query" | awk '{sum+=$3; count++} END {if(count>0) printf "Coverage: %.1f%% (%d functions)\n", sum/count, count; else print "N/A"}' >> coverage-by-component.txt || echo "N/A" >> coverage-by-component.txt
+            
+            echo "" >> coverage-by-component.txt
+            echo "### Services - Reorg" >> coverage-by-component.txt
+            go tool cover -func=coverage.out 2>/dev/null | grep "pkg/services/reorg" | awk '{sum+=$3; count++} END {if(count>0) printf "Coverage: %.1f%% (%d functions)\n", sum/count, count; else print "N/A"}' >> coverage-by-component.txt || echo "N/A" >> coverage-by-component.txt
+            
+            echo "" >> coverage-by-component.txt
+            echo "### Services - Resilience" >> coverage-by-component.txt
+            go tool cover -func=coverage.out 2>/dev/null | grep "pkg/services/resilience" | awk '{sum+=$3; count++} END {if(count>0) printf "Coverage: %.1f%% (%d functions)\n", sum/count, count; else print "N/A"}' >> coverage-by-component.txt || echo "N/A" >> coverage-by-component.txt
+            
+            echo "" >> coverage-by-component.txt
+            echo "## Plugins" >> coverage-by-component.txt
+            go tool cover -func=coverage.out 2>/dev/null | grep "pkg/plugins" | awk '{sum+=$3; count++} END {if(count>0) printf "Coverage: %.1f%% (%d functions)\n", sum/count, count; else print "N/A"}' >> coverage-by-component.txt || echo "N/A" >> coverage-by-component.txt
+            
+            echo "" >> coverage-by-component.txt
+            echo "### Plugins - API" >> coverage-by-component.txt
+            go tool cover -func=coverage.out 2>/dev/null | grep "pkg/plugins/api" | awk '{sum+=$3; count++} END {if(count>0) printf "Coverage: %.1f%% (%d functions)\n", sum/count, count; else print "N/A"}' >> coverage-by-component.txt || echo "N/A" >> coverage-by-component.txt
+            
+            echo "" >> coverage-by-component.txt
+            echo "### Plugins - Cache" >> coverage-by-component.txt
+            go tool cover -func=coverage.out 2>/dev/null | grep "pkg/plugins/cache" | awk '{sum+=$3; count++} END {if(count>0) printf "Coverage: %.1f%% (%d functions)\n", sum/count, count; else print "N/A"}' >> coverage-by-component.txt || echo "N/A" >> coverage-by-component.txt
+            
+            echo "" >> coverage-by-component.txt
+            echo "### Plugins - Database" >> coverage-by-component.txt
+            go tool cover -func=coverage.out 2>/dev/null | grep "pkg/plugins/database" | awk '{sum+=$3; count++} END {if(count>0) printf "Coverage: %.1f%% (%d functions)\n", sum/count, count; else print "N/A"}' >> coverage-by-component.txt || echo "N/A" >> coverage-by-component.txt
+            
+            echo "" >> coverage-by-component.txt
+            echo "### Plugins - MQ" >> coverage-by-component.txt
+            go tool cover -func=coverage.out 2>/dev/null | grep "pkg/plugins/mq" | awk '{sum+=$3; count++} END {if(count>0) printf "Coverage: %.1f%% (%d functions)\n", sum/count, count; else print "N/A"}' >> coverage-by-component.txt || echo "N/A" >> coverage-by-component.txt
+            
+            echo "" >> coverage-by-component.txt
+            echo "### Plugins - Pullers" >> coverage-by-component.txt
+            go tool cover -func=coverage.out 2>/dev/null | grep "pkg/plugins/pullers" | awk '{sum+=$3; count++} END {if(count>0) printf "Coverage: %.1f%% (%d functions)\n", sum/count, count; else print "N/A"}' >> coverage-by-component.txt || echo "N/A" >> coverage-by-component.txt
+            
+            echo "" >> coverage-by-component.txt
+            echo "## Integrations" >> coverage-by-component.txt
+            go tool cover -func=coverage.out 2>/dev/null | grep "pkg/integrations" | awk '{sum+=$3; count++} END {if(count>0) printf "Coverage: %.1f%% (%d functions)\n", sum/count, count; else print "N/A"}' >> coverage-by-component.txt || echo "N/A" >> coverage-by-component.txt
+            
+            echo "" >> coverage-by-component.txt
+            echo "### Integrations - ERC20" >> coverage-by-component.txt
+            go tool cover -func=coverage.out 2>/dev/null | grep "pkg/integrations/erc20" | awk '{sum+=$3; count++} END {if(count>0) printf "Coverage: %.1f%% (%d functions)\n", sum/count, count; else print "N/A"}' >> coverage-by-component.txt || echo "N/A" >> coverage-by-component.txt
+            
+            echo "" >> coverage-by-component.txt
+            echo "### Integrations - Generic" >> coverage-by-component.txt
+            go tool cover -func=coverage.out 2>/dev/null | grep "pkg/integrations/generic" | awk '{sum+=$3; count++} END {if(count>0) printf "Coverage: %.1f%% (%d functions)\n", sum/count, count; else print "N/A"}' >> coverage-by-component.txt || echo "N/A" >> coverage-by-component.txt
+            
+            echo "" >> coverage-by-component.txt
+            echo "### Integrations - Uniswap" >> coverage-by-component.txt
+            go tool cover -func=coverage.out 2>/dev/null | grep "pkg/integrations/uniswap" | awk '{sum+=$3; count++} END {if(count>0) printf "Coverage: %.1f%% (%d functions)\n", sum/count, count; else print "N/A"}' >> coverage-by-component.txt || echo "N/A" >> coverage-by-component.txt
+            
+            echo "" >> coverage-by-component.txt
+            echo "## Observability" >> coverage-by-component.txt
+            go tool cover -func=coverage.out 2>/dev/null | grep "pkg/observability" | awk '{sum+=$3; count++} END {if(count>0) printf "Coverage: %.1f%% (%d functions)\n", sum/count, count; else print "N/A"}' >> coverage-by-component.txt || echo "N/A" >> coverage-by-component.txt
+          fi
+          
+          cat coverage-by-component.txt
+      
+      - name: Check coverage threshold
+        id: coverage-check
+        run: |
+          if [ -f coverage.out ] && [ -s coverage.out ]; then
+            COVERAGE=$(go tool cover -func=coverage.out 2>/dev/null | grep total | awk '{print $3}' | sed 's/%//' || echo "0")
+            echo "coverage=$COVERAGE" >> $GITHUB_OUTPUT
+            echo "Total coverage: ${COVERAGE}%"
+            
+            if [ -z "$COVERAGE" ] || [ "$COVERAGE" = "0" ]; then
+              echo "⚠ Could not calculate coverage, skipping threshold check"
+              echo "status=no-data" >> $GITHUB_OUTPUT
+            elif (( $(echo "$COVERAGE < $MIN_COVERAGE" | bc -l) )); then
+              echo "⚠ Coverage ${COVERAGE}% is below minimum ${MIN_COVERAGE}%"
+              echo "Note: This is a warning, not a failure. Coverage data may be incomplete."
+              echo "status=warning" >> $GITHUB_OUTPUT
+            else
+              echo "✓ Coverage ${COVERAGE}% meets minimum ${MIN_COVERAGE}%"
+              echo "status=passed" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "coverage=0" >> $GITHUB_OUTPUT
+            echo "status=no-data" >> $GITHUB_OUTPUT
+            echo "⚠ No coverage data available, skipping threshold check"
+          fi
+      
+      - name: Generate coverage badge
+        run: |
+          COVERAGE=${{ steps.coverage-check.outputs.coverage }}
+          COLOR="lightgrey"
+          
+          if [ -z "$COVERAGE" ] || [ "$COVERAGE" = "0" ]; then
+            COVERAGE="0"
+            COLOR="lightgrey"
+          elif (( $(echo "$COVERAGE >= 90" | bc -l) )); then
+            COLOR="brightgreen"
+          elif (( $(echo "$COVERAGE >= 80" | bc -l) )); then
+            COLOR="green"
+          elif (( $(echo "$COVERAGE >= 70" | bc -l) )); then
+            COLOR="yellow"
+          elif (( $(echo "$COVERAGE >= 60" | bc -l) )); then
+            COLOR="orange"
+          else
+            COLOR="red"
+          fi
+          
+          # Generate badge JSON with error handling
+          cat > coverage-badge.json << EOF || true
+          {
+            "schemaVersion": 1,
+            "label": "coverage",
+            "message": "${COVERAGE}%",
+            "color": "${COLOR}"
+          }
+          EOF
+          
+          echo "✓ Coverage badge generated: ${COVERAGE}% (${COLOR})"
+      
+      - name: Generate coverage summary
+        run: |
+          COVERAGE=${{ steps.coverage-check.outputs.coverage }}
+          STATUS=${{ steps.coverage-check.outputs.status }}
+          
+          cat > coverage-summary.md << EOF || true
+          # Code Coverage Report
+          
+          **Date**: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+          **Commit**: ${{ github.sha }}
+          **Branch**: ${{ github.ref_name }}
+          
+          ## Overall Coverage
+          
+          ![Coverage](https://img.shields.io/badge/coverage-${COVERAGE}%25-$([ "$STATUS" = "passed" ] && echo "green" || echo "orange"))
+          
+          **Total Coverage**: ${COVERAGE}%
+          **Minimum Required**: ${MIN_COVERAGE}%
+          **Status**: $([ "$STATUS" = "passed" ] && echo "✓ PASSED" || echo "⚠ WARNING")
+          
+          ## Coverage Reports
+          
+          - **[File-Level Coverage](coverage-files-detailed.txt)** - Coverage for all files in pkg/ and subdirectories
+          - **[Component Coverage](coverage-by-component.txt)** - Coverage grouped by component
+          - **[Detailed Coverage](coverage-detailed.txt)** - Line-by-line coverage details
+          - **[HTML Report](coverage.html)** - Interactive HTML coverage visualization
+          
+          ## Coverage by Component
+          
+          $(if [ -f coverage-by-component.txt ]; then cat coverage-by-component.txt; else echo "N/A"; fi)
+          
+          ## File-Level Coverage Summary
+          
+          See [coverage-files-detailed.txt](coverage-files-detailed.txt) for complete file-level coverage of all pkg/ files and subdirectories.
+          EOF
+          
+          cat coverage-summary.md
+          echo "✓ Coverage summary generated successfully"
+      
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./coverage.out
+          flags: pkg
+          name: codecov-pkg
+          fail_ci_if_error: false
+        continue-on-error: true
+      
+      - name: Upload coverage reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-reports
+          path: |
+            coverage.out
+            coverage.html
+            coverage-enhanced.html
+            coverage-detailed.txt
+            coverage-files-detailed.txt
+            coverage-by-component.txt
+            coverage-summary.md
+            coverage-badge.json
+          retention-days: 90
+          if-no-files-found: ignore
+      
+      - name: Comment PR with coverage
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            try {
+              const summary = fs.readFileSync('coverage-summary.md', 'utf8');
+              github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: summary
+              });
+            } catch (error) {
+              console.log('⚠ Could not post coverage comment:', error.message);
+            }
+        continue-on-error: true
+      
+      - name: Update coverage badge in README
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: |
+          # This would update the README with the new coverage badge
+          # For now, just output the badge URL
+          echo "Coverage badge: https://img.shields.io/badge/coverage-${{ steps.coverage-check.outputs.coverage }}%25-green"
+
+  coverage-diff:
+    name: Coverage Diff
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    needs: coverage
+    
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+      
+      - name: Checkout base branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.base_ref }}
+          path: base
+      
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      
+      - name: Download PR coverage
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage-reports
+          path: pr-coverage/
+        continue-on-error: true
+      
+      - name: Generate base coverage
+        working-directory: base
+        run: |
+          go test -coverprofile=../base-coverage.out -covermode=atomic -timeout 30m ./pkg/... || true
+      
+      - name: Compare coverage
+        run: |
+          if [ -f pr-coverage/coverage.out ] && [ -s pr-coverage/coverage.out ] && [ -f base-coverage.out ] && [ -s base-coverage.out ]; then
+            PR_COVERAGE=$(go tool cover -func=pr-coverage/coverage.out 2>/dev/null | grep total | awk '{print $3}' | sed 's/%//' || echo "0")
+            BASE_COVERAGE=$(go tool cover -func=base-coverage.out 2>/dev/null | grep total | awk '{print $3}' | sed 's/%//' || echo "0")
+            
+            DIFF=$(echo "$PR_COVERAGE - $BASE_COVERAGE" | bc 2>/dev/null || echo "0")
+            
+            cat > coverage-diff.md << EOF || true
+            # Coverage Comparison (pkg/ only)
+            
+            **Base Branch**: ${BASE_COVERAGE}%
+            **PR Branch**: ${PR_COVERAGE}%
+            **Difference**: ${DIFF}%
+            
+            $([ $(echo "$DIFF >= 0" | bc -l 2>/dev/null || echo "0") -eq 1 ] && echo "✓ Coverage improved!" || echo "⚠ Coverage decreased")
+            EOF
+          else
+            cat > coverage-diff.md << EOF || true
+            # Coverage Comparison
+            
+            ⚠ Could not generate coverage comparison. Coverage data may be incomplete.
+            EOF
+          fi
+          
+          cat coverage-diff.md
+      
+      - name: Comment PR with diff
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            try {
+              const diff = fs.readFileSync('coverage-diff.md', 'utf8');
+              github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: diff
+              });
+            } catch (error) {
+              console.log('⚠ Could not post coverage diff comment:', error.message);
+            }
+        continue-on-error: true

@@ -1,0 +1,94 @@
+syntax = "proto3";
+
+package chainpulse;
+
+option go_package = "chainpulse/pkg/plugins/api/proto;pb";
+
+// ============================================================================
+// Core Data Models
+// ============================================================================
+
+// Event represents a blockchain event
+message Event {
+  string id = 1;
+  string blockchain = 2;
+  string contract_address = 3;
+  string event_name = 4;
+  int64 block_number = 5;
+  string transaction_hash = 6;
+  string log_index = 7;
+  string data = 8;
+  int64 timestamp = 9;
+}
+
+// Token represents a blockchain token
+message Token {
+  string address = 1;
+  string name = 2;
+  string symbol = 3;
+  int32 decimals = 4;
+  string total_supply = 5;
+}
+
+// Balance represents a token balance for an account
+message Balance {
+  string token_address = 1;
+  string account_address = 2;
+  string balance = 3;
+}
+
+// ============================================================================
+// Request/Response Messages
+// ============================================================================
+
+// GetEventRequest requests a single event by ID
+message GetEventRequest {
+  string event_id = 1;
+}
+
+// ListEventsRequest requests a list of events with pagination
+message ListEventsRequest {
+  int32 limit = 1;
+  int32 offset = 2;
+  string blockchain = 3;
+}
+
+// GetTokenBalanceRequest requests a token balance
+message GetTokenBalanceRequest {
+  string token_address = 1;
+  string account_address = 2;
+}
+
+// SubscribeRequest requests to subscribe to events
+message SubscribeRequest {
+  string blockchain = 1;
+  string contract_address = 2;
+  string event_name = 3;
+}
+
+// HealthCheckRequest is an empty request for health check
+message HealthCheckRequest {}
+
+// HealthCheckResponse contains health status
+message HealthCheckResponse {
+  string status = 1;
+  string message = 2;
+}
+
+// ChainPulseAPI service provides access to blockchain data
+service ChainPulseAPI {
+  // GetEvent returns a single event by ID
+  rpc GetEvent(GetEventRequest) returns (Event);
+  
+  // ListEvents returns a list of events (server streaming)
+  rpc ListEvents(ListEventsRequest) returns (stream Event);
+  
+  // GetTokenBalance returns the balance of a token for an account
+  rpc GetTokenBalance(GetTokenBalanceRequest) returns (Balance);
+  
+  // SubscribeEvents subscribes to events (server streaming)
+  rpc SubscribeEvents(SubscribeRequest) returns (stream Event);
+  
+  // HealthCheck returns the health status of the service
+  rpc HealthCheck(HealthCheckRequest) returns (HealthCheckResponse);
+}

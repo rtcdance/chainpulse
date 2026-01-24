@@ -1,0 +1,38 @@
+# Binaries
+bin/
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Test coverage
+*.out
+coverage/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Environment
+.env
+.env.local
+
+# Dependencies
+vendor/
+
+# Build artifacts
+dist/
+build/
+
+# Temporary files
+*.tmp
+*.temp
+*.log
+
+# OS
+.DS_Store
+Thumbs.db

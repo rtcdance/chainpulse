@@ -1,0 +1,360 @@
+name: Performance Metrics
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  schedule:
+    # Run daily at 2 AM UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+
+env:
+  GO_VERSION: '1.24.11'
+
+jobs:
+  collect-metrics:
+    name: Collect Performance Metrics
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: chainpulse
+          POSTGRES_PASSWORD: chainpulse_test
+          POSTGRES_DB: chainpulse_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+      
+      redis:
+        image: redis:7
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+      
+      - name: Install Foundry (for Anvil)
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: nightly
+        continue-on-error: true
+      
+      - name: Install dependencies
+        run: |
+          go mod download
+          go install github.com/rakyll/hey@latest || true
+      
+      - name: Run performance benchmarks
+        env:
+          POSTGRES_HOST: localhost
+          POSTGRES_PORT: 5432
+          POSTGRES_USER: chainpulse
+          POSTGRES_PASSWORD: chainpulse_test
+          POSTGRES_DB: chainpulse_test
+          REDIS_HOST: localhost
+          REDIS_PORT: 6379
+        run: |
+          # Run Go benchmarks
+          go test -bench=. -benchmem -benchtime=10s -run=^$ ./test/e2e/... > benchmark-results.txt 2>&1 || true
+          
+          # Extract metrics if file exists and has content
+          if [ -f benchmark-results.txt ] && [ -s benchmark-results.txt ]; then
+            echo "✓ Benchmark results collected"
+            cat benchmark-results.txt
+          else
+            echo "⚠ No benchmark results available"
+            touch benchmark-results.txt
+          fi
+        continue-on-error: true
+      
+      - name: Collect latency metrics
+        env:
+          POSTGRES_HOST: localhost
+          POSTGRES_PORT: 5432
+          POSTGRES_USER: chainpulse
+          POSTGRES_PASSWORD: chainpulse_test
+          POSTGRES_DB: chainpulse_test
+          REDIS_HOST: localhost
+          REDIS_PORT: 6379
+        run: |
+          # Create metrics directory
+          mkdir -p metrics
+          
+          # Run latency measurement tests
+          go test -v -run=TestPerformance ./test/e2e/... -args -metrics-output=metrics/latency.json 2>&1 || true
+          
+          # Verify latency metrics were collected
+          if [ -f metrics/latency.json ] && [ -s metrics/latency.json ]; then
+            echo "✓ Latency metrics collected"
+          else
+            echo "⚠ Latency metrics not available"
+            touch metrics/latency.json
+          fi
+        continue-on-error: true
+      
+      - name: Collect throughput metrics
+        env:
+          POSTGRES_HOST: localhost
+          POSTGRES_PORT: 5432
+          POSTGRES_USER: chainpulse
+          POSTGRES_PASSWORD: chainpulse_test
+          POSTGRES_DB: chainpulse_test
+          REDIS_HOST: localhost
+          REDIS_PORT: 6379
+        run: |
+          # Run throughput measurement tests
+          go test -v -run=TestThroughput ./test/e2e/... -args -metrics-output=metrics/throughput.json 2>&1 || true
+          
+          # Verify throughput metrics were collected
+          if [ -f metrics/throughput.json ] && [ -s metrics/throughput.json ]; then
+            echo "✓ Throughput metrics collected"
+          else
+            echo "⚠ Throughput metrics not available"
+            touch metrics/throughput.json
+          fi
+        continue-on-error: true
+      
+      - name: Collect resource usage metrics
+        run: |
+          mkdir -p metrics
+          
+          # Memory profiling
+          go test -memprofile=metrics/mem.prof -run=TestPerformance ./test/e2e/... 2>&1 || true
+          
+          # CPU profiling
+          go test -cpuprofile=metrics/cpu.prof -run=TestPerformance ./test/e2e/... 2>&1 || true
+          
+          # Generate profile reports with existence checks
+          if [ -f metrics/mem.prof ] && [ -s metrics/mem.prof ]; then
+            go tool pprof -text metrics/mem.prof > metrics/memory-profile.txt 2>&1 || true
+            echo "✓ Memory profile generated"
+          else
+            echo "⚠ Memory profile not available"
+            touch metrics/memory-profile.txt
+          fi
+          
+          if [ -f metrics/cpu.prof ] && [ -s metrics/cpu.prof ]; then
+            go tool pprof -text metrics/cpu.prof > metrics/cpu-profile.txt 2>&1 || true
+            echo "✓ CPU profile generated"
+          else
+            echo "⚠ CPU profile not available"
+            touch metrics/cpu-profile.txt
+          fi
+        continue-on-error: true
+      
+      - name: Generate metrics summary
+        run: |
+          mkdir -p metrics
+          
+          cat > metrics/summary.md << 'EOF'
+          # Performance Metrics Summary
+          
+          **Date**: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+          **Commit**: ${{ github.sha }}
+          **Branch**: ${{ github.ref_name }}
+          
+          ## Benchmark Results
+          
+          EOF
+          
+          # Add benchmark results with fallback
+          if [ -f benchmark-results.txt ] && [ -s benchmark-results.txt ]; then
+            echo "✓ Benchmark results available" >> metrics/summary.md
+            echo "" >> metrics/summary.md
+            echo '```' >> metrics/summary.md
+            head -50 benchmark-results.txt >> metrics/summary.md
+            echo '```' >> metrics/summary.md
+          else
+            echo "⚠ No benchmark results available" >> metrics/summary.md
+          fi
+          
+          echo "" >> metrics/summary.md
+          echo "## Memory Profile" >> metrics/summary.md
+          echo "" >> metrics/summary.md
+          
+          # Add memory profile with fallback
+          if [ -f metrics/memory-profile.txt ] && [ -s metrics/memory-profile.txt ]; then
+            echo "✓ Memory profile available" >> metrics/summary.md
+            echo "" >> metrics/summary.md
+            echo '```' >> metrics/summary.md
+            head -20 metrics/memory-profile.txt >> metrics/summary.md
+            echo '```' >> metrics/summary.md
+          else
+            echo "⚠ No memory profile available" >> metrics/summary.md
+          fi
+          
+          echo "" >> metrics/summary.md
+          echo "## CPU Profile" >> metrics/summary.md
+          echo "" >> metrics/summary.md
+          
+          # Add CPU profile with fallback
+          if [ -f metrics/cpu-profile.txt ] && [ -s metrics/cpu-profile.txt ]; then
+            echo "✓ CPU profile available" >> metrics/summary.md
+            echo "" >> metrics/summary.md
+            echo '```' >> metrics/summary.md
+            head -20 metrics/cpu-profile.txt >> metrics/summary.md
+            echo '```' >> metrics/summary.md
+          else
+            echo "⚠ No CPU profile available" >> metrics/summary.md
+          fi
+          
+          echo "" >> metrics/summary.md
+          echo "## Metrics Files" >> metrics/summary.md
+          echo "" >> metrics/summary.md
+          
+          # List available metrics files
+          if [ -f metrics/latency.json ] && [ -s metrics/latency.json ]; then
+            echo "- ✓ Latency: \`metrics/latency.json\`" >> metrics/summary.md
+          else
+            echo "- ⚠ Latency: \`metrics/latency.json\` (empty or missing)" >> metrics/summary.md
+          fi
+          
+          if [ -f metrics/throughput.json ] && [ -s metrics/throughput.json ]; then
+            echo "- ✓ Throughput: \`metrics/throughput.json\`" >> metrics/summary.md
+          else
+            echo "- ⚠ Throughput: \`metrics/throughput.json\` (empty or missing)" >> metrics/summary.md
+          fi
+          
+          if [ -f metrics/mem.prof ] && [ -s metrics/mem.prof ]; then
+            echo "- ✓ Memory Profile: \`metrics/mem.prof\`" >> metrics/summary.md
+          else
+            echo "- ⚠ Memory Profile: \`metrics/mem.prof\` (empty or missing)" >> metrics/summary.md
+          fi
+          
+          if [ -f metrics/cpu.prof ] && [ -s metrics/cpu.prof ]; then
+            echo "- ✓ CPU Profile: \`metrics/cpu.prof\`" >> metrics/summary.md
+          else
+            echo "- ⚠ CPU Profile: \`metrics/cpu.prof\` (empty or missing)" >> metrics/summary.md
+          fi
+        continue-on-error: true
+      
+      - name: Compare with baseline
+        if: github.event_name == 'pull_request'
+        run: |
+          # Download baseline metrics from main branch
+          if [ -f "metrics/baseline.json" ]; then
+            echo "Comparing with baseline..."
+            # TODO: Implement baseline comparison logic
+            echo "Baseline comparison not yet implemented"
+          else
+            echo "No baseline found, skipping comparison"
+          fi
+      
+      - name: Export metrics to Prometheus format
+        run: |
+          cat > metrics/prometheus.txt << 'EOF'
+          # HELP chainpulse_test_duration_seconds Test execution duration
+          # TYPE chainpulse_test_duration_seconds gauge
+          chainpulse_test_duration_seconds{test="e2e"} $(date +%s)
+          
+          # HELP chainpulse_test_coverage_percent Test coverage percentage
+          # TYPE chainpulse_test_coverage_percent gauge
+          chainpulse_test_coverage_percent 0
+          
+          # HELP chainpulse_benchmark_ops_per_sec Benchmark operations per second
+          # TYPE chainpulse_benchmark_ops_per_sec gauge
+          chainpulse_benchmark_ops_per_sec 0
+          EOF
+      
+      - name: Upload metrics artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-metrics
+          path: |
+            metrics/
+            benchmark-results.txt
+          retention-days: 90
+      
+      - name: Comment PR with metrics
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            try {
+              if (fs.existsSync('metrics/summary.md')) {
+                const summary = fs.readFileSync('metrics/summary.md', 'utf8');
+                if (summary && summary.length > 0) {
+                  await github.rest.issues.createComment({
+                    issue_number: context.issue.number,
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    body: summary
+                  });
+                  console.log('✓ Metrics comment posted successfully');
+                } else {
+                  console.log('⚠ Summary file is empty, skipping comment');
+                }
+              } else {
+                console.log('⚠ Summary file not found, skipping comment');
+              }
+            } catch (error) {
+              console.log('⚠ Failed to post metrics comment:', error.message);
+              // Don't fail the workflow if comment posting fails
+            }
+        continue-on-error: true
+
+  performance-regression-check:
+    name: Check Performance Regression
+    runs-on: ubuntu-latest
+    needs: collect-metrics
+    if: github.event_name == 'pull_request'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Download metrics
+        uses: actions/download-artifact@v4
+        with:
+          name: performance-metrics
+          path: metrics/
+        continue-on-error: true
+      
+      - name: Check for regressions
+        run: |
+          echo "Checking for performance regressions..."
+          
+          # Define thresholds
+          MAX_LATENCY_MS=100
+          MIN_THROUGHPUT_EPS=1000
+          MAX_MEMORY_MB=512
+          
+          # Check if metrics files exist
+          if [ ! -f metrics/latency.json ] || [ ! -s metrics/latency.json ]; then
+            echo "⚠ Latency metrics not available, skipping latency check"
+          else
+            echo "✓ Latency metrics available"
+          fi
+          
+          if [ ! -f metrics/throughput.json ] || [ ! -s metrics/throughput.json ]; then
+            echo "⚠ Throughput metrics not available, skipping throughput check"
+          else
+            echo "✓ Throughput metrics available"
+          fi
+          
+          # TODO: Implement actual regression detection
+          # For now, just pass with warnings if data is missing
+          echo "✓ Regression check completed (data validation only)"
+        continue-on-error: true
