@@ -63,6 +63,38 @@ func (m *MockEventStore) GetEventsByEventName(ctx context.Context, eventName str
 	return args.Get(0).([]*core.BlockchainEvent), args.Error(1)
 }
 
+func (m *MockEventStore) GetEventsByBlock(ctx context.Context, blockNumber int64) ([]*core.BlockchainEvent, error) {
+	args := m.Called(ctx, blockNumber)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*core.BlockchainEvent), args.Error(1)
+}
+
+func (m *MockEventStore) GetEventsByAddress(ctx context.Context, address string, limit int) ([]*core.BlockchainEvent, error) {
+	args := m.Called(ctx, address, limit)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*core.BlockchainEvent), args.Error(1)
+}
+
+func (m *MockEventStore) GetEventsByName(ctx context.Context, eventName string, limit int) ([]*core.BlockchainEvent, error) {
+	args := m.Called(ctx, eventName, limit)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*core.BlockchainEvent), args.Error(1)
+}
+
+func (m *MockEventStore) GetEventsPaginated(ctx context.Context, cursor string, limit int) ([]*core.BlockchainEvent, bool, error) {
+	args := m.Called(ctx, cursor, limit)
+	if args.Get(0) == nil {
+		return nil, args.Bool(1), args.Error(2)
+	}
+	return args.Get(0).([]*core.BlockchainEvent), args.Bool(1), args.Error(2)
+}
+
 func (m *MockEventStore) DeleteExpiredEvents(ctx context.Context) (int64, error) {
 	args := m.Called(ctx)
 	return args.Get(0).(int64), args.Error(1)

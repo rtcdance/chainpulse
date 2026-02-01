@@ -62,6 +62,34 @@ func (m *mockEventStore) GetEventsByEventName(ctx context.Context, eventName str
 	return nil, nil
 }
 
+func (m *mockEventStore) GetEventsByBlock(ctx context.Context, blockNumber int64) ([]*core.BlockchainEvent, error) {
+	if m.shouldFail {
+		return nil, errors.New("get by block failed")
+	}
+	return nil, nil
+}
+
+func (m *mockEventStore) GetEventsByAddress(ctx context.Context, address string, limit int) ([]*core.BlockchainEvent, error) {
+	if m.shouldFail {
+		return nil, errors.New("get by address failed")
+	}
+	return nil, nil
+}
+
+func (m *mockEventStore) GetEventsByName(ctx context.Context, eventName string, limit int) ([]*core.BlockchainEvent, error) {
+	if m.shouldFail {
+		return nil, errors.New("get by name failed")
+	}
+	return nil, nil
+}
+
+func (m *mockEventStore) GetEventsPaginated(ctx context.Context, cursor string, limit int) ([]*core.BlockchainEvent, bool, error) {
+	if m.shouldFail {
+		return nil, false, errors.New("get paginated failed")
+	}
+	return nil, false, nil
+}
+
 func (m *mockEventStore) DeleteExpiredEvents(ctx context.Context) (int64, error) {
 	if m.shouldFail {
 		return 0, errors.New("delete expired failed")

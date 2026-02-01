@@ -30,6 +30,18 @@ type EventStore interface {
 	// GetEventsByEventName retrieves events by event name
 	GetEventsByEventName(ctx context.Context, eventName string, limit int, offset int) ([]*core.BlockchainEvent, error)
 
+	// GetEventsByBlock retrieves events by block number
+	GetEventsByBlock(ctx context.Context, blockNumber int64) ([]*core.BlockchainEvent, error)
+
+	// GetEventsByAddress retrieves events by contract address with limit
+	GetEventsByAddress(ctx context.Context, address string, limit int) ([]*core.BlockchainEvent, error)
+
+	// GetEventsByName retrieves events by event name with limit
+	GetEventsByName(ctx context.Context, eventName string, limit int) ([]*core.BlockchainEvent, error)
+
+	// GetEventsPaginated retrieves events with cursor-based pagination
+	GetEventsPaginated(ctx context.Context, cursor string, limit int) ([]*core.BlockchainEvent, bool, error)
+
 	// DeleteExpiredEvents deletes events that have exceeded their TTL
 	DeleteExpiredEvents(ctx context.Context) (int64, error)
 

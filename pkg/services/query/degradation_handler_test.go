@@ -41,6 +41,22 @@ func (m *MockEventStore) GetEventsByEventName(ctx context.Context, eventName str
 	return nil, nil
 }
 
+func (m *MockEventStore) GetEventsByBlock(ctx context.Context, blockNumber int64) ([]*core.BlockchainEvent, error) {
+	return nil, nil
+}
+
+func (m *MockEventStore) GetEventsByAddress(ctx context.Context, address string, limit int) ([]*core.BlockchainEvent, error) {
+	return nil, nil
+}
+
+func (m *MockEventStore) GetEventsByName(ctx context.Context, eventName string, limit int) ([]*core.BlockchainEvent, error) {
+	return nil, nil
+}
+
+func (m *MockEventStore) GetEventsPaginated(ctx context.Context, cursor string, limit int) ([]*core.BlockchainEvent, bool, error) {
+	return nil, false, nil
+}
+
 func (m *MockEventStore) DeleteExpiredEvents(ctx context.Context) (int64, error) {
 	return 0, nil
 }

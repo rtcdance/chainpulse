@@ -16,12 +16,12 @@ import (
 
 // MongoDBEventStore implements EventStore for MongoDB
 type MongoDBEventStore struct {
-	dbManager      database.DatabaseManager
-	logger         core.Logger
-	metrics        core.MetricsCollector
-	config         *EventStoreConfig
-	collection     *mongo.Collection
-	initialized    bool
+	dbManager   database.DatabaseManager
+	logger      core.Logger
+	metrics     core.MetricsCollector
+	config      *EventStoreConfig
+	collection  *mongo.Collection
+	initialized bool
 }
 
 // NewMongoDBEventStore creates a new MongoDB event store
@@ -149,18 +149,18 @@ func (s *MongoDBEventStore) InsertEvent(ctx context.Context, event *core.Blockch
 
 	// Prepare document with TTL
 	doc := bson.M{
-		"id":               event.ID,
-		"chainId":          event.ChainID,
-		"blockNumber":      event.BlockNumber,
-		"transactionHash":  event.TransactionHash.Hex(),
-		"logIndex":         event.LogIndex,
-		"contractAddress":  event.ContractAddress.Hex(),
-		"eventName":        event.EventName,
-		"eventData":        event.EventData,
-		"decodedData":      event.DecodedData,
-		"createdAt":        event.CreatedAt,
-		"processedAt":      time.Now(),
-		"indexedAt":        time.Now(),
+		"id":              event.ID,
+		"chainId":         event.ChainID,
+		"blockNumber":     event.BlockNumber,
+		"transactionHash": event.TransactionHash.Hex(),
+		"logIndex":        event.LogIndex,
+		"contractAddress": event.ContractAddress.Hex(),
+		"eventName":       event.EventName,
+		"eventData":       event.EventData,
+		"decodedData":     event.DecodedData,
+		"createdAt":       event.CreatedAt,
+		"processedAt":     time.Now(),
+		"indexedAt":       time.Now(),
 	}
 
 	// Add TTL expiration if configured
@@ -208,18 +208,18 @@ func (s *MongoDBEventStore) InsertEventBatch(ctx context.Context, events []*core
 		}
 
 		doc := bson.M{
-			"id":               event.ID,
-			"chainId":          event.ChainID,
-			"blockNumber":      event.BlockNumber,
-			"transactionHash":  event.TransactionHash.Hex(),
-			"logIndex":         event.LogIndex,
-			"contractAddress":  event.ContractAddress.Hex(),
-			"eventName":        event.EventName,
-			"eventData":        event.EventData,
-			"decodedData":      event.DecodedData,
-			"createdAt":        event.CreatedAt,
-			"processedAt":      time.Now(),
-			"indexedAt":        time.Now(),
+			"id":              event.ID,
+			"chainId":         event.ChainID,
+			"blockNumber":     event.BlockNumber,
+			"transactionHash": event.TransactionHash.Hex(),
+			"logIndex":        event.LogIndex,
+			"contractAddress": event.ContractAddress.Hex(),
+			"eventName":       event.EventName,
+			"eventData":       event.EventData,
+			"decodedData":     event.DecodedData,
+			"createdAt":       event.CreatedAt,
+			"processedAt":     time.Now(),
+			"indexedAt":       time.Now(),
 		}
 
 		// Add TTL expiration if configured
@@ -499,4 +499,186 @@ func (s *MongoDBEventStore) Close(ctx context.Context) error {
 
 	s.initialized = false
 	return nil
+}
+
+// GetEventsByBlock retrieves events by block number
+func (s *MongoDBEventStore) GetEventsByBlock(ctx context.Context, blockNumber int64) ([]*core.BlockchainEvent, error) {
+	if !s.initialized {
+		return nil, fmt.Errorf("event store not initialized")
+	}
+
+	if s.collection == nil {
+		return nil, fmt.Errorf("MongoDB collection not initialized")
+	}
+
+	start := time.Now()
+	defer func() {
+		duration := time.Since(start).Milliseconds()
+		s.metrics.RecordHistogram("mongodb_event_query_block_time_ms", float64(duration), map[string]string{})
+	}()
+
+	filter := bson.M{"blockNumber": blockNumber}
+	opts := options.Find().SetSort(bson.M{"logIndex": 1})
+
+	cursor, err := s.collection.Find(ctx, filter, opts)
+	if err != nil {
+		s.logger.Error("Failed to query events by block", "blockNumber", blockNumber, "error", err.Error())
+		s.metrics.RecordCounter("mongodb_event_query_block_error", 1, map[string]string{})
+		return nil, fmt.Errorf("failed to query events by block: %w", err)
+	}
+	defer func() { _ = cursor.Close(ctx) }()
+
+	var events []*core.BlockchainEvent
+	if err := cursor.All(ctx, &events); err != nil {
+		s.logger.Error("Failed to decode events", "error", err.Error())
+		return nil, fmt.Errorf("failed to decode events: %w", err)
+	}
+
+	s.metrics.RecordCounter("mongodb_event_query_block_success", int64(len(events)), map[string]string{})
+	return events, nil
+}
+
+// GetEventsByAddress retrieves events by contract address with limit
+func (s *MongoDBEventStore) GetEventsByAddress(ctx context.Context, address string, limit int) ([]*core.BlockchainEvent, error) {
+	if !s.initialized {
+		return nil, fmt.Errorf("event store not initialized")
+	}
+
+	if s.collection == nil {
+		return nil, fmt.Errorf("MongoDB collection not initialized")
+	}
+
+	if address == "" {
+		return nil, fmt.Errorf("address is required")
+	}
+
+	start := time.Now()
+	defer func() {
+		duration := time.Since(start).Milliseconds()
+		s.metrics.RecordHistogram("mongodb_event_query_address_time_ms", float64(duration), map[string]string{})
+	}()
+
+	filter := bson.M{"contractAddress": address}
+	opts := options.Find().
+		SetLimit(int64(limit)).
+		SetSort(bson.M{"blockNumber": -1})
+
+	cursor, err := s.collection.Find(ctx, filter, opts)
+	if err != nil {
+		s.logger.Error("Failed to query events by address", "address", address, "error", err.Error())
+		s.metrics.RecordCounter("mongodb_event_query_address_error", 1, map[string]string{})
+		return nil, fmt.Errorf("failed to query events by address: %w", err)
+	}
+	defer func() { _ = cursor.Close(ctx) }()
+
+	var events []*core.BlockchainEvent
+	if err := cursor.All(ctx, &events); err != nil {
+		s.logger.Error("Failed to decode events", "error", err.Error())
+		return nil, fmt.Errorf("failed to decode events: %w", err)
+	}
+
+	s.metrics.RecordCounter("mongodb_event_query_address_success", int64(len(events)), map[string]string{})
+	return events, nil
+}
+
+// GetEventsByName retrieves events by event name with limit
+func (s *MongoDBEventStore) GetEventsByName(ctx context.Context, eventName string, limit int) ([]*core.BlockchainEvent, error) {
+	if !s.initialized {
+		return nil, fmt.Errorf("event store not initialized")
+	}
+
+	if s.collection == nil {
+		return nil, fmt.Errorf("MongoDB collection not initialized")
+	}
+
+	if eventName == "" {
+		return nil, fmt.Errorf("event name is required")
+	}
+
+	start := time.Now()
+	defer func() {
+		duration := time.Since(start).Milliseconds()
+		s.metrics.RecordHistogram("mongodb_event_query_eventname_time_ms", float64(duration), map[string]string{})
+	}()
+
+	filter := bson.M{"eventName": eventName}
+	opts := options.Find().
+		SetLimit(int64(limit)).
+		SetSort(bson.M{"blockNumber": -1})
+
+	cursor, err := s.collection.Find(ctx, filter, opts)
+	if err != nil {
+		s.logger.Error("Failed to query events by name", "eventName", eventName, "error", err.Error())
+		s.metrics.RecordCounter("mongodb_event_query_eventname_error", 1, map[string]string{})
+		return nil, fmt.Errorf("failed to query events by name: %w", err)
+	}
+	defer func() { _ = cursor.Close(ctx) }()
+
+	var events []*core.BlockchainEvent
+	if err := cursor.All(ctx, &events); err != nil {
+		s.logger.Error("Failed to decode events", "error", err.Error())
+		return nil, fmt.Errorf("failed to decode events: %w", err)
+	}
+
+	s.metrics.RecordCounter("mongodb_event_query_eventname_success", int64(len(events)), map[string]string{})
+	return events, nil
+}
+
+// GetEventsPaginated retrieves events with cursor-based pagination
+func (s *MongoDBEventStore) GetEventsPaginated(ctx context.Context, cursor string, limit int) ([]*core.BlockchainEvent, bool, error) {
+	if !s.initialized {
+		return nil, false, fmt.Errorf("event store not initialized")
+	}
+
+	if s.collection == nil {
+		return nil, false, fmt.Errorf("MongoDB collection not initialized")
+	}
+
+	start := time.Now()
+	defer func() {
+		duration := time.Since(start).Milliseconds()
+		s.metrics.RecordHistogram("mongodb_event_query_paginated_time_ms", float64(duration), map[string]string{})
+	}()
+
+	// Build filter based on cursor
+	filter := bson.M{}
+	if cursor != "" {
+		// Cursor is a block number - get events after this block
+		filter = bson.M{
+			"blockNumber": bson.M{
+				"$lt": cursor,
+			},
+		}
+	}
+
+	// Query with limit + 1 to determine if there are more results
+	opts := options.Find().
+		SetLimit(int64(limit + 1)).
+		SetSort(bson.M{"blockNumber": -1})
+
+	queryCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
+	cursorResult, err := s.collection.Find(queryCtx, filter, opts)
+	if err != nil {
+		s.logger.Error("Failed to query paginated events", "error", err.Error())
+		s.metrics.RecordCounter("mongodb_event_query_paginated_error", 1, map[string]string{})
+		return nil, false, fmt.Errorf("failed to query paginated events: %w", err)
+	}
+	defer func() { _ = cursorResult.Close(ctx) }()
+
+	var events []*core.BlockchainEvent
+	if err := cursorResult.All(ctx, &events); err != nil {
+		s.logger.Error("Failed to decode events", "error", err.Error())
+		return nil, false, fmt.Errorf("failed to decode events: %w", err)
+	}
+
+	// Check if there are more results
+	hasNextPage := len(events) > limit
+	if hasNextPage {
+		events = events[:limit]
+	}
+
+	s.metrics.RecordCounter("mongodb_event_query_paginated_success", int64(len(events)), map[string]string{})
+	return events, hasNextPage, nil
 }
