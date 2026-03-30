@@ -94,6 +94,26 @@
    - Enforce clean file organization and directory structure.
    - Prevent random file placement and maintain navigability.
 
+23. `smart-contract-integration-safety`
+   - Safe contract calls, ABI encoding/decoding, event parsing.
+   - Version compatibility and error handling.
+
+24. `mempool-pending-tx-handling`
+   - Nonce management, gas estimation, transaction replacement.
+   - Handle stuck transactions and pending state.
+
+25. `go-concurrency-patterns`
+   - Bounded goroutines, context propagation, graceful shutdown.
+   - Prevent goroutine leaks and race conditions.
+
+26. `indexer-state-consistency`
+   - State machine validation and checkpoint consistency.
+   - Recovery path verification and integrity checks.
+
+27. `web3-security-patterns`
+   - Private key isolation, signature verification, replay prevention.
+   - EIP-191 compliance and nonce validation.
+
 ## How To Apply
 
 - Pick one or more skills before coding.

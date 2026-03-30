@@ -36,3 +36,8 @@ build/
 # OS
 .DS_Store
 Thumbs.db
+
+# AI archives (historical reference only)
+.ai-archive/
+.kiro/
+.trae/
