@@ -107,10 +107,10 @@ type Tracer interface {
 	SetStatus(span *Span, status SpanStatus, code int, msg string)
 
 	// ExtractContext extracts trace context from a carrier
-	ExtractContext(carrier map[string]string) TraceContext
+	ExtractContext(carrier map[string]string) *TraceContext
 
 	// InjectContext injects trace context into a carrier
-	InjectContext(ctx TraceContext, carrier map[string]string)
+	InjectContext(ctx *TraceContext, carrier map[string]string)
 
 	// GetSpans returns all recorded spans
 	GetSpans() []Span
@@ -302,8 +302,8 @@ func (t *DefaultTracer) SetStatus(span *Span, status SpanStatus, code int, msg s
 }
 
 // ExtractContext extracts trace context from a carrier
-func (t *DefaultTracer) ExtractContext(carrier map[string]string) TraceContext {
-	ctx := TraceContext{
+func (t *DefaultTracer) ExtractContext(carrier map[string]string) *TraceContext {
+	ctx := &TraceContext{
 		State: make(map[string]string),
 	}
 
@@ -324,8 +324,8 @@ func (t *DefaultTracer) ExtractContext(carrier map[string]string) TraceContext {
 }
 
 // InjectContext injects trace context into a carrier
-func (t *DefaultTracer) InjectContext(ctx TraceContext, carrier map[string]string) {
-	if carrier == nil {
+func (t *DefaultTracer) InjectContext(ctx *TraceContext, carrier map[string]string) {
+	if carrier == nil || ctx == nil {
 		return
 	}
 

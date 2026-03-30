@@ -1,0 +1,67 @@
+{
+  "project": {
+    "name": "chainpulse",
+    "type": "web3-indexer",
+    "language": "go",
+    "version": "1.0.0"
+  },
+  "ai": {
+    "mode": "agent",
+    "language": "english",
+    "max_iterations": 100,
+    "timeout_seconds": 300
+  },
+  "constraints": {
+    "max_file_lines": 500,
+    "max_function_lines": 50,
+    "max_nesting_depth": 3,
+    "require_tests": true,
+    "require_docs": false,
+    "require_comments": false
+  },
+  "rules": {
+    "project_rules": ".trae/rules/project_rules.md",
+    "coding_standards": ".trae/rules/coding_standards.md",
+    "checklist": ".trae/rules/checklist.md"
+  },
+  "skills": [
+    "code-style",
+    "code-review",
+    "git-commit",
+    "testing",
+    "security",
+    "web3"
+  ],
+  "forbidden": {
+    "files": [
+      "*.env",
+      "*.pem",
+      "*.key",
+      "credentials.json"
+    ],
+    "patterns": [
+      "password\\s*=\\s*['\"]",
+      "api_key\\s*=\\s*['\"]",
+      "secret\\s*=\\s*['\"]"
+    ],
+    "directories": [
+      ".git",
+      "node_modules",
+      "vendor"
+    ]
+  },
+  "required": {
+    "before_commit": [
+      "make lint",
+      "make test"
+    ],
+    "before_push": [
+      "make ci"
+    ]
+  },
+  "notifications": {
+    "on_error": true,
+    "on_warning": true,
+    "on_success": false
+  }
+}

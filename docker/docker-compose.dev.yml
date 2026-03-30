@@ -1,0 +1,165 @@
+version: "3.8"
+
+services:
+  # PostgreSQL 数据库
+  postgres:
+    image: postgres:15-alpine
+    container_name: chainpulse-postgres
+    environment:
+      POSTGRES_USER: chainpulse
+      POSTGRES_PASSWORD: chainpulse
+      POSTGRES_DB: chainpulse
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U chainpulse -d chainpulse"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - chainpulse
+
+  # Redis 缓存
+  redis:
+    image: redis:7-alpine
+    container_name: chainpulse-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - chainpulse
+
+  # Kafka
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: chainpulse-zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    networks:
+      - chainpulse
+
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: chainpulse-kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+      - "9093:9093"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - chainpulse
+
+  # Kafka UI (可选)
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: chainpulse-kafka-ui
+    depends_on:
+      - kafka
+    ports:
+      - "8081:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
+      KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
+    networks:
+      - chainpulse
+
+  # Prometheus 监控
+  prometheus:
+    image: prom/prometheus:v2.47.0
+    container_name: chainpulse-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+      - '--web.enable-lifecycle'
+    networks:
+      - chainpulse
+
+  # Grafana 看板
+  grafana:
+    image: grafana/grafana:10.1.0
+    container_name: chainpulse-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+    depends_on:
+      - prometheus
+    networks:
+      - chainpulse
+
+  # Jaeger 追踪
+  jaeger:
+    image: jaegertracing/all-in-one:1.49
+    container_name: chainpulse-jaeger
+    ports:
+      - "6831:6831/udp"
+      - "6832:6832/udp"
+      - "5778:5778"
+      - "16686:16686"
+      - "4317:4317"
+      - "4318:4318"
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    networks:
+      - chainpulse
+
+  # Consul 服务发现
+  consul:
+    image: consul:1.16
+    container_name: chainpulse-consul
+    ports:
+      - "8500:8500"
+    volumes:
+      - consul_data:/consul/data
+    command: consul agent -server -ui -bind=0.0.0.0 -client=0.0.0.0 -bootstrap-expect=1
+    networks:
+      - chainpulse
+
+volumes:
+  postgres_data:
+  redis_data:
+  prometheus_data:
+  grafana_data:
+  consul_data:
+
+networks:
+  chainpulse:
+    driver: bridge

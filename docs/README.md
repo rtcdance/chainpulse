@@ -18,6 +18,7 @@
 ### Testing
 - **[E2E Testing Guide](e2e-testing/README.md)** - End-to-end testing framework
 - **[Unit Test Standards](guides/UNIT_TEST_STANDARDS.md)** - Testing best practices
+- **[Engineering Constraint Framework](guides/ENGINEERING_CONSTRAINT_FRAMEWORK.md)** - Spec + skills + workflow + micro-loop gates
 
 ### Guides
 - **[Error Handling](guides/ERROR_HANDLING_GUIDE.md)** - Error handling patterns

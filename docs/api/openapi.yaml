@@ -1,0 +1,193 @@
+openapi: 3.0.3
+info:
+  title: ChainPulse API
+  description: Blockchain event indexing and query API
+  version: 1.0.0
+  contact:
+    name: ChainPulse Team
+servers:
+  - url: http://localhost:8080/api/v1
+    description: Local development
+  - url: https://api.chainpulse.io/v1
+    description: Production
+
+paths:
+  /health:
+    get:
+      summary: Health check
+      tags: [System]
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: healthy
+
+  /events:
+    get:
+      summary: Query blockchain events
+      tags: [Events]
+      parameters:
+        - name: contract
+          in: query
+          schema:
+            type: string
+          description: Contract address
+        - name: fromBlock
+          in: query
+          schema:
+            type: integer
+          description: Start block number
+        - name: toBlock
+          in: query
+          schema:
+            type: integer
+          description: End block number
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 100
+          description: Maximum number of results
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+          description: Pagination offset
+      responses:
+        '200':
+          description: List of events
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  events:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/BlockchainEvent'
+                  total:
+                    type: integer
+                  limit:
+                    type: integer
+                  offset:
+                    type: integer
+
+  /events/{id}:
+    get:
+      summary: Get event by ID
+      tags: [Events]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Event details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BlockchainEvent'
+        '404':
+          description: Event not found
+
+  /blocks/{number}:
+    get:
+      summary: Get block by number
+      tags: [Blocks]
+      parameters:
+        - name: number
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Block details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Block'
+
+  /metrics:
+    get:
+      summary: Get indexer metrics
+      tags: [Metrics]
+      responses:
+        '200':
+          description: Indexer metrics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Metrics'
+
+components:
+  schemas:
+    BlockchainEvent:
+      type: object
+      properties:
+        id:
+          type: string
+        event_hash:
+          type: string
+        block_number:
+          type: integer
+        block_hash:
+          type: string
+        block_timestamp:
+          type: integer
+        transaction_hash:
+          type: string
+        contract_address:
+          type: string
+        event_name:
+          type: string
+        decoded_data:
+          type: object
+        status:
+          type: string
+          enum: [pending, confirmed, failed, reorged]
+
+    Block:
+      type: object
+      properties:
+        number:
+          type: integer
+        hash:
+          type: string
+        parent_hash:
+          type: string
+        timestamp:
+          type: integer
+        transactions:
+          type: array
+          items:
+            type: string
+
+    Metrics:
+      type: object
+      properties:
+        current_block:
+          type: integer
+        latest_block:
+          type: integer
+        indexing_lag:
+          type: integer
+        events_indexed:
+          type: integer
+        events_processed:
+          type: integer
+        events_failed:
+          type: integer
+        cache_hit_rate:
+          type: number
+        reorgs_detected:
+          type: integer

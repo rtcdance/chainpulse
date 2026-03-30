@@ -1,0 +1,52 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'chainpulse'
+    environment: 'production'
+
+scrape_configs:
+  - job_name: 'chainpulse-monolithic'
+    static_configs:
+      - targets: ['chainpulse:8080']
+    metrics_path: '/metrics'
+
+  - job_name: 'chainpulse-puller'
+    static_configs:
+      - targets: ['puller:8080']
+    metrics_path: '/metrics'
+
+  - job_name: 'chainpulse-processor'
+    static_configs:
+      - targets: ['event-processor:8080']
+    metrics_path: '/metrics'
+
+  - job_name: 'chainpulse-api-gateway'
+    static_configs:
+      - targets: ['api-gateway:8080']
+    metrics_path: '/metrics'
+
+  - job_name: 'chainpulse-api-service'
+    static_configs:
+      - targets: ['api-service:8080']
+    metrics_path: '/metrics'
+
+  - job_name: 'postgres'
+    static_configs:
+      - targets: ['postgres-exporter:9187']
+
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis-exporter:9121']
+
+  - job_name: 'kafka'
+    static_configs:
+      - targets: ['kafka-exporter:9308']
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ['alertmanager:9093']
+
+rule_files:
+  - '/etc/prometheus/alerts/*.yml'

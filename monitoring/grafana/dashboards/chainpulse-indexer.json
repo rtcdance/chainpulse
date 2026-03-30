@@ -1,0 +1,114 @@
+{
+  "dashboard": {
+    "title": "ChainPulse Indexer Metrics",
+    "tags": ["chainpulse", "blockchain", "indexer"],
+    "timezone": "browser",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Indexing Lag",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "chainpulse_indexer_block_lag",
+            "legendFormat": "Block Lag"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0}
+      },
+      {
+        "id": 2,
+        "title": "Events Indexed Rate",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(chainpulse_events_indexed[5m])",
+            "legendFormat": "Events/sec"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0}
+      },
+      {
+        "id": 3,
+        "title": "Event Processing Status",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(chainpulse_events_processed[5m])",
+            "legendFormat": "Processed"
+          },
+          {
+            "expr": "rate(chainpulse_events_failed[5m])",
+            "legendFormat": "Failed"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8}
+      },
+      {
+        "id": 4,
+        "title": "Cache Hit Rate",
+        "type": "gauge",
+        "targets": [
+          {
+            "expr": "chainpulse_cache_hits / (chainpulse_cache_hits + chainpulse_cache_misses) * 100",
+            "legendFormat": "Hit Rate %"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8}
+      },
+      {
+        "id": 5,
+        "title": "Reorg Events",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "chainpulse_reorgs_detected",
+            "legendFormat": "Total Reorgs"
+          }
+        ],
+        "gridPos": {"h": 4, "w": 6, "x": 0, "y": 16}
+      },
+      {
+        "id": 6,
+        "title": "DLQ Depth",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "chainpulse_indexer_dlq_depth",
+            "legendFormat": "Messages"
+          }
+        ],
+        "gridPos": {"h": 4, "w": 6, "x": 6, "y": 16}
+      },
+      {
+        "id": 7,
+        "title": "Consistency Mismatches",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "chainpulse_query_consistency_mismatches",
+            "legendFormat": "Mismatches"
+          }
+        ],
+        "gridPos": {"h": 4, "w": 6, "x": 12, "y": 16}
+      },
+      {
+        "id": 8,
+        "title": "Query Latency (p95)",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(chainpulse_query_latency_seconds_bucket[5m]))",
+            "legendFormat": "p95 Latency"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 20}
+      }
+    ],
+    "refresh": "10s",
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    }
+  }
+}

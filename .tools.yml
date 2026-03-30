@@ -1,0 +1,64 @@
+# 开发工具配置
+
+# Go 版本要求
+go: "1.21"
+
+# 代码生成工具
+tools:
+  # 代码生成
+  - github.com/golang/mock/mockgen@latest
+  - github.com/google/wire/cmd/wire@latest
+  - google.golang.org/protobuf/cmd/protoc-gen-go@latest
+  - google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+
+  # 代码质量
+  - github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+  - honnef.co/go/tools/cmd/staticcheck@latest
+  - mvdan.cc/gofumpt@latest
+  - golang.org/x/tools/cmd/goimports@latest
+
+  # 测试
+  - gotest.tools/gotestsum@latest
+  - github.com/axw/gocov/gocov@latest
+  - github.com/AlekSi/gocov-xml@latest
+
+  # 调试
+  - github.com/go-delve/delve/cmd/dlv@latest
+
+  # 热重载
+  - github.com/air-verse/air@latest
+
+# 项目设置
+project:
+  name: chainpulse
+  module: chainpulse
+
+# 目录结构规范
+structure:
+  cmd:
+    description: 应用程序入口
+    subdirs:
+      - monolithic/chainpulse
+      - microservices/puller
+      - microservices/indexer
+      - microservices/query
+      - microservices/api
+      - microservices/reorg
+
+  pkg:
+    description: 库代码
+    subdirs:
+      - core: 领域接口与模型
+      - services: 应用服务
+      - plugins: 单体模式适配器
+      - infrastructure: 微服务模式适配器
+      - observability: 可观测性
+
+  test:
+    description: 测试代码
+    subdirs:
+      - unit: 单元测试
+      - integration: 集成测试
+      - e2e: 端到端测试
+      - fixtures: 测试数据
+      - mocks: Mock 实现

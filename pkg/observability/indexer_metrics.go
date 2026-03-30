@@ -33,6 +33,15 @@ type IndexerMetrics struct {
 	CacheHits   int64
 	CacheMisses int64
 
+	// DLQ metrics
+	DLQDepth int64
+
+	// Consistency metrics
+	ConsistencyMismatches int64
+
+	// Recovery metrics
+	ReorgRecoveryTimeMs int64
+
 	// Error tracking
 	ErrorCount map[string]int64
 
@@ -145,6 +154,33 @@ func (im *IndexerMetrics) RecordCacheMiss() {
 	defer im.mu.Unlock()
 
 	im.CacheMisses++
+	im.LastUpdateTime = time.Now()
+}
+
+// RecordDLQDepth records the current DLQ depth
+func (im *IndexerMetrics) RecordDLQDepth(depth int64) {
+	im.mu.Lock()
+	defer im.mu.Unlock()
+
+	im.DLQDepth = depth
+	im.LastUpdateTime = time.Now()
+}
+
+// RecordConsistencyMismatch records a consistency check mismatch
+func (im *IndexerMetrics) RecordConsistencyMismatch() {
+	im.mu.Lock()
+	defer im.mu.Unlock()
+
+	im.ConsistencyMismatches++
+	im.LastUpdateTime = time.Now()
+}
+
+// RecordReorgRecoveryTime records the time taken to recover from a reorg
+func (im *IndexerMetrics) RecordReorgRecoveryTime(recoveryTimeMs int64) {
+	im.mu.Lock()
+	defer im.mu.Unlock()
+
+	im.ReorgRecoveryTimeMs = recoveryTimeMs
 	im.LastUpdateTime = time.Now()
 }
 
@@ -338,6 +374,9 @@ func (im *IndexerMetrics) GetMetricsSummary() map[string]interface{} {
 		"reorgs_detected":            im.ReorgsDetected,
 		"blocks_rolled_back":         im.BlocksRolledBack,
 		"last_reorg_time":            im.LastReorgTime.String(),
+		"dlq_depth":                  im.DLQDepth,
+		"consistency_mismatches":     im.ConsistencyMismatches,
+		"reorg_recovery_time_ms":     im.ReorgRecoveryTimeMs,
 		"uptime":                     time.Since(im.StartTime).String(),
 		"last_update_time":           im.LastUpdateTime.String(),
 		"error_breakdown":            errorSummary,

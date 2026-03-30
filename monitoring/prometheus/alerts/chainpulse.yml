@@ -1,0 +1,75 @@
+groups:
+  - name: chainpulse_alerts
+    interval: 30s
+    rules:
+      - alert: HighIndexingLag
+        expr: chainpulse_indexer_block_lag > 100
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High indexing lag detected"
+          description: "Indexing lag is {{ $value }} blocks behind"
+
+      - alert: HighEventFailureRate
+        expr: rate(chainpulse_events_failed[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High event failure rate"
+          description: "Event failure rate is {{ $value }} per second"
+
+      - alert: ReorgDetected
+        expr: increase(chainpulse_reorgs_detected[5m]) > 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Blockchain reorg detected"
+          description: "{{ $value }} reorgs detected in last 5 minutes"
+
+      - alert: HighDLQDepth
+        expr: chainpulse_indexer_dlq_depth > 1000
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "DLQ depth is high"
+          description: "DLQ has {{ $value }} messages"
+
+      - alert: ConsistencyMismatch
+        expr: increase(chainpulse_query_consistency_mismatches[10m]) > 5
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Data consistency issues detected"
+          description: "{{ $value }} consistency mismatches in last 10 minutes"
+
+      - alert: ServiceDown
+        expr: up{job=~"chainpulse.*"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "ChainPulse service is down"
+          description: "{{ $labels.job }} has been down for more than 2 minutes"
+
+      - alert: HighMemoryUsage
+        expr: process_resident_memory_bytes{job=~"chainpulse.*"} > 2e9
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage"
+          description: "{{ $labels.job }} is using {{ $value | humanize }}B of memory"
+
+      - alert: SlowQueryLatency
+        expr: histogram_quantile(0.95, rate(chainpulse_query_latency_seconds_bucket[5m])) > 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Slow query performance"
+          description: "95th percentile query latency is {{ $value }}s"

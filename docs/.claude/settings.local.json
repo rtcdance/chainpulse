@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(go test:*)",
+      "Bash(go build:*)",
+      "Bash(/usr/local/go/bin/go version:*)",
+      "Bash(~/go/bin/go version:*)",
+      "Read(//usr/local/go/**)",
+      "Read(//opt/homebrew/bin/**)",
+      "Bash(/opt/homebrew/bin/golangci-lint run:*)",
+      "Bash(golangci-lint run:*)",
+      "Bash(grep -r \"TODO\\\\|FIXME\\\\|HACK\\\\|XXX\" pkg/ --include=*.go -l)",
+      "Bash(export PATH=/Users/mingo/sdk/go1.24.6/bin:$PATH)",
+      "Bash(GOROOT=/Users/mingo/sdk/go1.24.6 PATH=/Users/mingo/sdk/go1.24.6/bin:$PATH go version 2>&1)",
+      "Bash(GOROOT=/Users/mingo/sdk/go1.24.6 PATH=/Users/mingo/sdk/go1.24.6/bin:$PATH go build ./cmd/...)",
+      "Bash(GOROOT=/Users/mingo/sdk/go1.24.6 PATH=/Users/mingo/sdk/go1.24.6/bin:$PATH go test -short ./pkg/...)",
+      "Bash(GOROOT=/Users/mingo/sdk/go1.24.6 PATH=/Users/mingo/sdk/go1.24.6/bin:$PATH timeout 30 go build ./pkg/core/...)",
+      "Bash(GOROOT=/Users/mingo/sdk/go1.24.6 PATH=/Users/mingo/sdk/go1.24.6/bin:$PATH timeout 30 go build ./pkg/services/indexing/...)",
+      "Bash(GOROOT=/Users/mingo/sdk/go1.24.6 PATH=/Users/mingo/sdk/go1.24.6/bin:$PATH timeout 30 go build ./pkg/plugins/mq/...)",
+      "Bash(GOROOT=/Users/mingo/sdk/go1.24.6 PATH=/Users/mingo/sdk/go1.24.6/bin:$PATH timeout 60 go build ./pkg/core/... 2>&1)"
+    ]
+  }
+}
