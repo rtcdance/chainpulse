@@ -29,22 +29,23 @@
 #### 断裂 11: 没有指数退避重试
 - 蓝图要求: §3.1 — `pkg/services/resilience/retry_logic.go`，最大重试 3 次，初始间隔 1s，上限 30s
 - 当前: RPC 错误直接返回，没有重试
-- 修复: 在拉取循环中集成 `RetryLogic`
+- 修复: 在拉取循环中集成 RetryExecutor + DefaultRetryPolicy
 
 #### 断裂 12: ABI 解码未接入 Indexer
 - 蓝图要求: §3.2 — Indexer 职责包含 **ABI 解码**
-- 当前: 事件以原始 bytes 存储，没有解码
-- 修复: 在 ProcessBatch 中接入 `decoder.EventDecoder`
+- 当前: 事件以原始 bytes 存储，没有 ABI 解码
+- 修复: 在 Puller 的 logToEvent 中接入 EventDecoder，使用 ContractManager 按 block 范围选择正确 ABI 解码
+- **注意**: 当前 Puller.PullEvents 返回 `[]core.BlockchainEvent`（已通过 logToEvent 转换）。EventDecoder.DecodeEventBatch 需要 `[]*types.Log`。因此 ABI 解码应该在 Puller 内部的 getLogs→logToEvent 流程中接入，而不是在 main.go 的循环中
 
 #### 断裂 13: ABI 平滑升级未接入
 - 蓝图要求: §3.2 — `contract_manager.go` 多版本 ABI 并存，按 block 范围路由解码逻辑
-- 当前: EventDecoder 没有接入 ContractManager
-- 修复: 使用 `ContractManager` 管理多版本 ABI，按 block 范围选择正确的 ABI 解码
+- 当前: Puller 的 logToEvent 没有使用 ContractManager
+- 修复: 在 Puller 中创建 ContractManager，注册多版本 ABI，logToEvent 时根据 contract address 和 block number 选择正确 ABI
 
 #### 断裂 14: 幂等写入缺失
 - 蓝图要求: §3.2 — 基于 `(chain_id, tx_hash, log_index)` 唯一键去重
 - 当前: 重复拉取会导致重复数据
-- 修复: 在 EventSink.Persist 中接入 `processor.IdempotencyService`
+- 修复: 在 ProcessBatch 中使用 DefaultIdempotencyService 的 GenerateHash + IsDuplicate + MarkProcessed 循环去重
 
 #### 断裂 15: 背压控制缺失 + Reorg 通知缺失
 - 蓝图要求: §3.1 — MQ 满时 Puller 暂停拉取；§3.5 — RollbackEvents 成功后发 `reorg_events` 通知
@@ -59,8 +60,12 @@ for each chain:
     // 蓝图 §3.1: checkpoint 从文件加载
     checkpoint := loadCheckpointFromFile(checkpointFile)
 
-    // 蓝图 §3.1: 指数退避重试
-    retry := resilience.NewRetryLogic(3, 1*time.Second, 30*time.Second, logger)
+    // 蓝图 §3.1: 重试策略 + 执行器
+    retryPolicy := resilience.NewDefaultRetryPolicy(
+      &resilience.RetryConfig{MaxRetries: 3, InitialBackoff: time.Second, MaxBackoff: 30*time.Second},
+      resilience.NewDefaultErrorHandler(logger),
+    )
+    retryExecutor := resilience.NewRetryExecutor(retryPolicy, logger, metrics)
 
     for {
       // 蓝图 §3.1: 背压控制
@@ -70,25 +75,39 @@ for each chain:
       }
 
       // 蓝图 §3.1: 指数退避重试
-      events, err := retry.ExecuteWithRetry(func() ([]core.BlockchainEvent, error) {
-        return puller.PullEvents(ctx, fromBlock, toBlock)
-      })
+      var events []core.BlockchainEvent
+      err := retryExecutor.Execute(ctx, func() error {
+        var err error
+        events, err = puller.PullEvents(ctx, fromBlock, toBlock)
+        return err
+      }, "pull_events")
+
+      if err != nil || len(events) == 0 {
+        sleep(10s)
+        continue
+      }
 
       // 蓝图 §3.5: Reorg 检测 + 通知
-      if len(events) > 0 && events[0].BlockHash != lastBlockHash[chainID] {
+      if events[0].BlockHash != lastBlockHash[chainID] && lastBlock > 0 {
         reorgHandler.DetectReorg(ctx, chainID, fromBlock, ...)
         reorgHandler.HandleReorg(ctx, ...)
         reorgHandler.RollbackEvents(ctx, fromBlock)
         eventBus.Publish("reorg_events", ReorgInfo{ChainID: chainID, FromBlock: fromBlock})
       }
 
-      eventBus.Publish("blockchain-events", events)
-
-      // 蓝图 §3.2: ABI 解码 + 平滑升级
-      decodedEvents := contractManager.DecodeBatch(events)  // 按 block 选 ABI
-
       // 蓝图 §3.2: 幂等检查
-      uniqueEvents := idempotencyService.FilterDuplicates(decodedEvents)
+      idempotencySvc := processor.NewDefaultIdempotencyService(logger, metrics)
+      uniqueEvents := make([]core.BlockchainEvent, 0, len(events))
+      for _, event := range events {
+        hash, _ := idempotencySvc.GenerateHash(&event)
+        isDup, _ := idempotencySvc.IsDuplicate(hash)
+        if !isDup {
+          idempotencySvc.MarkProcessed(hash)
+          uniqueEvents = append(uniqueEvents, event)
+        }
+      }
+
+      eventBus.Publish("blockchain-events", uniqueEvents)
 
       // 蓝图 §3.2: Indexer 消费 + 批量写入
       envelopes := toEventEnvelopes(uniqueEvents)
@@ -107,8 +126,9 @@ for each chain:
 ### 目标
 修复上述 6 个断裂，使单体模式具备以下容错能力：
 1. **Puller**: 指数退避重试（max 3, 1s-30s）+ checkpoint 文件落盘 + 背压控制
-2. **Indexer**: ABI 解码 + 幂等写入（唯一键去重）+ 批量写入 + ABI 平滑升级
+2. **Indexer**: 幂等写入（唯一键去重）+ 批量写入
 3. **Reorg**: RollbackEvents 成功后发 reorg_events 通知
+4. **ABI 平滑升级**: Puller 的 logToEvent 接入 ContractManager 多版本 ABI
 
 ### 成功标准
 
@@ -119,13 +139,13 @@ for each chain:
 - [ ] `make run-monolithic` 启动后不 panic
 
 #### 蓝图一致性
-- [ ] **指数退避重试**（蓝图 §3.1: max 3 retries, 1s-30s backoff）
-- [ ] **Checkpoint 落盘**（蓝图 §3.1: 写入文件，重启后从断点续拉）
-- [ ] **背压控制**（蓝图 §3.1: MQ 满时暂停拉取）
-- [ ] **ABI 解码 + 平滑升级**（蓝图 §3.2: EventDecoder + ContractManager 多版本 ABI）
-- [ ] **幂等写入**（蓝图 §3.2: 基于唯一键去重）
-- [ ] **批量写入**（蓝图 §3.2: BatchStoreEvents）
-- [ ] **Reorg 通知**（蓝图 §3.5: RollbackEvents 成功后发 reorg_events）
+- [ ] **指数退避重试**（蓝图 §3.1: max 3 retries, 1s-30s backoff，使用 RetryExecutor）
+- [ ] **Checkpoint 落盘**（蓝图 §3.1: 写入 JSON 文件，重启后从断点续拉）
+- [ ] **背压控制**（蓝图 §3.1: EventBus.IsBackpressured 满时暂停拉取）
+- [ ] **幂等写入**（蓝图 §3.2: GenerateHash + IsDuplicate + MarkProcessed 循环去重）
+- [ ] **批量写入**（蓝图 §3.2: MockDB.BatchStoreEvents 链路通）
+- [ ] **Reorg 通知**（蓝图 §3.5: RollbackEvents 成功后 eventBus.Publish("reorg_events")）
+- [ ] **ABI 平滑升级**（蓝图 §3.2: Puller 的 logToEvent 接入 ContractManager）
 
 ### 分层约束
 严格遵守 `ARCHITECTURE_RULES.md`
@@ -133,13 +153,28 @@ for each chain:
 ### 参考文件
 - `docs/archive/ARCHITECTURE_v1.md` — **权威蓝图，§3.1 + §3.2 + §3.5**
 - `cmd/monolithic/chainpulse/main.go` — Composition Root（M1-1a 已修改）
-- `pkg/services/resilience/retry_logic.go` — 指数退避重试
-- `pkg/services/decoder/event_decoder.go` — EventDecoder
-- `pkg/services/decoder/contract_manager.go` — ContractManager（多版本 ABI）
-- `pkg/services/processor/idempotency.go` — IdempotencyService
+- `pkg/services/resilience/retry_logic.go` — 重试 API:
+  - `NewDefaultRetryPolicy(config, errorHandler) *DefaultRetryPolicy`
+  - `NewRetryExecutor(policy, logger, metrics) *RetryExecutor`
+  - `executor.Execute(ctx, func() error, source string) error` — 返回 error，结果通过闭包变量捕获
+- `pkg/services/resilience/error_handler.go` — ErrorHandler
+- `pkg/services/processor/idempotency.go` — 幂等 API:
+  - `NewDefaultIdempotencyService(logger, metrics) *DefaultIdempotencyService`
+  - `svc.GenerateHash(event *core.BlockchainEvent) (string, error)`
+  - `svc.IsDuplicate(hash string) (bool, error)`
+  - `svc.MarkProcessed(hash string) error`
 - `pkg/services/reorg/reorg_handler.go` — ReorgHandler
-- `pkg/infrastructure/data/block_height_tracker.go` — Checkpoint 追踪
+- `pkg/services/decoder/contract_manager.go` — ContractManager（多版本 ABI）:
+  - `NewContractManager(logger) *ContractManager`
+  - `cm.LoadContractABI(name, address, abi) error`
+  - `cm.GetABI(name) (abi.ABI, error)`
+- `pkg/services/decoder/event_decoder.go` — EventDecoder:
+  - `NewEventDecoder(contractManager, logger) *EventDecoder`
+  - `ed.DecodeEvent(rawEvent *types.Log, contractABI abi.ABI) (*DecodedEvent, error)`
+  - `ed.DecodeEventBatch(rawEvents []*types.Log, contractABI abi.ABI) ([]*DecodedEvent, error)`
+- `pkg/plugins/pullers/https_jsonrpc_puller.go` — Puller（需修改 logToEvent 接入 ABI 解码）
 - `pkg/core/eventbus.go` — EventBus
+- `pkg/infrastructure/data/block_height_tracker.go` — Checkpoint 追踪
 
 ### 修复步骤
 
@@ -147,52 +182,98 @@ for each chain:
 ```
 文件: pkg/core/eventbus.go
 添加 IsBackpressured(topic string) bool 方法:
-  检查订阅者 chan 缓冲区使用率，超过 80% 返回 true
+  遍历该 topic 的所有订阅者 chan，检查 len(ch)/cap(ch) > 0.8 返回 true
 ```
 
-**Step 2: 在拉取循环中集成 Puller 容错（重试 + 背压 + checkpoint）**
+**Step 2: 修改 Puller 的 logToEvent 接入 ContractManager（ABI 平滑升级）**
+```
+文件: pkg/plugins/pullers/https_jsonrpc_puller.go
+1. 在 HTTPSJSONRPCPuller 结构体中添加:
+   contractManager *decoder.ContractManager
+   eventDecoder    *decoder.EventDecoder
+2. 在 NewHTTPSJSONRPCPuller 中初始化:
+   cm := decoder.NewContractManager(logger)
+   // 注册已知合约 ABI（ERC20 等）
+   cm.LoadContractABI("erc20", "0x...", erc20ABI)
+   p.contractManager = cm
+   p.eventDecoder = decoder.NewEventDecoder(cm, logger)
+3. 修改 logToEvent 方法:
+   - 根据 log.Address 查找对应的 contract ABI
+   - 如果有匹配的 ABI，使用 eventDecoder.DecodeEvent(log, abi) 解码
+   - 将解码后的 eventName、EventData 填入 BlockchainEvent
+   - 如果没有匹配的 ABI，保持现有的简单转换逻辑
+```
+
+**Step 3: 在拉取循环中集成 Puller 容错（重试 + 背压 + checkpoint）**
 ```
 文件: cmd/monolithic/chainpulse/main.go
 在 M1-1a 的 goroutine 循环中修改:
-  1. 循环开始前: checkpoint := loadCheckpointFromFile(checkpointFile)
-  2. 循环内第一步: 背压控制
-     if eventBus.IsBackpressured("blockchain-events") { sleep(5s); continue }
-  3. 循环内第二步: 指数退避重试包装 PullEvents
-     retry := resilience.NewRetryLogic(3, 1*time.Second, 30*time.Second, logger)
-     events, err := retry.ExecuteWithRetry(func() ([]core.BlockchainEvent, error) {
-       return puller.PullEvents(ctx, fromBlock, toBlock)
-     })
-  4. 循环内最后: checkpoint 保存到文件
+
+循环前初始化:
+  checkpointFile := fmt.Sprintf(".chainpulse/checkpoints/%s.json", chainID)
+  checkpoint := loadCheckpointFromFile(checkpointFile)  // 从 JSON 文件读取 lastBlock
+
+  retryPolicy := resilience.NewDefaultRetryPolicy(
+    &resilience.RetryConfig{MaxRetries: 3, InitialBackoff: time.Second, MaxBackoff: 30*time.Second},
+    resilience.NewDefaultErrorHandler(logger),
+  )
+  retryExecutor := resilience.NewRetryExecutor(retryPolicy, logger, metrics)
+
+循环内:
+  1. 背压控制:
+     if eventBus.IsBackpressured("blockchain-events") { time.Sleep(5*time.Second); continue }
+
+  2. 指数退避重试:
+     var events []core.BlockchainEvent
+     err := retryExecutor.Execute(ctx, func() error {
+       var err error
+       events, err = puller.PullEvents(ctx, fromBlock, toBlock)
+       return err
+     }, "pull_events")
+
+  3. 循环末尾保存 checkpoint:
      saveCheckpointToFile(checkpointFile, toBlock)
 ```
 
-**Step 3: 创建 checkpoint 文件读写**
+**Step 4: 创建 checkpoint 文件读写**
 ```
-新建 .chainpulse/checkpoints/{chainID}.json:
-  { "chainID": "ethereum", "lastBlock": 18923456, "lastBlockHash": "0x...", "updatedAt": "..." }
-启动时加载，每次拉取后保存。
+文件: cmd/monolithic/chainpulse/main.go（或新建 pkg/infrastructure/checkpoint/file_checkpoint.go）
+
+JSON 格式:
+  { "chainID": "ethereum", "lastBlock": 18923456, "lastBlockHash": "0x...", "updatedAt": "2026-04-03T..." }
+
+函数:
+  func loadCheckpointFromFile(path string) (lastBlock uint64, lastBlockHash string)
+  func saveCheckpointToFile(path string, lastBlock uint64, lastBlockHash string)
 ```
 
-**Step 4: 在拉取循环中集成 Indexer 容错（ABI 解码 + 幂等 + 批量写入）**
+**Step 5: 在拉取循环中集成幂等写入**
 ```
 文件: cmd/monolithic/chainpulse/main.go
-在 M1-1a 的 goroutine 循环中，eventBus.Publish 之后、chainIndexer.ProcessBatch 之前加入:
-  1. ABI 解码 + 平滑升级:
-     contractManager := decoder.NewContractManager(logger)
-     contractManager.RegisterABI("ethereum", erc20.ABI, 0, math.MaxUint64)
-     decodedEvents := contractManager.DecodeBatch(events)
-  2. 幂等检查:
-     idempotencyService := processor.NewIdempotencyService(indexingDatabase, logger)
-     uniqueEvents := idempotencyService.FilterDuplicates(decodedEvents)
-  3. 批量写入: chainIndexer.ProcessBatch 内部调用 BatchStoreEvents
-     （确认 SharedRuntime.ProcessBatch → EventSink.Persist → MockDB.BatchStoreEvents 链路通）
+在 eventBus.Publish 之前加入:
+
+  idempotencySvc := processor.NewDefaultIdempotencyService(logger, metrics)
+  uniqueEvents := make([]core.BlockchainEvent, 0, len(events))
+  for _, event := range events {
+    hash, err := idempotencySvc.GenerateHash(&event)
+    if err != nil { continue }
+    isDup, err := idempotencySvc.IsDuplicate(hash)
+    if err != nil || isDup { continue }
+    idempotencySvc.MarkProcessed(hash)
+    uniqueEvents = append(uniqueEvents, event)
+  }
+  // 使用 uniqueEvents 替代 events 进行后续处理
 ```
 
-**Step 5: 在拉取循环中集成 Reorg 通知**
+**Step 6: 在拉取循环中集成 Reorg 通知**
 ```
 文件: cmd/monolithic/chainpulse/main.go
 在 M1-1a 的 goroutine 循环中，reorgHandler.RollbackEvents 之后加入:
-  eventBus.Publish("reorg_events", ReorgInfo{ChainID: chainID, FromBlock: fromBlock})
+  eventBus.Publish("reorg_events", map[string]interface{}{
+    "chain_id":   chainID,
+    "from_block": fromBlock,
+    "timestamp":  time.Now().Unix(),
+  })
 ```
 
 ### 禁止事项
@@ -204,6 +285,7 @@ for each chain:
 - 不要试图修复 16 处依赖违反
 - **必须与 ARCHITECTURE_v1.md 蓝图一致**
 - **本阶段只做容错，不做可观测性、API 限流、缓存击穿防护、分布式追踪**
+- **API 使用必须与上述参考文件中的实际签名完全一致，不要假设不存在的方法**
 
 ### 验证步骤
 ```bash
@@ -218,4 +300,6 @@ ls .chainpulse/checkpoints/  # 应该有 checkpoint 文件
 kill %1
 make run-monolithic &
 # 日志应显示从上次 checkpoint 继续，不是从头开始
+# 验证幂等: 重复拉取同一区块，不应产生重复数据
+# 验证重试: 临时停止 RPC 节点，Puller 应重试 3 次后失败，恢复后继续
 ```
