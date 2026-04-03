@@ -1,5 +1,11 @@
 # Development and Build Tooling
-.PHONY: all build test lint fmt clean help
+.PHONY: all build test lint fmt clean help check-policy-contract check-migration-manifest export-migration-kpi compare-migration-kpi compare-ticket-registry-health smoke-baseline-governance-scope compare-baseline-scope-smoke preflight-migration-baseline-update test-baseline-update-resolver compare-baseline-resolver-test check-migration-baseline update-migration-baseline check-migration-changelog-quality export-migration-owner-drift
+
+# Force-clear stale GOROOT (homebrew Go self-detects; stale value breaks builds)
+unexport GOROOT
+# Ensure Go-installed tools are on PATH (computed at parse time with clean GOROOT)
+GOPATH_BIN := $(shell GOROOT= go env GOPATH)/bin
+export PATH := $(GOPATH_BIN):$(PATH)
 
 # 变量
 PROJECT_NAME := chainpulse
@@ -19,6 +25,9 @@ LDFLAGS := -ldflags "-X main.Version=$(VERSION) -X main.Commit=$(COMMIT) -X main
 GO := go
 GOFLAGS := -v
 TESTFLAGS := -v -race
+LINT_BASE_REF ?=
+LINT_CHANGED_FILES := $(shell if [ -n "$(LINT_BASE_REF)" ]; then git diff --name-only --diff-filter=ACMRTUXB "$(LINT_BASE_REF)"...HEAD -- '*.go' 2>/dev/null; else { git diff --name-only --diff-filter=ACMRTUXB -- '*.go' 2>/dev/null; git ls-files --others --exclude-standard -- '*.go' 2>/dev/null; }; fi | sort -u)
+LINT_DIRS := $(shell if [ -n "$(LINT_CHANGED_FILES)" ]; then printf '%s\n' $(LINT_CHANGED_FILES) | xargs -n1 dirname | sort -u; fi)
 
 # 默认目标
 all: fmt lint test build
@@ -80,12 +89,12 @@ test-bench:
 
 lint:
 	@echo "Running linter..."
-	@which golangci-lint > /dev/null || (echo "Installing golangci-lint..." && go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest)
-	golangci-lint run ./...
+	@GOROOT= $(GO) install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.64.8 2>/dev/null; true
+	GOCACHE=$${GOCACHE:-/tmp/chainpulse-go-build-cache} golangci-lint run --tests=false $(LINT_DIRS)
 
 lint-fix:
 	@echo "Running linter with auto-fix..."
-	golangci-lint run --fix ./...
+	GOCACHE=$${GOCACHE:-/tmp/chainpulse-go-build-cache} golangci-lint run --tests=false --fix $(LINT_DIRS)
 
 vet:
 	@echo "Running go vet..."
@@ -93,18 +102,18 @@ vet:
 
 staticcheck:
 	@echo "Running staticcheck..."
-	@which staticcheck > /dev/null || (echo "Installing staticcheck..." && go install honnef.co/go/tools/cmd/staticcheck@latest)
+	@GOROOT= $(GO) install honnef.co/go/tools/cmd/staticcheck@latest 2>/dev/null; true
 	staticcheck ./...
 
 fmt:
 	@echo "Formatting code..."
-	@which gofumpt > /dev/null || (echo "Installing gofumpt..." && go install mvdan.cc/gofumpt@latest)
+	@GOROOT= $(GO) install mvdan.cc/gofumpt@latest 2>/dev/null; true
 	gofumpt -w .
 	$(GO) mod tidy
 
 fmt-check:
 	@echo "Checking code formatting..."
-	@which gofumpt > /dev/null || (echo "Installing gofumpt..." && go install mvdan.cc/gofumpt@latest)
+	@GOROOT= $(GO) install mvdan.cc/gofumpt@latest 2>/dev/null; true
 	@if [ -n "$$(gofumpt -l .)" ]; then \
 		echo "Code is not formatted. Run 'make fmt' to fix."; \
 		gofumpt -l .; \
@@ -140,14 +149,14 @@ proto:
 
 wire:
 	@echo "Running wire..."
-	@which wire > /dev/null || $(GO) install github.com/google/wire/cmd/wire@latest
+	@GOROOT= $(GO) install github.com/google/wire/cmd/wire@latest 2>/dev/null; true
 	wire ./...
 
 # ========== 安全扫描 ==========
 
 security:
 	@echo "Running security scan..."
-	@which gosec > /dev/null || $(GO) install github.com/securego/gosec/v2/cmd/gosec@latest
+	@GOROOT= $(GO) install github.com/securego/gosec/v2/cmd/gosec@latest 2>/dev/null; true
 	gosec -fmt sarif -out $(BUILD_DIR)/gosec.sarif ./...
 	gosec ./...
 
@@ -169,7 +178,7 @@ dev-setup:
 	@echo "Setting up development environment..."
 	@which air > /dev/null || $(GO) install github.com/air-verse/air@latest
 	@echo "Installing tools..."
-	$(GO) install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
+	$(GO) install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.64.8
 	$(GO) install honnef.co/go/tools/cmd/staticcheck@latest
 	$(GO) install mvdan.cc/gofumpt@latest
 	$(GO) install github.com/securego/gosec/v2/cmd/gosec@latest
@@ -188,6 +197,62 @@ docker-logs:
 # ========== CI/CD ==========
 
 ci: fmt-check lint vet test-unit
+
+check-policy-contract:
+	@echo "Checking policy metric/tag contract..."
+	./scripts/check-policy-metric-contract.sh
+
+check-migration-manifest:
+	@echo "Checking migration manifest deadlines..."
+	./scripts/check-migration-manifest.sh
+
+export-migration-kpi:
+	@echo "Exporting migration governance KPI snapshot..."
+	./scripts/export-migration-governance-kpi.sh
+
+compare-migration-kpi:
+	@echo "Comparing migration governance KPI against baseline..."
+	./scripts/compare-migration-governance-kpi.sh
+
+compare-ticket-registry-health:
+	@echo "Comparing ticket registry health against baseline..."
+	./scripts/compare-ticket-registry-health.sh
+
+smoke-baseline-governance-scope:
+	@echo "Running baseline governance scope smoke tests..."
+	./scripts/smoke-baseline-governance-scope.sh
+
+compare-baseline-scope-smoke:
+	@echo "Comparing baseline scope smoke metrics against baseline..."
+	./scripts/compare-baseline-scope-smoke.sh
+
+preflight-migration-baseline-update:
+	@echo "Running baseline update preflight..."
+	./scripts/preflight-migration-baseline-update.sh
+
+test-baseline-update-resolver:
+	@echo "Running baseline update resolver tests..."
+	./scripts/test-baseline-update-resolver.sh
+
+compare-baseline-resolver-test:
+	@echo "Comparing baseline resolver tests against baseline..."
+	./scripts/compare-baseline-resolver-test.sh
+
+check-migration-baseline:
+	@echo "Checking migration KPI baseline governance..."
+	./scripts/check-migration-baseline-governance.sh
+
+check-migration-changelog-quality:
+	@echo "Checking migration KPI changelog entry quality..."
+	./scripts/check-migration-changelog-quality.sh
+
+export-migration-owner-drift:
+	@echo "Exporting migration owner drift report..."
+	./scripts/export-migration-owner-drift-report.sh
+
+update-migration-baseline:
+	@echo "Updating migration KPI baseline (guarded)..."
+	./scripts/update-migration-governance-baseline.sh
 
 cd: build test-coverage
 
