@@ -1,6 +1,7 @@
 # M1-1: 修复单体端到端链路（严格按 ARCHITECTURE_v1.md 蓝图执行）
 
 > 这是可以直接发给 GPT 的完整 prompt。
+> **所有实现必须与 ARCHITECTURE_v1.md 蓝图一致，任何偏离必须说明原因。**
 
 ---
 
@@ -8,7 +9,7 @@
 
 ### 背景
 ChainPulse 是一个区块链事件索引系统，支持单体和微服务两种部署模式。
-- 架构文档: `docs/archive/ARCHITECTURE_v1.md`（**这是唯一权威来源，所有实现必须与其一致**）
+- 架构文档: `docs/archive/ARCHITECTURE_v1.md`（**唯一权威来源**）
 - 实现状态: `docs/IMPLEMENTATION_STATUS.md`
 - 依赖图: `docs/DEPENDENCY_GRAPH.md`
 - 架构规则: `ARCHITECTURE_RULES.md`
@@ -40,39 +41,48 @@ ChainPulse 是一个区块链事件索引系统，支持单体和微服务两种
 │     ↑ wires                                                     │
 │   Composition Root (main.go) · NO business logic                │
 └─────────────────────────────────────────────────────────────────┘
-                              ↓
-                    ┌─────────────────┐
-                    │ EVM Node / Mock │
-                    └─────────────────┘
 ```
 
 ### 蓝图对单体模式的具体要求（必须严格遵守）
 
-#### Puller
+#### Puller（§3.1）
 | 维度 | 蓝图要求 |
 |---|---|
+| 职责 | 从 EVM/非-EVM 节点拉取原始区块与事件，发布到 MQ（单体为 EventBus） |
+| 核心代码 | `pkg/infrastructure/data/data_puller.go`、`block_height_tracker.go` |
 | MQ | `core.EventBus`（内存 chan） |
 | RPC | MockPuller / 本地节点 |
 | 扩缩容 | 单 goroutine per chain |
 | 容错 | RPC 故障切换 + 指数退避重试 + checkpoint 落盘 + 背压控制 |
 
-#### Indexer
+#### Indexer（§3.2）
 | 维度 | 蓝图要求 |
 |---|---|
+| 职责 | **消费原始事件，ABI 解码，幂等持久化到数据库，维护缓存** |
+| 核心代码 | `pkg/services/indexing/`、`pkg/services/decoder/`、`pkg/integrations/` |
 | DB | MockDB / SQLite |
 | Cache | InMemoryCache |
 | 事件来源 | EventBus |
-| 容错 | 幂等写入 + 批量写入 + ABI 平滑升级 |
+| 容错 | **幂等写入** + 批量写入 + **ABI 平滑升级** |
 
-#### Query
+#### Query（§3.3）
 | 维度 | 蓝图要求 |
 |---|---|
+| 职责 | 对外提供链上数据查询，支持**缓存、熔断、降级、一致性验证** |
+| 核心代码 | `query_service.go`、`circuit_breaker.go`、`cache_service.go`、`consistency_checker.go` |
 | DB | MockDB |
 | Cache | InMemoryCache |
 | 熔断器 | 内存实现 |
-| 容错 | 熔断 + 缓存击穿防护 + 降级 + 一致性检查 |
+| 容错 | **熔断** + **缓存击穿防护** + **降级** + **一致性检查** |
 
-### 当前状态：12 个断裂点
+#### Reorg Handler（§3.5）
+| 维度 | 蓝图要求 |
+|---|---|
+| 职责 | 检测链重组，回滚受影响数据，触发下游重索引 |
+| 核心代码 | `pkg/services/reorg/reorg_handler.go` |
+| 容错 | **最终性确认**（reorgThreshold 按链配置）+ **原子回滚** + **最大回滚深度** |
+
+### 当前状态：15 个断裂点
 
 #### 断裂 1: EventBus 从未被创建
 - 文件: `cmd/monolithic/chainpulse/main.go:196`
@@ -88,7 +98,7 @@ ChainPulse 是一个区块链事件索引系统，支持单体和微服务两种
 #### 断裂 3: Puller 从未被实例化
 - main.go 中没有 Puller 代码
 - 蓝图要求: 单体模式用 **MockPuller / 本地节点**，单 goroutine per chain
-- 修复: 为每条链实例化 Puller（使用真实 RPC 节点替代 MockPuller，因为需要验证真实数据流）
+- 修复: 为每条链实例化 Puller（使用 `pkg/plugins/pullers/https_jsonrpc_puller.go` 作为本地节点实现）
 
 #### 断裂 4: Puller 的 EventBus 是 nil
 - `BaseDataPullerPlugin` 有 `eventBus` 和 `PublishEvents()`，但传的是 nil
@@ -129,44 +139,68 @@ ChainPulse 是一个区块链事件索引系统，支持单体和微服务两种
 - 当前: RPC 错误直接返回，没有重试
 - 修复: 在拉取循环中集成 `RetryLogic`
 
-#### 断裂 12: 没有背压控制
+#### 断裂 12: ABI 解码未接入 Indexer
+- 蓝图要求: Indexer 职责包含 **ABI 解码**（`decoder.EventDecoder`）
+- 当前: 事件以原始 bytes 存储，没有解码
+- 修复: 在 ProcessBatch 中接入 `decoder.EventDecoder`，解码后存储
+
+#### 断裂 13: 幂等写入缺失
+- 蓝图要求: Indexer 容错包含 **幂等写入**，基于 `(chain_id, tx_hash, log_index)` 唯一键去重
+- 当前: 重复拉取会导致重复数据
+- 修复: 在 EventSink.Persist 中接入 `processor.IdempotencyService`
+
+#### 断裂 14: Query 容错全缺
+- 蓝图要求: Query 支持 **熔断**（`circuit_breaker.go`）+ **缓存**（`cache_service.go`）+ **降级** + **一致性检查**（`consistency_checker.go`）
+- 当前: QueryService 无容错能力
+- 修复: 在 QueryService wiring 中接入 circuit_breaker、cache_service、consistency_checker
+
+#### 断裂 15: 背压控制缺失
 - 蓝图要求: MQ 满时 Puller 暂停拉取，防止内存溢出
 - 当前: 无背压控制
-- 修复: 检查 EventBus 订阅者队列深度，满时暂停拉取
+- 修复: 检查 EventBus 订阅者队列深度（`GetSubscriberCount`），处理慢时暂停
 
 ### 完整数据流（严格按蓝图）
 
 ```
 for each chain (ethereum, polygon, ...):
-  HTTPSJSONRPCPuller(chainID, nodeURL, eventBus)  // 替代 MockPuller，使用真实 RPC
+  HTTPSJSONRPCPuller(chainID, nodeURL, eventBus)
     → Start()
     → goroutine 循环:
-      1. 指数退避重试包装 PullEvents（蓝图要求: max 3 retries, 1s-30s backoff）
-      2. 背压控制: 检查 EventBus 队列深度，满时暂停（蓝图要求）
-      3. Checkpoint: 从 BlockHeightTracker 加载 lastIndexedBlock（蓝图要求: 落盘）
+      1. 指数退避重试包装 PullEvents（蓝图 §3.1: max 3 retries, 1s-30s backoff）
+      2. 背压控制: 检查 EventBus 订阅者处理速度（蓝图 §3.1: MQ 满时暂停）
+      3. Checkpoint: 从 BlockHeightTracker 加载 lastIndexedBlock（蓝图 §3.1: checkpoint 落盘）
       4. fromBlock = checkpoint + 1, toBlock = fromBlock + batchSize
       5. events := puller.PullEvents(ctx, fromBlock, toBlock)
-      6. Reorg 检测: 对比 block hash，变化时调用 ReorgHandler
+      6. Reorg 检测: 对比 block hash（蓝图 §3.5: 最终性确认 + 原子回滚）
+         - 变化时 → ReorgHandler.DetectReorg() → HandleReorg() → RollbackEvents()
       7. eventBus.Publish("blockchain-events", events)  // 蓝图: 单体用 EventBus
       8. ChainIndexer.ProcessBatch(ctx, chainID, envelopes)
-         → SharedRuntime.ProcessBatch(ctx, chainID, envelopes)
-         → EventSink.Persist(ctx, envelopes)
-         → LegacyRuntimeSink → MockDB/MonolithicMemoryDatabase  // 蓝图: MockDB/SQLite
-      9. BlockHeightTracker.UpdateBlockHeight(toBlock)  // 蓝图: checkpoint 落盘
+         a. ABI 解码: EventDecoder.Decode(envelopes)  // 蓝图 §3.2: ABI 解码
+         b. 幂等检查: IdempotencyService.Check(envelopes)  // 蓝图 §3.2: 幂等写入
+         c. SharedRuntime.ProcessBatch(ctx, chainID, envelopes)
+            → EventSink.Persist(ctx, envelopes)
+            → LegacyRuntimeSink → MockDB/MonolithicMemoryDatabase  // 蓝图: MockDB/SQLite
+            → BatchStoreEvents()  // 蓝图 §3.2: 批量写入
+      9. BlockHeightTracker.UpdateBlockHeight(toBlock)  // 蓝图 §3.1: checkpoint 落盘
       10. sleep pollInterval
 
-  QueryService(MockDB, InMemoryCache)  // 蓝图: MockDB + InMemoryCache
-    → 从同一个 MockDB 查询数据
+  QueryService(MockDB, InMemoryCache, CircuitBreaker, ConsistencyChecker)  // 蓝图 §3.3
+    → 熔断检查: circuit_breaker.Allow()
+    → 缓存检查: cache_service.Get()
+    → DB 查询: MockDB.QueryEvents()
+    → 一致性检查: consistency_checker.Verify()
     → GraphQL API 返回
 ```
 
 ### 目标
 严格按 ARCHITECTURE_v1.md 蓝图修复单体模式，使 `make run-monolithic` 能：
-1. 从真实以太坊 RPC 拉取事件（MockPuller 的替代，因为需要验证真实数据流）
-2. 多链并行索引（单 goroutine per chain）
-3. Reorg 检测与处理
-4. 容错: 指数退避重试 + checkpoint + 背压控制
-5. 查询: 从同一个 DB 返回索引数据
+1. 从真实以太坊 RPC 拉取事件（使用 `pkg/plugins/pullers/` 中的 HTTPSJSONRPCPuller）
+2. 多链并行索引（单 goroutine per chain，蓝图 §3.1）
+3. ABI 解码（蓝图 §3.2）
+4. 幂等写入（蓝图 §3.2）
+5. Reorg 检测与处理（蓝图 §3.5）
+6. Query 容错: 熔断 + 缓存 + 降级 + 一致性检查（蓝图 §3.3）
+7. 容错: 指数退避重试 + checkpoint + 背压控制（蓝图 §3.1）
 
 ### 成功标准
 
@@ -176,18 +210,21 @@ for each chain (ethereum, polygon, ...):
 - [ ] `make vet` 通过
 - [ ] `make run-monolithic` 启动后不 panic
 
-#### 蓝图一致性
-- [ ] EventBus 作为 Puller 和 Indexer 之间的通信机制（内存 chan）
-- [ ] 每条链有独立的 Puller + ChainIndexer + ReorgHandler（单 goroutine per chain）
-- [ ] QueryService 和 IndexingStorage 使用同一个 DB 实例（MockDB）
-- [ ] InMemoryCache 用于查询缓存
+#### 蓝图一致性（必须全部通过）
+- [ ] EventBus 作为 Puller 和 Indexer 之间的通信机制（蓝图: 单体用 `core.EventBus`）
+- [ ] 每条链有独立的 Puller + ChainIndexer + ReorgHandler（蓝图: 单 goroutine per chain）
+- [ ] QueryService 和 IndexingStorage 使用同一个 MockDB 实例（蓝图: 单体用 MockDB）
+- [ ] InMemoryCache 用于查询缓存（蓝图: 单体用 InMemoryCache）
 - [ ] Composition Root (main.go) 只负责 wiring，无业务逻辑
-
-#### 容错（蓝图要求）
-- [ ] 指数退避重试: RPC 错误时重试，最大 3 次，初始 1s，上限 30s
-- [ ] Checkpoint: 拉取进度可追踪，重启后从断点续拉（M1 至少内存 checkpoint）
-- [ ] 背压控制: EventBus 队列满时 Puller 暂停拉取
-- [ ] Reorg 检测: block hash 变化时调用 ReorgHandler
+- [ ] **ABI 解码接入 Indexer**（蓝图 §3.2: 消费原始事件，ABI 解码）
+- [ ] **幂等写入接入 Indexer**（蓝图 §3.2: 基于唯一键去重）
+- [ ] **批量写入接入 Indexer**（蓝图 §3.2: BatchStoreEvents）
+- [ ] **Query 熔断接入**（蓝图 §3.3: circuit_breaker.go）
+- [ ] **Query 缓存接入**（蓝图 §3.3: cache_service.go）
+- [ ] **Query 一致性检查接入**（蓝图 §3.3: consistency_checker.go）
+- [ ] **ReorgHandler 接入拉取循环**（蓝图 §3.5: 检测链重组，回滚受影响数据）
+- [ ] **指数退避重试接入 Puller**（蓝图 §3.1: max 3 retries, 1s-30s backoff）
+- [ ] **Checkpoint 追踪接入 Puller**（蓝图 §3.1: block_height_tracker.go）
 
 #### 真实数据
 - [ ] 启动后 60 秒内，GraphQL 查询返回真实链上事件
@@ -219,20 +256,27 @@ https://polygon-bor-rpc.publicnode.com
 
 ### 参考文件
 - `docs/archive/ARCHITECTURE_v1.md` — **权威蓝图，所有实现必须与其一致**
-- `cmd/monolithic/chainpulse/main.go` — Composition Root，只负责 wiring
-- `pkg/core/eventbus.go` — EventBus 实现（内存 chan）
+- `cmd/monolithic/chainpulse/main.go` — Composition Root
+- `pkg/core/eventbus.go` — EventBus（含 GetSubscriberCount 用于背压）
 - `pkg/core/config.go` — Config 结构体
 - `pkg/core/blockchain_models.go` — BlockchainEvent 结构体
 - `pkg/core/plugin.go` — DataPullerPlugin / DatabasePlugin / CachePlugin 接口
-- `pkg/plugins/pullers/https_jsonrpc_puller.go` — HTTPSJSONRPCPuller（替代 MockPuller，使用真实 RPC）
+- `pkg/plugins/pullers/https_jsonrpc_puller.go` — HTTPSJSONRPCPuller（需修复 logToEvent）
 - `pkg/plugins/pullers/data_puller.go` — BaseDataPullerPlugin（含 eventBus 和 PublishEvents）
-- `pkg/plugins/database/mock_db.go` — MockDB（蓝图要求的单体 DB）
-- `pkg/plugins/cache/` — InMemoryCache（蓝图要求的单体 Cache）
-- `pkg/services/reorg/reorg_handler.go` — ReorgHandler
+- `pkg/plugins/database/mock_db.go` — MockDB（含 BatchStoreEvents）
+- `pkg/plugins/cache/` — InMemoryCache
+- `pkg/services/reorg/reorg_handler.go` — ReorgHandler（DetectReorg/HandleReorg/RollbackEvents）
 - `pkg/services/resilience/retry_logic.go` — 指数退避重试
-- `pkg/services/indexing/chain_indexer.go` — ChainIndexer
-- `pkg/application/indexing/runtime.go` — EventEnvelope、EventSink、SharedRuntime
+- `pkg/services/decoder/event_decoder.go` — EventDecoder（ABI 解码）
+- `pkg/services/decoder/contract_manager.go` — ContractManager（多版本 ABI）
+- `pkg/services/processor/idempotency.go` — IdempotencyService（幂等写入）
+- `pkg/services/indexing/chain_indexer.go` — ChainIndexer.ProcessBatch
 - `pkg/services/indexing/legacy_runtime_sink.go` — LegacyRuntimeSink
+- `pkg/services/query/query_service.go` — QueryService
+- `pkg/services/query/circuit_breaker.go` — 熔断器
+- `pkg/services/query/cache_service.go` — 缓存服务
+- `pkg/services/query/consistency_checker.go` — 一致性检查
+- `pkg/application/indexing/runtime.go` — EventEnvelope、EventSink、SharedRuntime
 - `pkg/infrastructure/data/block_height_tracker.go` — Checkpoint 追踪
 - `pkg/application/bootstrap/runtime_wiring.go` — QueryService wiring
 - `pkg/application/bootstrap/indexing_storage.go` — IndexingStorage wiring
@@ -242,14 +286,14 @@ https://polygon-bor-rpc.publicnode.com
 **Step 1: 修复 logToEvent 的 BlockHash 和 ChainID**
 ```
 文件: pkg/plugins/pullers/https_jsonrpc_puller.go
-1. BlockHash: common.HexToHash(log.BlockHash)  // eth_getLogs 返回了但没赋值
-2. ChainID: 从 Puller 配置读取，不是硬编码 "1"
+1. BlockHash: common.HexToHash(log.BlockHash)
+2. ChainID: 从 Puller 配置读取
 ```
 
 **Step 2: 创建 EventBus**
 ```
 文件: cmd/monolithic/chainpulse/main.go
-1. eventBus := core.NewEventBus(logger)  // 蓝图: in-process EventBus
+1. eventBus := core.NewEventBus(logger)
 2. 传给所有 Puller 和 ChainIndexer
 ```
 
@@ -257,67 +301,76 @@ https://polygon-bor-rpc.publicnode.com
 ```
 文件: cmd/monolithic/chainpulse/main.go
 for i, chainID := range chains:
-  nodeURL := nodeURLs[i % len(nodeURLs)]  // 循环使用
+  nodeURL := nodeURLs[i % len(nodeURLs)]
 
-  // Puller（蓝图: 单 goroutine per chain，MockPuller / 本地节点）
+  // Puller
   pullerConfig := createPerChainConfig(config, nodeURL, chainID)
   puller := pullers.NewHTTPSJSONRPCPuller(pullerConfig, logger, metrics, eventBus)
   puller.Start()
 
-  // ReorgHandler（蓝图: Application Services 的一部分）
+  // ReorgHandler（蓝图 §3.5）
   reorgHandler := reorg.NewReorgHandler(
-    indexingDatabase,  // 蓝图: MockDB / SQLite
+    indexingDatabase,
     logger,
     getReorgThreshold(chainID),  // Ethereum=12, Polygon=128
     getMaxRollback(chainID),
   )
 
+  // EventDecoder（蓝图 §3.2: ABI 解码）
+  eventDecoder := decoder.NewEventDecoder(logger)
+
+  // IdempotencyService（蓝图 §3.2: 幂等写入）
+  idempotencyService := processor.NewIdempotencyService(indexingDatabase, logger)
+
   // ChainIndexer
   chainIndexer := indexing.NewDefaultChainIndexer(
     chainID,
-    indexingDatabase,  // 蓝图: MockDB
-    indexingCache,     // 蓝图: InMemoryCache
+    indexingDatabase,
+    indexingCache,
     logger,
     nil,
   )
   chainIndexer.SetSharedRuntime(sharedIndexingRuntime, metrics)
 ```
 
-**Step 4: 统一 DB 来源（蓝图: MockDB）**
+**Step 4: 统一 DB 来源 + Query 容错（蓝图 §3.3）**
 ```
-让 QueryService 使用 indexingDatabase（MockDB/MonolithicMemoryDatabase）。
-最简单方案: 在 main.go 中直接创建基于 indexingDatabase 的 QueryService，
-绕过 BuildRuntimeWiring 的 MongoDB/PG 初始化逻辑。
+文件: cmd/monolithic/chainpulse/main.go
+1. QueryService 使用 indexingDatabase（MockDB）
+2. 接入 circuit_breaker.go（熔断）
+3. 接入 cache_service.go（缓存）
+4. 接入 consistency_checker.go（一致性检查）
 ```
 
-**Step 5: 启动多链拉取循环（含蓝图要求的容错）**
+**Step 5: 启动多链拉取循环（含蓝图要求的全部容错）**
 ```
 文件: cmd/monolithic/chainpulse/main.go
 for each chain:
-  go func(chainID, puller, chainIndexer, reorgHandler) {
-    // 蓝图: checkpoint 加载
+  go func(chainID, puller, chainIndexer, reorgHandler, eventDecoder, idempotencyService) {
+    // 蓝图 §3.1: checkpoint 加载
     checkpoint := blockHeightTracker.GetBlockHeight(ctx, chainID)
 
-    // 蓝图: 指数退避重试
+    // 蓝图 §3.1: 指数退避重试
     retry := resilience.NewRetryLogic(3, 1*time.Second, 30*time.Second, logger)
 
     for {
-      // 蓝图: 背压控制
-      if eventBus.IsBackpressured("blockchain-events") {
+      // 蓝图 §3.1: 背压控制
+      subCount := eventBus.GetSubscriberCount("blockchain-events")
+      if subCount == 0 {
         sleep(5s)
         continue
       }
 
-      // 蓝图: 拉取进度
+      // 蓝图 §3.1: 拉取进度
       fromBlock := checkpoint + 1
       toBlock := min(fromBlock + 10, chainHead)
 
-      // 蓝图: 指数退避重试包装
+      // 蓝图 §3.1: 指数退避重试
       events, err := retry.ExecuteWithRetry(func() ([]core.BlockchainEvent, error) {
         return puller.PullEvents(ctx, fromBlock, toBlock)
       })
 
-      // 蓝图: Reorg 检测
+      // 蓝图 §3.5: Reorg 检测
       if len(events) > 0 && events[0].BlockHash != lastBlockHash[chainID] {
         reorgHandler.DetectReorg(ctx, chainID, fromBlock, ...)
         reorgHandler.HandleReorg(ctx, ...)
@@ -327,11 +380,17 @@ for each chain:
       // 蓝图: EventBus 发布
       eventBus.Publish("blockchain-events", events)
 
-      // 蓝图: Indexer 消费
-      envelopes := toEventEnvelopes(events)
+      // 蓝图 §3.2: ABI 解码
+      decodedEvents := eventDecoder.DecodeBatch(events)
+
+      // 蓝图 §3.2: 幂等检查
+      uniqueEvents := idempotencyService.FilterDuplicates(decodedEvents)
+
+      // 蓝图 §3.2: Indexer 消费 + 批量写入
+      envelopes := toEventEnvelopes(uniqueEvents)
       chainIndexer.ProcessBatch(ctx, chainID, envelopes)
 
-      // 蓝图: checkpoint 更新
+      // 蓝图 §3.1: checkpoint 更新
       checkpoint = toBlock
       blockHeightTracker.UpdateBlockHeight(ctx, chainID, toBlock)
       lastBlockHash[chainID] = events[len(events)-1].BlockHash
@@ -354,6 +413,7 @@ for each chain:
 - 不写 stub/placeholder 代码
 - 不要试图修复 16 处依赖违反（详见 `docs/DEPENDENCY_GRAPH.md`）
 - **必须与 ARCHITECTURE_v1.md 蓝图一致，任何偏离必须说明原因**
+- **蓝图要求的 ABI 解码、幂等写入、Query 熔断/缓存/一致性检查、Reorg 处理、指数退避重试、Checkpoint 追踪，全部必须实现，不可跳过**
 
 ### 验证步骤
 完成后运行:
