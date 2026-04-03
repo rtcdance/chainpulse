@@ -1,0 +1,17 @@
+# Baseline snapshot for baseline-scope smoke delta checks.
+
+# HELP chainpulse_baseline_scope_smoke_total Baseline scope smoke test cases.
+# TYPE chainpulse_baseline_scope_smoke_total gauge
+chainpulse_baseline_scope_smoke_total 4
+
+# HELP chainpulse_baseline_scope_smoke_passed_total Baseline scope smoke passed cases.
+# TYPE chainpulse_baseline_scope_smoke_passed_total gauge
+chainpulse_baseline_scope_smoke_passed_total 4
+
+# HELP chainpulse_baseline_scope_smoke_failed_total Baseline scope smoke failed cases.
+# TYPE chainpulse_baseline_scope_smoke_failed_total gauge
+chainpulse_baseline_scope_smoke_failed_total 0
+
+# HELP chainpulse_baseline_scope_smoke_status Baseline scope smoke status (1=pass,0=fail).
+# TYPE chainpulse_baseline_scope_smoke_status gauge
+chainpulse_baseline_scope_smoke_status 1

@@ -15,9 +15,361 @@
 - `guides/OPERATIONS_GUIDE.md` - Operations runbook
 - `guides/DEVELOPER_GUIDE.md` - Developer onboarding
 
+### Operations
+- `operations/POLICY_ROLLOUT_SLO.md` - Policy rollout SLO/SLI definitions
+- `operations/POLICY_DASHBOARD_QUERIES.md` - Dashboard/alert query templates
+- `operations/POLICY_ROLLOUT_RUNBOOK.md` - Audit-to-enforce rollout procedure
+- `operations/POLICY_METRIC_VERSIONING.md` - Metric schema migration workflow
+- `operations/MIGRATION_MANIFEST.md` - Repo migration governance and deadline checks
+- `operations/MIGRATION_GOVERNANCE_DASHBOARD_QUERIES.md` - Governance KPI queries
+- `operations/MIGRATION_GOVERNANCE_CHANGELOG.md` - Baseline refresh changelog
+- `operations/MIGRATION_TICKET_REGISTRY.txt` - Allowed governance ticket registry
+- `operations/MIGRATION_TICKET_REGISTRY_HEALTH_BASELINE.prom` - Ticket registry health regression baseline
+- `operations/MIGRATION_BASELINE_SCOPE_SMOKE_BASELINE.prom` - Baseline governance smoke regression baseline
+- `operations/MIGRATION_BASELINE_RESOLVER_TEST_BASELINE.prom` - Baseline resolver shell test regression baseline
+- `build/migration-governance/ticket-registry-health.md` - Generated ticket registry verification health snapshot
+- `build/migration-governance/baseline-scope-smoke.md` - Generated baseline scope smoke summary
+- `build/migration-governance/baseline-update-template.md` - Generated baseline update changelog template preview
+- `build/migration-governance/baseline-update-preflight.md` - Generated baseline update preflight preview
+- `build/migration-governance/baseline-resolver-test.md` - Generated baseline resolver shell test summary
+- `build/migration-governance/baseline-resolver-test-delta.md` - Generated baseline resolver shell test delta summary
+
 ### Architecture
 - `architecture/DIRECTORY_STRUCTURE.md` - Code organization
 - `architecture/MIGRATION_SUMMARY.md` - Migration notes
+- `architecture/ENTERPRISE_INDEXER_GAP_ANALYSIS.md` - Enterprise indexer gap review and roadmap
+- `specs/2026-03-30-architecture-phase104-indexer-runtime-closure-slice.md` - Planned shared indexer runtime closure slice
+- `specs/2026-03-30-architecture-phase108-monolithic-shared-runtime-additive-wiring.md` - Monolithic additive wiring for shared indexing runtime
+- `specs/2026-03-30-architecture-phase109-chain-indexer-shared-runtime-shadow-batch.md` - Chain indexer shadow batch forwarding into shared runtime
+- `specs/2026-03-30-architecture-phase110-legacy-backed-runtime-sink-adapter.md` - Legacy-backed sink adapter for shared runtime storage semantics
+- `specs/2026-03-30-architecture-phase111-monolithic-inmemory-indexing-storage.md` - Monolithic in-memory storage activation for indexing path
+- `specs/2026-03-30-architecture-phase112-monolithic-runtime-legacy-sink-wiring.md` - Monolithic shared runtime now uses legacy-backed sink wiring
+- `specs/2026-03-30-architecture-phase113-shadow-duplicate-write-guard.md` - Duplicate-write guard between shadow runtime sink and legacy indexing
+- `specs/2026-03-30-architecture-phase114-shadow-write-ownership-metrics.md` - Metrics for shared-runtime-owned writes in monolithic shadow mode
+- `specs/2026-03-30-architecture-phase115-indexer-ownership-status-counters.md` - Ownership-aware status counters for chain indexer debug visibility
+- `specs/2026-03-30-architecture-phase116-monolithic-ownership-summary.md` - Service-level ownership summary in monolithic output
+- `specs/2026-03-30-architecture-phase117-monolithic-ownership-mode-status.md` - Explicit ownership mode status in monolithic output
+- `specs/2026-03-30-architecture-phase118-ownership-summary-metrics.md` - Runtime metrics surface for service-level ownership summary and mode
+- `specs/2026-03-30-architecture-phase119-ownership-health-surface.md` - HTTP health surface for ownership summary and mode in monolithic mode
+- `specs/2026-03-30-architecture-phase120-ownership-rollout-readiness-surface.md` - Readiness detail surface for ownership rollout progression in monolithic mode
+- `specs/2026-03-30-architecture-phase121-ownership-rollout-advisory-gate.md` - Shared advisory gate helper for ownership rollout decisions in monolithic mode
+- `specs/2026-03-30-architecture-phase122-ownership-rollout-policy-mode.md` - Report-only policy mode for ownership rollout advisory in monolithic mode
+- `specs/2026-03-30-architecture-phase123-ownership-rollout-manual-gate-mode.md` - Manual-gate policy mode for ownership rollout advisory in monolithic mode
+- `specs/2026-03-30-architecture-phase124-ownership-rollout-acknowledged-signal.md` - Acknowledged signal for manual-gate ownership rollout policy in monolithic mode
+- `specs/2026-03-30-architecture-phase125-ownership-effective-progression-state.md` - Effective progression state for ownership rollout control in monolithic mode
+- `specs/2026-03-30-architecture-phase126-ownership-progression-metrics.md` - Runtime metrics for effective ownership progression state in monolithic mode
+- `specs/2026-03-30-architecture-phase127-ownership-progression-console-summary.md` - Console summary output for effective ownership progression state in monolithic mode
+- `specs/2026-03-30-architecture-phase128-ownership-cutover-dry-run-hook.md` - Dry-run cutover decision hook for ownership rollout in monolithic mode
+- `specs/2026-03-30-architecture-phase129-cutover-dry-run-observability-alignment.md` - Metrics and console alignment for dry-run cutover decision in monolithic mode
+- `specs/2026-03-30-architecture-phase130-cutover-candidate-signal.md` - Explicit cutover candidate signal for monolithic rollout state
+- `specs/2026-03-30-architecture-phase131-manual-approval-checkpoint-signal.md` - Manual approval checkpoint signal for monolithic cutover candidates
+- `specs/2026-03-30-architecture-phase132-operator-handoff-summary.md` - Operator handoff summary for monolithic manual approval checkpoints
+- `specs/2026-03-30-architecture-phase133-approval-work-item-summary.md` - Approval work item summary for monolithic operator handoff
+- `specs/2026-03-30-architecture-phase134-approval-checklist-summary.md` - Approval checklist summary for monolithic approval work items
+- `specs/2026-03-30-architecture-phase135-ownership-rollout-summary-helper.md` - Ownership rollout summary helper extraction for monolithic observability surfaces
+- `specs/2026-03-30-architecture-phase136-ownership-rollout-control-helper.md` - Ownership rollout control helper extraction for monolithic approval and cutover logic
+- `specs/2026-03-30-architecture-phase137-guarded-cutover-hook-dry-run.md` - No-op guarded cutover hook signal consuming monolithic approval and cutover summaries
+- `specs/2026-03-30-architecture-phase138-guarded-hook-policy-mode.md` - Guarded cutover hook policy mode for monolithic rollout control
+- `specs/2026-03-30-architecture-phase139-guarded-hook-would-enforce-summary.md` - Would-enforce summary for guarded cutover hook policy interpretation
+- `specs/2026-03-30-architecture-phase140-guarded-hook-enforce-hint.md` - Service-level enforce hint for guarded cutover would-enforce posture
+- `specs/2026-03-30-architecture-phase141-guarded-cutover-overview-summary.md` - Compact guarded cutover overview summary for monolithic rollout control
+- `specs/2026-03-30-architecture-phase142-guarded-cutover-summary-helper.md` - Guarded cutover summary helper extraction for monolithic rollout summary assembly
+- `specs/2026-03-30-architecture-phase143-approval-summary-helper.md` - Approval summary helper extraction for monolithic rollout summary assembly
+- `specs/2026-03-30-architecture-phase144-rollout-surface-helper.md` - Common rollout surface helper extraction for monolithic rollout summary assembly
+- `specs/2026-03-30-architecture-phase145-rollout-section-assembler.md` - Rollout section assembler extraction for monolithic rollout summary composition
+- `specs/2026-03-30-architecture-phase146-rollout-presenter-helper.md` - Rollout presenter helper extraction for monolithic lifecycle logs and console summaries
+- `specs/2026-03-31-architecture-phase147-rollout-presenter-descriptor-table.md` - Descriptor-table rollout presenter formatting for startup and shutdown summaries
+- `specs/2026-03-31-architecture-phase148-rollout-log-descriptor-table.md` - Descriptor-table rollout lifecycle logging for monolithic presenter symmetry
+- `specs/2026-03-31-architecture-phase149-rollout-presenter-shared-accessors.md` - Shared rollout presenter accessors for descriptor-driven console rendering
+- `specs/2026-03-31-architecture-phase150-rollout-presenter-sections.md` - Ownership/approval/guarded presenter section builders for rollout logs and console output
+- `specs/2026-03-31-architecture-phase151-rollout-presenter-section-assembler.md` - Section assemblers for rollout presenter console and structured log composition
+- `specs/2026-03-31-architecture-phase152-rollout-presenter-accessor-sections.md` - Section-grouped presenter accessors for ownership, approval, and guarded rollout output
+- `specs/2026-03-31-architecture-phase153-ownership-rollout-health-report-surface.md` - Dedicated `/health/rollout` report surface for monolithic ownership rollout status
+- `specs/2026-03-31-architecture-phase154-rollout-report-metadata.md` - Stable metadata envelope for `/health/rollout` report consumers
+- `specs/2026-03-31-architecture-phase155-rollout-report-scope-source.md` - Explicit report scope and source metadata for `/health/rollout` consumers
+- `specs/2026-03-31-architecture-phase156-rollout-report-deployment-mode.md` - Report mode and deployment mode metadata for `/health/rollout` consumers
+- `specs/2026-03-31-architecture-phase157-rollout-report-identity.md` - Stable report identity metadata for `/health/rollout` consumers
+- `specs/2026-03-31-architecture-phase158-rollout-report-typed-contract.md` - Typed rollout report contract for `/health/rollout` producers and consumers
+- `specs/2026-03-31-architecture-phase159-rollout-report-contract-file.md` - Dedicated rollout report contract file extraction for shared `/health/rollout` types
+- `specs/2026-03-31-architecture-phase160-rollout-report-metadata-builder.md` - Shared rollout report metadata builder for stable `/health/rollout` identity
+- `specs/2026-03-31-architecture-phase161-rollout-report-body-builder.md` - Monolithic rollout report body builder extraction for `/health/rollout`
+- `specs/2026-03-31-architecture-phase162-rollout-report-body-sections.md` - Sectioned monolithic rollout report body builder for `/health/rollout`
+- `specs/2026-03-31-architecture-phase163-rollout-report-section-assembler.md` - Section assembler for monolithic rollout report body composition
+- `specs/2026-03-31-architecture-phase164-rollout-report-producer-interface.md` - Shared rollout report producer interface for `/health/rollout`
+- `specs/2026-03-31-architecture-phase165-api-service-rollout-producer-skeleton.md` - Api-service rollout report producer skeleton for cross-deployment reuse
+- `specs/2026-03-31-architecture-phase166-rollout-report-parity-metadata-builder.md` - Shared parity metadata builder for monolith and microservice rollout reports
+- `specs/2026-03-31-architecture-phase167-api-service-rollout-route-integration.md` - Api-service `/health/rollout` route integration coverage
+- `specs/2026-03-31-architecture-phase168-rollout-route-parity-metadata.md` - HTTP-level parity coverage for monolith and api-service rollout metadata
+- `specs/2026-03-31-architecture-phase169-api-service-runtime-derived-rollout-state.md` - Api-service rollout report upgrade from pure skeleton to runtime-derived local wiring state
+- `specs/2026-03-31-architecture-phase170-rollout-route-parity-body-boundaries.md` - HTTP-level parity coverage for shared rollout body boundary semantics across monolith and api-service
+- `specs/2026-03-31-architecture-phase171-api-service-runtime-signal-aware-reasons.md` - Api-service rollout reasons that enumerate enabled and missing runtime wiring signals
+- `specs/2026-03-31-architecture-phase172-api-service-runtime-wiring-completeness-helper.md` - Helper extraction for api-service runtime wiring completeness and reason assembly
+- `specs/2026-03-31-architecture-phase173-api-service-explicit-summary-zeroes.md` - Explicit zeroed ownership summary semantics for api-service rollout reports
+- `specs/2026-03-31-architecture-phase174-api-service-rollout-sections.md` - Sectioned api-service rollout producer structure for surface, approval, and guarded fields
+- `specs/2026-03-31-architecture-phase175-api-service-rollout-section-assembler.md` - Section assembler for api-service rollout producer paths
+- `specs/2026-03-31-architecture-phase176-shared-rollout-surface-apply-helper.md` - Shared helper for applying rollout surface sections across monolith and api-service
+- `specs/2026-03-31-architecture-phase177-shared-rollout-approval-apply-helper.md` - Shared helper for applying rollout approval sections across monolith and api-service
+- `specs/2026-03-31-architecture-phase178-shared-rollout-guarded-apply-helper.md` - Shared helper for applying rollout guarded-cutover sections across monolith and api-service
+- `specs/2026-03-31-architecture-phase179-shared-rollout-surface-input-model.md` - Shared typed input model for rollout surface section builders across monolith and api-service
+- `specs/2026-03-31-architecture-phase180-shared-rollout-approval-input-model.md` - Shared typed input model for rollout approval section builders across monolith and api-service
+- `specs/2026-03-31-architecture-phase181-shared-rollout-guarded-input-model.md` - Shared typed input model for rollout guarded-cutover section builders across monolith and api-service
+- `specs/2026-03-31-architecture-phase182-shared-rollout-sections-facade.md` - Shared facade for assembling rollout surface, approval, and guarded sections across monolith and api-service
+- `specs/2026-03-31-architecture-phase183-shared-rollout-surface-core-cutover-inputs.md` - Shared core/cutover input assembly path for rollout surface inputs across monolith and api-service
+- `specs/2026-03-31-architecture-phase184-shared-rollout-approval-flow-workitem-inputs.md` - Shared flow/work-item input assembly path for rollout approval inputs across monolith and api-service
+- `specs/2026-03-31-architecture-phase185-shared-rollout-guarded-hook-enforcement-inputs.md` - Shared hook/enforcement input assembly path for rollout guarded inputs across monolith and api-service
+- `specs/2026-03-31-architecture-phase186-api-service-additional-runtime-route-signals.md` - Additional real api-service runtime route signals in rollout report completeness and reasons
+- `specs/2026-03-31-architecture-phase187-api-service-query-health-rollout-signal.md` - Query runtime health folded into api-service rollout readiness and explanatory reasons
+- `specs/2026-03-31-architecture-phase188-api-service-query-health-advisory-mapping.md` - Fully wired api-service advisory status mapping for healthy versus degraded query runtime
+- `specs/2026-03-31-architecture-phase189-api-service-query-health-reason-hints.md` - Actionable query-health reason hints for runtime-derived api-service rollout reports
+- `specs/2026-03-31-architecture-phase190-api-service-rollout-posture-hints.md` - Compact rollout posture hints for runtime-derived api-service rollout reports
+- `specs/2026-03-31-architecture-phase191-event-processor-rollout-producer.md` - Event-processor rollout producer with skeleton and runtime-derived dependency wiring states
+- `specs/2026-03-31-architecture-phase192-event-processor-rollout-posture-hints.md` - Compact rollout posture hints for runtime-derived event-processor rollout reports
+- `specs/2026-03-31-architecture-phase193-puller-rollout-producer.md` - Puller rollout producer with skeleton and runtime-derived dependency wiring states
+- `specs/2026-03-31-architecture-phase194-microservice-rollout-producer-coverage-summary.md` - Coverage summary for api-service, event-processor, and puller rollout producers
+- `specs/2026-03-31-architecture-phase195-api-gateway-rollout-producer-skeleton.md` - API-gateway rollout producer skeleton with runtime-derived gateway wiring states
+- `specs/2026-03-31-architecture-phase196-api-gateway-rollout-runtime-wiring.md` - API-gateway runtime helper wiring for shared rollout report exposure
+- `specs/2026-03-31-architecture-phase197-microservice-rollout-parity-guardrails.md` - Shared parity guardrails for metadata and runtime-derived rollout posture across all microservice producers
+- `specs/2026-03-31-architecture-phase198-event-processor-runtime-health-advisory.md` - Event-processor fully wired rollout advisory refined by event store, metadata store, and Kafka health
+- `specs/2026-03-31-architecture-phase199-puller-runtime-health-advisory.md` - Puller fully wired rollout advisory refined by database and Kafka health
+- `specs/2026-03-31-architecture-phase200-puller-rollout-runtime-wiring.md` - Puller entrypoint wiring for real rollout health handler construction and focused `/health/rollout` coverage
+- `specs/2026-03-31-architecture-phase201-event-processor-rollout-runtime-wiring.md` - Event-processor entrypoint wiring for real rollout health handler construction and focused `/health/rollout` coverage
+- `specs/2026-03-31-architecture-phase202-entrypoint-rollout-parity-coverage.md` - Shared parity validators applied to puller and event-processor wired handler `/health/rollout` paths
+- `specs/2026-03-31-architecture-phase203-api-gateway-entrypoint-rollout-parity.md` - Shared parity validators applied to the api-gateway wired `/health/rollout` route path
+- `specs/2026-03-31-architecture-phase204-rollout-coverage-matrix-refresh.md` - Coverage summary refreshed to distinguish producer-level versus entrypoint-level rollout protection
+- `specs/2026-03-31-architecture-phase205-api-service-route-parity-guardrail.md` - Shared parity validators applied directly to the api-service real `/health/rollout` route path
+- `specs/2026-03-31-architecture-phase206-puller-execution-progress-signal.md` - Puller runtime-derived rollout reasons now include lightweight poll-loop execution progress
+- `specs/2026-03-31-architecture-phase207-event-processor-kafka-activity-signal.md` - Event-processor runtime-derived rollout reasons now include lightweight Kafka activity details
+- `specs/2026-03-31-architecture-phase208-runtime-progress-coverage-refresh.md` - Coverage summary refreshed to distinguish wiring, health, and lightweight runtime-activity rollout signals
+- `specs/2026-03-31-architecture-phase209-puller-poll-activity-state.md` - Puller runtime-derived rollout reasons now include a derived poll activity state
+- `specs/2026-03-31-architecture-phase210-event-processor-kafka-activity-state.md` - Event-processor runtime-derived rollout reasons now include a derived Kafka activity state
+- `specs/2026-03-31-architecture-phase211-event-processor-consumer-progress-state.md` - Event-processor runtime-derived rollout reasons now include a derived consumer progress state
+- `specs/2026-03-31-architecture-phase212-event-processor-consumer-progress-extractor.md` - Event-processor consumer progress extraction refactored into a dedicated snapshot helper
+- `specs/2026-03-31-architecture-phase213-kafka-health-consumer-lag-export.md` - Kafka health now exports minimal consumer lag/progress details for rollout helpers
+- `specs/2026-03-31-architecture-phase214-puller-progress-extractor.md` - Puller poll progress extraction refactored into a dedicated snapshot helper
+- `specs/2026-03-31-architecture-phase215-shared-execution-progress-contract.md` - Shared typed execution-progress snapshot contract for puller and event-processor helpers
+- `specs/2026-03-31-architecture-phase216-shared-execution-progress-reason-helper.md` - Shared progress-to-reason helper for puller and event-processor rollout appenders
+- `specs/2026-03-31-architecture-phase217-shared-execution-progress-facade.md` - Shared execution-progress facade so puller and event-processor use one common rollout reason entrypoint
+- `specs/2026-03-31-architecture-phase218-shared-execution-progress-builder.md` - Shared execution-progress input and builder so puller and event-processor stop assembling the facade inline
+- `specs/2026-03-31-architecture-phase219-execution-progress-parity-helper.md` - Shared execution-progress reason coverage validator for puller and event-processor parity checks
+- `specs/2026-03-31-architecture-phase220-event-processor-consumer-offset-progress.md` - Event-processor rollout progress now includes Kafka-tracked consumer offset via shared execution-progress helpers
+- `specs/2026-03-31-architecture-phase221-puller-block-progress-carrier.md` - Puller rollout progress can now carry observed and processed block heights plus derived block gap
+- `specs/2026-03-31-architecture-phase222-puller-runtime-block-progress-wiring.md` - Puller polling loop now captures block progress from the real multi-chain runtime abstraction
+- `specs/2026-03-31-architecture-phase223-puller-checkpoint-cadence-progress.md` - Puller rollout progress now derives lightweight checkpoint cadence from processed block height and checkpoint interval
+- `specs/2026-03-31-architecture-phase224-puller-persisted-checkpoint-source.md` - Puller rollout progress now distinguishes checkpoint cadence from the latest recorded checkpoint source state
+- `specs/2026-03-31-architecture-phase225-puller-checkpoint-reorg-risk.md` - Puller rollout progress now flags when a recorded checkpoint may be at reorg risk
+- `specs/2026-03-31-architecture-phase226-puller-checkpoint-reorg-reconciled.md` - Puller rollout progress now distinguishes active checkpoint reorg risk from a later reconciled checkpoint
+- `specs/2026-03-31-architecture-phase227-puller-per-chain-checkpoint-summary.md` - Puller rollout reasons now include a deterministic per-chain checkpoint summary
+- `specs/2026-03-31-architecture-phase228-puller-checkpoint-freshness-summary.md` - Puller per-chain checkpoint summaries now show lightweight freshness posture
+- `specs/2026-03-31-architecture-phase229-puller-checkpoint-coverage-hint.md` - Puller rollout reasons now include compact checkpoint coverage counts across tracked chains
+- `specs/2026-03-31-architecture-phase230-puller-checkpoint-coverage-posture.md` - Puller rollout reasons now include a compact checkpoint coverage posture derived from tracked-chain counts
+- `specs/2026-03-31-architecture-phase231-puller-per-chain-checkpoint-posture-summary.md` - Puller rollout reasons now include a compact per-chain checkpoint posture summary alongside the detailed chain summary
+- `specs/2026-03-31-architecture-phase232-event-processor-consumer-progress-posture.md` - Event-processor rollout reasons now include a compact consumer progress posture alongside existing lag, offset, and activity facts
+- `specs/2026-03-31-architecture-phase233-shared-execution-progress-posture-helper.md` - Shared rollout execution-progress helpers now derive and validate compact poll and consumer progress posture across services
+- `specs/2026-03-31-architecture-phase234-event-processor-consumer-lag-severity.md` - Event-processor rollout reasons now include compact backlog severity alongside the raw consumer lag fact
+- `specs/2026-03-31-architecture-phase235-event-processor-consumer-backlog-hint.md` - Event-processor rollout reasons now include a compact operator-facing backlog hint derived from progress posture and lag severity
+- `specs/2026-03-31-architecture-phase236-puller-checkpoint-recovery-hint.md` - Puller rollout reasons now include a compact operator-facing checkpoint recovery hint derived from checkpoint and poll posture
+- `specs/2026-03-31-architecture-phase237-shared-execution-operator-hint-helper.md` - Shared rollout execution helpers now mount poll and consumer operator-facing hints through one common path
+- `specs/2026-03-31-architecture-phase238-rollout-control-stage-assessment.md` - Rollout coverage summary refreshed into a stage-assessment matrix across monolith and all implemented microservice producers
+- `specs/2026-03-31-architecture-phase239-rollout-stage-complete-criteria.md` - Rollout coverage summary now documents explicit stage-complete criteria for this refactor line
+- `specs/2026-03-31-architecture-phase240-rollout-stop-go-decision.md` - Rollout coverage summary now records the current stop/go decision against the written stage-complete criteria
+- `specs/2026-03-31-architecture-phase241-api-service-ownership-parity-marker.md` - API service rollout now carries an explicit ownership-runtime parity marker instead of leaving that gap implicit
+- `specs/2026-03-31-architecture-phase242-api-gateway-ownership-parity-marker.md` - API gateway rollout now carries an explicit ownership-runtime parity marker instead of leaving that gap implicit
+- `specs/2026-03-31-architecture-phase243-microservice-ownership-parity-baseline.md` - API service and API gateway now share a validated ownership parity marker baseline across route-oriented microservices
+- `specs/2026-03-31-architecture-phase244-execution-service-ownership-parity-decision.md` - Execution-oriented services intentionally do not adopt the route-oriented ownership parity marker baseline by default right now
+- `specs/2026-03-31-architecture-phase245-event-processor-runtime-http-surface.md` - Event-processor now exposes a minimal runtime HTTP health surface instead of keeping rollout only behind direct handler invocation
+- `specs/2026-03-31-architecture-phase246-puller-runtime-http-surface.md` - Puller now exposes a minimal runtime HTTP health surface instead of keeping rollout only behind direct handler invocation
+- `specs/2026-03-31-architecture-phase247-rollout-baseline-refresh.md` - Rollout coverage summary now explicitly records both the route-oriented parity baseline and the execution-oriented HTTP exposure baseline
+- `specs/2026-03-31-architecture-phase248-import-debt-and-adapter-factory-recovery.md` - Stale module-path imports were removed and deployment adapter factory was recovered into a minimal state compatible with current core plugin contracts
+- `specs/2026-03-31-architecture-phase249-postgres-integration-test-gating.md` - PostgreSQL integration and benchmark tests in pkg/plugins/database now require an explicit environment gate instead of assuming a local database during normal go test runs
+- `specs/2026-03-31-architecture-phase250-mq-integration-test-gating.md` - Kafka and ZeroMQ integration tests in pkg/plugins/mq now require an explicit environment gate so normal go test runs stay default-safe
+- `specs/2026-03-31-architecture-phase251-observability-test-contract-recovery.md` - Observability distributed tracing tests were realigned with the current pointer-based InjectContext contract so the broader pkg test graph is green again
+- `specs/2026-03-31-architecture-phase252-cmd-test-graph-green.md` - The full cmd test graph is green, making command-layer validation an explicit repository-health milestone
+- `specs/2026-03-31-architecture-phase253-repository-health-stage-assessment.md` - Repository health now has an explicit stage assessment checkpoint after both the pkg and cmd test graphs turned green
+- `specs/2026-03-31-architecture-phase254-shared-route-ownership-parity-helper.md` - Route-oriented ownership parity markers now assemble through shared API helpers instead of duplicated service-local logic
+- `specs/2026-03-31-architecture-phase255-shared-route-ownership-workitem-helper.md` - Route-oriented ownership parity approval work items now assemble through shared API helpers instead of duplicated service-local logic
+- `specs/2026-03-31-architecture-phase256-shared-route-ownership-parity-state.md` - Route-oriented ownership parity now uses a shared state/input model instead of rebuilding the same parity inputs in each service
+- `specs/2026-03-31-architecture-phase257-route-ownership-parity-source-abstraction.md` - Route-oriented ownership parity now assembles through a shared source abstraction, preparing the next deeper ownership/runtime signal integration step
+- `specs/2026-03-31-architecture-phase258-monolith-readiness-ownership-parity-source.md` - Route-oriented ownership parity source now has a concrete adapter for monolith readiness rollout details
+- `specs/2026-03-31-architecture-phase259-monolith-ownership-parity-posture.md` - Monolith-readiness-backed ownership parity snapshots now include a compact posture layer in addition to raw facts
+- `specs/2026-03-31-architecture-phase260-monolith-ownership-parity-hint.md` - Monolith-readiness-backed ownership parity snapshots now include a shared recommendation hint in addition to posture
+- `specs/2026-03-31-architecture-phase261-api-service-monolith-parity-reason-exposure.md` - api-service now exposes shared monolith parity posture and hint in rollout advisory reason through a readiness-backed ownership source adapter
+- `specs/2026-03-31-architecture-phase262-api-gateway-monolith-parity-reason-exposure.md` - api-gateway now exposes shared monolith parity posture and hint in rollout advisory reason through a readiness-backed ownership source adapter
+- `specs/2026-03-31-architecture-phase263-route-monolith-parity-reason-validator.md` - Route-oriented monolith parity posture and hint reason coverage is now locked behind a shared validator reused by api-service and api-gateway
+- `specs/2026-03-31-architecture-phase264-monolith-parity-target-decision.md` - Route-oriented monolith parity snapshots and advisory reasons now include a shared compact target decision in addition to posture and hint
+- `specs/2026-03-31-architecture-phase265-monolith-parity-action-guidance.md` - Route-oriented monolith parity snapshots and advisory reasons now include a shared action-guidance layer in addition to posture, hint, and target decision
+- `specs/2026-03-31-architecture-phase266-monolith-parity-recommendation-bundle.md` - Route-oriented monolith parity output can now be consumed as a shared recommendation bundle instead of four separate fields
+- `specs/2026-03-31-architecture-phase267-route-parity-stage-assessment.md` - Route-oriented deeper parity now has an explicit stage assessment and stop-line proposal
+- `specs/2026-03-31-architecture-phase268-overall-endgame-assessment.md` - The overall rollout/control refactor line now has an explicit endgame assessment and pause recommendation
+- `specs/2026-03-31-architecture-phase269-rollout-control-pause-record.md` - The rollout/control refactor line now has an explicit final pause record
+- `specs/2026-03-31-architecture-phase270-event-processor-runtime-readiness-details.md` - Event-processor runtime health routes now expose rollout-aware readiness details and runtime component details
+- `specs/2026-03-31-architecture-phase271-puller-runtime-readiness-details.md` - Puller runtime health routes now expose rollout-aware readiness details and runtime component details
+- `specs/2026-03-31-architecture-phase272-execution-service-plane-stage-assessment.md` - Execution-oriented services now have an explicit stage assessment and stop-line for the minimal symmetric health/runtime baseline
+- `specs/2026-03-31-architecture-phase273-event-query-response-meta.md` - Event query responses now expose a stable meta block with query source and metadata completeness
+- `specs/2026-03-31-architecture-phase274-event-query-path-meta.md` - Event query responses now expose query path and fallback semantics in addition to source/meta completeness
+- `specs/2026-03-31-architecture-phase275-event-query-metadata-coverage-counts.md` - Event query responses now expose concrete metadata coverage counts in addition to path/source semantics
+- `specs/2026-03-31-architecture-phase276-event-query-metadata-coverage-posture.md` - Event query responses now expose a compact metadata coverage posture in addition to raw coverage counts
+- `specs/2026-03-31-architecture-phase277-event-query-execution-summary.md` - Event query responses now expose a compact execution summary across path, source, fallback, and coverage posture
+- `specs/2026-03-31-architecture-phase278-event-query-consistency-posture.md` - Event query responses now expose a compact consistency posture in addition to execution summary and coverage facts
+- `specs/2026-04-01-architecture-phase279-event-query-source-posture.md` - Event query responses now expose a compact query source posture, including query-service-backed list path semantics
+- `specs/2026-04-01-architecture-phase280-event-query-reliability-hint.md` - Event query responses now expose a compact reliability hint derived from source posture and consistency semantics
+- `specs/2026-04-01-architecture-phase281-event-query-response-builders.md` - Event query handlers now assemble single-item and paginated responses through shared builders
+- `specs/2026-04-01-architecture-phase282-event-query-meta-builder.md` - Event query handlers now derive common query meta semantics through a shared meta input/builder layer
+- `specs/2026-04-01-architecture-phase283-event-query-chain-domain-path.md` - The chain-filtered event query path now uses the domain query route before retrieval and exposes `domain-chain` query meta semantics
+- `specs/2026-04-01-architecture-phase284-event-query-name-domain-path.md` - The event-name query path now uses the domain query route before retrieval and exposes `domain-name` query meta semantics
+- `specs/2026-04-01-architecture-phase285-event-query-contract-domain-path.md` - The contract-filtered event query path now uses the domain query route before retrieval and exposes `domain-contract` query meta semantics
+- `specs/2026-04-01-architecture-phase286-event-query-data-plane-stage-assessment.md` - The event/query data plane now has an explicit stage assessment and stop-line for the query-service-backed event query baseline
+- `specs/2026-04-01-architecture-phase287-graphql-query-source-posture.md` - GraphQL event results now expose a compact query source posture for the `eventsByName` read path
+- `specs/2026-04-01-architecture-phase288-cross-protocol-query-source-assessment.md` - Query-source surfacing now has an explicit cross-protocol assessment that treats GraphQL as a pilot slice rather than full parity
+- `specs/2026-04-01-architecture-phase289-graphql-event-query-source-posture.md` - GraphQL single-event results now expose a compact query source posture for the `event` read path
+- `specs/2026-04-01-architecture-phase290-graphql-query-source-pilot-assessment.md` - GraphQL query-source surfacing now has an explicit pilot assessment and stop-line
+- `specs/2026-04-01-architecture-phase291-graphql-events-by-address-source-posture.md` - GraphQL `eventsByAddress` results now expose a compact query source posture using the same pilot semantics
+- `specs/2026-04-01-architecture-phase292-graphql-query-source-baseline-refresh.md` - GraphQL query-source surfacing now has an updated mini-baseline assessment across single-event and list-style reads
+- `specs/2026-04-01-architecture-phase293-graphql-events-by-block-source-posture.md` - GraphQL `eventsByBlock` results now expose a compact query source posture as part of the mini-baseline
+- `specs/2026-04-01-architecture-phase294-graphql-query-source-stop-line-refresh.md` - GraphQL query-source surfacing now has an updated strong mini-baseline stop-line across single-event and key list reads
+- `specs/2026-04-01-architecture-phase295-graphql-root-events-source-posture.md` - GraphQL root `events` connection nodes now expose the same compact query source posture as the rest of the event mini-baseline
+- `specs/2026-04-01-architecture-phase296-graphql-event-query-source-baseline-refresh.md` - GraphQL query-source surfacing now has a refreshed event-query baseline across single-event, root-list, and key filtered event reads
+- `specs/2026-04-01-architecture-phase297-graphql-schema-builder-source-parity.md` - GraphQL `eventsByName` now exposes the same query source posture through both resolver and schema-builder paths
+- `specs/2026-04-01-architecture-phase298-graphql-root-events-cache-source-posture.md` - GraphQL root `events` now exposes compact source posture for both live and cache-served responses
+- `specs/2026-04-01-architecture-phase299-graphql-schema-builder-cache-source-parity.md` - GraphQL schema-builder event reads now expose the same cache-aware source posture contract as the resolver path
+- `specs/2026-04-01-architecture-phase300-graphql-event-query-source-plane-assessment.md` - GraphQL event-family source surfacing now has an explicit source-plane baseline assessment and stop-line
+- `specs/2026-04-01-architecture-phase301-grpc-stream-source-posture-metrics.md` - gRPC streaming metrics now expose compact source posture hints for server-stream and client-stream event flows
+- `specs/2026-04-01-architecture-phase302-grpc-stream-delivery-posture.md` - gRPC streaming metrics now expose compact delivery posture for server-stream and client-stream flows
+- `specs/2026-04-01-architecture-phase303-grpc-stream-reliability-hint.md` - gRPC streaming metrics now expose compact reliability hints for server-stream and client-stream flows
+- `specs/2026-04-01-architecture-phase304-grpc-streaming-data-plane-assessment.md` - gRPC streaming now has an explicit data-plane baseline assessment and stop-line
+- `specs/2026-04-01-architecture-phase305-websocket-connection-metrics.md` - WebSocket plugins now expose compact connection metrics with transport posture, connection posture, and reliability hint
+- `specs/2026-04-01-architecture-phase306-websocket-connection-baseline-assessment.md` - WebSocket runtime connection surfacing now has an explicit baseline assessment and stop-line
+- `specs/2026-04-01-architecture-phase307-http-runtime-metrics.md` - HTTP plugins now expose compact runtime metrics with route count, transport posture, runtime posture, and reliability hint
+- `specs/2026-04-01-architecture-phase308-http-runtime-baseline-assessment.md` - HTTP runtime surfacing now has an explicit baseline assessment and stop-line
+- `specs/2026-04-01-architecture-phase309-shared-tls-runtime-metrics.md` - Shared TLS managers now expose compact runtime metrics with certificate posture, reload posture, and reliability hint
+- `specs/2026-04-01-architecture-phase310-shared-tls-runtime-baseline-assessment.md` - Shared TLS runtime surfacing now has an explicit baseline assessment and stop-line
+- `specs/2026-04-01-architecture-phase311-shared-health-runtime-summary.md` - Shared health checks now expose a compact runtime summary with posture and reliability hint
+- `specs/2026-04-01-architecture-phase312-shared-health-runtime-baseline-assessment.md` - Shared health runtime surfacing now has an explicit baseline assessment and stop-line
+- `specs/2026-04-01-architecture-phase313-shared-connection-pool-runtime-metrics.md` - Shared connection pools now expose compact runtime metrics with capacity posture, runtime posture, and reliability hint
+- `specs/2026-04-01-architecture-phase314-shared-connection-pool-runtime-baseline-assessment.md` - Shared connection-pool runtime surfacing now has an explicit baseline assessment and stop-line
+- `specs/2026-04-01-architecture-phase315-shared-request-batcher-runtime-metrics.md` - Shared request batchers now expose compact runtime metrics with capacity posture, runtime posture, and reliability hint
+- `specs/2026-04-01-architecture-phase316-shared-request-batcher-runtime-baseline-assessment.md` - Shared request-batcher runtime surfacing now has an explicit baseline assessment and stop-line
+- `specs/2026-04-01-architecture-phase317-shared-response-compressor-runtime-metrics.md` - Shared response compressors now expose compact runtime metrics with coverage posture, efficiency posture, and reliability hint
+- `specs/2026-04-01-architecture-phase318-shared-response-compressor-runtime-baseline-assessment.md` - Shared response-compressor runtime surfacing now has an explicit baseline assessment and stop-line
+- `specs/2026-04-01-architecture-phase319-shared-monitoring-runtime-metrics.md` - Shared monitoring now exposes compact runtime metrics with coverage posture, runtime posture, and reliability hint
+- `specs/2026-04-01-architecture-phase320-shared-monitoring-runtime-baseline-assessment.md` - Shared monitoring runtime surfacing now has an explicit baseline assessment and stop-line
+- `specs/2026-04-01-architecture-phase321-shared-error-handler-runtime-metrics.md` - Shared error handlers now expose compact runtime metrics with circuit posture, retry posture, and reliability hint
+- `specs/2026-04-01-architecture-phase322-shared-error-handler-runtime-baseline-assessment.md` - Shared error-handler runtime surfacing now has an explicit baseline assessment and stop-line
+- `specs/2026-04-01-architecture-phase323-shared-auth-runtime-metrics.md` - Shared authentication now exposes compact runtime metrics with coverage posture, runtime posture, and reliability hint
+- `specs/2026-04-01-architecture-phase324-shared-auth-runtime-baseline-assessment.md` - Shared authentication runtime surfacing now has an explicit baseline assessment and stop-line
+- `specs/2026-04-01-architecture-phase325-shared-middleware-registry-runtime-metrics.md` - Shared middleware registries now expose compact runtime metrics with coverage posture, runtime posture, and reliability hint
+- `specs/2026-04-01-architecture-phase326-shared-middleware-registry-runtime-baseline-assessment.md` - Shared middleware-registry runtime surfacing now has an explicit baseline assessment and stop-line
+- `specs/2026-04-01-architecture-phase327-core-plugin-registry-runtime-metrics.md` - Core plugin registries now expose compact runtime metrics with coverage posture, runtime posture, and reliability hint
+- `specs/2026-04-01-architecture-phase328-core-plugin-registry-runtime-baseline-assessment.md` - Core plugin-registry runtime surfacing now has an explicit baseline assessment and stop-line
+- `specs/2026-04-01-architecture-phase329-core-api-router-runtime-metrics.md` - Core API routers now expose compact runtime metrics with coverage posture, runtime posture, and reliability hint
+- `specs/2026-04-01-architecture-phase330-core-api-router-runtime-baseline-assessment.md` - Core API-router runtime surfacing now has an explicit baseline assessment and stop-line
+- `specs/2026-04-01-architecture-phase331-core-api-layer-runtime-metrics.md` - Core API layers now expose compact runtime metrics with coverage posture, runtime posture, and reliability hint
+- `specs/2026-04-01-architecture-phase332-core-api-layer-runtime-baseline-assessment.md` - Core API-layer runtime surfacing now has an explicit baseline assessment and stop-line
+- `specs/2026-04-01-architecture-phase333-core-protocol-detector-runtime-metrics.md` - Core protocol detectors now expose compact runtime metrics with coverage posture, runtime posture, and reliability hint
+- `specs/2026-04-01-architecture-phase334-core-protocol-detector-runtime-baseline-assessment.md` - Core protocol-detector runtime surfacing now has an explicit baseline assessment and stop-line
+- `specs/2026-04-01-architecture-phase335-core-base-protocol-handler-runtime-metrics.md` - Core base protocol handlers now expose compact runtime metrics with coverage posture, runtime posture, and reliability hint
+- `specs/2026-04-01-architecture-phase336-core-base-protocol-handler-runtime-baseline-assessment.md` - Core base protocol-handler runtime surfacing now has an explicit baseline assessment and stop-line
+- `specs/2026-04-01-architecture-phase337-core-request-processor-runtime-metrics.md` - Core request processors now expose compact runtime metrics with coverage posture, runtime posture, and reliability hint
+- `specs/2026-04-01-architecture-phase338-core-request-processor-runtime-baseline-assessment.md` - Core request-processor runtime surfacing now has an explicit baseline assessment and stop-line
+- `specs/2026-04-01-architecture-phase339-core-protocol-registry-runtime-metrics.md` - Core protocol registries now expose compact runtime metrics with coverage posture, runtime posture, and reliability hint
+- `specs/2026-04-01-architecture-phase340-core-protocol-registry-runtime-baseline-assessment.md` - Core protocol-registry runtime surfacing now has an explicit baseline assessment and stop-line
+- `specs/2026-04-01-architecture-phase341-core-base-response-runtime-metrics.md` - Core base responses now expose compact runtime metrics with coverage posture, runtime posture, and reliability hint
+- `specs/2026-04-01-architecture-phase342-core-base-response-runtime-baseline-assessment.md` - Core base-response runtime surfacing now has an explicit baseline assessment and stop-line
+- `specs/2026-04-01-architecture-phase343-core-base-request-runtime-metrics.md` - Core base requests now expose compact runtime metrics with coverage posture, runtime posture, and reliability hint
+- `specs/2026-04-01-architecture-phase344-core-base-request-runtime-baseline-assessment.md` - Core base-request runtime surfacing now has an explicit baseline assessment and stop-line
+- `specs/2026-04-01-architecture-phase345-core-metadata-runtime-metrics.md` - Core request/response metadata now expose compact runtime metrics with coverage posture, runtime posture, and reliability hint
+- `specs/2026-04-01-architecture-phase346-core-metadata-runtime-baseline-assessment.md` - Core metadata runtime surfacing now has an explicit baseline assessment and stop-line
+- `specs/2026-04-01-architecture-phase347-shared-health-runtime-metrics-alignment.md` - Shared health runtime surfacing now aligns to `GetRuntimeMetrics()` with explicit coverage posture while preserving summary compatibility
+- `specs/2026-04-01-architecture-phase348-shared-health-runtime-metrics-baseline-assessment.md` - Shared health runtime metrics alignment now has an explicit baseline assessment and stop-line
+- `specs/2026-04-01-architecture-phase349-shared-monitoring-runtime-surface-alignment.md` - Shared monitoring runtime surfacing now aligns to aggregate no-arg `GetRuntimeMetrics()` while preserving protocol-scoped access
+- `specs/2026-04-01-architecture-phase350-shared-monitoring-runtime-surface-baseline-assessment.md` - Shared monitoring runtime surface alignment now has an explicit baseline assessment and stop-line
+- `specs/2026-04-01-architecture-phase351-shared-request-batcher-coverage-posture-alignment.md` - Shared request batcher runtime metrics now expose aligned `coverage_posture` while preserving `capacity_posture` compatibility
+- `specs/2026-04-01-architecture-phase352-shared-request-batcher-coverage-baseline-assessment.md` - Shared request-batcher coverage posture alignment now has an explicit baseline assessment and stop-line
+- `specs/2026-04-01-architecture-phase353-shared-connection-pool-coverage-posture-alignment.md` - Shared connection pool runtime metrics now expose aligned `coverage_posture` while preserving `capacity_posture` compatibility
+- `specs/2026-04-01-architecture-phase354-shared-connection-pool-coverage-baseline-assessment.md` - Shared connection-pool coverage posture alignment now has an explicit baseline assessment and stop-line
+- `specs/2026-04-01-architecture-phase355-shared-tls-coverage-posture-alignment.md` - Shared TLS runtime metrics now expose aligned `coverage_posture` while preserving `certificate_posture` compatibility
+- `specs/2026-04-01-architecture-phase356-shared-tls-coverage-baseline-assessment.md` - Shared TLS coverage posture alignment now has an explicit baseline assessment and stop-line
+- `specs/2026-04-01-architecture-phase357-shared-error-handler-coverage-posture-alignment.md` - Shared error-handler runtime metrics now expose aligned `coverage_posture` while preserving `circuit_posture` compatibility
+- `specs/2026-04-01-architecture-phase358-shared-error-handler-coverage-baseline-assessment.md` - Shared error-handler coverage posture alignment now has an explicit baseline assessment and stop-line
+- `specs/2026-04-01-architecture-phase359-shared-health-summary-posture-alignment.md` - Shared health summary now exposes aligned posture fields with reliability hint while preserving summary-count compatibility
+- `specs/2026-04-01-architecture-phase360-shared-health-summary-baseline-assessment.md` - Shared health summary posture alignment now has an explicit baseline assessment and stop-line
+- `specs/2026-04-01-architecture-phase361-core-plugin-registry-legacy-metrics-posture-alignment.md` - Core plugin-registry legacy metrics now expose aligned posture fields with reliability hint while preserving registry-counter compatibility
+- `specs/2026-04-01-architecture-phase362-core-plugin-registry-legacy-metrics-baseline-assessment.md` - Core plugin-registry legacy metrics posture alignment now has an explicit baseline assessment and stop-line
+- `specs/2026-04-02-architecture-phase363-shared-monitoring-legacy-protocol-metrics-posture-alignment.md` - Shared monitoring legacy protocol metrics now expose aligned posture fields with reliability hint while preserving protocol-counter compatibility
+- `specs/2026-04-02-architecture-phase364-shared-monitoring-legacy-protocol-metrics-baseline-assessment.md` - Shared monitoring legacy protocol metrics posture alignment now has an explicit baseline assessment and stop-line
+- `specs/2026-04-02-architecture-phase365-shared-request-batcher-legacy-metrics-posture-alignment.md` - Shared request-batcher legacy metrics now expose aligned posture fields with reliability hint while preserving batch-counter compatibility
+- `specs/2026-04-02-architecture-phase366-shared-request-batcher-legacy-metrics-baseline-assessment.md` - Shared request-batcher legacy metrics posture alignment now has an explicit baseline assessment and stop-line
+- `specs/2026-04-02-architecture-phase367-shared-connection-pool-legacy-metrics-posture-alignment.md` - Shared connection-pool legacy metrics now expose aligned posture fields with reliability hint while preserving pool-counter compatibility
+- `specs/2026-04-02-architecture-phase368-shared-connection-pool-legacy-metrics-baseline-assessment.md` - Shared connection-pool legacy metrics posture alignment now has an explicit baseline assessment and stop-line
+- `specs/2026-04-02-architecture-phase369-shared-auth-legacy-metrics-posture-alignment.md` - Shared auth legacy metrics now expose aligned posture fields with reliability hint while preserving token-count compatibility
+- `specs/2026-04-02-architecture-phase370-shared-auth-legacy-metrics-baseline-assessment.md` - Shared auth legacy metrics posture alignment now has an explicit baseline assessment and stop-line
+- `specs/2026-04-02-architecture-phase371-shared-tls-legacy-metrics-posture-alignment.md` - Shared TLS legacy metrics now expose aligned posture fields with reliability hint while preserving TLS-metric compatibility
+- `specs/2026-04-02-architecture-phase372-shared-tls-legacy-metrics-baseline-assessment.md` - Shared TLS legacy metrics posture alignment now has an explicit baseline assessment and stop-line
+- `specs/2026-04-02-architecture-phase373-shared-error-handler-legacy-metrics-posture-alignment.md` - Shared error-handler legacy metrics now expose aligned posture fields with reliability hint while preserving error-handler metric compatibility
+- `specs/2026-04-02-architecture-phase374-shared-error-handler-legacy-metrics-baseline-assessment.md` - Shared error-handler legacy metrics posture alignment now has an explicit baseline assessment and stop-line
+- `specs/2026-04-02-architecture-phase375-shared-response-compressor-legacy-metrics-posture-alignment.md` - Shared response-compressor legacy metrics now expose aligned posture fields with reliability hint while preserving compression metric compatibility
+- `specs/2026-04-02-architecture-phase376-shared-response-compressor-legacy-metrics-baseline-assessment.md` - Shared response-compressor legacy metrics posture alignment now has an explicit baseline assessment and stop-line
+- `specs/2026-04-02-architecture-phase377-core-protocol-detector-legacy-metrics-posture-alignment.md` - Core protocol-detector legacy metrics now expose aligned posture fields with reliability hint while preserving protocol-metric compatibility
+- `specs/2026-04-02-architecture-phase378-core-protocol-detector-legacy-metrics-baseline-assessment.md` - Core protocol-detector legacy metrics posture alignment now has an explicit baseline assessment and stop-line
+- `specs/2026-04-02-architecture-phase379-core-shared-runtime-endgame-assessment.md` - Overall core/shared runtime-surface refactor state is now classified as architecture-complete for the current sequence
+- `specs/2026-04-02-architecture-phase380-core-shared-runtime-completion-record.md` - The current core/shared runtime-surface architecture refactor track is now explicitly recorded as completed
+- `specs/2026-04-02-architecture-phase381-event-processor-metrics-runtime-surface.md` - Event-processor runtime HTTP surface now exposes the `/metrics` route it already advertised at startup
+- `specs/2026-04-02-architecture-phase382-puller-metrics-runtime-surface.md` - Puller runtime HTTP surface now exposes the `/metrics` route it already advertised at startup
+- `specs/2026-04-02-architecture-phase383-execution-service-runtime-surface-refresh.md` - Execution-service runtime surfacing is now reassessed as a stronger symmetric `/health* + /metrics` baseline
+- `specs/2026-04-02-architecture-phase384-event-processor-runtime-summary-surface.md` - Event-processor now exposes a read-only `/runtime/summary` operator surface above rollout and metrics
+- `specs/2026-04-02-architecture-phase385-puller-runtime-summary-surface.md` - Puller now exposes a read-only `/runtime/summary` operator surface above rollout and metrics
+- `specs/2026-04-02-architecture-phase386-execution-service-operator-surface-refresh.md` - Execution-service operator surfacing is now reassessed as a stronger symmetric read-only `/health* + /metrics + /runtime/summary` baseline
+- `specs/2026-04-02-architecture-phase387-puller-runtime-control-plane.md` - Puller now exposes a minimal writable runtime control plane for pausing and resuming the polling loop
+- `specs/2026-04-02-architecture-phase388-execution-control-plane-assessment.md` - Execution writable control is now assessed as a puller-only pilot with an explicit stop-line
+- `specs/2026-04-02-architecture-phase389-event-processor-control-feasibility-decision.md` - Event-processor writable control is explicitly deferred pending stronger execution-loop ownership
+- `specs/2026-04-02-architecture-phase390-execution-control-plane-stage-assessment.md` - Execution control plane is now assessed as a real but intentionally asymmetric pilot
+- `specs/2026-04-02-architecture-phase391-event-processor-processor-runtime-wiring.md` - Event-processor now owns a real processor lifecycle slice and exposes it through runtime summary without overstating execution-loop ownership
+- `specs/2026-04-02-architecture-phase392-event-processor-execution-ownership-refresh.md` - Event-processor control-readiness is refreshed as ownership-strengthened but still not writable-control ready
+- `specs/2026-04-02-architecture-phase393-event-processor-consume-process-seam.md` - Event-processor now owns a minimal consume-to-processor seam with runtime visibility for consume-loop ownership facts
+- `specs/2026-04-02-architecture-phase394-event-processor-control-readiness-refresh.md` - Event-processor control readiness is now refreshed as closer to a targeted reopen, but still not ready for default writable control
+- `specs/2026-04-02-architecture-phase395-event-processor-control-target-proposal.md` - Event-processor future writable control is now narrowed to consume-loop gating as the preferred first target
+- `specs/2026-04-02-architecture-phase396-event-processor-consume-loop-gate.md` - Event-processor now exposes a narrow writable control slice for pausing and resuming consume-loop intake
+- `specs/2026-04-02-architecture-phase397-execution-control-dual-pilot-refresh.md` - Execution control is now refreshed as a service-shaped dual-pilot baseline across puller and event-processor
+- `specs/2026-04-02-architecture-phase398-execution-control-compatibility-matrix.md` - Execution control pilots now have an explicit compatibility matrix covering aligned shape and intentional service-specific differences
+- `specs/2026-04-02-architecture-phase399-shared-execution-control-envelope-helper.md` - Execution control pilots now reuse a shared envelope/helper layer for the aligned control response shape
+- `specs/2026-04-02-architecture-phase400-execution-control-line-assessment.md` - Execution control is now assessed as a strong service-shaped baseline with a clearer pause boundary
+- `specs/2026-04-02-architecture-phase401-shared-execution-control-validator.md` - Execution control pilots now reuse a shared validator for the aligned control envelope/core contract
+- `specs/2026-04-02-architecture-phase402-execution-control-final-line-assessment.md` - Execution control is now marked stage-complete for the current service-shaped baseline with future work framed as explicit reopen only
+- `specs/2026-04-02-architecture-phase403-execution-control-target-alignment.md` - Execution control now aligns target metadata across puller and event-processor as part of the shared target-aware contract
+- `specs/2026-04-02-architecture-phase404-execution-control-alignment-refresh.md` - Execution control is now refreshed as stage-complete for the stronger aligned control baseline after target alignment
+- `specs/2026-04-02-architecture-phase405-overall-architecture-endgame-refresh.md` - The overall architecture sequence is now refreshed as a stronger endgame pause boundary after execution-control alignment
+- `specs/2026-04-02-architecture-phase406-architecture-optimization-completion-record.md` - The current architecture optimization sequence is now explicitly recorded as completed
+- `specs/2026-04-02-architecture-phase407-api-service-query-runtime-summary.md` - API service now exposes a read-only `/runtime/summary` route with compact query runtime posture and metrics summary
+- `specs/2026-04-02-architecture-phase408-api-service-query-posture-summary.md` - API service query runtime summary now exposes compact cache, circuit, consistency, and reliability posture fields
+- `specs/2026-04-02-architecture-phase409-api-gateway-runtime-summary.md` - API gateway now exposes a read-only `/runtime/summary` route with compact gateway runtime posture, rollout posture, and metrics summary
+- `specs/2026-04-02-architecture-phase410-api-gateway-upstream-query-bridge.md` - API gateway now forwards read-only `/events*` query routes to configured api-service upstreams through a minimal runnable query bridge
+- `specs/2026-04-02-architecture-phase411-api-gateway-upstream-query-posture.md` - API gateway runtime summary now exposes compact upstream query bridge posture and reliability hints for the external entrypoint
+- `specs/2026-04-02-architecture-phase412-api-gateway-query-bridge-error-surface.md` - API gateway query-bridge failures now return a structured JSON degradation surface instead of plain text 502 responses
+- `specs/2026-04-02-architecture-phase413-api-gateway-upstream-query-health-aggregation.md` - API gateway runtime summary now actively refreshes and exposes upstream query health state for configured api-service backends
+- `specs/2026-04-02-architecture-phase414-api-gateway-local-upstream-defaults.md` - API gateway now defaults to a local-runnable upstream query endpoint and supports comma-separated upstream overrides
+- `specs/2026-04-02-architecture-phase415-local-runnable-gateway-query-quickstart.md` - Added a dedicated local quickstart for the minimal `api-gateway + api-service` runnable query app
+- `specs/2026-04-02-architecture-phase416-local-runnable-gateway-query-smoke.md` - Added a focused automated smoke slice for the minimal local runnable gateway query path
+- `specs/2026-04-02-architecture-phase417-minimal-runnable-app-assessment.md` - Recorded the current four-service slice as stage-complete for the minimal runnable-app baseline
+- `specs/2026-04-02-architecture-phase418-local-dev-orchestration-entry.md` - Added a shared local/dev shell entry with `minimal` and `full` profiles for bringing up the current runnable app slice from the repository root
+- `specs/2026-04-02-architecture-phase419-local-dev-verification-entry.md` - Added a shared local/dev verification shell entry with `minimal` and `full` profiles for checking the current runnable app slice
+- `specs/2026-04-02-architecture-phase420-architecture-v1-gap-refresh.md` - Compared the current runnable baseline against `ARCHITECTURE_v1.md` and recorded the remaining highest-value gap to reach a lowest acceptable blueprint-aligned state
+- `specs/2026-04-02-architecture-phase421-runnable-app-root-runbook.md` - Added a repository-root runnable-app runbook and updated the root README to point to the current minimum viable blueprint-aligned app path
+- `specs/2026-04-02-architecture-phase422-runnable-app-completion-record.md` - Marked the minimum viable blueprint-aligned runnable app as completed and closed the runnable-app baseline
+- `specs/2026-04-02-architecture-phase423-api-gateway-security-surface.md` - Added an optional API gateway security surface with auth and rate limiting that stays disabled by default for the runnable baseline
+- `specs/2026-04-02-architecture-phase424-api-service-security-surface.md` - Added an optional API service security surface with auth and rate limiting that stays disabled by default for the runnable baseline
+- `specs/2026-04-02-architecture-phase425-execution-service-security-surface.md` - Added optional puller and event-processor security surfaces with auth and rate limiting that stay disabled by default for the runnable baseline
+- `specs/2026-04-02-architecture-phase426-four-service-security-posture-baseline.md` - Added a repo-root security posture baseline summarizing the current opt-in security surfaces across the four-service runnable baseline
+- `specs/2026-04-02-architecture-phase427-four-service-security-rollout-readiness.md` - Added a repo-root rollout/rollback guide for enabling the four-service security posture incrementally
+- `specs/2026-04-02-architecture-phase428-four-service-security-verification-automation.md` - Extended the local runnable verification flow to assert the default-off security posture for the four services
+- `specs/2026-04-02-architecture-phase429-four-service-security-ci-check.md` - Added a CI-level runnable-app security check by running the four command package test suites
+- `specs/2026-04-02-architecture-phase430-lint-scope-tightening.md` - Tightened the lint scope so the full quality gates target real source directories instead of test-only or empty parent paths
+- `specs/2026-04-02-architecture-phase431-lint-cache-normalization.md` - Normalized the lint execution cache to a workspace-safe location so the full gate no longer depends on the host's default Go build cache path
+- `specs/2026-04-02-architecture-phase432-fast-lint-changed-package-scope.md` - Narrowed the fast lint step to the changed packages so the micro-loop stays focused on the current diff
+- `specs/2026-04-03-architecture-phase433-monolithic-runtime-summary-surface.md` - Monolithic runtime now exposes a compact operator-facing summary surface that includes the shared indexing runtime contract and ownership rollout posture
+- `specs/2026-04-03-architecture-phase434-monolithic-runtime-failure-replay-closure.md` - Monolithic shared indexing runtime now wires real in-memory failure routing and replay while exposing checkpoint and duplicate/runtime closure facts
+- `specs/2026-04-03-architecture-phase435-event-processor-shared-runtime-shadow.md` - Event-processor now forwards successfully processed events into a per-chain shared indexing runtime shadow and exposes that status through runtime summary
+
+### Architecture Summaries
+- `architecture/MICROSERVICE_ROLLOUT_PRODUCER_COVERAGE.md` - Current rollout/control coverage matrix across monolith and implemented microservice producers
 
 ### Skills
 - `.codex/skills/INDEX.md` - Engineering skills catalog

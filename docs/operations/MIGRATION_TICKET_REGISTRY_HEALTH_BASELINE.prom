@@ -1,0 +1,18 @@
+# Ticket registry health baseline snapshot.
+# Updated by governance owners when registry health policy is intentionally changed.
+
+# HELP chainpulse_migration_ticket_registry_checks_total Ticket registry checks by mode/source/status.
+# TYPE chainpulse_migration_ticket_registry_checks_total counter
+chainpulse_migration_ticket_registry_checks_total{mode="both",source="file",status="success",failure_mode="enforce"} 1
+
+# HELP chainpulse_migration_ticket_registry_fallback_events_total Ticket verification fallback events.
+# TYPE chainpulse_migration_ticket_registry_fallback_events_total counter
+chainpulse_migration_ticket_registry_fallback_events_total{reason="none",failure_mode="enforce"} 0
+
+# HELP chainpulse_migration_ticket_registry_http_latency_ms Ticket registry HTTP latency in milliseconds.
+# TYPE chainpulse_migration_ticket_registry_http_latency_ms gauge
+chainpulse_migration_ticket_registry_http_latency_ms{source="file",status="not_applicable",slo_mode="warn"} 0
+
+# HELP chainpulse_migration_ticket_registry_http_slo_violations_total Ticket registry HTTP SLO violations.
+# TYPE chainpulse_migration_ticket_registry_http_slo_violations_total counter
+chainpulse_migration_ticket_registry_http_slo_violations_total{source="file",slo_mode="warn"} 0

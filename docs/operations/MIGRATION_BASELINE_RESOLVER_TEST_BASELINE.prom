@@ -1,0 +1,18 @@
+# Baseline snapshot for baseline resolver test delta checks.
+# Updated through approved baseline governance workflow.
+
+# HELP chainpulse_baseline_resolver_test_total Total resolver test cases.
+# TYPE chainpulse_baseline_resolver_test_total gauge
+chainpulse_baseline_resolver_test_total 12
+
+# HELP chainpulse_baseline_resolver_test_passed Total passed resolver test cases.
+# TYPE chainpulse_baseline_resolver_test_passed gauge
+chainpulse_baseline_resolver_test_passed 12
+
+# HELP chainpulse_baseline_resolver_test_failed Total failed resolver test cases.
+# TYPE chainpulse_baseline_resolver_test_failed gauge
+chainpulse_baseline_resolver_test_failed 0
+
+# HELP chainpulse_baseline_resolver_test_status Resolver test status (1=pass,0=fail).
+# TYPE chainpulse_baseline_resolver_test_status gauge
+chainpulse_baseline_resolver_test_status 1

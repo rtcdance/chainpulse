@@ -42,7 +42,25 @@ curl http://localhost:8080/health/circuit-breaker
 ## Detailed Guides
 
 - **Deployment**: `docs/guides/DEPLOYMENT_GUIDE.md`
-- **Monitoring**: `monitoring/README.md`
+- **Policy SLO**: `docs/operations/POLICY_ROLLOUT_SLO.md`
+- **Policy Dashboard Queries**: `docs/operations/POLICY_DASHBOARD_QUERIES.md`
+- **Policy Runbook**: `docs/operations/POLICY_ROLLOUT_RUNBOOK.md`
+- **Policy Metric Versioning**: `docs/operations/POLICY_METRIC_VERSIONING.md`
+- **Migration Manifest Governance**: `docs/operations/MIGRATION_MANIFEST.md`
+- **Migration Governance Queries**: `docs/operations/MIGRATION_GOVERNANCE_DASHBOARD_QUERIES.md`
+- **Migration Governance Changelog**: `docs/operations/MIGRATION_GOVERNANCE_CHANGELOG.md`
+- **Migration Ticket Registry**: `docs/operations/MIGRATION_TICKET_REGISTRY.txt`
+- **Migration Ticket Registry Health Baseline**: `docs/operations/MIGRATION_TICKET_REGISTRY_HEALTH_BASELINE.prom`
+- **Migration Resolver Test Baseline**: `docs/operations/MIGRATION_BASELINE_RESOLVER_TEST_BASELINE.prom`
+- **Ticket Registry Health Report (generated)**: `build/migration-governance/ticket-registry-health.md`
+- **Ticket Registry Health Delta (generated)**: `build/migration-governance/ticket-registry-health-delta.md`
+- **Baseline Governance Scope Smoke Test**: `scripts/smoke-baseline-governance-scope.sh`
+- **Baseline Governance Scope Smoke Report (generated)**: `build/migration-governance/baseline-scope-smoke.md`
+- **Baseline Governance Scope Smoke Delta (generated)**: `build/migration-governance/baseline-scope-smoke-delta.md`
+- **Baseline Update Template Preview (generated)**: `build/migration-governance/baseline-update-template.md`
+- **Baseline Update Preflight (generated)**: `build/migration-governance/baseline-update-preflight.md`
+- **Baseline Resolver Test Report (generated)**: `build/migration-governance/baseline-resolver-test.md`
+- **Baseline Resolver Test Delta (generated)**: `build/migration-governance/baseline-resolver-test-delta.md`
 - **Debugging**: `docs/DEBUGGING.md`
 - **Incident Response**: `.codex/skills/incident-postmortem-learning/SKILL.md`
 
@@ -56,11 +74,10 @@ curl http://localhost:8080/health/circuit-breaker
 
 ## Runbooks
 
-See `monitoring/runbooks/` for:
-- High indexing lag
-- RPC failures
-- Database connection issues
-- Memory leaks
+See:
+- `docs/operations/POLICY_ROLLOUT_RUNBOOK.md`
+- `docs/guides/DEPLOYMENT_GUIDE.md`
+- `docs/DEBUGGING.md`
 
 ---
 

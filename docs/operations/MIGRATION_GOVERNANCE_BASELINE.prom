@@ -1,0 +1,21 @@
+# HELP chainpulse_migration_items_total Total migration manifest items.
+# TYPE chainpulse_migration_items_total gauge
+chainpulse_migration_items_total 3
+
+# HELP chainpulse_migration_items_active_total Active migration items (non-completed/non-waived).
+# TYPE chainpulse_migration_items_active_total gauge
+chainpulse_migration_items_active_total 3
+
+# HELP chainpulse_migration_items_by_status Migration items grouped by status.
+# TYPE chainpulse_migration_items_by_status gauge
+chainpulse_migration_items_by_status{status="in_progress"} 2
+chainpulse_migration_items_by_status{status="planned"} 1
+
+# HELP chainpulse_migration_items_by_severity Migration items grouped by severity.
+# TYPE chainpulse_migration_items_by_severity gauge
+chainpulse_migration_items_by_severity{severity="high"} 1
+chainpulse_migration_items_by_severity{severity="medium"} 2
+
+# HELP chainpulse_migration_items_by_domain Migration items grouped by domain.
+# TYPE chainpulse_migration_items_by_domain gauge
+chainpulse_migration_items_by_domain{domain="observability"} 3
