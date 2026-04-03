@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"sync"
@@ -12,14 +13,18 @@ import (
 
 // GatewayRouterIntegration integrates the RequestRouter with the API Gateway
 type GatewayRouterIntegration struct {
-	router              *RequestRouter
-	logger              core.Logger
-	metrics             core.MetricsCollector
-	eventQueryHandler   *EventQueryHandler
-	subscriptionHandler *EventSubscriptionHandler
-	healthCheckHandler  *HealthCheckHandler
-	mu                  sync.RWMutex
-	initialized         bool
+	router                        *RequestRouter
+	logger                        core.Logger
+	metrics                       core.MetricsCollector
+	eventQueryHandler             *EventQueryHandler
+	subscriptionHandler           *EventSubscriptionHandler
+	healthCheckHandler            *HealthCheckHandler
+	upstreamQueryEndpoints        []string
+	upstreamQueryHTTPClient       *http.Client
+	upstreamQueryHealthHTTPClient *http.Client
+	runtimeSummaryProvider        func(*http.Request) interface{}
+	mu                            sync.RWMutex
+	initialized                   bool
 }
 
 // NewGatewayRouterIntegration creates a new gateway router integration
@@ -29,15 +34,21 @@ func NewGatewayRouterIntegration(
 	eventQueryHandler *EventQueryHandler,
 	subscriptionHandler *EventSubscriptionHandler,
 	healthCheckHandler *HealthCheckHandler,
+	runtimeSummaryProvider ...func(*http.Request) interface{},
 ) *GatewayRouterIntegration {
+	var summaryProvider func(*http.Request) interface{}
+	if len(runtimeSummaryProvider) > 0 {
+		summaryProvider = runtimeSummaryProvider[0]
+	}
 	return &GatewayRouterIntegration{
-		router:              NewRequestRouter(logger, metrics),
-		logger:              logger,
-		metrics:             metrics,
-		eventQueryHandler:   eventQueryHandler,
-		subscriptionHandler: subscriptionHandler,
-		healthCheckHandler:  healthCheckHandler,
-		initialized:         false,
+		router:                 NewRequestRouter(logger, metrics),
+		logger:                 logger,
+		metrics:                metrics,
+		eventQueryHandler:      eventQueryHandler,
+		subscriptionHandler:    subscriptionHandler,
+		healthCheckHandler:     healthCheckHandler,
+		runtimeSummaryProvider: summaryProvider,
+		initialized:            false,
 	}
 }
 
@@ -63,6 +74,33 @@ func (gri *GatewayRouterIntegration) Initialize(ctx context.Context) error {
 	gri.initialized = true
 	gri.logger.Info("Gateway router integration initialized")
 	return nil
+}
+
+// SetUpstreamQueryEndpoints wires read-only query upstreams for gateway forwarding.
+func (gri *GatewayRouterIntegration) SetUpstreamQueryEndpoints(endpoints []string) {
+	gri.mu.Lock()
+	defer gri.mu.Unlock()
+
+	gri.upstreamQueryEndpoints = append([]string(nil), endpoints...)
+}
+
+// SetUpstreamQueryHealthHTTPClient overrides the HTTP client used for upstream query health checks.
+func (gri *GatewayRouterIntegration) SetUpstreamQueryHealthHTTPClient(client *http.Client) {
+	gri.mu.Lock()
+	defer gri.mu.Unlock()
+	gri.upstreamQueryHealthHTTPClient = client
+}
+
+// SetUpstreamQueryHTTPClient overrides the HTTP client used for upstream query forwarding.
+//
+//nolint:wsl // Setter keeps upstream client wiring explicit and simple.
+func (gri *GatewayRouterIntegration) SetUpstreamQueryHTTPClient(client *http.Client) {
+	gri.mu.Lock()
+	defer gri.mu.Unlock()
+	gri.upstreamQueryHTTPClient = client
+	if gri.router != nil {
+		gri.router.SetHTTPClient(client)
+	}
 }
 
 // registerRoutes registers all API routes
@@ -135,7 +173,58 @@ func (gri *GatewayRouterIntegration) registerRoutes() error {
 		return fmt.Errorf("failed to register components route: %w", err)
 	}
 
+	rolloutRoute := NewRoute("rollout", "/health/rollout", "GET")
+	if err := gri.router.RegisterRoute(rolloutRoute); err != nil {
+		return fmt.Errorf("failed to register rollout route: %w", err)
+	}
+	if gri.runtimeSummaryProvider != nil {
+		runtimeSummaryRoute := NewRoute("runtime-summary", "/runtime/summary", "GET")
+		if err := gri.router.RegisterRoute(runtimeSummaryRoute); err != nil {
+			return fmt.Errorf("failed to register runtime summary route: %w", err)
+		}
+	}
+
+	if err := gri.attachUpstreamQueryHandlers(); err != nil {
+		return err
+	}
+
+	if gri.upstreamQueryHTTPClient != nil {
+		gri.router.SetHTTPClient(gri.upstreamQueryHTTPClient)
+	}
+
 	gri.logger.Info("All routes registered successfully")
+	return nil
+}
+
+func (gri *GatewayRouterIntegration) attachUpstreamQueryHandlers() error {
+	if len(gri.upstreamQueryEndpoints) == 0 {
+		return nil
+	}
+
+	routeIDs := []string{
+		"event-query",
+		"event-by-id",
+		"event-by-chain",
+		"event-by-contract",
+		"event-by-name",
+	}
+
+	for idx, endpoint := range gri.upstreamQueryEndpoints {
+		handler := NewHandler(
+			fmt.Sprintf("api-service-upstream-%d", idx+1),
+			fmt.Sprintf("api-service-upstream-%d", idx+1),
+			endpoint,
+		)
+		if gri.upstreamQueryHealthHTTPClient != nil {
+			handler.SetHealthHTTPClient(gri.upstreamQueryHealthHTTPClient)
+		}
+		for _, routeID := range routeIDs {
+			if err := gri.router.AttachHandler(routeID, handler); err != nil {
+				return fmt.Errorf("failed to attach upstream handler to route %s: %w", routeID, err)
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -168,14 +257,29 @@ func (gri *GatewayRouterIntegration) HandleRequest(w http.ResponseWriter, r *htt
 	switch route.ID {
 	// Event Query Handlers
 	case "event-query":
+		if gri.tryForwardQueryRequest(w, r, route) {
+			return
+		}
 		gri.eventQueryHandler.HandleGetAllEvents(w, r)
 	case "event-by-id":
+		if gri.tryForwardQueryRequest(w, r, route) {
+			return
+		}
 		gri.eventQueryHandler.HandleGetEventByID(w, r, params["id"])
 	case "event-by-chain":
+		if gri.tryForwardQueryRequest(w, r, route) {
+			return
+		}
 		gri.eventQueryHandler.HandleGetEventsByChain(w, r, params["chainId"])
 	case "event-by-contract":
+		if gri.tryForwardQueryRequest(w, r, route) {
+			return
+		}
 		gri.eventQueryHandler.HandleGetEventsByContract(w, r, params["address"])
 	case "event-by-name":
+		if gri.tryForwardQueryRequest(w, r, route) {
+			return
+		}
 		gri.eventQueryHandler.HandleGetEventsByName(w, r, params["eventName"])
 
 	// Event Subscription Handlers
@@ -197,6 +301,10 @@ func (gri *GatewayRouterIntegration) HandleRequest(w http.ResponseWriter, r *htt
 		gri.healthCheckHandler.HandleLive(w, r)
 	case "components":
 		gri.healthCheckHandler.HandleComponents(w, r)
+	case "rollout":
+		gri.healthCheckHandler.HandleRollout(w, r)
+	case "runtime-summary":
+		gri.handleRuntimeSummary(w, r)
 
 	default:
 		gri.logger.Warn("Unknown route", "routeId", route.ID)
@@ -206,12 +314,133 @@ func (gri *GatewayRouterIntegration) HandleRequest(w http.ResponseWriter, r *htt
 	gri.metrics.RecordCounter("gateway_request_success", 1, nil)
 }
 
+func (gri *GatewayRouterIntegration) tryForwardQueryRequest(w http.ResponseWriter, r *http.Request, route *Route) bool {
+	if route == nil || len(route.GetHandlers()) == 0 {
+		return false
+	}
+
+	response, err := gri.router.ForwardRequest(r.Context(), route, &ForwardedRequest{
+		Method:  r.Method,
+		Path:    r.URL.RequestURI(),
+		Headers: flattenRequestHeaders(r.Header),
+	})
+	if err != nil {
+		gri.logger.Error("Failed to forward gateway query request", "routeId", route.ID, "error", err.Error())
+		gri.metrics.RecordCounter("gateway_query_bridge_unavailable", 1, map[string]string{"route_id": route.ID})
+		respondGatewayQueryBridgeError(w, http.StatusBadGateway, route.ID)
+		return true
+	}
+
+	for key, value := range response.Headers {
+		w.Header().Set(key, value)
+	}
+	if response.Status > 0 {
+		w.WriteHeader(response.Status)
+	}
+	if body, ok := response.Body.([]byte); ok && len(body) > 0 {
+		_, _ = w.Write(body)
+	}
+	return true
+}
+
+func respondGatewayQueryBridgeError(w http.ResponseWriter, statusCode int, routeID string) {
+	payload := map[string]interface{}{
+		"error":      "query_upstream_unavailable",
+		"message":    "api-gateway could not reach an upstream api-service for this query request",
+		"statusCode": statusCode,
+		"timestamp":  time.Now().Unix(),
+		"meta": map[string]interface{}{
+			"routeId":          routeID,
+			"bridgePosture":    "query-bridge-unavailable",
+			"reliabilityHint":  "gateway query bridge is currently unavailable; verify api-service health and upstream bridge status",
+			"responseBoundary": "gateway-query-bridge",
+		},
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(statusCode)
+	_ = json.NewEncoder(w).Encode(payload)
+}
+
+func flattenRequestHeaders(header http.Header) map[string]string {
+	flattened := make(map[string]string, len(header))
+	for key, values := range header {
+		if len(values) > 0 {
+			flattened[key] = values[0]
+		}
+	}
+	return flattened
+}
+
+func (gri *GatewayRouterIntegration) handleRuntimeSummary(w http.ResponseWriter, r *http.Request) {
+	if gri.runtimeSummaryProvider == nil {
+		http.Error(w, "runtime summary unavailable", http.StatusNotFound)
+		return
+	}
+
+	payload := gri.runtimeSummaryProvider(r)
+	if payload == nil {
+		http.Error(w, "runtime summary unavailable", http.StatusServiceUnavailable)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(payload)
+}
+
 // GetRouter returns the request router
 func (gri *GatewayRouterIntegration) GetRouter() *RequestRouter {
 	gri.mu.RLock()
 	defer gri.mu.RUnlock()
 
 	return gri.router
+}
+
+// GetUpstreamQueryBridgeStatus returns configured/attached/available counts for query upstream handlers.
+func (gri *GatewayRouterIntegration) GetUpstreamQueryBridgeStatus() (configured, attached, available int) {
+	gri.mu.RLock()
+	defer gri.mu.RUnlock()
+
+	configured = len(gri.upstreamQueryEndpoints)
+	if gri.router == nil {
+		return configured, 0, 0
+	}
+
+	route, err := gri.router.GetRoute("event-query")
+	if err != nil || route == nil {
+		return configured, 0, 0
+	}
+
+	handlers := route.GetHandlers()
+	attached = len(handlers)
+	for _, handler := range handlers {
+		if handler != nil && handler.IsAvailable() {
+			available++
+		}
+	}
+	return configured, attached, available
+}
+
+// RefreshUpstreamQueryBridgeHealth actively refreshes upstream query handler health.
+func (gri *GatewayRouterIntegration) RefreshUpstreamQueryBridgeHealth() {
+	gri.mu.RLock()
+	router := gri.router
+	gri.mu.RUnlock()
+
+	if router == nil {
+		return
+	}
+
+	route, err := router.GetRoute("event-query")
+	if err != nil || route == nil {
+		return
+	}
+
+	for _, handler := range route.GetHandlers() {
+		if handler != nil {
+			handler.CheckHealth()
+		}
+	}
 }
 
 // GetMetrics returns gateway metrics

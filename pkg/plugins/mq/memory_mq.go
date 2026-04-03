@@ -4,7 +4,7 @@ import (
 	"context"
 	"sync"
 
-	"github.com/chainpulse/chainpulse/pkg/core"
+	"chainpulse/pkg/core"
 )
 
 type MemoryMQ struct {

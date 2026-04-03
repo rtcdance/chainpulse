@@ -9,9 +9,7 @@ import (
 
 // TestPostgreSQLRealConnection tests connection to real PostgreSQL
 func TestPostgreSQLRealConnection(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping integration test in short mode")
-	}
+	requirePostgresIntegration(t)
 
 	config := &core.Config{
 		PostgresHost:     "localhost",

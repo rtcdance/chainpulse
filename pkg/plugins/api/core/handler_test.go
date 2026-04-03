@@ -71,6 +71,83 @@ func TestAPIRouterRoute(t *testing.T) {
 	}
 }
 
+func TestAPIRouterRouteCount(t *testing.T) {
+	router := NewAPIRouter()
+
+	if router.RouteCount() != 0 {
+		t.Errorf("expected empty route count, got %d", router.RouteCount())
+	}
+
+	handler := HandlerFunc(func(req Request) (Response, error) {
+		resp := NewBaseResponse(nil)
+		resp.SetStatus(200)
+		return resp, nil
+	})
+
+	router.Register("/api/users", handler)
+	router.Register("/health", handler)
+
+	if router.RouteCount() != 2 {
+		t.Errorf("expected 2 routes, got %d", router.RouteCount())
+	}
+}
+
+func TestAPIRouterRuntimeMetricsUnobserved(t *testing.T) {
+	router := NewAPIRouter()
+
+	metrics := router.GetRuntimeMetrics()
+	if metrics["coverage_posture"] != "router-empty" {
+		t.Fatalf("expected router-empty, got %v", metrics["coverage_posture"])
+	}
+	if metrics["runtime_posture"] != "router-unobserved" {
+		t.Fatalf("expected router-unobserved, got %v", metrics["runtime_posture"])
+	}
+}
+
+func TestAPIRouterRuntimeMetricsWatch(t *testing.T) {
+	router := NewAPIRouter()
+	handler := HandlerFunc(func(req Request) (Response, error) {
+		resp := NewBaseResponse(nil)
+		resp.SetStatus(200)
+		return resp, nil
+	})
+
+	router.Register("/api/users", handler)
+
+	metrics := router.GetRuntimeMetrics()
+	if metrics["coverage_posture"] != "router-routes-only" {
+		t.Fatalf("expected router-routes-only, got %v", metrics["coverage_posture"])
+	}
+	if metrics["runtime_posture"] != "router-watch" {
+		t.Fatalf("expected router-watch, got %v", metrics["runtime_posture"])
+	}
+}
+
+func TestAPIRouterRuntimeMetricsReady(t *testing.T) {
+	router := NewAPIRouter()
+	handler := HandlerFunc(func(req Request) (Response, error) {
+		resp := NewBaseResponse(nil)
+		resp.SetStatus(200)
+		return resp, nil
+	})
+	middleware := func(next Handler) Handler {
+		return HandlerFunc(func(req Request) (Response, error) {
+			return next.Handle(req)
+		})
+	}
+
+	router.Use(middleware)
+	router.Register("/api/users", handler)
+
+	metrics := router.GetRuntimeMetrics()
+	if metrics["coverage_posture"] != "router-guarded" {
+		t.Fatalf("expected router-guarded, got %v", metrics["coverage_posture"])
+	}
+	if metrics["runtime_posture"] != "router-ready" {
+		t.Fatalf("expected router-ready, got %v", metrics["runtime_posture"])
+	}
+}
+
 func TestAPIRouterRouteNotFound(t *testing.T) {
 	router := NewAPIRouter()
 
@@ -302,6 +379,60 @@ func TestAPILayerMiddleware(t *testing.T) {
 
 	if resp.Header("X-Middleware") != "applied" {
 		t.Error("expected middleware header")
+	}
+}
+
+func TestAPILayerRuntimeMetricsUnobserved(t *testing.T) {
+	layer := NewAPILayer()
+	layer.router = NewAPIRouter()
+	layer.errorMapper = nil
+
+	metrics := layer.GetRuntimeMetrics()
+	if metrics["coverage_posture"] != "layer-empty" {
+		t.Fatalf("expected layer-empty, got %v", metrics["coverage_posture"])
+	}
+	if metrics["runtime_posture"] != "layer-unobserved" {
+		t.Fatalf("expected layer-unobserved, got %v", metrics["runtime_posture"])
+	}
+}
+
+func TestAPILayerRuntimeMetricsWatch(t *testing.T) {
+	layer := NewAPILayer()
+	layer.errorMapper = nil
+	layer.RegisterHandler("/api/users", HandlerFunc(func(req Request) (Response, error) {
+		resp := NewBaseResponse(nil)
+		resp.SetStatus(200)
+		return resp, nil
+	}))
+
+	metrics := layer.GetRuntimeMetrics()
+	if metrics["coverage_posture"] != "layer-routes-only" {
+		t.Fatalf("expected layer-routes-only, got %v", metrics["coverage_posture"])
+	}
+	if metrics["runtime_posture"] != "layer-watch" {
+		t.Fatalf("expected layer-watch, got %v", metrics["runtime_posture"])
+	}
+}
+
+func TestAPILayerRuntimeMetricsHardened(t *testing.T) {
+	layer := NewAPILayer()
+	layer.Use(func(next Handler) Handler {
+		return HandlerFunc(func(req Request) (Response, error) {
+			return next.Handle(req)
+		})
+	})
+	layer.RegisterHandler("/api/users", HandlerFunc(func(req Request) (Response, error) {
+		resp := NewBaseResponse(nil)
+		resp.SetStatus(200)
+		return resp, nil
+	}))
+
+	metrics := layer.GetRuntimeMetrics()
+	if metrics["coverage_posture"] != "layer-guarded" {
+		t.Fatalf("expected layer-guarded, got %v", metrics["coverage_posture"])
+	}
+	if metrics["runtime_posture"] != "layer-hardened" {
+		t.Fatalf("expected layer-hardened, got %v", metrics["runtime_posture"])
 	}
 }
 

@@ -22,25 +22,25 @@ type BatchProcessor interface {
 
 // RequestBatcher batches multiple requests for efficient processing
 type RequestBatcher struct {
-	name          string
-	processor     BatchProcessor
-	batchSize     int
-	batchTimeout  time.Duration
-	queue         chan *BatchRequest
-	metrics       *BatcherMetrics
-	ctx           context.Context
-	cancel        context.CancelFunc
-	wg            sync.WaitGroup
+	name         string
+	processor    BatchProcessor
+	batchSize    int
+	batchTimeout time.Duration
+	queue        chan *BatchRequest
+	metrics      *BatcherMetrics
+	ctx          context.Context
+	cancel       context.CancelFunc
+	wg           sync.WaitGroup
 }
 
 // BatcherMetrics tracks batcher metrics
 type BatcherMetrics struct {
-	totalRequests  int64
-	totalBatches   int64
-	avgBatchSize   float64
-	errors         int64
-	totalDuration  time.Duration
-	mu             sync.RWMutex
+	totalRequests int64
+	totalBatches  int64
+	avgBatchSize  float64
+	errors        int64
+	totalDuration time.Duration
+	mu            sync.RWMutex
 }
 
 // NewRequestBatcher creates a new request batcher
@@ -116,21 +116,56 @@ func (b *RequestBatcher) Close() error {
 // GetMetrics returns batcher metrics
 func (b *RequestBatcher) GetMetrics() map[string]interface{} {
 	b.metrics.mu.RLock()
-	defer b.metrics.mu.RUnlock()
+	totalRequests := b.metrics.totalRequests
+	totalBatches := b.metrics.totalBatches
+	avgBatchSize := b.metrics.avgBatchSize
+	errors := b.metrics.errors
+	totalDuration := b.metrics.totalDuration
+	b.metrics.mu.RUnlock()
 
 	avgDuration := time.Duration(0)
-	if b.metrics.totalBatches > 0 {
-		avgDuration = b.metrics.totalDuration / time.Duration(b.metrics.totalBatches)
+	if totalBatches > 0 {
+		avgDuration = totalDuration / time.Duration(totalBatches)
 	}
 
+	capacityPosture := classifyBatcherCapacityPosture(totalRequests, totalBatches, avgBatchSize)
+	runtimePosture := classifyBatcherRuntimePosture(totalRequests, totalBatches, errors)
+
 	return map[string]interface{}{
-		"batcher_name":    b.name,
-		"total_requests":  b.metrics.totalRequests,
-		"total_batches":   b.metrics.totalBatches,
-		"avg_batch_size":  b.metrics.avgBatchSize,
-		"errors":          b.metrics.errors,
-		"avg_duration_ms": avgDuration.Milliseconds(),
-		"total_duration":  b.metrics.totalDuration.String(),
+		"batcher_name":     b.name,
+		"total_requests":   totalRequests,
+		"total_batches":    totalBatches,
+		"avg_batch_size":   avgBatchSize,
+		"errors":           errors,
+		"avg_duration_ms":  avgDuration.Milliseconds(),
+		"total_duration":   totalDuration.String(),
+		"coverage_posture": capacityPosture,
+		"capacity_posture": capacityPosture,
+		"runtime_posture":  runtimePosture,
+		"reliability_hint": buildBatcherReliabilityHint(runtimePosture, capacityPosture),
+	}
+}
+
+// GetRuntimeMetrics returns a compact runtime surface for batch cadence and
+// delivery reliability on top of the raw batch metrics.
+func (b *RequestBatcher) GetRuntimeMetrics() map[string]interface{} {
+	metrics := b.GetMetrics()
+
+	totalRequests, _ := metrics["total_requests"].(int64)
+	totalBatches, _ := metrics["total_batches"].(int64)
+	avgBatchSize, _ := metrics["avg_batch_size"].(float64)
+	errors, _ := metrics["errors"].(int64)
+
+	return map[string]interface{}{
+		"batcher_name":     b.name,
+		"total_requests":   totalRequests,
+		"total_batches":    totalBatches,
+		"avg_batch_size":   avgBatchSize,
+		"errors":           errors,
+		"coverage_posture": metrics["coverage_posture"],
+		"capacity_posture": metrics["capacity_posture"],
+		"runtime_posture":  metrics["runtime_posture"],
+		"reliability_hint": metrics["reliability_hint"],
 	}
 }
 
@@ -228,4 +263,45 @@ func (b *RequestBatcher) recordError() {
 	b.metrics.mu.Lock()
 	defer b.metrics.mu.Unlock()
 	b.metrics.errors++
+}
+
+func classifyBatcherCapacityPosture(totalRequests int64, totalBatches int64, avgBatchSize float64) string {
+	if totalRequests == 0 || totalBatches == 0 {
+		return "batcher-unobserved"
+	}
+	if avgBatchSize >= 1 && avgBatchSize < 2 {
+		return "batcher-low-fill"
+	}
+	if avgBatchSize >= 2 && avgBatchSize < 4 {
+		return "batcher-balanced"
+	}
+	return "batcher-high-fill"
+}
+
+func classifyBatcherRuntimePosture(totalRequests int64, totalBatches int64, errors int64) string {
+	if errors > 0 {
+		return "batcher-degraded"
+	}
+	if totalRequests == 0 || totalBatches == 0 {
+		return "batcher-unobserved"
+	}
+	return "batcher-healthy"
+}
+
+func buildBatcherReliabilityHint(runtimePosture string, capacityPosture string) string {
+	switch runtimePosture {
+	case "batcher-degraded":
+		return "request batcher is degraded; inspect processor failures and batch completion errors"
+	case "batcher-healthy":
+		switch capacityPosture {
+		case "batcher-low-fill":
+			return "request batcher is healthy but current batches are lightly filled"
+		case "batcher-balanced":
+			return "request batcher is healthy with balanced batch utilization"
+		default:
+			return "request batcher is healthy with high batch utilization"
+		}
+	default:
+		return "request batcher has not processed enough work yet"
+	}
 }

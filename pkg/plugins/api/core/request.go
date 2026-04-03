@@ -62,6 +62,30 @@ func NewBaseRequest(method, path string, headers map[string]string, body []byte,
 	}
 }
 
+// GetRuntimeMetrics returns a compact runtime surface for request readiness
+// on top of path/method metadata and parameter/payload coverage.
+func (r *BaseRequest) GetRuntimeMetrics() map[string]interface{} {
+	headerCount := len(r.headers)
+	queryCount := len(r.query)
+	pathParamCount := len(r.pathParams)
+	bodyBytes := len(r.body)
+
+	coveragePosture := classifyBaseRequestCoveragePosture(headerCount, queryCount, pathParamCount, bodyBytes)
+	runtimePosture := classifyBaseRequestRuntimePosture(r.method, r.path, coveragePosture)
+
+	return map[string]interface{}{
+		"method":           r.method,
+		"path":             r.path,
+		"header_count":     headerCount,
+		"query_count":      queryCount,
+		"path_param_count": pathParamCount,
+		"body_bytes":       bodyBytes,
+		"coverage_posture": coveragePosture,
+		"runtime_posture":  runtimePosture,
+		"reliability_hint": buildBaseRequestReliabilityHint(coveragePosture, runtimePosture),
+	}
+}
+
 // Method returns the HTTP method
 func (r *BaseRequest) Method() string {
 	return r.method
@@ -115,4 +139,42 @@ func (r *BaseRequest) SetQuery(query map[string]string) {
 // SetPathParam sets a path parameter
 func (r *BaseRequest) SetPathParam(key, value string) {
 	r.pathParams[key] = value
+}
+
+func classifyBaseRequestCoveragePosture(headerCount int, queryCount int, pathParamCount int, bodyBytes int) string {
+	if headerCount == 0 && queryCount == 0 && pathParamCount == 0 && bodyBytes == 0 {
+		return "request-minimal"
+	}
+	if bodyBytes > 0 || queryCount > 0 || pathParamCount > 0 {
+		return "request-parameterized"
+	}
+	return "request-headered"
+}
+
+func classifyBaseRequestRuntimePosture(method string, path string, coveragePosture string) string {
+	if method == "" || path == "" {
+		return "request-degraded"
+	}
+	if coveragePosture == "request-minimal" {
+		return "request-staged"
+	}
+	if coveragePosture == "request-parameterized" {
+		return "request-ready"
+	}
+	return "request-watch"
+}
+
+func buildBaseRequestReliabilityHint(coveragePosture string, runtimePosture string) string {
+	switch {
+	case runtimePosture == "request-degraded":
+		return "request is missing method or path; verify routing metadata before relying on runtime handling"
+	case runtimePosture == "request-staged":
+		return "request has method/path but no headers or parameters yet; enrich metadata if downstream handlers depend on it"
+	case runtimePosture == "request-ready":
+		return "request has method/path with payload or parameters and is ready for handler processing"
+	case coveragePosture == "request-headered":
+		return "request currently carries headers only; verify whether query/path/body inputs are expected for this route"
+	default:
+		return "request runtime shape is partially populated; continue observing request construction"
+	}
 }

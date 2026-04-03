@@ -517,6 +517,10 @@ func TestCleanup(t *testing.T) {
 
 // TestTokenBucketConcurrency tests token bucket thread safety
 func TestTokenBucketConcurrency(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping concurrency stress test in short mode")
+	}
+
 	tb := NewTokenBucket(1000.0, 100.0)
 
 	var wg sync.WaitGroup
@@ -595,9 +599,9 @@ func TestMultipleEndpointLimits(t *testing.T) {
 		DefaultRequestsPerSecond: 100.0,
 		DefaultBurstSize:         10,
 		EndpointLimits: map[string]EndpointLimit{
-			"/api/users":     {Path: "/api/users", RequestsPerSecond: 50.0, BurstSize: 5},
-			"/api/posts":     {Path: "/api/posts", RequestsPerSecond: 100.0, BurstSize: 10},
-			"/api/comments":  {Path: "/api/comments", RequestsPerSecond: 200.0, BurstSize: 20},
+			"/api/users":    {Path: "/api/users", RequestsPerSecond: 50.0, BurstSize: 5},
+			"/api/posts":    {Path: "/api/posts", RequestsPerSecond: 100.0, BurstSize: 10},
+			"/api/comments": {Path: "/api/comments", RequestsPerSecond: 200.0, BurstSize: 20},
 		},
 	}
 

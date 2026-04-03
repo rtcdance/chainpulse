@@ -13,9 +13,7 @@ import (
 
 // TestTransactionIsolation tests transaction isolation
 func TestTransactionIsolation(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping integration test in short mode")
-	}
+	requirePostgresIntegration(t)
 
 	config := &core.Config{
 		PostgresHost:     "localhost",
@@ -93,9 +91,7 @@ func TestTransactionIsolation(t *testing.T) {
 
 // TestRollbackOnError tests rollback when error occurs
 func TestRollbackOnError(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping integration test in short mode")
-	}
+	requirePostgresIntegration(t)
 
 	config := &core.Config{
 		PostgresHost:     "localhost",
@@ -165,9 +161,7 @@ func TestRollbackOnError(t *testing.T) {
 
 // TestConcurrentTransactions tests concurrent transaction handling
 func TestConcurrentTransactions(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping integration test in short mode")
-	}
+	requirePostgresIntegration(t)
 
 	config := &core.Config{
 		PostgresHost:     "localhost",
@@ -226,9 +220,7 @@ func TestConcurrentTransactions(t *testing.T) {
 
 // TestTransactionConsistency tests ACID compliance
 func TestTransactionConsistency(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping integration test in short mode")
-	}
+	requirePostgresIntegration(t)
 
 	config := &core.Config{
 		PostgresHost:     "localhost",

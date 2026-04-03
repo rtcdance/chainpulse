@@ -17,6 +17,16 @@ import (
 	"chainpulse/pkg/plugins/api/core"
 )
 
+func skipHTTPIntegrationUnlessEnabled(t *testing.T) {
+	t.Helper()
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+	if os.Getenv("CHAINPULSE_RUN_HTTP_INTEGRATION") == "" {
+		t.Skip("skipping network-bound HTTP integration test unless CHAINPULSE_RUN_HTTP_INTEGRATION is set")
+	}
+}
+
 // generateTestCertificate generates a self-signed certificate for testing
 func generateTestCertificate(t *testing.T, certFile, keyFile string) {
 	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
@@ -78,9 +88,7 @@ func generateTestCertificate(t *testing.T, certFile, keyFile string) {
 }
 
 func TestHTTPSConnection(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
+	skipHTTPIntegrationUnlessEnabled(t)
 
 	certFile := "test_https_cert.pem"
 	keyFile := "test_https_key.pem"
@@ -149,9 +157,7 @@ func TestHTTPSConnection(t *testing.T) {
 }
 
 func TestHTTPAndHTTPSConcurrent(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
+	skipHTTPIntegrationUnlessEnabled(t)
 
 	certFile := "test_concurrent_cert.pem"
 	keyFile := "test_concurrent_key.pem"
@@ -226,9 +232,7 @@ func TestHTTPAndHTTPSConcurrent(t *testing.T) {
 }
 
 func TestHTTPSPortConfiguration(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
+	skipHTTPIntegrationUnlessEnabled(t)
 
 	certFile := "test_port_cert.pem"
 	keyFile := "test_port_key.pem"
@@ -254,9 +258,7 @@ func TestHTTPSPortConfiguration(t *testing.T) {
 }
 
 func TestTLSMetricsCollection(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
+	skipHTTPIntegrationUnlessEnabled(t)
 
 	certFile := "test_metrics_cert.pem"
 	keyFile := "test_metrics_key.pem"
@@ -287,6 +289,8 @@ func TestTLSMetricsCollection(t *testing.T) {
 }
 
 func TestHTTPPluginWithoutTLS(t *testing.T) {
+	skipHTTPIntegrationUnlessEnabled(t)
+
 	apiLayer := core.NewAPILayer()
 	apiLayer.RegisterHandlerFunc("/test", func(req core.Request) (core.Response, error) {
 		resp := core.NewBaseResponse(nil)

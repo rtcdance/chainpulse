@@ -251,18 +251,74 @@ func (r *PluginRegistry) GetMetadata() []PluginMetadata {
 // GetRegistryMetrics returns registry metrics
 func (r *PluginRegistry) GetRegistryMetrics() map[string]interface{} {
 	r.metrics.mu.RLock()
-	defer r.metrics.mu.RUnlock()
+	totalLoaded := r.metrics.totalLoaded
+	totalUnloaded := r.metrics.totalUnloaded
+	totalErrors := r.metrics.totalErrors
+	r.metrics.mu.RUnlock()
 
-	r.mu.RLock()
-	activePlugins := int64(len(r.plugins))
-	r.mu.RUnlock()
+	activePlugins, loadedCount, runningCount, stoppedCount, errorCount := r.snapshotRuntimeCounts()
+	coveragePosture := classifyPluginRegistryCoveragePosture(int(activePlugins), loadedCount, runningCount, stoppedCount, errorCount)
+	runtimePosture := classifyPluginRegistryRuntimePosture(int(activePlugins), runningCount, errorCount, totalErrors)
 
 	return map[string]interface{}{
-		"total_loaded":   r.metrics.totalLoaded,
-		"total_unloaded": r.metrics.totalUnloaded,
-		"active_plugins": activePlugins,
-		"total_errors":   r.metrics.totalErrors,
+		"total_loaded":     totalLoaded,
+		"total_unloaded":   totalUnloaded,
+		"active_plugins":   activePlugins,
+		"total_errors":     totalErrors,
+		"coverage_posture": coveragePosture,
+		"runtime_posture":  runtimePosture,
+		"reliability_hint": buildPluginRegistryReliabilityHint(coveragePosture, runtimePosture),
 	}
+}
+
+// GetRuntimeMetrics returns a compact runtime surface for plugin-registry
+// coverage and lifecycle readiness on top of the raw registry metrics.
+func (r *PluginRegistry) GetRuntimeMetrics() map[string]interface{} {
+	metrics := r.GetRegistryMetrics()
+	loadedCount := 0
+	runningCount := 0
+	stoppedCount := 0
+	errorCount := 0
+	activePlugins, loadedCount, runningCount, stoppedCount, errorCount := r.snapshotRuntimeCounts()
+
+	return map[string]interface{}{
+		"total_loaded":     metrics["total_loaded"],
+		"total_unloaded":   metrics["total_unloaded"],
+		"active_plugins":   activePlugins,
+		"total_errors":     metrics["total_errors"],
+		"loaded_count":     loadedCount,
+		"running_count":    runningCount,
+		"stopped_count":    stoppedCount,
+		"error_count":      errorCount,
+		"coverage_posture": metrics["coverage_posture"],
+		"runtime_posture":  metrics["runtime_posture"],
+		"reliability_hint": metrics["reliability_hint"],
+	}
+}
+
+func (r *PluginRegistry) snapshotRuntimeCounts() (int64, int, int, int, int) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	activePlugins := int64(len(r.plugins))
+	loadedCount := 0
+	runningCount := 0
+	stoppedCount := 0
+	errorCount := 0
+	for _, plugin := range r.plugins {
+		switch plugin.GetStatus() {
+		case PluginStatusLoaded:
+			loadedCount++
+		case PluginStatusRunning:
+			runningCount++
+		case PluginStatusStopped:
+			stoppedCount++
+		case PluginStatusError:
+			errorCount++
+		}
+	}
+
+	return activePlugins, loadedCount, runningCount, stoppedCount, errorCount
 }
 
 // Helper methods
@@ -283,4 +339,53 @@ func (r *PluginRegistry) recordError() {
 	r.metrics.mu.Lock()
 	defer r.metrics.mu.Unlock()
 	r.metrics.totalErrors++
+}
+
+func classifyPluginRegistryCoveragePosture(activePlugins int, loadedCount int, runningCount int, stoppedCount int, errorCount int) string {
+	if activePlugins == 0 {
+		return "registry-empty"
+	}
+	if runningCount == activePlugins {
+		return "registry-running-only"
+	}
+	if errorCount == activePlugins {
+		return "registry-error-only"
+	}
+	if loadedCount > 0 || stoppedCount > 0 || errorCount > 0 {
+		return "registry-mixed"
+	}
+	return "registry-loaded"
+}
+
+func classifyPluginRegistryRuntimePosture(activePlugins int, runningCount int, errorCount int, totalErrors int64) string {
+	if activePlugins == 0 {
+		return "registry-unobserved"
+	}
+	if errorCount > 0 || totalErrors > 0 {
+		return "registry-degraded"
+	}
+	if runningCount == 0 {
+		return "registry-idle"
+	}
+	if runningCount < activePlugins {
+		return "registry-partial"
+	}
+	return "registry-ready"
+}
+
+func buildPluginRegistryReliabilityHint(coveragePosture string, runtimePosture string) string {
+	switch {
+	case runtimePosture == "registry-degraded":
+		return "plugin registry is observing plugin lifecycle errors; inspect failing plugins before treating the runtime as healthy"
+	case runtimePosture == "registry-idle":
+		return "plugin registry has loaded plugins but none are running; verify start sequencing before relying on active behavior"
+	case runtimePosture == "registry-partial":
+		return "plugin registry has only partial runtime coverage; confirm that required plugins have reached running state"
+	case coveragePosture == "registry-mixed":
+		return "plugin registry has mixed plugin states; continue observing lifecycle convergence"
+	case runtimePosture == "registry-ready":
+		return "plugin registry has active plugins running without registry-level error drift"
+	default:
+		return "plugin registry has not loaded plugins yet"
+	}
 }

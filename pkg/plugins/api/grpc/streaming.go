@@ -25,6 +25,13 @@ type StreamingBackend interface {
 	ProcessEventBatch(ctx context.Context, events <-chan *core.BlockchainEvent) (int64, error)
 }
 
+// StreamingSourcePostureBackend optionally describes the source posture behind
+// the streaming backend so gRPC metrics can expose a compact data-plane hint.
+type StreamingSourcePostureBackend interface {
+	ServerStreamSourcePosture() string
+	ClientStreamSourcePosture() string
+}
+
 // StreamingMetrics tracks streaming operation metrics
 type StreamingMetrics struct {
 	totalStreams      int64
@@ -32,6 +39,8 @@ type StreamingMetrics struct {
 	itemsStreamed     int64
 	errors            int64
 	totalDuration     time.Duration
+	serverSourcePosture string
+	clientSourcePosture string
 	mu                sync.RWMutex
 }
 
@@ -60,6 +69,7 @@ func (s *StreamingService) ServerStreamEvents(ctx context.Context, handler func(
 		s.recordError()
 		return fmt.Errorf("failed to get event stream: %w", err)
 	}
+	s.recordServerSourcePosture()
 
 	// Process events
 	for {
@@ -120,6 +130,7 @@ func (s *StreamingService) ClientStreamEvents(ctx context.Context, events <-chan
 	}()
 
 	// Process batch through backend
+	s.recordClientSourcePosture()
 	result, err := s.backend.ProcessEventBatch(ctx, events)
 	if err != nil {
 		s.recordError()
@@ -141,12 +152,42 @@ func (s *StreamingService) GetMetrics() map[string]interface{} {
 	}
 
 	return map[string]interface{}{
-		"total_streams":    s.metrics.totalStreams,
-		"active_streams":   s.metrics.activeStreams,
-		"items_streamed":   s.metrics.itemsStreamed,
-		"errors":           s.metrics.errors,
-		"avg_duration_ms":  avgDuration.Milliseconds(),
-		"total_duration":   s.metrics.totalDuration.String(),
+		"total_streams":          s.metrics.totalStreams,
+		"active_streams":         s.metrics.activeStreams,
+		"items_streamed":         s.metrics.itemsStreamed,
+		"errors":                 s.metrics.errors,
+		"avg_duration_ms":        avgDuration.Milliseconds(),
+		"total_duration":         s.metrics.totalDuration.String(),
+		"server_source_posture":  s.metrics.serverSourcePosture,
+		"client_source_posture":  s.metrics.clientSourcePosture,
+		"server_delivery_posture": classifyServerDeliveryPosture(
+			s.metrics.serverSourcePosture,
+			s.metrics.activeStreams,
+			s.metrics.itemsStreamed,
+			s.metrics.errors,
+		),
+		"client_delivery_posture": classifyClientDeliveryPosture(
+			s.metrics.clientSourcePosture,
+			s.metrics.itemsStreamed,
+			s.metrics.errors,
+		),
+		"server_reliability_hint": buildServerReliabilityHint(
+			s.metrics.serverSourcePosture,
+			classifyServerDeliveryPosture(
+				s.metrics.serverSourcePosture,
+				s.metrics.activeStreams,
+				s.metrics.itemsStreamed,
+				s.metrics.errors,
+			),
+		),
+		"client_reliability_hint": buildClientReliabilityHint(
+			s.metrics.clientSourcePosture,
+			classifyClientDeliveryPosture(
+				s.metrics.clientSourcePosture,
+				s.metrics.itemsStreamed,
+				s.metrics.errors,
+			),
+		),
 	}
 }
 
@@ -176,4 +217,111 @@ func (s *StreamingService) recordError() {
 	s.metrics.mu.Lock()
 	defer s.metrics.mu.Unlock()
 	s.metrics.errors++
+}
+
+func (s *StreamingService) recordServerSourcePosture() {
+	postureBackend, ok := s.backend.(StreamingSourcePostureBackend)
+	if !ok {
+		return
+	}
+	posture := postureBackend.ServerStreamSourcePosture()
+	if posture == "" {
+		return
+	}
+	s.metrics.mu.Lock()
+	defer s.metrics.mu.Unlock()
+	s.metrics.serverSourcePosture = posture
+}
+
+func (s *StreamingService) recordClientSourcePosture() {
+	postureBackend, ok := s.backend.(StreamingSourcePostureBackend)
+	if !ok {
+		return
+	}
+	posture := postureBackend.ClientStreamSourcePosture()
+	if posture == "" {
+		return
+	}
+	s.metrics.mu.Lock()
+	defer s.metrics.mu.Unlock()
+	s.metrics.clientSourcePosture = posture
+}
+
+func classifyServerDeliveryPosture(source string, activeStreams int64, itemsStreamed int64, errors int64) string {
+	if errors > 0 {
+		return "stream-error"
+	}
+	if activeStreams > 0 {
+		if source != "" {
+			return "stream-active"
+		}
+		return "stream-open"
+	}
+	if itemsStreamed > 0 {
+		if source != "" {
+			return "stream-delivered"
+		}
+		return "stream-complete"
+	}
+	if source != "" {
+		return "stream-idle"
+	}
+	return "stream-unobserved"
+}
+
+func classifyClientDeliveryPosture(source string, itemsStreamed int64, errors int64) string {
+	if errors > 0 {
+		return "client-batch-error"
+	}
+	if itemsStreamed > 0 {
+		if source != "" {
+			return "client-batch-delivered"
+		}
+		return "client-batch-complete"
+	}
+	if source != "" {
+		return "client-batch-idle"
+	}
+	return "client-batch-unobserved"
+}
+
+func buildServerReliabilityHint(source string, delivery string) string {
+	switch delivery {
+	case "stream-error":
+		return "server stream delivery is degraded; inspect backend stability and handler failures"
+	case "stream-active":
+		if source != "" {
+			return "server stream is actively delivering events; continue observing stream health"
+		}
+		return "server stream is active; continue observing delivery stability"
+	case "stream-delivered":
+		if source != "" {
+			return "server stream delivered successfully from the current source posture"
+		}
+		return "server stream delivered successfully"
+	case "stream-idle":
+		return "server stream source is configured but no events have been observed yet"
+	case "stream-unobserved":
+		return "server stream source has not been observed yet"
+	default:
+		return "inspect server stream delivery posture before relying on the stream"
+	}
+}
+
+func buildClientReliabilityHint(source string, delivery string) string {
+	switch delivery {
+	case "client-batch-error":
+		return "client stream batch delivery failed; inspect backend processing stability"
+	case "client-batch-delivered":
+		if source != "" {
+			return "client stream batch completed successfully through the current source posture"
+		}
+		return "client stream batch completed successfully"
+	case "client-batch-idle":
+		return "client stream source is configured but no batch has completed yet"
+	case "client-batch-unobserved":
+		return "client stream source has not been observed yet"
+	default:
+		return "inspect client stream delivery posture before relying on batch processing"
+	}
 }

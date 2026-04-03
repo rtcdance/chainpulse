@@ -1,20 +1,25 @@
+//nolint:wsl,nlreturn,godot // Legacy handler formatting/style debt is temporarily tolerated during phased architecture migration.
 package api
 
 import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"chainpulse/pkg/core"
+	domainquery "chainpulse/pkg/domain/query"
 	"chainpulse/pkg/services/query"
 )
 
 // EventQueryHandler handles event query requests
 type EventQueryHandler struct {
 	retrievalService *query.EventRetrievalService
+	domainQuery      domainquery.Service
 	logger           core.Logger
 	metrics          core.MetricsCollector
 	initialized      bool
@@ -34,8 +39,13 @@ func NewEventQueryHandler(
 	}
 }
 
-// Initialize initializes the event query handler
-func (h *EventQueryHandler) Initialize(ctx context.Context) error {
+// SetDomainQueryService sets optional domain query service for phased migration.
+func (h *EventQueryHandler) SetDomainQueryService(service domainquery.Service) {
+	h.domainQuery = service
+}
+
+// Initialize initializes the event query handler.
+func (h *EventQueryHandler) Initialize(_ context.Context) error {
 	if h.initialized {
 		return nil
 	}
@@ -61,7 +71,24 @@ type QueryRequest struct {
 type QueryResponse struct {
 	Data       interface{} `json:"data"`
 	Pagination *Pagination `json:"pagination"`
+	Meta       *QueryMeta  `json:"meta,omitempty"`
 	Timestamp  int64       `json:"timestamp"`
+}
+
+// QueryMeta represents execution/source metadata for the current query response.
+type QueryMeta struct {
+	Source               string `json:"source"`
+	QuerySourcePosture   string `json:"querySourcePosture,omitempty"`
+	QueryPath            string `json:"queryPath,omitempty"`
+	FallbackUsed         bool   `json:"fallbackUsed,omitempty"`
+	MetadataCompleteness string `json:"metadataCompleteness,omitempty"`
+	MetadataCoveragePosture string `json:"metadataCoveragePosture,omitempty"`
+	ConsistencyPosture   string `json:"consistencyPosture,omitempty"`
+	QueryReliabilityHint string `json:"queryReliabilityHint,omitempty"`
+	QueryExecutionSummary string `json:"queryExecutionSummary,omitempty"`
+	MetadataAttachedCount int   `json:"metadataAttachedCount,omitempty"`
+	MetadataMissingCount  int   `json:"metadataMissingCount,omitempty"`
+	ResultCount          int    `json:"resultCount,omitempty"`
 }
 
 // Pagination represents pagination information
@@ -121,6 +148,31 @@ func (h *EventQueryHandler) HandleGetAllEvents(w http.ResponseWriter, r *http.Re
 	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
 
+	if h.domainQuery != nil {
+		domainResult, domainErr := h.domainQuery.Query(ctx, &domainquery.Request{
+			QueryType:  "mongodb",
+			Collection: "events",
+			Limit:      int64(limit),
+			Offset:     int64(offset),
+		})
+		if domainErr == nil && domainResult != nil && len(domainResult.Events) > 0 {
+			response := buildPaginatedEventQueryResponse(
+				h.convertDomainEventsToResponse(domainResult.Events),
+				limit,
+				offset,
+				int(domainResult.Total),
+				buildDomainListQueryMeta(domainResult),
+			)
+			h.metrics.RecordGauge("event_query_get_all_events_domain_success", float64(len(domainResult.Events)), nil)
+			h.respondJSON(w, http.StatusOK, response)
+			return
+		}
+		if domainErr != nil {
+			h.logger.Warn("Domain query list failed, fallback to retrieval", "error", domainErr.Error())
+			h.metrics.RecordGauge("event_query_get_all_events_domain_error", 1, nil)
+		}
+	}
+
 	// Get events from retrieval service
 	events, err := h.retrievalService.GetEventsByChainWithMetadata(ctx, 0, limit, offset)
 	if err != nil {
@@ -133,15 +185,13 @@ func (h *EventQueryHandler) HandleGetAllEvents(w http.ResponseWriter, r *http.Re
 	// Convert to response format
 	eventResponses := h.convertEventsToResponse(events)
 
-	response := &QueryResponse{
-		Data: eventResponses,
-		Pagination: &Pagination{
-			Limit:  limit,
-			Offset: offset,
-			Total:  len(eventResponses),
-		},
-		Timestamp: time.Now().Unix(),
-	}
+	response := buildPaginatedEventQueryResponse(
+		eventResponses,
+		limit,
+		offset,
+		len(eventResponses),
+		buildEventQueryMeta("event-retrieval", "retrieval-list", false, events),
+	)
 
 	h.metrics.RecordGauge("event_query_get_all_events_success", float64(len(eventResponses)), nil)
 	h.respondJSON(w, http.StatusOK, response)
@@ -168,6 +218,24 @@ func (h *EventQueryHandler) HandleGetEventByID(w http.ResponseWriter, r *http.Re
 	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
 
+	if h.domainQuery != nil && looksLikeHash(eventID) {
+		event, domainErr := h.domainQuery.QueryByHash(ctx, eventID)
+		if domainErr == nil && event != nil {
+			domainResult := &query.EventWithMetadata{Event: event, Metadata: nil}
+			response := buildSingleEventQueryResponse(
+				h.convertEventToResponse(domainResult),
+				buildSingleEventQueryMeta("domain-query", "domain-first", false, domainResult),
+			)
+			h.metrics.RecordGauge("event_query_get_by_id_domain_first_success", 1, nil)
+			h.respondJSON(w, http.StatusOK, response)
+			return
+		}
+		if domainErr != nil {
+			h.logger.Warn("Domain query by hash failed, fallback to retrieval", "eventId", eventID, "error", domainErr.Error())
+			h.metrics.RecordGauge("event_query_get_by_id_domain_first_error", 1, nil)
+		}
+	}
+
 	// Get event from retrieval service
 	eventWithMetadata, err := h.retrievalService.GetEventWithMetadata(ctx, eventID)
 	if err != nil {
@@ -186,13 +254,20 @@ func (h *EventQueryHandler) HandleGetEventByID(w http.ResponseWriter, r *http.Re
 	// Convert to response format
 	eventResponse := h.convertEventToResponse(eventWithMetadata)
 
-	response := &QueryResponse{
-		Data:      eventResponse,
-		Timestamp: time.Now().Unix(),
-	}
+	response := buildSingleEventQueryResponse(
+		eventResponse,
+		buildSingleEventQueryMeta("event-retrieval", "domain-first", true, eventWithMetadata),
+	)
 
 	h.metrics.RecordGauge("event_query_get_by_id_success", 1, nil)
 	h.respondJSON(w, http.StatusOK, response)
+}
+
+func looksLikeHash(value string) bool {
+	if len(value) != 66 {
+		return false
+	}
+	return strings.HasPrefix(value, "0x")
 }
 
 // HandleGetEventsByChain handles GET /events/chain/{chainId} request
@@ -230,6 +305,34 @@ func (h *EventQueryHandler) HandleGetEventsByChain(w http.ResponseWriter, r *htt
 	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
 
+	if h.domainQuery != nil {
+		domainResult, domainErr := h.domainQuery.Query(ctx, &domainquery.Request{
+			QueryType:  "mongodb",
+			Collection: "events",
+			Filter: map[string]interface{}{
+				"chainId": chainID,
+			},
+			Limit:  int64(limit),
+			Offset: int64(offset),
+		})
+		if domainErr == nil && domainResult != nil && len(domainResult.Events) > 0 {
+			response := buildPaginatedEventQueryResponse(
+				h.convertDomainEventsToResponse(domainResult.Events),
+				limit,
+				offset,
+				int(domainResult.Total),
+				buildDomainQueryListMeta(domainResult, "domain-chain"),
+			)
+			h.metrics.RecordGauge("event_query_get_by_chain_domain_success", float64(len(domainResult.Events)), nil)
+			h.respondJSON(w, http.StatusOK, response)
+			return
+		}
+		if domainErr != nil {
+			h.logger.Warn("Domain query chain list failed, fallback to retrieval", "chainId", chainID, "error", domainErr.Error())
+			h.metrics.RecordGauge("event_query_get_by_chain_domain_error", 1, nil)
+		}
+	}
+
 	// Get events from retrieval service
 	events, err := h.retrievalService.GetEventsByChainWithMetadata(ctx, chainID, limit, offset)
 	if err != nil {
@@ -242,15 +345,13 @@ func (h *EventQueryHandler) HandleGetEventsByChain(w http.ResponseWriter, r *htt
 	// Convert to response format
 	eventResponses := h.convertEventsToResponse(events)
 
-	response := &QueryResponse{
-		Data: eventResponses,
-		Pagination: &Pagination{
-			Limit:  limit,
-			Offset: offset,
-			Total:  len(eventResponses),
-		},
-		Timestamp: time.Now().Unix(),
-	}
+	response := buildPaginatedEventQueryResponse(
+		eventResponses,
+		limit,
+		offset,
+		len(eventResponses),
+		buildEventQueryMeta("event-retrieval", "retrieval-list", false, events),
+	)
 
 	h.metrics.RecordGauge("event_query_get_by_chain_success", float64(len(eventResponses)), nil)
 	h.respondJSON(w, http.StatusOK, response)
@@ -289,6 +390,34 @@ func (h *EventQueryHandler) HandleGetEventsByContract(w http.ResponseWriter, r *
 	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
 
+	if h.domainQuery != nil {
+		domainResult, domainErr := h.domainQuery.Query(ctx, &domainquery.Request{
+			QueryType:  "mongodb",
+			Collection: "events",
+			Filter: map[string]interface{}{
+				"contractAddress": contractAddress,
+			},
+			Limit:  int64(limit),
+			Offset: int64(offset),
+		})
+		if domainErr == nil && domainResult != nil && len(domainResult.Events) > 0 {
+			response := buildPaginatedEventQueryResponse(
+				h.convertDomainEventsToResponse(domainResult.Events),
+				limit,
+				offset,
+				int(domainResult.Total),
+				buildDomainQueryListMeta(domainResult, "domain-contract"),
+			)
+			h.metrics.RecordGauge("event_query_get_by_contract_domain_success", float64(len(domainResult.Events)), nil)
+			h.respondJSON(w, http.StatusOK, response)
+			return
+		}
+		if domainErr != nil {
+			h.logger.Warn("Domain query contract list failed, fallback to retrieval", "contractAddress", contractAddress, "error", domainErr.Error())
+			h.metrics.RecordGauge("event_query_get_by_contract_domain_error", 1, nil)
+		}
+	}
+
 	// Get events from retrieval service
 	events, err := h.retrievalService.GetEventsByContractWithMetadata(ctx, contractAddress, limit, offset)
 	if err != nil {
@@ -301,15 +430,13 @@ func (h *EventQueryHandler) HandleGetEventsByContract(w http.ResponseWriter, r *
 	// Convert to response format
 	eventResponses := h.convertEventsToResponse(events)
 
-	response := &QueryResponse{
-		Data: eventResponses,
-		Pagination: &Pagination{
-			Limit:  limit,
-			Offset: offset,
-			Total:  len(eventResponses),
-		},
-		Timestamp: time.Now().Unix(),
-	}
+	response := buildPaginatedEventQueryResponse(
+		eventResponses,
+		limit,
+		offset,
+		len(eventResponses),
+		buildEventQueryMeta("event-retrieval", "retrieval-list", false, events),
+	)
 
 	h.metrics.RecordGauge("event_query_get_by_contract_success", float64(len(eventResponses)), nil)
 	h.respondJSON(w, http.StatusOK, response)
@@ -348,6 +475,34 @@ func (h *EventQueryHandler) HandleGetEventsByName(w http.ResponseWriter, r *http
 	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
 
+	if h.domainQuery != nil {
+		domainResult, domainErr := h.domainQuery.Query(ctx, &domainquery.Request{
+			QueryType:  "mongodb",
+			Collection: "events",
+			Filter: map[string]interface{}{
+				"eventName": eventName,
+			},
+			Limit:  int64(limit),
+			Offset: int64(offset),
+		})
+		if domainErr == nil && domainResult != nil && len(domainResult.Events) > 0 {
+			response := buildPaginatedEventQueryResponse(
+				h.convertDomainEventsToResponse(domainResult.Events),
+				limit,
+				offset,
+				int(domainResult.Total),
+				buildDomainQueryListMeta(domainResult, "domain-name"),
+			)
+			h.metrics.RecordGauge("event_query_get_by_name_domain_success", float64(len(domainResult.Events)), nil)
+			h.respondJSON(w, http.StatusOK, response)
+			return
+		}
+		if domainErr != nil {
+			h.logger.Warn("Domain query name list failed, fallback to retrieval", "eventName", eventName, "error", domainErr.Error())
+			h.metrics.RecordGauge("event_query_get_by_name_domain_error", 1, nil)
+		}
+	}
+
 	// Get events from retrieval service
 	events, err := h.retrievalService.GetEventsByEventNameWithMetadata(ctx, eventName, limit, offset)
 	if err != nil {
@@ -360,15 +515,13 @@ func (h *EventQueryHandler) HandleGetEventsByName(w http.ResponseWriter, r *http
 	// Convert to response format
 	eventResponses := h.convertEventsToResponse(events)
 
-	response := &QueryResponse{
-		Data: eventResponses,
-		Pagination: &Pagination{
-			Limit:  limit,
-			Offset: offset,
-			Total:  len(eventResponses),
-		},
-		Timestamp: time.Now().Unix(),
-	}
+	response := buildPaginatedEventQueryResponse(
+		eventResponses,
+		limit,
+		offset,
+		len(eventResponses),
+		buildEventQueryMeta("event-retrieval", "retrieval-list", false, events),
+	)
 
 	h.metrics.RecordGauge("event_query_get_by_name_success", float64(len(eventResponses)), nil)
 	h.respondJSON(w, http.StatusOK, response)
@@ -391,9 +544,9 @@ func (h *EventQueryHandler) convertEventToResponse(eventWithMetadata *query.Even
 	return &EventResponse{
 		EventID:         event.ID,
 		ChainID:         0, // Parse from event.ChainID string if needed
-		BlockNumber:     int64(event.BlockNumber),
+		BlockNumber:     safeUint64ToInt64(event.BlockNumber),
 		TransactionHash: event.TransactionHash.Hex(),
-		LogIndex:        int(event.LogIndex),
+		LogIndex:        safeUintToInt(event.LogIndex),
 		ContractAddress: event.ContractAddress.Hex(),
 		EventName:       event.EventName,
 		EventData:       event.DecodedData,
@@ -419,6 +572,21 @@ func (h *EventQueryHandler) convertEventsToResponse(eventsWithMetadata []*query.
 	return responses
 }
 
+func (h *EventQueryHandler) convertDomainEventsToResponse(events []core.BlockchainEvent) []*EventResponse {
+	if len(events) == 0 {
+		return []*EventResponse{}
+	}
+
+	responses := make([]*EventResponse, 0, len(events))
+	for i := range events {
+		response := h.convertEventToResponse(&query.EventWithMetadata{Event: &events[i], Metadata: nil})
+		if response != nil {
+			responses = append(responses, response)
+		}
+	}
+	return responses
+}
+
 // parseIntParam parses an integer query parameter with a default value
 func (h *EventQueryHandler) parseIntParam(r *http.Request, name string, defaultValue int) int {
 	value := r.URL.Query().Get(name)
@@ -432,6 +600,205 @@ func (h *EventQueryHandler) parseIntParam(r *http.Request, name string, defaultV
 	}
 
 	return intValue
+}
+
+func buildSingleEventQueryMeta(source, queryPath string, fallbackUsed bool, eventWithMetadata *query.EventWithMetadata) *QueryMeta {
+	completeness := "none"
+	resultCount := 0
+	if eventWithMetadata != nil && eventWithMetadata.Event != nil {
+		resultCount = 1
+		if eventWithMetadata.Metadata != nil {
+			completeness = "complete"
+		}
+	}
+
+	return buildEventQueryMetaFromInput(eventQueryMetaInput{
+		Source:               source,
+		QueryPath:            queryPath,
+		FallbackUsed:         fallbackUsed,
+		MetadataCompleteness: completeness,
+		MetadataAttachedCount: 0,
+		MetadataMissingCount:  resultCount,
+		ResultCount:          resultCount,
+	})
+}
+
+func buildEventQueryMeta(source, queryPath string, fallbackUsed bool, events []*query.EventWithMetadata) *QueryMeta {
+	if len(events) == 0 {
+		return buildEventQueryMetaFromInput(eventQueryMetaInput{
+			Source:               source,
+			QueryPath:            queryPath,
+			FallbackUsed:         fallbackUsed,
+			MetadataCompleteness: "none",
+			MetadataAttachedCount: 0,
+			MetadataMissingCount:  0,
+			ResultCount:          0,
+		})
+	}
+
+	withMetadata := 0
+	for _, event := range events {
+		if event != nil && event.Metadata != nil {
+			withMetadata++
+		}
+	}
+
+	completeness := "none"
+	switch {
+	case withMetadata == len(events):
+		completeness = "complete"
+	case withMetadata > 0:
+		completeness = "partial"
+	}
+
+	return buildEventQueryMetaFromInput(eventQueryMetaInput{
+		Source:               source,
+		QueryPath:            queryPath,
+		FallbackUsed:         fallbackUsed,
+		MetadataCompleteness: completeness,
+		MetadataAttachedCount: withMetadata,
+		MetadataMissingCount:  len(events) - withMetadata,
+		ResultCount:          len(events),
+	})
+}
+
+func buildDomainListQueryMeta(result *domainquery.Result) *QueryMeta {
+	return buildDomainQueryListMeta(result, "domain-list")
+}
+
+func buildDomainQueryListMeta(result *domainquery.Result, queryPath string) *QueryMeta {
+	if result == nil {
+		return buildEventQueryMeta("domain-query", queryPath, false, nil)
+	}
+	events := make([]*query.EventWithMetadata, 0, len(result.Events))
+	for i := range result.Events {
+		events = append(events, &query.EventWithMetadata{
+			Event:    &result.Events[i],
+			Metadata: nil,
+		})
+	}
+
+	source := strings.TrimSpace(result.Source)
+	if source == "" {
+		source = "domain-query"
+	}
+	meta := buildEventQueryMetaFromInput(eventQueryMetaInput{
+		Source:               source,
+		QuerySourcePosture:   classifyDomainListQuerySourcePosture(result),
+		QueryPath:            queryPath,
+		FallbackUsed:         false,
+		MetadataCompleteness: "none",
+		MetadataAttachedCount: 0,
+		MetadataMissingCount:  len(events),
+		ResultCount:          len(events),
+	})
+	if meta != nil && result.Total > 0 {
+		meta.ResultCount = int(result.Total)
+		meta.MetadataMissingCount = int(result.Total) - meta.MetadataAttachedCount
+		meta.MetadataCoveragePosture = classifyEventQueryMetadataCoveragePosture(meta.ResultCount, meta.MetadataAttachedCount)
+		meta.ConsistencyPosture = classifyEventQueryConsistencyPosture(meta.Source, meta.QueryPath, meta.FallbackUsed, meta.MetadataCoveragePosture)
+		meta.QueryReliabilityHint = buildEventQueryReliabilityHint(meta.QuerySourcePosture, meta.ConsistencyPosture)
+		meta.QueryExecutionSummary = buildEventQueryExecutionSummary(meta.Source, meta.QueryPath, meta.FallbackUsed, meta.MetadataCoveragePosture)
+	}
+	return meta
+}
+
+func classifyEventQueryMetadataCoveragePosture(resultCount, attachedCount int) string {
+	switch {
+	case resultCount <= 0:
+		return "coverage-empty"
+	case attachedCount <= 0:
+		return "coverage-missing"
+	case attachedCount >= resultCount:
+		return "coverage-complete"
+	default:
+		return "coverage-partial"
+	}
+}
+
+func buildEventQueryExecutionSummary(source, queryPath string, fallbackUsed bool, coveragePosture string) string {
+	parts := make([]string, 0, 4)
+	if queryPath != "" {
+		parts = append(parts, queryPath)
+	}
+	if source != "" {
+		parts = append(parts, source)
+	}
+	if fallbackUsed {
+		parts = append(parts, "fallback")
+	}
+	if coveragePosture != "" {
+		parts = append(parts, coveragePosture)
+	}
+	return strings.Join(parts, ":")
+}
+
+func classifyEventQueryConsistencyPosture(source, queryPath string, fallbackUsed bool, coveragePosture string) string {
+	switch {
+	case queryPath == "domain-first" && source == "domain-query" && !fallbackUsed:
+		return "domain-direct"
+	case strings.HasPrefix(queryPath, "domain-") && queryPath != "domain-first" && !fallbackUsed:
+		return "query-service-direct"
+	case fallbackUsed:
+		return "fallback-served"
+	case coveragePosture == "coverage-complete":
+		return "retrieval-complete"
+	case coveragePosture == "coverage-partial":
+		return "retrieval-partial"
+	case coveragePosture == "coverage-missing":
+		return "retrieval-metadata-missing"
+	case coveragePosture == "coverage-empty":
+		return "empty-result"
+	default:
+		return "consistency-unknown"
+	}
+}
+
+func classifyEventQuerySourcePosture(source string, fallbackUsed, cacheHit bool) string {
+	switch {
+	case cacheHit || strings.EqualFold(source, "cache"):
+		return "cache-hit"
+	case fallbackUsed:
+		return "retrieval-fallback"
+	case strings.EqualFold(source, "domain-query"):
+		return "domain-service"
+	case strings.EqualFold(source, "event-retrieval"):
+		return "retrieval-service"
+	case strings.EqualFold(source, "mongodb"):
+		return "mongodb-live"
+	case strings.EqualFold(source, "postgresql"):
+		return "postgres-fallback"
+	default:
+		return "source-unknown"
+	}
+}
+
+func classifyDomainListQuerySourcePosture(result *domainquery.Result) string {
+	if result == nil {
+		return classifyEventQuerySourcePosture("domain-query", false, false)
+	}
+	return classifyEventQuerySourcePosture(result.Source, false, result.CacheHit)
+}
+
+func buildEventQueryReliabilityHint(sourcePosture, consistencyPosture string) string {
+	switch {
+	case sourcePosture == "cache-hit" && consistencyPosture == "query-service-direct":
+		return "served from query-service cache; verify freshness expectations before treating as latest"
+	case sourcePosture == "mongodb-live" && consistencyPosture == "query-service-direct":
+		return "served directly from query-service live store path"
+	case sourcePosture == "domain-service" && consistencyPosture == "domain-direct":
+		return "served directly from domain query path without fallback"
+	case sourcePosture == "retrieval-fallback" || consistencyPosture == "fallback-served":
+		return "served through fallback path; verify query-service availability if this persists"
+	case consistencyPosture == "retrieval-partial":
+		return "served with partial metadata coverage; verify metadata completeness before relying on full event context"
+	case consistencyPosture == "retrieval-metadata-missing":
+		return "served without attached metadata; verify metadata pipeline before relying on enriched fields"
+	case consistencyPosture == "empty-result":
+		return "query returned no results; verify filters and upstream indexing freshness if unexpected"
+	default:
+		return "verify query source and metadata coverage before relying on this response"
+	}
 }
 
 // respondJSON responds with JSON data
@@ -475,12 +842,29 @@ func (h *EventQueryHandler) Health(ctx context.Context) *core.HealthStatus {
 	return h.retrievalService.Health(ctx)
 }
 
-// Close closes the event query handler
-func (h *EventQueryHandler) Close(ctx context.Context) error {
+// Close closes the event query handler.
+func (h *EventQueryHandler) Close(_ context.Context) error {
 	if !h.initialized {
 		return nil
 	}
 
 	h.initialized = false
 	return nil
+}
+
+func safeUint64ToInt64(value uint64) int64 {
+	if value > math.MaxInt64 {
+		return math.MaxInt64
+	}
+
+	return int64(value)
+}
+
+func safeUintToInt(value uint) int {
+	maxIntAsUint := uint(math.MaxInt)
+	if value > maxIntAsUint {
+		return math.MaxInt
+	}
+
+	return int(value)
 }

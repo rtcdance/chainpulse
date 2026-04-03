@@ -7,12 +7,17 @@ import (
 	"time"
 
 	"chainpulse/pkg/core"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/graphql-go/graphql"
 )
 
 // MockEventStore implements core.EventStore for testing
 type MockEventStore struct {
-	events map[string]*core.BlockchainEvent
+	events              map[string]*core.BlockchainEvent
+	getEventsPaginated  func(ctx context.Context, cursor string, limit int) ([]*core.BlockchainEvent, bool, error)
+	getEventsByName     func(ctx context.Context, eventName string, limit int) ([]*core.BlockchainEvent, error)
+	getEventsByAddress  func(ctx context.Context, address string, limit int) ([]*core.BlockchainEvent, error)
+	getEventsByBlock    func(ctx context.Context, blockNumber int64) ([]*core.BlockchainEvent, error)
 }
 
 func NewMockEventStore() *MockEventStore {
@@ -55,18 +60,30 @@ func (m *MockEventStore) GetEventsByEventName(ctx context.Context, eventName str
 }
 
 func (m *MockEventStore) GetEventsByBlock(ctx context.Context, blockNumber int64) ([]*core.BlockchainEvent, error) {
+	if m.getEventsByBlock != nil {
+		return m.getEventsByBlock(ctx, blockNumber)
+	}
 	return []*core.BlockchainEvent{}, nil
 }
 
 func (m *MockEventStore) GetEventsByAddress(ctx context.Context, address string, limit int) ([]*core.BlockchainEvent, error) {
+	if m.getEventsByAddress != nil {
+		return m.getEventsByAddress(ctx, address, limit)
+	}
 	return []*core.BlockchainEvent{}, nil
 }
 
 func (m *MockEventStore) GetEventsByName(ctx context.Context, eventName string, limit int) ([]*core.BlockchainEvent, error) {
+	if m.getEventsByName != nil {
+		return m.getEventsByName(ctx, eventName, limit)
+	}
 	return []*core.BlockchainEvent{}, nil
 }
 
 func (m *MockEventStore) GetEventsPaginated(ctx context.Context, cursor string, limit int) ([]*core.BlockchainEvent, bool, error) {
+	if m.getEventsPaginated != nil {
+		return m.getEventsPaginated(ctx, cursor, limit)
+	}
 	return []*core.BlockchainEvent{}, false, nil
 }
 
@@ -230,7 +247,7 @@ func TestSchemaBuilder_BuildSchema(t *testing.T) {
 	eventStore := NewMockEventStore()
 	authMiddleware := NewAuthMiddleware(logger, metrics)
 
-	builder := NewSchemaBuilder(eventStore, logger, metrics, authMiddleware)
+	builder := NewSchemaBuilder(eventStore, logger, metrics, nil, authMiddleware)
 	schema, err := builder.BuildSchema()
 
 	if err != nil {
@@ -243,6 +260,131 @@ func TestSchemaBuilder_BuildSchema(t *testing.T) {
 
 	if schema.MutationType() == nil {
 		t.Fatal("Mutation type is nil")
+	}
+}
+
+func TestSchemaBuilderResolveEventIncludesCacheQuerySourcePosture(t *testing.T) {
+	logger := NewMockLogger()
+	metrics := NewMockMetrics()
+	cache := NewMockCache()
+	payload, err := json.Marshal(map[string]interface{}{
+		"id":                 "evt-schema-cache",
+		"querySourcePosture": "graphql-event-store",
+	})
+	if err != nil {
+		t.Fatalf("marshal cache payload: %v", err)
+	}
+	cache.data["graphql:event:evt-schema-cache"] = payload
+
+	builder := NewSchemaBuilder(NewMockEventStore(), logger, metrics, cache, NewAuthMiddleware(logger, metrics))
+
+	result, err := builder.resolveEvent(mockResolveParams(map[string]interface{}{
+		"id": "evt-schema-cache",
+	}))
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	item, ok := result.(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected map result, got %#v", result)
+	}
+	if got := item["querySourcePosture"]; got != "graphql-cache-hit" {
+		t.Fatalf("expected querySourcePosture graphql-cache-hit, got %v", got)
+	}
+}
+
+func TestSchemaBuilderResolveEventsByNameIncludesLiveQuerySourcePosture(t *testing.T) {
+	logger := NewMockLogger()
+	metrics := NewMockMetrics()
+	eventStore := NewMockEventStore()
+	eventStore.getEventsByName = func(ctx context.Context, eventName string, limit int) ([]*core.BlockchainEvent, error) {
+		return []*core.BlockchainEvent{
+			{
+				ID:          "evt-name-schema",
+				EventName:   eventName,
+				Status:      core.EventStatusConfirmed,
+				CreatedAt:   time.Now(),
+				ProcessedAt: time.Now(),
+				IndexedAt:   time.Now(),
+			},
+		}, nil
+	}
+
+	builder := NewSchemaBuilder(eventStore, logger, metrics, nil, NewAuthMiddleware(logger, metrics))
+
+	result, err := builder.resolveEventsByName(mockResolveParams(map[string]interface{}{
+		"eventName": "Transfer",
+		"limit":     1,
+	}))
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	items, ok := result.([]interface{})
+	if !ok || len(items) != 1 {
+		t.Fatalf("expected one result item, got %#v", result)
+	}
+	first, ok := items[0].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected map result item, got %#v", items[0])
+	}
+	if got := first["querySourcePosture"]; got != "graphql-event-store" {
+		t.Fatalf("expected querySourcePosture graphql-event-store, got %v", got)
+	}
+}
+
+func TestSchemaBuilderResolveEventsIncludesCacheQuerySourcePosture(t *testing.T) {
+	logger := NewMockLogger()
+	metrics := NewMockMetrics()
+	cache := NewMockCache()
+	payload, err := json.Marshal(map[string]interface{}{
+		"edges": []interface{}{
+			map[string]interface{}{
+				"cursor": "cursor_0",
+				"node": map[string]interface{}{
+					"id":                 "evt-schema-root-cache",
+					"querySourcePosture": "graphql-event-store",
+				},
+			},
+		},
+		"pageInfo": map[string]interface{}{
+			"hasNextPage": false,
+			"totalCount":  1,
+		},
+	})
+	if err != nil {
+		t.Fatalf("marshal cache payload: %v", err)
+	}
+	cache.data["graphql:events:root:after::first:1"] = payload
+
+	builder := NewSchemaBuilder(NewMockEventStore(), logger, metrics, cache, NewAuthMiddleware(logger, metrics))
+
+	result, err := builder.resolveEvents(mockResolveParams(map[string]interface{}{
+		"first": 1,
+	}))
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	connection, ok := result.(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected connection result, got %#v", result)
+	}
+	edges, ok := connection["edges"].([]interface{})
+	if !ok || len(edges) != 1 {
+		t.Fatalf("expected one edge, got %#v", connection["edges"])
+	}
+	edge, ok := edges[0].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected edge map, got %#v", edges[0])
+	}
+	node, ok := edge["node"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected node map, got %#v", edge["node"])
+	}
+	if got := node["querySourcePosture"]; got != "graphql-cache-hit" {
+		t.Fatalf("expected querySourcePosture graphql-cache-hit, got %v", got)
 	}
 }
 
@@ -277,6 +419,204 @@ func TestEventResolver_ResolveEvent(t *testing.T) {
 
 	if result != nil {
 		t.Fatal("Expected nil result for nonexistent event")
+	}
+}
+
+func TestEventResolverResolveEventIncludesLiveQuerySourcePosture(t *testing.T) {
+	logger := NewMockLogger()
+	metrics := NewMockMetrics()
+	eventStore := NewMockEventStore()
+	eventStore.events["evt-live"] = &core.BlockchainEvent{
+		ID:        "evt-live",
+		Status:    core.EventStatusConfirmed,
+		CreatedAt: time.Now(),
+		ProcessedAt: time.Now(),
+		IndexedAt: time.Now(),
+	}
+
+	resolver := NewEventResolver(&ResolverContext{
+		EventStore: eventStore,
+		Logger:     logger,
+		Metrics:    metrics,
+		Cache:      NewMockCache(),
+		AuthContext: &AuthContext{
+			UserID: "test-user",
+			Scopes: []string{"read:events"},
+		},
+	})
+
+	result, err := resolver.ResolveEvent(mockResolveParams(map[string]interface{}{
+		"id": "evt-live",
+	}))
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	item, ok := result.(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected map result, got %#v", result)
+	}
+	if got := item["querySourcePosture"]; got != "graphql-event-store" {
+		t.Fatalf("expected querySourcePosture graphql-event-store, got %v", got)
+	}
+}
+
+func TestEventResolverResolveEventIncludesCacheQuerySourcePosture(t *testing.T) {
+	logger := NewMockLogger()
+	metrics := NewMockMetrics()
+	cache := NewMockCache()
+	payload, err := json.Marshal(map[string]interface{}{
+		"id": "evt-cache",
+		"querySourcePosture": "graphql-event-store",
+	})
+	if err != nil {
+		t.Fatalf("marshal cache payload: %v", err)
+	}
+	cache.data["graphql:event:evt-cache"] = payload
+
+	resolver := NewEventResolver(&ResolverContext{
+		EventStore: NewMockEventStore(),
+		Logger:     logger,
+		Metrics:    metrics,
+		Cache:      cache,
+		AuthContext: &AuthContext{
+			UserID: "test-user",
+			Scopes: []string{"read:events"},
+		},
+	})
+
+	result, err := resolver.ResolveEvent(mockResolveParams(map[string]interface{}{
+		"id": "evt-cache",
+	}))
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	item, ok := result.(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected map result, got %#v", result)
+	}
+	if got := item["querySourcePosture"]; got != "graphql-cache-hit" {
+		t.Fatalf("expected querySourcePosture graphql-cache-hit, got %v", got)
+	}
+}
+
+func TestEventResolverResolveEventsIncludesLiveQuerySourcePosture(t *testing.T) {
+	logger := NewMockLogger()
+	metrics := NewMockMetrics()
+	eventStore := NewMockEventStore()
+	eventStore.getEventsPaginated = func(ctx context.Context, cursor string, limit int) ([]*core.BlockchainEvent, bool, error) {
+		return []*core.BlockchainEvent{
+			{
+				ID:          "evt-root-live",
+				BlockNumber: 99,
+				Status:      core.EventStatusConfirmed,
+				CreatedAt:   time.Now(),
+				ProcessedAt: time.Now(),
+				IndexedAt:   time.Now(),
+			},
+		}, false, nil
+	}
+
+	resolver := NewEventResolver(&ResolverContext{
+		EventStore: eventStore,
+		Logger:     logger,
+		Metrics:    metrics,
+		Cache:      NewMockCache(),
+		AuthContext: &AuthContext{
+			UserID: "test-user",
+			Scopes: []string{"read:events"},
+		},
+	})
+
+	result, err := resolver.ResolveEvents(mockResolveParams(map[string]interface{}{
+		"first": 1,
+	}))
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	connection, ok := result.(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected connection result, got %#v", result)
+	}
+	edges, ok := connection["edges"].([]interface{})
+	if !ok || len(edges) != 1 {
+		t.Fatalf("expected one edge, got %#v", connection["edges"])
+	}
+	edge, ok := edges[0].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected edge map, got %#v", edges[0])
+	}
+	node, ok := edge["node"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected node map, got %#v", edge["node"])
+	}
+	if got := node["querySourcePosture"]; got != "graphql-event-store" {
+		t.Fatalf("expected querySourcePosture graphql-event-store, got %v", got)
+	}
+}
+
+func TestEventResolverResolveEventsIncludesCacheQuerySourcePosture(t *testing.T) {
+	logger := NewMockLogger()
+	metrics := NewMockMetrics()
+	cache := NewMockCache()
+	payload, err := json.Marshal(map[string]interface{}{
+		"edges": []interface{}{
+			map[string]interface{}{
+				"cursor": "cursor_0",
+				"node": map[string]interface{}{
+					"id":                 "evt-root-cache",
+					"querySourcePosture": "graphql-event-store",
+				},
+			},
+		},
+		"pageInfo": map[string]interface{}{
+			"hasNextPage": false,
+			"totalCount":  1,
+		},
+	})
+	if err != nil {
+		t.Fatalf("marshal cache payload: %v", err)
+	}
+	cache.data["graphql:events:root:after::first:1"] = payload
+
+	resolver := NewEventResolver(&ResolverContext{
+		EventStore: NewMockEventStore(),
+		Logger:     logger,
+		Metrics:    metrics,
+		Cache:      cache,
+		AuthContext: &AuthContext{
+			UserID: "test-user",
+			Scopes: []string{"read:events"},
+		},
+	})
+
+	result, err := resolver.ResolveEvents(mockResolveParams(map[string]interface{}{
+		"first": 1,
+	}))
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	connection, ok := result.(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected connection result, got %#v", result)
+	}
+	edges, ok := connection["edges"].([]interface{})
+	if !ok || len(edges) != 1 {
+		t.Fatalf("expected one edge, got %#v", connection["edges"])
+	}
+	edge, ok := edges[0].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected edge map, got %#v", edges[0])
+	}
+	node, ok := edge["node"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected node map, got %#v", edge["node"])
+	}
+	if got := node["querySourcePosture"]; got != "graphql-cache-hit" {
+		t.Fatalf("expected querySourcePosture graphql-cache-hit, got %v", got)
 	}
 }
 
@@ -704,5 +1044,247 @@ func TestEventToGraphQL(t *testing.T) {
 
 	if result["status"] != "confirmed" {
 		t.Fatalf("Expected status 'confirmed', got '%v'", result["status"])
+	}
+}
+
+func TestEventResolverResolveEventsByNameIncludesLiveQuerySourcePosture(t *testing.T) {
+	logger := NewMockLogger()
+	metrics := NewMockMetrics()
+	eventStore := NewMockEventStore()
+	eventStore.getEventsByName = func(ctx context.Context, eventName string, limit int) ([]*core.BlockchainEvent, error) {
+		return []*core.BlockchainEvent{
+			{
+				ID:        "evt-live",
+				EventName: eventName,
+				Status:    core.EventStatusConfirmed,
+				CreatedAt: time.Now(),
+				ProcessedAt: time.Now(),
+				IndexedAt: time.Now(),
+			},
+		}, nil
+	}
+
+	resolver := NewEventResolver(&ResolverContext{
+		EventStore: eventStore,
+		Logger:     logger,
+		Metrics:    metrics,
+		Cache:      NewMockCache(),
+		AuthContext: &AuthContext{
+			UserID: "test-user",
+			Scopes: []string{"read:events"},
+		},
+	})
+
+	result, err := resolver.ResolveEventsByName(mockResolveParams(map[string]interface{}{
+		"eventName": "Transfer",
+		"limit":     1,
+	}))
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	items, ok := result.([]interface{})
+	if !ok || len(items) != 1 {
+		t.Fatalf("expected one result item, got %#v", result)
+	}
+	first, ok := items[0].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected map result item, got %#v", items[0])
+	}
+	if got := first["querySourcePosture"]; got != "graphql-event-store" {
+		t.Fatalf("expected querySourcePosture graphql-event-store, got %v", got)
+	}
+}
+
+func TestEventResolverResolveEventsByNameIncludesCacheQuerySourcePosture(t *testing.T) {
+	logger := NewMockLogger()
+	metrics := NewMockMetrics()
+	cache := NewMockCache()
+	payload, err := json.Marshal([]map[string]interface{}{
+		{
+			"id":               "evt-cache",
+			"eventName":        "Transfer",
+			"querySourcePosture": "graphql-event-store",
+		},
+	})
+	if err != nil {
+		t.Fatalf("marshal cache payload: %v", err)
+	}
+	cache.data["graphql:events:name:Transfer:limit:1"] = payload
+
+	resolver := NewEventResolver(&ResolverContext{
+		EventStore: NewMockEventStore(),
+		Logger:     logger,
+		Metrics:    metrics,
+		Cache:      cache,
+		AuthContext: &AuthContext{
+			UserID: "test-user",
+			Scopes: []string{"read:events"},
+		},
+	})
+
+	result, err := resolver.ResolveEventsByName(mockResolveParams(map[string]interface{}{
+		"eventName": "Transfer",
+		"limit":     1,
+	}))
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	items, ok := result.([]interface{})
+	if !ok || len(items) != 1 {
+		t.Fatalf("expected one result item, got %#v", result)
+	}
+	first, ok := items[0].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected map result item, got %#v", items[0])
+	}
+	if got := first["querySourcePosture"]; got != "graphql-cache-hit" {
+		t.Fatalf("expected querySourcePosture graphql-cache-hit, got %v", got)
+	}
+}
+
+func TestEventResolverResolveEventsByAddressIncludesLiveQuerySourcePosture(t *testing.T) {
+	logger := NewMockLogger()
+	metrics := NewMockMetrics()
+	eventStore := NewMockEventStore()
+	eventStore.getEventsByAddress = func(ctx context.Context, address string, limit int) ([]*core.BlockchainEvent, error) {
+		return []*core.BlockchainEvent{
+			{
+				ID:              "evt-address-live",
+				ContractAddress: common.HexToAddress("0xabc"),
+				Status:          core.EventStatusConfirmed,
+				CreatedAt:       time.Now(),
+				ProcessedAt:     time.Now(),
+				IndexedAt:       time.Now(),
+			},
+		}, nil
+	}
+
+	resolver := NewEventResolver(&ResolverContext{
+		EventStore: eventStore,
+		Logger:     logger,
+		Metrics:    metrics,
+		Cache:      NewMockCache(),
+		AuthContext: &AuthContext{
+			UserID: "test-user",
+			Scopes: []string{"read:events"},
+		},
+	})
+
+	result, err := resolver.ResolveEventsByAddress(mockResolveParams(map[string]interface{}{
+		"address": "0xabc",
+		"limit":   1,
+	}))
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	items, ok := result.([]interface{})
+	if !ok || len(items) != 1 {
+		t.Fatalf("expected one result item, got %#v", result)
+	}
+	first, ok := items[0].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected map result item, got %#v", items[0])
+	}
+	if got := first["querySourcePosture"]; got != "graphql-event-store" {
+		t.Fatalf("expected querySourcePosture graphql-event-store, got %v", got)
+	}
+}
+
+func TestEventResolverResolveEventsByAddressIncludesCacheQuerySourcePosture(t *testing.T) {
+	logger := NewMockLogger()
+	metrics := NewMockMetrics()
+	cache := NewMockCache()
+	payload, err := json.Marshal([]map[string]interface{}{
+		{
+			"id":                 "evt-address-cache",
+			"contractAddress":    "0xabc",
+			"querySourcePosture": "graphql-event-store",
+		},
+	})
+	if err != nil {
+		t.Fatalf("marshal cache payload: %v", err)
+	}
+	cache.data["graphql:events:address:0xabc:limit:1"] = payload
+
+	resolver := NewEventResolver(&ResolverContext{
+		EventStore: NewMockEventStore(),
+		Logger:     logger,
+		Metrics:    metrics,
+		Cache:      cache,
+		AuthContext: &AuthContext{
+			UserID: "test-user",
+			Scopes: []string{"read:events"},
+		},
+	})
+
+	result, err := resolver.ResolveEventsByAddress(mockResolveParams(map[string]interface{}{
+		"address": "0xabc",
+		"limit":   1,
+	}))
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	items, ok := result.([]interface{})
+	if !ok || len(items) != 1 {
+		t.Fatalf("expected one result item, got %#v", result)
+	}
+	first, ok := items[0].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected map result item, got %#v", items[0])
+	}
+	if got := first["querySourcePosture"]; got != "graphql-cache-hit" {
+		t.Fatalf("expected querySourcePosture graphql-cache-hit, got %v", got)
+	}
+}
+
+func TestEventResolverResolveEventsByBlockIncludesLiveQuerySourcePosture(t *testing.T) {
+	logger := NewMockLogger()
+	metrics := NewMockMetrics()
+	eventStore := NewMockEventStore()
+	eventStore.getEventsByBlock = func(ctx context.Context, blockNumber int64) ([]*core.BlockchainEvent, error) {
+		return []*core.BlockchainEvent{
+			{
+				ID:          "evt-block-live",
+				BlockNumber: 42,
+				Status:      core.EventStatusConfirmed,
+				CreatedAt:   time.Now(),
+				ProcessedAt: time.Now(),
+				IndexedAt:   time.Now(),
+			},
+		}, nil
+	}
+
+	resolver := NewEventResolver(&ResolverContext{
+		EventStore: eventStore,
+		Logger:     logger,
+		Metrics:    metrics,
+		Cache:      NewMockCache(),
+		AuthContext: &AuthContext{
+			UserID: "test-user",
+			Scopes: []string{"read:events"},
+		},
+	})
+
+	result, err := resolver.ResolveEventsByBlock(mockResolveParams(map[string]interface{}{
+		"blockNumber": 42,
+	}))
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	items, ok := result.([]interface{})
+	if !ok || len(items) != 1 {
+		t.Fatalf("expected one result item, got %#v", result)
+	}
+	first, ok := items[0].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected map result item, got %#v", items[0])
+	}
+	if got := first["querySourcePosture"]; got != "graphql-event-store" {
+		t.Fatalf("expected querySourcePosture graphql-event-store, got %v", got)
 	}
 }

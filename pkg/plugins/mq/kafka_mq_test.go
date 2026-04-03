@@ -431,6 +431,8 @@ func TestKafkaMQPluginHealth(t *testing.T) {
 	if err := plugin.Initialize(); err != nil {
 		t.Fatalf("failed to initialize: %v", err)
 	}
+	plugin.UpdateConsumerGroupMetric("lag", 25)
+	plugin.SetLastOffset("raw-events", 144)
 
 	health := plugin.Health()
 
@@ -440,6 +442,18 @@ func TestKafkaMQPluginHealth(t *testing.T) {
 
 	if health.Status != "healthy" {
 		t.Errorf("expected healthy status, got %s", health.Status)
+	}
+	if health.Details["consumer_group"] != consumerGroup {
+		t.Errorf("expected consumer_group %s, got %v", consumerGroup, health.Details["consumer_group"])
+	}
+	if health.Details["active_consumers"] != 0 {
+		t.Errorf("expected active_consumers 0, got %v", health.Details["active_consumers"])
+	}
+	if health.Details["consumer_group_lag"] != int64(25) {
+		t.Errorf("expected consumer_group_lag 25, got %v", health.Details["consumer_group_lag"])
+	}
+	if health.Details["max_tracked_offset"] != int64(144) {
+		t.Errorf("expected max_tracked_offset 144, got %v", health.Details["max_tracked_offset"])
 	}
 }
 

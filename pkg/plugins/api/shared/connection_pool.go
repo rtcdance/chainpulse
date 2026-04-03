@@ -39,13 +39,13 @@ type ConnectionFactory interface {
 
 // PoolMetrics tracks connection pool metrics
 type PoolMetrics struct {
-	created      int64
-	reused       int64
-	closed       int64
-	errors       int64
-	currentSize  int64
-	maxSize      int64
-	mu           sync.RWMutex
+	created     int64
+	reused      int64
+	closed      int64
+	errors      int64
+	currentSize int64
+	maxSize     int64
+	mu          sync.RWMutex
 }
 
 // NewConnectionPool creates a new connection pool
@@ -199,21 +199,63 @@ func (p *ConnectionPool) Close() error {
 // GetMetrics returns pool metrics
 func (p *ConnectionPool) GetMetrics() map[string]interface{} {
 	p.metrics.mu.RLock()
-	defer p.metrics.mu.RUnlock()
+	created := p.metrics.created
+	reused := p.metrics.reused
+	closed := p.metrics.closed
+	errors := p.metrics.errors
+	maxSize := p.metrics.maxSize
+	p.metrics.mu.RUnlock()
 
 	p.mu.RLock()
 	currentSize := int64(len(p.inUse))
+	available := int64(len(p.available))
 	p.mu.RUnlock()
 
+	capacityPosture := classifyPoolCapacityPosture(currentSize, maxSize, available)
+	runtimePosture := classifyPoolRuntimePosture(created, errors, capacityPosture)
+
 	return map[string]interface{}{
-		"pool_name":    p.name,
-		"created":      p.metrics.created,
-		"reused":       p.metrics.reused,
-		"closed":       p.metrics.closed,
-		"errors":       p.metrics.errors,
-		"current_size": currentSize,
-		"max_size":     p.metrics.maxSize,
-		"available":    int64(len(p.available)),
+		"pool_name":        p.name,
+		"created":          created,
+		"reused":           reused,
+		"closed":           closed,
+		"errors":           errors,
+		"current_size":     currentSize,
+		"max_size":         maxSize,
+		"available":        available,
+		"coverage_posture": capacityPosture,
+		"capacity_posture": capacityPosture,
+		"runtime_posture":  runtimePosture,
+		"reliability_hint": buildPoolReliabilityHint(runtimePosture, capacityPosture),
+	}
+}
+
+// GetRuntimeMetrics returns a compact runtime surface for pool capacity and
+// reliability posture on top of the raw metrics.
+func (p *ConnectionPool) GetRuntimeMetrics() map[string]interface{} {
+	metrics := p.GetMetrics()
+
+	created, _ := metrics["created"].(int64)
+	reused, _ := metrics["reused"].(int64)
+	closed, _ := metrics["closed"].(int64)
+	errors, _ := metrics["errors"].(int64)
+	currentSize, _ := metrics["current_size"].(int64)
+	maxSize, _ := metrics["max_size"].(int64)
+	available, _ := metrics["available"].(int64)
+
+	return map[string]interface{}{
+		"pool_name":        p.name,
+		"created":          created,
+		"reused":           reused,
+		"closed":           closed,
+		"errors":           errors,
+		"current_size":     currentSize,
+		"max_size":         maxSize,
+		"available":        available,
+		"coverage_posture": metrics["coverage_posture"],
+		"capacity_posture": metrics["capacity_posture"],
+		"runtime_posture":  metrics["runtime_posture"],
+		"reliability_hint": metrics["reliability_hint"],
 	}
 }
 
@@ -265,4 +307,52 @@ func (p *ConnectionPool) cleanupLoop() {
 func (p *ConnectionPool) cleanup() {
 	// Cleanup logic for idle connections
 	// This is a placeholder for future implementation
+}
+
+func classifyPoolCapacityPosture(currentSize int64, maxSize int64, available int64) string {
+	if maxSize == 0 {
+		return "pool-unbounded"
+	}
+	if currentSize == 0 && available == 0 {
+		return "pool-idle"
+	}
+	if currentSize >= maxSize && available == 0 {
+		return "pool-saturated"
+	}
+	if available > 0 {
+		return "pool-available"
+	}
+	return "pool-busy"
+}
+
+func classifyPoolRuntimePosture(created int64, errors int64, capacityPosture string) string {
+	if errors > 0 {
+		return "pool-degraded"
+	}
+	if created == 0 {
+		return "pool-unobserved"
+	}
+	if capacityPosture == "pool-saturated" {
+		return "pool-pressured"
+	}
+	return "pool-healthy"
+}
+
+func buildPoolReliabilityHint(runtimePosture string, capacityPosture string) string {
+	switch runtimePosture {
+	case "pool-degraded":
+		return "connection pool is degraded; inspect factory failures and unhealthy connection churn"
+	case "pool-pressured":
+		return "connection pool is under pressure; monitor saturation and available capacity"
+	case "pool-healthy":
+		if capacityPosture == "pool-available" {
+			return "connection pool is healthy with available capacity"
+		}
+		if capacityPosture == "pool-busy" {
+			return "connection pool is healthy but currently busy"
+		}
+		return "connection pool is healthy"
+	default:
+		return "connection pool has not been exercised yet"
+	}
 }

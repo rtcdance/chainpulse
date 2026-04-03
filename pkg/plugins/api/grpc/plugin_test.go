@@ -7,6 +7,13 @@ import (
 	"chainpulse/pkg/plugins/api/core"
 )
 
+func skipGRPCPluginLifecycleTestsInShortMode(t *testing.T) {
+	t.Helper()
+	if testing.Short() {
+		t.Skip("skipping gRPC plugin lifecycle test in short mode")
+	}
+}
+
 func TestNewGRPCPlugin(t *testing.T) {
 	apiLayer := core.NewAPILayer()
 	plugin := NewGRPCPlugin("grpc", 9090, apiLayer)
@@ -25,6 +32,8 @@ func TestNewGRPCPlugin(t *testing.T) {
 }
 
 func TestGRPCPluginStart(t *testing.T) {
+	skipGRPCPluginLifecycleTestsInShortMode(t)
+
 	apiLayer := core.NewAPILayer()
 	plugin := NewGRPCPlugin("grpc", 9091, apiLayer)
 
@@ -42,6 +51,8 @@ func TestGRPCPluginStart(t *testing.T) {
 }
 
 func TestGRPCPluginStartAlreadyRunning(t *testing.T) {
+	skipGRPCPluginLifecycleTestsInShortMode(t)
+
 	apiLayer := core.NewAPILayer()
 	plugin := NewGRPCPlugin("grpc", 9092, apiLayer)
 
@@ -56,6 +67,8 @@ func TestGRPCPluginStartAlreadyRunning(t *testing.T) {
 }
 
 func TestGRPCPluginStop(t *testing.T) {
+	skipGRPCPluginLifecycleTestsInShortMode(t)
+
 	apiLayer := core.NewAPILayer()
 	plugin := NewGRPCPlugin("grpc", 9093, apiLayer)
 
@@ -91,6 +104,8 @@ func TestGRPCPluginGetName(t *testing.T) {
 }
 
 func TestGRPCPluginIsRunning(t *testing.T) {
+	skipGRPCPluginLifecycleTestsInShortMode(t)
+
 	apiLayer := core.NewAPILayer()
 	plugin := NewGRPCPlugin("grpc", 9096, apiLayer)
 
@@ -151,6 +166,8 @@ func TestGRPCPluginMultipleMiddleware(t *testing.T) {
 }
 
 func TestGRPCPluginConcurrentOperations(t *testing.T) {
+	skipGRPCPluginLifecycleTestsInShortMode(t)
+
 	apiLayer := core.NewAPILayer()
 	plugin := NewGRPCPlugin("grpc", 9099, apiLayer)
 

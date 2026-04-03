@@ -9,13 +9,13 @@ import (
 
 // TLSManager manages TLS certificates and configurations
 type TLSManager struct {
-	certFile    string
-	keyFile     string
-	config      *tls.Config
-	mu          sync.RWMutex
-	lastReload  time.Time
-	reloadTTL   time.Duration
-	metrics     *TLSMetrics
+	certFile   string
+	keyFile    string
+	config     *tls.Config
+	mu         sync.RWMutex
+	lastReload time.Time
+	reloadTTL  time.Duration
+	metrics    *TLSMetrics
 }
 
 // TLSMetrics tracks TLS metrics
@@ -99,13 +99,54 @@ func (tm *TLSManager) SetReloadTTL(ttl time.Duration) {
 
 // GetMetrics returns TLS metrics
 func (tm *TLSManager) GetMetrics() map[string]interface{} {
+	tm.mu.RLock()
+	configPresent := tm.config != nil
+	reloadTTL := tm.reloadTTL
+	lastReload := tm.lastReload
+	tm.mu.RUnlock()
+
 	tm.metrics.mu.RLock()
-	defer tm.metrics.mu.RUnlock()
+	reloads := tm.metrics.reloads
+	errors := tm.metrics.errors
+	lastReloadAt := tm.metrics.lastReloadAt
+	tm.metrics.mu.RUnlock()
+
+	certificatePosture := classifyTLSCertificatePosture(configPresent, errors)
+	reloadPosture := classifyTLSReloadPosture(lastReload, reloadTTL, reloads, errors)
 
 	return map[string]interface{}{
-		"reloads":        tm.metrics.reloads,
-		"errors":         tm.metrics.errors,
-		"last_reload_at": tm.metrics.lastReloadAt,
+		"reloads":             reloads,
+		"errors":              errors,
+		"last_reload_at":      lastReloadAt,
+		"coverage_posture":    certificatePosture,
+		"certificate_posture": certificatePosture,
+		"reload_posture":      reloadPosture,
+		"reliability_hint":    buildTLSReliabilityHint(certificatePosture, reloadPosture),
+	}
+}
+
+// GetRuntimeMetrics returns a compact runtime surface for TLS readiness and
+// certificate reload posture.
+func (tm *TLSManager) GetRuntimeMetrics() map[string]interface{} {
+	tm.mu.RLock()
+	configPresent := tm.config != nil
+	reloadTTL := tm.reloadTTL
+	tm.mu.RUnlock()
+
+	tm.metrics.mu.RLock()
+	tm.metrics.mu.RUnlock()
+	metrics := tm.GetMetrics()
+
+	return map[string]interface{}{
+		"enabled":             configPresent,
+		"reload_ttl":          reloadTTL.String(),
+		"reloads":             metrics["reloads"],
+		"errors":              metrics["errors"],
+		"last_reload_at":      metrics["last_reload_at"],
+		"coverage_posture":    metrics["coverage_posture"],
+		"certificate_posture": metrics["certificate_posture"],
+		"reload_posture":      metrics["reload_posture"],
+		"reliability_hint":    metrics["reliability_hint"],
 	}
 }
 
@@ -122,4 +163,40 @@ func (tm *TLSManager) recordError() {
 	tm.metrics.mu.Lock()
 	defer tm.metrics.mu.Unlock()
 	tm.metrics.errors++
+}
+
+func classifyTLSCertificatePosture(configPresent bool, errors int64) string {
+	if !configPresent {
+		return "tls-unconfigured"
+	}
+	if errors > 0 {
+		return "tls-degraded"
+	}
+	return "tls-ready"
+}
+
+func classifyTLSReloadPosture(lastReload time.Time, reloadTTL time.Duration, reloads int64, errors int64) string {
+	if reloads == 0 {
+		return "reload-unobserved"
+	}
+	if errors > 0 {
+		return "reload-error"
+	}
+	if reloadTTL > 0 && time.Since(lastReload) >= reloadTTL {
+		return "reload-due"
+	}
+	return "reload-fresh"
+}
+
+func buildTLSReliabilityHint(certificatePosture string, reloadPosture string) string {
+	switch {
+	case certificatePosture == "tls-degraded" || reloadPosture == "reload-error":
+		return "tls runtime is degraded; inspect certificate loading and reload failures"
+	case certificatePosture == "tls-ready" && reloadPosture == "reload-due":
+		return "tls runtime is ready but certificate reload is due; verify reload cadence"
+	case certificatePosture == "tls-ready":
+		return "tls runtime is ready and certificate reload posture is healthy"
+	default:
+		return "tls runtime is not configured yet"
+	}
 }

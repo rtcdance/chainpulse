@@ -13,16 +13,17 @@ var _ atomic.Int64
 
 // RequestHandler represents a request handler instance
 type RequestHandler struct {
-	ID           string
-	Name         string
-	Endpoint     string
-	Available    bool
-	Weight       int
-	Metrics      *HandlerMetrics
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
-	mu           sync.RWMutex
-	lastCheckAt  time.Time
+	ID            string
+	Name          string
+	Endpoint      string
+	Available     bool
+	Weight        int
+	Metrics       *HandlerMetrics
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+	healthClient  *http.Client
+	mu            sync.RWMutex
+	lastCheckAt   time.Time
 	checkInterval time.Duration
 }
 
@@ -40,14 +41,17 @@ type HandlerMetrics struct {
 // NewHandler creates a new handler
 func NewHandler(id, name, endpoint string) *RequestHandler {
 	return &RequestHandler{
-		ID:            id,
-		Name:          name,
-		Endpoint:      endpoint,
-		Available:     true,
-		Weight:        1,
-		Metrics:       NewHandlerMetrics(),
-		CreatedAt:     time.Now(),
-		UpdatedAt:     time.Now(),
+		ID:        id,
+		Name:      name,
+		Endpoint:  endpoint,
+		Available: true,
+		Weight:    1,
+		Metrics:   NewHandlerMetrics(),
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+		healthClient: &http.Client{
+			Timeout: 5 * time.Second,
+		},
 		checkInterval: 30 * time.Second,
 	}
 }
@@ -111,9 +115,9 @@ func (h *RequestHandler) CheckHealth() bool {
 		return h.Available
 	}
 
-	// Perform health check (simple HTTP GET)
-	client := &http.Client{
-		Timeout: 5 * time.Second,
+	client := h.healthClient
+	if client == nil {
+		client = &http.Client{Timeout: 5 * time.Second}
 	}
 
 	resp, err := client.Get(h.Endpoint + "/health")
@@ -131,6 +135,21 @@ func (h *RequestHandler) CheckHealth() bool {
 	h.Available = resp.StatusCode >= 200 && resp.StatusCode < 300
 	h.lastCheckAt = time.Now()
 	return h.Available
+}
+
+// SetHealthHTTPClient overrides the HTTP client used for handler health checks.
+//
+//nolint:wsl // Setter keeps the health client wiring explicit and simple.
+func (h *RequestHandler) SetHealthHTTPClient(client *http.Client) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	if client == nil {
+		h.healthClient = &http.Client{Timeout: 5 * time.Second}
+
+		return
+	}
+	h.healthClient = client
 }
 
 // SetAvailable sets the availability status

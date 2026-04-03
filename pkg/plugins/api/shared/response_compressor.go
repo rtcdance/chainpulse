@@ -28,12 +28,12 @@ type ResponseCompressor struct {
 
 // CompressionMetrics tracks compression metrics
 type CompressionMetrics struct {
-	totalResponses    int64
-	compressedCount   int64
-	originalSize      int64
-	compressedSize    int64
-	totalDuration     time.Duration
-	mu                sync.RWMutex
+	totalResponses  int64
+	compressedCount int64
+	originalSize    int64
+	compressedSize  int64
+	totalDuration   time.Duration
+	mu              sync.RWMutex
 }
 
 // NewResponseCompressor creates a new response compressor
@@ -120,26 +120,60 @@ func (c *ResponseCompressor) Decompress(data []byte) ([]byte, error) {
 // GetMetrics returns compression metrics
 func (c *ResponseCompressor) GetMetrics() map[string]interface{} {
 	c.metrics.mu.RLock()
-	defer c.metrics.mu.RUnlock()
+	totalResponses := c.metrics.totalResponses
+	compressedCount := c.metrics.compressedCount
+	originalSize := c.metrics.originalSize
+	compressedSize := c.metrics.compressedSize
+	totalDuration := c.metrics.totalDuration
+	c.metrics.mu.RUnlock()
 
 	compressionRatio := 0.0
-	if c.metrics.originalSize > 0 {
-		compressionRatio = float64(c.metrics.compressedSize) / float64(c.metrics.originalSize) * 100.0
+	if originalSize > 0 {
+		compressionRatio = float64(compressedSize) / float64(originalSize) * 100.0
 	}
 
 	avgDuration := time.Duration(0)
-	if c.metrics.totalResponses > 0 {
-		avgDuration = c.metrics.totalDuration / time.Duration(c.metrics.totalResponses)
+	if totalResponses > 0 {
+		avgDuration = totalDuration / time.Duration(totalResponses)
 	}
 
+	coveragePosture := classifyCompressionCoveragePosture(totalResponses, compressedCount)
+	efficiencyPosture := classifyCompressionEfficiencyPosture(totalResponses, compressedCount, compressionRatio, avgDuration.Milliseconds())
+
 	return map[string]interface{}{
-		"total_responses":    c.metrics.totalResponses,
-		"compressed_count":   c.metrics.compressedCount,
-		"original_size":      c.metrics.originalSize,
-		"compressed_size":    c.metrics.compressedSize,
+		"total_responses":    totalResponses,
+		"compressed_count":   compressedCount,
+		"original_size":      originalSize,
+		"compressed_size":    compressedSize,
 		"compression_ratio":  compressionRatio,
 		"avg_duration_ms":    avgDuration.Milliseconds(),
-		"total_duration":     c.metrics.totalDuration.String(),
+		"total_duration":     totalDuration.String(),
+		"coverage_posture":   coveragePosture,
+		"efficiency_posture": efficiencyPosture,
+		"reliability_hint":   buildCompressionReliabilityHint(coveragePosture, efficiencyPosture),
+	}
+}
+
+// GetRuntimeMetrics returns a compact runtime surface for compression coverage
+// and delivery efficiency on top of the raw compression metrics.
+func (c *ResponseCompressor) GetRuntimeMetrics() map[string]interface{} {
+	metrics := c.GetMetrics()
+
+	totalResponses, _ := metrics["total_responses"].(int64)
+	compressedCount, _ := metrics["compressed_count"].(int64)
+	compressionRatio, _ := metrics["compression_ratio"].(float64)
+	avgDurationMS, _ := metrics["avg_duration_ms"].(int64)
+
+	return map[string]interface{}{
+		"total_responses":    totalResponses,
+		"compressed_count":   compressedCount,
+		"original_size":      metrics["original_size"],
+		"compressed_size":    metrics["compressed_size"],
+		"compression_ratio":  compressionRatio,
+		"avg_duration_ms":    avgDurationMS,
+		"coverage_posture":   metrics["coverage_posture"],
+		"efficiency_posture": metrics["efficiency_posture"],
+		"reliability_hint":   metrics["reliability_hint"],
 	}
 }
 
@@ -174,5 +208,51 @@ func (c *ResponseCompressor) recordResponse(originalSize, compressedSize int, co
 
 	if compressed {
 		c.metrics.compressedCount++
+	}
+}
+
+func classifyCompressionCoveragePosture(totalResponses int64, compressedCount int64) string {
+	if totalResponses == 0 {
+		return "compression-unobserved"
+	}
+	if compressedCount == 0 {
+		return "compression-bypassed"
+	}
+	if compressedCount < totalResponses {
+		return "compression-partial"
+	}
+	return "compression-active"
+}
+
+func classifyCompressionEfficiencyPosture(totalResponses int64, compressedCount int64, compressionRatio float64, avgDurationMS int64) string {
+	if totalResponses == 0 {
+		return "compression-unobserved"
+	}
+	if compressedCount == 0 {
+		return "compression-idle"
+	}
+	if compressionRatio >= 100 {
+		return "compression-inefficient"
+	}
+	if avgDurationMS > 250 {
+		return "compression-slow"
+	}
+	return "compression-efficient"
+}
+
+func buildCompressionReliabilityHint(coveragePosture string, efficiencyPosture string) string {
+	switch {
+	case efficiencyPosture == "compression-inefficient":
+		return "compression is active but not reducing payload size; verify thresholds and payload shape"
+	case efficiencyPosture == "compression-slow":
+		return "compression is active but latency is elevated; verify compression level and payload cost"
+	case coveragePosture == "compression-bypassed":
+		return "responses are currently bypassing compression; verify payload size and compression policy"
+	case coveragePosture == "compression-partial":
+		return "compression is applied selectively; verify that partial compression matches payload expectations"
+	case coveragePosture == "compression-active":
+		return "compression runtime is active and operating within expected efficiency"
+	default:
+		return "compression runtime has not been observed yet"
 	}
 }

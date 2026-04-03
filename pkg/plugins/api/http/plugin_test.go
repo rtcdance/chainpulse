@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"chainpulse/pkg/plugins/api/core"
+	"chainpulse/pkg/plugins/api/shared"
 )
 
 func TestNewHTTPPlugin(t *testing.T) {
@@ -142,5 +143,49 @@ func TestHTTPPluginIsRunning(t *testing.T) {
 
 	if !plugin.IsRunning() {
 		t.Error("expected plugin to be running after start")
+	}
+}
+
+func TestHTTPPluginGetRuntimeMetricsPlaintextStopped(t *testing.T) {
+	apiLayer := core.NewAPILayer()
+	plugin := NewHTTPPlugin("http", 8089, apiLayer)
+
+	metrics := plugin.GetRuntimeMetrics()
+	if metrics["transport_posture"] != "http-plaintext-only" {
+		t.Errorf("expected http-plaintext-only, got %v", metrics["transport_posture"])
+	}
+	if metrics["runtime_posture"] != "http-stopped" {
+		t.Errorf("expected http-stopped, got %v", metrics["runtime_posture"])
+	}
+	if metrics["route_posture"] != "http-routes-empty" {
+		t.Errorf("expected http-routes-empty, got %v", metrics["route_posture"])
+	}
+}
+
+func TestHTTPPluginGetRuntimeMetricsTLSServing(t *testing.T) {
+	apiLayer := core.NewAPILayer()
+	plugin := NewHTTPPlugin("http", 8090, apiLayer)
+	plugin.tlsManager = &shared.TLSManager{}
+
+	handler := core.HandlerFunc(func(req core.Request) (core.Response, error) {
+		resp := core.NewBaseResponse(nil)
+		resp.SetStatus(200)
+		return resp, nil
+	})
+	_ = plugin.RegisterRoute("/health", handler)
+	plugin.running = true
+
+	metrics := plugin.GetRuntimeMetrics()
+	if metrics["transport_posture"] != "http-tls-enabled" {
+		t.Errorf("expected http-tls-enabled, got %v", metrics["transport_posture"])
+	}
+	if metrics["runtime_posture"] != "http-serving" {
+		t.Errorf("expected http-serving, got %v", metrics["runtime_posture"])
+	}
+	if metrics["route_count"] != 1 {
+		t.Errorf("expected route_count 1, got %v", metrics["route_count"])
+	}
+	if metrics["reliability_hint"] != "http runtime is serving registered routes with a TLS-capable transport" {
+		t.Errorf("unexpected reliability hint: %v", metrics["reliability_hint"])
 	}
 }

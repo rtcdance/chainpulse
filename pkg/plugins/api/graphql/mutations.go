@@ -6,13 +6,13 @@ import (
 	"time"
 
 	"chainpulse/pkg/core"
-	"chainpulse/pkg/services/query"
+	domainquery "chainpulse/pkg/domain/query"
 	"github.com/graphql-go/graphql"
 )
 
 // MutationBuilder builds GraphQL mutations
 type MutationBuilder struct {
-	eventStore query.EventStore
+	eventStore domainquery.EventStore
 	logger     core.Logger
 	metrics    core.MetricsCollector
 	cache      core.CachePlugin
@@ -20,7 +20,7 @@ type MutationBuilder struct {
 
 // NewMutationBuilder creates a new mutation builder
 func NewMutationBuilder(
-	eventStore query.EventStore,
+	eventStore domainquery.EventStore,
 	logger core.Logger,
 	metrics core.MetricsCollector,
 	cache core.CachePlugin,

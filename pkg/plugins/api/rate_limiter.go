@@ -47,13 +47,13 @@ type RateLimiter struct {
 
 // TokenBucket implements token bucket algorithm for rate limiting
 type TokenBucket struct {
-	tokens           float64
-	maxTokens        float64
-	refillRate       float64 // tokens per second
-	lastRefillTime   time.Time
-	requestCount     int64
-	rejectedCount    int64
-	mu               sync.RWMutex
+	tokens         float64
+	maxTokens      float64
+	refillRate     float64 // tokens per second
+	lastRefillTime time.Time
+	requestCount   int64
+	rejectedCount  int64
+	mu             sync.RWMutex
 }
 
 // RateLimitConfig holds rate limiting configuration
@@ -74,18 +74,18 @@ type RateLimitConfig struct {
 
 // EndpointLimit defines rate limit for a specific endpoint
 type EndpointLimit struct {
-	Path                 string
-	RequestsPerSecond    float64
-	BurstSize            int
-	BypassAuthenticated  bool
-	BypassHealthChecks   bool
+	Path                string
+	RequestsPerSecond   float64
+	BurstSize           int
+	BypassAuthenticated bool
+	BypassHealthChecks  bool
 }
 
 // ClientLimit defines rate limit for a specific client
 type ClientLimit struct {
-	ClientID             string
-	RequestsPerSecond    float64
-	BurstSize            int
+	ClientID          string
+	RequestsPerSecond float64
+	BurstSize         int
 }
 
 // NewRateLimiter creates a new rate limiter
@@ -388,6 +388,15 @@ func NewRateLimitMiddleware(limiter *RateLimiter, logger core.Logger) *RateLimit
 		limiter: limiter,
 		logger:  logger,
 	}
+}
+
+// Limiter returns the underlying rate limiter.
+func (m *RateLimitMiddleware) Limiter() *RateLimiter {
+	if m == nil {
+		return nil
+	}
+
+	return m.limiter
 }
 
 // Middleware wraps an HTTP handler with rate limiting

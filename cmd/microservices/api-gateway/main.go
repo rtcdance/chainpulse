@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -13,6 +14,7 @@ import (
 	"chainpulse/pkg/plugins/api"
 )
 
+//nolint:wsl,nlreturn // Command entrypoint is intentionally verbose.
 func main() {
 	fmt.Println("╔════════════════════════════════════════════════════════════╗")
 	fmt.Println("║         ChainPulse - API Gateway Service                   ║")
@@ -26,8 +28,11 @@ func main() {
 	// Print configuration
 	fmt.Println("Configuration Loaded:")
 	fmt.Printf("  Gateway Port:       %d\n", config.Port)
+	fmt.Printf("  Instance ID:        %s\n", config.InstanceID)
 	fmt.Printf("  TLS Enabled:        %v\n", config.TLSEnabled)
 	fmt.Printf("  Rate Limit:         %d req/s\n", config.RateLimitPerSecond)
+	fmt.Printf("  Auth Enabled:       %v\n", config.AuthEnabled)
+	fmt.Printf("  Rate Limit Enabled: %v\n", config.RateLimitEnabled)
 	fmt.Printf("  Upstream Services:  %v\n", config.UpstreamServices)
 	fmt.Printf("  Log Level:          %s\n", config.LogLevel)
 	fmt.Println()
@@ -58,11 +63,29 @@ func main() {
 	// Initialize API Gateway Plugin
 	fmt.Println("Initializing API Gateway:")
 	gateway := api.NewAPIGatewayPlugin(logger, metrics)
+	gateway.SetUpstreamQueryEndpoints(config.UpstreamServices)
+	authMiddleware, rateLimitMiddleware, err := buildAPIGatewaySecurityControls(config, logger, metrics)
+	if err != nil {
+		logger.Error("Failed to build API Gateway security controls", "error", err.Error())
+		os.Exit(1)
+	}
+	if authMiddleware != nil {
+		gateway.SetAuthMiddleware(authMiddleware)
+	}
+	if rateLimitMiddleware != nil {
+		gateway.SetRateLimitMiddleware(rateLimitMiddleware)
+	}
+	if _, _, _, err := buildAPIGatewayRuntimeRolloutComponents(context.Background(), config.InstanceID, logger, metrics, gateway); err != nil {
+		logger.Error("Failed to build API Gateway rollout runtime components", "error", err.Error())
+		os.Exit(1)
+	}
+	gateway.SetRuntimeSummaryProvider(buildAPIGatewayRuntimeSummaryProvider(config.InstanceID, metrics, gateway))
 	if err := gateway.Initialize(*coreConfig); err != nil {
 		logger.Error("Failed to initialize API Gateway", "error", err.Error())
 		os.Exit(1)
 	}
 	fmt.Println("  ✓ API Gateway initialized")
+	fmt.Println("  ✓ Rollout report producer initialized")
 	fmt.Println()
 
 	// Register plugins with registry
@@ -95,6 +118,8 @@ func main() {
 	fmt.Printf("API Gateway available at: http://localhost:%d\n", config.Port)
 	fmt.Printf("Health Check available at: http://localhost:%d/health\n", config.Port)
 	fmt.Printf("Metrics available at: http://localhost:%d/metrics\n", config.Port)
+	fmt.Printf("Runtime Summary available at: http://localhost:%d/runtime/summary\n", config.Port)
+	fmt.Printf("Instance ID: %s\n", config.InstanceID)
 	fmt.Println("Press Ctrl+C to shutdown gracefully")
 	fmt.Println()
 
@@ -142,25 +167,39 @@ func main() {
 
 // GatewayConfig represents the API Gateway configuration
 type GatewayConfig struct {
-	Port                 int
-	TLSEnabled           bool
-	TLSCertPath          string
-	TLSKeyPath           string
-	UpstreamServices     []string
-	RateLimitPerSecond   int
-	AuthenticationToken  string
-	LogLevel             string
+	InstanceID         string
+	Port               int
+	TLSEnabled         bool
+	TLSCertPath        string
+	TLSKeyPath         string
+	UpstreamServices   []string
+	RateLimitPerSecond int
+	AuthEnabled        bool
+	AuthJWTSecret      string
+	AuthAPIKeys        []string
+	RateLimitEnabled   bool
+	LogLevel           string
 }
 
 // loadGatewayConfig loads configuration from environment variables
 func loadGatewayConfig() GatewayConfig {
+	instanceID := getEnv("HOSTNAME", "api-gateway-1")
+	if id := getEnv("INSTANCE_ID", ""); id != "" {
+		instanceID = id
+	}
+
 	return GatewayConfig{
+		InstanceID:         instanceID,
 		Port:               getEnvInt("GATEWAY_PORT", 8080),
 		TLSEnabled:         getEnvBool("GATEWAY_TLS_ENABLED", false),
 		TLSCertPath:        getEnv("GATEWAY_TLS_CERT", ""),
 		TLSKeyPath:         getEnv("GATEWAY_TLS_KEY", ""),
-		UpstreamServices:   []string{"http://api-service-1:8081", "http://api-service-2:8081", "http://api-service-3:8081"},
+		UpstreamServices:   getEnvCSV("GATEWAY_UPSTREAM_SERVICES", []string{"http://localhost:8081"}),
 		RateLimitPerSecond: getEnvInt("GATEWAY_RATE_LIMIT", 1000),
+		AuthEnabled:        getEnvBool("GATEWAY_AUTH_ENABLED", false),
+		AuthJWTSecret:      getEnv("GATEWAY_AUTH_JWT_SECRET", ""),
+		AuthAPIKeys:        getEnvCSV("GATEWAY_AUTH_API_KEYS", nil),
+		RateLimitEnabled:   getEnvBool("GATEWAY_RATE_LIMIT_ENABLED", false),
 		LogLevel:           getEnv("LOG_LEVEL", "info"),
 	}
 }
@@ -189,6 +228,91 @@ func getEnvBool(key string, defaultValue bool) bool {
 		return value == "true" || value == "1"
 	}
 	return defaultValue
+}
+
+//nolint:wsl,nlreturn // Command config parsing is intentionally dense.
+func getEnvCSV(key string, defaultValues []string) []string {
+	value := os.Getenv(key)
+	if value == "" {
+		result := make([]string, len(defaultValues))
+		copy(result, defaultValues)
+		return result
+	}
+
+	result := make([]string, 0)
+	for _, part := range strings.Split(value, ",") {
+		trimmed := strings.TrimSpace(part)
+		if trimmed != "" {
+			result = append(result, trimmed)
+		}
+	}
+	if len(result) == 0 {
+		result = append(result, defaultValues...)
+	}
+	return result
+}
+
+//nolint:wsl,nlreturn // Security wiring stays centralized in the command entrypoint.
+func buildAPIGatewaySecurityControls(config GatewayConfig, logger core.Logger, metrics core.MetricsCollector) (*api.AuthMiddleware, *api.RateLimitMiddleware, error) {
+	if !config.AuthEnabled && !config.RateLimitEnabled {
+		return nil, nil, nil
+	}
+
+	var authMiddleware *api.AuthMiddleware
+	if config.AuthEnabled {
+		if strings.TrimSpace(config.AuthJWTSecret) == "" {
+			return nil, nil, fmt.Errorf("gateway auth is enabled but GATEWAY_AUTH_JWT_SECRET is empty")
+		}
+
+		tokenValidator := api.NewTokenValidator(config.AuthJWTSecret, logger, metrics)
+		for _, entry := range config.AuthAPIKeys {
+			apiKey, clientID, ok := parseKeyValuePair(entry)
+			if !ok {
+				return nil, nil, fmt.Errorf("invalid GATEWAY_AUTH_API_KEYS entry %q; expected key=clientID or key:clientID", entry)
+			}
+			if err := tokenValidator.RegisterAPIKey(apiKey, clientID); err != nil {
+				return nil, nil, err
+			}
+		}
+
+		rbacChecker := api.NewRBACChecker(logger, metrics)
+		auditLogger := api.NewAuditLogger(logger, metrics)
+		authMiddleware = api.NewAuthMiddleware(tokenValidator, rbacChecker, auditLogger, logger, metrics)
+	}
+
+	var rateLimitMiddleware *api.RateLimitMiddleware
+	if config.RateLimitEnabled {
+		rateLimiter := api.NewRateLimiter(logger, metrics, &api.RateLimitConfig{
+			DefaultRequestsPerSecond: float64(config.RateLimitPerSecond),
+			DefaultBurstSize:         maxInt(10, config.RateLimitPerSecond/10),
+			CleanupInterval:          5 * time.Minute,
+		})
+		rateLimitMiddleware = api.NewRateLimitMiddleware(rateLimiter, logger)
+	}
+
+	return authMiddleware, rateLimitMiddleware, nil
+}
+
+//nolint:wsl,nlreturn // Command config parsing stays centralized and compact here.
+func parseKeyValuePair(entry string) (string, string, bool) {
+	for _, separator := range []string{"=", ":"} {
+		if idx := strings.Index(entry, separator); idx > 0 && idx < len(entry)-1 {
+			key := strings.TrimSpace(entry[:idx])
+			clientID := strings.TrimSpace(entry[idx+1:])
+			if key != "" && clientID != "" {
+				return key, clientID, true
+			}
+		}
+	}
+	return "", "", false
+}
+
+//nolint:wsl,nlreturn // Tiny helper keeps the rate limit setup readable.
+func maxInt(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
 }
 
 // parseIntSafe safely parses a string to int

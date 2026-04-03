@@ -1,0 +1,91 @@
+package indexing
+
+import (
+	"context"
+	"testing"
+	"time"
+
+	appindexing "chainpulse/pkg/application/indexing"
+	"chainpulse/pkg/core"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func TestNewLegacyRuntimeSinkRequiresDatabase(t *testing.T) {
+	sink, err := NewLegacyRuntimeSink(nil, nil, NewMockLogger())
+	require.Error(t, err)
+	assert.Nil(t, sink)
+}
+
+func TestLegacyRuntimeSinkPersistStoresEventAndCache(t *testing.T) {
+	db := NewMockDatabasePlugin()
+	cache := NewMockCachePlugin()
+	logger := NewMockLogger()
+
+	sink, err := NewLegacyRuntimeSink(db, cache, logger)
+	require.NoError(t, err)
+
+	event := &core.BlockchainEvent{
+		ID:              "event1",
+		ChainID:         "ethereum",
+		BlockNumber:     100,
+		LogIndex:        3,
+		CreatedAt:       time.Unix(1710000000, 0),
+		TransactionHash: common.HexToHash("0x1234"),
+	}
+
+	err = sink.Persist(context.Background(), []appindexing.EventEnvelope{
+		toEventEnvelope(event),
+	})
+	require.NoError(t, err)
+
+	stored, getErr := db.GetEvent(context.Background(), "event1")
+	require.NoError(t, getErr)
+	require.NotNil(t, stored)
+	assert.False(t, stored.IndexedAt.IsZero())
+	assert.False(t, stored.ProcessedAt.IsZero())
+
+	cacheValue, cacheErr := cache.Get(context.Background(), cacheKeyForEvent("ethereum", event))
+	require.NoError(t, cacheErr)
+	assert.Equal(t, []byte("event1"), cacheValue)
+}
+
+func TestLegacyRuntimeSinkPersistAllowsNilCache(t *testing.T) {
+	db := NewMockDatabasePlugin()
+	logger := NewMockLogger()
+
+	sink, err := NewLegacyRuntimeSink(db, nil, logger)
+	require.NoError(t, err)
+
+	event := &core.BlockchainEvent{
+		ID:              "event1",
+		ChainID:         "ethereum",
+		BlockNumber:     100,
+		LogIndex:        0,
+		TransactionHash: common.HexToHash("0x1234"),
+	}
+
+	err = sink.Persist(context.Background(), []appindexing.EventEnvelope{
+		toEventEnvelope(event),
+	})
+	require.NoError(t, err)
+}
+
+func TestLegacyRuntimeSinkPersistRejectsInvalidPayload(t *testing.T) {
+	db := NewMockDatabasePlugin()
+	cache := NewMockCachePlugin()
+	logger := NewMockLogger()
+
+	sink, err := NewLegacyRuntimeSink(db, cache, logger)
+	require.NoError(t, err)
+
+	err = sink.Persist(context.Background(), []appindexing.EventEnvelope{
+		{
+			EventKey: "bad",
+			ChainID:  "ethereum",
+			Payload:  "not-an-event",
+		},
+	})
+	require.Error(t, err)
+}

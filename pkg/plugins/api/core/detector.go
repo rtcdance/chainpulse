@@ -185,15 +185,83 @@ func (pd *ProtocolDetector) GetSupportedProtocolCount() int {
 // GetMetrics returns protocol detection metrics
 func (pd *ProtocolDetector) GetMetrics() map[string]interface{} {
 	pd.mu.RLock()
-	defer pd.mu.RUnlock()
-
 	protocols := make([]string, 0, len(pd.handlers))
 	for protocol := range pd.handlers {
 		protocols = append(protocols, GetProtocolName(protocol))
 	}
+	protocolCount := len(pd.handlers)
+	pd.mu.RUnlock()
+
+	httpSupported := pd.IsProtocolSupported(ProtocolHTTP)
+	websocketSupported := pd.IsProtocolSupported(ProtocolWebSocket)
+	grpcSupported := pd.IsProtocolSupported(ProtocolGRPC)
+	graphqlSupported := pd.IsProtocolSupported(ProtocolGraphQL)
+	coveragePosture := classifyDetectorCoveragePosture(protocolCount, httpSupported, websocketSupported, grpcSupported, graphqlSupported)
+	runtimePosture := classifyDetectorRuntimePosture(protocolCount, httpSupported, websocketSupported, grpcSupported, graphqlSupported)
 
 	return map[string]interface{}{
 		"supported_protocols": protocols,
-		"protocol_count":      len(pd.handlers),
+		"protocol_count":      protocolCount,
+		"coverage_posture":    coveragePosture,
+		"runtime_posture":     runtimePosture,
+		"reliability_hint":    buildDetectorReliabilityHint(coveragePosture, runtimePosture),
+	}
+}
+
+// GetRuntimeMetrics returns a compact runtime surface for protocol coverage and
+// detector readiness on top of the raw supported-protocol metrics.
+func (pd *ProtocolDetector) GetRuntimeMetrics() map[string]interface{} {
+	metrics := pd.GetMetrics()
+
+	supportedProtocols, _ := metrics["supported_protocols"].([]string)
+	protocolCount, _ := metrics["protocol_count"].(int)
+
+	return map[string]interface{}{
+		"supported_protocols": supportedProtocols,
+		"protocol_count":      protocolCount,
+		"coverage_posture":    metrics["coverage_posture"],
+		"runtime_posture":     metrics["runtime_posture"],
+		"reliability_hint":    metrics["reliability_hint"],
+	}
+}
+
+func classifyDetectorCoveragePosture(protocolCount int, httpSupported bool, websocketSupported bool, grpcSupported bool, graphqlSupported bool) string {
+	if protocolCount == 0 {
+		return "detector-empty"
+	}
+	if httpSupported && websocketSupported && grpcSupported && graphqlSupported {
+		return "detector-full-stack"
+	}
+	if httpSupported && protocolCount == 1 {
+		return "detector-http-only"
+	}
+	return "detector-partial"
+}
+
+func classifyDetectorRuntimePosture(protocolCount int, httpSupported bool, websocketSupported bool, grpcSupported bool, graphqlSupported bool) string {
+	if protocolCount == 0 {
+		return "detector-unobserved"
+	}
+	if !httpSupported {
+		return "detector-degraded"
+	}
+	if websocketSupported || grpcSupported || graphqlSupported {
+		return "detector-ready"
+	}
+	return "detector-watch"
+}
+
+func buildDetectorReliabilityHint(coveragePosture string, runtimePosture string) string {
+	switch {
+	case runtimePosture == "detector-degraded":
+		return "protocol detector is missing HTTP coverage; verify baseline handler wiring before relying on protocol routing"
+	case runtimePosture == "detector-watch":
+		return "protocol detector currently routes only baseline HTTP traffic; add more protocol handlers if broader coverage is expected"
+	case coveragePosture == "detector-partial":
+		return "protocol detector has partial multi-protocol coverage; continue observing whether supported protocols match deployment needs"
+	case coveragePosture == "detector-full-stack":
+		return "protocol detector has broad protocol coverage and is ready for multi-protocol routing"
+	default:
+		return "protocol detector has no registered protocol handlers yet"
 	}
 }

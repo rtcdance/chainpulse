@@ -14,16 +14,19 @@ import (
 
 // HealthCheckHandler handles health check requests
 type HealthCheckHandler struct {
-	dbManager database.DatabaseManager
-	logger    core.Logger
-	metrics   core.MetricsCollector
+	dbManager   database.DatabaseManager
+	logger      core.Logger
+	metrics     core.MetricsCollector
 	initialized bool
 
 	// Component health cache
-	mu                    sync.RWMutex
-	lastHealthCheckTime   time.Time
-	lastHealthCheckStatus *HealthCheckResponse
-	healthCheckInterval   time.Duration
+	mu                       sync.RWMutex
+	lastHealthCheckTime      time.Time
+	lastHealthCheckStatus    *HealthCheckResponse
+	healthCheckInterval      time.Duration
+	runtimeComponentProvider func(context.Context) *ComponentStatus
+	readinessDetailsProvider func(context.Context) map[string]interface{}
+	rolloutReportProducer    RolloutReportProducer
 }
 
 // HealthCheckResponse represents a health check response
@@ -36,19 +39,21 @@ type HealthCheckResponse struct {
 
 // ComponentStatus represents the status of a component
 type ComponentStatus struct {
-	Name         string `json:"name"`
-	Status       string `json:"status"`
-	Error        string `json:"error,omitempty"`
-	Timestamp    int64  `json:"timestamp"`
-	ResponseTime int64  `json:"responseTime"`
+	Name         string                 `json:"name"`
+	Status       string                 `json:"status"`
+	Error        string                 `json:"error,omitempty"`
+	Timestamp    int64                  `json:"timestamp"`
+	ResponseTime int64                  `json:"responseTime"`
+	Details      map[string]interface{} `json:"details,omitempty"`
 }
 
 // ReadinessResponse represents a readiness probe response
 type ReadinessResponse struct {
-	Status    string `json:"status"`
-	Timestamp int64  `json:"timestamp"`
-	Ready     bool   `json:"ready"`
-	Message   string `json:"message"`
+	Status    string                 `json:"status"`
+	Timestamp int64                  `json:"timestamp"`
+	Ready     bool                   `json:"ready"`
+	Message   string                 `json:"message"`
+	Details   map[string]interface{} `json:"details,omitempty"`
 }
 
 // LivenessResponse represents a liveness probe response
@@ -74,6 +79,12 @@ func NewHealthCheckHandler(
 	}
 }
 
+// InitializedForTests marks the handler initialized for focused route tests
+// that do not exercise full dependency bootstrapping.
+func (h *HealthCheckHandler) InitializedForTests() {
+	h.initialized = true
+}
+
 // Initialize initializes the health check handler
 func (h *HealthCheckHandler) Initialize(ctx context.Context) error {
 	if h.initialized {
@@ -87,6 +98,41 @@ func (h *HealthCheckHandler) Initialize(ctx context.Context) error {
 	h.initialized = true
 	h.logger.Info("Health check handler initialized")
 	return nil
+}
+
+// SetRuntimeComponentProvider registers an optional runtime component provider
+// used to enrich health responses with service-specific details.
+func (h *HealthCheckHandler) SetRuntimeComponentProvider(provider func(context.Context) *ComponentStatus) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	h.runtimeComponentProvider = provider
+	h.lastHealthCheckStatus = nil
+	h.lastHealthCheckTime = time.Time{}
+}
+
+// SetReadinessDetailsProvider registers an optional provider that enriches
+// readiness responses with rollout or service-specific details.
+func (h *HealthCheckHandler) SetReadinessDetailsProvider(provider func(context.Context) map[string]interface{}) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	h.readinessDetailsProvider = provider
+}
+
+// SetRolloutReportProvider registers an optional provider that exposes a
+// service-specific rollout report surface.
+func (h *HealthCheckHandler) SetRolloutReportProvider(provider func(context.Context) *RolloutReportDetails) {
+	h.SetRolloutReportProducer(RolloutReportProducerFunc(provider))
+}
+
+// SetRolloutReportProducer registers an optional producer that exposes a
+// service-specific rollout report surface.
+func (h *HealthCheckHandler) SetRolloutReportProducer(producer RolloutReportProducer) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	h.rolloutReportProducer = producer
 }
 
 // HandleHealth handles GET /health request
@@ -139,6 +185,9 @@ func (h *HealthCheckHandler) HandleReady(w http.ResponseWriter, r *http.Request)
 		Ready:     ready,
 		Message:   "readiness check complete",
 	}
+	if details := h.readinessDetails(ctx); len(details) > 0 {
+		response.Details = details
+	}
 
 	if !ready {
 		response.Status = "not_ready"
@@ -151,6 +200,43 @@ func (h *HealthCheckHandler) HandleReady(w http.ResponseWriter, r *http.Request)
 	}
 
 	h.metrics.RecordCounter("health_check_ready_status", 1, nil)
+	h.respondJSON(w, statusCode, response)
+}
+
+// HandleRollout handles GET /health/rollout request.
+func (h *HealthCheckHandler) HandleRollout(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	defer func() {
+		duration := time.Since(start).Milliseconds()
+		h.metrics.RecordGauge("health_check_rollout_time_ms", float64(duration), nil)
+	}()
+
+	if !h.initialized {
+		h.respondError(w, http.StatusInternalServerError, "handler not initialized")
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+
+	report := h.rolloutReport(ctx)
+	response := &RolloutReportResponse{
+		Status:    "available",
+		Timestamp: time.Now().Unix(),
+		Available: true,
+		Message:   "rollout report ready",
+	}
+	statusCode := http.StatusOK
+	if report == nil || report.IsEmpty() {
+		response.Status = "unavailable"
+		response.Available = false
+		response.Message = "rollout report not available"
+		statusCode = http.StatusServiceUnavailable
+	} else {
+		response.Details = report
+	}
+
+	h.metrics.RecordCounter("health_check_rollout_status", 1, nil)
 	h.respondJSON(w, statusCode, response)
 }
 
@@ -256,6 +342,12 @@ func (h *HealthCheckHandler) performHealthCheck(ctx context.Context) *HealthChec
 		response.Status = "degraded"
 	}
 
+	if h.runtimeComponentProvider != nil {
+		if runtimeStatus := h.runtimeComponentProvider(ctx); runtimeStatus != nil {
+			response.Components["indexing_runtime"] = runtimeStatus
+		}
+	}
+
 	// Cache the result
 	h.lastHealthCheckStatus = response
 	h.lastHealthCheckTime = time.Now()
@@ -271,6 +363,28 @@ func (h *HealthCheckHandler) checkReadiness(ctx context.Context) bool {
 
 	// System is ready if critical databases are healthy
 	return mongoStatus.Status == "healthy" && postgresStatus.Status == "healthy"
+}
+
+func (h *HealthCheckHandler) readinessDetails(ctx context.Context) map[string]interface{} {
+	h.mu.RLock()
+	provider := h.readinessDetailsProvider
+	h.mu.RUnlock()
+
+	if provider == nil {
+		return nil
+	}
+	return provider(ctx)
+}
+
+func (h *HealthCheckHandler) rolloutReport(ctx context.Context) *RolloutReportDetails {
+	h.mu.RLock()
+	producer := h.rolloutReportProducer
+	h.mu.RUnlock()
+
+	if producer == nil {
+		return nil
+	}
+	return producer.BuildRolloutReport(ctx)
 }
 
 // checkLiveness checks if the system is alive

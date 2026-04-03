@@ -6,22 +6,31 @@ import (
 	"sync"
 	"time"
 
+	appindexing "chainpulse/pkg/application/indexing"
 	"chainpulse/pkg/core"
 	"chainpulse/pkg/integrations/generic"
 )
 
+type sharedBatchRuntime interface {
+	ProcessBatch(ctx context.Context, chainID string, events []appindexing.EventEnvelope) error
+}
+
 // DefaultChainIndexer implements ChainIndexer for a specific blockchain
 type DefaultChainIndexer struct {
-	chainID              string
-	database             core.DatabasePlugin
-	cache                core.CachePlugin
-	logger               core.Logger
-	genericIndexer       *generic.GenericContractIndexer
-	mu                   sync.RWMutex
-	lastIndexedBlock     uint64
-	totalEventsIndexed   int64
+	chainID                string
+	database               core.DatabasePlugin
+	cache                  core.CachePlugin
+	logger                 core.Logger
+	genericIndexer         *generic.GenericContractIndexer
+	sharedRuntime          sharedBatchRuntime
+	metrics                core.MetricsCollector
+	mu                     sync.RWMutex
+	lastIndexedBlock       uint64
+	totalEventsIndexed     int64
+	shadowOwnedEvents      int64
+	legacyOwnedEvents      int64
 	totalErrorsEncountered int64
-	startTime            time.Time
+	startTime              time.Time
 }
 
 // NewDefaultChainIndexer creates a new chain-specific indexer
@@ -42,6 +51,12 @@ func NewDefaultChainIndexer(
 	}
 }
 
+// SetSharedRuntime configures additive shared runtime shadow batch forwarding.
+func (dci *DefaultChainIndexer) SetSharedRuntime(runtime sharedBatchRuntime, metrics core.MetricsCollector) {
+	dci.sharedRuntime = runtime
+	dci.metrics = metrics
+}
+
 // IndexEvents indexes events for this chain
 func (dci *DefaultChainIndexer) IndexEvents(
 	ctx context.Context,
@@ -53,6 +68,8 @@ func (dci *DefaultChainIndexer) IndexEvents(
 
 	dci.logger.Debug("indexing events for chain", "chain_id", dci.chainID, "count", len(events))
 
+	validEvents := make([]*core.BlockchainEvent, 0, len(events))
+
 	// Validate all events belong to this chain
 	for _, event := range events {
 		if event.ChainID != dci.chainID {
@@ -61,6 +78,30 @@ func (dci *DefaultChainIndexer) IndexEvents(
 			dci.mu.Unlock()
 
 			dci.logger.Warn("event chain ID mismatch", "expected", dci.chainID, "got", event.ChainID)
+			continue
+		}
+
+		validEvents = append(validEvents, event)
+	}
+
+	dci.forwardShadowBatch(ctx, validEvents)
+
+	for _, event := range validEvents {
+		if shadowWriteTracker.consume(event) {
+			if dci.metrics != nil {
+				dci.metrics.RecordCounter("indexing_runtime_shadow_owned_events_total", 1, map[string]string{
+					"chain_id":  dci.chainID,
+					"service":   "monolithic",
+					"operation": "shadow_owned_write",
+				})
+			}
+			dci.mu.Lock()
+			if event.BlockNumber > dci.lastIndexedBlock {
+				dci.lastIndexedBlock = event.BlockNumber
+			}
+			dci.totalEventsIndexed++
+			dci.shadowOwnedEvents++
+			dci.mu.Unlock()
 			continue
 		}
 
@@ -80,10 +121,61 @@ func (dci *DefaultChainIndexer) IndexEvents(
 			dci.lastIndexedBlock = event.BlockNumber
 		}
 		dci.totalEventsIndexed++
+		dci.legacyOwnedEvents++
 		dci.mu.Unlock()
 	}
 
 	return nil
+}
+
+func (dci *DefaultChainIndexer) forwardShadowBatch(ctx context.Context, events []*core.BlockchainEvent) {
+	if dci.sharedRuntime == nil || len(events) == 0 {
+		return
+	}
+
+	envelopes := make([]appindexing.EventEnvelope, 0, len(events))
+	for _, event := range events {
+		envelopes = append(envelopes, toEventEnvelope(event))
+	}
+
+	if err := dci.sharedRuntime.ProcessBatch(ctx, dci.chainID, envelopes); err != nil {
+		dci.logger.Warn(
+			"shared runtime shadow batch failed",
+			"chain_id", dci.chainID,
+			"count", len(envelopes),
+			"error", err.Error(),
+		)
+		if dci.metrics != nil {
+			dci.metrics.RecordCounter("indexing_runtime_shadow_batch_errors_total", 1, map[string]string{
+				"chain_id":  dci.chainID,
+				"service":   "monolithic",
+				"operation": "shadow_batch",
+			})
+		}
+	}
+}
+
+func toEventEnvelope(event *core.BlockchainEvent) appindexing.EventEnvelope {
+	return appindexing.EventEnvelope{
+		EventKey:         event.ID,
+		ChainID:          event.ChainID,
+		BlockNumber:      event.BlockNumber,
+		TransactionHash:  event.TransactionHash.Hex(),
+		LogIndex:         event.LogIndex,
+		Payload:          event,
+		ReceivedAt:       event.CreatedAt,
+		CheckpointCursor: fmt.Sprintf("%s:%d:%d", event.ChainID, event.BlockNumber, event.LogIndex),
+	}
+}
+
+func cacheKeyForEvent(chainID string, event *core.BlockchainEvent) string {
+	return fmt.Sprintf(
+		"event:%s:%s:%d:%d",
+		chainID,
+		event.TransactionHash.Hex(),
+		event.BlockNumber,
+		event.LogIndex,
+	)
 }
 
 // indexEvent indexes a single event
@@ -98,16 +190,11 @@ func (dci *DefaultChainIndexer) indexEvent(ctx context.Context, event *core.Bloc
 	}
 
 	// Cache event for quick retrieval
-	cacheKey := fmt.Sprintf("event:%s:%s:%d:%d",
-		dci.chainID,
-		event.TransactionHash.Hex(),
-		event.BlockNumber,
-		event.LogIndex,
-	)
+	cacheKey := cacheKeyForEvent(dci.chainID, event)
 
 	// Convert event ID to bytes for caching
 	eventIDBytes := []byte(event.ID)
-	if err := dci.cache.Set(ctx, cacheKey, eventIDBytes, 24*3600); err != nil {
+	if err := dci.cache.Set(ctx, cacheKey, eventIDBytes, eventCacheTTLSeconds); err != nil {
 		dci.logger.Warn("failed to cache event", "error", err.Error())
 		// Don't fail if caching fails
 	}
@@ -128,13 +215,15 @@ func (dci *DefaultChainIndexer) GetStatus() map[string]interface{} {
 	uptime := time.Since(dci.startTime).Seconds()
 
 	return map[string]interface{}{
-		"chain_id":                  dci.chainID,
-		"last_indexed_block":        dci.lastIndexedBlock,
-		"total_events_indexed":      dci.totalEventsIndexed,
-		"total_errors":              dci.totalErrorsEncountered,
-		"uptime_seconds":            uptime,
-		"events_per_second":         float64(dci.totalEventsIndexed) / uptime,
-		"error_rate":                float64(dci.totalErrorsEncountered) / float64(dci.totalEventsIndexed+dci.totalErrorsEncountered),
+		"chain_id":             dci.chainID,
+		"last_indexed_block":   dci.lastIndexedBlock,
+		"total_events_indexed": dci.totalEventsIndexed,
+		"shadow_owned_events":  dci.shadowOwnedEvents,
+		"legacy_owned_events":  dci.legacyOwnedEvents,
+		"total_errors":         dci.totalErrorsEncountered,
+		"uptime_seconds":       uptime,
+		"events_per_second":    float64(dci.totalEventsIndexed) / uptime,
+		"error_rate":           float64(dci.totalErrorsEncountered) / float64(dci.totalEventsIndexed+dci.totalErrorsEncountered),
 	}
 }
 
@@ -175,6 +264,8 @@ func (dci *DefaultChainIndexer) ResetStats() {
 
 	dci.lastIndexedBlock = 0
 	dci.totalEventsIndexed = 0
+	dci.shadowOwnedEvents = 0
+	dci.legacyOwnedEvents = 0
 	dci.totalErrorsEncountered = 0
 	dci.startTime = time.Now()
 }

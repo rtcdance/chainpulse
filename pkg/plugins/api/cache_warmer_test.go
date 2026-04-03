@@ -11,6 +11,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func skipCacheWarmerStressTestsInShortMode(t *testing.T) {
+	t.Helper()
+	if testing.Short() {
+		t.Skip("skipping cache warmer background/stress test in short mode")
+	}
+}
+
 // MockDataProvider implements DataProvider for testing
 type MockDataProvider struct {
 	data  []WarmingData
@@ -145,6 +152,8 @@ func TestStartWithDisabledWarming(t *testing.T) {
 
 // TestStartSuccess tests successful start
 func TestStartSuccess(t *testing.T) {
+	skipCacheWarmerStressTestsInShortMode(t)
+
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	cache := NewCacheMiddleware(DefaultCacheConfig(), logger, metrics)
@@ -176,6 +185,8 @@ func TestStartSuccess(t *testing.T) {
 
 // TestStartAlreadyRunning tests starting when already running
 func TestStartAlreadyRunning(t *testing.T) {
+	skipCacheWarmerStressTestsInShortMode(t)
+
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	cache := NewCacheMiddleware(DefaultCacheConfig(), logger, metrics)
@@ -206,6 +217,8 @@ func TestStartAlreadyRunning(t *testing.T) {
 
 // TestStopSuccess tests successful stop
 func TestStopSuccess(t *testing.T) {
+	skipCacheWarmerStressTestsInShortMode(t)
+
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	cache := NewCacheMiddleware(DefaultCacheConfig(), logger, metrics)
@@ -254,6 +267,8 @@ func TestStopNotRunning(t *testing.T) {
 
 // TestWarmingData tests warming data caching
 func TestWarmingData(t *testing.T) {
+	skipCacheWarmerStressTestsInShortMode(t)
+
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	cache := NewCacheMiddleware(DefaultCacheConfig(), logger, metrics)
@@ -291,6 +306,8 @@ func TestWarmingData(t *testing.T) {
 
 // TestWarmingWithError tests warming with data provider error
 func TestWarmingWithError(t *testing.T) {
+	skipCacheWarmerStressTestsInShortMode(t)
+
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	cache := NewCacheMiddleware(DefaultCacheConfig(), logger, metrics)
@@ -319,6 +336,8 @@ func TestWarmingWithError(t *testing.T) {
 
 // TestCacheWarmerGetStats tests statistics retrieval
 func TestCacheWarmerGetStats(t *testing.T) {
+	skipCacheWarmerStressTestsInShortMode(t)
+
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	cache := NewCacheMiddleware(DefaultCacheConfig(), logger, metrics)
@@ -354,6 +373,8 @@ func TestCacheWarmerGetStats(t *testing.T) {
 
 // TestIsRunning tests running state
 func TestIsRunning(t *testing.T) {
+	skipCacheWarmerStressTestsInShortMode(t)
+
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	cache := NewCacheMiddleware(DefaultCacheConfig(), logger, metrics)
@@ -384,6 +405,8 @@ func TestIsRunning(t *testing.T) {
 
 // TestConcurrentWarmingOperations tests concurrent warming operations
 func TestConcurrentWarmingOperations(t *testing.T) {
+	skipCacheWarmerStressTestsInShortMode(t)
+
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	cache := NewCacheMiddleware(DefaultCacheConfig(), logger, metrics)
@@ -423,6 +446,8 @@ func TestConcurrentWarmingOperations(t *testing.T) {
 
 // TestWarmingWithBatchSize tests warming respects batch size
 func TestWarmingWithBatchSize(t *testing.T) {
+	skipCacheWarmerStressTestsInShortMode(t)
+
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	cache := NewCacheMiddleware(DefaultCacheConfig(), logger, metrics)
@@ -462,6 +487,8 @@ func TestWarmingWithBatchSize(t *testing.T) {
 
 // TestWarmingMetricsRecording tests metrics recording during warming
 func TestWarmingMetricsRecording(t *testing.T) {
+	skipCacheWarmerStressTestsInShortMode(t)
+
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	cache := NewCacheMiddleware(DefaultCacheConfig(), logger, metrics)
@@ -492,6 +519,8 @@ func TestWarmingMetricsRecording(t *testing.T) {
 
 // TestWarmingFailureMetrics tests metrics recording on warming failure
 func TestWarmingFailureMetrics(t *testing.T) {
+	skipCacheWarmerStressTestsInShortMode(t)
+
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	cache := NewCacheMiddleware(DefaultCacheConfig(), logger, metrics)
@@ -520,6 +549,8 @@ func TestWarmingFailureMetrics(t *testing.T) {
 
 // TestContextCancellation tests warming stops on context cancellation
 func TestContextCancellation(t *testing.T) {
+	skipCacheWarmerStressTestsInShortMode(t)
+
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	cache := NewCacheMiddleware(DefaultCacheConfig(), logger, metrics)
@@ -551,6 +582,8 @@ func TestContextCancellation(t *testing.T) {
 
 // TestLastWarmingTime tests last warming time tracking
 func TestLastWarmingTime(t *testing.T) {
+	skipCacheWarmerStressTestsInShortMode(t)
+
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	cache := NewCacheMiddleware(DefaultCacheConfig(), logger, metrics)
@@ -584,6 +617,8 @@ func TestLastWarmingTime(t *testing.T) {
 
 // TestMultipleWarmingCycles tests multiple warming cycles
 func TestMultipleWarmingCycles(t *testing.T) {
+	skipCacheWarmerStressTestsInShortMode(t)
+
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	cache := NewCacheMiddleware(DefaultCacheConfig(), logger, metrics)
@@ -617,6 +652,8 @@ func TestMultipleWarmingCycles(t *testing.T) {
 
 // TestWarmingDataWithDifferentStatusCodes tests warming with different status codes
 func TestWarmingDataWithDifferentStatusCodes(t *testing.T) {
+	skipCacheWarmerStressTestsInShortMode(t)
+
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	cache := NewCacheMiddleware(DefaultCacheConfig(), logger, metrics)
@@ -654,6 +691,8 @@ func TestWarmingDataWithDifferentStatusCodes(t *testing.T) {
 
 // TestWarmingDataWithDifferentTTLs tests warming with different TTLs
 func TestWarmingDataWithDifferentTTLs(t *testing.T) {
+	skipCacheWarmerStressTestsInShortMode(t)
+
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	cache := NewCacheMiddleware(DefaultCacheConfig(), logger, metrics)

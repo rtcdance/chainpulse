@@ -145,6 +145,45 @@ func TestBaseResponseHeadersAfterSend(t *testing.T) {
 	}
 }
 
+func TestBaseResponseRuntimeMetricsStaged(t *testing.T) {
+	resp := NewBaseResponse(nil)
+
+	metrics := resp.GetRuntimeMetrics()
+	if metrics["coverage_posture"] != "response-empty" {
+		t.Fatalf("expected response-empty, got %v", metrics["coverage_posture"])
+	}
+	if metrics["runtime_posture"] != "response-staged" {
+		t.Fatalf("expected response-staged, got %v", metrics["runtime_posture"])
+	}
+}
+
+func TestBaseResponseRuntimeMetricsReady(t *testing.T) {
+	resp := NewBaseResponse(nil)
+	resp.SetHeader("Content-Type", "application/json")
+	resp.SetBody([]byte(`{"ok":true}`))
+
+	metrics := resp.GetRuntimeMetrics()
+	if metrics["coverage_posture"] != "response-complete" {
+		t.Fatalf("expected response-complete, got %v", metrics["coverage_posture"])
+	}
+	if metrics["runtime_posture"] != "response-ready" {
+		t.Fatalf("expected response-ready, got %v", metrics["runtime_posture"])
+	}
+}
+
+func TestBaseResponseRuntimeMetricsSent(t *testing.T) {
+	resp := NewBaseResponse(nil)
+	resp.SetBody([]byte("done"))
+	if err := resp.Send(); err != nil {
+		t.Fatalf("send failed: %v", err)
+	}
+
+	metrics := resp.GetRuntimeMetrics()
+	if metrics["runtime_posture"] != "response-sent" {
+		t.Fatalf("expected response-sent, got %v", metrics["runtime_posture"])
+	}
+}
+
 func TestBaseResponseImplementsInterface(t *testing.T) {
 	resp := NewBaseResponse(nil)
 

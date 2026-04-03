@@ -278,3 +278,57 @@ func (p *WebSocketPlugin) GetTLSMetrics() map[string]interface{} {
 	}
 	return p.tlsManager.GetMetrics()
 }
+
+// GetConnectionMetrics returns compact runtime connection metrics for the
+// websocket transport surface.
+func (p *WebSocketPlugin) GetConnectionMetrics() map[string]interface{} {
+	running := p.IsRunning()
+	clientCount := p.GetClientCount()
+	transportPosture := classifyWebSocketTransportPosture(p.tlsManager != nil)
+	connectionPosture := classifyWebSocketConnectionPosture(running, clientCount)
+
+	return map[string]interface{}{
+		"running":             running,
+		"client_count":        clientCount,
+		"transport_posture":   transportPosture,
+		"connection_posture":  connectionPosture,
+		"reliability_hint":    buildWebSocketReliabilityHint(transportPosture, connectionPosture),
+	}
+}
+
+func classifyWebSocketTransportPosture(tlsEnabled bool) string {
+	if tlsEnabled {
+		return "ws-tls-enabled"
+	}
+	return "ws-plaintext-only"
+}
+
+func classifyWebSocketConnectionPosture(running bool, clientCount int) string {
+	if !running {
+		return "ws-stopped"
+	}
+	if clientCount > 0 {
+		return "ws-active"
+	}
+	return "ws-idle"
+}
+
+func buildWebSocketReliabilityHint(transportPosture string, connectionPosture string) string {
+	switch connectionPosture {
+	case "ws-active":
+		if transportPosture == "ws-tls-enabled" {
+			return "websocket transport is active with connected clients over a TLS-capable runtime"
+		}
+		return "websocket transport is active with connected clients on a plaintext runtime"
+	case "ws-idle":
+		if transportPosture == "ws-tls-enabled" {
+			return "websocket runtime is up with TLS enabled but no connected clients are currently observed"
+		}
+		return "websocket runtime is up without TLS and no connected clients are currently observed"
+	default:
+		if transportPosture == "ws-tls-enabled" {
+			return "websocket runtime is currently stopped; restart before relying on TLS websocket delivery"
+		}
+		return "websocket runtime is currently stopped; restart before relying on websocket delivery"
+	}
+}

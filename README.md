@@ -5,33 +5,40 @@ A production-ready blockchain event indexing system with enterprise-grade archit
 ## 🚀 Quick Start
 
 ### Prerequisites
-- Go 1.20+
-- Docker & Docker Compose (optional)
-- PostgreSQL or MongoDB (for persistence)
-- Redis (for caching)
-- Kafka, Redis, or ZeroMQ (for message queues)
+- Go 1.21+
+- PostgreSQL
+- Redis
+- Kafka
+- a blockchain RPC endpoint if you want the `full` runnable slice
 
 ### Local Development
 
 ```bash
-# Install dependencies
-go mod download
+# Start the current minimal runnable app
+bash scripts/run-local-runnable-app.sh
 
-# Build the project
-go build ./...
-
-# Run tests
-go test ./...
-
-# Start with Docker Compose
-docker-compose -f docker/docker-compose.yml up -d
+# Verify it
+bash scripts/verify-local-runnable-app.sh --profile minimal
 ```
+
+For the broader current four-service slice:
+
+```bash
+bash scripts/run-local-runnable-app.sh --profile full
+bash scripts/verify-local-runnable-app.sh --profile full
+```
+
+For the full repository-root runbook, see
+[`RUNNABLE_APP.md`](/Users/mingo/Applications/workspace/web3/project/chainpulse/RUNNABLE_APP.md).
 
 ## 📚 Documentation
 
 See [docs/README.md](docs/README.md) for complete documentation index.
 
 ### Quick Links
+- **[Runnable App](RUNNABLE_APP.md)** - Current repository-root entry for the minimum viable blueprint-aligned app
+- **[Security Baseline](SECURITY_BASELINE.md)** - Repository-root overview of the current optional four-service security posture
+- **[Security Rollout](SECURITY_ROLLOUT.md)** - Incremental enablement and rollback guidance for the opt-in four-service security surface
 - **[Developer Guide](docs/guides/DEVELOPER_GUIDE.md)** - Development setup and guidelines
 - **[Deployment Guide](docs/guides/DEPLOYMENT_GUIDE.md)** - Deployment procedures
 - **[API Documentation](docs/guides/API_DOCUMENTATION.md)** - REST, gRPC, and WebSocket APIs

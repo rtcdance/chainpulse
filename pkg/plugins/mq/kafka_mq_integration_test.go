@@ -11,9 +11,7 @@ import (
 
 // TestKafkaIntegrationPublishAndConsume tests publishing and consuming messages
 func TestKafkaIntegrationPublishAndConsume(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping integration test in short mode")
-	}
+	requireMQIntegration(t)
 
 	config := &core.Config{
 		BlockchainNodeURL: "localhost:50051",
@@ -64,9 +62,7 @@ func TestKafkaIntegrationPublishAndConsume(t *testing.T) {
 
 // TestKafkaIntegrationBatchPublish tests batch publishing
 func TestKafkaIntegrationBatchPublish(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping integration test in short mode")
-	}
+	requireMQIntegration(t)
 
 	config := &core.Config{
 		BlockchainNodeURL: "localhost:50051",
@@ -119,9 +115,7 @@ func TestKafkaIntegrationBatchPublish(t *testing.T) {
 
 // TestKafkaIntegrationErrorHandling tests error handling
 func TestKafkaIntegrationErrorHandling(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping integration test in short mode")
-	}
+	requireMQIntegration(t)
 
 	config := &core.Config{
 		BlockchainNodeURL: "localhost:50051",
@@ -174,9 +168,7 @@ func TestKafkaIntegrationErrorHandling(t *testing.T) {
 
 // TestKafkaIntegrationDeadLetterQueue tests dead letter queue
 func TestKafkaIntegrationDeadLetterQueue(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping integration test in short mode")
-	}
+	requireMQIntegration(t)
 
 	config := &core.Config{
 		BlockchainNodeURL: "localhost:50051",
@@ -225,9 +217,7 @@ func TestKafkaIntegrationDeadLetterQueue(t *testing.T) {
 
 // TestKafkaIntegrationMultipleConsumers tests multiple consumers
 func TestKafkaIntegrationMultipleConsumers(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping integration test in short mode")
-	}
+	requireMQIntegration(t)
 
 	config := &core.Config{
 		BlockchainNodeURL: "localhost:50051",
@@ -274,9 +264,7 @@ func TestKafkaIntegrationMultipleConsumers(t *testing.T) {
 
 // TestKafkaIntegrationOffsetTracking tests offset tracking
 func TestKafkaIntegrationOffsetTracking(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping integration test in short mode")
-	}
+	requireMQIntegration(t)
 
 	config := &core.Config{
 		BlockchainNodeURL: "localhost:50051",
@@ -311,9 +299,7 @@ func TestKafkaIntegrationOffsetTracking(t *testing.T) {
 
 // TestKafkaIntegrationHealthCheck tests health check
 func TestKafkaIntegrationHealthCheck(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping integration test in short mode")
-	}
+	requireMQIntegration(t)
 
 	config := &core.Config{
 		BlockchainNodeURL: "localhost:50051",
@@ -350,9 +336,7 @@ func TestKafkaIntegrationHealthCheck(t *testing.T) {
 
 // TestKafkaIntegrationPerformance tests performance
 func TestKafkaIntegrationPerformance(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping integration test in short mode")
-	}
+	requireMQIntegration(t)
 
 	config := &core.Config{
 		BlockchainNodeURL: "localhost:50051",

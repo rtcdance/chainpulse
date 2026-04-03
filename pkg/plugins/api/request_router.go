@@ -17,6 +17,7 @@ type RequestRouter struct {
 	loadBalancers   map[string]*LoadBalancer
 	logger          core.Logger
 	metrics         core.MetricsCollector
+	httpClient      *http.Client
 	mu              sync.RWMutex
 	initialized     bool
 	defaultTimeout  time.Duration
@@ -58,10 +59,22 @@ func NewRequestRouter(logger core.Logger, metrics core.MetricsCollector) *Reques
 		loadBalancers:   make(map[string]*LoadBalancer),
 		logger:          logger,
 		metrics:         metrics,
+		httpClient:      &http.Client{Timeout: 30 * time.Second},
 		initialized:     false,
 		defaultTimeout:  30 * time.Second,
 		circuitBreakers: make(map[string]*CircuitBreaker),
 	}
+}
+
+// SetHTTPClient overrides the forwarding HTTP client.
+func (rr *RequestRouter) SetHTTPClient(client *http.Client) {
+	rr.mu.Lock()
+	defer rr.mu.Unlock()
+	if client == nil {
+		rr.httpClient = &http.Client{Timeout: rr.defaultTimeout}
+		return
+	}
+	rr.httpClient = client
 }
 
 // Initialize initializes the request router
@@ -115,6 +128,35 @@ func (rr *RequestRouter) RegisterRoute(route *Route) error {
 	rr.logger.Info("Route registered", "routeId", route.ID, "pattern", route.Pattern)
 	rr.metrics.RecordCounter("router_route_registered", 1, nil)
 
+	return nil
+}
+
+// AttachHandler attaches a request handler to an existing route and its load balancer.
+func (rr *RequestRouter) AttachHandler(routeID string, handler *RequestHandler) error {
+	if handler == nil {
+		return fmt.Errorf("handler cannot be nil")
+	}
+
+	rr.mu.Lock()
+	defer rr.mu.Unlock()
+
+	route, exists := rr.routes[routeID]
+	if !exists {
+		return fmt.Errorf("route %s not found", routeID)
+	}
+	lb, lbExists := rr.loadBalancers[routeID]
+	if !lbExists {
+		return fmt.Errorf("load balancer not found for route %s", routeID)
+	}
+
+	if err := route.AddHandler(handler); err != nil {
+		return err
+	}
+	if err := lb.AddHandler(handler); err != nil {
+		return err
+	}
+
+	rr.metrics.RecordCounter("router_handler_attached", 1, map[string]string{"route_id": routeID})
 	return nil
 }
 
@@ -233,9 +275,9 @@ func (rr *RequestRouter) forwardToHandler(ctx context.Context, handler *RequestH
 		httpReq.ContentLength = int64(len(req.Body))
 	}
 
-	// Execute request with timeout
-	client := &http.Client{
-		Timeout: rr.defaultTimeout,
+	client := rr.httpClient
+	if client == nil {
+		client = &http.Client{Timeout: rr.defaultTimeout}
 	}
 
 	resp, err := client.Do(httpReq)
@@ -317,11 +359,11 @@ func (rr *RequestRouter) GetMetrics() map[string]interface{} {
 // NewCircuitBreaker creates a new circuit breaker
 func NewCircuitBreaker(threshold int, timeout time.Duration) *CircuitBreaker {
 	return &CircuitBreaker{
-		state:       "closed",
+		state:        "closed",
 		failureCount: 0,
 		successCount: 0,
-		threshold:   threshold,
-		timeout:     timeout,
+		threshold:    threshold,
+		timeout:      timeout,
 	}
 }
 

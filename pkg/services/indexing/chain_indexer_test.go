@@ -2,9 +2,12 @@ package indexing
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"testing"
+	"time"
 
+	appindexing "chainpulse/pkg/application/indexing"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -15,9 +18,10 @@ import (
 
 // MockDatabasePlugin implements core.DatabasePlugin for testing
 type MockDatabasePlugin struct {
-	data   map[string]interface{}
-	events map[string]*core.BlockchainEvent
-	mu     sync.RWMutex
+	data       map[string]interface{}
+	events     map[string]*core.BlockchainEvent
+	mu         sync.RWMutex
+	storeCount int
 }
 
 func NewMockDatabasePlugin() *MockDatabasePlugin {
@@ -30,10 +34,17 @@ func NewMockDatabasePlugin() *MockDatabasePlugin {
 func (m *MockDatabasePlugin) StoreEvent(ctx context.Context, event interface{}) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	m.storeCount++
 	if e, ok := event.(*core.BlockchainEvent); ok {
 		m.events[e.ID] = e
 	}
 	return nil
+}
+
+func (m *MockDatabasePlugin) GetStoreCount() int {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.storeCount
 }
 
 func (m *MockDatabasePlugin) GetEvent(ctx context.Context, id string) (*core.BlockchainEvent, error) {
@@ -212,6 +223,17 @@ func (m *MockLogger) WithCorrelationID(id string) core.Logger {
 	return m
 }
 
+func (m *MockLogger) Contains(substring string) bool {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	for _, log := range m.logs {
+		if log == substring {
+			return true
+		}
+	}
+	return false
+}
+
 // MockCachePlugin implements core.CachePlugin for testing
 type MockCachePlugin struct {
 	data map[string][]byte
@@ -291,6 +313,23 @@ func (mcp *MockCachePlugin) Stop() error {
 
 func (mcp *MockCachePlugin) Health() error {
 	return nil
+}
+
+type stubSharedBatchRuntime struct {
+	mu          sync.Mutex
+	calls       int
+	lastChainID string
+	lastEvents  []appindexing.EventEnvelope
+	err         error
+}
+
+func (s *stubSharedBatchRuntime) ProcessBatch(ctx context.Context, chainID string, events []appindexing.EventEnvelope) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.calls++
+	s.lastChainID = chainID
+	s.lastEvents = append([]appindexing.EventEnvelope(nil), events...)
+	return s.err
 }
 
 func TestNewDefaultChainIndexer(t *testing.T) {
@@ -411,6 +450,8 @@ func TestGetStatus(t *testing.T) {
 	assert.Equal(t, "ethereum", status["chain_id"])
 	assert.Equal(t, uint64(100), status["last_indexed_block"])
 	assert.Equal(t, int64(1), status["total_events_indexed"])
+	assert.Equal(t, int64(0), status["shadow_owned_events"])
+	assert.Equal(t, int64(1), status["legacy_owned_events"])
 }
 
 func TestClose(t *testing.T) {
@@ -596,8 +637,152 @@ func TestStatusMetrics(t *testing.T) {
 	assert.Contains(t, status, "chain_id")
 	assert.Contains(t, status, "last_indexed_block")
 	assert.Contains(t, status, "total_events_indexed")
+	assert.Contains(t, status, "shadow_owned_events")
+	assert.Contains(t, status, "legacy_owned_events")
 	assert.Contains(t, status, "total_errors")
 	assert.Contains(t, status, "uptime_seconds")
 	assert.Contains(t, status, "events_per_second")
 	assert.Contains(t, status, "error_rate")
+}
+
+func TestIndexEventsForwardsShadowBatchToSharedRuntime(t *testing.T) {
+	db := NewMockDatabasePlugin()
+	cache := NewMockCachePlugin()
+	logger := NewMockLogger()
+	metrics := core.NewDefaultMetricsCollector()
+	genericIndexer := generic.NewGenericContractIndexer(db, cache, logger, nil, nil)
+	sharedRuntime := &stubSharedBatchRuntime{}
+
+	indexer := NewDefaultChainIndexer("ethereum", db, cache, logger, genericIndexer)
+	indexer.SetSharedRuntime(sharedRuntime, metrics)
+
+	createdAt := time.Unix(1710000000, 0)
+	events := []*core.BlockchainEvent{
+		{
+			ID:              "event1",
+			ChainID:         "ethereum",
+			BlockNumber:     100,
+			LogIndex:        2,
+			CreatedAt:       createdAt,
+			TransactionHash: common.HexToHash("0x1234"),
+			EventSignature:  common.HexToHash("0x5678"),
+		},
+	}
+
+	err := indexer.IndexEvents(context.Background(), events)
+	require.NoError(t, err)
+
+	require.Equal(t, 1, sharedRuntime.calls)
+	require.Equal(t, "ethereum", sharedRuntime.lastChainID)
+	require.Len(t, sharedRuntime.lastEvents, 1)
+	assert.Equal(t, "event1", sharedRuntime.lastEvents[0].EventKey)
+	assert.Equal(t, "ethereum:100:2", sharedRuntime.lastEvents[0].CheckpointCursor)
+	assert.Equal(t, createdAt, sharedRuntime.lastEvents[0].ReceivedAt)
+}
+
+func TestIndexEventsSharedRuntimeFailureDoesNotBlockLegacyIndexing(t *testing.T) {
+	db := NewMockDatabasePlugin()
+	cache := NewMockCachePlugin()
+	logger := NewMockLogger()
+	metrics := core.NewDefaultMetricsCollector()
+	genericIndexer := generic.NewGenericContractIndexer(db, cache, logger, nil, nil)
+	sharedRuntime := &stubSharedBatchRuntime{err: errors.New("shadow boom")}
+
+	indexer := NewDefaultChainIndexer("ethereum", db, cache, logger, genericIndexer)
+	indexer.SetSharedRuntime(sharedRuntime, metrics)
+
+	events := []*core.BlockchainEvent{
+		{
+			ID:              "event1",
+			ChainID:         "ethereum",
+			BlockNumber:     100,
+			LogIndex:        1,
+			TransactionHash: common.HexToHash("0x1234"),
+			EventSignature:  common.HexToHash("0x5678"),
+		},
+	}
+
+	err := indexer.IndexEvents(context.Background(), events)
+	require.NoError(t, err)
+
+	stored, getErr := db.GetEvent(context.Background(), "event1")
+	require.NoError(t, getErr)
+	require.NotNil(t, stored)
+	assert.Equal(t, int64(1), metrics.GetCounter("indexing_runtime_shadow_batch_errors_total", map[string]string{
+		"chain_id":  "ethereum",
+		"service":   "monolithic",
+		"operation": "shadow_batch",
+	}))
+	assert.True(t, logger.Contains("shared runtime shadow batch failed"))
+}
+
+func TestIndexEventsSkipsDuplicateLegacyWriteAfterShadowPersistence(t *testing.T) {
+	db := NewMockDatabasePlugin()
+	cache := NewMockCachePlugin()
+	logger := NewMockLogger()
+	metrics := core.NewDefaultMetricsCollector()
+	genericIndexer := generic.NewGenericContractIndexer(db, cache, logger, nil, nil)
+	sharedRuntime := &stubSharedBatchRuntime{}
+
+	indexer := NewDefaultChainIndexer("ethereum", db, cache, logger, genericIndexer)
+	indexer.SetSharedRuntime(sharedRuntime, metrics)
+
+	event := &core.BlockchainEvent{
+		ID:              "event1",
+		ChainID:         "ethereum",
+		BlockNumber:     100,
+		LogIndex:        1,
+		TransactionHash: common.HexToHash("0x1234"),
+		EventSignature:  common.HexToHash("0x5678"),
+	}
+
+	shadowWriteTracker.mark(event)
+
+	err := indexer.IndexEvents(context.Background(), []*core.BlockchainEvent{event})
+	require.NoError(t, err)
+
+	assert.Equal(t, 0, db.GetStoreCount())
+	assert.Equal(t, int64(1), indexer.GetTotalEventsIndexed())
+	assert.Equal(t, int64(1), metrics.GetCounter("indexing_runtime_shadow_owned_events_total", map[string]string{
+		"chain_id":  "ethereum",
+		"service":   "monolithic",
+		"operation": "shadow_owned_write",
+	}))
+	status := indexer.GetStatus()
+	assert.Equal(t, int64(1), status["shadow_owned_events"])
+	assert.Equal(t, int64(0), status["legacy_owned_events"])
+}
+
+func TestIndexEventsDoesNotEmitShadowOwnedMetricOnLegacyFallback(t *testing.T) {
+	db := NewMockDatabasePlugin()
+	cache := NewMockCachePlugin()
+	logger := NewMockLogger()
+	metrics := core.NewDefaultMetricsCollector()
+	genericIndexer := generic.NewGenericContractIndexer(db, cache, logger, nil, nil)
+	sharedRuntime := &stubSharedBatchRuntime{err: errors.New("shadow boom")}
+
+	indexer := NewDefaultChainIndexer("ethereum", db, cache, logger, genericIndexer)
+	indexer.SetSharedRuntime(sharedRuntime, metrics)
+
+	event := &core.BlockchainEvent{
+		ID:              "event1",
+		ChainID:         "ethereum",
+		BlockNumber:     100,
+		LogIndex:        1,
+		TransactionHash: common.HexToHash("0x1234"),
+		EventSignature:  common.HexToHash("0x5678"),
+	}
+
+	err := indexer.IndexEvents(context.Background(), []*core.BlockchainEvent{event})
+	require.NoError(t, err)
+
+	assert.Equal(t, 1, db.GetStoreCount())
+	assert.Equal(t, int64(0), metrics.GetCounter("indexing_runtime_shadow_owned_events_total", map[string]string{
+		"chain_id":  "ethereum",
+		"service":   "monolithic",
+		"operation": "shadow_owned_write",
+	}))
+	status := indexer.GetStatus()
+	assert.Equal(t, int64(0), status["shadow_owned_events"])
+	assert.Equal(t, int64(1), status["legacy_owned_events"])
 }

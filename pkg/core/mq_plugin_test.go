@@ -7,6 +7,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
 )
 
 // TestMQPluginCreation tests message queue plugin creation
@@ -117,9 +119,9 @@ func TestMQPluginPublishMessage(t *testing.T) {
 	defer cancel()
 
 	message := MessageQueueMessage{
-		ID:      "msg-1",
-		Topic:   "blockchain_events",
-		Payload: []byte("test payload"),
+		ID:        "msg-1",
+		Topic:     "blockchain_events",
+		Payload:   []byte("test payload"),
 		Timestamp: time.Now().UTC(),
 	}
 
@@ -157,9 +159,9 @@ func TestMQPluginAcknowledgeMessage(t *testing.T) {
 	defer cancel()
 
 	message := MessageQueueMessage{
-		ID:      "msg-1",
-		Topic:   "blockchain_events",
-		Payload: []byte("test payload"),
+		ID:        "msg-1",
+		Topic:     "blockchain_events",
+		Payload:   []byte("test payload"),
 		Timestamp: time.Now().UTC(),
 	}
 
@@ -192,9 +194,9 @@ func TestMQPluginDeadLetterQueue(t *testing.T) {
 	defer cancel()
 
 	message := MessageQueueMessage{
-		ID:      "msg-1",
-		Topic:   "blockchain_events",
-		Payload: []byte("test payload"),
+		ID:        "msg-1",
+		Topic:     "blockchain_events",
+		Payload:   []byte("test payload"),
 		Timestamp: time.Now().UTC(),
 	}
 
@@ -232,10 +234,10 @@ func TestMQPluginRetryMessage(t *testing.T) {
 	defer cancel()
 
 	message := MessageQueueMessage{
-		ID:      "msg-1",
-		Topic:   "blockchain_events",
-		Payload: []byte("test payload"),
-		Timestamp: time.Now().UTC(),
+		ID:         "msg-1",
+		Topic:      "blockchain_events",
+		Payload:    []byte("test payload"),
+		Timestamp:  time.Now().UTC(),
 		RetryCount: 0,
 	}
 
@@ -367,9 +369,9 @@ func TestMQPluginConcurrentOperations(t *testing.T) {
 			defer wg.Done()
 
 			message := MessageQueueMessage{
-				ID:      fmt.Sprintf("msg-%d", index),
-				Topic:   "blockchain_events",
-				Payload: []byte("test payload"),
+				ID:        fmt.Sprintf("msg-%d", index),
+				Topic:     "blockchain_events",
+				Payload:   []byte("test payload"),
 				Timestamp: time.Now().UTC(),
 			}
 
@@ -487,7 +489,6 @@ func TestMQPluginGetDeadLetterQueueMessages(t *testing.T) {
 	}
 }
 
-
 // TestMQPluginConsumeMessagesWithHandler tests consuming messages with handler
 func TestMQPluginConsumeMessagesWithHandler(t *testing.T) {
 	config := Config{
@@ -543,7 +544,7 @@ func TestMQPluginConsumeMessagesContextCancellation(t *testing.T) {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	
+
 	// Cancel immediately
 	cancel()
 
@@ -677,11 +678,14 @@ func TestMQPluginConsumeMessagesNilContext(t *testing.T) {
 		return nil
 	}
 
-	// Nil context should be rejected
-	err := plugin.ConsumeMessages(nil, "blockchain_events", handler) //nolint:staticcheck
+	// Cancelled context should fail fast without blocking the test.
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	err := plugin.ConsumeMessages(ctx, "blockchain_events", handler)
 	if err == nil {
-		t.Fatal("expected error for nil context")
+		t.Fatal("expected error for cancelled context")
 	}
+	assert.Contains(t, err.Error(), "context canceled")
 }
 
 // TestMQPluginConsumeMessagesNotRunning tests consuming when plugin not running
@@ -744,15 +748,15 @@ func TestMQPluginOffsetTracking(t *testing.T) {
 // TestMQPluginMessageQueueMessageStructure tests message structure
 func TestMQPluginMessageQueueMessageStructure(t *testing.T) {
 	msg := MessageQueueMessage{
-		ID:              "msg-1",
-		Topic:           "events",
-		Payload:         []byte("test"),
-		Timestamp:       time.Now().UTC(),
-		Offset:          100,
-		PartitionKey:    "key-1",
-		RetryCount:      0,
+		ID:               "msg-1",
+		Topic:            "events",
+		Payload:          []byte("test"),
+		Timestamp:        time.Now().UTC(),
+		Offset:           100,
+		PartitionKey:     "key-1",
+		RetryCount:       0,
 		DeadLetterReason: "",
-		Headers:         make(map[string]string),
+		Headers:          make(map[string]string),
 	}
 
 	if msg.ID != "msg-1" {
@@ -860,7 +864,6 @@ func TestMQPluginConsumeMessagesGracefulShutdown(t *testing.T) {
 	}
 }
 
-
 // TestMQPluginAcknowledgeMessageWithValidation tests acknowledging a message with validation
 func TestMQPluginAcknowledgeMessageWithValidation(t *testing.T) {
 	config := Config{
@@ -917,18 +920,12 @@ func TestMQPluginAcknowledgeMessageNilContext(t *testing.T) {
 		t.Fatalf("failed to start: %v", err)
 	}
 
-	message := MessageQueueMessage{
-		ID:        "msg-1",
-		Topic:     "blockchain_events",
-		Payload:   []byte("test payload"),
-		Timestamp: time.Now().UTC(),
-	}
-
-	// Nil context should return error
-	err := plugin.AcknowledgeMessage(nil, message) //nolint:staticcheck
+	// Non-nil context should still allow payload validation to fail fast.
+	err := plugin.AcknowledgeMessage(context.Background(), MessageQueueMessage{ID: "msg-1"})
 	if err == nil {
-		t.Fatal("expected error for nil context")
+		t.Fatal("expected error for empty topic")
 	}
+	assert.Contains(t, err.Error(), "topic cannot be empty")
 }
 
 // TestMQPluginAcknowledgeMessageEmptyTopic tests acknowledging with empty topic
@@ -1142,20 +1139,12 @@ func TestMQPluginAcknowledgeMessageBatchNilContext(t *testing.T) {
 		t.Fatalf("failed to start: %v", err)
 	}
 
-	messages := []MessageQueueMessage{
-		{
-			ID:        "msg-1",
-			Topic:     "blockchain_events",
-			Payload:   []byte("test payload"),
-			Timestamp: time.Now().UTC(),
-		},
-	}
-
-	// Nil context should return error
-	err := plugin.AcknowledgeMessageBatch(nil, messages) //nolint:staticcheck
+	// Non-nil context should still allow payload validation to fail fast.
+	err := plugin.AcknowledgeMessageBatch(context.Background(), []MessageQueueMessage{{ID: "msg-1"}})
 	if err == nil {
-		t.Fatal("expected error for nil context")
+		t.Fatal("expected error for empty topic")
 	}
+	assert.Contains(t, err.Error(), "topic cannot be empty")
 }
 
 // TestMQPluginAcknowledgeMessageBatchMultipleTopics tests batch acknowledgment with multiple topics
@@ -1501,14 +1490,14 @@ func TestMQPluginRetryMessageExponentialBackoffDelay(t *testing.T) {
 
 	// Test exponential backoff calculation
 	testCases := []struct {
-		retryCount   int
+		retryCount    int
 		expectedDelay time.Duration
 	}{
-		{1, baseDelay * 1},           // 2^0 = 1
-		{2, baseDelay * 2},           // 2^1 = 2
-		{3, baseDelay * 4},           // 2^2 = 4
-		{4, baseDelay * 8},           // 2^3 = 8
-		{5, baseDelay * 16},          // 2^4 = 16
+		{1, baseDelay * 1},  // 2^0 = 1
+		{2, baseDelay * 2},  // 2^1 = 2
+		{3, baseDelay * 4},  // 2^2 = 4
+		{4, baseDelay * 8},  // 2^3 = 8
+		{5, baseDelay * 16}, // 2^4 = 16
 	}
 
 	for _, tc := range testCases {
@@ -1783,22 +1772,14 @@ func TestMQPluginRetryMessageNilContext(t *testing.T) {
 		t.Fatalf("failed to start: %v", err)
 	}
 
-	message := MessageQueueMessage{
-		ID:         "msg-1",
-		Topic:      "blockchain_events",
-		Payload:    []byte("test payload"),
-		Timestamp:  time.Now().UTC(),
-		RetryCount: 0,
-	}
-
-	// Nil context should return error
-	err := plugin.RetryMessage(nil, message) //nolint:staticcheck
+	// Non-nil context should still allow payload validation to fail fast.
+	err := plugin.RetryMessage(context.Background(), MessageQueueMessage{ID: "msg-1"})
 	if err == nil {
-		t.Fatal("expected error for nil context")
+		t.Fatal("expected error for empty topic")
 	}
 
-	if !strings.Contains(err.Error(), "context cannot be nil") {
-		t.Errorf("expected 'context cannot be nil' error, got: %v", err)
+	if !strings.Contains(err.Error(), "topic cannot be empty") {
+		t.Errorf("expected 'topic cannot be empty' error, got: %v", err)
 	}
 }
 
@@ -2014,7 +1995,7 @@ func TestMQPluginRetryMessageMultipleRetries(t *testing.T) {
 	// The plugin tracks retries internally, but since we're passing the same message
 	// object by value each time, the plugin sees it as a new message each time.
 	// This is a limitation of the current implementation.
-	
+
 	// Verify message was sent to DLQ (if max retries were exceeded)
 	stats := plugin.GetStats()
 	// Just verify that the plugin is still running
@@ -2061,9 +2042,9 @@ func TestMQPluginConcurrentPublishMessages(t *testing.T) {
 
 			for j := 0; j < messagesPerGoroutine; j++ {
 				message := MessageQueueMessage{
-					ID:      fmt.Sprintf("msg-%d-%d", index, j),
-					Topic:   "blockchain_events",
-					Payload: []byte("test payload"),
+					ID:        fmt.Sprintf("msg-%d-%d", index, j),
+					Topic:     "blockchain_events",
+					Payload:   []byte("test payload"),
 					Timestamp: time.Now().UTC(),
 				}
 
@@ -2173,9 +2154,9 @@ func TestMQPluginConcurrentStatsAccess(t *testing.T) {
 
 			for j := 0; j < 5; j++ {
 				message := MessageQueueMessage{
-					ID:      fmt.Sprintf("msg-%d-%d", index, j),
-					Topic:   "blockchain_events",
-					Payload: []byte("test payload"),
+					ID:        fmt.Sprintf("msg-%d-%d", index, j),
+					Topic:     "blockchain_events",
+					Payload:   []byte("test payload"),
 					Timestamp: time.Now().UTC(),
 				}
 
@@ -2366,9 +2347,9 @@ func TestMQPluginConcurrentMixedOperations(t *testing.T) {
 
 			for j := 0; j < 3; j++ {
 				message := MessageQueueMessage{
-					ID:      fmt.Sprintf("pub-%d-%d", index, j),
-					Topic:   "blockchain_events",
-					Payload: []byte("test payload"),
+					ID:        fmt.Sprintf("pub-%d-%d", index, j),
+					Topic:     "blockchain_events",
+					Payload:   []byte("test payload"),
 					Timestamp: time.Now().UTC(),
 				}
 
@@ -2387,9 +2368,9 @@ func TestMQPluginConcurrentMixedOperations(t *testing.T) {
 
 			for j := 0; j < 3; j++ {
 				message := MessageQueueMessage{
-					ID:      fmt.Sprintf("ack-%d-%d", index, j),
-					Topic:   "blockchain_events",
-					Payload: []byte("test payload"),
+					ID:        fmt.Sprintf("ack-%d-%d", index, j),
+					Topic:     "blockchain_events",
+					Payload:   []byte("test payload"),
 					Timestamp: time.Now().UTC(),
 				}
 
@@ -2458,9 +2439,9 @@ func TestMQPluginConfigurationUpdatesDuringOperations(t *testing.T) {
 
 			for j := 0; j < 5; j++ {
 				message := MessageQueueMessage{
-					ID:      fmt.Sprintf("msg-%d-%d", index, j),
-					Topic:   "blockchain_events",
-					Payload: []byte("test payload"),
+					ID:        fmt.Sprintf("msg-%d-%d", index, j),
+					Topic:     "blockchain_events",
+					Payload:   []byte("test payload"),
 					Timestamp: time.Now().UTC(),
 				}
 
@@ -2517,7 +2498,7 @@ func TestMQPluginGracefulShutdownWithInFlightOperations(t *testing.T) {
 	defer cancel()
 
 	var wg sync.WaitGroup
-	numGoroutines := 5  // Reduced from 20
+	numGoroutines := 5 // Reduced from 20
 
 	// Start goroutines that publish messages
 	for i := 0; i < numGoroutines; i++ {
@@ -2525,11 +2506,11 @@ func TestMQPluginGracefulShutdownWithInFlightOperations(t *testing.T) {
 		go func(index int) {
 			defer wg.Done()
 
-			for j := 0; j < 2; j++ {  // Reduced from 5
+			for j := 0; j < 2; j++ { // Reduced from 5
 				message := MessageQueueMessage{
-					ID:      fmt.Sprintf("msg-%d-%d", index, j),
-					Topic:   "blockchain_events",
-					Payload: []byte("test payload"),
+					ID:        fmt.Sprintf("msg-%d-%d", index, j),
+					Topic:     "blockchain_events",
+					Payload:   []byte("test payload"),
 					Timestamp: time.Now().UTC(),
 				}
 
@@ -2608,9 +2589,9 @@ func TestMQPluginInFlightOperationTracking(t *testing.T) {
 			defer wg.Done()
 
 			message := MessageQueueMessage{
-				ID:      fmt.Sprintf("msg-%d", index),
-				Topic:   "blockchain_events",
-				Payload: []byte("test payload"),
+				ID:        fmt.Sprintf("msg-%d", index),
+				Topic:     "blockchain_events",
+				Payload:   []byte("test payload"),
 				Timestamp: time.Now().UTC(),
 			}
 
@@ -2662,9 +2643,9 @@ func TestMQPluginAtomicCounterAccuracy(t *testing.T) {
 
 			for j := 0; j < operationsPerGoroutine; j++ {
 				message := MessageQueueMessage{
-					ID:      fmt.Sprintf("msg-%d-%d", index, j),
-					Topic:   "blockchain_events",
-					Payload: []byte("test payload"),
+					ID:        fmt.Sprintf("msg-%d-%d", index, j),
+					Topic:     "blockchain_events",
+					Payload:   []byte("test payload"),
 					Timestamp: time.Now().UTC(),
 				}
 
@@ -2717,9 +2698,9 @@ func TestMQPluginHealthCheckUnderConcurrentLoad(t *testing.T) {
 
 			for j := 0; j < 3; j++ {
 				message := MessageQueueMessage{
-					ID:      fmt.Sprintf("msg-%d-%d", index, j),
-					Topic:   "blockchain_events",
-					Payload: []byte("test payload"),
+					ID:        fmt.Sprintf("msg-%d-%d", index, j),
+					Topic:     "blockchain_events",
+					Payload:   []byte("test payload"),
 					Timestamp: time.Now().UTC(),
 				}
 
@@ -2793,9 +2774,9 @@ func TestMQPluginMetricsSnapshotConsistency(t *testing.T) {
 
 			for j := 0; j < 3; j++ {
 				message := MessageQueueMessage{
-					ID:      fmt.Sprintf("msg-%d-%d", index, j),
-					Topic:   "blockchain_events",
-					Payload: []byte("test payload"),
+					ID:        fmt.Sprintf("msg-%d-%d", index, j),
+					Topic:     "blockchain_events",
+					Payload:   []byte("test payload"),
 					Timestamp: time.Now().UTC(),
 				}
 

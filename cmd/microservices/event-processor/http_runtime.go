@@ -1,0 +1,119 @@
+package main
+
+import (
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"time"
+
+	"chainpulse/pkg/core"
+	"chainpulse/pkg/plugins/api"
+)
+
+type eventProcessorRuntimeSummaryResponse struct {
+	Service        string                 `json:"service"`
+	Timestamp      int64                  `json:"timestamp"`
+	RuntimeMode    string                 `json:"runtime_mode"`
+	RuntimePosture string                 `json:"runtime_posture"`
+	ComponentState string                 `json:"component_state"`
+	Rollout        map[string]interface{} `json:"rollout"`
+	Processor      map[string]interface{} `json:"processor"`
+	Security       map[string]interface{} `json:"security"`
+	Metrics        map[string]interface{} `json:"metrics"`
+}
+
+func buildEventProcessorRuntimeHTTPHandler(
+	healthHandler *api.HealthCheckHandler,
+	metrics core.MetricsCollector,
+	summaryProvider func(*http.Request) *eventProcessorRuntimeSummaryResponse,
+	controller *eventProcessorConsumeRuntime,
+) http.Handler {
+	mux := http.NewServeMux()
+	if metrics != nil {
+		mux.HandleFunc("/metrics", buildEventProcessorMetricsHandler(metrics))
+	}
+	if summaryProvider != nil {
+		mux.HandleFunc("/runtime/summary", buildEventProcessorRuntimeSummaryHandler(summaryProvider))
+	}
+	if controller != nil {
+		mux.HandleFunc("/runtime/control", buildEventProcessorRuntimeControlGetHandler(controller))
+		mux.HandleFunc("/runtime/control/pause-intake", buildEventProcessorRuntimeControlPauseHandler(controller))
+		mux.HandleFunc("/runtime/control/resume-intake", buildEventProcessorRuntimeControlResumeHandler(controller))
+	}
+
+	if healthHandler != nil {
+		mux.HandleFunc("/health", healthHandler.HandleHealth)
+		mux.HandleFunc("/health/ready", healthHandler.HandleReady)
+		mux.HandleFunc("/health/live", healthHandler.HandleLive)
+		mux.HandleFunc("/health/components", healthHandler.HandleComponents)
+		mux.HandleFunc("/health/rollout", healthHandler.HandleRollout)
+	}
+
+	return mux
+}
+
+//nolint:wsl,nlreturn // Security middleware stacking is intentionally explicit here.
+func wrapEventProcessorRuntimeSecurityHandler(
+	handler http.Handler,
+	authMiddleware *api.AuthMiddleware,
+	rateLimitMiddleware *api.RateLimitMiddleware,
+) http.Handler {
+	wrapped := handler
+	if rateLimitMiddleware != nil && rateLimitMiddleware.Limiter() != nil {
+		wrapped = rateLimitMiddleware.Middleware(rateLimitMiddleware.Limiter())(wrapped)
+	}
+	if authMiddleware != nil {
+		wrapped = authMiddleware.Handler(wrapped)
+	}
+	return wrapped
+}
+
+func buildEventProcessorRuntimeSummaryHandler(
+	summaryProvider func(*http.Request) *eventProcessorRuntimeSummaryResponse,
+) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if summaryProvider == nil {
+			http.Error(w, `{"error":"runtime summary unavailable"}`, http.StatusServiceUnavailable)
+			return
+		}
+
+		summary := summaryProvider(r)
+		if summary == nil {
+			http.Error(w, `{"error":"runtime summary unavailable"}`, http.StatusServiceUnavailable)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(summary); err != nil {
+			http.Error(w, `{"error":"failed to encode runtime summary"}`, http.StatusInternalServerError)
+		}
+	}
+}
+
+func buildEventProcessorMetricsHandler(metrics core.MetricsCollector) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if metrics == nil {
+			http.Error(w, `{"error":"metrics collector unavailable"}`, http.StatusServiceUnavailable)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(metrics.GetMetrics()); err != nil {
+			http.Error(w, `{"error":"failed to encode metrics"}`, http.StatusInternalServerError)
+		}
+	}
+}
+
+func newEventProcessorRuntimeHTTPServer(
+	port int,
+	healthHandler *api.HealthCheckHandler,
+	metrics core.MetricsCollector,
+	summaryProvider func(*http.Request) *eventProcessorRuntimeSummaryResponse,
+	controller *eventProcessorConsumeRuntime,
+) *http.Server {
+	return &http.Server{
+		Addr:              fmt.Sprintf(":%d", port),
+		Handler:           buildEventProcessorRuntimeHTTPHandler(healthHandler, metrics, summaryProvider, controller),
+		ReadHeaderTimeout: 10 * time.Second,
+	}
+}

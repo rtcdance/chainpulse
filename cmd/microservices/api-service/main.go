@@ -1,3 +1,4 @@
+//nolint:funlen,wsl,nlreturn,godot // Transitional bootstrap; detailed refactor is tracked by phased architecture specs.
 package main
 
 import (
@@ -6,14 +7,14 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
 
+	"chainpulse/pkg/application/bootstrap"
 	"chainpulse/pkg/core"
-	"chainpulse/pkg/infrastructure/database"
 	"chainpulse/pkg/plugins/api"
-	"chainpulse/pkg/services/query"
 )
 
 func main() {
@@ -34,6 +35,8 @@ func main() {
 	fmt.Printf("  Redis Cluster:      %v\n", config.RedisCluster)
 	fmt.Printf("  Kafka Brokers:      %v\n", config.KafkaBrokers)
 	fmt.Printf("  Log Level:          %s\n", config.LogLevel)
+	fmt.Printf("  Security Auth:      %v\n", config.AuthEnabled)
+	fmt.Printf("  Rate Limit:         %v\n", config.RateLimitEnabled)
 	fmt.Println()
 
 	// Initialize core services
@@ -51,78 +54,121 @@ func main() {
 	fmt.Println("  [3/3] Plugin registry initialized")
 	fmt.Println()
 
-	// Load database configuration
-	fmt.Println("Loading Database Configuration:")
-	dbConfig, err := database.LoadConfig()
+	// Build shared runtime wiring
+	fmt.Println("Building Runtime Wiring:")
+	runtimeWiring, err := bootstrap.BuildRuntimeWiring(context.Background(), logger, metrics)
 	if err != nil {
-		logger.Error("Failed to load database configuration", "error", err.Error())
+		logger.Error("Failed to build runtime wiring", "error", err.Error())
 		os.Exit(1)
 	}
-	fmt.Printf("  MongoDB URI:        %s\n", dbConfig.MongoDBURI)
-	fmt.Printf("  PostgreSQL URL:     %s\n", dbConfig.PostgresURL)
-	fmt.Printf("  Pool Size:          %d\n", dbConfig.PoolSize)
-	fmt.Printf("  Timeout:            %dms\n", dbConfig.TimeoutMS)
-	fmt.Println()
-
-	// Initialize database manager
-	fmt.Println("Initializing Database Manager:")
-	dbManager := database.NewDatabaseManager(
-		dbConfig.MongoDBURI,
-		dbConfig.PostgresURL,
-		dbConfig.PoolSize,
-		dbConfig.GetTimeout(),
-	)
-
-	initCtx, cancel := context.WithTimeout(context.Background(), dbConfig.GetTimeout())
-	if err := dbManager.Initialize(initCtx); err != nil {
-		cancel()
-		logger.Error("Failed to initialize database manager", "error", err.Error())
-		os.Exit(1)
-	}
-	cancel()
-	fmt.Println("  ✓ Database manager initialized")
-	fmt.Println()
-
-	// Initialize Query Service components
-	fmt.Println("Initializing Query Service Components:")
-	mongoAdapter := query.NewMongoDBAdapter(dbManager, logger, metrics)
-	postgresAdapter := query.NewPostgreSQLAdapter(dbManager, logger, metrics)
-	cacheService := query.NewCacheService(logger, metrics)
-	queryService := query.NewQueryService(dbManager, mongoAdapter, postgresAdapter, cacheService, logger, metrics)
-	fmt.Println("  [1/4] MongoDB adapter created")
-	fmt.Println("  [2/4] PostgreSQL adapter created")
-	fmt.Println("  [3/4] Cache service created")
-	fmt.Println("  [4/4] Query service created")
-	fmt.Println()
-
-	// Initialize Query Service
-	fmt.Println("Initializing Query Service:")
-	initCtx, cancel = context.WithTimeout(context.Background(), dbConfig.GetTimeout())
-	if err := queryService.Initialize(initCtx); err != nil {
-		cancel()
-		logger.Error("Failed to initialize query service", "error", err.Error())
-		os.Exit(1)
-	}
-	cancel()
+	fmt.Printf("  MongoDB URI:        %s\n", runtimeWiring.DBConfig.MongoDBURI)
+	fmt.Printf("  PostgreSQL URL:     %s\n", runtimeWiring.DBConfig.PostgresURL)
+	fmt.Printf("  Pool Size:          %d\n", runtimeWiring.DBConfig.PoolSize)
+	fmt.Printf("  Timeout:            %dms\n", runtimeWiring.DBConfig.TimeoutMS)
 	fmt.Println("  ✓ Query service initialized")
+	fmt.Println("  ✓ Event query handler initialized")
+	fmt.Println("  ✓ Event subscription handler initialized")
+	fmt.Println("  ✓ Health check handler initialized")
 	fmt.Println()
 
 	// Convert configuration to core.Config
-	coreConfig := &core.Config{
-		APIType:      "service",
-		APIPort:      config.Port,
-		LogLevel:     config.LogLevel,
-		FeatureFlags: make(map[string]bool),
+	coreCfg := bootstrap.NewAPIServiceCoreConfig(config.Port, config.LogLevel)
+	envOverrides, err := bootstrap.ParseCoreConfigOverridesFromEnv()
+	if err != nil {
+		logger.Error("Failed to parse core config overrides", "error", err.Error())
+		os.Exit(1)
 	}
+	cliOverrides, err := bootstrap.ParseCoreConfigOverridesFromCLI(os.Args[1:])
+	if err != nil {
+		logger.Error("Failed to parse CLI core config overrides", "error", err.Error())
+		os.Exit(1)
+	}
+	coreOverrides := bootstrap.MergeCoreConfigOverrides(envOverrides, cliOverrides)
+	runtimeProfile := bootstrap.RuntimeProfileFromEnv()
+	policy := bootstrap.ResolveOverridePolicyRuntime(runtimeProfile)
+	enforcementMode := bootstrap.ResolvePolicyEnforcementModeFromEnv()
+	policyEval, err := bootstrap.ValidateCoreConfigOverridesWithMode(coreOverrides, runtimeProfile, policy, enforcementMode)
+	if err != nil {
+		logger.Error(
+			"Core config overrides rejected by policy",
+			"profile", runtimeProfile,
+			"policy_enforcement", policyEval.EnforcementMode,
+			"policy_code", bootstrap.PolicyErrorCode(err),
+			"error", err.Error(),
+		)
+		os.Exit(1)
+	}
+	if policyEval.Violation {
+		logger.Warn(
+			"Core config overrides policy violation accepted in audit mode",
+			"profile", runtimeProfile,
+			"policy_enforcement", policyEval.EnforcementMode,
+			"policy_code", policyEval.ViolationCode,
+		)
+	}
+	coreCfg = bootstrap.ApplyCoreConfigOverrides(coreCfg, coreOverrides)
+	logger.Info("Core config overrides applied", "overrides", bootstrap.SummarizeCoreConfigOverrides(coreOverrides))
+	metricSchemaMode := bootstrap.ResolvePolicyMetricSchemaModeFromEnv()
+	bootstrap.EmitPolicyOverrideMetrics(
+		metrics,
+		runtimeProfile,
+		envOverrides,
+		cliOverrides,
+		coreOverrides,
+		policy,
+		policyEval,
+		metricSchemaMode,
+	)
+	coreConfig := &coreCfg
 
 	// Initialize API Service Plugin
 	fmt.Println("Initializing API Service:")
 	service := api.NewAPIGatewayPlugin(logger, metrics)
+	authMiddleware, rateLimitMiddleware, err := buildAPIServiceSecurityControls(config, logger, metrics)
+	if err != nil {
+		logger.Error("Failed to build API Service security controls", "error", err.Error())
+		os.Exit(1)
+	}
+	service.SetAuthMiddleware(authMiddleware)
+	service.SetRateLimitMiddleware(rateLimitMiddleware)
+	service.SetDomainQueryService(runtimeWiring.DomainQueryService)
+	service.SetEventQueryHandler(runtimeWiring.EventQueryHandler)
+	service.SetEventSubscriptionHandler(runtimeWiring.EventSubscriptionHandler)
+	service.SetHealthCheckHandler(runtimeWiring.HealthCheckHandler)
+	service.SetRuntimeSummaryProvider(buildAPIServiceRuntimeSummaryProvider(config.InstanceID, metrics, service, runtimeWiring.QueryService))
 	if err := service.Initialize(*coreConfig); err != nil {
 		logger.Error("Failed to initialize API Service", "error", err.Error())
 		os.Exit(1)
 	}
+	runtimeWiring.HealthCheckHandler.SetRolloutReportProducer(newAPIServiceRolloutReportProducer(config.InstanceID, func() apiServiceRolloutRuntimeState {
+		queryServiceHealth := runtimeWiring.QueryService.Health(context.Background())
+		return apiServiceRolloutRuntimeState{
+			DomainBridgeEnabled:      service.IsDomainBridgeEnabled(),
+			EventQueryEnabled:        service.IsEventQueryHandlerEnabled(),
+			EventSubscriptionEnabled: service.IsEventSubscriptionHandlerEnabled(),
+			HealthCheckRoutesEnabled: service.IsHealthCheckHandlerEnabled(),
+			QueryServiceMessage:      queryServiceHealth.Message,
+			QueryServiceStatus:       queryServiceHealth.Status,
+			RuntimeRoutesEnabled:     service.IsRuntimeRoutesEnabled(),
+		}
+	}))
 	fmt.Println("  ✓ API Service initialized")
+	fmt.Println("  ✓ Rollout report producer initialized")
+	if service.IsDomainBridgeEnabled() {
+		fmt.Println("  ✓ Domain query bridge configured")
+	}
+	if service.IsEventQueryHandlerEnabled() {
+		fmt.Println("  ✓ Event query handler wired")
+	}
+	if service.IsRuntimeRoutesEnabled() {
+		fmt.Println("  ✓ Runtime route composition enabled")
+	}
+	if service.IsAuthMiddlewareEnabled() {
+		fmt.Println("  ✓ Security auth middleware enabled")
+	}
+	if service.IsRateLimitMiddlewareEnabled() {
+		fmt.Println("  ✓ Security rate limit middleware enabled")
+	}
 	fmt.Println()
 
 	// Register plugins with registry
@@ -142,7 +188,7 @@ func main() {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		if err := queryService.Start(context.Background()); err != nil {
+		if err := runtimeWiring.QueryService.Start(context.Background()); err != nil {
 			logger.Error("Query Service error", "error", err.Error())
 		}
 	}()
@@ -184,23 +230,16 @@ func main() {
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	// Stop Query Service
-	if err := queryService.Stop(shutdownCtx); err != nil {
-		logger.Error("Error stopping Query Service", "error", err.Error())
-	}
-	fmt.Println("  [1/3] Query Service stopped")
-
 	// Stop API Service
 	if err := service.Stop(); err != nil {
 		logger.Error("Error stopping API Service", "error", err.Error())
 	}
-	fmt.Println("  [2/3] API Service stopped")
+	fmt.Println("  [1/2] API Service stopped")
 
-	// Close database manager
-	if err := dbManager.Close(shutdownCtx); err != nil {
-		logger.Error("Error closing database manager", "error", err.Error())
+	if err := runtimeWiring.Close(shutdownCtx); err != nil {
+		logger.Error("Error closing runtime wiring", "error", err.Error())
 	}
-	fmt.Println("  [3/3] Database manager closed")
+	fmt.Println("  [2/2] Runtime wiring closed")
 
 	// Wait for all goroutines to finish
 	done := make(chan struct{})
@@ -225,14 +264,19 @@ func main() {
 
 // APIServiceConfig represents the API Service configuration
 type APIServiceConfig struct {
-	Port          int
-	InstanceID    string
-	DatabaseHost  string
-	DatabasePort  int
-	RedisCluster  []string
-	KafkaBrokers  []string
-	ConsumerGroup string
-	LogLevel      string
+	Port               int
+	InstanceID         string
+	DatabaseHost       string
+	DatabasePort       int
+	RedisCluster       []string
+	KafkaBrokers       []string
+	ConsumerGroup      string
+	LogLevel           string
+	AuthEnabled        bool
+	AuthJWTSecret      string
+	AuthAPIKeys        []string
+	RateLimitEnabled   bool
+	RateLimitPerSecond int
 }
 
 // loadAPIServiceConfig loads configuration from environment variables
@@ -243,14 +287,99 @@ func loadAPIServiceConfig() APIServiceConfig {
 	}
 
 	return APIServiceConfig{
-		Port:          getEnvInt("SERVICE_PORT", 8081),
-		InstanceID:    instanceID,
-		DatabaseHost:  getEnv("DB_HOST", "postgres-primary"),
-		DatabasePort:  getEnvInt("DB_PORT", 5432),
-		RedisCluster:  []string{"redis-1:6379", "redis-2:6379", "redis-3:6379"},
-		KafkaBrokers:  []string{"kafka-1:9092", "kafka-2:9092", "kafka-3:9092"},
-		ConsumerGroup: "api-service-consumers",
-		LogLevel:      getEnv("LOG_LEVEL", "info"),
+		Port:               getEnvInt("SERVICE_PORT", 8081),
+		InstanceID:         instanceID,
+		DatabaseHost:       getEnv("DB_HOST", "postgres-primary"),
+		DatabasePort:       getEnvInt("DB_PORT", 5432),
+		RedisCluster:       []string{"redis-1:6379", "redis-2:6379", "redis-3:6379"},
+		KafkaBrokers:       []string{"kafka-1:9092", "kafka-2:9092", "kafka-3:9092"},
+		ConsumerGroup:      "api-service-consumers",
+		LogLevel:           getEnv("LOG_LEVEL", "info"),
+		AuthEnabled:        parseBoolEnv("API_SERVICE_AUTH_ENABLED", false),
+		AuthJWTSecret:      getEnv("API_SERVICE_AUTH_JWT_SECRET", ""),
+		AuthAPIKeys:        parseCommaSeparatedList(getEnv("API_SERVICE_AUTH_API_KEYS", "")),
+		RateLimitEnabled:   parseBoolEnv("API_SERVICE_RATE_LIMIT_ENABLED", false),
+		RateLimitPerSecond: getEnvInt("API_SERVICE_RATE_LIMIT", 100),
+	}
+}
+
+func buildAPIServiceSecurityControls(config APIServiceConfig, logger core.Logger, metrics core.MetricsCollector) (*api.AuthMiddleware, *api.RateLimitMiddleware, error) {
+	if !config.AuthEnabled && !config.RateLimitEnabled {
+		return nil, nil, nil
+	}
+
+	var authMiddleware *api.AuthMiddleware
+	if config.AuthEnabled {
+		if strings.TrimSpace(config.AuthJWTSecret) == "" {
+			return nil, nil, fmt.Errorf("api service auth is enabled but API_SERVICE_AUTH_JWT_SECRET is empty")
+		}
+
+		tokenValidator := api.NewTokenValidator(config.AuthJWTSecret, logger, metrics)
+		for _, entry := range config.AuthAPIKeys {
+			apiKey, clientID, ok := parseKeyValuePair(entry)
+			if !ok {
+				return nil, nil, fmt.Errorf("invalid API_SERVICE_AUTH_API_KEYS entry %q; expected key=clientID or key:clientID", entry)
+			}
+			if err := tokenValidator.RegisterAPIKey(apiKey, clientID); err != nil {
+				return nil, nil, err
+			}
+		}
+
+		rbacChecker := api.NewRBACChecker(logger, metrics)
+		auditLogger := api.NewAuditLogger(logger, metrics)
+		authMiddleware = api.NewAuthMiddleware(tokenValidator, rbacChecker, auditLogger, logger, metrics)
+	}
+
+	var rateLimitMiddleware *api.RateLimitMiddleware
+	if config.RateLimitEnabled {
+		rateLimiter := api.NewRateLimiter(logger, metrics, &api.RateLimitConfig{
+			DefaultRequestsPerSecond: float64(config.RateLimitPerSecond),
+			DefaultBurstSize:         max(10, config.RateLimitPerSecond/10),
+			CleanupInterval:          5 * time.Minute,
+		})
+		rateLimitMiddleware = api.NewRateLimitMiddleware(rateLimiter, logger)
+	}
+
+	return authMiddleware, rateLimitMiddleware, nil
+}
+
+func parseCommaSeparatedList(value string) []string {
+	parts := strings.Split(value, ",")
+	result := make([]string, 0, len(parts))
+	for _, part := range parts {
+		trimmed := strings.TrimSpace(part)
+		if trimmed != "" {
+			result = append(result, trimmed)
+		}
+	}
+	return result
+}
+
+func parseKeyValuePair(entry string) (string, string, bool) {
+	for _, separator := range []string{"=", ":"} {
+		if idx := strings.Index(entry, separator); idx > 0 && idx < len(entry)-1 {
+			key := strings.TrimSpace(entry[:idx])
+			clientID := strings.TrimSpace(entry[idx+1:])
+			if key != "" && clientID != "" {
+				return key, clientID, true
+			}
+		}
+	}
+	return "", "", false
+}
+
+func parseBoolEnv(key string, defaultValue bool) bool {
+	value := strings.TrimSpace(strings.ToLower(os.Getenv(key)))
+	if value == "" {
+		return defaultValue
+	}
+	switch value {
+	case "1", "true", "yes", "on":
+		return true
+	case "0", "false", "no", "off":
+		return false
+	default:
+		return defaultValue
 	}
 }
 

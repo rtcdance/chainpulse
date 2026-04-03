@@ -5,6 +5,8 @@ import (
 	"time"
 
 	"chainpulse/pkg/plugins/api/core"
+	"chainpulse/pkg/plugins/api/shared"
+	"github.com/gorilla/websocket"
 )
 
 func TestNewWebSocketPlugin(t *testing.T) {
@@ -138,6 +140,56 @@ func TestWebSocketPluginGetClientCount(t *testing.T) {
 	count := plugin.GetClientCount()
 	if count != 0 {
 		t.Errorf("expected 0 clients initially, got %d", count)
+	}
+}
+
+func TestWebSocketPluginGetConnectionMetricsPlaintextIdle(t *testing.T) {
+	apiLayer := core.NewAPILayer()
+	plugin := NewWebSocketPlugin("websocket", 8097, apiLayer)
+
+	metrics := plugin.GetConnectionMetrics()
+	if metrics["transport_posture"] != "ws-plaintext-only" {
+		t.Errorf("expected ws-plaintext-only, got %v", metrics["transport_posture"])
+	}
+	if metrics["connection_posture"] != "ws-stopped" {
+		t.Errorf("expected ws-stopped, got %v", metrics["connection_posture"])
+	}
+}
+
+func TestWebSocketPluginGetConnectionMetricsTLSIdle(t *testing.T) {
+	apiLayer := core.NewAPILayer()
+	plugin := &WebSocketPlugin{
+		name:       "tls-ws",
+		port:       8098,
+		apiLayer:   apiLayer,
+		tlsManager: &shared.TLSManager{},
+		clients:    make(map[*websocket.Conn]bool),
+		router:     core.NewAPIRouter(),
+	}
+
+	metrics := plugin.GetConnectionMetrics()
+	if metrics["transport_posture"] != "ws-tls-enabled" {
+		t.Errorf("expected ws-tls-enabled, got %v", metrics["transport_posture"])
+	}
+	if metrics["connection_posture"] != "ws-stopped" {
+		t.Errorf("expected ws-stopped, got %v", metrics["connection_posture"])
+	}
+}
+
+func TestWebSocketPluginGetConnectionMetricsActiveHint(t *testing.T) {
+	apiLayer := core.NewAPILayer()
+	plugin := NewWebSocketPlugin("websocket", 8099, apiLayer)
+	plugin.running = true
+	plugin.clients = map[*websocket.Conn]bool{
+		{}: true,
+	}
+
+	metrics := plugin.GetConnectionMetrics()
+	if metrics["connection_posture"] != "ws-active" {
+		t.Errorf("expected ws-active, got %v", metrics["connection_posture"])
+	}
+	if metrics["reliability_hint"] != "websocket transport is active with connected clients on a plaintext runtime" {
+		t.Errorf("unexpected reliability hint: %v", metrics["reliability_hint"])
 	}
 }
 

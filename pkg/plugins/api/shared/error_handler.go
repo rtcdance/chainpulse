@@ -15,14 +15,14 @@ type ErrorHandler struct {
 
 // CircuitBreaker implements the circuit breaker pattern
 type CircuitBreaker struct {
-	state              CircuitState
-	failureCount       int
-	successCount       int
-	lastFailureTime    time.Time
-	failureThreshold   int
-	successThreshold   int
-	timeout            time.Duration
-	mu                 sync.RWMutex
+	state            CircuitState
+	failureCount     int
+	successCount     int
+	lastFailureTime  time.Time
+	failureThreshold int
+	successThreshold int
+	timeout          time.Duration
+	mu               sync.RWMutex
 }
 
 // CircuitState represents the state of the circuit breaker
@@ -36,9 +36,9 @@ const (
 
 // RetryPolicy defines retry behavior
 type RetryPolicy struct {
-	maxRetries      int
-	initialBackoff  time.Duration
-	maxBackoff      time.Duration
+	maxRetries        int
+	initialBackoff    time.Duration
+	maxBackoff        time.Duration
 	backoffMultiplier float64
 }
 
@@ -274,11 +274,10 @@ func (eh *ErrorHandler) Handle(err error, operation func() error) error {
 // GetMetrics returns error handler metrics
 func (eh *ErrorHandler) GetMetrics() map[string]interface{} {
 	eh.mu.RLock()
-	defer eh.mu.RUnlock()
-
 	cb := eh.circuitBreaker
+	maxRetries := eh.retryPolicy.maxRetries
+	eh.mu.RUnlock()
 	cb.mu.RLock()
-	defer cb.mu.RUnlock()
 
 	stateStr := "unknown"
 	switch cb.state {
@@ -289,12 +288,91 @@ func (eh *ErrorHandler) GetMetrics() map[string]interface{} {
 	case StateHalfOpen:
 		stateStr = "half-open"
 	}
+	failureCount := cb.failureCount
+	successCount := cb.successCount
+	lastFailureTime := cb.lastFailureTime
+	cb.mu.RUnlock()
+
+	circuitPosture := classifyCircuitBreakerPosture(stateStr, failureCount, successCount)
+	retryPosture := classifyRetryPosture(maxRetries, failureCount)
 
 	return map[string]interface{}{
 		"circuit_breaker_state": stateStr,
-		"failure_count":         cb.failureCount,
-		"success_count":         cb.successCount,
-		"last_failure_time":     cb.lastFailureTime,
-		"max_retries":           eh.retryPolicy.maxRetries,
+		"failure_count":         failureCount,
+		"success_count":         successCount,
+		"last_failure_time":     lastFailureTime,
+		"max_retries":           maxRetries,
+		"coverage_posture":      circuitPosture,
+		"circuit_posture":       circuitPosture,
+		"retry_posture":         retryPosture,
+		"reliability_hint":      buildErrorHandlerReliabilityHint(circuitPosture, retryPosture),
+	}
+}
+
+// GetRuntimeMetrics returns a compact runtime surface for circuit-breaker
+// posture and retry readiness on top of the raw error-handler metrics.
+func (eh *ErrorHandler) GetRuntimeMetrics() map[string]interface{} {
+	metrics := eh.GetMetrics()
+
+	failureCount, _ := metrics["failure_count"].(int)
+	successCount, _ := metrics["success_count"].(int)
+	maxRetries, _ := metrics["max_retries"].(int)
+
+	return map[string]interface{}{
+		"circuit_breaker_state": metrics["circuit_breaker_state"],
+		"failure_count":         failureCount,
+		"success_count":         successCount,
+		"last_failure_time":     metrics["last_failure_time"],
+		"max_retries":           maxRetries,
+		"coverage_posture":      metrics["coverage_posture"],
+		"circuit_posture":       metrics["circuit_posture"],
+		"retry_posture":         metrics["retry_posture"],
+		"reliability_hint":      metrics["reliability_hint"],
+	}
+}
+
+func classifyCircuitBreakerPosture(state string, failureCount int, successCount int) string {
+	switch state {
+	case "open":
+		return "circuit-open"
+	case "half-open":
+		return "circuit-probing"
+	case "closed":
+		if failureCount > 0 && successCount == 0 {
+			return "circuit-recovering"
+		}
+		return "circuit-ready"
+	default:
+		return "circuit-unobserved"
+	}
+}
+
+func classifyRetryPosture(maxRetries int, failureCount int) string {
+	if maxRetries <= 0 {
+		return "retry-disabled"
+	}
+	if failureCount == 0 {
+		return "retry-ready"
+	}
+	if failureCount >= maxRetries {
+		return "retry-exhausted"
+	}
+	return "retry-engaged"
+}
+
+func buildErrorHandlerReliabilityHint(circuitPosture string, retryPosture string) string {
+	switch {
+	case circuitPosture == "circuit-open":
+		return "error handler is blocking execution behind an open circuit; investigate downstream failures before relying on retries"
+	case circuitPosture == "circuit-probing":
+		return "error handler is probing recovery in half-open posture; observe whether successes are restoring the circuit"
+	case retryPosture == "retry-exhausted":
+		return "error handler has consumed its retry budget; inspect persistent failures before expecting automatic recovery"
+	case retryPosture == "retry-engaged":
+		return "error handler is actively retrying after failures; continue observing whether the circuit recovers"
+	case circuitPosture == "circuit-ready":
+		return "error handler runtime is ready with circuit breaker closed and retry policy available"
+	default:
+		return "error handler runtime has not observed meaningful execution yet"
 	}
 }

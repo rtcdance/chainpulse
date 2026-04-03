@@ -10,6 +10,13 @@ import (
 	"chainpulse/pkg/plugins/api/core"
 )
 
+func skipGraphQLLifecycleTestsInShortMode(t *testing.T) {
+	t.Helper()
+	if testing.Short() {
+		t.Skip("skipping GraphQL lifecycle test in short mode")
+	}
+}
+
 // contextKey is a custom type for context keys to avoid collisions
 type contextKey string
 
@@ -171,7 +178,11 @@ func TestGraphQLRequestContextPreservation(t *testing.T) {
 		},
 		{
 			name: "context with timeout",
-			ctx:  func() context.Context { ctx, cancel := context.WithTimeout(context.Background(), 0); defer cancel(); return ctx }(),
+			ctx: func() context.Context {
+				ctx, cancel := context.WithTimeout(context.Background(), 0)
+				defer cancel()
+				return ctx
+			}(),
 		},
 		{
 			name: "context with value",
@@ -327,8 +338,10 @@ func TestGraphQLResponseHeaderImmutabilityAfterSend(t *testing.T) {
 // Property 7: GraphQL Plugin Lifecycle Management
 // For any plugin, Start/Stop operations SHALL be idempotent and state-consistent
 func TestGraphQLPluginLifecycleManagement(t *testing.T) {
+	skipGraphQLLifecycleTestsInShortMode(t)
+
 	testCases := []struct {
-		name      string
+		name       string
 		operations []string
 	}{
 		{
@@ -492,7 +505,7 @@ func TestGraphQLPluginProperty2ResponseAbstractionConsistency(t *testing.T) {
 		resp := NewGraphQLResponse(w)
 
 		// Set properties
-		status := 200 + (i % 5)*100
+		status := 200 + (i%5)*100
 		resp.SetStatus(status)
 		resp.SetHeader("X-Test", fmt.Sprintf("value_%d", i))
 		resp.SetBody([]byte(fmt.Sprintf(`{"id":%d}`, i)))

@@ -159,13 +159,13 @@ func (ch *ComponentHealth) getMetrics() map[string]interface{} {
 	}
 
 	return map[string]interface{}{
-		"component":           ch.name,
-		"status":              statusStr,
-		"last_check_time":     ch.lastCheckTime,
-		"last_error_time":     ch.lastErrorTime,
-		"consecutive_errors":  ch.consecutiveErrors,
-		"check_interval":      ch.checkInterval.String(),
-		"error_threshold":     ch.errorThreshold,
+		"component":          ch.name,
+		"status":             statusStr,
+		"last_check_time":    ch.lastCheckTime,
+		"last_error_time":    ch.lastErrorTime,
+		"consecutive_errors": ch.consecutiveErrors,
+		"check_interval":     ch.checkInterval.String(),
+		"error_threshold":    ch.errorThreshold,
 	}
 }
 
@@ -250,13 +250,31 @@ func (hc *HealthCheck) GetHealthSummary() map[string]interface{} {
 		overallStatus = "unhealthy"
 	}
 
+	coveragePosture := classifyHealthCoveragePosture(len(hc.components), healthyCount, degradedCount, unhealthyCount)
+	runtimePosture := classifyHealthRuntimePosture(overallStatus, len(hc.components), degradedCount, unhealthyCount)
+
 	return map[string]interface{}{
-		"overall_status":    overallStatus,
-		"total_components":  len(hc.components),
-		"healthy_count":     healthyCount,
-		"degraded_count":    degradedCount,
-		"unhealthy_count":   unhealthyCount,
+		"overall_status":   overallStatus,
+		"total_components": len(hc.components),
+		"healthy_count":    healthyCount,
+		"degraded_count":   degradedCount,
+		"unhealthy_count":  unhealthyCount,
+		"coverage_posture": coveragePosture,
+		"runtime_posture":  runtimePosture,
+		"reliability_hint": buildHealthReliabilityHint(runtimePosture),
 	}
+}
+
+// GetRuntimeMetrics returns a compact runtime surface with coverage posture,
+// runtime posture, and reliability hint on top of raw health counts.
+func (hc *HealthCheck) GetRuntimeMetrics() map[string]interface{} {
+	return hc.GetHealthSummary()
+}
+
+// GetRuntimeSummary keeps backward compatibility for existing callers that
+// still consume summary-oriented health runtime fields.
+func (hc *HealthCheck) GetRuntimeSummary() map[string]interface{} {
+	return hc.GetRuntimeMetrics()
 }
 
 // NeedsHealthCheck returns whether a component needs a health check
@@ -290,4 +308,46 @@ func (hc *HealthCheck) GetComponentsNeedingCheck() []string {
 	}
 
 	return result
+}
+
+func classifyHealthRuntimePosture(overallStatus string, totalComponents int, degradedCount int, unhealthyCount int) string {
+	if totalComponents == 0 {
+		return "health-unobserved"
+	}
+	if unhealthyCount > 0 || overallStatus == "unhealthy" {
+		return "health-unhealthy"
+	}
+	if degradedCount > 0 || overallStatus == "degraded" {
+		return "health-degraded"
+	}
+	return "health-healthy"
+}
+
+func classifyHealthCoveragePosture(totalComponents int, healthyCount int, degradedCount int, unhealthyCount int) string {
+	if totalComponents == 0 {
+		return "health-unconfigured"
+	}
+	if unhealthyCount > 0 {
+		return "health-failing"
+	}
+	if degradedCount > 0 {
+		return "health-partial"
+	}
+	if healthyCount == totalComponents {
+		return "health-complete"
+	}
+	return "health-partial"
+}
+
+func buildHealthReliabilityHint(runtimePosture string) string {
+	switch runtimePosture {
+	case "health-healthy":
+		return "health runtime is healthy across all registered components"
+	case "health-degraded":
+		return "health runtime is degraded; inspect components with consecutive errors before conditions worsen"
+	case "health-unhealthy":
+		return "health runtime is unhealthy; prioritize recovery of failing components"
+	default:
+		return "health runtime has not observed any registered components yet"
+	}
 }

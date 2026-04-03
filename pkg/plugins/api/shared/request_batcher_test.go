@@ -186,3 +186,101 @@ func TestRequestBatcherContextCancellation(t *testing.T) {
 		t.Fatal("expected error when context is cancelled")
 	}
 }
+
+func TestRequestBatcherRuntimeMetricsHealthy(t *testing.T) {
+	processor := &MockBatchProcessor{}
+	batcher := NewRequestBatcher("test", processor, 5, 100*time.Millisecond)
+	defer func() {
+		if err := batcher.Close(); err != nil {
+			t.Logf("failed to close batcher: %v", err)
+		}
+	}()
+
+	for i := 0; i < 5; i++ {
+		_, _ = batcher.Submit(context.Background(), fmt.Sprintf("req-%d", i), fmt.Sprintf("payload-%d", i))
+	}
+
+	time.Sleep(200 * time.Millisecond)
+
+	metrics := batcher.GetRuntimeMetrics()
+	if metrics["coverage_posture"] != "batcher-low-fill" {
+		t.Fatalf("expected batcher-low-fill coverage, got %v", metrics["coverage_posture"])
+	}
+	if metrics["capacity_posture"] != "batcher-low-fill" {
+		t.Fatalf("expected batcher-low-fill capacity, got %v", metrics["capacity_posture"])
+	}
+	if metrics["runtime_posture"] != "batcher-healthy" {
+		t.Fatalf("expected batcher-healthy, got %v", metrics["runtime_posture"])
+	}
+}
+
+func TestRequestBatcherMetricsIncludesPostureFields(t *testing.T) {
+	processor := &MockBatchProcessor{}
+	batcher := NewRequestBatcher("test", processor, 5, 100*time.Millisecond)
+	defer func() {
+		if err := batcher.Close(); err != nil {
+			t.Logf("failed to close batcher: %v", err)
+		}
+	}()
+
+	for i := 0; i < 5; i++ {
+		_, _ = batcher.Submit(context.Background(), fmt.Sprintf("req-%d", i), fmt.Sprintf("payload-%d", i))
+	}
+
+	time.Sleep(200 * time.Millisecond)
+
+	metrics := batcher.GetMetrics()
+	if metrics["coverage_posture"] != "batcher-low-fill" {
+		t.Fatalf("expected batcher-low-fill coverage, got %v", metrics["coverage_posture"])
+	}
+	if metrics["capacity_posture"] != "batcher-low-fill" {
+		t.Fatalf("expected batcher-low-fill capacity, got %v", metrics["capacity_posture"])
+	}
+	if metrics["runtime_posture"] != "batcher-healthy" {
+		t.Fatalf("expected batcher-healthy runtime, got %v", metrics["runtime_posture"])
+	}
+	if metrics["reliability_hint"] != "request batcher is healthy but current batches are lightly filled" {
+		t.Fatalf("unexpected reliability hint: %v", metrics["reliability_hint"])
+	}
+}
+
+func TestRequestBatcherRuntimeMetricsUnobserved(t *testing.T) {
+	processor := &MockBatchProcessor{}
+	batcher := NewRequestBatcher("test", processor, 5, 100*time.Millisecond)
+	defer func() {
+		if err := batcher.Close(); err != nil {
+			t.Logf("failed to close batcher: %v", err)
+		}
+	}()
+
+	metrics := batcher.GetRuntimeMetrics()
+	if metrics["coverage_posture"] != "batcher-unobserved" {
+		t.Fatalf("expected batcher-unobserved coverage, got %v", metrics["coverage_posture"])
+	}
+	if metrics["runtime_posture"] != "batcher-unobserved" {
+		t.Fatalf("expected batcher-unobserved, got %v", metrics["runtime_posture"])
+	}
+}
+
+func TestRequestBatcherRuntimeMetricsDegraded(t *testing.T) {
+	processor := &MockBatchProcessor{}
+	batcher := NewRequestBatcher("test", processor, 5, 100*time.Millisecond)
+	defer func() {
+		if err := batcher.Close(); err != nil {
+			t.Logf("failed to close batcher: %v", err)
+		}
+	}()
+
+	batcher.recordError()
+
+	metrics := batcher.GetRuntimeMetrics()
+	if metrics["coverage_posture"] != "batcher-unobserved" {
+		t.Fatalf("expected batcher-unobserved coverage, got %v", metrics["coverage_posture"])
+	}
+	if metrics["runtime_posture"] != "batcher-degraded" {
+		t.Fatalf("expected batcher-degraded, got %v", metrics["runtime_posture"])
+	}
+	if metrics["reliability_hint"] != "request batcher is degraded; inspect processor failures and batch completion errors" {
+		t.Fatalf("unexpected reliability hint: %v", metrics["reliability_hint"])
+	}
+}

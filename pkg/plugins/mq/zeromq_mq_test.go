@@ -68,9 +68,7 @@ func TestZeroMQMQPluginInitialization(t *testing.T) {
 
 // TestZeroMQMQPluginLifecycle tests ZeroMQ plugin lifecycle
 func TestZeroMQMQPluginLifecycle(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping ZeroMQ integration test in short mode")
-	}
+	requireMQIntegration(t)
 
 	config := &core.Config{
 		BlockchainNodeURL: "localhost:50051",
@@ -108,9 +106,7 @@ func TestZeroMQMQPluginLifecycle(t *testing.T) {
 
 // TestZeroMQMQPluginPublishMessage tests publishing a message
 func TestZeroMQMQPluginPublishMessage(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping ZeroMQ test in short mode")
-	}
+	requireMQIntegration(t)
 
 	config := &core.Config{
 		BlockchainNodeURL: "localhost:50051",
@@ -155,9 +151,7 @@ func TestZeroMQMQPluginPublishMessage(t *testing.T) {
 
 // TestZeroMQMQPluginAcknowledgeMessage tests acknowledging a message
 func TestZeroMQMQPluginAcknowledgeMessage(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping ZeroMQ integration test in short mode")
-	}
+	requireMQIntegration(t)
 
 	config := &core.Config{
 		BlockchainNodeURL: "localhost:50051",
@@ -202,9 +196,7 @@ func TestZeroMQMQPluginAcknowledgeMessage(t *testing.T) {
 
 // TestZeroMQMQPluginDeadLetterQueue tests dead letter queue handling
 func TestZeroMQMQPluginDeadLetterQueue(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping ZeroMQ integration test in short mode")
-	}
+	requireMQIntegration(t)
 
 	config := &core.Config{
 		BlockchainNodeURL: "localhost:50051",
@@ -254,9 +246,7 @@ func TestZeroMQMQPluginDeadLetterQueue(t *testing.T) {
 
 // TestZeroMQMQPluginRetryMessage tests message retry
 func TestZeroMQMQPluginRetryMessage(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping ZeroMQ integration test in short mode")
-	}
+	requireMQIntegration(t)
 
 	config := &core.Config{
 		BlockchainNodeURL: "localhost:50051",
@@ -400,9 +390,7 @@ func TestZeroMQMQPluginSetRetryDelay(t *testing.T) {
 
 // TestZeroMQMQPluginConcurrentOperations tests concurrent operations
 func TestZeroMQMQPluginConcurrentOperations(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping ZeroMQ integration test in short mode")
-	}
+	requireMQIntegration(t)
 
 	config := &core.Config{
 		BlockchainNodeURL: "localhost:50051",
@@ -544,9 +532,7 @@ func TestZeroMQMQPluginMultipleEndpoints(t *testing.T) {
 
 // TestZeroMQMQPluginGetDeadLetterQueueMessages tests retrieving DLQ messages
 func TestZeroMQMQPluginGetDeadLetterQueueMessages(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping ZeroMQ integration test in short mode")
-	}
+	requireMQIntegration(t)
 
 	config := &core.Config{
 		BlockchainNodeURL: "localhost:50051",

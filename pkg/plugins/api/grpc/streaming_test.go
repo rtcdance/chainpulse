@@ -12,6 +12,8 @@ import (
 // MockStreamingBackend implements StreamingBackend for testing
 type MockStreamingBackend struct {
 	events []*core.BlockchainEvent
+	serverSourcePosture string
+	clientSourcePosture string
 }
 
 func NewMockStreamingBackend() *MockStreamingBackend {
@@ -41,6 +43,14 @@ func (m *MockStreamingBackend) ProcessEventBatch(ctx context.Context, events <-c
 		count++
 	}
 	return count, nil
+}
+
+func (m *MockStreamingBackend) ServerStreamSourcePosture() string {
+	return m.serverSourcePosture
+}
+
+func (m *MockStreamingBackend) ClientStreamSourcePosture() string {
+	return m.clientSourcePosture
 }
 
 func TestServerStreamEvents(t *testing.T) {
@@ -133,6 +143,7 @@ func TestStreamingMetrics(t *testing.T) {
 		{ID: "1"},
 		{ID: "2"},
 	}
+	backend.serverSourcePosture = "grpc-live-stream"
 
 	service := NewStreamingService(backend)
 	ctx := context.Background()
@@ -158,6 +169,18 @@ func TestStreamingMetrics(t *testing.T) {
 	activeStreams := metrics["active_streams"].(int64)
 	if activeStreams != 0 {
 		t.Errorf("Expected 0 active streams, got %d", activeStreams)
+	}
+
+	if metrics["server_source_posture"] != "grpc-live-stream" {
+		t.Errorf("Expected grpc-live-stream posture, got %v", metrics["server_source_posture"])
+	}
+
+	if metrics["server_delivery_posture"] != "stream-delivered" {
+		t.Errorf("Expected stream-delivered posture, got %v", metrics["server_delivery_posture"])
+	}
+
+	if metrics["server_reliability_hint"] != "server stream delivered successfully from the current source posture" {
+		t.Errorf("Unexpected server reliability hint: %v", metrics["server_reliability_hint"])
 	}
 }
 
@@ -189,6 +212,14 @@ func TestStreamingErrorHandling(t *testing.T) {
 	if errors < 1 {
 		t.Errorf("Expected at least 1 error, got %d", errors)
 	}
+
+	if metrics["server_delivery_posture"] != "stream-error" {
+		t.Errorf("Expected stream-error posture, got %v", metrics["server_delivery_posture"])
+	}
+
+	if metrics["server_reliability_hint"] != "server stream delivery is degraded; inspect backend stability and handler failures" {
+		t.Errorf("Unexpected server reliability hint: %v", metrics["server_reliability_hint"])
+	}
 }
 
 func TestStreamingTimeout(t *testing.T) {
@@ -218,6 +249,7 @@ func TestStreamingTimeout(t *testing.T) {
 func TestMultipleStreamsMetrics(t *testing.T) {
 	backend := NewMockStreamingBackend()
 	backend.events = []*core.BlockchainEvent{{ID: "1"}}
+	backend.serverSourcePosture = "grpc-live-stream"
 
 	service := NewStreamingService(backend)
 	ctx := context.Background()
@@ -240,5 +272,34 @@ func TestMultipleStreamsMetrics(t *testing.T) {
 	itemsStreamed := metrics["items_streamed"].(int64)
 	if itemsStreamed != 2 {
 		t.Errorf("Expected 2 items streamed, got %d", itemsStreamed)
+	}
+}
+
+func TestClientStreamMetricsIncludeSourcePosture(t *testing.T) {
+	backend := NewMockStreamingBackend()
+	backend.clientSourcePosture = "grpc-client-batch"
+
+	service := NewStreamingService(backend)
+	ctx := context.Background()
+
+	eventChan := make(chan *core.BlockchainEvent)
+	go func() {
+		defer close(eventChan)
+		eventChan <- &core.BlockchainEvent{ID: "1"}
+	}()
+
+	if _, err := service.ClientStreamEvents(ctx, eventChan); err != nil {
+		t.Fatalf("Failed to stream events: %v", err)
+	}
+
+	metrics := service.GetMetrics()
+	if metrics["client_source_posture"] != "grpc-client-batch" {
+		t.Errorf("Expected grpc-client-batch posture, got %v", metrics["client_source_posture"])
+	}
+	if metrics["client_delivery_posture"] != "client-batch-delivered" {
+		t.Errorf("Expected client-batch-delivered posture, got %v", metrics["client_delivery_posture"])
+	}
+	if metrics["client_reliability_hint"] != "client stream batch completed successfully through the current source posture" {
+		t.Errorf("Unexpected client reliability hint: %v", metrics["client_reliability_hint"])
 	}
 }

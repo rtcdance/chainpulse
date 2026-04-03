@@ -6,8 +6,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/segmentio/kafka-go"
 	"chainpulse/pkg/core"
+	"github.com/segmentio/kafka-go"
 )
 
 // KafkaProducer represents a Kafka message producer
@@ -26,32 +26,32 @@ type KafkaConsumer struct {
 
 // KafkaMQPlugin represents the Kafka message queue plugin
 type KafkaMQPlugin struct {
-	name                 string
-	version              string
-	config               *core.Config
-	logger               core.Logger
-	metricsCollector     core.MetricsCollector
-	eventBus             core.EventBus
-	isInitialized        bool
-	isRunning            bool
-	mu                   sync.RWMutex
-	producer             *KafkaProducer
-	consumers            map[string]*KafkaConsumer
-	messageCount         int64
-	errorCount           int64
-	lastError            error
-	lastErrorTime        time.Time
-	deadLetterQueueSize  int64
-	processingTime       int64
-	batchSize            int
-	maxRetries           int
-	retryDelay           time.Duration
-	brokers              []string
-	consumerGroup        string
-	offsetTracking       map[string]int64
-	offsetTrackingMutex  sync.RWMutex
-	dlqReasonCounts      map[string]int64
-	dlqReasonMutex       sync.RWMutex
+	name                string
+	version             string
+	config              *core.Config
+	logger              core.Logger
+	metricsCollector    core.MetricsCollector
+	eventBus            core.EventBus
+	isInitialized       bool
+	isRunning           bool
+	mu                  sync.RWMutex
+	producer            *KafkaProducer
+	consumers           map[string]*KafkaConsumer
+	messageCount        int64
+	errorCount          int64
+	lastError           error
+	lastErrorTime       time.Time
+	deadLetterQueueSize int64
+	processingTime      int64
+	batchSize           int
+	maxRetries          int
+	retryDelay          time.Duration
+	brokers             []string
+	consumerGroup       string
+	offsetTracking      map[string]int64
+	offsetTrackingMutex sync.RWMutex
+	dlqReasonCounts     map[string]int64
+	dlqReasonMutex      sync.RWMutex
 	// Kafka-specific features
 	brokerFailureCount   int64
 	brokerRecoveryCount  int64
@@ -72,28 +72,28 @@ func NewKafkaMQPlugin(
 	consumerGroup string,
 ) *KafkaMQPlugin {
 	return &KafkaMQPlugin{
-		name:                name,
-		version:             version,
-		config:              config,
-		logger:              logger,
-		metricsCollector:    metricsCollector,
-		eventBus:            eventBus,
-		isInitialized:       false,
-		isRunning:           false,
-		messageCount:        0,
-		errorCount:          0,
-		deadLetterQueueSize: 0,
-		processingTime:      0,
-		batchSize:           100,
-		maxRetries:          3,
-		retryDelay:          1 * time.Second,
-		brokers:             brokers,
-		consumerGroup:       consumerGroup,
-		consumers:           make(map[string]*KafkaConsumer),
-		offsetTracking:      make(map[string]int64),
-		dlqReasonCounts:     make(map[string]int64),
-		brokerFailureCount:  0,
-		brokerRecoveryCount: 0,
+		name:                 name,
+		version:              version,
+		config:               config,
+		logger:               logger,
+		metricsCollector:     metricsCollector,
+		eventBus:             eventBus,
+		isInitialized:        false,
+		isRunning:            false,
+		messageCount:         0,
+		errorCount:           0,
+		deadLetterQueueSize:  0,
+		processingTime:       0,
+		batchSize:            100,
+		maxRetries:           3,
+		retryDelay:           1 * time.Second,
+		brokers:              brokers,
+		consumerGroup:        consumerGroup,
+		consumers:            make(map[string]*KafkaConsumer),
+		offsetTracking:       make(map[string]int64),
+		dlqReasonCounts:      make(map[string]int64),
+		brokerFailureCount:   0,
+		brokerRecoveryCount:  0,
 		consumerGroupMetrics: make(map[string]int64),
 		offsetPersistenceMap: make(map[string]map[int32]int64),
 	}
@@ -186,6 +186,10 @@ func (p *KafkaMQPlugin) Health() *core.HealthStatus {
 		status = "degraded"
 	}
 
+	consumerGroupMetrics := p.GetConsumerGroupMetrics()
+	consumerGroupLag := consumerGroupMetrics["lag"]
+	maxTrackedOffset := p.maxTrackedOffset()
+
 	return &core.HealthStatus{
 		Status:    status,
 		Timestamp: time.Now().UTC(),
@@ -198,6 +202,10 @@ func (p *KafkaMQPlugin) Health() *core.HealthStatus {
 			"dead_letter_queue_size": p.deadLetterQueueSize,
 			"brokers":                p.brokers,
 			"consumer_group":         p.consumerGroup,
+			"active_consumers":       len(p.consumers),
+			"consumer_group_lag":     consumerGroupLag,
+			"max_tracked_offset":     maxTrackedOffset,
+			"consumer_group_metrics": consumerGroupMetrics,
 		},
 	}
 }
@@ -224,6 +232,15 @@ func (p *KafkaMQPlugin) IsRunning() bool {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 	return p.isRunning
+}
+
+// Publish satisfies the generic MQ plugin contract using the richer Kafka
+// message publisher underneath.
+func (p *KafkaMQPlugin) Publish(ctx context.Context, topic string, message []byte) error {
+	return p.PublishMessage(ctx, core.MessageQueueMessage{
+		Topic:   topic,
+		Payload: message,
+	})
 }
 
 // PublishMessage publishes a message to a Kafka topic with comprehensive metrics
@@ -350,20 +367,20 @@ func (p *KafkaMQPlugin) ConsumeMessages(ctx context.Context, topic string, handl
 		case <-ctx.Done():
 			// Context cancelled - graceful shutdown
 			p.logger.Info("consumer shutdown initiated", "topic", topic)
-			
+
 			// Wait for in-flight operations to complete
 			inFlightOps.Wait()
-			
+
 			// Close reader
 			if err := reader.Close(); err != nil {
 				p.logger.Error("failed to close Kafka reader", "topic", topic, "error", err)
 			}
-			
+
 			// Unregister consumer
 			p.mu.Lock()
 			delete(p.consumers, topic)
 			p.mu.Unlock()
-			
+
 			p.logger.Info("consumer stopped gracefully", "topic", topic)
 			p.metricsCollector.RecordCounter("mq_consume_stop", 1, map[string]string{"topic": topic})
 			return ctx.Err()
@@ -383,14 +400,14 @@ func (p *KafkaMQPlugin) ConsumeMessages(ctx context.Context, topic string, handl
 					// Context was cancelled
 					continue
 				}
-				
+
 				// Record read error
 				p.mu.Lock()
 				p.errorCount++
 				p.lastError = err
 				p.lastErrorTime = time.Now()
 				p.mu.Unlock()
-				
+
 				p.metricsCollector.RecordCounter("mq_consume_read_errors", 1, map[string]string{"topic": topic})
 				p.logger.Error("failed to read message from Kafka", "topic", topic, "error", err)
 				continue
@@ -420,7 +437,7 @@ func (p *KafkaMQPlugin) ConsumeMessages(ctx context.Context, topic string, handl
 
 			// Track in-flight operation
 			inFlightOps.Add(1)
-			
+
 			// Call handler with exactly-once semantics
 			// Handler is responsible for idempotent processing
 			consumeStartTime := time.Now()
@@ -438,7 +455,7 @@ func (p *KafkaMQPlugin) ConsumeMessages(ctx context.Context, topic string, handl
 				p.metricsCollector.RecordCounter("mq_handler_errors", int64(1), map[string]string{"topic": topic})
 				p.metricsCollector.RecordCounter("mq_consume_error_latency_ms", consumeLatency, map[string]string{"topic": topic})
 				p.logger.Error("handler error", "topic", topic, "message_id", messageID, "offset", msg.Offset, "error", handlerErr, "latency_ms", consumeLatency)
-				
+
 				inFlightOps.Done()
 				continue
 			}
@@ -456,7 +473,7 @@ func (p *KafkaMQPlugin) ConsumeMessages(ctx context.Context, topic string, handl
 			p.metricsCollector.RecordCounter("mq_messages_consumed", int64(1), map[string]string{"topic": topic})
 			p.metricsCollector.RecordCounter("mq_consume_latency_ms", consumeLatency, map[string]string{"topic": topic})
 			p.logger.Info("message consumed", "topic", topic, "message_id", messageID, "offset", msg.Offset, "latency_ms", consumeLatency)
-			
+
 			// Mark operation complete
 			inFlightOps.Done()
 		}
@@ -503,7 +520,7 @@ func (p *KafkaMQPlugin) AcknowledgeMessage(ctx context.Context, message core.Mes
 // SendToDeadLetterQueue sends a message to the dead letter queue with reason preservation
 func (p *KafkaMQPlugin) SendToDeadLetterQueue(ctx context.Context, message core.MessageQueueMessage, reason string) error {
 	startTime := time.Now()
-	
+
 	p.mu.Lock()
 	if !p.isRunning {
 		p.mu.Unlock()
@@ -540,7 +557,7 @@ func (p *KafkaMQPlugin) SendToDeadLetterQueue(ctx context.Context, message core.
 		p.lastError = err
 		p.lastErrorTime = time.Now()
 		p.mu.Unlock()
-		
+
 		latency := time.Since(startTime).Milliseconds()
 		p.metricsCollector.RecordCounter("mq_dlq_send_errors", int64(1), map[string]string{"topic": dlqTopic, "reason": reason})
 		p.metricsCollector.RecordCounter("mq_dlq_error_latency_ms", latency, map[string]string{"topic": dlqTopic})
@@ -557,7 +574,7 @@ func (p *KafkaMQPlugin) SendToDeadLetterQueue(ctx context.Context, message core.
 	p.mu.Lock()
 	p.deadLetterQueueSize++
 	p.mu.Unlock()
-	
+
 	latency := time.Since(startTime).Milliseconds()
 	p.metricsCollector.RecordCounter("mq_dead_letter_queue_size", p.deadLetterQueueSize, nil)
 	p.metricsCollector.RecordCounter("mq_dlq_messages_sent", int64(1), map[string]string{"topic": dlqTopic, "reason": reason})
@@ -577,11 +594,11 @@ func (p *KafkaMQPlugin) GetDeadLetterQueueMessages(ctx context.Context, limit in
 	p.mu.Unlock()
 
 	messages := make([]core.MessageQueueMessage, 0, limit)
-	
+
 	// Get all topics that have DLQ variants
 	// For now, we'll create a generic DLQ reader
 	dlqTopic := "dlq-messages"
-	
+
 	reader := kafka.NewReader(kafka.ReaderConfig{
 		Brokers:     p.brokers,
 		Topic:       dlqTopic,
@@ -614,7 +631,7 @@ func (p *KafkaMQPlugin) GetDeadLetterQueueMessages(ctx context.Context, limit in
 		messageID := ""
 		originalTopic := ""
 		dlqReason := ""
-		
+
 		for _, header := range msg.Headers {
 			switch header.Key {
 			case "message_id":
@@ -628,12 +645,12 @@ func (p *KafkaMQPlugin) GetDeadLetterQueueMessages(ctx context.Context, limit in
 
 		// Create core.MessageQueueMessage
 		queueMsg := core.MessageQueueMessage{
-			ID:                 messageID,
-			Topic:              originalTopic,
-			Payload:            msg.Value,
-			Timestamp:          msg.Time,
-			Offset:             msg.Offset,
-			DeadLetterReason:   dlqReason,
+			ID:               messageID,
+			Topic:            originalTopic,
+			Payload:          msg.Value,
+			Timestamp:        msg.Time,
+			Offset:           msg.Offset,
+			DeadLetterReason: dlqReason,
 		}
 
 		messages = append(messages, queueMsg)
@@ -742,6 +759,19 @@ func (p *KafkaMQPlugin) GetLastOffset(topic string) int64 {
 	return p.offsetTracking[topic]
 }
 
+func (p *KafkaMQPlugin) maxTrackedOffset() int64 {
+	p.offsetTrackingMutex.RLock()
+	defer p.offsetTrackingMutex.RUnlock()
+
+	var max int64
+	for _, offset := range p.offsetTracking {
+		if offset > max {
+			max = offset
+		}
+	}
+	return max
+}
+
 // SetLastOffset sets the last offset for a topic
 func (p *KafkaMQPlugin) SetLastOffset(topic string, offset int64) {
 	p.offsetTrackingMutex.Lock()
@@ -753,7 +783,7 @@ func (p *KafkaMQPlugin) SetLastOffset(topic string, offset int64) {
 func (p *KafkaMQPlugin) GetDLQReasonStats() map[string]int64 {
 	p.dlqReasonMutex.RLock()
 	defer p.dlqReasonMutex.RUnlock()
-	
+
 	// Create a copy to avoid external modifications
 	stats := make(map[string]int64)
 	for reason, count := range p.dlqReasonCounts {
@@ -804,7 +834,7 @@ func (p *KafkaMQPlugin) AcknowledgeMessageBatch(ctx context.Context, messages []
 
 	for _, msg := range messages {
 		messagesByTopic[msg.Topic] = append(messagesByTopic[msg.Topic], msg)
-		
+
 		// Track the maximum offset for each topic
 		if msg.Offset > maxOffsetByTopic[msg.Topic] {
 			maxOffsetByTopic[msg.Topic] = msg.Offset
@@ -1045,11 +1075,12 @@ func (p *KafkaMQPlugin) GetConsumerGroupStatus() map[string]interface{} {
 	defer p.mu.RUnlock()
 
 	return map[string]interface{}{
-		"consumer_group":  p.consumerGroup,
-		"active_consumers": len(p.consumers),
-		"is_running":      p.isRunning,
-		"message_count":   p.messageCount,
-		"error_count":     p.errorCount,
+		"consumer_group":     p.consumerGroup,
+		"active_consumers":   len(p.consumers),
+		"is_running":         p.isRunning,
+		"message_count":      p.messageCount,
+		"error_count":        p.errorCount,
+		"max_tracked_offset": p.maxTrackedOffset(),
 	}
 }
 

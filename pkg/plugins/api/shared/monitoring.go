@@ -13,15 +13,15 @@ type Monitoring struct {
 
 // ProtocolMetrics tracks metrics for a specific protocol
 type ProtocolMetrics struct {
-	name              string
-	totalRequests     int64
+	name               string
+	totalRequests      int64
 	successfulRequests int64
-	failedRequests    int64
-	totalDuration     time.Duration
-	minDuration       time.Duration
-	maxDuration       time.Duration
-	lastRequestTime   time.Time
-	mu                sync.RWMutex
+	failedRequests     int64
+	totalDuration      time.Duration
+	minDuration        time.Duration
+	maxDuration        time.Duration
+	lastRequestTime    time.Time
+	mu                 sync.RWMutex
 }
 
 // NewMonitoring creates a new monitoring instance
@@ -90,7 +90,81 @@ func (m *Monitoring) GetMetrics(protocol string) map[string]interface{} {
 		}
 	}
 
-	return metrics.getMetrics()
+	protocolMetrics := metrics.getMetrics()
+	totalRequests, _ := protocolMetrics["total_requests"].(int64)
+	successfulRequests, _ := protocolMetrics["successful_requests"].(int64)
+	failedRequests, _ := protocolMetrics["failed_requests"].(int64)
+	errorRate, _ := protocolMetrics["error_rate"].(float64)
+	avgDurationMS, _ := protocolMetrics["avg_duration_ms"].(int64)
+
+	coveragePosture := classifyMonitoringCoveragePosture(totalRequests, successfulRequests, failedRequests)
+	runtimePosture := classifyMonitoringRuntimePosture(totalRequests, errorRate, avgDurationMS)
+
+	protocolMetrics["coverage_posture"] = coveragePosture
+	protocolMetrics["runtime_posture"] = runtimePosture
+	protocolMetrics["reliability_hint"] = buildMonitoringReliabilityHint(coveragePosture, runtimePosture)
+	return protocolMetrics
+}
+
+// GetProtocolRuntimeMetrics returns protocol-scoped compact runtime metrics for
+// request health and delivery latency on top of raw monitoring counters.
+func (m *Monitoring) GetProtocolRuntimeMetrics(protocol string) map[string]interface{} {
+	metrics := m.GetMetrics(protocol)
+	if _, ok := metrics["error"]; ok {
+		return metrics
+	}
+
+	totalRequests, _ := metrics["total_requests"].(int64)
+	successfulRequests, _ := metrics["successful_requests"].(int64)
+	failedRequests, _ := metrics["failed_requests"].(int64)
+	errorRate, _ := metrics["error_rate"].(float64)
+	avgDurationMS, _ := metrics["avg_duration_ms"].(int64)
+
+	return map[string]interface{}{
+		"protocol":            protocol,
+		"total_requests":      totalRequests,
+		"successful_requests": successfulRequests,
+		"failed_requests":     failedRequests,
+		"success_rate":        metrics["success_rate"],
+		"error_rate":          errorRate,
+		"avg_duration_ms":     avgDurationMS,
+		"last_request_time":   metrics["last_request_time"],
+		"coverage_posture":    metrics["coverage_posture"],
+		"runtime_posture":     metrics["runtime_posture"],
+		"reliability_hint":    metrics["reliability_hint"],
+	}
+}
+
+// GetRuntimeMetrics returns an aggregate compact runtime surface across all
+// monitored protocols.
+func (m *Monitoring) GetRuntimeMetrics() map[string]interface{} {
+	totalRequests := m.GetTotalRequests()
+	successfulRequests := m.GetTotalSuccessfulRequests()
+	failedRequests := m.GetTotalFailedRequests()
+	avgDurationMS := m.GetAverageResponseTime().Milliseconds()
+
+	errorRate := 0.0
+	successRate := 0.0
+	if totalRequests > 0 {
+		errorRate = float64(failedRequests) / float64(totalRequests) * 100.0
+		successRate = float64(successfulRequests) / float64(totalRequests) * 100.0
+	}
+
+	coveragePosture := classifyMonitoringCoveragePosture(totalRequests, successfulRequests, failedRequests)
+	runtimePosture := classifyMonitoringRuntimePosture(totalRequests, errorRate, avgDurationMS)
+
+	return map[string]interface{}{
+		"protocol_count":      m.GetProtocolCount(),
+		"total_requests":      totalRequests,
+		"successful_requests": successfulRequests,
+		"failed_requests":     failedRequests,
+		"success_rate":        successRate,
+		"error_rate":          errorRate,
+		"avg_duration_ms":     avgDurationMS,
+		"coverage_posture":    coveragePosture,
+		"runtime_posture":     runtimePosture,
+		"reliability_hint":    buildMonitoringReliabilityHint(coveragePosture, runtimePosture),
+	}
 }
 
 // getMetrics returns metrics from protocol metrics
@@ -114,17 +188,17 @@ func (pm *ProtocolMetrics) getMetrics() map[string]interface{} {
 	}
 
 	return map[string]interface{}{
-		"protocol":             pm.name,
-		"total_requests":       pm.totalRequests,
-		"successful_requests":  pm.successfulRequests,
-		"failed_requests":      pm.failedRequests,
-		"success_rate":         successRate,
-		"error_rate":           errorRate,
-		"avg_duration_ms":      avgDuration.Milliseconds(),
-		"min_duration_ms":      pm.minDuration.Milliseconds(),
-		"max_duration_ms":      pm.maxDuration.Milliseconds(),
-		"total_duration":       pm.totalDuration.String(),
-		"last_request_time":    pm.lastRequestTime,
+		"protocol":            pm.name,
+		"total_requests":      pm.totalRequests,
+		"successful_requests": pm.successfulRequests,
+		"failed_requests":     pm.failedRequests,
+		"success_rate":        successRate,
+		"error_rate":          errorRate,
+		"avg_duration_ms":     avgDuration.Milliseconds(),
+		"min_duration_ms":     pm.minDuration.Milliseconds(),
+		"max_duration_ms":     pm.maxDuration.Milliseconds(),
+		"total_duration":      pm.totalDuration.String(),
+		"last_request_time":   pm.lastRequestTime,
 	}
 }
 
@@ -237,4 +311,47 @@ func (m *Monitoring) GetAverageResponseTime() time.Duration {
 	}
 
 	return totalDuration / time.Duration(totalRequests)
+}
+
+func classifyMonitoringCoveragePosture(totalRequests int64, successfulRequests int64, failedRequests int64) string {
+	if totalRequests == 0 {
+		return "monitoring-unobserved"
+	}
+	if failedRequests == 0 {
+		return "monitoring-success-only"
+	}
+	if successfulRequests == 0 {
+		return "monitoring-fail-only"
+	}
+	return "monitoring-mixed"
+}
+
+func classifyMonitoringRuntimePosture(totalRequests int64, errorRate float64, avgDurationMS int64) string {
+	if totalRequests == 0 {
+		return "monitoring-unobserved"
+	}
+	if errorRate >= 50 {
+		return "monitoring-degraded"
+	}
+	if avgDurationMS > 1000 {
+		return "monitoring-slow"
+	}
+	return "monitoring-healthy"
+}
+
+func buildMonitoringReliabilityHint(coveragePosture string, runtimePosture string) string {
+	switch {
+	case runtimePosture == "monitoring-degraded":
+		return "protocol monitoring shows high failure rate; investigate request errors before treating the path as healthy"
+	case runtimePosture == "monitoring-slow":
+		return "protocol monitoring shows elevated latency; verify downstream responsiveness and request load"
+	case coveragePosture == "monitoring-fail-only":
+		return "protocol monitoring has only observed failures; verify availability before relying on this path"
+	case coveragePosture == "monitoring-mixed":
+		return "protocol monitoring shows mixed outcomes; continue observing success rate and failure drift"
+	case coveragePosture == "monitoring-success-only":
+		return "protocol monitoring is observing successful traffic with healthy runtime posture"
+	default:
+		return "protocol monitoring has not observed traffic yet"
+	}
 }

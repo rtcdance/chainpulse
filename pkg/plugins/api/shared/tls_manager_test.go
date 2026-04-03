@@ -277,3 +277,157 @@ func TestTLSManagerSetReloadTTL(t *testing.T) {
 	}
 	tm.mu.RUnlock()
 }
+
+func TestTLSManagerRuntimeMetricsReady(t *testing.T) {
+	certFile := "test_cert.pem"
+	keyFile := "test_key.pem"
+	defer func() {
+		if err := os.Remove(certFile); err != nil {
+			t.Logf("failed to remove cert file: %v", err)
+		}
+	}()
+	defer func() {
+		if err := os.Remove(keyFile); err != nil {
+			t.Logf("failed to remove key file: %v", err)
+		}
+	}()
+
+	generateTestCertificate(t, certFile, keyFile)
+
+	tm, err := NewTLSManager(certFile, keyFile)
+	if err != nil {
+		t.Fatalf("Failed to create TLS manager: %v", err)
+	}
+
+	metrics := tm.GetRuntimeMetrics()
+	if metrics["coverage_posture"] != "tls-ready" {
+		t.Errorf("expected tls-ready coverage posture, got %v", metrics["coverage_posture"])
+	}
+	if metrics["certificate_posture"] != "tls-ready" {
+		t.Errorf("expected tls-ready, got %v", metrics["certificate_posture"])
+	}
+	if metrics["reload_posture"] != "reload-fresh" {
+		t.Errorf("expected reload-fresh, got %v", metrics["reload_posture"])
+	}
+	if metrics["reliability_hint"] != "tls runtime is ready and certificate reload posture is healthy" {
+		t.Errorf("unexpected reliability hint: %v", metrics["reliability_hint"])
+	}
+}
+
+func TestTLSManagerMetricsIncludesPostureFields(t *testing.T) {
+	certFile := "test_cert.pem"
+	keyFile := "test_key.pem"
+	defer func() {
+		if err := os.Remove(certFile); err != nil {
+			t.Logf("failed to remove cert file: %v", err)
+		}
+	}()
+	defer func() {
+		if err := os.Remove(keyFile); err != nil {
+			t.Logf("failed to remove key file: %v", err)
+		}
+	}()
+
+	generateTestCertificate(t, certFile, keyFile)
+
+	tm, err := NewTLSManager(certFile, keyFile)
+	if err != nil {
+		t.Fatalf("Failed to create TLS manager: %v", err)
+	}
+
+	metrics := tm.GetMetrics()
+	if metrics["coverage_posture"] != "tls-ready" {
+		t.Errorf("expected tls-ready coverage posture, got %v", metrics["coverage_posture"])
+	}
+	if metrics["certificate_posture"] != "tls-ready" {
+		t.Errorf("expected tls-ready certificate posture, got %v", metrics["certificate_posture"])
+	}
+	if metrics["reload_posture"] != "reload-fresh" {
+		t.Errorf("expected reload-fresh, got %v", metrics["reload_posture"])
+	}
+	if metrics["reliability_hint"] != "tls runtime is ready and certificate reload posture is healthy" {
+		t.Errorf("unexpected reliability hint: %v", metrics["reliability_hint"])
+	}
+}
+
+func TestTLSManagerRuntimeMetricsReloadDue(t *testing.T) {
+	certFile := "test_cert.pem"
+	keyFile := "test_key.pem"
+	defer func() {
+		if err := os.Remove(certFile); err != nil {
+			t.Logf("failed to remove cert file: %v", err)
+		}
+	}()
+	defer func() {
+		if err := os.Remove(keyFile); err != nil {
+			t.Logf("failed to remove key file: %v", err)
+		}
+	}()
+
+	generateTestCertificate(t, certFile, keyFile)
+
+	tm, err := NewTLSManager(certFile, keyFile)
+	if err != nil {
+		t.Fatalf("Failed to create TLS manager: %v", err)
+	}
+
+	tm.mu.Lock()
+	tm.reloadTTL = time.Second
+	tm.lastReload = time.Now().Add(-2 * time.Second)
+	tm.mu.Unlock()
+
+	metrics := tm.GetRuntimeMetrics()
+	if metrics["coverage_posture"] != "tls-ready" {
+		t.Errorf("expected tls-ready coverage posture, got %v", metrics["coverage_posture"])
+	}
+	if metrics["reload_posture"] != "reload-due" {
+		t.Errorf("expected reload-due, got %v", metrics["reload_posture"])
+	}
+}
+
+func TestTLSManagerRuntimeMetricsUnobserved(t *testing.T) {
+	tm := &TLSManager{
+		reloadTTL: time.Hour,
+		metrics:   &TLSMetrics{},
+	}
+
+	metrics := tm.GetRuntimeMetrics()
+	if metrics["coverage_posture"] != "tls-unconfigured" {
+		t.Errorf("expected tls-unconfigured coverage posture, got %v", metrics["coverage_posture"])
+	}
+	if metrics["certificate_posture"] != "tls-unconfigured" {
+		t.Errorf("expected tls-unconfigured, got %v", metrics["certificate_posture"])
+	}
+	if metrics["reload_posture"] != "reload-unobserved" {
+		t.Errorf("expected reload-unobserved, got %v", metrics["reload_posture"])
+	}
+	if metrics["reliability_hint"] != "tls runtime is not configured yet" {
+		t.Errorf("unexpected reliability hint: %v", metrics["reliability_hint"])
+	}
+}
+
+func TestTLSManagerRuntimeMetricsDegraded(t *testing.T) {
+	tm := &TLSManager{
+		config:     &tls.Config{},
+		lastReload: time.Now(),
+		reloadTTL:  time.Hour,
+		metrics: &TLSMetrics{
+			reloads: 1,
+			errors:  1,
+		},
+	}
+
+	metrics := tm.GetRuntimeMetrics()
+	if metrics["coverage_posture"] != "tls-degraded" {
+		t.Errorf("expected tls-degraded coverage posture, got %v", metrics["coverage_posture"])
+	}
+	if metrics["certificate_posture"] != "tls-degraded" {
+		t.Errorf("expected tls-degraded certificate posture, got %v", metrics["certificate_posture"])
+	}
+	if metrics["reload_posture"] != "reload-error" {
+		t.Errorf("expected reload-error, got %v", metrics["reload_posture"])
+	}
+	if metrics["reliability_hint"] != "tls runtime is degraded; inspect certificate loading and reload failures" {
+		t.Errorf("unexpected reliability hint: %v", metrics["reliability_hint"])
+	}
+}

@@ -58,6 +58,28 @@ func NewBaseResponse(writer io.Writer) *BaseResponse {
 	}
 }
 
+// GetRuntimeMetrics returns a compact runtime surface for response readiness
+// on top of status, body/header coverage, send state, and writer presence.
+func (r *BaseResponse) GetRuntimeMetrics() map[string]interface{} {
+	headerCount := len(r.headers)
+	bodyBytes := len(r.body)
+	writerConfigured := r.writer != nil
+
+	coveragePosture := classifyBaseResponseCoveragePosture(headerCount, bodyBytes)
+	runtimePosture := classifyBaseResponseRuntimePosture(r.headersSent, writerConfigured, bodyBytes)
+
+	return map[string]interface{}{
+		"status":            r.status,
+		"header_count":      headerCount,
+		"body_bytes":        bodyBytes,
+		"headers_sent":      r.headersSent,
+		"writer_configured": writerConfigured,
+		"coverage_posture":  coveragePosture,
+		"runtime_posture":   runtimePosture,
+		"reliability_hint":  buildBaseResponseReliabilityHint(coveragePosture, runtimePosture),
+	}
+}
+
 // SetStatus sets the HTTP status code
 func (r *BaseResponse) SetStatus(code int) {
 	if !r.headersSent {
@@ -113,4 +135,45 @@ func (r *BaseResponse) Send() error {
 // IsHeadersSent returns whether headers have been sent
 func (r *BaseResponse) IsHeadersSent() bool {
 	return r.headersSent
+}
+
+func classifyBaseResponseCoveragePosture(headerCount int, bodyBytes int) string {
+	if headerCount == 0 && bodyBytes == 0 {
+		return "response-empty"
+	}
+	if headerCount == 0 {
+		return "response-body-only"
+	}
+	if bodyBytes == 0 {
+		return "response-headers-only"
+	}
+	return "response-complete"
+}
+
+func classifyBaseResponseRuntimePosture(headersSent bool, writerConfigured bool, bodyBytes int) string {
+	if !writerConfigured {
+		return "response-degraded"
+	}
+	if headersSent {
+		return "response-sent"
+	}
+	if bodyBytes == 0 {
+		return "response-staged"
+	}
+	return "response-ready"
+}
+
+func buildBaseResponseReliabilityHint(coveragePosture string, runtimePosture string) string {
+	switch {
+	case runtimePosture == "response-degraded":
+		return "response writer is not configured; verify response sink wiring before relying on send behavior"
+	case runtimePosture == "response-sent":
+		return "response has already been sent; further status and header mutations will not apply"
+	case coveragePosture == "response-empty":
+		return "response has no headers or body yet; populate payload before treating it as ready"
+	case coveragePosture == "response-complete" && runtimePosture == "response-ready":
+		return "response has headers and body staged with a writer configured and is ready to send"
+	default:
+		return "response is partially staged; verify payload completeness before sending"
+	}
 }

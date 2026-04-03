@@ -252,3 +252,105 @@ func TestConnectionPoolClose(t *testing.T) {
 		t.Fatal("expected error when acquiring from closed pool")
 	}
 }
+
+func TestConnectionPoolRuntimeMetricsHealthy(t *testing.T) {
+	factory := &MockConnectionFactory{}
+	pool := NewConnectionPool("test", factory, 5, 1*time.Minute)
+	defer func() {
+		if err := pool.Close(); err != nil {
+			t.Logf("failed to close pool: %v", err)
+		}
+	}()
+
+	conn, err := pool.Acquire(context.Background())
+	if err != nil {
+		t.Fatalf("failed to acquire connection: %v", err)
+	}
+	if err := pool.Release(conn); err != nil {
+		t.Fatalf("failed to release connection: %v", err)
+	}
+
+	metrics := pool.GetRuntimeMetrics()
+	if metrics["coverage_posture"] != "pool-available" {
+		t.Fatalf("expected pool-available coverage, got %v", metrics["coverage_posture"])
+	}
+	if metrics["capacity_posture"] != "pool-available" {
+		t.Fatalf("expected pool-available capacity, got %v", metrics["capacity_posture"])
+	}
+	if metrics["runtime_posture"] != "pool-healthy" {
+		t.Fatalf("expected pool-healthy, got %v", metrics["runtime_posture"])
+	}
+}
+
+func TestConnectionPoolMetricsIncludesPostureFields(t *testing.T) {
+	factory := &MockConnectionFactory{}
+	pool := NewConnectionPool("test", factory, 5, 1*time.Minute)
+	defer func() {
+		if err := pool.Close(); err != nil {
+			t.Logf("failed to close pool: %v", err)
+		}
+	}()
+
+	conn, err := pool.Acquire(context.Background())
+	if err != nil {
+		t.Fatalf("failed to acquire connection: %v", err)
+	}
+	if err := pool.Release(conn); err != nil {
+		t.Fatalf("failed to release connection: %v", err)
+	}
+
+	metrics := pool.GetMetrics()
+	if metrics["coverage_posture"] != "pool-available" {
+		t.Fatalf("expected pool-available coverage, got %v", metrics["coverage_posture"])
+	}
+	if metrics["capacity_posture"] != "pool-available" {
+		t.Fatalf("expected pool-available capacity, got %v", metrics["capacity_posture"])
+	}
+	if metrics["runtime_posture"] != "pool-healthy" {
+		t.Fatalf("expected pool-healthy runtime, got %v", metrics["runtime_posture"])
+	}
+	if metrics["reliability_hint"] != "connection pool is healthy with available capacity" {
+		t.Fatalf("unexpected reliability hint: %v", metrics["reliability_hint"])
+	}
+}
+
+func TestConnectionPoolRuntimeMetricsUnobserved(t *testing.T) {
+	factory := &MockConnectionFactory{}
+	pool := NewConnectionPool("test", factory, 5, 1*time.Minute)
+	defer func() {
+		if err := pool.Close(); err != nil {
+			t.Logf("failed to close pool: %v", err)
+		}
+	}()
+
+	metrics := pool.GetRuntimeMetrics()
+	if metrics["coverage_posture"] != "pool-idle" {
+		t.Fatalf("expected pool-idle coverage, got %v", metrics["coverage_posture"])
+	}
+	if metrics["runtime_posture"] != "pool-unobserved" {
+		t.Fatalf("expected pool-unobserved, got %v", metrics["runtime_posture"])
+	}
+}
+
+func TestConnectionPoolRuntimeMetricsDegraded(t *testing.T) {
+	factory := &MockConnectionFactory{}
+	pool := NewConnectionPool("test", factory, 5, 1*time.Minute)
+	defer func() {
+		if err := pool.Close(); err != nil {
+			t.Logf("failed to close pool: %v", err)
+		}
+	}()
+
+	pool.recordError()
+
+	metrics := pool.GetRuntimeMetrics()
+	if metrics["coverage_posture"] != "pool-idle" {
+		t.Fatalf("expected pool-idle coverage, got %v", metrics["coverage_posture"])
+	}
+	if metrics["runtime_posture"] != "pool-degraded" {
+		t.Fatalf("expected pool-degraded, got %v", metrics["runtime_posture"])
+	}
+	if metrics["reliability_hint"] != "connection pool is degraded; inspect factory failures and unhealthy connection churn" {
+		t.Fatalf("unexpected reliability hint: %v", metrics["reliability_hint"])
+	}
+}

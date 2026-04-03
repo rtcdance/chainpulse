@@ -289,6 +289,17 @@ LOG_LEVEL=debug ./chainpulse-event-processor-debug
 - **Database**: Stores processed events
 - **Message Queue**: Kafka for event streaming
 
+## Optional Security Surface
+
+The event-processor runtime/control endpoints can be protected with the same
+optional auth and rate-limit surface used by the other services:
+
+- `EVENT_PROCESSOR_AUTH_ENABLED`
+- `EVENT_PROCESSOR_AUTH_JWT_SECRET`
+- `EVENT_PROCESSOR_AUTH_API_KEYS`
+- `EVENT_PROCESSOR_RATE_LIMIT_ENABLED`
+- `EVENT_PROCESSOR_RATE_LIMIT`
+
 ## Support
 
 For issues or questions:

@@ -353,6 +353,17 @@ curl http://localhost:8082/metrics | grep -E "processed|consumed|latency"
 4. **Monitoring**: Check `/metrics` endpoint regularly
 5. **Scaling**: Add more replicas as needed
 
+## Optional Security Surface
+
+Enable the event-processor security surface only when you need to gate the
+runtime control and read endpoints:
+
+- `EVENT_PROCESSOR_AUTH_ENABLED=true`
+- `EVENT_PROCESSOR_AUTH_JWT_SECRET=...`
+- `EVENT_PROCESSOR_AUTH_API_KEYS=svc-key=client-1,svc-key-2=client-2`
+- `EVENT_PROCESSOR_RATE_LIMIT_ENABLED=true`
+- `EVENT_PROCESSOR_RATE_LIMIT=100`
+
 ## Monitoring Metrics
 
 Key metrics to monitor:

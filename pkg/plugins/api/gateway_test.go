@@ -1,0 +1,85 @@
+package api
+
+import (
+	"testing"
+
+	"chainpulse/pkg/core"
+)
+
+func TestAPIGatewayPluginDomainBridgeToggle(t *testing.T) {
+	logger := core.NewDefaultLogger(core.LogLevelInfo)
+	metrics := core.NewDefaultMetricsCollector()
+	plugin := NewAPIGatewayPlugin(logger, metrics)
+
+	if plugin.IsDomainBridgeEnabled() {
+		t.Fatal("expected domain bridge to be disabled by default")
+	}
+
+	plugin.SetDomainQueryService(nil)
+	if plugin.IsDomainBridgeEnabled() {
+		t.Fatal("expected domain bridge to remain disabled when service is nil")
+	}
+}
+
+func TestAPIGatewayPluginEventQueryHandlerToggle(t *testing.T) {
+	logger := core.NewDefaultLogger(core.LogLevelInfo)
+	metrics := core.NewDefaultMetricsCollector()
+	plugin := NewAPIGatewayPlugin(logger, metrics)
+
+	if plugin.IsEventQueryHandlerEnabled() {
+		t.Fatal("expected event query handler to be disabled by default")
+	}
+
+	plugin.SetEventQueryHandler(nil)
+	if plugin.IsEventQueryHandlerEnabled() {
+		t.Fatal("expected event query handler to remain disabled when handler is nil")
+	}
+}
+
+func TestAPIGatewayPluginRuntimeRoutesEnabledWhenHandlersWired(t *testing.T) {
+	logger := core.NewDefaultLogger(core.LogLevelInfo)
+	metrics := core.NewDefaultMetricsCollector()
+	plugin := NewAPIGatewayPlugin(logger, metrics)
+
+	plugin.SetEventQueryHandler(NewEventQueryHandler(nil, logger, metrics))
+	plugin.SetEventSubscriptionHandler(NewEventSubscriptionHandler(nil, logger, metrics))
+	plugin.SetHealthCheckHandler(NewHealthCheckHandler(nil, logger, metrics))
+
+	if err := plugin.Initialize(core.Config{}); err != nil {
+		t.Fatalf("initialize plugin: %v", err)
+	}
+
+	if !plugin.IsRuntimeRoutesEnabled() {
+		t.Fatal("expected runtime routes to be enabled when handlers are wired")
+	}
+}
+
+func TestAPIGatewayPluginEventSubscriptionHandlerToggle(t *testing.T) {
+	logger := core.NewDefaultLogger(core.LogLevelInfo)
+	metrics := core.NewDefaultMetricsCollector()
+	plugin := NewAPIGatewayPlugin(logger, metrics)
+
+	if plugin.IsEventSubscriptionHandlerEnabled() {
+		t.Fatal("expected event subscription handler to be disabled by default")
+	}
+
+	plugin.SetEventSubscriptionHandler(nil)
+	if plugin.IsEventSubscriptionHandlerEnabled() {
+		t.Fatal("expected event subscription handler to remain disabled when handler is nil")
+	}
+}
+
+func TestAPIGatewayPluginHealthCheckHandlerToggle(t *testing.T) {
+	logger := core.NewDefaultLogger(core.LogLevelInfo)
+	metrics := core.NewDefaultMetricsCollector()
+	plugin := NewAPIGatewayPlugin(logger, metrics)
+
+	if plugin.IsHealthCheckHandlerEnabled() {
+		t.Fatal("expected health check handler to be disabled by default")
+	}
+
+	plugin.SetHealthCheckHandler(nil)
+	if plugin.IsHealthCheckHandlerEnabled() {
+		t.Fatal("expected health check handler to remain disabled when handler is nil")
+	}
+}

@@ -275,6 +275,80 @@ func TestPluginRegistryMetrics(t *testing.T) {
 	}
 }
 
+func TestPluginRegistryMetricsIncludesPostureFields(t *testing.T) {
+	registry := NewPluginRegistry()
+	plugin := NewMockPlugin("plugin-ready")
+
+	if err := registry.Register(plugin); err != nil {
+		t.Fatalf("register failed: %v", err)
+	}
+	if err := registry.Start("plugin-ready"); err != nil {
+		t.Fatalf("start failed: %v", err)
+	}
+
+	metrics := registry.GetRegistryMetrics()
+	if metrics["coverage_posture"] != "registry-running-only" {
+		t.Fatalf("expected registry-running-only, got %v", metrics["coverage_posture"])
+	}
+	if metrics["runtime_posture"] != "registry-ready" {
+		t.Fatalf("expected registry-ready, got %v", metrics["runtime_posture"])
+	}
+	if metrics["reliability_hint"] != "plugin registry has active plugins running without registry-level error drift" {
+		t.Fatalf("unexpected reliability hint: %v", metrics["reliability_hint"])
+	}
+}
+
+func TestPluginRegistryRuntimeMetricsUnobserved(t *testing.T) {
+	registry := NewPluginRegistry()
+
+	metrics := registry.GetRuntimeMetrics()
+	if metrics["coverage_posture"] != "registry-empty" {
+		t.Fatalf("expected registry-empty, got %v", metrics["coverage_posture"])
+	}
+	if metrics["runtime_posture"] != "registry-unobserved" {
+		t.Fatalf("expected registry-unobserved, got %v", metrics["runtime_posture"])
+	}
+}
+
+func TestPluginRegistryRuntimeMetricsReady(t *testing.T) {
+	registry := NewPluginRegistry()
+	plugin := NewMockPlugin("plugin-ready")
+
+	if err := registry.Register(plugin); err != nil {
+		t.Fatalf("register failed: %v", err)
+	}
+	if err := registry.Start("plugin-ready"); err != nil {
+		t.Fatalf("start failed: %v", err)
+	}
+
+	metrics := registry.GetRuntimeMetrics()
+	if metrics["coverage_posture"] != "registry-running-only" {
+		t.Fatalf("expected registry-running-only, got %v", metrics["coverage_posture"])
+	}
+	if metrics["runtime_posture"] != "registry-ready" {
+		t.Fatalf("expected registry-ready, got %v", metrics["runtime_posture"])
+	}
+}
+
+func TestPluginRegistryRuntimeMetricsDegraded(t *testing.T) {
+	registry := NewPluginRegistry()
+	plugin := NewMockPlugin("plugin-error")
+
+	if err := registry.Register(plugin); err != nil {
+		t.Fatalf("register failed: %v", err)
+	}
+	plugin.status = PluginStatusError
+	registry.recordError()
+
+	metrics := registry.GetRuntimeMetrics()
+	if metrics["coverage_posture"] != "registry-error-only" {
+		t.Fatalf("expected registry-error-only, got %v", metrics["coverage_posture"])
+	}
+	if metrics["runtime_posture"] != "registry-degraded" {
+		t.Fatalf("expected registry-degraded, got %v", metrics["runtime_posture"])
+	}
+}
+
 func TestPluginRegistryGetNonexistent(t *testing.T) {
 	registry := NewPluginRegistry()
 

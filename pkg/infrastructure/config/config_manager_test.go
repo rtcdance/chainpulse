@@ -13,25 +13,32 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func skipConfigWatchTestsInShortMode(t *testing.T) {
+	t.Helper()
+	if testing.Short() {
+		t.Skip("skipping config watch concurrency test in short mode")
+	}
+}
+
 // MockConsulClient is a mock implementation of ConsulClient for testing
 type MockConsulClient struct {
-	mu              sync.RWMutex
-	data            map[string]string
-	getConfigErr    error
-	setConfigErr    error
-	watchConfigErr  error
-	watchHandlers   map[string][]func(string)
-	watchContexts   map[string]context.Context
-	watchCancels    map[string]context.CancelFunc
+	mu             sync.RWMutex
+	data           map[string]string
+	getConfigErr   error
+	setConfigErr   error
+	watchConfigErr error
+	watchHandlers  map[string][]func(string)
+	watchContexts  map[string]context.Context
+	watchCancels   map[string]context.CancelFunc
 }
 
 // NewMockConsulClient creates a new mock Consul client
 func NewMockConsulClient() *MockConsulClient {
 	return &MockConsulClient{
-		data:           make(map[string]string),
-		watchHandlers:  make(map[string][]func(string)),
-		watchContexts:  make(map[string]context.Context),
-		watchCancels:   make(map[string]context.CancelFunc),
+		data:          make(map[string]string),
+		watchHandlers: make(map[string][]func(string)),
+		watchContexts: make(map[string]context.Context),
+		watchCancels:  make(map[string]context.CancelFunc),
 	}
 }
 
@@ -377,6 +384,8 @@ func TestGetCacheSize(t *testing.T) {
 
 // TestWatchConfig tests watching configuration changes
 func TestWatchConfig(t *testing.T) {
+	skipConfigWatchTestsInShortMode(t)
+
 	consul := NewMockConsulClient()
 	err := consul.SetConfig(context.Background(), "watch_key", "initial_value")
 	assert.NoError(t, err)

@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/chainpulse/chainpulse/pkg/core"
+	"chainpulse/pkg/core"
 )
 
 type InMemoryCache struct {

@@ -16,12 +16,12 @@ type Authentication struct {
 
 // TokenInfo stores information about a token
 type TokenInfo struct {
-	token      string
-	userID     string
-	issuedAt   time.Time
-	expiresAt  time.Time
+	token       string
+	userID      string
+	issuedAt    time.Time
+	expiresAt   time.Time
 	permissions []string
-	mu         sync.RWMutex
+	mu          sync.RWMutex
 }
 
 // NewAuthentication creates a new authentication instance
@@ -276,8 +276,6 @@ func (a *Authentication) GetTokenCount() int {
 // GetMetrics returns authentication metrics
 func (a *Authentication) GetMetrics() map[string]interface{} {
 	a.mu.RLock()
-	defer a.mu.RUnlock()
-
 	activeTokens := 0
 	expiredTokens := 0
 	now := time.Now()
@@ -291,10 +289,78 @@ func (a *Authentication) GetMetrics() map[string]interface{} {
 		}
 		tokenInfo.mu.RUnlock()
 	}
+	totalTokens := len(a.tokens)
+	a.mu.RUnlock()
+
+	coveragePosture := classifyAuthenticationCoveragePosture(totalTokens, activeTokens, expiredTokens)
+	runtimePosture := classifyAuthenticationRuntimePosture(totalTokens, activeTokens, expiredTokens)
 
 	return map[string]interface{}{
-		"total_tokens":   len(a.tokens),
-		"active_tokens":  activeTokens,
-		"expired_tokens": expiredTokens,
+		"total_tokens":     totalTokens,
+		"active_tokens":    activeTokens,
+		"expired_tokens":   expiredTokens,
+		"coverage_posture": coveragePosture,
+		"runtime_posture":  runtimePosture,
+		"reliability_hint": buildAuthenticationReliabilityHint(coveragePosture, runtimePosture),
+	}
+}
+
+// GetRuntimeMetrics returns a compact runtime surface for token validity and
+// authentication readiness on top of the raw authentication metrics.
+func (a *Authentication) GetRuntimeMetrics() map[string]interface{} {
+	metrics := a.GetMetrics()
+
+	totalTokens, _ := metrics["total_tokens"].(int)
+	activeTokens, _ := metrics["active_tokens"].(int)
+	expiredTokens, _ := metrics["expired_tokens"].(int)
+
+	return map[string]interface{}{
+		"total_tokens":     totalTokens,
+		"active_tokens":    activeTokens,
+		"expired_tokens":   expiredTokens,
+		"coverage_posture": metrics["coverage_posture"],
+		"runtime_posture":  metrics["runtime_posture"],
+		"reliability_hint": metrics["reliability_hint"],
+	}
+}
+
+func classifyAuthenticationCoveragePosture(totalTokens int, activeTokens int, expiredTokens int) string {
+	if totalTokens == 0 {
+		return "auth-unconfigured"
+	}
+	if activeTokens == 0 && expiredTokens > 0 {
+		return "auth-expired-only"
+	}
+	if expiredTokens == 0 {
+		return "auth-active-only"
+	}
+	return "auth-mixed"
+}
+
+func classifyAuthenticationRuntimePosture(totalTokens int, activeTokens int, expiredTokens int) string {
+	if totalTokens == 0 {
+		return "auth-unobserved"
+	}
+	if activeTokens == 0 {
+		return "auth-degraded"
+	}
+	if expiredTokens > activeTokens {
+		return "auth-aging"
+	}
+	return "auth-ready"
+}
+
+func buildAuthenticationReliabilityHint(coveragePosture string, runtimePosture string) string {
+	switch {
+	case runtimePosture == "auth-degraded":
+		return "authentication runtime has no active tokens; refresh credentials before treating the surface as available"
+	case runtimePosture == "auth-aging":
+		return "authentication runtime has more expired than active tokens; verify token rotation and cleanup cadence"
+	case coveragePosture == "auth-mixed":
+		return "authentication runtime has mixed active and expired tokens; continue observing token freshness"
+	case coveragePosture == "auth-active-only":
+		return "authentication runtime has active tokens available and no expired-token drift"
+	default:
+		return "authentication runtime has not been configured with active tokens yet"
 	}
 }

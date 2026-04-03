@@ -74,6 +74,38 @@ func (r *APIRouter) Route(route string) Handler {
 	return handler
 }
 
+// RouteCount returns the number of registered routes.
+func (r *APIRouter) RouteCount() int {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return len(r.handlers)
+}
+
+// MiddlewareCount returns the number of registered middleware entries.
+func (r *APIRouter) MiddlewareCount() int {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return len(r.middleware)
+}
+
+// GetRuntimeMetrics returns a compact runtime surface for route coverage and
+// router readiness on top of the registered routes and middleware stack.
+func (r *APIRouter) GetRuntimeMetrics() map[string]interface{} {
+	routeCount := r.RouteCount()
+	middlewareCount := r.MiddlewareCount()
+
+	coveragePosture := classifyRouterCoveragePosture(routeCount, middlewareCount)
+	runtimePosture := classifyRouterRuntimePosture(routeCount, middlewareCount)
+
+	return map[string]interface{}{
+		"route_count":       routeCount,
+		"middleware_count":  middlewareCount,
+		"coverage_posture":  coveragePosture,
+		"runtime_posture":   runtimePosture,
+		"reliability_hint":  buildRouterReliabilityHint(coveragePosture, runtimePosture),
+	}
+}
+
 // Handle processes a request through the router
 func (r *APIRouter) Handle(req Request) (Response, error) {
 	route := req.Path()
@@ -163,6 +195,32 @@ func (a *APILayer) SetErrorMapper(mapper ErrorMapper) {
 	a.errorMapper = mapper
 }
 
+// GetRuntimeMetrics returns a compact runtime surface for API-layer route
+// readiness and error-mapper wiring on top of router/runtime state.
+func (a *APILayer) GetRuntimeMetrics() map[string]interface{} {
+	a.mu.RLock()
+	router := a.router
+	errorMapper := a.errorMapper
+	a.mu.RUnlock()
+
+	routerMetrics := router.GetRuntimeMetrics()
+	routeCount, _ := routerMetrics["route_count"].(int)
+	middlewareCount, _ := routerMetrics["middleware_count"].(int)
+	errorMapperConfigured := errorMapper != nil
+
+	coveragePosture := classifyAPILayerCoveragePosture(routeCount, middlewareCount, errorMapperConfigured)
+	runtimePosture := classifyAPILayerRuntimePosture(routeCount, middlewareCount, errorMapperConfigured)
+
+	return map[string]interface{}{
+		"route_count":             routeCount,
+		"middleware_count":        middlewareCount,
+		"error_mapper_configured": errorMapperConfigured,
+		"coverage_posture":        coveragePosture,
+		"runtime_posture":         runtimePosture,
+		"reliability_hint":        buildAPILayerReliabilityHint(coveragePosture, runtimePosture),
+	}
+}
+
 // Handle processes a request through the API layer
 func (a *APILayer) Handle(req Request) Response {
 	a.mu.RLock()
@@ -185,4 +243,78 @@ func (a *APILayer) Handle(req Request) Response {
 	}
 
 	return result
+}
+
+func classifyRouterCoveragePosture(routeCount int, middlewareCount int) string {
+	if routeCount == 0 {
+		return "router-empty"
+	}
+	if middlewareCount == 0 {
+		return "router-routes-only"
+	}
+	return "router-guarded"
+}
+
+func classifyRouterRuntimePosture(routeCount int, middlewareCount int) string {
+	if routeCount == 0 {
+		return "router-unobserved"
+	}
+	if middlewareCount == 0 {
+		return "router-watch"
+	}
+	return "router-ready"
+}
+
+func buildRouterReliabilityHint(coveragePosture string, runtimePosture string) string {
+	switch {
+	case runtimePosture == "router-unobserved":
+		return "api router has no registered routes yet"
+	case runtimePosture == "router-watch":
+		return "api router has routes but no middleware guardrails; verify whether this path is intentionally bare"
+	case coveragePosture == "router-guarded":
+		return "api router has registered routes with middleware coverage and is ready for request handling"
+	default:
+		return "api router is configured with routes"
+	}
+}
+
+func classifyAPILayerCoveragePosture(routeCount int, middlewareCount int, errorMapperConfigured bool) string {
+	if routeCount == 0 {
+		return "layer-empty"
+	}
+	if middlewareCount == 0 && !errorMapperConfigured {
+		return "layer-routes-only"
+	}
+	if errorMapperConfigured && middlewareCount == 0 {
+		return "layer-mapped"
+	}
+	return "layer-guarded"
+}
+
+func classifyAPILayerRuntimePosture(routeCount int, middlewareCount int, errorMapperConfigured bool) string {
+	if routeCount == 0 {
+		return "layer-unobserved"
+	}
+	if !errorMapperConfigured {
+		return "layer-watch"
+	}
+	if middlewareCount == 0 {
+		return "layer-ready"
+	}
+	return "layer-hardened"
+}
+
+func buildAPILayerReliabilityHint(coveragePosture string, runtimePosture string) string {
+	switch {
+	case runtimePosture == "layer-unobserved":
+		return "api layer has no registered routes yet"
+	case runtimePosture == "layer-watch":
+		return "api layer has routes but no error mapper configured; verify error translation before relying on runtime behavior"
+	case runtimePosture == "layer-ready":
+		return "api layer has routes and error mapping configured; add middleware only if route hardening is required"
+	case coveragePosture == "layer-guarded":
+		return "api layer has routes, error mapping, and middleware coverage and is ready for request handling"
+	default:
+		return "api layer is configured with routes"
+	}
 }

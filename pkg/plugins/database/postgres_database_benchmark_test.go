@@ -10,6 +10,8 @@ import (
 
 // BenchmarkBatchInsert benchmarks batch insert performance
 func BenchmarkBatchInsert(b *testing.B) {
+	requirePostgresIntegration(b)
+
 	config := &core.Config{
 		PostgresHost:     "localhost",
 		PostgresPort:     "5432",
@@ -65,9 +67,7 @@ func BenchmarkBatchInsert(b *testing.B) {
 
 // TestBatchInsertPerformance tests batch insert performance
 func TestBatchInsertPerformance(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping integration test in short mode")
-	}
+	requirePostgresIntegration(t)
 
 	config := &core.Config{
 		PostgresHost:     "localhost",
@@ -131,9 +131,7 @@ func TestBatchInsertPerformance(t *testing.T) {
 
 // TestBatchInsertVariousSizes tests performance with different batch sizes
 func TestBatchInsertVariousSizes(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping integration test in short mode")
-	}
+	requirePostgresIntegration(t)
 
 	config := &core.Config{
 		PostgresHost:     "localhost",
@@ -191,9 +189,7 @@ func TestBatchInsertVariousSizes(t *testing.T) {
 
 // TestSingleEventPerformance tests single event write performance
 func TestSingleEventPerformance(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping integration test in short mode")
-	}
+	requirePostgresIntegration(t)
 
 	config := &core.Config{
 		PostgresHost:     "localhost",
@@ -248,9 +244,7 @@ func TestSingleEventPerformance(t *testing.T) {
 
 // TestQueryPerformance tests query performance
 func TestQueryPerformance(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping integration test in short mode")
-	}
+	requirePostgresIntegration(t)
 
 	config := &core.Config{
 		PostgresHost:     "localhost",

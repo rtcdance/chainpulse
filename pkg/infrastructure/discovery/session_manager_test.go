@@ -8,6 +8,13 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func skipSessionManagerConcurrencyTestsInShortMode(t *testing.T) {
+	t.Helper()
+	if testing.Short() {
+		t.Skip("skipping session manager concurrency test in short mode")
+	}
+}
+
 // TestNewSessionManager tests creating a new session manager
 func TestNewSessionManager(t *testing.T) {
 	sm := NewSessionManager()
@@ -194,6 +201,8 @@ func TestSessionConcurrentAccess(t *testing.T) {
 
 // TestSessionConcurrentUpdate tests concurrent session updates
 func TestSessionConcurrentUpdate(t *testing.T) {
+	skipSessionManagerConcurrencyTestsInShortMode(t)
+
 	sm := NewSessionManager()
 	ctx := context.Background()
 
@@ -273,12 +282,12 @@ func TestSessionDataTypes(t *testing.T) {
 
 	session, _ := sm.CreateSession(ctx, "user123")
 	data := map[string]interface{}{
-		"string":  "value",
-		"int":     42,
-		"float":   3.14,
-		"bool":    true,
-		"slice":   []int{1, 2, 3},
-		"map":     map[string]string{"key": "value"},
+		"string": "value",
+		"int":    42,
+		"float":  3.14,
+		"bool":   true,
+		"slice":  []int{1, 2, 3},
+		"map":    map[string]string{"key": "value"},
 	}
 
 	_ = sm.UpdateSession(ctx, session.ID, data)

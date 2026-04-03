@@ -260,6 +260,14 @@ LOG_LEVEL=debug ./chainpulse-api-service-debug
 - Monitor for suspicious activity
 - Keep dependencies updated
 
+Optional security surface environment variables:
+
+- `API_SERVICE_AUTH_ENABLED`
+- `API_SERVICE_AUTH_JWT_SECRET`
+- `API_SERVICE_AUTH_API_KEYS`
+- `API_SERVICE_RATE_LIMIT_ENABLED`
+- `API_SERVICE_RATE_LIMIT`
+
 ## Related Services
 
 - **API Gateway** (8080): Entry point for all API requests

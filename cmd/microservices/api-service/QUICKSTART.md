@@ -12,11 +12,35 @@ Get the API Service running in 5 minutes.
 
 ## Option 1: Local Development
 
-### 1. Build the Service
+### Fastest Local Path
+
+From the repository root, the preferred local/dev entry is now:
 
 ```bash
-cd cmd/chainpulse-api-service
-make build
+scripts/run-local-runnable-app.sh
+```
+
+This starts the smallest useful local slice:
+
+- `api-service`
+- `api-gateway`
+
+If you want the broader four-service slice:
+
+```bash
+scripts/run-local-runnable-app.sh --profile full
+```
+
+After startup, the preferred focused verification entry is:
+
+```bash
+bash scripts/verify-local-runnable-app.sh --profile minimal
+```
+
+### 1. Start from the repository root
+
+```bash
+cd /Users/mingo/Applications/workspace/web3/project/chainpulse
 ```
 
 ### 2. Set Environment Variables
@@ -37,7 +61,7 @@ export LOG_LEVEL=info
 ### 3. Start the Service
 
 ```bash
-./chainpulse-api-service
+go run ./cmd/microservices/api-service
 ```
 
 You should see:
@@ -268,7 +292,7 @@ export API_MAX_BATCH_SIZE=50
    - See `docs/guides/DISTRIBUTED_DEPLOYMENT_COMPLETE_GUIDE.md`
 
 4. **Integrate**: Connect to other services
-   - See `cmd/chainpulse-api-gateway/README.md`
+   - See [`cmd/microservices/api-gateway/QUICKSTART.md`](/Users/mingo/Applications/workspace/web3/project/chainpulse/cmd/microservices/api-gateway/QUICKSTART.md)
 
 ## Configuration Reference
 
@@ -301,9 +325,17 @@ export API_MAX_BATCH_SIZE=50
 4. **Monitor**: Watch for suspicious activity
 5. **Update**: Keep dependencies updated
 
+Optional local security surface knobs:
+
+- `API_SERVICE_AUTH_ENABLED=true`
+- `API_SERVICE_AUTH_JWT_SECRET=...`
+- `API_SERVICE_AUTH_API_KEYS=svc-key=client-1,svc-key-2=client-2`
+- `API_SERVICE_RATE_LIMIT_ENABLED=true`
+- `API_SERVICE_RATE_LIMIT=100`
+
 ## Support
 
 For more information:
-- Full documentation: `cmd/chainpulse-api-service/README.md`
+- Full documentation: `cmd/microservices/api-service/README.md`
 - Architecture guide: `MICROSERVICES_ARCHITECTURE_START_HERE.md`
 - Deployment guide: `DISTRIBUTED_DEPLOYMENT_START_HERE.md`

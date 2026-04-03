@@ -12,9 +12,7 @@ import (
 
 // TestDatabaseIntegrationSuite runs comprehensive integration tests
 func TestDatabaseIntegrationSuite(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping integration test in short mode")
-	}
+	requirePostgresIntegration(t)
 
 	config := &core.Config{
 		PostgresHost:     "localhost",
@@ -199,9 +197,7 @@ func TestDatabaseIntegrationSuite(t *testing.T) {
 
 // TestDatabaseIntegrationWithErrors tests error handling
 func TestDatabaseIntegrationWithErrors(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping integration test in short mode")
-	}
+	requirePostgresIntegration(t)
 
 	config := &core.Config{
 		PostgresHost:     "localhost",
@@ -261,9 +257,7 @@ func TestDatabaseIntegrationWithErrors(t *testing.T) {
 
 // TestDatabaseIntegrationConcurrency tests concurrent operations
 func TestDatabaseIntegrationConcurrency(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping integration test in short mode")
-	}
+	requirePostgresIntegration(t)
 
 	config := &core.Config{
 		PostgresHost:     "localhost",

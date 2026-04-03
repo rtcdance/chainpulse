@@ -326,6 +326,17 @@ Configure via `STATE_BACKEND` environment variable.
 - **Message Queue**: Kafka for event streaming
 - **Database**: Stores state and events
 
+## Optional Security Surface
+
+The puller runtime/control endpoints can be protected with the same optional
+auth and rate-limit surface used by the other services:
+
+- `PULLER_AUTH_ENABLED`
+- `PULLER_AUTH_JWT_SECRET`
+- `PULLER_AUTH_API_KEYS`
+- `PULLER_RATE_LIMIT_ENABLED`
+- `PULLER_RATE_LIMIT`
+
 ## Support
 
 For issues or questions:

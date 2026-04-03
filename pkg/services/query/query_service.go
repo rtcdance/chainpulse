@@ -25,6 +25,23 @@ type QueryService interface {
 	Health(ctx context.Context) *core.HealthStatus
 }
 
+// RuntimeSummarizer provides a compact runtime summary for operator-facing
+// query service surfaces.
+type RuntimeSummarizer interface {
+	RuntimeSummary(ctx context.Context) *RuntimeSummary
+}
+
+// RuntimeSummary represents compact query runtime posture facts.
+type RuntimeSummary struct {
+	Status                 string
+	Message                string
+	QueryPosture           string
+	CachePosture           string
+	CircuitBreakerPosture  string
+	ConsistencyPosture     string
+	ReliabilityHint        string
+}
+
 // QueryRequest represents a query request
 type QueryRequest struct {
 	// Query type: "mongodb" or "postgresql"
@@ -399,5 +416,84 @@ func (qs *DefaultQueryService) Health(ctx context.Context) *core.HealthStatus {
 	return &core.HealthStatus{
 		Status:  "healthy",
 		Message: "Query service healthy",
+	}
+}
+
+// RuntimeSummary returns a compact query runtime summary suitable for
+// operator-facing runtime surfaces.
+func (qs *DefaultQueryService) RuntimeSummary(ctx context.Context) *RuntimeSummary {
+	health := qs.Health(ctx)
+	if health == nil {
+		health = &core.HealthStatus{
+			Status:  "unknown",
+			Message: "Query service health unavailable",
+		}
+	}
+
+	cachePosture := qs.classifyCachePosture(ctx)
+	queryPosture := classifyQueryRuntimePosture(health.Status)
+	circuitPosture := "circuit-not-wired"
+	consistencyPosture := "consistency-not-wired"
+
+	return &RuntimeSummary{
+		Status:                health.Status,
+		Message:               health.Message,
+		QueryPosture:          queryPosture,
+		CachePosture:          cachePosture,
+		CircuitBreakerPosture: circuitPosture,
+		ConsistencyPosture:    consistencyPosture,
+		ReliabilityHint:       buildQueryRuntimeReliabilityHint(health.Status, cachePosture),
+	}
+}
+
+func (qs *DefaultQueryService) classifyCachePosture(ctx context.Context) string {
+	if qs.cacheService == nil {
+		return "cache-unavailable"
+	}
+
+	health := qs.cacheService.Health(ctx)
+	if health == nil {
+		return "cache-unobserved"
+	}
+
+	switch health.Status {
+	case "healthy":
+		return "cache-ready"
+	case "degraded":
+		return "cache-degraded"
+	case "unhealthy":
+		return "cache-unhealthy"
+	default:
+		return "cache-unobserved"
+	}
+}
+
+func classifyQueryRuntimePosture(status string) string {
+	switch status {
+	case "healthy":
+		return "query-runtime-ready"
+	case "degraded":
+		return "query-runtime-degraded"
+	case "unhealthy":
+		return "query-runtime-unhealthy"
+	default:
+		return "query-runtime-unobserved"
+	}
+}
+
+func buildQueryRuntimeReliabilityHint(status, cachePosture string) string {
+	switch {
+	case status == "healthy" && cachePosture == "cache-ready":
+		return "query runtime is healthy and cache-first reads are available"
+	case status == "healthy":
+		return "query runtime is healthy, but cache posture should be verified before assuming cache-first reads"
+	case status == "degraded" && cachePosture == "cache-unhealthy":
+		return "query runtime is degraded and cache is unhealthy; expect store-backed reads while cache is restored"
+	case status == "degraded":
+		return "query runtime is degraded; investigate backing services before treating query reads as fully reliable"
+	case status == "unhealthy":
+		return "query runtime is unhealthy; restore backing services before relying on query reads"
+	default:
+		return "verify query runtime posture before relying on query service reads"
 	}
 }

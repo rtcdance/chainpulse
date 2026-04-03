@@ -14,6 +14,13 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func skipBlockchainClusterConcurrencyTestsInShortMode(t *testing.T) {
+	t.Helper()
+	if testing.Short() {
+		t.Skip("skipping blockchain cluster concurrency test in short mode")
+	}
+}
+
 // MockEventStore for testing
 type MockEventStore struct {
 	storedEvents []*processing.Event
@@ -344,6 +351,8 @@ func TestManagerGetMetrics(t *testing.T) {
 
 // TestConcurrentProcessing tests concurrent event processing
 func TestConcurrentProcessing(t *testing.T) {
+	skipBlockchainClusterConcurrencyTestsInShortMode(t)
+
 	cluster := NewBlockchainCluster("test-cluster", "EVM", 2, 5)
 	_ = cluster.Deploy(context.Background())
 

@@ -162,3 +162,79 @@ func TestResponseCompressorDecompressUncompressed(t *testing.T) {
 		t.Fatal("decompressed data is nil")
 	}
 }
+
+func TestResponseCompressorRuntimeMetricsUnobserved(t *testing.T) {
+	compressor := NewResponseCompressor(CompressionDefault)
+
+	metrics := compressor.GetRuntimeMetrics()
+	if metrics["coverage_posture"] != "compression-unobserved" {
+		t.Fatalf("expected compression-unobserved, got %v", metrics["coverage_posture"])
+	}
+	if metrics["efficiency_posture"] != "compression-unobserved" {
+		t.Fatalf("expected compression-unobserved efficiency, got %v", metrics["efficiency_posture"])
+	}
+}
+
+func TestResponseCompressorMetricsIncludesPostureFields(t *testing.T) {
+	compressor := NewResponseCompressor(CompressionDefault)
+
+	data := make(map[string]interface{})
+	for i := 0; i < 120; i++ {
+		data[string(rune(i))] = "this is a repeated test value that should compress well"
+	}
+
+	_, err := compressor.Compress(data)
+	if err != nil {
+		t.Fatalf("failed to compress payload: %v", err)
+	}
+
+	metrics := compressor.GetMetrics()
+	if metrics["coverage_posture"] != "compression-active" {
+		t.Fatalf("expected compression-active, got %v", metrics["coverage_posture"])
+	}
+	if metrics["efficiency_posture"] != "compression-efficient" {
+		t.Fatalf("expected compression-efficient, got %v", metrics["efficiency_posture"])
+	}
+	if metrics["reliability_hint"] != "compression runtime is active and operating within expected efficiency" {
+		t.Fatalf("unexpected reliability hint: %v", metrics["reliability_hint"])
+	}
+}
+
+func TestResponseCompressorRuntimeMetricsBypassed(t *testing.T) {
+	compressor := NewResponseCompressor(CompressionDefault)
+
+	_, err := compressor.Compress(map[string]interface{}{"id": "123"})
+	if err != nil {
+		t.Fatalf("failed to compress small payload: %v", err)
+	}
+
+	metrics := compressor.GetRuntimeMetrics()
+	if metrics["coverage_posture"] != "compression-bypassed" {
+		t.Fatalf("expected compression-bypassed, got %v", metrics["coverage_posture"])
+	}
+	if metrics["efficiency_posture"] != "compression-idle" {
+		t.Fatalf("expected compression-idle, got %v", metrics["efficiency_posture"])
+	}
+}
+
+func TestResponseCompressorRuntimeMetricsEfficient(t *testing.T) {
+	compressor := NewResponseCompressor(CompressionDefault)
+
+	data := make(map[string]interface{})
+	for i := 0; i < 120; i++ {
+		data[string(rune(i))] = "this is a repeated test value that should compress well"
+	}
+
+	_, err := compressor.Compress(data)
+	if err != nil {
+		t.Fatalf("failed to compress payload: %v", err)
+	}
+
+	metrics := compressor.GetRuntimeMetrics()
+	if metrics["coverage_posture"] != "compression-active" {
+		t.Fatalf("expected compression-active, got %v", metrics["coverage_posture"])
+	}
+	if metrics["efficiency_posture"] != "compression-efficient" {
+		t.Fatalf("expected compression-efficient, got %v", metrics["efficiency_posture"])
+	}
+}

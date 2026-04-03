@@ -6,12 +6,12 @@ import (
 	"sync"
 
 	"chainpulse/pkg/core"
-	"chainpulse/pkg/services/query"
+	domainquery "chainpulse/pkg/domain/query"
 )
 
 // GraphQLHandler handles GraphQL requests
 type GraphQLHandler struct {
-	queryService query.QueryService
+	queryService domainquery.Service
 	logger       core.Logger
 	metrics      core.MetricsCollector
 	mu           sync.RWMutex
@@ -19,7 +19,7 @@ type GraphQLHandler struct {
 }
 
 // NewGraphQLHandler creates a new GraphQL handler
-func NewGraphQLHandler(queryService query.QueryService, logger core.Logger, metrics core.MetricsCollector) *GraphQLHandler {
+func NewGraphQLHandler(queryService domainquery.Service, logger core.Logger, metrics core.MetricsCollector) *GraphQLHandler {
 	return &GraphQLHandler{
 		queryService: queryService,
 		logger:       logger,

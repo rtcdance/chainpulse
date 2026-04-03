@@ -359,3 +359,93 @@ func (r *MiddlewareRegistry) GetAllMiddleware() []core.Middleware {
 
 	return middlewares
 }
+
+// GetRuntimeMetrics returns a compact runtime surface for middleware coverage
+// and registry readiness on top of the grouped middleware configuration.
+func (r *MiddlewareRegistry) GetRuntimeMetrics() map[string]interface{} {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	securityCount := 0
+	observabilityCount := 0
+	performanceCount := 0
+	errorHandlingEnabled := false
+
+	if r.security != nil {
+		securityCount = len(r.security.GetMiddlewares())
+	}
+	if r.observability != nil {
+		observabilityCount = len(r.observability.GetMiddlewares())
+	}
+	if r.performance != nil {
+		performanceCount = len(r.performance.GetMiddlewares())
+	}
+	if r.errorHandling != nil {
+		errorHandlingEnabled = true
+	}
+
+	totalMiddleware := securityCount + observabilityCount + performanceCount
+	if errorHandlingEnabled {
+		totalMiddleware++
+	}
+
+	coveragePosture := classifyMiddlewareCoveragePosture(totalMiddleware, securityCount, observabilityCount, performanceCount, errorHandlingEnabled)
+	runtimePosture := classifyMiddlewareRuntimePosture(totalMiddleware, securityCount, observabilityCount, performanceCount, errorHandlingEnabled)
+
+	return map[string]interface{}{
+		"total_middleware":         totalMiddleware,
+		"security_count":          securityCount,
+		"observability_count":     observabilityCount,
+		"performance_count":       performanceCount,
+		"error_handling_enabled":  errorHandlingEnabled,
+		"coverage_posture":        coveragePosture,
+		"runtime_posture":         runtimePosture,
+		"reliability_hint":        buildMiddlewareReliabilityHint(coveragePosture, runtimePosture),
+	}
+}
+
+func classifyMiddlewareCoveragePosture(totalMiddleware int, securityCount int, observabilityCount int, performanceCount int, errorHandlingEnabled bool) string {
+	if totalMiddleware == 0 {
+		return "middleware-unconfigured"
+	}
+	if securityCount > 0 && observabilityCount > 0 && performanceCount > 0 && errorHandlingEnabled {
+		return "middleware-full-stack"
+	}
+	if securityCount == 0 && observabilityCount == 0 && performanceCount == 0 && errorHandlingEnabled {
+		return "middleware-error-only"
+	}
+	return "middleware-partial"
+}
+
+func classifyMiddlewareRuntimePosture(totalMiddleware int, securityCount int, observabilityCount int, performanceCount int, errorHandlingEnabled bool) string {
+	if totalMiddleware == 0 {
+		return "middleware-unobserved"
+	}
+	if securityCount == 0 || observabilityCount == 0 {
+		return "middleware-degraded"
+	}
+	if !errorHandlingEnabled {
+		return "middleware-watch"
+	}
+	if performanceCount == 0 {
+		return "middleware-balanced"
+	}
+	return "middleware-ready"
+}
+
+func buildMiddlewareReliabilityHint(coveragePosture string, runtimePosture string) string {
+	switch {
+	case runtimePosture == "middleware-degraded":
+		return "middleware registry is missing core security or observability coverage; verify baseline protection before relying on the stack"
+	case runtimePosture == "middleware-watch":
+		return "middleware registry has core groups but lacks error-handling wiring; verify mapped error behavior before treating the stack as complete"
+	case coveragePosture == "middleware-error-only":
+		return "middleware registry is only exposing error handling; add baseline security and observability coverage before relying on the chain"
+	case coveragePosture == "middleware-partial":
+		return "middleware registry has partial group coverage; continue observing whether the configured stack matches route expectations"
+	case coveragePosture == "middleware-full-stack":
+		return "middleware registry has a balanced stack with security, observability, performance, and error handling coverage"
+	default:
+		return "middleware registry has not been configured yet"
+	}
+}

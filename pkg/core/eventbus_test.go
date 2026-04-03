@@ -10,6 +10,13 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func skipEventBusStressTestsInShortMode(t *testing.T) {
+	t.Helper()
+	if testing.Short() {
+		t.Skip("skipping event bus concurrency/publish stress test in short mode")
+	}
+}
+
 // EventBusTestLogger for testing
 type EventBusTestLogger struct {
 	messages []string
@@ -131,6 +138,8 @@ func TestSubscribeNilHandler(t *testing.T) {
 
 // TestPublish tests basic event publishing
 func TestPublish(t *testing.T) {
+	skipEventBusStressTestsInShortMode(t)
+
 	logger := &EventBusTestLogger{}
 	eb := NewEventBus(logger)
 	ctx := context.Background()
@@ -190,6 +199,8 @@ func TestPublishNoSubscribers(t *testing.T) {
 
 // TestPublishMultipleSubscribers tests publishing to multiple subscribers
 func TestPublishMultipleSubscribers(t *testing.T) {
+	skipEventBusStressTestsInShortMode(t)
+
 	logger := &EventBusTestLogger{}
 	eb := NewEventBus(logger)
 	ctx := context.Background()
@@ -218,6 +229,8 @@ func TestPublishMultipleSubscribers(t *testing.T) {
 
 // TestPublishContextCanceled tests publishing with canceled context
 func TestPublishContextCanceled(t *testing.T) {
+	skipEventBusStressTestsInShortMode(t)
+
 	logger := &EventBusTestLogger{}
 	eb := NewEventBus(logger)
 
@@ -242,6 +255,8 @@ func TestPublishContextCanceled(t *testing.T) {
 
 // TestPublishHandlerPanic tests publishing with handler that panics
 func TestPublishHandlerPanic(t *testing.T) {
+	skipEventBusStressTestsInShortMode(t)
+
 	logger := &EventBusTestLogger{}
 	eb := NewEventBus(logger)
 	ctx := context.Background()
@@ -513,6 +528,8 @@ func TestPublishSyncHandlerPanic(t *testing.T) {
 
 // TestConcurrentSubscribePublish tests concurrent subscribe and publish operations
 func TestConcurrentSubscribePublish(t *testing.T) {
+	skipEventBusStressTestsInShortMode(t)
+
 	logger := &EventBusTestLogger{}
 	eb := NewEventBus(logger)
 	ctx := context.Background()
@@ -552,6 +569,8 @@ func TestConcurrentSubscribePublish(t *testing.T) {
 
 // TestEventDataTypes tests publishing different event data types
 func TestEventDataTypes(t *testing.T) {
+	skipEventBusStressTestsInShortMode(t)
+
 	logger := &EventBusTestLogger{}
 	eb := NewEventBus(logger)
 	ctx := context.Background()

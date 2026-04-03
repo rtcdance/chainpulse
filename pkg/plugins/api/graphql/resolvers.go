@@ -7,17 +7,17 @@ import (
 	"time"
 
 	"chainpulse/pkg/core"
-	"chainpulse/pkg/services/query"
+	domainquery "chainpulse/pkg/domain/query"
 	"github.com/graphql-go/graphql"
 )
 
 // ResolverContext holds context for resolvers
 type ResolverContext struct {
-	EventStore    query.EventStore
-	Logger        core.Logger
-	Metrics       core.MetricsCollector
-	Cache         core.CachePlugin
-	AuthContext   *AuthContext
+	EventStore  domainquery.EventStore
+	Logger      core.Logger
+	Metrics     core.MetricsCollector
+	Cache       core.CachePlugin
+	AuthContext *AuthContext
 }
 
 // EventResolver handles event-related queries
@@ -53,6 +53,10 @@ func (r *EventResolver) ResolveEvent(p graphql.ResolveParams) (interface{}, erro
 		cacheKey := fmt.Sprintf("graphql:event:%s", id)
 		if cached, err := r.ctx.Cache.Get(p.Context, cacheKey); err == nil && cached != nil {
 			r.ctx.Metrics.RecordCounter("graphql_cache_hit", 1, nil)
+			var result map[string]interface{}
+			if err := json.Unmarshal(cached, &result); err == nil {
+				return withQuerySourcePosture(result, "graphql-cache-hit"), nil
+			}
 			return cached, nil
 		}
 		r.ctx.Metrics.RecordCounter("graphql_cache_miss", 1, nil)
@@ -71,7 +75,7 @@ func (r *EventResolver) ResolveEvent(p graphql.ResolveParams) (interface{}, erro
 	}
 
 	// Convert to GraphQL response format
-	result := eventToGraphQL(event)
+	result := withQuerySourcePosture(eventToGraphQL(event), "graphql-event-store")
 
 	// Cache result
 	if r.ctx.Cache != nil {
@@ -112,6 +116,20 @@ func (r *EventResolver) ResolveEvents(p graphql.ResolveParams) (interface{}, err
 		after = a
 	}
 
+	// Try cache first
+	if r.ctx.Cache != nil {
+		cacheKey := fmt.Sprintf("graphql:events:root:after:%s:first:%d", after, first)
+		if cached, err := r.ctx.Cache.Get(p.Context, cacheKey); err == nil && cached != nil {
+			r.ctx.Metrics.RecordCounter("graphql_cache_hit", 1, nil)
+			var connection map[string]interface{}
+			if err := json.Unmarshal(cached, &connection); err == nil {
+				return withQuerySourcePostureConnection(connection, "graphql-cache-hit"), nil
+			}
+			return cached, nil
+		}
+		r.ctx.Metrics.RecordCounter("graphql_cache_miss", 1, nil)
+	}
+
 	// Retrieve events from store with pagination
 	events, hasNextPage, err := r.ctx.EventStore.GetEventsPaginated(p.Context, after, first)
 	if err != nil {
@@ -126,7 +144,7 @@ func (r *EventResolver) ResolveEvents(p graphql.ResolveParams) (interface{}, err
 	for i, event := range events {
 		cursor := fmt.Sprintf("cursor_%d", i)
 		edges = append(edges, map[string]interface{}{
-			"node":   eventToGraphQL(event),
+			"node":   withQuerySourcePosture(eventToGraphQL(event), "graphql-event-store"),
 			"cursor": cursor,
 		})
 		if i == len(events)-1 {
@@ -143,6 +161,12 @@ func (r *EventResolver) ResolveEvents(p graphql.ResolveParams) (interface{}, err
 			"endCursor":       endCursor,
 			"totalCount":      len(events),
 		},
+	}
+
+	if r.ctx.Cache != nil {
+		cacheKey := fmt.Sprintf("graphql:events:root:after:%s:first:%d", after, first)
+		connectionBytes, _ := json.Marshal(connection)
+		_ = r.ctx.Cache.Set(p.Context, cacheKey, connectionBytes, 300)
 	}
 
 	r.ctx.Metrics.RecordCounter("graphql_resolve_events_success", 1, nil)
@@ -178,7 +202,7 @@ func (r *EventResolver) ResolveEventsByBlock(p graphql.ResolveParams) (interface
 	// Convert to GraphQL response format
 	result := make([]interface{}, 0, len(events))
 	for _, event := range events {
-		result = append(result, eventToGraphQL(event))
+		result = append(result, withQuerySourcePosture(eventToGraphQL(event), "graphql-event-store"))
 	}
 
 	r.ctx.Metrics.RecordCounter("graphql_resolve_events_by_block_success", 1, nil)
@@ -220,7 +244,7 @@ func (r *EventResolver) ResolveEventsByAddress(p graphql.ResolveParams) (interfa
 			r.ctx.Metrics.RecordCounter("graphql_cache_hit", 1, nil)
 			var result []interface{}
 			if err := json.Unmarshal(cached, &result); err == nil {
-				return result, nil
+				return withQuerySourcePostureList(result, "graphql-cache-hit"), nil
 			}
 		}
 	}
@@ -236,7 +260,7 @@ func (r *EventResolver) ResolveEventsByAddress(p graphql.ResolveParams) (interfa
 	// Convert to GraphQL response format
 	result := make([]interface{}, 0, len(events))
 	for _, event := range events {
-		result = append(result, eventToGraphQL(event))
+		result = append(result, withQuerySourcePosture(eventToGraphQL(event), "graphql-event-store"))
 	}
 
 	// Cache result
@@ -285,7 +309,7 @@ func (r *EventResolver) ResolveEventsByName(p graphql.ResolveParams) (interface{
 			r.ctx.Metrics.RecordCounter("graphql_cache_hit", 1, nil)
 			var result []interface{}
 			if err := json.Unmarshal(cached, &result); err == nil {
-				return result, nil
+				return withQuerySourcePostureList(result, "graphql-cache-hit"), nil
 			}
 		}
 	}
@@ -301,7 +325,7 @@ func (r *EventResolver) ResolveEventsByName(p graphql.ResolveParams) (interface{
 	// Convert to GraphQL response format
 	result := make([]interface{}, 0, len(events))
 	for _, event := range events {
-		result = append(result, eventToGraphQL(event))
+		result = append(result, withQuerySourcePosture(eventToGraphQL(event), "graphql-event-store"))
 	}
 
 	// Cache result
@@ -387,26 +411,26 @@ func eventToGraphQL(event *core.BlockchainEvent) map[string]interface{} {
 	}
 
 	return map[string]interface{}{
-		"id":                 event.ID,
-		"eventHash":          event.EventHash,
-		"blockNumber":        event.BlockNumber,
-		"blockHash":          event.BlockHash.Hex(),
-		"blockTimestamp":     event.BlockTimestamp,
-		"transactionHash":    event.TransactionHash.Hex(),
-		"transactionIndex":   event.TransactionIndex,
-		"logIndex":           event.LogIndex,
-		"contractAddress":    event.ContractAddress.Hex(),
-		"eventName":          event.EventName,
-		"chainId":            event.ChainID,
-		"network":            event.Network,
-		"status":             string(event.Status),
-		"removed":            event.Removed,
-		"gasUsed":            event.GasUsed,
-		"gasPrice":           event.GasPrice.String(),
-		"decodedData":        decodedData,
-		"createdAt":          event.CreatedAt.Format(time.RFC3339),
-		"processedAt":        event.ProcessedAt.Format(time.RFC3339),
-		"indexedAt":          event.IndexedAt.Format(time.RFC3339),
+		"id":               event.ID,
+		"eventHash":        event.EventHash,
+		"blockNumber":      event.BlockNumber,
+		"blockHash":        event.BlockHash.Hex(),
+		"blockTimestamp":   event.BlockTimestamp,
+		"transactionHash":  event.TransactionHash.Hex(),
+		"transactionIndex": event.TransactionIndex,
+		"logIndex":         event.LogIndex,
+		"contractAddress":  event.ContractAddress.Hex(),
+		"eventName":        event.EventName,
+		"chainId":          event.ChainID,
+		"network":          event.Network,
+		"status":           string(event.Status),
+		"removed":          event.Removed,
+		"gasUsed":          event.GasUsed,
+		"gasPrice":         event.GasPrice.String(),
+		"decodedData":      decodedData,
+		"createdAt":        event.CreatedAt.Format(time.RFC3339),
+		"processedAt":      event.ProcessedAt.Format(time.RFC3339),
+		"indexedAt":        event.IndexedAt.Format(time.RFC3339),
 	}
 }
 

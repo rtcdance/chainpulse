@@ -186,7 +186,7 @@ func TestInjectContext(t *testing.T) {
 	metrics := NewMockMetricsCollector()
 	tracer := NewDefaultTracer(logger, metrics)
 
-	ctx := TraceContext{
+	ctx := &TraceContext{
 		TraceID: "0af7651916cd43dd8448eb211c80319c",
 		SpanID:  "b7ad6b7169203331",
 		Flags:   0x01,

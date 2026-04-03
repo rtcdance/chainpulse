@@ -8,6 +8,13 @@ import (
 	"chainpulse/pkg/plugins/api/core"
 )
 
+func skipGRPCPropertyLifecycleTestsInShortMode(t *testing.T) {
+	t.Helper()
+	if testing.Short() {
+		t.Skip("skipping gRPC property lifecycle test in short mode")
+	}
+}
+
 // contextKey is a custom type for context keys to avoid collisions
 type contextKey string
 
@@ -35,9 +42,9 @@ func TestProperty_GRPCRequestAbstractionConsistency(t *testing.T) {
 			body:    []byte(`{"query":"SELECT * FROM users"}`),
 		},
 		{
-			name:    "request with multiple headers",
-			method:  "POST",
-			path:    "/api.Admin/GetStatus",
+			name:   "request with multiple headers",
+			method: "POST",
+			path:   "/api.Admin/GetStatus",
 			headers: map[string]string{
 				"Authorization": "Bearer token",
 				"X-Request-ID":  "req-123",
@@ -234,6 +241,8 @@ func TestProperty_GRPCResponseHeaderImmutabilityAfterSend(t *testing.T) {
 // Property 7: gRPC Plugin Lifecycle Management
 // For any gRPC plugin, start/stop operations SHALL be idempotent and thread-safe.
 func TestProperty_GRPCPluginLifecycleManagement(t *testing.T) {
+	skipGRPCPropertyLifecycleTestsInShortMode(t)
+
 	apiLayer := core.NewAPILayer()
 	plugin := NewGRPCPlugin("grpc", 9100, apiLayer)
 

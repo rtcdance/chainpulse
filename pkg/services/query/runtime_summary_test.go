@@ -1,0 +1,77 @@
+package query
+
+import (
+	"context"
+	"testing"
+
+	"chainpulse/pkg/core"
+)
+
+func TestQueryServiceRuntimeSummaryReady(t *testing.T) {
+	logger := core.NewDefaultLogger(core.LogLevelInfo)
+	metrics := core.NewDefaultMetricsCollector()
+
+	cacheService := NewCacheService(logger, metrics)
+
+	service := NewQueryService(
+		&mockDatabaseManager{},
+		&MockMongoDBAdapter{healthy: true},
+		&MockPostgreSQLAdapter{healthy: true},
+		cacheService,
+		logger,
+		metrics,
+	)
+	if err := service.Initialize(context.Background()); err != nil {
+		t.Fatalf("initialize query service: %v", err)
+	}
+	if err := cacheService.Start(context.Background()); err != nil {
+		t.Fatalf("start cache service: %v", err)
+	}
+	if err := service.Start(context.Background()); err != nil {
+		t.Fatalf("start query service: %v", err)
+	}
+
+	summary := service.RuntimeSummary(context.Background())
+	if summary.QueryPosture != "query-runtime-ready" {
+		t.Fatalf("expected query-runtime-ready, got %q", summary.QueryPosture)
+	}
+	if summary.CachePosture != "cache-ready" {
+		t.Fatalf("expected cache-ready, got %q", summary.CachePosture)
+	}
+	if summary.CircuitBreakerPosture != "circuit-not-wired" {
+		t.Fatalf("expected circuit-not-wired, got %q", summary.CircuitBreakerPosture)
+	}
+	if summary.ConsistencyPosture != "consistency-not-wired" {
+		t.Fatalf("expected consistency-not-wired, got %q", summary.ConsistencyPosture)
+	}
+}
+
+func TestQueryServiceRuntimeSummaryDegradedCache(t *testing.T) {
+	logger := core.NewDefaultLogger(core.LogLevelInfo)
+	metrics := core.NewDefaultMetricsCollector()
+
+	cacheService := NewCacheService(logger, metrics)
+
+	service := NewQueryService(
+		&mockDatabaseManager{},
+		&MockMongoDBAdapter{healthy: true},
+		&MockPostgreSQLAdapter{healthy: true},
+		cacheService,
+		logger,
+		metrics,
+	)
+	if err := service.Initialize(context.Background()); err != nil {
+		t.Fatalf("initialize query service: %v", err)
+	}
+	if err := service.Start(context.Background()); err != nil {
+		t.Fatalf("start query service: %v", err)
+	}
+
+	summary := service.RuntimeSummary(context.Background())
+	if summary.Status != "degraded" {
+		t.Fatalf("expected degraded status, got %q", summary.Status)
+	}
+	if summary.CachePosture != "cache-unhealthy" {
+		t.Fatalf("expected cache-unhealthy, got %q", summary.CachePosture)
+	}
+}

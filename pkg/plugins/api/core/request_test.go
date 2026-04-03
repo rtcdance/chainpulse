@@ -153,6 +153,43 @@ func TestBaseRequestContext(t *testing.T) {
 	}
 }
 
+func TestBaseRequestRuntimeMetricsStaged(t *testing.T) {
+	req := NewBaseRequest("GET", "/health", nil, nil, context.Background())
+
+	metrics := req.GetRuntimeMetrics()
+	if metrics["coverage_posture"] != "request-minimal" {
+		t.Fatalf("expected request-minimal, got %v", metrics["coverage_posture"])
+	}
+	if metrics["runtime_posture"] != "request-staged" {
+		t.Fatalf("expected request-staged, got %v", metrics["runtime_posture"])
+	}
+}
+
+func TestBaseRequestRuntimeMetricsReady(t *testing.T) {
+	req := NewBaseRequest("POST", "/api/users/123", map[string]string{
+		"Content-Type": "application/json",
+	}, []byte(`{"name":"alice"}`), context.Background())
+	req.SetQuery(map[string]string{"verbose": "true"})
+	req.SetPathParam("id", "123")
+
+	metrics := req.GetRuntimeMetrics()
+	if metrics["coverage_posture"] != "request-parameterized" {
+		t.Fatalf("expected request-parameterized, got %v", metrics["coverage_posture"])
+	}
+	if metrics["runtime_posture"] != "request-ready" {
+		t.Fatalf("expected request-ready, got %v", metrics["runtime_posture"])
+	}
+}
+
+func TestBaseRequestRuntimeMetricsDegraded(t *testing.T) {
+	req := NewBaseRequest("", "", nil, nil, context.Background())
+
+	metrics := req.GetRuntimeMetrics()
+	if metrics["runtime_posture"] != "request-degraded" {
+		t.Fatalf("expected request-degraded, got %v", metrics["runtime_posture"])
+	}
+}
+
 func TestBaseRequestImplementsInterface(t *testing.T) {
 	req := NewBaseRequest("GET", "/api/users", nil, []byte(""), context.Background())
 

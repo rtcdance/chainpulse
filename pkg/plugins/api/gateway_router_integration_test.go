@@ -2,9 +2,13 @@ package api
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 )
@@ -129,10 +133,10 @@ func TestGatewayRouterIntegrationRouteMatching(t *testing.T) {
 	router := integration.GetRouter()
 
 	tests := []struct {
-		path      string
-		routeID   string
-		paramKey  string
-		paramVal  string
+		path     string
+		routeID  string
+		paramKey string
+		paramVal string
 	}{
 		{"/events", "event-query", "", ""},
 		{"/events/123", "event-by-id", "id", "123"},
@@ -203,9 +207,177 @@ func TestGatewayRouterIntegrationMetrics(t *testing.T) {
 		t.Errorf("Expected metrics to be returned")
 	}
 
-	if gatewayMetrics["route_count"] != 13 {
-		t.Errorf("Expected 13 routes, got %v", gatewayMetrics["route_count"])
+	if gatewayMetrics["route_count"] != 14 {
+		t.Errorf("Expected 14 routes, got %v", gatewayMetrics["route_count"])
 	}
+}
+
+func TestGatewayRouterIntegrationRuntimeSummaryRoute(t *testing.T) {
+	logger := &MockLogger{}
+	metrics := NewMockMetricsCollector()
+
+	queryHandler := NewEventQueryHandler(nil, logger, metrics)
+	subscriptionHandler := NewEventSubscriptionHandler(nil, logger, metrics)
+	healthHandler := NewHealthCheckHandler(nil, logger, metrics)
+
+	integration := NewGatewayRouterIntegration(
+		logger,
+		metrics,
+		queryHandler,
+		subscriptionHandler,
+		healthHandler,
+		func(r *http.Request) interface{} {
+			_ = r
+			return map[string]interface{}{
+				"service":         "api-service",
+				"runtime_mode":    "runtime-wired",
+				"component_state": "healthy",
+			}
+		},
+	)
+	_ = integration.Initialize(context.Background())
+
+	gatewayMetrics := integration.GetMetrics()
+	if gatewayMetrics["route_count"] != 15 {
+		t.Errorf("Expected 15 routes with runtime summary, got %v", gatewayMetrics["route_count"])
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/runtime/summary", nil)
+	w := httptest.NewRecorder()
+	integration.HandleRequest(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d body=%s", w.Code, w.Body.String())
+	}
+}
+
+func TestGatewayRouterIntegrationForwardsEventQueryToUpstream(t *testing.T) {
+	logger := &MockLogger{}
+	metrics := NewMockMetricsCollector()
+
+	queryHandler := NewEventQueryHandler(nil, logger, metrics)
+	subscriptionHandler := NewEventSubscriptionHandler(nil, logger, metrics)
+	healthHandler := NewHealthCheckHandler(nil, logger, metrics)
+
+	integration := NewGatewayRouterIntegration(logger, metrics, queryHandler, subscriptionHandler, healthHandler)
+	integration.SetUpstreamQueryEndpoints([]string{"http://api-service-1:8081"})
+	if err := integration.Initialize(context.Background()); err != nil {
+		t.Fatalf("initialize integration: %v", err)
+	}
+	integration.GetRouter().SetHTTPClient(&http.Client{
+		Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+			if r.URL.String() != "http://api-service-1:8081/events?limit=5" {
+				t.Fatalf("expected forwarded url http://api-service-1:8081/events?limit=5, got %s", r.URL.String())
+			}
+			resp := &http.Response{
+				StatusCode: http.StatusOK,
+				Header:     make(http.Header),
+				Body:       io.NopCloser(strings.NewReader(`{"data":[],"meta":{"source":"upstream-api-service"}}`)),
+			}
+			resp.Header.Set("Content-Type", "application/json")
+			return resp, nil
+		}),
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/events?limit=5", nil)
+	w := httptest.NewRecorder()
+	integration.HandleRequest(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d body=%s", w.Code, w.Body.String())
+	}
+	if got := w.Header().Get("Content-Type"); got != "application/json" {
+		t.Fatalf("expected content-type application/json, got %q", got)
+	}
+	if body := w.Body.String(); body != `{"data":[],"meta":{"source":"upstream-api-service"}}` {
+		t.Fatalf("unexpected forwarded body %q", body)
+	}
+}
+
+func TestGatewayRouterIntegrationReturnsStructuredBridgeErrorWhenUpstreamFails(t *testing.T) {
+	logger := &MockLogger{}
+	metrics := NewMockMetricsCollector()
+
+	queryHandler := NewEventQueryHandler(nil, logger, metrics)
+	subscriptionHandler := NewEventSubscriptionHandler(nil, logger, metrics)
+	healthHandler := NewHealthCheckHandler(nil, logger, metrics)
+
+	integration := NewGatewayRouterIntegration(logger, metrics, queryHandler, subscriptionHandler, healthHandler)
+	integration.SetUpstreamQueryEndpoints([]string{"http://api-service-1:8081"})
+	if err := integration.Initialize(context.Background()); err != nil {
+		t.Fatalf("initialize integration: %v", err)
+	}
+	integration.GetRouter().SetHTTPClient(&http.Client{
+		Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+			return nil, errors.New("dial tcp upstream unavailable")
+		}),
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/events?limit=5", nil)
+	w := httptest.NewRecorder()
+	integration.HandleRequest(w, req)
+
+	if w.Code != http.StatusBadGateway {
+		t.Fatalf("expected status 502, got %d body=%s", w.Code, w.Body.String())
+	}
+	if got := w.Header().Get("Content-Type"); got != "application/json" {
+		t.Fatalf("expected content-type application/json, got %q", got)
+	}
+
+	var payload map[string]interface{}
+	if err := json.Unmarshal(w.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decode bridge error payload: %v", err)
+	}
+	if got := payload["error"]; got != "query_upstream_unavailable" {
+		t.Fatalf("expected query_upstream_unavailable, got %v", got)
+	}
+	meta, ok := payload["meta"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected meta object, got %#v", payload["meta"])
+	}
+	if got := meta["bridgePosture"]; got != "query-bridge-unavailable" {
+		t.Fatalf("expected query-bridge-unavailable, got %v", got)
+	}
+}
+
+func TestGatewayRouterIntegrationRefreshesUpstreamQueryHealth(t *testing.T) {
+	logger := &MockLogger{}
+	metrics := NewMockMetricsCollector()
+
+	queryHandler := NewEventQueryHandler(nil, logger, metrics)
+	subscriptionHandler := NewEventSubscriptionHandler(nil, logger, metrics)
+	healthHandler := NewHealthCheckHandler(nil, logger, metrics)
+
+	integration := NewGatewayRouterIntegration(logger, metrics, queryHandler, subscriptionHandler, healthHandler)
+	integration.SetUpstreamQueryEndpoints([]string{"http://api-service-1:8081", "http://api-service-2:8081"})
+	integration.SetUpstreamQueryHealthHTTPClient(&http.Client{
+		Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+			resp := &http.Response{
+				StatusCode: http.StatusOK,
+				Header:     make(http.Header),
+				Body:       io.NopCloser(strings.NewReader(`ok`)),
+			}
+			if strings.Contains(r.URL.Host, "api-service-2") {
+				resp.StatusCode = http.StatusServiceUnavailable
+			}
+			return resp, nil
+		}),
+	})
+	if err := integration.Initialize(context.Background()); err != nil {
+		t.Fatalf("initialize integration: %v", err)
+	}
+
+	integration.RefreshUpstreamQueryBridgeHealth()
+	configured, attached, available := integration.GetUpstreamQueryBridgeStatus()
+	if configured != 2 || attached != 2 || available != 1 {
+		t.Fatalf("expected bridge status 2/2/1, got %d/%d/%d", configured, attached, available)
+	}
+}
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) {
+	return f(r)
 }
 
 // Test Response Writer
@@ -319,6 +491,10 @@ func TestGatewayRouterIntegrationClose(t *testing.T) {
 
 // Test Concurrent Requests
 func TestGatewayRouterIntegrationConcurrentRequests(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping concurrent integration test in short mode")
+	}
+
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 

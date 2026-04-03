@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/chainpulse/chainpulse/pkg/core"
-	"github.com/chainpulse/chainpulse/pkg/plugins/cache"
-	"github.com/chainpulse/chainpulse/pkg/plugins/database"
-	"github.com/chainpulse/chainpulse/pkg/plugins/mq"
+	"chainpulse/pkg/core"
+	"chainpulse/pkg/plugins/cache"
+	"chainpulse/pkg/plugins/database"
+	"chainpulse/pkg/plugins/mq"
 )
 
 type AdapterFactory struct {
@@ -26,12 +26,14 @@ func (f *AdapterFactory) CreateMQPlugin(ctx context.Context) (core.MQPlugin, err
 	case MicroserviceMode:
 		mqType := os.Getenv("CHAINPULSE_MQ_TYPE")
 		switch mqType {
+		case "", "memory":
+			return mq.NewMemoryMQ(), nil
 		case "kafka":
-			return mq.NewKafkaMQ(nil, nil)
+			return nil, fmt.Errorf("unsupported MQ type for current core.MQPlugin contract: %s", mqType)
 		case "redis":
-			return mq.NewRedisMQ(nil, nil)
+			return nil, fmt.Errorf("unsupported MQ type for current core.MQPlugin contract: %s", mqType)
 		case "zeromq":
-			return mq.NewZeroMQ(nil, nil)
+			return nil, fmt.Errorf("unsupported MQ type for current core.MQPlugin contract: %s", mqType)
 		default:
 			return nil, fmt.Errorf("unsupported MQ type: %s", mqType)
 		}
@@ -47,10 +49,10 @@ func (f *AdapterFactory) CreateCachePlugin(ctx context.Context) (core.CachePlugi
 	case MicroserviceMode:
 		cacheType := os.Getenv("CHAINPULSE_CACHE_TYPE")
 		switch cacheType {
-		case "redis":
-			return cache.NewRedisCache(nil, nil)
-		case "inmemory":
+		case "", "inmemory":
 			return cache.NewInMemoryCache(), nil
+		case "redis":
+			return nil, fmt.Errorf("unsupported cache type for current core.CachePlugin contract: %s", cacheType)
 		default:
 			return nil, fmt.Errorf("unsupported cache type: %s", cacheType)
 		}
@@ -70,12 +72,12 @@ func (f *AdapterFactory) CreateDatabasePlugin(ctx context.Context) (core.Databas
 	case MicroserviceMode:
 		dbType := os.Getenv("CHAINPULSE_DATABASE_TYPE")
 		switch dbType {
-		case "postgres":
-			return database.NewPostgresDatabase(nil, nil)
-		case "mongodb":
-			return database.NewMongoDatabase(nil, nil)
-		case "mock":
+		case "", "mock":
 			return database.NewMockDB(), nil
+		case "postgres":
+			return nil, fmt.Errorf("unsupported database type for current core.DatabasePlugin contract: %s", dbType)
+		case "mongodb":
+			return nil, fmt.Errorf("unsupported database type for current core.DatabasePlugin contract: %s", dbType)
 		default:
 			return nil, fmt.Errorf("unsupported database type: %s", dbType)
 		}

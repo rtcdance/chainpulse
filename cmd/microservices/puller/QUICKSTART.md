@@ -426,6 +426,17 @@ puller_reorgs_detected_total
 - Optimism (Mainnet, Goerli)
 - Base (Mainnet, Goerli)
 
+## Optional Security Surface
+
+Enable the puller security surface only when you need to gate the runtime
+control and read endpoints:
+
+- `PULLER_AUTH_ENABLED=true`
+- `PULLER_AUTH_JWT_SECRET=...`
+- `PULLER_AUTH_API_KEYS=svc-key=client-1,svc-key-2=client-2`
+- `PULLER_RATE_LIMIT_ENABLED=true`
+- `PULLER_RATE_LIMIT=100`
+
 ## Support
 
 For more information:

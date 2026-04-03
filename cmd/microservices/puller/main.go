@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"os"
 	"os/signal"
 	"strconv"
@@ -13,10 +14,12 @@ import (
 
 	"chainpulse/pkg/core"
 	"chainpulse/pkg/infrastructure/database"
+	"chainpulse/pkg/plugins/api"
 	"chainpulse/pkg/plugins/mq"
 	"chainpulse/pkg/plugins/pullers"
 )
 
+//nolint:wsl,nlreturn // Command entrypoint is intentionally verbose.
 func main() {
 	fmt.Println("╔════════════════════════════════════════════════════════════╗")
 	fmt.Println("║       ChainPulse - Data Puller Service                     ║")
@@ -38,6 +41,8 @@ func main() {
 	fmt.Printf("  Poll Interval:      %ds\n", config.PollInterval)
 	fmt.Printf("  Block Confirmation: %d\n", config.BlockConfirmation)
 	fmt.Printf("  Log Level:          %s\n", config.LogLevel)
+	fmt.Printf("  Security Auth:      %v\n", config.AuthEnabled)
+	fmt.Printf("  Rate Limit:         %v\n", config.RateLimitEnabled)
 	fmt.Println()
 
 	// Initialize core services
@@ -106,10 +111,77 @@ func main() {
 	fmt.Println("  ✓ Kafka Message Queue initialized")
 	fmt.Println()
 
+	progressTracker := &pullerLoopRuntimeProgress{}
+	checkpointSource := newPullerRuntimeCheckpointSource()
+	loopController := newPullerLoopController()
+	executionRuntime := newPullerExecutionRuntime(logger, metrics, kafkaMQ, config.OutputTopics)
+	authMiddleware, rateLimitMiddleware, err := buildPullerSecurityControls(config, logger, metrics)
+	if err != nil {
+		logger.Error("Failed to build puller security controls", "error", err.Error())
+		os.Exit(1)
+	}
+
+	rolloutHealthHandler, err := buildPullerRuntimeRolloutHealthHandler(
+		context.Background(),
+		config.InstanceID,
+		logger,
+		metrics,
+		dbManager,
+		kafkaMQ,
+		pullerRolloutRuntimeConfig{
+			BlockchainRPCs:     config.BlockchainRPCs,
+			PollInterval:       config.PollInterval,
+			CheckpointInterval: config.CheckpointInterval,
+		},
+		checkpointSource,
+		progressTracker,
+		executionRuntime,
+	)
+	if err != nil {
+		logger.Error("Failed to initialize rollout health handler", "error", err.Error())
+		os.Exit(1)
+	}
+	_ = rolloutHealthHandler
+	runtimeHTTPServer := newPullerRuntimeHTTPServer(
+		config.Port,
+		rolloutHealthHandler,
+		metrics,
+		func(r *http.Request) *pullerRuntimeSummaryResponse {
+			state := buildPullerRuntimeRolloutState(
+				r.Context(),
+				dbManager,
+				kafkaMQ,
+				pullerRolloutRuntimeConfig{
+					BlockchainRPCs:     config.BlockchainRPCs,
+					PollInterval:       config.PollInterval,
+					CheckpointInterval: config.CheckpointInterval,
+				},
+				checkpointSource,
+				progressTracker,
+				executionRuntime,
+			)
+			return buildPullerRuntimeSummary(state, metrics, time.Now(), config.AuthEnabled, config.RateLimitEnabled)
+		},
+		loopController,
+	)
+	if authMiddleware != nil || rateLimitMiddleware != nil {
+		runtimeHTTPServer.Handler = wrapPullerRuntimeSecurityHandler(runtimeHTTPServer.Handler, authMiddleware, rateLimitMiddleware)
+	}
+	fmt.Println("  ✓ Rollout report producer initialized")
+	fmt.Println("  ✓ Runtime HTTP health surface initialized")
+	fmt.Println()
+
 	// Initialize Multi-Chain Data Puller
 	fmt.Println("Initializing Multi-Chain Data Puller:")
 	multiChainPuller := pullers.NewMultiChainDataPuller(logger)
+	registeredPullers, err := registerConfiguredPullers(multiChainPuller, config, logger, metrics)
+	if err != nil {
+		logger.Error("Failed to register configured pullers", "error", err.Error())
+		os.Exit(1)
+	}
+	executionRuntime.SetConfiguredPullers(registeredPullers)
 	fmt.Println("  ✓ Multi-Chain Data Puller initialized")
+	fmt.Printf("  ✓ Configured Pullers Attached: %d\n", registeredPullers)
 	fmt.Println()
 
 	// Start all services
@@ -124,15 +196,34 @@ func main() {
 			logger.Error("Kafka MQ error", "error", err.Error())
 		}
 	}()
-	fmt.Println("  [1/2] Kafka Message Queue started")
+	fmt.Println("  [1/3] Kafka Message Queue started")
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		if err := runtimeHTTPServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			logger.Error("Runtime HTTP server error", "error", err.Error())
+		}
+	}()
+	fmt.Println("  [2/3] Runtime HTTP health surface started")
 
 	// Start Multi-Chain Data Puller polling loop
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		runPullerLoop(context.Background(), multiChainPuller, config, logger, metrics)
+		runPullerLoop(
+			context.Background(),
+			multiChainPuller,
+			config,
+			logger,
+			metrics,
+			checkpointSource,
+			progressTracker,
+			loopController,
+			executionRuntime,
+		)
 	}()
-	fmt.Println("  [2/2] Multi-Chain Data Puller started")
+	fmt.Println("  [3/3] Multi-Chain Data Puller started")
 	fmt.Println()
 
 	fmt.Println("✓ All services started successfully")
@@ -141,6 +232,7 @@ func main() {
 	fmt.Printf("Data Puller available at: http://localhost:%d\n", config.Port)
 	fmt.Printf("Health Check available at: http://localhost:%d/health\n", config.Port)
 	fmt.Printf("Metrics available at: http://localhost:%d/metrics\n", config.Port)
+	fmt.Printf("Runtime Summary available at: http://localhost:%d/runtime/summary\n", config.Port)
 	fmt.Printf("Instance ID: %s\n", config.InstanceID)
 	fmt.Printf("Polling from: %v\n", config.BlockchainRPCs)
 	fmt.Printf("Publishing to topics: %v\n", config.OutputTopics)
@@ -163,16 +255,21 @@ func main() {
 	defer cancel()
 
 	// Stop Kafka Message Queue
+	if err := runtimeHTTPServer.Shutdown(shutdownCtx); err != nil {
+		logger.Error("Error stopping runtime HTTP server", "error", err.Error())
+	}
+	fmt.Println("  [1/3] Runtime HTTP health surface stopped")
+
 	if err := kafkaMQ.Stop(); err != nil {
 		logger.Error("Error stopping Kafka MQ", "error", err.Error())
 	}
-	fmt.Println("  [1/2] Kafka Message Queue stopped")
+	fmt.Println("  [2/3] Kafka Message Queue stopped")
 
 	// Close database manager
 	if err := dbManager.Close(shutdownCtx); err != nil {
 		logger.Error("Error closing database manager", "error", err.Error())
 	}
-	fmt.Println("  [2/2] Database manager closed")
+	fmt.Println("  [3/3] Database manager closed")
 
 	// Wait for all goroutines to finish
 	done := make(chan struct{})
@@ -197,21 +294,26 @@ func main() {
 
 // PullerConfig represents the Data Puller configuration
 type PullerConfig struct {
-	Port               int
-	InstanceID         string
-	KafkaBrokers       []string
-	ProducerGroup      string
-	OutputTopics       []string
-	BlockchainRPCs     []string
-	PollInterval       int
-	BlockConfirmation  int
-	StateBackend       string
-	CheckpointInterval int
+	Port                int
+	InstanceID          string
+	KafkaBrokers        []string
+	ProducerGroup       string
+	OutputTopics        []string
+	BlockchainRPCs      []string
+	PollInterval        int
+	BlockConfirmation   int
+	StateBackend        string
+	CheckpointInterval  int
 	ReorgDetectionDepth int
-	BatchSize          int
-	MaxRetries         int
-	WorkerThreads      int
-	LogLevel           string
+	BatchSize           int
+	MaxRetries          int
+	WorkerThreads       int
+	LogLevel            string
+	AuthEnabled         bool
+	AuthJWTSecret       string
+	AuthAPIKeys         []string
+	RateLimitEnabled    bool
+	RateLimitPerSecond  int
 }
 
 // loadPullerConfig loads configuration from environment variables
@@ -237,6 +339,11 @@ func loadPullerConfig() PullerConfig {
 		MaxRetries:          getEnvInt("MAX_RETRIES", 3),
 		WorkerThreads:       getEnvInt("WORKER_THREADS", 4),
 		LogLevel:            getEnv("LOG_LEVEL", "info"),
+		AuthEnabled:         parseBoolEnv("PULLER_AUTH_ENABLED", false),
+		AuthJWTSecret:       getEnv("PULLER_AUTH_JWT_SECRET", ""),
+		AuthAPIKeys:         parseStringList(getEnv("PULLER_AUTH_API_KEYS", "")),
+		RateLimitEnabled:    parseBoolEnv("PULLER_RATE_LIMIT_ENABLED", false),
+		RateLimitPerSecond:  getEnvInt("PULLER_RATE_LIMIT", 100),
 	}
 }
 
@@ -259,6 +366,8 @@ func getEnvInt(key string, defaultValue int) int {
 }
 
 // parseStringList parses a comma-separated string into a slice
+//
+//nolint:wsl,nlreturn // Command config parsing is intentionally dense.
 func parseStringList(s string) []string {
 	var result []string
 	for _, item := range strings.Split(s, ",") {
@@ -269,6 +378,83 @@ func parseStringList(s string) []string {
 	return result
 }
 
+//nolint:wsl,nlreturn // Small env parser stays centralized in the command entrypoint.
+func parseBoolEnv(key string, defaultValue bool) bool {
+	value := strings.TrimSpace(strings.ToLower(os.Getenv(key)))
+	if value == "" {
+		return defaultValue
+	}
+	switch value {
+	case "1", "true", "yes", "on":
+		return true
+	case "0", "false", "no", "off":
+		return false
+	default:
+		return defaultValue
+	}
+}
+
+//nolint:wsl,nlreturn // Command config parsing stays centralized here.
+func parseKeyValuePair(entry string) (string, string, bool) {
+	for _, separator := range []string{"=", ":"} {
+		if idx := strings.Index(entry, separator); idx > 0 && idx < len(entry)-1 {
+			key := strings.TrimSpace(entry[:idx])
+			clientID := strings.TrimSpace(entry[idx+1:])
+			if key != "" && clientID != "" {
+				return key, clientID, true
+			}
+		}
+	}
+	return "", "", false
+}
+
+//nolint:wsl,nlreturn // Security wiring stays centralized in the command entrypoint.
+//nolint:wsl,nlreturn // Security wiring stays centralized in the command entrypoint.
+func buildPullerSecurityControls(config PullerConfig, logger core.Logger, metrics core.MetricsCollector) (*api.AuthMiddleware, *api.RateLimitMiddleware, error) {
+	if !config.AuthEnabled && !config.RateLimitEnabled {
+		return nil, nil, nil
+	}
+
+	var authMiddleware *api.AuthMiddleware
+	if config.AuthEnabled {
+		if strings.TrimSpace(config.AuthJWTSecret) == "" {
+			return nil, nil, fmt.Errorf("puller auth is enabled but PULLER_AUTH_JWT_SECRET is empty")
+		}
+
+		tokenValidator := api.NewTokenValidator(config.AuthJWTSecret, logger, metrics)
+		for _, entry := range config.AuthAPIKeys {
+			apiKey, clientID, ok := parseKeyValuePair(entry)
+			if !ok {
+				return nil, nil, fmt.Errorf("invalid PULLER_AUTH_API_KEYS entry %q; expected key=clientID or key:clientID", entry)
+			}
+			if err := tokenValidator.RegisterAPIKey(apiKey, clientID); err != nil {
+				return nil, nil, err
+			}
+		}
+
+		rbacChecker := api.NewRBACChecker(logger, metrics)
+		auditLogger := api.NewAuditLogger(logger, metrics)
+		authMiddleware = api.NewAuthMiddleware(tokenValidator, rbacChecker, auditLogger, logger, metrics)
+	}
+
+	var rateLimitMiddleware *api.RateLimitMiddleware
+	if config.RateLimitEnabled {
+		burst := config.RateLimitPerSecond / 10
+		if burst < 10 {
+			burst = 10
+		}
+
+		rateLimiter := api.NewRateLimiter(logger, metrics, &api.RateLimitConfig{
+			DefaultRequestsPerSecond: float64(config.RateLimitPerSecond),
+			DefaultBurstSize:         burst,
+			CleanupInterval:          5 * time.Minute,
+		})
+		rateLimitMiddleware = api.NewRateLimitMiddleware(rateLimiter, logger)
+	}
+
+	return authMiddleware, rateLimitMiddleware, nil
+}
+
 // runPullerLoop runs the main polling loop for the data puller
 func runPullerLoop(
 	ctx context.Context,
@@ -276,6 +462,10 @@ func runPullerLoop(
 	config PullerConfig,
 	logger core.Logger,
 	metrics core.MetricsCollector,
+	checkpointSource pullerCheckpointSource,
+	progress *pullerLoopRuntimeProgress,
+	controller *pullerLoopController,
+	execution *pullerExecutionRuntime,
 ) {
 	ticker := time.NewTicker(time.Duration(config.PollInterval) * time.Second)
 	defer ticker.Stop()
@@ -288,10 +478,7 @@ func runPullerLoop(
 			logger.Info("Data puller loop stopped")
 			return
 		case <-ticker.C:
-			// Polling logic would go here
-			// For now, just log that we're polling
-			logger.Debug("Polling for new blocks", "instance_id", config.InstanceID)
-			metrics.RecordCounter("puller_polls", 1, map[string]string{"instance": config.InstanceID})
+			executePullerPollTick(ctx, puller, config, logger, metrics, checkpointSource, progress, controller, execution)
 		}
 	}
 }

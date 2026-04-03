@@ -3,10 +3,19 @@ package pullers
 import (
 	"context"
 	"fmt"
+	"sort"
 	"sync"
 
 	"chainpulse/pkg/core"
 )
+
+type dataPullerLastProcessedBlockProvider interface {
+	GetLastBlockNumber() uint64
+}
+
+type dataPullerLastProcessedBlockSetter interface {
+	SetLastBlockNumber(uint64)
+}
 
 // MultiChainDataPuller manages data pulling from multiple blockchains
 type MultiChainDataPuller struct {
@@ -41,6 +50,49 @@ func (m *MultiChainDataPuller) RegisterPuller(chainID string, puller core.DataPu
 	if m.logger != nil {
 		m.logger.Info("puller registered", "chain_id", chainID)
 	}
+	return nil
+}
+
+// RegisteredChains returns the registered chain IDs in stable order.
+func (m *MultiChainDataPuller) RegisteredChains() []string {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	chains := make([]string, 0, len(m.pullers))
+	for chainID := range m.pullers {
+		chains = append(chains, chainID)
+	}
+	sort.Strings(chains)
+	return chains
+}
+
+// SetLastProcessedBlock updates the last processed block for a registered
+// puller when that puller surfaces mutable progress state.
+func (m *MultiChainDataPuller) SetLastProcessedBlock(chainID string, blockNumber uint64) error {
+	m.mu.RLock()
+	puller, exists := m.pullers[chainID]
+	m.mu.RUnlock()
+
+	if !exists {
+		return core.NewSystemError(
+			core.ErrorTypePermanent,
+			core.ErrorCodeNotFound,
+			fmt.Sprintf("no puller registered for chain %s", chainID),
+			nil,
+		)
+	}
+
+	setter, ok := puller.(dataPullerLastProcessedBlockSetter)
+	if !ok {
+		return core.NewSystemError(
+			core.ErrorTypePermanent,
+			core.ErrorCodeValidation,
+			fmt.Sprintf("puller does not support progress updates for chain %s", chainID),
+			nil,
+		)
+	}
+
+	setter.SetLastBlockNumber(blockNumber)
 	return nil
 }
 
@@ -188,6 +240,63 @@ func (m *MultiChainDataPuller) GetLatestBlocksFromAllChains(
 
 	wg.Wait()
 	return results, nil
+}
+
+// GetHighestLatestBlock returns the highest latest block seen across all
+// registered chains. When no chains are registered or no latest blocks can be
+// retrieved, it returns 0 with a nil error.
+func (m *MultiChainDataPuller) GetHighestLatestBlock(ctx context.Context) (uint64, error) {
+	blocks, err := m.GetLatestBlocksFromAllChains(ctx)
+	if err != nil {
+		return 0, err
+	}
+
+	var highest uint64
+	for _, block := range blocks {
+		if block > highest {
+			highest = block
+		}
+	}
+	return highest, nil
+}
+
+// GetHighestProcessedBlock returns the highest processed block exposed by any
+// registered puller. Pullers that do not surface last processed block state are
+// ignored.
+func (m *MultiChainDataPuller) GetHighestProcessedBlock() uint64 {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	var highest uint64
+	for _, puller := range m.pullers {
+		provider, ok := puller.(dataPullerLastProcessedBlockProvider)
+		if !ok {
+			continue
+		}
+		if block := provider.GetLastBlockNumber(); block > highest {
+			highest = block
+		}
+	}
+	return highest
+}
+
+// GetProcessedBlocksFromAllChains returns processed block heights exposed by
+// registered pullers that surface last processed block state.
+func (m *MultiChainDataPuller) GetProcessedBlocksFromAllChains() map[string]uint64 {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	results := make(map[string]uint64)
+	for chainID, puller := range m.pullers {
+		provider, ok := puller.(dataPullerLastProcessedBlockProvider)
+		if !ok {
+			continue
+		}
+		if block := provider.GetLastBlockNumber(); block > 0 {
+			results[chainID] = block
+		}
+	}
+	return results
 }
 
 // GetStats returns statistics for all pullers

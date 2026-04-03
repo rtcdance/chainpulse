@@ -94,8 +94,8 @@ func TestDetectProtocolHTTP(t *testing.T) {
 func TestDetectProtocolWebSocket(t *testing.T) {
 	pd := NewProtocolDetector()
 	req := NewBaseRequest("GET", "/ws", map[string]string{
-		"Upgrade":     "websocket",
-		"Connection":  "Upgrade",
+		"Upgrade":      "websocket",
+		"Connection":   "Upgrade",
 		"Content-Type": "application/json",
 	}, nil, context.Background())
 
@@ -120,8 +120,8 @@ func TestDetectProtocolWebSocketPath(t *testing.T) {
 func TestDetectProtocolGRPC(t *testing.T) {
 	pd := NewProtocolDetector()
 	req := NewBaseRequest("POST", "/api.Service/Method", map[string]string{
-		"Content-Type":   "application/grpc",
-		"grpc-encoding":  "gzip",
+		"Content-Type":  "application/grpc",
+		"grpc-encoding": "gzip",
 	}, nil, context.Background())
 
 	protocol := pd.DetectProtocol(req)
@@ -192,7 +192,6 @@ func TestRoute(t *testing.T) {
 
 	req := NewBaseRequest("GET", "/api/users", map[string]string{}, nil, context.Background())
 	resp, err := pd.Route(req)
-
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -329,6 +328,24 @@ func TestGetMetrics(t *testing.T) {
 	}
 }
 
+func TestProtocolDetectorMetricsIncludesPostureFields(t *testing.T) {
+	pd := NewProtocolDetector()
+	if err := pd.RegisterHandler(ProtocolHTTP, &MockHandler{}); err != nil {
+		t.Fatalf("failed to register HTTP handler: %v", err)
+	}
+
+	metrics := pd.GetMetrics()
+	if metrics["coverage_posture"] != "detector-http-only" {
+		t.Fatalf("expected detector-http-only, got %v", metrics["coverage_posture"])
+	}
+	if metrics["runtime_posture"] != "detector-watch" {
+		t.Fatalf("expected detector-watch, got %v", metrics["runtime_posture"])
+	}
+	if metrics["reliability_hint"] != "protocol detector currently routes only baseline HTTP traffic; add more protocol handlers if broader coverage is expected" {
+		t.Fatalf("unexpected reliability hint: %v", metrics["reliability_hint"])
+	}
+}
+
 // TestDetectProtocolPriority tests protocol detection priority
 func TestDetectProtocolPriority(t *testing.T) {
 	// GraphQL should be detected before WebSocket
@@ -349,8 +366,8 @@ func TestDetectProtocolPriority(t *testing.T) {
 func TestDetectProtocolCaseInsensitive(t *testing.T) {
 	pd := NewProtocolDetector()
 	req := NewBaseRequest("GET", "/ws", map[string]string{
-		"Upgrade":     "WebSocket",
-		"Connection":  "upgrade",
+		"Upgrade":    "WebSocket",
+		"Connection": "upgrade",
 	}, nil, context.Background())
 
 	protocol := pd.DetectProtocol(req)
@@ -403,5 +420,50 @@ func TestConcurrentDetection(t *testing.T) {
 
 	for i := 0; i < 10; i++ {
 		<-done
+	}
+}
+
+func TestProtocolDetectorRuntimeMetricsUnobserved(t *testing.T) {
+	pd := NewProtocolDetector()
+
+	metrics := pd.GetRuntimeMetrics()
+	if metrics["coverage_posture"] != "detector-empty" {
+		t.Fatalf("expected detector-empty, got %v", metrics["coverage_posture"])
+	}
+	if metrics["runtime_posture"] != "detector-unobserved" {
+		t.Fatalf("expected detector-unobserved, got %v", metrics["runtime_posture"])
+	}
+}
+
+func TestProtocolDetectorRuntimeMetricsWatch(t *testing.T) {
+	pd := NewProtocolDetector()
+	if err := pd.RegisterHandler(ProtocolHTTP, &MockHandler{}); err != nil {
+		t.Fatalf("failed to register HTTP handler: %v", err)
+	}
+
+	metrics := pd.GetRuntimeMetrics()
+	if metrics["coverage_posture"] != "detector-http-only" {
+		t.Fatalf("expected detector-http-only, got %v", metrics["coverage_posture"])
+	}
+	if metrics["runtime_posture"] != "detector-watch" {
+		t.Fatalf("expected detector-watch, got %v", metrics["runtime_posture"])
+	}
+}
+
+func TestProtocolDetectorRuntimeMetricsReady(t *testing.T) {
+	pd := NewProtocolDetector()
+	if err := pd.RegisterHandler(ProtocolHTTP, &MockHandler{}); err != nil {
+		t.Fatalf("failed to register HTTP handler: %v", err)
+	}
+	if err := pd.RegisterHandler(ProtocolGraphQL, &MockHandler{}); err != nil {
+		t.Fatalf("failed to register GraphQL handler: %v", err)
+	}
+
+	metrics := pd.GetRuntimeMetrics()
+	if metrics["coverage_posture"] != "detector-partial" {
+		t.Fatalf("expected detector-partial, got %v", metrics["coverage_posture"])
+	}
+	if metrics["runtime_posture"] != "detector-ready" {
+		t.Fatalf("expected detector-ready, got %v", metrics["runtime_posture"])
 	}
 }

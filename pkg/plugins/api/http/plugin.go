@@ -11,18 +11,19 @@ import (
 
 // HTTPPlugin implements the HTTP protocol handler
 type HTTPPlugin struct {
-	name        string
-	port        int
-	httpsPort   int
-	router      *core.APIRouter
-	apiLayer    *core.APILayer
-	server      *http.Server
-	httpsServer *http.Server
-	tlsManager  *shared.TLSManager
-	processor   core.RequestProcessor
-	mu          sync.RWMutex
-	running     bool
-	middleware  []core.Middleware
+	name          string
+	port          int
+	httpsPort     int
+	router        *core.APIRouter
+	apiLayer      *core.APILayer
+	server        *http.Server
+	httpsServer   *http.Server
+	tlsManager    *shared.TLSManager
+	processor     core.RequestProcessor
+	mu            sync.RWMutex
+	running       bool
+	middleware    []core.Middleware
+	nativeHandler http.HandlerFunc
 }
 
 // NewHTTPPlugin creates a new HTTP plugin
@@ -48,14 +49,14 @@ func NewHTTPPluginWithTLS(name string, port int, httpsPort int, certFile, keyFil
 
 	processor := core.NewDefaultRequestProcessor(apiLayer)
 	return &HTTPPlugin{
-		name:        name,
-		port:        port,
-		httpsPort:   httpsPort,
-		apiLayer:    apiLayer,
-		router:      core.NewAPIRouter(),
-		tlsManager:  tlsManager,
-		processor:   processor,
-		middleware:  make([]core.Middleware, 0),
+		name:       name,
+		port:       port,
+		httpsPort:  httpsPort,
+		apiLayer:   apiLayer,
+		router:     core.NewAPIRouter(),
+		tlsManager: tlsManager,
+		processor:  processor,
+		middleware: make([]core.Middleware, 0),
 	}, nil
 }
 
@@ -149,6 +150,11 @@ func (p *HTTPPlugin) GetProtocolName() string {
 	return p.name
 }
 
+// Handler returns the native HTTP request handler for integration and testing.
+func (p *HTTPPlugin) Handler() http.HandlerFunc {
+	return p.handleRequest
+}
+
 // IsRunning returns whether the plugin is running
 func (p *HTTPPlugin) IsRunning() bool {
 	p.mu.RLock()
@@ -158,6 +164,14 @@ func (p *HTTPPlugin) IsRunning() bool {
 
 // handleRequest handles incoming HTTP requests
 func (p *HTTPPlugin) handleRequest(w http.ResponseWriter, r *http.Request) {
+	p.mu.RLock()
+	nativeHandler := p.nativeHandler
+	p.mu.RUnlock()
+	if nativeHandler != nil {
+		nativeHandler(w, r)
+		return
+	}
+
 	// Create request adapter
 	req := NewHTTPRequest(r)
 
@@ -175,6 +189,13 @@ func (p *HTTPPlugin) handleRequest(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(result.Status())
 	_, _ = w.Write(result.Body())
+}
+
+// SetNativeHandler sets an optional native HTTP request handler override.
+func (p *HTTPPlugin) SetNativeHandler(handler http.HandlerFunc) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.nativeHandler = handler
 }
 
 // RegisterRoute registers a route handler (implements ProtocolHandler)
@@ -224,4 +245,64 @@ func (p *HTTPPlugin) GetTLSMetrics() map[string]interface{} {
 		return nil
 	}
 	return p.tlsManager.GetMetrics()
+}
+
+// GetRuntimeMetrics returns compact runtime metrics for the HTTP transport
+// surface.
+func (p *HTTPPlugin) GetRuntimeMetrics() map[string]interface{} {
+	running := p.IsRunning()
+	routeCount := p.router.RouteCount()
+	transportPosture := classifyHTTPTransportPosture(p.tlsManager != nil)
+	routePosture := classifyHTTPRoutePosture(routeCount)
+	runtimePosture := classifyHTTPRuntimePosture(running, routeCount)
+
+	return map[string]interface{}{
+		"running":           running,
+		"route_count":       routeCount,
+		"transport_posture": transportPosture,
+		"route_posture":     routePosture,
+		"runtime_posture":   runtimePosture,
+		"reliability_hint":  buildHTTPReliabilityHint(transportPosture, runtimePosture),
+	}
+}
+
+func classifyHTTPTransportPosture(tlsEnabled bool) string {
+	if tlsEnabled {
+		return "http-tls-enabled"
+	}
+	return "http-plaintext-only"
+}
+
+func classifyHTTPRoutePosture(routeCount int) string {
+	if routeCount > 0 {
+		return "http-routes-present"
+	}
+	return "http-routes-empty"
+}
+
+func classifyHTTPRuntimePosture(running bool, routeCount int) string {
+	if !running {
+		return "http-stopped"
+	}
+	if routeCount > 0 {
+		return "http-serving"
+	}
+	return "http-running-unrouted"
+}
+
+func buildHTTPReliabilityHint(transportPosture string, runtimePosture string) string {
+	switch runtimePosture {
+	case "http-serving":
+		if transportPosture == "http-tls-enabled" {
+			return "http runtime is serving registered routes with a TLS-capable transport"
+		}
+		return "http runtime is serving registered routes on a plaintext transport"
+	case "http-running-unrouted":
+		return "http runtime is running but no routes are registered yet"
+	default:
+		if transportPosture == "http-tls-enabled" {
+			return "http runtime is stopped; restart before relying on TLS-capable route serving"
+		}
+		return "http runtime is stopped; restart before relying on route serving"
+	}
 }
