@@ -206,8 +206,10 @@ func (edm *EventDeliveryManager) DeliverEvent(ctx context.Context, event *core.B
 // ConnectionPoolManager manages WebSocket connections
 type ConnectionPoolManager struct {
 	connections map[string]*WebSocketConnection
-	maxConns    int
+	clientConns map[string][]string // clientID -> connectionIDs
 	mutex       sync.RWMutex
+	maxConns    int
+	nextConnID  atomic.Int64
 }
 
 // WebSocketConnection represents a WebSocket connection
@@ -236,7 +238,7 @@ func (cpm *ConnectionPoolManager) AddConnection(ctx context.Context, clientID st
 		return nil, fmt.Errorf("max connections reached")
 	}
 
-	connID := fmt.Sprintf("conn-%s-%d", clientID, time.Now().UnixNano())
+	connID := fmt.Sprintf("conn-%s-%d", clientID, cpm.nextConnID.Add(1))
 	conn := &WebSocketConnection{
 		ID:        connID,
 		ClientID:  clientID,
