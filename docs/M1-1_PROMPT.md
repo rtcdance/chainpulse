@@ -14,91 +14,141 @@ ChainPulse 是一个区块链事件索引系统，支持单体和微服务两种
 - 架构规则: `ARCHITECTURE_RULES.md`
 
 ### 当前状态
-`make run-monolithic` 能启动，但**数据链路是断的**。以下是已确认的 4 个断裂点：
+`make run-monolithic` 能启动，但**数据链路是断的**。以下是已确认的 6 个断裂点：
 
 #### 断裂 1: EventBus 从未被创建
 - 文件: `cmd/monolithic/chainpulse/main.go:196`
 - 代码: `nil, // eventBus`
-- 影响: ChainIndexer 的 EventBus 是 nil，无法接收 Puller 拉取的事件
-- 修复方向: 在 main.go 中创建 `core.NewEventBus(logger)`，传给每个 ChainIndexer
+- 影响: ChainIndexer 的 EventBus 是 nil
+- 修复: 在 main.go 中创建 `core.NewEventBus(logger)`
 
 #### 断裂 2: QueryService 和 IndexingStorage 用不同的 DB
-- IndexingStorage (`pkg/application/bootstrap/indexing_storage.go`) 创建的是 `MonolithicMemoryDatabase`
-- QueryService (`pkg/application/bootstrap/runtime_wiring.go` → `BuildRuntimeWiring`) 创建的是 MongoDB/PostgreSQL adapter
-- 影响: Indexer 写入内存 DB，QueryService 从 MongoDB/PostgreSQL 读 — **永远查不到数据**
-- 修复方向: 让 QueryService 也使用 `indexingDatabase`（MonolithicMemoryDatabase），或者让 QueryService 的 DB adapter 指向同一个内存实例
+- IndexingStorage 用的是 `MonolithicMemoryDatabase`（内存）
+- QueryService 用的是 MongoDB/PostgreSQL adapter（外部数据库）
+- 影响: Indexer 写入内存，QueryService 读外部库 — **永远查不到数据**
+- 修复: 让 QueryService 也使用同一个 `indexingDatabase` 实例
 
-#### 断裂 3: Puller 从未被实例化或启动
-- `cmd/monolithic/chainpulse/main.go` 中没有 Puller 的实例化代码
-- `pkg/plugins/pullers/multi_chain_puller.go` 有 `MultiChainDataPuller`，但没有被使用
-- 影响: 没有数据源，系统空转
-- 修复方向: 在 main.go 中实例化 MockPuller 或 MemoryPuller，注册到 MultiChainDataPuller，启动拉取循环
+#### 断裂 3: 没有 MockPuller
+- `pkg/plugins/pullers/` 里所有 Puller（HTTPSJSONRPCPuller、GRPCPuller、WebSocketJSONRPCPuller）都需要真实 RPC 节点
+- **没有 MockPuller 或 MemoryPuller**
+- 修复: 新建 `pkg/plugins/pullers/mock_puller.go`，产生合理的 `core.BlockchainEvent`
 
-#### 断裂 4: 没有 Pull → Indexer 的循环驱动
-- `SharedRuntime.Start()` 存在但不包含拉取循环
-- `MultiChainDataPuller` 有 `PullEventsFromAllChains()` 但需要外部调用
-- 影响: 即使 Puller 和 Indexer 都初始化了，也没有循环驱动它们工作
-- 修复方向: 在 main.go 中启动一个 goroutine，循环调用 `PullEventsFromAllChains()` → 通过 EventBus 发布 → ChainIndexer 消费
+#### 断裂 4: Puller 从未被实例化
+- `cmd/monolithic/chainpulse/main.go` 中没有 Puller 代码
+- 修复: 在 main.go 中实例化 MockPuller，注册到 MultiChainDataPuller
+
+#### 断裂 5: 没有 Puller → Indexer 的调用链
+- 当前没有任何代码把 Puller 拉取的事件传给 Indexer
+- 修复: 在 main.go 中启动 goroutine 循环: Puller 拉取 → 调用 ChainIndexer.ProcessBatch
+
+#### 断裂 6: SharedRuntime 的 Sink 没有指向 MonolithicMemoryDatabase
+- `SharedRuntime` 需要 `EventSink` 接口来持久化数据
+- `LegacyRuntimeSink` 实现了 `EventSink`，它把 `EventEnvelope` 转回 `BlockchainEvent` 存入 DB
+- 但 monolithic 中 `SharedRuntime` 的 Sink 是否指向 `MonolithicMemoryDatabase` 需要确认
+- 修复: 确认或修复 Sink 的 wiring
+
+### 完整数据流（修复后应该是这样）
+
+```
+MockPuller.PullEvents() 
+  → 产生 []core.BlockchainEvent
+  → 调用 ChainIndexer.ProcessBatch(ctx, chainID, envelopes)
+  → ChainIndexer 转换为 []EventEnvelope
+  → 调用 SharedRuntime.ProcessBatch(ctx, chainID, envelopes)
+  → SharedRuntime 验证、去重
+  → 调用 EventSink.Persist(ctx, envelopes)
+  → LegacyRuntimeSink 转回 BlockchainEvent 存入 MonolithicMemoryDatabase
+  → QueryService 从 MonolithicMemoryDatabase 查询
+  → GraphQL API 返回数据
+```
 
 ### 目标
-修复上述 4 个断裂，使 `make run-monolithic` 能完成 Puller → EventBus → Indexer → DB → Query API 的完整数据流。
+修复上述 6 个断裂，使 `make run-monolithic` 能完成完整数据流。
 
 ### 成功标准
 - [ ] `make build` 通过
 - [ ] `make test-unit` 通过（35 个包全部 PASS）
 - [ ] `make vet` 通过
 - [ ] `make run-monolithic` 启动后不 panic
-- [ ] 启动后 30 秒内，`curl http://localhost:8080/graphql` 能执行查询并返回数据
+- [ ] 启动后 30 秒内，`curl http://localhost:8080/graphql` 能执行查询并返回非空数据
 - [ ] 日志中能看到 Puller 拉取区块和 Indexer 处理事件的输出
+
+### MockPuller 规格
+
+新建 `pkg/plugins/pullers/mock_puller.go`：
+
+```go
+// MockPuller 产生模拟的 BlockchainEvent，不需要真实 RPC 节点
+type MockPuller struct {
+    chainID     string
+    currentBlock uint64
+    logger      core.Logger
+    mu          sync.Mutex
+}
+
+// 要求:
+// 1. 实现 core.DataPullerPlugin 接口
+// 2. PullEvents 返回 1-5 个模拟事件，block number 递增
+// 3. 事件必须有正确的 ID 格式: "evt-{chainID}-{block}-{logIndex}"
+// 4. 事件必须有正确的 ChainID、BlockNumber、BlockHash、LogIndex
+// 5. 每次调用 PullEvents 后 currentBlock 递增
+// 6. 支持配置起始 block 和每次拉取的 block 数量
+```
 
 ### 分层约束
 严格遵守 `ARCHITECTURE_RULES.md`，特别是:
-1. 新代码只写入正确的层
-2. 不要往 `pkg/domain/`、`pkg/application/`、`pkg/adapters/` 添加新功能
-3. 不要修改已有依赖违反（详见 `docs/DEPENDENCY_GRAPH.md`）
-4. 不要重构已工作的代码
+1. MockPuller 写在 `pkg/plugins/pullers/mock_puller.go`
+2. 新代码只写入正确的层
+3. 不要往 `pkg/domain/`、`pkg/application/`、`pkg/adapters/` 添加新功能
+4. 不要修改已有依赖违反（详见 `docs/DEPENDENCY_GRAPH.md`）
+5. 不要重构已工作的代码
 
 ### 参考文件
 - `cmd/monolithic/chainpulse/main.go` — 单体入口，需要修复 wiring
-- `pkg/core/eventbus.go` — EventBus 实现（DefaultEventBus，可直接用）
-- `pkg/adapters/indexing/monolithic_memory_storage.go` — MonolithicMemoryDatabase（Indexer 写入的 DB）
-- `pkg/application/bootstrap/runtime_wiring.go` — QueryService wiring（需要修改 DB 来源）
+- `pkg/core/eventbus.go` — EventBus 实现（DefaultEventBus）
+- `pkg/core/plugin.go` — DataPullerPlugin 接口定义
+- `pkg/core/blockchain_models.go` — BlockchainEvent 结构体
+- `pkg/adapters/indexing/monolithic_memory_storage.go` — MonolithicMemoryDatabase
+- `pkg/application/indexing/runtime.go` — EventEnvelope、EventSink 接口、SharedRuntime
+- `pkg/services/indexing/chain_indexer.go` — ChainIndexer.ProcessBatch 方法
+- `pkg/services/indexing/legacy_runtime_sink.go` — LegacyRuntimeSink 实现
 - `pkg/application/bootstrap/indexing_storage.go` — IndexingStorage wiring
-- `pkg/plugins/pullers/multi_chain_puller.go` — MultiChainDataPuller
-- `pkg/plugins/pullers/https_jsonrpc_puller.go` — HTTP JSON-RPC Puller 实现
-- `pkg/services/indexing/chain_indexer.go` — ChainIndexer（有 ProcessBatch 方法）
 
 ### 修复步骤（按顺序）
 
-**Step 1: 创建 EventBus 并传给 ChainIndexer**
+**Step 1: 创建 MockPuller**
+```
+新建 pkg/plugins/pullers/mock_puller.go:
+1. 实现 core.DataPullerPlugin 接口
+2. PullEvents 返回模拟的 BlockchainEvent，block number 递增
+3. 事件 ID 格式: "evt-{chainID}-{block}-{logIndex}"
+4. 写单元测试
+```
+
+**Step 2: 创建 EventBus 并统一 DB**
 ```
 在 main.go 中:
 1. 创建 eventBus := core.NewEventBus(logger)
-2. 把 eventBus 传给每个 ChainIndexer（替换 nil）
+2. 确认 BuildMonolithicIndexingRuntime 的 Sink 指向 MonolithicMemoryDatabase
+3. 让 QueryService 也使用 indexingDatabase（而不是 MongoDB/PG adapter）
+   - 最简单方案: 在 BuildRuntimeWiring 中传入 indexingDatabase 作为 DB 来源
 ```
 
-**Step 2: 统一 DB 来源**
-```
-让 QueryService 使用 indexingDatabase（MonolithicMemoryDatabase）而不是 MongoDB/PostgreSQL adapter。
-方案 A: 修改 BuildRuntimeWiring，让它接受一个可选的 DatabasePlugin 参数
-方案 B: 在 main.go 中直接创建一个基于 indexingDatabase 的 QueryService
-选择更简单的方案，不要过度设计。
-```
-
-**Step 3: 实例化并启动 Puller**
+**Step 3: 实例化 Puller 并注册**
 ```
 在 main.go 中:
-1. 创建 puller := pullers.NewMultiChainDataPuller(logger)
-2. 为每个 chain 注册一个 MockPuller 或 MemoryPuller
-3. 启动一个 goroutine，循环调用 PullEventsFromAllChains()
-4. 拉取的事件通过 eventBus.Publish() 发布
+1. 创建 mockPuller := pullers.NewMockPuller(chainID, logger)
+2. 创建 multiPuller := pullers.NewMultiChainDataPuller(logger)
+3. multiPuller.RegisterPuller(chainID, mockPuller)
 ```
 
-**Step 4: 连接 Puller → EventBus → Indexer**
+**Step 4: 建立 Puller → Indexer 调用链**
 ```
-1. ChainIndexer 订阅 EventBus 的 "new-events" topic
-2. Puller 拉取事件后通过 eventBus.Publish("new-events", events) 发布
-3. ChainIndexer 收到事件后调用 ProcessBatch 处理
+在 main.go 中启动 goroutine:
+1. 循环调用 multiPuller.PullEventsFromAllChains()
+2. 对每个 chain 的事件，转换为 EventEnvelope
+3. 调用 chainIndexer.ProcessBatch(ctx, chainID, envelopes)
+4. sleep pollInterval（如 5 秒）
 ```
 
 ### 禁止事项
@@ -118,10 +168,11 @@ make vet          # 必须通过
 # 手动验证
 make run-monolithic &
 sleep 30
-# 验证 API 返回数据
+# 验证 GraphQL 返回数据
 curl -s http://localhost:8080/graphql \
   -H "Content-Type: application/json" \
   -d '{"query": "{ events(limit: 5) { id chainId blockNumber eventName } }"}'
 # 验证健康检查
 curl -s http://localhost:8080/health
+# 验证日志中有 Puller 和 Indexer 活动
 ```
