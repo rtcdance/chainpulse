@@ -154,10 +154,11 @@ for each chain:
 - `docs/archive/ARCHITECTURE_v1.md` — **权威蓝图，§3.1 + §3.2 + §3.5**
 - `cmd/monolithic/chainpulse/main.go` — Composition Root（M1-1a 已修改）
 - `pkg/services/resilience/retry_logic.go` — 重试 API:
-  - `NewDefaultRetryPolicy(config, errorHandler) *DefaultRetryPolicy`
-  - `NewRetryExecutor(policy, logger, metrics) *RetryExecutor`
-  - `executor.Execute(ctx, func() error, source string) error` — 返回 error，结果通过闭包变量捕获
-- `pkg/services/resilience/error_handler.go` — ErrorHandler
+  - `NewDefaultRetryPolicy(config *RetryConfig, errorHandler *ErrorHandler) *DefaultRetryPolicy`
+  - `NewRetryExecutor(policy RetryPolicy, logger core.Logger, metrics core.MetricsCollector) *RetryExecutor`
+  - `executor.Execute(ctx context.Context, operation func() error, source string) error` — 返回 error，结果通过闭包变量捕获
+- `pkg/services/resilience/error_handler.go` — ErrorHandler:
+  - `NewErrorHandler(logger core.Logger, metricsCollector core.MetricsCollector) *ErrorHandler`
 - `pkg/services/processor/idempotency.go` — 幂等 API:
   - `NewDefaultIdempotencyService(logger, metrics) *DefaultIdempotencyService`
   - `svc.GenerateHash(event *core.BlockchainEvent) (string, error)`
@@ -211,11 +212,16 @@ for each chain:
 
 循环前初始化:
   checkpointFile := fmt.Sprintf(".chainpulse/checkpoints/%s.json", chainID)
-  checkpoint := loadCheckpointFromFile(checkpointFile)  // 从 JSON 文件读取 lastBlock
+  var checkpoint uint64
+  if data, err := os.ReadFile(checkpointFile); err == nil {
+    var cp struct{ LastBlock uint64 `json:"lastBlock"` }
+    json.Unmarshal(data, &cp)
+    checkpoint = cp.LastBlock
+  }
 
   retryPolicy := resilience.NewDefaultRetryPolicy(
     &resilience.RetryConfig{MaxRetries: 3, InitialBackoff: time.Second, MaxBackoff: 30*time.Second},
-    resilience.NewDefaultErrorHandler(logger),
+    resilience.NewErrorHandler(logger, metrics),  // 注意: NewErrorHandler，不是 NewDefaultErrorHandler
   )
   retryExecutor := resilience.NewRetryExecutor(retryPolicy, logger, metrics)
 
@@ -230,21 +236,33 @@ for each chain:
        events, err = puller.PullEvents(ctx, fromBlock, toBlock)
        return err
      }, "pull_events")
+     if err != nil {
+       time.Sleep(10 * time.Second)
+       continue  // 重试耗尽，跳过本轮
+     }
 
   3. 循环末尾保存 checkpoint:
-     saveCheckpointToFile(checkpointFile, toBlock)
+     checkpointData, _ := json.Marshal(map[string]uint64{"lastBlock": toBlock})
+     os.MkdirAll(filepath.Dir(checkpointFile), 0755)
+     os.WriteFile(checkpointFile, checkpointData, 0644)
 ```
 
 **Step 4: 创建 checkpoint 文件读写**
 ```
-文件: cmd/monolithic/chainpulse/main.go（或新建 pkg/infrastructure/checkpoint/file_checkpoint.go）
+不需要单独创建函数。直接在 Step 3 中使用内联代码:
 
-JSON 格式:
-  { "chainID": "ethereum", "lastBlock": 18923456, "lastBlockHash": "0x...", "updatedAt": "2026-04-03T..." }
+加载:
+  var checkpoint uint64
+  if data, err := os.ReadFile(checkpointFile); err == nil {
+    var cp struct{ LastBlock uint64 `json:"lastBlock"` }
+    json.Unmarshal(data, &cp)
+    checkpoint = cp.LastBlock
+  }
 
-函数:
-  func loadCheckpointFromFile(path string) (lastBlock uint64, lastBlockHash string)
-  func saveCheckpointToFile(path string, lastBlock uint64, lastBlockHash string)
+保存:
+  checkpointData, _ := json.Marshal(map[string]uint64{"lastBlock": toBlock})
+  os.MkdirAll(filepath.Dir(checkpointFile), 0755)
+  os.WriteFile(checkpointFile, checkpointData, 0644)
 ```
 
 **Step 5: 在拉取循环中集成幂等写入**

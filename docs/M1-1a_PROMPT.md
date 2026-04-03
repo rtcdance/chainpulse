@@ -162,14 +162,28 @@ https://1rpc.io/eth
 for i, chainID := range chains:
   nodeURL := nodeURLs[i % len(nodeURLs)]
 
-  pullerConfig := createPerChainConfig(config, nodeURL, chainID)
+  // 创建 per-chain config: 复制全局 config，替换 BlockchainNodeURL 和 StartBlock
+  pullerConfig := config  // 复制
+  pullerConfig.BlockchainNodeURL = nodeURL
+  pullerConfig.StartBlock = 0  // 从最新块开始
+
   puller := pullers.NewHTTPSJSONRPCPuller(pullerConfig, logger, metrics, eventBus)
   puller.Start()
 
+  // ReorgHandler: Ethereum=12, Polygon=128, BSC=15
+  var reorgThreshold uint64
+  switch chainID {
+  case "ethereum": reorgThreshold = 12
+  case "polygon":  reorgThreshold = 128
+  case "bsc":      reorgThreshold = 15
+  default:         reorgThreshold = 12
+  }
+  maxRollback := reorgThreshold * 10  // 最大回滚深度 = reorgThreshold 的 10 倍
+
   reorgHandler := reorg.NewReorgHandler(
     indexingDatabase, logger,
-    getReorgThreshold(chainID),  // Ethereum=12, Polygon=128
-    getMaxRollback(chainID),
+    reorgThreshold,
+    maxRollback,
   )
 
   chainIndexer := indexing.NewDefaultChainIndexer(
@@ -191,6 +205,7 @@ for i, chainID := range chains:
 for each chain:
   go func(chainID, puller, chainIndexer, reorgHandler) {
     lastBlock := uint64(0)
+    lastBlockHash := ""
     for {
       chainHead, _ := puller.GetLatestBlock(ctx)
       fromBlock := lastBlock + 1
@@ -198,26 +213,35 @@ for each chain:
 
       events, err := puller.PullEvents(ctx, fromBlock, toBlock)
       if err != nil || len(events) == 0 {
-        sleep(10s)
+        time.Sleep(10 * time.Second)
         continue
       }
 
-      // Reorg 检测
-      if events[0].BlockHash != lastBlockHash[chainID] && lastBlock > 0 {
-        reorgHandler.DetectReorg(ctx, chainID, fromBlock, ...)
-        reorgHandler.HandleReorg(ctx, ...)
-        reorgHandler.RollbackEvents(ctx, fromBlock)
+      // Reorg 检测: 对比 block hash
+      // DetectReorg 签名: (ctx, currentBlock uint64, newBlockHash common.Hash) (bool, uint64, error)
+      if lastBlockHash != "" && events[0].BlockHash.Hex() != lastBlockHash {
+        detected, depth, err := reorgHandler.DetectReorg(ctx, fromBlock, events[0].BlockHash)
+        if err == nil && detected {
+          reorgHandler.HandleReorg(ctx, fromBlock)  // 参数: (ctx, reorgBlock uint64)
+          reorgHandler.RollbackEvents(ctx, fromBlock)  // 参数: (ctx, fromBlock uint64) (int64, error)
+        }
       }
 
       eventBus.Publish("blockchain-events", events)
-      envelopes := toEventEnvelopes(events)
+
+      // 转换为 EventEnvelope: chain_indexer.go 已有 toEventEnvelope 函数
+      // 签名: func toEventEnvelope(event *core.BlockchainEvent) appindexing.EventEnvelope
+      envelopes := make([]appindexing.EventEnvelope, 0, len(events))
+      for i := range events {
+        envelopes = append(envelopes, toEventEnvelope(&events[i]))
+      }
       chainIndexer.ProcessBatch(ctx, chainID, envelopes)
 
       lastBlock = toBlock
-      lastBlockHash[chainID] = events[len(events)-1].BlockHash
-      sleep(10s)
+      lastBlockHash = events[len(events)-1].BlockHash.Hex()
+      time.Sleep(10 * time.Second)
     }
-  }
+  }(chainID, puller, chainIndexer, reorgHandler)
 ```
 
 **Step 6: 确认 Sink wiring**
