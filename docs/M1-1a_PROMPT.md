@@ -79,7 +79,7 @@ for each chain (ethereum, polygon, ...):
       1. fromBlock = lastProcessedBlock + 1, toBlock = fromBlock + 10
       2. events := puller.PullEvents(ctx, fromBlock, toBlock)
       3. eventBus.Publish("blockchain-events", events)
-      4. envelopes := toEventEnvelopes(events)
+       4. envelopes := toEventEnvelope(event)  // 使用 chain_indexer.go 已有的 toEventEnvelope 函数
       5. chainIndexer.ProcessBatch(ctx, chainID, envelopes)
          → SharedRuntime.ProcessBatch(ctx, chainID, envelopes)
          → EventSink.Persist(ctx, envelopes)

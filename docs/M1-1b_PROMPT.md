@@ -57,7 +57,7 @@
 ```
 for each chain:
   go func() {
-    // 蓝图 §3.1: checkpoint 从文件加载
+    // 蓝图 §3.1: checkpoint 从文件加载 (os.ReadFile + json.Unmarshal)
     checkpoint := loadCheckpointFromFile(checkpointFile)
 
     // 蓝图 §3.1: 重试策略 + 执行器
@@ -110,7 +110,7 @@ for each chain:
       eventBus.Publish("blockchain-events", uniqueEvents)
 
       // 蓝图 §3.2: Indexer 消费 + 批量写入
-      envelopes := toEventEnvelopes(uniqueEvents)
+      envelopes := toEventEnvelope(&uniqueEvents[i])  // 使用 chain_indexer.go 已有的 toEventEnvelope 函数
       chainIndexer.ProcessBatch(ctx, chainID, envelopes)
 
       // 蓝图 §3.1: checkpoint 落盘到文件
