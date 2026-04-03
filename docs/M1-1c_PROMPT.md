@@ -107,7 +107,11 @@ QueryService (蓝图 §3.3)
 ```
 
 ### 目标
-修复上述 11 个断裂，使单体模式具备蓝图要求的完整可观测性、API Gateway 和 Query 容错能力。
+修复上述 11 个断裂，使单体模式具备以下能力：
+1. **Query 容错**: 熔断（circuit_breaker.go）+ 缓存（cache_service.go）+ 降级（DB→缓存→默认值）+ 一致性检查（consistency_checker.go）+ 缓存击穿防护（cache_warmer + cache_middleware）
+2. **API Gateway**: 内存令牌桶限流（API Key 1000/min, IP 100/min）+ mock 认证 + WebSocket 连接池（上限 10000）
+3. **可观测性**: 统一标签注入（chain_id, service, operation, block_height）+ Puller 健康端点 + 分布式追踪（OTel Tracer）
+4. **Puller 可靠性**: RPC 故障切换（多节点池）
 
 ### 成功标准
 
@@ -149,17 +153,23 @@ QueryService (蓝图 §3.3)
 
 ### 修复步骤
 
-**Step 1: Query 容错（熔断 + 缓存 + 降级 + 一致性检查）**
+**Step 1: Query 熔断 + 缓存接入**
 ```
 文件: cmd/monolithic/chainpulse/main.go
 在 QueryService wiring 中接入:
-1. circuit_breaker.go — 熔断器（错误率 > 50% 且 > 10/s 时熔断 30s）
+1. circuit_breaker.go — 熔断器（错误率 > 50% 且 > 10/s 时熔断 30s，返回缓存或错误）
 2. cache_service.go — 缓存查询结果
-3. degradation_handler.go — 降级（DB 失败→缓存→默认值，X-Cache-Stale 头）
-4. consistency_checker.go — 一致性检查（缓存 vs DB 对比）
 ```
 
-**Step 2: API Gateway 限流 + 认证 + WebSocket 连接池**
+**Step 2: Query 降级 + 一致性检查接入**
+```
+文件: cmd/monolithic/chainpulse/main.go
+在 QueryService wiring 中接入:
+3. degradation_handler.go — 降级（DB 失败→返回缓存带 X-Cache-Stale 头→缓存也不可用→返回预设默认值）
+4. consistency_checker.go — 一致性检查（对比缓存 vs DB，差异写入修复队列）
+```
+
+**Step 3: API Gateway 限流 + 认证 + WebSocket 连接池**
 ```
 文件: cmd/monolithic/chainpulse/main.go
 rateLimiter := api.NewRateLimiter(api.RateLimitConfig{
@@ -173,7 +183,7 @@ websocketPool := api.NewWebSocketPool(10000)
 gateway.SetWebSocketPool(websocketPool)
 ```
 
-**Step 3: Puller 健康端点**
+**Step 4: Puller 健康端点**
 ```
 注册 GET /health/puller 端点，返回各链的:
   - lastIndexedBlock
@@ -182,14 +192,14 @@ gateway.SetWebSocketPool(websocketPool)
   - isRunning
 ```
 
-**Step 4: 统一标签注入**
+**Step 5: 统一标签注入**
 ```
 在 metrics/log 调用中统一注入:
   metrics.WithLabels("chain_id", chainID, "service", "puller", "operation", "pull_events")
   logger.Info("pulled events", "chain_id", chainID, "service", "puller", "operation", "pull_events", "block_height", toBlock)
 ```
 
-**Step 5: 缓存击穿防护**
+**Step 6: 缓存击穿防护**
 ```
 新建 pkg/services/query/cache_warmer.go:
   - 定时预热最近 N 个块的事件到缓存
@@ -199,7 +209,7 @@ gateway.SetWebSocketPool(websocketPool)
   - 缓存未命中时只允许一个请求查 DB，其他等待
 ```
 
-**Step 6: 分布式追踪**
+**Step 7: 分布式追踪**
 ```
 在关键操作中注入 OTel span:
   - Puller: span = tracer.Start(ctx, "pull_events", chain_id, from_block, to_block)

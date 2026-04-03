@@ -239,6 +239,14 @@ DEPLOYMENT_MODE=microservice:
 - 不写 stub/placeholder 代码
 - 不要试图修复 16 处依赖违反（详见 `docs/DEPENDENCY_GRAPH.md`）
 - **必须与 ARCHITECTURE_v1.md 蓝图 Phase 2 一致**
+- **本阶段只做双模式切换和契约测试，不做以下事项**:
+  - K8s 部署（M3 做）
+  - 压力测试（M3 做）
+  - 混沌测试（M3 做）
+  - Grafana 看板（M3 做）
+  - 告警规则配置（M3 做）
+  - DLQ 重放流程（M3 做）
+  - 可观测性完善（M1-1c 做）
 
 ### 验证步骤
 完成后运行:

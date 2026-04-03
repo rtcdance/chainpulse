@@ -105,7 +105,10 @@ for each chain:
 ```
 
 ### 目标
-修复上述 6 个断裂，使单体模式具备蓝图要求的全部容错能力。
+修复上述 6 个断裂，使单体模式具备以下容错能力：
+1. **Puller**: 指数退避重试（max 3, 1s-30s）+ checkpoint 文件落盘 + 背压控制
+2. **Indexer**: ABI 解码 + 幂等写入（唯一键去重）+ 批量写入 + ABI 平滑升级
+3. **Reorg**: RollbackEvents 成功后发 reorg_events 通知
 
 ### 成功标准
 
@@ -147,17 +150,20 @@ for each chain:
   检查订阅者 chan 缓冲区使用率，超过 80% 返回 true
 ```
 
-**Step 2: 在拉取循环中集成容错**
+**Step 2: 在拉取循环中集成 Puller 容错（重试 + 背压 + checkpoint）**
 ```
 文件: cmd/monolithic/chainpulse/main.go
-在 M1-1a 的 goroutine 循环中加入:
-  1. 指数退避重试包装 PullEvents
-  2. 背压控制: if eventBus.IsBackpressured() { sleep; continue }
-  3. Checkpoint 从文件加载
-  4. ABI 解码: contractManager.DecodeBatch(events)
-  5. 幂等检查: idempotencyService.FilterDuplicates(decodedEvents)
-  6. Reorg 通知: eventBus.Publish("reorg_events", reorgInfo)
-  7. Checkpoint 保存到文件
+在 M1-1a 的 goroutine 循环中修改:
+  1. 循环开始前: checkpoint := loadCheckpointFromFile(checkpointFile)
+  2. 循环内第一步: 背压控制
+     if eventBus.IsBackpressured("blockchain-events") { sleep(5s); continue }
+  3. 循环内第二步: 指数退避重试包装 PullEvents
+     retry := resilience.NewRetryLogic(3, 1*time.Second, 30*time.Second, logger)
+     events, err := retry.ExecuteWithRetry(func() ([]core.BlockchainEvent, error) {
+       return puller.PullEvents(ctx, fromBlock, toBlock)
+     })
+  4. 循环内最后: checkpoint 保存到文件
+     saveCheckpointToFile(checkpointFile, toBlock)
 ```
 
 **Step 3: 创建 checkpoint 文件读写**
@@ -165,6 +171,28 @@ for each chain:
 新建 .chainpulse/checkpoints/{chainID}.json:
   { "chainID": "ethereum", "lastBlock": 18923456, "lastBlockHash": "0x...", "updatedAt": "..." }
 启动时加载，每次拉取后保存。
+```
+
+**Step 4: 在拉取循环中集成 Indexer 容错（ABI 解码 + 幂等 + 批量写入）**
+```
+文件: cmd/monolithic/chainpulse/main.go
+在 M1-1a 的 goroutine 循环中，eventBus.Publish 之后、chainIndexer.ProcessBatch 之前加入:
+  1. ABI 解码 + 平滑升级:
+     contractManager := decoder.NewContractManager(logger)
+     contractManager.RegisterABI("ethereum", erc20.ABI, 0, math.MaxUint64)
+     decodedEvents := contractManager.DecodeBatch(events)
+  2. 幂等检查:
+     idempotencyService := processor.NewIdempotencyService(indexingDatabase, logger)
+     uniqueEvents := idempotencyService.FilterDuplicates(decodedEvents)
+  3. 批量写入: chainIndexer.ProcessBatch 内部调用 BatchStoreEvents
+     （确认 SharedRuntime.ProcessBatch → EventSink.Persist → MockDB.BatchStoreEvents 链路通）
+```
+
+**Step 5: 在拉取循环中集成 Reorg 通知**
+```
+文件: cmd/monolithic/chainpulse/main.go
+在 M1-1a 的 goroutine 循环中，reorgHandler.RollbackEvents 之后加入:
+  eventBus.Publish("reorg_events", ReorgInfo{ChainID: chainID, FromBlock: fromBlock})
 ```
 
 ### 禁止事项
