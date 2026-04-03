@@ -1,3 +1,8 @@
+---
+name: "performance-capacity-guardrails"
+description: "Measure hot-path changes and prevent unbounded resource patterns. Track queue lag, indexing delay, and query latency. Invoke when changing hot paths (puller/indexer/query/cache/mq), concurrency, batching, or retry behavior."
+---
+
 # Skill: performance-capacity-guardrails
 
 ## Trigger

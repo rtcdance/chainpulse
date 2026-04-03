@@ -1,3 +1,8 @@
+---
+name: "mempool-pending-tx-handling"
+description: "Nonce management, gas estimation, transaction replacement. Handle stuck transactions and pending state. Invoke when implementing transaction submission, managing nonce sequences, estimating gas costs, or handling transaction replacement."
+---
+
 # Mempool & Pending Transaction Handling
 
 ## Purpose

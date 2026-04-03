@@ -1,3 +1,8 @@
+---
+name: "state-checkpoint-recovery"
+description: "Keep checkpoint/replay behavior deterministic and recoverable. Define and validate restart/recovery path. Invoke when modifying offsets, checkpoints, sync state, replay windows, or startup recovery paths."
+---
+
 # Skill: state-checkpoint-recovery
 
 ## Trigger

@@ -1,3 +1,8 @@
+---
+name: "smart-contract-integration-safety"
+description: "Ensure safe contract calls, ABI encoding/decoding, and event parsing with version compatibility. Invoke when adding contract interaction code, updating ABIs, parsing events, or implementing contract calls."
+---
+
 # Smart Contract Integration Safety
 
 ## Purpose

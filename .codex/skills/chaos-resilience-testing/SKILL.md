@@ -1,3 +1,8 @@
+---
+name: "chaos-resilience-testing"
+description: "Verify recovery under RPC failures, timeouts, and network partitions. Inject failures and validate circuit breakers. Invoke when adding/modifying RPC client calls, implementing retry or fallback logic, cross-chain interaction changes, or external dependency integration."
+---
+
 # Chaos Resilience Testing
 
 ## Purpose

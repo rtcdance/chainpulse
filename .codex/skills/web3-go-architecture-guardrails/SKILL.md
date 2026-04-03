@@ -1,3 +1,8 @@
+---
+name: "web3-go-architecture-guardrails"
+description: "Keep domain/application/adapters/platform boundaries clean. Preserve monolith debug and microservice deploy consistency. Invoke when changing architecture, module boundaries, service interfaces, or startup wiring."
+---
+
 # Skill: web3-go-architecture-guardrails
 
 ## Trigger

@@ -1,3 +1,8 @@
+---
+name: "dependency-upgrade-governance"
+description: "Control dependency upgrades with impact review and rollback plan. Avoid broad or unverified dependency drift. Invoke when adding/updating/removing dependencies in go.mod or upgrading toolchain/library versions."
+---
+
 # Skill: dependency-upgrade-governance
 
 ## Trigger

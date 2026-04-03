@@ -1,3 +1,8 @@
+---
+name: "data-retention-archival"
+description: "Define hot/warm/cold storage tiers for blockchain data growth. Implement archival automation and query layer. Invoke when adding new storage logic, modifying query time ranges, database size exceeds threshold, or implementing historical data queries."
+---
+
 # Data Retention & Archival
 
 ## Purpose

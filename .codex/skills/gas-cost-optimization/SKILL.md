@@ -1,3 +1,8 @@
+---
+name: "gas-cost-optimization"
+description: "Minimize RPC call costs via batching, caching, and filtering. Track cost metrics and enforce budgets. Invoke when adding new on-chain read/write operations, modifying RPC call frequency or batch size, implementing event polling or log queries, or cross-chain data aggregation."
+---
+
 # Gas Cost Optimization
 
 ## Purpose

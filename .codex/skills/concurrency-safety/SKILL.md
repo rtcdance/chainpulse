@@ -1,3 +1,8 @@
+---
+name: "concurrency-safety"
+description: "Enforce bounded concurrency and lifecycle ownership. Prevent races, leaks, and deadlocks in changed paths. Invoke when changing goroutines, channels, locks, worker pools, retries, or shared state."
+---
+
 # Skill: concurrency-safety
 
 ## Trigger

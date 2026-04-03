@@ -1,3 +1,8 @@
+---
+name: "indexer-state-consistency"
+description: "State machine validation and checkpoint consistency. Recovery path verification and integrity checks. Invoke when modifying indexer state transitions, adding checkpoint logic, implementing recovery paths, or changing block processing flow."
+---
+
 # Indexer State Consistency
 
 ## Purpose

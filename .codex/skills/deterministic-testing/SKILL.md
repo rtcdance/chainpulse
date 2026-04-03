@@ -1,3 +1,8 @@
+---
+name: "deterministic-testing"
+description: "Keep tests reproducible and non-flaky. Require seed/time/input determinism for replay. Invoke for any new/changed test, flaky test, property test, or CI instability issue."
+---
+
 # Skill: deterministic-testing
 
 ## Trigger

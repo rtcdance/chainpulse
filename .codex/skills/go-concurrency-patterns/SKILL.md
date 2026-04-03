@@ -1,3 +1,8 @@
+---
+name: "go-concurrency-patterns"
+description: "Enforce Go-specific concurrency best practices: goroutine lifecycle, channel usage, context propagation. Invoke when spawning goroutines, using channels, implementing worker pools, or adding context-aware operations."
+---
+
 # Go Concurrency Patterns
 
 ## Purpose

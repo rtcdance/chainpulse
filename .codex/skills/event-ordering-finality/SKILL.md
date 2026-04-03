@@ -1,3 +1,8 @@
+---
+name: "event-ordering-finality"
+description: "Make ordering/finality semantics explicit per chain. Test out-of-order, duplicate, and reorg scenarios. Invoke when touching puller/indexer/query paths that depend on block/tx/log ordering or chain finality."
+---
+
 # Skill: event-ordering-finality
 
 ## Trigger

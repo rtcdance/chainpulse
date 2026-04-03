@@ -1,3 +1,8 @@
+---
+name: "web3-reorg-idempotency"
+description: "Implement and verify reorg-safe indexing and idempotent writes. Enforce rollback and replay correctness. Invoke when modifying puller/indexer/query/reorg/consistency code paths."
+---
+
 # Skill: web3-reorg-idempotency
 
 ## Trigger

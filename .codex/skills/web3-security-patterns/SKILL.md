@@ -1,3 +1,8 @@
+---
+name: "web3-security-patterns"
+description: "Private key isolation, signature verification, replay prevention. EIP-191 compliance and nonce validation. Invoke when handling private keys or mnemonics, implementing signature verification, processing signed messages, or adding authentication logic."
+---
+
 # Web3 Security Patterns
 
 ## Purpose

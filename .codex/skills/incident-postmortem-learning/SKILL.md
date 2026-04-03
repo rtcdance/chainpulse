@@ -1,3 +1,8 @@
+---
+name: "incident-postmortem-learning"
+description: "Convert incidents into tests + telemetry + corrective actions. Prevent recurrence, not just patch symptoms. Invoke for production bugs, data inconsistencies, outages, and high-severity regressions."
+---
+
 # Skill: incident-postmortem-learning
 
 ## Trigger

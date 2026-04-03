@@ -1,3 +1,8 @@
+---
+name: "release-rollback-readiness"
+description: "Require explicit rollout and rollback steps. Require release-window verification and alert watchpoints. Invoke for changes that can affect runtime stability, data correctness, or service contracts."
+---
+
 # Skill: release-rollback-readiness
 
 ## Trigger

@@ -1,3 +1,8 @@
+---
+name: "schema-migration-safety"
+description: "Keep schema evolution reversible and compatibility-safe. Require migration + rollback + integrity verification. Invoke when changing DB schema, event model fields, storage indices, or query contracts."
+---
+
 # Skill: schema-migration-safety
 
 ## Trigger

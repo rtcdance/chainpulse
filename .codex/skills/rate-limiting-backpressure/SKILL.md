@@ -1,3 +1,8 @@
+---
+name: "rate-limiting-backpressure"
+description: "Handle RPC provider rate limits with graceful degradation, retry backoff, and flow control. Invoke when adding external API calls, modifying concurrency settings, implementing bulk operations, or integrating new RPC provider."
+---
+
 # Rate Limiting & Backpressure
 
 ## Purpose

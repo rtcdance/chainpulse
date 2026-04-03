@@ -1,3 +1,8 @@
+---
+name: "multi-chain-consistency"
+description: "Handle chain-specific finality, reorg depth, and consensus differences. Use unified abstractions with chain-specific configs. Invoke when adding support for new blockchain, modifying consensus or finality logic, implementing cross-chain queries, or changing block confirmation thresholds."
+---
+
 # Multi-Chain Consistency
 
 ## Purpose

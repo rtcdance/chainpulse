@@ -1,3 +1,8 @@
+---
+name: "code-organization-placement"
+description: "Enforce clean file organization and directory structure. Prevent random file placement and maintain navigability. Invoke when creating new files or directories, moving/refactoring code, adding generated code or artifacts, or implementing new features."
+---
+
 # Code Organization & File Placement
 
 ## Purpose

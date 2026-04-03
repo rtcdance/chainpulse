@@ -1,3 +1,8 @@
+---
+name: "observability-slo-gates"
+description: "Define metrics, health checks, and SLO-oriented alerts. Require actionable telemetry for chain-level operations. Invoke for production-facing feature changes, reliability changes, and performance-sensitive changes."
+---
+
 # Skill: observability-slo-gates
 
 ## Trigger

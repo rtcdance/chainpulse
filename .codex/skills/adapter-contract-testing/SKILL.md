@@ -1,3 +1,8 @@
+---
+name: "adapter-contract-testing"
+description: "Add or update adapter contract tests for DB/MQ/Cache/RPC/API implementations. Ensure behavior parity across in-memory and production adapters. Invoke when adding/changing any adapter implementation (DB/MQ/Cache/RPC/API)."
+---
+
 # Skill: adapter-contract-testing
 
 ## Trigger

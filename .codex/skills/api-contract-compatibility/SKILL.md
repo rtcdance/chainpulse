@@ -1,3 +1,8 @@
+---
+name: "api-contract-compatibility"
+description: "Preserve API backward compatibility by default. Require versioning/migration plan for breaking changes. Invoke when changing REST/gRPC/WebSocket request/response fields, status codes, or semantics."
+---
+
 # Skill: api-contract-compatibility
 
 ## Trigger

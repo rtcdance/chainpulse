@@ -1,3 +1,8 @@
+---
+name: "micro-loop-delivery"
+description: "Execute spec-first, test-first micro-cycles with mandatory quality gates. Invoke for all code changes."
+---
+
 # Skill: micro-loop-delivery
 
 ## Trigger

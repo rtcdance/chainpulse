@@ -1,3 +1,8 @@
+---
+name: "security-compliance-baseline"
+description: "Prevent secret leakage and unsafe privilege patterns. Enforce security review notes for sensitive changes. Invoke when touching auth, secrets, network endpoints, config, data access, or API surfaces."
+---
+
 # Skill: security-compliance-baseline
 
 ## Trigger

@@ -1,3 +1,8 @@
+---
+name: "design-review-gate"
+description: "No coding before spec doc is approved. Spec path: docs/specs/<yyyy-mm-dd>-<topic>.md. Invoke for any feature work, bugfix, refactor, architecture change, or behavior change."
+---
+
 # Skill: design-review-gate
 
 ## Trigger
