@@ -51,7 +51,7 @@ ChainPulse 是一个区块链事件索引系统，支持单体和微服务两种
 | 职责 | 从 EVM/非-EVM 节点拉取原始区块与事件，发布到 MQ（单体为 EventBus） |
 | 核心代码 | `pkg/infrastructure/data/data_puller.go`、`block_height_tracker.go` |
 | MQ | `core.EventBus`（内存 chan） |
-| RPC | MockPuller / 本地节点 |
+| RPC | 本地节点（HTTPSJSONRPCPuller 连接公共 RPC） |
 | 扩缩容 | 单 goroutine per chain |
 | 容错 | RPC 故障切换 + 指数退避重试 + checkpoint 落盘 + 背压控制 |
 
@@ -97,7 +97,7 @@ ChainPulse 是一个区块链事件索引系统，支持单体和微服务两种
 
 #### 断裂 3: Puller 从未被实例化
 - main.go 中没有 Puller 代码
-- 蓝图要求: 单体模式用 **MockPuller / 本地节点**，单 goroutine per chain
+- 蓝图要求: 单体模式用 **本地节点**（HTTPSJSONRPCPuller 连接公共 RPC），单 goroutine per chain
 - 修复: 为每条链实例化 Puller（使用 `pkg/plugins/pullers/https_jsonrpc_puller.go` 作为本地节点实现）
 
 #### 断裂 4: Puller 的 EventBus 是 nil
