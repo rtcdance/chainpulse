@@ -184,6 +184,36 @@ ChainPulse 是一个区块链事件索引系统，支持单体和微服务两种
 - 当前: RollbackEvents 后没有通知机制
 - 修复: RollbackEvents 成功后通过 EventBus 发布 `reorg_events` 事件，触发 Indexer 重索引
 
+#### 断裂 21: API Gateway 限流/认证缺失
+- 蓝图要求: §3.4 — 单体模式限流: 内存令牌桶，按 API Key 限 1000 req/min，按 IP 限 100 req/min；认证: mock
+- 当前: main.go 没有接入限流和认证中间件
+- 修复: 在 API Gateway wiring 中接入 `rate_limiter.go`（内存令牌桶）和 `auth_middleware.go`（mock 认证）
+
+#### 断裂 22: WebSocket 连接池上限缺失
+- 蓝图要求: §3.4 — `websocket_subscription.go` 维护 WebSocket 连接池，单 Pod 上限 10000
+- 当前: 需要确认连接池有 maxConns 限制
+- 修复: 确认或添加 WebSocket 连接池上限配置
+
+#### 断裂 23: 统一标签注入缺失
+- 蓝图要求: §5 — 所有指标、日志、trace 必须携带 `chain_id`、`service`、`operation`、`block_height` 四个标签
+- 当前: 指标和日志没有统一携带这些标签
+- 修复: 在 metrics/log 调用中统一注入这四个标签
+
+#### 断裂 24: Puller 健康端点缺失
+- 蓝图要求: §3.1 — `GET /health/puller` 返回各链拉取状态
+- 当前: 没有 Puller 健康端点
+- 修复: 注册 `/health/puller` 端点，返回各链的 lastIndexedBlock、blockLag、rpcErrors 等状态
+
+#### 断裂 25: 缓存击穿防护缺失
+- 蓝图要求: §3.3 — `cache_warmer.go` 预热热点数据，`cache_middleware.go` 单机锁防并发穿透
+- 当前: `cache_warmer.go` 和 `cache_middleware.go` 不存在
+- 修复: 创建 `cache_warmer.go`（预热热点数据）和 `cache_middleware.go`（单机锁防并发穿透）
+
+#### 断裂 26: 分布式追踪缺失
+- 蓝图要求: §5.3 — OTel Tracer，span 携带 `chain_id`、`from_block`、`to_block`
+- 当前: 没有 OTel Tracing
+- 修复: 在 Puller/Indexer/Query 的关键操作中注入 OTel span
+
 ### 完整数据流（严格按蓝图）
 
 ```
@@ -213,11 +243,27 @@ for each chain (ethereum, polygon, ...):
   QueryService(MockDB, InMemoryCache, CircuitBreaker, ConsistencyChecker, DegradationHandler)  // 蓝图 §3.3
     → 熔断检查: circuit_breaker.Allow()
     → 缓存检查: cache_service.Get()
+      - 缓存击穿防护: cache_middleware.GetOrLock()  // 蓝图 §3.3: 单机锁防并发穿透
+      - 缓存预热: cache_warmer.Warm()  // 蓝图 §3.3: 预热热点数据
     → DB 查询: MockDB.QueryEvents()
       - DB 失败时 → 降级到缓存（X-Cache-Stale 头）  // 蓝图 §3.3: 降级
       - 缓存也不可用 → 返回预设默认值
     → 一致性检查: consistency_checker.Verify()
     → GraphQL API 返回
+
+  API Gateway (GraphQL only, RateLimiter, AuthMiddleware, WebSocketPool)  // 蓝图 §3.4
+    → 认证: auth_middleware.MockAuth()  // 蓝图 §3.4: mock 认证
+    → 限流: rate_limiter.TokenBucket(API Key 1000/min, IP 100/min)  // 蓝图 §3.4: 内存令牌桶
+    → WebSocket 连接池: maxConns=10000  // 蓝图 §3.4: 单 Pod 上限
+    → GraphQL 路由
+
+  Health Endpoints  // 蓝图 §3.1, §5
+    → GET /health/puller → 返回各链拉取状态（lastIndexedBlock, blockLag, rpcErrors）
+    → GET /health → 总体健康状态
+
+  Observability (统一标签注入 + 分布式追踪)  // 蓝图 §5
+    → 所有指标/日志/trace 携带: chain_id, service, operation, block_height
+    → OTel Tracer span: pull_events(chain_id, from_block, to_block), process_batch(chain_id, count), query_events(chain_id)
 ```
 
 ### 目标
@@ -257,7 +303,13 @@ for each chain (ethereum, polygon, ...):
 - [ ] **Checkpoint 落盘接入 Puller**（蓝图 §3.1: block_height_tracker.go 落盘到文件）
 - [ ] **RPC 故障切换接入 Puller**（蓝图 §3.1: 多节点池，失败自动切换）
 - [ ] **背压控制接入 Puller**（蓝图 §3.1: MQ 满时暂停拉取）
-- [ ] **统一标签注入**（蓝图 §5: 所有指标/日志携带 chain_id, service, operation, block_height）
+- [ ] **统一标签注入**（蓝图 §5: 所有指标/日志/trace 携带 chain_id, service, operation, block_height）
+- [ ] **API Gateway 限流接入**（蓝图 §3.4: 内存令牌桶，API Key 1000/min，IP 100/min）
+- [ ] **API Gateway mock 认证接入**（蓝图 §3.4: mock 认证）
+- [ ] **WebSocket 连接池上限**（蓝图 §3.4: 单 Pod 上限 10000）
+- [ ] **Puller 健康端点**（蓝图 §3.1: GET /health/puller 返回各链拉取状态）
+- [ ] **缓存击穿防护**（蓝图 §3.3: cache_warmer 预热 + cache_middleware 单机锁）
+- [ ] **分布式追踪**（蓝图 §5.3: OTel Tracer span 携带 chain_id, from_block, to_block）
 
 #### 真实数据
 - [ ] 启动后 60 秒内，GraphQL 查询返回真实链上事件
@@ -312,6 +364,10 @@ https://polygon-bor-rpc.publicnode.com
 - `pkg/services/query/degradation_handler.go` — 降级策略（DB→缓存→默认值）
 - `pkg/infrastructure/blockchain/blockchain_cluster.go` — 区块链节点池（RPC 故障切换）
 - `pkg/observability/metrics.go` — Prometheus 指标定义（蓝图 §5: 统一标签注入）
+- `pkg/plugins/api/rate_limiter.go` — 内存令牌桶限流（蓝图 §3.4）
+- `pkg/plugins/api/auth_middleware.go` — mock 认证中间件（蓝图 §3.4）
+- `pkg/plugins/api/websocket_subscription.go` — WebSocket 连接池管理（蓝图 §3.4）
+- `pkg/observability/tracer.go` — OTel Tracer（蓝图 §5.3: 分布式追踪）
 - `pkg/application/indexing/runtime.go` — EventEnvelope、EventSink、SharedRuntime
 - `pkg/infrastructure/data/block_height_tracker.go` — Checkpoint 追踪
 - `pkg/application/bootstrap/runtime_wiring.go` — QueryService wiring
@@ -452,6 +508,55 @@ for each chain:
 确认 BuildMonolithicIndexingRuntime 的 EventSink 指向 MockDB/MonolithicMemoryDatabase。
 ```
 
+**Step 7: API Gateway 限流/认证 + 健康端点 + 可观测性**
+```
+文件: cmd/monolithic/chainpulse/main.go
+
+// 蓝图 §3.4: API Gateway 限流 + mock 认证
+rateLimiter := api.NewRateLimiter(api.RateLimitConfig{
+    APIKeyRate: 1000,  // 1000 req/min per API Key
+    IPRate:     100,   // 100 req/min per IP
+})
+authMiddleware := api.NewMockAuth()  // 蓝图 §3.4: mock 认证
+gateway.SetRateLimiter(rateLimiter)
+gateway.SetAuthMiddleware(authMiddleware)
+
+// 蓝图 §3.4: WebSocket 连接池上限
+websocketPool := api.NewWebSocketPool(10000)  // 单 Pod 上限 10000
+gateway.SetWebSocketPool(websocketPool)
+
+// 蓝图 §3.1: Puller 健康端点
+healthHandler.RegisterPullerHealth(pullers)  // GET /health/puller 返回各链状态
+
+// 蓝图 §5: 统一标签注入
+metrics.SetDefaultLabels(map[string]string{
+    "chain_id": chainID,
+    "service":  "puller",
+})
+logger.SetDefaultFields([]string{"chain_id", "service", "operation", "block_height"})
+
+// 蓝图 §5.3: 分布式追踪
+tracer := observability.NewOTelTracer()
+ctx, span := tracer.Start(ctx, "pull_events",
+    trace.WithAttributes(
+        attribute.String("chain_id", chainID),
+        attribute.Int64("from_block", int64(fromBlock)),
+        attribute.Int64("to_block", int64(toBlock)),
+    ))
+defer span.End()
+```
+
+**Step 8: 创建缓存击穿防护**
+```
+新建 pkg/services/query/cache_warmer.go:
+  - 预热热点数据（最近 N 个块的事件）
+  - 定时刷新热点缓存
+
+新建 pkg/services/query/cache_middleware.go:
+  - 单机锁防并发穿透（singleflight）
+  - 缓存未命中时只允许一个请求查 DB，其他等待
+```
+
 ### 禁止事项
 - 不创建新的 spec 文件
 - 不引入新的外部依赖
@@ -474,6 +579,12 @@ for each chain:
   - RPC 故障切换（§3.1: 多节点池）
   - 背压控制（§3.1: MQ 满时暂停）
   - 统一标签注入（§5: chain_id, service, operation, block_height）
+  - API Gateway 限流（§3.4: 内存令牌桶，API Key 1000/min, IP 100/min）
+  - API Gateway mock 认证（§3.4）
+  - WebSocket 连接池上限（§3.4: 10000）
+  - Puller 健康端点（§3.1: GET /health/puller）
+  - 缓存击穿防护（§3.3: cache_warmer + cache_middleware）
+  - 分布式追踪（§5.3: OTel Tracer span）
 
 ### 验证步骤
 完成后运行:
