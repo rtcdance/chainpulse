@@ -6,13 +6,18 @@ echo "===================================="
 
 ERRORS=0
 
-# 1. Check spec approval
+# 1. Check spec approval (only for new Go source files, not docs/infra changes)
 echo "1. Checking spec approval..."
-if ! find docs/specs -name "*.md" -type f -exec grep -l "Status: Approved" {} + 2>/dev/null | grep -q .; then
-  echo "   ❌ No approved spec found in docs/specs/"
-  ((ERRORS++))
+NEW_GO_SOURCE=$(git diff --cached --name-only --diff-filter=A 2>/dev/null | grep "^pkg/.*\.go$" | grep -v "_test\.go$" || true)
+if [ -n "$NEW_GO_SOURCE" ]; then
+  if ! find docs/specs -name "*.md" -type f -exec grep -l "Status: Approved" {} + 2>/dev/null | grep -q .; then
+    echo "   ❌ New Go source files but no approved spec in docs/specs/"
+    ((ERRORS++))
+  else
+    echo "   ✅ Approved spec found for new Go files"
+  fi
 else
-  echo "   ✅ Approved spec found"
+  echo "   ✅ No new Go source files (spec check skipped)"
 fi
 
 # 2. Check skill declaration
