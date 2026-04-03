@@ -1,0 +1,64 @@
+# Phase 381 - Event Processor Metrics Runtime Surface
+
+## Status
+Status: Approved
+
+## Summary
+
+Expose the `event-processor` runtime `/metrics` route so the service-plane
+matches the startup contract already advertised by `main.go`.
+
+## Problem
+
+`event-processor` currently logs:
+
+- `Metrics available at: http://localhost:<port>/metrics`
+
+but its runtime HTTP mux only serves `/health*` routes. This creates a
+service-plane mismatch where operators are told a metrics surface exists even
+though the route is not actually wired.
+
+## Decision
+
+Add a focused runtime `/metrics` handler for `event-processor` that exports the
+existing `core.MetricsCollector` payload as JSON.
+
+Keep the slice intentionally small:
+
+- reuse the existing in-process metrics collector
+- add no new transport or Prometheus contract
+- preserve the current `/health*` runtime surface unchanged
+
+## Scope
+
+In scope:
+
+- wire `/metrics` into the `event-processor` runtime HTTP mux
+- pass the metrics collector through the runtime server helper
+- add focused route coverage that verifies the route returns collected metrics
+- document the new runtime-surface slice
+
+Out of scope:
+
+- Prometheus exposition redesign
+- broader metrics format standardization
+- changes to other services
+
+## Validation
+
+- focused `go test` for `cmd/microservices/event-processor`
+- `scripts/dev-micro-loop.sh --mode fast --base HEAD`
+- `./scripts/spec-approval-check.sh docs/specs/2026-04-02-architecture-phase381-event-processor-metrics-runtime-surface.md`
+
+## Verification Summary
+
+- `GOROOT= GOCACHE=/tmp/chainpulse-go-build-cache go test ./cmd/microservices/event-processor/...` passed
+- `./scripts/spec-approval-check.sh docs/specs/2026-04-02-architecture-phase381-event-processor-metrics-runtime-surface.md` passed
+- `scripts/dev-micro-loop.sh --mode fast --base HEAD` surfaced an environment prerequisite issue:
+  - missing `gofumpt`
+
+## Exit Criteria
+
+- `event-processor` runtime HTTP surface serves `/metrics`.
+- The route returns the current collector payload.
+- The service-plane no longer advertises a metrics endpoint it does not expose.

@@ -1,0 +1,231 @@
+name: Integration & E2E Tests
+
+# Runs separately from the main CI:
+# - on demand (workflow_dispatch)
+# - nightly on main/master
+# - on PRs that touch test/ or pkg/services/
+on:
+  workflow_dispatch:
+    inputs:
+      run_e2e:
+        description: 'Also run E2E tests'
+        required: false
+        default: 'true'
+        type: boolean
+
+  schedule:
+    # Nightly at 02:00 UTC
+    - cron: '0 2 * * *'
+
+  pull_request:
+    branches: [ main, master, develop ]
+    paths:
+      - 'test/**'
+      - 'pkg/services/**'
+      - 'pkg/infrastructure/**'
+
+jobs:
+  integration:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: chainpulse_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+      kafka:
+        image: confluentinc/cp-kafka:7.5.0
+        env:
+          KAFKA_BROKER_ID: 1
+          KAFKA_ZOOKEEPER_CONNECT: ''
+          KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+          KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+          KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
+          KAFKA_PROCESS_ROLES: broker,controller
+          KAFKA_NODE_ID: 1
+          KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9093
+          KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
+          KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+          KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+          CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
+        options: >-
+          --health-cmd "kafka-broker-api-versions --bootstrap-server localhost:9092"
+          --health-interval 15s
+          --health-timeout 10s
+          --health-retries 10
+        ports:
+          - 9092:9092
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version-file: go.mod
+        cache: true
+
+    - name: Download dependencies
+      run: go mod download
+
+    - name: Run integration tests
+      env:
+        TEST_DATABASE_URL: postgres://test:test@localhost:5432/chainpulse_test?sslmode=disable
+        TEST_REDIS_URL: localhost:6379
+        TEST_KAFKA_BROKERS: localhost:9092
+        DEPLOYMENT_MODE: monolithic
+      run: |
+        go test -v -race -timeout=10m \
+          -tags=integration \
+          ./test/integration/...
+
+    - name: Upload integration test results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: integration-results-${{ github.sha }}
+        path: |
+          test-results/
+          *.log
+        retention-days: 14
+
+  contract:
+    name: Contract Tests
+    runs-on: ubuntu-latest
+    services:
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version-file: go.mod
+        cache: true
+
+    - name: Run contract tests
+      env:
+        TEST_REDIS_URL: localhost:6379
+      run: |
+        go test -v -race -timeout=5m \
+          -tags=integration \
+          ./test/contracts/...
+
+  e2e:
+    name: E2E Tests
+    runs-on: ubuntu-latest
+    # Only run E2E if explicitly requested or nightly
+    if: >
+      github.event_name == 'schedule' ||
+      (github.event_name == 'workflow_dispatch' && inputs.run_e2e == 'true')
+    needs: [ integration ]
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: chainpulse_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version-file: go.mod
+        cache: true
+
+    - name: Download dependencies
+      run: go mod download
+
+    - name: Run E2E tests
+      env:
+        TEST_DATABASE_URL: postgres://test:test@localhost:5432/chainpulse_test?sslmode=disable
+        TEST_REDIS_URL: localhost:6379
+        DEPLOYMENT_MODE: monolithic
+      run: |
+        go test -v -race -timeout=20m \
+          -tags=e2e \
+          ./test/e2e/...
+
+    - name: Upload E2E test results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: e2e-results-${{ github.sha }}
+        path: |
+          test-results/
+          *.log
+        retention-days: 14
+
+  notify:
+    name: Notify on failure
+    runs-on: ubuntu-latest
+    needs: [ integration, contract, e2e ]
+    if: failure() && github.event_name == 'schedule'
+    steps:
+    - name: Create GitHub Issue on nightly failure
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const date = new Date().toISOString().split('T')[0];
+          await github.rest.issues.create({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            title: `[Nightly] Integration/E2E tests failed on ${date}`,
+            body: [
+              `## Nightly test failure`,
+              ``,
+              `**Date**: ${date}`,
+              `**Run**: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}`,
+              ``,
+              `Please investigate and fix the failing tests.`,
+            ].join('\n'),
+            labels: ['bug', 'test-failure', 'nightly'],
+          });
