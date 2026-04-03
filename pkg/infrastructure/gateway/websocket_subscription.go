@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"chainpulse/pkg/core"
@@ -24,6 +25,7 @@ type SubscriptionManager struct {
 	subscriptions map[string]*Subscription
 	clients       map[string][]string // clientID -> subscriptionIDs
 	mutex         sync.RWMutex
+	nextSubID     atomic.Int64
 }
 
 // NewSubscriptionManager creates a new subscription manager
@@ -40,7 +42,7 @@ func (sm *SubscriptionManager) Subscribe(ctx context.Context, clientID string, c
 	defer sm.mutex.Unlock()
 
 	// Generate subscription ID
-	subscriptionID := fmt.Sprintf("sub-%s-%s-%d", clientID, chainID, time.Now().UnixNano())
+	subscriptionID := fmt.Sprintf("sub-%s-%s-%d", clientID, chainID, sm.nextSubID.Add(1))
 
 	subscription := &Subscription{
 		ID:        subscriptionID,
