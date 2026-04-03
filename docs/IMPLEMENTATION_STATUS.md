@@ -157,11 +157,12 @@
 
 | 缺失项 | 优先级 | 说明 | 对应里程碑 |
 |---|---|---|---|
-| **双模式切换机制** | 🔴 高 | `DEPLOYMENT_MODE` 环境变量未在 cmd 层实际切换 adapters | M2 |
-| **契约测试执行框架** | 🟡 中 | 3 个契约测试文件存在，但需确认能跑通 | M2 |
+| **EventBus 从未创建** | 🔴 高 | `main.go:196` 传 `nil` 给 ChainIndexer，事件链路断裂 | M1-1 |
+| **QueryService 和 IndexingStorage 用不同 DB** | 🔴 高 | IndexingStorage 用 MonolithicMemoryDatabase，QueryService 用 MongoDB/PostgreSQL adapter | M1-1 |
+| **Puller 从未实例化** | 🔴 高 | main.go 中没有 Puller 代码，无数据源 | M1-1 |
+| **Puller → Indexer 循环驱动缺失** | 🔴 高 | 没有 goroutine 循环调用 Puller → EventBus → Indexer | M1-1 |
+| **双模式切换机制** | 🟡 中 | `DEPLOYMENT_MODE` 环境变量未在 cmd 层实际切换 adapters | M2 |
 | **Grafana 看板** | 🟡 中 | Prometheus 指标有，但 Grafana dashboard JSON 缺失 | M3 |
-| **MockDB 实现** | 🟡 中 | `pkg/plugins/database/` 有 PostgreSQL，需确认 MockDB/SQLite | M1 |
-| **完整 Docker Compose 编排** | 🟡 中 | 需验证 docker-compose.yml 能否一键启动完整链路 | M3 |
 
 ---
 
