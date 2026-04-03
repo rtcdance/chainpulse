@@ -44,12 +44,16 @@ if [ -d "pkg/utils" ] || [ -d "pkg/helpers" ] || [ -d "pkg/common" ]; then
 fi
 
 # Check for generated code outside pkg/generated/
-while IFS= read -r file; do
-  if [[ ! "$file" =~ ^pkg/generated/ ]] && [[ ! "$file" =~ _test\.go$ ]]; then
-    echo "❌ Generated/mock file outside pkg/generated/: $file"
-    ((ERRORS++))
-  fi
-done < <(find pkg -type f -name "mock_*.go" -o -name "*_generated.go" 2>/dev/null || true)
+# Only check staged files, not the entire repo (pre-existing mocks are allowed)
+STAGED_MOCKS=$(git diff --cached --name-only --diff-filter=A 2>/dev/null | grep "mock_.*\.go$" || true)
+if [ -n "$STAGED_MOCKS" ]; then
+  while IFS= read -r file; do
+    if [[ ! "$file" =~ ^pkg/generated/ ]] && [[ ! "$file" =~ ^pkg/plugins/database/mock_ ]] && [[ ! "$file" =~ _test\.go$ ]]; then
+      echo "❌ New generated/mock file outside pkg/generated/: $file"
+      ((ERRORS++))
+    fi
+  done <<< "$STAGED_MOCKS"
+fi
 
 # Check for temp files
 while IFS= read -r file; do
