@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -29,12 +30,16 @@ func main() {
 
 	// Print configuration
 	fmt.Println("Configuration Loaded:")
+	fmt.Printf("  Deployment Mode:     %s\n", config.DeploymentMode)
+	fmt.Printf("  Adapter Profile:     %s\n", config.AdapterProfile)
+	fmt.Printf("  Transport Boundary:  %s\n", config.TransportAdapterBoundary)
 	fmt.Printf("  Chains:              %s\n", config.Chains)
 	fmt.Printf("  Data Puller Type:    %s\n", config.DataPullerType)
 	fmt.Printf("  Blockchain Nodes:    %s\n", config.BlockchainNodeURLs)
 	fmt.Printf("  Message Queue Type:  %s\n", config.MQType)
 	fmt.Printf("  Cache Type:          %s\n", config.CacheType)
 	fmt.Printf("  Database Type:       %s\n", config.DatabaseType)
+	fmt.Printf("  DLQ Retention:       %s\n", config.DLQRetention)
 	fmt.Printf("  API Port:            %s\n", config.APIPort)
 	fmt.Printf("  Worker Pool Size:    %s\n", config.WorkerPoolSize)
 	fmt.Printf("  Batch Size:          %s\n", config.BatchSize)
@@ -150,9 +155,49 @@ func main() {
 	fmt.Printf("  ✓ Cache plugin started: %s\n", indexingCache.Name())
 	fmt.Println()
 
+	// Build indexing-backed monolithic query surface
+	fmt.Println("Initializing Monolithic Query Surface:")
+	monolithicQuerySurface, err := resolveMonolithicQuerySurface(context.Background(), config, runtimeWiring, indexingDatabase, logger, metrics)
+	if err != nil {
+		logger.Error("Failed to build monolithic query surface", "error", err.Error())
+		os.Exit(1)
+	}
+	if monolithicQuerySurface.domainQuery != nil {
+		runtimeWiring.DomainQueryService = monolithicQuerySurface.domainQuery
+	}
+	if monolithicQuerySurface.eventRetrievalService != nil {
+		runtimeWiring.EventRetrievalService = monolithicQuerySurface.eventRetrievalService
+	}
+	if monolithicQuerySurface.eventQueryHandler != nil {
+		runtimeWiring.EventQueryHandler = monolithicQuerySurface.eventQueryHandler
+	}
+	if monolithicQuerySurface.eventSubscriptionHandler != nil {
+		runtimeWiring.EventSubscriptionHandler = monolithicQuerySurface.eventSubscriptionHandler
+	}
+	if config.DeploymentMode == deploymentModeMicroservice {
+		fmt.Println("  ✓ Managed-db/shared runtime query surface retained for microservice intent")
+	} else {
+		fmt.Println("  ✓ Indexing-backed event retrieval initialized")
+		fmt.Println("  ✓ Monolithic event query handler aligned to indexing storage")
+	}
+	fmt.Println()
+
 	// Build additive shared indexing runtime
 	fmt.Println("Initializing Shared Indexing Runtime:")
-	sharedIndexingRuntime, err := bootstrap.BuildMonolithicIndexingRuntime(logger, indexingDatabase, indexingCache, chains)
+
+	dlqRetention, err := parseMonolithicDLQRetention(config.DLQRetention)
+	if err != nil {
+		logger.Error("Failed to parse monolithic DLQ retention", "error", err.Error())
+		os.Exit(1)
+	}
+
+	sharedIndexingRuntime, err := bootstrap.BuildMonolithicIndexingRuntimeWithOptions(
+		logger,
+		indexingDatabase,
+		indexingCache,
+		chains,
+		bootstrap.InMemoryIndexingRuntimeOptions{DLQRetention: dlqRetention},
+	)
 	if err != nil {
 		logger.Error("Failed to build shared indexing runtime", "error", err.Error())
 		os.Exit(1)
@@ -164,6 +209,11 @@ func main() {
 	if err := sharedIndexingRuntime.Start(context.Background()); err != nil {
 		logger.Error("Failed to start shared indexing runtime", "error", err.Error())
 		os.Exit(1)
+	}
+	for _, chainID := range chains {
+		if err := sharedIndexingRuntime.RecoverChain(context.Background(), chainID); err != nil {
+			logger.Warn("Shared indexing runtime recovery probe failed", "service", "monolithic", "chain_id", chainID, "error", err.Error())
+		}
 	}
 	sharedRuntimeStatus := sharedIndexingRuntime.Status()
 	metrics.RecordGauge("indexing_runtime_started", 1, map[string]string{
@@ -179,9 +229,13 @@ func main() {
 		"service", "monolithic",
 		"state", sharedRuntimeStatus.State,
 		"chains", strings.Join(sharedRuntimeStatus.Chains, ","),
+		"recovery_state", sharedRuntimeStatus.RecoveryState,
+		"dlq_retention", dlqRetention.String(),
 	)
 	fmt.Printf("  ✓ Shared runtime started (%s)\n", sharedRuntimeStatus.State)
 	fmt.Printf("  ✓ Shared runtime chains: %s\n", strings.Join(sharedRuntimeStatus.Chains, ","))
+	fmt.Printf("  ✓ Shared runtime recovery: %s\n", sharedRuntimeStatus.RecoveryState)
+	fmt.Printf("  ✓ Shared runtime DLQ retention: %s\n", dlqRetention.String())
 	fmt.Println()
 
 	// Initialize Multi-Chain Indexer
@@ -193,7 +247,7 @@ func main() {
 			indexingDatabase,
 			indexingCache,
 			logger,
-			nil, // eventBus
+			nil,
 		)
 		chainIndexer.SetSharedRuntime(sharedIndexingRuntime, metrics)
 		if err := multiChainIndexer.RegisterChainIndexer(chainID, chainIndexer); err != nil {
@@ -216,19 +270,56 @@ func main() {
 	}))
 	fmt.Println()
 
+	// Initialize monolithic puller runtime closure
+	fmt.Println("Initializing Monolithic Puller Runtime:")
+
+	monolithicPullerRuntime, err := newMonolithicPullerRuntime(*coreConfig, config.BlockchainNodeURLs, chains, logger, metrics, indexingDatabase, multiChainIndexer)
+	if err != nil {
+		logger.Error("Failed to initialize monolithic puller runtime", "error", err.Error())
+		os.Exit(1)
+	}
+
+	fmt.Printf("  ✓ Event bus initialized (%d subscribers)\n", monolithicPullerRuntime.SubscriberCount())
+	fmt.Printf("  ✓ Pullers initialized: %d\n", monolithicPullerRuntime.PullerCount())
+	fmt.Println()
+
 	// Initialize API Gateway Plugin
 	fmt.Println("Initializing API Gateway:")
 	gateway := api.NewAPIGatewayPlugin(logger, metrics)
-	gateway.SetDomainQueryService(runtimeWiring.DomainQueryService)
-	gateway.SetEventQueryHandler(runtimeWiring.EventQueryHandler)
-	gateway.SetEventSubscriptionHandler(runtimeWiring.EventSubscriptionHandler)
-	gateway.SetHealthCheckHandler(runtimeWiring.HealthCheckHandler)
-	gateway.SetRuntimeSummaryProvider(buildMonolithicRuntimeSummaryProvider(metrics, gateway, sharedIndexingRuntime, multiChainIndexer))
+	gatewaySurface := resolveMonolithicGatewaySurface(config)
+	applyMonolithicGatewaySurface(gateway, gatewaySurface, gatewayRuntimeWiring{
+		domainQueryService:       runtimeWiring.DomainQueryService,
+		eventQueryHandler:        runtimeWiring.EventQueryHandler,
+		eventSubscriptionHandler: runtimeWiring.EventSubscriptionHandler,
+		healthCheckHandler:       runtimeWiring.HealthCheckHandler,
+		upstreamQueryEndpoints:   config.UpstreamQueryServices,
+	})
+	gateway.SetRuntimeMetricsProvider(buildMonolithicMetricsProvider(metrics))
+	gateway.SetRuntimeSummaryProvider(buildMonolithicRuntimeSummaryProvider(metrics, gateway, sharedIndexingRuntime, multiChainIndexer, monolithicPullerRuntime, monolithicPullerRuntime, monolithicQuerySurface, config))
+	gateway.SetRuntimeControlProvider(monolithicPullerRuntime.HandleRuntimeControl)
+	gateway.SetRuntimeReplayProvider(newMonolithicDLQReplayHandler(sharedIndexingRuntime))
+	if runtimeWiring.GraphQLHandler != nil {
+		gateway.SetGraphQLHandler(runtimeWiring.GraphQLHandler)
+	}
+	if config.RateLimitEnabled {
+		rateLimiter := api.NewRateLimiter(logger, metrics, &api.RateLimitConfig{
+			DefaultRequestsPerSecond: api.RequestsPerMinuteToPerSecond(config.RateLimitPerMinute),
+			DefaultBurstSize:         api.BurstSizeFromRequestsPerMinute(config.RateLimitPerMinute),
+			CleanupInterval:          5 * time.Minute,
+		})
+		rateLimitMiddleware := api.NewRateLimitMiddleware(rateLimiter, logger)
+		gateway.SetRateLimitMiddleware(rateLimitMiddleware)
+		logger.Info("Rate limit middleware enabled", "requests_per_minute", config.RateLimitPerMinute)
+	}
 	if err := gateway.Initialize(*coreConfig); err != nil {
 		logger.Error("Failed to initialize API Gateway", "error", err.Error())
 		os.Exit(1)
 	}
 	fmt.Println("  ✓ API Gateway initialized")
+	fmt.Printf("  ✓ Gateway Surface Mode: %s\n", gatewaySurface.SurfaceMode)
+	if len(config.UpstreamQueryServices) > 0 && gatewaySurface.SurfaceMode == "upstream-query-bridge" {
+		fmt.Printf("  ✓ Upstream query bridge endpoints: %d\n", len(config.UpstreamQueryServices))
+	}
 	if gateway.IsDomainBridgeEnabled() {
 		fmt.Println("  ✓ Domain query bridge configured")
 	}
@@ -253,6 +344,9 @@ func main() {
 	fmt.Println("Starting Services:")
 	var wg sync.WaitGroup
 
+	pullerCtx, stopPullers := context.WithCancel(context.Background())
+	defer stopPullers()
+
 	// Start Query Service
 	wg.Add(1)
 	go func() {
@@ -272,13 +366,25 @@ func main() {
 		}
 	}()
 	fmt.Println("  [2/2] API Gateway started")
+
+	if err := monolithicPullerRuntime.Start(pullerCtx, &wg); err != nil {
+		logger.Error("Failed to start monolithic puller runtime", "error", err.Error())
+		stopPullers()
+		os.Exit(1)
+	}
+
+	fmt.Printf("  [3/%d] Monolithic pullers started\n", monolithicPullerRuntime.PullerCount()+2)
 	fmt.Println()
 
 	fmt.Println("✓ All services started successfully")
 	fmt.Println()
 	fmt.Println("Status: Running")
-	fmt.Printf("GraphQL API available at: http://localhost:8080/graphql\n")
-	fmt.Printf("GraphQL WebSocket available at: ws://localhost:8080/graphql\n")
+	if gateway.IsEventQueryHandlerEnabled() {
+		fmt.Printf("GraphQL API available at: http://localhost:8080/graphql\n")
+	}
+	if gateway.IsEventSubscriptionHandlerEnabled() {
+		fmt.Printf("GraphQL WebSocket available at: ws://localhost:8080/graphql\n")
+	}
 	fmt.Printf("Health Check available at: http://localhost:8080/health\n")
 	fmt.Printf("Metrics available at: http://localhost:8080/metrics\n")
 	if gateway.IsRuntimeRoutesEnabled() {
@@ -306,12 +412,19 @@ func main() {
 	fmt.Println("Shutting Down Services:")
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
+	stopPullers()
 
 	// Stop API Gateway
 	if err := gateway.Stop(); err != nil {
 		logger.Error("Error stopping API Gateway", "error", err.Error())
 	}
 	fmt.Println("  [1/3] API Gateway stopped")
+
+	if err := monolithicPullerRuntime.Stop(); err != nil {
+		logger.Error("Error stopping monolithic puller runtime", "error", err.Error())
+	}
+
+	fmt.Println("  [2/6] Monolithic puller runtime stopped")
 
 	if err := sharedIndexingRuntime.Stop(shutdownCtx); err != nil {
 		logger.Error("Error stopping shared indexing runtime", "error", err.Error())
@@ -321,7 +434,7 @@ func main() {
 		"operation": "shutdown",
 	})
 	logger.Info("Shared indexing runtime stopped", "service", "monolithic", "state", sharedIndexingRuntime.Status().State)
-	fmt.Println("  [2/4] Shared indexing runtime stopped")
+	fmt.Println("  [3/6] Shared indexing runtime stopped")
 
 	if err := indexingCache.Stop(); err != nil {
 		logger.Error("Error stopping indexing cache", "error", err.Error())
@@ -329,18 +442,21 @@ func main() {
 	if err := indexingDatabase.Stop(); err != nil {
 		logger.Error("Error stopping indexing database", "error", err.Error())
 	}
-	fmt.Println("  [3/5] Indexing storage stopped")
+
+	fmt.Println("  [4/6] Indexing storage stopped")
 
 	if err := runtimeWiring.Close(shutdownCtx); err != nil {
 		logger.Error("Error closing runtime wiring", "error", err.Error())
 	}
-	fmt.Println("  [4/5] Runtime wiring closed")
+
+	fmt.Println("  [5/6] Runtime wiring closed")
 
 	// Close multi-chain indexer
 	if err := multiChainIndexer.Close(); err != nil {
 		logger.Error("Error closing multi-chain indexer", "error", err.Error())
 	}
-	fmt.Println("  [5/5] Multi-chain indexer closed")
+
+	fmt.Println("  [6/6] Multi-chain indexer closed")
 	finalRolloutSummary := buildOwnershipRolloutSummary(multiChainIndexer.GetStatus())
 	emitOwnershipRolloutSummaryMetrics(metrics, finalRolloutSummary, "shutdown")
 	logOwnershipRolloutSummary(logger, "shutdown", finalRolloutSummary)
@@ -369,39 +485,69 @@ func main() {
 
 // Configuration represents the application configuration
 type Configuration struct {
-	Chains             string
-	DataPullerType     string
-	BlockchainNodeURLs string
-	MQType             string
-	MQConnectionURL    string
-	CacheType          string
-	CacheConnectionURL string
-	DatabaseType       string
-	DatabaseURL        string
-	APIType            string
-	APIPort            string
-	WorkerPoolSize     string
-	BatchSize          string
-	LogLevel           string
+	DeploymentMode           string
+	DeploymentPosture        string
+	DeploymentHint           string
+	AdapterProfile           string
+	AdapterSelectionPosture  string
+	AdapterSelectionHint     string
+	IndexingStorageAdapter   string
+	QueryRuntimeAdapter      string
+	TransportAdapterBoundary string
+	UpstreamQueryServices    []string
+	Chains                   string
+	DataPullerType           string
+	BlockchainNodeURLs       string
+	MQType                   string
+	MQConnectionURL          string
+	CacheType                string
+	CacheConnectionURL       string
+	DatabaseType             string
+	DatabaseURL              string
+	APIType                  string
+	APIPort                  string
+	WorkerPoolSize           string
+	BatchSize                string
+	LogLevel                 string
+	DLQRetention             string
+	RateLimitEnabled         bool
+	RateLimitPerMinute       int
 }
 
 // loadConfiguration loads configuration from environment variables
 func loadConfiguration() Configuration {
+	modeProfile := resolveDeploymentModeProfile(os.Getenv("DEPLOYMENT_MODE"))
+	upstreamQueryServices := getEnvCSV("MONOLITHIC_UPSTREAM_QUERY_SERVICES", []string{"http://localhost:8081"})
+	adapterProfile := resolveMonolithicAdapterProfile(modeProfile.Mode, upstreamQueryServices)
+
 	return Configuration{
-		Chains:             getEnv("CHAINS", "ethereum,polygon"),
-		DataPullerType:     getEnv("DATA_PULLER_TYPE", "https-jsonrpc"),
-		BlockchainNodeURLs: getEnv("BLOCKCHAIN_NODE_URLS", "http://localhost:8545,http://localhost:8546"),
-		MQType:             getEnv("MQ_TYPE", "kafka"),
-		MQConnectionURL:    getEnv("MQ_CONNECTION_URL", "localhost:9092"),
-		CacheType:          getEnv("CACHE_TYPE", "redis"),
-		CacheConnectionURL: getEnv("CACHE_CONNECTION_URL", "localhost:6379"),
-		DatabaseType:       getEnv("DATABASE_TYPE", "postgres"),
-		DatabaseURL:        getEnv("DATABASE_URL", "postgres://localhost/chainpulse"),
-		APIType:            getEnv("API_TYPE", "graphql"),
-		APIPort:            getEnv("API_PORT", "8080"),
-		WorkerPoolSize:     getEnv("WORKER_POOL_SIZE", "8"),
-		BatchSize:          getEnv("BATCH_SIZE", "100"),
-		LogLevel:           getEnv("LOG_LEVEL", "info"),
+		DeploymentMode:           modeProfile.Mode,
+		DeploymentPosture:        modeProfile.Posture,
+		DeploymentHint:           modeProfile.ReliabilityHint,
+		AdapterProfile:           adapterProfile.ProfileName,
+		AdapterSelectionPosture:  adapterProfile.SelectionPosture,
+		AdapterSelectionHint:     adapterProfile.ReliabilityHint,
+		IndexingStorageAdapter:   adapterProfile.IndexingStorageAdapter,
+		QueryRuntimeAdapter:      adapterProfile.QueryRuntimeAdapter,
+		TransportAdapterBoundary: adapterProfile.TransportAdapterBoundary,
+		UpstreamQueryServices:    upstreamQueryServices,
+		Chains:                   getEnv("CHAINS", "ethereum,polygon"),
+		DataPullerType:           getEnv("DATA_PULLER_TYPE", "https-jsonrpc"),
+		BlockchainNodeURLs:       getEnv("BLOCKCHAIN_NODE_URLS", "http://localhost:8545,http://localhost:8546"),
+		MQType:                   getEnv("MQ_TYPE", "kafka"),
+		MQConnectionURL:          getEnv("MQ_CONNECTION_URL", "localhost:9092"),
+		CacheType:                getEnv("CACHE_TYPE", "redis"),
+		CacheConnectionURL:       getEnv("CACHE_CONNECTION_URL", "localhost:6379"),
+		DatabaseType:             getEnv("DATABASE_TYPE", "postgres"),
+		DatabaseURL:              getEnv("DATABASE_URL", "postgres://localhost/chainpulse"),
+		APIType:                  getEnv("API_TYPE", "graphql"),
+		APIPort:                  getEnv("API_PORT", "8080"),
+		WorkerPoolSize:           getEnv("WORKER_POOL_SIZE", "8"),
+		BatchSize:                getEnv("BATCH_SIZE", "100"),
+		LogLevel:                 getEnv("LOG_LEVEL", "info"),
+		DLQRetention:             getEnv("MONOLITHIC_DLQ_RETENTION", "168h"),
+		RateLimitEnabled:         getEnvBool("GATEWAY_RATE_LIMIT_ENABLED", false),
+		RateLimitPerMinute:       getEnvInt("GATEWAY_RATE_LIMIT_PER_MINUTE", 60),
 	}
 }
 
@@ -411,6 +557,43 @@ func getEnv(key, defaultValue string) string {
 		return value
 	}
 	return defaultValue
+}
+
+func getEnvBool(key string, defaultValue bool) bool {
+	if value := os.Getenv(key); value != "" {
+		return value == "true" || value == "1" || value == "yes"
+	}
+	return defaultValue
+}
+
+func getEnvInt(key string, defaultValue int) int {
+	if value := os.Getenv(key); value != "" {
+		if intVal, err := strconv.Atoi(value); err == nil {
+			return intVal
+		}
+	}
+	return defaultValue
+}
+
+func getEnvCSV(key string, defaultValues []string) []string {
+	raw := strings.TrimSpace(os.Getenv(key))
+	if raw == "" {
+		if defaultValues == nil {
+			return nil
+		}
+		values := make([]string, len(defaultValues))
+		copy(values, defaultValues)
+		return values
+	}
+
+	values := make([]string, 0)
+	for _, part := range strings.Split(raw, ",") {
+		trimmed := strings.TrimSpace(part)
+		if trimmed != "" {
+			values = append(values, trimmed)
+		}
+	}
+	return values
 }
 
 func parseChains(raw string) ([]string, error) {
@@ -426,6 +609,24 @@ func parseChains(raw string) ([]string, error) {
 		return nil, fmt.Errorf("at least one chain is required")
 	}
 	return chains, nil
+}
+
+func parseMonolithicDLQRetention(raw string) (time.Duration, error) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return 0, fmt.Errorf("dlq retention is required")
+	}
+
+	retention, err := time.ParseDuration(trimmed)
+	if err != nil {
+		return 0, fmt.Errorf("parse monolithic dlq retention: %w", err)
+	}
+
+	if retention < 0 {
+		return 0, fmt.Errorf("monolithic dlq retention must be non-negative")
+	}
+
+	return retention, nil
 }
 
 type ownershipSummary struct {

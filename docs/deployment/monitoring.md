@@ -13,11 +13,21 @@
 docker run -d \
   --name prometheus \
   -p 9090:9090 \
-  -v $(pwd)/prometheus.yml:/etc/prometheus/prometheus.yml \
+  -v $(pwd)/monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml \
   prom/prometheus:latest
 ```
 
 ### prometheus.yml配置
+
+仓库内实际 Prometheus 配置路径：
+
+- `monitoring/prometheus/prometheus.yml`
+- `monitoring/prometheus/alerts/chainpulse.yml`
+
+仓库内 Prometheus 校验脚本：
+
+- `scripts/verify-prometheus-scrape-baseline.sh` — 静态配置/compose baseline 校验
+- `scripts/verify-prometheus-live-smoke.sh` — 对运行中的 Prometheus 执行 targets/query 活体 smoke
 
 ```yaml
 global:
@@ -192,41 +202,56 @@ docker run -d \
 
 ### 仪表板配置
 
-#### 1. 性能仪表板
+本仓库的本地 Grafana provisioning 使用：
 
-**指标**:
-- 事件收集延迟 (P50, P95, P99)
-- 事件处理延迟 (P50, P95, P99)
-- API查询延迟 (P50, P95, P99)
-- 吞吐量 (events/sec)
-- 错误率
+- `monitoring/grafana/datasources/prometheus.yml`
+- `monitoring/grafana/dashboards/provider.yml`
+- `monitoring/grafana/dashboards/chainpulse-indexer.json`
 
-#### 2. 资源使用仪表板
+其中 `chainpulse-indexer.json` 现在是一个蓝图 `8.1` 对齐的本地调试总览，分成四个区域：
 
-**指标**:
-- 内存使用 (MB)
-- CPU使用 (%)
-- 磁盘使用 (%)
-- 网络I/O (bytes/sec)
-- 文件描述符
+#### 1. 性能
 
-#### 3. 业务指标仪表板
+- `chainpulse_event_processor_event_processed`
+- `chainpulse_event_processor_batch_processed`
+- `chainpulse_query_cache_hit_time_ms`
+- `chainpulse_query_by_hash_cache_hit_time_ms`
+- `chainpulse_gateway_request_time_ms`
+- `chainpulse_health_check_rollout_time_ms`
+- `mq_publish_latency_ms`
 
-**指标**:
-- 处理的事件总数
-- 处理的交易总数
-- 处理的区块总数
-- 缓存命中率
-- 数据库查询延迟
+#### 2. 资源使用
 
-#### 4. 系统健康仪表板
+- `process_resident_memory_bytes`
+- `process_cpu_seconds_total`
+- `go_goroutines`
+- `cache_hit` / `cache_miss`
+- `redis_cache_size`
+- `advanced_cache_entries`
 
-**指标**:
-- 服务可用性
-- 数据库连接池状态
-- Redis连接状态
-- 消息队列状态
-- 同步状态
+#### 3. 业务指标
+
+- `chainpulse_indexing_runtime_shadow_owned_events`
+- `chainpulse_indexing_runtime_legacy_owned_events`
+- `chainpulse_indexing_runtime_ownership_chains`
+- `chainpulse_reorg_detected`
+- `chainpulse_reorg_recovery_count`
+- `chainpulse_recovery_state_success`
+- `chainpulse_recovery_state_failed`
+- `chainpulse_consistency_checks_failed`
+- `chainpulse_mq_dead_letter_queue_size`
+
+#### 4. 系统健康
+
+- `up{job=~"chainpulse.*"}`
+- `chainpulse_indexing_runtime_started`
+- `chainpulse_indexing_runtime_chain_count`
+- `chainpulse_gateway_route_not_found`
+- `chainpulse_gateway_method_not_allowed`
+- `chainpulse_gateway_request_success`
+- `chainpulse_health_check_rollout_status`
+- `chainpulse_mq_messages_published`
+- `chainpulse_mq_messages_consumed`
 
 ## 告警通知
 
@@ -279,19 +304,19 @@ receivers:
 ### Prometheus指标格式
 
 ```
-# HELP event_collection_latency_ms Event collection latency in milliseconds
-# TYPE event_collection_latency_ms histogram
-event_collection_latency_ms_bucket{le="10"} 100
-event_collection_latency_ms_bucket{le="50"} 500
-event_collection_latency_ms_bucket{le="100"} 800
-event_collection_latency_ms_bucket{le="+Inf"} 1000
-event_collection_latency_ms_sum 45000
-event_collection_latency_ms_count 1000
+# HELP chainpulse_event_collection_latency_ms Event collection latency in milliseconds
+# TYPE chainpulse_event_collection_latency_ms histogram
+chainpulse_event_collection_latency_ms_bucket{chain_id="ethereum",le="10"} 100
+chainpulse_event_collection_latency_ms_bucket{chain_id="ethereum",le="50"} 500
+chainpulse_event_collection_latency_ms_bucket{chain_id="ethereum",le="100"} 800
+chainpulse_event_collection_latency_ms_bucket{chain_id="ethereum",le="+Inf"} 1000
+chainpulse_event_collection_latency_ms_sum{chain_id="ethereum"} 45000
+chainpulse_event_collection_latency_ms_count{chain_id="ethereum"} 1000
 
-# HELP events_processed_total Total events processed
-# TYPE events_processed_total counter
-events_processed_total{chain="ethereum"} 1000000
-events_processed_total{chain="polygon"} 500000
+# HELP chainpulse_events_processed_total Total events processed
+# TYPE chainpulse_events_processed_total counter
+chainpulse_events_processed_total{chain_id="ethereum"} 1000000
+chainpulse_events_processed_total{chain_id="polygon"} 500000
 
 # HELP process_resident_memory_bytes Resident memory in bytes
 # TYPE process_resident_memory_bytes gauge

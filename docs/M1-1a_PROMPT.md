@@ -127,7 +127,10 @@ https://1rpc.io/eth
 ### 参考文件
 - `docs/archive/ARCHITECTURE_v1.md` — **权威蓝图**
 - `cmd/monolithic/chainpulse/main.go` — Composition Root
-- `pkg/core/eventbus.go` — EventBus
+- `pkg/core/eventbus.go` — EventBus:
+  - `NewEventBus(logger) *DefaultEventBus`
+  - `eb.Publish(ctx context.Context, topic string, event interface{}) error` — 注意第一个参数是 ctx!
+  - `eb.Subscribe(ctx context.Context, topic string, handler func(interface{})) error`
 - `pkg/core/config.go` — Config
 - `pkg/core/blockchain_models.go` — BlockchainEvent
 - `pkg/plugins/pullers/https_jsonrpc_puller.go` — HTTPSJSONRPCPuller（需修复 logToEvent）

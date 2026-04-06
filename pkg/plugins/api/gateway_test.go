@@ -69,6 +69,29 @@ func TestAPIGatewayPluginEventSubscriptionHandlerToggle(t *testing.T) {
 	}
 }
 
+func TestAPIGatewayPluginInitializeInjectsRateLimiterIntoSubscriptionHandler(t *testing.T) {
+	logger := core.NewDefaultLogger(core.LogLevelInfo)
+	metrics := core.NewDefaultMetricsCollector()
+	plugin := NewAPIGatewayPlugin(logger, metrics)
+
+	subscriptionHandler := NewEventSubscriptionHandler(nil, logger, metrics)
+	limiter := NewRateLimiter(logger, metrics, &RateLimitConfig{
+		DefaultRequestsPerSecond: 10,
+		DefaultBurstSize:         10,
+	})
+
+	plugin.SetEventSubscriptionHandler(subscriptionHandler)
+	plugin.SetRateLimitMiddleware(NewRateLimitMiddleware(limiter, logger))
+
+	if err := plugin.Initialize(core.Config{}); err != nil {
+		t.Fatalf("initialize plugin: %v", err)
+	}
+
+	if subscriptionHandler.rateLimiter != limiter {
+		t.Fatal("expected gateway initialization to inject the shared rate limiter into subscription handler")
+	}
+}
+
 func TestAPIGatewayPluginHealthCheckHandlerToggle(t *testing.T) {
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()

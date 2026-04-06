@@ -10,6 +10,245 @@ import (
 	"chainpulse/pkg/plugins/api"
 )
 
+func TestResolveDeploymentModeProfile(t *testing.T) {
+	t.Run("defaults to monolithic", func(t *testing.T) {
+		profile := resolveDeploymentModeProfile("")
+		if profile.Mode != deploymentModeMonolithic {
+			t.Fatalf("expected monolithic mode, got %s", profile.Mode)
+		}
+		if profile.Posture != "deployment-mode-monolithic" {
+			t.Fatalf("expected monolithic posture, got %s", profile.Posture)
+		}
+	})
+
+	t.Run("accepts microservice", func(t *testing.T) {
+		profile := resolveDeploymentModeProfile("microservice")
+		if profile.Mode != deploymentModeMicroservice {
+			t.Fatalf("expected microservice mode, got %s", profile.Mode)
+		}
+		if profile.Posture != "deployment-mode-microservice-intent" {
+			t.Fatalf("expected microservice posture, got %s", profile.Posture)
+		}
+	})
+
+	t.Run("falls back for invalid values", func(t *testing.T) {
+		profile := resolveDeploymentModeProfile("weird-mode")
+		if profile.Mode != deploymentModeMonolithic {
+			t.Fatalf("expected fallback monolithic mode, got %s", profile.Mode)
+		}
+		if profile.Recognized {
+			t.Fatal("expected invalid mode to be unrecognized")
+		}
+		if profile.Posture != "deployment-mode-fallback" {
+			t.Fatalf("expected fallback posture, got %s", profile.Posture)
+		}
+	})
+}
+
+func TestResolveMonolithicAdapterProfile(t *testing.T) {
+	t.Run("monolithic profile", func(t *testing.T) {
+		profile := resolveMonolithicAdapterProfile(deploymentModeMonolithic, nil)
+		if profile.ProfileName != "monolithic-runtime-profile" {
+			t.Fatalf("expected monolithic profile, got %s", profile.ProfileName)
+		}
+		if profile.SelectionPosture != "adapter-profile-ready" {
+			t.Fatalf("expected ready posture, got %s", profile.SelectionPosture)
+		}
+		if profile.QueryRuntimeAdapter != "indexing-backed-query-surface" {
+			t.Fatalf("expected indexing-backed query adapter, got %s", profile.QueryRuntimeAdapter)
+		}
+	})
+
+	t.Run("microservice profile remains partial", func(t *testing.T) {
+		profile := resolveMonolithicAdapterProfile(deploymentModeMicroservice, nil)
+		if profile.ProfileName != "microservice-target-profile" {
+			t.Fatalf("expected microservice target profile, got %s", profile.ProfileName)
+		}
+		if profile.SelectionPosture != "adapter-profile-partial" {
+			t.Fatalf("expected partial posture, got %s", profile.SelectionPosture)
+		}
+		if profile.IndexingStorageAdapter != "compatibility-mock-indexing-storage" {
+			t.Fatalf("expected compatibility mock indexing storage, got %s", profile.IndexingStorageAdapter)
+		}
+	})
+
+	t.Run("microservice profile becomes bridged with upstreams", func(t *testing.T) {
+		profile := resolveMonolithicAdapterProfile(deploymentModeMicroservice, []string{"http://localhost:8081"})
+		if profile.SelectionPosture != "adapter-profile-bridged" {
+			t.Fatalf("expected bridged posture, got %s", profile.SelectionPosture)
+		}
+		if profile.TransportAdapterBoundary != "upstream-query-bridge-gateway-intent" {
+			t.Fatalf("expected upstream query bridge boundary, got %s", profile.TransportAdapterBoundary)
+		}
+	})
+}
+
+func TestClassifyMonolithicTransportBoundary(t *testing.T) {
+	cases := []struct {
+		name               string
+		boundary           string
+		gatewaySurfaceMode string
+		configured         int
+		attached           int
+		available          int
+		wantPosture        string
+	}{
+		{
+			name:               "monolithic in process ready",
+			boundary:           "monolithic-in-process-runtime",
+			gatewaySurfaceMode: "full-in-process",
+			wantPosture:        "transport-boundary-in-process-ready",
+		},
+		{
+			name:               "microservice runtime only",
+			boundary:           "runtime-operator-only-gateway-intent",
+			gatewaySurfaceMode: "runtime-operator-only",
+			wantPosture:        "transport-boundary-runtime-operator-only",
+		},
+		{
+			name:               "microservice bridge unconfigured",
+			boundary:           "upstream-query-bridge-gateway-intent",
+			gatewaySurfaceMode: "upstream-query-bridge",
+			wantPosture:        "transport-boundary-bridge-unconfigured",
+		},
+		{
+			name:               "microservice bridge unattached",
+			boundary:           "upstream-query-bridge-gateway-intent",
+			gatewaySurfaceMode: "upstream-query-bridge",
+			configured:         1,
+			wantPosture:        "transport-boundary-bridge-unattached",
+		},
+		{
+			name:               "microservice bridge unavailable",
+			boundary:           "upstream-query-bridge-gateway-intent",
+			gatewaySurfaceMode: "upstream-query-bridge",
+			configured:         1,
+			attached:           1,
+			wantPosture:        "transport-boundary-bridge-unavailable",
+		},
+		{
+			name:               "microservice bridge degraded",
+			boundary:           "upstream-query-bridge-gateway-intent",
+			gatewaySurfaceMode: "upstream-query-bridge",
+			configured:         2,
+			attached:           2,
+			available:          1,
+			wantPosture:        "transport-boundary-bridge-degraded",
+		},
+		{
+			name:               "microservice bridge ready",
+			boundary:           "upstream-query-bridge-gateway-intent",
+			gatewaySurfaceMode: "upstream-query-bridge",
+			configured:         1,
+			attached:           1,
+			available:          1,
+			wantPosture:        "transport-boundary-bridge-ready",
+		},
+		{
+			name:               "unclassified fallback",
+			boundary:           "unknown-boundary",
+			gatewaySurfaceMode: "full-in-process",
+			wantPosture:        "transport-boundary-unclassified",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			status := classifyMonolithicTransportBoundary(tc.boundary, tc.gatewaySurfaceMode, tc.configured, tc.attached, tc.available)
+			if status.Posture != tc.wantPosture {
+				t.Fatalf("expected %s, got %s", tc.wantPosture, status.Posture)
+			}
+			if status.Hint == "" {
+				t.Fatal("expected transport boundary hint to be populated")
+			}
+		})
+	}
+}
+
+func TestLoadConfigurationDeploymentMode(t *testing.T) {
+	t.Setenv("DEPLOYMENT_MODE", "microservice")
+
+	cfg := loadConfiguration()
+	if cfg.DeploymentMode != deploymentModeMicroservice {
+		t.Fatalf("expected deployment mode microservice, got %s", cfg.DeploymentMode)
+	}
+	if cfg.DeploymentPosture != "deployment-mode-microservice-intent" {
+		t.Fatalf("expected deployment posture microservice intent, got %s", cfg.DeploymentPosture)
+	}
+	if cfg.DeploymentHint == "" {
+		t.Fatal("expected deployment hint to be populated")
+	}
+	if cfg.AdapterProfile != "microservice-target-profile" {
+		t.Fatalf("expected adapter profile microservice-target-profile, got %s", cfg.AdapterProfile)
+	}
+	if cfg.DLQRetention != "168h" {
+		t.Fatalf("expected default DLQ retention 168h, got %s", cfg.DLQRetention)
+	}
+}
+
+func TestParseMonolithicDLQRetention(t *testing.T) {
+	t.Run("accepts valid duration", func(t *testing.T) {
+		retention, err := parseMonolithicDLQRetention("72h")
+		if err != nil {
+			t.Fatalf("expected success, got %v", err)
+		}
+		if retention != 72*time.Hour {
+			t.Fatalf("expected 72h retention, got %s", retention)
+		}
+	})
+
+	t.Run("rejects invalid duration", func(t *testing.T) {
+		if _, err := parseMonolithicDLQRetention("forever"); err == nil {
+			t.Fatal("expected parse error")
+		}
+	})
+}
+
+func TestResolveMonolithicGatewaySurface(t *testing.T) {
+	t.Run("monolithic keeps full surface", func(t *testing.T) {
+		surface := resolveMonolithicGatewaySurface(Configuration{DeploymentMode: deploymentModeMonolithic})
+		if surface.SurfaceMode != "full-in-process" {
+			t.Fatalf("expected full-in-process, got %s", surface.SurfaceMode)
+		}
+		if surface.SurfacePosture != "gateway-surface-full" {
+			t.Fatalf("expected gateway-surface-full, got %s", surface.SurfacePosture)
+		}
+	})
+
+	t.Run("microservice intent keeps runtime-only surface", func(t *testing.T) {
+		surface := resolveMonolithicGatewaySurface(Configuration{DeploymentMode: deploymentModeMicroservice})
+		if surface.SurfaceMode != "runtime-operator-only" {
+			t.Fatalf("expected runtime-operator-only, got %s", surface.SurfaceMode)
+		}
+		if surface.SurfacePosture != "gateway-surface-runtime-only" {
+			t.Fatalf("expected gateway-surface-runtime-only, got %s", surface.SurfacePosture)
+		}
+	})
+}
+
+func TestApplyMonolithicGatewaySurfaceRuntimeOnly(t *testing.T) {
+	logger := core.NewDefaultLogger(core.LogLevelError)
+	metrics := core.NewDefaultMetricsCollector()
+	gateway := api.NewAPIGatewayPlugin(logger, metrics)
+
+	healthHandler := api.NewHealthCheckHandler(nil, logger, metrics)
+	applyMonolithicGatewaySurface(gateway, resolveMonolithicGatewaySurface(Configuration{DeploymentMode: deploymentModeMicroservice}), gatewayRuntimeWiring{
+		eventQueryHandler:        api.NewEventQueryHandler(nil, logger, metrics),
+		eventSubscriptionHandler: api.NewEventSubscriptionHandler(nil, logger, metrics),
+		healthCheckHandler:       healthHandler,
+	})
+
+	if gateway.IsEventQueryHandlerEnabled() {
+		t.Fatal("expected event query handler to stay disabled in runtime-only gateway surface mode")
+	}
+	if gateway.IsEventSubscriptionHandlerEnabled() {
+		t.Fatal("expected subscription handler to stay disabled in runtime-only gateway surface mode")
+	}
+	if !gateway.IsHealthCheckHandlerEnabled() {
+		t.Fatal("expected health handler to stay enabled in runtime-only gateway surface mode")
+	}
+}
+
 func TestAggregateIndexerOwnership(t *testing.T) {
 	summary := aggregateIndexerOwnership(map[string]map[string]interface{}{
 		"ethereum": {

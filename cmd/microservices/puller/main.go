@@ -313,7 +313,7 @@ type PullerConfig struct {
 	AuthJWTSecret       string
 	AuthAPIKeys         []string
 	RateLimitEnabled    bool
-	RateLimitPerSecond  int
+	RateLimitPerMinute  int
 }
 
 // loadPullerConfig loads configuration from environment variables
@@ -343,7 +343,7 @@ func loadPullerConfig() PullerConfig {
 		AuthJWTSecret:       getEnv("PULLER_AUTH_JWT_SECRET", ""),
 		AuthAPIKeys:         parseStringList(getEnv("PULLER_AUTH_API_KEYS", "")),
 		RateLimitEnabled:    parseBoolEnv("PULLER_RATE_LIMIT_ENABLED", false),
-		RateLimitPerSecond:  getEnvInt("PULLER_RATE_LIMIT", 100),
+		RateLimitPerMinute:  getEnvInt("PULLER_RATE_LIMIT", 100),
 	}
 }
 
@@ -439,14 +439,9 @@ func buildPullerSecurityControls(config PullerConfig, logger core.Logger, metric
 
 	var rateLimitMiddleware *api.RateLimitMiddleware
 	if config.RateLimitEnabled {
-		burst := config.RateLimitPerSecond / 10
-		if burst < 10 {
-			burst = 10
-		}
-
 		rateLimiter := api.NewRateLimiter(logger, metrics, &api.RateLimitConfig{
-			DefaultRequestsPerSecond: float64(config.RateLimitPerSecond),
-			DefaultBurstSize:         burst,
+			DefaultRequestsPerSecond: api.RequestsPerMinuteToPerSecond(config.RateLimitPerMinute),
+			DefaultBurstSize:         api.BurstSizeFromRequestsPerMinute(config.RateLimitPerMinute),
 			CleanupInterval:          5 * time.Minute,
 		})
 		rateLimitMiddleware = api.NewRateLimitMiddleware(rateLimiter, logger)

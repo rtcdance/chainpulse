@@ -174,19 +174,36 @@ for each chain:
   - `ed.DecodeEvent(rawEvent *types.Log, contractABI abi.ABI) (*DecodedEvent, error)`
   - `ed.DecodeEventBatch(rawEvents []*types.Log, contractABI abi.ABI) ([]*DecodedEvent, error)`
 - `pkg/plugins/pullers/https_jsonrpc_puller.go` — Puller（需修改 logToEvent 接入 ABI 解码）
-- `pkg/core/eventbus.go` — EventBus
+- `pkg/core/eventbus.go` — EventBus:
+  - `NewEventBus(logger) *DefaultEventBus`
+  - `eb.Publish(ctx context.Context, topic string, event interface{}) error`
+  - `eb.Subscribe(ctx context.Context, topic string, handler func(interface{})) error`
+  - `eb.IsBackpressured(topic string) bool` — **需要在 Step 0 中创建**
 - `pkg/infrastructure/data/block_height_tracker.go` — Checkpoint 追踪
 
 ### 修复步骤
 
-**Step 1: 创建 EventBus 背压方法**
+**Step 0: 创建 EventBus.IsBackpressured 方法**
 ```
 文件: pkg/core/eventbus.go
-添加 IsBackpressured(topic string) bool 方法:
-  遍历该 topic 的所有订阅者 chan，检查 len(ch)/cap(ch) > 0.8 返回 true
+在 DefaultEventBus 上添加方法:
+
+func (eb *DefaultEventBus) IsBackpressured(topic string) bool {
+    eb.mu.RLock()
+    defer eb.mu.RUnlock()
+    handlers, exists := eb.subscribers[topic]
+    if !exists || len(handlers) == 0 {
+        return false
+    }
+    // 遍历该 topic 的所有订阅者，检查是否有背压信号
+    // 由于当前 EventHandler 是 func(interface{}) 没有 buffer 概念，
+    // 用简单策略: 如果订阅者数量 > 10 或 topic 不存在则返回 false
+    // 实际背压由 Puller 循环中的 sleep 控制
+    return false // M1 阶段简化处理，后续可根据 chan buffer 实现
+}
 ```
 
-**Step 2: 修改 Puller 的 logToEvent 接入 ContractManager（ABI 平滑升级）**
+**Step 1: 修改 Puller 的 logToEvent 接入 ContractManager（ABI 平滑升级）**
 ```
 文件: pkg/plugins/pullers/https_jsonrpc_puller.go
 1. 在 HTTPSJSONRPCPuller 结构体中添加:

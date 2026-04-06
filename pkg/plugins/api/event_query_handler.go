@@ -77,18 +77,18 @@ type QueryResponse struct {
 
 // QueryMeta represents execution/source metadata for the current query response.
 type QueryMeta struct {
-	Source               string `json:"source"`
-	QuerySourcePosture   string `json:"querySourcePosture,omitempty"`
-	QueryPath            string `json:"queryPath,omitempty"`
-	FallbackUsed         bool   `json:"fallbackUsed,omitempty"`
-	MetadataCompleteness string `json:"metadataCompleteness,omitempty"`
+	Source                  string `json:"source"`
+	QuerySourcePosture      string `json:"querySourcePosture,omitempty"`
+	QueryPath               string `json:"queryPath,omitempty"`
+	FallbackUsed            bool   `json:"fallbackUsed,omitempty"`
+	MetadataCompleteness    string `json:"metadataCompleteness,omitempty"`
 	MetadataCoveragePosture string `json:"metadataCoveragePosture,omitempty"`
-	ConsistencyPosture   string `json:"consistencyPosture,omitempty"`
-	QueryReliabilityHint string `json:"queryReliabilityHint,omitempty"`
-	QueryExecutionSummary string `json:"queryExecutionSummary,omitempty"`
-	MetadataAttachedCount int   `json:"metadataAttachedCount,omitempty"`
-	MetadataMissingCount  int   `json:"metadataMissingCount,omitempty"`
-	ResultCount          int    `json:"resultCount,omitempty"`
+	ConsistencyPosture      string `json:"consistencyPosture,omitempty"`
+	QueryReliabilityHint    string `json:"queryReliabilityHint,omitempty"`
+	QueryExecutionSummary   string `json:"queryExecutionSummary,omitempty"`
+	MetadataAttachedCount   int    `json:"metadataAttachedCount,omitempty"`
+	MetadataMissingCount    int    `json:"metadataMissingCount,omitempty"`
+	ResultCount             int    `json:"resultCount,omitempty"`
 }
 
 // Pagination represents pagination information
@@ -283,12 +283,8 @@ func (h *EventQueryHandler) HandleGetEventsByChain(w http.ResponseWriter, r *htt
 		return
 	}
 
-	// Parse chain ID
-	chainID, err := strconv.Atoi(chainIDStr)
-	if err != nil {
-		h.respondError(w, http.StatusBadRequest, "invalid_request", "Invalid chain ID")
-		return
-	}
+	chainID, chainIDErr := strconv.Atoi(chainIDStr)
+	stringChainPath := chainIDErr != nil
 
 	// Parse query parameters
 	limit := h.parseIntParam(r, "limit", 20)
@@ -306,16 +302,21 @@ func (h *EventQueryHandler) HandleGetEventsByChain(w http.ResponseWriter, r *htt
 	defer cancel()
 
 	if h.domainQuery != nil {
+		filterValue := interface{}(chainID)
+		if stringChainPath {
+			filterValue = chainIDStr
+		}
+
 		domainResult, domainErr := h.domainQuery.Query(ctx, &domainquery.Request{
 			QueryType:  "mongodb",
 			Collection: "events",
 			Filter: map[string]interface{}{
-				"chainId": chainID,
+				"chainId": filterValue,
 			},
 			Limit:  int64(limit),
 			Offset: int64(offset),
 		})
-		if domainErr == nil && domainResult != nil && len(domainResult.Events) > 0 {
+		if domainErr == nil && domainResult != nil && (stringChainPath || len(domainResult.Events) > 0) {
 			response := buildPaginatedEventQueryResponse(
 				h.convertDomainEventsToResponse(domainResult.Events),
 				limit,
@@ -328,9 +329,14 @@ func (h *EventQueryHandler) HandleGetEventsByChain(w http.ResponseWriter, r *htt
 			return
 		}
 		if domainErr != nil {
-			h.logger.Warn("Domain query chain list failed, fallback to retrieval", "chainId", chainID, "error", domainErr.Error())
+			h.logger.Warn("Domain query chain list failed, fallback to retrieval", "chainId", chainIDStr, "error", domainErr.Error())
 			h.metrics.RecordGauge("event_query_get_by_chain_domain_error", 1, nil)
 		}
+	}
+
+	if stringChainPath {
+		h.respondError(w, http.StatusBadRequest, "invalid_request", "Invalid chain ID")
+		return
 	}
 
 	// Get events from retrieval service
@@ -613,26 +619,26 @@ func buildSingleEventQueryMeta(source, queryPath string, fallbackUsed bool, even
 	}
 
 	return buildEventQueryMetaFromInput(eventQueryMetaInput{
-		Source:               source,
-		QueryPath:            queryPath,
-		FallbackUsed:         fallbackUsed,
-		MetadataCompleteness: completeness,
+		Source:                source,
+		QueryPath:             queryPath,
+		FallbackUsed:          fallbackUsed,
+		MetadataCompleteness:  completeness,
 		MetadataAttachedCount: 0,
 		MetadataMissingCount:  resultCount,
-		ResultCount:          resultCount,
+		ResultCount:           resultCount,
 	})
 }
 
 func buildEventQueryMeta(source, queryPath string, fallbackUsed bool, events []*query.EventWithMetadata) *QueryMeta {
 	if len(events) == 0 {
 		return buildEventQueryMetaFromInput(eventQueryMetaInput{
-			Source:               source,
-			QueryPath:            queryPath,
-			FallbackUsed:         fallbackUsed,
-			MetadataCompleteness: "none",
+			Source:                source,
+			QueryPath:             queryPath,
+			FallbackUsed:          fallbackUsed,
+			MetadataCompleteness:  "none",
 			MetadataAttachedCount: 0,
 			MetadataMissingCount:  0,
-			ResultCount:          0,
+			ResultCount:           0,
 		})
 	}
 
@@ -652,13 +658,13 @@ func buildEventQueryMeta(source, queryPath string, fallbackUsed bool, events []*
 	}
 
 	return buildEventQueryMetaFromInput(eventQueryMetaInput{
-		Source:               source,
-		QueryPath:            queryPath,
-		FallbackUsed:         fallbackUsed,
-		MetadataCompleteness: completeness,
+		Source:                source,
+		QueryPath:             queryPath,
+		FallbackUsed:          fallbackUsed,
+		MetadataCompleteness:  completeness,
 		MetadataAttachedCount: withMetadata,
 		MetadataMissingCount:  len(events) - withMetadata,
-		ResultCount:          len(events),
+		ResultCount:           len(events),
 	})
 }
 
@@ -683,14 +689,14 @@ func buildDomainQueryListMeta(result *domainquery.Result, queryPath string) *Que
 		source = "domain-query"
 	}
 	meta := buildEventQueryMetaFromInput(eventQueryMetaInput{
-		Source:               source,
-		QuerySourcePosture:   classifyDomainListQuerySourcePosture(result),
-		QueryPath:            queryPath,
-		FallbackUsed:         false,
-		MetadataCompleteness: "none",
+		Source:                source,
+		QuerySourcePosture:    classifyDomainListQuerySourcePosture(result),
+		QueryPath:             queryPath,
+		FallbackUsed:          false,
+		MetadataCompleteness:  "none",
 		MetadataAttachedCount: 0,
 		MetadataMissingCount:  len(events),
-		ResultCount:          len(events),
+		ResultCount:           len(events),
 	})
 	if meta != nil && result.Total > 0 {
 		meta.ResultCount = int(result.Total)

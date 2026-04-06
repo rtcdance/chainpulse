@@ -1,6 +1,7 @@
 package websocket
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"sync"
@@ -212,8 +213,12 @@ func (p *WebSocketPlugin) handleWebSocket(w http.ResponseWriter, r *http.Request
 		// Create request adapter
 		req := NewWebSocketRequest(r, data)
 
-		// Process through API layer
-		result := p.apiLayer.Handle(req)
+		// Process through the shared request processor so route middleware and
+		// error handling are consistent with the rest of the API layer.
+		result, err := p.processor.ProcessRequest(r.Context(), req)
+		if err != nil {
+			result = p.processor.HandleError(r.Context(), err)
+		}
 
 		// Send response back through WebSocket
 		if err := conn.WriteMessage(websocket.TextMessage, result.Body()); err != nil {
@@ -234,6 +239,11 @@ func (p *WebSocketPlugin) Use(middleware ...core.Middleware) error {
 
 	p.middleware = append(p.middleware, middleware...)
 	p.router.Use(middleware...)
+
+	if p.apiLayer != nil {
+		p.apiLayer.Use(middleware...)
+	}
+
 	return nil
 }
 
@@ -247,7 +257,27 @@ func (p *WebSocketPlugin) RegisterRoute(path string, handler core.Handler) error
 	}
 
 	p.router.Register(path, handler)
+
+	if p.apiLayer != nil {
+		p.apiLayer.RegisterHandler(path, handler)
+	}
+
 	return nil
+}
+
+// ProcessRequest executes an adapter-backed WebSocket message through the
+// shared request processor so middleware and routing can be tested directly.
+func (p *WebSocketPlugin) ProcessRequest(ctx context.Context, req *WebSocketRequest) (core.Response, error) {
+	if req == nil {
+		return nil, fmt.Errorf("request is required")
+	}
+
+	result, err := p.processor.ProcessRequest(ctx, req)
+	if err != nil {
+		return p.processor.HandleError(ctx, err), nil
+	}
+
+	return result, nil
 }
 
 // GetClientCount returns the number of connected clients
@@ -288,11 +318,11 @@ func (p *WebSocketPlugin) GetConnectionMetrics() map[string]interface{} {
 	connectionPosture := classifyWebSocketConnectionPosture(running, clientCount)
 
 	return map[string]interface{}{
-		"running":             running,
-		"client_count":        clientCount,
-		"transport_posture":   transportPosture,
-		"connection_posture":  connectionPosture,
-		"reliability_hint":    buildWebSocketReliabilityHint(transportPosture, connectionPosture),
+		"running":            running,
+		"client_count":       clientCount,
+		"transport_posture":  transportPosture,
+		"connection_posture": connectionPosture,
+		"reliability_hint":   buildWebSocketReliabilityHint(transportPosture, connectionPosture),
 	}
 }
 

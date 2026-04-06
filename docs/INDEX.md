@@ -1,11 +1,13 @@
 # Documentation Index
 
-**Last Updated**: 2026-03-30
+**Last Updated**: 2026-04-04
 
 ## Active Documentation
 
 ### Core
 - `ARCHITECTURE.md` - System architecture overview
+- `MILESTONE_STATUS.md` - Active milestone execution status for `M1a/M1b/M1c → M2 → M3a/M3b/M3c`
+- `DOCKER_RUNTIME_RECOVERY.md` - Docker runtime recovery runbook for compose-based readiness smoke failures
 - `TESTING.md` - Testing strategy
 - `DEBUGGING.md` - Debugging guide
 - `README.md` - Project overview
@@ -14,6 +16,7 @@
 - `guides/DEPLOYMENT_GUIDE.md` - Deployment instructions
 - `guides/OPERATIONS_GUIDE.md` - Operations runbook
 - `guides/DEVELOPER_GUIDE.md` - Developer onboarding
+- `deployment/monitoring.md` - Prometheus and Grafana monitoring guide with blueprint-aligned dashboard notes
 
 ### Operations
 - `operations/POLICY_ROLLOUT_SLO.md` - Policy rollout SLO/SLI definitions
@@ -38,6 +41,10 @@
 - `architecture/DIRECTORY_STRUCTURE.md` - Code organization
 - `architecture/MIGRATION_SUMMARY.md` - Migration notes
 - `architecture/ENTERPRISE_INDEXER_GAP_ANALYSIS.md` - Enterprise indexer gap review and roadmap
+- `specs/2026-04-04-m2-monolithic-indexing-storage-profile-selection.md` - `M2` storage profile selection now affects real monolithic indexing database wiring
+- `specs/2026-04-04-m2-monolithic-query-surface-profile-selection.md` - `M2` query surface selection now follows deployment mode and aligns summary output with the real selected query adapter
+- `specs/2026-04-04-m2-monolithic-gateway-surface-profile-selection.md` - `M2` gateway surface selection now follows deployment mode and keeps route inventory aligned with actual handler ownership
+- `specs/2026-04-04-m2-dual-mode-baseline-assessment.md` - `M2` now has a minimum truthful dual-mode baseline, but remains intentionally in progress until shared wiring and transport boundary alignment go further
 - `specs/2026-03-30-architecture-phase104-indexer-runtime-closure-slice.md` - Planned shared indexer runtime closure slice
 - `specs/2026-03-30-architecture-phase108-monolithic-shared-runtime-additive-wiring.md` - Monolithic additive wiring for shared indexing runtime
 - `specs/2026-03-30-architecture-phase109-chain-indexer-shared-runtime-shadow-batch.md` - Chain indexer shadow batch forwarding into shared runtime
@@ -367,6 +374,55 @@
 - `specs/2026-04-03-architecture-phase433-monolithic-runtime-summary-surface.md` - Monolithic runtime now exposes a compact operator-facing summary surface that includes the shared indexing runtime contract and ownership rollout posture
 - `specs/2026-04-03-architecture-phase434-monolithic-runtime-failure-replay-closure.md` - Monolithic shared indexing runtime now wires real in-memory failure routing and replay while exposing checkpoint and duplicate/runtime closure facts
 - `specs/2026-04-03-architecture-phase435-event-processor-shared-runtime-shadow.md` - Event-processor now forwards successfully processed events into a per-chain shared indexing runtime shadow and exposes that status through runtime summary
+- `specs/2026-04-04-m1a-monolithic-chain-route-contract-alignment.md` - Monolithic `/events/chain/{chainId}` now supports configured string chain IDs while preserving numeric fallback behavior
+- `specs/2026-04-04-m1a-monolithic-reorg-handler-wiring.md` - Monolithic puller runtime now owns per-chain reorg handlers, persists minimal block snapshots, and exposes a best-effort rollback seam through runtime summary
+- `specs/2026-04-04-m1a-monolithic-puller-runtime-surface.md` - Monolithic puller runtime now exposes compact health posture and a read-only `/runtime/control` surface through the gateway runtime routes
+- `specs/2026-04-04-m1a-monolithic-runtime-closure-assessment.md` - M1a is now assessed as stage-complete for the monolithic foundational runtime baseline
+- `specs/2026-04-04-m1a-completion-record.md` - Final completion record for M1a and handoff boundary to M1b
+- `specs/2026-04-04-m1b-monolithic-pull-loop-resilience.md` - M1b slice 1 adds bounded restart/backoff supervision and recovering posture surfacing to monolithic per-chain pull loops
+- `specs/2026-04-04-m1b-monolithic-checkpoint-recovery-closure.md` - M1b slice 2 adds a real monolithic checkpoint/replay recovery seam and surfaces recovery posture through runtime summary
+- `specs/2026-04-04-m1b-monolithic-degraded-fault-semantics.md` - M1b slice 3 makes monolithic top-level runtime posture fault-aware instead of reporting healthy while resilience seams are recovering or degraded
+- `specs/2026-04-04-m1b-monolithic-resilience-assessment.md` - M1b is now assessed as stage-complete for the monolithic resilience baseline
+- `specs/2026-04-04-m1b-completion-record.md` - Final completion record for M1b and handoff boundary to M1c
+- `specs/2026-04-04-m1c-monolithic-metrics-route-surface.md` - M1c slice 1 adds an explicit monolithic `/metrics` runtime-route contract through the gateway composition layer
+- `specs/2026-04-04-m1c-monolithic-runtime-route-inventory.md` - M1c slice 2 adds a real monolithic gateway runtime-route inventory and surfaces runtime-surface posture through runtime summary
+- `specs/2026-04-04-m1c-gateway-method-contract-hardening.md` - M1c slice 3 hardens gateway route method boundaries with 405/Allow semantics and exposes method-contract posture through monolithic runtime summary
+- `specs/2026-04-04-m1c-monolithic-observability-gateway-assessment.md` - M1c is now assessed as stage-complete for the monolithic observability + gateway baseline
+- `specs/2026-04-04-m1c-completion-record.md` - Final completion record for M1c and handoff boundary to M2
+- `specs/2026-04-04-m2-deployment-mode-parsing.md` - M2 slice 1 turns DEPLOYMENT_MODE into a real monolithic cmd-layer contract and surfaces deployment posture through runtime summary
+- `specs/2026-04-04-m2-cmd-adapter-profile-selection.md` - M2 slice 2 adds a cmd-layer monolithic adapter profile resolver and surfaces adapter-profile posture through startup output and runtime summary
+- `specs/2026-04-04-m2-monolithic-indexing-storage-profile-selection.md` - M2 slice 3 makes monolithic indexing storage selection depend on deployment mode while preserving the reorg block-snapshot seam
+- `specs/2026-04-04-m2-monolithic-query-surface-profile-selection.md` - M2 slice 4 makes monolithic query surface selection depend on deployment mode and aligns runtime summary with the selected query adapter
+- `specs/2026-04-04-m2-monolithic-gateway-surface-profile-selection.md` - M2 slice 5 makes monolithic gateway surface selection depend on deployment mode and prevents empty business routes from being registered
+- `specs/2026-04-04-m2-monolithic-transport-boundary-posture.md` - M2 slice 6 adds truthful transport-boundary posture and hint surfacing based on the selected mode and real gateway bridge facts
+- `specs/2026-04-04-m2-dual-mode-baseline-assessment.md` - M2 assessment concludes that a minimum truthful dual-mode baseline is established, but M2 should remain in progress
+- `specs/2026-04-04-m2-completion-decision.md` - M2 completion decision marks the dual-mode baseline complete and hands active focus to M3a
+- `specs/2026-04-04-m2-completion-record.md` - Final completion record for M2 and handoff boundary to M3a
+- `specs/2026-04-04-m3a-microservice-entrypoint-verification.md` - M3a slice 1 adds an independent startup verification entry for the four microservice commands
+- `specs/2026-04-04-m3a-microservice-deployment-smoke.md` - M3a slice 2 adds a focused four-service deployment smoke that reuses the full runnable profile
+- `specs/2026-04-04-m3a-microservice-deployment-assessment.md` - M3a assessment concludes the minimum microservice deployment baseline is complete
+- `specs/2026-04-04-m3a-completion-record.md` - Final completion record for M3a and handoff boundary to M3b
+- `specs/2026-04-04-m3b-microservice-observability-baseline.md` - M3b slice 1 adds a focused observability verification entry across the four foreground microservices
+- `specs/2026-04-04-m3b-microservice-alert-readiness-baseline.md` - M3b slice 2 adds a focused rollout/advisory verification entry across the four foreground microservices
+- `specs/2026-04-05-m3b-prometheus-metrics-exposition-closure.md` - M3b extends `/metrics` from internal JSON dumps into Prometheus exposition and aligns monitoring assets to emitted metric names
+- `specs/2026-04-05-m3b-prometheus-scrape-baseline.md` - M3b adds a repository-level Prometheus scrape baseline verifier and fixes compose Prometheus config mounts
+- `specs/2026-04-05-m3b-prometheus-live-smoke.md` - M3b adds a live Prometheus targets/query smoke entry for a running monitoring stack
+- `specs/2026-04-05-m3b-prometheus-metric-standardization.md` - M3b standardizes exported application metric names to the `chainpulse_` namespace and normalizes the `chain_id` label
+- `specs/2026-04-05-m3b-dlq-retention-configuration.md` - M3b adds configurable retention to the monolithic in-memory DLQ journal
+- `specs/2026-04-05-m3b-grpc-websocket-middleware-completion.md` - M3b makes gRPC and WebSocket plugin middleware registration execute on the real request-processing path
+- `specs/2026-04-05-m3b-rate-limit-unit-alignment.md` - M3b fixes command-layer rate-limit configuration semantics to use blueprint-aligned req/min units
+- `specs/2026-04-05-m3b-websocket-rate-limit-hardening.md` - M3b hardens the WebSocket subscription upgrade path so handshake requests share the gateway rate limiter
+- `specs/2026-04-05-m3b-chaos-test-baseline.md` - M3b adds a repo-root chaos baseline for RPC, Kafka, and PostgreSQL failure drills
+- `specs/2026-04-04-m3b-observability-alerting-assessment.md` - M3b assessment concludes the minimum observability and alert-readiness baseline is complete
+- `specs/2026-04-04-m3b-completion-record.md` - Final completion record for M3b and handoff boundary to M3c
+- `specs/2026-04-04-m3c-production-readiness-rehearsal-baseline.md` - M3c slice 1 adds a single production-readiness rehearsal entry that sequences the current microservice baselines
+- `specs/2026-04-05-m3c-chaos-rehearsal-extension.md` - M3c extends the production-readiness rehearsal so it also runs the chaos baseline
+- `specs/2026-04-04-m3c-production-readiness-assessment.md` - M3c assessment concludes the minimum production-readiness rehearsal baseline is complete
+- `specs/2026-04-04-m3c-completion-record.md` - Final completion record for M3c and closure of the current milestone sequence
+- `specs/2026-04-04-m3c-final-sequence-assessment.md` - Final assessment concludes the whole `M1a → M1b → M1c → M2 → M3a → M3b → M3c` sequence is complete
+- `specs/2026-04-04-milestone-sequence-completion-record.md` - Final completion record for the entire milestone execution sequence
+- `specs/2026-04-04-reopen-compose-stack-verification-baseline.md` - First reopen slice adds a lightweight docker-compose stack verification entry
+- `specs/2026-04-04-reopen-compose-microservices-readiness-smoke.md` - Next reopen slice adds a real compose-based microservice readiness smoke entry
 
 ### Architecture Summaries
 - `architecture/MICROSERVICE_ROLLOUT_PRODUCER_COVERAGE.md` - Current rollout/control coverage matrix across monolith and implemented microservice producers

@@ -207,8 +207,8 @@ func TestGatewayRouterIntegrationMetrics(t *testing.T) {
 		t.Errorf("Expected metrics to be returned")
 	}
 
-	if gatewayMetrics["route_count"] != 14 {
-		t.Errorf("Expected 14 routes, got %v", gatewayMetrics["route_count"])
+	if gatewayMetrics["route_count"] != 15 {
+		t.Errorf("Expected 15 routes, got %v", gatewayMetrics["route_count"])
 	}
 }
 
@@ -238,8 +238,8 @@ func TestGatewayRouterIntegrationRuntimeSummaryRoute(t *testing.T) {
 	_ = integration.Initialize(context.Background())
 
 	gatewayMetrics := integration.GetMetrics()
-	if gatewayMetrics["route_count"] != 15 {
-		t.Errorf("Expected 15 routes with runtime summary, got %v", gatewayMetrics["route_count"])
+	if gatewayMetrics["route_count"] != 16 {
+		t.Errorf("Expected 16 routes with runtime summary, got %v", gatewayMetrics["route_count"])
 	}
 
 	req := httptest.NewRequest(http.MethodGet, "/runtime/summary", nil)
@@ -248,6 +248,163 @@ func TestGatewayRouterIntegrationRuntimeSummaryRoute(t *testing.T) {
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected status 200, got %d body=%s", w.Code, w.Body.String())
+	}
+}
+
+func TestGatewayRouterIntegrationRejectsWrongMethodForRuntimeSummary(t *testing.T) {
+	logger := &MockLogger{}
+	metrics := NewMockMetricsCollector()
+
+	queryHandler := NewEventQueryHandler(nil, logger, metrics)
+	subscriptionHandler := NewEventSubscriptionHandler(nil, logger, metrics)
+	healthHandler := NewHealthCheckHandler(nil, logger, metrics)
+
+	integration := NewGatewayRouterIntegration(
+		logger,
+		metrics,
+		queryHandler,
+		subscriptionHandler,
+		healthHandler,
+		func(r *http.Request) interface{} {
+			_ = r
+			return map[string]interface{}{"service": "monolithic"}
+		},
+	)
+	_ = integration.Initialize(context.Background())
+
+	req := httptest.NewRequest(http.MethodPost, "/runtime/summary", nil)
+	w := httptest.NewRecorder()
+	integration.HandleRequest(w, req)
+
+	if w.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("expected status 405, got %d body=%s", w.Code, w.Body.String())
+	}
+	if got := w.Header().Get("Allow"); got != http.MethodGet {
+		t.Fatalf("expected Allow GET, got %q", got)
+	}
+}
+
+func TestGatewayRouterIntegrationRejectsWrongMethodForEventQuery(t *testing.T) {
+	logger := &MockLogger{}
+	metrics := NewMockMetricsCollector()
+
+	queryHandler := NewEventQueryHandler(nil, logger, metrics)
+	subscriptionHandler := NewEventSubscriptionHandler(nil, logger, metrics)
+	healthHandler := NewHealthCheckHandler(nil, logger, metrics)
+
+	integration := NewGatewayRouterIntegration(logger, metrics, queryHandler, subscriptionHandler, healthHandler)
+	_ = integration.Initialize(context.Background())
+
+	req := httptest.NewRequest(http.MethodPost, "/events", nil)
+	w := httptest.NewRecorder()
+	integration.HandleRequest(w, req)
+
+	if w.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("expected status 405, got %d body=%s", w.Code, w.Body.String())
+	}
+	if got := w.Header().Get("Allow"); got != http.MethodGet {
+		t.Fatalf("expected Allow GET, got %q", got)
+	}
+}
+
+func TestGatewayRouterIntegrationRuntimeRouteInventory(t *testing.T) {
+	logger := &MockLogger{}
+	metrics := NewMockMetricsCollector()
+
+	queryHandler := NewEventQueryHandler(nil, logger, metrics)
+	subscriptionHandler := NewEventSubscriptionHandler(nil, logger, metrics)
+	healthHandler := NewHealthCheckHandler(nil, logger, metrics)
+
+	integration := NewGatewayRouterIntegration(
+		logger,
+		metrics,
+		queryHandler,
+		subscriptionHandler,
+		healthHandler,
+		func(r *http.Request) interface{} {
+			_ = r
+			return map[string]interface{}{"service": "monolithic"}
+		},
+		func(r *http.Request) interface{} {
+			_ = r
+			return map[string]interface{}{"counters": map[string]interface{}{}}
+		},
+		func(w http.ResponseWriter, r *http.Request) {
+			_, _ = w.Write([]byte("ok"))
+		},
+		func(w http.ResponseWriter, r *http.Request) {
+			_, _ = w.Write([]byte("replayed"))
+		},
+	)
+	_ = integration.Initialize(context.Background())
+
+	inventory := integration.GetRuntimeRouteInventory()
+	if inventory.RegisteredRouteCount != 19 {
+		t.Fatalf("expected 19 registered routes, got %d", inventory.RegisteredRouteCount)
+	}
+	if inventory.RuntimeRouteCount != 9 {
+		t.Fatalf("expected 9 runtime routes, got %d", inventory.RuntimeRouteCount)
+	}
+	if inventory.RuntimeSurfaceCount != 5 {
+		t.Fatalf("expected 5 runtime surfaces, got %d", inventory.RuntimeSurfaceCount)
+	}
+	if !inventory.HealthRoutesEnabled || !inventory.SummaryRouteEnabled || !inventory.MetricsRouteEnabled || !inventory.ControlRouteEnabled || !inventory.ReplayRouteEnabled {
+		t.Fatalf("expected full runtime route inventory, got %+v", inventory)
+	}
+}
+
+func TestGatewayRouterIntegrationRuntimeReplayRoute(t *testing.T) {
+	logger := &MockLogger{}
+	metrics := NewMockMetricsCollector()
+
+	queryHandler := NewEventQueryHandler(nil, logger, metrics)
+	subscriptionHandler := NewEventSubscriptionHandler(nil, logger, metrics)
+	healthHandler := NewHealthCheckHandler(nil, logger, metrics)
+
+	integration := NewGatewayRouterIntegration(
+		logger,
+		metrics,
+		queryHandler,
+		subscriptionHandler,
+		healthHandler,
+		nil,
+		nil,
+		nil,
+		func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusAccepted)
+			_, _ = w.Write([]byte(`{"status":"accepted"}`))
+		},
+	)
+	_ = integration.Initialize(context.Background())
+
+	req := httptest.NewRequest(http.MethodPost, "/runtime/indexing/dlq/replay", strings.NewReader(`{"chain_id":"ethereum"}`))
+	w := httptest.NewRecorder()
+	integration.HandleRequest(w, req)
+
+	if w.Code != http.StatusAccepted {
+		t.Fatalf("expected status 202, got %d body=%s", w.Code, w.Body.String())
+	}
+}
+
+func TestGatewayRouterIntegrationSkipsBusinessRoutesWithoutHandlers(t *testing.T) {
+	logger := &MockLogger{}
+	metrics := NewMockMetricsCollector()
+	healthHandler := NewHealthCheckHandler(nil, logger, metrics)
+
+	integration := NewGatewayRouterIntegration(logger, metrics, nil, nil, healthHandler)
+	if err := integration.Initialize(context.Background()); err != nil {
+		t.Fatalf("initialize integration: %v", err)
+	}
+
+	router := integration.GetRouter()
+	if _, err := router.GetRoute("event-query"); err == nil {
+		t.Fatal("expected event-query route to be absent when no query handler or upstreams are configured")
+	}
+	if _, err := router.GetRoute("subscribe"); err == nil {
+		t.Fatal("expected subscribe route to be absent when no subscription handler is configured")
+	}
+	if _, err := router.GetRoute("health"); err != nil {
+		t.Fatalf("expected health route to remain registered: %v", err)
 	}
 }
 

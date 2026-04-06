@@ -331,7 +331,7 @@ type EventProcessorConfig struct {
 	AuthJWTSecret      string
 	AuthAPIKeys        []string
 	RateLimitEnabled   bool
-	RateLimitPerSecond int
+	RateLimitPerMinute int
 }
 
 // loadEventProcessorConfig loads configuration from environment variables
@@ -355,7 +355,7 @@ func loadEventProcessorConfig() EventProcessorConfig {
 		AuthJWTSecret:      getEnv("EVENT_PROCESSOR_AUTH_JWT_SECRET", ""),
 		AuthAPIKeys:        parseStringList(getEnv("EVENT_PROCESSOR_AUTH_API_KEYS", "")),
 		RateLimitEnabled:   parseBoolEnv("EVENT_PROCESSOR_RATE_LIMIT_ENABLED", false),
-		RateLimitPerSecond: getEnvInt("EVENT_PROCESSOR_RATE_LIMIT", 100),
+		RateLimitPerMinute: getEnvInt("EVENT_PROCESSOR_RATE_LIMIT", 100),
 	}
 }
 
@@ -434,14 +434,9 @@ func buildEventProcessorSecurityControls(config EventProcessorConfig, logger cor
 
 	var rateLimitMiddleware *api.RateLimitMiddleware
 	if config.RateLimitEnabled {
-		burst := config.RateLimitPerSecond / 10
-		if burst < 10 {
-			burst = 10
-		}
-
 		rateLimiter := api.NewRateLimiter(logger, metrics, &api.RateLimitConfig{
-			DefaultRequestsPerSecond: float64(config.RateLimitPerSecond),
-			DefaultBurstSize:         burst,
+			DefaultRequestsPerSecond: api.RequestsPerMinuteToPerSecond(config.RateLimitPerMinute),
+			DefaultBurstSize:         api.BurstSizeFromRequestsPerMinute(config.RateLimitPerMinute),
 			CleanupInterval:          5 * time.Minute,
 		})
 		rateLimitMiddleware = api.NewRateLimitMiddleware(rateLimiter, logger)

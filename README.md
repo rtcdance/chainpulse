@@ -2,14 +2,26 @@
 
 A production-ready blockchain event indexing system with enterprise-grade architecture, comprehensive testing, and flexible deployment options.
 
+## 🎯 Milestone Status
+
+| Milestone | Status | Description |
+|-----------|--------|-------------|
+| M1a | ✅ Complete | 单体基础数据链路 |
+| M1b | ✅ Complete | 单体容错层 |
+| M1c | ✅ Complete | 单体可观测性 + API Gateway |
+| M2 | ✅ Complete | 双模式切换 (单体/微服务) |
+| M3a | ✅ Complete | 微服务部署验证 |
+| M3b | ✅ Complete | 可观测性 + 告警 |
+| M3c | ✅ Complete | 生产就绪演练 |
+
+**All milestones completed.** Full blueprint-aligned sequence done.
+
 ## 🚀 Quick Start
 
 ### Prerequisites
-- Go 1.21+
-- PostgreSQL
-- Redis
-- Kafka
-- a blockchain RPC endpoint if you want the `full` runnable slice
+- Go 1.24+
+- Docker & Docker Compose
+- (Optional) PostgreSQL, Redis, Kafka for full stack
 
 ### Local Development
 
@@ -26,6 +38,71 @@ For the broader current four-service slice:
 ```bash
 bash scripts/run-local-runnable-app.sh --profile full
 bash scripts/verify-local-runnable-app.sh --profile full
+```
+
+For independent microservice entrypoint verification:
+
+```bash
+bash scripts/verify-microservice-entrypoints.sh --service all
+```
+
+For a focused four-service deployment smoke:
+
+```bash
+bash scripts/verify-microservice-deployment-smoke.sh
+```
+
+For a focused four-service observability baseline:
+
+```bash
+bash scripts/verify-microservice-observability-baseline.sh
+```
+
+For a live Prometheus scrape/query smoke:
+
+```bash
+bash scripts/verify-prometheus-live-smoke.sh --prom-url http://localhost:9090
+```
+
+For a focused four-service alert-readiness baseline:
+
+```bash
+bash scripts/verify-microservice-alert-readiness.sh
+```
+
+For the current minimum production-readiness rehearsal:
+
+```bash
+bash scripts/run-production-readiness-rehearsal.sh
+```
+
+This rehearsal now includes the repository-local chaos baseline in addition to
+deployment, observability, and alert-readiness checks.
+
+For the current repository-local chaos baseline:
+
+```bash
+bash scripts/chaos-test.sh
+```
+
+For a lightweight docker-compose stack verification:
+
+```bash
+bash scripts/verify-docker-compose-stack.sh
+```
+
+For a real compose-based microservice readiness smoke:
+
+```bash
+bash scripts/verify-docker-compose-microservices-readiness.sh
+```
+
+This readiness smoke also includes the live Prometheus targets/query check.
+
+If Docker runtime is unavailable on the current machine:
+
+```bash
+cat DOCKER_RUNTIME_RECOVERY.md
 ```
 
 For the full repository-root runbook, see
@@ -49,33 +126,55 @@ See [docs/README.md](docs/README.md) for complete documentation index.
 ```
 chainpulse/
 ├── pkg/                    # Go packages
-│   ├── core/              # Foundation interfaces and types
+│   ├── core/              # Foundation interfaces and types (DDD)
+│   ├── domain/            # Domain models and interfaces
+│   ├── application/        # Use cases and orchestration
+│   ├── adapters/          # External adapters
 │   ├── plugins/           # Plugin implementations
-│   │   ├── api/           # API plugins
+│   │   ├── api/           # API plugins (REST, gRPC, GraphQL, WebSocket)
 │   │   ├── cache/         # Caching implementations
 │   │   ├── database/      # Database drivers
 │   │   ├── mq/            # Message queue implementations
-│   │   └── pullers/       # Data collection
+│   │   └── pullers/       # Data collection (HTTPS, WebSocket, gRPC)
 │   ├── services/          # Business logic
 │   ├── infrastructure/    # Infrastructure utilities
-│   ├── integrations/      # External integrations
-│   └── observability/     # Monitoring and tracing
+│   ├── integrations/      # External integrations (ERC20, Uniswap)
+│   └── observability/     # Monitoring, tracing, metrics
 ├── cmd/                   # CLI applications
-│   ├── monolithic/        # Monolithic deployment
-│   └── microservices/     # Microservice deployment
+│   ├── monolithic/        # Monolithic deployment (single binary)
+│   └── microservices/     # Microservice deployment (4 services)
+│       ├── api-gateway/  # GraphQL API Gateway
+│       ├── api-service/   # Query Service
+│       ├── puller/        # Data Puller
+│       └── event-processor/# Event Indexer
 ├── test/                  # Test suites
-│   ├── integration/       # Integration tests
+│   ├── acceptance/        # Playwright UI acceptance tests
+│   ├── integration/      # Integration tests
 │   └── e2e/              # End-to-end tests
 ├── docs/                  # Documentation
+│   ├── specs/            # Technical specs
+│   ├── archive/           # v1 architecture blueprint
+│   └── guides/            # User guides
 ├── docker/                # Docker configuration
-├── k8s/                   # Kubernetes manifests
+├── monitoring/            # Prometheus & Grafana configs
 ├── scripts/               # Utility scripts
-└── bin/                   # Compiled binaries
+└── package.json           # Node.js for Playwright tests
 ```
 
+## 📊 Architecture
 
+### Dual-Mode Deployment
 
-## 📊 Key Capabilities
+ChainPulse supports two deployment modes from the same codebase:
+
+| Mode | Use Case | Components |
+|------|----------|------------|
+| **Monolithic** | Local development, debugging | Single binary, in-memory DB, EventBus |
+| **Microservice** | Production, scaling | 4 services, PostgreSQL, Kafka, Redis |
+
+Set via: `export DEPLOYMENT_MODE=monolithic` or `export DEPLOYMENT_MODE=microservice`
+
+### Key Capabilities
 
 | Feature | Details |
 |---------|---------|
@@ -105,12 +204,50 @@ go test ./test/integration/...
 
 # E2E tests
 go test ./test/e2e/...
+
+# Domain layer tests
+go test ./pkg/domain/...
 ```
 
 ### Run with Coverage
 ```bash
 go test -cover ./...
 ```
+
+### UI Acceptance Tests (Playwright)
+```bash
+# Install dependencies
+npm install
+
+# Install browsers
+npm run install:browsers
+
+# Run acceptance tests
+npm test
+
+# UI mode (interactive)
+npm run test:ui
+
+# View report
+npm run test:report
+```
+
+### Verify Scripts
+```bash
+# Local runnable app
+bash scripts/verify-local-runnable-app.sh --profile minimal
+
+# Docker compose stack
+bash scripts/verify-docker-compose-stack.sh
+
+# Microservice deployment
+bash scripts/verify-microservice-deployment-smoke.sh
+
+# Observability baseline
+bash scripts/verify-microservice-observability-baseline.sh
+
+# Prometheus metrics
+bash scripts/verify-prometheus-live-smoke.sh
 
 ## 🚢 Deployment
 
@@ -169,6 +306,31 @@ curl http://localhost:8080/api/v1/events?contract=0x...&limit=10
 curl http://localhost:8080/health
 ```
 
+### Runtime Operator API
+```bash
+# Inspect runtime summary
+curl http://localhost:8080/runtime/summary
+
+# Manually replay monolithic in-process DLQ events
+curl -X POST http://localhost:8080/runtime/indexing/dlq/replay \
+  -H "Content-Type: application/json" \
+  -d '{
+    "chain_id": "ethereum",
+    "from": {
+      "block_number": 100,
+      "cursor": "100:0"
+    },
+    "to": {
+      "block_number": 110,
+      "cursor": "110:999"
+    },
+    "limit": 50
+  }'
+```
+
+The DLQ replay route currently applies to the running monolithic process where
+the shared-runtime DLQ journal is held in memory.
+
 ### gRPC API
 ```bash
 grpcurl -plaintext localhost:50051 list
@@ -181,20 +343,35 @@ wscat -c ws://localhost:8080/ws
 
 ## 🛠️ Development
 
-See [Developer Guide](docs/guides/DEVELOPER_GUIDE.md) for detailed guidelines.
+See [Developer Guide](docs/guides/DEPLOYMENT_GUIDE.md) for detailed guidelines.
 
-### Project Organization
+### Project Organization (DDD)
 - `pkg/core` - Foundation interfaces and types
+- `pkg/domain` - Domain models and interfaces
+- `pkg/application` - Use cases and orchestration
+- `pkg/adapters` - External adapters
 - `pkg/plugins` - Plugin implementations
-- `pkg/services` - Business logic and services
+- `pkg/services` - Business logic
 - `pkg/observability` - Monitoring and tracing
-- `test` - Test suites
+- `test/acceptance` - Playwright UI acceptance tests
 
 ### Adding a New Plugin
 1. Create directory: `pkg/plugins/{type}/{name}/`
 2. Implement plugin interface from `pkg/core`
 3. Add tests in same directory
 4. Update imports in dependent code
+
+### Code Review & Quality
+```bash
+# Lint
+golangci-lint run
+
+# Vet
+go vet ./...
+
+# Race detection
+go test -race ./...
+```
 
 ## 🤝 Contributing
 
@@ -213,6 +390,16 @@ See LICENSE file for details.
 ## 📞 Support
 
 For questions or issues:
-1. Check [Developer Guide](docs/guides/DEVELOPER_GUIDE.md)
+1. Check [Developer Guide](docs/guides/DEPLOYMENT_GUIDE.md)
 2. Review [Operations Guide](docs/guides/OPERATIONS_GUIDE.md)
 3. Open an issue on GitHub
+
+## 📈 Code Statistics
+
+| Metric | Value |
+|--------|-------|
+| Total Go Code | ~195,559 lines |
+| Project Code | ~85,748 lines (43.8%) |
+| Test Code | ~109,811 lines (56.2%) |
+| Go Version | 1.24 |
+| Milestones | 7/7 Completed |

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"chainpulse/pkg/core"
+	"chainpulse/pkg/observability"
 )
 
 // RequestRouter manages route registration and request forwarding
@@ -184,8 +185,11 @@ func (rr *RequestRouter) MatchRoute(path string) (*Route, map[string]string, err
 	rr.mu.RLock()
 	defer rr.mu.RUnlock()
 
+	rr.logger.Debug("Matching route", "path", path, "registered_routes", len(rr.routes))
 	for _, route := range rr.routes {
+		rr.logger.Debug("Trying route", "route_pattern", route.Pattern, "route_method", route.Method)
 		if params, matched := route.Match(path); matched {
+			rr.logger.Debug("Route matched", "route_id", route.ID, "path", path)
 			return route, params, nil
 		}
 	}
@@ -268,6 +272,8 @@ func (rr *RequestRouter) forwardToHandler(ctx context.Context, handler *RequestH
 	for key, value := range req.Headers {
 		httpReq.Header.Set(key, value)
 	}
+
+	observability.InjectTraceHeaders(ctx, httpReq.Header)
 
 	// Set body if present
 	if len(req.Body) > 0 {

@@ -22,10 +22,14 @@ type APIGatewayPlugin struct {
 	eventQueryHandler             *EventQueryHandler
 	eventSubHandler               *EventSubscriptionHandler
 	healthCheckHandler            *HealthCheckHandler
+	graphqlHandler                *GraphQLHandler
 	upstreamQueryEndpoints        []string
 	upstreamQueryHTTPClient       *http.Client
 	upstreamQueryHealthHTTPClient *http.Client
+	runtimeMetricsProvider        func(*http.Request) interface{}
 	runtimeSummaryProvider        func(*http.Request) interface{}
+	runtimeControlProvider        func(http.ResponseWriter, *http.Request)
+	runtimeReplayProvider         func(http.ResponseWriter, *http.Request)
 	authMiddleware                *AuthMiddleware
 	rateLimitMiddleware           *RateLimitMiddleware
 	routerIntegration             *GatewayRouterIntegration
@@ -137,6 +141,35 @@ func (g *APIGatewayPlugin) SetRuntimeSummaryProvider(provider func(*http.Request
 	g.runtimeSummaryProvider = provider
 }
 
+// SetRuntimeMetricsProvider sets an optional read-only runtime metrics provider.
+func (g *APIGatewayPlugin) SetRuntimeMetricsProvider(provider func(*http.Request) interface{}) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.runtimeMetricsProvider = provider
+}
+
+// IsMetricsRouteEnabled returns whether runtime metrics provider is configured.
+func (g *APIGatewayPlugin) IsMetricsRouteEnabled() bool {
+	g.mu.RLock()
+	defer g.mu.RUnlock()
+
+	return g.runtimeMetricsProvider != nil
+}
+
+// SetRuntimeControlProvider sets an optional runtime control handler.
+func (g *APIGatewayPlugin) SetRuntimeControlProvider(provider func(http.ResponseWriter, *http.Request)) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.runtimeControlProvider = provider
+}
+
+// SetRuntimeReplayProvider sets an optional runtime replay handler.
+func (g *APIGatewayPlugin) SetRuntimeReplayProvider(provider func(http.ResponseWriter, *http.Request)) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.runtimeReplayProvider = provider
+}
+
 // SetAuthMiddleware wires an optional gateway auth middleware.
 func (g *APIGatewayPlugin) SetAuthMiddleware(middleware *AuthMiddleware) {
 	g.mu.Lock()
@@ -165,6 +198,14 @@ func (g *APIGatewayPlugin) IsRateLimitMiddlewareEnabled() bool {
 	defer g.mu.RUnlock()
 
 	return g.rateLimitMiddleware != nil
+}
+
+// SetGraphQLHandler wires an optional GraphQL handler.
+func (g *APIGatewayPlugin) SetGraphQLHandler(handler *GraphQLHandler) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	g.graphqlHandler = handler
 }
 
 // IsHealthCheckHandlerEnabled returns whether runtime health handler is configured.
@@ -226,6 +267,18 @@ func (g *APIGatewayPlugin) GetUpstreamQueryBridgeStatus() (configured, attached,
 	return g.routerIntegration.GetUpstreamQueryBridgeStatus()
 }
 
+// GetRuntimeRouteInventory reports the currently registered runtime-route footprint.
+func (g *APIGatewayPlugin) GetRuntimeRouteInventory() GatewayRuntimeRouteInventory {
+	g.mu.RLock()
+	defer g.mu.RUnlock()
+
+	if g.routerIntegration == nil {
+		return GatewayRuntimeRouteInventory{}
+	}
+
+	return g.routerIntegration.GetRuntimeRouteInventory()
+}
+
 // RefreshUpstreamQueryBridgeHealth actively refreshes upstream query handler health.
 func (g *APIGatewayPlugin) RefreshUpstreamQueryBridgeHealth() {
 	g.mu.RLock()
@@ -273,9 +326,14 @@ func (g *APIGatewayPlugin) Initialize(config corelib.Config) error {
 
 	g.httpPlugin = httpapi.NewHTTPPlugin("api-gateway", 8080, apiLayer)
 
-	if g.eventQueryHandler != nil && g.eventSubHandler != nil && g.healthCheckHandler != nil {
+	if g.shouldInitializeRuntimeIntegration() {
 		authMiddleware := g.authMiddleware
 		rateLimitMiddleware := g.rateLimitMiddleware
+
+		if g.eventSubHandler != nil && rateLimitMiddleware != nil {
+			g.eventSubHandler.SetRateLimiter(rateLimitMiddleware.Limiter())
+		}
+
 		integration := NewGatewayRouterIntegration(
 			g.logger,
 			g.metrics,
@@ -283,10 +341,16 @@ func (g *APIGatewayPlugin) Initialize(config corelib.Config) error {
 			g.eventSubHandler,
 			g.healthCheckHandler,
 			g.runtimeSummaryProvider,
+			g.runtimeMetricsProvider,
+			g.runtimeControlProvider,
+			g.runtimeReplayProvider,
 		)
 		integration.SetUpstreamQueryEndpoints(g.upstreamQueryEndpoints)
 		integration.SetUpstreamQueryHTTPClient(g.upstreamQueryHTTPClient)
 		integration.SetUpstreamQueryHealthHTTPClient(g.upstreamQueryHealthHTTPClient)
+		if g.graphqlHandler != nil {
+			integration.SetGraphQLHandler(g.graphqlHandler)
+		}
 		if err := integration.Initialize(context.Background()); err != nil {
 			return fmt.Errorf("failed to initialize gateway router integration: %w", err)
 		}
@@ -306,6 +370,16 @@ func (g *APIGatewayPlugin) Initialize(config corelib.Config) error {
 	})
 
 	return nil
+}
+
+func (g *APIGatewayPlugin) shouldInitializeRuntimeIntegration() bool {
+	return g.eventQueryHandler != nil ||
+		g.eventSubHandler != nil ||
+		g.healthCheckHandler != nil ||
+		g.runtimeSummaryProvider != nil ||
+		g.runtimeMetricsProvider != nil ||
+		g.runtimeControlProvider != nil ||
+		len(g.upstreamQueryEndpoints) > 0
 }
 
 //nolint:wsl,nlreturn // Security middleware stacking is intentionally explicit here.

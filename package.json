@@ -1,0 +1,42 @@
+{
+  "name": "chainpulse-e2e",
+  "version": "1.0.0",
+  "description": "ChainPulse End-to-End Acceptance Tests",
+  "scripts": {
+    "test": "playwright test",
+    "test:headed": "playwright test --headed",
+    "test:ui": "playwright test --ui",
+    "test:report": "playwright show-report",
+    "install:browsers": "playwright install chromium"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.42.0"
+  },
+  "playwright": {
+    "testDir": "./test/acceptance",
+    "timeout": 30000,
+    "expect": {
+      "timeout": 5000
+    },
+    "use": {
+      "baseURL": "http://localhost:8080",
+      "trace": "on-first-retry",
+      "screenshot": "only-on-failure",
+      "video": "retain-on-failure"
+    },
+    "projects": [
+      {
+        "name": "chromium",
+        "use": {
+          "browserName": "chromium"
+        }
+      }
+    ],
+    "webServer": {
+      "command": "./scripts/verify-docker-compose-stack.sh",
+      "port": 8080,
+      "timeout": 120000,
+      "reuseExistingServer": true
+    }
+  }
+}

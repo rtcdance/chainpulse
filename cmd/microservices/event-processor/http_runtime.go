@@ -97,10 +97,18 @@ func buildEventProcessorMetricsHandler(metrics core.MetricsCollector) http.Handl
 			return
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(metrics.GetMetrics()); err != nil {
-			http.Error(w, `{"error":"failed to encode metrics"}`, http.StatusInternalServerError)
+		if r.URL.Query().Get("format") == "json" || r.Header.Get("Accept") == "application/json" {
+			w.Header().Set("Content-Type", "application/json")
+
+			if err := json.NewEncoder(w).Encode(metrics.GetMetrics()); err != nil {
+				http.Error(w, `{"error":"failed to encode metrics"}`, http.StatusInternalServerError)
+			}
+
+			return
 		}
+
+		w.Header().Set("Content-Type", "text/plain; version=0.0.4")
+		_, _ = w.Write([]byte(core.ExportMetricsPrometheus(metrics)))
 	}
 }
 

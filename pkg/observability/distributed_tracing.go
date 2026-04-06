@@ -7,6 +7,13 @@ import (
 	"time"
 
 	"chainpulse/pkg/core"
+	"go.opentelemetry.io/otel"
+	otelattribute "go.opentelemetry.io/otel/attribute"
+	otelcodes "go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/propagation"
+	sdkresource "go.opentelemetry.io/otel/sdk/resource"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	oteltrace "go.opentelemetry.io/otel/trace"
 )
 
 // contextKey is a custom type for context keys to avoid collisions
@@ -24,9 +31,9 @@ const (
 	// SpanKindInternal represents an internal span.
 	SpanKindInternal SpanKind = "INTERNAL"
 	// SpanKindServer represents a server span.
-	SpanKindServer   SpanKind = "SERVER"
+	SpanKindServer SpanKind = "SERVER"
 	// SpanKindClient represents a client span.
-	SpanKindClient   SpanKind = "CLIENT"
+	SpanKindClient SpanKind = "CLIENT"
 	// SpanKindProducer represents a producer span.
 	SpanKindProducer SpanKind = "PRODUCER"
 	// SpanKindConsumer represents a consumer span.
@@ -40,36 +47,36 @@ const (
 	// SpanStatusUnset represents an unset span status.
 	SpanStatusUnset SpanStatus = "UNSET"
 	// SpanStatusOk represents a successful span status.
-	SpanStatusOk    SpanStatus = "OK"
+	SpanStatusOk SpanStatus = "OK"
 	// SpanStatusError represents an error span status.
 	SpanStatusError SpanStatus = "ERROR"
 )
 
 // TraceContext represents the context for distributed tracing
 type TraceContext struct {
-	TraceID    string
-	SpanID     string
-	ParentID   string
-	Flags      uint8
-	State      map[string]string
+	TraceID  string
+	SpanID   string
+	ParentID string
+	Flags    uint8
+	State    map[string]string
 }
 
 // Span represents a single span in a trace
 type Span struct {
-	TraceID      string
-	SpanID       string
-	ParentID     string
-	Name         string
-	Kind         SpanKind
-	StartTime    time.Time
-	EndTime      time.Time
-	Status       SpanStatus
-	StatusCode   int
-	StatusMsg    string
-	Attributes   map[string]interface{}
-	Events       []SpanEvent
-	Links        []SpanLink
-	Duration     time.Duration
+	TraceID    string
+	SpanID     string
+	ParentID   string
+	Name       string
+	Kind       SpanKind
+	StartTime  time.Time
+	EndTime    time.Time
+	Status     SpanStatus
+	StatusCode int
+	StatusMsg  string
+	Attributes map[string]interface{}
+	Events     []SpanEvent
+	Links      []SpanLink
+	Duration   time.Duration
 }
 
 // SpanEvent represents an event within a span
@@ -118,24 +125,42 @@ type Tracer interface {
 
 // DefaultTracer implements the Tracer interface
 type DefaultTracer struct {
-	mu              sync.RWMutex
-	spans           []Span
-	activeSpans     map[string]*Span
-	traceIDCounter  uint64
-	spanIDCounter   uint64
-	logger          core.Logger
+	mu               sync.RWMutex
+	spans            []Span
+	activeSpans      map[string]*activeSpanState
+	traceIDCounter   uint64
+	spanIDCounter    uint64
+	logger           core.Logger
 	metricsCollector core.MetricsCollector
+	otelProvider     *sdktrace.TracerProvider
+	otelTracer       oteltrace.Tracer
 }
 
 // NewDefaultTracer creates a new tracer
 func NewDefaultTracer(logger core.Logger, metrics core.MetricsCollector) *DefaultTracer {
+	provider := sdktrace.NewTracerProvider(
+		sdktrace.WithSampler(sdktrace.AlwaysSample()),
+		sdktrace.WithResource(sdkresource.NewWithAttributes(
+			"",
+			otelattribute.String("service.name", "chainpulse"),
+			otelattribute.String("service.namespace", "pkg.observability"),
+		)),
+	)
+	otel.SetTracerProvider(provider)
+	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(
+		propagation.TraceContext{},
+		propagation.Baggage{},
+	))
+
 	return &DefaultTracer{
 		spans:            make([]Span, 0),
-		activeSpans:      make(map[string]*Span),
+		activeSpans:      make(map[string]*activeSpanState),
 		traceIDCounter:   1,
 		spanIDCounter:    1,
 		logger:           logger,
 		metricsCollector: metrics,
+		otelProvider:     provider,
+		otelTracer:       provider.Tracer("chainpulse/pkg/observability"),
 	}
 }
 
@@ -144,17 +169,37 @@ func (t *DefaultTracer) StartSpan(ctx context.Context, name string, kind SpanKin
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
-	// Extract parent context if available
-	var parentID string
-	var traceID string
-	if parentCtx, ok := ctx.Value(traceContextKey).(TraceContext); ok {
-		parentID = parentCtx.SpanID
-		traceID = parentCtx.TraceID
-	} else {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	if legacyCtx, ok := ctx.Value(traceContextKey).(TraceContext); ok && legacyCtx.TraceID != "" && legacyCtx.SpanID != "" {
+		if legacyParent, ok := legacySpanContext(legacyCtx); ok {
+			ctx = oteltrace.ContextWithRemoteSpanContext(ctx, legacyParent)
+		}
+	}
+
+	startedCtx, otelSpan := t.otelTracer.Start(ctx, name, oteltrace.WithSpanKind(convertSpanKind(kind)))
+	spanCtx := otelSpan.SpanContext()
+	traceID := spanCtx.TraceID().String()
+
+	if traceID == "" || !spanCtx.IsValid() {
 		traceID = t.generateTraceID()
 	}
 
-	spanID := t.generateSpanID()
+	spanID := spanCtx.SpanID().String()
+	if spanID == "" {
+		spanID = t.generateSpanID()
+	}
+
+	var parentID string
+
+	if parentSpan := oteltrace.SpanFromContext(ctx); parentSpan != nil {
+		parentSC := parentSpan.SpanContext()
+		if parentSC.IsValid() {
+			parentID = parentSC.SpanID().String()
+		}
+	}
 
 	span := Span{
 		TraceID:    traceID,
@@ -170,13 +215,14 @@ func (t *DefaultTracer) StartSpan(ctx context.Context, name string, kind SpanKin
 	}
 
 	// Store active span
-	t.activeSpans[spanID] = &span
+	t.activeSpans[spanID] = &activeSpanState{otelSpan: otelSpan}
 
 	// Create new context with trace context
-	newCtx := context.WithValue(ctx, traceContextKey, TraceContext{
+	newCtx := context.WithValue(startedCtx, traceContextKey, TraceContext{
 		TraceID:  traceID,
 		SpanID:   spanID,
 		ParentID: parentID,
+		Flags:    traceFlagsFromSpanContext(spanCtx),
 	})
 
 	// Record metric
@@ -197,11 +243,35 @@ func (t *DefaultTracer) StartSpan(ctx context.Context, name string, kind SpanKin
 
 // EndSpan ends a span
 func (t *DefaultTracer) EndSpan(span *Span) {
+	if span == nil {
+		return
+	}
+
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
 	span.EndTime = time.Now().UTC()
 	span.Duration = span.EndTime.Sub(span.StartTime)
+
+	if activeState, ok := t.activeSpans[span.SpanID]; ok && activeState != nil && activeState.otelSpan != nil {
+		activeState.otelSpan.SetAttributes(
+			otelattribute.String("chainpulse.span.kind", string(span.Kind)),
+			otelattribute.String("chainpulse.span.status", string(span.Status)),
+			otelattribute.Int("chainpulse.span.status_code", span.StatusCode),
+			otelattribute.String("chainpulse.span.status_message", span.StatusMsg),
+		)
+
+		switch span.Status {
+		case SpanStatusError:
+			activeState.otelSpan.SetStatus(otelcodes.Error, span.StatusMsg)
+		case SpanStatusOk:
+			activeState.otelSpan.SetStatus(otelcodes.Ok, span.StatusMsg)
+		default:
+			activeState.otelSpan.SetStatus(otelcodes.Unset, span.StatusMsg)
+		}
+
+		activeState.otelSpan.End()
+	}
 
 	// Remove from active spans
 	delete(t.activeSpans, span.SpanID)
@@ -241,6 +311,10 @@ func (t *DefaultTracer) AddEvent(span *Span, name string, attributes map[string]
 
 	span.Events = append(span.Events, event)
 
+	if activeState, ok := t.activeSpans[span.SpanID]; ok && activeState != nil && activeState.otelSpan != nil {
+		activeState.otelSpan.AddEvent(name, oteltrace.WithAttributes(convertSpanAttributes(attributes)...))
+	}
+
 	// Log event
 	if t.logger != nil {
 		t.logger.WithCorrelationID(span.TraceID).Debug("span event added", "span_id", span.SpanID, "event_name", name)
@@ -264,6 +338,15 @@ func (t *DefaultTracer) AddLink(span *Span, traceID, spanID string, attributes m
 
 	span.Links = append(span.Links, link)
 
+	if activeState, ok := t.activeSpans[span.SpanID]; ok && activeState != nil && activeState.otelSpan != nil {
+		if linkCtx, ok := spanContextFromIDs(traceID, spanID); ok {
+			activeState.otelSpan.AddLink(oteltrace.Link{
+				SpanContext: linkCtx,
+				Attributes:  convertSpanAttributes(attributes),
+			})
+		}
+	}
+
 	// Log link
 	if t.logger != nil {
 		t.logger.WithCorrelationID(span.TraceID).Debug("span link added", "span_id", span.SpanID, "linked_trace_id", traceID, "linked_span_id", spanID)
@@ -280,6 +363,10 @@ func (t *DefaultTracer) SetAttribute(span *Span, key string, value interface{}) 
 	}
 
 	span.Attributes[key] = value
+
+	if activeState, ok := t.activeSpans[span.SpanID]; ok && activeState != nil && activeState.otelSpan != nil {
+		activeState.otelSpan.SetAttributes(convertSpanAttribute(key, value))
+	}
 }
 
 // SetStatus sets the status of a span
@@ -295,6 +382,17 @@ func (t *DefaultTracer) SetStatus(span *Span, status SpanStatus, code int, msg s
 	span.StatusCode = code
 	span.StatusMsg = msg
 
+	if activeState, ok := t.activeSpans[span.SpanID]; ok && activeState != nil && activeState.otelSpan != nil {
+		switch status {
+		case SpanStatusError:
+			activeState.otelSpan.SetStatus(otelcodes.Error, msg)
+		case SpanStatusOk:
+			activeState.otelSpan.SetStatus(otelcodes.Ok, msg)
+		default:
+			activeState.otelSpan.SetStatus(otelcodes.Unset, msg)
+		}
+	}
+
 	// Log status change
 	if t.logger != nil {
 		t.logger.WithCorrelationID(span.TraceID).Debug("span status set", "span_id", span.SpanID, "status", status, "code", code, "message", msg)
@@ -303,24 +401,24 @@ func (t *DefaultTracer) SetStatus(span *Span, status SpanStatus, code int, msg s
 
 // ExtractContext extracts trace context from a carrier
 func (t *DefaultTracer) ExtractContext(carrier map[string]string) *TraceContext {
-	ctx := &TraceContext{
-		State: make(map[string]string),
+	ctx := otel.GetTextMapPropagator().Extract(context.Background(), propagation.MapCarrier(carrier))
+	sc := oteltrace.SpanContextFromContext(ctx)
+
+	if !sc.IsValid() {
+		return &TraceContext{State: make(map[string]string)}
 	}
 
-	if traceID, ok := carrier["traceparent"]; ok {
-		// Parse W3C Trace Context format: version-traceID-parentID-flags
-		parts := parseTraceParent(traceID)
-		if len(parts) >= 3 {
-			ctx.TraceID = parts[1]
-			ctx.SpanID = parts[2]
-		}
+	result := &TraceContext{
+		TraceID: sc.TraceID().String(),
+		SpanID:  sc.SpanID().String(),
+		Flags:   traceFlagsFromSpanContext(sc),
+		State:   make(map[string]string),
+	}
+	if ts := sc.TraceState().String(); ts != "" {
+		result.State["tracestate"] = ts
 	}
 
-	if traceState, ok := carrier["tracestate"]; ok {
-		ctx.State["tracestate"] = traceState
-	}
-
-	return ctx
+	return result
 }
 
 // InjectContext injects trace context into a carrier
@@ -329,11 +427,15 @@ func (t *DefaultTracer) InjectContext(ctx *TraceContext, carrier map[string]stri
 		return
 	}
 
-	// W3C Trace Context format: version-traceID-parentID-flags
-	traceParent := fmt.Sprintf("00-%s-%s-%02x", ctx.TraceID, ctx.SpanID, ctx.Flags)
-	carrier["traceparent"] = traceParent
+	sc, ok := legacySpanContext(*ctx)
+	if !ok {
+		return
+	}
 
-	if traceState, ok := ctx.State["tracestate"]; ok {
+	otelCtx := oteltrace.ContextWithSpanContext(context.Background(), sc)
+	otel.GetTextMapPropagator().Inject(otelCtx, propagation.MapCarrier(carrier))
+
+	if traceState, ok := ctx.State["tracestate"]; ok && traceState != "" {
 		carrier["tracestate"] = traceState
 	}
 }
@@ -385,9 +487,9 @@ func parseTraceParent(traceparent string) []string {
 
 // TracingContext represents the context for tracing operations
 type TracingContext struct {
-	TraceID      string
-	SpanID       string
-	ParentID     string
+	TraceID       string
+	SpanID        string
+	ParentID      string
 	CorrelationID string
 }
 

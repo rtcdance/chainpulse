@@ -1,11 +1,12 @@
 package bootstrap
 
 import (
+	"chainpulse/pkg/core"
 	"context"
 	"errors"
 	"testing"
 
-	"chainpulse/pkg/core"
+	"github.com/ethereum/go-ethereum/common"
 )
 
 type stubDatabasePlugin struct {
@@ -22,6 +23,7 @@ func (s *stubDatabasePlugin) Initialize(config core.Config) error {
 	s.initCalled = true
 	return s.initErr
 }
+
 func (s *stubDatabasePlugin) Start() error {
 	if s.startErr == nil {
 		s.started = true
@@ -33,18 +35,23 @@ func (s *stubDatabasePlugin) Health() error { return nil }
 func (s *stubDatabasePlugin) StoreEvent(ctx context.Context, event interface{}) error {
 	return nil
 }
+
 func (s *stubDatabasePlugin) GetEvent(ctx context.Context, id string) (*core.BlockchainEvent, error) {
 	return nil, nil
 }
+
 func (s *stubDatabasePlugin) QueryEvents(ctx context.Context, filter interface{}) ([]interface{}, error) {
 	return nil, nil
 }
+
 func (s *stubDatabasePlugin) BatchStoreEvents(ctx context.Context, events []interface{}) error {
 	return nil
 }
+
 func (s *stubDatabasePlugin) GetAllEvents(ctx context.Context) ([]*core.BlockchainEvent, error) {
 	return nil, nil
 }
+
 func (s *stubDatabasePlugin) GetAllBlocks(ctx context.Context) ([]*core.Block, error) {
 	return nil, nil
 }
@@ -52,6 +59,7 @@ func (s *stubDatabasePlugin) DeleteEvent(ctx context.Context, eventID string) er
 func (s *stubDatabasePlugin) GetEventsByBlockRange(ctx context.Context, fromBlock, toBlock uint64) ([]*core.BlockchainEvent, error) {
 	return nil, nil
 }
+
 func (s *stubDatabasePlugin) GetBlock(ctx context.Context, blockNumber uint64) (*core.Block, error) {
 	return nil, nil
 }
@@ -59,6 +67,7 @@ func (s *stubDatabasePlugin) GetLatestBlock(ctx context.Context) (uint64, error)
 func (s *stubDatabasePlugin) DeleteEventsByBlockRange(ctx context.Context, fromBlock, toBlock uint64) (int64, error) {
 	return 0, nil
 }
+
 func (s *stubDatabasePlugin) GetReorgStats(ctx context.Context) (*core.ReorgStats, error) {
 	return &core.ReorgStats{}, nil
 }
@@ -76,6 +85,7 @@ func (s *stubCachePlugin) Initialize(config core.Config) error {
 	s.initCalled = true
 	return s.initErr
 }
+
 func (s *stubCachePlugin) Start() error {
 	if s.startErr == nil {
 		s.started = true
@@ -113,13 +123,45 @@ func TestBuildMonolithicIndexingStorageSuccess(t *testing.T) {
 	}
 }
 
+func TestNewMonolithicIndexingDatabaseForMode(t *testing.T) {
+	logger := core.NewDefaultLogger(core.LogLevelInfo)
+
+	monolithicDB := newMonolithicIndexingDatabaseForMode(logger, core.Config{DeploymentMode: "monolithic"})
+	if monolithicDB.Name() != "monolithic-memory-database" {
+		t.Fatalf("expected monolithic-memory-database, got %s", monolithicDB.Name())
+	}
+
+	microserviceDB := newMonolithicIndexingDatabaseForMode(logger, core.Config{DeploymentMode: "microservice"})
+	if microserviceDB.Name() != "mock-db" {
+		t.Fatalf("expected mock-db, got %s", microserviceDB.Name())
+	}
+}
+
+func TestSnapshotCompatibleDatabaseStoresBlockSnapshots(t *testing.T) {
+	db := newSnapshotCompatibleDatabase(&stubDatabasePlugin{})
+
+	hash := common.HexToHash("0xabc")
+	block := &core.Block{Number: 12, Hash: hash}
+	if err := db.StoreBlockSnapshot(context.Background(), block); err != nil {
+		t.Fatalf("store block snapshot: %v", err)
+	}
+
+	got, err := db.GetBlock(context.Background(), 12)
+	if err != nil {
+		t.Fatalf("get block: %v", err)
+	}
+	if got == nil || got.Hash != hash {
+		t.Fatalf("expected block hash 0xabc, got %+v", got)
+	}
+}
+
 func TestBuildMonolithicIndexingStorageStopsDatabaseIfCacheStartFails(t *testing.T) {
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	db := &stubDatabasePlugin{}
 	cache := &stubCachePlugin{startErr: errors.New("cache start boom")}
 
 	_, _, err := buildMonolithicIndexingStorageWithDeps(logger, core.Config{}, monolithicIndexingStorageDeps{
-		newDatabase: func(logger core.Logger) core.DatabasePlugin { return db },
+		newDatabase: func(logger core.Logger, config core.Config) core.DatabasePlugin { return db },
 		newCache:    func() core.CachePlugin { return cache },
 	})
 	if err == nil {

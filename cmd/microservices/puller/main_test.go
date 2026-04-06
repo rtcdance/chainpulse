@@ -46,7 +46,7 @@ func TestLoadPullerConfigParsesSecurityOverrides(t *testing.T) {
 	if !cfg.RateLimitEnabled {
 		t.Fatal("expected rate limiting to be enabled")
 	}
-	if got := cfg.RateLimitPerSecond; got != 42 {
+	if got := cfg.RateLimitPerMinute; got != 42 {
 		t.Fatalf("expected rate limit 42, got %d", got)
 	}
 }
@@ -60,7 +60,7 @@ func TestBuildPullerSecurityControlsEnabled(t *testing.T) {
 		AuthJWTSecret:      "secret-123",
 		AuthAPIKeys:        []string{"svc-key=client-1"},
 		RateLimitEnabled:   true,
-		RateLimitPerSecond: 25,
+		RateLimitPerMinute: 120,
 	}, logger, metrics)
 	if err != nil {
 		t.Fatalf("build security controls: %v", err)

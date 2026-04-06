@@ -1,6 +1,7 @@
 package grpc
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"sync"
@@ -127,6 +128,11 @@ func (p *GRPCPlugin) RegisterRoute(path string, handler core.Handler) error {
 	}
 
 	p.router.Register(path, handler)
+
+	if p.apiLayer != nil {
+		p.apiLayer.RegisterHandler(path, handler)
+	}
+
 	return nil
 }
 
@@ -141,7 +147,45 @@ func (p *GRPCPlugin) Use(middleware ...core.Middleware) error {
 
 	p.middleware = append(p.middleware, middleware...)
 	p.router.Use(middleware...)
+
+	if p.apiLayer != nil {
+		p.apiLayer.Use(middleware...)
+	}
+
 	return nil
+}
+
+// ProcessRequest executes an adapter-backed gRPC request through the shared API
+// layer so protocol middleware and routing can be exercised consistently.
+func (p *GRPCPlugin) ProcessRequest(
+	ctx context.Context,
+	method string,
+	path string,
+	headers map[string]string,
+	body []byte,
+) (*GRPCResponse, error) {
+	req := NewGRPCRequest(method, path, headers, body, ctx)
+
+	result, err := p.processor.ProcessRequest(ctx, req)
+	if err != nil {
+		result = p.processor.HandleError(ctx, err)
+	}
+
+	grpcResp, ok := result.(*GRPCResponse)
+	if ok {
+		return grpcResp, nil
+	}
+
+	response := NewGRPCResponse()
+	response.SetStatus(result.Status())
+
+	for key, value := range result.Headers() {
+		response.SetHeader(key, value)
+	}
+
+	response.SetBody(result.Body())
+
+	return response, nil
 }
 
 // GetServer returns the underlying gRPC server

@@ -2,6 +2,21 @@
 
 **Status**: Active | **Last Updated**: 2026-03-30
 
+## Milestone Rollout (2026-04-04)
+
+- `M1a`: completed
+- `M1b`: completed
+- `M1c`: completed
+- `M2`: completed
+- Latest `M2` slice:
+  - transport boundary posture is now derived from the selected adapter boundary
+    and real gateway bridge facts
+  - `transport_boundary_posture` and `transport_boundary_hint` now surface
+    through the monolithic deployment summary
+  - startup output now shows the selected transport boundary before runtime
+    summary inspection
+  - `M2` has been recorded as complete and the remaining focus has moved to `M3a`
+
 ## Quick Reference
 
 ### Layer Structure
@@ -3134,6 +3149,237 @@ pkg/
 - Upgraded the local processor runtime so `ProcessEvent` uses a started
   in-memory database plugin, and extended `/runtime/summary` to expose the
   shared-runtime shadow status as part of the microservice indexing seam.
+
+### M1a Slice 4 (Completed)
+- Wired the application-level `reorg.ReorgHandler` into the monolithic puller
+  runtime as a per-chain rollback seam instead of leaving reorg handling as a
+  disconnected service.
+- Added minimal in-memory block snapshot persistence plus monolithic
+  `/runtime/summary` reorg posture surfacing so the single-process indexing
+  path can now truthfully express best-effort rollback ownership.
+
+### M1a Slice 5 (Completed)
+- Added a compact monolithic puller runtime surface that reports aggregated
+  puller health posture and reliability hints instead of leaving puller state
+  buried inside the monolithic process.
+- Extended gateway runtime-route composition so monolithic mode can expose a
+  read-only `/runtime/control` endpoint using the shared runtime-control
+  envelope without overclaiming writable pause/resume semantics.
+
+### M1a Assessment (Completed)
+- Recorded that the monolithic foundational runtime baseline is now stage-complete:
+  the monolith has ingest closure, indexing-backed query closure, chain-route
+  alignment, minimal reorg rollback ownership, and a compact puller runtime surface.
+- Shifted active milestone focus from `M1a` to `M1b`, so future work can target
+  resilience hardening instead of reopening the foundational runtime slices.
+
+### M1b Slice 1 (Completed)
+- Added bounded restart/backoff supervision to the monolithic per-chain pull
+  loops so unexpected `Poll(...)` exits no longer permanently kill the runtime
+  ingestion loop for that chain.
+- Extended the monolithic runtime summary puller surface with restart/failure/
+  backoff facts and a recovering posture, making the first resilience slice in
+  `M1b` visible through the existing operator-facing runtime summary.
+
+### M1b Slice 2 (Completed)
+- Added a real shared-runtime `RecoverChain(...)` seam so checkpoint loading and
+  replay are no longer just static capability flags in monolithic mode.
+- Wired monolithic startup to run per-chain recovery probes and extended the
+  runtime summary with concrete recovery facts, posture, and reliability hints.
+
+### M1b Slice 3 (Completed)
+- Tightened the top-level monolithic runtime summary so it no longer reports a
+  fully healthy lifecycle while puller, recovery, or reorg resilience seams are
+  in watch/degraded states.
+- Added additive top-level `fault_posture` and `reliability_hint` fields and
+  derived runtime lifecycle from the real resilience surfaces instead of only
+  from shared-runtime start state plus gateway wiring.
+
+### M1b Assessment (Completed)
+- Recorded that the monolithic resilience baseline is now stage-complete:
+  the monolith has pull-loop restart/backoff ownership, checkpoint/replay
+  recovery closure, and truthful degraded/fault runtime semantics.
+- Shifted active milestone focus from `M1b` to `M1c`, so future work can target
+  observability and gateway hardening instead of reopening resilience slices.
+
+### M1c Slice 1 (Completed)
+- Added an explicit monolithic gateway runtime-route `/metrics` contract instead
+  of only mentioning metrics in startup output and docs.
+- Reused the existing metrics collector export through gateway runtime-route
+  composition and surfaced `metrics_route_enabled` in the monolithic runtime
+  summary gateway section.
+
+### M1c Slice 2 (Completed)
+- Added a real gateway runtime-route inventory derived from the initialized
+  router state instead of relying only on boolean feature flags.
+- Extended the monolithic runtime summary gateway section with registered/runtime
+  route counts plus a compact runtime-surface posture, making the current
+  operator-facing route footprint explicit for `M1c`.
+
+### M1c Slice 3 (Completed)
+- Hardened the gateway route method contract so wrong-method requests no longer
+  fall through to read-only runtime routes just because the path matches.
+- Added explicit `405 Method Not Allowed` behavior with `Allow` headers and
+  surfaced a compact method-contract posture through the monolithic runtime
+  summary gateway section.
+
+### M1c Assessment (Completed)
+- Recorded that the monolithic observability + gateway baseline is now
+  stage-complete: the monolith has explicit health/summary/control/metrics
+  runtime routes, route inventory surfacing, and truthful method-boundary
+  hardening for the current blueprint-aligned baseline.
+- Shifted active milestone focus from `M1c` to `M2`, so future work can target
+  dual-mode switching instead of continuing to add small monolithic gateway
+  slices by default.
+
+### M2 Slice 1 (Completed)
+- Turned `DEPLOYMENT_MODE` from a README-only environment variable into a real
+  monolithic cmd-layer contract with normalization and safe fallback behavior.
+- Extended monolithic startup/runtime summary so deployment-mode posture is now
+  visible to operators before the later adapter-factory slices land.
+
+### M2 Slice 2 (Completed)
+- Added a cmd-layer monolithic adapter profile resolver so deployment mode now
+  produces an explicit adapter/profile decision instead of remaining only a mode
+  label.
+- Extended monolithic startup/runtime summary with adapter-profile facts, making
+  the current `M2` boundary explicit: monolithic profile is concrete, while the
+  microservice profile is still an intent/seam pending later adapter cutover.
+
+### M2 Slice 3 (Completed)
+- Made monolithic indexing storage selection deployment-mode-aware instead of
+  always constructing the same in-memory storage path regardless of adapter profile.
+- Kept the reorg block-snapshot seam alive under microservice intent by wrapping
+  the compatibility database path with a minimal snapshot-capable layer.
+
+### M2 Slice 4 (Completed)
+- Made monolithic query surface selection deployment-mode-aware instead of
+  always forcing the indexing-backed query cutover.
+- Kept `monolithic` on the indexing-backed query surface and kept
+  `microservice` intent on the managed-db/shared runtime query path, while
+  aligning runtime/deployment summary fields with the real selected query adapter.
+
+### M2 Slice 5 (Completed)
+- Made monolithic gateway exposure deployment-mode-aware instead of always
+  wiring the full in-process business API surface.
+- Kept `monolithic` on the full in-process gateway surface, while `microservice`
+  intent now exposes runtime/operator routes only and no longer overclaims
+  monolithic query/subscription ownership.
+- Tightened shared gateway route registration so business routes are no longer
+  registered when the corresponding runtime handlers are absent.
+
+### M2 Assessment (Current)
+- Recorded that `M2` has crossed into a minimum truthful dual-mode baseline:
+  deployment mode now affects real monolithic cmd-layer choices for storage,
+  query surface, and gateway surface, instead of remaining only startup metadata.
+- Kept `M2` in progress because the strongest remaining gap is still shared
+  wiring and transport-boundary alignment across dual-mode execution, not more
+  summary-only posture work.
+
+### M2 Slice 6 (Completed)
+- Added a narrow monolithic transport-boundary classifier so deployment summary
+  now reports:
+  - `transport_boundary_posture`
+  - `transport_boundary_hint`
+- The transport boundary is now derived from both the selected adapter boundary
+  and real gateway bridge facts:
+  - configured upstreams
+  - attached upstream handlers
+  - available upstream handlers
+- Extended startup output so the selected transport boundary is visible before
+  inspecting runtime summary.
+
+### M2 Completion (Completed)
+- Marked `M2` complete after confirming the repository now has a minimum
+  truthful dual-mode baseline rather than just deployment-mode metadata.
+- Recorded the handoff boundary from `M2` to `M3a`: remaining work is now about
+  microservice deployment verification and broader runnable validation, not more
+  monolithic dual-mode seam shaping.
+
+### M3a Slice 1 (Completed)
+- Added a repo-root independent microservice entrypoint verification script so
+  `api-service`, `api-gateway`, `event-processor`, and `puller` can each be
+  started and checked in isolation.
+- The first `M3a` slice focuses on operator-surface reachability:
+  - `/health`
+  - `/runtime/summary`
+  - `/runtime/control` for execution services
+
+### M3a Slice 2 (Completed)
+- Added a focused four-service deployment smoke script that starts the current
+  full local runnable profile and verifies the shared deployment baseline.
+- Reused the existing full-profile startup and verification entries instead of
+  creating a second orchestration path, then added narrow cross-entrypoint
+  assertions for gateway bridge readiness and service runtime-summary reachability.
+
+### M3a Completion (Completed)
+- Marked `M3a` complete after confirming the repository now has a minimum
+  microservice deployment-verification baseline instead of only runnable-app
+  scripts and ad hoc service docs.
+- Recorded the handoff boundary from `M3a` to `M3b`: the next work is about
+  observability and alerting completeness, not more baseline deployment smoke.
+
+### M3b Slice 1 (Completed)
+- Added a repo-root microservice observability baseline verification script so
+  the current four-service slice can be checked for shared metrics, runtime
+  summary, and rollout-advisory reachability.
+- Reused the existing full runnable profile and focused the first `M3b` slice on
+  proving operator-visible signals are consistently reachable before introducing
+  heavier observability tooling.
+
+### M3b Slice 2 (Completed)
+- Added a repo-root microservice alert-readiness verification script so the
+  current four-service slice can be checked for shared rollout advisory output.
+- Kept the implementation narrow by validating the existing `/health/rollout`
+  contracts instead of introducing a real external alerting platform at this
+  stage.
+
+### M3b Completion (Completed)
+- Marked `M3b` complete after confirming the repository now has a minimum
+  observability and alert-readiness baseline instead of only service-local
+  runtime routes.
+- Recorded the handoff boundary from `M3b` to `M3c`: the next work is about
+  production-readiness rehearsal and final readiness closure, not more baseline
+  observability verification.
+
+### M3c Slice 1 (Completed)
+- Added a repo-root production-readiness rehearsal script so the current
+  deployment, observability, and alert-readiness baselines can be exercised as
+  one ordered drill.
+- Kept the implementation intentionally thin by sequencing the existing
+  baseline verification entries instead of duplicating their logic.
+
+### M3c Completion (Completed)
+- Marked `M3c` complete after confirming the repository now has a minimum
+  production-readiness rehearsal baseline rather than only separate verification
+  entries.
+- Recorded that the current milestone sequence is now complete:
+  - `M1a`
+  - `M1b`
+  - `M1c`
+  - `M2`
+  - `M3a`
+  - `M3b`
+  - `M3c`
+
+### Final Sequence Completion (Completed)
+- Recorded a final sequence-level assessment and completion record for the full
+  `M1a → M1b → M1c → M2 → M3a → M3b → M3c` execution path.
+- From this point, further work should reopen as a new objective instead of
+  being described as unfinished milestone-sequence work.
+
+### Reopen: Compose Stack Verification Baseline
+- Opened a new post-sequence objective around docker-compose / platform
+  orchestration verification.
+- Added a lightweight repo-root verification script that checks the current
+  compose file still declares the expected infrastructure and observability
+  services, while keeping the first reopen slice intentionally non-destructive.
+- Added a dedicated `docker-compose.microservices.yml` profile that resolves the
+  four foreground microservices together with shared infrastructure and
+  observability services through the existing generic microservice Dockerfile.
+- Added a compose-based microservice readiness smoke entry that can bring the
+  new microservice compose profile up, wait for the four foreground services,
+  and reuse the existing full runnable verification baseline.
 
 ## Detailed Documentation
 

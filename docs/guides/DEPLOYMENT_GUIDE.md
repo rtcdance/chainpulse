@@ -55,7 +55,7 @@ KAFKA_BROKERS=localhost:9092
 # API Configuration
 API_PORT=8080
 API_TYPE=rest
-RATE_LIMIT_RPS=100
+RATE_LIMIT_RPM=100
 
 # Deployment Configuration
 DEPLOYMENT_MODE=monolithic
@@ -288,7 +288,7 @@ az container create \
 | `KAFKA_BROKERS` | `localhost:9092` | Kafka broker addresses |
 | `API_PORT` | `8080` | API server port |
 | `API_TYPE` | `rest` | API protocol (rest, grpc, websocket) |
-| `RATE_LIMIT_RPS` | `100` | Rate limit (requests per second) |
+| `RATE_LIMIT_RPM` | `100` | Rate limit (requests per minute) |
 | `DEPLOYMENT_MODE` | `monolithic` | Deployment mode (monolithic, microservice) |
 | `LOG_LEVEL` | `info` | Logging level |
 
@@ -417,7 +417,7 @@ CACHE_TTL=7200
 
 ```bash
 # Increase rate limit
-RATE_LIMIT_RPS=500
+RATE_LIMIT_RPM=500
 
 # Adjust batch size
 BATCH_SIZE=1000

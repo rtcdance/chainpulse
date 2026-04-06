@@ -35,6 +35,7 @@ type EventSubscriptionHandler struct {
 	idleTimeout      time.Duration
 	writeTimeout     time.Duration
 	readTimeout      time.Duration
+	rateLimiter      *RateLimiter
 }
 
 // SubscriptionConnection represents an active WebSocket connection
@@ -87,6 +88,14 @@ func NewEventSubscriptionHandler(
 		writeTimeout:     10 * time.Second,
 		readTimeout:      10 * time.Second,
 	}
+}
+
+// SetRateLimiter wires an optional handshake rate limiter for WebSocket
+// subscription upgrades.
+func (h *EventSubscriptionHandler) SetRateLimiter(limiter *RateLimiter) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.rateLimiter = limiter
 }
 
 // Initialize initializes the event subscription handler
@@ -143,8 +152,15 @@ func (h *EventSubscriptionHandler) HandleSubscribeName(w http.ResponseWriter, r 
 
 // handleSubscription handles WebSocket subscription
 func (h *EventSubscriptionHandler) handleSubscription(w http.ResponseWriter, r *http.Request, subscriptionType string, filterValue string) {
+	h.logger.Info("handleSubscription called", "type", subscriptionType, "filter", filterValue)
 	if !h.initialized {
 		http.Error(w, "Handler not initialized", http.StatusInternalServerError)
+		return
+	}
+
+	h.logger.Info("Checking subscription request")
+	if !h.allowSubscriptionRequest(w, r) {
+		h.logger.Warn("Subscription request not allowed")
 		return
 	}
 
@@ -217,6 +233,41 @@ func (h *EventSubscriptionHandler) handleSubscription(w http.ResponseWriter, r *
 
 	// Handle connection
 	go h.handleConnection(subConn, subscription)
+}
+
+func (h *EventSubscriptionHandler) allowSubscriptionRequest(w http.ResponseWriter, r *http.Request) bool {
+	if _, ok := GetRateLimitFromContext(r.Context()); ok {
+		return true
+	}
+
+	h.mu.RLock()
+	limiter := h.rateLimiter
+	h.mu.RUnlock()
+
+	if limiter == nil {
+		return true
+	}
+
+	clientID := extractClientID(r)
+	allowed, info := limiter.AllowRequest(r, clientID)
+
+	if info != nil {
+		w.Header().Set("X-RateLimit-Remaining", fmt.Sprintf("%d", info.RequestsRemaining))
+		w.Header().Set("X-RateLimit-Reset", fmt.Sprintf("%d", info.ResetTime.Unix()))
+	}
+
+	if allowed {
+		return true
+	}
+
+	if info != nil {
+		w.Header().Set("Retry-After", fmt.Sprintf("%d", int(info.RetryAfter.Seconds())))
+	}
+
+	h.metrics.RecordCounter("event_subscription_rate_limited", 1, nil)
+	http.Error(w, "Rate limit exceeded", http.StatusTooManyRequests)
+
+	return false
 }
 
 // handleConnection handles a WebSocket connection

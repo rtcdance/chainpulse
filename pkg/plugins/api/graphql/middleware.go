@@ -75,7 +75,7 @@ func (ac *AuthContext) IsExpired() bool {
 
 // AuthMiddleware provides authentication and authorization
 type AuthMiddleware struct {
-	logger core.Logger
+	logger  core.Logger
 	metrics core.MetricsCollector
 }
 
@@ -226,7 +226,8 @@ func (rlm *RateLimitMiddleware) CheckLimit(userID string) error {
 	if limiter.requestCount >= rlm.requestsPerSecond {
 		rlm.logger.Warn("Rate limit exceeded", "userId", userID, "limit", rlm.requestsPerSecond)
 		rlm.metrics.RecordCounter("graphql_rate_limit_exceeded", 1, nil)
-		return fmt.Errorf("rate limit exceeded: %d requests per second", rlm.requestsPerSecond)
+
+		return fmt.Errorf("rate limit exceeded: %d requests per minute", rlm.requestsPerSecond*60)
 	}
 
 	limiter.requestCount++

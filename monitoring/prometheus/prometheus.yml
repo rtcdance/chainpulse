@@ -6,29 +6,31 @@ global:
     environment: 'production'
 
 scrape_configs:
+  # Monolithic deployment - current running instance
   - job_name: 'chainpulse-monolithic'
     static_configs:
-      - targets: ['chainpulse:8080']
+      - targets: ['host.docker.internal:8080']
     metrics_path: '/metrics'
 
+  # Microservices - update ports to match actual service ports
   - job_name: 'chainpulse-puller'
     static_configs:
-      - targets: ['puller:8080']
+      - targets: ['chainpulse-puller:8083']
     metrics_path: '/metrics'
 
-  - job_name: 'chainpulse-processor'
+  - job_name: 'chainpulse-event-processor'
     static_configs:
-      - targets: ['event-processor:8080']
+      - targets: ['chainpulse-event-processor:8082']
     metrics_path: '/metrics'
 
   - job_name: 'chainpulse-api-gateway'
     static_configs:
-      - targets: ['api-gateway:8080']
+      - targets: ['chainpulse-api-gateway:8080']
     metrics_path: '/metrics'
 
   - job_name: 'chainpulse-api-service'
     static_configs:
-      - targets: ['api-service:8080']
+      - targets: ['chainpulse-api-service:8081']
     metrics_path: '/metrics'
 
   - job_name: 'postgres'

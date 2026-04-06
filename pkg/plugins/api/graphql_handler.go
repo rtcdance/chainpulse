@@ -1,13 +1,21 @@
 package api
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"sync"
 
 	"chainpulse/pkg/core"
 	domainquery "chainpulse/pkg/domain/query"
 )
+
+type GraphQLRequest struct {
+	Query         string                 `json:"query"`
+	Variables     map[string]interface{} `json:"variables"`
+	OperationName string                 `json:"operationName"`
+}
 
 // GraphQLHandler handles GraphQL requests
 type GraphQLHandler struct {
@@ -101,27 +109,37 @@ func (h *GraphQLHandler) handleGet(w http.ResponseWriter, r *http.Request) {
 
 // handlePost handles POST requests (GraphQL queries)
 func (h *GraphQLHandler) handlePost(w http.ResponseWriter, r *http.Request) {
-	// Parse request body
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, fmt.Sprintf("Failed to parse request: %v", err), http.StatusBadRequest)
-		return
+	contentType := r.Header.Get("Content-Type")
+
+	var query string
+
+	// Parse based on Content-Type
+	if strings.Contains(contentType, "application/json") {
+		// Parse JSON body
+		var gqlReq GraphQLRequest
+		if err := json.NewDecoder(r.Body).Decode(&gqlReq); err != nil {
+			http.Error(w, fmt.Sprintf("Invalid JSON: %v", err), http.StatusBadRequest)
+			return
+		}
+		query = gqlReq.Query
+	} else {
+		// Parse form-encoded body
+		if err := r.ParseForm(); err != nil {
+			http.Error(w, fmt.Sprintf("Failed to parse request: %v", err), http.StatusBadRequest)
+			return
+		}
+		query = r.FormValue("query")
 	}
 
-	// Get query from request
-	query := r.FormValue("query")
 	if query == "" {
 		http.Error(w, "Query is required", http.StatusBadRequest)
 		return
 	}
 
-	// Execute query (simplified - in production would use graphql-go library)
-	// Return response
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 
-	// Write response as JSON
 	if _, err := fmt.Fprintf(w, `{"data":{"message":"GraphQL query received","query":"%s"}}`, query); err != nil {
-		// Log write error but don't fail the request
 		_ = err
 	}
 }

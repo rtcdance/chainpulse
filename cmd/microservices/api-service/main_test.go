@@ -1,6 +1,8 @@
 package main
 
 import (
+	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"chainpulse/pkg/core"
@@ -46,7 +48,7 @@ func TestLoadAPIServiceConfigParsesSecurityOverrides(t *testing.T) {
 	if !cfg.RateLimitEnabled {
 		t.Fatal("expected rate limiting to be enabled")
 	}
-	if got := cfg.RateLimitPerSecond; got != 42 {
+	if got := cfg.RateLimitPerMinute; got != 42 {
 		t.Fatalf("expected rate limit 42, got %d", got)
 	}
 }
@@ -60,7 +62,7 @@ func TestBuildAPIServiceSecurityControlsEnabled(t *testing.T) {
 		AuthJWTSecret:      "secret-123",
 		AuthAPIKeys:        []string{"svc-key=client-1"},
 		RateLimitEnabled:   true,
-		RateLimitPerSecond: 25,
+		RateLimitPerMinute: 120,
 	}, logger, metrics)
 	if err != nil {
 		t.Fatalf("build security controls: %v", err)
@@ -70,5 +72,19 @@ func TestBuildAPIServiceSecurityControlsEnabled(t *testing.T) {
 	}
 	if rateLimitMiddleware == nil {
 		t.Fatal("expected rate limit middleware to be created")
+	}
+}
+
+func TestBuildAPIServiceMetricsProviderDefaultsToPrometheus(t *testing.T) {
+	metrics := core.NewDefaultMetricsCollector()
+	metrics.RecordCounter("api_service_test_counter", 2, nil)
+
+	provider := buildAPIServiceMetricsProvider(metrics)
+	payload, ok := provider(httptest.NewRequest("GET", "/metrics", nil)).(string)
+	if !ok {
+		t.Fatalf("expected prometheus text payload, got %T", payload)
+	}
+	if !strings.Contains(payload, `chainpulse_api_service_test_counter{chain_id="global"} 2`) {
+		t.Fatalf("expected prometheus payload to contain counter, got:\n%s", payload)
 	}
 }

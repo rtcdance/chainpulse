@@ -2,35 +2,35 @@ groups:
   - name: chainpulse_alerts
     interval: 30s
     rules:
-      - alert: HighIndexingLag
-        expr: chainpulse_indexer_block_lag > 100
-        for: 5m
+      - alert: LowIndexerThroughput
+        expr: sum by (chain_id) (rate(chainpulse_event_processor_event_processed[5m])) < 1
+        for: 10m
         labels:
           severity: warning
         annotations:
-          summary: "High indexing lag detected"
-          description: "Indexing lag is {{ $value }} blocks behind"
+          summary: "Indexer throughput is low for chain {{ $labels.chain_id }}"
+          description: "Processed event throughput for chain {{ $labels.chain_id }} is below 1 event/s"
 
       - alert: HighEventFailureRate
-        expr: rate(chainpulse_events_failed[5m]) > 0.1
+        expr: sum by (chain_id) (rate(chainpulse_event_processor_validation_failed[5m])) + sum by (chain_id) (rate(chainpulse_event_processor_hash_generation_failed[5m])) + sum by (chain_id) (rate(chainpulse_event_processor_storage_failed[5m])) > 0.1
         for: 5m
         labels:
           severity: critical
         annotations:
-          summary: "High event failure rate"
-          description: "Event failure rate is {{ $value }} per second"
+          summary: "High event failure rate for chain {{ $labels.chain_id }}"
+          description: "Event failure rate for chain {{ $labels.chain_id }} is {{ $value }} per second"
 
       - alert: ReorgDetected
-        expr: increase(chainpulse_reorgs_detected[5m]) > 0
+        expr: increase(chainpulse_reorg_detected[5m]) > 0
         for: 1m
         labels:
           severity: warning
         annotations:
-          summary: "Blockchain reorg detected"
-          description: "{{ $value }} reorgs detected in last 5 minutes"
+          summary: "Blockchain reorg detected for chain {{ $labels.chain_id }}"
+          description: "{{ $value }} reorgs detected for chain {{ $labels.chain_id }} in last 5 minutes"
 
       - alert: HighDLQDepth
-        expr: chainpulse_indexer_dlq_depth > 1000
+        expr: chainpulse_mq_dead_letter_queue_size{chain_id="global"} > 100
         for: 10m
         labels:
           severity: warning
@@ -39,13 +39,13 @@ groups:
           description: "DLQ has {{ $value }} messages"
 
       - alert: ConsistencyMismatch
-        expr: increase(chainpulse_query_consistency_mismatches[10m]) > 5
+        expr: increase(chainpulse_consistency_checks_failed[10m]) > 5
         for: 5m
         labels:
           severity: critical
         annotations:
-          summary: "Data consistency issues detected"
-          description: "{{ $value }} consistency mismatches in last 10 minutes"
+          summary: "Data consistency issues detected for chain {{ $labels.chain_id }}"
+          description: "{{ $value }} consistency mismatches for chain {{ $labels.chain_id }} in last 10 minutes"
 
       - alert: ServiceDown
         expr: up{job=~"chainpulse.*"} == 0
@@ -57,7 +57,7 @@ groups:
           description: "{{ $labels.job }} has been down for more than 2 minutes"
 
       - alert: HighMemoryUsage
-        expr: process_resident_memory_bytes{job=~"chainpulse.*"} > 2e9
+        expr: go_memstats_sys_bytes{job=~"chainpulse.*"} > 2e9
         for: 5m
         labels:
           severity: warning
@@ -66,10 +66,10 @@ groups:
           description: "{{ $labels.job }} is using {{ $value | humanize }}B of memory"
 
       - alert: SlowQueryLatency
-        expr: histogram_quantile(0.95, rate(chainpulse_query_latency_seconds_bucket[5m])) > 1
+        expr: histogram_quantile(0.95, sum by (chain_id, le) (rate(chainpulse_query_cache_hit_time_ms_bucket[5m]))) > 200
         for: 5m
         labels:
           severity: warning
         annotations:
-          summary: "Slow query performance"
-          description: "95th percentile query latency is {{ $value }}s"
+          summary: "Slow query performance for chain {{ $labels.chain_id }}"
+          description: "95th percentile query cache latency for chain {{ $labels.chain_id }} is {{ $value }}ms"

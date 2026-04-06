@@ -1,114 +1,185 @@
 {
-  "dashboard": {
-    "title": "ChainPulse Indexer Metrics",
-    "tags": ["chainpulse", "blockchain", "indexer"],
-    "timezone": "browser",
-    "panels": [
-      {
-        "id": 1,
-        "title": "Indexing Lag",
-        "type": "graph",
-        "targets": [
-          {
-            "expr": "chainpulse_indexer_block_lag",
-            "legendFormat": "Block Lag"
-          }
-        ],
-        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0}
-      },
-      {
-        "id": 2,
-        "title": "Events Indexed Rate",
-        "type": "graph",
-        "targets": [
-          {
-            "expr": "rate(chainpulse_events_indexed[5m])",
-            "legendFormat": "Events/sec"
-          }
-        ],
-        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0}
-      },
-      {
-        "id": 3,
-        "title": "Event Processing Status",
-        "type": "graph",
-        "targets": [
-          {
-            "expr": "rate(chainpulse_events_processed[5m])",
-            "legendFormat": "Processed"
-          },
-          {
-            "expr": "rate(chainpulse_events_failed[5m])",
-            "legendFormat": "Failed"
-          }
-        ],
-        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8}
-      },
-      {
-        "id": 4,
-        "title": "Cache Hit Rate",
-        "type": "gauge",
-        "targets": [
-          {
-            "expr": "chainpulse_cache_hits / (chainpulse_cache_hits + chainpulse_cache_misses) * 100",
-            "legendFormat": "Hit Rate %"
-          }
-        ],
-        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8}
-      },
-      {
-        "id": 5,
-        "title": "Reorg Events",
-        "type": "stat",
-        "targets": [
-          {
-            "expr": "chainpulse_reorgs_detected",
-            "legendFormat": "Total Reorgs"
-          }
-        ],
-        "gridPos": {"h": 4, "w": 6, "x": 0, "y": 16}
-      },
-      {
-        "id": 6,
-        "title": "DLQ Depth",
-        "type": "stat",
-        "targets": [
-          {
-            "expr": "chainpulse_indexer_dlq_depth",
-            "legendFormat": "Messages"
-          }
-        ],
-        "gridPos": {"h": 4, "w": 6, "x": 6, "y": 16}
-      },
-      {
-        "id": 7,
-        "title": "Consistency Mismatches",
-        "type": "stat",
-        "targets": [
-          {
-            "expr": "chainpulse_query_consistency_mismatches",
-            "legendFormat": "Mismatches"
-          }
-        ],
-        "gridPos": {"h": 4, "w": 6, "x": 12, "y": 16}
-      },
-      {
-        "id": 8,
-        "title": "Query Latency (p95)",
-        "type": "graph",
-        "targets": [
-          {
-            "expr": "histogram_quantile(0.95, rate(chainpulse_query_latency_seconds_bucket[5m]))",
-            "legendFormat": "p95 Latency"
-          }
-        ],
-        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 20}
-      }
-    ],
-    "refresh": "10s",
-    "time": {
-      "from": "now-1h",
-      "to": "now"
+  "uid": "chainpulse-blueprint-81",
+  "title": "ChainPulse Blueprint 8.1 Local Debug Monitor",
+  "tags": ["chainpulse", "monitoring", "blueprint-81", "debug"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "10s",
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "templating": {
+    "list": []
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Performance | Event Throughput",
+      "type": "graph",
+      "datasource": {"type": "prometheus", "uid": "chainpulse-prometheus"},
+      "targets": [
+        {"expr": "sum by (chain_id) (rate(chainpulse_event_processor_event_processed[5m]))", "legendFormat": "{{chain_id}} events processed/s"},
+        {"expr": "sum by (chain_id) (rate(chainpulse_event_processor_batch_processed[5m]))", "legendFormat": "{{chain_id}} batches processed/s"}
+      ],
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0}
+    },
+    {
+      "id": 2,
+      "title": "Performance | Query Cache Latency P95",
+      "type": "graph",
+      "datasource": {"type": "prometheus", "uid": "chainpulse-prometheus"},
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (chain_id, le) (rate(chainpulse_query_cache_hit_time_ms_bucket[5m])))",
+          "legendFormat": "{{chain_id}} query cache hit p95"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum by (chain_id, le) (rate(chainpulse_query_by_hash_cache_hit_time_ms_bucket[5m])))",
+          "legendFormat": "{{chain_id}} query by-hash cache hit p95"
+        }
+      ],
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0}
+    },
+    {
+      "id": 3,
+      "title": "Performance | Gateway and Rollout Latency",
+      "type": "graph",
+      "datasource": {"type": "prometheus", "uid": "chainpulse-prometheus"},
+      "targets": [
+        {"expr": "chainpulse_gateway_request_time_ms", "legendFormat": "{{chain_id}} gateway request ms"},
+        {"expr": "chainpulse_health_check_rollout_time_ms", "legendFormat": "{{chain_id}} rollout check ms"}
+      ],
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8}
+    },
+    {
+      "id": 4,
+      "title": "Resource | Memory Usage MB",
+      "type": "gauge",
+      "datasource": {"type": "prometheus", "uid": "chainpulse-prometheus"},
+      "targets": [
+        {"expr": "go_memstats_sys_bytes / 1024 / 1024", "legendFormat": "Go runtime memory MB"}
+      ],
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8}
+    },
+    {
+      "id": 5,
+      "title": "Processing | Failure Rate",
+      "type": "graph",
+      "datasource": {"type": "prometheus", "uid": "chainpulse-prometheus"},
+      "targets": [
+        {"expr": "sum by (chain_id) (rate(chainpulse_event_processor_validation_failed[5m]))", "legendFormat": "{{chain_id}} validation failed/s"},
+        {"expr": "sum by (chain_id) (rate(chainpulse_event_processor_hash_generation_failed[5m]))", "legendFormat": "{{chain_id}} hash failed/s"},
+        {"expr": "sum by (chain_id) (rate(chainpulse_event_processor_storage_failed[5m]))", "legendFormat": "{{chain_id}} storage failed/s"}
+      ],
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16}
+    },
+    {
+      "id": 6,
+      "title": "Resource | Goroutines",
+      "type": "stat",
+      "datasource": {"type": "prometheus", "uid": "chainpulse-prometheus"},
+      "targets": [
+        {"expr": "go_goroutines", "legendFormat": "Goroutines"}
+      ],
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16}
+    },
+    {
+      "id": 7,
+      "title": "Resource | Cache Hit Ratio",
+      "type": "gauge",
+      "datasource": {"type": "prometheus", "uid": "chainpulse-prometheus"},
+      "targets": [
+        {
+          "expr": "chainpulse_cache_hit{chain_id=\"global\"} / (chainpulse_cache_hit{chain_id=\"global\"} + chainpulse_cache_miss{chain_id=\"global\"}) * 100",
+          "legendFormat": "Global hit rate %"
+        }
+      ],
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 24}
+    },
+    {
+      "id": 8,
+      "title": "Business | Ownership Mode",
+      "type": "graph",
+      "datasource": {"type": "prometheus", "uid": "chainpulse-prometheus"},
+      "targets": [
+        {"expr": "chainpulse_indexing_runtime_shadow_owned_events", "legendFormat": "{{chain_id}} shadow owned events"},
+        {"expr": "chainpulse_indexing_runtime_legacy_owned_events", "legendFormat": "{{chain_id}} legacy owned events"},
+        {"expr": "chainpulse_indexing_runtime_ownership_chains", "legendFormat": "{{chain_id}} ownership chains"}
+      ],
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 24}
+    },
+    {
+      "id": 9,
+      "title": "Business | Reorg and Recovery",
+      "type": "graph",
+      "datasource": {"type": "prometheus", "uid": "chainpulse-prometheus"},
+      "targets": [
+        {"expr": "chainpulse_reorg_detected", "legendFormat": "{{chain_id}} reorg detected"},
+        {"expr": "chainpulse_reorg_recovery_count", "legendFormat": "{{chain_id}} reorg recoveries"},
+        {"expr": "rate(chainpulse_recovery_state_success[5m])", "legendFormat": "{{chain_id}} recovery success/s"},
+        {"expr": "rate(chainpulse_recovery_state_failed[5m])", "legendFormat": "{{chain_id}} recovery failed/s"}
+      ],
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 32}
+    },
+    {
+      "id": 10,
+      "title": "Business | Consistency and DLQ",
+      "type": "graph",
+      "datasource": {"type": "prometheus", "uid": "chainpulse-prometheus"},
+      "targets": [
+        {"expr": "chainpulse_consistency_checks_failed", "legendFormat": "{{chain_id}} consistency failures"},
+        {"expr": "chainpulse_mq_dead_letter_queue_size", "legendFormat": "{{chain_id}} DLQ size"}
+      ],
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 32}
+    },
+    {
+      "id": 11,
+      "title": "System Health | Service Availability",
+      "type": "graph",
+      "datasource": {"type": "prometheus", "uid": "chainpulse-prometheus"},
+      "targets": [
+        {"expr": "up{job=~\"chainpulse.*\"}", "legendFormat": "{{job}}"}
+      ],
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 40}
+    },
+    {
+      "id": 12,
+      "title": "System Health | Runtime and Rollout",
+      "type": "graph",
+      "datasource": {"type": "prometheus", "uid": "chainpulse-prometheus"},
+      "targets": [
+        {"expr": "chainpulse_indexing_runtime_started", "legendFormat": "{{chain_id}} runtime started"},
+        {"expr": "chainpulse_indexing_runtime_chain_count", "legendFormat": "{{chain_id}} chain count"},
+        {"expr": "chainpulse_health_check_rollout_status", "legendFormat": "{{chain_id}} rollout checks"}
+      ],
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 40}
+    },
+    {
+      "id": 13,
+      "title": "System Health | Gateway Errors",
+      "type": "graph",
+      "datasource": {"type": "prometheus", "uid": "chainpulse-prometheus"},
+      "targets": [
+        {"expr": "rate(chainpulse_gateway_route_not_found[5m])", "legendFormat": "{{chain_id}} route not found/s"},
+        {"expr": "rate(chainpulse_gateway_method_not_allowed[5m])", "legendFormat": "{{chain_id}} method not allowed/s"},
+        {"expr": "rate(chainpulse_gateway_request_success[5m])", "legendFormat": "{{chain_id}} success/s"}
+      ],
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 48}
+    },
+    {
+      "id": 14,
+      "title": "System Health | Message Queue",
+      "type": "graph",
+      "datasource": {"type": "prometheus", "uid": "chainpulse-prometheus"},
+      "targets": [
+        {"expr": "chainpulse_mq_messages_published", "legendFormat": "{{chain_id}} messages published"},
+        {"expr": "chainpulse_mq_messages_consumed", "legendFormat": "{{chain_id}} messages consumed"},
+        {"expr": "chainpulse_mq_errors", "legendFormat": "{{chain_id}} MQ errors"},
+        {"expr": "chainpulse_mq_broker_failures", "legendFormat": "{{chain_id}} broker failures"}
+      ],
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 48}
     }
-  }
+  ]
 }

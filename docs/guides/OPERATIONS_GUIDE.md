@@ -39,6 +39,40 @@ systemctl restart chainpulse-indexer
 curl http://localhost:8080/health/circuit-breaker
 ```
 
+### Runtime Recovery
+
+For the current monolithic runtime, shared-runtime DLQ replay is available as
+an in-process operator action:
+
+```bash
+# Inspect runtime posture before replay
+curl http://localhost:8080/runtime/summary
+
+# Replay a bounded DLQ range for one chain
+curl -X POST http://localhost:8080/runtime/indexing/dlq/replay \
+  -H "Content-Type: application/json" \
+  -d '{
+    "chain_id": "ethereum",
+    "from": {
+      "block_number": 100,
+      "cursor": "100:0"
+    },
+    "to": {
+      "block_number": 110,
+      "cursor": "110:999"
+    },
+    "limit": 50
+  }'
+```
+
+Operational notes:
+
+- this replay action must target the still-running monolithic process because
+  the current DLQ journal is in-memory
+- a successful replay acknowledges and removes the replayed events from the
+  in-process DLQ journal
+- invalid replay ranges return `400`; execution failures return `500`
+
 ## Detailed Guides
 
 - **Deployment**: `docs/guides/DEPLOYMENT_GUIDE.md`

@@ -170,3 +170,8 @@ func (r *WebSocketResponse) Send() error {
 func (r *WebSocketResponse) IsMessageSent() bool {
 	return r.messageSent
 }
+
+// IsHeadersSent returns whether the response has been sent.
+func (r *WebSocketResponse) IsHeadersSent() bool {
+	return r.messageSent
+}

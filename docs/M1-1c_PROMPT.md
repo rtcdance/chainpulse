@@ -133,8 +133,9 @@ QueryService (蓝图 §3.3)
 - `pkg/plugins/api/rate_limiter.go`:
   - `NewRateLimiter(logger, metrics, config *RateLimitConfig) *RateLimiter`
   - `RateLimitConfig{APIKeyRate: 1000, IPRate: 100}`
+  - `NewRateLimitMiddleware(limiter *RateLimiter, logger core.Logger) *RateLimitMiddleware` — 注意: 第一个参数是 *RateLimiter 实例，不是 config
 - `pkg/plugins/api/auth_middleware.go`:
-  - `NewAuthMiddleware(logger, tokenValidator) *AuthMiddleware`
+  - `NewAuthMiddleware(tokenValidator, rbacChecker, auditLogger, logger, metrics) *AuthMiddleware` — 注意: 5 个参数，mock 时前 3 个传 nil
 - `pkg/infrastructure/gateway/websocket_subscription.go`:
   - `NewConnectionPoolManager(maxConns int) *ConnectionPoolManager`
 
@@ -144,11 +145,14 @@ QueryService (蓝图 §3.3)
   - `cb.Call(fn func() error) error` — 不是 Allow()!
   - `CircuitBreakerConfig{ErrorThreshold: 0.5, RequestThreshold: 10, SleepWindow: 30*time.Second}`
 - `pkg/services/query/cache_service.go`:
-  - `NewCacheService(cache core.CachePlugin, logger, metrics) *DefaultCacheService`
+  - `NewCacheService(logger, metricsCollector) CacheService` — ⚠️ 注意: **不需要** cache 参数！内部使用 map 缓存
   - `cs.Get(ctx, key string) ([]core.BlockchainEvent, error)`
   - `cs.Set(ctx, key string, value []core.BlockchainEvent, ttl) error`
+  - `cs.Initialize(ctx) error`
+  - `cs.Start(ctx) error`
 - `pkg/services/query/degradation_handler.go`:
-  - `NewDegradationHandler(mongoDB, postgresDB, cache, logger, metrics) *DefaultDegradationHandler`
+  - `NewDegradationHandler(eventStore, metadataStore, cacheService, logger, metrics) DegradationHandler`
+  - ⚠️ 参数顺序: eventStore(EventStore 接口), metadataStore(EventMetadataStore 接口), cacheService(CacheService 接口), logger, metrics
   - `h.GetDegradationMode(ctx) DegradationMode`
   - `h.CanUseCache(ctx) bool`
 - `pkg/services/query/consistency_checker.go`:
@@ -164,8 +168,8 @@ QueryService (蓝图 §3.3)
   - `im.RecordReorg(blocksRolledBack uint64)`
 - `pkg/observability/distributed_tracing.go`:
   - `NewDefaultTracer(logger, metrics) *DefaultTracer`
-  - `tracer.StartSpan(ctx, name string, kind SpanKind) (context.Context, *Span)`
-  - `tracer.AddEvent(span, name string, attributes map[string]interface{})`
+  - `tracer.StartSpan(ctx, name string, kind SpanKind) (context.Context, Span)` — ⚠️ 返回 Span（非指针）
+  - `tracer.AddEvent(span *Span, name string, attributes map[string]interface{})`
   - `tracer.EndSpan(span *Span)`
 
 ### 修复步骤
@@ -177,7 +181,7 @@ QueryService (蓝图 §3.3)
 1. circuitBreaker := query.NewCircuitBreaker(&query.CircuitBreakerConfig{
      ErrorThreshold: 0.5, RequestThreshold: 10, SleepWindow: 30*time.Second,
    })
-2. cacheService := query.NewCacheService(indexingCache, logger, metrics)
+2. cacheService := query.NewCacheService(logger, metrics)  // ⚠️ 注意: 不需要 cache 参数
    cacheService.Initialize(ctx)
    cacheService.Start(ctx)
 ```
@@ -185,20 +189,34 @@ QueryService (蓝图 §3.3)
 **Step 2: Query 降级 + 一致性检查接入**
 ```
 文件: cmd/monolithic/chainpulse/main.go
-3. degradationHandler := query.NewDegradationHandler(mongoDB, postgresDB, indexingCache, logger, metrics)
-   degradationHandler.Initialize(ctx)
-4. consistencyChecker := query.NewConsistencyChecker(eventStore, metadataStore, logger, metrics)
-   consistencyChecker.Initialize(ctx)
+
+// 注意: NewDegradationHandler 签名是 (eventStore, metadataStore, cacheService, logger, metrics)
+// eventStore 和 metadataStore 需要从 indexingDatabase 或 query 层的 store 获取
+// 如果当前没有现成的 eventStore 实现，先用 indexingDatabase 包装
+degradationHandler := query.NewDegradationHandler(eventStore, metadataStore, cacheService, logger, metrics)
+degradationHandler.Initialize(ctx)
+
+// 注意: NewConsistencyChecker 签名是 (eventStore, metadataStore, logger, metrics)
+consistencyChecker := query.NewConsistencyChecker(eventStore, metadataStore, logger, metrics)
+consistencyChecker.Initialize(ctx)
 ```
 
 **Step 3: API Gateway 限流 + 认证**
 ```
 文件: cmd/monolithic/chainpulse/main.go
-rateLimitMiddleware := api.NewRateLimitMiddleware(logger, metrics, &api.RateLimitConfig{
-  APIKeyRate: 1000,  // 1000 req/min per API Key
-  IPRate:     100,   // 100 req/min per IP
+
+// 先创建 RateLimiter 实例
+rateLimiter := api.NewRateLimiter(logger, metrics, &api.RateLimitConfig{
+    APIKeyRate: 1000,  // 1000 req/min per API Key
+    IPRate:     100,   // 100 req/min per IP
 })
-authMiddleware := api.NewAuthMiddleware(logger, nil)  // mock 认证，tokenValidator=nil
+
+// 再创建中间件（注意: NewRateLimitMiddleware 接受 (limiter, logger)）
+rateLimitMiddleware := api.NewRateLimitMiddleware(rateLimiter, logger)
+
+// mock 认证（注意: NewAuthMiddleware 需要 5 个参数，mock 时传 nil）
+authMiddleware := api.NewAuthMiddleware(nil, nil, nil, logger, metrics)
+
 gateway.SetRateLimitMiddleware(rateLimitMiddleware)
 gateway.SetAuthMiddleware(authMiddleware)
 ```
@@ -224,10 +242,10 @@ gateway.SetAuthMiddleware(authMiddleware)
 2. Tracer:
    tracer := observability.NewDefaultTracer(logger, metrics)
    ctx, span := tracer.StartSpan(ctx, "pull_events", observability.SpanKindClient)
-   tracer.AddEvent(span, "pulled", map[string]interface{}{
+   tracer.AddEvent(&span, "pulled", map[string]interface{}{
      "chain_id": chainID, "from_block": fromBlock, "to_block": toBlock,
    })
-   defer tracer.EndSpan(span)
+   defer tracer.EndSpan(&span)
 3. Logger:
    logger.Info("pulled events", "chain_id", chainID, "service", "puller",
      "operation", "pull_events", "block_height", toBlock)

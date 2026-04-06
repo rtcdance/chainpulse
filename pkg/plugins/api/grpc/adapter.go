@@ -147,6 +147,11 @@ func (r *GRPCResponse) IsMessageSent() bool {
 	return r.messageSent
 }
 
+// IsHeadersSent returns whether the response has been sent.
+func (r *GRPCResponse) IsHeadersSent() bool {
+	return r.messageSent
+}
+
 // ToJSON converts response to JSON for gRPC transport
 func (r *GRPCResponse) ToJSON() ([]byte, error) {
 	envelope := map[string]interface{}{

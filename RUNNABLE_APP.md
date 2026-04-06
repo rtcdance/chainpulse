@@ -98,6 +98,88 @@ For the four-service slice:
 bash scripts/verify-local-runnable-app.sh --profile full
 ```
 
+For independent microservice entrypoint verification:
+
+```bash
+bash scripts/verify-microservice-entrypoints.sh --service all
+```
+
+You can also verify a single service entrypoint:
+
+```bash
+bash scripts/verify-microservice-entrypoints.sh --service api-service
+bash scripts/verify-microservice-entrypoints.sh --service api-gateway
+bash scripts/verify-microservice-entrypoints.sh --service event-processor
+bash scripts/verify-microservice-entrypoints.sh --service puller
+```
+
+For a focused four-service deployment smoke:
+
+```bash
+bash scripts/verify-microservice-deployment-smoke.sh
+```
+
+For a focused four-service observability baseline:
+
+```bash
+bash scripts/verify-microservice-observability-baseline.sh
+```
+
+For a live Prometheus smoke against a running monitoring stack:
+
+```bash
+bash scripts/verify-prometheus-live-smoke.sh --prom-url http://localhost:9090
+```
+
+For a focused four-service alert-readiness baseline:
+
+```bash
+bash scripts/verify-microservice-alert-readiness.sh
+```
+
+For the current minimum production-readiness rehearsal:
+
+```bash
+bash scripts/run-production-readiness-rehearsal.sh
+```
+
+The rehearsal now sequences deployment smoke, observability baseline,
+alert-readiness baseline, and the repository-local chaos baseline.
+
+For the current repository-local chaos baseline:
+
+```bash
+bash scripts/chaos-test.sh
+```
+
+For a lightweight docker-compose stack verification:
+
+```bash
+bash scripts/verify-docker-compose-stack.sh
+```
+
+For the dedicated four-service microservice compose profile:
+
+```bash
+COMPOSE_FILE=docker/docker-compose.microservices.yml \
+  bash scripts/verify-docker-compose-stack.sh
+```
+
+For a real compose-based microservice readiness smoke:
+
+```bash
+bash scripts/verify-docker-compose-microservices-readiness.sh
+```
+
+That compose readiness smoke now also runs the live Prometheus verification
+against the compose-provisioned Prometheus server.
+
+If Docker runtime is unavailable on the current machine, use:
+
+```bash
+cat DOCKER_RUNTIME_RECOVERY.md
+```
+
 Current verification coverage:
 
 - `minimal`
@@ -115,6 +197,50 @@ Current verification coverage:
   - `puller /runtime/summary`
   - `puller /runtime/control`
 
+## Monolithic DLQ Replay
+
+The monolithic runtime now exposes an in-process operator route for bounded DLQ
+replay:
+
+- `POST /runtime/indexing/dlq/replay`
+
+This route is intended for the current monolithic local/debug baseline where
+the DLQ journal is process-local memory. Because of that, replay must be
+triggered against the still-running monolithic process that owns the failed
+events.
+
+Example request:
+
+```bash
+curl -X POST http://localhost:8080/runtime/indexing/dlq/replay \
+  -H "Content-Type: application/json" \
+  -d '{
+    "chain_id": "ethereum",
+    "from": {
+      "block_number": 10,
+      "cursor": "10:0"
+    },
+    "to": {
+      "block_number": 12,
+      "cursor": "12:999"
+    },
+    "limit": 100
+  }'
+```
+
+Request fields:
+
+- `chain_id`: required chain identifier
+- `from.block_number`: required lower replay bound
+- `from.cursor`: optional lower replay cursor within the same block
+- `to.block_number`: optional upper replay bound
+- `to.cursor`: optional upper replay cursor within the same block
+- `limit`: optional max replayed events; `0` means no explicit cap
+
+On success the route returns a JSON payload with the replayed count and the
+runtime state. Successfully replayed events are acknowledged and removed from
+the in-memory DLQ journal.
+
 ## Optional Gateway Security Surface
 
 The current runnable baseline keeps gateway auth and rate limiting disabled by
@@ -126,10 +252,19 @@ To enable the optional security surface:
 - `GATEWAY_AUTH_JWT_SECRET=<shared-secret>`
 - `GATEWAY_AUTH_API_KEYS=<api-key=client-id pairs>`
 - `GATEWAY_RATE_LIMIT_ENABLED=true`
-- `GATEWAY_RATE_LIMIT=<requests-per-second>`
+- `GATEWAY_RATE_LIMIT=<requests-per-minute>`
+- `MONOLITHIC_DLQ_RETENTION=<go-duration>`
 
 When enabled, the gateway runtime summary will surface the auth and rate-limit
 postures together with the combined gateway security posture.
+
+The same gateway rate limiter also applies to WebSocket subscription upgrade
+requests, so repeated handshake bursts will return `429 Too Many Requests`
+before the WebSocket connection is established.
+
+For monolithic DLQ replay, `MONOLITHIC_DLQ_RETENTION` controls how long failed
+events stay in the in-memory DLQ journal before lazy expiry. The default is
+`168h`.
 
 ## Current Service Boundaries
 
