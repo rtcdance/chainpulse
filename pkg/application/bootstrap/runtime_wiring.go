@@ -5,12 +5,14 @@ import (
 	"fmt"
 	"time"
 
-	adapterquery "chainpulse/pkg/adapters/query"
 	"chainpulse/pkg/core"
-	domainquery "chainpulse/pkg/domain/query"
 	"chainpulse/pkg/infrastructure/database"
 	"chainpulse/pkg/plugins/api"
 	"chainpulse/pkg/services/query"
+
+	adapterquery "chainpulse/pkg/adapters/query"
+
+	domainquery "chainpulse/pkg/domain/query"
 )
 
 // QueryRuntimeService is the managed query runtime contract used by startup wiring.
@@ -146,7 +148,7 @@ func defaultRuntimeWiringDeps() runtimeWiringDeps {
 			}
 			cancel()
 
-			healthCheckHandler := api.NewHealthCheckHandler(db, logger, metrics)
+			healthCheckHandler := api.NewHealthCheckHandler(db, nil, logger, metrics)
 			initCtx, cancel = context.WithTimeout(ctx, cfg.GetTimeout())
 			if err := healthCheckHandler.Initialize(initCtx); err != nil {
 				cancel()

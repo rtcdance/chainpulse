@@ -15,6 +15,7 @@ import (
 // HealthCheckHandler handles health check requests
 type HealthCheckHandler struct {
 	dbManager   database.DatabaseManager
+	cachePlugin core.CachePlugin
 	logger      core.Logger
 	metrics     core.MetricsCollector
 	initialized bool
@@ -67,11 +68,13 @@ type LivenessResponse struct {
 // NewHealthCheckHandler creates a new health check handler
 func NewHealthCheckHandler(
 	dbManager database.DatabaseManager,
+	cachePlugin core.CachePlugin,
 	logger core.Logger,
 	metrics core.MetricsCollector,
 ) *HealthCheckHandler {
 	return &HealthCheckHandler{
 		dbManager:           dbManager,
+		cachePlugin:         cachePlugin,
 		logger:              logger,
 		metrics:             metrics,
 		initialized:         false,
@@ -476,9 +479,20 @@ func (h *HealthCheckHandler) checkRedisHealth(ctx context.Context) *ComponentSta
 		return status
 	}
 
-	// Redis health check is optional - if not available, mark as degraded
-	status.Status = "degraded"
-	status.Error = "Redis cache not available"
+	if h.cachePlugin == nil {
+		status.Status = "degraded"
+		status.Error = "Redis cache not available"
+		status.ResponseTime = time.Since(start).Milliseconds()
+		return status
+	}
+
+	pingCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+
+	if err := h.cachePlugin.HealthCheck(pingCtx); err != nil {
+		status.Status = "degraded"
+		status.Error = "Redis health check failed: " + err.Error()
+	}
 
 	status.ResponseTime = time.Since(start).Milliseconds()
 	return status

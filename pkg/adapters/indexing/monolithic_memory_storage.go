@@ -246,6 +246,10 @@ func (c *MonolithicMemoryCache) Health() error {
 	return nil
 }
 
+func (c *MonolithicMemoryCache) HealthCheck(ctx context.Context) error {
+	return c.Health()
+}
+
 func (c *MonolithicMemoryCache) Get(ctx context.Context, key string) ([]byte, error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()

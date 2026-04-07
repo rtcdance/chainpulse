@@ -83,9 +83,9 @@ type Config struct {
 	MQConnectionURL string `json:"mq_connection_url"`
 
 	// Cache Configuration
-	CacheType         string `json:"cache_type"`
+	CacheType          string `json:"cache_type"`
 	CacheConnectionURL string `json:"cache_connection_url"`
-	CacheTTL          int    `json:"cache_ttl"` // in seconds
+	CacheTTL           int    `json:"cache_ttl"` // in seconds
 
 	// Database Configuration
 	DatabaseType string `json:"database_type"`
@@ -119,8 +119,8 @@ type Config struct {
 	FeatureFlags map[string]bool `json:"feature_flags"`
 
 	// Multi-blockchain Configuration
-	Blockchains map[string]BlockchainConfig `json:"blockchains"`
-	ActiveChains []string `json:"active_chains"`
+	Blockchains  map[string]BlockchainConfig `json:"blockchains"`
+	ActiveChains []string                    `json:"active_chains"`
 }
 
 // GetString retrieves a string configuration value
@@ -178,14 +178,15 @@ type CachePlugin interface {
 	Set(ctx context.Context, key string, value []byte, ttl int) error
 	Delete(ctx context.Context, key string) error
 	GetStats() CacheStats
+	HealthCheck(ctx context.Context) error
 }
 
 // CacheStats represents cache statistics
 type CacheStats struct {
-	HitCount    int64   `json:"hit_count"`
-	MissCount   int64   `json:"miss_count"`
-	EvictionCount int64 `json:"eviction_count"`
-	HitRate     float64 `json:"hit_rate"`
+	HitCount      int64   `json:"hit_count"`
+	MissCount     int64   `json:"miss_count"`
+	EvictionCount int64   `json:"eviction_count"`
+	HitRate       float64 `json:"hit_rate"`
 }
 
 // DatabasePlugin manages database operations
