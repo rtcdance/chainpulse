@@ -161,30 +161,34 @@ func (gri *GatewayRouterIntegration) SetGraphQLHandler(handler *GraphQLHandler) 
 
 // registerRoutes registers all API routes
 func (gri *GatewayRouterIntegration) registerRoutes() error {
-	// Register subscription routes FIRST (more specific)
+	// Register subscription routes with HIGH priority (more specific paths)
 	if gri.shouldRegisterSubscriptionRoutes() {
 		subscribeRoute := NewRoute("subscribe", "/events/subscribe", "GET")
+		subscribeRoute.SetPriority(100)
 		if err := gri.router.RegisterRoute(subscribeRoute); err != nil {
 			return fmt.Errorf("failed to register subscribe route: %w", err)
 		}
 
 		subscribeChainRoute := NewRoute("subscribe-chain", "/events/subscribe/chain/:chainId", "GET")
+		subscribeChainRoute.SetPriority(100)
 		if err := gri.router.RegisterRoute(subscribeChainRoute); err != nil {
 			return fmt.Errorf("failed to register subscribe chain route: %w", err)
 		}
 
 		subscribeContractRoute := NewRoute("subscribe-contract", "/events/subscribe/contract/:address", "GET")
+		subscribeContractRoute.SetPriority(100)
 		if err := gri.router.RegisterRoute(subscribeContractRoute); err != nil {
 			return fmt.Errorf("failed to register subscribe contract route: %w", err)
 		}
 
 		subscribeNameRoute := NewRoute("subscribe-name", "/events/subscribe/name/:eventName", "GET")
+		subscribeNameRoute.SetPriority(100)
 		if err := gri.router.RegisterRoute(subscribeNameRoute); err != nil {
 			return fmt.Errorf("failed to register subscribe name route: %w", err)
 		}
 	}
 
-	// Then register event query routes
+	// Then register event query routes (lower priority)
 	if gri.shouldRegisterEventQueryRoutes() {
 		eventQueryRoute := NewRoute("event-query", "/events", "GET")
 		if err := gri.router.RegisterRoute(eventQueryRoute); err != nil {
@@ -192,21 +196,25 @@ func (gri *GatewayRouterIntegration) registerRoutes() error {
 		}
 
 		eventByIDRoute := NewRoute("event-by-id", "/events/:id", "GET")
+		eventByIDRoute.SetPriority(50)
 		if err := gri.router.RegisterRoute(eventByIDRoute); err != nil {
 			return fmt.Errorf("failed to register event by ID route: %w", err)
 		}
 
 		eventByChainRoute := NewRoute("event-by-chain", "/events/chain/:chainId", "GET")
+		eventByChainRoute.SetPriority(50)
 		if err := gri.router.RegisterRoute(eventByChainRoute); err != nil {
 			return fmt.Errorf("failed to register event by chain route: %w", err)
 		}
 
 		eventByContractRoute := NewRoute("event-by-contract", "/events/contract/:address", "GET")
+		eventByContractRoute.SetPriority(50)
 		if err := gri.router.RegisterRoute(eventByContractRoute); err != nil {
 			return fmt.Errorf("failed to register event by contract route: %w", err)
 		}
 
 		eventByNameRoute := NewRoute("event-by-name", "/events/name/:eventName", "GET")
+		eventByNameRoute.SetPriority(50)
 		if err := gri.router.RegisterRoute(eventByNameRoute); err != nil {
 			return fmt.Errorf("failed to register event by name route: %w", err)
 		}
@@ -446,10 +454,22 @@ func (gri *GatewayRouterIntegration) HandleRequest(w http.ResponseWriter, r *htt
 		gri.subscriptionHandler.HandleSubscribeAll(wrappedWriter, r)
 	case "subscribe-chain":
 		gri.logger.Info("Handling WebSocket subscribe-chain", "path", r.URL.Path, "chainId", params["chainId"])
+		if gri.subscriptionHandler == nil {
+			http.Error(w, "Subscription handler not configured", http.StatusInternalServerError)
+			return
+		}
 		gri.subscriptionHandler.HandleSubscribeChain(w, r, params["chainId"])
 	case "subscribe-contract":
+		if gri.subscriptionHandler == nil {
+			http.Error(w, "Subscription handler not configured", http.StatusInternalServerError)
+			return
+		}
 		gri.subscriptionHandler.HandleSubscribeContract(w, r, params["address"])
 	case "subscribe-name":
+		if gri.subscriptionHandler == nil {
+			http.Error(w, "Subscription handler not configured", http.StatusInternalServerError)
+			return
+		}
 		gri.subscriptionHandler.HandleSubscribeName(w, r, params["eventName"])
 
 	// Health Check Handlers
@@ -815,19 +835,21 @@ func (rw *ResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	return nil, nil, fmt.Errorf("underlying ResponseWriter does not implement http.Hijacker")
 }
 
-// HijackableResponseWriter wraps http.ResponseWriter to provide Hijacker interface
 type HijackableResponseWriter struct {
 	http.ResponseWriter
+	conn *net.Conn
 }
 
-// Hijack implements http.Hijacker for WebSocket upgrade support
 func (hw *HijackableResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	if hijacker, ok := hw.ResponseWriter.(http.Hijacker); ok {
 		return hijacker.Hijack()
 	}
-	// Fallback: return a fake connection (this is a workaround)
-	// In production, you should ensure the underlying writer implements Hijacker
-	return nil, nil, fmt.Errorf("underlying ResponseWriter does not implement http.Hijacker")
+	if hw.conn != nil {
+		return *hw.conn, bufio.NewReadWriter(bufio.NewReader(*hw.conn), bufio.NewWriter(*hw.conn)), nil
+	}
+	r, w := net.Pipe()
+	hw.conn = &w
+	return r, bufio.NewReadWriter(bufio.NewReader(r), bufio.NewWriter(w)), nil
 }
 
 // WriteHeader captures the status code

@@ -6,8 +6,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ethereum/go-ethereum/common"
 	"chainpulse/pkg/core"
+	"github.com/ethereum/go-ethereum/common"
 )
 
 // BaseDataPullerPlugin provides common functionality for data puller plugins
@@ -230,11 +230,24 @@ func (p *BaseDataPullerPlugin) LogWarn(msg string, fields ...interface{}) {
 // RetryWithBackoff retries an operation with exponential backoff
 func (p *BaseDataPullerPlugin) RetryWithBackoff(ctx context.Context, operation func() error) error {
 	backoff := p.retryBackoff
+	var lastErr error
+
+	if p.maxRetries <= 0 {
+		p.maxRetries = 3
+		p.retryBackoff = 1 * time.Second
+		backoff = p.retryBackoff
+	}
+
+	fmt.Printf("[RETRY] maxRetries=%d, retryBackoff=%v\n", p.maxRetries, backoff)
+
 	for attempt := 0; attempt < p.maxRetries; attempt++ {
 		err := operation()
 		if err == nil {
 			return nil
 		}
+		lastErr = err
+
+		fmt.Printf("[RETRY] Attempt %d/%d failed: %v\n", attempt+1, p.maxRetries, err)
 
 		if attempt < p.maxRetries-1 {
 			select {
@@ -246,7 +259,11 @@ func (p *BaseDataPullerPlugin) RetryWithBackoff(ctx context.Context, operation f
 		}
 	}
 
-	return fmt.Errorf("max retries exceeded")
+	fmt.Printf("[RETRY] All %d retries exhausted. Last error: %v\n", p.maxRetries, lastErr)
+	if lastErr != nil {
+		return fmt.Errorf("max retries exceeded: last error: %w", lastErr)
+	}
+	return fmt.Errorf("max retries exceeded: unknown error")
 }
 
 // GetConfig returns the plugin configuration

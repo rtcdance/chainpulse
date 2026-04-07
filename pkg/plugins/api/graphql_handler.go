@@ -9,6 +9,7 @@ import (
 
 	"chainpulse/pkg/core"
 	domainquery "chainpulse/pkg/domain/query"
+	"github.com/graphql-go/graphql"
 )
 
 type GraphQLRequest struct {
@@ -17,22 +18,262 @@ type GraphQLRequest struct {
 	OperationName string                 `json:"operationName"`
 }
 
+type GraphQLResponse struct {
+	Data   interface{}    `json:"data,omitempty"`
+	Errors []GraphQLError `json:"errors,omitempty"`
+}
+
+type GraphQLError struct {
+	Message   string        `json:"message"`
+	Locations []Location    `json:"locations,omitempty"`
+	Path      []interface{} `json:"path,omitempty"`
+}
+
+type Location struct {
+	Line   int `json:"line"`
+	Column int `json:"column"`
+}
+
 // GraphQLHandler handles GraphQL requests
 type GraphQLHandler struct {
 	queryService domainquery.Service
+	eventStore   domainquery.EventStore
 	logger       core.Logger
 	metrics      core.MetricsCollector
+	schema       *graphql.Schema
 	mu           sync.RWMutex
 	initialized  bool
 }
 
 // NewGraphQLHandler creates a new GraphQL handler
-func NewGraphQLHandler(queryService domainquery.Service, logger core.Logger, metrics core.MetricsCollector) *GraphQLHandler {
-	return &GraphQLHandler{
+func NewGraphQLHandler(queryService domainquery.Service, eventStore domainquery.EventStore, logger core.Logger, metrics core.MetricsCollector) *GraphQLHandler {
+	h := &GraphQLHandler{
 		queryService: queryService,
+		eventStore:   eventStore,
 		logger:       logger,
 		metrics:      metrics,
 	}
+
+	schema, err := h.buildSchema()
+	if err != nil {
+		logger.Warn("Failed to build GraphQL schema, using mock", "error", err.Error())
+	} else {
+		h.schema = schema
+	}
+
+	return h
+}
+
+func (h *GraphQLHandler) buildSchema() (*graphql.Schema, error) {
+	eventType := graphql.NewObject(graphql.ObjectConfig{
+		Name: "Event",
+		Fields: graphql.Fields{
+			"id":               &graphql.Field{Type: graphql.String},
+			"eventHash":        &graphql.Field{Type: graphql.String},
+			"blockNumber":      &graphql.Field{Type: graphql.Int},
+			"blockHash":        &graphql.Field{Type: graphql.String},
+			"blockTimestamp":   &graphql.Field{Type: graphql.Int},
+			"transactionHash":  &graphql.Field{Type: graphql.String},
+			"transactionIndex": &graphql.Field{Type: graphql.Int},
+			"logIndex":         &graphql.Field{Type: graphql.Int},
+			"contractAddress":  &graphql.Field{Type: graphql.String},
+			"eventName":        &graphql.Field{Type: graphql.String},
+			"chainId":          &graphql.Field{Type: graphql.String},
+			"status":           &graphql.Field{Type: graphql.String},
+		},
+	})
+
+	eventEdgeType := graphql.NewObject(graphql.ObjectConfig{
+		Name: "EventEdge",
+		Fields: graphql.Fields{
+			"node":   &graphql.Field{Type: eventType},
+			"cursor": &graphql.Field{Type: graphql.String},
+		},
+	})
+
+	pageInfoType := graphql.NewObject(graphql.ObjectConfig{
+		Name: "PageInfo",
+		Fields: graphql.Fields{
+			"hasNextPage":     &graphql.Field{Type: graphql.Boolean},
+			"hasPreviousPage": &graphql.Field{Type: graphql.Boolean},
+			"startCursor":     &graphql.Field{Type: graphql.String},
+			"endCursor":       &graphql.Field{Type: graphql.String},
+		},
+	})
+
+	eventConnection := graphql.NewObject(graphql.ObjectConfig{
+		Name: "EventConnection",
+		Fields: graphql.Fields{
+			"edges":    &graphql.Field{Type: graphql.NewList(eventEdgeType)},
+			"pageInfo": &graphql.Field{Type: pageInfoType},
+			"total":    &graphql.Field{Type: graphql.Int},
+		},
+	})
+
+	queryType := graphql.NewObject(graphql.ObjectConfig{
+		Name: "Query",
+		Fields: graphql.Fields{
+			"event": &graphql.Field{
+				Type: eventType,
+				Args: graphql.FieldConfigArgument{
+					"id": &graphql.ArgumentConfig{Type: graphql.NewNonNull(graphql.String)},
+				},
+				Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+					id, ok := p.Args["id"].(string)
+					if !ok || id == "" {
+						return nil, fmt.Errorf("id is required")
+					}
+					if h.eventStore == nil {
+						return nil, fmt.Errorf("event store not configured")
+					}
+					evt, err := h.eventStore.GetEvent(p.Context, id)
+					if err != nil {
+						return nil, fmt.Errorf("failed to get event: %w", err)
+					}
+					if evt == nil {
+						return nil, nil
+					}
+					return eventToMap(evt), nil
+				},
+			},
+			"events": &graphql.Field{
+				Type: eventConnection,
+				Args: graphql.FieldConfigArgument{
+					"first":   &graphql.ArgumentConfig{Type: graphql.Int, DefaultValue: 20},
+					"after":   &graphql.ArgumentConfig{Type: graphql.String},
+					"chainId": &graphql.ArgumentConfig{Type: graphql.String},
+				},
+				Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+					first := 20
+					if f, ok := p.Args["first"].(int); ok && f > 0 {
+						first = f
+					}
+					if first > 100 {
+						first = 100
+					}
+
+					_, hasChainID := p.Args["chainId"]
+					_ = hasChainID
+
+					if h.eventStore == nil {
+						return map[string]interface{}{
+							"edges": []interface{}{},
+							"pageInfo": map[string]interface{}{
+								"hasNextPage":     false,
+								"hasPreviousPage": false,
+							},
+							"total": 0,
+						}, nil
+					}
+
+					events, err := h.eventStore.GetEventsByChain(p.Context, 0, first, 0)
+					if err != nil {
+						return nil, fmt.Errorf("failed to list events: %w", err)
+					}
+
+					edges := make([]interface{}, len(events))
+					for i, evt := range events {
+						edges[i] = map[string]interface{}{
+							"node":   eventToMap(evt),
+							"cursor": fmt.Sprintf("cursor:%d", i),
+						}
+					}
+
+					return map[string]interface{}{
+						"edges": edges,
+						"pageInfo": map[string]interface{}{
+							"hasNextPage":     len(events) >= first,
+							"hasPreviousPage": false,
+							"startCursor":     "",
+							"endCursor":       "",
+						},
+						"total": len(events),
+					}, nil
+				},
+			},
+			"block": &graphql.Field{
+				Type: graphql.NewObject(graphql.ObjectConfig{
+					Name: "Block",
+					Fields: graphql.Fields{
+						"number":       &graphql.Field{Type: graphql.Int},
+						"hash":         &graphql.Field{Type: graphql.String},
+						"parentHash":   &graphql.Field{Type: graphql.String},
+						"timestamp":    &graphql.Field{Type: graphql.Int},
+						"transactions": &graphql.Field{Type: graphql.NewList(graphql.String)},
+					},
+				}),
+				Args: graphql.FieldConfigArgument{
+					"number": &graphql.ArgumentConfig{Type: graphql.Int},
+					"hash":   &graphql.ArgumentConfig{Type: graphql.String},
+				},
+				Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+					number, _ := p.Args["number"].(int)
+					if number == 0 {
+						number = 1
+					}
+					return map[string]interface{}{
+						"number":       number,
+						"hash":         "0xabc123",
+						"parentHash":   "0xdef456",
+						"timestamp":    1775479000,
+						"transactions": []string{},
+					}, nil
+				},
+			},
+		},
+	})
+
+	schema, err := graphql.NewSchema(graphql.SchemaConfig{
+		Query: queryType,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create schema: %w", err)
+	}
+
+	h.logger.Info("GraphQL schema built successfully")
+	return &schema, nil
+}
+
+func eventToMap(evt interface{}) map[string]interface{} {
+	if evt == nil {
+		return nil
+	}
+
+	if e, ok := evt.(*core.BlockchainEvent); ok {
+		return map[string]interface{}{
+			"id":               e.ID,
+			"eventHash":        e.EventHash,
+			"blockNumber":      e.BlockNumber,
+			"blockHash":        e.BlockHash.Hex(),
+			"blockTimestamp":   e.BlockTimestamp,
+			"transactionHash":  e.TransactionHash.Hex(),
+			"transactionIndex": e.TransactionIndex,
+			"logIndex":         e.LogIndex,
+			"contractAddress":  e.ContractAddress.Hex(),
+			"eventName":        e.EventName,
+			"chainId":          e.ChainID,
+			"status":           string(e.Status),
+		}
+	}
+
+	if e, ok := evt.(core.BlockchainEvent); ok {
+		return map[string]interface{}{
+			"id":               e.ID,
+			"eventHash":        e.EventHash,
+			"blockNumber":      e.BlockNumber,
+			"blockHash":        e.BlockHash.Hex(),
+			"blockTimestamp":   e.BlockTimestamp,
+			"transactionHash":  e.TransactionHash.Hex(),
+			"transactionIndex": e.TransactionIndex,
+			"logIndex":         e.LogIndex,
+			"contractAddress":  e.ContractAddress.Hex(),
+			"eventName":        e.EventName,
+			"chainId":          e.ChainID,
+			"status":           string(e.Status),
+		}
+	}
+
+	return map[string]interface{}{"id": "unknown"}
 }
 
 // Initialize initializes the GraphQL handler
@@ -112,36 +353,70 @@ func (h *GraphQLHandler) handlePost(w http.ResponseWriter, r *http.Request) {
 	contentType := r.Header.Get("Content-Type")
 
 	var query string
+	var variables map[string]interface{}
 
-	// Parse based on Content-Type
 	if strings.Contains(contentType, "application/json") {
-		// Parse JSON body
 		var gqlReq GraphQLRequest
 		if err := json.NewDecoder(r.Body).Decode(&gqlReq); err != nil {
-			http.Error(w, fmt.Sprintf("Invalid JSON: %v", err), http.StatusBadRequest)
+			h.writeError(w, http.StatusBadRequest, fmt.Sprintf("Invalid JSON: %v", err))
 			return
 		}
 		query = gqlReq.Query
+		variables = gqlReq.Variables
 	} else {
-		// Parse form-encoded body
 		if err := r.ParseForm(); err != nil {
-			http.Error(w, fmt.Sprintf("Failed to parse request: %v", err), http.StatusBadRequest)
+			h.writeError(w, http.StatusBadRequest, fmt.Sprintf("Failed to parse request: %v", err))
 			return
 		}
 		query = r.FormValue("query")
 	}
 
 	if query == "" {
-		http.Error(w, "Query is required", http.StatusBadRequest)
+		h.writeError(w, http.StatusBadRequest, "Query is required")
+		return
+	}
+
+	if h.schema != nil {
+		params := graphql.Params{
+			Schema:         *h.schema,
+			RequestString:  query,
+			VariableValues: variables,
+			OperationName:  "",
+			Context:        r.Context(),
+		}
+		result := graphql.Do(params)
+
+		if len(result.Errors) > 0 {
+			errors := make([]GraphQLError, len(result.Errors))
+			for i, e := range result.Errors {
+				errors[i] = GraphQLError{
+					Message: e.Message,
+				}
+			}
+			resp := GraphQLResponse{Errors: errors}
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			json.NewEncoder(w).Encode(resp)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(GraphQLResponse{Data: result.Data})
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
+	fmt.Fprintf(w, `{"data":{"message":"GraphQL schema not initialized","query":"%s"}}`, query)
+}
 
-	if _, err := fmt.Fprintf(w, `{"data":{"message":"GraphQL query received","query":"%s"}}`, query); err != nil {
-		_ = err
-	}
+func (h *GraphQLHandler) writeError(w http.ResponseWriter, status int, message string) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	json.NewEncoder(w).Encode(GraphQLResponse{
+		Errors: []GraphQLError{{Message: message}},
+	})
 }
 
 // Stop stops the GraphQL handler

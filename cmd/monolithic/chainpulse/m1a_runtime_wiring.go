@@ -109,6 +109,7 @@ func newMonolithicPullerRuntime(
 		pullerConfig := baseConfig
 		pullerConfig.ServiceName = chainID
 		pullerConfig.BlockchainNodeURL = nodeURLs[idx]
+		fmt.Printf("  [DEBUG] Creating puller for chain=%s, nodeURL=%s\n", chainID, nodeURLs[idx])
 		puller := pullers.NewHTTPSJSONRPCPuller(pullerConfig, logger, metrics, eventBus)
 		if err := puller.SubscribeToEvents(context.Background(), runtime.observeEvent); err != nil {
 			return nil, err

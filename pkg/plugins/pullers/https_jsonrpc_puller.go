@@ -210,16 +210,21 @@ func (p *HTTPSJSONRPCPuller) Poll(ctx context.Context) error {
 		return fmt.Errorf("puller not running")
 	}
 
+	p.LogInfo("Poll: starting polling loop", "interval", p.pollInterval)
+
 	ticker := time.NewTicker(p.pollInterval)
 	defer ticker.Stop()
 
 	for {
 		select {
 		case <-ctx.Done():
+			p.LogInfo("Poll: context cancelled")
 			return ctx.Err()
 		case <-p.stopChan:
+			p.LogInfo("Poll: stop signal received")
 			return nil
 		case <-ticker.C:
+			p.LogInfo("Poll: fetching latest block...")
 			latestBlock, err := p.GetLatestBlock(ctx)
 			if err != nil {
 				p.LogError("failed to get latest block", "error", err.Error())
@@ -289,19 +294,23 @@ func (p *HTTPSJSONRPCPuller) getLatestBlockNumber(ctx context.Context) (uint64, 
 
 	resp, err := p.sendRequest(ctx, req)
 	if err != nil {
+		p.LogError("getLatestBlockNumber: sendRequest failed", "error", err.Error())
 		return 0, err
 	}
 
 	if resp.Error != nil {
+		p.LogError("getLatestBlockNumber: JSON-RPC error", "message", resp.Error.Message)
 		return 0, fmt.Errorf("JSON-RPC error: %s", resp.Error.Message)
 	}
 
 	var blockNumberHex string
 	if err := json.Unmarshal(resp.Result, &blockNumberHex); err != nil {
+		p.LogError("getLatestBlockNumber: unmarshal failed", "error", err.Error())
 		return 0, fmt.Errorf("failed to unmarshal block number: %v", err)
 	}
 
 	blockNumber := hexToUint64(blockNumberHex)
+	p.LogInfo("getLatestBlockNumber: success", "block", blockNumber)
 	return blockNumber, nil
 }
 
@@ -350,8 +359,10 @@ func (p *HTTPSJSONRPCPuller) sendRequest(ctx context.Context, req JSONRPCRequest
 
 	httpReq.Header.Set("Content-Type", "application/json")
 
+	p.LogInfo("Sending RPC request", "method", req.Method, "url", p.nodeURL)
 	httpResp, err := p.client.Do(httpReq)
 	if err != nil {
+		p.LogError("RPC request failed", "error", err.Error(), "url", p.nodeURL)
 		return nil, fmt.Errorf("failed to send request: %v", err)
 	}
 	defer func() {

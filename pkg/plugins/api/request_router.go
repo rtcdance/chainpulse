@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"sort"
 	"sync"
 	"time"
 
@@ -186,10 +187,19 @@ func (rr *RequestRouter) MatchRoute(path string) (*Route, map[string]string, err
 	defer rr.mu.RUnlock()
 
 	rr.logger.Debug("Matching route", "path", path, "registered_routes", len(rr.routes))
+
+	routes := make([]*Route, 0, len(rr.routes))
 	for _, route := range rr.routes {
-		rr.logger.Debug("Trying route", "route_pattern", route.Pattern, "route_method", route.Method)
+		routes = append(routes, route)
+	}
+	sort.Slice(routes, func(i, j int) bool {
+		return routes[i].Priority > routes[j].Priority
+	})
+
+	for _, route := range routes {
+		rr.logger.Debug("Trying route", "route_pattern", route.Pattern, "route_method", route.Method, "priority", route.Priority)
 		if params, matched := route.Match(path); matched {
-			rr.logger.Debug("Route matched", "route_id", route.ID, "path", path)
+			rr.logger.Debug("Route matched", "route_id", route.ID, "path", path, "priority", route.Priority)
 			return route, params, nil
 		}
 	}

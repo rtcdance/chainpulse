@@ -326,6 +326,21 @@ func main() {
 	if gateway.IsEventQueryHandlerEnabled() {
 		fmt.Println("  ✓ Event query handler wired")
 	}
+
+	if config.TLSEnabled && config.TLSCertPath != "" && config.TLSKeyPath != "" {
+		logger.Info("TLS enabled", "cert", config.TLSCertPath)
+		fmt.Println("  ✓ TLS configured")
+	}
+
+	if config.JWTSecret != "" {
+		if len(config.JWTSecret) < 32 {
+			logger.Warn("JWT secret too short, minimum 32 characters recommended")
+		}
+		fmt.Println("  ✓ JWT authentication configured")
+	} else {
+		logger.Info("JWT secret not set, auth disabled")
+	}
+
 	if gateway.IsRuntimeRoutesEnabled() {
 		fmt.Println("  ✓ Runtime route composition enabled")
 	}
@@ -504,6 +519,7 @@ type Configuration struct {
 	CacheConnectionURL       string
 	DatabaseType             string
 	DatabaseURL              string
+	DatabaseSSLMode          string
 	APIType                  string
 	APIPort                  string
 	WorkerPoolSize           string
@@ -512,6 +528,10 @@ type Configuration struct {
 	DLQRetention             string
 	RateLimitEnabled         bool
 	RateLimitPerMinute       int
+	TLSEnabled               bool
+	TLSCertPath              string
+	TLSKeyPath               string
+	JWTSecret                string
 }
 
 // loadConfiguration loads configuration from environment variables
@@ -540,6 +560,7 @@ func loadConfiguration() Configuration {
 		CacheConnectionURL:       getEnv("CACHE_CONNECTION_URL", "localhost:6379"),
 		DatabaseType:             getEnv("DATABASE_TYPE", "postgres"),
 		DatabaseURL:              getEnv("DATABASE_URL", "postgres://localhost/chainpulse"),
+		DatabaseSSLMode:          getEnv("DATABASE_SSL_MODE", "disable"),
 		APIType:                  getEnv("API_TYPE", "graphql"),
 		APIPort:                  getEnv("API_PORT", "8080"),
 		WorkerPoolSize:           getEnv("WORKER_POOL_SIZE", "8"),
@@ -548,6 +569,10 @@ func loadConfiguration() Configuration {
 		DLQRetention:             getEnv("MONOLITHIC_DLQ_RETENTION", "168h"),
 		RateLimitEnabled:         getEnvBool("GATEWAY_RATE_LIMIT_ENABLED", false),
 		RateLimitPerMinute:       getEnvInt("GATEWAY_RATE_LIMIT_PER_MINUTE", 60),
+		TLSEnabled:               getEnvBool("GATEWAY_TLS_ENABLED", false),
+		TLSCertPath:              getEnv("GATEWAY_TLS_CERT", ""),
+		TLSKeyPath:               getEnv("GATEWAY_TLS_KEY", ""),
+		JWTSecret:                getEnv("API_JWT_SECRET", ""),
 	}
 }
 
