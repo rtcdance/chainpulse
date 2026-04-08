@@ -56,7 +56,7 @@ log "Checking Prometheus scrape jobs"
 for job in \
   "job_name: 'chainpulse-monolithic'" \
   "job_name: 'chainpulse-puller'" \
-  "job_name: 'chainpulse-processor'" \
+  "job_name: 'chainpulse-event-processor'" \
   "job_name: 'chainpulse-api-gateway'" \
   "job_name: 'chainpulse-api-service'"
 do

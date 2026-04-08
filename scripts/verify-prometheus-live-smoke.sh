@@ -68,7 +68,7 @@ jobs = {target.get("labels", {}).get("job") for target in active}
 expected = {
     "chainpulse-monolithic",
     "chainpulse-puller",
-    "chainpulse-processor",
+    "chainpulse-event-processor",
     "chainpulse-api-gateway",
     "chainpulse-api-service",
 }

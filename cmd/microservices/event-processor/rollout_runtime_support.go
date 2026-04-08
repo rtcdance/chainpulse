@@ -53,7 +53,7 @@ func buildEventProcessorRuntimeRolloutHealthHandler(
 	processorRuntime eventProcessorProcessorHealthProvider,
 	consumeRuntime eventProcessorConsumeRuntimeProvider,
 ) (*api.HealthCheckHandler, error) {
-	healthHandler := api.NewHealthCheckHandler(dbManager, logger, metrics)
+	healthHandler := api.NewHealthCheckHandler(dbManager, nil, logger, metrics)
 	if err := healthHandler.Initialize(ctx); err != nil {
 		return nil, err
 	}

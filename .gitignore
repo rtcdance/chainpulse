@@ -41,3 +41,23 @@ Thumbs.db
 .ai-archive/
 .kiro/
 .trae/
+
+# Sisyphus orchestrator
+.sisyphus/
+
+# Chainpulse generated
+chainpulse
+chainpulse-docker
+
+# Node modules
+node_modules/
+frontend/node_modules/
+
+# Package locks
+package-lock.json
+
+# Test results
+test-results/
+
+# Scripts generated
+scripts/mock-server/

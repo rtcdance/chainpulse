@@ -74,7 +74,7 @@ test.describe('API Gateway 路由验收', () => {
   });
 });
 
-test.describe('API Gateway 性能验收', () {
+test.describe('API Gateway 性能验收', () => {
   test('API Gateway 响应时间 < 1秒', async ({ request }) => {
     const start = Date.now();
     
