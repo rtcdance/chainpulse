@@ -1,6 +1,7 @@
 package api
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -287,7 +288,7 @@ func (rr *RequestRouter) forwardToHandler(ctx context.Context, handler *RequestH
 
 	// Set body if present
 	if len(req.Body) > 0 {
-		httpReq.Body = io.NopCloser(io.Reader(nil))
+		httpReq.Body = io.NopCloser(bytes.NewReader(req.Body))
 		httpReq.ContentLength = int64(len(req.Body))
 	}
 

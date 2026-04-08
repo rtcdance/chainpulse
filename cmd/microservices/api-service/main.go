@@ -135,6 +135,7 @@ func main() {
 	service.SetEventQueryHandler(runtimeWiring.EventQueryHandler)
 	service.SetEventSubscriptionHandler(runtimeWiring.EventSubscriptionHandler)
 	service.SetHealthCheckHandler(runtimeWiring.HealthCheckHandler)
+	service.SetGraphQLHandler(runtimeWiring.GraphQLHandler)
 	service.SetRuntimeSummaryProvider(buildAPIServiceRuntimeSummaryProvider(config.InstanceID, metrics, service, runtimeWiring.QueryService))
 	service.SetRuntimeMetricsProvider(buildAPIServiceMetricsProvider(metrics))
 	if err := service.Initialize(*coreConfig); err != nil {

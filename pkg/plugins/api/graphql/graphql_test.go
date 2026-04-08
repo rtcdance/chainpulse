@@ -13,11 +13,11 @@ import (
 
 // MockEventStore implements core.EventStore for testing
 type MockEventStore struct {
-	events              map[string]*core.BlockchainEvent
-	getEventsPaginated  func(ctx context.Context, cursor string, limit int) ([]*core.BlockchainEvent, bool, error)
-	getEventsByName     func(ctx context.Context, eventName string, limit int) ([]*core.BlockchainEvent, error)
-	getEventsByAddress  func(ctx context.Context, address string, limit int) ([]*core.BlockchainEvent, error)
-	getEventsByBlock    func(ctx context.Context, blockNumber int64) ([]*core.BlockchainEvent, error)
+	events             map[string]*core.BlockchainEvent
+	getEventsPaginated func(ctx context.Context, cursor string, limit int) ([]*core.BlockchainEvent, bool, error)
+	getEventsByName    func(ctx context.Context, eventName string, limit int) ([]*core.BlockchainEvent, error)
+	getEventsByAddress func(ctx context.Context, address string, limit int) ([]*core.BlockchainEvent, error)
+	getEventsByBlock   func(ctx context.Context, blockNumber int64) ([]*core.BlockchainEvent, error)
 }
 
 func NewMockEventStore() *MockEventStore {
@@ -217,6 +217,11 @@ func (m *MockCache) GetStats() core.CacheStats {
 }
 
 func (m *MockCache) Health() error {
+	return nil
+}
+
+func (m *MockCache) HealthCheck(ctx context.Context) error {
+	_ = ctx
 	return nil
 }
 
@@ -427,11 +432,11 @@ func TestEventResolverResolveEventIncludesLiveQuerySourcePosture(t *testing.T) {
 	metrics := NewMockMetrics()
 	eventStore := NewMockEventStore()
 	eventStore.events["evt-live"] = &core.BlockchainEvent{
-		ID:        "evt-live",
-		Status:    core.EventStatusConfirmed,
-		CreatedAt: time.Now(),
+		ID:          "evt-live",
+		Status:      core.EventStatusConfirmed,
+		CreatedAt:   time.Now(),
 		ProcessedAt: time.Now(),
-		IndexedAt: time.Now(),
+		IndexedAt:   time.Now(),
 	}
 
 	resolver := NewEventResolver(&ResolverContext{
@@ -466,7 +471,7 @@ func TestEventResolverResolveEventIncludesCacheQuerySourcePosture(t *testing.T) 
 	metrics := NewMockMetrics()
 	cache := NewMockCache()
 	payload, err := json.Marshal(map[string]interface{}{
-		"id": "evt-cache",
+		"id":                 "evt-cache",
 		"querySourcePosture": "graphql-event-store",
 	})
 	if err != nil {
@@ -918,7 +923,7 @@ func TestSubscriptionHandler_OnEventCreated(t *testing.T) {
 
 	// Create event
 	event := &core.BlockchainEvent{
-		ID:    "test-id",
+		ID:     "test-id",
 		Status: core.EventStatusConfirmed,
 	}
 
@@ -1054,12 +1059,12 @@ func TestEventResolverResolveEventsByNameIncludesLiveQuerySourcePosture(t *testi
 	eventStore.getEventsByName = func(ctx context.Context, eventName string, limit int) ([]*core.BlockchainEvent, error) {
 		return []*core.BlockchainEvent{
 			{
-				ID:        "evt-live",
-				EventName: eventName,
-				Status:    core.EventStatusConfirmed,
-				CreatedAt: time.Now(),
+				ID:          "evt-live",
+				EventName:   eventName,
+				Status:      core.EventStatusConfirmed,
+				CreatedAt:   time.Now(),
 				ProcessedAt: time.Now(),
-				IndexedAt: time.Now(),
+				IndexedAt:   time.Now(),
 			},
 		}, nil
 	}
@@ -1102,8 +1107,8 @@ func TestEventResolverResolveEventsByNameIncludesCacheQuerySourcePosture(t *test
 	cache := NewMockCache()
 	payload, err := json.Marshal([]map[string]interface{}{
 		{
-			"id":               "evt-cache",
-			"eventName":        "Transfer",
+			"id":                 "evt-cache",
+			"eventName":          "Transfer",
 			"querySourcePosture": "graphql-event-store",
 		},
 	})

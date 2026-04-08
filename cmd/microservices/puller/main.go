@@ -73,7 +73,7 @@ func main() {
 	// Initialize database manager
 	fmt.Println("Initializing Database Manager:")
 	dbManager := database.NewDatabaseManager(
-		"", // MongoDB URI not needed for puller
+		dbConfig.MongoDBURI,
 		dbConfig.PostgresURL,
 		dbConfig.PoolSize,
 		dbConfig.GetTimeout(),

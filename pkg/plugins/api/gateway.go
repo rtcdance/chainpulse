@@ -324,7 +324,11 @@ func (g *APIGatewayPlugin) Initialize(config corelib.Config) error {
 	// Create HTTP plugin
 	apiLayer := apicore.NewAPILayer()
 
-	g.httpPlugin = httpapi.NewHTTPPlugin("api-gateway", 8080, apiLayer)
+	port := config.APIPort
+	if port == 0 {
+		port = 8080
+	}
+	g.httpPlugin = httpapi.NewHTTPPlugin("api-gateway", port, apiLayer)
 
 	if g.shouldInitializeRuntimeIntegration() {
 		authMiddleware := g.authMiddleware

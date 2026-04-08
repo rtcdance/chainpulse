@@ -70,6 +70,7 @@ type QueryRequest struct {
 // QueryResponse represents a query response with pagination info
 type QueryResponse struct {
 	Data       interface{} `json:"data"`
+	Events     interface{} `json:"events,omitempty"`
 	Pagination *Pagination `json:"pagination"`
 	Meta       *QueryMeta  `json:"meta,omitempty"`
 	Timestamp  int64       `json:"timestamp"`
@@ -134,10 +135,20 @@ func (h *EventQueryHandler) HandleGetAllEvents(w http.ResponseWriter, r *http.Re
 	}
 
 	// Parse query parameters
+	limitParam := strings.TrimSpace(r.URL.Query().Get("limit"))
+	offsetParam := strings.TrimSpace(r.URL.Query().Get("offset"))
 	limit := h.parseIntParam(r, "limit", 20)
 	offset := h.parseIntParam(r, "offset", 0)
 
 	// Validate parameters
+	if limitParam != "" && (limit <= 0 || limit > 1000) {
+		h.respondError(w, http.StatusBadRequest, "invalid_request", "limit must be between 1 and 1000")
+		return
+	}
+	if offsetParam != "" && offset < 0 {
+		h.respondError(w, http.StatusBadRequest, "invalid_request", "offset must be greater than or equal to 0")
+		return
+	}
 	if limit <= 0 || limit > 1000 {
 		limit = 20
 	}

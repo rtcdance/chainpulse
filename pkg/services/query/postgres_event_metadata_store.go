@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 	"time"
 
 	"chainpulse/pkg/core"
@@ -87,6 +88,11 @@ func (s *PostgreSQLEventMetadataStore) createTable(ctx context.Context) error {
 
 	_, err := s.db.ExecContext(ctx, createTableSQL)
 	if err != nil {
+		if strings.Contains(err.Error(), "pg_type_typname_nsp_index") {
+			// Concurrent table creation can surface this transient duplicate type error
+			// even with IF NOT EXISTS. Treat it as success and continue with index checks.
+			return nil
+		}
 		return fmt.Errorf("failed to create events_metadata table: %w", err)
 	}
 

@@ -24,9 +24,6 @@ func TestQueryServiceRuntimeSummaryReady(t *testing.T) {
 	if err := service.Initialize(context.Background()); err != nil {
 		t.Fatalf("initialize query service: %v", err)
 	}
-	if err := cacheService.Start(context.Background()); err != nil {
-		t.Fatalf("start cache service: %v", err)
-	}
 	if err := service.Start(context.Background()); err != nil {
 		t.Fatalf("start query service: %v", err)
 	}
@@ -46,7 +43,7 @@ func TestQueryServiceRuntimeSummaryReady(t *testing.T) {
 	}
 }
 
-func TestQueryServiceRuntimeSummaryDegradedCache(t *testing.T) {
+func TestQueryServiceRuntimeSummaryHealthyCacheAfterStart(t *testing.T) {
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 
@@ -68,10 +65,10 @@ func TestQueryServiceRuntimeSummaryDegradedCache(t *testing.T) {
 	}
 
 	summary := service.RuntimeSummary(context.Background())
-	if summary.Status != "degraded" {
-		t.Fatalf("expected degraded status, got %q", summary.Status)
+	if summary.Status != "healthy" {
+		t.Fatalf("expected healthy status, got %q", summary.Status)
 	}
-	if summary.CachePosture != "cache-unhealthy" {
-		t.Fatalf("expected cache-unhealthy, got %q", summary.CachePosture)
+	if summary.CachePosture != "cache-ready" {
+		t.Fatalf("expected cache-ready, got %q", summary.CachePosture)
 	}
 }

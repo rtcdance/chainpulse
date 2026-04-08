@@ -453,12 +453,13 @@ func (d *runtimeTestDatabasePlugin) GetReorgStats(ctx context.Context) (*core.Re
 
 type runtimeTestCachePlugin struct{}
 
-func (c *runtimeTestCachePlugin) Name() string                        { return "runtime-test-cache" }
-func (c *runtimeTestCachePlugin) Version() string                     { return "1.0.0" }
-func (c *runtimeTestCachePlugin) Initialize(config core.Config) error { return nil }
-func (c *runtimeTestCachePlugin) Start() error                        { return nil }
-func (c *runtimeTestCachePlugin) Stop() error                         { return nil }
-func (c *runtimeTestCachePlugin) Health() error                       { return nil }
+func (c *runtimeTestCachePlugin) Name() string                          { return "runtime-test-cache" }
+func (c *runtimeTestCachePlugin) Version() string                       { return "1.0.0" }
+func (c *runtimeTestCachePlugin) Initialize(config core.Config) error   { return nil }
+func (c *runtimeTestCachePlugin) Start() error                          { return nil }
+func (c *runtimeTestCachePlugin) Stop() error                           { return nil }
+func (c *runtimeTestCachePlugin) Health() error                         { return nil }
+func (c *runtimeTestCachePlugin) HealthCheck(ctx context.Context) error { return nil }
 func (c *runtimeTestCachePlugin) Get(ctx context.Context, key string) ([]byte, error) {
 	return nil, nil
 }

@@ -13,6 +13,27 @@ import (
 	"time"
 )
 
+func TestNormalizeGatewayAPIV1Request(t *testing.T) {
+	t.Run("strips prefix for nested route", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/events?limit=5", nil)
+		got := normalizeGatewayAPIV1Request(req)
+		if got.URL.Path != "/events" {
+			t.Fatalf("expected normalized path /events, got %q", got.URL.Path)
+		}
+		if got.URL.RawQuery != "limit=5" {
+			t.Fatalf("expected query string to be preserved, got %q", got.URL.RawQuery)
+		}
+	})
+
+	t.Run("keeps original when prefix not present", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/events", nil)
+		got := normalizeGatewayAPIV1Request(req)
+		if got != req {
+			t.Fatal("expected request pointer to be reused when no normalization is needed")
+		}
+	})
+}
+
 // Test Gateway Router Integration Initialization
 func TestGatewayRouterIntegrationInitialization(t *testing.T) {
 	logger := &MockLogger{}

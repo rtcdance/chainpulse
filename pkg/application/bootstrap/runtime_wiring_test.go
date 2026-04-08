@@ -128,8 +128,8 @@ func TestBuildRuntimeWiringEventBuildFailure(t *testing.T) {
 		domainSvc domainquery.Service,
 		logger core.Logger,
 		metrics core.MetricsCollector,
-	) (*query.EventRetrievalService, *api.EventQueryHandler, *api.EventSubscriptionHandler, *api.HealthCheckHandler, error) {
-		return nil, nil, nil, nil, errors.New("build event boom")
+	) (*query.EventRetrievalService, *api.EventQueryHandler, *api.EventSubscriptionHandler, *api.HealthCheckHandler, *api.GraphQLHandler, error) {
+		return nil, nil, nil, nil, nil, errors.New("build event boom")
 	}
 
 	logger := core.NewDefaultLogger(core.LogLevelInfo)

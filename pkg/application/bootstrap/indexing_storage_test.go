@@ -94,6 +94,7 @@ func (s *stubCachePlugin) Start() error {
 }
 func (s *stubCachePlugin) Stop() error                                         { return nil }
 func (s *stubCachePlugin) Health() error                                       { return nil }
+func (s *stubCachePlugin) HealthCheck(ctx context.Context) error               { return nil }
 func (s *stubCachePlugin) Get(ctx context.Context, key string) ([]byte, error) { return nil, nil }
 func (s *stubCachePlugin) Set(ctx context.Context, key string, value []byte, ttl int) error {
 	return nil
