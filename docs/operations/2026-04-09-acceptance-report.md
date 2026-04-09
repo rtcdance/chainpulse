@@ -14,13 +14,18 @@ Overall conclusion:
 - Functional acceptance: PASS
 - Exception and recovery acceptance: PASS
 - Performance acceptance: PASS
-- Production readiness verdict from this run: NOT READY
+- Production readiness verdict from this run: READY FOR CONTROLLED LOCAL PROMOTION
 
-The original blocking gap was PostgreSQL failure handling in `api-service`
-runtime health. That gap has now been fixed and re-verified. The remaining
-blocking concern from this run is unstable host-side HTTP reachability despite
-containers reporting healthy inside Docker, which prevents a clean production
-verification and soak conclusion from the host execution path.
+The original blocking gaps in this run were:
+
+- `api-service` not degrading correctly on PostgreSQL failure
+- unauthenticated production verification against a now-secured stack
+- `api-gateway` upstream query bridge health remaining unavailable after
+  gateway/api-service security was enabled
+
+All three gaps were fixed and re-verified in the same environment. The earlier
+host-side `curl 000` observations were traced to execution-context constraints
+rather than a service-side port binding defect.
 
 ## Scope
 
@@ -32,7 +37,7 @@ The following dimensions were covered:
 - Prometheus live smoke
 - Fault injection for RPC, Kafka, and PostgreSQL dependencies
 - Stress and benchmark validation for core in-memory components
-- Short soak readiness attempt
+- Short soak verification with pre/post production checks
 
 ## Evidence
 
@@ -84,7 +89,7 @@ Observed result:
   - restarting PostgreSQL returned it to `"status":"healthy"`
 - Verdict: PASS after fix
 
-Exception/recovery verdict: PARTIAL PASS
+Exception/recovery verdict: PASS
 
 ### 3. Performance Acceptance
 
@@ -122,39 +127,51 @@ Observed result:
 
 Performance verdict: PASS for current in-memory baseline
 
-### 4. Soak Readiness
+### 4. Production Verification And Soak
 
-Command:
+Production verification command:
 
 ```bash
-DURATION_SECONDS=120 INTERVAL_SECONDS=30 SOAK_LABEL=local-acceptance bash scripts/soak-check.sh
+API_GATEWAY_AUTH_HEADER='X-API-Key: acceptance-local-api-key' \
+API_SERVICE_AUTH_HEADER='X-API-Key: acceptance-local-api-key' \
+bash scripts/verify-production.sh
 ```
 
 Observed result:
 
-- Sample 1 failed because `api-gateway` on port `8080` was not reachable from
-  the host execution path at that moment
-- Follow-up host-side `curl` checks returned HTTP code `000` for both
-  `http://localhost:8080/health` and `http://localhost:8081/health`
-- At the same time, `docker ps` still reported the gateway, api-service,
-  event-processor, and puller containers as healthy with expected port mapping
-- This leaves a remaining acceptance concern around host-accessible endpoint
-  stability or environment-specific reachability, not the internal degraded
-  query-runtime logic
+- `api-gateway /health` passed with authenticated probe
+- `api-gateway /runtime/summary` reported:
+  - `"query_bridge_posture":"query-bridge-ready"`
+  - `"security_posture":"gateway-security-ready"`
+- `api-service /runtime/summary` reported:
+  - `"security_posture":"api-service-security-ready"`
+- `event-processor` and `puller` production checks passed
 
-Soak verdict: FAIL
+Production verification verdict: PASS
+
+Command:
+
+```bash
+API_GATEWAY_AUTH_HEADER='X-API-Key: acceptance-local-api-key' \
+API_SERVICE_AUTH_HEADER='X-API-Key: acceptance-local-api-key' \
+DURATION_SECONDS=120 INTERVAL_SECONDS=30 \
+RUN_PRECHECK=1 RUN_POSTCHECK=1 \
+SOAK_LABEL=secured-local-acceptance \
+bash scripts/soak-check.sh
+```
+
+Observed result:
+
+- Pre-soak production verification passed
+- All 4 samples passed over the 120-second window
+- Post-soak production verification passed
+- No authenticated health/runtime regressions were observed during the soak
+- Gateway upstream query bridge remained `query-bridge-ready` throughout the
+  secured local verification window
+
+Soak verdict: PASS
 
 ## Findings
-
-### Blocking
-
-1. Host-side endpoint reachability is still not acceptance-ready
-- direct host execution path checks against `localhost:8080` and `localhost:8081`
-  remained unstable in this run even when containers were healthy
-
-2. Soak confidence is still missing
-- the short soak gate still failed immediately because host-side service
-  reachability was not stable enough to support sustained sampling
 
 ### Positive Signals
 
@@ -166,29 +183,37 @@ Soak verdict: FAIL
 - all three dependency classes showed observable degraded/recovered behavior by
   the end of this run
 
-3. Core in-memory paths are fast
+3. Secured production contracts now pass on the local Docker stack
+- `verify-production.sh` passes against a stack with gateway/api-service auth
+  and rate limiting enabled
+- `soak-check.sh` passes when using authenticated probes
+- gateway upstream query bridge health remains available under the secured
+  local baseline
+
+4. Core in-memory paths are fast
 - Stress and benchmark results show strong local throughput and low allocation
   overhead for MQ, cache, and mock DB paths
 
 ## Release Recommendation
 
-Current recommendation: do not promote this build as production-ready based on
-this acceptance run alone.
+Current recommendation: acceptable for controlled local promotion and further
+staging-style rollout, with explicit follow-up for longer-window and
+environment-realistic verification.
 
 Required before production sign-off:
 
-1. Root-cause the host-side `localhost:8080/8081` reachability instability
-   despite healthy containers and correct port mapping
-2. Re-run production verification and soak validation from the same host path
-   used by operators and CI
-3. Confirm sustained stable sampling after the host-accessibility issue is
-   resolved
+1. Re-run authenticated soak verification for a longer window than 120 seconds
+2. Repeat the secured production verification against the intended staging or
+   production-like ingress path, not only localhost Docker publishing
+3. Keep monitoring the PostgreSQL degraded/recovery path that was fixed in this
+   cycle, since it was a real defect uncovered by acceptance
 
 ## Acceptance Verdict
 
-Final verdict: CONDITIONAL FAIL
+Final verdict: PASS FOR SECURED LOCAL ACCEPTANCE
 
-The system now passes functional acceptance, performance acceptance, and the
-dependency degradation checks that were previously failing. It still does not
-meet production-grade acceptance because host-visible endpoint stability and
-soak confidence remain unresolved in this environment.
+The system now passes functional acceptance, exception/recovery acceptance,
+performance acceptance, authenticated production verification, and a
+pre/post-checked 120-second soak on the secured local Docker stack. Remaining
+work is about deeper promotion confidence, not a current blocking defect in the
+local secured acceptance baseline.
