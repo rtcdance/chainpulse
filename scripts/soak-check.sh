@@ -8,6 +8,10 @@ API_GATEWAY_URL="${API_GATEWAY_URL:-http://localhost:8080}"
 API_SERVICE_URL="${API_SERVICE_URL:-http://localhost:8081}"
 EVENT_PROCESSOR_URL="${EVENT_PROCESSOR_URL:-http://localhost:8082}"
 PULLER_URL="${PULLER_URL:-http://localhost:8083}"
+API_GATEWAY_AUTH_HEADER="${API_GATEWAY_AUTH_HEADER:-}"
+API_SERVICE_AUTH_HEADER="${API_SERVICE_AUTH_HEADER:-}"
+EVENT_PROCESSOR_AUTH_HEADER="${EVENT_PROCESSOR_AUTH_HEADER:-}"
+PULLER_AUTH_HEADER="${PULLER_AUTH_HEADER:-}"
 
 DURATION_SECONDS="${DURATION_SECONDS:-1800}"
 INTERVAL_SECONDS="${INTERVAL_SECONDS:-60}"
@@ -31,6 +35,10 @@ Environment variables:
   API_SERVICE_URL       default: http://localhost:8081
   EVENT_PROCESSOR_URL   default: http://localhost:8082
   PULLER_URL            default: http://localhost:8083
+  API_GATEWAY_AUTH_HEADER     optional curl header such as 'X-API-Key: key'
+  API_SERVICE_AUTH_HEADER     optional curl header such as 'X-API-Key: key'
+  EVENT_PROCESSOR_AUTH_HEADER optional curl header such as 'X-API-Key: key'
+  PULLER_AUTH_HEADER          optional curl header such as 'X-API-Key: key'
 
 This script does not generate synthetic load. It repeatedly samples health and
 runtime contract endpoints across the soak window and fails if stability
@@ -70,6 +78,11 @@ assert_toggle() {
 
 fetch() {
   local url="$1"
+  local auth_header="${2:-}"
+  if [[ -n "${auth_header}" ]]; then
+    curl -fsS -H "${auth_header}" "${url}"
+    return
+  fi
   curl -fsS "${url}"
 }
 
@@ -94,11 +107,12 @@ sample_service() {
   local health_path="$2"
   local runtime_path="$3"
   local service="$4"
+  local auth_header="$5"
 
   local health
   local runtime
-  health="$(fetch "${base_url}${health_path}")"
-  runtime="$(fetch "${base_url}${runtime_path}")"
+  health="$(fetch "${base_url}${health_path}" "${auth_header}")"
+  runtime="$(fetch "${base_url}${runtime_path}" "${auth_header}")"
 
   assert_contains "${health}" '"status":"healthy"' "${service} ${health_path}"
   assert_contains "${runtime}" "\"service\":\"${service}\"" "${service} ${runtime_path}"
@@ -106,21 +120,21 @@ sample_service() {
 }
 
 sample_window() {
-  sample_service "${API_GATEWAY_URL}" "/health" "/runtime/summary" "api-gateway"
-  gateway_runtime="$(fetch "${API_GATEWAY_URL}/runtime/summary")"
+  sample_service "${API_GATEWAY_URL}" "/health" "/runtime/summary" "api-gateway" "${API_GATEWAY_AUTH_HEADER}"
+  gateway_runtime="$(fetch "${API_GATEWAY_URL}/runtime/summary" "${API_GATEWAY_AUTH_HEADER}")"
   assert_contains "${gateway_runtime}" '"runtime_mode":"runtime-wired"' "api-gateway /runtime/summary"
   assert_contains "${gateway_runtime}" '"security_posture":"gateway-security-ready"' "api-gateway /runtime/summary"
 
-  sample_service "${API_SERVICE_URL}" "/health" "/runtime/summary" "api-service"
-  api_runtime="$(fetch "${API_SERVICE_URL}/runtime/summary")"
+  sample_service "${API_SERVICE_URL}" "/health" "/runtime/summary" "api-service" "${API_SERVICE_AUTH_HEADER}"
+  api_runtime="$(fetch "${API_SERVICE_URL}/runtime/summary" "${API_SERVICE_AUTH_HEADER}")"
   assert_contains "${api_runtime}" '"security_posture":"api-service-security-ready"' "api-service /runtime/summary"
 
-  sample_service "${EVENT_PROCESSOR_URL}" "/health" "/runtime/summary" "event-processor"
-  processor_runtime="$(fetch "${EVENT_PROCESSOR_URL}/runtime/summary")"
+  sample_service "${EVENT_PROCESSOR_URL}" "/health" "/runtime/summary" "event-processor" "${EVENT_PROCESSOR_AUTH_HEADER}"
+  processor_runtime="$(fetch "${EVENT_PROCESSOR_URL}/runtime/summary" "${EVENT_PROCESSOR_AUTH_HEADER}")"
   assert_contains "${processor_runtime}" '"runtime_mode":"runtime-wired"' "event-processor /runtime/summary"
 
-  sample_service "${PULLER_URL}" "/health" "/runtime/summary" "puller"
-  puller_runtime="$(fetch "${PULLER_URL}/runtime/summary")"
+  sample_service "${PULLER_URL}" "/health" "/runtime/summary" "puller" "${PULLER_AUTH_HEADER}"
+  puller_runtime="$(fetch "${PULLER_URL}/runtime/summary" "${PULLER_AUTH_HEADER}")"
   assert_contains "${puller_runtime}" '"runtime_mode":"runtime-wired"' "puller /runtime/summary"
 }
 

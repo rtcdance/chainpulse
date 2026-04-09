@@ -13,6 +13,10 @@ API_GATEWAY_PORT="${API_GATEWAY_PORT:-8080}"
 API_SERVICE_PORT="${API_SERVICE_PORT:-8081}"
 EVENT_PROCESSOR_PORT="${EVENT_PROCESSOR_PORT:-8082}"
 PULLER_PORT="${PULLER_PORT:-8083}"
+API_GATEWAY_AUTH_HEADER="${API_GATEWAY_AUTH_HEADER:-}"
+API_SERVICE_AUTH_HEADER="${API_SERVICE_AUTH_HEADER:-}"
+EVENT_PROCESSOR_AUTH_HEADER="${EVENT_PROCESSOR_AUTH_HEADER:-}"
+PULLER_AUTH_HEADER="${PULLER_AUTH_HEADER:-}"
 
 usage() {
   cat <<'EOF'
@@ -42,10 +46,16 @@ docker_compose() {
 wait_for_http() {
   local label="$1"
   local url="$2"
+  local auth_header="${3:-}"
   local deadline=$((SECONDS + WAIT_TIMEOUT_SECONDS))
 
   while (( SECONDS < deadline )); do
-    if curl -fsS "${url}" >/dev/null 2>&1; then
+    if [[ -n "${auth_header}" ]]; then
+      if curl -fsS -H "${auth_header}" "${url}" >/dev/null 2>&1; then
+        log "Ready: ${label}"
+        return 0
+      fi
+    elif curl -fsS "${url}" >/dev/null 2>&1; then
       log "Ready: ${label}"
       return 0
     fi
@@ -60,11 +70,17 @@ wait_for_json_condition() {
   local label="$1"
   local url="$2"
   local expression="$3"
+  local auth_header="${4:-}"
   local deadline=$((SECONDS + WAIT_TIMEOUT_SECONDS))
 
   while (( SECONDS < deadline )); do
     local payload=""
-    if payload="$(curl -fsS "${url}" 2>/dev/null)"; then
+    if [[ -n "${auth_header}" ]]; then
+      payload="$(curl -fsS -H "${auth_header}" "${url}" 2>/dev/null)" || payload=""
+    else
+      payload="$(curl -fsS "${url}" 2>/dev/null)" || payload=""
+    fi
+    if [[ -n "${payload}" ]]; then
       if python3 - "$payload" "$expression" <<'PY'
 import json
 import sys
@@ -91,8 +107,13 @@ assert_metric_present() {
   local label="$1"
   local url="$2"
   local needle="$3"
+  local auth_header="${4:-}"
   local payload
-  payload="$(curl -fsS "${url}")"
+  if [[ -n "${auth_header}" ]]; then
+    payload="$(curl -fsS -H "${auth_header}" "${url}")"
+  else
+    payload="$(curl -fsS "${url}")"
+  fi
   if [[ "${payload}" != *"${needle}"* ]]; then
     printf 'chaos test failed: %s missing "%s"\n' "${label}" "${needle}" >&2
     exit 1
@@ -130,7 +151,7 @@ log "Experiment 1/3: RPC failure via anvil stop"
   docker_compose stop anvil >/dev/null
 )
 sleep "${RPC_SETTLE_SECONDS}"
-assert_metric_present "puller metrics after rpc failure" "http://localhost:${PULLER_PORT}/metrics" "puller_poll_errors"
+assert_metric_present "puller metrics after rpc failure" "http://localhost:${PULLER_PORT}/metrics" "puller_poll_errors" "${PULLER_AUTH_HEADER}"
 (
   cd "${ROOT_DIR}"
   docker_compose start anvil >/dev/null
@@ -147,7 +168,8 @@ sleep "${KAFKA_SETTLE_SECONDS}"
 wait_for_json_condition \
   "event-processor degraded after kafka failure" \
   "http://localhost:${EVENT_PROCESSOR_PORT}/runtime/summary" \
-  'payload.get("runtime_posture") in {"runtime-wired-degraded", "runtime-wired-unhealthy"}'
+  'payload.get("runtime_posture") in {"runtime-wired-degraded", "runtime-wired-unhealthy"}' \
+  "${EVENT_PROCESSOR_AUTH_HEADER}"
 (
   cd "${ROOT_DIR}"
   docker_compose start kafka >/dev/null
@@ -155,7 +177,8 @@ wait_for_json_condition \
 wait_for_json_condition \
   "event-processor recovered after kafka restart" \
   "http://localhost:${EVENT_PROCESSOR_PORT}/runtime/summary" \
-  'payload.get("runtime_posture") == "runtime-wired"'
+  'payload.get("runtime_posture") == "runtime-wired"' \
+  "${EVENT_PROCESSOR_AUTH_HEADER}"
 
 log "Experiment 3/3: PostgreSQL failure via postgres stop"
 (
@@ -166,7 +189,8 @@ sleep "${DB_SETTLE_SECONDS}"
 wait_for_json_condition \
   "api-service degraded after postgres failure" \
   "http://localhost:${API_SERVICE_PORT}/runtime/summary" \
-  'payload.get("query", {}).get("status") in {"degraded", "unhealthy"}'
+  'payload.get("query", {}).get("status") in {"degraded", "unhealthy"}' \
+  "${API_SERVICE_AUTH_HEADER}"
 (
   cd "${ROOT_DIR}"
   docker_compose start postgres >/dev/null
@@ -174,6 +198,7 @@ wait_for_json_condition \
 wait_for_json_condition \
   "api-service recovered after postgres restart" \
   "http://localhost:${API_SERVICE_PORT}/runtime/summary" \
-  'payload.get("query", {}).get("status") == "healthy"'
+  'payload.get("query", {}).get("status") == "healthy"' \
+  "${API_SERVICE_AUTH_HEADER}"
 
 log "Chaos baseline passed"

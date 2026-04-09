@@ -170,6 +170,9 @@ func TestRequestBatcherClose(t *testing.T) {
 }
 
 func TestRequestBatcherContextCancellation(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping in short mode")
+	}
 	processor := &MockBatchProcessor{}
 	batcher := NewRequestBatcher("test", processor, 5, 100*time.Millisecond)
 	defer func() {
