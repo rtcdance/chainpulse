@@ -178,11 +178,16 @@ services:
       DB_PORT: 5432
       DATABASE_URL: postgres://chainpulse:chainpulse@postgres-primary:5432/chainpulse
       MONGODB_URI: mongodb://mongodb:27017
+      API_SERVICE_AUTH_ENABLED: "true"
+      API_SERVICE_AUTH_JWT_SECRET: acceptance-local-shared-secret
+      API_SERVICE_AUTH_API_KEYS: acceptance-local-api-key=acceptance-local-client
+      API_SERVICE_RATE_LIMIT_ENABLED: "true"
+      API_SERVICE_RATE_LIMIT: 600
       LOG_LEVEL: info
     ports:
       - "8081:8081"
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8081/health"]
+      test: ["CMD", "wget", "--header=X-API-Key: acceptance-local-api-key", "--spider", "-q", "http://localhost:8081/health"]
       interval: 15s
       timeout: 5s
       retries: 5
@@ -203,11 +208,17 @@ services:
       GATEWAY_PORT: 8080
       INSTANCE_ID: api-gateway-1
       GATEWAY_UPSTREAM_SERVICES: http://api-service:8081
+      GATEWAY_UPSTREAM_AUTH_API_KEY: acceptance-local-api-key
+      GATEWAY_AUTH_ENABLED: "true"
+      GATEWAY_AUTH_JWT_SECRET: acceptance-local-shared-secret
+      GATEWAY_AUTH_API_KEYS: acceptance-local-api-key=acceptance-local-client
+      GATEWAY_RATE_LIMIT_ENABLED: "true"
+      GATEWAY_RATE_LIMIT: 600
       LOG_LEVEL: info
     ports:
       - "8080:8080"
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/health"]
+      test: ["CMD", "wget", "--header=X-API-Key: acceptance-local-api-key", "--spider", "-q", "http://localhost:8080/health"]
       interval: 15s
       timeout: 5s
       retries: 5

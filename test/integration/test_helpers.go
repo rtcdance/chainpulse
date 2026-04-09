@@ -420,7 +420,9 @@ func (m *MockPlugin) Health() error {
 type MockMQPlugin struct {
 	name    string
 	version string
-	logger  core.Logger
+	//nolint:unused
+	logger core.Logger
+	//nolint:unused
 	metrics core.MetricsCollector
 }
 
@@ -466,7 +468,7 @@ func (m *MockMQPlugin) GetQueueDepth(ctx context.Context, topic string) (int64, 
 	return 0, nil
 }
 
-// createTestBlockchainEvent creates a test blockchain event
+//nolint:unused
 func createTestBlockchainEvent(chainID string, blockNum uint64, eventID string) *core.BlockchainEvent {
 	return &core.BlockchainEvent{
 		ID:              eventID,

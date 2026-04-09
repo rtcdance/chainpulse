@@ -62,14 +62,14 @@ type CollectedEvent struct {
 
 // DataPullerMetrics contains data puller performance metrics
 type DataPullerMetrics struct {
-	EventsCollected   int64
-	EventsFailed      int64
-	RetryCount        int64
-	AverageLatency    time.Duration
-	MaxLatency        time.Duration
-	MinLatency        time.Duration
-	Throughput        float64
-	ErrorRate         float64
+	EventsCollected    int64
+	EventsFailed       int64
+	RetryCount         int64
+	AverageLatency     time.Duration
+	MaxLatency         time.Duration
+	MinLatency         time.Duration
+	Throughput         float64
+	ErrorRate          float64
 	LastBlockProcessed uint64
 }
 
@@ -97,10 +97,10 @@ type RetrySimulation struct {
 
 // ReorgSimulation tracks reorg simulation state
 type ReorgSimulation struct {
-	ReorgDepth   uint64
-	AffectedTxs  []string
-	StartTime    time.Time
-	IsActive     bool
+	ReorgDepth  uint64
+	AffectedTxs []string
+	StartTime   time.Time
+	IsActive    bool
 }
 
 // NewDataPullerManager creates a new data puller manager
@@ -112,14 +112,14 @@ func NewDataPullerManager() DataPullerManager {
 		reorgSimulations:    make(map[string]*ReorgSimulation),
 		eventCollectionChan: make(chan *CollectedEvent, 1000),
 		metrics: &DataPullerMetrics{
-			EventsCollected:   0,
-			EventsFailed:      0,
-			RetryCount:        0,
-			AverageLatency:    0,
-			MaxLatency:        0,
-			MinLatency:        time.Hour, // Start with large value
-			Throughput:        0,
-			ErrorRate:         0,
+			EventsCollected: 0,
+			EventsFailed:    0,
+			RetryCount:      0,
+			AverageLatency:  0,
+			MaxLatency:      0,
+			MinLatency:      time.Hour, // Start with large value
+			Throughput:      0,
+			ErrorRate:       0,
 		},
 	}
 }
@@ -292,10 +292,10 @@ func (dpm *DefaultDataPullerManager) SimulateReorg(ctx context.Context, reorgDep
 	simulationID := fmt.Sprintf("reorg_%d", time.Now().UnixNano())
 
 	simulation := &ReorgSimulation{
-		ReorgDepth: reorgDepth,
+		ReorgDepth:  reorgDepth,
 		AffectedTxs: make([]string, 0),
-		StartTime:  time.Now(),
-		IsActive:   true,
+		StartTime:   time.Now(),
+		IsActive:    true,
 	}
 
 	// Mark events as affected by reorg
@@ -363,7 +363,7 @@ func (dpm *DefaultDataPullerManager) WaitForEventCollection(ctx context.Context,
 	}
 }
 
-// addCollectedEvent adds a collected event (internal helper)
+//nolint:unused
 func (dpm *DefaultDataPullerManager) addCollectedEvent(event *CollectedEvent) {
 	dpm.mu.Lock()
 	defer dpm.mu.Unlock()
@@ -378,4 +378,3 @@ func (dpm *DefaultDataPullerManager) addCollectedEvent(event *CollectedEvent) {
 		dpm.metrics.LastBlockProcessed = event.BlockNumber
 	}
 }
-
