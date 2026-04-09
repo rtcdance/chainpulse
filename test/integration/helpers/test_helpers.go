@@ -3,6 +3,7 @@ package helpers
 import (
 	"context"
 	"fmt"
+	"math"
 	"sync"
 	"testing"
 	"time"
@@ -88,7 +89,7 @@ func (si *ServiceInitializer) CleanupService(ctx context.Context, service interf
 
 // ResourceCleaner provides helpers for cleaning up resources in integration tests
 type ResourceCleaner struct {
-	t         *testing.T
+	t          *testing.T
 	cleanupFns []func() error
 }
 
@@ -241,9 +242,20 @@ func CreateTestEvent(chainID string, blockNum uint64, eventID string) *core.Bloc
 func CreateTestEvents(chainID string, count int) []*core.BlockchainEvent {
 	events := make([]*core.BlockchainEvent, count)
 	for i := 0; i < count; i++ {
-		events[i] = CreateTestEvent(chainID, uint64(i+1), fmt.Sprintf("event-%d", i))
+		blockNumber, ok := safePositiveIntToUint64(i + 1)
+		if !ok {
+			blockNumber = math.MaxUint64
+		}
+		events[i] = CreateTestEvent(chainID, blockNumber, fmt.Sprintf("event-%d", i))
 	}
 	return events
+}
+
+func safePositiveIntToUint64(value int) (uint64, bool) {
+	if value < 0 {
+		return 0, false
+	}
+	return uint64(value), true
 }
 
 // TestFixtureManager manages test fixtures for integration tests

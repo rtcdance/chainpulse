@@ -227,7 +227,7 @@ func TestValidateTokenAPIKey(t *testing.T) {
 	metrics := NewMockMetricsCollector()
 	validator := NewTokenValidator("secret", logger, metrics)
 
-	validator.RegisterAPIKey("key123", "client1") //nolint:errcheck
+	require.NoError(t, validator.RegisterAPIKey("key123", "client1"))
 
 	result := validator.ValidateToken("key123")
 

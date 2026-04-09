@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"chainpulse/pkg/core"
-	"chainpulse/test/mocks"
+	mqplugin "chainpulse/pkg/plugins/mq"
 )
 
 // MQContractTest defines the contract that all MQ implementations must satisfy
@@ -133,8 +133,7 @@ func MQContractTest(t *testing.T, factory func(t *testing.T) core.MQPlugin) {
 // TestMemoryMQContract tests the in-memory MQ implementation
 func TestMemoryMQContract(t *testing.T) {
 	MQContractTest(t, func(t *testing.T) core.MQPlugin {
-		logger := mocks.NewMockLogger()
-		mq := mocks.NewMockMQ(logger)
+		mq := mqplugin.NewMemoryMQ()
 		require.NoError(t, mq.Initialize(core.Config{}))
 		require.NoError(t, mq.Start())
 

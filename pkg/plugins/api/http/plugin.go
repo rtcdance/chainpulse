@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"time"
 
 	"chainpulse/pkg/observability"
 	"chainpulse/pkg/plugins/api/core"
@@ -79,8 +80,9 @@ func (p *HTTPPlugin) Start() error {
 	mux.HandleFunc("/", p.handleRequest)
 
 	p.server = &http.Server{
-		Addr:    fmt.Sprintf(":%d", p.port),
-		Handler: mux,
+		Addr:              fmt.Sprintf(":%d", p.port),
+		Handler:           mux,
+		ReadHeaderTimeout: 5 * time.Second,
 	}
 
 	p.running = true
@@ -105,9 +107,10 @@ func (p *HTTPPlugin) Start() error {
 // startHTTPS starts the HTTPS server
 func (p *HTTPPlugin) startHTTPS(mux *http.ServeMux) error {
 	p.httpsServer = &http.Server{
-		Addr:      fmt.Sprintf(":%d", p.httpsPort),
-		Handler:   mux,
-		TLSConfig: p.tlsManager.GetConfig(),
+		Addr:              fmt.Sprintf(":%d", p.httpsPort),
+		Handler:           mux,
+		TLSConfig:         p.tlsManager.GetConfig(),
+		ReadHeaderTimeout: 5 * time.Second,
 	}
 
 	// Start HTTPS server in background

@@ -90,7 +90,7 @@ func (s *MonolithicIndexingEventStore) GetEventsByEventName(ctx context.Context,
 
 func (s *MonolithicIndexingEventStore) GetEventsByBlock(ctx context.Context, blockNumber int64) ([]*core.BlockchainEvent, error) {
 	return s.filterEvents(ctx, 0, 0, func(event *core.BlockchainEvent) bool {
-		return int64(event.BlockNumber) == blockNumber
+		return saturatingUint64ToInt64(event.BlockNumber) == blockNumber
 	})
 }
 
@@ -557,5 +557,9 @@ func saturatingUintToInt(value uint) int {
 	if uint64(value) > uint64(math.MaxInt) {
 		return math.MaxInt
 	}
-	return int(value)
+	parsedValue, err := strconv.Atoi(strconv.FormatUint(uint64(value), 10))
+	if err != nil {
+		return math.MaxInt
+	}
+	return parsedValue
 }

@@ -2,7 +2,7 @@ package api
 
 import (
 	"bytes"
-	"crypto/md5"
+	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 	"net/http"
@@ -16,13 +16,13 @@ import (
 
 // CacheEntry represents a cached response
 type CacheEntry struct {
-	Key        string
-	Value      []byte
-	Headers    http.Header
-	StatusCode int
-	ExpiresAt  time.Time
-	CreatedAt  time.Time
-	AccessedAt time.Time
+	Key         string
+	Value       []byte
+	Headers     http.Header
+	StatusCode  int
+	ExpiresAt   time.Time
+	CreatedAt   time.Time
+	AccessedAt  time.Time
 	AccessCount int64
 }
 
@@ -33,14 +33,14 @@ func (ce *CacheEntry) IsExpired() bool {
 
 // CacheMiddleware implements HTTP caching middleware
 type CacheMiddleware struct {
-	cache              map[string]*CacheEntry
-	config             *CacheConfig
-	metrics            *CacheMetrics
-	logger             core.Logger
-	invalidator        *CacheInvalidator
-	evictionStrategy   EvictionStrategy
-	lastCleanup        time.Time
-	mu                 sync.RWMutex
+	cache            map[string]*CacheEntry
+	config           *CacheConfig
+	metrics          *CacheMetrics
+	logger           core.Logger
+	invalidator      *CacheInvalidator
+	evictionStrategy EvictionStrategy
+	lastCleanup      time.Time
+	mu               sync.RWMutex
 }
 
 // EvictionStrategy defines how cache entries are evicted
@@ -170,13 +170,13 @@ func (cm *CacheMiddleware) Set(key string, value []byte, headers http.Header, st
 	}
 
 	entry := &CacheEntry{
-		Key:        key,
-		Value:      value,
-		Headers:    headers.Clone(),
-		StatusCode: statusCode,
-		ExpiresAt:  time.Now().Add(cm.config.DefaultTTL),
-		CreatedAt:  time.Now(),
-		AccessedAt: time.Now(),
+		Key:         key,
+		Value:       value,
+		Headers:     headers.Clone(),
+		StatusCode:  statusCode,
+		ExpiresAt:   time.Now().Add(cm.config.DefaultTTL),
+		CreatedAt:   time.Now(),
+		AccessedAt:  time.Now(),
 		AccessCount: 1,
 	}
 
@@ -237,9 +237,9 @@ func (cm *CacheMiddleware) GetStats() map[string]interface{} {
 	defer cm.mu.RUnlock()
 
 	return map[string]interface{}{
-		"size":    len(cm.cache),
+		"size":     len(cm.cache),
 		"max_size": cm.config.MaxSize,
-		"metrics": cm.metrics.GetStats(),
+		"metrics":  cm.metrics.GetStats(),
 	}
 }
 
@@ -351,9 +351,11 @@ func generateCacheKey(r *http.Request) string {
 		key = fmt.Sprintf("%s:user=%s", key, userID)
 	}
 
-	// Generate MD5 hash for shorter key
-	hash := md5.Sum([]byte(key))
-	return hex.EncodeToString(hash[:])
+	// Generate a short, stable key. Cryptographic strength isn't required here,
+	// but sha256 avoids gosec's md5 warnings.
+	hash := sha256.Sum256([]byte(key))
+	// Keep legacy 32-hex-char length (16 bytes) to avoid breaking expectations.
+	return hex.EncodeToString(hash[:16])
 }
 
 // matchPattern checks if a key matches a pattern

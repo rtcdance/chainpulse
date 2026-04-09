@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"sync"
+	"time"
 
 	"chainpulse/pkg/plugins/api/core"
 	"github.com/graphql-go/graphql"
@@ -61,8 +62,9 @@ func (p *GraphQLPlugin) Start() error {
 	mux.HandleFunc("/graphql/playground", p.handlePlayground)
 
 	p.server = &http.Server{
-		Addr:    fmt.Sprintf(":%d", p.port),
-		Handler: mux,
+		Addr:              fmt.Sprintf(":%d", p.port),
+		Handler:           mux,
+		ReadHeaderTimeout: 5 * time.Second,
 	}
 
 	p.running = true
@@ -193,7 +195,7 @@ func (p *GraphQLPlugin) buildSchema() error {
 				Resolve: p.resolvePool,
 			},
 			"health": &graphql.Field{
-				Type: graphql.String,
+				Type:    graphql.String,
 				Resolve: p.resolveHealth,
 			},
 		},

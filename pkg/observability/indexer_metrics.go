@@ -2,6 +2,7 @@ package observability
 
 import (
 	"fmt"
+	"math"
 	"sync"
 	"time"
 )
@@ -25,9 +26,9 @@ type IndexerMetrics struct {
 	QueryLatencies    []time.Duration
 
 	// Reorg tracking
-	ReorgsDetected    int64
-	BlocksRolledBack  int64
-	LastReorgTime     time.Time
+	ReorgsDetected   int64
+	BlocksRolledBack int64
+	LastReorgTime    time.Time
 
 	// Cache metrics
 	CacheHits   int64
@@ -134,9 +135,16 @@ func (im *IndexerMetrics) RecordReorg(blocksRolledBack uint64) {
 	defer im.mu.Unlock()
 
 	im.ReorgsDetected++
-	im.BlocksRolledBack += int64(blocksRolledBack)
+	im.BlocksRolledBack += saturatingUint64ToInt64(blocksRolledBack)
 	im.LastReorgTime = time.Now()
 	im.LastUpdateTime = time.Now()
+}
+
+func saturatingUint64ToInt64(value uint64) int64 {
+	if value > math.MaxInt64 {
+		return math.MaxInt64
+	}
+	return int64(value)
 }
 
 // RecordCacheHit records a cache hit
@@ -356,30 +364,30 @@ func (im *IndexerMetrics) GetMetricsSummary() map[string]interface{} {
 	}
 
 	return map[string]interface{}{
-		"current_block":              im.CurrentBlockNumber,
-		"latest_block":               im.LatestBlockNumber,
-		"indexing_lag":               im.IndexingLag,
-		"events_indexed":             im.EventsIndexed,
-		"events_processed":           im.EventsProcessed,
-		"events_failed":              im.EventsFailed,
-		"average_indexing_latency":   avgIndexingLatency.String(),
-		"max_indexing_latency":       maxIndexingLatency.String(),
-		"average_query_latency":      avgQueryLatency.String(),
-		"max_query_latency":          maxQueryLatency.String(),
-		"cache_hits":                 im.CacheHits,
-		"cache_misses":               im.CacheMisses,
-		"cache_hit_rate":             fmt.Sprintf("%.2f%%", cacheHitRate),
-		"indexing_rate":              fmt.Sprintf("%.2f events/sec", indexingRate),
-		"error_rate":                 fmt.Sprintf("%.2f%%", errorRate),
-		"reorgs_detected":            im.ReorgsDetected,
-		"blocks_rolled_back":         im.BlocksRolledBack,
-		"last_reorg_time":            im.LastReorgTime.String(),
-		"dlq_depth":                  im.DLQDepth,
-		"consistency_mismatches":     im.ConsistencyMismatches,
-		"reorg_recovery_time_ms":     im.ReorgRecoveryTimeMs,
-		"uptime":                     time.Since(im.StartTime).String(),
-		"last_update_time":           im.LastUpdateTime.String(),
-		"error_breakdown":            errorSummary,
+		"current_block":            im.CurrentBlockNumber,
+		"latest_block":             im.LatestBlockNumber,
+		"indexing_lag":             im.IndexingLag,
+		"events_indexed":           im.EventsIndexed,
+		"events_processed":         im.EventsProcessed,
+		"events_failed":            im.EventsFailed,
+		"average_indexing_latency": avgIndexingLatency.String(),
+		"max_indexing_latency":     maxIndexingLatency.String(),
+		"average_query_latency":    avgQueryLatency.String(),
+		"max_query_latency":        maxQueryLatency.String(),
+		"cache_hits":               im.CacheHits,
+		"cache_misses":             im.CacheMisses,
+		"cache_hit_rate":           fmt.Sprintf("%.2f%%", cacheHitRate),
+		"indexing_rate":            fmt.Sprintf("%.2f events/sec", indexingRate),
+		"error_rate":               fmt.Sprintf("%.2f%%", errorRate),
+		"reorgs_detected":          im.ReorgsDetected,
+		"blocks_rolled_back":       im.BlocksRolledBack,
+		"last_reorg_time":          im.LastReorgTime.String(),
+		"dlq_depth":                im.DLQDepth,
+		"consistency_mismatches":   im.ConsistencyMismatches,
+		"reorg_recovery_time_ms":   im.ReorgRecoveryTimeMs,
+		"uptime":                   time.Since(im.StartTime).String(),
+		"last_update_time":         im.LastUpdateTime.String(),
+		"error_breakdown":          errorSummary,
 	}
 }
 

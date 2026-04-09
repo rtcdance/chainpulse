@@ -2,6 +2,7 @@ package processor
 
 import (
 	"fmt"
+	"math/bits"
 	"sync"
 	"time"
 
@@ -44,23 +45,23 @@ type EventProcessor interface {
 
 // DefaultEventProcessor provides default event processing implementation
 type DefaultEventProcessor struct {
-	mu                  sync.RWMutex
-	initialized         bool
-	running             bool
-	config              *core.Config
-	logger              core.Logger
-	metricsCollector    core.MetricsCollector
-	idempotencyService  IdempotencyService
-	cachePlugin         cache.CachePlugin
-	databasePlugin      *database.DefaultInMemoryDatabasePlugin
-	eventBus            core.EventBus
-	processedCount      int64
-	failedCount         int64
-	duplicateCount      int64
-	lastHealthCheck     *core.HealthStatus
-	batchSize           int
-	maxRetries          int
-	retryDelay          time.Duration
+	mu                 sync.RWMutex
+	initialized        bool
+	running            bool
+	config             *core.Config
+	logger             core.Logger
+	metricsCollector   core.MetricsCollector
+	idempotencyService IdempotencyService
+	cachePlugin        cache.CachePlugin
+	databasePlugin     *database.DefaultInMemoryDatabasePlugin
+	eventBus           core.EventBus
+	processedCount     int64
+	failedCount        int64
+	duplicateCount     int64
+	lastHealthCheck    *core.HealthStatus
+	batchSize          int
+	maxRetries         int
+	retryDelay         time.Duration
 }
 
 // NewDefaultEventProcessor creates a new event processor
@@ -403,7 +404,7 @@ func (p *DefaultEventProcessor) storeEventWithRetry(event *core.BlockchainEvent)
 
 	for attempt := 0; attempt < p.maxRetries; attempt++ {
 		if attempt > 0 {
-			time.Sleep(p.retryDelay * time.Duration(1<<uint(attempt-1))) // exponential backoff
+			time.Sleep(p.retryDelay * time.Duration(boundedRetryMultiplier(attempt))) // exponential backoff
 		}
 
 		err := p.databasePlugin.WriteEvent(event)
@@ -420,4 +421,15 @@ func (p *DefaultEventProcessor) storeEventWithRetry(event *core.BlockchainEvent)
 	}
 
 	return lastErr
+}
+
+func boundedRetryMultiplier(attempt int) int {
+	shift := attempt - 1
+	maxShift := bits.UintSize - 2
+	if shift < 0 {
+		shift = 0
+	} else if shift > maxShift {
+		shift = maxShift
+	}
+	return 1 << shift
 }

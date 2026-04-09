@@ -88,9 +88,11 @@ func CacheContractTest(t *testing.T, factory func(t *testing.T) core.CachePlugin
 		cache := factory(t)
 		ctx := context.Background()
 
-		cache.Set(ctx, "stats-key", []byte("stats-value"), 60)
-		cache.Get(ctx, "stats-key")
-		cache.Get(ctx, "nonexistent")
+		require.NoError(t, cache.Set(ctx, "stats-key", []byte("stats-value"), 60))
+		_, err := cache.Get(ctx, "stats-key")
+		require.NoError(t, err)
+		_, err = cache.Get(ctx, "nonexistent")
+		require.NoError(t, err)
 
 		stats := cache.GetStats()
 		assert.Greater(t, stats.HitCount, int64(0))

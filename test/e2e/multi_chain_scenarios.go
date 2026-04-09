@@ -17,10 +17,10 @@ type MultiChainScenario struct {
 
 // ChainState represents the state of a blockchain
 type ChainState struct {
-	ChainID    int
-	BlockNum   int64
-	Timestamp  time.Time
-	DataHash   string
+	ChainID   int
+	BlockNum  int64
+	Timestamp time.Time
+	DataHash  string
 }
 
 // NewMultiChainScenarios returns all multi-chain scenarios
@@ -369,13 +369,17 @@ func executeMultiChainDataAggregation(ctx context.Context, orch *Orchestrator) e
 	const numChains = 3
 	for chainID := 1; chainID <= numChains; chainID++ {
 		eventCount := chainID * 10 // Simulate different event counts per chain
-		if blockNum > math.MaxUint64-uint64(chainID) {
+		chainIDAsUint64, err := nonNegativeIntToUint64(chainID)
+		if err != nil {
+			return fmt.Errorf("invalid chain id %d: %w", chainID, err)
+		}
+		if blockNum > math.MaxUint64-chainIDAsUint64 {
 			return fmt.Errorf("aggregated block number overflow for chain %d", chainID)
 		}
 
 		_, err = database.ExecuteCommand(ctx,
 			"INSERT INTO aggregated_chain_data (chain_id, block_number, event_count) VALUES ($1, $2, $3)",
-			chainID, blockNum+uint64(chainID), eventCount)
+			chainID, blockNum+chainIDAsUint64, eventCount)
 		if err != nil {
 			return fmt.Errorf("failed to insert aggregated data: %w", err)
 		}

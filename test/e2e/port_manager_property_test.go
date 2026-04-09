@@ -249,8 +249,8 @@ func TestPortManagerPropertyConcurrentReleaseAndAllocate(t *testing.T) {
 				return false
 			}
 
-			expectedSuccesses := int32(numWorkers * numOperations)
-			if successCount != expectedSuccesses {
+			expectedSuccesses := int64(numWorkers) * int64(numOperations)
+			if int64(successCount) != expectedSuccesses {
 				return false
 			}
 

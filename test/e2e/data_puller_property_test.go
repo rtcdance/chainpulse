@@ -3,6 +3,7 @@ package e2e
 import (
 	"context"
 	"fmt"
+	"math"
 	"testing"
 	"time"
 )
@@ -44,13 +45,21 @@ func TestDataPullerEventCollectionCompleteness(t *testing.T) {
 			// Create emitted events
 			emittedEvents := make([]*EventEmission, eventCount)
 			for i := 0; i < eventCount; i++ {
+				blockNumber, err := nonNegativeIntToUint64(i + 1)
+				if err != nil {
+					t.Fatalf("invalid block number: %d: %v", i+1, err)
+				}
+				logIndex, err := nonNegativeIntToUint32(i)
+				if err != nil {
+					t.Fatalf("invalid log index: %d: %v", i, err)
+				}
 				emittedEvents[i] = &EventEmission{
 					ID:              fmt.Sprintf("event_%d", i),
 					ContractAddress: "0x1111111111111111111111111111111111111111",
 					EventName:       "Transfer",
 					TxHash:          fmt.Sprintf("0x%064d", i),
-					BlockNumber:     uint64(i + 1),
-					LogIndex:        uint32(i),
+					BlockNumber:     blockNumber,
+					LogIndex:        logIndex,
 					Parameters:      map[string]interface{}{"value": i},
 					Timestamp:       time.Now(),
 				}
@@ -305,13 +314,21 @@ func TestDataPullerPaginationCorrectness(t *testing.T) {
 	// Add test events
 	totalEvents := 20
 	for i := 0; i < totalEvents; i++ {
+		blockNumber, err := nonNegativeIntToUint64(i + 1)
+		if err != nil {
+			t.Fatalf("invalid block number: %d: %v", i+1, err)
+		}
+		logIndex, err := nonNegativeIntToUint32(i)
+		if err != nil {
+			t.Fatalf("invalid log index: %d: %v", i, err)
+		}
 		event := &CollectedEvent{
 			ID:              fmt.Sprintf("event_%d", i),
 			ContractAddress: "0x1111111111111111111111111111111111111111",
 			EventName:       "Transfer",
 			TxHash:          fmt.Sprintf("0x%064d", i),
-			BlockNumber:     uint64(i + 1),
-			LogIndex:        uint32(i),
+			BlockNumber:     blockNumber,
+			LogIndex:        logIndex,
 			ChainID:         "31337",
 		}
 		dataPullerMgr.(*DefaultDataPullerManager).addCollectedEvent(event)
@@ -397,13 +414,21 @@ func TestDataPullerMetricsAccuracy(t *testing.T) {
 
 			// Add events
 			for i := 0; i < eventCount; i++ {
+				blockNumber, err := nonNegativeIntToUint64(i + 1)
+				if err != nil {
+					t.Fatalf("invalid block number: %d: %v", i+1, err)
+				}
+				logIndex, err := nonNegativeIntToUint32(i)
+				if err != nil {
+					t.Fatalf("invalid log index: %d: %v", i, err)
+				}
 				event := &CollectedEvent{
 					ID:              fmt.Sprintf("event_%d", i),
 					ContractAddress: "0x1111111111111111111111111111111111111111",
 					EventName:       "Transfer",
 					TxHash:          fmt.Sprintf("0x%064d", i),
-					BlockNumber:     uint64(i + 1),
-					LogIndex:        uint32(i),
+					BlockNumber:     blockNumber,
+					LogIndex:        logIndex,
 					ChainID:         "31337",
 				}
 				dpm.addCollectedEvent(event)
@@ -417,7 +442,11 @@ func TestDataPullerMetricsAccuracy(t *testing.T) {
 				t.Errorf("expected %d collected events, got %d", eventCount, metrics.EventsCollected)
 			}
 
-			if metrics.LastBlockProcessed != uint64(eventCount) {
+			eventCountAsUint64, err := nonNegativeIntToUint64(eventCount)
+			if err != nil {
+				t.Fatalf("invalid eventCount: %d: %v", eventCount, err)
+			}
+			if metrics.LastBlockProcessed != eventCountAsUint64 {
 				t.Errorf("expected last block %d, got %d", eventCount, metrics.LastBlockProcessed)
 			}
 
@@ -430,6 +459,13 @@ func TestDataPullerMetricsAccuracy(t *testing.T) {
 			}
 		})
 	}
+}
+
+func nonNegativeIntToUint32(value int) (uint32, error) {
+	if value < 0 || value > math.MaxUint32 {
+		return 0, fmt.Errorf("value out of range: %d", value)
+	}
+	return uint32(value), nil
 }
 
 // TestDataPullerReorgHandlingCorrectness tests reorg handling correctness
@@ -477,7 +513,7 @@ func TestDataPullerReorgHandlingCorrectness(t *testing.T) {
 
 	// Property test: Reorg must correctly identify affected transactions
 	testCases := []struct {
-		reorgDepth      uint64
+		reorgDepth       uint64
 		expectedAffected int
 	}{
 		{reorgDepth: 1, expectedAffected: 1},

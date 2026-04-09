@@ -224,8 +224,8 @@ func TestPortManagerConcurrentReleaseAndAllocate(t *testing.T) {
 
 	wg.Wait()
 
-	expectedSuccesses := int32(numWorkers * numIterations)
-	if successCount != expectedSuccesses {
+	expectedSuccesses := int64(numWorkers) * int64(numIterations)
+	if int64(successCount) != expectedSuccesses {
 		t.Errorf("Expected %d successful operations, got %d", expectedSuccesses, successCount)
 	}
 }

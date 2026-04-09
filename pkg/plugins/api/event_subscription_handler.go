@@ -379,9 +379,9 @@ func (h *EventSubscriptionHandler) BroadcastEvent(ctx context.Context, event *co
 	eventResponse := &EventResponse{
 		EventID:         event.ID,
 		ChainID:         0, // Parse from event.ChainID string if needed
-		BlockNumber:     int64(event.BlockNumber),
+		BlockNumber:     safeUint64ToInt64(event.BlockNumber),
 		TransactionHash: event.TransactionHash.Hex(),
-		LogIndex:        int(event.LogIndex),
+		LogIndex:        safeUintToInt(event.LogIndex),
 		ContractAddress: event.ContractAddress.Hex(),
 		EventName:       event.EventName,
 		EventData:       event.DecodedData,
