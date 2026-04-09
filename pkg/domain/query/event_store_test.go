@@ -188,7 +188,7 @@ func TestEventStoreClose(t *testing.T) {
 	t.Parallel()
 	store := NewMockEventStore()
 	ctx := context.Background()
-	store.Initialize(ctx)
+	_ = store.Initialize(ctx)
 	err := store.Close(ctx)
 	if err != nil {
 		t.Errorf("Close() unexpected error: %v", err)
@@ -199,7 +199,7 @@ func TestEventStoreInsertEvent(t *testing.T) {
 	t.Parallel()
 	store := NewMockEventStore()
 	ctx := context.Background()
-	store.Initialize(ctx)
+	_ = store.Initialize(ctx)
 	event := &core.BlockchainEvent{
 		ID:              "test-event-1",
 		EventName:       "Transfer",
@@ -251,10 +251,10 @@ func TestEventStoreGetEventsByChain(t *testing.T) {
 	t.Parallel()
 	store := NewMockEventStore()
 	ctx := context.Background()
-	store.Initialize(ctx)
-	store.InsertEvent(ctx, &core.BlockchainEvent{ID: "chain1-1", ChainID: "1"})
-	store.InsertEvent(ctx, &core.BlockchainEvent{ID: "chain1-2", ChainID: "1"})
-	store.InsertEvent(ctx, &core.BlockchainEvent{ID: "chain2-1", ChainID: "2"})
+	_ = store.Initialize(ctx)
+	_ = store.InsertEvent(ctx, &core.BlockchainEvent{ID: "chain1-1", ChainID: "1"})
+	_ = store.InsertEvent(ctx, &core.BlockchainEvent{ID: "chain1-2", ChainID: "1"})
+	_ = store.InsertEvent(ctx, &core.BlockchainEvent{ID: "chain2-1", ChainID: "2"})
 	events, err := store.GetEventsByChain(ctx, 1, 10, 0)
 	if err != nil {
 		t.Errorf("GetEventsByChain() unexpected error: %v", err)

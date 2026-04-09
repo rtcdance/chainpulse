@@ -3,22 +3,23 @@ package e2e
 import (
 	"fmt"
 	"math/big"
+	"os"
 	"os/exec"
 )
 
 // TestFixtures provides pre-configured test data and utilities
 type TestFixtures struct {
-	ERC20Contract ContractDefinition
+	ERC20Contract  ContractDefinition
 	ERC721Contract ContractDefinition
-	TestAccounts []TestAccount
+	TestAccounts   []TestAccount
 }
 
 // NewTestFixtures creates new test fixtures
 func NewTestFixtures() *TestFixtures {
 	return &TestFixtures{
-		ERC20Contract: getERC20ContractDefinition(),
+		ERC20Contract:  getERC20ContractDefinition(),
 		ERC721Contract: getERC721ContractDefinition(),
-		TestAccounts: getTestAccounts(),
+		TestAccounts:   getTestAccounts(),
 	}
 }
 
@@ -125,9 +126,9 @@ func getTestAccounts() []TestAccount {
 // CreateERC20TransferEvent creates a mock ERC20 Transfer event
 func CreateERC20TransferEvent(from, to string, amount *big.Int) map[string]interface{} {
 	return map[string]interface{}{
-		"from":   from,
-		"to":     to,
-		"value":  amount,
+		"from":  from,
+		"to":    to,
+		"value": amount,
 	}
 }
 
@@ -254,9 +255,15 @@ func (ah *AssertionHelpers) AssertEventParameterValue(event *IndexedEvent, param
 	return value == expectedValue
 }
 
-
 // IsAnvilAvailable checks if Anvil is available in the system
 func IsAnvilAvailable() bool {
-	_, err := exec.LookPath("anvil")
-	return err == nil
+	paths := []string{"anvil", "$HOME/.foundry/bin/anvil", "$HOME/.local/bin/anvil"}
+	for _, p := range paths {
+		p = os.ExpandEnv(p)
+		_, err := exec.LookPath(p)
+		if err == nil {
+			return true
+		}
+	}
+	return false
 }

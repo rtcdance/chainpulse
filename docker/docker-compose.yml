@@ -1,25 +1,15 @@
 services:
   # ============================================
-  # Blockchain Nodes (Anvil)
+  # Blockchain Nodes (Anvil) - 7 Chains Supported
   # ============================================
 
-  # Ethereum (Chain ID: 31337)
+  # Ethereum (Chain ID: 1)
   anvil-ethereum:
     image: ghcr.io/foundry-rs/foundry:latest
     container_name: chainpulse-anvil-ethereum
     ports:
       - "8545:8545"
-    environment:
-      ANVIL_IP_ADDR: 0.0.0.0
-      ANVIL_PORT: 8545
-      ANVIL_CHAIN_ID: 31337
-    command: >
-      anvil
-      --host 0.0.0.0
-      --port 8545
-      --chain-id 31337
-      --accounts 10
-      --balance 10000
+    command: anvil --host 0.0.0.0 --port 8545 --chain-id 1 --accounts 10 --balance 10000 --timestamp 0
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8545"]
       interval: 10s
@@ -34,17 +24,7 @@ services:
     container_name: chainpulse-anvil-polygon
     ports:
       - "8546:8545"
-    environment:
-      ANVIL_IP_ADDR: 0.0.0.0
-      ANVIL_PORT: 8545
-      ANVIL_CHAIN_ID: 137
-    command: >
-      anvil
-      --host 0.0.0.0
-      --port 8545
-      --chain-id 137
-      --accounts 10
-      --balance 10000
+    command: anvil --host 0.0.0.0 --port 8545 --chain-id 137 --accounts 10 --balance 10000 --timestamp 0
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8545"]
       interval: 10s
@@ -53,23 +33,73 @@ services:
     networks:
       - chainpulse-network
 
-  # Arbitrum (Chain ID: 42161)
+  # BSC (Chain ID: 97)
+  anvil-bsc:
+    image: ghcr.io/foundry-rs/foundry:latest
+    container_name: chainpulse-anvil-bsc
+    ports:
+      - "8547:8545"
+    command: anvil --host 0.0.0.0 --port 8545 --chain-id 97 --accounts 10 --balance 10000 --timestamp 0
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8545"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - chainpulse-network
+
+  # Arbitrum (Chain ID: 421614 - Sepolia testnet)
   anvil-arbitrum:
     image: ghcr.io/foundry-rs/foundry:latest
     container_name: chainpulse-anvil-arbitrum
     ports:
-      - "8547:8545"
-    environment:
-      ANVIL_IP_ADDR: 0.0.0.0
-      ANVIL_PORT: 8545
-      ANVIL_CHAIN_ID: 42161
-    command: >
-      anvil
-      --host 0.0.0.0
-      --port 8545
-      --chain-id 42161
-      --accounts 10
-      --balance 10000
+      - "8548:8545"
+    command: anvil --host 0.0.0.0 --port 8545 --chain-id 421614 --accounts 10 --balance 10000 --timestamp 0
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8545"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - chainpulse-network
+
+  # Optimism (Chain ID: 11155420 - Sepolia testnet)
+  anvil-optimism:
+    image: ghcr.io/foundry-rs/foundry:latest
+    container_name: chainpulse-anvil-optimism
+    ports:
+      - "8549:8545"
+    command: anvil --host 0.0.0.0 --port 8545 --chain-id 11155420 --accounts 10 --balance 10000 --timestamp 0
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8545"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - chainpulse-network
+
+  # Base (Chain ID: 84532 - Sepolia testnet)
+  anvil-base:
+    image: ghcr.io/foundry-rs/foundry:latest
+    container_name: chainpulse-anvil-base
+    ports:
+      - "8550:8545"
+    command: anvil --host 0.0.0.0 --port 8545 --chain-id 84532 --accounts 10 --balance 10000 --timestamp 0
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8545"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - chainpulse-network
+
+  # Avalanche (Chain ID: 43113 - Fuji testnet)
+  anvil-avalanche:
+    image: ghcr.io/foundry-rs/foundry:latest
+    container_name: chainpulse-anvil-avalanche
+    ports:
+      - "8551:8545"
+    command: anvil --host 0.0.0.0 --port 8545 --chain-id 43113 --accounts 10 --balance 10000 --timestamp 0
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8545"]
       interval: 10s
@@ -82,7 +112,6 @@ services:
   # Infrastructure Services
   # ============================================
 
-  # PostgreSQL Database
   postgres:
     image: postgres:15-alpine
     container_name: chainpulse-postgres
@@ -102,7 +131,6 @@ services:
     networks:
       - chainpulse-network
 
-  # Redis Cache
   redis:
     image: redis:7-alpine
     container_name: chainpulse-redis
@@ -118,7 +146,6 @@ services:
     networks:
       - chainpulse-network
 
-  # Kafka Message Queue
   kafka:
     image: confluentinc/cp-kafka:7.5.0
     container_name: chainpulse-kafka
@@ -141,7 +168,6 @@ services:
     networks:
       - chainpulse-network
 
-  # Zookeeper (required by Kafka)
   zookeeper:
     image: confluentinc/cp-zookeeper:7.5.0
     container_name: chainpulse-zookeeper
@@ -158,7 +184,6 @@ services:
     networks:
       - chainpulse-network
 
-  # ChainPulse Application
   chainpulse:
     build:
       context: ..
@@ -169,7 +194,15 @@ services:
         condition: service_healthy
       anvil-polygon:
         condition: service_healthy
+      anvil-bsc:
+        condition: service_healthy
       anvil-arbitrum:
+        condition: service_healthy
+      anvil-optimism:
+        condition: service_healthy
+      anvil-base:
+        condition: service_healthy
+      anvil-avalanche:
         condition: service_healthy
       postgres:
         condition: service_healthy
@@ -178,25 +211,21 @@ services:
       kafka:
         condition: service_healthy
     environment:
-      # Multi-chain configuration
-      CHAINPULSE_CHAINS: ethereum,polygon,arbitrum
-
-      # Ethereum configuration
+      CHAINPULSE_CHAINS: ethereum,polygon,bsc,arbitrum,optimism,base,avalanche
       CHAINPULSE_ETHEREUM_NODE_URL: http://anvil-ethereum:8545
-      CHAINPULSE_ETHEREUM_CHAIN_ID: 31337
-      CHAINPULSE_ETHEREUM_START_BLOCK: 0
-
-      # Polygon configuration
+      CHAINPULSE_ETHEREUM_CHAIN_ID: 1
       CHAINPULSE_POLYGON_NODE_URL: http://anvil-polygon:8545
       CHAINPULSE_POLYGON_CHAIN_ID: 137
-      CHAINPULSE_POLYGON_START_BLOCK: 0
-
-      # Arbitrum configuration
+      CHAINPULSE_BSC_NODE_URL: http://anvil-bsc:8545
+      CHAINPULSE_BSC_CHAIN_ID: 97
       CHAINPULSE_ARBITRUM_NODE_URL: http://anvil-arbitrum:8545
-      CHAINPULSE_ARBITRUM_CHAIN_ID: 42161
-      CHAINPULSE_ARBITRUM_START_BLOCK: 0
-
-      # Logging and deployment
+      CHAINPULSE_ARBITRUM_CHAIN_ID: 421614
+      CHAINPULSE_OPTIMISM_NODE_URL: http://anvil-optimism:8545
+      CHAINPULSE_OPTIMISM_CHAIN_ID: 11155420
+      CHAINPULSE_BASE_NODE_URL: http://anvil-base:8545
+      CHAINPULSE_BASE_CHAIN_ID: 84532
+      CHAINPULSE_AVALANCHE_NODE_URL: http://anvil-avalanche:8545
+      CHAINPULSE_AVALANCHE_CHAIN_ID: 43113
       CHAINPULSE_LOG_LEVEL: INFO
       CHAINPULSE_DEPLOYMENT_MODE: monolithic
       CHAINPULSE_API_PORT: 8080
@@ -204,16 +233,10 @@ services:
       CHAINPULSE_METRICS_PORT: 8081
       CHAINPULSE_DATA_PULLER_TYPE: https_jsonrpc
       CHAINPULSE_PULLER_POLL_INTERVAL_MS: 1000
-
-      # Cache configuration
       CHAINPULSE_CACHE_TYPE: redis
       CHAINPULSE_CACHE_TTL_SECONDS: 3600
-
-      # Database configuration
       CHAINPULSE_DATABASE_TYPE: postgres
       CHAINPULSE_DATABASE_URL: postgres://chainpulse:chainpulse_password@postgres:5432/chainpulse
-
-      # Message queue configuration
       CHAINPULSE_MQ_TYPE: kafka
       CHAINPULSE_MQ_BROKERS: kafka:29092
     ports:
