@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"os"
 	"os/signal"
 	"strings"
@@ -70,6 +71,13 @@ func main() {
 	fmt.Println("Initializing API Gateway:")
 	gateway := api.NewAPIGatewayPlugin(logger, metrics)
 	gateway.SetUpstreamQueryEndpoints(config.UpstreamServices)
+	if upstreamClient := buildGatewayUpstreamHTTPClient(config); upstreamClient != nil {
+		gateway.SetUpstreamQueryHTTPClient(upstreamClient)
+		gateway.SetUpstreamQueryHealthHTTPClient(upstreamClient)
+	}
+	if upstreamHealthHeaders := buildGatewayUpstreamHealthHeaders(config); len(upstreamHealthHeaders) > 0 {
+		gateway.SetUpstreamQueryHealthHeaders(upstreamHealthHeaders)
+	}
 	authMiddleware, rateLimitMiddleware, err := buildAPIGatewaySecurityControls(config, logger, metrics)
 	if err != nil {
 		logger.Error("Failed to build API Gateway security controls", "error", err.Error())
@@ -185,6 +193,7 @@ type GatewayConfig struct {
 	AuthJWTSecret      string
 	AuthAPIKeys        []string
 	RateLimitEnabled   bool
+	UpstreamAuthAPIKey string
 	LogLevel           string
 }
 
@@ -207,8 +216,51 @@ func loadGatewayConfig() GatewayConfig {
 		AuthJWTSecret:      getEnv("GATEWAY_AUTH_JWT_SECRET", ""),
 		AuthAPIKeys:        getEnvCSV("GATEWAY_AUTH_API_KEYS", nil),
 		RateLimitEnabled:   getEnvBool("GATEWAY_RATE_LIMIT_ENABLED", false),
+		UpstreamAuthAPIKey: getEnv("GATEWAY_UPSTREAM_AUTH_API_KEY", ""),
 		LogLevel:           getEnv("LOG_LEVEL", "info"),
 	}
+}
+
+func buildGatewayUpstreamHTTPClient(config GatewayConfig) *http.Client {
+	if strings.TrimSpace(config.UpstreamAuthAPIKey) == "" {
+		return nil
+	}
+
+	return &http.Client{
+		Transport: gatewayUpstreamAuthTransport{
+			apiKey: config.UpstreamAuthAPIKey,
+			base:   http.DefaultTransport,
+		},
+	}
+}
+
+func buildGatewayUpstreamHealthHeaders(config GatewayConfig) map[string]string {
+	if strings.TrimSpace(config.UpstreamAuthAPIKey) == "" {
+		return nil
+	}
+
+	return map[string]string{
+		"X-API-Key": config.UpstreamAuthAPIKey,
+	}
+}
+
+type gatewayUpstreamAuthTransport struct {
+	apiKey string
+	base   http.RoundTripper
+}
+
+func (t gatewayUpstreamAuthTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	cloned := req.Clone(req.Context())
+	if cloned.Header == nil {
+		cloned.Header = make(http.Header)
+	}
+	cloned.Header.Set("X-API-Key", t.apiKey)
+
+	base := t.base
+	if base == nil {
+		base = http.DefaultTransport
+	}
+	return base.RoundTrip(cloned)
 }
 
 // getEnv gets an environment variable with a default value

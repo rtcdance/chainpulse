@@ -22,6 +22,7 @@ type RequestHandler struct {
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
 	healthClient  *http.Client
+	healthHeaders map[string]string
 	mu            sync.RWMutex
 	lastCheckAt   time.Time
 	checkInterval time.Duration
@@ -120,7 +121,17 @@ func (h *RequestHandler) CheckHealth() bool {
 		client = &http.Client{Timeout: 5 * time.Second}
 	}
 
-	resp, err := client.Get(h.Endpoint + "/health")
+	req, err := http.NewRequest(http.MethodGet, h.Endpoint+"/health", nil)
+	if err != nil {
+		h.Available = false
+		h.lastCheckAt = time.Now()
+		return false
+	}
+	for key, value := range h.healthHeaders {
+		req.Header.Set(key, value)
+	}
+
+	resp, err := client.Do(req)
 	if err != nil {
 		h.Available = false
 		h.lastCheckAt = time.Now()
@@ -150,6 +161,23 @@ func (h *RequestHandler) SetHealthHTTPClient(client *http.Client) {
 		return
 	}
 	h.healthClient = client
+}
+
+// SetHealthHeaders configures static headers used during handler health checks.
+func (h *RequestHandler) SetHealthHeaders(headers map[string]string) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	if len(headers) == 0 {
+		h.healthHeaders = nil
+		return
+	}
+
+	copied := make(map[string]string, len(headers))
+	for key, value := range headers {
+		copied[key] = value
+	}
+	h.healthHeaders = copied
 }
 
 // SetAvailable sets the availability status

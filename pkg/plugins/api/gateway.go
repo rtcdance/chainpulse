@@ -26,6 +26,7 @@ type APIGatewayPlugin struct {
 	upstreamQueryEndpoints        []string
 	upstreamQueryHTTPClient       *http.Client
 	upstreamQueryHealthHTTPClient *http.Client
+	upstreamQueryHealthHeaders    map[string]string
 	runtimeMetricsProvider        func(*http.Request) interface{}
 	runtimeSummaryProvider        func(*http.Request) interface{}
 	runtimeControlProvider        func(http.ResponseWriter, *http.Request)
@@ -132,6 +133,23 @@ func (g *APIGatewayPlugin) SetUpstreamQueryHealthHTTPClient(client *http.Client)
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	g.upstreamQueryHealthHTTPClient = client
+}
+
+// SetUpstreamQueryHealthHeaders overrides static headers used for upstream query health checks.
+func (g *APIGatewayPlugin) SetUpstreamQueryHealthHeaders(headers map[string]string) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	if len(headers) == 0 {
+		g.upstreamQueryHealthHeaders = nil
+		return
+	}
+
+	copied := make(map[string]string, len(headers))
+	for key, value := range headers {
+		copied[key] = value
+	}
+	g.upstreamQueryHealthHeaders = copied
 }
 
 // SetRuntimeSummaryProvider sets an optional read-only runtime summary provider.
@@ -352,6 +370,7 @@ func (g *APIGatewayPlugin) Initialize(config corelib.Config) error {
 		integration.SetUpstreamQueryEndpoints(g.upstreamQueryEndpoints)
 		integration.SetUpstreamQueryHTTPClient(g.upstreamQueryHTTPClient)
 		integration.SetUpstreamQueryHealthHTTPClient(g.upstreamQueryHealthHTTPClient)
+		integration.SetUpstreamQueryHealthHeaders(g.upstreamQueryHealthHeaders)
 		if g.graphqlHandler != nil {
 			integration.SetGraphQLHandler(g.graphqlHandler)
 		}

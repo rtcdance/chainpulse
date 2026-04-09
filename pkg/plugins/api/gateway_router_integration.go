@@ -29,6 +29,7 @@ type GatewayRouterIntegration struct {
 	upstreamQueryEndpoints        []string
 	upstreamQueryHTTPClient       *http.Client
 	upstreamQueryHealthHTTPClient *http.Client
+	upstreamQueryHealthHeaders    map[string]string
 	runtimeMetricsProvider        func(*http.Request) interface{}
 	runtimeSummaryProvider        func(*http.Request) interface{}
 	runtimeControlProvider        func(http.ResponseWriter, *http.Request)
@@ -140,6 +141,23 @@ func (gri *GatewayRouterIntegration) SetUpstreamQueryHealthHTTPClient(client *ht
 	gri.mu.Lock()
 	defer gri.mu.Unlock()
 	gri.upstreamQueryHealthHTTPClient = client
+}
+
+// SetUpstreamQueryHealthHeaders overrides static headers used for upstream query health checks.
+func (gri *GatewayRouterIntegration) SetUpstreamQueryHealthHeaders(headers map[string]string) {
+	gri.mu.Lock()
+	defer gri.mu.Unlock()
+
+	if len(headers) == 0 {
+		gri.upstreamQueryHealthHeaders = nil
+		return
+	}
+
+	copied := make(map[string]string, len(headers))
+	for key, value := range headers {
+		copied[key] = value
+	}
+	gri.upstreamQueryHealthHeaders = copied
 }
 
 // SetUpstreamQueryHTTPClient overrides the HTTP client used for upstream query forwarding.
@@ -338,6 +356,9 @@ func (gri *GatewayRouterIntegration) attachUpstreamQueryHandlers() error {
 		)
 		if gri.upstreamQueryHealthHTTPClient != nil {
 			handler.SetHealthHTTPClient(gri.upstreamQueryHealthHTTPClient)
+		}
+		if len(gri.upstreamQueryHealthHeaders) > 0 {
+			handler.SetHealthHeaders(gri.upstreamQueryHealthHeaders)
 		}
 		for _, routeID := range routeIDs {
 			if err := gri.router.AttachHandler(routeID, handler); err != nil {
