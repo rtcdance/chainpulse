@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -21,6 +23,8 @@ type DefaultPostgreSQLAdapter struct {
 	metricsCollector core.MetricsCollector
 	initialized     bool
 }
+
+var postgresIdentifierPattern = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_]*$`)
 
 // NewPostgreSQLAdapter creates a new PostgreSQL adapter
 func NewPostgreSQLAdapter(
@@ -84,6 +88,9 @@ func (pa *DefaultPostgreSQLAdapter) Query(ctx context.Context, req *QueryRequest
 	if req.Collection == "" {
 		return nil, fmt.Errorf("table name is required")
 	}
+	if !isSafePostgresIdentifier(req.Collection) {
+		return nil, fmt.Errorf("invalid table name %q", req.Collection)
+	}
 
 	start := time.Now()
 
@@ -95,7 +102,10 @@ func (pa *DefaultPostgreSQLAdapter) Query(ctx context.Context, req *QueryRequest
 	if req.Filter != nil {
 		conditions := []string{}
 		for k, v := range req.Filter {
-			conditions = append(conditions, fmt.Sprintf("%s = $%d", k, argIndex))
+			if !isSafePostgresIdentifier(k) {
+				return nil, fmt.Errorf("invalid filter field %q", k)
+			}
+			conditions = append(conditions, k+" = $"+strconv.Itoa(argIndex))
 			args = append(args, v)
 			argIndex++
 		}
@@ -107,11 +117,14 @@ func (pa *DefaultPostgreSQLAdapter) Query(ctx context.Context, req *QueryRequest
 	if req.Sort != nil {
 		orders := []string{}
 		for k, v := range req.Sort {
+			if !isSafePostgresIdentifier(k) {
+				return nil, fmt.Errorf("invalid sort field %q", k)
+			}
 			direction := "ASC"
 			if v < 0 {
 				direction = "DESC"
 			}
-			orders = append(orders, fmt.Sprintf("%s %s", k, direction))
+			orders = append(orders, k+" "+direction)
 		}
 		orderClause = "ORDER BY " + strings.Join(orders, ", ")
 	}
@@ -119,15 +132,19 @@ func (pa *DefaultPostgreSQLAdapter) Query(ctx context.Context, req *QueryRequest
 	// Build LIMIT and OFFSET
 	limitClause := ""
 	if req.Limit > 0 {
-		limitClause = fmt.Sprintf("LIMIT %d", req.Limit)
+		limitClause = "LIMIT " + strconv.FormatInt(req.Limit, 10)
 		if req.Offset > 0 {
-			limitClause += fmt.Sprintf(" OFFSET %d", req.Offset)
+			limitClause += " OFFSET " + strconv.FormatInt(req.Offset, 10)
 		}
 	}
 
 	// Build query
-	query := fmt.Sprintf("SELECT * FROM %s %s %s %s", req.Collection, whereClause, orderClause, limitClause)
-	query = strings.TrimSpace(query)
+	query := strings.TrimSpace(strings.Join([]string{
+		"SELECT * FROM " + req.Collection,
+		whereClause,
+		orderClause,
+		limitClause,
+	}, " "))
 
 	// Execute query
 	rows, err := pa.db.QueryContext(ctx, query, args...)
@@ -179,8 +196,10 @@ func (pa *DefaultPostgreSQLAdapter) Query(ctx context.Context, req *QueryRequest
 	}
 
 	// Get total count
-	countQuery := fmt.Sprintf("SELECT COUNT(*) FROM %s %s", req.Collection, whereClause)
-	countQuery = strings.TrimSpace(countQuery)
+	countQuery := strings.TrimSpace(strings.Join([]string{
+		"SELECT COUNT(*) FROM " + req.Collection,
+		whereClause,
+	}, " "))
 
 	var total int64
 	if err := pa.db.QueryRowContext(ctx, countQuery, args...).Scan(&total); err != nil {
@@ -208,6 +227,10 @@ func (pa *DefaultPostgreSQLAdapter) Query(ctx context.Context, req *QueryRequest
 		ResponseTime: duration,
 		Source:       "postgresql",
 	}, nil
+}
+
+func isSafePostgresIdentifier(identifier string) bool {
+	return postgresIdentifierPattern.MatchString(identifier)
 }
 
 // QueryByHash retrieves a single item by hash

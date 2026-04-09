@@ -220,7 +220,7 @@ func (eh *MQErrorHandler) CalculateBackoffDelay(attempt int) time.Duration {
 	} else if shift > maxShift {
 		shift = maxShift
 	}
-	delayMultiplier := 1 << uint(shift)
+	delayMultiplier := 1 << shift
 	delay := eh.baseRetryDelay * time.Duration(delayMultiplier)
 
 	// Cap at max retry delay

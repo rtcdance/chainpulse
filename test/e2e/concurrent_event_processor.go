@@ -113,9 +113,14 @@ func (p *DefaultConcurrentEventProcessor) GenerateEventsAsync(ctx context.Contex
 				eventID := fmt.Sprintf("event-w%d-e%d", workerID, j)
 				contractAddr := fmt.Sprintf("0x%x", workerID*1000+j)
 				eventName := fmt.Sprintf("Event%d", j)
+				blockNumber, err := nonNegativeIntToUint64(j)
+				if err != nil {
+					errChan <- fmt.Errorf("worker %d: %w", workerID, err)
+					return
+				}
 				params := map[string]interface{}{
-					"blockNumber":      uint64(j),
-					"transactionIndex": uint64(j),
+					"blockNumber":      blockNumber,
+					"transactionIndex": blockNumber,
 				}
 
 				start := time.Now()
@@ -158,9 +163,14 @@ func (p *DefaultConcurrentEventProcessor) GenerateEventsWithDelay(ctx context.Co
 				eventID := fmt.Sprintf("event-delayed-w%d-e%d", workerID, j)
 				contractAddr := fmt.Sprintf("0x%x", workerID*1000+j)
 				eventName := fmt.Sprintf("Event%d", j)
+				blockNumber, err := nonNegativeIntToUint64(j)
+				if err != nil {
+					errChan <- fmt.Errorf("worker %d: %w", workerID, err)
+					return
+				}
 				params := map[string]interface{}{
-					"blockNumber":      uint64(j),
-					"transactionIndex": uint64(j),
+					"blockNumber":      blockNumber,
+					"transactionIndex": blockNumber,
 				}
 
 				start := time.Now()
@@ -218,6 +228,13 @@ func (p *DefaultConcurrentEventProcessor) DetectRaceConditions(ctx context.Conte
 	}
 
 	return raceConditions, nil
+}
+
+func nonNegativeIntToUint64(value int) (uint64, error) {
+	if value < 0 {
+		return 0, fmt.Errorf("negative value %d cannot be converted to uint64", value)
+	}
+	return uint64(value), nil
 }
 
 // ValidateConcurrentOrdering validates that concurrent operations maintain ordering

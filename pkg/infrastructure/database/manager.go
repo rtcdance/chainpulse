@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"math"
 	"strings"
 	"sync"
 	"time"
@@ -93,10 +94,13 @@ func (m *DefaultDatabaseManager) initMongo(ctx context.Context) error {
 		return fmt.Errorf("MongoDB URI is required")
 	}
 
+	maxPoolSize := sanitizeMongoPoolSize(m.poolSize)
+	minPoolSize := sanitizeMongoPoolSize(m.poolSize / 2)
+
 	opts := options.Client().
 		ApplyURI(m.mongoURI).
-		SetMaxPoolSize(uint64(m.poolSize)).
-		SetMinPoolSize(uint64(m.poolSize / 2))
+		SetMaxPoolSize(maxPoolSize).
+		SetMinPoolSize(minPoolSize)
 
 	client, err := mongo.Connect(ctx, opts)
 	if err != nil {
@@ -114,6 +118,16 @@ func (m *DefaultDatabaseManager) initMongo(ctx context.Context) error {
 
 	m.mongoClient = client
 	return nil
+}
+
+func sanitizeMongoPoolSize(size int) uint64 {
+	if size <= 0 {
+		return 0
+	}
+	if size > math.MaxInt32 {
+		return math.MaxInt32
+	}
+	return uint64(size)
 }
 
 // initPostgres initializes PostgreSQL connection

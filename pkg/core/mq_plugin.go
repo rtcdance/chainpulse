@@ -3,6 +3,7 @@ package core
 import (
 	"context"
 	"fmt"
+	"math/bits"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -428,7 +429,7 @@ func (p *BaseMQPlugin) RetryMessage(ctx context.Context, message MessageQueueMes
 	// For retry 1: delay = retryDelay * 2^0 = retryDelay
 	// For retry 2: delay = retryDelay * 2^1 = retryDelay * 2
 	// For retry 3: delay = retryDelay * 2^2 = retryDelay * 4
-	delayMultiplier := 1 << uint(currentRetryCount-1) // Bit shift for 2^(retryCount-1)
+	delayMultiplier := boundedShiftMultiplier(currentRetryCount)
 	delayDuration := p.retryDelay * time.Duration(delayMultiplier)
 	delayMs := delayDuration.Milliseconds()
 
@@ -704,8 +705,19 @@ func (p *BaseMQPlugin) CalculateExponentialBackoffDelay(retryCount int) time.Dur
 	if retryCount <= 0 {
 		return p.retryDelay
 	}
-	delayMultiplier := 1 << uint(retryCount-1) // Bit shift for 2^(retryCount-1)
+	delayMultiplier := boundedShiftMultiplier(retryCount)
 	return p.retryDelay * time.Duration(delayMultiplier)
+}
+
+func boundedShiftMultiplier(count int) int {
+	shift := count - 1
+	maxShift := bits.UintSize - 2
+	if shift < 0 {
+		shift = 0
+	} else if shift > maxShift {
+		shift = maxShift
+	}
+	return 1 << shift
 }
 
 // RecordRetryMetrics records comprehensive retry metrics

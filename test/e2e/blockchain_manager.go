@@ -3,6 +3,7 @@ package e2e
 import (
 	"context"
 	"fmt"
+	"math"
 	"math/big"
 	"time"
 
@@ -112,7 +113,12 @@ func (bm *BlockchainManager) GetBlock(ctx context.Context, blockNumber uint64) (
 		return nil, fmt.Errorf("blockchain manager not initialized")
 	}
 
-	block, err := bm.client.BlockByNumber(ctx, big.NewInt(int64(blockNumber)))
+	blockNumberInt64, err := safeUint64ToInt64(blockNumber)
+	if err != nil {
+		return nil, err
+	}
+
+	block, err := bm.client.BlockByNumber(ctx, big.NewInt(blockNumberInt64))
 	if err != nil {
 		return nil, fmt.Errorf("failed to get block: %w", err)
 	}
@@ -208,13 +214,27 @@ func (bm *BlockchainManager) GetTransactionOpts(ctx context.Context, account com
 
 	opts := &bind.TransactOpts{
 		From:     account,
-		Nonce:    big.NewInt(int64(nonce)),
+		Nonce:    big.NewInt(saturatedUint64ToInt64(nonce)),
 		GasPrice: gasPrice,
 		GasLimit: 3000000,
 		Context:  ctx,
 	}
 
 	return opts, nil
+}
+
+func safeUint64ToInt64(value uint64) (int64, error) {
+	if value > math.MaxInt64 {
+		return 0, fmt.Errorf("value %d exceeds int64 range", value)
+	}
+	return int64(value), nil
+}
+
+func saturatedUint64ToInt64(value uint64) int64 {
+	if value > math.MaxInt64 {
+		return math.MaxInt64
+	}
+	return int64(value)
 }
 
 // GetCallOpts returns call options
