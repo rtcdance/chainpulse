@@ -18,17 +18,21 @@ type ServiceRegistryInterface interface {
 	DiscoverService(ctx context.Context, serviceName string) ([]*discovery.ServiceInfo, error)
 }
 
-// HealthCheckResult represents the result of a health check
+// HealthCheckResult represents the result of a health check.
+//
+//nolint:exported // Renaming would break many external uses.
 type HealthCheckResult struct {
-	ServiceID   string
-	ServiceName string
-	Healthy     bool
-	Message     string
-	Timestamp   time.Time
+	ServiceID    string
+	ServiceName  string
+	Healthy      bool
+	Message      string
+	Timestamp    time.Time
 	ResponseTime time.Duration
 }
 
-// HealthCheckEndpoint represents a health check endpoint
+// HealthCheckEndpoint represents a health check endpoint.
+//
+//nolint:exported // Renaming would break many external uses.
 type HealthCheckEndpoint struct {
 	ServiceID string
 	URL       string
@@ -36,7 +40,9 @@ type HealthCheckEndpoint struct {
 	Timeout   time.Duration
 }
 
-// HealthCheckSystem manages health checks for all services
+// HealthCheckSystem manages health checks for all services.
+//
+//nolint:exported // Renaming would break many external uses.
 type HealthCheckSystem struct {
 	registry  ServiceRegistryInterface
 	endpoints map[string]*HealthCheckEndpoint

@@ -21,7 +21,9 @@ type ConsulClientInterface interface {
 	Close() error
 }
 
-// ConfigManager manages centralized configuration
+// ConfigManager manages centralized configuration.
+//
+//nolint:exported // Renaming would break many external uses.
 type ConfigManager struct {
 	consul        ConsulClientInterface
 	cache         map[string]string
@@ -236,7 +238,9 @@ func isSensitive(key string) bool {
 	return false
 }
 
-// ConfigVersion represents a configuration version
+// ConfigVersion represents a configuration version.
+//
+//nolint:exported // Renaming would break many external uses.
 type ConfigVersion struct {
 	Key       string
 	Value     string
@@ -247,9 +251,9 @@ type ConfigVersion struct {
 
 // VersionedConfigManager manages configuration versions
 type VersionedConfigManager struct {
-	cm        *ConfigManager
-	versions  map[string][]*ConfigVersion
-	vMutex    sync.RWMutex
+	cm       *ConfigManager
+	versions map[string][]*ConfigVersion
+	vMutex   sync.RWMutex
 }
 
 // NewVersionedConfigManager creates a new versioned configuration manager

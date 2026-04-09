@@ -36,7 +36,7 @@ func TestProperty_AllProtocolsRoutingWorks(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		req := NewBaseRequest("POST", tc.path, tc.headers, tc.body, context.Background())
+		req := NewBaseRequest(context.Background(), "POST", tc.path, tc.headers, tc.body)
 		resp, err := detector.Route(req)
 
 		if err != nil {
@@ -96,7 +96,7 @@ func TestProperty_ProtocolDetectionIsAccurate(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		req := NewBaseRequest("POST", tc.path, tc.headers, tc.body, context.Background())
+		req := NewBaseRequest(context.Background(), "POST", tc.path, tc.headers, tc.body)
 		protocol := detector.DetectProtocol(req)
 
 		if protocol != tc.expected {
@@ -135,7 +135,7 @@ func TestProperty_RequestResponseIntegrity(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		req := NewBaseRequest(tc.method, tc.path, map[string]string{}, tc.body, context.Background())
+		req := NewBaseRequest(context.Background(), tc.method, tc.path, map[string]string{}, tc.body)
 		resp, err := detector.Route(req)
 
 		if err != nil {
@@ -181,13 +181,13 @@ func TestProperty_MultiProtocolConsistency(t *testing.T) {
 		var req Request
 		switch protocol {
 		case ProtocolHTTP:
-			req = NewBaseRequest("GET", "/api", map[string]string{}, nil, context.Background())
+			req = NewBaseRequest(context.Background(), "GET", "/api", map[string]string{}, nil)
 		case ProtocolWebSocket:
-			req = NewBaseRequest("GET", "/ws", map[string]string{"Upgrade": "websocket"}, nil, context.Background())
+			req = NewBaseRequest(context.Background(), "GET", "/ws", map[string]string{"Upgrade": "websocket"}, nil)
 		case ProtocolGRPC:
-			req = NewBaseRequest("POST", "/rpc", map[string]string{"Content-Type": "application/grpc"}, nil, context.Background())
+			req = NewBaseRequest(context.Background(), "POST", "/rpc", map[string]string{"Content-Type": "application/grpc"}, nil)
 		case ProtocolGraphQL:
-			req = NewBaseRequest("POST", "/graphql", map[string]string{"Content-Type": "application/json"}, []byte(`{"query":"{}"}`), context.Background())
+			req = NewBaseRequest(context.Background(), "POST", "/graphql", map[string]string{"Content-Type": "application/json"}, []byte(`{"query":"{}"}`))
 		}
 
 		resp, err := detector.Route(req)
@@ -249,7 +249,7 @@ func TestProperty_ProtocolIndependence(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		req := NewBaseRequest("POST", tc.path, tc.headers, tc.body, context.Background())
+		req := NewBaseRequest(context.Background(), "POST", tc.path, tc.headers, tc.body)
 		resp, err := detector.Route(req)
 
 		if err != nil {
@@ -291,7 +291,7 @@ func TestProperty_ErrorHandlingConsistency(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		req := NewBaseRequest("POST", tc.path, tc.headers, tc.body, context.Background())
+		req := NewBaseRequest(context.Background(), "POST", tc.path, tc.headers, tc.body)
 		resp, err := detector.Route(req)
 
 		if err != nil {
@@ -334,7 +334,7 @@ func TestProperty_HeaderPreservation(t *testing.T) {
 		"X-Custom":      "value",
 	}
 
-	req := NewBaseRequest("GET", "/api", headers, nil, context.Background())
+	req := NewBaseRequest(context.Background(), "GET", "/api", headers, nil)
 	resp, err := detector.Route(req)
 
 	if err != nil {
@@ -367,7 +367,7 @@ func TestProperty_ProtocolDetectionStability(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		req := NewBaseRequest("POST", tc.path, tc.headers, tc.body, context.Background())
+		req := NewBaseRequest(context.Background(), "POST", tc.path, tc.headers, tc.body)
 
 		// Detect multiple times
 		protocols := make([]ProtocolType, 5)
@@ -411,13 +411,13 @@ func TestProperty_ConcurrentMultiProtocolRouting(t *testing.T) {
 			var req Request
 			switch protocol {
 			case ProtocolHTTP:
-				req = NewBaseRequest("GET", "/api", map[string]string{}, nil, context.Background())
+				req = NewBaseRequest(context.Background(), "GET", "/api", map[string]string{}, nil)
 			case ProtocolWebSocket:
-				req = NewBaseRequest("GET", "/ws", map[string]string{"Upgrade": "websocket"}, nil, context.Background())
+				req = NewBaseRequest(context.Background(), "GET", "/ws", map[string]string{"Upgrade": "websocket"}, nil)
 			case ProtocolGRPC:
-				req = NewBaseRequest("POST", "/rpc", map[string]string{"Content-Type": "application/grpc"}, nil, context.Background())
+				req = NewBaseRequest(context.Background(), "POST", "/rpc", map[string]string{"Content-Type": "application/grpc"}, nil)
 			case ProtocolGraphQL:
-				req = NewBaseRequest("POST", "/graphql", map[string]string{"Content-Type": "application/json"}, []byte(`{"query":"{}"}`), context.Background())
+				req = NewBaseRequest(context.Background(), "POST", "/graphql", map[string]string{"Content-Type": "application/json"}, []byte(`{"query":"{}"}`))
 			}
 
 			resp, err := detector.Route(req)

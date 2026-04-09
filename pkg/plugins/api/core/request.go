@@ -44,7 +44,7 @@ type BaseRequest struct {
 }
 
 // NewBaseRequest creates a new base request
-func NewBaseRequest(method, path string, headers map[string]string, body []byte, ctx context.Context) *BaseRequest {
+func NewBaseRequest(ctx context.Context, method, path string, headers map[string]string, body []byte) *BaseRequest {
 	if headers == nil {
 		headers = make(map[string]string)
 	}

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"math"
 
 	"chainpulse/pkg/core"
 	"chainpulse/pkg/plugins/pullers"
@@ -27,11 +28,11 @@ func capturePullerBlockProgress(
 		return
 	}
 	if highestLatest > 0 {
-		progress.recordObservedBlock(int64(highestLatest))
+		progress.recordObservedBlock(safeUint64ToInt64(highestLatest))
 	}
 
 	if highestProcessed := puller.GetHighestProcessedBlock(); highestProcessed > 0 {
-		progress.recordProcessedBlock(int64(highestProcessed))
+		progress.recordProcessedBlock(safeUint64ToInt64(highestProcessed))
 	}
 
 	if checkpointSource == nil || checkpointInterval <= 0 {
@@ -48,4 +49,12 @@ func capturePullerBlockProgress(
 			logger.Debug("Failed to persist puller checkpoint progress", "chain_id", chainID, "error", err.Error())
 		}
 	}
+}
+
+func safeUint64ToInt64(value uint64) int64 {
+	if value > math.MaxInt64 {
+		return math.MaxInt64
+	}
+
+	return int64(value)
 }

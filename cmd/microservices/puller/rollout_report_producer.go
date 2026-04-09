@@ -12,45 +12,45 @@ const pullerRolloutSkeletonReason = "puller rollout producer skeleton is not yet
 const pullerRolloutRuntimeWiringReason = "puller rollout producer reflects local runtime dependency wiring; ownership runtime state is not yet wired"
 
 type pullerRolloutRuntimeState struct {
-	BlockchainRPCsConfigured bool
-	DatabaseReady            bool
-	KafkaReady               bool
-	PullerLoopConfigured     bool
-	ExecutionRuntimeEnabled  bool
-	ConfiguredPullerCount    int
-	AttachedPullerCount      int
-	DatabaseHealthStatus     string
-	DatabaseHealthMessage    string
-	KafkaHealthStatus        string
-	KafkaHealthMessage       string
-	PollCount                int64
-	LastPollUnix             int64
-	ObservedBlock            int64
-	ProcessedBlock           int64
-	BlockGap                 int64
-	CheckpointProgressState  string
-	BlocksUntilCheckpoint    int64
-	PersistedCheckpointBlock int64
-	BlocksSinceCheckpoint    int64
-	PersistedCheckpointState string
-	ReorgCheckpointState     string
-	ReorgCheckpointBlock     int64
-	CheckpointChainSummary   string
+	BlockchainRPCsConfigured      bool
+	DatabaseReady                 bool
+	KafkaReady                    bool
+	PullerLoopConfigured          bool
+	ExecutionRuntimeEnabled       bool
+	ConfiguredPullerCount         int
+	AttachedPullerCount           int
+	DatabaseHealthStatus          string
+	DatabaseHealthMessage         string
+	KafkaHealthStatus             string
+	KafkaHealthMessage            string
+	PollCount                     int64
+	LastPollUnix                  int64
+	ObservedBlock                 int64
+	ProcessedBlock                int64
+	BlockGap                      int64
+	CheckpointProgressState       string
+	BlocksUntilCheckpoint         int64
+	PersistedCheckpointBlock      int64
+	BlocksSinceCheckpoint         int64
+	PersistedCheckpointState      string
+	ReorgCheckpointState          string
+	ReorgCheckpointBlock          int64
+	CheckpointChainSummary        string
 	CheckpointChainPostureSummary string
-	CheckpointCoverageHint   string
-	CheckpointCoveragePosture string
-	CheckpointRecoveryHint   string
-	PollActivityState        string
-	PublishedEvents          int64
-	PublishedMessages        int64
-	SharedRuntimeCount       int
-	SharedRuntimeProcessed   int64
-	SharedRuntimeSkipped     int64
-	SharedRuntimeFailures    int64
-	SharedRuntimeLastChain   string
-	SharedRuntimeLastCursor  string
-	SharedRuntimeLastBlock   int64
-	SharedRuntimeLastError   string
+	CheckpointCoverageHint        string
+	CheckpointCoveragePosture     string
+	CheckpointRecoveryHint        string
+	PollActivityState             string
+	PublishedEvents               int64
+	PublishedMessages             int64
+	SharedRuntimeCount            int
+	SharedRuntimeProcessed        int64
+	SharedRuntimeSkipped          int64
+	SharedRuntimeFailures         int64
+	SharedRuntimeLastChain        string
+	SharedRuntimeLastCursor       string
+	SharedRuntimeLastBlock        int64
+	SharedRuntimeLastError        string
 }
 
 type pullerRolloutWiringCompleteness struct {
@@ -305,6 +305,7 @@ func buildPullerRuntimeDerivedGuardedInput(completeness pullerRolloutWiringCompl
 }
 
 func classifyPullerRolloutWiringCompleteness(runtimeState pullerRolloutRuntimeState) pullerRolloutWiringCompleteness {
+	//nolint:funlen // Classification function checks many signals.
 	enabled := make([]string, 0, 4)
 	missing := make([]string, 0, 4)
 

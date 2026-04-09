@@ -11,15 +11,15 @@ import (
 
 // Error variables for validation
 var (
-	ErrInvalidBlockNumber      = errors.New("invalid block number")
-	ErrInvalidTransactionHash  = errors.New("invalid transaction hash")
-	ErrInvalidContractAddress  = errors.New("invalid contract address")
-	ErrInvalidEventName        = errors.New("invalid event name")
-	ErrInvalidAddress          = errors.New("invalid address")
-	ErrInvalidBlockHash        = errors.New("invalid block hash")
-	ErrInvalidLogIndex         = errors.New("invalid log index")
-	ErrInvalidEventData        = errors.New("invalid event data")
-	ErrInvalidTimestamp        = errors.New("invalid timestamp")
+	ErrInvalidBlockNumber     = errors.New("invalid block number")
+	ErrInvalidTransactionHash = errors.New("invalid transaction hash")
+	ErrInvalidContractAddress = errors.New("invalid contract address")
+	ErrInvalidEventName       = errors.New("invalid event name")
+	ErrInvalidAddress         = errors.New("invalid address")
+	ErrInvalidBlockHash       = errors.New("invalid block hash")
+	ErrInvalidLogIndex        = errors.New("invalid log index")
+	ErrInvalidEventData       = errors.New("invalid event data")
+	ErrInvalidTimestamp       = errors.New("invalid timestamp")
 )
 
 // Constants for configuration
@@ -27,23 +27,23 @@ const (
 	DefaultWorkerPoolSize = 10
 	DefaultBatchSize      = 100
 	DefaultMaxRetries     = 3
-	DefaultRetryBackoff   = 100 // milliseconds
+	DefaultRetryBackoff   = 100  // milliseconds
 	DefaultCacheTTL       = 3600 // seconds (1 hour)
 	DefaultAPIPort        = 8080
 )
 
 // Constants for error codes
 const (
-	ErrorCodeValidation       = "VALIDATION_ERROR"
-	ErrorCodeNotFound         = "NOT_FOUND"
-	ErrorCodeDuplicate        = "DUPLICATE"
-	ErrorCodeDatabaseError    = "DATABASE_ERROR"
-	ErrorCodeCacheError       = "CACHE_ERROR"
-	ErrorCodeMQError          = "MQ_ERROR"
-	ErrorCodeNetworkError     = "NETWORK_ERROR"
-	ErrorCodeTimeout          = "TIMEOUT"
-	ErrorCodeInternalError    = "INTERNAL_ERROR"
-	ErrorCodeConfigError      = "CONFIG_ERROR"
+	ErrorCodeValidation    = "VALIDATION_ERROR"
+	ErrorCodeNotFound      = "NOT_FOUND"
+	ErrorCodeDuplicate     = "DUPLICATE"
+	ErrorCodeDatabaseError = "DATABASE_ERROR"
+	ErrorCodeCacheError    = "CACHE_ERROR"
+	ErrorCodeMQError       = "MQ_ERROR"
+	ErrorCodeNetworkError  = "NETWORK_ERROR"
+	ErrorCodeTimeout       = "TIMEOUT"
+	ErrorCodeInternalError = "INTERNAL_ERROR"
+	ErrorCodeConfigError   = "CONFIG_ERROR"
 )
 
 // NewSystemError creates a new system error
@@ -102,8 +102,9 @@ func ClassifyError(err error) ErrorType {
 		if netErr.Timeout() {
 			return ErrorTypeTransient
 		}
-		// Note: Temporary() is deprecated, but we keep timeout check above
 	}
+
+	// Note: Temporary() is deprecated, but we keep timeout check above
 
 	// Check for syscall errors (transient)
 	if err == syscall.ECONNREFUSED || err == syscall.ECONNRESET || err == syscall.ETIMEDOUT {

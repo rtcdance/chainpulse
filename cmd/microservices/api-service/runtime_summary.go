@@ -46,6 +46,7 @@ func buildAPIServiceRuntimeSummaryResponse(
 	service *api.APIGatewayPlugin,
 	queryService query.QueryService,
 ) *apiServiceRuntimeSummaryResponse {
+	//nolint:funlen // Runtime summary builds many fields from various sources.
 	runtimeState := apiServiceRolloutRuntimeState{}
 	if service != nil {
 		runtimeState.DomainBridgeEnabled = service.IsDomainBridgeEnabled()

@@ -133,8 +133,6 @@ func (tm *TLSManager) GetRuntimeMetrics() map[string]interface{} {
 	reloadTTL := tm.reloadTTL
 	tm.mu.RUnlock()
 
-	tm.metrics.mu.RLock()
-	tm.metrics.mu.RUnlock()
 	metrics := tm.GetMetrics()
 
 	return map[string]interface{}{

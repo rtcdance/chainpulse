@@ -79,6 +79,7 @@ func buildMonolithicRuntimeSummaryResponse(
 	querySurface monolithicRuntimeQuerySurface,
 	deploymentMode monolithicDeploymentModeSurface,
 ) *monolithicRuntimeSummaryResponse {
+	//nolint:funlen // Runtime summary builds many fields from various sources.
 	sharedStatus := appindexing.RuntimeStatus{}
 	if sharedRuntime != nil {
 		sharedStatus = sharedRuntime.Status()

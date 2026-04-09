@@ -68,6 +68,7 @@ func (f *AdapterFactory) CreateDatabasePlugin(ctx context.Context) (core.Databas
 		if dbType == "" || dbType == "mock" {
 			return database.NewMockDB(), nil
 		}
+
 		fallthrough
 	case MicroserviceMode:
 		dbType := os.Getenv("CHAINPULSE_DATABASE_TYPE")

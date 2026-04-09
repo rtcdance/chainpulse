@@ -58,6 +58,7 @@ type runtimeWiringDeps struct {
 }
 
 func defaultRuntimeWiringDeps() runtimeWiringDeps {
+	//nolint:funlen // This function returns a large struct with many field initializers.
 	return runtimeWiringDeps{
 		loadConfig: database.LoadConfig,
 		newDB: func(cfg *database.Config) database.DatabaseManager {

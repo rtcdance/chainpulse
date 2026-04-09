@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"net/url"
 	"sort"
 	"strings"
@@ -130,62 +131,68 @@ func (r *pullerExecutionRuntime) Poll(ctx context.Context, puller *pullers.Multi
 
 	var firstErr error
 	processedBlocks := puller.GetProcessedBlocksFromAllChains()
+
 	for _, chainID := range puller.RegisteredChains() {
-		latestBlock, err := puller.GetLatestBlockFromChain(ctx, chainID)
-		if err != nil {
-			r.recordError(fmt.Errorf("get latest block for %s: %w", chainID, err))
-			if firstErr == nil {
-				firstErr = err
-			}
-			continue
-		}
-
-		targetBlock := latestBlock
-		if confirmation := uint64(config.BlockConfirmation); confirmation > 0 {
-			if latestBlock <= confirmation {
-				continue
-			}
-			targetBlock = latestBlock - confirmation
-		}
-
-		fromBlock := processedBlocks[chainID] + 1
-		if targetBlock == 0 || fromBlock > targetBlock {
-			continue
-		}
-
-		events, err := puller.PullEventsFromChain(ctx, chainID, fromBlock, targetBlock)
-		if err != nil {
-			r.recordError(fmt.Errorf("pull events for %s [%d,%d]: %w", chainID, fromBlock, targetBlock, err))
-			if firstErr == nil {
-				firstErr = err
-			}
-			continue
-		}
-
-		if err := r.publishEvents(ctx, config.InstanceID, events); err != nil {
-			r.recordError(fmt.Errorf("publish events for %s: %w", chainID, err))
-			if firstErr == nil {
-				firstErr = err
-			}
-			continue
-		}
-		if err := r.shadowEvents(ctx, chainID, events); err != nil {
-			r.recordError(fmt.Errorf("shadow events for %s: %w", chainID, err))
-			if firstErr == nil {
-				firstErr = err
-			}
-			continue
-		}
-		if err := puller.SetLastProcessedBlock(chainID, targetBlock); err != nil {
-			r.recordError(fmt.Errorf("advance processed block for %s: %w", chainID, err))
-			if firstErr == nil {
-				firstErr = err
-			}
-			continue
+		err := r.pollChain(ctx, puller, config, chainID, processedBlocks)
+		if err != nil && firstErr == nil {
+			firstErr = err
 		}
 	}
 
 	return firstErr
+}
+
+func (r *pullerExecutionRuntime) pollChain(
+	ctx context.Context,
+	puller *pullers.MultiChainDataPuller,
+	config PullerConfig,
+	chainID string,
+	processedBlocks map[string]uint64,
+) error {
+	latestBlock, err := puller.GetLatestBlockFromChain(ctx, chainID)
+	if err != nil {
+		return fmt.Errorf("get latest block for %s: %w", chainID, err)
+	}
+
+	targetBlock := latestBlock
+	if confirmation, ok := safePositiveIntToUint64(config.BlockConfirmation); ok && confirmation > 0 {
+		if latestBlock <= confirmation {
+			return nil
+		}
+		targetBlock = latestBlock - confirmation
+	}
+
+	fromBlock := processedBlocks[chainID] + 1
+	if targetBlock == 0 || fromBlock > targetBlock {
+		return nil
+	}
+
+	events, err := puller.PullEventsFromChain(ctx, chainID, fromBlock, targetBlock)
+	if err != nil {
+		return fmt.Errorf("pull events for %s [%d,%d]: %w", chainID, fromBlock, targetBlock, err)
+	}
+
+	if err := r.publishEvents(ctx, config.InstanceID, events); err != nil {
+		return fmt.Errorf("publish events for %s: %w", chainID, err)
+	}
+
+	if err := r.shadowEvents(ctx, chainID, events); err != nil {
+		return fmt.Errorf("shadow events for %s: %w", chainID, err)
+	}
+
+	return puller.SetLastProcessedBlock(chainID, targetBlock)
+}
+
+func safePositiveIntToUint64(value int) (uint64, bool) {
+	if value < 0 {
+		return 0, false
+	}
+
+	if value > math.MaxInt {
+		return 0, false
+	}
+
+	return uint64(value), true
 }
 
 func (r *pullerExecutionRuntime) publishEvents(ctx context.Context, instanceID string, events []core.BlockchainEvent) error {

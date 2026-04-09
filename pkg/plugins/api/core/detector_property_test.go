@@ -40,7 +40,7 @@ func TestProperty_DetectorAlwaysReturnsValidProtocol(t *testing.T) {
 	}
 
 	for i, tc := range testCases {
-		req := NewBaseRequest(tc.method, tc.path, tc.headers, tc.body, context.Background())
+		req := NewBaseRequest(context.Background(), tc.method, tc.path, tc.headers, tc.body)
 		protocol := pd.DetectProtocol(req)
 
 		// Protocol should be one of the valid types
@@ -99,7 +99,7 @@ func TestProperty_DetectionIsConsistent(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		req := NewBaseRequest(tc.method, tc.path, tc.headers, tc.body, context.Background())
+		req := NewBaseRequest(context.Background(), tc.method, tc.path, tc.headers, tc.body)
 		protocol1 := pd.DetectProtocol(req)
 		protocol2 := pd.DetectProtocol(req)
 
@@ -159,7 +159,7 @@ func TestProperty_GraphQLDetectionByPath(t *testing.T) {
 
 	paths := []string{"/graphql", "/api/graphql", "/v1/graphql", "/graphql/query"}
 	for _, path := range paths {
-		req := NewBaseRequest("POST", path, map[string]string{}, nil, context.Background())
+		req := NewBaseRequest(context.Background(), "POST", path, map[string]string{}, nil)
 		protocol := pd.DetectProtocol(req)
 		if protocol != ProtocolGraphQL {
 			t.Errorf("expected GraphQL for path %s, got %v", path, protocol)
@@ -179,7 +179,7 @@ func TestProperty_WebSocketDetectionByHeaders(t *testing.T) {
 	}
 
 	for _, h := range headers {
-		req := NewBaseRequest("GET", "/api", h, nil, context.Background())
+		req := NewBaseRequest(context.Background(), "GET", "/api", h, nil)
 		protocol := pd.DetectProtocol(req)
 		if protocol != ProtocolWebSocket {
 			t.Errorf("expected WebSocket for headers %v, got %v", h, protocol)
@@ -199,7 +199,7 @@ func TestProperty_GRPCDetectionByContentType(t *testing.T) {
 	}
 
 	for _, ct := range contentTypes {
-		req := NewBaseRequest("POST", "/api", map[string]string{"Content-Type": ct}, nil, context.Background())
+		req := NewBaseRequest(context.Background(), "POST", "/api", map[string]string{"Content-Type": ct}, nil)
 		protocol := pd.DetectProtocol(req)
 		if protocol != ProtocolGRPC {
 			t.Errorf("expected gRPC for content type %s, got %v", ct, protocol)
@@ -212,7 +212,7 @@ func TestProperty_RoutingFailsWithoutHandler(t *testing.T) {
 	// Feature: Routing, Property 9: Routing fails when no handler is registered for detected protocol
 	pd := NewProtocolDetector()
 
-	req := NewBaseRequest("GET", "/api", map[string]string{}, nil, context.Background())
+	req := NewBaseRequest(context.Background(), "GET", "/api", map[string]string{}, nil)
 	_, err := pd.Route(req)
 
 	if err == nil {
@@ -227,7 +227,7 @@ func TestProperty_RoutingSucceedsWithHandler(t *testing.T) {
 	handler := &MockHandler{resp: NewBaseResponse(nil)}
 	_ = pd.RegisterHandler(ProtocolHTTP, handler)
 
-	req := NewBaseRequest("GET", "/api", map[string]string{}, nil, context.Background())
+	req := NewBaseRequest(context.Background(), "GET", "/api", map[string]string{}, nil)
 	resp, err := pd.Route(req)
 
 	if err != nil {
@@ -305,7 +305,7 @@ func TestProperty_GraphQLDetectionByBody(t *testing.T) {
 	}
 
 	for _, body := range bodies {
-		req := NewBaseRequest("POST", "/api", map[string]string{"Content-Type": "application/json"}, body, context.Background())
+		req := NewBaseRequest(context.Background(), "POST", "/api", map[string]string{"Content-Type": "application/json"}, body)
 		protocol := pd.DetectProtocol(req)
 		if protocol != ProtocolGraphQL {
 			t.Errorf("expected GraphQL for body %s, got %v", string(body), protocol)
@@ -320,7 +320,7 @@ func TestProperty_WebSocketDetectionByPath(t *testing.T) {
 
 	paths := []string{"/ws", "/websocket", "/api/ws", "/v1/websocket"}
 	for _, path := range paths {
-		req := NewBaseRequest("GET", path, map[string]string{}, nil, context.Background())
+		req := NewBaseRequest(context.Background(), "GET", path, map[string]string{}, nil)
 		protocol := pd.DetectProtocol(req)
 		if protocol != ProtocolWebSocket {
 			t.Errorf("expected WebSocket for path %s, got %v", path, protocol)
@@ -350,7 +350,7 @@ func TestProperty_ConcurrentOperationsAreSafe(t *testing.T) {
 	// Detect protocols concurrently
 	for i := 0; i < 10; i++ {
 		go func() {
-			req := NewBaseRequest("GET", "/api", map[string]string{}, nil, context.Background())
+			req := NewBaseRequest(context.Background(), "GET", "/api", map[string]string{}, nil)
 			pd.DetectProtocol(req)
 			done <- true
 		}()
@@ -391,7 +391,7 @@ func TestProperty_ProtocolDetectionIsIdempotent(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		req := NewBaseRequest(tc.method, tc.path, tc.headers, tc.body, context.Background())
+		req := NewBaseRequest(context.Background(), tc.method, tc.path, tc.headers, tc.body)
 
 		// Detect multiple times
 		protocols := make([]ProtocolType, 5)
@@ -415,7 +415,7 @@ func TestProperty_HandlerCallReceivesCorrectRequest(t *testing.T) {
 	handler := &MockHandler{resp: NewBaseResponse(nil)}
 	_ = pd.RegisterHandler(ProtocolHTTP, handler)
 
-	req := NewBaseRequest("GET", "/api/users", map[string]string{"Authorization": "Bearer token"}, nil, context.Background())
+	req := NewBaseRequest(context.Background(), "GET", "/api/users", map[string]string{"Authorization": "Bearer token"}, nil)
 	_, _ = pd.Route(req)
 
 	if handler.req == nil {
@@ -435,11 +435,11 @@ func TestProperty_ProtocolDetectionPriority(t *testing.T) {
 	pd := NewProtocolDetector()
 
 	// GraphQL should be detected before WebSocket
-	req := NewBaseRequest("POST", "/graphql", map[string]string{
+	req := NewBaseRequest(context.Background(), "POST", "/graphql", map[string]string{
 		"Upgrade":     "websocket",
 		"Connection":  "Upgrade",
 		"Content-Type": "application/json",
-	}, []byte(`{"query":"{}"}`), context.Background())
+	}, []byte(`{"query":"{}"}`))
 
 	protocol := pd.DetectProtocol(req)
 	if protocol != ProtocolGraphQL {
@@ -452,7 +452,7 @@ func TestProperty_EmptyHeadersHandledCorrectly(t *testing.T) {
 	// Feature: Protocol Detection, Property 20: Empty headers are handled correctly
 	pd := NewProtocolDetector()
 
-	req := NewBaseRequest("GET", "/api", map[string]string{}, nil, context.Background())
+	req := NewBaseRequest(context.Background(), "GET", "/api", map[string]string{}, nil)
 	protocol := pd.DetectProtocol(req)
 
 	// Should default to HTTP
@@ -483,7 +483,7 @@ func TestProperty_RegistrationDoesNotAffectDetection(t *testing.T) {
 	// Feature: Protocol Detection, Property 22: Protocol detection is independent of handler registration
 	pd := NewProtocolDetector()
 
-	req := NewBaseRequest("POST", "/graphql", map[string]string{"Content-Type": "application/json"}, []byte(`{"query":"{}"}`), context.Background())
+	req := NewBaseRequest(context.Background(), "POST", "/graphql", map[string]string{"Content-Type": "application/json"}, []byte(`{"query":"{}"}`))
 
 	// Detect before registration
 	protocol1 := pd.DetectProtocol(req)
@@ -544,7 +544,7 @@ func TestProperty_LargeNumberOfHandlers(t *testing.T) {
 	}
 
 	// Should still work correctly
-	req := NewBaseRequest("GET", "/api", map[string]string{}, nil, context.Background())
+	req := NewBaseRequest(context.Background(), "GET", "/api", map[string]string{}, nil)
 	protocol := pd.DetectProtocol(req)
 
 	if protocol != ProtocolHTTP {
@@ -565,7 +565,7 @@ func TestProperty_SpecialCharactersInPath(t *testing.T) {
 	}
 
 	for _, path := range paths {
-		req := NewBaseRequest("GET", path, map[string]string{}, nil, context.Background())
+		req := NewBaseRequest(context.Background(), "GET", path, map[string]string{}, nil)
 		protocol := pd.DetectProtocol(req)
 
 		// Should return a valid protocol
@@ -584,8 +584,8 @@ func TestProperty_CaseInsensitivePathDetection(t *testing.T) {
 	pd := NewProtocolDetector()
 
 	// GraphQL path detection is case-sensitive
-	req1 := NewBaseRequest("POST", "/graphql", map[string]string{}, nil, context.Background())
-	req2 := NewBaseRequest("POST", "/GraphQL", map[string]string{}, nil, context.Background())
+	req1 := NewBaseRequest(context.Background(), "POST", "/graphql", map[string]string{}, nil)
+	req2 := NewBaseRequest(context.Background(), "POST", "/GraphQL", map[string]string{}, nil)
 
 	protocol1 := pd.DetectProtocol(req1)
 	protocol2 := pd.DetectProtocol(req2)
@@ -613,7 +613,7 @@ func TestProperty_MultipleHeadersHandledCorrectly(t *testing.T) {
 		"User-Agent":       "test-client",
 	}
 
-	req := NewBaseRequest("POST", "/api", headers, nil, context.Background())
+	req := NewBaseRequest(context.Background(), "POST", "/api", headers, nil)
 	protocol := pd.DetectProtocol(req)
 
 	if protocol != ProtocolHTTP {
@@ -635,7 +635,7 @@ func TestProperty_ErrorHandlingIsConsistent(t *testing.T) {
 	}
 
 	// Multiple routing attempts without handler should all fail
-	req := NewBaseRequest("GET", "/api", map[string]string{}, nil, context.Background())
+	req := NewBaseRequest(context.Background(), "GET", "/api", map[string]string{}, nil)
 	for i := 0; i < 10; i++ {
 		_, err := pd.Route(req)
 		if err == nil {
@@ -660,7 +660,7 @@ func TestProperty_ProtocolDetectionWithEmptyBody(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		req := NewBaseRequest("POST", tc.path, tc.headers, []byte{}, context.Background())
+		req := NewBaseRequest(context.Background(), "POST", tc.path, tc.headers, []byte{})
 		protocol := pd.DetectProtocol(req)
 
 		if protocol != tc.expected {

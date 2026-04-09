@@ -474,6 +474,7 @@ func paginateDomainEvents(events []core.BlockchainEvent, limit int64, offset int
 	}
 
 	end := len(events)
+
 	if limit > 0 {
 		if remaining := len(events) - start; remaining > 0 {
 			if limited, ok := safeInt64ToSliceBound(limit, start, len(events)); ok && limited < end {

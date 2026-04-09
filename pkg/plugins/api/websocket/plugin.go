@@ -13,8 +13,8 @@ import (
 	"chainpulse/pkg/plugins/api/shared"
 )
 
-// WebSocketPlugin implements the WebSocket protocol handler
-type WebSocketPlugin struct {
+// Plugin implements the WebSocket protocol handler.
+type Plugin struct {
 	name       string
 	port       int
 	wssPort    int
@@ -33,14 +33,14 @@ type WebSocketPlugin struct {
 }
 
 // NewWebSocketPlugin creates a new WebSocket plugin
-func NewWebSocketPlugin(name string, port int, apiLayer *core.APILayer) *WebSocketPlugin {
+func NewWebSocketPlugin(name string, port int, apiLayer *core.APILayer) *Plugin {
 	processor := core.NewDefaultRequestProcessor(apiLayer)
-	return &WebSocketPlugin{
+	return &Plugin{
 		name:       name,
 		port:       port,
 		wssPort:    port + 443, // Default WSS port offset
 		apiLayer:   apiLayer,
-		upgrader:   websocket.Upgrader{CheckOrigin: func(r *http.Request) bool { return true }},
+		upgrader:   websocket.Upgrader{CheckOrigin: func(_ *http.Request) bool { return true }},
 		processor:  processor,
 		middleware: make([]core.Middleware, 0),
 		clients:    make(map[*websocket.Conn]bool),
@@ -49,19 +49,19 @@ func NewWebSocketPlugin(name string, port int, apiLayer *core.APILayer) *WebSock
 }
 
 // NewWebSocketPluginWithTLS creates a new WebSocket plugin with TLS support
-func NewWebSocketPluginWithTLS(name string, port int, wssPort int, certFile, keyFile string, apiLayer *core.APILayer) (*WebSocketPlugin, error) {
+func NewWebSocketPluginWithTLS(name string, port int, wssPort int, certFile, keyFile string, apiLayer *core.APILayer) (*Plugin, error) {
 	tlsManager, err := shared.NewTLSManager(certFile, keyFile)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create TLS manager: %w", err)
 	}
 
 	processor := core.NewDefaultRequestProcessor(apiLayer)
-	return &WebSocketPlugin{
+	return &Plugin{
 		name:       name,
 		port:       port,
 		wssPort:    wssPort,
 		apiLayer:   apiLayer,
-		upgrader:   websocket.Upgrader{CheckOrigin: func(r *http.Request) bool { return true }},
+		upgrader:   websocket.Upgrader{CheckOrigin: func(_ *http.Request) bool { return true }},
 		tlsManager: tlsManager,
 		processor:  processor,
 		middleware: make([]core.Middleware, 0),
@@ -71,7 +71,7 @@ func NewWebSocketPluginWithTLS(name string, port int, wssPort int, certFile, key
 }
 
 // Start starts the WebSocket server
-func (p *WebSocketPlugin) Start() error {
+func (p *Plugin) Start() error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -109,7 +109,7 @@ func (p *WebSocketPlugin) Start() error {
 }
 
 // startWSS starts the WSS (WebSocket Secure) server
-func (p *WebSocketPlugin) startWSS(mux *http.ServeMux) error {
+func (p *Plugin) startWSS(mux *http.ServeMux) error {
 	p.wssServer = &http.Server{
 		Addr:              fmt.Sprintf(":%d", p.wssPort),
 		Handler:           mux,
@@ -128,7 +128,7 @@ func (p *WebSocketPlugin) startWSS(mux *http.ServeMux) error {
 }
 
 // Stop stops the WebSocket server
-func (p *WebSocketPlugin) Stop() error {
+func (p *Plugin) Stop() error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -161,24 +161,24 @@ func (p *WebSocketPlugin) Stop() error {
 }
 
 // GetName returns the plugin name
-func (p *WebSocketPlugin) GetName() string {
+func (p *Plugin) GetName() string {
 	return p.name
 }
 
 // GetProtocolName returns the protocol name (implements ProtocolHandler)
-func (p *WebSocketPlugin) GetProtocolName() string {
+func (p *Plugin) GetProtocolName() string {
 	return p.name
 }
 
 // IsRunning returns whether the plugin is running
-func (p *WebSocketPlugin) IsRunning() bool {
+func (p *Plugin) IsRunning() bool {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 	return p.running
 }
 
 // handleWebSocket handles incoming WebSocket connections
-func (p *WebSocketPlugin) handleWebSocket(w http.ResponseWriter, r *http.Request) {
+func (p *Plugin) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	conn, err := p.upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		fmt.Printf("WebSocket upgrade error: %v\n", err)
@@ -232,7 +232,7 @@ func (p *WebSocketPlugin) handleWebSocket(w http.ResponseWriter, r *http.Request
 }
 
 // Use adds middleware (implements ProtocolHandler)
-func (p *WebSocketPlugin) Use(middleware ...core.Middleware) error {
+func (p *Plugin) Use(middleware ...core.Middleware) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -251,7 +251,7 @@ func (p *WebSocketPlugin) Use(middleware ...core.Middleware) error {
 }
 
 // RegisterRoute registers a route handler (implements ProtocolHandler)
-func (p *WebSocketPlugin) RegisterRoute(path string, handler core.Handler) error {
+func (p *Plugin) RegisterRoute(path string, handler core.Handler) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -270,7 +270,7 @@ func (p *WebSocketPlugin) RegisterRoute(path string, handler core.Handler) error
 
 // ProcessRequest executes an adapter-backed WebSocket message through the
 // shared request processor so middleware and routing can be tested directly.
-func (p *WebSocketPlugin) ProcessRequest(ctx context.Context, req *WebSocketRequest) (core.Response, error) {
+func (p *Plugin) ProcessRequest(ctx context.Context, req *Request) (core.Response, error) {
 	if req == nil {
 		return nil, fmt.Errorf("request is required")
 	}
@@ -284,28 +284,28 @@ func (p *WebSocketPlugin) ProcessRequest(ctx context.Context, req *WebSocketRequ
 }
 
 // GetClientCount returns the number of connected clients
-func (p *WebSocketPlugin) GetClientCount() int {
+func (p *Plugin) GetClientCount() int {
 	p.clientsMu.RLock()
 	defer p.clientsMu.RUnlock()
 	return len(p.clients)
 }
 
 // SetWSSPort sets the WSS port
-func (p *WebSocketPlugin) SetWSSPort(port int) {
+func (p *Plugin) SetWSSPort(port int) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.wssPort = port
 }
 
 // GetWSSPort returns the WSS port
-func (p *WebSocketPlugin) GetWSSPort() int {
+func (p *Plugin) GetWSSPort() int {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 	return p.wssPort
 }
 
 // GetTLSMetrics returns TLS metrics
-func (p *WebSocketPlugin) GetTLSMetrics() map[string]interface{} {
+func (p *Plugin) GetTLSMetrics() map[string]interface{} {
 	if p.tlsManager == nil {
 		return nil
 	}
@@ -314,7 +314,7 @@ func (p *WebSocketPlugin) GetTLSMetrics() map[string]interface{} {
 
 // GetConnectionMetrics returns compact runtime connection metrics for the
 // websocket transport surface.
-func (p *WebSocketPlugin) GetConnectionMetrics() map[string]interface{} {
+func (p *Plugin) GetConnectionMetrics() map[string]interface{} {
 	running := p.IsRunning()
 	clientCount := p.GetClientCount()
 	transportPosture := classifyWebSocketTransportPosture(p.tlsManager != nil)

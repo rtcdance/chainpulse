@@ -58,21 +58,21 @@ func NewTestLoggerWithCapture() *TestLogger {
 }
 
 // Debug logs a debug message
-func (l *TestLogger) Debug(msg string, fields ...interface{}) {
+func (l *TestLogger) Debug(msg string, _ ...interface{}) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.messages = append(l.messages, msg)
 }
 
 // Info logs an info message
-func (l *TestLogger) Info(msg string, fields ...interface{}) {
+func (l *TestLogger) Info(msg string, _ ...interface{}) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.messages = append(l.messages, msg)
 }
 
 // Warn logs a warning message
-func (l *TestLogger) Warn(msg string, fields ...interface{}) {
+func (l *TestLogger) Warn(msg string, _ ...interface{}) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.messages = append(l.messages, msg)
@@ -93,12 +93,12 @@ func (l *TestLogger) Fatal(msg string, fields ...interface{}) {
 }
 
 // WithCorrelationID returns a new logger with correlation ID
-func (l *TestLogger) WithCorrelationID(id string) Logger {
+func (l *TestLogger) WithCorrelationID(_ string) Logger {
 	return l
 }
 
 // WithField adds a field to the logger
-func (l *TestLogger) WithField(key string, value interface{}) Logger {
+func (l *TestLogger) WithField(_ string, _ interface{}) Logger {
 	return l
 }
 
@@ -138,9 +138,9 @@ func (l *TestLogger) LogFatal(msg string, fields ...interface{}) {
 
 // TestMetricsCollector is a metrics collector for testing
 type TestMetricsCollector struct {
-	mu       sync.RWMutex
-	counters map[string]int64
-	gauges   map[string]float64
+	mu         sync.RWMutex
+	counters   map[string]int64
+	gauges     map[string]float64
 	histograms map[string][]float64
 }
 
@@ -154,21 +154,21 @@ func NewTestMetricsCollectorWithCapture() *TestMetricsCollector {
 }
 
 // RecordCounter records a counter metric
-func (m *TestMetricsCollector) RecordCounter(name string, value int64, tags map[string]string) {
+func (m *TestMetricsCollector) RecordCounter(name string, value int64, _ map[string]string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.counters[name] = m.counters[name] + value
 }
 
 // RecordGauge records a gauge metric
-func (m *TestMetricsCollector) RecordGauge(name string, value float64, tags map[string]string) {
+func (m *TestMetricsCollector) RecordGauge(name string, value float64, _ map[string]string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.gauges[name] = value
 }
 
 // RecordHistogram records a histogram metric
-func (m *TestMetricsCollector) RecordHistogram(name string, value float64, tags map[string]string) {
+func (m *TestMetricsCollector) RecordHistogram(name string, value float64, _ map[string]string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.histograms[name] = append(m.histograms[name], value)
@@ -229,16 +229,16 @@ func (m *TestMetricsCollector) GetHistogramStats(name string) HistogramStats {
 	}
 
 	sum := 0.0
-	min := values[0]
-	max := values[0]
+	minValue := values[0]
+	maxValue := values[0]
 
 	for _, v := range values {
 		sum += v
-		if v < min {
-			min = v
+		if v < minValue {
+			minValue = v
 		}
-		if v > max {
-			max = v
+		if v > maxValue {
+			maxValue = v
 		}
 	}
 
@@ -247,8 +247,8 @@ func (m *TestMetricsCollector) GetHistogramStats(name string) HistogramStats {
 	return HistogramStats{
 		Count: int64(len(values)),
 		Sum:   sum,
-		Min:   min,
-		Max:   max,
+		Min:   minValue,
+		Max:   maxValue,
 		Mean:  mean,
 	}
 }
@@ -272,7 +272,6 @@ func (m *TestMetricsCollector) RecordError(name string, tags map[string]string) 
 func (m *TestMetricsCollector) RecordSuccess(name string, tags map[string]string) {
 	m.RecordCounter(name, 1, tags)
 }
-
 
 // MockCache is a mock implementation of a cache for testing
 type MockCache struct {
@@ -471,10 +470,10 @@ func (mr *MockRegistry) GetFactory(name string) (func() interface{}, error) {
 
 // TestContextBuilder builds test contexts with specific configurations
 type TestContextBuilder struct {
-	timeout      time.Duration
-	values       map[interface{}]interface{}
-	cancelFunc   context.CancelFunc
-	ctx          context.Context
+	timeout    time.Duration
+	values     map[interface{}]interface{}
+	cancelFunc context.CancelFunc
+	ctx        context.Context
 }
 
 // NewTestContextBuilder creates a new test context builder

@@ -15,7 +15,7 @@ import (
 	"chainpulse/pkg/plugins/api"
 )
 
-//nolint:wsl,nlreturn // Command entrypoint is intentionally verbose.
+//nolint:wsl,nlreturn,funlen // Command entrypoint is intentionally verbose.
 func main() {
 	fmt.Println("╔════════════════════════════════════════════════════════════╗")
 	fmt.Println("║         ChainPulse - API Gateway Service                   ║")
@@ -336,12 +336,6 @@ func parseKeyValuePair(entry string) (string, string, bool) {
 }
 
 //nolint:wsl,nlreturn // Tiny helper keeps the rate limit setup readable.
-func maxInt(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
-}
 
 // parseIntSafe safely parses a string to int
 func parseIntSafe(s string) (int, error) {

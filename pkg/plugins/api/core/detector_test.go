@@ -80,9 +80,9 @@ func TestRegisterMultipleHandlers(t *testing.T) {
 // TestDetectProtocolHTTP tests detecting HTTP protocol
 func TestDetectProtocolHTTP(t *testing.T) {
 	pd := NewProtocolDetector()
-	req := NewBaseRequest("GET", "/api/users", map[string]string{
+	req := NewBaseRequest(context.Background(), "GET", "/api/users", map[string]string{
 		"Content-Type": "application/json",
-	}, nil, context.Background())
+	}, nil)
 
 	protocol := pd.DetectProtocol(req)
 	if protocol != ProtocolHTTP {
@@ -93,11 +93,11 @@ func TestDetectProtocolHTTP(t *testing.T) {
 // TestDetectProtocolWebSocket tests detecting WebSocket protocol
 func TestDetectProtocolWebSocket(t *testing.T) {
 	pd := NewProtocolDetector()
-	req := NewBaseRequest("GET", "/ws", map[string]string{
+	req := NewBaseRequest(context.Background(), "GET", "/ws", map[string]string{
 		"Upgrade":      "websocket",
 		"Connection":   "Upgrade",
 		"Content-Type": "application/json",
-	}, nil, context.Background())
+	}, nil)
 
 	protocol := pd.DetectProtocol(req)
 	if protocol != ProtocolWebSocket {
@@ -108,7 +108,7 @@ func TestDetectProtocolWebSocket(t *testing.T) {
 // TestDetectProtocolWebSocketPath tests detecting WebSocket by path
 func TestDetectProtocolWebSocketPath(t *testing.T) {
 	pd := NewProtocolDetector()
-	req := NewBaseRequest("GET", "/websocket", map[string]string{}, nil, context.Background())
+	req := NewBaseRequest(context.Background(), "GET", "/websocket", map[string]string{}, nil)
 
 	protocol := pd.DetectProtocol(req)
 	if protocol != ProtocolWebSocket {
@@ -119,10 +119,10 @@ func TestDetectProtocolWebSocketPath(t *testing.T) {
 // TestDetectProtocolGRPC tests detecting gRPC protocol
 func TestDetectProtocolGRPC(t *testing.T) {
 	pd := NewProtocolDetector()
-	req := NewBaseRequest("POST", "/api.Service/Method", map[string]string{
+	req := NewBaseRequest(context.Background(), "POST", "/api.Service/Method", map[string]string{
 		"Content-Type":  "application/grpc",
 		"grpc-encoding": "gzip",
-	}, nil, context.Background())
+	}, nil)
 
 	protocol := pd.DetectProtocol(req)
 	if protocol != ProtocolGRPC {
@@ -133,9 +133,9 @@ func TestDetectProtocolGRPC(t *testing.T) {
 // TestDetectProtocolGRPCEncoding tests detecting gRPC by encoding header
 func TestDetectProtocolGRPCEncoding(t *testing.T) {
 	pd := NewProtocolDetector()
-	req := NewBaseRequest("POST", "/api.Service/Method", map[string]string{
+	req := NewBaseRequest(context.Background(), "POST", "/api.Service/Method", map[string]string{
 		"grpc-encoding": "gzip",
-	}, nil, context.Background())
+	}, nil)
 
 	protocol := pd.DetectProtocol(req)
 	if protocol != ProtocolGRPC {
@@ -146,9 +146,9 @@ func TestDetectProtocolGRPCEncoding(t *testing.T) {
 // TestDetectProtocolGraphQL tests detecting GraphQL protocol
 func TestDetectProtocolGraphQL(t *testing.T) {
 	pd := NewProtocolDetector()
-	req := NewBaseRequest("POST", "/graphql", map[string]string{
+	req := NewBaseRequest(context.Background(), "POST", "/graphql", map[string]string{
 		"Content-Type": "application/json",
-	}, []byte(`{"query":"{ users { id } }"}`), context.Background())
+	}, []byte(`{"query":"{ users { id } }"}`))
 
 	protocol := pd.DetectProtocol(req)
 	if protocol != ProtocolGraphQL {
@@ -159,9 +159,9 @@ func TestDetectProtocolGraphQL(t *testing.T) {
 // TestDetectProtocolGraphQLMutation tests detecting GraphQL mutation
 func TestDetectProtocolGraphQLMutation(t *testing.T) {
 	pd := NewProtocolDetector()
-	req := NewBaseRequest("POST", "/api", map[string]string{
+	req := NewBaseRequest(context.Background(), "POST", "/api", map[string]string{
 		"Content-Type": "application/json",
-	}, []byte(`{"mutation":"mutation { createUser(name: \"John\") { id } }"}`), context.Background())
+	}, []byte(`{"mutation":"mutation { createUser(name: \"John\") { id } }"}`))
 
 	protocol := pd.DetectProtocol(req)
 	if protocol != ProtocolGraphQL {
@@ -190,7 +190,7 @@ func TestRoute(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	req := NewBaseRequest("GET", "/api/users", map[string]string{}, nil, context.Background())
+	req := NewBaseRequest(context.Background(), "GET", "/api/users", map[string]string{}, nil)
 	resp, err := pd.Route(req)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -215,7 +215,7 @@ func TestRouteNilRequest(t *testing.T) {
 // TestRouteNoHandler tests routing when no handler is registered
 func TestRouteNoHandler(t *testing.T) {
 	pd := NewProtocolDetector()
-	req := NewBaseRequest("GET", "/api/users", map[string]string{}, nil, context.Background())
+	req := NewBaseRequest(context.Background(), "GET", "/api/users", map[string]string{}, nil)
 
 	_, err := pd.Route(req)
 	if err == nil {
@@ -350,11 +350,11 @@ func TestProtocolDetectorMetricsIncludesPostureFields(t *testing.T) {
 func TestDetectProtocolPriority(t *testing.T) {
 	// GraphQL should be detected before WebSocket
 	pd := NewProtocolDetector()
-	req := NewBaseRequest("POST", "/graphql", map[string]string{
+	req := NewBaseRequest(context.Background(), "POST", "/graphql", map[string]string{
 		"Content-Type": "application/json",
 		"Upgrade":      "websocket",
 		"Connection":   "Upgrade",
-	}, []byte(`{"query":"{ users { id } }"}`), context.Background())
+	}, []byte(`{"query":"{ users { id } }"}`))
 
 	protocol := pd.DetectProtocol(req)
 	if protocol != ProtocolGraphQL {
@@ -365,10 +365,10 @@ func TestDetectProtocolPriority(t *testing.T) {
 // TestDetectProtocolCaseInsensitive tests case-insensitive protocol detection
 func TestDetectProtocolCaseInsensitive(t *testing.T) {
 	pd := NewProtocolDetector()
-	req := NewBaseRequest("GET", "/ws", map[string]string{
+	req := NewBaseRequest(context.Background(), "GET", "/ws", map[string]string{
 		"Upgrade":    "WebSocket",
 		"Connection": "upgrade",
-	}, nil, context.Background())
+	}, nil)
 
 	protocol := pd.DetectProtocol(req)
 	if protocol != ProtocolWebSocket {
@@ -409,7 +409,7 @@ func TestConcurrentDetection(t *testing.T) {
 	done := make(chan bool, 10)
 	for i := 0; i < 10; i++ {
 		go func() {
-			req := NewBaseRequest("GET", "/api", map[string]string{}, nil, context.Background())
+			req := NewBaseRequest(context.Background(), "GET", "/api", map[string]string{}, nil)
 			protocol := pd.DetectProtocol(req)
 			if protocol != ProtocolHTTP {
 				t.Errorf("expected ProtocolHTTP, got %v", protocol)

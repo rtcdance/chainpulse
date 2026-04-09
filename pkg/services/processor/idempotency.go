@@ -59,8 +59,8 @@ type DefaultIdempotencyService struct {
 // NewDefaultIdempotencyService creates a new idempotency service
 func NewDefaultIdempotencyService(logger core.Logger, metricsCollector core.MetricsCollector) *DefaultIdempotencyService {
 	return &DefaultIdempotencyService{
-		processedHashes: make(map[string]bool),
-		logger:          logger,
+		processedHashes:  make(map[string]bool),
+		logger:           logger,
 		metricsCollector: metricsCollector,
 	}
 }

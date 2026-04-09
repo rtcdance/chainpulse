@@ -15,16 +15,16 @@ type ConsulClient interface {
 
 // ServiceInfo represents a registered service
 type ServiceInfo struct {
-	ID              string
-	Name            string
-	Address         string
-	Port            int
-	Tags            []string
-	HealthCheckURL  string
-	Metadata        map[string]string
-	RegisteredAt    time.Time
-	LastHeartbeat   time.Time
-	Status          string // "healthy", "unhealthy", "unknown"
+	ID             string
+	Name           string
+	Address        string
+	Port           int
+	Tags           []string
+	HealthCheckURL string
+	Metadata       map[string]string
+	RegisteredAt   time.Time
+	LastHeartbeat  time.Time
+	Status         string // "healthy", "unhealthy", "unknown"
 }
 
 // ServiceRegistry manages service registration and discovery
@@ -84,7 +84,7 @@ func (sr *ServiceRegistry) DeregisterService(ctx context.Context, serviceID stri
 }
 
 // GetService retrieves a service by ID
-func (sr *ServiceRegistry) GetService(ctx context.Context, serviceID string) (*ServiceInfo, error) {
+func (sr *ServiceRegistry) GetService(_ context.Context, serviceID string) (*ServiceInfo, error) {
 	sr.mutex.RLock()
 	defer sr.mutex.RUnlock()
 

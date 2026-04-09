@@ -6,33 +6,33 @@ import (
 	"sync"
 	"time"
 
-	"github.com/go-redis/redis/v8"
 	"chainpulse/pkg/core"
+	"github.com/go-redis/redis/v8"
 )
 
 // RedisMQPlugin represents the Redis message queue plugin
 type RedisMQPlugin struct {
-	name                 string
-	version              string
-	config               *core.Config
-	logger               core.Logger
-	metricsCollector     core.MetricsCollector
-	eventBus             core.EventBus
-	isInitialized        bool
-	isRunning            bool
-	mu                   sync.RWMutex
-	client               *redis.Client
-	messageCount         int64
-	errorCount           int64
-	lastError            error
-	lastErrorTime        time.Time
-	deadLetterQueueSize  int64
-	processingTime       int64
-	batchSize            int
-	maxRetries           int
-	retryDelay           time.Duration
-	connectionURL        string
-	offsetTracking       map[string]int64
+	name                string
+	version             string
+	config              *core.Config
+	logger              core.Logger
+	metricsCollector    core.MetricsCollector
+	eventBus            core.EventBus
+	isInitialized       bool
+	isRunning           bool
+	mu                  sync.RWMutex
+	client              *redis.Client
+	messageCount        int64
+	errorCount          int64
+	lastError           error
+	lastErrorTime       time.Time
+	deadLetterQueueSize int64
+	processingTime      int64
+	batchSize           int
+	maxRetries          int
+	retryDelay          time.Duration
+	connectionURL       string
+	offsetTracking      map[string]int64
 }
 
 // NewRedisMQPlugin creates a new Redis message queue plugin
@@ -471,7 +471,7 @@ func (p *RedisMQPlugin) GetLastBlockNumber() uint64 {
 }
 
 // SetLastBlockNumber sets the last block number processed
-func (p *RedisMQPlugin) SetLastBlockNumber(blockNumber uint64) {
+func (p *RedisMQPlugin) SetLastBlockNumber(_ uint64) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	// Not used for Redis MQ

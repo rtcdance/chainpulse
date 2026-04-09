@@ -6,8 +6,8 @@ import (
 	"sync"
 	"time"
 
-	"chainpulse/pkg/infrastructure/processing"
 	"chainpulse/pkg/core"
+	"chainpulse/pkg/infrastructure/processing"
 )
 
 // DistributedCache defines the interface for distributed caching
@@ -19,32 +19,32 @@ type DistributedCache interface {
 
 // BlockchainCluster represents a cluster for a specific blockchain
 type BlockchainCluster struct {
-	mu                    sync.RWMutex
-	id                    string
-	blockchainType        string // "EVM", "Cosmos", "Solana"
-	instances             map[string]*BlockchainInstance
-	dataStore             processing.EventStore
-	minInstances          int
-	maxInstances          int
-	currentInstances      int
-	metrics               *BlockchainMetrics
-	isolationLevel        string // "strict", "moderate", "loose"
-	lastHealthCheckTime   time.Time
+	mu                  sync.RWMutex
+	id                  string
+	blockchainType      string // "EVM", "Cosmos", "Solana"
+	instances           map[string]*BlockchainInstance
+	dataStore           processing.EventStore
+	minInstances        int
+	maxInstances        int
+	currentInstances    int
+	metrics             *BlockchainMetrics
+	isolationLevel      string // "strict", "moderate", "loose"
+	lastHealthCheckTime time.Time
 }
 
 // BlockchainInstance represents an instance in a blockchain cluster
 type BlockchainInstance struct {
-	ID                string
-	BlockchainType    string
-	Status            string // "running", "syncing", "stopped"
-	CurrentBlock      uint64
-	SyncedBlock       uint64
-	PendingEvents     int
-	ProcessedEvents   int64
-	ErrorCount        int64
-	LastHealthCheck   time.Time
-	CreatedAt         time.Time
-	Metrics           *InstanceMetrics
+	ID              string
+	BlockchainType  string
+	Status          string // "running", "syncing", "stopped"
+	CurrentBlock    uint64
+	SyncedBlock     uint64
+	PendingEvents   int
+	ProcessedEvents int64
+	ErrorCount      int64
+	LastHealthCheck time.Time
+	CreatedAt       time.Time
+	Metrics         *InstanceMetrics
 }
 
 // InstanceMetrics tracks instance-level metrics
@@ -60,15 +60,15 @@ type InstanceMetrics struct {
 
 // BlockchainMetrics tracks cluster-level metrics
 type BlockchainMetrics struct {
-	mu                    sync.RWMutex
-	InstancesDeployed     int
-	InstancesHealthy      int
-	InstancesUnhealthy    int
-	EventsProcessed       int64
-	EventsFailed          int64
-	AverageLatency        time.Duration
-	TotalProcessingTime   time.Duration
-	LastProcessedTime     time.Time
+	mu                      sync.RWMutex
+	InstancesDeployed       int
+	InstancesHealthy        int
+	InstancesUnhealthy      int
+	EventsProcessed         int64
+	EventsFailed            int64
+	AverageLatency          time.Duration
+	TotalProcessingTime     time.Duration
+	LastProcessedTime       time.Time
 	DataIsolationViolations int64
 }
 
@@ -137,6 +137,7 @@ func (bc *BlockchainCluster) ProcessEvent(ctx context.Context, event *core.Block
 	for _, instance := range bc.instances {
 		if instance.Status == "running" {
 			selectedInstance = instance
+
 			break
 		}
 	}
@@ -268,14 +269,14 @@ type MultiBlockchainClusterManager struct {
 
 // MultiClusterMetrics tracks metrics across all clusters
 type MultiClusterMetrics struct {
-	mu                    sync.RWMutex
-	TotalClusters         int
-	TotalInstances        int
-	TotalEventsProcessed  int64
-	TotalEventsFailed     int64
-	AverageLatency        time.Duration
-	TotalProcessingTime   time.Duration
-	LastProcessedTime     time.Time
+	mu                   sync.RWMutex
+	TotalClusters        int
+	TotalInstances       int
+	TotalEventsProcessed int64
+	TotalEventsFailed    int64
+	AverageLatency       time.Duration
+	TotalProcessingTime  time.Duration
+	LastProcessedTime    time.Time
 }
 
 // NewMultiBlockchainClusterManager creates a new multi-blockchain cluster manager
@@ -365,12 +366,12 @@ func (mcm *MultiBlockchainClusterManager) GetMetrics() map[string]interface{} {
 	}
 
 	return map[string]interface{}{
-		"total_clusters":          len(mcm.clusters),
-		"total_instances":         totalInstances,
-		"total_events_processed":  totalEventsProcessed,
-		"total_events_failed":     totalEventsFailed,
-		"average_latency":         mcm.metrics.AverageLatency.String(),
-		"total_processing_time":   mcm.metrics.TotalProcessingTime.String(),
-		"last_processed_time":     mcm.metrics.LastProcessedTime,
+		"total_clusters":         len(mcm.clusters),
+		"total_instances":        totalInstances,
+		"total_events_processed": totalEventsProcessed,
+		"total_events_failed":    totalEventsFailed,
+		"average_latency":        mcm.metrics.AverageLatency.String(),
+		"total_processing_time":  mcm.metrics.TotalProcessingTime.String(),
+		"last_processed_time":    mcm.metrics.LastProcessedTime,
 	}
 }

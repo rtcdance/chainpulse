@@ -10,6 +10,10 @@ import (
 	"github.com/golang-jwt/jwt/v4"
 )
 
+type contextKey string
+
+const userContextKey contextKey = "user"
+
 // Claims represents the JWT claims
 type Claims struct {
 	UserID string `json:"user_id"`
@@ -17,20 +21,20 @@ type Claims struct {
 	jwt.RegisteredClaims
 }
 
-// AuthMiddleware handles JWT token authentication
-type AuthMiddleware struct {
+// Middleware handles JWT token authentication.
+type Middleware struct {
 	JWTSecret string
 }
 
 // NewAuthMiddleware creates a new authentication middleware
-func NewAuthMiddleware(jwtSecret string) *AuthMiddleware {
-	return &AuthMiddleware{
+func NewAuthMiddleware(jwtSecret string) *Middleware {
+	return &Middleware{
 		JWTSecret: jwtSecret,
 	}
 }
 
 // Middleware is the actual middleware function
-func (am *AuthMiddleware) Middleware(next http.Handler) http.Handler {
+func (am *Middleware) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Extract token from Authorization header
 		authHeader := r.Header.Get("Authorization")
@@ -58,13 +62,13 @@ func (am *AuthMiddleware) Middleware(next http.Handler) http.Handler {
 		}
 
 		// Add claims to the request context
-		ctx := context.WithValue(r.Context(), "user", claims)
+		ctx := context.WithValue(r.Context(), userContextKey, claims)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
 
 // GenerateToken creates a new JWT token
-func (am *AuthMiddleware) GenerateToken(userID, role string) (string, error) {
+func (am *Middleware) GenerateToken(userID, role string) (string, error) {
 	claims := &Claims{
 		UserID: userID,
 		Role:   role,
@@ -80,7 +84,7 @@ func (am *AuthMiddleware) GenerateToken(userID, role string) (string, error) {
 }
 
 // ValidateToken validates a JWT token and returns the claims
-func (am *AuthMiddleware) ValidateToken(tokenString string) (*Claims, error) {
+func (am *Middleware) ValidateToken(tokenString string) (*Claims, error) {
 	claims := &Claims{}
 
 	token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
@@ -104,14 +108,14 @@ func (am *AuthMiddleware) ValidateToken(tokenString string) (*Claims, error) {
 
 // GetUserFromContext retrieves user claims from the request context
 func GetUserFromContext(ctx context.Context) *Claims {
-	if user, ok := ctx.Value("user").(*Claims); ok {
+	if user, ok := ctx.Value(userContextKey).(*Claims); ok {
 		return user
 	}
 	return nil
 }
 
 // RequireRole creates a middleware that checks if the user has the required role
-func (am *AuthMiddleware) RequireRole(requiredRole string) func(http.Handler) http.Handler {
+func (am *Middleware) RequireRole(requiredRole string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			user := GetUserFromContext(r.Context())

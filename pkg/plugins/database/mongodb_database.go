@@ -212,7 +212,7 @@ func (m *MongoDBDatabase) QueryEvents(filter *core.EventFilter) (*core.QueryResu
 	// In a real implementation, we would query MongoDB here
 	// For now, we filter from the in-memory cache
 
-	var events []core.BlockchainEvent
+	events := make([]core.BlockchainEvent, 0, len(m.events))
 
 	m.eventsMu.RLock()
 	for _, event := range m.events {
@@ -384,7 +384,7 @@ func (m *MongoDBDatabase) GetAllEvents(ctx context.Context) ([]*core.BlockchainE
 	m.eventsMu.RLock()
 	defer m.eventsMu.RUnlock()
 
-	var events []*core.BlockchainEvent
+	events := make([]*core.BlockchainEvent, 0, len(m.events))
 	for _, event := range m.events {
 		events = append(events, event)
 	}

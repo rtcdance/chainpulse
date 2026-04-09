@@ -160,6 +160,7 @@ func (eb *DefaultEventBus) Unsubscribe(topic string, handler func(interface{})) 
 		// This is a limitation of Go's function comparison
 		if i == len(handlers)-1 {
 			eb.subscribers[topic] = handlers[:i]
+
 			break
 		}
 	}

@@ -9,18 +9,22 @@ import (
 
 // ConfigurationService provides advanced configuration management
 type ConfigurationService struct {
-	configManager *ConfigManager
-	versionedCM   *VersionedConfigManager
-	validators    map[string]ConfigValidator
+	configManager  *ConfigManager
+	versionedCM    *VersionedConfigManager
+	validators     map[string]ConfigValidator
 	validatorMutex sync.RWMutex
-	updateHooks   map[string][]ConfigUpdateHook
-	hookMutex     sync.RWMutex
+	updateHooks    map[string][]ConfigUpdateHook
+	hookMutex      sync.RWMutex
 }
 
-// ConfigValidator validates configuration values
+// ConfigValidator validates configuration values.
+//
+//nolint:exported // Renaming would break many external uses.
 type ConfigValidator func(key, value string) error
 
-// ConfigUpdateHook is called when configuration is updated
+// ConfigUpdateHook is called when configuration is updated.
+//
+//nolint:exported // Renaming would break many external uses.
 type ConfigUpdateHook func(key, oldValue, newValue string) error
 
 // NewConfigurationService creates a new configuration service

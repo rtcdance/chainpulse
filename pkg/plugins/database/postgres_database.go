@@ -7,20 +7,20 @@ import (
 	"sync"
 	"time"
 
-	_ "github.com/lib/pq"
 	"chainpulse/pkg/core"
+	_ "github.com/lib/pq" // PostgreSQL driver for database/sql
 )
 
 // PostgreSQLDatabase implements DatabasePlugin for PostgreSQL
 type PostgreSQLDatabase struct {
 	*BaseDatabasePlugin
-	db              *sql.DB
-	connectionPool  *sql.DB
-	maxConnections  int
-	queryTimeout    time.Duration
-	mu              sync.RWMutex
-	events          map[string]*core.BlockchainEvent // in-memory cache for testing
-	eventsMu        sync.RWMutex
+	db             *sql.DB
+	connectionPool *sql.DB
+	maxConnections int
+	queryTimeout   time.Duration
+	mu             sync.RWMutex
+	events         map[string]*core.BlockchainEvent // in-memory cache for testing
+	eventsMu       sync.RWMutex
 }
 
 // NewPostgreSQLDatabase creates a new PostgreSQL database plugin

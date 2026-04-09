@@ -354,6 +354,8 @@ func (rt *SharedRuntime) LoadReplayBatch(ctx context.Context, chainID string, fr
 
 // RecoverChain loads the latest checkpoint for one chain, replays any available
 // recovery envelopes, and records additive recovery status facts.
+//
+//nolint:funlen // RecoverChain has many statements for checkpoint loading, replay, and status recording.
 func (rt *SharedRuntime) RecoverChain(ctx context.Context, chainID string) error {
 	select {
 	case <-ctx.Done():

@@ -23,9 +23,9 @@ func TestIntegration_HTTPRequestFlow(t *testing.T) {
 	}
 
 	// Create HTTP request
-	req := NewBaseRequest("GET", "/api/users", map[string]string{
+	req := NewBaseRequest(context.Background(), "GET", "/api/users", map[string]string{
 		"Content-Type": "application/json",
-	}, nil, context.Background())
+	}, nil)
 
 	// Detect protocol
 	protocol := detector.DetectProtocol(req)
@@ -66,10 +66,10 @@ func TestIntegration_WebSocketRequestFlow(t *testing.T) {
 	}
 
 	// Create WebSocket request
-	req := NewBaseRequest("GET", "/ws", map[string]string{
+	req := NewBaseRequest(context.Background(), "GET", "/ws", map[string]string{
 		"Upgrade":     "websocket",
 		"Connection":  "Upgrade",
-	}, nil, context.Background())
+	}, nil)
 
 	// Detect protocol
 	protocol := detector.DetectProtocol(req)
@@ -107,10 +107,10 @@ func TestIntegration_GRPCRequestFlow(t *testing.T) {
 	}
 
 	// Create gRPC request
-	req := NewBaseRequest("POST", "/api.Service/Method", map[string]string{
+	req := NewBaseRequest(context.Background(), "POST", "/api.Service/Method", map[string]string{
 		"Content-Type":   "application/grpc",
 		"grpc-encoding":  "gzip",
-	}, []byte{0, 0, 0, 0, 2, 123, 125}, context.Background())
+	}, []byte{0, 0, 0, 0, 2, 123, 125})
 
 	// Detect protocol
 	protocol := detector.DetectProtocol(req)
@@ -148,9 +148,9 @@ func TestIntegration_GraphQLRequestFlow(t *testing.T) {
 	}
 
 	// Create GraphQL request
-	req := NewBaseRequest("POST", "/graphql", map[string]string{
+	req := NewBaseRequest(context.Background(), "POST", "/graphql", map[string]string{
 		"Content-Type": "application/json",
-	}, []byte(`{"query":"{ users { id } }"}`), context.Background())
+	}, []byte(`{"query":"{ users { id } }"}`))
 
 	// Detect protocol
 	protocol := detector.DetectProtocol(req)
@@ -221,34 +221,34 @@ func TestIntegration_MultiProtocolDetection(t *testing.T) {
 	}{
 		{
 			name: "HTTP",
-			req: NewBaseRequest("GET", "/api", map[string]string{
+			req: NewBaseRequest(context.Background(), "GET", "/api", map[string]string{
 				"Content-Type": "application/json",
-			}, nil, context.Background()),
+			}, nil),
 			expected: ProtocolHTTP,
 			body:     "HTTP",
 		},
 		{
 			name: "WebSocket",
-			req: NewBaseRequest("GET", "/ws", map[string]string{
+			req: NewBaseRequest(context.Background(), "GET", "/ws", map[string]string{
 				"Upgrade":    "websocket",
 				"Connection": "Upgrade",
-			}, nil, context.Background()),
+			}, nil),
 			expected: ProtocolWebSocket,
 			body:     "WebSocket",
 		},
 		{
 			name: "gRPC",
-			req: NewBaseRequest("POST", "/api.Service/Method", map[string]string{
+			req: NewBaseRequest(context.Background(), "POST", "/api.Service/Method", map[string]string{
 				"Content-Type": "application/grpc",
-			}, nil, context.Background()),
+			}, nil),
 			expected: ProtocolGRPC,
 			body:     "gRPC",
 		},
 		{
 			name: "GraphQL",
-			req: NewBaseRequest("POST", "/graphql", map[string]string{
+			req: NewBaseRequest(context.Background(), "POST", "/graphql", map[string]string{
 				"Content-Type": "application/json",
-			}, []byte(`{"query":"{}"}`), context.Background()),
+			}, []byte(`{"query":"{}"}`)),
 			expected: ProtocolGraphQL,
 			body:     "GraphQL",
 		},
@@ -294,9 +294,9 @@ func TestIntegration_RequestResponseConsistency(t *testing.T) {
 
 	// Create request
 	body := []byte(`{"test":"data"}`)
-	req := NewBaseRequest("POST", "/api/test", map[string]string{
+	req := NewBaseRequest(context.Background(), "POST", "/api/test", map[string]string{
 		"Content-Type": "application/json",
-	}, body, context.Background())
+	}, body)
 
 	// Route request
 	resp, err := detector.Route(req)
@@ -336,7 +336,7 @@ func TestIntegration_ErrorHandling(t *testing.T) {
 	}
 
 	// Create request
-	req := NewBaseRequest("GET", "/api/error", map[string]string{}, nil, context.Background())
+	req := NewBaseRequest(context.Background(), "GET", "/api/error", map[string]string{}, nil)
 
 	// Route request
 	resp, err := detector.Route(req)
@@ -362,11 +362,11 @@ func TestIntegration_ProtocolPriority(t *testing.T) {
 	}
 
 	// Create request that could match multiple protocols
-	req := NewBaseRequest("POST", "/graphql", map[string]string{
+	req := NewBaseRequest(context.Background(), "POST", "/graphql", map[string]string{
 		"Upgrade":      "websocket",
 		"Connection":   "Upgrade",
 		"Content-Type": "application/json",
-	}, []byte(`{"query":"{}"}`), context.Background())
+	}, []byte(`{"query":"{}"}`))
 
 	// GraphQL should be detected first (highest priority)
 	protocol := detector.DetectProtocol(req)
@@ -395,7 +395,7 @@ func TestIntegration_ConcurrentRequests(t *testing.T) {
 	done := make(chan bool, 10)
 	for i := 0; i < 10; i++ {
 		go func(idx int) {
-			req := NewBaseRequest("GET", "/api", map[string]string{}, nil, context.Background())
+			req := NewBaseRequest(context.Background(), "GET", "/api", map[string]string{}, nil)
 			resp, err := detector.Route(req)
 
 			if err != nil {
@@ -441,9 +441,9 @@ func TestIntegration_FullRequestLifecycle(t *testing.T) {
 	}
 
 	// Create request
-	req := NewBaseRequest("GET", "/api/users", map[string]string{
+	req := NewBaseRequest(context.Background(), "GET", "/api/users", map[string]string{
 		"Content-Type": "application/json",
-	}, nil, context.Background())
+	}, nil)
 
 	// Detect and route
 	protocol := detector.DetectProtocol(req)

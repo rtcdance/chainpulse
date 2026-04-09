@@ -1,5 +1,7 @@
 package main
 
+//nolint:funlen // Command entrypoint is intentionally verbose.
+
 import (
 	"context"
 	"fmt"

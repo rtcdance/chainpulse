@@ -50,7 +50,7 @@ func TestNewBaseRequest(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req := NewBaseRequest(tt.method, tt.path, tt.headers, tt.body, tt.ctx)
+			req := NewBaseRequest(tt.ctx, tt.method, tt.path, tt.headers, tt.body)
 
 			if req == nil {
 				t.Fatal("expected request, got nil")
@@ -77,7 +77,7 @@ func TestBaseRequestHeaders(t *testing.T) {
 		"Authorization": "Bearer token",
 	}
 
-	req := NewBaseRequest("GET", "/api/users", headers, []byte(""), context.Background())
+	req := NewBaseRequest(context.Background(), "GET", "/api/users", headers, []byte(""))
 
 	// Test Headers()
 	if len(req.Headers()) != len(headers) {
@@ -100,7 +100,7 @@ func TestBaseRequestHeaders(t *testing.T) {
 
 func TestBaseRequestBody(t *testing.T) {
 	body := []byte(`{"name":"test"}`)
-	req := NewBaseRequest("POST", "/api/users", nil, body, context.Background())
+	req := NewBaseRequest(context.Background(), "POST", "/api/users", nil, body)
 
 	if string(req.Body()) != string(body) {
 		t.Errorf("expected body %s, got %s", string(body), string(req.Body()))
@@ -108,7 +108,7 @@ func TestBaseRequestBody(t *testing.T) {
 }
 
 func TestBaseRequestQueryParams(t *testing.T) {
-	req := NewBaseRequest("GET", "/api/users", nil, []byte(""), context.Background())
+	req := NewBaseRequest(context.Background(), "GET", "/api/users", nil, []byte(""))
 
 	// Set query params
 	req.SetQuery(map[string]string{
@@ -130,7 +130,7 @@ func TestBaseRequestQueryParams(t *testing.T) {
 }
 
 func TestBaseRequestPathParams(t *testing.T) {
-	req := NewBaseRequest("GET", "/api/users/:id", nil, []byte(""), context.Background())
+	req := NewBaseRequest(context.Background(), "GET", "/api/users/:id", nil, []byte(""))
 
 	// Set path params
 	req.SetPathParam("id", "123")
@@ -146,7 +146,7 @@ func TestBaseRequestPathParams(t *testing.T) {
 
 func TestBaseRequestContext(t *testing.T) {
 	ctx := context.WithValue(context.Background(), testKey, "value")
-	req := NewBaseRequest("GET", "/api/users", nil, []byte(""), ctx)
+	req := NewBaseRequest(ctx, "GET", "/api/users", nil, []byte(""))
 
 	if req.Context().Value(testKey) != "value" {
 		t.Error("expected context value")
@@ -154,7 +154,7 @@ func TestBaseRequestContext(t *testing.T) {
 }
 
 func TestBaseRequestRuntimeMetricsStaged(t *testing.T) {
-	req := NewBaseRequest("GET", "/health", nil, nil, context.Background())
+	req := NewBaseRequest(context.Background(), "GET", "/health", nil, nil)
 
 	metrics := req.GetRuntimeMetrics()
 	if metrics["coverage_posture"] != "request-minimal" {
@@ -166,9 +166,9 @@ func TestBaseRequestRuntimeMetricsStaged(t *testing.T) {
 }
 
 func TestBaseRequestRuntimeMetricsReady(t *testing.T) {
-	req := NewBaseRequest("POST", "/api/users/123", map[string]string{
+	req := NewBaseRequest(context.Background(), "POST", "/api/users/123", map[string]string{
 		"Content-Type": "application/json",
-	}, []byte(`{"name":"alice"}`), context.Background())
+	}, []byte(`{"name":"alice"}`))
 	req.SetQuery(map[string]string{"verbose": "true"})
 	req.SetPathParam("id", "123")
 
@@ -182,7 +182,7 @@ func TestBaseRequestRuntimeMetricsReady(t *testing.T) {
 }
 
 func TestBaseRequestRuntimeMetricsDegraded(t *testing.T) {
-	req := NewBaseRequest("", "", nil, nil, context.Background())
+	req := NewBaseRequest(context.Background(), "", "", nil, nil)
 
 	metrics := req.GetRuntimeMetrics()
 	if metrics["runtime_posture"] != "request-degraded" {
@@ -191,7 +191,7 @@ func TestBaseRequestRuntimeMetricsDegraded(t *testing.T) {
 }
 
 func TestBaseRequestImplementsInterface(t *testing.T) {
-	req := NewBaseRequest("GET", "/api/users", nil, []byte(""), context.Background())
+	req := NewBaseRequest(context.Background(), "GET", "/api/users", nil, []byte(""))
 
 	// Verify it implements Request interface
 	var _ Request = req

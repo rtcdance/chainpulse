@@ -77,6 +77,7 @@ func newMonolithicPullerRuntime(
 	database core.DatabasePlugin,
 	multiChainIndexer *indexing.MultiChainIndexer,
 ) (*monolithicPullerRuntime, error) {
+	//nolint:funlen // Runtime initializer has many setup steps.
 	nodeURLs, err := parseNodeURLs(rawNodeURLs)
 	if err != nil {
 		return nil, err
@@ -376,6 +377,7 @@ func (m *monolithicPullerRuntime) ReorgStatus() monolithicReorgSummary {
 }
 
 func (m *monolithicPullerRuntime) PullerStatus() monolithicPullerSummary {
+	//nolint:funlen // Status builder has many field assignments.
 	summary := monolithicPullerSummary{
 		PullerCount:    len(m.pullers),
 		ControlTarget:  pluginapi.RuntimeControlTargetPollingLoop,

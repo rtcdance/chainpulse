@@ -82,6 +82,7 @@ func buildEventProcessorRuntimeRolloutState(
 	processorRuntime eventProcessorProcessorHealthProvider,
 	consumeRuntime eventProcessorConsumeRuntimeProvider,
 ) eventProcessorRolloutRuntimeState {
+	//nolint:funlen // Runtime state builder has many field assignments.
 	state := eventProcessorRolloutRuntimeState{
 		KafkaReady:            kafkaHealth != nil,
 		EventStoreReady:       eventStore != nil,
@@ -179,6 +180,7 @@ func buildEventProcessorRuntimeComponentStatus(runtimeState eventProcessorRollou
 }
 
 func buildEventProcessorRuntimeReadinessDetails(runtimeState eventProcessorRolloutRuntimeState) map[string]interface{} {
+	//nolint:funlen // Readiness details builder has many field assignments.
 	completeness := classifyEventProcessorRolloutWiringCompleteness(runtimeState)
 
 	details := map[string]interface{}{

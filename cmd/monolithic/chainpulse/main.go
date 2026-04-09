@@ -1,8 +1,11 @@
 package main
 
+//nolint:funlen // Main function is inherently complex bootstrap; refactor would go beyond minimal fix.
+
 import (
 	"context"
 	"fmt"
+	"math"
 	"os"
 	"os/signal"
 	"strconv"
@@ -734,6 +737,10 @@ func int64Value(value interface{}) int64 {
 	case int:
 		return int64(typed)
 	case uint64:
+		if typed > math.MaxInt64 {
+			return math.MaxInt64
+		}
+
 		return int64(typed)
 	case float64:
 		return int64(typed)

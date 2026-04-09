@@ -14,7 +14,7 @@ func TestHandlerFunc(t *testing.T) {
 		return resp, nil
 	})
 
-	req := NewBaseRequest("GET", "/test", nil, []byte(""), context.Background())
+	req := NewBaseRequest(context.Background(), "GET", "/test", nil, []byte(""))
 	resp, err := handler.Handle(req)
 
 	if err != nil {
@@ -169,7 +169,7 @@ func TestAPIRouterHandle(t *testing.T) {
 
 	router.Register("/api/users", handler)
 
-	req := NewBaseRequest("GET", "/api/users", nil, []byte(""), context.Background())
+	req := NewBaseRequest(context.Background(), "GET", "/api/users", nil, []byte(""))
 	resp, err := router.Handle(req)
 
 	if err != nil {
@@ -184,7 +184,7 @@ func TestAPIRouterHandle(t *testing.T) {
 func TestAPIRouterHandleNotFound(t *testing.T) {
 	router := NewAPIRouter()
 
-	req := NewBaseRequest("GET", "/api/nonexistent", nil, []byte(""), context.Background())
+	req := NewBaseRequest(context.Background(), "GET", "/api/nonexistent", nil, []byte(""))
 	resp, err := router.Handle(req)
 
 	if err == nil {
@@ -220,7 +220,7 @@ func TestAPIRouterMiddleware(t *testing.T) {
 
 	router.Register("/api/users", handler)
 
-	req := NewBaseRequest("GET", "/api/users", nil, []byte(""), context.Background())
+	req := NewBaseRequest(context.Background(), "GET", "/api/users", nil, []byte(""))
 	resp, err := router.Handle(req)
 
 	if err != nil {
@@ -286,7 +286,7 @@ func TestAPILayerRegisterHandler(t *testing.T) {
 	layer.RegisterHandler("/api/users", handler)
 
 	// Verify handler is registered
-	req := NewBaseRequest("GET", "/api/users", nil, []byte(""), context.Background())
+	req := NewBaseRequest(context.Background(), "GET", "/api/users", nil, []byte(""))
 	resp := layer.Handle(req)
 
 	if resp.Status() != 200 {
@@ -306,7 +306,7 @@ func TestAPILayerHandle(t *testing.T) {
 
 	layer.RegisterHandler("/api/users", handler)
 
-	req := NewBaseRequest("GET", "/api/users", nil, []byte(""), context.Background())
+	req := NewBaseRequest(context.Background(), "GET", "/api/users", nil, []byte(""))
 	resp := layer.Handle(req)
 
 	if resp.Status() != 200 {
@@ -323,7 +323,7 @@ func TestAPILayerHandleError(t *testing.T) {
 
 	layer.RegisterHandler("/api/users", handler)
 
-	req := NewBaseRequest("GET", "/api/users", nil, []byte(""), context.Background())
+	req := NewBaseRequest(context.Background(), "GET", "/api/users", nil, []byte(""))
 	resp := layer.Handle(req)
 
 	if resp.Status() != 500 {
@@ -343,7 +343,7 @@ func TestAPILayerSetErrorMapper(t *testing.T) {
 
 	layer.RegisterHandler("/api/users", handler)
 
-	req := NewBaseRequest("GET", "/api/users", nil, []byte(""), context.Background())
+	req := NewBaseRequest(context.Background(), "GET", "/api/users", nil, []byte(""))
 	resp := layer.Handle(req)
 
 	if resp.Status() != 418 {
@@ -374,7 +374,7 @@ func TestAPILayerMiddleware(t *testing.T) {
 
 	layer.RegisterHandler("/api/users", handler)
 
-	req := NewBaseRequest("GET", "/api/users", nil, []byte(""), context.Background())
+	req := NewBaseRequest(context.Background(), "GET", "/api/users", nil, []byte(""))
 	resp := layer.Handle(req)
 
 	if resp.Header("X-Middleware") != "applied" {

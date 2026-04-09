@@ -10,12 +10,12 @@ import (
 
 // PostgresReplicationConfig represents PostgreSQL replication configuration
 type PostgresReplicationConfig struct {
-	PrimaryAddress  string
-	ReplicaAddresses []string
-	SyncInterval    time.Duration
-	MaxSyncRetries  int
-	WALLevel        string // "minimal", "replica", "logical"
-	MaxWALSenders   int
+	PrimaryAddress      string
+	ReplicaAddresses    []string
+	SyncInterval        time.Duration
+	MaxSyncRetries      int
+	WALLevel            string // "minimal", "replica", "logical"
+	MaxWALSenders       int
 	MaxReplicationSlots int
 }
 
@@ -136,7 +136,7 @@ func (pam *PostgresAdvancedManager) ConfigureFailover(ctx context.Context, confi
 }
 
 // SetupBackupStrategy sets up backup strategy
-func (pam *PostgresAdvancedManager) SetupBackupStrategy(ctx context.Context, backupPath string, retentionDays int) error {
+func (pam *PostgresAdvancedManager) SetupBackupStrategy(ctx context.Context, backupPath string, _ int) error {
 	pam.mutex.Lock()
 	defer pam.mutex.Unlock()
 
@@ -162,7 +162,7 @@ func (pam *PostgresAdvancedManager) SetupBackupStrategy(ctx context.Context, bac
 }
 
 // CreateBackup creates a backup of the database
-func (pam *PostgresAdvancedManager) CreateBackup(ctx context.Context, backupPath string) error {
+func (pam *PostgresAdvancedManager) CreateBackup(ctx context.Context, _ string) error {
 	pam.mutex.Lock()
 	defer pam.mutex.Unlock()
 
@@ -234,9 +234,9 @@ func (pam *PostgresAdvancedManager) GetReplicationStatus(ctx context.Context) (R
 
 // ReplicationStatus represents replication status
 type ReplicationStatus struct {
-	ActiveSlots      int
+	ActiveSlots       int
 	ConnectedReplicas int
-	Timestamp        time.Time
+	Timestamp         time.Time
 }
 
 // PostgresClusterMonitor monitors PostgreSQL cluster health

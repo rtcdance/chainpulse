@@ -9,18 +9,20 @@ import (
 	"chainpulse/pkg/core"
 )
 
-// DatabaseStats tracks database performance metrics
+// DatabaseStats tracks database performance metrics.
+//
+//nolint:exported // Renaming would break many external uses.
 type DatabaseStats struct {
-	WriteCount      int64
-	ReadCount       int64
-	DeleteCount     int64
-	ErrorCount      int64
-	TotalSize       int64
-	EventCount      int64
-	AvgWriteTimeMs  float64
-	AvgReadTimeMs   float64
-	LastWriteTime   time.Time
-	LastReadTime    time.Time
+	WriteCount     int64
+	ReadCount      int64
+	DeleteCount    int64
+	ErrorCount     int64
+	TotalSize      int64
+	EventCount     int64
+	AvgWriteTimeMs float64
+	AvgReadTimeMs  float64
+	LastWriteTime  time.Time
+	LastReadTime   time.Time
 }
 
 // BaseDatabasePlugin provides base implementation for database plugins
@@ -39,7 +41,7 @@ type BaseDatabasePlugin struct {
 	totalSize        int64
 	eventCount       int64
 	totalWriteTime   int64 // in milliseconds
-	totalReadTime    int64  // in milliseconds
+	totalReadTime    int64 // in milliseconds
 	lastWriteTime    time.Time
 	lastReadTime     time.Time
 }
@@ -371,7 +373,7 @@ func (p *DefaultInMemoryDatabasePlugin) QueryEvents(filter *core.EventFilter) (*
 	start := time.Now()
 
 	// Filter events
-	var results []core.BlockchainEvent
+	results := make([]core.BlockchainEvent, 0, len(p.events))
 	for _, event := range p.events {
 		// Check contract address filter
 		if len(filter.ContractAddress) > 0 {
@@ -510,7 +512,7 @@ func (p *DefaultInMemoryDatabasePlugin) GetAllEvents(ctx context.Context) ([]*co
 		return nil, fmt.Errorf("database plugin not running")
 	}
 
-	var events []*core.BlockchainEvent
+	events := make([]*core.BlockchainEvent, 0, len(p.events))
 	for _, event := range p.events {
 		events = append(events, event)
 	}

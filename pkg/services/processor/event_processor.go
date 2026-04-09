@@ -13,7 +13,7 @@ import (
 	"chainpulse/pkg/plugins/database"
 )
 
-// EventProcessor processes events from message queue and stores them
+// EventProcessor processes events from message queue and stores them.
 type EventProcessor interface {
 	// Initialize initializes the event processor
 	Initialize(config *core.Config) error
@@ -43,7 +43,7 @@ type EventProcessor interface {
 	GetDuplicateCount() int64
 }
 
-// DefaultEventProcessor provides default event processing implementation
+// DefaultEventProcessor provides default event processing implementation.
 type DefaultEventProcessor struct {
 	mu                 sync.RWMutex
 	initialized        bool
@@ -64,7 +64,7 @@ type DefaultEventProcessor struct {
 	retryDelay         time.Duration
 }
 
-// NewDefaultEventProcessor creates a new event processor
+// NewDefaultEventProcessor creates a new event processor.
 func NewDefaultEventProcessor(
 	logger core.Logger,
 	metricsCollector core.MetricsCollector,
@@ -182,7 +182,9 @@ func (p *DefaultEventProcessor) Health() *core.HealthStatus {
 	}
 }
 
-// ProcessEvent processes a single event
+// ProcessEvent processes a single event.
+//
+//nolint:funlen // ProcessEvent has many statements for validation and processing steps.
 func (p *DefaultEventProcessor) ProcessEvent(event *core.BlockchainEvent) error {
 	if event == nil {
 		return fmt.Errorf("event is required")
@@ -426,10 +428,12 @@ func (p *DefaultEventProcessor) storeEventWithRetry(event *core.BlockchainEvent)
 func boundedRetryMultiplier(attempt int) int {
 	shift := attempt - 1
 	maxShift := bits.UintSize - 2
+
 	if shift < 0 {
 		shift = 0
 	} else if shift > maxShift {
 		shift = maxShift
 	}
+
 	return 1 << shift
 }

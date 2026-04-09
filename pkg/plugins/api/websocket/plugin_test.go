@@ -160,7 +160,7 @@ func TestWebSocketPluginGetConnectionMetricsPlaintextIdle(t *testing.T) {
 
 func TestWebSocketPluginGetConnectionMetricsTLSIdle(t *testing.T) {
 	apiLayer := core.NewAPILayer()
-	plugin := &WebSocketPlugin{
+	plugin := &Plugin{
 		name:       "tls-ws",
 		port:       8098,
 		apiLayer:   apiLayer,

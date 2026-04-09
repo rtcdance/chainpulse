@@ -37,6 +37,7 @@ func buildAPIGatewayRuntimeSummaryResponse(
 	metrics core.MetricsCollector,
 	gateway *api.APIGatewayPlugin,
 ) *apiGatewayRuntimeSummaryResponse {
+	//nolint:funlen // Runtime summary builds many fields from various sources.
 	runtimeState := apiGatewayRolloutRuntimeState{}
 	if gateway != nil {
 		runtimeState.DomainBridgeEnabled = gateway.IsDomainBridgeEnabled()

@@ -27,7 +27,7 @@ func NewMemoryMQ() *MemoryMQ {
 func (m *MemoryMQ) Name() string    { return m.name }
 func (m *MemoryMQ) Version() string { return m.version }
 
-func (m *MemoryMQ) Initialize(config core.Config) error {
+func (m *MemoryMQ) Initialize(_ core.Config) error {
 	return nil
 }
 

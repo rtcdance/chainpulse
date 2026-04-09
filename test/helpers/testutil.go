@@ -57,14 +57,17 @@ func Eventually(t *testing.T, condition func() bool, timeout time.Duration, inte
 }
 
 // Retry executes fn until it succeeds or max attempts reached
-func Retry(t *testing.T, fn func() error, maxAttempts int, interval time.Duration) error {
+func Retry(_ *testing.T, fn func() error, maxAttempts int, interval time.Duration) error {
 	var lastErr error
+
 	for i := 0; i < maxAttempts; i++ {
-		if err := fn(); err == nil {
+		err := fn()
+		if err == nil {
 			return nil
-		} else {
-			lastErr = err
 		}
+
+		lastErr = err
+
 		if i < maxAttempts-1 {
 			time.Sleep(interval)
 		}

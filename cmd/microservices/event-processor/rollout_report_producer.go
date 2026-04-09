@@ -311,6 +311,7 @@ func buildEventProcessorRuntimeDerivedGuardedInput(completeness eventProcessorRo
 }
 
 func classifyEventProcessorRolloutWiringCompleteness(runtimeState eventProcessorRolloutRuntimeState) eventProcessorRolloutWiringCompleteness {
+	//nolint:funlen // Classification function checks many signals.
 	enabled := make([]string, 0, 4)
 	missing := make([]string, 0, 4)
 

@@ -64,12 +64,12 @@ func newEventProcessorConsumeRuntime(
 	topics []string,
 ) *eventProcessorConsumeRuntime {
 	return &eventProcessorConsumeRuntime{
-		logger:       logger,
-		metrics:      metrics,
-		consumer:     consumer,
-		processor:    processor,
-		topics:       append([]string(nil), topics...),
-		activeTopics: make(map[string]bool),
+		logger:        logger,
+		metrics:       metrics,
+		consumer:      consumer,
+		processor:     processor,
+		topics:        append([]string(nil), topics...),
+		activeTopics:  make(map[string]bool),
 		activeCancels: make(map[string]context.CancelFunc),
 		waitCh:        make(chan struct{}),
 	}

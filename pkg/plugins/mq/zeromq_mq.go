@@ -6,8 +6,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/go-zeromq/zmq4"
 	"chainpulse/pkg/core"
+	"github.com/go-zeromq/zmq4"
 )
 
 // ZeroMQProducer represents a ZeroMQ message producer
@@ -26,28 +26,28 @@ type ZeroMQConsumer struct {
 
 // ZeroMQMQPlugin represents the ZeroMQ message queue plugin
 type ZeroMQMQPlugin struct {
-	name                 string
-	version              string
-	config               *core.Config
-	logger               core.Logger
-	metricsCollector     core.MetricsCollector
-	eventBus             core.EventBus
-	isInitialized        bool
-	isRunning            bool
-	mu                   sync.RWMutex
-	producer             *ZeroMQProducer
-	consumers            map[string]*ZeroMQConsumer
-	messageCount         int64
-	errorCount           int64
-	lastError            error
-	lastErrorTime        time.Time
-	deadLetterQueueSize  int64
-	processingTime       int64
-	batchSize            int
-	maxRetries           int
-	retryDelay           time.Duration
-	endpoint             string
-	offsetTracking       map[string]int64
+	name                string
+	version             string
+	config              *core.Config
+	logger              core.Logger
+	metricsCollector    core.MetricsCollector
+	eventBus            core.EventBus
+	isInitialized       bool
+	isRunning           bool
+	mu                  sync.RWMutex
+	producer            *ZeroMQProducer
+	consumers           map[string]*ZeroMQConsumer
+	messageCount        int64
+	errorCount          int64
+	lastError           error
+	lastErrorTime       time.Time
+	deadLetterQueueSize int64
+	processingTime      int64
+	batchSize           int
+	maxRetries          int
+	retryDelay          time.Duration
+	endpoint            string
+	offsetTracking      map[string]int64
 }
 
 // NewZeroMQMQPlugin creates a new ZeroMQ message queue plugin
@@ -499,7 +499,7 @@ func (p *ZeroMQMQPlugin) GetLastBlockNumber() uint64 {
 }
 
 // SetLastBlockNumber sets the last block number processed
-func (p *ZeroMQMQPlugin) SetLastBlockNumber(blockNumber uint64) {
+func (p *ZeroMQMQPlugin) SetLastBlockNumber(_ uint64) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	// Not used for ZeroMQ MQ

@@ -8,9 +8,9 @@ import (
 	"sync"
 	"time"
 
+	"chainpulse/pkg/core"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/gorilla/websocket"
-	"chainpulse/pkg/core"
 )
 
 // WebSocketJSONRPCPuller implements WebSocket-JSONRPC protocol for pulling blockchain events
@@ -317,10 +317,11 @@ func (p *WebSocketJSONRPCPuller) connect() error {
 		HandshakeTimeout: 10 * time.Second,
 	}
 
-	conn, _, err := dialer.Dial(p.nodeURL, nil)
+	conn, resp, err := dialer.Dial(p.nodeURL, nil)
 	if err != nil {
 		return fmt.Errorf("failed to connect to WebSocket: %v", err)
 	}
+	defer resp.Body.Close()
 
 	p.conn = conn
 	p.reconnectCount = 0

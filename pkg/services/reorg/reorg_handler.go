@@ -7,11 +7,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ethereum/go-ethereum/common"
 	"chainpulse/pkg/core"
+	"github.com/ethereum/go-ethereum/common"
 )
 
-// ReorgHandler detects and recovers from blockchain reorganizations
+// ReorgHandler detects and recovers from blockchain reorganizations.
+//
+//nolint:exported // Renaming would break many external uses.
 type ReorgHandler struct {
 	database core.DatabasePlugin
 	logger   core.Logger
@@ -19,17 +21,19 @@ type ReorgHandler struct {
 
 	// State tracking
 	lastKnownBlocks map[uint64]common.Hash // block number -> block hash
-	reorgThreshold  uint64                  // blocks to keep for reorg detection
-	maxRollback     uint64                  // maximum blocks to rollback
+	reorgThreshold  uint64                 // blocks to keep for reorg detection
+	maxRollback     uint64                 // maximum blocks to rollback
 }
 
-// ReorgEvent represents a detected reorganization
+// ReorgEvent represents a detected reorganization.
+//
+//nolint:exported // Renaming would break many external uses.
 type ReorgEvent struct {
-	DetectedAt    time.Time
-	ReorgBlock    uint64
-	BlocksAffected uint64
-	OldBlockHash  common.Hash
-	NewBlockHash  common.Hash
+	DetectedAt       time.Time
+	ReorgBlock       uint64
+	BlocksAffected   uint64
+	OldBlockHash     common.Hash
+	NewBlockHash     common.Hash
 	EventsRolledBack int64
 }
 
@@ -80,8 +84,8 @@ func (rh *ReorgHandler) DetectReorg(
 	rh.logger.Warn(
 		"Reorg detected",
 		map[string]interface{}{
-			"reorg_block": reorgBlock,
-			"current_block": currentBlock,
+			"reorg_block":     reorgBlock,
+			"current_block":   currentBlock,
 			"blocks_affected": currentBlock - reorgBlock + 1,
 		},
 	)
@@ -123,7 +127,7 @@ func (rh *ReorgHandler) HandleReorg(ctx context.Context, reorgBlock uint64) erro
 	rh.logger.Info(
 		"Reorg handled successfully",
 		map[string]interface{}{
-			"reorg_block": reorgBlock,
+			"reorg_block":        reorgBlock,
 			"blocks_rolled_back": blocksToRollback,
 			"events_rolled_back": eventsRolledBack,
 		},
@@ -154,7 +158,7 @@ func (rh *ReorgHandler) RollbackEvents(ctx context.Context, fromBlock uint64) (i
 		"Events rolled back",
 		map[string]interface{}{
 			"from_block": fromBlock,
-			"count": count,
+			"count":      count,
 		},
 	)
 
@@ -218,11 +222,13 @@ func (rh *ReorgHandler) UpdateBlockHash(blockNumber uint64, blockHash common.Has
 
 	// Cleanup old blocks
 	thresholdWindow := rh.reorgThreshold
+
 	if thresholdWindow <= math.MaxUint64/2 {
 		thresholdWindow *= 2
 	} else {
 		thresholdWindow = math.MaxUint64
 	}
+
 	if uint64(len(rh.lastKnownBlocks)) > thresholdWindow {
 		rh.cleanupBlockCache(blockNumber)
 	}

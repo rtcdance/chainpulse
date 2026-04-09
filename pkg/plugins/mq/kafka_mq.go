@@ -747,7 +747,7 @@ func (p *KafkaMQPlugin) GetLastBlockNumber() uint64 {
 }
 
 // SetLastBlockNumber sets the last block number processed
-func (p *KafkaMQPlugin) SetLastBlockNumber(blockNumber uint64) {
+func (p *KafkaMQPlugin) SetLastBlockNumber(_ uint64) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	// Not used for Kafka MQ

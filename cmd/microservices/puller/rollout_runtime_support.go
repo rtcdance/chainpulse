@@ -74,6 +74,7 @@ func buildPullerRuntimeRolloutStateAt(
 	progress *pullerLoopRuntimeProgress,
 	execution pullerExecutionRuntimeStatusProvider,
 ) pullerRolloutRuntimeState {
+	//nolint:funlen // Runtime state builder has many field assignments.
 	state := pullerRolloutRuntimeState{
 		BlockchainRPCsConfigured: len(config.BlockchainRPCs) > 0,
 		PullerLoopConfigured:     config.PollInterval > 0,
@@ -210,6 +211,7 @@ func buildPullerRuntimeComponentStatus(runtimeState pullerRolloutRuntimeState, n
 }
 
 func buildPullerRuntimeReadinessDetails(runtimeState pullerRolloutRuntimeState) map[string]interface{} {
+	//nolint:funlen // Readiness details builder has many field assignments.
 	completeness := classifyPullerRolloutWiringCompleteness(runtimeState)
 	details := map[string]interface{}{
 		"runtime_mode":               completeness.Mode,

@@ -9,46 +9,50 @@ import (
 	"chainpulse/pkg/core"
 )
 
-// ConsistencyChecker verifies and repairs data consistency
+// ConsistencyChecker verifies and repairs data consistency.
+//
+//nolint:exported // Renaming would break many external uses.
 type ConsistencyChecker struct {
 	database core.DatabasePlugin
 	logger   core.Logger
 	mu       sync.RWMutex
 }
 
-// ConsistencyReport contains consistency check results
+// ConsistencyReport contains consistency check results.
+//
+//nolint:exported // Renaming would break many external uses.
 type ConsistencyReport struct {
-	CheckedAt           time.Time
-	TotalEvents         int64
-	DuplicateEvents     int64
-	MissingEvents       int64
-	InvalidSequences    int64
-	InconsistentBlocks  int64
-	Status              string
-	Issues              []string
-	RepairAttempts      int64
-	SuccessfulRepairs   int64
-	FailedRepairs       int64
+	CheckedAt          time.Time
+	TotalEvents        int64
+	DuplicateEvents    int64
+	MissingEvents      int64
+	InvalidSequences   int64
+	InconsistentBlocks int64
+	Status             string
+	Issues             []string
+	RepairAttempts     int64
+	SuccessfulRepairs  int64
+	FailedRepairs      int64
 }
 
 // EventConsistency represents consistency info for an event
 type EventConsistency struct {
-	EventID       string
-	BlockNumber   uint64
+	EventID         string
+	BlockNumber     uint64
 	TransactionHash string
-	IsDuplicate   bool
-	IsOrphaned    bool
-	IsValid       bool
-	Issues        []string
+	IsDuplicate     bool
+	IsOrphaned      bool
+	IsValid         bool
+	Issues          []string
 }
 
 // BlockConsistency represents consistency info for a block
 type BlockConsistency struct {
-	BlockNumber   uint64
-	IsValid       bool
+	BlockNumber    uint64
+	IsValid        bool
 	HasValidParent bool
-	EventCount    int64
-	Issues        []string
+	EventCount     int64
+	Issues         []string
 }
 
 // NewConsistencyChecker creates a new consistency checker
@@ -119,11 +123,11 @@ func (cc *ConsistencyChecker) CheckConsistency(ctx context.Context) (*Consistenc
 	cc.logger.Info(
 		"Consistency check completed",
 		map[string]interface{}{
-			"total_events": report.TotalEvents,
-			"duplicates": report.DuplicateEvents,
+			"total_events":    report.TotalEvents,
+			"duplicates":      report.DuplicateEvents,
 			"sequence_issues": report.InvalidSequences,
-			"block_issues": report.InconsistentBlocks,
-			"status": report.Status,
+			"block_issues":    report.InconsistentBlocks,
+			"status":          report.Status,
 		},
 	)
 
@@ -289,7 +293,7 @@ func (cc *ConsistencyChecker) RepairInconsistencies(ctx context.Context) (*Consi
 				"Failed to delete duplicate event",
 				map[string]interface{}{
 					"event_id": duplicate.ID,
-					"error": err.Error(),
+					"error":    err.Error(),
 				},
 			)
 		} else {
@@ -325,10 +329,10 @@ func (cc *ConsistencyChecker) RepairInconsistencies(ctx context.Context) (*Consi
 	cc.logger.Info(
 		"Consistency repair completed",
 		map[string]interface{}{
-			"repair_attempts": report.RepairAttempts,
+			"repair_attempts":    report.RepairAttempts,
 			"successful_repairs": report.SuccessfulRepairs,
-			"failed_repairs": report.FailedRepairs,
-			"status": report.Status,
+			"failed_repairs":     report.FailedRepairs,
+			"status":             report.Status,
 		},
 	)
 

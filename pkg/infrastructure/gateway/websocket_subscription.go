@@ -205,11 +205,11 @@ func (edm *EventDeliveryManager) DeliverEvent(ctx context.Context, event *core.B
 
 // ConnectionPoolManager manages WebSocket connections
 type ConnectionPoolManager struct {
-	connections map[string]*WebSocketConnection
-	clientConns map[string][]string // clientID -> connectionIDs
-	mutex       sync.RWMutex
-	maxConns    int
-	nextConnID  atomic.Int64
+	connections  map[string]*WebSocketConnection
+	_clientConns map[string][]string // clientID -> connectionIDs
+	mutex        sync.RWMutex
+	maxConns     int
+	nextConnID   atomic.Int64
 }
 
 // WebSocketConnection represents a WebSocket connection

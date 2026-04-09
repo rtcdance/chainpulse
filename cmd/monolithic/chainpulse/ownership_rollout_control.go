@@ -360,6 +360,7 @@ func classifyOwnershipApprovalWorkItem(
 	operatorHandoff ownershipOperatorHandoff,
 ) ownershipApprovalWorkItem {
 	const reviewFields = "rollout_effective_state,rollout_cutover_candidate,rollout_manual_approval_checkpoint_state,rollout_operator_handoff_state"
+
 	switch operatorHandoff.State {
 	case "operator-review":
 		return ownershipApprovalWorkItem{
@@ -629,6 +630,7 @@ func classifyOwnershipRolloutAdvisory(summary ownershipSummary) ownershipRollout
 func resolveOwnershipRolloutPolicyFromEnv(advisory ownershipRolloutAdvisory) ownershipRolloutPolicy {
 	mode := normalizeOwnershipRolloutPolicyMode(os.Getenv("CHAINPULSE_OWNERSHIP_ROLLOUT_POLICY_MODE"))
 	acknowledged := resolveOwnershipRolloutAcknowledgedFromEnv()
+
 	switch mode {
 	case "report-only":
 		return ownershipRolloutPolicy{

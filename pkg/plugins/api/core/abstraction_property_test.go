@@ -41,9 +41,9 @@ func TestProperty_RequestAbstractionConsistency(t *testing.T) {
 			body:    []byte(`{"name":"test"}`),
 		},
 		{
-			name:    "request with multiple headers",
-			method:  "PUT",
-			path:    "/api/users/1",
+			name:   "request with multiple headers",
+			method: "PUT",
+			path:   "/api/users/1",
 			headers: map[string]string{
 				"Content-Type":  "application/json",
 				"Authorization": "Bearer token",
@@ -63,7 +63,7 @@ func TestProperty_RequestAbstractionConsistency(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Create original request
-			original := NewBaseRequest(tt.method, tt.path, tt.headers, tt.body, context.Background())
+			original := NewBaseRequest(context.Background(), tt.method, tt.path, tt.headers, tt.body)
 
 			// Verify abstraction preserves all properties
 			if original.Method() != tt.method {
@@ -166,7 +166,7 @@ func TestProperty_HandlerConsistency(t *testing.T) {
 		return resp, nil
 	})
 
-	req := NewBaseRequest("GET", "/api/test", nil, []byte(""), context.Background())
+	req := NewBaseRequest(context.Background(), "GET", "/api/test", nil, []byte(""))
 
 	// Call handler multiple times
 	for i := 0; i < 5; i++ {
@@ -193,9 +193,9 @@ func TestProperty_RouterRoutingCorrectness(t *testing.T) {
 
 	// Register multiple handlers
 	handlers := map[string]string{
-		"/api/users":     "users",
-		"/api/posts":     "posts",
-		"/api/comments":  "comments",
+		"/api/users":    "users",
+		"/api/posts":    "posts",
+		"/api/comments": "comments",
 	}
 
 	for route, name := range handlers {
@@ -211,7 +211,7 @@ func TestProperty_RouterRoutingCorrectness(t *testing.T) {
 
 	// Test routing to each handler
 	for route, expectedName := range handlers {
-		req := NewBaseRequest("GET", route, nil, []byte(""), context.Background())
+		req := NewBaseRequest(context.Background(), "GET", route, nil, []byte(""))
 		resp, err := router.Handle(req)
 
 		if err != nil {
@@ -260,7 +260,7 @@ func TestProperty_MiddlewareChainConsistency(t *testing.T) {
 
 	router.Register("/api/test", handler)
 
-	req := NewBaseRequest("GET", "/api/test", nil, []byte(""), context.Background())
+	req := NewBaseRequest(context.Background(), "GET", "/api/test", nil, []byte(""))
 	resp, err := router.Handle(req)
 
 	if err != nil {
@@ -313,9 +313,9 @@ func TestProperty_APILayerRoutingCorrectness(t *testing.T) {
 
 	// Register handlers for different routes
 	routes := map[string]int{
-		"/api/users":  200,
-		"/api/posts":  201,
-		"/api/admin":  403,
+		"/api/users": 200,
+		"/api/posts": 201,
+		"/api/admin": 403,
 	}
 
 	for route, expectedStatus := range routes {
@@ -330,7 +330,7 @@ func TestProperty_APILayerRoutingCorrectness(t *testing.T) {
 
 	// Test routing
 	for route, expectedStatus := range routes {
-		req := NewBaseRequest("GET", route, nil, []byte(""), context.Background())
+		req := NewBaseRequest(context.Background(), "GET", route, nil, []byte(""))
 		resp := layer.Handle(req)
 
 		if resp.Status() != expectedStatus {
@@ -343,7 +343,7 @@ func TestProperty_APILayerRoutingCorrectness(t *testing.T) {
 // For any request with a context, the context SHALL be preserved through the abstraction.
 func TestProperty_RequestContextPreservation(t *testing.T) {
 	ctx := context.WithValue(context.Background(), userIDKey, "123")
-	req := NewBaseRequest("GET", "/api/users", nil, []byte(""), ctx)
+	req := NewBaseRequest(ctx, "GET", "/api/users", nil, []byte(""))
 
 	// Verify context is preserved
 	if req.Context().Value(userIDKey) != "123" {

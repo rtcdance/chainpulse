@@ -142,11 +142,11 @@ func (r *ProtocolRegistry) GetRuntimeMetrics() map[string]interface{} {
 	runtimePosture := classifyProtocolRegistryRuntimePosture(handlerCount, runningCount)
 
 	return map[string]interface{}{
-		"handler_count":      handlerCount,
-		"running_count":      runningCount,
-		"coverage_posture":   coveragePosture,
-		"runtime_posture":    runtimePosture,
-		"reliability_hint":   buildProtocolRegistryReliabilityHint(coveragePosture, runtimePosture),
+		"handler_count":    handlerCount,
+		"running_count":    runningCount,
+		"coverage_posture": coveragePosture,
+		"runtime_posture":  runtimePosture,
+		"reliability_hint": buildProtocolRegistryReliabilityHint(coveragePosture, runtimePosture),
 	}
 }
 
@@ -240,7 +240,7 @@ func (p *DefaultRequestProcessor) GetRuntimeMetrics() map[string]interface{} {
 }
 
 // ProcessRequest processes a request through the API layer
-func (p *DefaultRequestProcessor) ProcessRequest(ctx context.Context, req Request) (Response, error) {
+func (p *DefaultRequestProcessor) ProcessRequest(_ context.Context, req Request) (Response, error) {
 	p.mu.RLock()
 	apiLayer := p.apiLayer
 	p.mu.RUnlock()
@@ -254,7 +254,7 @@ func (p *DefaultRequestProcessor) ProcessRequest(ctx context.Context, req Reques
 }
 
 // HandleError handles an error and returns an error response
-func (p *DefaultRequestProcessor) HandleError(ctx context.Context, err error) Response {
+func (p *DefaultRequestProcessor) HandleError(_ context.Context, err error) Response {
 	resp := NewBaseResponse(nil)
 	resp.SetStatus(500)
 	resp.SetHeader("Content-Type", "application/json")
@@ -399,14 +399,14 @@ func (h *BaseProtocolHandler) GetRuntimeMetrics() map[string]interface{} {
 	runtimePosture := classifyBaseProtocolHandlerRuntimePosture(running, routeCount, processorConfigured)
 
 	return map[string]interface{}{
-		"protocol_name":         name,
-		"running":               running,
-		"processor_configured":  processorConfigured,
-		"route_count":           routeCount,
-		"middleware_count":      middlewareCount,
-		"coverage_posture":      coveragePosture,
-		"runtime_posture":       runtimePosture,
-		"reliability_hint":      buildBaseProtocolHandlerReliabilityHint(coveragePosture, runtimePosture),
+		"protocol_name":        name,
+		"running":              running,
+		"processor_configured": processorConfigured,
+		"route_count":          routeCount,
+		"middleware_count":     middlewareCount,
+		"coverage_posture":     coveragePosture,
+		"runtime_posture":      runtimePosture,
+		"reliability_hint":     buildBaseProtocolHandlerReliabilityHint(coveragePosture, runtimePosture),
 	}
 }
 
