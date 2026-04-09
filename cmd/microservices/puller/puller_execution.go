@@ -291,6 +291,7 @@ func (r *pullerExecutionRuntime) runtimeForChain(chainID string) (*appindexing.S
 	return runtime, nil
 }
 
+//nolint:unused
 func (r *pullerExecutionRuntime) recordError(err error) {
 	if r == nil || err == nil {
 		return

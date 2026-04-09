@@ -49,12 +49,12 @@ type ServiceMetrics struct {
 
 // AbstractService provides a base implementation of BaseService
 type AbstractService struct {
-	name       string
-	backend    ServiceBackend
-	cache      ServiceCache
-	mu         sync.RWMutex
-	metrics    *ServiceMetrics
-	cacheTTL   time.Duration
+	name     string
+	backend  ServiceBackend
+	cache    ServiceCache
+	mu       sync.RWMutex
+	metrics  *ServiceMetrics
+	cacheTTL time.Duration
 }
 
 // ServiceBackend defines the backend data source interface
@@ -122,8 +122,10 @@ func (s *AbstractService) Read(ctx context.Context, id string) (Entity, error) {
 	if s.cache != nil {
 		cacheKey := s.getCacheKey("read", id)
 		if cached, err := s.cache.Get(ctx, cacheKey); err == nil && cached != nil {
-			s.recordCacheHit()
-			return cached.(Entity), nil
+			if entity, ok := cached.(Entity); ok {
+				s.recordCacheHit()
+				return entity, nil
+			}
 		}
 		s.recordCacheMiss()
 	}
@@ -220,8 +222,10 @@ func (s *AbstractService) List(ctx context.Context, limit, offset int) ([]Entity
 	if s.cache != nil {
 		cacheKey := s.getCacheKey("list", fmt.Sprintf("limit:%d:offset:%d", limit, offset))
 		if cached, err := s.cache.Get(ctx, cacheKey); err == nil && cached != nil {
-			s.recordCacheHit()
-			return cached.([]Entity), nil
+			if entities, ok := cached.([]Entity); ok {
+				s.recordCacheHit()
+				return entities, nil
+			}
 		}
 		s.recordCacheMiss()
 	}

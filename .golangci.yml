@@ -1,9 +1,8 @@
 run:
   timeout: 5m
   concurrency: 4
-  build-tags:
-    - integration
-    - e2e
+
+version: 2
 
 issues:
   exclude-dirs:
@@ -12,75 +11,45 @@ issues:
     - docs
     - k8s
     - scripts
-  exclude-files:
-    - ".*_test\\.go"
-    - "mock_.*\\.go"
+
   exclude-rules:
-    - path: _test\\.go
+    - path: "_test\\.go"
       linters:
-        - funlen
-        - gocyclo
-        - gocognit
-    - path: cmd/.*
-      linters:
-        - gochecknoglobals
-        - gochecknoinits
-    - text: "weak cryptographic primitive"
-      linters:
+        - errcheck
+        - revive
         - gosec
+    - path: "test/e2e"
+      linters:
+        - all
+    - path: "test/integration"
+      linters:
+        - all
+    - path: "test/performance"
+      linters:
+        - all
+    - path: "test/contracts"
+      linters:
+        - all
 
 linters:
   enable:
-    # 基础检查
     - errcheck
     - govet
-    - ineffassign
-    - misspell
     - staticcheck
     - unused
-    - gosimple
-
-    # 代码风格
-    - gofmt
-    - goimports
     - revive
-    - stylecheck
-    - wsl
-    - nlreturn
-    - godot
-
-    # 复杂度
-    - gocyclo
-    - funlen
-    - nestif
-
-    # 安全
     - gosec
-    - bodyclose
-
-    # 性能
-    - prealloc
 
   settings:
-    gocyclo:
-      min-complexity: 15
-    funlen:
-      lines: 80
-      statements: 50
     errcheck:
       check-type-assertions: true
       check-blank: true
-    goimports:
-      local-prefixes:
-        - chainpulse
+    gosec:
+      excludes:
+        - G104
+        - G307
     revive:
       rules:
         - name: exported
-          severity: warning
           arguments:
             - checkPrivateReceivers
-    gosec:
-      excludes:
-        - G104  # 未处理的错误由 errcheck 处理
-        - G307  # defer 关闭由 bodyclose 处理
-

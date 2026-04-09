@@ -114,10 +114,11 @@ func TestWSSConnection(t *testing.T) {
 	}
 
 	u := url.URL{Scheme: "wss", Host: "localhost:8491", Path: "/ws"}
-	conn, _, err := dialer.Dial(u.String(), nil)
+	conn, resp, err := dialer.Dial(u.String(), nil)
 	if err != nil {
 		t.Fatalf("Failed to connect to WSS: %v", err)
 	}
+	defer resp.Body.Close()
 	defer func() { _ = conn.Close() }()
 
 	// Send test message
@@ -175,10 +176,11 @@ func TestWSAndWSSConcurrent(t *testing.T) {
 
 	// Test WS (unencrypted)
 	u := url.URL{Scheme: "ws", Host: "localhost:8091", Path: "/ws"}
-	wsConn, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
+	wsConn, resp, err := websocket.DefaultDialer.Dial(u.String(), nil)
 	if err != nil {
 		t.Fatalf("Failed to connect to WS: %v", err)
 	}
+	defer resp.Body.Close()
 	defer func() {
 		if err := wsConn.Close(); err != nil {
 			t.Logf("failed to close connection: %v", err)
@@ -207,10 +209,11 @@ func TestWSAndWSSConcurrent(t *testing.T) {
 	}
 
 	wssURL := url.URL{Scheme: "wss", Host: "localhost:8492", Path: "/ws"}
-	wssConn, _, err := dialer.Dial(wssURL.String(), nil)
+	wssConn, resp, err := dialer.Dial(wssURL.String(), nil)
 	if err != nil {
 		t.Fatalf("Failed to connect to WSS: %v", err)
 	}
+	defer resp.Body.Close()
 	defer func() {
 		if err := wssConn.Close(); err != nil {
 			t.Logf("failed to close connection: %v", err)
@@ -315,10 +318,11 @@ func TestWebSocketPluginWithoutTLS(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	u := url.URL{Scheme: "ws", Host: "localhost:8094", Path: "/ws"}
-	conn, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
+	conn, resp, err := websocket.DefaultDialer.Dial(u.String(), nil)
 	if err != nil {
 		t.Fatalf("Failed to connect to WS: %v", err)
 	}
+	defer resp.Body.Close()
 	defer func() { _ = conn.Close() }()
 
 	err = conn.WriteMessage(websocket.TextMessage, []byte("test"))
@@ -383,10 +387,11 @@ func TestWSSClientCount(t *testing.T) {
 	}
 
 	u := url.URL{Scheme: "wss", Host: "localhost:8496", Path: "/ws"}
-	conn, _, err := dialer.Dial(u.String(), nil)
+	conn, resp, err := dialer.Dial(u.String(), nil)
 	if err != nil {
 		t.Fatalf("Failed to connect to WSS: %v", err)
 	}
+	defer resp.Body.Close()
 
 	time.Sleep(50 * time.Millisecond)
 
