@@ -8,8 +8,13 @@ on:
   pull_request:
     branches: [ main, master, develop ]
 
+permissions:
+  contents: read
+
 env:
-  GOLANGCI_LINT_VERSION: 'v2.0'
+  GOLANGCI_LINT_VERSION: 'v2.0.0'
+  # Opt into Node.js 24 now so we catch any action incompatibilities before GitHub flips the default.
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
 
 jobs:
   policy-contract:
@@ -228,6 +233,9 @@ jobs:
     name: Security Scan
     runs-on: ubuntu-latest
     # Run independently, don't block build
+    permissions:
+      contents: read
+      security-events: write
     steps:
     - uses: actions/checkout@v4
 
@@ -243,7 +251,7 @@ jobs:
         args: '-fmt sarif -out gosec.sarif ./...'
 
     - name: Upload SARIF file
-      uses: github/codeql-action/upload-sarif@v3
+      uses: github/codeql-action/upload-sarif@v4
       if: always()
       with:
         sarif_file: gosec.sarif

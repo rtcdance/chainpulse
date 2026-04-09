@@ -90,7 +90,11 @@ test-bench:
 lint:
 	@echo "Running linter..."
 	@GOROOT= $(GO) install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.64.8 2>/dev/null; true
-	GOCACHE=$${GOCACHE:-/tmp/chainpulse-go-build-cache} golangci-lint run --tests=false $(LINT_DIRS)
+	@LINT_ARGS="--tests=false"; \
+	if [ -n "$(LINT_BASE_REF)" ]; then \
+		LINT_ARGS="$$LINT_ARGS --new-from-rev=$(LINT_BASE_REF)"; \
+	fi; \
+	GOCACHE=$${GOCACHE:-/tmp/chainpulse-go-build-cache} golangci-lint run $$LINT_ARGS ./...
 
 lint-fix:
 	@echo "Running linter with auto-fix..."

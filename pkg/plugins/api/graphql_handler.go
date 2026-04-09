@@ -396,13 +396,17 @@ func (h *GraphQLHandler) handlePost(w http.ResponseWriter, r *http.Request) {
 			resp := GraphQLResponse{Errors: errors}
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
-			json.NewEncoder(w).Encode(resp)
+			if err := json.NewEncoder(w).Encode(resp); err != nil {
+				h.logger.Warn("failed to encode graphql error response", "error", err.Error())
+			}
 			return
 		}
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(GraphQLResponse{Data: result.Data})
+		if err := json.NewEncoder(w).Encode(GraphQLResponse{Data: result.Data}); err != nil {
+			h.logger.Warn("failed to encode graphql success response", "error", err.Error())
+		}
 		return
 	}
 
@@ -414,9 +418,11 @@ func (h *GraphQLHandler) handlePost(w http.ResponseWriter, r *http.Request) {
 func (h *GraphQLHandler) writeError(w http.ResponseWriter, status int, message string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(GraphQLResponse{
+	if err := json.NewEncoder(w).Encode(GraphQLResponse{
 		Errors: []GraphQLError{{Message: message}},
-	})
+	}); err != nil {
+		h.logger.Warn("failed to encode graphql handler error response", "error", err.Error())
+	}
 }
 
 // Stop stops the GraphQL handler

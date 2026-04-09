@@ -17,6 +17,7 @@ import (
 	"chainpulse/pkg/services/indexing"
 )
 
+//nolint:gocyclo // Monolithic entrypoint orchestrates many subsystems; keep linear startup/shutdown flow for ops visibility.
 func main() {
 	// Print header
 	fmt.Println("╔════════════════════════════════════════════════════════════╗")

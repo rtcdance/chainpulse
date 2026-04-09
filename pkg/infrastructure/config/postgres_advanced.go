@@ -54,17 +54,14 @@ func (pam *PostgresAdvancedManager) SetupReplication(ctx context.Context, config
 	}
 
 	// Configure WAL settings on primary
-	walSettings := map[string]string{
-		"wal_level":              config.WALLevel,
-		"max_wal_senders":        fmt.Sprintf("%d", config.MaxWALSenders),
-		"max_replication_slots":  fmt.Sprintf("%d", config.MaxReplicationSlots),
+	if _, err := primaryDB.ExecContext(ctx, "ALTER SYSTEM SET wal_level = $1", config.WALLevel); err != nil {
+		return fmt.Errorf("failed to set wal_level: %w", err)
 	}
-
-	for setting, value := range walSettings {
-		query := fmt.Sprintf("ALTER SYSTEM SET %s = %s", setting, value)
-		if _, err := primaryDB.ExecContext(ctx, query); err != nil {
-			return fmt.Errorf("failed to set %s: %w", setting, err)
-		}
+	if _, err := primaryDB.ExecContext(ctx, "ALTER SYSTEM SET max_wal_senders = $1", config.MaxWALSenders); err != nil {
+		return fmt.Errorf("failed to set max_wal_senders: %w", err)
+	}
+	if _, err := primaryDB.ExecContext(ctx, "ALTER SYSTEM SET max_replication_slots = $1", config.MaxReplicationSlots); err != nil {
+		return fmt.Errorf("failed to set max_replication_slots: %w", err)
 	}
 
 	// Reload configuration
@@ -75,8 +72,7 @@ func (pam *PostgresAdvancedManager) SetupReplication(ctx context.Context, config
 	// Create replication slot for each replica
 	for i := range config.ReplicaAddresses {
 		slotName := fmt.Sprintf("replica_%d", i)
-		query := fmt.Sprintf("SELECT * FROM pg_create_physical_replication_slot('%s')", slotName)
-		if _, err := primaryDB.ExecContext(ctx, query); err != nil {
+		if _, err := primaryDB.ExecContext(ctx, "SELECT * FROM pg_create_physical_replication_slot($1)", slotName); err != nil {
 			_ = err // Slot might already exist, ignore error
 		}
 	}

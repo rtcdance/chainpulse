@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/gorilla/websocket"
 
@@ -83,8 +84,9 @@ func (p *WebSocketPlugin) Start() error {
 	mux.HandleFunc("/ws", p.handleWebSocket)
 
 	p.server = &http.Server{
-		Addr:    fmt.Sprintf(":%d", p.port),
-		Handler: mux,
+		Addr:              fmt.Sprintf(":%d", p.port),
+		Handler:           mux,
+		ReadHeaderTimeout: 5 * time.Second,
 	}
 
 	p.running = true
@@ -109,9 +111,10 @@ func (p *WebSocketPlugin) Start() error {
 // startWSS starts the WSS (WebSocket Secure) server
 func (p *WebSocketPlugin) startWSS(mux *http.ServeMux) error {
 	p.wssServer = &http.Server{
-		Addr:      fmt.Sprintf(":%d", p.wssPort),
-		Handler:   mux,
-		TLSConfig: p.tlsManager.GetConfig(),
+		Addr:              fmt.Sprintf(":%d", p.wssPort),
+		Handler:           mux,
+		TLSConfig:         p.tlsManager.GetConfig(),
+		ReadHeaderTimeout: 5 * time.Second,
 	}
 
 	// Start WSS server in background

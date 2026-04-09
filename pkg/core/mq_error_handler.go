@@ -3,6 +3,7 @@ package core
 import (
 	"context"
 	"fmt"
+	"math/bits"
 	"time"
 )
 
@@ -210,7 +211,16 @@ func (eh *MQErrorHandler) CalculateBackoffDelay(attempt int) time.Duration {
 	}
 
 	// Calculate 2^(attempt-1) using bit shift
-	delayMultiplier := 1 << uint(attempt-1)
+	shift := attempt - 1
+	// Bound the shift to avoid int->uint overflow warnings (gosec G115) and to keep
+	// the multiplier within a sane range even if callers pass very large attempt values.
+	maxShift := bits.UintSize - 2
+	if shift < 0 {
+		shift = 0
+	} else if shift > maxShift {
+		shift = maxShift
+	}
+	delayMultiplier := 1 << uint(shift)
 	delay := eh.baseRetryDelay * time.Duration(delayMultiplier)
 
 	// Cap at max retry delay

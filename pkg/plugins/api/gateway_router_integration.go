@@ -163,137 +163,26 @@ func (gri *GatewayRouterIntegration) SetGraphQLHandler(handler *GraphQLHandler) 
 	gri.graphqlHandler = handler
 }
 
-// registerRoutes registers all API routes
+// registerRoutes registers all API routes.
 func (gri *GatewayRouterIntegration) registerRoutes() error {
-	// Register subscription routes with HIGH priority (more specific paths)
-	if gri.shouldRegisterSubscriptionRoutes() {
-		websocketRoute := NewRoute("websocket-subscribe", "/ws", "GET")
-		websocketRoute.SetPriority(100)
-		if err := gri.router.RegisterRoute(websocketRoute); err != nil {
-			return fmt.Errorf("failed to register websocket route: %w", err)
-		}
-
-		subscribeRoute := NewRoute("subscribe", "/events/subscribe", "GET")
-		subscribeRoute.SetPriority(100)
-		if err := gri.router.RegisterRoute(subscribeRoute); err != nil {
-			return fmt.Errorf("failed to register subscribe route: %w", err)
-		}
-
-		subscribeChainRoute := NewRoute("subscribe-chain", "/events/subscribe/chain/:chainId", "GET")
-		subscribeChainRoute.SetPriority(100)
-		if err := gri.router.RegisterRoute(subscribeChainRoute); err != nil {
-			return fmt.Errorf("failed to register subscribe chain route: %w", err)
-		}
-
-		subscribeContractRoute := NewRoute("subscribe-contract", "/events/subscribe/contract/:address", "GET")
-		subscribeContractRoute.SetPriority(100)
-		if err := gri.router.RegisterRoute(subscribeContractRoute); err != nil {
-			return fmt.Errorf("failed to register subscribe contract route: %w", err)
-		}
-
-		subscribeNameRoute := NewRoute("subscribe-name", "/events/subscribe/name/:eventName", "GET")
-		subscribeNameRoute.SetPriority(100)
-		if err := gri.router.RegisterRoute(subscribeNameRoute); err != nil {
-			return fmt.Errorf("failed to register subscribe name route: %w", err)
-		}
+	if err := gri.registerSubscriptionRoutes(); err != nil {
+		return err
 	}
-
-	// Then register event query routes (lower priority)
-	if gri.shouldRegisterEventQueryRoutes() {
-		eventQueryRoute := NewRoute("event-query", "/events", "GET")
-		if err := gri.router.RegisterRoute(eventQueryRoute); err != nil {
-			return fmt.Errorf("failed to register event query route: %w", err)
-		}
-
-		eventByIDRoute := NewRoute("event-by-id", "/events/:id", "GET")
-		eventByIDRoute.SetPriority(50)
-		if err := gri.router.RegisterRoute(eventByIDRoute); err != nil {
-			return fmt.Errorf("failed to register event by ID route: %w", err)
-		}
-
-		eventByChainRoute := NewRoute("event-by-chain", "/events/chain/:chainId", "GET")
-		eventByChainRoute.SetPriority(50)
-		if err := gri.router.RegisterRoute(eventByChainRoute); err != nil {
-			return fmt.Errorf("failed to register event by chain route: %w", err)
-		}
-
-		eventByContractRoute := NewRoute("event-by-contract", "/events/contract/:address", "GET")
-		eventByContractRoute.SetPriority(50)
-		if err := gri.router.RegisterRoute(eventByContractRoute); err != nil {
-			return fmt.Errorf("failed to register event by contract route: %w", err)
-		}
-
-		eventByNameRoute := NewRoute("event-by-name", "/events/name/:eventName", "GET")
-		eventByNameRoute.SetPriority(50)
-		if err := gri.router.RegisterRoute(eventByNameRoute); err != nil {
-			return fmt.Errorf("failed to register event by name route: %w", err)
-		}
+	if err := gri.registerEventQueryRoutes(); err != nil {
+		return err
 	}
-
-	// Health Check Routes
-	healthRoute := NewRoute("health", "/health", "GET")
-	if err := gri.router.RegisterRoute(healthRoute); err != nil {
-		return fmt.Errorf("failed to register health route: %w", err)
+	if err := gri.registerHealthRoutes(); err != nil {
+		return err
 	}
-
-	readyRoute := NewRoute("ready", "/health/ready", "GET")
-	if err := gri.router.RegisterRoute(readyRoute); err != nil {
-		return fmt.Errorf("failed to register ready route: %w", err)
+	if err := gri.registerModelsRoutes(); err != nil {
+		return err
 	}
-
-	liveRoute := NewRoute("live", "/health/live", "GET")
-	if err := gri.router.RegisterRoute(liveRoute); err != nil {
-		return fmt.Errorf("failed to register live route: %w", err)
+	if err := gri.registerRuntimeRoutes(); err != nil {
+		return err
 	}
-
-	componentsRoute := NewRoute("components", "/health/components", "GET")
-	if err := gri.router.RegisterRoute(componentsRoute); err != nil {
-		return fmt.Errorf("failed to register components route: %w", err)
+	if err := gri.registerGraphQLRoutes(); err != nil {
+		return err
 	}
-
-	rolloutRoute := NewRoute("rollout", "/health/rollout", "GET")
-	if err := gri.router.RegisterRoute(rolloutRoute); err != nil {
-		return fmt.Errorf("failed to register rollout route: %w", err)
-	}
-
-	modelsRoute := NewRoute("models", "/models", "GET")
-	if err := gri.router.RegisterRoute(modelsRoute); err != nil {
-		return fmt.Errorf("failed to register models route: %w", err)
-	}
-
-	if gri.runtimeSummaryProvider != nil {
-		runtimeSummaryRoute := NewRoute("runtime-summary", "/runtime/summary", "GET")
-		if err := gri.router.RegisterRoute(runtimeSummaryRoute); err != nil {
-			return fmt.Errorf("failed to register runtime summary route: %w", err)
-		}
-	}
-	if gri.runtimeMetricsProvider != nil {
-		runtimeMetricsRoute := NewRoute("runtime-metrics", "/metrics", "GET")
-		if err := gri.router.RegisterRoute(runtimeMetricsRoute); err != nil {
-			return fmt.Errorf("failed to register runtime metrics route: %w", err)
-		}
-	}
-	if gri.runtimeControlProvider != nil {
-		runtimeControlRoute := NewRoute("runtime-control", "/runtime/control", "GET")
-		if err := gri.router.RegisterRoute(runtimeControlRoute); err != nil {
-			return fmt.Errorf("failed to register runtime control route: %w", err)
-		}
-	}
-
-	if gri.runtimeReplayProvider != nil {
-		runtimeReplayRoute := NewRoute("runtime-replay", "/runtime/indexing/dlq/replay", "POST")
-		if err := gri.router.RegisterRoute(runtimeReplayRoute); err != nil {
-			return fmt.Errorf("failed to register runtime replay route: %w", err)
-		}
-	}
-
-	if gri.graphqlHandler != nil || len(gri.upstreamQueryEndpoints) > 0 {
-		graphqlRoute := NewRoute("graphql", "/graphql", "GET,POST,OPTIONS")
-		if err := gri.router.RegisterRoute(graphqlRoute); err != nil {
-			return fmt.Errorf("failed to register graphql route: %w", err)
-		}
-	}
-
 	if err := gri.attachUpstreamQueryHandlers(); err != nil {
 		return err
 	}
@@ -304,6 +193,119 @@ func (gri *GatewayRouterIntegration) registerRoutes() error {
 
 	gri.logger.Info("All routes registered successfully")
 	return nil
+}
+
+func (gri *GatewayRouterIntegration) registerRoute(routeID, path, method string, priority int) error {
+	route := NewRoute(routeID, path, method)
+	if priority > 0 {
+		route.SetPriority(priority)
+	}
+	if err := gri.router.RegisterRoute(route); err != nil {
+		return fmt.Errorf("failed to register route %s: %w", routeID, err)
+	}
+	return nil
+}
+
+func (gri *GatewayRouterIntegration) registerSubscriptionRoutes() error {
+	if !gri.shouldRegisterSubscriptionRoutes() {
+		return nil
+	}
+
+	if err := gri.registerRoute("websocket-subscribe", "/ws", "GET", 100); err != nil {
+		return err
+	}
+	if err := gri.registerRoute("subscribe", "/events/subscribe", "GET", 100); err != nil {
+		return err
+	}
+	if err := gri.registerRoute("subscribe-chain", "/events/subscribe/chain/:chainId", "GET", 100); err != nil {
+		return err
+	}
+	if err := gri.registerRoute("subscribe-contract", "/events/subscribe/contract/:address", "GET", 100); err != nil {
+		return err
+	}
+	if err := gri.registerRoute("subscribe-name", "/events/subscribe/name/:eventName", "GET", 100); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (gri *GatewayRouterIntegration) registerEventQueryRoutes() error {
+	if !gri.shouldRegisterEventQueryRoutes() {
+		return nil
+	}
+
+	if err := gri.registerRoute("event-query", "/events", "GET", 0); err != nil {
+		return err
+	}
+	if err := gri.registerRoute("event-by-id", "/events/:id", "GET", 50); err != nil {
+		return err
+	}
+	if err := gri.registerRoute("event-by-chain", "/events/chain/:chainId", "GET", 50); err != nil {
+		return err
+	}
+	if err := gri.registerRoute("event-by-contract", "/events/contract/:address", "GET", 50); err != nil {
+		return err
+	}
+	if err := gri.registerRoute("event-by-name", "/events/name/:eventName", "GET", 50); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (gri *GatewayRouterIntegration) registerHealthRoutes() error {
+	if err := gri.registerRoute("health", "/health", "GET", 0); err != nil {
+		return err
+	}
+	if err := gri.registerRoute("ready", "/health/ready", "GET", 0); err != nil {
+		return err
+	}
+	if err := gri.registerRoute("live", "/health/live", "GET", 0); err != nil {
+		return err
+	}
+	if err := gri.registerRoute("components", "/health/components", "GET", 0); err != nil {
+		return err
+	}
+	if err := gri.registerRoute("rollout", "/health/rollout", "GET", 0); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (gri *GatewayRouterIntegration) registerModelsRoutes() error {
+	return gri.registerRoute("models", "/models", "GET", 0)
+}
+
+func (gri *GatewayRouterIntegration) registerRuntimeRoutes() error {
+	if gri.runtimeSummaryProvider != nil {
+		if err := gri.registerRoute("runtime-summary", "/runtime/summary", "GET", 0); err != nil {
+			return err
+		}
+	}
+	if gri.runtimeMetricsProvider != nil {
+		if err := gri.registerRoute("runtime-metrics", "/metrics", "GET", 0); err != nil {
+			return err
+		}
+	}
+	if gri.runtimeControlProvider != nil {
+		if err := gri.registerRoute("runtime-control", "/runtime/control", "GET", 0); err != nil {
+			return err
+		}
+	}
+	if gri.runtimeReplayProvider != nil {
+		if err := gri.registerRoute("runtime-replay", "/runtime/indexing/dlq/replay", "POST", 0); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (gri *GatewayRouterIntegration) registerGraphQLRoutes() error {
+	if gri.graphqlHandler == nil && len(gri.upstreamQueryEndpoints) == 0 {
+		return nil
+	}
+	return gri.registerRoute("graphql", "/graphql", "GET,POST,OPTIONS", 0)
 }
 
 func (gri *GatewayRouterIntegration) shouldRegisterEventQueryRoutes() bool {
@@ -345,6 +347,39 @@ func (gri *GatewayRouterIntegration) attachUpstreamQueryHandlers() error {
 	}
 
 	return nil
+}
+
+type gatewayRouteHandler func(
+	*GatewayRouterIntegration,
+	http.ResponseWriter,
+	http.ResponseWriter,
+	*http.Request,
+	*Route,
+	map[string]string,
+)
+
+var gatewayRouteHandlers = map[string]gatewayRouteHandler{
+	"event-query":        gatewayHandleEventQuery,
+	"event-by-id":        gatewayHandleEventByID,
+	"event-by-chain":     gatewayHandleEventByChain,
+	"event-by-contract":  gatewayHandleEventByContract,
+	"event-by-name":      gatewayHandleEventByName,
+	"websocket-subscribe": gatewayHandleSubscribeAll,
+	"subscribe":           gatewayHandleSubscribeAll,
+	"subscribe-chain":     gatewayHandleSubscribeChain,
+	"subscribe-contract":  gatewayHandleSubscribeContract,
+	"subscribe-name":      gatewayHandleSubscribeName,
+	"health":              gatewayHandleHealth,
+	"ready":               gatewayHandleReady,
+	"live":                gatewayHandleLive,
+	"components":          gatewayHandleComponents,
+	"rollout":             gatewayHandleRollout,
+	"runtime-summary":     gatewayHandleRuntimeSummary,
+	"runtime-metrics":     gatewayHandleRuntimeMetrics,
+	"runtime-control":     gatewayHandleRuntimeControl,
+	"runtime-replay":      gatewayHandleRuntimeReplay,
+	"models":              gatewayHandleModels,
+	"graphql":             gatewayHandleGraphQL,
 }
 
 // HandleRequest handles an incoming HTTP request
@@ -407,125 +442,160 @@ func (gri *GatewayRouterIntegration) HandleRequest(w http.ResponseWriter, r *htt
 		}
 	}
 
-	// Route to appropriate handler based on route ID
-	switch route.ID {
-	// Event Query Handlers
-	case "event-query":
-		if gri.tryForwardQueryRequest(w, normalizedReq, route) {
-			return
-		}
-		if gri.eventQueryHandler == nil {
-			respondGatewayQueryBridgeError(w, http.StatusBadGateway, route.ID)
-			return
-		}
-		gri.eventQueryHandler.HandleGetAllEvents(w, normalizedReq)
-	case "event-by-id":
-		if gri.tryForwardQueryRequest(w, normalizedReq, route) {
-			return
-		}
-		if gri.eventQueryHandler == nil {
-			respondGatewayQueryBridgeError(w, http.StatusBadGateway, route.ID)
-			return
-		}
-		gri.eventQueryHandler.HandleGetEventByID(w, normalizedReq, params["id"])
-	case "event-by-chain":
-		if gri.tryForwardQueryRequest(w, normalizedReq, route) {
-			return
-		}
-		if gri.eventQueryHandler == nil {
-			respondGatewayQueryBridgeError(w, http.StatusBadGateway, route.ID)
-			return
-		}
-		gri.eventQueryHandler.HandleGetEventsByChain(w, normalizedReq, params["chainId"])
-	case "event-by-contract":
-		if gri.tryForwardQueryRequest(w, normalizedReq, route) {
-			return
-		}
-		if gri.eventQueryHandler == nil {
-			respondGatewayQueryBridgeError(w, http.StatusBadGateway, route.ID)
-			return
-		}
-		gri.eventQueryHandler.HandleGetEventsByContract(w, normalizedReq, params["address"])
-	case "event-by-name":
-		if gri.tryForwardQueryRequest(w, normalizedReq, route) {
-			return
-		}
-		if gri.eventQueryHandler == nil {
-			respondGatewayQueryBridgeError(w, http.StatusBadGateway, route.ID)
-			return
-		}
-		gri.eventQueryHandler.HandleGetEventsByName(w, normalizedReq, params["eventName"])
-
-	// Event Subscription Handlers
-	case "websocket-subscribe", "subscribe":
-		gri.logger.Info("Handling WebSocket subscribe", "path", normalizedReq.URL.Path, "handler_nil", gri.subscriptionHandler == nil)
-		if gri.subscriptionHandler == nil {
-			gri.logger.Error("subscriptionHandler is nil!")
-			http.Error(w, "Subscription handler not configured", http.StatusInternalServerError)
-			return
-		}
-		gri.subscriptionHandler.HandleSubscribeAll(wrappedWriter, normalizedReq)
-	case "subscribe-chain":
-		gri.logger.Info("Handling WebSocket subscribe-chain", "path", normalizedReq.URL.Path, "chainId", params["chainId"])
-		if gri.subscriptionHandler == nil {
-			http.Error(w, "Subscription handler not configured", http.StatusInternalServerError)
-			return
-		}
-		gri.subscriptionHandler.HandleSubscribeChain(w, normalizedReq, params["chainId"])
-	case "subscribe-contract":
-		if gri.subscriptionHandler == nil {
-			http.Error(w, "Subscription handler not configured", http.StatusInternalServerError)
-			return
-		}
-		gri.subscriptionHandler.HandleSubscribeContract(w, normalizedReq, params["address"])
-	case "subscribe-name":
-		if gri.subscriptionHandler == nil {
-			http.Error(w, "Subscription handler not configured", http.StatusInternalServerError)
-			return
-		}
-		gri.subscriptionHandler.HandleSubscribeName(w, normalizedReq, params["eventName"])
-
-	// Health Check Handlers
-	case "health":
-		gri.healthCheckHandler.HandleHealth(w, normalizedReq)
-	case "ready":
-		gri.healthCheckHandler.HandleReady(w, normalizedReq)
-	case "live":
-		gri.healthCheckHandler.HandleLive(w, normalizedReq)
-	case "components":
-		gri.healthCheckHandler.HandleComponents(w, normalizedReq)
-	case "rollout":
-		gri.healthCheckHandler.HandleRollout(w, normalizedReq)
-	case "runtime-summary":
-		gri.handleRuntimeSummary(w, normalizedReq)
-	case "runtime-metrics":
-		gri.handleRuntimeMetrics(w, normalizedReq)
-	case "runtime-control":
-		gri.handleRuntimeControl(w, normalizedReq)
-	case "runtime-replay":
-		gri.handleRuntimeReplay(w, normalizedReq)
-
-	// Models
-	case "models":
-		gri.modelsHandler.HandleModels(w, normalizedReq)
-
-	// GraphQL
-	case "graphql":
-		if gri.tryForwardQueryRequest(w, normalizedReq, route) {
-			return
-		}
-		if gri.graphqlHandler == nil {
-			http.Error(w, "GraphQL handler not configured", http.StatusInternalServerError)
-			return
-		}
-		gri.graphqlHandler.Handle(w, normalizedReq)
-
-	default:
+	handler, ok := gatewayRouteHandlers[route.ID]
+	if !ok {
 		gri.logger.Warn("Unknown route", "routeId", route.ID)
 		http.Error(w, "Not Found", http.StatusNotFound)
+	} else {
+		handler(gri, w, wrappedWriter, normalizedReq, route, params)
 	}
 
 	gri.metrics.RecordCounter("gateway_request_success", 1, nil)
+}
+
+func (gri *GatewayRouterIntegration) handleQueryRoute(w http.ResponseWriter, r *http.Request, route *Route, routeID string, handle func()) {
+	if gri.tryForwardQueryRequest(w, r, route) {
+		return
+	}
+	if gri.eventQueryHandler == nil {
+		respondGatewayQueryBridgeError(w, http.StatusBadGateway, routeID)
+		return
+	}
+	handle()
+}
+
+func gatewayHandleEventQuery(gri *GatewayRouterIntegration, w http.ResponseWriter, _ http.ResponseWriter, r *http.Request, route *Route, _ map[string]string) {
+	gri.handleQueryRoute(w, r, route, "event-query", func() { gri.eventQueryHandler.HandleGetAllEvents(w, r) })
+}
+
+func gatewayHandleEventByID(gri *GatewayRouterIntegration, w http.ResponseWriter, _ http.ResponseWriter, r *http.Request, route *Route, params map[string]string) {
+	id := ""
+	if params != nil {
+		id = params["id"]
+	}
+	gri.handleQueryRoute(w, r, route, "event-by-id", func() { gri.eventQueryHandler.HandleGetEventByID(w, r, id) })
+}
+
+func gatewayHandleEventByChain(gri *GatewayRouterIntegration, w http.ResponseWriter, _ http.ResponseWriter, r *http.Request, route *Route, params map[string]string) {
+	chainID := ""
+	if params != nil {
+		chainID = params["chainId"]
+	}
+	gri.handleQueryRoute(w, r, route, "event-by-chain", func() { gri.eventQueryHandler.HandleGetEventsByChain(w, r, chainID) })
+}
+
+func gatewayHandleEventByContract(gri *GatewayRouterIntegration, w http.ResponseWriter, _ http.ResponseWriter, r *http.Request, route *Route, params map[string]string) {
+	address := ""
+	if params != nil {
+		address = params["address"]
+	}
+	gri.handleQueryRoute(w, r, route, "event-by-contract", func() { gri.eventQueryHandler.HandleGetEventsByContract(w, r, address) })
+}
+
+func gatewayHandleEventByName(gri *GatewayRouterIntegration, w http.ResponseWriter, _ http.ResponseWriter, r *http.Request, route *Route, params map[string]string) {
+	eventName := ""
+	if params != nil {
+		eventName = params["eventName"]
+	}
+	gri.handleQueryRoute(w, r, route, "event-by-name", func() { gri.eventQueryHandler.HandleGetEventsByName(w, r, eventName) })
+}
+
+func gatewayHandleSubscribeAll(gri *GatewayRouterIntegration, w http.ResponseWriter, wrapped http.ResponseWriter, r *http.Request, _ *Route, _ map[string]string) {
+	gri.logger.Info("Handling WebSocket subscribe", "path", r.URL.Path, "handler_nil", gri.subscriptionHandler == nil)
+	if gri.subscriptionHandler == nil {
+		gri.logger.Error("subscriptionHandler is nil!")
+		http.Error(w, "Subscription handler not configured", http.StatusInternalServerError)
+		return
+	}
+	gri.subscriptionHandler.HandleSubscribeAll(wrapped, r)
+}
+
+func gatewayHandleSubscribeChain(gri *GatewayRouterIntegration, w http.ResponseWriter, _ http.ResponseWriter, r *http.Request, _ *Route, params map[string]string) {
+	chainID := ""
+	if params != nil {
+		chainID = params["chainId"]
+	}
+	gri.logger.Info("Handling WebSocket subscribe-chain", "path", r.URL.Path, "chainId", chainID)
+	if gri.subscriptionHandler == nil {
+		http.Error(w, "Subscription handler not configured", http.StatusInternalServerError)
+		return
+	}
+	gri.subscriptionHandler.HandleSubscribeChain(w, r, chainID)
+}
+
+func gatewayHandleSubscribeContract(gri *GatewayRouterIntegration, w http.ResponseWriter, _ http.ResponseWriter, r *http.Request, _ *Route, params map[string]string) {
+	address := ""
+	if params != nil {
+		address = params["address"]
+	}
+	if gri.subscriptionHandler == nil {
+		http.Error(w, "Subscription handler not configured", http.StatusInternalServerError)
+		return
+	}
+	gri.subscriptionHandler.HandleSubscribeContract(w, r, address)
+}
+
+func gatewayHandleSubscribeName(gri *GatewayRouterIntegration, w http.ResponseWriter, _ http.ResponseWriter, r *http.Request, _ *Route, params map[string]string) {
+	eventName := ""
+	if params != nil {
+		eventName = params["eventName"]
+	}
+	if gri.subscriptionHandler == nil {
+		http.Error(w, "Subscription handler not configured", http.StatusInternalServerError)
+		return
+	}
+	gri.subscriptionHandler.HandleSubscribeName(w, r, eventName)
+}
+
+func gatewayHandleHealth(gri *GatewayRouterIntegration, w http.ResponseWriter, _ http.ResponseWriter, r *http.Request, _ *Route, _ map[string]string) {
+	gri.healthCheckHandler.HandleHealth(w, r)
+}
+
+func gatewayHandleReady(gri *GatewayRouterIntegration, w http.ResponseWriter, _ http.ResponseWriter, r *http.Request, _ *Route, _ map[string]string) {
+	gri.healthCheckHandler.HandleReady(w, r)
+}
+
+func gatewayHandleLive(gri *GatewayRouterIntegration, w http.ResponseWriter, _ http.ResponseWriter, r *http.Request, _ *Route, _ map[string]string) {
+	gri.healthCheckHandler.HandleLive(w, r)
+}
+
+func gatewayHandleComponents(gri *GatewayRouterIntegration, w http.ResponseWriter, _ http.ResponseWriter, r *http.Request, _ *Route, _ map[string]string) {
+	gri.healthCheckHandler.HandleComponents(w, r)
+}
+
+func gatewayHandleRollout(gri *GatewayRouterIntegration, w http.ResponseWriter, _ http.ResponseWriter, r *http.Request, _ *Route, _ map[string]string) {
+	gri.healthCheckHandler.HandleRollout(w, r)
+}
+
+func gatewayHandleRuntimeSummary(gri *GatewayRouterIntegration, w http.ResponseWriter, _ http.ResponseWriter, r *http.Request, _ *Route, _ map[string]string) {
+	gri.handleRuntimeSummary(w, r)
+}
+
+func gatewayHandleRuntimeMetrics(gri *GatewayRouterIntegration, w http.ResponseWriter, _ http.ResponseWriter, r *http.Request, _ *Route, _ map[string]string) {
+	gri.handleRuntimeMetrics(w, r)
+}
+
+func gatewayHandleRuntimeControl(gri *GatewayRouterIntegration, w http.ResponseWriter, _ http.ResponseWriter, r *http.Request, _ *Route, _ map[string]string) {
+	gri.handleRuntimeControl(w, r)
+}
+
+func gatewayHandleRuntimeReplay(gri *GatewayRouterIntegration, w http.ResponseWriter, _ http.ResponseWriter, r *http.Request, _ *Route, _ map[string]string) {
+	gri.handleRuntimeReplay(w, r)
+}
+
+func gatewayHandleModels(gri *GatewayRouterIntegration, w http.ResponseWriter, _ http.ResponseWriter, r *http.Request, _ *Route, _ map[string]string) {
+	gri.modelsHandler.HandleModels(w, r)
+}
+
+func gatewayHandleGraphQL(gri *GatewayRouterIntegration, w http.ResponseWriter, _ http.ResponseWriter, r *http.Request, route *Route, _ map[string]string) {
+	if gri.tryForwardQueryRequest(w, r, route) {
+		return
+	}
+	if gri.graphqlHandler == nil {
+		http.Error(w, "GraphQL handler not configured", http.StatusInternalServerError)
+		return
+	}
+	gri.graphqlHandler.Handle(w, r)
 }
 
 func normalizeGatewayAPIV1Request(r *http.Request) *http.Request {

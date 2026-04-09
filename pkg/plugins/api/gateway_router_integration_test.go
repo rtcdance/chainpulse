@@ -229,8 +229,8 @@ func TestGatewayRouterIntegrationMetrics(t *testing.T) {
 		t.Errorf("Expected metrics to be returned")
 	}
 
-	if gatewayMetrics["route_count"] != 15 {
-		t.Errorf("Expected 15 routes, got %v", gatewayMetrics["route_count"])
+	if gatewayMetrics["route_count"] != 16 {
+		t.Errorf("Expected 16 routes, got %v", gatewayMetrics["route_count"])
 	}
 }
 
@@ -260,8 +260,8 @@ func TestGatewayRouterIntegrationRuntimeSummaryRoute(t *testing.T) {
 	_ = integration.Initialize(context.Background())
 
 	gatewayMetrics := integration.GetMetrics()
-	if gatewayMetrics["route_count"] != 16 {
-		t.Errorf("Expected 16 routes with runtime summary, got %v", gatewayMetrics["route_count"])
+	if gatewayMetrics["route_count"] != 17 {
+		t.Errorf("Expected 17 routes with runtime summary, got %v", gatewayMetrics["route_count"])
 	}
 
 	req := httptest.NewRequest(http.MethodGet, "/runtime/summary", nil)
