@@ -402,6 +402,33 @@ func TestRateLimitContext(t *testing.T) {
 	assert.Equal(t, info, retrievedInfo)
 }
 
+func TestRateLimitMiddlewareInjectsContext(t *testing.T) {
+	logger := &MockLogger{}
+	metrics := NewMockMetricsCollector()
+	limiter := NewRateLimiter(logger, metrics, &RateLimitConfig{
+		DefaultRequestsPerSecond: 10,
+		DefaultBurstSize:         10,
+	})
+	middleware := NewRateLimitMiddleware(limiter, logger)
+
+	var observed bool
+	handler := middleware.Middleware(limiter)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, observed = GetRateLimitFromContext(r.Context())
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", rec.Code)
+	}
+	if !observed {
+		t.Fatal("expected rate limit info to be injected into request context")
+	}
+}
+
 // TestParseIPList tests parsing IP list
 func TestParseIPList(t *testing.T) {
 	tests := []struct {
@@ -628,4 +655,16 @@ func TestDynamicLimitAdjustment(t *testing.T) {
 
 	assert.Equal(t, 50.0, client1Stats["refill_rate"])
 	assert.Equal(t, 10.0, client1Stats["max_tokens"])
+}
+
+func TestRequestsPerMinuteToPerSecond(t *testing.T) {
+	assert.Equal(t, 0.0, RequestsPerMinuteToPerSecond(0))
+	assert.InDelta(t, 2.0, RequestsPerMinuteToPerSecond(120), 0.0001)
+	assert.InDelta(t, 1000.0/60.0, RequestsPerMinuteToPerSecond(1000), 0.0001)
+}
+
+func TestBurstSizeFromRequestsPerMinute(t *testing.T) {
+	assert.Equal(t, 10, BurstSizeFromRequestsPerMinute(1))
+	assert.Equal(t, 10, BurstSizeFromRequestsPerMinute(42))
+	assert.Equal(t, 20, BurstSizeFromRequestsPerMinute(120))
 }

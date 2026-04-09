@@ -5,7 +5,9 @@ This directory contains Docker-related configuration files for ChainPulse.
 ## Files
 
 - **Dockerfile** - Multi-stage Docker image build configuration
+- **Dockerfile.microservices** - Multi-stage Docker image build configuration for microservice commands
 - **docker-compose.yml** - Complete local development environment with all services
+- **docker-compose.microservices.yml** - Four-foreground-service microservice profile with shared infra and observability
 - **README.md** - This file
 
 ## Quick Start
@@ -25,6 +27,14 @@ docker-compose down
 # Clean up volumes
 docker-compose down -v
 ```
+
+Before running compose readiness scripts, make sure the Docker daemon is
+actually reachable from the current Docker context. On local macOS setups this
+usually means Docker Desktop must already be running.
+
+If Docker CLI is present but the daemon cannot be reached, see:
+
+- [`DOCKER_RUNTIME_RECOVERY.md`](/Users/mingo/Applications/workspace/web3/project/chainpulse/DOCKER_RUNTIME_RECOVERY.md)
 
 ### Building Docker Image Manually
 
@@ -57,6 +67,36 @@ The `docker-compose.yml` includes:
    - REST API: http://localhost:8080
    - gRPC API: localhost:50051
    - Metrics: http://localhost:8081/metrics
+
+### Microservice Profile
+
+The `docker-compose.microservices.yml` profile includes:
+
+1. **Infrastructure**
+   - PostgreSQL
+   - Redis
+   - Kafka + Zookeeper
+   - Anvil
+2. **Observability**
+   - Prometheus
+   - Grafana
+   - Jaeger
+3. **Foreground Microservices**
+   - `api-gateway`
+   - `api-service`
+   - `event-processor`
+   - `puller`
+
+### Grafana Provisioning
+
+Both `docker-compose.yml` variants that include observability support mount the same
+local Grafana provisioning directories:
+
+- `monitoring/grafana/datasources`
+- `monitoring/grafana/dashboards`
+
+That means the dev and microservices compose stacks load the same Prometheus
+datasource and the same blueprint `8.1` local debug monitor dashboard.
 
 ## Environment Variables
 

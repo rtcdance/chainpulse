@@ -236,6 +236,19 @@ pkg/
 
 ## 执行顺序
 
+> 自 2026-04-03 起，执行主坐标统一切换为 `M1a/M1b/M1c → M2 → M3a/M3b/M3c`。
+> 当前实时状态见 `docs/MILESTONE_STATUS.md`。
+
+### 当前里程碑进度
+
+- `M1a`: completed
+- `M1b`: completed
+- `M1c`: completed
+- `M2`: completed
+- `M3a`: completed
+- `M3b`: completed
+- `M3c`: completed
+
 ```
 已完成:
   ✅ Phase 1: CI 修复（GOROOT + Makefile）
@@ -245,14 +258,13 @@ pkg/
   ✅ Phase 5: Prompt 模板（docs/GPT_PROMPT_TEMPLATE.md）
 
 待执行:
-  📋 M1-1: 完善 MockDB 实现
-  📋 M1-2: 验证 MemoryMQ 端到端
-  📋 M1-3: 验证 EventBus → Indexer 链路
-  📋 M1-4: 完善 GraphQL 查询端点
-  📋 M1-5: 单体启动脚本整合
-  📋 M1-6: E2E 验证：拉取→索引→查询
-  📋 M2-1 ~ M2-4: 双模式切换
-  📋 M3-1 ~ M3-4: 生产就绪
+  ✅ M1a: 修复单体基础数据链路
+  📋 M1b: 修复单体容错层
+  📋 M1c: 修复单体可观测性 + API Gateway
+  📋 M2: 双模式切换
+  📋 M3a: 微服务部署验证
+  📋 M3b: 可观测性 + 告警
+  📋 M3c: 生产就绪演练
 ```
 
 ## 给 GPT-5.4 的完整上下文包

@@ -24,6 +24,10 @@ ROOT_WHITELIST=(
   "SECURITY_ROLLOUT.md"
   "DEPENDENCY_APPROVAL.md"
   "chainpulse"
+  "chainpulse-docker"
+  # Node.js project files
+  "package.json"
+  "package-lock.json"
 )
 
 echo "Checking file organization..."

@@ -10,29 +10,39 @@ import (
 
 // Route represents a route pattern with handlers
 type Route struct {
-	ID          string
-	Pattern     string
-	Method      string
-	Handlers    []*RequestHandler
-	Middleware  []func(http.Handler) http.Handler
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
-	mu          sync.RWMutex
-	pathRegex   *regexp.Regexp
-	paramNames  []string
+	ID         string
+	Pattern    string
+	Method     string
+	Priority   int // Higher priority routes are matched first (default 0)
+	Handlers   []*RequestHandler
+	Middleware []func(http.Handler) http.Handler
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
+	mu         sync.RWMutex
+	pathRegex  *regexp.Regexp
+	paramNames []string
 }
 
 // NewRoute creates a new route
 func NewRoute(id, pattern, method string) *Route {
 	return &Route{
-		ID:        id,
-		Pattern:   pattern,
-		Method:    method,
-		Handlers:  make([]*RequestHandler, 0),
+		ID:         id,
+		Pattern:    pattern,
+		Method:     method,
+		Priority:   0,
+		Handlers:   make([]*RequestHandler, 0),
 		Middleware: make([]func(http.Handler) http.Handler, 0),
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
+		CreatedAt:  time.Now(),
+		UpdatedAt:  time.Now(),
 	}
+}
+
+// SetPriority sets the route priority (higher priority routes are matched first)
+func (r *Route) SetPriority(priority int) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.Priority = priority
+	r.UpdatedAt = time.Now()
 }
 
 // AddHandler adds a handler to the route

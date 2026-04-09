@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"fmt"
+	"math"
 	"net"
 	"net/http"
 	"strings"
@@ -86,6 +87,31 @@ type ClientLimit struct {
 	ClientID          string
 	RequestsPerSecond float64
 	BurstSize         int
+}
+
+// RequestsPerMinuteToPerSecond converts an operator-facing req/min budget into
+// the internal token-bucket refill rate used by the rate limiter.
+func RequestsPerMinuteToPerSecond(requestsPerMinute int) float64 {
+	if requestsPerMinute <= 0 {
+		return 0
+	}
+
+	return float64(requestsPerMinute) / 60.0
+}
+
+// BurstSizeFromRequestsPerMinute derives a small bounded burst window from a
+// req/min budget using roughly 10 seconds of allowance.
+func BurstSizeFromRequestsPerMinute(requestsPerMinute int) int {
+	if requestsPerMinute <= 0 {
+		return 1
+	}
+
+	burst := int(math.Ceil(float64(requestsPerMinute) / 6.0))
+	if burst < 10 {
+		return 10
+	}
+
+	return burst
 }
 
 // NewRateLimiter creates a new rate limiter
@@ -420,7 +446,7 @@ func (m *RateLimitMiddleware) Middleware(limiter *RateLimiter) func(http.Handler
 			}
 
 			// Call next handler
-			next.ServeHTTP(w, r)
+			next.ServeHTTP(w, r.WithContext(RateLimitContext(r.Context(), info)))
 		})
 	}
 }

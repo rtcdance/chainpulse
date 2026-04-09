@@ -127,6 +127,10 @@ GET /metrics
 
 Connect to `ws://localhost:8080/ws` for real-time event streaming.
 
+When gateway rate limiting is enabled, the WebSocket HTTP upgrade handshake is
+subject to the same gateway limiter before the connection is upgraded. Rejected
+handshakes return `429 Too Many Requests`.
+
 **Subscribe to events:**
 ```json
 {
@@ -191,6 +195,9 @@ All errors follow this format:
 Default rate limits:
 - 100 requests per minute per IP
 - 1000 requests per hour per IP
+
+When the optional gateway security surface is enabled, WebSocket handshake
+requests are rate limited together with the rest of the gateway entrypoints.
 
 ## OpenAPI Specification
 

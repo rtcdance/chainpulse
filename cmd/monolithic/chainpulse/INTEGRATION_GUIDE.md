@@ -71,6 +71,80 @@ curl -X POST http://localhost:8080/graphql \
   -d '{"query": "{ events { id blockNumber } }"}'
 ```
 
+### 5. Manually Replay Monolithic DLQ Events
+
+For the current monolithic runtime, failed shared-runtime replayable events are
+kept in an in-memory DLQ journal owned by the running process. Manual replay is
+available through:
+
+```bash
+POST /runtime/indexing/dlq/replay
+```
+
+Example:
+
+```bash
+curl -X POST http://localhost:8080/runtime/indexing/dlq/replay \
+  -H "Content-Type: application/json" \
+  -d '{
+    "chain_id": "ethereum",
+    "from": {
+      "block_number": 100,
+      "cursor": "100:0"
+    },
+    "to": {
+      "block_number": 110,
+      "cursor": "110:999"
+    },
+    "limit": 50
+  }'
+```
+
+Request contract:
+
+- `chain_id`: required target chain
+- `from`: required lower replay checkpoint
+- `to`: optional upper replay checkpoint; omit to replay everything from `from`
+- `limit`: optional replay cap; use `0` to leave uncapped
+
+Successful response shape:
+
+```json
+{
+  "service": "monolithic",
+  "operation": "dlq-replay",
+  "chain_id": "ethereum",
+  "replayed": 3,
+  "limit": 50,
+  "from": {
+    "block_number": 100,
+    "cursor": "100:0"
+  },
+  "to": {
+    "block_number": 110,
+    "cursor": "110:999"
+  },
+  "timestamp": 1710000000,
+  "runtime_state": "running"
+}
+```
+
+Notes:
+
+- replay runs inside the same monolithic process, which is required because the
+  current DLQ journal is not yet durable across restarts
+- replayed events are acknowledged and removed from the in-memory DLQ journal
+  after successful processing
+- expired DLQ entries are lazily evicted according to
+  `MONOLITHIC_DLQ_RETENTION`
+- invalid ranges return `400`; replay execution failures return `500`
+
+Retention configuration:
+
+- `MONOLITHIC_DLQ_RETENTION` uses Go duration syntax such as `24h`, `72h`, or
+  `168h`
+- default retention: `168h`
+
 ## System Architecture
 
 ```
@@ -362,4 +436,3 @@ curl http://localhost:8080/metrics
 **Last Updated**: January 10, 2026  
 **Version**: 1.0  
 **Status**: Production Ready
-

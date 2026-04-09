@@ -70,7 +70,7 @@ KAFKA_BROKERS=kafka-1:9092,kafka-2:9092,kafka-3:9092
 KAFKA_CONSUMER_GROUP=api-service-consumers
 
 # API Configuration
-API_RATE_LIMIT=1000            # Requests per second
+API_RATE_LIMIT=1000            # Requests per minute
 API_TIMEOUT=30                 # Request timeout in seconds
 API_MAX_BATCH_SIZE=100         # Maximum batch query size
 ```

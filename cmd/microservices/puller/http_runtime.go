@@ -13,6 +13,7 @@ import (
 type pullerRuntimeSummaryResponse struct {
 	Service        string                 `json:"service"`
 	Timestamp      int64                  `json:"timestamp"`
+	DeploymentMode string                 `json:"deployment_mode"`
 	RuntimeMode    string                 `json:"runtime_mode"`
 	RuntimePosture string                 `json:"runtime_posture"`
 	ComponentState string                 `json:"component_state"`
@@ -98,10 +99,18 @@ func buildPullerMetricsHandler(metrics core.MetricsCollector) http.HandlerFunc {
 			return
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(metrics.GetMetrics()); err != nil {
-			http.Error(w, `{"error":"failed to encode metrics"}`, http.StatusInternalServerError)
+		if r.URL.Query().Get("format") == "json" || r.Header.Get("Accept") == "application/json" {
+			w.Header().Set("Content-Type", "application/json")
+
+			if err := json.NewEncoder(w).Encode(metrics.GetMetrics()); err != nil {
+				http.Error(w, `{"error":"failed to encode metrics"}`, http.StatusInternalServerError)
+			}
+
+			return
 		}
+
+		w.Header().Set("Content-Type", "text/plain; version=0.0.4")
+		_, _ = w.Write([]byte(core.ExportMetricsPrometheus(metrics)))
 	}
 }
 

@@ -11,6 +11,7 @@ import (
 type Config struct {
 	MongoDBURI      string
 	PostgresURL     string
+	PostgresSSLMode string
 	PoolSize        int
 	TimeoutMS       int
 	RetryAttempts   int
@@ -25,6 +26,7 @@ func LoadConfig() (*Config, error) {
 	config := &Config{
 		MongoDBURI:      getEnv("MONGODB_URI", "mongodb://localhost:27017"),
 		PostgresURL:     getEnv("DATABASE_URL", "postgres://localhost:5432/chainpulse"),
+		PostgresSSLMode: getEnv("DATABASE_SSL_MODE", "disable"),
 		PoolSize:        getEnvInt("DB_POOL_SIZE", 10),
 		TimeoutMS:       getEnvInt("DB_TIMEOUT_MS", 5000),
 		RetryAttempts:   getEnvInt("DB_RETRY_ATTEMPTS", 3),

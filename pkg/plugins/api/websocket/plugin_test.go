@@ -1,6 +1,8 @@
 package websocket
 
 import (
+	"context"
+	"net/http"
 	"testing"
 	"time"
 
@@ -57,7 +59,7 @@ func TestWebSocketPluginStartAlreadyRunning(t *testing.T) {
 	plugin := NewWebSocketPlugin("websocket", 8092, apiLayer)
 
 	_ = plugin.Start()
-	defer func() { 
+	defer func() {
 		_ = plugin.Stop()
 		time.Sleep(50 * time.Millisecond) // Wait for port to be released
 	}()
@@ -123,7 +125,7 @@ func TestWebSocketPluginIsRunning(t *testing.T) {
 	}
 
 	_ = plugin.Start()
-	defer func() { 
+	defer func() {
 		_ = plugin.Stop()
 		time.Sleep(50 * time.Millisecond) // Wait for port to be released
 	}()
@@ -239,6 +241,54 @@ func TestWebSocketPluginMultipleMiddleware(t *testing.T) {
 	if len(plugin.middleware) != 2 {
 		t.Errorf("expected 2 middleware, got %d", len(plugin.middleware))
 	}
+}
+
+func TestWebSocketPluginProcessRequestExecutesMiddleware(t *testing.T) {
+	apiLayer := core.NewAPILayer()
+	plugin := NewWebSocketPlugin("websocket", 8101, apiLayer)
+
+	if err := plugin.RegisterRoute("/ws", core.HandlerFunc(func(req core.Request) (core.Response, error) {
+		resp := core.NewBaseResponse(nil)
+		resp.SetStatus(200)
+		resp.SetBody([]byte("ok"))
+		return resp, nil
+	})); err != nil {
+		t.Fatalf("register route: %v", err)
+	}
+
+	middleware := func(next core.Handler) core.Handler {
+		return core.HandlerFunc(func(req core.Request) (core.Response, error) {
+			resp, err := next.Handle(req)
+			if err == nil {
+				resp.SetHeader("X-WebSocket-Middleware", "applied")
+			}
+			return resp, err
+		})
+	}
+
+	if err := plugin.Use(middleware); err != nil {
+		t.Fatalf("use middleware: %v", err)
+	}
+
+	req := NewWebSocketRequest(newWebSocketTestHTTPRequest("/ws"), []byte(`{"op":"ping"}`))
+	resp, err := plugin.ProcessRequest(context.Background(), req)
+	if err != nil {
+		t.Fatalf("process request: %v", err)
+	}
+	if resp.Status() != 200 {
+		t.Fatalf("expected status 200, got %d", resp.Status())
+	}
+	if got := resp.Header("X-WebSocket-Middleware"); got != "applied" {
+		t.Fatalf("expected middleware header applied, got %q", got)
+	}
+}
+
+func newWebSocketTestHTTPRequest(path string) *http.Request {
+	req, err := http.NewRequest(http.MethodGet, "http://localhost"+path, nil)
+	if err != nil {
+		panic(err)
+	}
+	return req
 }
 
 func TestWebSocketPluginConcurrentOperations(t *testing.T) {

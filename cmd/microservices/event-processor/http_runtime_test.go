@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"chainpulse/pkg/core"
@@ -135,27 +136,18 @@ func TestBuildEventProcessorRuntimeHTTPHandlerExposesMetricsRoute(t *testing.T) 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected metrics status 200, got %d body=%s", rec.Code, rec.Body.String())
 	}
-	if got := rec.Header().Get("Content-Type"); got != "application/json" {
-		t.Fatalf("expected application/json content type, got %q", got)
+	if got := rec.Header().Get("Content-Type"); got != "text/plain; version=0.0.4" {
+		t.Fatalf("expected prometheus content type, got %q", got)
 	}
 
-	var payload map[string]interface{}
-	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
-		t.Fatalf("decode metrics response: %v", err)
-	}
-	counters, ok := payload["counters"].(map[string]interface{})
-	if !ok {
-		t.Fatalf("expected counters object, got %#v", payload["counters"])
-	}
-	if _, ok := counters["event_processor_test_counter"]; !ok {
-		t.Fatalf("expected test counter in metrics payload, got %#v", counters)
-	}
-	gauges, ok := payload["gauges"].(map[string]interface{})
-	if !ok {
-		t.Fatalf("expected gauges object, got %#v", payload["gauges"])
-	}
-	if _, ok := gauges["event_processor_test_gauge:component=runtime"]; !ok {
-		t.Fatalf("expected tagged test gauge in metrics payload, got %#v", gauges)
+	body := rec.Body.String()
+	for _, expected := range []string{
+		`chainpulse_event_processor_test_counter{chain_id="global"} 3`,
+		`chainpulse_event_processor_test_gauge{chain_id="global",component="runtime"} 7`,
+	} {
+		if !strings.Contains(body, expected) {
+			t.Fatalf("expected metrics output to contain %q, got:\n%s", expected, body)
+		}
 	}
 }
 
@@ -171,6 +163,7 @@ func TestBuildEventProcessorRuntimeHTTPHandlerExposesRuntimeSummaryRoute(t *test
 		return &eventProcessorRuntimeSummaryResponse{
 			Service:        "event-processor",
 			Timestamp:      1712345678,
+			DeploymentMode: "microservice",
 			RuntimeMode:    "runtime-wired",
 			RuntimePosture: "runtime-wired",
 			ComponentState: "healthy",
@@ -214,6 +207,9 @@ func TestBuildEventProcessorRuntimeHTTPHandlerExposesRuntimeSummaryRoute(t *test
 	}
 	if payload.Service != "event-processor" {
 		t.Fatalf("expected service event-processor, got %q", payload.Service)
+	}
+	if payload.DeploymentMode != "microservice" {
+		t.Fatalf("expected deployment mode microservice, got %q", payload.DeploymentMode)
 	}
 	if payload.RuntimeMode != "runtime-wired" {
 		t.Fatalf("expected runtime mode runtime-wired, got %q", payload.RuntimeMode)

@@ -15,7 +15,7 @@ Currently, ChainPulse does not require authentication. All endpoints are publicl
 
 ## Rate Limiting
 
-- **Rate Limit**: 100 requests per second per client IP
+- **Rate Limit**: 100 requests per minute per client IP
 - **Rate Limit Header**: `X-RateLimit-Remaining`
 - **Rate Limit Reset**: `X-RateLimit-Reset`
 - **Status Code**: 429 (Too Many Requests) when limit exceeded

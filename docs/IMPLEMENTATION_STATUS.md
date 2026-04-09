@@ -1,6 +1,6 @@
 # ChainPulse 实现状态地图
 
-> 生成时间: 2026-04-03
+> 生成时间: 2026-04-05
 > 基准架构: docs/archive/ARCHITECTURE_v1.md
 > 用途: 让 AI 快速了解什么已实现、什么缺失，避免重复工作或跑偏
 
@@ -24,6 +24,20 @@
 
 **总计**: ~79K LOC 源码 + 277 个测试文件
 
+## 当前执行里程碑
+
+当前执行主线已切换到 opus milestone:
+
+- `M1a` 单体基础数据链路: `completed`
+- `M1b` 单体容错层: `completed`
+- `M1c` 单体可观测性 + API Gateway: `completed`
+- `M2` 双模式切换: `completed`
+- `M3a`: `completed`
+- `M3b`: `completed`
+- `M3c`: `completed`
+
+实时状态见 `docs/MILESTONE_STATUS.md`。
+
 ---
 
 ## 按 ARCHITECTURE_v1.md 组件逐项对照
@@ -39,7 +53,7 @@
 | MQPlugin | `mq_plugin.go` | 845 | ✅ | Publish/Subscribe/GetQueueDepth |
 | EventBus | `eventbus.go` | — | ✅ | in-process chan 实现 |
 | Logger | `logger.go` | — | ✅ | 结构化日志接口 + 默认实现 |
-| Metrics | `metrics.go` | — | ✅ | Prometheus 指标接口 |
+| Metrics | `metrics.go` | — | ✅ | Prometheus 指标接口 + Prometheus exposition text export |
 | Config | `config.go` | 710 | ✅ | 多链配置，含 BlockchainConfig |
 | Models | `blockchain_models.go` | — | ✅ | Block/Transaction/Event/Log |
 | Errors | `errors.go` | — | ✅ | 自定义错误类型 |
@@ -109,7 +123,7 @@
 
 | 组件 | 文件 | 行数 | 状态 | 备注 |
 |---|---|---|---|---|
-| Monolithic | `cmd/monolithic/chainpulse/main.go` | 516 | ✅ | 单进程入口 |
+| Monolithic | `cmd/monolithic/chainpulse/main.go` | 516+ | ✅ | 单进程入口，已具备 EventBus + per-chain puller + indexer + 最小 reorg rollback seam + read-only runtime control |
 | Puller | `cmd/microservices/puller/main.go` | 484 | ✅ | Puller 微服务 |
 | EventProcessor | `cmd/microservices/event-processor/main.go` | 465 | ✅ | Indexer 微服务 |
 | APIService | `cmd/microservices/api-service/main.go` | 402 | ✅ | Query 微服务 |
@@ -119,7 +133,7 @@
 
 | 组件 | 状态 | 备注 |
 |---|---|---|
-| Prometheus Metrics | ✅ | 指标定义完整 |
+| Prometheus Metrics | ✅ | 指标定义 + exposition + scrape baseline 已收口 |
 | Zap Logger | ✅ | 结构化日志 |
 | OTel Tracer | ⚠️ | 基础实现，需完善 |
 | Health Check | ✅ | 各服务都有 /health |
@@ -157,12 +171,15 @@
 
 | 缺失项 | 优先级 | 说明 | 对应里程碑 |
 |---|---|---|---|
-| **EventBus 从未创建** | 🔴 高 | `main.go:196` 传 `nil` 给 ChainIndexer，事件链路断裂 | M1-1 |
-| **QueryService 和 IndexingStorage 用不同 DB** | 🔴 高 | IndexingStorage 用 MonolithicMemoryDatabase，QueryService 用 MongoDB/PostgreSQL adapter | M1-1 |
-| **Puller 从未实例化** | 🔴 高 | main.go 中没有 Puller 代码，无数据源 | M1-1 |
-| **Puller → Indexer 循环驱动缺失** | 🔴 高 | 没有 goroutine 循环调用 Puller → EventBus → Indexer | M1-1 |
-| **双模式切换机制** | 🟡 中 | `DEPLOYMENT_MODE` 环境变量未在 cmd 层实际切换 adapters | M2 |
-| **Grafana 看板** | 🟡 中 | Prometheus 指标有，但 Grafana dashboard JSON 缺失 | M3 |
+| **双模式切换机制** | ✅ 已收口 | `M2-1` 到 `M2-6` 已完成 deployment mode parsing、adapter profile selection、indexing storage selection、query surface selection、gateway surface selection、transport boundary posture surfacing；`M2` 已建立 minimum truthful dual-mode baseline 并完成收口 | M2 |
+| **Grafana 看板** | ✅ 已补齐 | blueprint 8.1 本地调试看板与 Grafana provisioning 已落地 | M3 |
+| **Prometheus 活体验证** | ✅ 已补齐 | `/metrics` Prometheus exposition、scrape baseline、live smoke 已落地 | M3 |
+| **Prometheus 指标标准化** | ✅ 已补齐 | 导出指标已统一使用 `chainpulse_` 前缀，并为应用指标标准化 `chain_id` 标签 | M3 |
+| **DLQ 保留期配置** | ✅ 已补齐 | monolithic 内存 DLQ journal 已支持可配置 retention，并在 replay/ack 路径惰性清理过期项 | M3 |
+| **gRPC/WebSocket 中间件闭环** | ✅ 已补齐 | gRPC 与 WebSocket plugin 的 route/middleware 注册已接到真实 request-processing path，并有执行级测试覆盖 | M3 |
+| **Rate Limiter 单位对齐** | ✅ 已补齐 | 命令层 rate limit 已统一为 `req/min` 并在 wiring 边界转换 | M3 |
+| **WebSocket 握手限流** | ✅ 已补齐 | WebSocket subscription upgrade path 现在复用 gateway limiter，并避免 outer middleware 双重扣桶 | M3 |
+| **混沌测试基线** | ✅ 已补齐 | repo-root chaos baseline 已覆盖 RPC/Kafka/PostgreSQL 故障演练 | M3 |
 
 ---
 

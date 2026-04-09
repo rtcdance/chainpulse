@@ -3,9 +3,12 @@ package api
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"sync"
 	"testing"
 	"time"
+
+	"chainpulse/pkg/observability"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -79,7 +82,7 @@ func TestRegisterRoute(t *testing.T) {
 	route := &Route{
 		ID:      "route1",
 		Pattern: "/api/users",
-		Method: "GET",
+		Method:  "GET",
 	}
 
 	err := router.RegisterRoute(route)
@@ -108,7 +111,7 @@ func TestRegisterRouteNoID(t *testing.T) {
 
 	route := &Route{
 		Pattern: "/api/users",
-		Method: "GET",
+		Method:  "GET",
 	}
 
 	err := router.RegisterRoute(route)
@@ -124,7 +127,7 @@ func TestRegisterRouteNoPattern(t *testing.T) {
 	router := NewRequestRouter(logger, metrics)
 
 	route := &Route{
-		ID:      "route1",
+		ID:     "route1",
 		Method: "GET",
 	}
 
@@ -143,7 +146,7 @@ func TestRegisterRouteDuplicate(t *testing.T) {
 	route := &Route{
 		ID:      "route1",
 		Pattern: "/api/users",
-		Method: "GET",
+		Method:  "GET",
 	}
 
 	err := router.RegisterRoute(route)
@@ -163,7 +166,7 @@ func TestUnregisterRoute(t *testing.T) {
 	route := &Route{
 		ID:      "route1",
 		Pattern: "/api/users",
-		Method: "GET",
+		Method:  "GET",
 	}
 
 	err := router.RegisterRoute(route)
@@ -195,7 +198,7 @@ func TestGetRoute(t *testing.T) {
 	route := &Route{
 		ID:      "route1",
 		Pattern: "/api/users",
-		Method: "GET",
+		Method:  "GET",
 	}
 
 	err := router.RegisterRoute(route)
@@ -357,7 +360,7 @@ func TestConcurrentRouteRegistration(t *testing.T) {
 			route := &Route{
 				ID:      fmt.Sprintf("route%d", id),
 				Pattern: fmt.Sprintf("/api/endpoint%d", id),
-				Method: "GET",
+				Method:  "GET",
 			}
 			_ = router.RegisterRoute(route)
 		}(i)
@@ -379,7 +382,7 @@ func TestConcurrentRouteUnregistration(t *testing.T) {
 		route := &Route{
 			ID:      fmt.Sprintf("route%d", i),
 			Pattern: fmt.Sprintf("/api/endpoint%d", i),
-			Method: "GET",
+			Method:  "GET",
 		}
 		_ = router.RegisterRoute(route)
 	}
@@ -428,6 +431,46 @@ func TestForwardRequestNilRequest(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "request cannot be nil")
+}
+
+func TestForwardRequestInjectsTraceContext(t *testing.T) {
+	logger := &MockLogger{}
+	metrics := NewMockMetricsCollector()
+	router := NewRequestRouter(logger, metrics)
+
+	route := &Route{ID: "route1", Pattern: "/api/users", Method: "GET"}
+	require.NoError(t, router.RegisterRoute(route))
+	require.NoError(t, router.AttachHandler("route1", NewHandler("handler1", "handler1", "http://upstream.example")))
+	router.SetHTTPClient(&http.Client{
+		Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+			if r.Header.Get("traceparent") == "" {
+				return &http.Response{
+					StatusCode: http.StatusBadRequest,
+					Body:       http.NoBody,
+					Header:     make(http.Header),
+				}, nil
+			}
+
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       http.NoBody,
+				Header:     make(http.Header),
+			}, nil
+		}),
+	})
+
+	tracer := observability.NewDefaultTracer(logger, metrics)
+	ctx, span := tracer.StartSpan(context.Background(), "router.forward", observability.SpanKindClient)
+	defer tracer.EndSpan(&span)
+
+	response, err := router.ForwardRequest(ctx, route, &ForwardedRequest{
+		Method: "GET",
+		Path:   "/test",
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, response)
+	assert.Equal(t, http.StatusOK, response.Status)
 }
 
 // TestMultipleRoutes tests managing multiple routes

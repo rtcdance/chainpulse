@@ -1,10 +1,16 @@
 package http
 
 import (
+	"bufio"
+	"net"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"chainpulse/pkg/plugins/api/core"
 	"chainpulse/pkg/plugins/api/shared"
+
+	oteltrace "go.opentelemetry.io/otel/trace"
 )
 
 func TestNewHTTPPlugin(t *testing.T) {
@@ -187,5 +193,65 @@ func TestHTTPPluginGetRuntimeMetricsTLSServing(t *testing.T) {
 	}
 	if metrics["reliability_hint"] != "http runtime is serving registered routes with a TLS-capable transport" {
 		t.Errorf("unexpected reliability hint: %v", metrics["reliability_hint"])
+	}
+}
+
+func TestHTTPPluginPropagatesTraceContextToNativeHandler(t *testing.T) {
+	apiLayer := core.NewAPILayer()
+	plugin := NewHTTPPlugin("http", 8091, apiLayer)
+
+	called := false
+	plugin.SetNativeHandler(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+		if !oteltrace.SpanFromContext(r.Context()).SpanContext().IsValid() {
+			t.Fatal("expected inbound request to carry an active OTel span")
+		}
+		w.WriteHeader(http.StatusNoContent)
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/health", nil)
+	rr := httptest.NewRecorder()
+	plugin.handleRequest(rr, req)
+
+	if !called {
+		t.Fatal("expected native handler to be called")
+	}
+	if rr.Code != http.StatusNoContent {
+		t.Fatalf("expected status %d, got %d", http.StatusNoContent, rr.Code)
+	}
+}
+
+type hijackableRecorder struct {
+	*httptest.ResponseRecorder
+}
+
+func (r *hijackableRecorder) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	serverConn, clientConn := net.Pipe()
+	reader := bufio.NewReader(serverConn)
+	writer := bufio.NewWriter(serverConn)
+	_ = clientConn.Close()
+	return serverConn, bufio.NewReadWriter(reader, writer), nil
+}
+
+func TestHTTPPluginPreservesHijackerForWebSocketNativeHandler(t *testing.T) {
+	apiLayer := core.NewAPILayer()
+	plugin := NewHTTPPlugin("http", 8092, apiLayer)
+
+	plugin.SetNativeHandler(func(w http.ResponseWriter, r *http.Request) {
+		if _, ok := w.(http.Hijacker); !ok {
+			t.Fatal("expected websocket upgrade request to preserve http.Hijacker")
+		}
+		w.WriteHeader(http.StatusSwitchingProtocols)
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/ws", nil)
+	req.Header.Set("Upgrade", "websocket")
+	req.Header.Set("Connection", "Upgrade")
+	rr := &hijackableRecorder{ResponseRecorder: httptest.NewRecorder()}
+
+	plugin.handleRequest(rr, req)
+
+	if rr.Code != http.StatusSwitchingProtocols {
+		t.Fatalf("expected status %d, got %d", http.StatusSwitchingProtocols, rr.Code)
 	}
 }

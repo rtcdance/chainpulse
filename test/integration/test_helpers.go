@@ -108,11 +108,11 @@ func (m *MockDataPuller) PullEvents(ctx context.Context, fromBlock, toBlock uint
 	for _, event := range m.events {
 		if event.BlockNum >= fromBlock && event.BlockNum <= toBlock {
 			result = append(result, core.BlockchainEvent{
-				ID:       event.ID,
-				ChainID:  event.ChainID,
-				BlockNumber: event.BlockNum,
+				ID:              event.ID,
+				ChainID:         event.ChainID,
+				BlockNumber:     event.BlockNum,
 				TransactionHash: common.HexToHash(event.TxHash),
-				EventName: event.EventName,
+				EventName:       event.EventName,
 			})
 		}
 	}
@@ -137,9 +137,9 @@ func (m *MockDataPuller) GetStats() map[string]interface{} {
 	defer m.mu.Unlock()
 
 	return map[string]interface{}{
-		"chain_id":     m.chainID,
-		"event_count":  len(m.events),
-		"calls":        m.calls,
+		"chain_id":    m.chainID,
+		"event_count": len(m.events),
+		"calls":       m.calls,
 	}
 }
 
@@ -342,6 +342,11 @@ func (m *MockCachePlugin) Health() error {
 	return nil
 }
 
+func (m *MockCachePlugin) HealthCheck(ctx context.Context) error {
+	_ = ctx
+	return nil
+}
+
 func (m *MockCachePlugin) Get(ctx context.Context, key string) ([]byte, error) {
 	if val, ok := m.data[key]; ok {
 		return []byte(val), nil
@@ -464,11 +469,11 @@ func (m *MockMQPlugin) GetQueueDepth(ctx context.Context, topic string) (int64, 
 // createTestBlockchainEvent creates a test blockchain event
 func createTestBlockchainEvent(chainID string, blockNum uint64, eventID string) *core.BlockchainEvent {
 	return &core.BlockchainEvent{
-		ID:       eventID,
-		ChainID:  chainID,
-		BlockNumber: blockNum,
+		ID:              eventID,
+		ChainID:         chainID,
+		BlockNumber:     blockNum,
 		TransactionHash: common.HexToHash("0x" + eventID),
-		EventName: "TestEvent",
+		EventName:       "TestEvent",
 	}
 }
 
@@ -522,11 +527,11 @@ func NewDefaultMetricsCollector() core.MetricsCollector {
 // NewDefaultHealthChecker creates a default health checker for testing
 func NewDefaultHealthChecker(registry core.PluginRegistry, configManager core.ConfigManager, eventBus core.EventBus, metricsCollector core.MetricsCollector, logger core.Logger) core.HealthChecker {
 	return &DefaultHealthChecker{
-		registry:           registry,
-		configManager:      configManager,
-		eventBus:           eventBus,
-		metricsCollector:   metricsCollector,
-		logger:             logger,
+		registry:         registry,
+		configManager:    configManager,
+		eventBus:         eventBus,
+		metricsCollector: metricsCollector,
+		logger:           logger,
 	}
 }
 
@@ -555,7 +560,7 @@ func (m *DefaultConfigManager) Get(key string) (interface{}, error) {
 	case "log_level":
 		return m.config.LogLevel, nil
 	}
-	
+
 	// Then check values map
 	if val, ok := m.values[key]; ok {
 		return val, nil
@@ -644,15 +649,15 @@ func (m *DefaultMetricsCollector) GetHistogramStats(name string, tags map[string
 	m.mu.RLock()
 	values := m.histograms[name]
 	m.mu.RUnlock()
-	
+
 	if len(values) == 0 {
 		return map[string]interface{}{"count": 0}
 	}
-	
+
 	sum := 0.0
 	min := values[0]
 	max := values[0]
-	
+
 	for _, v := range values {
 		sum += v
 		if v < min {
@@ -662,7 +667,7 @@ func (m *DefaultMetricsCollector) GetHistogramStats(name string, tags map[string
 			max = v
 		}
 	}
-	
+
 	return map[string]interface{}{
 		"count": len(values),
 		"sum":   sum,
@@ -672,15 +677,13 @@ func (m *DefaultMetricsCollector) GetHistogramStats(name string, tags map[string
 	}
 }
 
-
-
 // DefaultHealthChecker is a default implementation of HealthChecker for testing
 type DefaultHealthChecker struct {
-	registry           core.PluginRegistry
-	configManager      core.ConfigManager
-	eventBus           core.EventBus
-	metricsCollector   core.MetricsCollector
-	logger             core.Logger
+	registry         core.PluginRegistry
+	configManager    core.ConfigManager
+	eventBus         core.EventBus
+	metricsCollector core.MetricsCollector
+	logger           core.Logger
 }
 
 func (h *DefaultHealthChecker) Check(ctx context.Context) (core.HealthStatus, error) {

@@ -1,6 +1,7 @@
 package core
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -85,6 +86,85 @@ func TestGetMetrics(t *testing.T) {
 	}
 	if metrics["histograms"] == nil {
 		t.Error("expected histograms in metrics")
+	}
+}
+
+func TestExportPrometheusIncludesCounterGaugeAndHistogram(t *testing.T) {
+	collector := NewDefaultMetricsCollector()
+	tags := map[string]string{"service": "api", "chain-id": "ethereum"}
+
+	collector.RecordCounter("requests.total", 5, tags)
+	collector.RecordGauge("memory-usage", 512.5, tags)
+	collector.RecordHistogram("latency_ms", 10, tags)
+	collector.RecordHistogram("latency_ms", 20, tags)
+
+	output := collector.ExportPrometheus()
+
+	for _, expected := range []string{
+		`# TYPE chainpulse_requests_total counter`,
+		`chainpulse_requests_total{chain_id="ethereum",service="api"} 5`,
+		`# TYPE chainpulse_memory_usage gauge`,
+		`chainpulse_memory_usage{chain_id="ethereum",service="api"} 512.5`,
+		`# TYPE chainpulse_latency_ms histogram`,
+		`chainpulse_latency_ms_bucket{chain_id="ethereum",le="10",service="api"} 1`,
+		`chainpulse_latency_ms_bucket{chain_id="ethereum",le="25",service="api"} 2`,
+		`chainpulse_latency_ms_count{chain_id="ethereum",service="api"} 2`,
+		`# TYPE go_goroutines gauge`,
+		`# TYPE go_memstats_alloc_bytes gauge`,
+	} {
+		if !strings.Contains(output, expected) {
+			t.Fatalf("expected output to contain %q, got:\n%s", expected, output)
+		}
+	}
+}
+
+func TestFormatPrometheusMetricsFallback(t *testing.T) {
+	payload := map[string]interface{}{
+		"counters": map[string]interface{}{
+			"test_counter:service=api": map[string]interface{}{
+				"value": int64(3),
+				"tags":  map[string]interface{}{"service": "api"},
+			},
+		},
+		"gauges": map[string]interface{}{
+			"test_gauge": map[string]interface{}{
+				"value": float64(7),
+			},
+		},
+	}
+
+	output := FormatPrometheusMetrics(payload)
+	if !strings.Contains(output, "# TYPE chainpulse_test_counter counter") {
+		t.Fatalf("expected fallback counter output, got:\n%s", output)
+	}
+	if !strings.Contains(output, `chainpulse_test_counter{chain_id="global",service="api"} 3`) {
+		t.Fatalf("expected fallback counter labels to be normalized, got:\n%s", output)
+	}
+	if !strings.Contains(output, `chainpulse_test_gauge{chain_id="global"} 7`) {
+		t.Fatalf("expected fallback gauge output, got:\n%s", output)
+	}
+}
+
+func TestExportPrometheusDefaultsChainIDForApplicationMetrics(t *testing.T) {
+	collector := NewDefaultMetricsCollector()
+	collector.RecordCounter("gateway_request_success", 1, map[string]string{"service": "api-gateway"})
+
+	output := collector.ExportPrometheus()
+
+	if !strings.Contains(output, `chainpulse_gateway_request_success{chain_id="global",service="api_gateway"} 1`) &&
+		!strings.Contains(output, `chainpulse_gateway_request_success{chain_id="global",service="api-gateway"} 1`) {
+		t.Fatalf("expected exporter to inject global chain_id label, got:\n%s", output)
+	}
+}
+
+func TestExportPrometheusNormalizesChainLabelAliases(t *testing.T) {
+	collector := NewDefaultMetricsCollector()
+	collector.RecordGauge("indexing_runtime_started", 1, map[string]string{"chain": "polygon"})
+
+	output := collector.ExportPrometheus()
+
+	if !strings.Contains(output, `chainpulse_indexing_runtime_started{chain_id="polygon"} 1`) {
+		t.Fatalf("expected exporter to normalize chain label to chain_id, got:\n%s", output)
 	}
 }
 

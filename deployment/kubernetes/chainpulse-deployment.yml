@@ -1,0 +1,116 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: chainpulse
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: chainpulse-secrets
+  namespace: chainpulse
+type: Opaque
+stringData:
+  API_JWT_SECRET: "REPLACE_WITH_RANDOM_STRING_AT_LEAST_32_CHARS"
+  DATABASE_URL: "postgres://chainpulse:REPLACE_PASSWORD@postgres:5432/chainpulse?sslmode=require"
+  BLOCKCHAIN_NODE_URLS: "https://mainnet.infura.io/v3/YOUR_PROJECT_ID"
+  REDIS_PASSWORD: "REPLACE_PASSWORD"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: chainpulse-api
+  namespace: chainpulse
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: chainpulse-api
+  template:
+    metadata:
+      labels:
+        app: chainpulse-api
+    spec:
+      containers:
+      - name: chainpulse
+        image: chainpulse/chainpulse:latest
+        ports:
+        - containerPort: 8080
+          name: http
+        - containerPort: 9090
+          name: metrics
+        env:
+        - name: DEPLOYMENT_MODE
+          value: "monolithic"
+        - name: API_PORT
+          value: "8080"
+        - name: GATEWAY_RATE_LIMIT_ENABLED
+          value: "true"
+        - name: GATEWAY_RATE_LIMIT_PER_MINUTE
+          value: "1000"
+        - name: GATEWAY_TLS_ENABLED
+          value: "true"
+        envFrom:
+        - secretRef:
+            name: chainpulse-secrets
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: chainpulse-api
+  namespace: chainpulse
+spec:
+  selector:
+    app: chainpulse-api
+  ports:
+  - port: 80
+    targetPort: 8080
+    name: http
+  - port: 9090
+    targetPort: 9090
+    name: metrics
+  type: ClusterIP
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: chainpulse-api-hpa
+  namespace: chainpulse
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: chainpulse-api
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80

@@ -30,7 +30,7 @@ func main() {
 	fmt.Printf("  Gateway Port:       %d\n", config.Port)
 	fmt.Printf("  Instance ID:        %s\n", config.InstanceID)
 	fmt.Printf("  TLS Enabled:        %v\n", config.TLSEnabled)
-	fmt.Printf("  Rate Limit:         %d req/s\n", config.RateLimitPerSecond)
+	fmt.Printf("  Rate Limit:         %d req/min\n", config.RateLimitPerMinute)
 	fmt.Printf("  Auth Enabled:       %v\n", config.AuthEnabled)
 	fmt.Printf("  Rate Limit Enabled: %v\n", config.RateLimitEnabled)
 	fmt.Printf("  Upstream Services:  %v\n", config.UpstreamServices)
@@ -80,6 +80,7 @@ func main() {
 		os.Exit(1)
 	}
 	gateway.SetRuntimeSummaryProvider(buildAPIGatewayRuntimeSummaryProvider(config.InstanceID, metrics, gateway))
+	gateway.SetRuntimeMetricsProvider(buildAPIGatewayMetricsProvider(metrics))
 	if err := gateway.Initialize(*coreConfig); err != nil {
 		logger.Error("Failed to initialize API Gateway", "error", err.Error())
 		os.Exit(1)
@@ -173,7 +174,7 @@ type GatewayConfig struct {
 	TLSCertPath        string
 	TLSKeyPath         string
 	UpstreamServices   []string
-	RateLimitPerSecond int
+	RateLimitPerMinute int
 	AuthEnabled        bool
 	AuthJWTSecret      string
 	AuthAPIKeys        []string
@@ -195,7 +196,7 @@ func loadGatewayConfig() GatewayConfig {
 		TLSCertPath:        getEnv("GATEWAY_TLS_CERT", ""),
 		TLSKeyPath:         getEnv("GATEWAY_TLS_KEY", ""),
 		UpstreamServices:   getEnvCSV("GATEWAY_UPSTREAM_SERVICES", []string{"http://localhost:8081"}),
-		RateLimitPerSecond: getEnvInt("GATEWAY_RATE_LIMIT", 1000),
+		RateLimitPerMinute: getEnvInt("GATEWAY_RATE_LIMIT", 1000),
 		AuthEnabled:        getEnvBool("GATEWAY_AUTH_ENABLED", false),
 		AuthJWTSecret:      getEnv("GATEWAY_AUTH_JWT_SECRET", ""),
 		AuthAPIKeys:        getEnvCSV("GATEWAY_AUTH_API_KEYS", nil),
@@ -283,8 +284,8 @@ func buildAPIGatewaySecurityControls(config GatewayConfig, logger core.Logger, m
 	var rateLimitMiddleware *api.RateLimitMiddleware
 	if config.RateLimitEnabled {
 		rateLimiter := api.NewRateLimiter(logger, metrics, &api.RateLimitConfig{
-			DefaultRequestsPerSecond: float64(config.RateLimitPerSecond),
-			DefaultBurstSize:         maxInt(10, config.RateLimitPerSecond/10),
+			DefaultRequestsPerSecond: api.RequestsPerMinuteToPerSecond(config.RateLimitPerMinute),
+			DefaultBurstSize:         api.BurstSizeFromRequestsPerMinute(config.RateLimitPerMinute),
 			CleanupInterval:          5 * time.Minute,
 		})
 		rateLimitMiddleware = api.NewRateLimitMiddleware(rateLimiter, logger)

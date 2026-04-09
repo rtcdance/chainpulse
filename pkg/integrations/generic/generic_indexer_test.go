@@ -177,6 +177,11 @@ func (mcp *MockCachePlugin) Health() error {
 	return nil
 }
 
+func (mcp *MockCachePlugin) HealthCheck(ctx context.Context) error {
+	_ = ctx
+	return nil
+}
+
 func TestNewGenericContractIndexer(t *testing.T) {
 	db := &MockDatabasePlugin{}
 	cache := NewMockCachePlugin()

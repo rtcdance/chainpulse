@@ -12,6 +12,7 @@ import (
 type apiGatewayRuntimeSummaryResponse struct {
 	Service        string                 `json:"service"`
 	Timestamp      int64                  `json:"timestamp"`
+	DeploymentMode string                 `json:"deployment_mode"`
 	RuntimeMode    string                 `json:"runtime_mode"`
 	RuntimePosture string                 `json:"runtime_posture"`
 	ComponentState string                 `json:"component_state"`
@@ -88,6 +89,7 @@ func buildAPIGatewayRuntimeSummaryResponse(
 	return &apiGatewayRuntimeSummaryResponse{
 		Service:        "api-gateway",
 		Timestamp:      time.Now().Unix(),
+		DeploymentMode: "microservice",
 		RuntimeMode:    runtimeMode,
 		RuntimePosture: runtimePosture,
 		ComponentState: componentState,

@@ -273,6 +273,9 @@ func TestAPIServiceRuntimeSummaryRouteExposesQueryRuntimeState(t *testing.T) {
 	if payload.Service != "api-service" {
 		t.Fatalf("expected service api-service, got %q", payload.Service)
 	}
+	if payload.DeploymentMode != "microservice" {
+		t.Fatalf("expected deployment mode microservice, got %q", payload.DeploymentMode)
+	}
 	if payload.RuntimePosture != "partial-runtime-wiring" {
 		t.Fatalf("expected runtime posture partial-runtime-wiring, got %q", payload.RuntimePosture)
 	}
@@ -379,6 +382,9 @@ func TestAPIServiceSecuritySurfaceProtectsRuntimeSummaryWhenEnabled(t *testing.T
 	var payload apiServiceRuntimeSummaryResponse
 	if err := json.Unmarshal(rr.Body.Bytes(), &payload); err != nil {
 		t.Fatalf("decode runtime summary response: %v", err)
+	}
+	if payload.DeploymentMode != "microservice" {
+		t.Fatalf("expected deployment mode microservice, got %q", payload.DeploymentMode)
 	}
 	if got := payload.Security["auth_enabled"]; got != true {
 		t.Fatalf("expected auth enabled, got %v", got)

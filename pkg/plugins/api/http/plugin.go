@@ -3,8 +3,10 @@ package http
 import (
 	"fmt"
 	"net/http"
+	"strings"
 	"sync"
 
+	"chainpulse/pkg/observability"
 	"chainpulse/pkg/plugins/api/core"
 	"chainpulse/pkg/plugins/api/shared"
 )
@@ -24,6 +26,7 @@ type HTTPPlugin struct {
 	running       bool
 	middleware    []core.Middleware
 	nativeHandler http.HandlerFunc
+	tracer        *observability.DefaultTracer
 }
 
 // NewHTTPPlugin creates a new HTTP plugin
@@ -37,6 +40,7 @@ func NewHTTPPlugin(name string, port int, apiLayer *core.APILayer) *HTTPPlugin {
 		router:     core.NewAPIRouter(),
 		processor:  processor,
 		middleware: make([]core.Middleware, 0),
+		tracer:     observability.NewDefaultTracer(nil, nil),
 	}
 }
 
@@ -57,6 +61,7 @@ func NewHTTPPluginWithTLS(name string, port int, httpsPort int, certFile, keyFil
 		tlsManager: tlsManager,
 		processor:  processor,
 		middleware: make([]core.Middleware, 0),
+		tracer:     observability.NewDefaultTracer(nil, nil),
 	}, nil
 }
 
@@ -164,11 +169,27 @@ func (p *HTTPPlugin) IsRunning() bool {
 
 // handleRequest handles incoming HTTP requests
 func (p *HTTPPlugin) handleRequest(w http.ResponseWriter, r *http.Request) {
+	if strings.EqualFold(r.Header.Get("Upgrade"), "websocket") {
+		p.handleRequestCore(w, r)
+		return
+	}
+
+	if p.tracer != nil {
+		p.tracer.WrapHTTPHandler(http.HandlerFunc(p.handleRequestCore), fmt.Sprintf("%s.request", p.name)).ServeHTTP(w, r)
+
+		return
+	}
+
+	p.handleRequestCore(w, r)
+}
+
+func (p *HTTPPlugin) handleRequestCore(w http.ResponseWriter, r *http.Request) {
 	p.mu.RLock()
 	nativeHandler := p.nativeHandler
 	p.mu.RUnlock()
 	if nativeHandler != nil {
 		nativeHandler(w, r)
+
 		return
 	}
 

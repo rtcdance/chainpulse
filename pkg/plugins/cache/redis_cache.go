@@ -6,15 +6,16 @@ import (
 	"encoding/json"
 	"fmt"
 	"time"
+
+	"github.com/redis/go-redis/v9"
 )
 
 // RedisCachePlugin provides Redis-based cache implementation
 type RedisCachePlugin struct {
 	*BaseCachePlugin
 	connectionURL string
-	// In a real implementation, this would be a Redis client
-	// For now, we'll use a mock implementation
-	data map[string]*CacheEntry
+	client        *redis.Client
+	data          map[string]*CacheEntry
 }
 
 // NewRedisCachePlugin creates a new Redis cache plugin
@@ -47,10 +48,40 @@ func (p *RedisCachePlugin) Initialize(config *core.Config) error {
 	p.initialized = true
 
 	p.logger.Info("Redis cache plugin initialized", map[string]interface{}{
-		"component":      "redis_cache",
-		"connectionURL":  p.connectionURL,
+		"component":     "redis_cache",
+		"connectionURL": p.connectionURL,
 	})
 
+	return nil
+}
+
+// Start starts the Redis cache plugin
+func (p *RedisCachePlugin) Start() error {
+	if err := p.BaseCachePlugin.Start(); err != nil {
+		return err
+	}
+
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	opts, err := redis.ParseURL(p.connectionURL)
+	if err != nil {
+		opts = &redis.Options{
+			Addr: "localhost:6379",
+		}
+	}
+	p.client = redis.NewClient(opts)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if err := p.client.Ping(ctx).Err(); err != nil {
+		p.logger.Warn("Redis connection failed, using in-memory fallback", "error", err.Error())
+		p.client = nil
+		return nil
+	}
+
+	p.logger.Info("Redis cache plugin started", "component", "redis_cache", "connection", p.connectionURL)
 	return nil
 }
 
@@ -215,9 +246,31 @@ func (p *RedisCachePlugin) Ping(_ context.Context) error {
 		return fmt.Errorf("redis cache plugin not running")
 	}
 
-	// In a real implementation, this would ping the Redis server
-	// For now, we just return nil
-	return nil
+	if p.client == nil {
+		return nil
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	return p.client.Ping(ctx).Err()
+}
+
+// HealthCheck checks Redis health
+func (p *RedisCachePlugin) HealthCheck(ctx context.Context) error {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+
+	if !p.running {
+		return fmt.Errorf("redis cache plugin not running")
+	}
+
+	if p.client == nil {
+		return nil
+	}
+
+	pingCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	return p.client.Ping(pingCtx).Err()
 }
 
 // FlushDB flushes the current database

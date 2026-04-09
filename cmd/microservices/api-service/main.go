@@ -135,7 +135,9 @@ func main() {
 	service.SetEventQueryHandler(runtimeWiring.EventQueryHandler)
 	service.SetEventSubscriptionHandler(runtimeWiring.EventSubscriptionHandler)
 	service.SetHealthCheckHandler(runtimeWiring.HealthCheckHandler)
+	service.SetGraphQLHandler(runtimeWiring.GraphQLHandler)
 	service.SetRuntimeSummaryProvider(buildAPIServiceRuntimeSummaryProvider(config.InstanceID, metrics, service, runtimeWiring.QueryService))
+	service.SetRuntimeMetricsProvider(buildAPIServiceMetricsProvider(metrics))
 	if err := service.Initialize(*coreConfig); err != nil {
 		logger.Error("Failed to initialize API Service", "error", err.Error())
 		os.Exit(1)
@@ -276,7 +278,7 @@ type APIServiceConfig struct {
 	AuthJWTSecret      string
 	AuthAPIKeys        []string
 	RateLimitEnabled   bool
-	RateLimitPerSecond int
+	RateLimitPerMinute int
 }
 
 // loadAPIServiceConfig loads configuration from environment variables
@@ -299,7 +301,7 @@ func loadAPIServiceConfig() APIServiceConfig {
 		AuthJWTSecret:      getEnv("API_SERVICE_AUTH_JWT_SECRET", ""),
 		AuthAPIKeys:        parseCommaSeparatedList(getEnv("API_SERVICE_AUTH_API_KEYS", "")),
 		RateLimitEnabled:   parseBoolEnv("API_SERVICE_RATE_LIMIT_ENABLED", false),
-		RateLimitPerSecond: getEnvInt("API_SERVICE_RATE_LIMIT", 100),
+		RateLimitPerMinute: getEnvInt("API_SERVICE_RATE_LIMIT", 100),
 	}
 }
 
@@ -333,8 +335,8 @@ func buildAPIServiceSecurityControls(config APIServiceConfig, logger core.Logger
 	var rateLimitMiddleware *api.RateLimitMiddleware
 	if config.RateLimitEnabled {
 		rateLimiter := api.NewRateLimiter(logger, metrics, &api.RateLimitConfig{
-			DefaultRequestsPerSecond: float64(config.RateLimitPerSecond),
-			DefaultBurstSize:         max(10, config.RateLimitPerSecond/10),
+			DefaultRequestsPerSecond: api.RequestsPerMinuteToPerSecond(config.RateLimitPerMinute),
+			DefaultBurstSize:         api.BurstSizeFromRequestsPerMinute(config.RateLimitPerMinute),
 			CleanupInterval:          5 * time.Minute,
 		})
 		rateLimitMiddleware = api.NewRateLimitMiddleware(rateLimiter, logger)

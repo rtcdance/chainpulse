@@ -6,6 +6,7 @@ import "time"
 func buildSingleEventQueryResponse(data interface{}, meta *QueryMeta) *QueryResponse {
 	return &QueryResponse{
 		Data:      data,
+		Events:    data,
 		Meta:      meta,
 		Timestamp: time.Now().Unix(),
 	}
@@ -14,7 +15,8 @@ func buildSingleEventQueryResponse(data interface{}, meta *QueryMeta) *QueryResp
 // buildPaginatedEventQueryResponse assembles a stable paginated event response shape.
 func buildPaginatedEventQueryResponse(data interface{}, limit, offset, total int, meta *QueryMeta) *QueryResponse {
 	return &QueryResponse{
-		Data: data,
+		Data:   data,
+		Events: data,
 		Pagination: &Pagination{
 			Limit:  limit,
 			Offset: offset,

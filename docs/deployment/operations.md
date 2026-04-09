@@ -6,6 +6,44 @@
 
 ## 日常运维任务
 
+## Runtime Endpoints
+
+当前单体运行时的常用 operator/runtime 入口如下：
+
+| Endpoint | Method | 用途 |
+|----------|--------|------|
+| `/health` | `GET` | 基础健康检查 |
+| `/metrics` | `GET` | 指标抓取 |
+| `/runtime/summary` | `GET` | 查看单体 indexing/puller/gateway/query posture |
+| `/runtime/control` | `GET` | 查看 puller 只读控制状态 |
+| `/runtime/indexing/dlq/replay` | `POST` | 对运行中的单体进程执行有界 DLQ 重放 |
+
+DLQ replay 示例：
+
+```bash
+curl -X POST http://localhost:8080/runtime/indexing/dlq/replay \
+  -H "Content-Type: application/json" \
+  -d '{
+    "chain_id": "ethereum",
+    "from": {
+      "block_number": 100,
+      "cursor": "100:0"
+    },
+    "to": {
+      "block_number": 110,
+      "cursor": "110:999"
+    },
+    "limit": 50
+  }'
+```
+
+说明：
+
+- 该 replay 动作必须命中仍在运行的 monolithic 进程
+- 当前 DLQ journal 为进程内存态，不跨重启保留
+- `MONOLITHIC_DLQ_RETENTION` 控制进程内 DLQ 的保留期，默认 `168h`
+- replay 成功后会对已成功处理事件做 ack，并从内存 DLQ 中移除
+
 ### 1. 监控检查
 
 **频率**: 每小时

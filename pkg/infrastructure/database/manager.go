@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -36,14 +37,15 @@ type DatabaseManager interface {
 
 // DefaultDatabaseManager provides default implementation of DatabaseManager
 type DefaultDatabaseManager struct {
-	mu              sync.RWMutex
-	mongoClient     *mongo.Client
-	postgresDB      *sql.DB
 	mongoURI        string
 	postgresURL     string
+	postgresSSLMode string
+	mongoClient     *mongo.Client
+	postgresClient  *sql.DB
+	poolSize        int
 	mongoTimeout    time.Duration
 	postgresTimeout time.Duration
-	poolSize        int
+	mu              sync.RWMutex
 	initialized     bool
 	closed          bool
 }
@@ -53,6 +55,7 @@ func NewDatabaseManager(mongoURI, postgresURL string, poolSize int, timeout time
 	return &DefaultDatabaseManager{
 		mongoURI:        mongoURI,
 		postgresURL:     postgresURL,
+		postgresSSLMode: "disable",
 		mongoTimeout:    timeout,
 		postgresTimeout: timeout,
 		poolSize:        poolSize,
@@ -119,7 +122,16 @@ func (m *DefaultDatabaseManager) initPostgres(ctx context.Context) error {
 		return fmt.Errorf("PostgreSQL URL is required")
 	}
 
-	db, err := sql.Open("postgres", m.postgresURL)
+	connStr := m.postgresURL
+	if !strings.Contains(connStr, "sslmode") {
+		if strings.Contains(connStr, "?") {
+			connStr += "&sslmode=" + m.postgresSSLMode
+		} else {
+			connStr += "?sslmode=" + m.postgresSSLMode
+		}
+	}
+
+	db, err := sql.Open("postgres", connStr)
 	if err != nil {
 		return fmt.Errorf("failed to open PostgreSQL connection: %w", err)
 	}
@@ -138,7 +150,7 @@ func (m *DefaultDatabaseManager) initPostgres(ctx context.Context) error {
 		return fmt.Errorf("failed to ping PostgreSQL: %w", err)
 	}
 
-	m.postgresDB = db
+	m.postgresClient = db
 	return nil
 }
 
@@ -179,11 +191,11 @@ func (m *DefaultDatabaseManager) GetPostgresDB(ctx context.Context) (interface{}
 		return nil, fmt.Errorf("database manager not initialized")
 	}
 
-	if m.postgresDB == nil {
+	if m.postgresClient == nil {
 		return nil, fmt.Errorf("PostgreSQL connection not available")
 	}
 
-	return m.postgresDB, nil
+	return m.postgresClient, nil
 }
 
 // CheckMongoHealth checks MongoDB connectivity
@@ -206,14 +218,14 @@ func (m *DefaultDatabaseManager) CheckPostgresHealth(ctx context.Context) error 
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	if m.postgresDB == nil {
+	if m.postgresClient == nil {
 		return fmt.Errorf("PostgreSQL connection not initialized")
 	}
 
 	pingCtx, cancel := context.WithTimeout(ctx, m.postgresTimeout)
 	defer cancel()
 
-	return m.postgresDB.PingContext(pingCtx)
+	return m.postgresClient.PingContext(pingCtx)
 }
 
 // Health returns the health status
@@ -229,7 +241,7 @@ func (m *DefaultDatabaseManager) Health(ctx context.Context) interface{} {
 	}
 
 	mongoHealthy := m.mongoClient != nil
-	postgresHealthy := m.postgresDB != nil
+	postgresHealthy := m.postgresClient != nil
 
 	if !mongoHealthy && !postgresHealthy {
 		return map[string]interface{}{
@@ -264,8 +276,8 @@ func (m *DefaultDatabaseManager) Close(ctx context.Context) error {
 	}
 
 	// Close PostgreSQL
-	if m.postgresDB != nil {
-		if err := m.postgresDB.Close(); err != nil {
+	if m.postgresClient != nil {
+		if err := m.postgresClient.Close(); err != nil {
 			errs = append(errs, fmt.Errorf("failed to close PostgreSQL: %w", err))
 		}
 	}

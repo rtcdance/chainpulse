@@ -1,14 +1,17 @@
 package api
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
 	"net/http"
+	"sort"
 	"sync"
 	"time"
 
 	"chainpulse/pkg/core"
+	"chainpulse/pkg/observability"
 )
 
 // RequestRouter manages route registration and request forwarding
@@ -184,8 +187,20 @@ func (rr *RequestRouter) MatchRoute(path string) (*Route, map[string]string, err
 	rr.mu.RLock()
 	defer rr.mu.RUnlock()
 
+	rr.logger.Debug("Matching route", "path", path, "registered_routes", len(rr.routes))
+
+	routes := make([]*Route, 0, len(rr.routes))
 	for _, route := range rr.routes {
+		routes = append(routes, route)
+	}
+	sort.Slice(routes, func(i, j int) bool {
+		return routes[i].Priority > routes[j].Priority
+	})
+
+	for _, route := range routes {
+		rr.logger.Debug("Trying route", "route_pattern", route.Pattern, "route_method", route.Method, "priority", route.Priority)
 		if params, matched := route.Match(path); matched {
+			rr.logger.Debug("Route matched", "route_id", route.ID, "path", path, "priority", route.Priority)
 			return route, params, nil
 		}
 	}
@@ -269,9 +284,11 @@ func (rr *RequestRouter) forwardToHandler(ctx context.Context, handler *RequestH
 		httpReq.Header.Set(key, value)
 	}
 
+	observability.InjectTraceHeaders(ctx, httpReq.Header)
+
 	// Set body if present
 	if len(req.Body) > 0 {
-		httpReq.Body = io.NopCloser(io.Reader(nil))
+		httpReq.Body = io.NopCloser(bytes.NewReader(req.Body))
 		httpReq.ContentLength = int64(len(req.Body))
 	}
 

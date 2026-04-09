@@ -1,10 +1,10 @@
 package indexing
 
 import (
+	"chainpulse/pkg/core"
 	"context"
 	"testing"
 
-	"chainpulse/pkg/core"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -32,6 +32,28 @@ func TestMonolithicMemoryDatabaseLifecycleAndStore(t *testing.T) {
 	latest, err := db.GetLatestBlock(context.Background())
 	require.NoError(t, err)
 	assert.Equal(t, uint64(100), latest)
+}
+
+func TestMonolithicMemoryDatabaseStoreBlockSnapshot(t *testing.T) {
+	db := NewMonolithicMemoryDatabase(core.NewDefaultLogger(core.LogLevelInfo))
+
+	require.NoError(t, db.Initialize(core.Config{}))
+	require.NoError(t, db.Start())
+
+	block := &core.Block{
+		Number: 88,
+		Hash:   common.HexToHash("0xabcd"),
+	}
+	require.NoError(t, db.StoreBlockSnapshot(context.Background(), block))
+
+	stored, err := db.GetBlock(context.Background(), 88)
+	require.NoError(t, err)
+	require.NotNil(t, stored)
+	assert.Equal(t, common.HexToHash("0xabcd"), stored.Hash)
+
+	latest, err := db.GetLatestBlock(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, uint64(88), latest)
 }
 
 func TestMonolithicMemoryCacheLifecycleAndSetGet(t *testing.T) {

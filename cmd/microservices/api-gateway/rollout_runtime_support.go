@@ -52,13 +52,16 @@ func buildAPIGatewayRuntimeRolloutComponents(
 	metrics core.MetricsCollector,
 	gateway *api.APIGatewayPlugin,
 ) (*api.EventQueryHandler, *api.EventSubscriptionHandler, *api.HealthCheckHandler, error) {
-	healthHandler := api.NewHealthCheckHandler(&apiGatewayNoopDatabaseManager{}, logger, metrics)
+	healthHandler := api.NewHealthCheckHandler(&apiGatewayNoopDatabaseManager{}, nil, logger, metrics)
 	if err := healthHandler.Initialize(ctx); err != nil {
 		return nil, nil, nil, err
 	}
 
 	eventQueryHandler := api.NewEventQueryHandler(nil, logger, metrics)
 	eventSubscriptionHandler := api.NewEventSubscriptionHandler(nil, logger, metrics)
+	if err := eventSubscriptionHandler.Initialize(ctx); err != nil {
+		return nil, nil, nil, err
+	}
 
 	gateway.SetEventQueryHandler(eventQueryHandler)
 	gateway.SetEventSubscriptionHandler(eventSubscriptionHandler)
@@ -85,13 +88,16 @@ func buildAPIGatewayRuntimeRolloutComponentsWithReadinessDetails(
 	gateway *api.APIGatewayPlugin,
 	readinessDetailsProvider func() map[string]interface{},
 ) (*api.EventQueryHandler, *api.EventSubscriptionHandler, *api.HealthCheckHandler, error) {
-	healthHandler := api.NewHealthCheckHandler(&apiGatewayNoopDatabaseManager{}, logger, metrics)
+	healthHandler := api.NewHealthCheckHandler(&apiGatewayNoopDatabaseManager{}, nil, logger, metrics)
 	if err := healthHandler.Initialize(ctx); err != nil {
 		return nil, nil, nil, err
 	}
 
 	eventQueryHandler := api.NewEventQueryHandler(nil, logger, metrics)
 	eventSubscriptionHandler := api.NewEventSubscriptionHandler(nil, logger, metrics)
+	if err := eventSubscriptionHandler.Initialize(ctx); err != nil {
+		return nil, nil, nil, err
+	}
 
 	gateway.SetEventQueryHandler(eventQueryHandler)
 	gateway.SetEventSubscriptionHandler(eventSubscriptionHandler)

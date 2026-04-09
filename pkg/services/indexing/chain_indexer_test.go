@@ -315,6 +315,11 @@ func (mcp *MockCachePlugin) Health() error {
 	return nil
 }
 
+func (mcp *MockCachePlugin) HealthCheck(ctx context.Context) error {
+	_ = ctx
+	return nil
+}
+
 type stubSharedBatchRuntime struct {
 	mu          sync.Mutex
 	calls       int

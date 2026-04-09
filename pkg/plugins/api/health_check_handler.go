@@ -15,6 +15,7 @@ import (
 // HealthCheckHandler handles health check requests
 type HealthCheckHandler struct {
 	dbManager   database.DatabaseManager
+	cachePlugin core.CachePlugin
 	logger      core.Logger
 	metrics     core.MetricsCollector
 	initialized bool
@@ -67,11 +68,33 @@ type LivenessResponse struct {
 // NewHealthCheckHandler creates a new health check handler
 func NewHealthCheckHandler(
 	dbManager database.DatabaseManager,
-	logger core.Logger,
-	metrics core.MetricsCollector,
+	args ...interface{},
 ) *HealthCheckHandler {
+	var (
+		cachePlugin core.CachePlugin
+		logger      core.Logger
+		metrics     core.MetricsCollector
+	)
+
+	// Support both the current constructor shape
+	//   NewHealthCheckHandler(db, cache, logger, metrics)
+	// and the older test-only shape
+	//   NewHealthCheckHandler(db, logger, metrics)
+	switch len(args) {
+	case 3:
+		if cache, ok := args[0].(core.CachePlugin); ok {
+			cachePlugin = cache
+		}
+		logger, _ = args[1].(core.Logger)
+		metrics, _ = args[2].(core.MetricsCollector)
+	case 2:
+		logger, _ = args[0].(core.Logger)
+		metrics, _ = args[1].(core.MetricsCollector)
+	}
+
 	return &HealthCheckHandler{
 		dbManager:           dbManager,
+		cachePlugin:         cachePlugin,
 		logger:              logger,
 		metrics:             metrics,
 		initialized:         false,
@@ -476,9 +499,22 @@ func (h *HealthCheckHandler) checkRedisHealth(ctx context.Context) *ComponentSta
 		return status
 	}
 
-	// Redis health check is optional - if not available, mark as degraded
-	status.Status = "degraded"
-	status.Error = "Redis cache not available"
+	if h.cachePlugin == nil {
+		status.Status = "healthy"
+		status.Details = map[string]interface{}{
+			"posture": "cache-plugin-not-wired",
+		}
+		status.ResponseTime = time.Since(start).Milliseconds()
+		return status
+	}
+
+	pingCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+
+	if err := h.cachePlugin.HealthCheck(pingCtx); err != nil {
+		status.Status = "degraded"
+		status.Error = "Redis health check failed: " + err.Error()
+	}
 
 	status.ResponseTime = time.Since(start).Milliseconds()
 	return status

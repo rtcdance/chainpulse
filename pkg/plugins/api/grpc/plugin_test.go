@@ -1,6 +1,7 @@
 package grpc
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -162,6 +163,45 @@ func TestGRPCPluginMultipleMiddleware(t *testing.T) {
 
 	if len(plugin.middleware) != 2 {
 		t.Errorf("expected 2 middleware, got %d", len(plugin.middleware))
+	}
+}
+
+func TestGRPCPluginProcessRequestExecutesMiddleware(t *testing.T) {
+	apiLayer := core.NewAPILayer()
+	plugin := NewGRPCPlugin("grpc", 9101, apiLayer)
+
+	if err := plugin.RegisterRoute("/grpc.test", core.HandlerFunc(func(req core.Request) (core.Response, error) {
+		resp := core.NewBaseResponse(nil)
+		resp.SetStatus(200)
+		resp.SetBody([]byte("ok"))
+		return resp, nil
+	})); err != nil {
+		t.Fatalf("register route: %v", err)
+	}
+
+	middleware := func(next core.Handler) core.Handler {
+		return core.HandlerFunc(func(req core.Request) (core.Response, error) {
+			resp, err := next.Handle(req)
+			if err == nil {
+				resp.SetHeader("X-GRPC-Middleware", "applied")
+			}
+			return resp, err
+		})
+	}
+
+	if err := plugin.Use(middleware); err != nil {
+		t.Fatalf("use middleware: %v", err)
+	}
+
+	resp, err := plugin.ProcessRequest(context.Background(), "POST", "/grpc.test", nil, []byte(`{}`))
+	if err != nil {
+		t.Fatalf("process request: %v", err)
+	}
+	if resp.Status() != 200 {
+		t.Fatalf("expected status 200, got %d", resp.Status())
+	}
+	if got := resp.Header("X-GRPC-Middleware"); got != "applied" {
+		t.Fatalf("expected middleware header applied, got %q", got)
 	}
 }
 

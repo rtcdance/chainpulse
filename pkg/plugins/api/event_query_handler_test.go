@@ -43,7 +43,7 @@ func (m *mockDomainQueryService) Health(ctx context.Context) *core.HealthStatus 
 }
 
 type mockEventStore struct {
-	getEvent        func(ctx context.Context, eventID string) (*core.BlockchainEvent, error)
+	getEvent         func(ctx context.Context, eventID string) (*core.BlockchainEvent, error)
 	getEventsByChain func(ctx context.Context, chainID int, limit int, offset int) ([]*core.BlockchainEvent, error)
 }
 
@@ -486,6 +486,72 @@ func TestEventQueryHandlerGetByChainDomainQueryMeta(t *testing.T) {
 	}
 	if got := meta["queryExecutionSummary"]; got != "domain-chain:mongodb:coverage-missing" {
 		t.Fatalf("expected queryExecutionSummary domain-chain:mongodb:coverage-missing, got %v", got)
+	}
+}
+
+func TestEventQueryHandlerGetByChainStringDomainQueryMeta(t *testing.T) {
+	logger := &MockLogger{}
+	metrics := NewMockMetricsCollector()
+	retrieval := query.NewEventRetrievalService(&mockEventStore{}, &mockMetadataStore{}, logger, metrics)
+
+	if err := retrieval.Initialize(context.Background()); err != nil {
+		t.Fatalf("initialize retrieval service: %v", err)
+	}
+
+	handler := NewEventQueryHandler(retrieval, logger, metrics)
+	handler.SetDomainQueryService(&mockDomainQueryService{
+		query: func(ctx context.Context, req *domainquery.Request) (*domainquery.Result, error) {
+			if req == nil {
+				t.Fatal("expected domain query request")
+			}
+			if got := req.Filter["chainId"]; got != "ethereum" {
+				t.Fatalf("expected chainId filter ethereum, got %v", got)
+			}
+			return &domainquery.Result{
+				Events: []core.BlockchainEvent{
+					{
+						ID:             "domain-chain-eth-1",
+						ChainID:        "ethereum",
+						BlockNumber:    333,
+						BlockTimestamp: time.Now().Unix(),
+						EventName:      "Transfer",
+						DecodedData:    map[string]interface{}{"path": "domain-chain-string"},
+						CreatedAt:      time.Now(),
+						ProcessedAt:    time.Now(),
+						IndexedAt:      time.Now(),
+					},
+				},
+				Total:  1,
+				Source: "monolithic-indexing",
+			}, nil
+		},
+	})
+	if err := handler.Initialize(context.Background()); err != nil {
+		t.Fatalf("initialize handler: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/events/chain/ethereum?limit=1&offset=0", nil)
+	rr := httptest.NewRecorder()
+	handler.HandleGetEventsByChain(rr, req, "ethereum")
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d, body=%s", rr.Code, rr.Body.String())
+	}
+
+	var payload map[string]interface{}
+	if err := json.Unmarshal(rr.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+
+	meta, ok := payload["meta"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected meta object in response: %v", payload)
+	}
+	if got := meta["source"]; got != "monolithic-indexing" {
+		t.Fatalf("expected meta source monolithic-indexing, got %v", got)
+	}
+	if got := meta["queryPath"]; got != "domain-chain" {
+		t.Fatalf("expected queryPath domain-chain, got %v", got)
 	}
 }
 

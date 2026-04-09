@@ -1,0 +1,286 @@
+version: "3.8"
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: chainpulse-postgres
+    environment:
+      POSTGRES_USER: chainpulse
+      POSTGRES_PASSWORD: chainpulse
+      POSTGRES_DB: chainpulse
+    ports:
+      - "15432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U chainpulse -d chainpulse"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      chainpulse:
+        aliases:
+          - postgres-primary
+
+  redis:
+    image: redis:7-alpine
+    container_name: chainpulse-redis
+    ports:
+      - "16379:6379"
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      chainpulse:
+        aliases:
+          - redis-1
+          - redis-2
+          - redis-3
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: chainpulse-zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    networks:
+      - chainpulse
+
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: chainpulse-kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    restart: on-failure
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      chainpulse:
+        aliases:
+          - kafka-1
+          - kafka-2
+          - kafka-3
+
+  anvil:
+    image: ${ANVIL_IMAGE:-ghcr.io/foundry-rs/foundry:latest}
+    container_name: chainpulse-anvil
+    ports:
+      - "8545:8545"
+    command: >
+      anvil
+      --host 0.0.0.0
+      --port 8545
+      --chain-id 31337
+      --accounts 10
+      --balance 10000
+    healthcheck:
+      test: ["CMD", "anvil", "--version"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      chainpulse:
+        aliases:
+          - ethereum-rpc
+          - polygon-rpc
+
+  mongodb:
+    image: mongo:6
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.runCommand({ ping: 1 })"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      chainpulse:
+        aliases:
+          - mongodb
+
+  prometheus:
+    image: prom/prometheus:v2.47.0
+    container_name: chainpulse-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ../monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.enable-lifecycle"
+    networks:
+      - chainpulse
+
+  grafana:
+    image: grafana/grafana:10.1.0
+    container_name: chainpulse-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ../monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ../monitoring/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+    depends_on:
+      - prometheus
+    networks:
+      - chainpulse
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.49
+    container_name: chainpulse-jaeger
+    ports:
+      - "16686:16686"
+      - "4317:4317"
+      - "4318:4318"
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    networks:
+      - chainpulse
+
+  api-service:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.microservices
+      args:
+        SERVICE: api-service
+    container_name: chainpulse-api-service
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+    environment:
+      SERVICE_PORT: 8081
+      INSTANCE_ID: api-service-1
+      DB_HOST: postgres-primary
+      DB_PORT: 5432
+      DATABASE_URL: postgres://chainpulse:chainpulse@postgres-primary:5432/chainpulse
+      MONGODB_URI: mongodb://mongodb:27017
+      LOG_LEVEL: info
+    ports:
+      - "8081:8081"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8081/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    networks:
+      - chainpulse
+
+  api-gateway:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.microservices
+      args:
+        SERVICE: api-gateway
+    container_name: chainpulse-api-gateway
+    depends_on:
+      api-service:
+        condition: service_healthy
+    environment:
+      GATEWAY_PORT: 8080
+      INSTANCE_ID: api-gateway-1
+      GATEWAY_UPSTREAM_SERVICES: http://api-service:8081
+      LOG_LEVEL: info
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    networks:
+      - chainpulse
+
+  event-processor:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.microservices
+      args:
+        SERVICE: event-processor
+    container_name: chainpulse-event-processor
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    environment:
+      PROCESSOR_PORT: 8082
+      INSTANCE_ID: event-processor-1
+      DATABASE_URL: postgres://chainpulse:chainpulse@postgres-primary:5432/chainpulse
+      MONGODB_URI: mongodb://mongodb:27017
+      LOG_LEVEL: info
+    ports:
+      - "8082:8082"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8082/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    networks:
+      - chainpulse
+
+  puller:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.microservices
+      args:
+        SERVICE: puller
+    container_name: chainpulse-puller
+    depends_on:
+      kafka:
+        condition: service_healthy
+      anvil:
+        condition: service_healthy
+    environment:
+      PULLER_PORT: 8083
+      INSTANCE_ID: puller-1
+      DATABASE_URL: postgres://chainpulse:chainpulse@postgres-primary:5432/chainpulse
+      MONGODB_URI: mongodb://mongodb:27017
+      KAFKA_BROKERS: kafka-1:9092,kafka-2:9092,kafka-3:9092
+      BLOCKCHAIN_RPCS: http://ethereum-rpc:8545,http://polygon-rpc:8545
+      LOG_LEVEL: info
+    ports:
+      - "8083:8083"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8083/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    networks:
+      - chainpulse
+
+volumes:
+  postgres_data:
+  prometheus_data:
+  grafana_data:
+
+networks:
+  chainpulse:
+    driver: bridge

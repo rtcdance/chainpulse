@@ -177,6 +177,11 @@ func (mcp *MockCachePlugin) Health() error {
 	return nil
 }
 
+func (mcp *MockCachePlugin) HealthCheck(ctx context.Context) error {
+	_ = ctx
+	return nil
+}
+
 func TestNewUniswapIndexer(t *testing.T) {
 	db := &MockDatabasePlugin{}
 	cache := NewMockCachePlugin()
@@ -206,15 +211,15 @@ func TestIndexSwapEvents(t *testing.T) {
 			TransactionHash: common.HexToHash("0x1234"),
 			ContractAddress: common.HexToAddress("0x1111"),
 			DecodedData: map[string]interface{}{
-				"sender":      common.HexToAddress("0x2222"),
-				"recipient":   common.HexToAddress("0x3333"),
-				"amount0In":   big.NewInt(1000),
-				"amount1In":   big.NewInt(0),
-				"amount0Out":  big.NewInt(0),
-				"amount1Out":  big.NewInt(900),
+				"sender":       common.HexToAddress("0x2222"),
+				"recipient":    common.HexToAddress("0x3333"),
+				"amount0In":    big.NewInt(1000),
+				"amount1In":    big.NewInt(0),
+				"amount0Out":   big.NewInt(0),
+				"amount1Out":   big.NewInt(900),
 				"sqrtPriceX96": big.NewInt(1000000),
-				"liquidity":   big.NewInt(5000000),
-				"tick":        int32(100),
+				"liquidity":    big.NewInt(5000000),
+				"tick":         int32(100),
 			},
 		},
 	}
@@ -447,15 +452,15 @@ func TestConcurrentSwapIndexing(t *testing.T) {
 					TransactionHash: common.HexToHash("0x1234"),
 					ContractAddress: common.HexToAddress("0x1111"),
 					DecodedData: map[string]interface{}{
-						"sender":      common.HexToAddress("0x2222"),
-						"recipient":   common.HexToAddress("0x3333"),
-						"amount0In":   big.NewInt(1000),
-						"amount1In":   big.NewInt(0),
-						"amount0Out":  big.NewInt(0),
-						"amount1Out":  big.NewInt(900),
+						"sender":       common.HexToAddress("0x2222"),
+						"recipient":    common.HexToAddress("0x3333"),
+						"amount0In":    big.NewInt(1000),
+						"amount1In":    big.NewInt(0),
+						"amount0Out":   big.NewInt(0),
+						"amount1Out":   big.NewInt(900),
 						"sqrtPriceX96": big.NewInt(1000000),
-						"liquidity":   big.NewInt(5000000),
-						"tick":        int32(100),
+						"liquidity":    big.NewInt(5000000),
+						"tick":         int32(100),
 					},
 				},
 			}

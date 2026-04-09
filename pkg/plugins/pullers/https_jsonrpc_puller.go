@@ -10,24 +10,24 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ethereum/go-ethereum/common"
 	"chainpulse/pkg/core"
+	"github.com/ethereum/go-ethereum/common"
 )
 
 // HTTPSJSONRPCPuller implements HTTPS-JSONRPC protocol for pulling blockchain events
 type HTTPSJSONRPCPuller struct {
 	*BaseDataPullerPlugin
-	mu              sync.RWMutex
-	client          *http.Client
-	nodeURL         string
-	currentBlock    uint64
-	pollInterval    time.Duration
-	stopChan        chan bool
-	eventHandlers   []func(core.BlockchainEvent)
-	requestCounter  int64
-	errorCounter    int64
-	lastError       error
-	lastErrorTime   time.Time
+	mu             sync.RWMutex
+	client         *http.Client
+	nodeURL        string
+	currentBlock   uint64
+	pollInterval   time.Duration
+	stopChan       chan bool
+	eventHandlers  []func(core.BlockchainEvent)
+	requestCounter int64
+	errorCounter   int64
+	lastError      error
+	lastErrorTime  time.Time
 }
 
 // JSONRPCRequest represents a JSON-RPC request
@@ -55,14 +55,14 @@ type JSONRPCError struct {
 
 // BlockHeader represents a blockchain block header
 type BlockHeader struct {
-	Number       string `json:"number"`
-	Hash         string `json:"hash"`
-	ParentHash   string `json:"parentHash"`
-	Timestamp    string `json:"timestamp"`
-	Miner        string `json:"miner"`
-	Difficulty   string `json:"difficulty"`
-	GasLimit     string `json:"gasLimit"`
-	GasUsed      string `json:"gasUsed"`
+	Number       string   `json:"number"`
+	Hash         string   `json:"hash"`
+	ParentHash   string   `json:"parentHash"`
+	Timestamp    string   `json:"timestamp"`
+	Miner        string   `json:"miner"`
+	Difficulty   string   `json:"difficulty"`
+	GasLimit     string   `json:"gasLimit"`
+	GasUsed      string   `json:"gasUsed"`
 	Transactions []string `json:"transactions"`
 }
 
@@ -179,7 +179,6 @@ func (p *HTTPSJSONRPCPuller) GetLatestBlock(ctx context.Context) (uint64, error)
 		p.currentBlock, err = p.getLatestBlockNumber(ctx)
 		return err
 	})
-
 	if err != nil {
 		p.errorCounter++
 		p.lastError = err
@@ -211,16 +210,21 @@ func (p *HTTPSJSONRPCPuller) Poll(ctx context.Context) error {
 		return fmt.Errorf("puller not running")
 	}
 
+	p.LogInfo("Poll: starting polling loop", "interval", p.pollInterval)
+
 	ticker := time.NewTicker(p.pollInterval)
 	defer ticker.Stop()
 
 	for {
 		select {
 		case <-ctx.Done():
+			p.LogInfo("Poll: context cancelled")
 			return ctx.Err()
 		case <-p.stopChan:
+			p.LogInfo("Poll: stop signal received")
 			return nil
 		case <-ticker.C:
+			p.LogInfo("Poll: fetching latest block...")
 			latestBlock, err := p.GetLatestBlock(ctx)
 			if err != nil {
 				p.LogError("failed to get latest block", "error", err.Error())
@@ -290,19 +294,23 @@ func (p *HTTPSJSONRPCPuller) getLatestBlockNumber(ctx context.Context) (uint64, 
 
 	resp, err := p.sendRequest(ctx, req)
 	if err != nil {
+		p.LogError("getLatestBlockNumber: sendRequest failed", "error", err.Error())
 		return 0, err
 	}
 
 	if resp.Error != nil {
+		p.LogError("getLatestBlockNumber: JSON-RPC error", "message", resp.Error.Message)
 		return 0, fmt.Errorf("JSON-RPC error: %s", resp.Error.Message)
 	}
 
 	var blockNumberHex string
 	if err := json.Unmarshal(resp.Result, &blockNumberHex); err != nil {
+		p.LogError("getLatestBlockNumber: unmarshal failed", "error", err.Error())
 		return 0, fmt.Errorf("failed to unmarshal block number: %v", err)
 	}
 
 	blockNumber := hexToUint64(blockNumberHex)
+	p.LogInfo("getLatestBlockNumber: success", "block", blockNumber)
 	return blockNumber, nil
 }
 
@@ -351,8 +359,10 @@ func (p *HTTPSJSONRPCPuller) sendRequest(ctx context.Context, req JSONRPCRequest
 
 	httpReq.Header.Set("Content-Type", "application/json")
 
+	p.LogInfo("Sending RPC request", "method", req.Method, "url", p.nodeURL)
 	httpResp, err := p.client.Do(httpReq)
 	if err != nil {
+		p.LogError("RPC request failed", "error", err.Error(), "url", p.nodeURL)
 		return nil, fmt.Errorf("failed to send request: %v", err)
 	}
 	defer func() {
@@ -385,17 +395,24 @@ func (p *HTTPSJSONRPCPuller) logToEvent(log Log) (core.BlockchainEvent, error) {
 	}
 
 	txHash := common.HexToHash(log.TxHash)
+	blockHash := common.HexToHash(log.BlockHash)
 	contractAddr := common.HexToAddress(log.Address)
+	chainID := p.GetConfig().ServiceName
+
+	if chainID == "" {
+		chainID = "1"
+	}
 
 	event := core.BlockchainEvent{
 		ID:              fmt.Sprintf("%s-%d", log.TxHash, logIndex),
 		BlockNumber:     blockNumber,
+		BlockHash:       blockHash,
 		TransactionHash: txHash,
 		LogIndex:        uint(logIndex),
 		ContractAddress: contractAddr,
 		EventName:       eventName,
 		EventData:       []byte(log.Data),
-		ChainID:         "1", // Default to mainnet
+		ChainID:         chainID,
 		BlockTimestamp:  time.Now().Unix(),
 		Status:          core.EventStatusPending,
 	}

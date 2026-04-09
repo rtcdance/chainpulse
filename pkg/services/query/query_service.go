@@ -33,13 +33,13 @@ type RuntimeSummarizer interface {
 
 // RuntimeSummary represents compact query runtime posture facts.
 type RuntimeSummary struct {
-	Status                 string
-	Message                string
-	QueryPosture           string
-	CachePosture           string
-	CircuitBreakerPosture  string
-	ConsistencyPosture     string
-	ReliabilityHint        string
+	Status                string
+	Message               string
+	QueryPosture          string
+	CachePosture          string
+	CircuitBreakerPosture string
+	ConsistencyPosture    string
+	ReliabilityHint       string
 }
 
 // QueryRequest represents a query request
@@ -87,15 +87,15 @@ type QueryResult struct {
 
 // DefaultQueryService provides default implementation of QueryService
 type DefaultQueryService struct {
-	mu              sync.RWMutex
-	dbManager       database.DatabaseManager
-	mongoAdapter    MongoDBAdapter
-	postgresAdapter PostgreSQLAdapter
-	cacheService    CacheService
-	logger          core.Logger
+	mu               sync.RWMutex
+	dbManager        database.DatabaseManager
+	mongoAdapter     MongoDBAdapter
+	postgresAdapter  PostgreSQLAdapter
+	cacheService     CacheService
+	logger           core.Logger
 	metricsCollector core.MetricsCollector
-	initialized     bool
-	running         bool
+	initialized      bool
+	running          bool
 }
 
 // NewQueryService creates a new query service
@@ -160,6 +160,10 @@ func (qs *DefaultQueryService) Start(ctx context.Context) error {
 		return fmt.Errorf("query service already running")
 	}
 
+	if err := qs.cacheService.Start(ctx); err != nil {
+		return fmt.Errorf("failed to start cache service: %w", err)
+	}
+
 	qs.running = true
 	qs.logger.Info("Query service started", map[string]interface{}{
 		"component": "query-service",
@@ -175,6 +179,10 @@ func (qs *DefaultQueryService) Stop(ctx context.Context) error {
 
 	if !qs.running {
 		return fmt.Errorf("query service not running")
+	}
+
+	if err := qs.cacheService.Stop(ctx); err != nil {
+		return fmt.Errorf("failed to stop cache service: %w", err)
 	}
 
 	qs.running = false

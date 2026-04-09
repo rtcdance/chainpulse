@@ -54,11 +54,18 @@ func (c *InMemoryCache) Stop() error {
 }
 
 func (c *InMemoryCache) Health() error {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
 	if !c.started {
 		return core.NewSystemError(core.ErrorTypeCritical, core.ErrorCodeInternalError, "cache not started", nil)
 	}
+
+	return nil
+}
+
+func (c *InMemoryCache) HealthCheck(_ context.Context) error {
+	if !c.started {
+		return core.NewSystemError(core.ErrorTypeCritical, core.ErrorCodeInternalError, "cache not started", nil)
+	}
+
 	return nil
 }
 
