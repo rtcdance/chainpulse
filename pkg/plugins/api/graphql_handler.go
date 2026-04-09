@@ -412,7 +412,7 @@ func (h *GraphQLHandler) handlePost(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	fmt.Fprintf(w, `{"data":{"message":"GraphQL schema not initialized","query":"%s"}}`, query)
+	_, _ = fmt.Fprintf(w, `{"data":{"message":"GraphQL schema not initialized","query":"%s"}}`, query)
 }
 
 func (h *GraphQLHandler) writeError(w http.ResponseWriter, status int, message string) {

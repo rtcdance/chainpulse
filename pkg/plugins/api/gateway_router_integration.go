@@ -359,11 +359,11 @@ type gatewayRouteHandler func(
 )
 
 var gatewayRouteHandlers = map[string]gatewayRouteHandler{
-	"event-query":        gatewayHandleEventQuery,
-	"event-by-id":        gatewayHandleEventByID,
-	"event-by-chain":     gatewayHandleEventByChain,
-	"event-by-contract":  gatewayHandleEventByContract,
-	"event-by-name":      gatewayHandleEventByName,
+	"event-query":         gatewayHandleEventQuery,
+	"event-by-id":         gatewayHandleEventByID,
+	"event-by-chain":      gatewayHandleEventByChain,
+	"event-by-contract":   gatewayHandleEventByContract,
+	"event-by-name":       gatewayHandleEventByName,
 	"websocket-subscribe": gatewayHandleSubscribeAll,
 	"subscribe":           gatewayHandleSubscribeAll,
 	"subscribe-chain":     gatewayHandleSubscribeChain,
@@ -400,7 +400,7 @@ func (gri *GatewayRouterIntegration) HandleRequest(w http.ResponseWriter, r *htt
 
 	// Check if this is a WebSocket upgrade request - wrap response if so
 	isWebSocket := strings.ToLower(r.Header.Get("Upgrade")) == "websocket"
-	var wrappedWriter http.ResponseWriter = w
+	wrappedWriter := w
 	if isWebSocket {
 		if hj, ok := w.(http.Hijacker); ok {
 			_ = hj // Already hijackable

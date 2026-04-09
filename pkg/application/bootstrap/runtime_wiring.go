@@ -159,7 +159,6 @@ func defaultRuntimeWiringDeps() runtimeWiringDeps {
 
 			graphqlHandler := api.NewGraphQLHandler(domainSvc, eventStore, logger, metrics)
 			var emptyConfig core.Config
-			initCtx, cancel = context.WithTimeout(ctx, cfg.GetTimeout())
 			if err := graphqlHandler.Initialize(&emptyConfig); err != nil {
 				cancel()
 				return nil, nil, nil, nil, nil, fmt.Errorf("initialize graphql handler: %w", err)

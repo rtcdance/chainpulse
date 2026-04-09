@@ -321,7 +321,7 @@ func (p *WebSocketJSONRPCPuller) connect() error {
 	if err != nil {
 		return fmt.Errorf("failed to connect to WebSocket: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	p.conn = conn
 	p.reconnectCount = 0

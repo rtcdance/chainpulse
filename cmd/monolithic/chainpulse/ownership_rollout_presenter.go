@@ -87,7 +87,7 @@ func logOwnershipRolloutSummary(logger core.Logger, phase string, summary owners
 func printOwnershipRolloutSummary(w io.Writer, summary ownershipRolloutSummarySnapshot, lifecycle string) {
 	prefix := ownershipRolloutPresenterPrefix(lifecycle)
 	for _, line := range ownershipRolloutPresenterLines() {
-		fmt.Fprintf(w, "%s%s: %s\n", prefix, ownershipRolloutPresenterLabel(line, lifecycle), line.value(summary))
+		_, _ = fmt.Fprintf(w, "%s%s: %s\n", prefix, ownershipRolloutPresenterLabel(line, lifecycle), line.value(summary))
 	}
 }
 
