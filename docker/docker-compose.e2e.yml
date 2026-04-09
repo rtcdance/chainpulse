@@ -1,0 +1,104 @@
+version: '3.8'
+
+services:
+  # ============================================
+  # E2E Test Blockchain Nodes (Anvil)
+  # ============================================
+
+  anvil-ethereum:
+    image: ghcr.io/foundry-rs/foundry:latest
+    container_name: chainpulse-e2e-anvil-ethereum
+    ports:
+      - "8545:8545"
+    command: anvil --host 0.0.0.0 --port 8545 --chain-id 1 --accounts 10 --balance 10000 --timestamp 0
+    networks:
+      - e2e-network
+
+  anvil-polygon:
+    image: ghcr.io/foundry-rs/foundry:latest
+    container_name: chainpulse-e2e-anvil-polygon
+    ports:
+      - "8546:8545"
+    command: anvil --host 0.0.0.0 --port 8545 --chain-id 137 --accounts 10 --balance 10000 --timestamp 0
+    networks:
+      - e2e-network
+
+  anvil-bsc:
+    image: ghcr.io/foundry-rs/foundry:latest
+    container_name: chainpulse-e2e-anvil-bsc
+    ports:
+      - "8547:8545"
+    command: anvil --host 0.0.0.0 --port 8545 --chain-id 97 --accounts 10 --balance 10000 --timestamp 0
+    networks:
+      - e2e-network
+
+  anvil-arbitrum:
+    image: ghcr.io/foundry-rs/foundry:latest
+    container_name: chainpulse-e2e-anvil-arbitrum
+    ports:
+      - "8548:8545"
+    command: anvil --host 0.0.0.0 --port 8545 --chain-id 421614 --accounts 10 --balance 10000 --timestamp 0
+    networks:
+      - e2e-network
+
+  anvil-optimism:
+    image: ghcr.io/foundry-rs/foundry:latest
+    container_name: chainpulse-e2e-anvil-optimism
+    ports:
+      - "8549:8545"
+    command: anvil --host 0.0.0.0 --port 8545 --chain-id 11155420 --accounts 10 --balance 10000 --timestamp 0
+    networks:
+      - e2e-network
+
+  anvil-base:
+    image: ghcr.io/foundry-rs/foundry:latest
+    container_name: chainpulse-e2e-anvil-base
+    ports:
+      - "8550:8545"
+    command: anvil --host 0.0.0.0 --port 8545 --chain-id 84532 --accounts 10 --balance 10000 --timestamp 0
+    networks:
+      - e2e-network
+
+  anvil-avalanche:
+    image: ghcr.io/foundry-rs/foundry:latest
+    container_name: chainpulse-e2e-anvil-avalanche
+    ports:
+      - "8551:8545"
+    command: anvil --host 0.0.0.0 --port 8545 --chain-id 43113 --accounts 10 --balance 10000 --timestamp 0
+    networks:
+      - e2e-network
+
+  # ============================================
+  # E2E Test Runner
+  # ============================================
+
+  e2e-tests:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: chainpulse-e2e-tests
+    depends_on:
+      - anvil-ethereum
+      - anvil-polygon
+      - anvil-bsc
+      - anvil-arbitrum
+      - anvil-optimism
+      - anvil-base
+      - anvil-avalanche
+    environment:
+      E2E_TEST_MODE: "true"
+    volumes:
+      - ..:/app
+    working_dir: /app
+    command: >
+      sh -c "
+        echo 'Waiting for Anvil nodes to be ready...' &&
+        sleep 5 &&
+        go test -v -count=1 ./test/e2e/... -run 'TestChainConfigConsistency|TestAnvilStartupVerify|TestMultiChainERC20Events|TestMultiChainRealEvents'
+      "
+    networks:
+      - e2e-network
+
+networks:
+  e2e-network:
+    driver: bridge

@@ -111,17 +111,27 @@ func NewAnvilManager() *AnvilManager {
 }
 
 // StartAnvil 启动单个 Anvil 实例
+func getAnvilPath() string {
+	paths := []string{"anvil", os.ExpandEnv("$HOME/.foundry/bin/anvil"), "/usr/local/bin/anvil"}
+	for _, p := range paths {
+		if _, err := exec.LookPath(p); err == nil {
+			return p
+		}
+	}
+	return "anvil"
+}
+
 func (am *AnvilManager) StartAnvil(port int, chainID int64) error {
 	am.mu.Lock()
 	defer am.mu.Unlock()
 
-	// 检查是否已经启动
 	if _, exists := am.processes[port]; exists {
 		return nil
 	}
 
 	ctx := context.Background()
-	cmd := exec.CommandContext(ctx, "anvil", "--port", fmt.Sprintf("%d", port), "--chain-id", fmt.Sprintf("%d", chainID), "--timestamp", "0")
+	anvilPath := getAnvilPath()
+	cmd := exec.CommandContext(ctx, anvilPath, "--port", fmt.Sprintf("%d", port), "--chain-id", fmt.Sprintf("%d", chainID), "--timestamp", "0")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 

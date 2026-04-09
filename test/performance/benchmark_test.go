@@ -12,9 +12,9 @@ import (
 
 func BenchmarkMemoryMQ_Publish(b *testing.B) {
 	mq := mq.NewMemoryMQ()
-	mq.Initialize(core.Config{})
-	mq.Start()
-	defer mq.Stop()
+	_ = mq.Initialize(core.Config{})
+	_ = mq.Start()
+	defer func() { _ = mq.Stop() }()
 
 	ctx := context.Background()
 	msg := []byte("benchmark message")
@@ -34,7 +34,7 @@ func BenchmarkMemoryMQ_Subscribe(b *testing.B) {
 	ctx := context.Background()
 	received := 0
 
-	mq.Subscribe(ctx, "bench-topic", func(msg []byte) {
+	_ = mq.Subscribe(ctx, "bench-topic", func(msg []byte) {
 		received++
 	})
 
@@ -42,45 +42,45 @@ func BenchmarkMemoryMQ_Subscribe(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		mq.Publish(ctx, "bench-topic", msg)
+		_ = mq.Publish(ctx, "bench-topic", msg)
 	}
 }
 
 func BenchmarkInMemoryCache_Set(b *testing.B) {
 	cache := cache.NewInMemoryCache()
-	cache.Initialize(core.Config{})
-	cache.Start()
-	defer cache.Stop()
+	_ = cache.Initialize(core.Config{})
+	_ = cache.Start()
+	defer func() { _ = cache.Stop() }()
 
 	ctx := context.Background()
 	value := []byte("benchmark value")
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		cache.Set(ctx, "key", value, 60)
+		_ = cache.Set(ctx, "key", value, 60)
 	}
 }
 
 func BenchmarkInMemoryCache_Get(b *testing.B) {
 	cache := cache.NewInMemoryCache()
-	cache.Initialize(core.Config{})
-	cache.Start()
-	defer cache.Stop()
+	_ = cache.Initialize(core.Config{})
+	_ = cache.Start()
+	defer func() { _ = cache.Stop() }()
 
 	ctx := context.Background()
-	cache.Set(ctx, "key", []byte("value"), 60)
+	_ = cache.Set(ctx, "key", []byte("value"), 60)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		cache.Get(ctx, "key")
+		_, _ = cache.Get(ctx, "key")
 	}
 }
 
 func BenchmarkMockDB_StoreEvent(b *testing.B) {
 	db := database.NewMockDB()
-	db.Initialize(core.Config{})
-	db.Start()
-	defer db.Stop()
+	_ = db.Initialize(core.Config{})
+	_ = db.Start()
+	defer func() { _ = db.Stop() }()
 
 	ctx := context.Background()
 	event := &core.BlockchainEvent{
@@ -90,34 +90,34 @@ func BenchmarkMockDB_StoreEvent(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		db.StoreEvent(ctx, event)
+		_ = db.StoreEvent(ctx, event)
 	}
 }
 
 func BenchmarkMockDB_GetEvent(b *testing.B) {
 	db := database.NewMockDB()
-	db.Initialize(core.Config{})
-	db.Start()
-	defer db.Stop()
+	_ = db.Initialize(core.Config{})
+	_ = db.Start()
+	defer func() { _ = db.Stop() }()
 
 	ctx := context.Background()
 	event := &core.BlockchainEvent{
 		ID:          "bench-event",
 		BlockNumber: 1000,
 	}
-	db.StoreEvent(ctx, event)
+	_ = db.StoreEvent(ctx, event)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		db.GetEvent(ctx, "bench-event")
+		_, _ = db.GetEvent(ctx, "bench-event")
 	}
 }
 
 func BenchmarkMockDB_BatchStore(b *testing.B) {
 	db := database.NewMockDB()
-	db.Initialize(core.Config{})
-	db.Start()
-	defer db.Stop()
+	_ = db.Initialize(core.Config{})
+	_ = db.Start()
+	defer func() { _ = db.Stop() }()
 
 	ctx := context.Background()
 	events := make([]interface{}, 100)
@@ -130,6 +130,6 @@ func BenchmarkMockDB_BatchStore(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		db.BatchStoreEvents(ctx, events)
+		_ = db.BatchStoreEvents(ctx, events)
 	}
 }
