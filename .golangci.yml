@@ -24,6 +24,7 @@ linters:
     - unused
     - revive
     - gosec
+    - wsl
 
   settings:
     errcheck:
