@@ -3,6 +3,7 @@ package e2e
 import (
 	"context"
 	"fmt"
+	"math"
 	"sync"
 	"time"
 )
@@ -368,6 +369,9 @@ func executeMultiChainDataAggregation(ctx context.Context, orch *Orchestrator) e
 	const numChains = 3
 	for chainID := 1; chainID <= numChains; chainID++ {
 		eventCount := chainID * 10 // Simulate different event counts per chain
+		if blockNum > math.MaxUint64-uint64(chainID) {
+			return fmt.Errorf("aggregated block number overflow for chain %d", chainID)
+		}
 
 		_, err = database.ExecuteCommand(ctx,
 			"INSERT INTO aggregated_chain_data (chain_id, block_number, event_count) VALUES ($1, $2, $3)",

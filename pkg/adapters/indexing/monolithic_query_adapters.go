@@ -3,6 +3,7 @@ package indexing
 import (
 	"context"
 	"fmt"
+	"math"
 	"sort"
 	"strconv"
 	"strings"
@@ -467,16 +468,21 @@ func paginateEvents(events []*core.BlockchainEvent, limit int, offset int) []*co
 }
 
 func paginateDomainEvents(events []core.BlockchainEvent, limit int64, offset int64) []core.BlockchainEvent {
-	if int(offset) >= len(events) {
+	start, ok := safeInt64ToSliceIndex(offset, len(events))
+	if !ok {
 		return []core.BlockchainEvent{}
 	}
 
 	end := len(events)
-	if limit > 0 && int(offset+limit) < end {
-		end = int(offset + limit)
+	if limit > 0 {
+		if remaining := len(events) - start; remaining > 0 {
+			if limited, ok := safeInt64ToSliceBound(limit, start, len(events)); ok && limited < end {
+				end = limited
+			}
+		}
 	}
 
-	return append([]core.BlockchainEvent(nil), events[offset:end]...)
+	return append([]core.BlockchainEvent(nil), events[start:end]...)
 }
 
 func buildSyntheticMetadata(event *core.BlockchainEvent) *query.EventMetadata {
@@ -503,9 +509,9 @@ func buildSyntheticMetadata(event *core.BlockchainEvent) *query.EventMetadata {
 	return &query.EventMetadata{
 		EventID:          event.ID,
 		ChainID:          chainID,
-		BlockNumber:      int64(event.BlockNumber),
+		BlockNumber:      saturatingUint64ToInt64(event.BlockNumber),
 		TransactionHash:  event.TransactionHash.Hex(),
-		LogIndex:         int(event.LogIndex),
+		LogIndex:         saturatingUintToInt(event.LogIndex),
 		ContractAddress:  event.ContractAddress.Hex(),
 		EventName:        event.EventName,
 		ProcessedAt:      processedAt,
@@ -513,4 +519,43 @@ func buildSyntheticMetadata(event *core.BlockchainEvent) *query.EventMetadata {
 		UpdatedAt:        updatedAt,
 		ProcessingStatus: string(event.Status),
 	}
+}
+
+func safeInt64ToSliceIndex(value int64, length int) (int, bool) {
+	if value < 0 || value > math.MaxInt {
+		return 0, false
+	}
+	index := int(value)
+	if index >= length {
+		return 0, false
+	}
+	return index, true
+}
+
+func safeInt64ToSliceBound(limit int64, offset int, length int) (int, bool) {
+	if limit <= 0 || limit > math.MaxInt {
+		return 0, false
+	}
+	bound := offset + int(limit)
+	if bound < offset {
+		return 0, false
+	}
+	if bound > length {
+		bound = length
+	}
+	return bound, true
+}
+
+func saturatingUint64ToInt64(value uint64) int64 {
+	if value > math.MaxInt64 {
+		return math.MaxInt64
+	}
+	return int64(value)
+}
+
+func saturatingUintToInt(value uint) int {
+	if uint64(value) > uint64(math.MaxInt) {
+		return math.MaxInt
+	}
+	return int(value)
 }

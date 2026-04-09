@@ -89,16 +89,36 @@ test-bench:
 
 lint:
 	@echo "Running linter..."
-	@GOROOT= $(GO) install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.64.8 2>/dev/null; true
-	@LINT_ARGS="--tests=false"; \
+	@LINTER_BIN="$$(GOROOT= $(GO) env GOBIN)"; \
+	if [ -n "$$LINTER_BIN" ]; then \
+		LINTER_BIN="$$LINTER_BIN/golangci-lint"; \
+	else \
+		LINTER_BIN="$$(GOROOT= $(GO) env GOPATH)/bin/golangci-lint"; \
+	fi; \
+	GOROOT= $(GO) install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.64.8 2>/dev/null; true; \
+	if [ ! -x "$$LINTER_BIN" ]; then \
+		echo "golangci-lint v1.64.8 is not installed at $$LINTER_BIN"; \
+		exit 127; \
+	fi; \
+	LINT_ARGS="--tests=false"; \
 	if [ -n "$(LINT_BASE_REF)" ]; then \
 		LINT_ARGS="$$LINT_ARGS --new-from-rev=$(LINT_BASE_REF)"; \
 	fi; \
-	GOCACHE=$${GOCACHE:-/tmp/chainpulse-go-build-cache} golangci-lint run $$LINT_ARGS ./...
+	GOCACHE=$${GOCACHE:-/tmp/chainpulse-go-build-cache} "$$LINTER_BIN" run $$LINT_ARGS ./...
 
 lint-fix:
 	@echo "Running linter with auto-fix..."
-	GOCACHE=$${GOCACHE:-/tmp/chainpulse-go-build-cache} golangci-lint run --tests=false --fix $(LINT_DIRS)
+	@LINTER_BIN="$$(GOROOT= $(GO) env GOBIN)"; \
+	if [ -n "$$LINTER_BIN" ]; then \
+		LINTER_BIN="$$LINTER_BIN/golangci-lint"; \
+	else \
+		LINTER_BIN="$$(GOROOT= $(GO) env GOPATH)/bin/golangci-lint"; \
+	fi; \
+	if [ ! -x "$$LINTER_BIN" ]; then \
+		echo "golangci-lint v1.64.8 is not installed at $$LINTER_BIN"; \
+		exit 127; \
+	fi; \
+	GOCACHE=$${GOCACHE:-/tmp/chainpulse-go-build-cache} "$$LINTER_BIN" run --tests=false --fix $(LINT_DIRS)
 
 vet:
 	@echo "Running go vet..."

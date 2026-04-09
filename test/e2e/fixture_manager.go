@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -38,6 +39,9 @@ type FixtureFactory struct {
 	templates map[string]interface{}
 }
 
+var fixtureIDCounter atomic.Uint64
+var snapshotIDCounter atomic.Uint64
+
 // NewFixtureFactory creates a new fixture factory
 func NewFixtureFactory() *FixtureFactory {
 	return &FixtureFactory{
@@ -68,7 +72,7 @@ func (ff *FixtureFactory) CreateFixture(fixtureType FixtureType, name string, te
 		ID:        generateFixtureID(name),
 		Type:      fixtureType,
 		Name:      name,
-		Data:      template,
+		Data:      deepCopy(template),
 		CreatedAt: time.Now(),
 		ExpiresAt: time.Now().Add(ttl),
 		IsValid:   true,
@@ -78,7 +82,7 @@ func (ff *FixtureFactory) CreateFixture(fixtureType FixtureType, name string, te
 	fixture.Checksum = calculateChecksum(fixture.Data)
 
 	ff.fixtures[fixture.ID] = fixture
-	return fixture, nil
+	return cloneFixture(fixture), nil
 }
 
 // GetFixture retrieves a fixture by ID
@@ -96,7 +100,7 @@ func (ff *FixtureFactory) GetFixture(id string) (*Fixture, error) {
 		return nil, fmt.Errorf("fixture expired: %s", id)
 	}
 
-	return fixture, nil
+	return cloneFixture(fixture), nil
 }
 
 // UpdateFixture updates a fixture
@@ -134,7 +138,7 @@ func (ff *FixtureFactory) ListFixtures() []*Fixture {
 
 	fixtures := make([]*Fixture, 0, len(ff.fixtures))
 	for _, fixture := range ff.fixtures {
-		fixtures = append(fixtures, fixture)
+		fixtures = append(fixtures, cloneFixture(fixture))
 	}
 	return fixtures
 }
@@ -325,11 +329,11 @@ func (fv *FixtureValidator) GetValidationFailures(fixtureID string) []string {
 // Helper functions
 
 func generateFixtureID(name string) string {
-	return fmt.Sprintf("fixture_%s_%d", name, time.Now().UnixNano())
+	return fmt.Sprintf("fixture_%s_%d_%d", name, time.Now().UnixNano(), fixtureIDCounter.Add(1))
 }
 
 func generateSnapshotID(fixtureID string) string {
-	return fmt.Sprintf("snapshot_%s_%d", fixtureID, time.Now().UnixNano())
+	return fmt.Sprintf("snapshot_%s_%d_%d", fixtureID, time.Now().UnixNano(), snapshotIDCounter.Add(1))
 }
 
 func calculateChecksum(data interface{}) string {
@@ -338,6 +342,41 @@ func calculateChecksum(data interface{}) string {
 }
 
 func deepCopy(data interface{}) interface{} {
-	// Simple deep copy for testing
-	return fmt.Sprintf("%v", data)
+	switch typed := data.(type) {
+	case map[string]string:
+		cloned := make(map[string]string, len(typed))
+		for key, value := range typed {
+			cloned[key] = value
+		}
+		return cloned
+	case map[string]interface{}:
+		cloned := make(map[string]interface{}, len(typed))
+		for key, value := range typed {
+			cloned[key] = deepCopy(value)
+		}
+		return cloned
+	case []string:
+		cloned := make([]string, len(typed))
+		copy(cloned, typed)
+		return cloned
+	case []byte:
+		cloned := make([]byte, len(typed))
+		copy(cloned, typed)
+		return cloned
+	default:
+		return typed
+	}
+}
+
+func cloneFixture(fixture *Fixture) *Fixture {
+	if fixture == nil {
+		return nil
+	}
+
+	cloned := *fixture
+	cloned.Data = deepCopy(fixture.Data)
+	if len(fixture.Dependencies) > 0 {
+		cloned.Dependencies = append([]string(nil), fixture.Dependencies...)
+	}
+	return &cloned
 }

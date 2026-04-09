@@ -3,6 +3,7 @@ package mq
 import (
 	"context"
 	"fmt"
+	"math/bits"
 	"sync"
 	"time"
 
@@ -963,7 +964,12 @@ func (p *KafkaMQPlugin) CalculateExponentialBackoffDelay(retryCount int) time.Du
 	}
 
 	// Calculate 2^(retryCount-1) using bit shift
-	delayMultiplier := 1 << uint(retryCount-1)
+	shift := retryCount - 1
+	maxShift := bits.UintSize - 2
+	if shift > maxShift {
+		shift = maxShift
+	}
+	delayMultiplier := 1 << shift
 	return p.retryDelay * time.Duration(delayMultiplier)
 }
 

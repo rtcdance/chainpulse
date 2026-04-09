@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"sync"
 	"time"
 
@@ -144,7 +145,7 @@ func (p *WebSocketJSONRPCPuller) GetLatestBlock(ctx context.Context) (uint64, er
 		return 0, err
 	}
 
-	p.RecordMetric("latest_block_number", int64(p.currentBlock), nil)
+	p.RecordMetric("latest_block_number", saturatingPullerBlockMetric(p.currentBlock), nil)
 	p.LogInfo("latest block retrieved", "block_number", p.currentBlock)
 
 	return p.currentBlock, nil
@@ -298,6 +299,13 @@ func (p *WebSocketJSONRPCPuller) SetMaxReconnects(max int) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.maxReconnects = max
+}
+
+func saturatingPullerBlockMetric(block uint64) int64 {
+	if block > math.MaxInt64 {
+		return math.MaxInt64
+	}
+	return int64(block)
 }
 
 // connect establishes a WebSocket connection

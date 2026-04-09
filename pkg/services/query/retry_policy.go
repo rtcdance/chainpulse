@@ -2,8 +2,9 @@ package query
 
 import (
 	"context"
+	"crypto/rand"
 	"math"
-	"math/rand"
+	"math/big"
 	"time"
 )
 
@@ -48,7 +49,7 @@ func (rp *RetryPolicy) CalculateBackoff(attempt int) time.Duration {
 
 	// Add jitter
 	jitterAmount := backoff * rp.JitterFraction
-	jitter := (rand.Float64() - 0.5) * 2 * jitterAmount
+	jitter := (secureJitterFraction() - 0.5) * 2 * jitterAmount
 	backoff = backoff + jitter
 
 	// Ensure backoff is positive
@@ -57,6 +58,15 @@ func (rp *RetryPolicy) CalculateBackoff(attempt int) time.Duration {
 	}
 
 	return time.Duration(backoff)
+}
+
+func secureJitterFraction() float64 {
+	const scale = 1 << 53
+	n, err := rand.Int(rand.Reader, big.NewInt(scale))
+	if err != nil {
+		return 0.5
+	}
+	return float64(n.Int64()) / float64(scale)
 }
 
 // ShouldRetry returns true if the error should be retried

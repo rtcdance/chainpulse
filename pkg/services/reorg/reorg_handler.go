@@ -3,6 +3,7 @@ package reorg
 import (
 	"context"
 	"fmt"
+	"math"
 	"sync"
 	"time"
 
@@ -216,7 +217,13 @@ func (rh *ReorgHandler) UpdateBlockHash(blockNumber uint64, blockHash common.Has
 	rh.lastKnownBlocks[blockNumber] = blockHash
 
 	// Cleanup old blocks
-	if len(rh.lastKnownBlocks) > int(rh.reorgThreshold)*2 {
+	thresholdWindow := rh.reorgThreshold
+	if thresholdWindow <= math.MaxUint64/2 {
+		thresholdWindow *= 2
+	} else {
+		thresholdWindow = math.MaxUint64
+	}
+	if uint64(len(rh.lastKnownBlocks)) > thresholdWindow {
 		rh.cleanupBlockCache(blockNumber)
 	}
 }

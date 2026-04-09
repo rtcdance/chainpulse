@@ -404,15 +404,15 @@ jobs:
       
       - name: Install golangci-lint via go install
         run: |
-          echo "Installing golangci-lint v2..."
+          echo "Installing golangci-lint v1.63.0..."
           go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.63.0
-          golangci-lint --version
-          echo "✓ golangci-lint v2 installed successfully"
+          "$(go env GOPATH)/bin/golangci-lint" --version
+          echo "✓ golangci-lint v1.63.0 installed successfully"
       
       - name: Run golangci-lint
         run: |
           echo "Running golangci-lint checks..."
-          golangci-lint run --timeout=5m --out-format=colored-line-number ./...
+          "$(go env GOPATH)/bin/golangci-lint" run --timeout=5m --out-format=colored-line-number ./...
           echo "✓ golangci-lint completed successfully"
       
       - name: Report Lint Status
@@ -444,14 +444,14 @@ jobs:
       
       - name: Build monolithic service
         run: |
-          go build -v -o bin/chainpulse-monolithic ./cmd/monolithic/chainpulse/main.go
+          go build -v -o bin/chainpulse-monolithic ./cmd/monolithic/chainpulse
       
       - name: Build microservices
         run: |
-          go build -v -o bin/puller ./cmd/microservices/puller/main.go
-          go build -v -o bin/event-processor ./cmd/microservices/event-processor/main.go
-          go build -v -o bin/api-service ./cmd/microservices/api-service/main.go
-          go build -v -o bin/api-gateway ./cmd/microservices/api-gateway/main.go
+          go build -v -o bin/puller ./cmd/microservices/puller
+          go build -v -o bin/event-processor ./cmd/microservices/event-processor
+          go build -v -o bin/api-service ./cmd/microservices/api-service
+          go build -v -o bin/api-gateway ./cmd/microservices/api-gateway
       
       - name: Upload binaries
         uses: actions/upload-artifact@v4

@@ -3,6 +3,7 @@ package query
 import (
 	"context"
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -277,12 +278,20 @@ func (s *MongoDBEventStore) GetEvent(ctx context.Context, eventID string) (*core
 	}
 
 	// Convert BSON to BlockchainEvent
+	blockNumber, err := bsonNumericToUint64(result["blockNumber"])
+	if err != nil {
+		return nil, fmt.Errorf("invalid blockNumber: %w", err)
+	}
+	logIndex, err := bsonNumericToUint(result["logIndex"])
+	if err != nil {
+		return nil, fmt.Errorf("invalid logIndex: %w", err)
+	}
 	event := &core.BlockchainEvent{
 		ID:              eventID,
 		ChainID:         result["chainId"].(string),
-		BlockNumber:     uint64(result["blockNumber"].(int64)),
+		BlockNumber:     blockNumber,
 		TransactionHash: common.HexToHash(result["transactionHash"].(string)),
-		LogIndex:        uint(result["logIndex"].(int32)),
+		LogIndex:        logIndex,
 		ContractAddress: common.HexToAddress(result["contractAddress"].(string)),
 		EventName:       result["eventName"].(string),
 		EventData:       result["eventData"].([]byte),
@@ -292,6 +301,38 @@ func (s *MongoDBEventStore) GetEvent(ctx context.Context, eventID string) (*core
 
 	s.metrics.RecordCounter("mongodb_event_get_success", 1, map[string]string{})
 	return event, nil
+}
+
+func bsonNumericToUint64(value interface{}) (uint64, error) {
+	switch typed := value.(type) {
+	case int32:
+		if typed < 0 {
+			return 0, fmt.Errorf("negative value %d", typed)
+		}
+		return uint64(typed), nil
+	case int64:
+		if typed < 0 {
+			return 0, fmt.Errorf("negative value %d", typed)
+		}
+		return uint64(typed), nil
+	case uint32:
+		return uint64(typed), nil
+	case uint64:
+		return typed, nil
+	default:
+		return 0, fmt.Errorf("unsupported type %T", value)
+	}
+}
+
+func bsonNumericToUint(value interface{}) (uint, error) {
+	number, err := bsonNumericToUint64(value)
+	if err != nil {
+		return 0, err
+	}
+	if number > uint64(math.MaxUint) {
+		return 0, fmt.Errorf("value %d exceeds uint range", number)
+	}
+	return uint(number), nil
 }
 
 // GetEventsByChain retrieves events for a specific chain

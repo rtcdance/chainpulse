@@ -188,7 +188,7 @@ func (p *HTTPSJSONRPCPuller) GetLatestBlock(ctx context.Context) (uint64, error)
 		return 0, err
 	}
 
-	p.RecordMetric("latest_block_number", int64(p.currentBlock), nil)
+	p.RecordMetric("latest_block_number", saturatingPullerBlockMetric(p.currentBlock), nil)
 	p.LogInfo("latest block retrieved", "block_number", p.currentBlock)
 
 	return p.currentBlock, nil
