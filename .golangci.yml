@@ -11,25 +11,10 @@ issues:
     - docs
     - k8s
     - scripts
-
-  exclude-rules:
-    - path: "_test\\.go"
-      linters:
-        - errcheck
-        - revive
-        - gosec
-    - path: "test/e2e"
-      linters:
-        - all
-    - path: "test/integration"
-      linters:
-        - all
-    - path: "test/performance"
-      linters:
-        - all
-    - path: "test/contracts"
-      linters:
-        - all
+    - test/e2e
+    - test/integration
+    - test/performance
+    - test/contracts
 
 linters:
   enable:
@@ -53,3 +38,6 @@ linters:
         - name: exported
           arguments:
             - checkPrivateReceivers
+        - name: unused-parameter
+        - name: context-as-argument
+        - name: redefines-builtin-id

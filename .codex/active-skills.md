@@ -1,13 +1,11 @@
 # Auto-Activated Skills
 
-**Generated**: 2026-04-09 19:35:25
-**Changed Files**:       61
+**Generated**: 2026-04-09 20:07:48
+**Changed Files**:        5
 
-## Active Skills (6)
+## Active Skills (4)
 
-- `adapter-contract-testing`
 - `concurrency-safety`
 - `design-review-gate`
 - `deterministic-testing`
 - `go-concurrency-patterns`
-- `web3-go-architecture-guardrails`
