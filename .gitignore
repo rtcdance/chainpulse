@@ -49,12 +49,13 @@ docs/ARCHITECTURE_REVIEW_REPORT.md
 .sisyphus/
 
 # Chainpulse generated
-chainpulse
-chainpulse-docker
+/chainpulse
+/chainpulse-docker
 
 # Node modules
 node_modules/
 frontend/node_modules/
+frontend/.vite/
 
 # Package locks
 package-lock.json
