@@ -464,6 +464,8 @@ func (t *DefaultTracer) generateSpanID() string {
 }
 
 // parseTraceParent parses W3C Trace Context traceparent header
+//
+//nolint:unused
 func parseTraceParent(traceparent string) []string {
 	// Format: version-traceID-parentID-flags
 	// Example: 00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01

@@ -27,6 +27,7 @@ type eventProcessorSharedRuntimeShadowSnapshot struct {
 	LastErrorAtUnix      int64
 }
 
+//nolint:unused
 type eventProcessorSharedRuntimeShadowProvider interface {
 	SharedRuntimeShadowSnapshot() eventProcessorSharedRuntimeShadowSnapshot
 }

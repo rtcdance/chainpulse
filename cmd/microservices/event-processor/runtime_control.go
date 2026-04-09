@@ -6,10 +6,11 @@ import (
 	pluginapi "chainpulse/pkg/plugins/api"
 )
 
+//nolint:unused
 type eventProcessorRuntimeControlResponse struct {
-	Service   string                           `json:"service"`
-	Timestamp int64                            `json:"timestamp"`
-	Target    string                           `json:"target"`
+	Service   string                            `json:"service"`
+	Timestamp int64                             `json:"timestamp"`
+	Target    string                            `json:"target"`
 	Control   eventProcessorConsumeLoopSnapshot `json:"control"`
 }
 

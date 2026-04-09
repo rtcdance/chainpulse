@@ -3,6 +3,7 @@ package query
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -414,10 +415,21 @@ func (qs *DefaultQueryService) Health(ctx context.Context) *core.HealthStatus {
 		}
 	}
 
+	degradedDependencies := make([]string, 0, 3)
+	if mongoHealth.Status == "unhealthy" {
+		degradedDependencies = append(degradedDependencies, "MongoDB")
+	}
+	if postgresHealth.Status == "unhealthy" {
+		degradedDependencies = append(degradedDependencies, "PostgreSQL")
+	}
 	if cacheHealth.Status == "unhealthy" {
+		degradedDependencies = append(degradedDependencies, "Cache")
+	}
+
+	if len(degradedDependencies) > 0 {
 		return &core.HealthStatus{
 			Status:  "degraded",
-			Message: "Cache is unhealthy",
+			Message: strings.Join(degradedDependencies, " and ") + " are unhealthy",
 		}
 	}
 

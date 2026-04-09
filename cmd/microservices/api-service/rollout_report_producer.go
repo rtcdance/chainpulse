@@ -49,6 +49,7 @@ func newAPIServiceRolloutReportProducer(instanceID string, stateProvider func() 
 	return newAPIServiceRolloutReportProducerWithOwnershipSource(instanceID, stateProvider, nil)
 }
 
+//nolint:unused
 func newAPIServiceRolloutReportProducerWithReadinessDetails(
 	instanceID string,
 	stateProvider func() apiServiceRolloutRuntimeState,
@@ -436,6 +437,7 @@ func classifyAPIServiceRolloutWiringCompleteness(runtimeState apiServiceRolloutR
 	}
 }
 
+//nolint:unused
 func classifyAPIServiceOwnershipParityHint(runtimeSignalsPresent bool) string {
 	return api.BuildRouteOwnershipParityStateFromSource("api-service", buildAPIServiceOwnershipParitySource(runtimeSignalsPresent)).Hint
 }
@@ -448,6 +450,7 @@ func buildAPIServiceOwnershipParitySource(runtimeSignalsPresent bool) api.RouteO
 	})
 }
 
+//nolint:unused
 func buildAPIServiceOwnershipParitySourceFromReadinessDetails(readinessDetailsProvider func() map[string]interface{}) api.RouteOwnershipParitySource {
 	return api.RouteOwnershipParitySourceFunc(func() api.RouteOwnershipParitySourceSnapshot {
 		if readinessDetailsProvider == nil {

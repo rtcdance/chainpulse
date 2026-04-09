@@ -77,6 +77,7 @@ func (c *pullerLoopController) snapshotLocked() pullerLoopControlSnapshot {
 	}
 }
 
+//nolint:unused
 type pullerRuntimeControlResponse struct {
 	Service   string                    `json:"service"`
 	Timestamp int64                     `json:"timestamp"`

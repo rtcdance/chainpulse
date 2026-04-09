@@ -80,6 +80,7 @@ func buildAPIGatewayRuntimeRolloutComponents(
 	return eventQueryHandler, eventSubscriptionHandler, healthHandler, nil
 }
 
+//nolint:unused
 func buildAPIGatewayRuntimeRolloutComponentsWithReadinessDetails(
 	ctx context.Context,
 	instanceID string,
