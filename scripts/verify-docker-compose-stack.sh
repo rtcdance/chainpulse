@@ -96,9 +96,9 @@ if [[ "${COMPOSE_FILE}" == "docker/docker-compose.microservices.yml" ]]; then
 fi
 
 log "Checking repo-level runnable documentation mentions foreground services"
-assert_file_contains "${ROOT_DIR}/RUNNABLE_APP.md" "api-gateway" "runnable app doc"
-assert_file_contains "${ROOT_DIR}/RUNNABLE_APP.md" "api-service" "runnable app doc"
-assert_file_contains "${ROOT_DIR}/RUNNABLE_APP.md" "event-processor" "runnable app doc"
-assert_file_contains "${ROOT_DIR}/RUNNABLE_APP.md" "puller" "runnable app doc"
+assert_file_contains "${ROOT_DIR}/docs/project/RUNNABLE_APP.md" "api-gateway" "runnable app doc"
+assert_file_contains "${ROOT_DIR}/docs/project/RUNNABLE_APP.md" "api-service" "runnable app doc"
+assert_file_contains "${ROOT_DIR}/docs/project/RUNNABLE_APP.md" "event-processor" "runnable app doc"
+assert_file_contains "${ROOT_DIR}/docs/project/RUNNABLE_APP.md" "puller" "runnable app doc"
 
 log "Docker-compose stack verification passed for ${COMPOSE_FILE}"

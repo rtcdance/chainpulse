@@ -77,7 +77,7 @@ Before marking complete, verify:
 
 ### Dependency Hygiene
 - Ask before adding dependencies
-- Update DEPENDENCY_APPROVAL.md
+- Update docs/project/DEPENDENCY_APPROVAL.md
 
 ## File Organization
 

@@ -17,12 +17,7 @@ ROOT_WHITELIST=(
   ".golangci.yml"
   "CODE_OF_CONDUCT.md"
   # Project docs and config
-  "ARCHITECTURE_RULES.md"
   "CLAUDE.md"
-  "RUNNABLE_APP.md"
-  "SECURITY_BASELINE.md"
-  "SECURITY_ROLLOUT.md"
-  "DEPENDENCY_APPROVAL.md"
   "chainpulse"
   "chainpulse-docker"
   # Node.js project files

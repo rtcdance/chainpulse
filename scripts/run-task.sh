@@ -2,13 +2,21 @@
 set -e
 
 TASK="${1:-}"
+if [ "$TASK" = "-h" ] || [ "$TASK" = "--help" ]; then
+    echo "Usage: $0 <task>"
+    echo "Available: M1-1a M1-1b M1-1c M2 M3a M3b M3c"
+    echo "Prompt directory: docs/archive/planning/"
+    exit 0
+fi
+
 if [ -z "$TASK" ]; then
     echo "Usage: $0 <task>"
     echo "Available: M1-1a M1-1b M1-1c M2 M3a M3b M3c"
+    echo "Prompt directory: docs/archive/planning/"
     exit 1
 fi
 
-PROMPT_FILE="docs/${TASK}_PROMPT.md"
+PROMPT_FILE="docs/archive/planning/${TASK}_PROMPT.md"
 if [ ! -f "$PROMPT_FILE" ]; then
     echo "❌ Missing: $PROMPT_FILE"
     exit 1
@@ -22,7 +30,7 @@ CONTEXT_FILES=(
     "docs/archive/ARCHITECTURE_v1.md"
     "docs/IMPLEMENTATION_STATUS.md"
     "docs/DEPENDENCY_GRAPH.md"
-    "ARCHITECTURE_RULES.md"
+    "docs/project/ARCHITECTURE_RULES.md"
     "$PROMPT_FILE"
 )
 

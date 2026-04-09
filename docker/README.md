@@ -34,7 +34,7 @@ usually means Docker Desktop must already be running.
 
 If Docker CLI is present but the daemon cannot be reached, see:
 
-- [`DOCKER_RUNTIME_RECOVERY.md`](/Users/mingo/Applications/workspace/web3/project/chainpulse/DOCKER_RUNTIME_RECOVERY.md)
+- [`DOCKER_RUNTIME_RECOVERY.md`](/Users/mingo/Applications/workspace/web3/project/chainpulse/docs/DOCKER_RUNTIME_RECOVERY.md)
 
 ### Building Docker Image Manually
 

@@ -177,7 +177,7 @@ against the compose-provisioned Prometheus server.
 If Docker runtime is unavailable on the current machine, use:
 
 ```bash
-cat DOCKER_RUNTIME_RECOVERY.md
+cat docs/DOCKER_RUNTIME_RECOVERY.md
 ```
 
 Current verification coverage:

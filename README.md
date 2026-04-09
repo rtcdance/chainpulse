@@ -119,20 +119,21 @@ bash scripts/run-docker-acceptance.sh down
 If Docker runtime is unavailable on the current machine:
 
 ```bash
-cat DOCKER_RUNTIME_RECOVERY.md
+cat docs/DOCKER_RUNTIME_RECOVERY.md
 ```
 
 For the full repository-root runbook, see
-[`RUNNABLE_APP.md`](/Users/mingo/Applications/workspace/web3/project/chainpulse/RUNNABLE_APP.md).
+[`RUNNABLE_APP.md`](/Users/mingo/Applications/workspace/web3/project/chainpulse/docs/project/RUNNABLE_APP.md).
 
 ## 📚 Documentation
 
 See [docs/README.md](docs/README.md) for complete documentation index.
 
 ### Quick Links
-- **[Runnable App](RUNNABLE_APP.md)** - Current repository-root entry for the minimum viable blueprint-aligned app
-- **[Security Baseline](SECURITY_BASELINE.md)** - Repository-root overview of the current optional four-service security posture
-- **[Security Rollout](SECURITY_ROLLOUT.md)** - Incremental enablement and rollback guidance for the opt-in four-service security surface
+- **[Runnable App](docs/project/RUNNABLE_APP.md)** - Current runbook for the minimum viable blueprint-aligned app
+- **[Security Baseline](docs/project/SECURITY_BASELINE.md)** - Overview of the current optional four-service security posture
+- **[Security Rollout](docs/project/SECURITY_ROLLOUT.md)** - Incremental enablement and rollback guidance for the opt-in four-service security surface
+- **[Project Docs](docs/project/README.md)** - Project-level guardrails and operational guidance
 - **[Developer Guide](docs/guides/DEVELOPER_GUIDE.md)** - Development setup and guidelines
 - **[Deployment Guide](docs/guides/DEPLOYMENT_GUIDE.md)** - Deployment procedures
 - **[API Documentation](docs/guides/API_DOCUMENTATION.md)** - REST, gRPC, and WebSocket APIs

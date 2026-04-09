@@ -3051,7 +3051,7 @@ pkg/
 
 ### Phase 421 (Completed)
 - Added a repository-root runnable-app runbook via
-  [`RUNNABLE_APP.md`](/Users/mingo/Applications/workspace/web3/project/chainpulse/RUNNABLE_APP.md)
+  [`RUNNABLE_APP.md`](/Users/mingo/Applications/workspace/web3/project/chainpulse/docs/project/RUNNABLE_APP.md)
   so the current blueprint-aligned runnable slice now has one primary entry for
   startup, verification, dependency assumptions, and service boundaries.
 - Updated the root README to point its quick-start flow at the current

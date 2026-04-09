@@ -32,8 +32,8 @@ fi
 # 3. Check dependency changes
 echo "3. Checking dependency approval..."
 if git diff --cached --name-only 2>/dev/null | grep -q "go.mod"; then
-  if [ ! -f "DEPENDENCY_APPROVAL.md" ] || ! grep -q "Approved by:" DEPENDENCY_APPROVAL.md; then
-    echo "   ❌ go.mod changed but no approval in DEPENDENCY_APPROVAL.md"
+  if [ ! -f "docs/project/DEPENDENCY_APPROVAL.md" ] || ! grep -q "Approved by:" docs/project/DEPENDENCY_APPROVAL.md; then
+    echo "   ❌ go.mod changed but no approval in docs/project/DEPENDENCY_APPROVAL.md"
     ((ERRORS++))
   else
     echo "   ✅ Dependency approval found"
@@ -74,7 +74,7 @@ else
   echo ""
   echo "Required actions:"
   echo "  1. Create approved spec in docs/specs/"
-  echo "  2. Update DEPENDENCY_APPROVAL.md if adding dependencies"
+  echo "  2. Update docs/project/DEPENDENCY_APPROVAL.md if adding dependencies"
   echo "  3. Fix file organization issues"
   exit 1
 fi

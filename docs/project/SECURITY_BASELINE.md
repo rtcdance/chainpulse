@@ -38,7 +38,7 @@ Each service exposes:
 
 ## Relevant docs
 
-- [`RUNNABLE_APP.md`](/Users/mingo/Applications/workspace/web3/project/chainpulse/RUNNABLE_APP.md)
+- [`RUNNABLE_APP.md`](/Users/mingo/Applications/workspace/web3/project/chainpulse/docs/project/RUNNABLE_APP.md)
 - [`docs/ARCHITECTURE.md`](/Users/mingo/Applications/workspace/web3/project/chainpulse/docs/ARCHITECTURE.md)
 - [`docs/INDEX.md`](/Users/mingo/Applications/workspace/web3/project/chainpulse/docs/INDEX.md)
 - [`docs/architecture/MICROSERVICE_ROLLOUT_PRODUCER_COVERAGE.md`](/Users/mingo/Applications/workspace/web3/project/chainpulse/docs/architecture/MICROSERVICE_ROLLOUT_PRODUCER_COVERAGE.md)

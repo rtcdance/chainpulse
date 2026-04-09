@@ -11,6 +11,7 @@
 - `TESTING.md` - Testing strategy
 - `DEBUGGING.md` - Debugging guide
 - `README.md` - Project overview
+- `project/README.md` - Project-level runnable/security/governance docs
 - `planning/README.md` - Planning and AI workflow document entrypoint
 - `planning/EXECUTION_PLAN.md` - Active restructuring/execution plan reference
 - `planning/GPT_PROMPT_TEMPLATE.md` - Historical GPT workflow template retained as planning context

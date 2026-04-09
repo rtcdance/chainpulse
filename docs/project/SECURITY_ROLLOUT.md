@@ -50,7 +50,7 @@ to be enabled.
 
 ## References
 
-- [`SECURITY_BASELINE.md`](/Users/mingo/Applications/workspace/web3/project/chainpulse/SECURITY_BASELINE.md)
-- [`RUNNABLE_APP.md`](/Users/mingo/Applications/workspace/web3/project/chainpulse/RUNNABLE_APP.md)
+- [`SECURITY_BASELINE.md`](/Users/mingo/Applications/workspace/web3/project/chainpulse/docs/project/SECURITY_BASELINE.md)
+- [`RUNNABLE_APP.md`](/Users/mingo/Applications/workspace/web3/project/chainpulse/docs/project/RUNNABLE_APP.md)
 - [`docs/ARCHITECTURE.md`](/Users/mingo/Applications/workspace/web3/project/chainpulse/docs/ARCHITECTURE.md)
 - [`docs/INDEX.md`](/Users/mingo/Applications/workspace/web3/project/chainpulse/docs/INDEX.md)

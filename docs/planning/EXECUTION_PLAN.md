@@ -227,7 +227,7 @@ pkg/
 给 GPT 的 prompt 中必须包含以下引用：
 1. `docs/archive/ARCHITECTURE_v1.md` — 架构蓝图（只读参考）
 2. `docs/IMPLEMENTATION_STATUS.md` — 完成度地图（知道什么已做）
-3. `ARCHITECTURE_RULES.md` — 5 条硬规则（必须遵守）
+3. `docs/project/ARCHITECTURE_RULES.md` — 5 条硬规则（必须遵守）
 4. `docs/planning/GPT_PROMPT_TEMPLATE.md` — prompt 格式（按模板写）
 
 ### 示例：M1-1 MockDB 实现
@@ -272,7 +272,7 @@ pkg/
 每次给 GPT 任务时，附带以下文件：
 1. `docs/archive/ARCHITECTURE_v1.md` — 架构蓝图
 2. `docs/IMPLEMENTATION_STATUS.md` — 完成度地图
-3. `ARCHITECTURE_RULES.md` — 硬规则
+3. `docs/project/ARCHITECTURE_RULES.md` — 硬规则
 4. `docs/planning/GPT_PROMPT_TEMPLATE.md` — prompt 格式
 5. `docs/planning/EXECUTION_PLAN.md` — 本文件（里程碑 + 任务拆解）
 

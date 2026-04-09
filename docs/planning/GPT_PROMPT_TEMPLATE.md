@@ -15,7 +15,7 @@
 ChainPulse 是一个区块链事件索引系统，支持单体和微服务两种部署模式。
 - 架构文档: docs/archive/ARCHITECTURE_v1.md
 - 实现状态: docs/IMPLEMENTATION_STATUS.md
-- 架构规则: ARCHITECTURE_RULES.md
+- 架构规则: docs/project/ARCHITECTURE_RULES.md
 
 ### 当前状态
 [用 1-2 句话描述当前相关组件的状态]
@@ -29,7 +29,7 @@ ChainPulse 是一个区块链事件索引系统，支持单体和微服务两种
 - [ ] 具体可验证的标准 3（例如: 功能实际可用，不是 stub）
 
 ### 分层约束
-严格遵守 ARCHITECTURE_RULES.md，特别是:
+严格遵守 docs/project/ARCHITECTURE_RULES.md，特别是:
 1. 接口定义在 pkg/core/
 2. 业务逻辑在 pkg/services/
 3. 单体适配器在 pkg/plugins/
@@ -71,7 +71,7 @@ make vet          # 必须通过
 ChainPulse 是一个区块链事件索引系统，支持单体和微服务两种部署模式。
 - 架构文档: docs/archive/ARCHITECTURE_v1.md
 - 实现状态: docs/IMPLEMENTATION_STATUS.md
-- 架构规则: ARCHITECTURE_RULES.md
+- 架构规则: docs/project/ARCHITECTURE_RULES.md
 
 ### 当前状态
 pkg/plugins/database/ 已有 PostgreSQL 实现（postgres_database.go, 879 行），
@@ -87,7 +87,7 @@ pkg/plugins/database/ 已有 PostgreSQL 实现（postgres_database.go, 879 行�
 - [ ] make build && make test-unit && make vet 全部通过
 
 ### 分层约束
-严格遵守 ARCHITECTURE_RULES.md，特别是:
+严格遵守 docs/project/ARCHITECTURE_RULES.md，特别是:
 1. MockDB 写在 pkg/plugins/database/mock_database.go
 2. 只 import pkg/core（接口定义）
 3. 不引入外部依赖
@@ -126,7 +126,7 @@ go test -v ./test/contracts/... -run DB
 ChainPulse 是一个区块链事件索引系统，支持单体和微服务两种部署模式。
 - 架构文档: docs/archive/ARCHITECTURE_v1.md（见 §1.1 单体模式、§1.2 微服务模式）
 - 实现状态: docs/IMPLEMENTATION_STATUS.md
-- 架构规则: ARCHITECTURE_RULES.md
+- 架构规则: docs/project/ARCHITECTURE_RULES.md
 
 ### 当前状态
 cmd/monolithic/chainpulse/main.go 和 cmd/microservices/*/main.go 各自独立实现。
@@ -145,7 +145,7 @@ cmd/monolithic/chainpulse/main.go 和 cmd/microservices/*/main.go 各自独立�
 - [ ] 更新 docs/IMPLEMENTATION_STATUS.md 标记此功能为完成
 
 ### 分层约束
-严格遵守 ARCHITECTURE_RULES.md:
+严格遵守 docs/project/ARCHITECTURE_RULES.md:
 1. adapter 选择逻辑在 cmd 层（composition root），不在 services 层
 2. services 层不感知 deployment mode
 3. 依赖方向不变
@@ -186,7 +186,7 @@ DEPLOYMENT_MODE=microservice go run cmd/microservices/puller/main.go
 ChainPulse 是一个区块链事件索引系统，支持单体和微服务两种部署模式。
 - 架构文档: docs/archive/ARCHITECTURE_v1.md（见 §5 Platform 层）
 - 实现状态: docs/IMPLEMENTATION_STATUS.md
-- 架构规则: ARCHITECTURE_RULES.md
+- 架构规则: docs/project/ARCHITECTURE_RULES.md
 
 ### 当前状态
 pkg/observability/ 已定义 Prometheus 指标（EventsPerSecond, IndexingLatency, ErrorsTotal），

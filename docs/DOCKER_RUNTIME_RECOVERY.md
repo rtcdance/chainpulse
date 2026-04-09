@@ -107,7 +107,7 @@ installation as damaged or incomplete.
 
 ## Related Entry Points
 
-- [`RUNNABLE_APP.md`](/Users/mingo/Applications/workspace/web3/project/chainpulse/RUNNABLE_APP.md)
+- [`RUNNABLE_APP.md`](/Users/mingo/Applications/workspace/web3/project/chainpulse/docs/project/RUNNABLE_APP.md)
 - [`docker/README.md`](/Users/mingo/Applications/workspace/web3/project/chainpulse/docker/README.md)
 - [`verify-docker-compose-stack.sh`](/Users/mingo/Applications/workspace/web3/project/chainpulse/scripts/verify-docker-compose-stack.sh)
 - [`verify-docker-compose-microservices-readiness.sh`](/Users/mingo/Applications/workspace/web3/project/chainpulse/scripts/verify-docker-compose-microservices-readiness.sh)
