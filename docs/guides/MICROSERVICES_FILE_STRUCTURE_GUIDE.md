@@ -273,7 +273,7 @@ chainpulse/
 | `MICROSERVICES_ARCHITECTURE_START_HERE.md` | 开始指南 | 快速入门 |
 | `docs/guides/DISTRIBUTED_DEPLOYMENT_COMPLETE_GUIDE.md` | 完整部署指南 | 详细部署 |
 | `docs/guides/MICROSERVICES_DEPLOYMENT_QUICK_CARD.md` | 快速卡片 | 快速查找 |
-| `docs/guides/MICROSERVICES_IMPLEMENTATION_GUIDE.md` | 实现指南 | 开发参考 |
+| `docs/archive/MICROSERVICES_IMPLEMENTATION_GUIDE.md` | 实现指南（归档） | 开发参考 |
 
 ---
 
@@ -385,7 +385,7 @@ docs/ (文档)
 → `docs/guides/MICROSERVICES_DEPLOYMENT_QUICK_CARD.md`
 
 **实现指南**
-→ `docs/guides/MICROSERVICES_IMPLEMENTATION_GUIDE.md`
+→ `docs/archive/MICROSERVICES_IMPLEMENTATION_GUIDE.md`
 
 **架构分析**
 → `docs/progress/MICROSERVICES_ARCHITECTURE_ANALYSIS_ENTERPRISE_WEB3.md`
@@ -424,7 +424,7 @@ docs/ (文档)
 
 - **完整部署指南**: `docs/guides/DISTRIBUTED_DEPLOYMENT_COMPLETE_GUIDE.md`
 - **快速参考卡片**: `docs/guides/MICROSERVICES_DEPLOYMENT_QUICK_CARD.md`
-- **实现指南**: `docs/guides/MICROSERVICES_IMPLEMENTATION_GUIDE.md`
+- **实现指南**: `docs/archive/MICROSERVICES_IMPLEMENTATION_GUIDE.md`
 - **快速参考**: `docs/guides/MICROSERVICES_QUICK_REFERENCE.md`
 - **架构分析**: `docs/progress/MICROSERVICES_ARCHITECTURE_ANALYSIS_ENTERPRISE_WEB3.md`
 - **开始指南**: `MICROSERVICES_ARCHITECTURE_START_HERE.md`

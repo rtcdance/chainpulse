@@ -187,7 +187,7 @@ kubectl scale deployment chainpulse-puller --replicas=15 -n chainpulse
 
 - **完整指南**: `docs/guides/DISTRIBUTED_DEPLOYMENT_COMPLETE_GUIDE.md`
 - **微服务架构**: `MICROSERVICES_ARCHITECTURE_START_HERE.md`
-- **实现指南**: `docs/guides/MICROSERVICES_IMPLEMENTATION_GUIDE.md`
+- **实现指南**: `docs/archive/MICROSERVICES_IMPLEMENTATION_GUIDE.md`
 - **快速参考**: `docs/guides/MICROSERVICES_QUICK_REFERENCE.md`
 
 ---

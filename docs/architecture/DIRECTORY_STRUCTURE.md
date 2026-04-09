@@ -4,6 +4,9 @@
 
 The ChainPulse project has been reorganized into a clean, modular structure that separates concerns and improves maintainability.
 
+Note: the high-level structure below is historical and illustrative. For the
+current documentation layout, prefer [`docs/README.md`](/Users/mingo/Applications/workspace/web3/project/chainpulse/docs/README.md).
+
 ## Directory Layout
 
 ```

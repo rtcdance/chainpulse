@@ -212,7 +212,7 @@ pkg/
 
 ## Phase 5: GPT-5.4 新 Prompt 模板
 
-完整的 prompt 模板和示例已移至 `docs/GPT_PROMPT_TEMPLATE.md`。
+完整的 prompt 模板和示例已移至 `docs/planning/GPT_PROMPT_TEMPLATE.md`。
 
 ### 核心原则
 
@@ -228,11 +228,11 @@ pkg/
 1. `docs/archive/ARCHITECTURE_v1.md` — 架构蓝图（只读参考）
 2. `docs/IMPLEMENTATION_STATUS.md` — 完成度地图（知道什么已做）
 3. `ARCHITECTURE_RULES.md` — 5 条硬规则（必须遵守）
-4. `docs/GPT_PROMPT_TEMPLATE.md` — prompt 格式（按模板写）
+4. `docs/planning/GPT_PROMPT_TEMPLATE.md` — prompt 格式（按模板写）
 
 ### 示例：M1-1 MockDB 实现
 
-直接使用 `docs/GPT_PROMPT_TEMPLATE.md` 中的示例 1。
+直接使用 `docs/planning/GPT_PROMPT_TEMPLATE.md` 中的示例 1。
 
 ## 执行顺序
 
@@ -255,7 +255,7 @@ pkg/
   ✅ Phase 2: Spec 归档（414/440 移入 archived/）
   ✅ Phase 3: 分层统一（锁定 core/services/plugins）
   ✅ Phase 4: 里程碑规划（M1/M2/M3 任务拆解）
-  ✅ Phase 5: Prompt 模板（docs/GPT_PROMPT_TEMPLATE.md）
+  ✅ Phase 5: Prompt 模板（docs/planning/GPT_PROMPT_TEMPLATE.md）
 
 待执行:
   ✅ M1a: 修复单体基础数据链路
@@ -273,8 +273,8 @@ pkg/
 1. `docs/archive/ARCHITECTURE_v1.md` — 架构蓝图
 2. `docs/IMPLEMENTATION_STATUS.md` — 完成度地图
 3. `ARCHITECTURE_RULES.md` — 硬规则
-4. `docs/GPT_PROMPT_TEMPLATE.md` — prompt 格式
-5. `docs/EXECUTION_PLAN.md` — 本文件（里程碑 + 任务拆解）
+4. `docs/planning/GPT_PROMPT_TEMPLATE.md` — prompt 格式
+5. `docs/planning/EXECUTION_PLAN.md` — 本文件（里程碑 + 任务拆解）
 
 ## 风险控制
 

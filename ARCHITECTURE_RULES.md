@@ -166,5 +166,5 @@ make vet          # go vet 无错误
 
 - 完整架构文档: `docs/archive/ARCHITECTURE_v1.md`
 - 实现状态地图: `docs/IMPLEMENTATION_STATUS.md`
-- 执行计划: `docs/EXECUTION_PLAN.md`
-- 给 AI 的 prompt 模板: `docs/GPT_PROMPT_TEMPLATE.md`
+- 执行计划: `docs/planning/EXECUTION_PLAN.md`
+- 给 AI 的 prompt 模板: `docs/planning/GPT_PROMPT_TEMPLATE.md`
