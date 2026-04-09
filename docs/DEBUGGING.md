@@ -9,17 +9,68 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Debug Monolithic",
+      "name": "Debug Monolithic (In-Memory)",
       "type": "go",
       "request": "launch",
       "mode": "debug",
       "program": "${workspaceFolder}/cmd/monolithic/chainpulse",
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "Monolithic Debug RPC Up",
       "env": {
         "DEPLOYMENT_MODE": "monolithic",
-        "LOG_LEVEL": "debug"
+        "LOG_LEVEL": "debug",
+        "CHAINS": "ethereum,polygon",
+        "BLOCKCHAIN_NODE_URLS": "http://localhost:8545,http://localhost:8546",
+        "DATABASE_TYPE": "memory",
+        "CACHE_TYPE": "memory",
+        "MQ_TYPE": "memory",
+        "API_PORT": "8080"
       },
       "args": [],
-      "showLog": true
+      "showLog": true,
+      "trace": "verbose",
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "Debug Monolithic (Real RPC)",
+      "type": "go",
+      "request": "launch",
+      "mode": "debug",
+      "program": "${workspaceFolder}/cmd/monolithic/chainpulse",
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "DEPLOYMENT_MODE": "monolithic",
+        "LOG_LEVEL": "debug",
+        "CHAINS": "${input:realChainIds}",
+        "BLOCKCHAIN_NODE_URLS": "${input:realChainRpcUrls}",
+        "DATABASE_TYPE": "memory",
+        "CACHE_TYPE": "memory",
+        "MQ_TYPE": "memory",
+        "API_PORT": "${input:monolithicApiPort}"
+      },
+      "args": [],
+      "showLog": true,
+      "trace": "verbose",
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "Debug Monolithic (Real RPC via .env.local)",
+      "type": "go",
+      "request": "launch",
+      "mode": "debug",
+      "program": "${workspaceFolder}/cmd/monolithic/chainpulse",
+      "cwd": "${workspaceFolder}",
+      "envFile": "${workspaceFolder}/.env.local",
+      "env": {
+        "DEPLOYMENT_MODE": "monolithic",
+        "DATABASE_TYPE": "memory",
+        "CACHE_TYPE": "memory",
+        "MQ_TYPE": "memory"
+      },
+      "args": [],
+      "showLog": true,
+      "trace": "verbose",
+      "console": "integratedTerminal"
     },
     {
       "name": "Debug Puller Service",
@@ -46,7 +97,37 @@
       "type": "go",
       "request": "attach",
       "mode": "local",
-      "processId": 0
+      "processId": "${command:pickGoProcess}"
+    }
+  ],
+  "compounds": [
+    {
+      "name": "Monolithic Debug Stack",
+      "configurations": ["Debug Monolithic (In-Memory)"]
+    },
+    {
+      "name": "Monolithic Debug Stack (Real RPC via .env.local)",
+      "configurations": ["Debug Monolithic (Real RPC via .env.local)"]
+    }
+  ],
+  "inputs": [
+    {
+      "id": "realChainIds",
+      "description": "Comma-separated chain ids for real-chain monolithic debugging",
+      "default": "ethereum",
+      "type": "promptString"
+    },
+    {
+      "id": "realChainRpcUrls",
+      "description": "Comma-separated RPC URLs matching the chain ids order",
+      "default": "https://your-real-rpc-endpoint",
+      "type": "promptString"
+    },
+    {
+      "id": "monolithicApiPort",
+      "description": "Local API port for monolithic debugging",
+      "default": "8080",
+      "type": "promptString"
     }
   ]
 }
@@ -87,41 +168,65 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "Build Monolithic",
+      "label": "Monolithic Debug RPC Up",
       "type": "shell",
-      "command": "make build-monolithic",
-      "group": "build",
-      "problemMatcher": ["$go"]
+      "command": "docker",
+      "args": [
+        "compose",
+        "-f",
+        "docker/docker-compose.yml",
+        "up",
+        "-d",
+        "anvil-ethereum",
+        "anvil-polygon"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
     },
     {
-      "label": "Run Tests",
+      "label": "Monolithic Debug RPC Down",
       "type": "shell",
-      "command": "make test-unit",
-      "group": "test",
-      "problemMatcher": ["$go"]
-    },
-    {
-      "label": "Run Linter",
-      "type": "shell",
-      "command": "make lint",
-      "group": "build",
-      "problemMatcher": ["$go"]
-    },
-    {
-      "label": "Docker Up",
-      "type": "shell",
-      "command": "make docker-up",
-      "group": "build"
-    },
-    {
-      "label": "Docker Down",
-      "type": "shell",
-      "command": "make docker-down",
-      "group": "build"
+      "command": "docker",
+      "args": [
+        "compose",
+        "-f",
+        "docker/docker-compose.yml",
+        "stop",
+        "anvil-ethereum",
+        "anvil-polygon"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
     }
   ]
 }
 ```
+
+### 推荐单体调试流
+
+1. 在 VS Code 里选择 `Debug Monolithic (In-Memory)` 或 `Monolithic Debug Stack`
+2. `preLaunchTask` 会自动拉起 `anvil-ethereum` 和 `anvil-polygon`
+3. 单体进程使用内存型 `database/cache/mq` 适配器，本地 HTTP 入口默认监听 `:8080`
+4. 结束调试后，如果不再需要本地 RPC，可执行任务 `Monolithic Debug RPC Down`
+
+### 真实链单体调试流
+
+1. 在 VS Code 里选择 `Debug Monolithic (Real RPC)`
+2. 启动时输入 `CHAINS`，例如 `ethereum` 或 `ethereum,polygon`
+3. 启动时输入与链顺序一一对应的 `BLOCKCHAIN_NODE_URLS`
+4. 单体仍使用内存型 `database/cache/mq` 适配器，便于只聚焦真实链 RPC 调试
+5. 不要把真实 RPC token 写进仓库文件，直接通过 VS Code 启动输入提供
+
+### `.env.local` 真实链调试流
+
+1. 基于 [`.env.local.example`](/Users/mingo/Applications/workspace/web3/project/chainpulse/.env.local.example) 在仓库根目录创建本地 `.env.local`
+2. 把 `CHAINS` 和 `BLOCKCHAIN_NODE_URLS` 改成你自己的真实链配置
+3. 在 VS Code 里选择 `Debug Monolithic (Real RPC via .env.local)`
+4. `.env.local` 已被 `.gitignore` 忽略，不会进入版本库
 
 ## Delve 命令行调试
 

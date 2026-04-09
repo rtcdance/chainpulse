@@ -1,5 +1,8 @@
 # 生产部署清单
 
+当前仓库状态是 `staging-ready / rehearsal-ready`。在宣布可正式上线前，先完成
+[Go-Live Blockers](/Users/mingo/Applications/workspace/web3/project/chainpulse/docs/deployment/go-live-blockers.md)。
+
 ## 部署前检查
 
 ### 代码质量检查
@@ -102,6 +105,18 @@ gh run watch
 # 验证生产环境
 ./scripts/verify-production.sh
 
+# 运行长稳验证
+RUN_PRECHECK=1 RUN_POSTCHECK=1 DURATION_SECONDS=1800 INTERVAL_SECONDS=60 ./scripts/soak-check.sh
+
+# 验证外部告警交付链
+ALERTMANAGER_URL=http://localhost:9093 EXPECTED_RECEIVER=critical ./scripts/alert-delivery-check.sh
+
+# 验证 replay / reorg / recovery 一致性演练
+TARGET_CHAIN=ethereum RUN_PRECHECK=1 RUN_POSTCHECK=1 ./scripts/data-consistency-drill.sh
+
+# 执行回滚演练
+CURRENT_RELEASE=v1.0.0 PREVIOUS_RELEASE=v0.9.0 ./scripts/rollback-drill.sh
+
 # 检查日志
 tail -f logs/production.log
 ```
@@ -124,6 +139,15 @@ go test ./test/integration/...
 # 检查告警
 # 访问 http://localhost:9093 (Alertmanager)
 ```
+
+长稳验证建议使用 [soak-check.sh](/Users/mingo/Applications/workspace/web3/project/chainpulse/scripts/soak-check.sh)
+统一留痕，而不是只靠手工观察。
+
+外部告警交付建议使用 [alert-delivery-check.sh](/Users/mingo/Applications/workspace/web3/project/chainpulse/scripts/alert-delivery-check.sh)
+统一验证 Alertmanager readiness 和接收器路由基线。
+
+数据一致性演练建议使用 [data-consistency-drill.sh](/Users/mingo/Applications/workspace/web3/project/chainpulse/scripts/data-consistency-drill.sh)
+统一留痕 puller checkpoint / reorg recovery runtime contract。
 
 ## 部署期间监控
 
@@ -227,22 +251,11 @@ go tool pprof heap.prof
 ### 快速回滚
 
 ```bash
-# 1. 停止当前版本
-systemctl stop chainpulse-indexer
-
-# 2. 恢复上一个版本
-docker pull chainpulse/indexer:v0.9.0
-docker run -d --name chainpulse-indexer chainpulse/indexer:v0.9.0
-
-# 3. 验证
-curl http://localhost:8080/health
-
-# 4. 恢复数据库 (如果需要)
-psql < backup_v0.9.0.sql
-
-# 5. 通知团队
-./scripts/notify-rollback.sh v1.0.0 v0.9.0
+CURRENT_RELEASE=v1.0.0 PREVIOUS_RELEASE=v0.9.0 ./scripts/rollback-drill.sh
 ```
+
+该脚本会校验回滚前提、可选执行回滚前后生产验证，并输出需要在目标环境中
+实际执行的手工回滚步骤。它不会假装替代环境侧发布流水线。
 
 ### 数据库回滚
 

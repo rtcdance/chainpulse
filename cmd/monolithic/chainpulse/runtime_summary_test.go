@@ -298,8 +298,8 @@ func TestMonolithicRuntimeSummaryRoute(t *testing.T) {
 	if got := gatewaySummary["runtime_routes_enabled"]; got != true {
 		t.Fatalf("expected runtime_routes_enabled true, got %v", got)
 	}
-	if got := gatewaySummary["registered_route_count"]; got != float64(17) {
-		t.Fatalf("expected registered_route_count 17, got %v", got)
+	if got := gatewaySummary["registered_route_count"]; got != float64(18) {
+		t.Fatalf("expected registered_route_count 18, got %v", got)
 	}
 	if got := gatewaySummary["runtime_route_count"]; got != float64(7) {
 		t.Fatalf("expected runtime_route_count 7, got %v", got)

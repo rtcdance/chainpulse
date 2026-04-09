@@ -1,6 +1,7 @@
 # ChainPulse
 
-A production-ready blockchain event indexing system with enterprise-grade architecture, comprehensive testing, and flexible deployment options.
+A blockchain event indexing system with completed blueprint-aligned milestones,
+comprehensive testing, and a minimum production-readiness rehearsal baseline.
 
 ## 🎯 Milestone Status
 
@@ -15,6 +16,7 @@ A production-ready blockchain event indexing system with enterprise-grade archit
 | M3c | ✅ Complete | 生产就绪演练 |
 
 **All milestones completed.** Full blueprint-aligned sequence done.
+Current operational posture: `staging-ready / rehearsal-ready`, not yet fully `production-ready`.
 
 ## 🚀 Quick Start
 
@@ -98,6 +100,21 @@ bash scripts/verify-docker-compose-microservices-readiness.sh
 ```
 
 This readiness smoke also includes the live Prometheus targets/query check.
+
+For one-click Docker startup and acceptance:
+
+```bash
+bash scripts/run-docker-acceptance.sh all
+```
+
+Useful day-to-day subcommands:
+
+```bash
+bash scripts/run-docker-acceptance.sh up
+bash scripts/run-docker-acceptance.sh accept
+bash scripts/run-docker-acceptance.sh ps
+bash scripts/run-docker-acceptance.sh down
+```
 
 If Docker runtime is unavailable on the current machine:
 

@@ -3,6 +3,7 @@ package query
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"testing"
 	"time"
 
@@ -238,6 +239,44 @@ func TestPostgreSQLEventMetadataStoreClose(t *testing.T) {
 	// Should be uninitialized after close
 	if store.initialized {
 		t.Error("Store should be uninitialized after Close()")
+	}
+}
+
+func TestIsIgnorablePostgresSchemaConflict(t *testing.T) {
+	testCases := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{
+			name: "nil error",
+			err:  nil,
+			want: false,
+		},
+		{
+			name: "duplicate type catalog key",
+			err:  errors.New(`pq: duplicate key value violates unique constraint "pg_type_typname_nsp_index"`),
+			want: true,
+		},
+		{
+			name: "duplicate relation catalog key",
+			err:  errors.New(`pq: duplicate key value violates unique constraint "pg_class_relname_nsp_index"`),
+			want: true,
+		},
+		{
+			name: "other postgres error",
+			err:  errors.New("pq: syntax error at or near \"BROKEN\""),
+			want: false,
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			got := isIgnorablePostgresSchemaConflict(testCase.err)
+			if got != testCase.want {
+				t.Fatalf("isIgnorablePostgresSchemaConflict() = %v, want %v", got, testCase.want)
+			}
+		})
 	}
 }
 

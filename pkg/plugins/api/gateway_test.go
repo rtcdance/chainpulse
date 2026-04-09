@@ -21,6 +21,17 @@ func TestAPIGatewayPluginDomainBridgeToggle(t *testing.T) {
 	}
 }
 
+func TestAPIGatewayPluginDomainBridgeEnabledByUpstreamQueryEndpoints(t *testing.T) {
+	logger := core.NewDefaultLogger(core.LogLevelInfo)
+	metrics := core.NewDefaultMetricsCollector()
+	plugin := NewAPIGatewayPlugin(logger, metrics)
+
+	plugin.SetUpstreamQueryEndpoints([]string{"http://api-service-1:8081"})
+	if !plugin.IsDomainBridgeEnabled() {
+		t.Fatal("expected upstream query endpoints to satisfy domain bridge signal")
+	}
+}
+
 func TestAPIGatewayPluginEventQueryHandlerToggle(t *testing.T) {
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()

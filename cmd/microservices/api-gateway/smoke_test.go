@@ -91,6 +91,9 @@ func TestLocalRunnableGatewayQuerySmoke(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected gateway section, got %#v", summary["gateway"])
 	}
+	if got := gatewaySection["domain_bridge_enabled"]; got != true {
+		t.Fatalf("expected domain bridge enabled, got %v", got)
+	}
 	if got := gatewaySection["query_bridge_posture"]; got != "query-bridge-ready" {
 		t.Fatalf("expected query bridge ready, got %v", got)
 	}

@@ -21,6 +21,11 @@ interface DashboardState {
   serviceReports: ServiceAcceptanceReport[]
 }
 
+interface LoadWarning {
+  label: string
+  message: string
+}
+
 function tone(ok: boolean): string {
   return ok
     ? 'border-emerald-300/25 bg-emerald-300/10 text-emerald-100'
@@ -37,21 +42,74 @@ export default function Dashboard() {
   })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [warnings, setWarnings] = useState<LoadWarning[]>([])
 
   async function load(): Promise<void> {
     setLoading(true)
+
+    const requests = [
+      { label: 'Gateway health', run: fetchHealth },
+      { label: 'Runtime summary', run: fetchRuntimeSummary },
+      { label: 'Metrics', run: fetchMetrics },
+      { label: 'Sample events', run: () => fetchEvents({ limit: 5, offset: 0 }) },
+      { label: 'Service matrix', run: fetchCurrentSliceReport },
+    ] as const
+
     try {
-      const [health, runtime, metrics, sampleEvents, serviceReports] = await Promise.all([
-        fetchHealth(),
-        fetchRuntimeSummary(),
-        fetchMetrics(),
-        fetchEvents({ limit: 5, offset: 0 }),
-        fetchCurrentSliceReport(),
-      ])
-      setState({ health, runtime, metrics, sampleEvents, serviceReports })
+      const results = await Promise.allSettled(requests.map((request) => request.run()))
+      const nextState: DashboardState = {
+        health: null,
+        runtime: null,
+        metrics: null,
+        sampleEvents: null,
+        serviceReports: [],
+      }
+      const nextWarnings: LoadWarning[] = []
+      let successCount = 0
+
+      results.forEach((result, index) => {
+        const label = requests[index].label
+        if (result.status === 'fulfilled') {
+          successCount += 1
+          switch (label) {
+            case 'Gateway health':
+              nextState.health = result.value as HealthPayload
+              break
+            case 'Runtime summary':
+              nextState.runtime = result.value as RuntimePayload
+              break
+            case 'Metrics':
+              nextState.metrics = result.value as MetricsPayload
+              break
+            case 'Sample events':
+              nextState.sampleEvents = result.value as Awaited<ReturnType<typeof fetchEvents>>
+              break
+            case 'Service matrix':
+              nextState.serviceReports = result.value as ServiceAcceptanceReport[]
+              break
+          }
+          return
+        }
+
+        nextWarnings.push({
+          label,
+          message: result.reason instanceof Error ? result.reason.message : 'request failed',
+        })
+      })
+
+      if (successCount === 0) {
+        setError('All dashboard data sources failed to load')
+        setWarnings(nextWarnings)
+        setState(nextState)
+        return
+      }
+
+      setState(nextState)
+      setWarnings(nextWarnings)
       setError(null)
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : 'Failed to load acceptance dashboard')
+      setWarnings([])
     } finally {
       setLoading(false)
     }
@@ -94,6 +152,24 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
+      {warnings.length > 0 ? (
+        <section className="rounded-[28px] border border-amber-300/30 bg-amber-300/10 p-5 text-amber-50">
+          <div className="flex items-start gap-3">
+            <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0" />
+            <div className="space-y-2">
+              <h2 className="text-lg font-semibold text-white">Dashboard loaded with partial live evidence</h2>
+              <div className="space-y-1 text-sm leading-6 text-amber-50/90">
+                {warnings.map((warning) => (
+                  <p key={warning.label}>
+                    <span className="font-medium text-white">{warning.label}:</span> {warning.message}
+                  </p>
+                ))}
+              </div>
+            </div>
+          </div>
+        </section>
+      ) : null}
+
       <section className="grid gap-4 xl:grid-cols-4">
         <article className="rounded-[26px] border border-white/10 bg-white/5 p-5">
           <div className="flex items-center justify-between">
@@ -203,8 +279,13 @@ export default function Dashboard() {
       <section className="rounded-[28px] border border-white/10 bg-white/5 p-6">
         <p className="text-xs uppercase tracking-[0.25em] text-mist">Current Slice Service Matrix</p>
         <h2 className="mt-3 text-2xl font-semibold text-white">Gateway, API service, event processor, and puller</h2>
-        <div className="mt-6 grid gap-4 xl:grid-cols-2">
-          {state.serviceReports.map((report) => (
+        {state.serviceReports.length === 0 ? (
+          <div className="mt-6 rounded-[24px] border border-white/10 bg-black/15 p-5 text-sm leading-6 text-sand/80">
+            Service matrix evidence is currently unavailable.
+          </div>
+        ) : (
+          <div className="mt-6 grid gap-4 xl:grid-cols-2">
+            {state.serviceReports.map((report) => (
             <article key={report.service.id} className="min-w-0 rounded-[24px] border border-white/10 bg-black/15 p-5">
               <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0 flex-1">
@@ -233,8 +314,9 @@ export default function Dashboard() {
                 ))}
               </div>
             </article>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </section>
     </div>
   )

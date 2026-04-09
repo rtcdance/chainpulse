@@ -88,9 +88,9 @@ func (s *PostgreSQLEventMetadataStore) createTable(ctx context.Context) error {
 
 	_, err := s.db.ExecContext(ctx, createTableSQL)
 	if err != nil {
-		if strings.Contains(err.Error(), "pg_type_typname_nsp_index") {
-			// Concurrent table creation can surface this transient duplicate type error
-			// even with IF NOT EXISTS. Treat it as success and continue with index checks.
+		if isIgnorablePostgresSchemaConflict(err) {
+			// Concurrent schema creation can still surface transient duplicate catalog
+			// conflicts even when IF NOT EXISTS is used. Treat those as success.
 			return nil
 		}
 		return fmt.Errorf("failed to create events_metadata table: %w", err)
@@ -113,10 +113,23 @@ func (s *PostgreSQLEventMetadataStore) createTable(ctx context.Context) error {
 
 	_, err = s.db.ExecContext(ctx, createIndexSQL)
 	if err != nil {
+		if isIgnorablePostgresSchemaConflict(err) {
+			return nil
+		}
 		return fmt.Errorf("failed to create indexes: %w", err)
 	}
 
 	return nil
+}
+
+func isIgnorablePostgresSchemaConflict(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	message := err.Error()
+	return strings.Contains(message, "pg_type_typname_nsp_index") ||
+		strings.Contains(message, "pg_class_relname_nsp_index")
 }
 
 // InsertMetadata inserts a single event metadata record

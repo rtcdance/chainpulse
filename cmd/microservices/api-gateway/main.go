@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	"chainpulse/pkg/application/bootstrap"
 	"chainpulse/pkg/core"
 	"chainpulse/pkg/plugins/api"
 )
@@ -58,6 +59,11 @@ func main() {
 		APIPort:      config.Port,
 		LogLevel:     config.LogLevel,
 		FeatureFlags: make(map[string]bool),
+	}
+	runtimeProfile := bootstrap.RuntimeProfileFromEnv()
+	if err := validateGatewayProductionSecurity(config, runtimeProfile); err != nil {
+		logger.Error("Gateway production security gate rejected startup", "profile", runtimeProfile, "error", err.Error())
+		os.Exit(1)
 	}
 
 	// Initialize API Gateway Plugin
@@ -292,6 +298,27 @@ func buildAPIGatewaySecurityControls(config GatewayConfig, logger core.Logger, m
 	}
 
 	return authMiddleware, rateLimitMiddleware, nil
+}
+
+func validateGatewayProductionSecurity(config GatewayConfig, runtimeProfile string) error {
+	if runtimeProfile != "production" {
+		return nil
+	}
+
+	if !config.AuthEnabled {
+		return fmt.Errorf("production gateway requires GATEWAY_AUTH_ENABLED=true")
+	}
+	if strings.TrimSpace(config.AuthJWTSecret) == "" {
+		return fmt.Errorf("production gateway requires non-empty GATEWAY_AUTH_JWT_SECRET")
+	}
+	if !config.RateLimitEnabled {
+		return fmt.Errorf("production gateway requires GATEWAY_RATE_LIMIT_ENABLED=true")
+	}
+	if config.RateLimitPerMinute <= 0 {
+		return fmt.Errorf("production gateway requires GATEWAY_RATE_LIMIT > 0")
+	}
+
+	return nil
 }
 
 //nolint:wsl,nlreturn // Command config parsing stays centralized and compact here.

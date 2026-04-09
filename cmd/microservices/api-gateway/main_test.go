@@ -82,3 +82,87 @@ func TestBuildAPIGatewayMetricsProviderDefaultsToPrometheus(t *testing.T) {
 		t.Fatalf("expected prometheus payload to contain counter, got:\n%s", payload)
 	}
 }
+
+func TestValidateGatewayProductionSecurity(t *testing.T) {
+	base := GatewayConfig{
+		AuthEnabled:        true,
+		AuthJWTSecret:      "secret-123",
+		RateLimitEnabled:   true,
+		RateLimitPerMinute: 120,
+	}
+
+	testCases := []struct {
+		name    string
+		profile string
+		cfg     GatewayConfig
+		wantErr string
+	}{
+		{
+			name:    "non production stays open",
+			profile: "development",
+			cfg:     GatewayConfig{},
+		},
+		{
+			name:    "production happy path",
+			profile: "production",
+			cfg:     base,
+		},
+		{
+			name:    "production requires auth",
+			profile: "production",
+			cfg: GatewayConfig{
+				AuthEnabled:        false,
+				RateLimitEnabled:   true,
+				RateLimitPerMinute: 120,
+			},
+			wantErr: "GATEWAY_AUTH_ENABLED=true",
+		},
+		{
+			name:    "production requires jwt secret",
+			profile: "production",
+			cfg: GatewayConfig{
+				AuthEnabled:        true,
+				RateLimitEnabled:   true,
+				RateLimitPerMinute: 120,
+			},
+			wantErr: "GATEWAY_AUTH_JWT_SECRET",
+		},
+		{
+			name:    "production requires rate limit",
+			profile: "production",
+			cfg: GatewayConfig{
+				AuthEnabled:   true,
+				AuthJWTSecret: "secret-123",
+			},
+			wantErr: "GATEWAY_RATE_LIMIT_ENABLED=true",
+		},
+		{
+			name:    "production requires positive rate limit",
+			profile: "production",
+			cfg: GatewayConfig{
+				AuthEnabled:        true,
+				AuthJWTSecret:      "secret-123",
+				RateLimitEnabled:   true,
+				RateLimitPerMinute: 0,
+			},
+			wantErr: "GATEWAY_RATE_LIMIT > 0",
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			err := validateGatewayProductionSecurity(testCase.cfg, testCase.profile)
+			if testCase.wantErr == "" && err != nil {
+				t.Fatalf("expected no error, got %v", err)
+			}
+			if testCase.wantErr != "" {
+				if err == nil {
+					t.Fatalf("expected error containing %q", testCase.wantErr)
+				}
+				if !strings.Contains(err.Error(), testCase.wantErr) {
+					t.Fatalf("expected error containing %q, got %v", testCase.wantErr, err)
+				}
+			}
+		})
+	}
+}

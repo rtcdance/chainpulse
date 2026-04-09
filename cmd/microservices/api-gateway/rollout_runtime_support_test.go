@@ -287,11 +287,11 @@ func TestAPIGatewayRuntimeSummaryRoute(t *testing.T) {
 	if got := payload["deployment_mode"]; got != "microservice" {
 		t.Fatalf("expected deployment mode microservice, got %v", got)
 	}
-	if got := payload["runtime_mode"]; got != "partially-wired" {
-		t.Fatalf("expected runtime mode partially-wired, got %v", got)
+	if got := payload["runtime_mode"]; got != "runtime-wired" {
+		t.Fatalf("expected runtime mode runtime-wired, got %v", got)
 	}
-	if got := payload["runtime_posture"]; got != "partial-runtime-wiring" {
-		t.Fatalf("expected runtime posture partial-runtime-wiring, got %v", got)
+	if got := payload["runtime_posture"]; got != "runtime-wired" {
+		t.Fatalf("expected runtime posture runtime-wired, got %v", got)
 	}
 	gatewaySection, ok := payload["gateway"].(map[string]interface{})
 	if !ok {
@@ -302,6 +302,9 @@ func TestAPIGatewayRuntimeSummaryRoute(t *testing.T) {
 	}
 	if got := gatewaySection["runtime_routes_enabled"]; got != true {
 		t.Fatalf("expected runtime routes enabled true, got %v", got)
+	}
+	if got := gatewaySection["domain_bridge_enabled"]; got != true {
+		t.Fatalf("expected domain bridge enabled true, got %v", got)
 	}
 	if got := gatewaySection["upstream_query_configured_count"]; got != float64(2) {
 		t.Fatalf("expected upstream configured count 2, got %v", got)

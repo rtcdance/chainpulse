@@ -71,7 +71,7 @@ func (g *APIGatewayPlugin) IsDomainBridgeEnabled() bool {
 	g.mu.RLock()
 	defer g.mu.RUnlock()
 
-	return g.domainBridgeEnabled
+	return g.domainBridgeEnabled || len(g.upstreamQueryEndpoints) > 0
 }
 
 // SetEventQueryHandler sets an optional runtime event query handler for phased route migration.
