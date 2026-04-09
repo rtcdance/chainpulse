@@ -90,6 +90,7 @@ func TestGatewayRouterIntegrationRouteRegistration(t *testing.T) {
 		"event-by-chain",
 		"event-by-contract",
 		"event-by-name",
+		"websocket-subscribe",
 		"subscribe",
 		"subscribe-chain",
 		"subscribe-contract",
@@ -360,8 +361,8 @@ func TestGatewayRouterIntegrationRuntimeRouteInventory(t *testing.T) {
 	_ = integration.Initialize(context.Background())
 
 	inventory := integration.GetRuntimeRouteInventory()
-	if inventory.RegisteredRouteCount != 19 {
-		t.Fatalf("expected 19 registered routes, got %d", inventory.RegisteredRouteCount)
+	if inventory.RegisteredRouteCount != 20 {
+		t.Fatalf("expected 20 registered routes, got %d", inventory.RegisteredRouteCount)
 	}
 	if inventory.RuntimeRouteCount != 9 {
 		t.Fatalf("expected 9 runtime routes, got %d", inventory.RuntimeRouteCount)

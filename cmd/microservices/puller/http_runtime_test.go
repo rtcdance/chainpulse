@@ -160,6 +160,7 @@ func TestBuildPullerRuntimeHTTPHandlerExposesRuntimeSummaryRoute(t *testing.T) {
 		return &pullerRuntimeSummaryResponse{
 			Service:        "puller",
 			Timestamp:      1712345678,
+			DeploymentMode: "microservice",
 			RuntimeMode:    "runtime-wired",
 			RuntimePosture: "runtime-wired",
 			ComponentState: "healthy",
@@ -198,6 +199,9 @@ func TestBuildPullerRuntimeHTTPHandlerExposesRuntimeSummaryRoute(t *testing.T) {
 	}
 	if payload.Service != "puller" {
 		t.Fatalf("expected service puller, got %q", payload.Service)
+	}
+	if payload.DeploymentMode != "microservice" {
+		t.Fatalf("expected deployment mode microservice, got %q", payload.DeploymentMode)
 	}
 	if payload.RuntimeMode != "runtime-wired" {
 		t.Fatalf("expected runtime mode runtime-wired, got %q", payload.RuntimeMode)

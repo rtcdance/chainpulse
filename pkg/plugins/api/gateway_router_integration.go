@@ -167,6 +167,12 @@ func (gri *GatewayRouterIntegration) SetGraphQLHandler(handler *GraphQLHandler) 
 func (gri *GatewayRouterIntegration) registerRoutes() error {
 	// Register subscription routes with HIGH priority (more specific paths)
 	if gri.shouldRegisterSubscriptionRoutes() {
+		websocketRoute := NewRoute("websocket-subscribe", "/ws", "GET")
+		websocketRoute.SetPriority(100)
+		if err := gri.router.RegisterRoute(websocketRoute); err != nil {
+			return fmt.Errorf("failed to register websocket route: %w", err)
+		}
+
 		subscribeRoute := NewRoute("subscribe", "/events/subscribe", "GET")
 		subscribeRoute.SetPriority(100)
 		if err := gri.router.RegisterRoute(subscribeRoute); err != nil {
@@ -451,7 +457,7 @@ func (gri *GatewayRouterIntegration) HandleRequest(w http.ResponseWriter, r *htt
 		gri.eventQueryHandler.HandleGetEventsByName(w, normalizedReq, params["eventName"])
 
 	// Event Subscription Handlers
-	case "subscribe":
+	case "websocket-subscribe", "subscribe":
 		gri.logger.Info("Handling WebSocket subscribe", "path", normalizedReq.URL.Path, "handler_nil", gri.subscriptionHandler == nil)
 		if gri.subscriptionHandler == nil {
 			gri.logger.Error("subscriptionHandler is nil!")

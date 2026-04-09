@@ -3,6 +3,7 @@ package http
 import (
 	"fmt"
 	"net/http"
+	"strings"
 	"sync"
 
 	"chainpulse/pkg/observability"
@@ -168,6 +169,11 @@ func (p *HTTPPlugin) IsRunning() bool {
 
 // handleRequest handles incoming HTTP requests
 func (p *HTTPPlugin) handleRequest(w http.ResponseWriter, r *http.Request) {
+	if strings.EqualFold(r.Header.Get("Upgrade"), "websocket") {
+		p.handleRequestCore(w, r)
+		return
+	}
+
 	if p.tracer != nil {
 		p.tracer.WrapHTTPHandler(http.HandlerFunc(p.handleRequestCore), fmt.Sprintf("%s.request", p.name)).ServeHTTP(w, r)
 

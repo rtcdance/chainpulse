@@ -103,7 +103,7 @@ export default function Runtime() {
                 const summary = report.probes.find((probe) => probe.path === '/runtime/summary')
 
                 return (
-                  <article key={report.service.id} className="rounded-[24px] border border-white/10 bg-black/15 p-5">
+                  <article key={report.service.id} className="min-w-0 rounded-[24px] border border-white/10 bg-black/15 p-5">
                     <h3 className="text-lg font-medium text-white">{report.service.name}</h3>
                     <p className="mt-2 text-sm leading-6 text-sand/70">{report.service.role}</p>
 
@@ -111,17 +111,19 @@ export default function Runtime() {
                       {[summary, rollout, control].filter(Boolean).map((probe) => (
                         <div
                           key={probe?.path}
-                          className={`rounded-2xl border p-4 ${
+                          className={`min-w-0 rounded-2xl border p-4 ${
                             probe?.ok
                               ? 'border-emerald-300/25 bg-emerald-300/10 text-emerald-100'
                               : 'border-rose-400/25 bg-rose-400/10 text-rose-100'
                           }`}
                         >
-                          <div className="flex items-center justify-between gap-3">
-                            <span className="font-mono text-sm text-white">{probe?.path}</span>
-                            <span className="text-xs uppercase tracking-[0.2em]">{probe?.status ?? 'ERR'}</span>
+                          <div className="flex flex-wrap items-start justify-between gap-3">
+                            <span className="min-w-0 flex-1 break-words font-mono text-sm text-white">{probe?.path}</span>
+                            <span className="shrink-0 text-xs uppercase tracking-[0.2em]">{probe?.status ?? 'ERR'}</span>
                           </div>
-                          <p className="mt-2 text-xs leading-5 opacity-90">{probe?.summary || 'No preview'}</p>
+                          <pre className="mt-2 max-h-28 overflow-auto whitespace-pre-wrap break-words rounded-xl bg-black/20 p-3 font-mono text-[11px] leading-5 opacity-90">
+                            {probe?.summary || 'No preview'}
+                          </pre>
                         </div>
                       ))}
                     </div>

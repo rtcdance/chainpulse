@@ -12,6 +12,7 @@ import (
 
 	"chainpulse/pkg/core"
 	"chainpulse/pkg/plugins/api"
+	"github.com/gorilla/websocket"
 )
 
 func TestBuildAPIGatewayRuntimeRolloutComponents(t *testing.T) {
@@ -47,6 +48,53 @@ func TestBuildAPIGatewayRuntimeRolloutComponents(t *testing.T) {
 	if !gateway.IsHealthCheckHandlerEnabled() {
 		t.Fatal("expected health handler to be wired")
 	}
+	health := subscriptionHandler.Health(context.Background())
+	if health == nil {
+		t.Fatal("expected subscription handler health")
+	}
+	if health.Message == "event subscription handler not initialized" {
+		t.Fatalf("expected initialized subscription handler, got %q", health.Message)
+	}
+}
+
+func TestAPIGatewaySubscriptionRouteSupportsWebSocketUpgrade(t *testing.T) {
+	logger := core.NewDefaultLogger(core.LogLevelInfo)
+	metrics := core.NewDefaultMetricsCollector()
+	gateway := api.NewAPIGatewayPlugin(logger, metrics)
+
+	eventQueryHandler, subscriptionHandler, healthHandler, err := buildAPIGatewayRuntimeRolloutComponents(
+		context.Background(),
+		"api-gateway-1",
+		logger,
+		metrics,
+		gateway,
+	)
+	if err != nil {
+		t.Fatalf("build runtime rollout components: %v", err)
+	}
+
+	integration := api.NewGatewayRouterIntegration(logger, metrics, eventQueryHandler, subscriptionHandler, healthHandler)
+	if err := integration.Initialize(context.Background()); err != nil {
+		t.Fatalf("initialize integration: %v", err)
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(integration.HandleRequest))
+	defer server.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http") + "/events/subscribe"
+	conn, resp, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	if err != nil {
+		status := 0
+		body := ""
+		if resp != nil {
+			status = resp.StatusCode
+			data, _ := io.ReadAll(resp.Body)
+			_ = resp.Body.Close()
+			body = string(data)
+		}
+		t.Fatalf("dial subscription websocket: %v status=%d body=%s", err, status, body)
+	}
+	defer conn.Close()
 }
 
 func TestAPIGatewayRuntimeRolloutRoute(t *testing.T) {
@@ -235,6 +283,9 @@ func TestAPIGatewayRuntimeSummaryRoute(t *testing.T) {
 	}
 	if got := payload["service"]; got != "api-gateway" {
 		t.Fatalf("expected service api-gateway, got %v", got)
+	}
+	if got := payload["deployment_mode"]; got != "microservice" {
+		t.Fatalf("expected deployment mode microservice, got %v", got)
 	}
 	if got := payload["runtime_mode"]; got != "partially-wired" {
 		t.Fatalf("expected runtime mode partially-wired, got %v", got)

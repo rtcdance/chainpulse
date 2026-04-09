@@ -13,6 +13,7 @@ import (
 type pullerRuntimeSummaryResponse struct {
 	Service        string                 `json:"service"`
 	Timestamp      int64                  `json:"timestamp"`
+	DeploymentMode string                 `json:"deployment_mode"`
 	RuntimeMode    string                 `json:"runtime_mode"`
 	RuntimePosture string                 `json:"runtime_posture"`
 	ComponentState string                 `json:"component_state"`

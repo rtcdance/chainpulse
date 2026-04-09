@@ -104,11 +104,12 @@ func (h *EventSubscriptionHandler) Initialize(ctx context.Context) error {
 		return nil
 	}
 
+	h.initialized = true
 	if h.retrievalService == nil {
-		return fmt.Errorf("retrieval service is required")
+		h.logger.Info("Event subscription handler initialized without retrieval service")
+		return nil
 	}
 
-	h.initialized = true
 	h.logger.Info("Event subscription handler initialized")
 	return nil
 }

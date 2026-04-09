@@ -262,6 +262,7 @@ func buildEventProcessorRuntimeSummary(
 	return &eventProcessorRuntimeSummaryResponse{
 		Service:        "event-processor",
 		Timestamp:      now.Unix(),
+		DeploymentMode: "microservice",
 		RuntimeMode:    completeness.Mode,
 		RuntimePosture: completeness.AdvisoryStatus,
 		ComponentState: componentStatus.Status,

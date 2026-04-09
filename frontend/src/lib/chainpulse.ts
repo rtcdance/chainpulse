@@ -81,9 +81,23 @@ export interface ServiceAcceptanceReport {
 }
 
 const DEFAULT_HTTP_BASE = 'http://localhost:8080'
+const DIRECT_SERVICE_PORTS = new Set(['8080', '8081', '8082', '8083'])
 
 function trimTrailingSlash(value: string): string {
   return value.replace(/\/+$/, '')
+}
+
+function isViteProxyOrigin(): boolean {
+  if (typeof window === 'undefined') {
+    return false
+  }
+
+  const { hostname, port } = window.location
+  if (!['localhost', '127.0.0.1'].includes(hostname)) {
+    return false
+  }
+
+  return port !== '' && !DIRECT_SERVICE_PORTS.has(port)
 }
 
 function getHttpBaseUrl(): string {
@@ -93,8 +107,8 @@ function getHttpBaseUrl(): string {
   }
 
   if (typeof window !== 'undefined') {
-    const { origin, port } = window.location
-    if (port === '3000' || port === '5173' || port === '4173') {
+    const { origin } = window.location
+    if (isViteProxyOrigin()) {
       return ''
     }
     return trimTrailingSlash(origin)
@@ -107,9 +121,21 @@ export function getHttpBaseLabel(): string {
   return getHttpBaseUrl() || 'vite-proxy -> http://localhost:8080'
 }
 
-function getEnvBaseUrl(variable: string, fallback: string): string {
-  const value = import.meta.env[variable]
-  return value ? trimTrailingSlash(value) : fallback
+function getServiceBaseUrl(
+  serviceId: ServiceDefinition['id'],
+  variable: string,
+  fallback: string,
+): string {
+  const explicit = import.meta.env[variable]
+  if (explicit) {
+    return trimTrailingSlash(explicit)
+  }
+
+  if (typeof window !== 'undefined' && isViteProxyOrigin()) {
+    return `${trimTrailingSlash(window.location.origin)}/__proxy/${serviceId}`
+  }
+
+  return fallback
 }
 
 export function getServiceDefinitions(): ServiceDefinition[] {
@@ -118,25 +144,25 @@ export function getServiceDefinitions(): ServiceDefinition[] {
       id: 'api-gateway',
       name: 'API Gateway',
       role: 'External entrypoint, query bridge, GraphQL, WebSocket',
-      baseUrl: getEnvBaseUrl('VITE_API_GATEWAY_BASE_URL', 'http://localhost:8080'),
+      baseUrl: getServiceBaseUrl('api-gateway', 'VITE_API_GATEWAY_BASE_URL', 'http://localhost:8080'),
     },
     {
       id: 'api-service',
       name: 'API Service',
       role: 'Event query backend and runtime summary source',
-      baseUrl: getEnvBaseUrl('VITE_API_SERVICE_BASE_URL', 'http://localhost:8081'),
+      baseUrl: getServiceBaseUrl('api-service', 'VITE_API_SERVICE_BASE_URL', 'http://localhost:8081'),
     },
     {
       id: 'event-processor',
       name: 'Event Processor',
       role: 'Execution path, runtime summary, runtime control',
-      baseUrl: getEnvBaseUrl('VITE_EVENT_PROCESSOR_BASE_URL', 'http://localhost:8082'),
+      baseUrl: getServiceBaseUrl('event-processor', 'VITE_EVENT_PROCESSOR_BASE_URL', 'http://localhost:8082'),
     },
     {
       id: 'puller',
       name: 'Puller',
       role: 'Execution path, polling/runtime control, chain ingestion',
-      baseUrl: getEnvBaseUrl('VITE_PULLER_BASE_URL', 'http://localhost:8083'),
+      baseUrl: getServiceBaseUrl('puller', 'VITE_PULLER_BASE_URL', 'http://localhost:8083'),
     },
   ]
 }
@@ -153,10 +179,12 @@ export function buildWebSocketUrl(path: string): string {
 
   if (typeof window !== 'undefined') {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-    const host = window.location.port === '3000' || window.location.port === '5173' || window.location.port === '4173'
-      ? 'localhost:8080'
-      : window.location.host
-    return `${protocol}//${host}${path}`
+    if (isViteProxyOrigin()) {
+      const serviceId = 'api-gateway'
+      return `${protocol}//${window.location.host}/__ws/${serviceId}${path}`
+    }
+
+    return `${protocol}//${window.location.host}${path}`
   }
 
   return `ws://localhost:8080${path}`
@@ -279,9 +307,9 @@ export async function fetchCurrentSliceReport(): Promise<ServiceAcceptanceReport
   const services = getServiceDefinitions()
   const endpointMap: Record<ServiceDefinition['id'], string[]> = {
     'api-gateway': ['/health', '/health/ready', '/health/live', '/health/components', '/health/rollout', '/runtime/summary', '/metrics', '/events?limit=3', '/graphql', '/models'],
-    'api-service': ['/health', '/health/ready', '/health/live', '/health/components', '/health/rollout', '/runtime/summary', '/metrics', '/api/v1/events?limit=3', '/graphql', '/ws'],
+    'api-service': ['/health', '/health/ready', '/health/live', '/health/components', '/health/rollout', '/runtime/summary', '/metrics', '/api/v1/events?limit=3', '/graphql'],
     'event-processor': ['/health', '/health/ready', '/health/live', '/health/components', '/health/rollout', '/runtime/summary', '/runtime/control', '/metrics'],
-    'puller': ['/health', '/health/ready', '/health/live', '/health/components', '/health/rollout', '/runtime/summary', '/runtime/control', '/metrics', '/status'],
+    'puller': ['/health', '/health/ready', '/health/live', '/health/components', '/health/rollout', '/runtime/summary', '/runtime/control', '/metrics'],
   }
 
   return Promise.all(

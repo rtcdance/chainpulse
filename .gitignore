@@ -42,6 +42,9 @@ Thumbs.db
 .kiro/
 .trae/
 
+# Local reports
+docs/ARCHITECTURE_REVIEW_REPORT.md
+
 # Sisyphus orchestrator
 .sisyphus/
 

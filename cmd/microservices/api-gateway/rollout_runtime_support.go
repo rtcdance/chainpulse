@@ -59,6 +59,9 @@ func buildAPIGatewayRuntimeRolloutComponents(
 
 	eventQueryHandler := api.NewEventQueryHandler(nil, logger, metrics)
 	eventSubscriptionHandler := api.NewEventSubscriptionHandler(nil, logger, metrics)
+	if err := eventSubscriptionHandler.Initialize(ctx); err != nil {
+		return nil, nil, nil, err
+	}
 
 	gateway.SetEventQueryHandler(eventQueryHandler)
 	gateway.SetEventSubscriptionHandler(eventSubscriptionHandler)
@@ -92,6 +95,9 @@ func buildAPIGatewayRuntimeRolloutComponentsWithReadinessDetails(
 
 	eventQueryHandler := api.NewEventQueryHandler(nil, logger, metrics)
 	eventSubscriptionHandler := api.NewEventSubscriptionHandler(nil, logger, metrics)
+	if err := eventSubscriptionHandler.Initialize(ctx); err != nil {
+		return nil, nil, nil, err
+	}
 
 	gateway.SetEventQueryHandler(eventQueryHandler)
 	gateway.SetEventSubscriptionHandler(eventSubscriptionHandler)

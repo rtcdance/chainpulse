@@ -163,6 +163,7 @@ func TestBuildEventProcessorRuntimeHTTPHandlerExposesRuntimeSummaryRoute(t *test
 		return &eventProcessorRuntimeSummaryResponse{
 			Service:        "event-processor",
 			Timestamp:      1712345678,
+			DeploymentMode: "microservice",
 			RuntimeMode:    "runtime-wired",
 			RuntimePosture: "runtime-wired",
 			ComponentState: "healthy",
@@ -206,6 +207,9 @@ func TestBuildEventProcessorRuntimeHTTPHandlerExposesRuntimeSummaryRoute(t *test
 	}
 	if payload.Service != "event-processor" {
 		t.Fatalf("expected service event-processor, got %q", payload.Service)
+	}
+	if payload.DeploymentMode != "microservice" {
+		t.Fatalf("expected deployment mode microservice, got %q", payload.DeploymentMode)
 	}
 	if payload.RuntimeMode != "runtime-wired" {
 		t.Fatalf("expected runtime mode runtime-wired, got %q", payload.RuntimeMode)

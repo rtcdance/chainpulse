@@ -205,28 +205,30 @@ export default function Dashboard() {
         <h2 className="mt-3 text-2xl font-semibold text-white">Gateway, API service, event processor, and puller</h2>
         <div className="mt-6 grid gap-4 xl:grid-cols-2">
           {state.serviceReports.map((report) => (
-            <article key={report.service.id} className="rounded-[24px] border border-white/10 bg-black/15 p-5">
+            <article key={report.service.id} className="min-w-0 rounded-[24px] border border-white/10 bg-black/15 p-5">
               <div className="flex items-start justify-between gap-4">
-                <div>
+                <div className="min-w-0 flex-1">
                   <h3 className="text-lg font-medium text-white">{report.service.name}</h3>
                   <p className="mt-2 text-sm leading-6 text-sand/70">{report.service.role}</p>
-                  <p className="mt-2 font-mono text-xs text-white/75">{report.service.baseUrl}</p>
+                  <p className="mt-2 break-words font-mono text-xs text-white/75">{report.service.baseUrl}</p>
                 </div>
-                <div className={`rounded-full border px-3 py-1 text-xs ${tone(report.probes.every((probe) => probe.ok))}`}>
+                <div className={`shrink-0 rounded-full border px-3 py-1 text-xs ${tone(report.probes.every((probe) => probe.ok))}`}>
                   {report.probes.filter((probe) => probe.ok).length}/{report.probes.length} ready
                 </div>
               </div>
 
               <div className="mt-5 grid gap-3">
                 {report.probes.map((probe) => (
-                  <div key={`${report.service.id}-${probe.path}`} className={`rounded-2xl border p-4 ${tone(probe.ok)}`}>
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="font-mono text-sm text-white">{probe.path}</span>
-                      <span className="text-xs uppercase tracking-[0.18em]">
+                  <div key={`${report.service.id}-${probe.path}`} className={`min-w-0 rounded-2xl border p-4 ${tone(probe.ok)}`}>
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <span className="min-w-0 flex-1 break-words font-mono text-sm text-white">{probe.path}</span>
+                      <span className="shrink-0 text-xs uppercase tracking-[0.18em]">
                         {probe.status ?? 'ERR'}
                       </span>
                     </div>
-                    <p className="mt-2 text-xs leading-5 opacity-90">{probe.summary || 'No body preview'}</p>
+                    <pre className="mt-2 max-h-28 overflow-auto whitespace-pre-wrap break-words rounded-xl bg-black/20 p-3 font-mono text-[11px] leading-5 opacity-90">
+                      {probe.summary || 'No body preview'}
+                    </pre>
                   </div>
                 ))}
               </div>

@@ -328,6 +328,7 @@ func buildPullerRuntimeSummary(
 	return &pullerRuntimeSummaryResponse{
 		Service:        "puller",
 		Timestamp:      now.Unix(),
+		DeploymentMode: "microservice",
 		RuntimeMode:    completeness.Mode,
 		RuntimePosture: completeness.AdvisoryStatus,
 		ComponentState: componentStatus.Status,
