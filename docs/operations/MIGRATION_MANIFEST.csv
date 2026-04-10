@@ -1,4 +1,4 @@
 # id,domain,owner,status,deadline,severity,spec_ref,notes
-policy-metric-v1-deprecation,observability,platform-team,in_progress,2026-07-01,high,docs/specs/archived/2026-03-30-architecture-phase25-policy-metric-versioning-and-deprecation.md,Switch policy metric schema mode to v2 and retire legacy v1 queries
-policy-dashboard-v2-cutover,observability,sre-team,in_progress,2026-06-15,medium,docs/specs/archived/2026-03-30-architecture-phase23-policy-rollout-slo-dashboard-runbook.md,Complete dashboard and alert migration to v2 policy metrics
-indexer-health-sli-harmonization,observability,indexer-team,planned,2026-08-01,medium,docs/specs/archived/2026-03-30-observability-indexer-health-sli-harmonization-plan.md,Align health SLI naming across monolith and microservice deployment modes
+policy-metric-v1-deprecation,observability,platform-team,in_progress,2026-07-01,high,docs/operations/POLICY_METRIC_VERSIONING.md,Switch policy metric schema mode to v2 and retire legacy v1 queries
+policy-dashboard-v2-cutover,observability,sre-team,in_progress,2026-06-15,medium,docs/operations/POLICY_DASHBOARD_QUERIES.md,Complete dashboard and alert migration to v2 policy metrics
+indexer-health-sli-harmonization,observability,indexer-team,planned,2026-08-01,medium,docs/operations/POLICY_ROLLOUT_SLO.md,Align health SLI naming across monolith and microservice deployment modes

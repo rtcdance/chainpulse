@@ -143,6 +143,24 @@ See [docs/README.md](docs/README.md) for complete documentation index.
 
 ```
 chainpulse/
+├── cmd/                   # Application entrypoints
+│   ├── monolithic/        # Monolithic mode
+│   └── microservices/     # Microservice mode
+│       ├── api-gateway/
+│       ├── api-service/
+│       ├── event-processor/
+│       └── puller/
+├── docs/                  # Documentation
+│   ├── deployment/        # Go-live and operations runbooks
+│   ├── guides/            # Developer and operator guides
+│   ├── operations/        # Governance and policy docs
+│   ├── project/           # Project-level guardrails
+│   ├── specs/             # Design records
+│   └── archive/           # Historical baseline docs
+├── docker/                # Docker configuration
+├── frontend/              # Dashboard/UI
+├── k8s/                   # Kubernetes manifests
+├── monitoring/            # Prometheus and Grafana assets
 ├── pkg/                    # Go packages
 │   ├── core/              # Foundation interfaces and types (DDD)
 │   ├── domain/            # Domain models and interfaces
@@ -158,24 +176,11 @@ chainpulse/
 │   ├── infrastructure/    # Infrastructure utilities
 │   ├── integrations/      # External integrations (ERC20, Uniswap)
 │   └── observability/     # Monitoring, tracing, metrics
-├── cmd/                   # CLI applications
-│   ├── monolithic/        # Monolithic deployment (single binary)
-│   └── microservices/     # Microservice deployment (4 services)
-│       ├── api-gateway/  # GraphQL API Gateway
-│       ├── api-service/   # Query Service
-│       ├── puller/        # Data Puller
-│       └── event-processor/# Event Indexer
+├── scripts/               # Verification and automation scripts
 ├── test/                  # Test suites
 │   ├── acceptance/        # Playwright UI acceptance tests
 │   ├── integration/      # Integration tests
 │   └── e2e/              # End-to-end tests
-├── docs/                  # Documentation
-│   ├── specs/            # Technical specs
-│   ├── archive/           # v1 architecture blueprint
-│   └── guides/            # User guides
-├── docker/                # Docker configuration
-├── monitoring/            # Prometheus & Grafana configs
-├── scripts/               # Utility scripts
 └── package.json           # Node.js for Playwright tests
 ```
 
@@ -230,6 +235,11 @@ go test ./pkg/domain/...
 ### Run with Coverage
 ```bash
 go test -cover ./...
+```
+
+### Repository Hygiene
+```bash
+make repo-hygiene
 ```
 
 ### UI Acceptance Tests (Playwright)
@@ -294,12 +304,14 @@ See [docker/README.md](docker/README.md) for detailed Docker documentation.
 
 ### Kubernetes
 ```bash
-# Deploy monolithic mode
-kubectl apply -f k8s/chainpulse-monolithic-deployment.yaml
+# Deploy monolithic mode (recommended)
+kubectl apply -k k8s/overlays/monolithic
 
-# Deploy microservice mode
-kubectl apply -f k8s/chainpulse-microservice-deployment.yaml
+# Deploy microservice mode (recommended)
+kubectl apply -k k8s/overlays/microservice
 ```
+
+See [k8s/README.md](k8s/README.md) for Kustomize layout and compatibility commands.
 
 ## 📖 Configuration
 

@@ -8,31 +8,17 @@ This guide helps developers understand the ChainPulse architecture, contribute c
 
 ```
 chainpulse/
-├── pkg/core/              # Core implementation
-│   ├── plugin.go          # Plugin interfaces
-│   ├── registry.go        # Plugin registry
-│   ├── config.go          # Configuration manager
-│   ├── eventbus.go        # Event bus
-│   ├── logger.go          # Structured logging
-│   ├── metrics.go         # Metrics collection
-│   ├── health.go          # Health checking
-│   ├── data_puller.go     # Data puller base
-│   ├── *_puller.go        # Protocol implementations
-│   ├── mq_plugin.go       # Message queue base
-│   ├── *_mq.go            # MQ implementations
-│   ├── cache_plugin.go    # Cache base
-│   ├── *_cache.go         # Cache implementations
-│   ├── database_plugin.go # Database base
-│   ├── *_database.go      # Database implementations
-│   ├── api_plugin.go      # API base
-│   ├── *_api.go           # API implementations
-│   └── *_test.go          # Tests
+├── cmd/                   # Entrypoints
+│   ├── monolithic/
+│   └── microservices/
+├── pkg/                   # Core/application/services/adapters/plugins
+├── test/                  # integration/e2e/acceptance suites
+├── docs/                  # guides/deployment/operations/specs/project
+├── docker/                # compose and image config
 ├── k8s/                   # Kubernetes manifests
-├── proto/                 # Protocol buffer definitions
-├── Dockerfile             # Docker image
-├── docker-compose.yml     # Local development setup
-├── go.mod                 # Go module definition
-└── README.md              # Project README
+├── monitoring/            # Prometheus/Grafana
+├── scripts/               # verification and automation
+└── frontend/              # dashboard/ui
 ```
 
 ## Architecture

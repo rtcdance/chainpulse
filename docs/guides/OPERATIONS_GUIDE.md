@@ -114,5 +114,3 @@ See:
 - `docs/DEBUGGING.md`
 
 ---
-
-**Note**: Original 1019-line guide archived to `docs/archive/OPERATIONS_GUIDE_v1.md`

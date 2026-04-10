@@ -18,8 +18,6 @@ ROOT_WHITELIST=(
   "CODE_OF_CONDUCT.md"
   # Project docs and config
   "CLAUDE.md"
-  "chainpulse"
-  "chainpulse-docker"
   # Node.js project files
   "package.json"
   "package-lock.json"
@@ -41,6 +39,33 @@ if [ -d "pkg/utils" ] || [ -d "pkg/helpers" ] || [ -d "pkg/common" ]; then
   echo "❌ Found dumping ground directory: pkg/utils, pkg/helpers, or pkg/common"
   ((ERRORS++))
 fi
+
+# Enforce deprecated top-level directories are not reintroduced.
+if [ -d "services" ]; then
+  echo "❌ Deprecated top-level directory exists: services/"
+  ((ERRORS++))
+fi
+if [ -d "deployment" ]; then
+  echo "❌ Deprecated top-level directory exists: deployment/"
+  ((ERRORS++))
+fi
+
+# Check tracked files for generated/artifact paths and binary payloads.
+while IFS= read -r tracked; do
+  [ -e "$tracked" ] || continue
+  case "$tracked" in
+    build/*|log/*|node_modules/*|frontend/node_modules/*|frontend/dist/*)
+      echo "❌ Artifact path is tracked by git: $tracked"
+      ((ERRORS++))
+      ;;
+  esac
+
+  FILE_DESC="$(file "$tracked" 2>/dev/null || true)"
+  if echo "$FILE_DESC" | grep -Eq 'Mach-O|ELF|PE32'; then
+    echo "❌ Binary file is tracked by git: $tracked"
+    ((ERRORS++))
+  fi
+done < <(git ls-files)
 
 # Check for generated code outside pkg/generated/
 # Only check staged files, not the entire repo (pre-existing mocks are allowed)

@@ -156,29 +156,24 @@ sudo mv kubectl /usr/local/bin/
 kubectl create namespace chainpulse
 ```
 
-### 2. Deploy with Manifests
+### 2. Deploy with Kustomize (Recommended)
 
 ```bash
-# Create ConfigMap
-kubectl apply -f k8s/configmap.yaml
-
-# Create namespace
-kubectl apply -f k8s/namespace.yaml
-
-# Deploy PostgreSQL
-kubectl apply -f k8s/postgres-deployment.yaml
-
-# Deploy Redis
-kubectl apply -f k8s/redis-deployment.yaml
-
-# Deploy Kafka
-kubectl apply -f k8s/kafka-deployment.yaml
-
 # Deploy ChainPulse (monolithic)
-kubectl apply -f k8s/chainpulse-monolithic-deployment.yaml
+kubectl apply -k k8s/overlays/monolithic
 
 # Deploy ChainPulse (microservices)
-kubectl apply -f k8s/chainpulse-microservice-deployment.yaml
+kubectl apply -k k8s/overlays/microservice
+```
+
+Compatibility mode (`kubectl apply -f`) is still supported via the legacy
+flat manifests under `k8s/`.
+
+### Capability & Acceptance
+
+```bash
+make k8s-verify
+make k8s-acceptance
 ```
 
 ### 3. Verify Deployment
@@ -191,23 +186,28 @@ kubectl get pods -n chainpulse
 kubectl get svc -n chainpulse
 
 # View logs
-kubectl logs -n chainpulse -l app=chainpulse -f
+kubectl logs -n chainpulse -l app=chainpulse-monolithic -f
+# or
+kubectl logs -n chainpulse -l app=chainpulse-microservice -f
 
 # Port forward
-kubectl port-forward -n chainpulse svc/chainpulse 8080:8080
+kubectl port-forward -n chainpulse svc/chainpulse-monolithic 8080:8080
+# or
+kubectl port-forward -n chainpulse svc/chainpulse-microservice 8080:8080
 
 # Health check
-curl http://localhost:8080/api/v1/health
+curl http://localhost:8080/health
 ```
 
 ### 4. Scaling
 
 ```bash
 # Scale deployment
-kubectl scale deployment chainpulse -n chainpulse --replicas=3
+kubectl scale deployment chainpulse-monolithic -n chainpulse --replicas=2
+# or
+kubectl scale deployment chainpulse-microservice -n chainpulse --replicas=4
 
-# Auto-scaling with HPA
-kubectl apply -f k8s/hpa.yaml
+# Check HPA shipped with manifests
 kubectl get hpa -n chainpulse
 ```
 
@@ -215,13 +215,19 @@ kubectl get hpa -n chainpulse
 
 ```bash
 # Update image
-kubectl set image deployment/chainpulse chainpulse=chainpulse:v1.1.0 -n chainpulse
+kubectl set image deployment/chainpulse-monolithic chainpulse=chainpulse:v1.1.0 -n chainpulse
+# or
+kubectl set image deployment/chainpulse-microservice chainpulse=chainpulse:v1.1.0 -n chainpulse
 
 # Check rollout status
-kubectl rollout status deployment/chainpulse -n chainpulse
+kubectl rollout status deployment/chainpulse-monolithic -n chainpulse
+# or
+kubectl rollout status deployment/chainpulse-microservice -n chainpulse
 
 # Rollback if needed
-kubectl rollout undo deployment/chainpulse -n chainpulse
+kubectl rollout undo deployment/chainpulse-monolithic -n chainpulse
+# or
+kubectl rollout undo deployment/chainpulse-microservice -n chainpulse
 ```
 
 ## Cloud Deployment

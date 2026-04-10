@@ -1,9 +1,11 @@
 # Auto-Activated Skills
 
-**Generated**: 2026-04-09 21:44:15
-**Changed Files**:        5
+**Generated**: 2026-04-10 09:36:26
+**Changed Files**:        3
 
-## Active Skills (2)
+## Active Skills (4)
 
+- `concurrency-safety`
 - `design-review-gate`
 - `deterministic-testing`
+- `go-concurrency-patterns`

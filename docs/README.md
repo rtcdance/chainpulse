@@ -19,19 +19,13 @@
 - **[E2E Testing Guide](e2e-testing/README.md)** - End-to-end testing framework
 - **[Unit Test Standards](guides/UNIT_TEST_STANDARDS.md)** - Testing best practices
 - **[Engineering Constraint Framework](guides/ENGINEERING_CONSTRAINT_FRAMEWORK.md)** - Spec + skills + workflow + micro-loop gates
+- **Repository Hygiene** - `make repo-hygiene` (防止产物/二进制/过时目录进入仓库)
 
 ### Guides
 - **[MQ Error Handling Recovery](guides/MQ_ERROR_HANDLING_RECOVERY.md)** - MQ recovery and operator guidance
 
-### Planning
-- **[Planning Index](planning/README.md)** - Active planning and AI workflow artifacts
-- **[Execution Plan](planning/EXECUTION_PLAN.md)** - Historical restructuring plan and rationale
-
 ### Archive
 - **[Architecture v1](archive/ARCHITECTURE_v1.md)** - Historical blueprint reference
-- **[Error Handling Guide (Archived)](archive/ERROR_HANDLING_GUIDE.md)** - Historical error handling reference
-- **[Resilience Patterns (Archived)](archive/RESILIENCE_PATTERNS_GUIDE.md)** - Historical resilience reference
-- **[Microservices Implementation (Archived)](archive/MICROSERVICES_IMPLEMENTATION_GUIDE.md)** - Historical implementation guide
 
 ## Directory Structure
 
@@ -45,7 +39,6 @@ docs/
 ├── e2e-testing/                 # E2E testing documentation
 ├── guides/                      # Active engineering guides
 ├── operations/                  # Governance and rollout operations docs
-├── planning/                    # Active planning / AI workflow artifacts
 └── specs/                       # Design-review specs and decision records
 ```
 

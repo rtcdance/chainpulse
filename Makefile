@@ -1,5 +1,5 @@
 # Development and Build Tooling
-.PHONY: all build test lint fmt clean help repo-hygiene check-policy-contract check-migration-manifest export-migration-kpi compare-migration-kpi compare-ticket-registry-health smoke-baseline-governance-scope compare-baseline-scope-smoke preflight-migration-baseline-update test-baseline-update-resolver compare-baseline-resolver-test check-migration-baseline update-migration-baseline check-migration-changelog-quality export-migration-owner-drift
+.PHONY: all build test lint fmt clean help repo-hygiene k8s-verify k8s-acceptance k8s-acceptance-strict check-policy-contract check-migration-manifest export-migration-kpi compare-migration-kpi compare-ticket-registry-health smoke-baseline-governance-scope compare-baseline-scope-smoke preflight-migration-baseline-update test-baseline-update-resolver compare-baseline-resolver-test check-migration-baseline update-migration-baseline check-migration-changelog-quality export-migration-owner-drift
 
 # Force-clear stale GOROOT (homebrew Go self-detects; stale value breaks builds)
 unexport GOROOT
@@ -222,11 +222,23 @@ docker-logs:
 
 # ========== CI/CD ==========
 
-ci: fmt-check lint vet test-unit
+ci: fmt-check lint vet test-unit k8s-verify
 
 repo-hygiene:
 	@echo "Checking repository file/structure hygiene..."
 	./scripts/check-file-organization.sh
+
+k8s-verify:
+	@echo "Verifying Kubernetes deployment capability (static)..."
+	MODE=static ./scripts/verify-k8s-deployment-capability.sh
+
+k8s-acceptance:
+	@echo "Running Kubernetes deployment acceptance (auto)..."
+	MODE=auto ./scripts/verify-k8s-deployment-capability.sh
+
+k8s-acceptance-strict:
+	@echo "Running Kubernetes deployment acceptance (strict dry-run)..."
+	STRICT_CLUSTER_DRY_RUN=1 MODE=auto ./scripts/verify-k8s-deployment-capability.sh
 
 check-policy-contract:
 	@echo "Checking policy metric/tag contract..."
@@ -350,5 +362,8 @@ help:
 	@echo "  security             - Run security scan"
 	@echo "  ci                   - Run CI checks"
 	@echo "  repo-hygiene         - Run repository hygiene checks"
+	@echo "  k8s-verify           - Verify k8s capability (static checks)"
+	@echo "  k8s-acceptance       - Run k8s acceptance (auto + dry-run when available)"
+	@echo "  k8s-acceptance-strict - Run k8s acceptance (require kubectl dry-run)"
 	@echo "  clean                - Clean build artifacts"
 	@echo "  help                 - Show this help"
