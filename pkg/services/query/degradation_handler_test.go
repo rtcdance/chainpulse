@@ -160,8 +160,8 @@ func (m *MockCacheService) Health(ctx context.Context) *core.HealthStatus {
 type MockLogger struct{}
 
 func (m *MockLogger) Debug(msg string, fields ...interface{}) {}
-func (m *MockLogger) Info(msg string, fields ...interface{}) {}
-func (m *MockLogger) Warn(msg string, fields ...interface{}) {}
+func (m *MockLogger) Info(msg string, fields ...interface{})  {}
+func (m *MockLogger) Warn(msg string, fields ...interface{})  {}
 func (m *MockLogger) Error(msg string, fields ...interface{}) {}
 func (m *MockLogger) Fatal(msg string, fields ...interface{}) {}
 func (m *MockLogger) WithCorrelationID(id string) core.Logger {

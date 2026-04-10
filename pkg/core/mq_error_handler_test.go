@@ -280,14 +280,14 @@ func TestCalculateBackoffDelay(t *testing.T) {
 	handler := NewMQErrorHandler(logger, metrics, 3, 100*time.Millisecond)
 
 	tests := []struct {
-		name    string
-		attempt int
+		name     string
+		attempt  int
 		minDelay time.Duration
 		maxDelay time.Duration
 	}{
-		{"attempt 1", 1, 50*time.Millisecond, 150*time.Millisecond},
-		{"attempt 2", 2, 150*time.Millisecond, 350*time.Millisecond},
-		{"attempt 3", 3, 350*time.Millisecond, 750*time.Millisecond},
+		{"attempt 1", 1, 50 * time.Millisecond, 150 * time.Millisecond},
+		{"attempt 2", 2, 150 * time.Millisecond, 350 * time.Millisecond},
+		{"attempt 3", 3, 350 * time.Millisecond, 750 * time.Millisecond},
 	}
 
 	for _, tt := range tests {

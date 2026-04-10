@@ -20,17 +20,17 @@ type EventHandler interface {
 
 // DecodedContractEvent represents a decoded contract event
 type DecodedContractEvent struct {
-	ContractAddress common.Address
-	EventName       string
-	EventSignature  common.Hash
-	BlockNumber     uint64
-	BlockTimestamp  int64
-	TransactionHash common.Hash
-	LogIndex        uint
-	Parameters      map[string]interface{}
-	IndexedParams   map[string]interface{}
+	ContractAddress  common.Address
+	EventName        string
+	EventSignature   common.Hash
+	BlockNumber      uint64
+	BlockTimestamp   int64
+	TransactionHash  common.Hash
+	LogIndex         uint
+	Parameters       map[string]interface{}
+	IndexedParams    map[string]interface{}
 	NonIndexedParams map[string]interface{}
-	RawEvent        *core.BlockchainEvent
+	RawEvent         *core.BlockchainEvent
 }
 
 // GenericContractIndexer indexes any smart contract via ABI
@@ -330,9 +330,9 @@ func (gci *GenericContractIndexer) GetCacheStats() map[string]interface{} {
 	defer gci.mu.RUnlock()
 
 	return map[string]interface{}{
-		"cached_events":    len(gci.eventCache),
-		"registered_abis":  len(gci.contractABIs),
-		"event_handlers":   len(gci.eventHandlers),
+		"cached_events":     len(gci.eventCache),
+		"registered_abis":   len(gci.contractABIs),
+		"event_handlers":    len(gci.eventHandlers),
 		"tracked_contracts": len(gci.contractMetadata),
 	}
 }

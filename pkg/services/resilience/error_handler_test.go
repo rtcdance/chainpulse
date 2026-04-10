@@ -1,10 +1,11 @@
 package resilience
 
 import (
-	"chainpulse/pkg/core"
 	"context"
 	"errors"
 	"testing"
+
+	"chainpulse/pkg/core"
 )
 
 func TestErrorClassifierTransient(t *testing.T) {

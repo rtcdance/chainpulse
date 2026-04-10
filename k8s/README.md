@@ -39,6 +39,21 @@ kubectl apply -k k8s/overlays/monolithic
 kubectl apply -k k8s/overlays/microservice
 ```
 
+## One-Click Entrypoint
+
+```bash
+# default: OVERLAY=microservice
+make k8s-up
+make k8s-status
+make k8s-down
+
+# all-in-one: up + acceptance + status
+make k8s-oneclick
+
+# switch overlay
+OVERLAY=monolithic make k8s-up
+```
+
 ## Capability & Acceptance
 
 ```bash

@@ -1,5 +1,5 @@
 # Development and Build Tooling
-.PHONY: all build test lint fmt clean help repo-hygiene k8s-verify k8s-acceptance k8s-acceptance-strict check-policy-contract check-migration-manifest export-migration-kpi compare-migration-kpi compare-ticket-registry-health smoke-baseline-governance-scope compare-baseline-scope-smoke preflight-migration-baseline-update test-baseline-update-resolver compare-baseline-resolver-test check-migration-baseline update-migration-baseline check-migration-changelog-quality export-migration-owner-drift
+.PHONY: all build test lint fmt clean help repo-hygiene k8s-verify k8s-acceptance k8s-acceptance-strict k8s-up k8s-down k8s-status k8s-oneclick multichain-e2e-acceptance multichain-e2e-acceptance-strict multichain-e2e-fork-acceptance multichain-e2e-fork-acceptance-strict check-policy-contract check-migration-manifest export-migration-kpi compare-migration-kpi compare-ticket-registry-health smoke-baseline-governance-scope compare-baseline-scope-smoke preflight-migration-baseline-update test-baseline-update-resolver compare-baseline-resolver-test check-migration-baseline update-migration-baseline check-migration-changelog-quality export-migration-owner-drift
 
 # Force-clear stale GOROOT (homebrew Go self-detects; stale value breaks builds)
 unexport GOROOT
@@ -240,6 +240,38 @@ k8s-acceptance-strict:
 	@echo "Running Kubernetes deployment acceptance (strict dry-run)..."
 	STRICT_CLUSTER_DRY_RUN=1 MODE=auto ./scripts/verify-k8s-deployment-capability.sh
 
+k8s-up:
+	@echo "One-click K8s deploy up (default overlay: microservice)..."
+	./scripts/run-k8s-deploy.sh up
+
+k8s-down:
+	@echo "One-click K8s deploy down (default overlay: microservice)..."
+	./scripts/run-k8s-deploy.sh down
+
+k8s-status:
+	@echo "Showing K8s runtime status..."
+	./scripts/run-k8s-deploy.sh status
+
+k8s-oneclick:
+	@echo "Running one-click K8s deploy + acceptance + status..."
+	./scripts/run-k8s-deploy.sh all
+
+multichain-e2e-acceptance:
+	@echo "Running multi-chain E2E acceptance (auto)..."
+	MODE=auto bash scripts/multi-chain-e2e.sh
+
+multichain-e2e-acceptance-strict:
+	@echo "Running multi-chain E2E acceptance (strict, require Solana)..."
+	MODE=strict bash scripts/multi-chain-e2e.sh
+
+multichain-e2e-fork-acceptance:
+	@echo "Running multi-chain E2E acceptance in EVM fork mode..."
+	EVM_FORK_MODE=1 MODE=auto bash scripts/multi-chain-e2e.sh
+
+multichain-e2e-fork-acceptance-strict:
+	@echo "Running strict multi-chain E2E acceptance in EVM fork mode..."
+	EVM_FORK_MODE=1 MODE=strict bash scripts/multi-chain-e2e.sh
+
 check-policy-contract:
 	@echo "Checking policy metric/tag contract..."
 	./scripts/check-policy-metric-contract.sh
@@ -365,5 +397,13 @@ help:
 	@echo "  k8s-verify           - Verify k8s capability (static checks)"
 	@echo "  k8s-acceptance       - Run k8s acceptance (auto + dry-run when available)"
 	@echo "  k8s-acceptance-strict - Run k8s acceptance (require kubectl dry-run)"
+	@echo "  k8s-up               - One-click K8s deploy up (overlay via OVERLAY=...)"
+	@echo "  k8s-down             - One-click K8s deploy down (overlay via OVERLAY=...)"
+	@echo "  k8s-status           - Show K8s pods/services/deployments"
+	@echo "  k8s-oneclick         - Run K8s up + acceptance + status"
+	@echo "  multichain-e2e-acceptance - Run multi-chain E2E acceptance (multi-EVM + optional Solana)"
+	@echo "  multichain-e2e-acceptance-strict - Run strict multi-chain E2E acceptance (require Solana)"
+	@echo "  multichain-e2e-fork-acceptance - Run multi-chain E2E with EVM fork mode"
+	@echo "  multichain-e2e-fork-acceptance-strict - Run strict multi-chain E2E with EVM fork mode"
 	@echo "  clean                - Clean build artifacts"
 	@echo "  help                 - Show this help"

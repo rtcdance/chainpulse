@@ -14,46 +14,46 @@ var _ atomic.Int64
 
 // BaseMQPlugin provides base implementation for message queue plugins
 type BaseMQPlugin struct {
-	name                 string
-	version              string
-	config               Config
-	logger               Logger
-	metricsCollector     MetricsCollector
-	eventBus             EventBus
-	isInitialized        bool
-	isRunning            bool
-	mu                   sync.RWMutex
-	lastBlockNumber      uint64
-	messageCount         atomic.Int64
-	errorCount           atomic.Int64
-	lastError            error
-	lastErrorTime        time.Time
-	deadLetterQueueSize  atomic.Int64
-	processingTime       int64
-	batchSize            int
-	maxRetries           int
-	retryDelay           time.Duration
-	batchTimeout         time.Duration
-	batchBuffer          []MessageQueueMessage
-	batchBufferMutex     sync.RWMutex
-	batchProcessedCount  atomic.Int64
-	inFlightOperations   atomic.Int64
-	inFlightWaitGroup    sync.WaitGroup
-	deadLetterQueue      []MessageQueueMessage
-	dlqMutex             sync.RWMutex
+	name                string
+	version             string
+	config              Config
+	logger              Logger
+	metricsCollector    MetricsCollector
+	eventBus            EventBus
+	isInitialized       bool
+	isRunning           bool
+	mu                  sync.RWMutex
+	lastBlockNumber     uint64
+	messageCount        atomic.Int64
+	errorCount          atomic.Int64
+	lastError           error
+	lastErrorTime       time.Time
+	deadLetterQueueSize atomic.Int64
+	processingTime      int64
+	batchSize           int
+	maxRetries          int
+	retryDelay          time.Duration
+	batchTimeout        time.Duration
+	batchBuffer         []MessageQueueMessage
+	batchBufferMutex    sync.RWMutex
+	batchProcessedCount atomic.Int64
+	inFlightOperations  atomic.Int64
+	inFlightWaitGroup   sync.WaitGroup
+	deadLetterQueue     []MessageQueueMessage
+	dlqMutex            sync.RWMutex
 }
 
 // MessageQueueMessage represents a message in the queue
 type MessageQueueMessage struct {
-	ID              string
-	Topic           string
-	Payload         []byte
-	Timestamp       time.Time
-	Offset          int64
-	PartitionKey    string
-	RetryCount      int
+	ID               string
+	Topic            string
+	Payload          []byte
+	Timestamp        time.Time
+	Offset           int64
+	PartitionKey     string
+	RetryCount       int
 	DeadLetterReason string
-	Headers         map[string]string
+	Headers          map[string]string
 }
 
 // MessageQueueStats represents statistics for a message queue
@@ -76,22 +76,22 @@ func NewBaseMQPlugin(
 	eventBus EventBus,
 ) *BaseMQPlugin {
 	plugin := &BaseMQPlugin{
-		name:                name,
-		version:             version,
-		config:              config,
-		logger:              logger,
-		metricsCollector:    metricsCollector,
-		eventBus:            eventBus,
-		isInitialized:       false,
-		isRunning:           false,
-		lastBlockNumber:     0,
-		processingTime:      0,
-		batchSize:           100,
-		maxRetries:          3,
-		retryDelay:          1 * time.Second,
-		batchTimeout:        5 * time.Second,
-		batchBuffer:         make([]MessageQueueMessage, 0, 100),
-		deadLetterQueue:     make([]MessageQueueMessage, 0),
+		name:             name,
+		version:          version,
+		config:           config,
+		logger:           logger,
+		metricsCollector: metricsCollector,
+		eventBus:         eventBus,
+		isInitialized:    false,
+		isRunning:        false,
+		lastBlockNumber:  0,
+		processingTime:   0,
+		batchSize:        100,
+		maxRetries:       3,
+		retryDelay:       1 * time.Second,
+		batchTimeout:     5 * time.Second,
+		batchBuffer:      make([]MessageQueueMessage, 0, 100),
+		deadLetterQueue:  make([]MessageQueueMessage, 0),
 	}
 	// Initialize atomic values
 	plugin.messageCount.Store(0)

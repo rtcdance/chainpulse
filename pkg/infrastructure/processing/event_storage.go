@@ -33,25 +33,25 @@ type EventFilter struct {
 
 // StorageMetrics tracks storage metrics
 type StorageMetrics struct {
-	mu                  sync.RWMutex
-	EventsStored        int64
-	EventsRetrieved     int64
-	EventsDeleted       int64
-	BatchesProcessed    int64
-	AverageLatency      time.Duration
-	TotalStorageTime    time.Duration
-	LastStorageTime     time.Time
-	StorageErrors       int64
-	TransactionCommits  int64
+	mu                   sync.RWMutex
+	EventsStored         int64
+	EventsRetrieved      int64
+	EventsDeleted        int64
+	BatchesProcessed     int64
+	AverageLatency       time.Duration
+	TotalStorageTime     time.Duration
+	LastStorageTime      time.Time
+	StorageErrors        int64
+	TransactionCommits   int64
 	TransactionRollbacks int64
 }
 
 // InMemoryEventStore is an in-memory implementation of EventStore
 type InMemoryEventStore struct {
-	mu       sync.RWMutex
-	events   map[string]*Event
-	metrics  *StorageMetrics
-	maxSize  int
+	mu      sync.RWMutex
+	events  map[string]*Event
+	metrics *StorageMetrics
+	maxSize int
 }
 
 // NewInMemoryEventStore creates a new in-memory event store
@@ -311,10 +311,10 @@ func (ies *InMemoryEventStore) Clear() {
 
 // TransactionManager manages database transactions
 type TransactionManager struct {
-	mu              sync.RWMutex
+	mu                 sync.RWMutex
 	activeTransactions map[string]*Transaction
-	commitCount     int64
-	rollbackCount   int64
+	commitCount        int64
+	rollbackCount      int64
 }
 
 // Transaction represents a database transaction

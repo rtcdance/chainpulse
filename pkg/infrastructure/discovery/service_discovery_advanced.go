@@ -118,9 +118,9 @@ func (asdc *AdvancedServiceDiscoveryClient) notifyListeners(serviceName string, 
 
 // ServiceEndpointCache caches service endpoints
 type ServiceEndpointCache struct {
-	cache     map[string]*CachedEndpoint
-	cacheTTL  time.Duration
-	mutex     sync.RWMutex
+	cache    map[string]*CachedEndpoint
+	cacheTTL time.Duration
+	mutex    sync.RWMutex
 }
 
 // CachedEndpoint represents a cached endpoint
@@ -250,9 +250,9 @@ func (slb *ServiceLoadBalancer) SelectService(ctx context.Context, serviceName s
 
 // ServiceConnectionPool manages connections to services
 type ServiceConnectionPool struct {
-	connections map[string]interface{}
+	connections    map[string]interface{}
 	maxConnections int
-	mutex       sync.RWMutex
+	mutex          sync.RWMutex
 }
 
 // NewServiceConnectionPool creates a new service connection pool

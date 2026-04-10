@@ -34,14 +34,14 @@ type StreamingSourcePostureBackend interface {
 
 // StreamingMetrics tracks streaming operation metrics
 type StreamingMetrics struct {
-	totalStreams      int64
-	activeStreams     int64
-	itemsStreamed     int64
-	errors            int64
-	totalDuration     time.Duration
+	totalStreams        int64
+	activeStreams       int64
+	itemsStreamed       int64
+	errors              int64
+	totalDuration       time.Duration
 	serverSourcePosture string
 	clientSourcePosture string
-	mu                sync.RWMutex
+	mu                  sync.RWMutex
 }
 
 // NewStreamingService creates a new streaming service
@@ -152,14 +152,14 @@ func (s *StreamingService) GetMetrics() map[string]interface{} {
 	}
 
 	return map[string]interface{}{
-		"total_streams":          s.metrics.totalStreams,
-		"active_streams":         s.metrics.activeStreams,
-		"items_streamed":         s.metrics.itemsStreamed,
-		"errors":                 s.metrics.errors,
-		"avg_duration_ms":        avgDuration.Milliseconds(),
-		"total_duration":         s.metrics.totalDuration.String(),
-		"server_source_posture":  s.metrics.serverSourcePosture,
-		"client_source_posture":  s.metrics.clientSourcePosture,
+		"total_streams":         s.metrics.totalStreams,
+		"active_streams":        s.metrics.activeStreams,
+		"items_streamed":        s.metrics.itemsStreamed,
+		"errors":                s.metrics.errors,
+		"avg_duration_ms":       avgDuration.Milliseconds(),
+		"total_duration":        s.metrics.totalDuration.String(),
+		"server_source_posture": s.metrics.serverSourcePosture,
+		"client_source_posture": s.metrics.clientSourcePosture,
 		"server_delivery_posture": classifyServerDeliveryPosture(
 			s.metrics.serverSourcePosture,
 			s.metrics.activeStreams,

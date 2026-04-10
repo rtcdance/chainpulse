@@ -8,9 +8,9 @@ import (
 
 // Orchestrator coordinates all E2E test managers
 type Orchestrator struct {
-	blockchain *BlockchainManager
-	database   *DatabaseManager
-	api        *APIManager
+	blockchain  *BlockchainManager
+	database    *DatabaseManager
+	api         *APIManager
 	initialized bool
 }
 

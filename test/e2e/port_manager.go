@@ -33,12 +33,12 @@ type PortStats struct {
 
 // DefaultPortManager implements PortManager with a pool-based approach
 type DefaultPortManager struct {
-	mu         sync.Mutex
-	available  []int
-	allocated  map[int]*PortAllocation
-	minPort    int
-	maxPort    int
-	lastAlloc  time.Time
+	mu        sync.Mutex
+	available []int
+	allocated map[int]*PortAllocation
+	minPort   int
+	maxPort   int
+	lastAlloc time.Time
 }
 
 // PortAllocation tracks information about an allocated port

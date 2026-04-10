@@ -16,7 +16,6 @@ func TestHandlerFunc(t *testing.T) {
 
 	req := NewBaseRequest(context.Background(), "GET", "/test", nil, []byte(""))
 	resp, err := handler.Handle(req)
-
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
@@ -171,7 +170,6 @@ func TestAPIRouterHandle(t *testing.T) {
 
 	req := NewBaseRequest(context.Background(), "GET", "/api/users", nil, []byte(""))
 	resp, err := router.Handle(req)
-
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
@@ -222,7 +220,6 @@ func TestAPIRouterMiddleware(t *testing.T) {
 
 	req := NewBaseRequest(context.Background(), "GET", "/api/users", nil, []byte(""))
 	resp, err := router.Handle(req)
-
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}

@@ -50,8 +50,8 @@ func TestPostgresReplicationConfigWALLevels(t *testing.T) {
 // TestPostgresReplicationConfigMaxWALSenders tests max WAL senders
 func TestPostgresReplicationConfigMaxWALSenders(t *testing.T) {
 	tests := []struct {
-		name           string
-		maxWALSenders  int
+		name          string
+		maxWALSenders int
 	}{
 		{"small", 5},
 		{"medium", 10},

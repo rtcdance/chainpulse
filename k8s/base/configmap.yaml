@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: chainpulse-config
+  namespace: chainpulse
+data:
+  LOG_LEVEL: "info"
+  API_PORT: "8080"
+  GRPC_PORT: "50051"
+  METRICS_PORT: "9090"
+  DATABASE_TYPE: "postgres"
+  CACHE_TYPE: "redis"
+  MQ_TYPE: "kafka"
+  DATABASE_URL: "postgres://chainpulse:chainpulse_password@postgres:5432/chainpulse"
+  CACHE_URL: "redis://redis:6379"
+  MQ_BROKERS: "kafka:29092"

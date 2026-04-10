@@ -1,0 +1,127 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: chainpulse-monolithic
+  namespace: chainpulse
+  labels:
+    app: chainpulse-monolithic
+spec:
+  selector:
+    app: chainpulse-monolithic
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+    - name: grpc
+      port: 50051
+      targetPort: 50051
+    - name: metrics
+      port: 9090
+      targetPort: 9090
+  type: LoadBalancer
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: chainpulse-monolithic
+  namespace: chainpulse
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: chainpulse-monolithic
+  template:
+    metadata:
+      labels:
+        app: chainpulse-monolithic
+    spec:
+      containers:
+      - name: chainpulse
+        image: chainpulse:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8080
+          name: http
+        - containerPort: 50051
+          name: grpc
+        - containerPort: 9090
+          name: metrics
+        env:
+        - name: DEPLOYMENT_MODE
+          value: "monolithic"
+        - name: SERVICE_NAME
+          value: "chainpulse"
+        - name: LOG_LEVEL
+          valueFrom:
+            configMapKeyRef:
+              name: chainpulse-config
+              key: LOG_LEVEL
+        - name: API_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: chainpulse-config
+              key: API_PORT
+        - name: GRPC_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: chainpulse-config
+              key: GRPC_PORT
+        - name: METRICS_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: chainpulse-config
+              key: METRICS_PORT
+        - name: DATABASE_TYPE
+          valueFrom:
+            configMapKeyRef:
+              name: chainpulse-config
+              key: DATABASE_TYPE
+        - name: DATABASE_URL
+          valueFrom:
+            configMapKeyRef:
+              name: chainpulse-config
+              key: DATABASE_URL
+        - name: CACHE_TYPE
+          valueFrom:
+            configMapKeyRef:
+              name: chainpulse-config
+              key: CACHE_TYPE
+        - name: CACHE_URL
+          valueFrom:
+            configMapKeyRef:
+              name: chainpulse-config
+              key: CACHE_URL
+        - name: MQ_TYPE
+          valueFrom:
+            configMapKeyRef:
+              name: chainpulse-config
+              key: MQ_TYPE
+        - name: MQ_BROKERS
+          valueFrom:
+            configMapKeyRef:
+              name: chainpulse-config
+              key: MQ_BROKERS
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"

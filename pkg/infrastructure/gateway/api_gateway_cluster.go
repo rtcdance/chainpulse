@@ -22,15 +22,15 @@ type APIGatewayClusterConfig struct {
 
 // APIGatewayClusterDeployment manages API gateway cluster deployment
 type APIGatewayClusterDeployment struct {
-	config              APIGatewayClusterConfig
-	gateways            map[string]*APIGateway
-	registry            *discovery.ServiceRegistry
-	healthChecker       *health.HealthCheckSystem
-	loadBalancer        *discovery.ServiceLoadBalancer
-	discoveryClient     *discovery.ServiceDiscoveryClient
-	multiProtocolAPI    *MultiProtocolAPI
-	mutex               sync.RWMutex
-	running             bool
+	config           APIGatewayClusterConfig
+	gateways         map[string]*APIGateway
+	registry         *discovery.ServiceRegistry
+	healthChecker    *health.HealthCheckSystem
+	loadBalancer     *discovery.ServiceLoadBalancer
+	discoveryClient  *discovery.ServiceDiscoveryClient
+	multiProtocolAPI *MultiProtocolAPI
+	mutex            sync.RWMutex
+	running          bool
 }
 
 // NewAPIGatewayClusterDeployment creates a new API gateway cluster deployment

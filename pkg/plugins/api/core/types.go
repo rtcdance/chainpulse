@@ -46,15 +46,13 @@ const (
 type ContentType string
 
 const (
-	ContentTypeJSON      ContentType = "application/json"
-	ContentTypeXML       ContentType = "application/xml"
-	ContentTypeText      ContentType = "text/plain"
-	ContentTypeHTML      ContentType = "text/html"
-	ContentTypeProtobuf  ContentType = "application/protobuf"
-	ContentTypeGraphQL   ContentType = "application/graphql"
+	ContentTypeJSON     ContentType = "application/json"
+	ContentTypeXML      ContentType = "application/xml"
+	ContentTypeText     ContentType = "text/plain"
+	ContentTypeHTML     ContentType = "text/html"
+	ContentTypeProtobuf ContentType = "application/protobuf"
+	ContentTypeGraphQL  ContentType = "application/graphql"
 )
-
-
 
 // RequestMetadata holds metadata about a request
 type RequestMetadata struct {

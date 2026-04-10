@@ -11,21 +11,21 @@ import (
 
 // EventProcessorClusterDeployment orchestrates event processor cluster
 type EventProcessorClusterDeployment struct {
-	mu                    sync.RWMutex
-	id                    string
-	processors            map[string]*EventProcessor
-	idempotencyService    *IdempotencyService
-	retryManager          *RetryManager
-	eventStore            EventStore
-	consumerGroups        map[string]*ConsumerGroup
-	deploymentStatus      string
-	deployedAt            time.Time
-	metrics               *ClusterMetrics
-	healthCheckInterval   time.Duration
-	lastHealthCheckTime   time.Time
-	autoScalingEnabled    bool
-	minInstances          int
-	maxInstances          int
+	mu                  sync.RWMutex
+	id                  string
+	processors          map[string]*EventProcessor
+	idempotencyService  *IdempotencyService
+	retryManager        *RetryManager
+	eventStore          EventStore
+	consumerGroups      map[string]*ConsumerGroup
+	deploymentStatus    string
+	deployedAt          time.Time
+	metrics             *ClusterMetrics
+	healthCheckInterval time.Duration
+	lastHealthCheckTime time.Time
+	autoScalingEnabled  bool
+	minInstances        int
+	maxInstances        int
 }
 
 // ConsumerGroup manages event consumption from message queue
@@ -230,7 +230,6 @@ func (epcd *EventProcessorClusterDeployment) ProcessEvent(ctx context.Context, e
 	err = epcd.retryManager.ExecuteWithRetry(ctx, func() error {
 		return selectedProcessor.ProcessEvent(ctx, event)
 	})
-
 	if err != nil {
 		epcd.metrics.mu.Lock()
 		epcd.metrics.EventsFailed++

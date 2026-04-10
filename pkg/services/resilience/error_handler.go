@@ -11,12 +11,12 @@ import (
 
 // ErrorHandler provides error classification and handling
 type ErrorHandler struct {
-	logger            core.Logger
-	metricsCollector  core.MetricsCollector
-	errorClassifier   ErrorClassifier
-	errorLoggers      map[string]ErrorLogger
-	errorLoggersMu    sync.RWMutex
-	contextProviders  map[string]ContextProvider
+	logger             core.Logger
+	metricsCollector   core.MetricsCollector
+	errorClassifier    ErrorClassifier
+	errorLoggers       map[string]ErrorLogger
+	errorLoggersMu     sync.RWMutex
+	contextProviders   map[string]ContextProvider
 	contextProvidersMu sync.RWMutex
 }
 
@@ -42,10 +42,10 @@ type ContextProvider interface {
 type ErrorCategory string
 
 const (
-	ErrorCategoryTransient  ErrorCategory = "transient"
-	ErrorCategoryPermanent  ErrorCategory = "permanent"
-	ErrorCategoryCritical   ErrorCategory = "critical"
-	ErrorCategoryUnknown    ErrorCategory = "unknown"
+	ErrorCategoryTransient ErrorCategory = "transient"
+	ErrorCategoryPermanent ErrorCategory = "permanent"
+	ErrorCategoryCritical  ErrorCategory = "critical"
+	ErrorCategoryUnknown   ErrorCategory = "unknown"
 )
 
 // DefaultErrorClassifier implements ErrorClassifier

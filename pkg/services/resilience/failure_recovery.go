@@ -436,6 +436,7 @@ func (re *DefaultRecoveryExecutor) verifyDataConsistencyUnlocked(ctx context.Con
 
 	return nil
 }
+
 // GetRecoveryStats returns recovery statistics
 func (re *DefaultRecoveryExecutor) GetRecoveryStats(ctx context.Context) map[string]interface{} {
 	re.mu.RLock()

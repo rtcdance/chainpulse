@@ -82,7 +82,6 @@ func TestPerformanceManagerMeasureOperation(t *testing.T) {
 		time.Sleep(50 * time.Millisecond)
 		return nil
 	})
-
 	if err != nil {
 		t.Errorf("expected no error, got %v", err)
 	}

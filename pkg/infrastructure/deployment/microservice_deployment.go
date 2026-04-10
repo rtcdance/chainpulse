@@ -5,31 +5,32 @@ import (
 	"fmt"
 	"sync"
 	"time"
+
 	"chainpulse/pkg/core"
 )
 
 // MicroserviceDeployment represents a microservice deployment mode where services run independently
 type MicroserviceDeployment struct {
-	config              core.Config
-	registry            core.PluginRegistry
-	configManager       core.ConfigManager
-	eventBus            core.EventBus
-	logger              core.Logger
-	metricsCollector    core.MetricsCollector
-	healthChecker       core.HealthChecker
-	mqPlugin            core.MQPlugin
-	mu                  sync.RWMutex
-	isRunning           bool
-	shutdownChan        chan struct{}
-	shutdownWaitGroup   sync.WaitGroup
-	serviceName         string
-	serviceInitializer  func() error
-	serviceStarter      func() error
-	serviceStopper      func() error
-	coordinationTopic   string
-	heartbeatInterval   time.Duration
-	lastHeartbeat       time.Time
-	instanceID          string
+	config             core.Config
+	registry           core.PluginRegistry
+	configManager      core.ConfigManager
+	eventBus           core.EventBus
+	logger             core.Logger
+	metricsCollector   core.MetricsCollector
+	healthChecker      core.HealthChecker
+	mqPlugin           core.MQPlugin
+	mu                 sync.RWMutex
+	isRunning          bool
+	shutdownChan       chan struct{}
+	shutdownWaitGroup  sync.WaitGroup
+	serviceName        string
+	serviceInitializer func() error
+	serviceStarter     func() error
+	serviceStopper     func() error
+	coordinationTopic  string
+	heartbeatInterval  time.Duration
+	lastHeartbeat      time.Time
+	instanceID         string
 }
 
 // NewMicroserviceDeployment creates a new microservice deployment

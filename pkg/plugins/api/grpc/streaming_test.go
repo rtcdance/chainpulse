@@ -11,7 +11,7 @@ import (
 
 // MockStreamingBackend implements StreamingBackend for testing
 type MockStreamingBackend struct {
-	events []*core.BlockchainEvent
+	events              []*core.BlockchainEvent
 	serverSourcePosture string
 	clientSourcePosture string
 }
@@ -69,7 +69,6 @@ func TestServerStreamEvents(t *testing.T) {
 		count++
 		return nil
 	})
-
 	if err != nil {
 		t.Fatalf("Failed to stream events: %v", err)
 	}

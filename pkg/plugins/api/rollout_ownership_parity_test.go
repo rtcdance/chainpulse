@@ -177,11 +177,11 @@ func TestBuildRouteOwnershipParitySourceSnapshotFromReadinessDetailsIdle(t *test
 
 func TestClassifyMonolithOwnershipParityPosture(t *testing.T) {
 	tests := []struct {
-		name         string
-		mode         string
-		status       string
-		ready        bool
-		wantPosture  string
+		name        string
+		mode        string
+		status      string
+		ready       bool
+		wantPosture string
 	}{
 		{name: "runtime-owned-ready", mode: "runtime-owned", status: "ready", ready: true, wantPosture: "monolith-runtime-owned-ready"},
 		{name: "shadow", mode: "shadow", status: "shadow-observe", ready: false, wantPosture: "monolith-shadow-observe"},

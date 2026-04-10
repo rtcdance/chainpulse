@@ -6,18 +6,18 @@ import "time"
 type ErrorType string
 
 const (
-	ErrorTypeTransient  ErrorType = "transient"
-	ErrorTypePermanent  ErrorType = "permanent"
-	ErrorTypeCritical   ErrorType = "critical"
+	ErrorTypeTransient ErrorType = "transient"
+	ErrorTypePermanent ErrorType = "permanent"
+	ErrorTypeCritical  ErrorType = "critical"
 )
 
 // SystemError represents a system error with classification
 type SystemError struct {
-	Type    ErrorType `json:"type"`
-	Message string    `json:"message"`
-	Code    string    `json:"code"`
+	Type    ErrorType              `json:"type"`
+	Message string                 `json:"message"`
+	Code    string                 `json:"code"`
 	Details map[string]interface{} `json:"details"`
-	Err     error     `json:"-"`
+	Err     error                  `json:"-"`
 }
 
 // CacheEntry represents a cached value

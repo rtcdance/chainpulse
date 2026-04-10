@@ -303,8 +303,7 @@ func TestProperty_CacheService_InvalidationCleanup(t *testing.T) {
 }
 
 // testLogger is a simple test logger implementation
-type testLogger struct {
-}
+type testLogger struct{}
 
 func (l *testLogger) Debug(msg string, fields ...interface{}) {
 	// No-op for testing

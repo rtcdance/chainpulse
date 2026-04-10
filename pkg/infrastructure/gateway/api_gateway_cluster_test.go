@@ -356,5 +356,3 @@ func TestAPIGatewayClusterHealthCheckTTL(t *testing.T) {
 		assert.Equal(t, ttl, deployment.config.HealthCheckTTL)
 	}
 }
-
-

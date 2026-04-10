@@ -256,7 +256,7 @@ func TestPropertyChainIndexerBlockTracking(t *testing.T) {
 // Concurrent operations should not cause data corruption
 func TestPropertyConcurrentMultiChainOperations(t *testing.T) {
 	t.Skip("Skipping concurrent test due to goroutine management issues - will be fixed in next iteration")
-	
+
 	logger := &MockLogger{}
 	config := &MockConfigManager{
 		blockchains: make(map[string]core.BlockchainConfig),

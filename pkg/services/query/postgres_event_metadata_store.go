@@ -246,7 +246,6 @@ func (s *PostgreSQLEventMetadataStore) InsertMetadataBatch(ctx context.Context, 
 			metadata.LogIndex, metadata.ContractAddress, metadata.EventName, status,
 			metadata.ProcessedAt, now, now,
 		).Scan(&metadata.ID)
-
 		if err != nil {
 			s.logger.Error("Failed to insert metadata in batch", "eventId", metadata.EventID, "error", err.Error())
 			s.metrics.RecordCounter("postgres_metadata_batch_insert_error", int64(1), nil)
@@ -301,7 +300,6 @@ func (s *PostgreSQLEventMetadataStore) GetMetadata(ctx context.Context, eventID 
 		&metadata.RetryCount, &metadata.LastRetryAt, &metadata.ProcessedAt,
 		&metadata.CreatedAt, &metadata.UpdatedAt,
 	)
-
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
@@ -408,7 +406,6 @@ func (s *PostgreSQLEventMetadataStore) UpdateMetadata(ctx context.Context, metad
 		metadata.ProcessingStatus, metadata.ProcessingError, metadata.RetryCount,
 		metadata.LastRetryAt, now, metadata.EventID,
 	)
-
 	if err != nil {
 		s.logger.Error("Failed to update metadata", "eventId", metadata.EventID, "error", err.Error())
 		s.metrics.RecordCounter("postgres_metadata_update_error", int64(1), nil)

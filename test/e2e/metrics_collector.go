@@ -19,10 +19,10 @@ const (
 
 // MetricPoint represents a single metric measurement
 type MetricPoint struct {
-	Timestamp time.Time
-	Value     float64
+	Timestamp  time.Time
+	Value      float64
 	MetricType MetricType
-	Labels    map[string]string
+	Labels     map[string]string
 }
 
 // MetricAggregation represents aggregated metrics
@@ -132,7 +132,7 @@ func (mc *MetricsCollector) Aggregate(metricType MetricType) *MetricAggregation 
 
 	// Calculate basic statistics
 	var sum float64
-	var min, max = metrics[0].Value, metrics[0].Value
+	min, max := metrics[0].Value, metrics[0].Value
 	values := make([]float64, len(metrics))
 
 	for i, m := range metrics {
@@ -227,16 +227,16 @@ func (mc *MetricsCollector) GetStats() map[string]interface{} {
 	defer mc.mu.RUnlock()
 
 	return map[string]interface{}{
-		"test_name":         mc.testName,
-		"test_status":       mc.testStatus,
-		"duration":          mc.GetDuration().String(),
-		"total_operations":  mc.totalOperations,
-		"success_count":     mc.successCount,
-		"error_count":       mc.errorCount,
-		"error_rate":        mc.GetErrorRate(),
-		"success_rate":      mc.GetSuccessRate(),
-		"start_time":        mc.startTime,
-		"end_time":          mc.endTime,
+		"test_name":        mc.testName,
+		"test_status":      mc.testStatus,
+		"duration":         mc.GetDuration().String(),
+		"total_operations": mc.totalOperations,
+		"success_count":    mc.successCount,
+		"error_count":      mc.errorCount,
+		"error_rate":       mc.GetErrorRate(),
+		"success_rate":     mc.GetSuccessRate(),
+		"start_time":       mc.startTime,
+		"end_time":         mc.endTime,
 	}
 }
 

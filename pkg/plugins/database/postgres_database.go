@@ -483,7 +483,6 @@ func (p *PostgreSQLDatabase) GetEventByHash(hash string) (*core.BlockchainEvent,
 		&event.EventData,
 		&event.BlockTimestamp,
 	)
-
 	if err != nil {
 		if err == sql.ErrNoRows {
 			duration := time.Since(start).Milliseconds()

@@ -9,19 +9,19 @@ import (
 // DistributedCacheConfig holds configuration for distributed caching
 type DistributedCacheConfig struct {
 	// Redis configuration
-	RedisAddr            string
-	RedisPassword        string
-	RedisDB              int
-	PoolSize             int
-	MinIdleConns         int
-	MaxRetries           int
-	DialTimeout          time.Duration
-	ReadTimeout          time.Duration
-	WriteTimeout         time.Duration
-	HealthCheckInterval  time.Duration
-	MaxLocalCacheSize    int
-	DefaultTTL           time.Duration
-	FallbackEnabled      bool
+	RedisAddr           string
+	RedisPassword       string
+	RedisDB             int
+	PoolSize            int
+	MinIdleConns        int
+	MaxRetries          int
+	DialTimeout         time.Duration
+	ReadTimeout         time.Duration
+	WriteTimeout        time.Duration
+	HealthCheckInterval time.Duration
+	MaxLocalCacheSize   int
+	DefaultTTL          time.Duration
+	FallbackEnabled     bool
 }
 
 // NewDistributedCacheConfig creates a new distributed cache configuration

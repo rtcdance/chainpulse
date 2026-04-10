@@ -22,12 +22,15 @@ func (p *multiChainPullerTestPlugin) Health() error                       { retu
 func (p *multiChainPullerTestPlugin) PullEvents(ctx context.Context, fromBlock, toBlock uint64) ([]core.BlockchainEvent, error) {
 	return nil, nil
 }
+
 func (p *multiChainPullerTestPlugin) GetLatestBlock(ctx context.Context) (uint64, error) {
 	return p.latestBlock, nil
 }
+
 func (p *multiChainPullerTestPlugin) SubscribeToEvents(ctx context.Context, handler func(core.BlockchainEvent)) error {
 	return nil
 }
+
 func (p *multiChainPullerTestPlugin) GetStats() map[string]interface{} {
 	return map[string]interface{}{}
 }

@@ -256,11 +256,11 @@ func (rcm *RedisClusterMonitor) GetClusterMemoryUsage(ctx context.Context) (Memo
 
 // MemoryUsage represents memory usage information
 type MemoryUsage struct {
-	UsedMemory      int64
-	MaxMemory       int64
-	EvictionPolicy  string
-	EvictionCount   int64
-	Timestamp       time.Time
+	UsedMemory     int64
+	MaxMemory      int64
+	EvictionPolicy string
+	EvictionCount  int64
+	Timestamp      time.Time
 }
 
 // GetClusterStatus retrieves the overall cluster status

@@ -8,9 +8,11 @@ import (
 	"chainpulse/pkg/plugins/api"
 )
 
-const apiGatewayRolloutSkeletonReason = "api-gateway rollout producer skeleton is not yet wired to ownership runtime state"
-const apiGatewayRolloutRuntimeWiringReason = "api-gateway rollout producer reflects local gateway runtime wiring; ownership runtime state is not yet wired"
-const apiGatewayOwnershipParityReviewFields = "runtime_routes_enabled,event_query_enabled,event_subscription_enabled,health_check_enabled,domain_bridge_enabled"
+const (
+	apiGatewayRolloutSkeletonReason       = "api-gateway rollout producer skeleton is not yet wired to ownership runtime state"
+	apiGatewayRolloutRuntimeWiringReason  = "api-gateway rollout producer reflects local gateway runtime wiring; ownership runtime state is not yet wired"
+	apiGatewayOwnershipParityReviewFields = "runtime_routes_enabled,event_query_enabled,event_subscription_enabled,health_check_enabled,domain_bridge_enabled"
+)
 
 type apiGatewayRolloutRuntimeState struct {
 	DomainBridgeEnabled      bool

@@ -1,10 +1,11 @@
 package cache
 
 import (
-	"chainpulse/pkg/core"
 	"fmt"
 	"testing"
 	"time"
+
+	"chainpulse/pkg/core"
 )
 
 func TestAdvancedCacheInitialize(t *testing.T) {

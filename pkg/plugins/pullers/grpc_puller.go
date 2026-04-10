@@ -6,28 +6,28 @@ import (
 	"sync"
 	"time"
 
+	"chainpulse/pkg/core"
 	"github.com/ethereum/go-ethereum/common"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
-	"chainpulse/pkg/core"
 )
 
 // GRPCPuller implements gRPC protocol for pulling blockchain events
 type GRPCPuller struct {
 	*BaseDataPullerPlugin
-	mu              sync.RWMutex
-	conn            *grpc.ClientConn
-	nodeURL         string
-	currentBlock    uint64
-	stopChan        chan bool
-	eventHandlers   []func(core.BlockchainEvent)
-	requestCounter  int64
-	errorCounter    int64
-	lastError       error
-	lastErrorTime   time.Time
-	pollInterval    time.Duration
-	connectionPool  int
-	maxRetries      int
+	mu             sync.RWMutex
+	conn           *grpc.ClientConn
+	nodeURL        string
+	currentBlock   uint64
+	stopChan       chan bool
+	eventHandlers  []func(core.BlockchainEvent)
+	requestCounter int64
+	errorCounter   int64
+	lastError      error
+	lastErrorTime  time.Time
+	pollInterval   time.Duration
+	connectionPool int
+	maxRetries     int
 }
 
 // GRPCBlockchainService represents a gRPC blockchain service client
@@ -152,7 +152,6 @@ func (p *GRPCPuller) GetLatestBlock(ctx context.Context) (uint64, error) {
 		p.currentBlock, err = p.getLatestBlockNumber(ctx)
 		return err
 	})
-
 	if err != nil {
 		p.errorCounter++
 		p.lastError = err
@@ -236,14 +235,14 @@ func (p *GRPCPuller) GetStats() map[string]interface{} {
 
 	isConnected := p.conn != nil
 	return map[string]interface{}{
-		"node_url":      p.nodeURL,
-		"current_block": p.currentBlock,
-		"request_count": p.requestCounter,
-		"error_count":   p.errorCounter,
-		"last_error":    p.lastError,
+		"node_url":        p.nodeURL,
+		"current_block":   p.currentBlock,
+		"request_count":   p.requestCounter,
+		"error_count":     p.errorCounter,
+		"last_error":      p.lastError,
 		"last_error_time": p.lastErrorTime,
-		"is_running":    p.IsRunning(),
-		"is_connected":  isConnected,
+		"is_running":      p.IsRunning(),
+		"is_connected":    isConnected,
 	}
 }
 

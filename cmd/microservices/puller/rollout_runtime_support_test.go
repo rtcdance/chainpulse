@@ -36,6 +36,7 @@ func (m *pullerTestDatabaseManager) CheckPostgresHealth(ctx context.Context) err
 	}
 	return context.DeadlineExceeded
 }
+
 func (m *pullerTestDatabaseManager) Health(ctx context.Context) interface{} {
 	if m.postgresHealthy {
 		return map[string]interface{}{
@@ -689,21 +690,21 @@ func TestBuildPullerRuntimeRolloutHealthHandler(t *testing.T) {
 
 func TestBuildPullerRuntimeComponentStatus(t *testing.T) {
 	status := buildPullerRuntimeComponentStatus(pullerRolloutRuntimeState{
-		DatabaseReady:              true,
-		KafkaReady:                 true,
-		PullerLoopConfigured:       true,
-		BlockchainRPCsConfigured:   true,
-		DatabaseHealthStatus:       "healthy",
-		DatabaseHealthMessage:      "postgres dependency is healthy",
-		KafkaHealthStatus:          "healthy",
-		KafkaHealthMessage:         "kafka dependency is healthy",
-		PollActivityState:          "active",
-		CheckpointCoveragePosture:  "coverage-healthy",
-		CheckpointRecoveryHint:     "persisted checkpoint is behind live progress; continue observing catch-up and checkpoint advancement",
-		PersistedCheckpointState:   "persisted-checkpoint-behind",
-		CheckpointProgressState:    "checkpoint-pending",
-		PollCount:                  1,
-		LastPollUnix:               1_712_345_678,
+		DatabaseReady:             true,
+		KafkaReady:                true,
+		PullerLoopConfigured:      true,
+		BlockchainRPCsConfigured:  true,
+		DatabaseHealthStatus:      "healthy",
+		DatabaseHealthMessage:     "postgres dependency is healthy",
+		KafkaHealthStatus:         "healthy",
+		KafkaHealthMessage:        "kafka dependency is healthy",
+		PollActivityState:         "active",
+		CheckpointCoveragePosture: "coverage-healthy",
+		CheckpointRecoveryHint:    "persisted checkpoint is behind live progress; continue observing catch-up and checkpoint advancement",
+		PersistedCheckpointState:  "persisted-checkpoint-behind",
+		CheckpointProgressState:   "checkpoint-pending",
+		PollCount:                 1,
+		LastPollUnix:              1_712_345_678,
 	}, time.Unix(1_712_345_690, 0))
 
 	if status == nil {
@@ -722,31 +723,31 @@ func TestBuildPullerRuntimeComponentStatus(t *testing.T) {
 
 func TestBuildPullerRuntimeReadinessDetails(t *testing.T) {
 	details := buildPullerRuntimeReadinessDetails(pullerRolloutRuntimeState{
-		DatabaseReady:               true,
-		KafkaReady:                  true,
-		PullerLoopConfigured:        true,
-		BlockchainRPCsConfigured:    true,
-		DatabaseHealthStatus:        "healthy",
-		DatabaseHealthMessage:       "postgres dependency is healthy",
-		KafkaHealthStatus:           "healthy",
-		KafkaHealthMessage:          "kafka dependency is healthy",
-		PollActivityState:           "active",
-		PollCount:                   1,
-		LastPollUnix:                1_712_345_678,
-		ObservedBlock:               120,
-		ProcessedBlock:              118,
-		BlockGap:                    2,
-		CheckpointProgressState:     "checkpoint-pending",
-		BlocksUntilCheckpoint:       82,
-		PersistedCheckpointState:    "persisted-checkpoint-behind",
-		PersistedCheckpointBlock:    100,
-		BlocksSinceCheckpoint:       18,
-		ReorgCheckpointState:        "reorg-clear",
-		CheckpointCoveragePosture:   "coverage-healthy",
-		CheckpointCoverageHint:      "tracked=1,recorded=1,reorg_risk=0,reorg_reconciled=0",
-		CheckpointChainSummary:      "ethereum=checkpoint-recorded:fresh@100",
+		DatabaseReady:                 true,
+		KafkaReady:                    true,
+		PullerLoopConfigured:          true,
+		BlockchainRPCsConfigured:      true,
+		DatabaseHealthStatus:          "healthy",
+		DatabaseHealthMessage:         "postgres dependency is healthy",
+		KafkaHealthStatus:             "healthy",
+		KafkaHealthMessage:            "kafka dependency is healthy",
+		PollActivityState:             "active",
+		PollCount:                     1,
+		LastPollUnix:                  1_712_345_678,
+		ObservedBlock:                 120,
+		ProcessedBlock:                118,
+		BlockGap:                      2,
+		CheckpointProgressState:       "checkpoint-pending",
+		BlocksUntilCheckpoint:         82,
+		PersistedCheckpointState:      "persisted-checkpoint-behind",
+		PersistedCheckpointBlock:      100,
+		BlocksSinceCheckpoint:         18,
+		ReorgCheckpointState:          "reorg-clear",
+		CheckpointCoveragePosture:     "coverage-healthy",
+		CheckpointCoverageHint:        "tracked=1,recorded=1,reorg_risk=0,reorg_reconciled=0",
+		CheckpointChainSummary:        "ethereum=checkpoint-recorded:fresh@100",
 		CheckpointChainPostureSummary: "ethereum=recorded-healthy",
-		CheckpointRecoveryHint:      "persisted checkpoint is behind live progress; continue observing catch-up and checkpoint advancement",
+		CheckpointRecoveryHint:        "persisted checkpoint is behind live progress; continue observing catch-up and checkpoint advancement",
 	})
 
 	if got := details["rollout_gate_decision"]; got != "allow" {

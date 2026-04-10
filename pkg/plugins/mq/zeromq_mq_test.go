@@ -138,9 +138,9 @@ func TestZeroMQMQPluginPublishMessage(t *testing.T) {
 	defer cancel()
 
 	message := core.MessageQueueMessage{
-		ID:      "msg-1",
-		Topic:   "blockchain_events",
-		Payload: []byte("test payload"),
+		ID:        "msg-1",
+		Topic:     "blockchain_events",
+		Payload:   []byte("test payload"),
 		Timestamp: time.Now().UTC(),
 	}
 
@@ -183,9 +183,9 @@ func TestZeroMQMQPluginAcknowledgeMessage(t *testing.T) {
 	defer cancel()
 
 	message := core.MessageQueueMessage{
-		ID:      "msg-1",
-		Topic:   "blockchain_events",
-		Payload: []byte("test payload"),
+		ID:        "msg-1",
+		Topic:     "blockchain_events",
+		Payload:   []byte("test payload"),
 		Timestamp: time.Now().UTC(),
 	}
 
@@ -228,9 +228,9 @@ func TestZeroMQMQPluginDeadLetterQueue(t *testing.T) {
 	defer cancel()
 
 	message := core.MessageQueueMessage{
-		ID:      "msg-1",
-		Topic:   "blockchain_events",
-		Payload: []byte("test payload"),
+		ID:        "msg-1",
+		Topic:     "blockchain_events",
+		Payload:   []byte("test payload"),
 		Timestamp: time.Now().UTC(),
 	}
 
@@ -278,10 +278,10 @@ func TestZeroMQMQPluginRetryMessage(t *testing.T) {
 	defer cancel()
 
 	message := core.MessageQueueMessage{
-		ID:      "msg-1",
-		Topic:   "blockchain_events",
-		Payload: []byte("test payload"),
-		Timestamp: time.Now().UTC(),
+		ID:         "msg-1",
+		Topic:      "blockchain_events",
+		Payload:    []byte("test payload"),
+		Timestamp:  time.Now().UTC(),
 		RetryCount: 0,
 	}
 
@@ -430,9 +430,9 @@ func TestZeroMQMQPluginConcurrentOperations(t *testing.T) {
 			defer wg.Done()
 
 			message := core.MessageQueueMessage{
-				ID:      fmt.Sprintf("msg-%d", index),
-				Topic:   "blockchain_events",
-				Payload: []byte("test payload"),
+				ID:        fmt.Sprintf("msg-%d", index),
+				Topic:     "blockchain_events",
+				Payload:   []byte("test payload"),
 				Timestamp: time.Now().UTC(),
 			}
 

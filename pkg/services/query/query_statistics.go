@@ -17,47 +17,47 @@ type QueryStatisticsCollector struct {
 
 // QueryMetrics represents metrics for a specific query
 type QueryMetrics struct {
-	QueryHash         string
-	Query             string
-	ExecutionCount    int64
-	SuccessCount      int64
-	ErrorCount        int64
-	TotalDuration     time.Duration
-	MinDuration       time.Duration
-	MaxDuration       time.Duration
-	AverageDuration   time.Duration
-	P50Duration       time.Duration
-	P95Duration       time.Duration
-	P99Duration       time.Duration
-	RowsReturned      int64
-	RowsScanned       int64
-	CacheHits         int64
-	CacheMisses       int64
-	IndexesUsed       []string
-	LastExecuted      time.Time
-	FirstExecuted     time.Time
+	QueryHash       string
+	Query           string
+	ExecutionCount  int64
+	SuccessCount    int64
+	ErrorCount      int64
+	TotalDuration   time.Duration
+	MinDuration     time.Duration
+	MaxDuration     time.Duration
+	AverageDuration time.Duration
+	P50Duration     time.Duration
+	P95Duration     time.Duration
+	P99Duration     time.Duration
+	RowsReturned    int64
+	RowsScanned     int64
+	CacheHits       int64
+	CacheMisses     int64
+	IndexesUsed     []string
+	LastExecuted    time.Time
+	FirstExecuted   time.Time
 }
 
 // AggregatedMetrics represents aggregated statistics across all queries
 type AggregatedMetrics struct {
-	TotalQueries      int64
-	TotalExecutions   int64
-	TotalDuration     time.Duration
-	AverageDuration   time.Duration
-	MinDuration       time.Duration
-	MaxDuration       time.Duration
-	P50Duration       time.Duration
-	P95Duration       time.Duration
-	P99Duration       time.Duration
-	SuccessRate       float64
-	ErrorRate         float64
-	CacheHitRate      float64
+	TotalQueries        int64
+	TotalExecutions     int64
+	TotalDuration       time.Duration
+	AverageDuration     time.Duration
+	MinDuration         time.Duration
+	MaxDuration         time.Duration
+	P50Duration         time.Duration
+	P95Duration         time.Duration
+	P99Duration         time.Duration
+	SuccessRate         float64
+	ErrorRate           float64
+	CacheHitRate        float64
 	AverageRowsReturned int64
 	AverageRowsScanned  int64
-	TopQueries        []*QueryMetrics
-	SlowQueries       []*QueryMetrics
-	ErrorQueries      []*QueryMetrics
-	LastUpdated       time.Time
+	TopQueries          []*QueryMetrics
+	SlowQueries         []*QueryMetrics
+	ErrorQueries        []*QueryMetrics
+	LastUpdated         time.Time
 }
 
 // ExecutionRecord represents a single query execution
@@ -89,7 +89,7 @@ func (qsc *QueryStatisticsCollector) RecordExecution(record ExecutionRecord) {
 	metrics, exists := qsc.stats[record.QueryHash]
 	if !exists {
 		metrics = &QueryMetrics{
-			QueryHash:    record.QueryHash,
+			QueryHash:     record.QueryHash,
 			FirstExecuted: record.Timestamp,
 		}
 		qsc.stats[record.QueryHash] = metrics
@@ -156,11 +156,11 @@ func (qsc *QueryStatisticsCollector) AggregateMetrics() *AggregatedMetrics {
 	}
 
 	agg := &AggregatedMetrics{
-		TotalQueries:    int64(len(qsc.stats)),
-		TopQueries:      []*QueryMetrics{},
-		SlowQueries:     []*QueryMetrics{},
-		ErrorQueries:    []*QueryMetrics{},
-		LastUpdated:     time.Now(),
+		TotalQueries: int64(len(qsc.stats)),
+		TopQueries:   []*QueryMetrics{},
+		SlowQueries:  []*QueryMetrics{},
+		ErrorQueries: []*QueryMetrics{},
+		LastUpdated:  time.Now(),
 	}
 
 	if agg.TotalQueries == 0 {

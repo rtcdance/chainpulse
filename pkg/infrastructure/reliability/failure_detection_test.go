@@ -345,12 +345,12 @@ func TestFailureHistoryLimit(t *testing.T) {
 // TestServiceHealthInfoFields tests service health info fields
 func TestServiceHealthInfoFields(t *testing.T) {
 	info := &ServiceHealthInfo{
-		ServiceID:           "service-1",
-		Status:              "healthy",
-		ConsecutiveFailures: 0,
+		ServiceID:            "service-1",
+		Status:               "healthy",
+		ConsecutiveFailures:  0,
 		ConsecutiveSuccesses: 5,
-		ResponseTime:        100 * time.Millisecond,
-		ErrorRate:           0.0,
+		ResponseTime:         100 * time.Millisecond,
+		ErrorRate:            0.0,
 	}
 
 	assert.Equal(t, "service-1", info.ServiceID)
@@ -362,11 +362,11 @@ func TestServiceHealthInfoFields(t *testing.T) {
 // TestFailureMetricsFields tests failure metrics fields
 func TestFailureMetricsFields(t *testing.T) {
 	metrics := &FailureMetrics{
-		FailuresDetected:     10,
-		FalsePositives:       2,
-		FalseNegatives:       1,
-		PredictedFailures:    5,
-		ActualFailures:       8,
+		FailuresDetected:  10,
+		FalsePositives:    2,
+		FalseNegatives:    1,
+		PredictedFailures: 5,
+		ActualFailures:    8,
 	}
 
 	assert.Equal(t, int64(10), metrics.FailuresDetected)

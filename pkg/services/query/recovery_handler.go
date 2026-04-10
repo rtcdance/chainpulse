@@ -107,26 +107,26 @@ type RecoveryMetrics struct {
 
 // DefaultRecoveryHandler implements RecoveryHandler
 type DefaultRecoveryHandler struct {
-	mu                      sync.RWMutex
-	config                  RecoveryConfig
-	state                   RecoveryState
-	eventStore              EventStore
-	metadataStore           EventMetadataStore
-	cacheService            CacheService
-	errorClassifier         *ErrorClassifier
-	logger                  core.Logger
-	metricsCollector        core.MetricsCollector
-	initialized             bool
-	lastRecoveryTime        time.Time
-	lastSuccessfulRecovery  time.Time
-	totalAttempts           int
-	successfulRecoveries    int
-	failedRecoveries        int
-	connectionRecoveries    int
-	stateRecoveries         int
-	dataSyncRecoveries      int
-	totalRecoveryDuration   time.Duration
-	recoveryInProgress      bool
+	mu                     sync.RWMutex
+	config                 RecoveryConfig
+	state                  RecoveryState
+	eventStore             EventStore
+	metadataStore          EventMetadataStore
+	cacheService           CacheService
+	errorClassifier        *ErrorClassifier
+	logger                 core.Logger
+	metricsCollector       core.MetricsCollector
+	initialized            bool
+	lastRecoveryTime       time.Time
+	lastSuccessfulRecovery time.Time
+	totalAttempts          int
+	successfulRecoveries   int
+	failedRecoveries       int
+	connectionRecoveries   int
+	stateRecoveries        int
+	dataSyncRecoveries     int
+	totalRecoveryDuration  time.Duration
+	recoveryInProgress     bool
 }
 
 // NewRecoveryHandler creates a new recovery handler
@@ -273,10 +273,10 @@ func (rh *DefaultRecoveryHandler) RecoverConnection(ctx context.Context, store s
 		}
 
 		rh.logger.Warn("Connection recovery attempt failed", map[string]interface{}{
-			"store":    store,
-			"attempt":  attempt + 1,
-			"error":    err.Error(),
-			"backoff":  backoff.String(),
+			"store":   store,
+			"attempt": attempt + 1,
+			"error":   err.Error(),
+			"backoff": backoff.String(),
 		})
 
 		// Wait before retry

@@ -41,57 +41,57 @@ type ErrorMetricsCollector interface {
 
 // ErrorMetrics represents error metrics
 type ErrorMetrics struct {
-	TotalErrors      int64
-	TransientErrors  int64
-	PermanentErrors  int64
-	CriticalErrors   int64
-	UnknownErrors    int64
-	AverageDuration  time.Duration
-	LastErrorTime    time.Time
-	ErrorsBySource   map[string]int64
-	ErrorsByType     map[string]int64
+	TotalErrors     int64
+	TransientErrors int64
+	PermanentErrors int64
+	CriticalErrors  int64
+	UnknownErrors   int64
+	AverageDuration time.Duration
+	LastErrorTime   time.Time
+	ErrorsBySource  map[string]int64
+	ErrorsByType    map[string]int64
 }
 
 // RetryMetrics represents retry metrics
 type RetryMetrics struct {
-	TotalAttempts    int64
+	TotalAttempts     int64
 	SuccessfulRetries int64
-	FailedRetries    int64
-	AverageAttempts  float64
-	LastRetryTime    time.Time
-	RetrySuccessRate float64
+	FailedRetries     int64
+	AverageAttempts   float64
+	LastRetryTime     time.Time
+	RetrySuccessRate  float64
 }
 
 // CircuitBreakerMetrics represents circuit breaker metrics
 type CircuitBreakerMetrics struct {
 	TotalStateChanges int64
-	ClosedCount      int64
-	OpenCount        int64
-	HalfOpenCount    int64
-	CurrentState     map[string]string
-	LastStateChange  time.Time
+	ClosedCount       int64
+	OpenCount         int64
+	HalfOpenCount     int64
+	CurrentState      map[string]string
+	LastStateChange   time.Time
 }
 
 // ConsistencyMetrics represents consistency check metrics
 type ConsistencyMetrics struct {
-	TotalChecks      int64
-	PassedChecks     int64
-	FailedChecks     int64
-	AverageDuration  time.Duration
-	LastCheckTime    time.Time
-	PassRate         float64
+	TotalChecks     int64
+	PassedChecks    int64
+	FailedChecks    int64
+	AverageDuration time.Duration
+	LastCheckTime   time.Time
+	PassRate        float64
 }
 
 // DegradationMetrics represents degradation metrics
 type DegradationMetrics struct {
-	TotalEvents      int64
-	NormalMode       int64
-	MongoDBUnavailable int64
+	TotalEvents           int64
+	NormalMode            int64
+	MongoDBUnavailable    int64
 	PostgreSQLUnavailable int64
-	BothUnavailable  int64
-	CacheUnavailable int64
-	ReadOnlyMode     int64
-	LastEventTime    time.Time
+	BothUnavailable       int64
+	CacheUnavailable      int64
+	ReadOnlyMode          int64
+	LastEventTime         time.Time
 }
 
 // DefaultErrorMetricsCollector implements ErrorMetricsCollector

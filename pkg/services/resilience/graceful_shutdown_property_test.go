@@ -1,13 +1,14 @@
 package resilience
 
 import (
-	"chainpulse/pkg/core"
 	"context"
 	"errors"
 	"fmt"
 	"sync"
 	"testing"
 	"time"
+
+	"chainpulse/pkg/core"
 )
 
 // Property 19: Graceful Shutdown
@@ -258,7 +259,6 @@ func TestProperty19GracefulShutdown(t *testing.T) {
 
 		ctx := context.Background()
 		err := manager.ShutdownAll(ctx)
-
 		if err != nil {
 			t.Errorf("Expected no error, got %v", err)
 		}

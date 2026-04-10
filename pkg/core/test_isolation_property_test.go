@@ -16,7 +16,7 @@ func TestProperty1_ConfigManagerIsolation(t *testing.T) {
 	// Property: Each ConfigManager instance must maintain independent state
 	logger1 := NewDefaultLogger(LogLevelInfo)
 	logger2 := NewDefaultLogger(LogLevelInfo)
-	
+
 	cm1 := NewConfigManager(logger1)
 	cm2 := NewConfigManager(logger2)
 

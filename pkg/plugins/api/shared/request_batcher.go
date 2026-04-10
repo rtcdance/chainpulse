@@ -109,14 +109,14 @@ func (b *RequestBatcher) Submit(ctx context.Context, id string, payload interfac
 func (b *RequestBatcher) Close() error {
 	b.cancel()
 	close(b.queue)
-	
+
 	// Wait with timeout to prevent indefinite blocking
 	done := make(chan struct{})
 	go func() {
 		b.wg.Wait()
 		close(done)
 	}()
-	
+
 	select {
 	case <-done:
 		return nil

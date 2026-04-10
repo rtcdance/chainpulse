@@ -12,9 +12,9 @@ import (
 
 // APIManager manages API interactions for E2E tests
 type APIManager struct {
-	baseURL    string
-	client     *http.Client
-	headers    map[string]string
+	baseURL     string
+	client      *http.Client
+	headers     map[string]string
 	initialized bool
 }
 

@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"chainpulse/pkg/plugins/mq"
 	"chainpulse/pkg/core"
+	"chainpulse/pkg/plugins/mq"
 )
 
 func TestStress_MemoryMQ_HighThroughput(t *testing.T) {

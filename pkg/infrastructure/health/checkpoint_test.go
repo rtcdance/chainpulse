@@ -380,12 +380,12 @@ func TestBackupCheckStatus(t *testing.T) {
 // TestPrintCheckpointReport tests printing checkpoint report
 func TestPrintCheckpointReport(t *testing.T) {
 	result := CheckpointResult{
-		Timestamp:       time.Now(),
-		AllHealthy:      true,
-		ConsulHealthy:   true,
-		KafkaHealthy:    true,
-		RedisHealthy:    true,
-		PostgresHealthy: true,
+		Timestamp:        time.Now(),
+		AllHealthy:       true,
+		ConsulHealthy:    true,
+		KafkaHealthy:     true,
+		RedisHealthy:     true,
+		PostgresHealthy:  true,
 		InterClusterComm: true,
 		BackupStatus: BackupCheckStatus{
 			BackupConfigured: true,

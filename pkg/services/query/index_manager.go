@@ -9,52 +9,52 @@ import (
 
 // IndexManager manages database indexes
 type IndexManager struct {
-	mu              sync.RWMutex
-	indexes         map[string]*IndexInfo
-	indexStats      map[string]*IndexStatistics
-	pendingIndexes  map[string]*PendingIndex
+	mu             sync.RWMutex
+	indexes        map[string]*IndexInfo
+	indexStats     map[string]*IndexStatistics
+	pendingIndexes map[string]*PendingIndex
 }
 
 // IndexInfo represents information about an index
 type IndexInfo struct {
-	Name            string
-	TableName       string
-	Columns         []string
-	Type            string // "BTREE", "HASH", "FULLTEXT"
-	Unique          bool
-	CreatedAt       time.Time
-	LastModified    time.Time
-	SizeBytes       int64
-	RowCount        int64
-	Fragmentation   float64
-	IsValid         bool
-	Properties      map[string]string
+	Name          string
+	TableName     string
+	Columns       []string
+	Type          string // "BTREE", "HASH", "FULLTEXT"
+	Unique        bool
+	CreatedAt     time.Time
+	LastModified  time.Time
+	SizeBytes     int64
+	RowCount      int64
+	Fragmentation float64
+	IsValid       bool
+	Properties    map[string]string
 }
 
 // IndexStatistics tracks index usage and performance
 type IndexStatistics struct {
-	IndexName       string
-	UsageCount      int64
-	LastUsed        time.Time
-	SelectsUsed     int64
-	InsertsUsed     int64
-	UpdatesUsed     int64
-	DeletesUsed     int64
-	AverageSeekTime time.Duration
-	AverageReadTime time.Duration
+	IndexName          string
+	UsageCount         int64
+	LastUsed           time.Time
+	SelectsUsed        int64
+	InsertsUsed        int64
+	UpdatesUsed        int64
+	DeletesUsed        int64
+	AverageSeekTime    time.Duration
+	AverageReadTime    time.Duration
 	EffectivenessScore float64
 }
 
 // PendingIndex represents an index waiting to be created
 type PendingIndex struct {
-	Name            string
-	TableName       string
-	Columns         []string
-	Type            string
-	Priority        int
-	CreatedAt       time.Time
-	Status          string // "pending", "creating", "created", "failed"
-	ErrorMessage    string
+	Name         string
+	TableName    string
+	Columns      []string
+	Type         string
+	Priority     int
+	CreatedAt    time.Time
+	Status       string // "pending", "creating", "created", "failed"
+	ErrorMessage string
 }
 
 // NewIndexManager creates a new index manager

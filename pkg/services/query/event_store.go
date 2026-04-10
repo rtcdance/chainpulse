@@ -81,21 +81,21 @@ type EventMetadataStore interface {
 
 // EventMetadata represents metadata about a processed event
 type EventMetadata struct {
-	ID                int64
-	EventID           string
-	ChainID           int
-	BlockNumber       int64
-	TransactionHash   string
-	LogIndex          int
-	ContractAddress   string
-	EventName         string
-	ProcessedAt       time.Time
-	CreatedAt         time.Time
-	UpdatedAt         time.Time
-	ProcessingStatus  string // pending, processing, completed, failed
-	ProcessingError   string
-	RetryCount        int
-	LastRetryAt       *time.Time
+	ID               int64
+	EventID          string
+	ChainID          int
+	BlockNumber      int64
+	TransactionHash  string
+	LogIndex         int
+	ContractAddress  string
+	EventName        string
+	ProcessedAt      time.Time
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
+	ProcessingStatus string // pending, processing, completed, failed
+	ProcessingError  string
+	RetryCount       int
+	LastRetryAt      *time.Time
 }
 
 // EventStoreConfig holds configuration for the event store

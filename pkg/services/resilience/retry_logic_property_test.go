@@ -1,12 +1,13 @@
 package resilience
 
 import (
-	"chainpulse/pkg/core"
 	"context"
 	"errors"
 	"fmt"
 	"testing"
 	"time"
+
+	"chainpulse/pkg/core"
 )
 
 // Property 3: Exponential Backoff Retry
@@ -100,7 +101,6 @@ func TestProperty3ExponentialBackoffRetry(t *testing.T) {
 				}
 				return nil
 			}, "test_source")
-
 			if err != nil {
 				t.Errorf("Expected retry to succeed for transient error: %s", errMsg)
 			}
@@ -226,7 +226,6 @@ func TestProperty3ExponentialBackoffRetry(t *testing.T) {
 				}
 				return nil
 			}, "test_source")
-
 			if err != nil {
 				t.Errorf("Expected success at attempt %d, got error: %v", successAttempt+1, err)
 			}
@@ -285,7 +284,6 @@ func TestProperty3ExponentialBackoffRetry(t *testing.T) {
 					}
 					return nil
 				}, fmt.Sprintf("test_source_%d", index))
-
 				if err != nil {
 					t.Errorf("Expected success, got error: %v", err)
 				}
@@ -382,7 +380,6 @@ func TestProperty3ExponentialBackoffRetry(t *testing.T) {
 			}
 			return nil
 		}, "test_source")
-
 		if err != nil {
 			t.Errorf("Expected success, got error: %v", err)
 		}

@@ -11,13 +11,13 @@ import (
 
 // CrossChainQuery represents a query across multiple blockchains
 type CrossChainQuery struct {
-	QueryID       string
-	Blockchains   []string // List of blockchain types to query
-	Filter        EventFilter
-	Limit         int
-	Offset        int
-	Timeout       time.Duration
-	CreatedAt     time.Time
+	QueryID     string
+	Blockchains []string // List of blockchain types to query
+	Filter      EventFilter
+	Limit       int
+	Offset      int
+	Timeout     time.Duration
+	CreatedAt   time.Time
 }
 
 // CrossChainResult represents aggregated results from multiple blockchains
@@ -32,27 +32,27 @@ type CrossChainResult struct {
 
 // CrossChainAPI provides unified query interface for cross-chain aggregation
 type CrossChainAPI struct {
-	mu                    sync.RWMutex
-	clusterManager        *MultiBlockchainClusterManager
-	cache                 DistributedCache
-	maxConcurrentQueries  int
-	activeQueries         int
-	queryTimeout          time.Duration
-	metrics               *CrossChainMetrics
+	mu                   sync.RWMutex
+	clusterManager       *MultiBlockchainClusterManager
+	cache                DistributedCache
+	maxConcurrentQueries int
+	activeQueries        int
+	queryTimeout         time.Duration
+	metrics              *CrossChainMetrics
 }
 
 // CrossChainMetrics tracks cross-chain query metrics
 type CrossChainMetrics struct {
-	mu                    sync.RWMutex
-	TotalQueries          int64
-	SuccessfulQueries     int64
-	FailedQueries         int64
-	AverageQueryTime      time.Duration
-	TotalQueryTime        time.Duration
-	CacheHits             int64
-	CacheMisses           int64
-	AggregationErrors     int64
-	LastQueryTime         time.Time
+	mu                sync.RWMutex
+	TotalQueries      int64
+	SuccessfulQueries int64
+	FailedQueries     int64
+	AverageQueryTime  time.Duration
+	TotalQueryTime    time.Duration
+	CacheHits         int64
+	CacheMisses       int64
+	AggregationErrors int64
+	LastQueryTime     time.Time
 }
 
 // NewCrossChainAPI creates a new cross-chain API
@@ -255,16 +255,16 @@ func (cca *CrossChainAPI) GetMetrics() map[string]interface{} {
 	defer cca.metrics.mu.RUnlock()
 
 	return map[string]interface{}{
-		"total_queries":        cca.metrics.TotalQueries,
-		"successful_queries":   cca.metrics.SuccessfulQueries,
-		"failed_queries":       cca.metrics.FailedQueries,
-		"average_query_time":   cca.metrics.AverageQueryTime.String(),
-		"total_query_time":     cca.metrics.TotalQueryTime.String(),
-		"cache_hits":           cca.metrics.CacheHits,
-		"cache_misses":         cca.metrics.CacheMisses,
-		"aggregation_errors":   cca.metrics.AggregationErrors,
-		"last_query_time":      cca.metrics.LastQueryTime,
-		"active_queries":       cca.activeQueries,
+		"total_queries":      cca.metrics.TotalQueries,
+		"successful_queries": cca.metrics.SuccessfulQueries,
+		"failed_queries":     cca.metrics.FailedQueries,
+		"average_query_time": cca.metrics.AverageQueryTime.String(),
+		"total_query_time":   cca.metrics.TotalQueryTime.String(),
+		"cache_hits":         cca.metrics.CacheHits,
+		"cache_misses":       cca.metrics.CacheMisses,
+		"aggregation_errors": cca.metrics.AggregationErrors,
+		"last_query_time":    cca.metrics.LastQueryTime,
+		"active_queries":     cca.activeQueries,
 	}
 }
 

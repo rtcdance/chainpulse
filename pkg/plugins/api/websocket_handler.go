@@ -7,13 +7,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gorilla/websocket"
 	"github.com/google/uuid"
+	"github.com/gorilla/websocket"
 )
 
 // SubscriptionHub manages WebSocket subscriptions
-type SubscriptionHub struct {
-}
+type SubscriptionHub struct{}
 
 // NewSubscriptionHub creates a new subscription hub
 func NewSubscriptionHub() *SubscriptionHub {
@@ -22,26 +21,26 @@ func NewSubscriptionHub() *SubscriptionHub {
 
 // WebSocketHandler handles WebSocket connections and upgrades
 type WebSocketHandler struct {
-	hub                    *SubscriptionHub
-	upgrader               websocket.Upgrader
-	connectionTimeout      time.Duration
-	keepAlivePingInterval  time.Duration
+	hub                     *SubscriptionHub
+	upgrader                websocket.Upgrader
+	connectionTimeout       time.Duration
+	keepAlivePingInterval   time.Duration
 	maxSubscriptionsPerConn int
-	mu                     sync.RWMutex
-	activeConnections      map[string]*WSConnection
+	mu                      sync.RWMutex
+	activeConnections       map[string]*WSConnection
 }
 
 // WSConnection represents an active WebSocket connection
 type WSConnection struct {
-	id              string
-	conn            *websocket.Conn
-	subscriptions   map[string]*WSSubscription
-	ctx             context.Context
-	cancel          context.CancelFunc
-	lastActivity    time.Time
-	mu              sync.RWMutex
-	tlsEnabled      bool
-	remoteAddr      string
+	id            string
+	conn          *websocket.Conn
+	subscriptions map[string]*WSSubscription
+	ctx           context.Context
+	cancel        context.CancelFunc
+	lastActivity  time.Time
+	mu            sync.RWMutex
+	tlsEnabled    bool
+	remoteAddr    string
 }
 
 // WSSubscription represents a WebSocket subscription
@@ -55,11 +54,11 @@ type WSSubscription struct {
 // NewWebSocketHandler creates a new WebSocket handler
 func NewWebSocketHandler(hub *SubscriptionHub, maxSubscriptionsPerConn int) *WebSocketHandler {
 	return &WebSocketHandler{
-		hub:                    hub,
-		connectionTimeout:      5 * time.Minute,
-		keepAlivePingInterval:  30 * time.Second,
+		hub:                     hub,
+		connectionTimeout:       5 * time.Minute,
+		keepAlivePingInterval:   30 * time.Second,
 		maxSubscriptionsPerConn: maxSubscriptionsPerConn,
-		activeConnections:      make(map[string]*WSConnection),
+		activeConnections:       make(map[string]*WSConnection),
 		upgrader: websocket.Upgrader{
 			ReadBufferSize:  1024,
 			WriteBufferSize: 1024,
@@ -84,14 +83,14 @@ func (h *WebSocketHandler) HandleUpgrade(w http.ResponseWriter, r *http.Request)
 
 	// Create WebSocket connection
 	wsConn := &WSConnection{
-		id:             uuid.New().String(),
-		conn:           conn,
-		subscriptions:  make(map[string]*WSSubscription),
-		ctx:            ctx,
-		cancel:         cancel,
-		lastActivity:   time.Now(),
-		tlsEnabled:     r.TLS != nil,
-		remoteAddr:     r.RemoteAddr,
+		id:            uuid.New().String(),
+		conn:          conn,
+		subscriptions: make(map[string]*WSSubscription),
+		ctx:           ctx,
+		cancel:        cancel,
+		lastActivity:  time.Now(),
+		tlsEnabled:    r.TLS != nil,
+		remoteAddr:    r.RemoteAddr,
 	}
 
 	// Register connection

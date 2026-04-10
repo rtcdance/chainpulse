@@ -113,7 +113,6 @@ func TestGraphQLRequestGetGraphQLQuery(t *testing.T) {
 
 	gqlReq := NewGraphQLRequest(req)
 	extractedQuery, err := gqlReq.GetGraphQLQuery()
-
 	if err != nil {
 		t.Fatalf("failed to extract query: %v", err)
 	}
@@ -136,7 +135,6 @@ func TestGraphQLRequestGetGraphQLVariables(t *testing.T) {
 
 	gqlReq := NewGraphQLRequest(req)
 	extractedVars, err := gqlReq.GetGraphQLVariables()
-
 	if err != nil {
 		t.Fatalf("failed to extract variables: %v", err)
 	}

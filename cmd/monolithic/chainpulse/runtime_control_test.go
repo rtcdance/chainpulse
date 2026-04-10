@@ -1,13 +1,14 @@
 package main
 
 import (
-	"chainpulse/pkg/core"
-	"chainpulse/pkg/plugins/api"
-	"chainpulse/pkg/services/indexing"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"chainpulse/pkg/core"
+	"chainpulse/pkg/plugins/api"
+	"chainpulse/pkg/services/indexing"
 
 	appindexingadapter "chainpulse/pkg/adapters/indexing"
 )

@@ -356,7 +356,7 @@ func TestDefaultCriticalErrorAlerter_GetAlertStats(t *testing.T) {
 		Action:    "isolate",
 	}
 
- _ = cea.SendAlert(ctx, alert)
+	_ = cea.SendAlert(ctx, alert)
 
 	stats := cea.GetAlertStats(ctx)
 	if stats == nil {

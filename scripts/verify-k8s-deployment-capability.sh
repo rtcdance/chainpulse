@@ -98,6 +98,14 @@ verify_cluster_dry_run() {
     return 0
   fi
 
+  if ! kubectl config current-context >/dev/null 2>&1; then
+    if [[ "${STRICT_CLUSTER_DRY_RUN}" == "1" || "${MODE}" == "cluster-dry-run" ]]; then
+      fail "kube context is not set"
+    fi
+    log "SKIP cluster-dry-run: kube context is not set"
+    return 0
+  fi
+
   log "running kubectl kustomize checks"
   kubectl kustomize "${ROOT_DIR}/k8s/overlays/monolithic" >/dev/null
   kubectl kustomize "${ROOT_DIR}/k8s/overlays/microservice" >/dev/null

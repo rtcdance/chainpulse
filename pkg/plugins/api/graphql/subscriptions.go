@@ -163,11 +163,11 @@ func (sm *SubscriptionManager) GetAllSubscriptions() map[string]int {
 
 // SubscriptionTopics defines available subscription topics
 type SubscriptionTopics struct {
-	EventCreated   string
-	EventUpdated   string
-	EventDeleted   string
-	EventConfirmed string
-	EventFailed    string
+	EventCreated     string
+	EventUpdated     string
+	EventDeleted     string
+	EventConfirmed   string
+	EventFailed      string
 	CacheInvalidated string
 }
 

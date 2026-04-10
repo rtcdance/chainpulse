@@ -1,11 +1,12 @@
 package cache
 
 import (
-	"chainpulse/pkg/core"
 	"context"
 	"encoding/json"
 	"fmt"
 	"time"
+
+	"chainpulse/pkg/core"
 
 	"github.com/redis/go-redis/v9"
 )

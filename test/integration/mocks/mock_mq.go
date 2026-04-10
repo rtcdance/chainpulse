@@ -9,13 +9,13 @@ import (
 
 // MockMessageQueue is a mock implementation of a message queue for testing
 type MockMessageQueue struct {
-	mu           sync.RWMutex
-	messages     map[string][][]byte
-	subscribers  map[string][]func([]byte)
-	calls        map[string]int
-	errors       map[string]error
-	failNext     map[string]bool
-	publishCount map[string]int64
+	mu             sync.RWMutex
+	messages       map[string][][]byte
+	subscribers    map[string][]func([]byte)
+	calls          map[string]int
+	errors         map[string]error
+	failNext       map[string]bool
+	publishCount   map[string]int64
 	subscribeCount map[string]int64
 }
 

@@ -15,12 +15,12 @@ import (
 
 // DefaultMongoDBAdapter provides MongoDB query operations
 type DefaultMongoDBAdapter struct {
-	mu              sync.RWMutex
-	dbManager       database.DatabaseManager
-	mongoClient     *mongo.Client
-	logger          core.Logger
+	mu               sync.RWMutex
+	dbManager        database.DatabaseManager
+	mongoClient      *mongo.Client
+	logger           core.Logger
 	metricsCollector core.MetricsCollector
-	initialized     bool
+	initialized      bool
 }
 
 // NewMongoDBAdapter creates a new MongoDB adapter

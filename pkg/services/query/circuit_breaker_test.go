@@ -22,7 +22,6 @@ func TestCircuitBreakerSuccessfulCall(t *testing.T) {
 	err := cb.Call(func() error {
 		return nil
 	})
-
 	if err != nil {
 		t.Errorf("Expected no error, got %v", err)
 	}

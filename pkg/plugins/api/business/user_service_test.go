@@ -136,9 +136,9 @@ func TestUserServiceCreate(t *testing.T) {
 	service := NewUserService(backend, cache)
 
 	user := &User{
-		Email: "test@example.com",
-		Name:  "Test User",
-		Role:  "user",
+		Email:  "test@example.com",
+		Name:   "Test User",
+		Role:   "user",
 		Active: true,
 	}
 

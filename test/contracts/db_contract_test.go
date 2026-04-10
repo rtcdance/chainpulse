@@ -19,8 +19,8 @@ func DatabaseContractTest(t *testing.T, factory func(t *testing.T) core.Database
 		ctx := context.Background()
 
 		event := &core.BlockchainEvent{
-			ID:        "test-event-1",
-			ChainID:   "ethereum",
+			ID:          "test-event-1",
+			ChainID:     "ethereum",
 			BlockNumber: 100,
 		}
 
@@ -69,8 +69,8 @@ func DatabaseContractTest(t *testing.T, factory func(t *testing.T) core.Database
 		ctx := context.Background()
 
 		event := &core.BlockchainEvent{
-			ID:        "delete-test",
-			ChainID:   "ethereum",
+			ID:          "delete-test",
+			ChainID:     "ethereum",
 			BlockNumber: 100,
 		}
 

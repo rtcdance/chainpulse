@@ -41,14 +41,14 @@ type WarmingData struct {
 // NewCacheWarmer creates a new cache warmer
 func NewCacheWarmer(cache *CacheMiddleware, config *CacheConfig, logger core.Logger, metrics core.MetricsCollector) *CacheWarmer {
 	return &CacheWarmer{
-		cache:           cache,
-		config:          config,
-		logger:          logger,
-		metrics:         metrics,
-		done:            make(chan struct{}),
-		isRunning:       false,
-		lastWarmingTime: time.Now(),
-		warmingCount:    0,
+		cache:              cache,
+		config:             config,
+		logger:             logger,
+		metrics:            metrics,
+		done:               make(chan struct{}),
+		isRunning:          false,
+		lastWarmingTime:    time.Now(),
+		warmingCount:       0,
 		failedWarmingCount: 0,
 	}
 }
@@ -199,11 +199,11 @@ func (cw *CacheWarmer) GetStats() map[string]interface{} {
 	defer cw.mu.RUnlock()
 
 	return map[string]interface{}{
-		"is_running":            cw.isRunning,
-		"warming_count":         cw.warmingCount,
-		"failed_warming_count":  cw.failedWarmingCount,
-		"last_warming_time":     cw.lastWarmingTime,
-		"warming_interval":      cw.config.WarmingInterval,
-		"warming_batch_size":    cw.config.WarmingBatchSize,
+		"is_running":           cw.isRunning,
+		"warming_count":        cw.warmingCount,
+		"failed_warming_count": cw.failedWarmingCount,
+		"last_warming_time":    cw.lastWarmingTime,
+		"warming_interval":     cw.config.WarmingInterval,
+		"warming_batch_size":   cw.config.WarmingBatchSize,
 	}
 }

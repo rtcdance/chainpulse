@@ -11,11 +11,11 @@ import (
 type ScenarioType string
 
 const (
-	ScenarioTypeHappyPath    ScenarioType = "happy_path"
-	ScenarioTypeErrorPath    ScenarioType = "error_path"
-	ScenarioTypePerformance  ScenarioType = "performance"
-	ScenarioTypeMultiChain   ScenarioType = "multi_chain"
-	ScenarioTypeStressTest   ScenarioType = "stress_test"
+	ScenarioTypeHappyPath   ScenarioType = "happy_path"
+	ScenarioTypeErrorPath   ScenarioType = "error_path"
+	ScenarioTypePerformance ScenarioType = "performance"
+	ScenarioTypeMultiChain  ScenarioType = "multi_chain"
+	ScenarioTypeStressTest  ScenarioType = "stress_test"
 )
 
 // ScenarioStep represents a single step in a scenario
@@ -269,14 +269,14 @@ func (se *ScenarioExecutor) GetSummary() map[string]interface{} {
 	}
 
 	return map[string]interface{}{
-		"total_scenarios":   totalScenarios,
-		"passed_scenarios":  passedScenarios,
-		"failed_scenarios":  failedScenarios,
-		"success_rate":      successRate,
-		"total_duration":    totalDuration.String(),
-		"total_steps":       totalSteps,
-		"failed_steps":      failedSteps,
-		"average_duration":  time.Duration(int64(totalDuration) / int64(totalScenarios)).String(),
+		"total_scenarios":  totalScenarios,
+		"passed_scenarios": passedScenarios,
+		"failed_scenarios": failedScenarios,
+		"success_rate":     successRate,
+		"total_duration":   totalDuration.String(),
+		"total_steps":      totalSteps,
+		"failed_steps":     failedSteps,
+		"average_duration": time.Duration(int64(totalDuration) / int64(totalScenarios)).String(),
 	}
 }
 
@@ -296,8 +296,8 @@ type ScenarioBuilder struct {
 func NewScenarioBuilder(name string, scenarioType ScenarioType) *ScenarioBuilder {
 	return &ScenarioBuilder{
 		scenario: &Scenario{
-			Name: name,
-			Type: scenarioType,
+			Name:  name,
+			Type:  scenarioType,
 			Steps: make([]ScenarioStep, 0),
 		},
 	}

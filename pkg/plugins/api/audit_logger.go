@@ -19,15 +19,15 @@ type AuditLogger struct {
 
 // AuditEvent represents a security event
 type AuditEvent struct {
-	Timestamp   time.Time
-	EventType   string // "auth_attempt", "auth_success", "auth_failure", "authz_check", "authz_allowed", "authz_denied"
-	ClientID    string
-	UserID      string
-	Resource    string
-	Action      string
-	Result      string // "success", "failure"
-	Reason      string
-	Details     map[string]interface{}
+	Timestamp time.Time
+	EventType string // "auth_attempt", "auth_success", "auth_failure", "authz_check", "authz_allowed", "authz_denied"
+	ClientID  string
+	UserID    string
+	Resource  string
+	Action    string
+	Result    string // "success", "failure"
+	Reason    string
+	Details   map[string]interface{}
 }
 
 // NewAuditLogger creates a new audit logger

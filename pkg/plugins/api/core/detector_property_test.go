@@ -229,7 +229,6 @@ func TestProperty_RoutingSucceedsWithHandler(t *testing.T) {
 
 	req := NewBaseRequest(context.Background(), "GET", "/api", map[string]string{}, nil)
 	resp, err := pd.Route(req)
-
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
@@ -436,8 +435,8 @@ func TestProperty_ProtocolDetectionPriority(t *testing.T) {
 
 	// GraphQL should be detected before WebSocket
 	req := NewBaseRequest(context.Background(), "POST", "/graphql", map[string]string{
-		"Upgrade":     "websocket",
-		"Connection":  "Upgrade",
+		"Upgrade":      "websocket",
+		"Connection":   "Upgrade",
 		"Content-Type": "application/json",
 	}, []byte(`{"query":"{}"}`))
 
@@ -606,11 +605,11 @@ func TestProperty_MultipleHeadersHandledCorrectly(t *testing.T) {
 	pd := NewProtocolDetector()
 
 	headers := map[string]string{
-		"Content-Type":     "application/json",
-		"Authorization":    "Bearer token",
-		"X-Custom-Header":  "value",
-		"Accept":           "application/json",
-		"User-Agent":       "test-client",
+		"Content-Type":    "application/json",
+		"Authorization":   "Bearer token",
+		"X-Custom-Header": "value",
+		"Accept":          "application/json",
+		"User-Agent":      "test-client",
 	}
 
 	req := NewBaseRequest(context.Background(), "POST", "/api", headers, nil)

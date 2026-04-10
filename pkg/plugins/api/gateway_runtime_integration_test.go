@@ -225,8 +225,8 @@ func TestGatewayRuntimeRouteCompositionEventByChainDomainQuerySource(t *testing.
 						IndexedAt:      time.Now(),
 					},
 				},
-				Total:  1,
-				Source: "cache",
+				Total:    1,
+				Source:   "cache",
 				CacheHit: true,
 			}, nil
 		},

@@ -15,11 +15,11 @@ type MockPlugin struct {
 	err     error
 }
 
-func (m *MockPlugin) Name() string                                    { return m.name }
-func (m *MockPlugin) Version() string                                { return m.version }
-func (m *MockPlugin) Initialize(config Config) error                 { return nil }
-func (m *MockPlugin) Start() error                                   { return nil }
-func (m *MockPlugin) Stop() error                                    { return nil }
+func (m *MockPlugin) Name() string                   { return m.name }
+func (m *MockPlugin) Version() string                { return m.version }
+func (m *MockPlugin) Initialize(config Config) error { return nil }
+func (m *MockPlugin) Start() error                   { return nil }
+func (m *MockPlugin) Stop() error                    { return nil }
 func (m *MockPlugin) Health() error {
 	if !m.healthy {
 		return m.err
@@ -63,8 +63,8 @@ func (m *MockPluginRegistry) List() []Plugin {
 	return plugins
 }
 
-func (m *MockPluginRegistry) Start() error   { return nil }
-func (m *MockPluginRegistry) Stop() error    { return nil }
+func (m *MockPluginRegistry) Start() error { return nil }
+func (m *MockPluginRegistry) Stop() error  { return nil }
 
 // MockConfigManager is a mock config manager for testing
 type MockConfigManager struct {
@@ -125,7 +125,6 @@ func TestHealthCheckBasic(t *testing.T) {
 
 	checker := NewDefaultHealthChecker(registry, config, bus, metrics, logger)
 	status, err := checker.Check(context.Background())
-
 	if err != nil {
 		t.Errorf("health check failed: %v", err)
 	}
@@ -153,7 +152,6 @@ func TestHealthCheckWithHealthyPlugin(t *testing.T) {
 
 	checker := NewDefaultHealthChecker(registry, config, bus, metrics, logger)
 	status, err := checker.Check(context.Background())
-
 	if err != nil {
 		t.Errorf("health check failed: %v", err)
 	}
@@ -182,7 +180,6 @@ func TestHealthCheckWithUnhealthyPlugin(t *testing.T) {
 
 	checker := NewDefaultHealthChecker(registry, config, bus, metrics, logger)
 	status, err := checker.Check(context.Background())
-
 	if err != nil {
 		t.Errorf("health check failed: %v", err)
 	}
@@ -203,7 +200,6 @@ func TestHealthCheckWithInvalidConfig(t *testing.T) {
 
 	checker := NewDefaultHealthChecker(registry, config, bus, metrics, logger)
 	status, err := checker.Check(context.Background())
-
 	if err != nil {
 		t.Errorf("health check failed: %v", err)
 	}
@@ -327,7 +323,6 @@ func TestPerformHealthCheck(t *testing.T) {
 
 	checker := NewDefaultHealthChecker(registry, config, bus, metrics, logger)
 	err := checker.PerformHealthCheck(context.Background())
-
 	if err != nil {
 		t.Errorf("perform health check failed: %v", err)
 	}

@@ -1,10 +1,11 @@
 package cache
 
 import (
-	"chainpulse/pkg/core"
 	"fmt"
 	"testing"
 	"time"
+
+	"chainpulse/pkg/core"
 )
 
 // Property 12: Cache Hit Return
@@ -171,7 +172,7 @@ func TestCachePluginEvictionTracking(t *testing.T) {
 			Value: []byte(fmt.Sprintf("value_%d", i)),
 			TTL:   1, // 1 second
 		}
-  _ = cache.Set(entry)
+		_ = cache.Set(entry)
 	}
 
 	// Wait for expiration

@@ -39,28 +39,28 @@ type MultiChainOrchestrator interface {
 
 // MultiChainMetrics tracks metrics across all chains
 type MultiChainMetrics struct {
-	TotalChains              int
-	ActiveChains             int
-	FailedChains             int
-	TotalEventsEmitted       int64
-	TotalEventsQueried       int64
-	EventsPerChain           map[string]int64
-	AverageLatency           time.Duration
-	MaxLatency               time.Duration
-	MinLatency               time.Duration
-	CrossChainConsistency    float64
-	ChainIndependenceScore   float64
+	TotalChains            int
+	ActiveChains           int
+	FailedChains           int
+	TotalEventsEmitted     int64
+	TotalEventsQueried     int64
+	EventsPerChain         map[string]int64
+	AverageLatency         time.Duration
+	MaxLatency             time.Duration
+	MinLatency             time.Duration
+	CrossChainConsistency  float64
+	ChainIndependenceScore float64
 }
 
 // DefaultMultiChainOrchestrator implements MultiChainOrchestrator
 type DefaultMultiChainOrchestrator struct {
-	mu                sync.RWMutex
-	chains            map[string]BlockchainManagerInterface
-	metrics           MultiChainMetrics
-	failedChains      map[string]bool
-	eventCounts       map[string]int64
-	startTime         time.Time
-	isRunning         bool
+	mu           sync.RWMutex
+	chains       map[string]BlockchainManagerInterface
+	metrics      MultiChainMetrics
+	failedChains map[string]bool
+	eventCounts  map[string]int64
+	startTime    time.Time
+	isRunning    bool
 }
 
 // NewDefaultMultiChainOrchestrator creates a new multi-chain orchestrator

@@ -133,10 +133,10 @@ func TestCheckPermission(t *testing.T) {
 	checker := NewRBACChecker(logger, metrics)
 
 	tests := []struct {
-		name                 string
-		userPermissions      []string
-		requiredPermissions  []string
-		expected             bool
+		name                string
+		userPermissions     []string
+		requiredPermissions []string
+		expected            bool
 	}{
 		{"no required permissions", []string{"read"}, []string{}, true},
 		{"exact permission match", []string{"users:read"}, []string{"users:read"}, true},

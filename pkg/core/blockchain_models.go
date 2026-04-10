@@ -21,8 +21,8 @@ const (
 // BlockchainEvent represents a blockchain event with full details
 type BlockchainEvent struct {
 	// Event identification
-	ID             string    `json:"id"`
-	EventHash      string    `json:"event_hash"`
+	ID             string      `json:"id"`
+	EventHash      string      `json:"event_hash"`
 	EventSignature common.Hash `json:"event_signature"`
 
 	// Block information
@@ -50,9 +50,9 @@ type BlockchainEvent struct {
 	DecodedData map[string]interface{} `json:"decoded_data"`
 
 	// Indexing metadata
-	ChainID     string      `json:"chain_id"`
-	Network     string      `json:"network"`
-	Status      EventStatus `json:"status"`
+	ChainID string      `json:"chain_id"`
+	Network string      `json:"network"`
+	Status  EventStatus `json:"status"`
 
 	// Timestamps
 	CreatedAt   time.Time `json:"created_at"`
@@ -62,35 +62,35 @@ type BlockchainEvent struct {
 
 // Transaction represents a blockchain transaction
 type Transaction struct {
-	Hash             common.Hash    `json:"hash"`
-	From             common.Address `json:"from"`
-	To               *common.Address `json:"to"`
-	Value            *big.Int       `json:"value"`
-	Gas              uint64         `json:"gas"`
-	GasPrice         *big.Int       `json:"gas_price"`
-	Input            []byte         `json:"input"`
-	Nonce            uint64         `json:"nonce"`
-	BlockNumber      uint64         `json:"block_number"`
-	BlockHash        common.Hash    `json:"block_hash"`
-	TransactionIndex uint           `json:"transaction_index"`
-	Status           uint64         `json:"status"` // 1 = success, 0 = failed
-	ContractAddress  *common.Address `json:"contract_address"`
-	CumulativeGasUsed uint64         `json:"cumulative_gas_used"`
-	Logs             []*types.Log   `json:"logs"`
+	Hash              common.Hash     `json:"hash"`
+	From              common.Address  `json:"from"`
+	To                *common.Address `json:"to"`
+	Value             *big.Int        `json:"value"`
+	Gas               uint64          `json:"gas"`
+	GasPrice          *big.Int        `json:"gas_price"`
+	Input             []byte          `json:"input"`
+	Nonce             uint64          `json:"nonce"`
+	BlockNumber       uint64          `json:"block_number"`
+	BlockHash         common.Hash     `json:"block_hash"`
+	TransactionIndex  uint            `json:"transaction_index"`
+	Status            uint64          `json:"status"` // 1 = success, 0 = failed
+	ContractAddress   *common.Address `json:"contract_address"`
+	CumulativeGasUsed uint64          `json:"cumulative_gas_used"`
+	Logs              []*types.Log    `json:"logs"`
 }
 
 // Block represents a blockchain block
 type Block struct {
-	Number       uint64          `json:"number"`
-	Hash         common.Hash     `json:"hash"`
-	ParentHash   common.Hash     `json:"parent_hash"`
-	Timestamp    int64           `json:"timestamp"`
-	Miner        common.Address  `json:"miner"`
-	Difficulty   *big.Int        `json:"difficulty"`
-	GasLimit     uint64          `json:"gas_limit"`
-	GasUsed      uint64          `json:"gas_used"`
-	Transactions []common.Hash   `json:"transactions"`
-	LogsBloom    types.Bloom     `json:"logs_bloom"`
+	Number       uint64         `json:"number"`
+	Hash         common.Hash    `json:"hash"`
+	ParentHash   common.Hash    `json:"parent_hash"`
+	Timestamp    int64          `json:"timestamp"`
+	Miner        common.Address `json:"miner"`
+	Difficulty   *big.Int       `json:"difficulty"`
+	GasLimit     uint64         `json:"gas_limit"`
+	GasUsed      uint64         `json:"gas_used"`
+	Transactions []common.Hash  `json:"transactions"`
+	LogsBloom    types.Bloom    `json:"logs_bloom"`
 }
 
 // Validate validates the blockchain event
@@ -175,17 +175,17 @@ func (b *Block) GetTimestamp() time.Time {
 
 // TransactionReceipt represents a transaction receipt
 type TransactionReceipt struct {
-	TransactionHash   common.Hash    `json:"transaction_hash"`
-	BlockNumber       uint64         `json:"block_number"`
-	BlockHash         common.Hash    `json:"block_hash"`
-	From              common.Address `json:"from"`
+	TransactionHash   common.Hash     `json:"transaction_hash"`
+	BlockNumber       uint64          `json:"block_number"`
+	BlockHash         common.Hash     `json:"block_hash"`
+	From              common.Address  `json:"from"`
 	To                *common.Address `json:"to"`
-	GasUsed           uint64         `json:"gas_used"`
-	CumulativeGasUsed uint64         `json:"cumulative_gas_used"`
+	GasUsed           uint64          `json:"gas_used"`
+	CumulativeGasUsed uint64          `json:"cumulative_gas_used"`
 	ContractAddress   *common.Address `json:"contract_address"`
-	Logs              []*types.Log   `json:"logs"`
-	Status            uint64         `json:"status"` // 1 = success, 0 = failed
-	LogsBloom         types.Bloom    `json:"logs_bloom"`
+	Logs              []*types.Log    `json:"logs"`
+	Status            uint64          `json:"status"` // 1 = success, 0 = failed
+	LogsBloom         types.Bloom     `json:"logs_bloom"`
 }
 
 // IsSuccessful returns whether the receipt indicates success

@@ -118,7 +118,6 @@ func TestAbstractServiceCreate(t *testing.T) {
 
 	entity := &MockEntity{ID: "1", Name: "Test", Data: "test data"}
 	created, err := service.Create(context.Background(), entity)
-
 	if err != nil {
 		t.Fatalf("Failed to create entity: %v", err)
 	}
@@ -193,7 +192,6 @@ func TestAbstractServiceUpdate(t *testing.T) {
 
 	updated := &MockEntity{ID: "1", Name: "Updated", Data: "updated data"}
 	result, err := service.Update(context.Background(), updated)
-
 	if err != nil {
 		t.Fatalf("Failed to update entity: %v", err)
 	}

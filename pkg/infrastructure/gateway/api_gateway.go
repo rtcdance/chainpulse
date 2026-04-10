@@ -21,14 +21,14 @@ type APIGatewayConfig struct {
 
 // APIGateway represents an API gateway instance
 type APIGateway struct {
-	config            APIGatewayConfig
-	discoveryClient   *discovery.ServiceDiscoveryClient
-	loadBalancer      *discovery.ServiceLoadBalancer
-	sessionManager    *discovery.SessionManager
-	cache             *discovery.ServiceEndpointCache
-	metrics           *APIMetrics
-	mutex             sync.RWMutex
-	running           bool
+	config          APIGatewayConfig
+	discoveryClient *discovery.ServiceDiscoveryClient
+	loadBalancer    *discovery.ServiceLoadBalancer
+	sessionManager  *discovery.SessionManager
+	cache           *discovery.ServiceEndpointCache
+	metrics         *APIMetrics
+	mutex           sync.RWMutex
+	running         bool
 }
 
 // NewAPIGateway creates a new API gateway

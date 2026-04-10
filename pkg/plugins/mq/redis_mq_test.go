@@ -129,9 +129,9 @@ func TestRedisMQPluginPublishMessage(t *testing.T) {
 	defer cancel()
 
 	message := core.MessageQueueMessage{
-		ID:      "msg-1",
-		Topic:   "blockchain_events",
-		Payload: []byte("test payload"),
+		ID:        "msg-1",
+		Topic:     "blockchain_events",
+		Payload:   []byte("test payload"),
 		Timestamp: time.Now().UTC(),
 	}
 
@@ -172,9 +172,9 @@ func TestRedisMQPluginAcknowledgeMessage(t *testing.T) {
 	defer cancel()
 
 	message := core.MessageQueueMessage{
-		ID:      "msg-1",
-		Topic:   "blockchain_events",
-		Payload: []byte("test payload"),
+		ID:        "msg-1",
+		Topic:     "blockchain_events",
+		Payload:   []byte("test payload"),
 		Timestamp: time.Now().UTC(),
 	}
 
@@ -210,9 +210,9 @@ func TestRedisMQPluginDeadLetterQueue(t *testing.T) {
 	defer cancel()
 
 	message := core.MessageQueueMessage{
-		ID:      "msg-1",
-		Topic:   "blockchain_events",
-		Payload: []byte("test payload"),
+		ID:        "msg-1",
+		Topic:     "blockchain_events",
+		Payload:   []byte("test payload"),
 		Timestamp: time.Now().UTC(),
 	}
 
@@ -253,10 +253,10 @@ func TestRedisMQPluginRetryMessage(t *testing.T) {
 	defer cancel()
 
 	message := core.MessageQueueMessage{
-		ID:      "msg-1",
-		Topic:   "blockchain_events",
-		Payload: []byte("test payload"),
-		Timestamp: time.Now().UTC(),
+		ID:         "msg-1",
+		Topic:      "blockchain_events",
+		Payload:    []byte("test payload"),
+		Timestamp:  time.Now().UTC(),
 		RetryCount: 0,
 	}
 
@@ -399,9 +399,9 @@ func TestRedisMQPluginConcurrentOperations(t *testing.T) {
 			defer wg.Done()
 
 			message := core.MessageQueueMessage{
-				ID:      fmt.Sprintf("msg-%d", index),
-				Topic:   "blockchain_events",
-				Payload: []byte("test payload"),
+				ID:        fmt.Sprintf("msg-%d", index),
+				Topic:     "blockchain_events",
+				Payload:   []byte("test payload"),
 				Timestamp: time.Now().UTC(),
 			}
 
@@ -497,9 +497,9 @@ func TestRedisMQPluginMultipleTopics(t *testing.T) {
 
 	for _, topic := range topics {
 		message := core.MessageQueueMessage{
-			ID:      fmt.Sprintf("msg-%s", topic),
-			Topic:   topic,
-			Payload: []byte("test payload"),
+			ID:        fmt.Sprintf("msg-%s", topic),
+			Topic:     topic,
+			Payload:   []byte("test payload"),
 			Timestamp: time.Now().UTC(),
 		}
 

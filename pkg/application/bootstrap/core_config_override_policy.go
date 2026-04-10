@@ -1,12 +1,13 @@
 package bootstrap
 
 import (
-	"chainpulse/pkg/core"
 	"fmt"
 	"os"
 	"sort"
 	"strconv"
 	"strings"
+
+	"chainpulse/pkg/core"
 )
 
 const (

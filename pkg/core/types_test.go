@@ -200,8 +200,8 @@ func TestSystemErrorWithWrappedError(t *testing.T) {
 // TestQueryResultCacheHit tests QueryResult cache hit scenarios
 func TestQueryResultCacheHit(t *testing.T) {
 	tests := []struct {
-		name      string
-		cacheHit  bool
+		name         string
+		cacheHit     bool
 		responseTime int64
 	}{
 		{"Cache Hit", true, 10},

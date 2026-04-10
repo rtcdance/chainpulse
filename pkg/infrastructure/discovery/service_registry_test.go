@@ -12,12 +12,12 @@ import (
 
 // MockConsulClient for testing
 type MockConsulClient struct {
-	mu                    sync.RWMutex
-	registeredServices    map[string]bool
-	registerCallCount     int32
-	deregisterCallCount   int32
-	registerError         error
-	deregisterError       error
+	mu                  sync.RWMutex
+	registeredServices  map[string]bool
+	registerCallCount   int32
+	deregisterCallCount int32
+	registerError       error
+	deregisterError     error
 }
 
 func (mcc *MockConsulClient) RegisterService(ctx context.Context, serviceID, serviceName, address string, port int, tags []string) error {

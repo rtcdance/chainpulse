@@ -8,24 +8,24 @@ import (
 
 // DefaultHealthChecker monitors system health
 type DefaultHealthChecker struct {
-	mu              sync.RWMutex
-	pluginRegistry  PluginRegistry
-	configManager   ConfigManager
-	eventBus        EventBus
+	mu               sync.RWMutex
+	pluginRegistry   PluginRegistry
+	configManager    ConfigManager
+	eventBus         EventBus
 	metricsCollector MetricsCollector
-	logger          Logger
-	lastCheckTime   time.Time
-	lastCheckStatus HealthStatus
-	checkInterval   time.Duration
+	logger           Logger
+	lastCheckTime    time.Time
+	lastCheckStatus  HealthStatus
+	checkInterval    time.Duration
 }
 
 // HealthCheckResult represents the result of a health check
 type HealthCheckResult struct {
-	Status      string                 `json:"status"`
-	Timestamp   time.Time              `json:"timestamp"`
-	Duration    int64                  `json:"duration_ms"`
-	Components  map[string]interface{} `json:"components"`
-	Message     string                 `json:"message"`
+	Status     string                 `json:"status"`
+	Timestamp  time.Time              `json:"timestamp"`
+	Duration   int64                  `json:"duration_ms"`
+	Components map[string]interface{} `json:"components"`
+	Message    string                 `json:"message"`
 }
 
 // ComponentHealth represents the health of a component
@@ -258,11 +258,11 @@ func (h *DefaultHealthChecker) GetHealthSummary() map[string]interface{} {
 	defer h.mu.RUnlock()
 
 	return map[string]interface{}{
-		"status":           h.lastCheckStatus.Status,
-		"message":          h.lastCheckStatus.Message,
-		"last_check_time":  h.lastCheckTime,
-		"check_interval":   h.checkInterval.String(),
-		"details":          h.lastCheckStatus.Details,
+		"status":          h.lastCheckStatus.Status,
+		"message":         h.lastCheckStatus.Message,
+		"last_check_time": h.lastCheckTime,
+		"check_interval":  h.checkInterval.String(),
+		"details":         h.lastCheckStatus.Details,
 	}
 }
 

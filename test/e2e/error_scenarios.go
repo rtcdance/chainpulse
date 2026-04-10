@@ -59,7 +59,6 @@ func executeInvalidBlockchainAddress(ctx context.Context, orch *Orchestrator) er
 	// Try to get balance with invalid address - use HexToAddress which handles invalid addresses
 	invalidAddr := common.HexToAddress("0x0000000000000000000000000000000000000000")
 	_, err := blockchain.GetBalance(ctx, invalidAddr)
-
 	// We expect an error or nil balance
 	if err != nil {
 		return nil // Expected error

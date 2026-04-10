@@ -97,7 +97,7 @@ func TestExampleQueryWithPagination(t *testing.T) {
 			_ = err // Log but continue
 		}
 	}()
-	
+
 	for i := 0; i < 2500; i++ {
 		_ = db.StoreEvent(context.Background(), createTestBlockchainEvent("ethereum", uint64(1000+i), fmt.Sprintf("%d", i)))
 	}
@@ -148,7 +148,7 @@ func TestExampleUniswapGetPoolMetadata(t *testing.T) {
 	indexer := uniswap.NewUniswapIndexer(db, cache, logger, eventDecoder, contractManager)
 
 	poolAddr := common.HexToAddress("0x1111111111111111111111111111111111111111")
-	
+
 	// Create a swap event to populate pool metadata
 	swapEvent := &core.BlockchainEvent{
 		ID:              "swap-1",
@@ -158,15 +158,15 @@ func TestExampleUniswapGetPoolMetadata(t *testing.T) {
 		ContractAddress: poolAddr,
 		EventName:       "Swap",
 		DecodedData: map[string]interface{}{
-			"sender":      common.HexToAddress("0x2222222222222222222222222222222222222222"),
-			"recipient":   common.HexToAddress("0x3333333333333333333333333333333333333333"),
-			"amount0In":   big.NewInt(1000),
-			"amount1In":   big.NewInt(0),
-			"amount0Out":  big.NewInt(0),
-			"amount1Out":  big.NewInt(1000),
+			"sender":       common.HexToAddress("0x2222222222222222222222222222222222222222"),
+			"recipient":    common.HexToAddress("0x3333333333333333333333333333333333333333"),
+			"amount0In":    big.NewInt(1000),
+			"amount1In":    big.NewInt(0),
+			"amount0Out":   big.NewInt(0),
+			"amount1Out":   big.NewInt(1000),
 			"sqrtPriceX96": big.NewInt(1000000),
-			"liquidity":   big.NewInt(1000000000),
-			"tick":        int32(0),
+			"liquidity":    big.NewInt(1000000000),
+			"tick":         int32(0),
 		},
 	}
 
@@ -198,15 +198,15 @@ func TestExampleUniswapGetAllPools(t *testing.T) {
 			ContractAddress: poolAddr,
 			EventName:       "Swap",
 			DecodedData: map[string]interface{}{
-				"sender":      common.HexToAddress("0x2222222222222222222222222222222222222222"),
-				"recipient":   common.HexToAddress("0x3333333333333333333333333333333333333333"),
-				"amount0In":   big.NewInt(1000),
-				"amount1In":   big.NewInt(0),
-				"amount0Out":  big.NewInt(0),
-				"amount1Out":  big.NewInt(1000),
+				"sender":       common.HexToAddress("0x2222222222222222222222222222222222222222"),
+				"recipient":    common.HexToAddress("0x3333333333333333333333333333333333333333"),
+				"amount0In":    big.NewInt(1000),
+				"amount1In":    big.NewInt(0),
+				"amount0Out":   big.NewInt(0),
+				"amount1Out":   big.NewInt(1000),
 				"sqrtPriceX96": big.NewInt(1000000),
-				"liquidity":   big.NewInt(1000000000),
-				"tick":        int32(0),
+				"liquidity":    big.NewInt(1000000000),
+				"tick":         int32(0),
 			},
 		}
 		_ = indexer.IndexSwapEvents(context.Background(), []*core.BlockchainEvent{swapEvent})

@@ -8,8 +8,10 @@ import (
 	"chainpulse/pkg/plugins/api"
 )
 
-const pullerRolloutSkeletonReason = "puller rollout producer skeleton is not yet wired to ownership runtime state"
-const pullerRolloutRuntimeWiringReason = "puller rollout producer reflects local runtime dependency wiring; ownership runtime state is not yet wired"
+const (
+	pullerRolloutSkeletonReason      = "puller rollout producer skeleton is not yet wired to ownership runtime state"
+	pullerRolloutRuntimeWiringReason = "puller rollout producer reflects local runtime dependency wiring; ownership runtime state is not yet wired"
+)
 
 type pullerRolloutRuntimeState struct {
 	BlockchainRPCsConfigured      bool

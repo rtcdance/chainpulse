@@ -1,11 +1,12 @@
 package database
 
 import (
-	"chainpulse/pkg/core"
 	"context"
 	"fmt"
 	"testing"
 	"time"
+
+	"chainpulse/pkg/core"
 
 	"github.com/ethereum/go-ethereum/common"
 )
@@ -44,7 +45,7 @@ func TestDatabasePluginLifecycle(t *testing.T) {
 		APIPort:           8080,
 	}
 
- _ = db.Initialize(config)
+	_ = db.Initialize(config)
 
 	// Start
 	if err := db.Start(); err != nil {
@@ -96,7 +97,7 @@ func TestDatabasePluginWriteEvent(t *testing.T) {
 		ContractAddress: common.HexToAddress("0xghi789"),
 		EventName:       "Transfer",
 		ChainID:         "1",
-		BlockTimestamp: time.Now().Unix(),
+		BlockTimestamp:  time.Now().Unix(),
 	}
 
 	if err := db.WriteEvent(event); err != nil {
@@ -142,7 +143,7 @@ func TestDatabasePluginWriteEvents(t *testing.T) {
 			ContractAddress: common.HexToAddress("0xcontract"),
 			EventName:       "Transfer",
 			ChainID:         "1",
-			BlockTimestamp: time.Now().Unix(),
+			BlockTimestamp:  time.Now().Unix(),
 		}
 	}
 
@@ -188,7 +189,7 @@ func TestDatabasePluginQueryEvents(t *testing.T) {
 			ContractAddress: common.HexToAddress("0xcontract"),
 			EventName:       "Transfer",
 			ChainID:         "1",
-			BlockTimestamp: time.Now().Unix(),
+			BlockTimestamp:  time.Now().Unix(),
 		}
 		if err := db.WriteEvent(event); err != nil {
 			t.Fatalf("WriteEvent failed: %v", err)
@@ -246,7 +247,7 @@ func TestDatabasePluginQueryEventsWithFilter(t *testing.T) {
 			ContractAddress: common.HexToAddress("0x1111111111111111111111111111111111111111"),
 			EventName:       "Transfer",
 			ChainID:         "1",
-			BlockTimestamp: time.Now().Unix(),
+			BlockTimestamp:  time.Now().Unix(),
 		}
 		if err := db.WriteEvent(event); err != nil {
 			t.Fatalf("WriteEvent failed: %v", err)
@@ -262,7 +263,7 @@ func TestDatabasePluginQueryEventsWithFilter(t *testing.T) {
 			ContractAddress: common.HexToAddress("0x2222222222222222222222222222222222222222"),
 			EventName:       "Approval",
 			ChainID:         "1",
-			BlockTimestamp: time.Now().Unix(),
+			BlockTimestamp:  time.Now().Unix(),
 		}
 		if err := db.WriteEvent(event); err != nil {
 			t.Fatalf("WriteEvent failed: %v", err)
@@ -316,7 +317,7 @@ func TestDatabasePluginGetEventByHash(t *testing.T) {
 		ContractAddress: common.HexToAddress("0xghi789"),
 		EventName:       "Transfer",
 		ChainID:         "1",
-		BlockTimestamp: time.Now().Unix(),
+		BlockTimestamp:  time.Now().Unix(),
 	}
 
 	if err := db.WriteEvent(event); err != nil {
@@ -369,7 +370,7 @@ func TestDatabasePluginDeleteEvent(t *testing.T) {
 		ContractAddress: common.HexToAddress("0xghi789"),
 		EventName:       "Transfer",
 		ChainID:         "1",
-		BlockTimestamp: time.Now().Unix(),
+		BlockTimestamp:  time.Now().Unix(),
 	}
 
 	if err := db.WriteEvent(event); err != nil {
@@ -426,7 +427,7 @@ func TestDatabasePluginStats(t *testing.T) {
 			ContractAddress: common.HexToAddress("0xcontract"),
 			EventName:       "Transfer",
 			ChainID:         "1",
-			BlockTimestamp: time.Now().Unix(),
+			BlockTimestamp:  time.Now().Unix(),
 		}
 		if err := db.WriteEvent(event); err != nil {
 			t.Fatalf("WriteEvent failed: %v", err)
@@ -499,7 +500,7 @@ func TestDatabasePluginConcurrentOperations(t *testing.T) {
 					ContractAddress: common.HexToAddress("0xcontract"),
 					EventName:       "Transfer",
 					ChainID:         "1",
-					BlockTimestamp: time.Now().Unix(),
+					BlockTimestamp:  time.Now().Unix(),
 				}
 				if err := db.WriteEvent(event); err != nil {
 					t.Logf("WriteEvent failed: %v", err)
@@ -618,7 +619,7 @@ func TestDatabasePluginQueryWithPagination(t *testing.T) {
 			ContractAddress: common.HexToAddress("0xcontract"),
 			EventName:       "Transfer",
 			ChainID:         "1",
-			BlockTimestamp: time.Now().Unix(),
+			BlockTimestamp:  time.Now().Unix(),
 		}
 		if err := db.WriteEvent(event); err != nil {
 			t.Fatalf("WriteEvent failed: %v", err)

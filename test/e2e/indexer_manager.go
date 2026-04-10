@@ -9,12 +9,12 @@ import (
 
 // DefaultIndexerManager implements IndexerManager
 type DefaultIndexerManager struct {
-	config         *IndexerConfig
-	isRunning      bool
-	mu             sync.RWMutex
-	indexedEvents  map[string]*IndexedEvent
-	metrics        IndexerMetrics
-	startTime      time.Time
+	config        *IndexerConfig
+	isRunning     bool
+	mu            sync.RWMutex
+	indexedEvents map[string]*IndexedEvent
+	metrics       IndexerMetrics
+	startTime     time.Time
 }
 
 // NewIndexerManager creates a new indexer manager

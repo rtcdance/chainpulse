@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sync"
 	"time"
+
 	"chainpulse/pkg/core"
 )
 
@@ -49,7 +50,7 @@ func NewReorgHandler(
 		eventBus:              eventBus,
 		dataPuller:            dataPuller,
 		lastConfirmedBlock:    0,
-		confirmationThreshold: 12, // Ethereum standard: 12 blocks
+		confirmationThreshold: 12,  // Ethereum standard: 12 blocks
 		reorgDetectionWindow:  256, // Look back up to 256 blocks
 		reorgHistory:          make(map[uint64]bool),
 		affectedBlocks:        make(map[uint64][]core.BlockchainEvent),
@@ -145,11 +146,11 @@ func (h *ReorgHandler) HandleReorg(ctx context.Context, result *ReorgDetectionRe
 
 	// Publish reorg event
 	reorgEvent := map[string]interface{}{
-		"type":             "reorg",
-		"reorg_block":      result.ReorgBlockNum,
-		"affected_blocks":  result.AffectedBlocks,
-		"new_chain_head":   result.NewChainHead,
-		"timestamp":        result.Timestamp,
+		"type":            "reorg",
+		"reorg_block":     result.ReorgBlockNum,
+		"affected_blocks": result.AffectedBlocks,
+		"new_chain_head":  result.NewChainHead,
+		"timestamp":       result.Timestamp,
 	}
 
 	if err := h.eventBus.Publish(ctx, "blockchain_reorg", reorgEvent); err != nil {
@@ -268,16 +269,16 @@ func (h *ReorgHandler) GetStats() map[string]interface{} {
 	defer h.mu.RUnlock()
 
 	return map[string]interface{}{
-		"last_confirmed_block":      h.lastConfirmedBlock,
-		"confirmation_threshold":    h.confirmationThreshold,
-		"reorg_detection_window":    h.reorgDetectionWindow,
-		"reorg_count":               h.reorgCount,
-		"recovery_count":            h.recoveryCount,
-		"last_reorg_time":           h.lastReorgTime,
-		"last_reorg_block":          h.lastReorgBlock,
-		"reorg_history_size":        len(h.reorgHistory),
-		"affected_blocks_size":      len(h.affectedBlocks),
-		"is_processing":             h.isProcessing,
+		"last_confirmed_block":   h.lastConfirmedBlock,
+		"confirmation_threshold": h.confirmationThreshold,
+		"reorg_detection_window": h.reorgDetectionWindow,
+		"reorg_count":            h.reorgCount,
+		"recovery_count":         h.recoveryCount,
+		"last_reorg_time":        h.lastReorgTime,
+		"last_reorg_block":       h.lastReorgBlock,
+		"reorg_history_size":     len(h.reorgHistory),
+		"affected_blocks_size":   len(h.affectedBlocks),
+		"is_processing":          h.isProcessing,
 	}
 }
 

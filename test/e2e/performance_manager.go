@@ -35,14 +35,14 @@ func (pm *PerformanceManager) RecordOperation(name string, duration time.Duratio
 	if _, exists := pm.latencies[name]; !exists {
 		pm.latencies[name] = make([]time.Duration, 0)
 		pm.metrics[name] = &PerformanceMetrics{
-			OperationName:   name,
-			TotalOperations: 0,
-			SuccessfulOps:   0,
-			FailedOps:       0,
-			TotalDuration:   0,
-			AverageDuration: 0,
-			MinDuration:     0,
-			MaxDuration:     0,
+			OperationName:       name,
+			TotalOperations:     0,
+			SuccessfulOps:       0,
+			FailedOps:           0,
+			TotalDuration:       0,
+			AverageDuration:     0,
+			MinDuration:         0,
+			MaxDuration:         0,
 			ThroughputOpsPerSec: 0,
 		}
 	}

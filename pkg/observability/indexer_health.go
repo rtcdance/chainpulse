@@ -12,45 +12,45 @@ type HealthStatus string
 
 const (
 	// HealthStatusHealthy represents a healthy status.
-	HealthStatusHealthy   HealthStatus = "healthy"
+	HealthStatusHealthy HealthStatus = "healthy"
 	// HealthStatusDegraded represents a degraded status.
-	HealthStatusDegraded  HealthStatus = "degraded"
+	HealthStatusDegraded HealthStatus = "degraded"
 	// HealthStatusUnhealthy represents an unhealthy status.
 	HealthStatusUnhealthy HealthStatus = "unhealthy"
 )
 
 // HealthCheckResult represents the result of a health check
 type HealthCheckResult struct {
-	Status              HealthStatus
-	Message             string
-	CurrentBlock        uint64
-	LatestBlock         uint64
-	IndexingLag         uint64
-	MaxAllowedLag       uint64
-	DatabaseConnected   bool
-	CacheConnected      bool
-	LastCheckTime       time.Time
-	UpTime              time.Duration
-	EventsIndexedRate   float64
-	ErrorRate           float64
-	CacheHitRate        float64
-	AverageLatency      time.Duration
-	MaxLatency          time.Duration
-	RecentErrors        map[string]int64
+	Status            HealthStatus
+	Message           string
+	CurrentBlock      uint64
+	LatestBlock       uint64
+	IndexingLag       uint64
+	MaxAllowedLag     uint64
+	DatabaseConnected bool
+	CacheConnected    bool
+	LastCheckTime     time.Time
+	UpTime            time.Duration
+	EventsIndexedRate float64
+	ErrorRate         float64
+	CacheHitRate      float64
+	AverageLatency    time.Duration
+	MaxLatency        time.Duration
+	RecentErrors      map[string]int64
 }
 
 // IndexerHealth provides health checking for the indexer
 type IndexerHealth struct {
 	mu sync.RWMutex
 
-	metrics              *IndexerMetrics
-	maxAllowedLag        uint64
-	maxErrorRate         float64
-	minCacheHitRate      float64
-	maxAverageLatency    time.Duration
-	databaseCheckFunc    func(ctx context.Context) error
-	cacheCheckFunc       func(ctx context.Context) error
-	lastHealthCheckTime  time.Time
+	metrics               *IndexerMetrics
+	maxAllowedLag         uint64
+	maxErrorRate          float64
+	minCacheHitRate       float64
+	maxAverageLatency     time.Duration
+	databaseCheckFunc     func(ctx context.Context) error
+	cacheCheckFunc        func(ctx context.Context) error
+	lastHealthCheckTime   time.Time
 	lastHealthCheckResult *HealthCheckResult
 }
 
@@ -63,11 +63,11 @@ func NewIndexerHealth(
 	maxAverageLatency time.Duration,
 ) *IndexerHealth {
 	return &IndexerHealth{
-		metrics:           metrics,
-		maxAllowedLag:      maxAllowedLag,
-		maxErrorRate:       maxErrorRate,
-		minCacheHitRate:    minCacheHitRate,
-		maxAverageLatency:  maxAverageLatency,
+		metrics:             metrics,
+		maxAllowedLag:       maxAllowedLag,
+		maxErrorRate:        maxErrorRate,
+		minCacheHitRate:     minCacheHitRate,
+		maxAverageLatency:   maxAverageLatency,
 		lastHealthCheckTime: time.Now(),
 	}
 }
@@ -250,22 +250,22 @@ func (ih *IndexerHealth) GetHealthSummary() map[string]interface{} {
 	result := ih.lastHealthCheckResult
 
 	return map[string]interface{}{
-		"status":                string(result.Status),
-		"message":               result.Message,
-		"current_block":         result.CurrentBlock,
-		"latest_block":          result.LatestBlock,
-		"indexing_lag":          result.IndexingLag,
-		"max_allowed_lag":       result.MaxAllowedLag,
-		"database_connected":    result.DatabaseConnected,
-		"cache_connected":       result.CacheConnected,
-		"last_check_time":       result.LastCheckTime.String(),
-		"uptime":                result.UpTime.String(),
-		"events_indexed_rate":   fmt.Sprintf("%.2f events/sec", result.EventsIndexedRate),
-		"error_rate":            fmt.Sprintf("%.2f%%", result.ErrorRate),
-		"cache_hit_rate":        fmt.Sprintf("%.2f%%", result.CacheHitRate),
-		"average_latency":       result.AverageLatency.String(),
-		"max_latency":           result.MaxLatency.String(),
-		"recent_errors":         result.RecentErrors,
+		"status":              string(result.Status),
+		"message":             result.Message,
+		"current_block":       result.CurrentBlock,
+		"latest_block":        result.LatestBlock,
+		"indexing_lag":        result.IndexingLag,
+		"max_allowed_lag":     result.MaxAllowedLag,
+		"database_connected":  result.DatabaseConnected,
+		"cache_connected":     result.CacheConnected,
+		"last_check_time":     result.LastCheckTime.String(),
+		"uptime":              result.UpTime.String(),
+		"events_indexed_rate": fmt.Sprintf("%.2f events/sec", result.EventsIndexedRate),
+		"error_rate":          fmt.Sprintf("%.2f%%", result.ErrorRate),
+		"cache_hit_rate":      fmt.Sprintf("%.2f%%", result.CacheHitRate),
+		"average_latency":     result.AverageLatency.String(),
+		"max_latency":         result.MaxLatency.String(),
+		"recent_errors":       result.RecentErrors,
 	}
 }
 

@@ -9,32 +9,32 @@ import (
 
 // DistributedLock represents a distributed lock
 type DistributedLock struct {
-	mu              sync.RWMutex
-	locks           map[string]*LockInfo
-	lockTimeout     time.Duration
-	metrics         *LockMetrics
+	mu          sync.RWMutex
+	locks       map[string]*LockInfo
+	lockTimeout time.Duration
+	metrics     *LockMetrics
 }
 
 // LockInfo contains information about a lock
 type LockInfo struct {
-	Key           string
-	Owner         string
-	AcquiredAt    time.Time
-	ExpiresAt     time.Time
-	RenewalCount  int
-	Status        string // "locked", "released", "expired"
+	Key          string
+	Owner        string
+	AcquiredAt   time.Time
+	ExpiresAt    time.Time
+	RenewalCount int
+	Status       string // "locked", "released", "expired"
 }
 
 // LockMetrics tracks lock metrics
 type LockMetrics struct {
-	mu              sync.RWMutex
-	LocksAcquired   int64
-	LocksReleased   int64
-	LocksFailed     int64
-	LocksExpired    int64
+	mu                sync.RWMutex
+	LocksAcquired     int64
+	LocksReleased     int64
+	LocksFailed       int64
+	LocksExpired      int64
 	DeadlocksDetected int64
-	AverageWaitTime time.Duration
-	TotalWaitTime   time.Duration
+	AverageWaitTime   time.Duration
+	TotalWaitTime     time.Duration
 }
 
 // LockManager manages distributed locks
@@ -54,11 +54,11 @@ type LockWaiter struct {
 
 // DeadlockDetector detects deadlock situations
 type DeadlockDetector struct {
-	mu              sync.RWMutex
-	lockGraph       map[string][]string // lock -> owners waiting for it
-	ownerGraph      map[string][]string // owner -> locks it holds
-	checkInterval   time.Duration
-	lastCheckTime   time.Time
+	mu            sync.RWMutex
+	lockGraph     map[string][]string // lock -> owners waiting for it
+	ownerGraph    map[string][]string // owner -> locks it holds
+	checkInterval time.Duration
+	lastCheckTime time.Time
 }
 
 // NewDistributedLock creates a new distributed lock
@@ -66,7 +66,7 @@ func NewDistributedLock(lockTimeout time.Duration) *DistributedLock {
 	return &DistributedLock{
 		locks:       make(map[string]*LockInfo),
 		lockTimeout: lockTimeout,
-		metrics: &LockMetrics{},
+		metrics:     &LockMetrics{},
 	}
 }
 
@@ -204,13 +204,13 @@ func (dl *DistributedLock) GetMetrics() map[string]interface{} {
 	defer dl.metrics.mu.RUnlock()
 
 	return map[string]interface{}{
-		"locks_acquired":      dl.metrics.LocksAcquired,
-		"locks_released":      dl.metrics.LocksReleased,
-		"locks_failed":        dl.metrics.LocksFailed,
-		"locks_expired":       dl.metrics.LocksExpired,
-		"deadlocks_detected":  dl.metrics.DeadlocksDetected,
-		"average_wait_time":   dl.metrics.AverageWaitTime.String(),
-		"total_wait_time":     dl.metrics.TotalWaitTime.String(),
+		"locks_acquired":     dl.metrics.LocksAcquired,
+		"locks_released":     dl.metrics.LocksReleased,
+		"locks_failed":       dl.metrics.LocksFailed,
+		"locks_expired":      dl.metrics.LocksExpired,
+		"deadlocks_detected": dl.metrics.DeadlocksDetected,
+		"average_wait_time":  dl.metrics.AverageWaitTime.String(),
+		"total_wait_time":    dl.metrics.TotalWaitTime.String(),
 	}
 }
 

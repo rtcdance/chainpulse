@@ -44,15 +44,15 @@ func TestPostgreSQLEventMetadataStoreInsertMetadata(t *testing.T) {
 	store := NewPostgreSQLEventMetadataStore(dbManager, logger, metrics)
 
 	metadata := &EventMetadata{
-		EventID:         "event-1",
-		ChainID:         1,
-		BlockNumber:     100,
-		TransactionHash: "0xabc123",
-		LogIndex:        0,
-		ContractAddress: "0xcontract",
-		EventName:       "Transfer",
+		EventID:          "event-1",
+		ChainID:          1,
+		BlockNumber:      100,
+		TransactionHash:  "0xabc123",
+		LogIndex:         0,
+		ContractAddress:  "0xcontract",
+		EventName:        "Transfer",
 		ProcessingStatus: "pending",
-		ProcessedAt:     time.Now(),
+		ProcessedAt:      time.Now(),
 	}
 
 	// Should fail because store is not initialized
@@ -81,26 +81,26 @@ func TestPostgreSQLEventMetadataStoreInsertMetadataBatch(t *testing.T) {
 
 	metadataList := []*EventMetadata{
 		{
-			EventID:         "event-1",
-			ChainID:         1,
-			BlockNumber:     100,
-			TransactionHash: "0xabc123",
-			LogIndex:        0,
-			ContractAddress: "0xcontract",
-			EventName:       "Transfer",
+			EventID:          "event-1",
+			ChainID:          1,
+			BlockNumber:      100,
+			TransactionHash:  "0xabc123",
+			LogIndex:         0,
+			ContractAddress:  "0xcontract",
+			EventName:        "Transfer",
 			ProcessingStatus: "pending",
-			ProcessedAt:     time.Now(),
+			ProcessedAt:      time.Now(),
 		},
 		{
-			EventID:         "event-2",
-			ChainID:         1,
-			BlockNumber:     101,
-			TransactionHash: "0xabc124",
-			LogIndex:        1,
-			ContractAddress: "0xcontract",
-			EventName:       "Transfer",
+			EventID:          "event-2",
+			ChainID:          1,
+			BlockNumber:      101,
+			TransactionHash:  "0xabc124",
+			LogIndex:         1,
+			ContractAddress:  "0xcontract",
+			EventName:        "Transfer",
 			ProcessingStatus: "pending",
-			ProcessedAt:     time.Now(),
+			ProcessedAt:      time.Now(),
 		},
 	}
 
@@ -283,8 +283,8 @@ func TestIsIgnorablePostgresSchemaConflict(t *testing.T) {
 // TestEventMetadataDefaults tests EventMetadata default values
 func TestEventMetadataDefaults(t *testing.T) {
 	metadata := &EventMetadata{
-		EventID:   "event-1",
-		ChainID:   1,
+		EventID:     "event-1",
+		ChainID:     1,
 		BlockNumber: 100,
 	}
 
@@ -313,8 +313,8 @@ func TestPostgreSQLEventMetadataStoreMetricsCollection(t *testing.T) {
 
 	// Try to insert metadata (will fail but should record metrics)
 	metadata := &EventMetadata{
-		EventID:   "event-1",
-		ChainID:   1,
+		EventID:     "event-1",
+		ChainID:     1,
 		BlockNumber: 100,
 	}
 

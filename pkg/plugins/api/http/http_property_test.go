@@ -35,9 +35,9 @@ func TestProperty_HTTPRequestAbstractionConsistency(t *testing.T) {
 			body:    []byte(`{"name":"test"}`),
 		},
 		{
-			name:    "request with multiple headers",
-			method:  "PUT",
-			path:    "/api/users/1",
+			name:   "request with multiple headers",
+			method: "PUT",
+			path:   "/api/users/1",
 			headers: map[string]string{
 				"Content-Type":  "application/json",
 				"Authorization": "Bearer token",
@@ -143,9 +143,9 @@ func TestProperty_HTTPPluginRoutingCorrectness(t *testing.T) {
 
 	// Register handlers for different routes
 	routes := map[string]int{
-		"/api/users":  200,
-		"/api/posts":  201,
-		"/api/admin":  403,
+		"/api/users": 200,
+		"/api/posts": 201,
+		"/api/admin": 403,
 	}
 
 	for route, expectedStatus := range routes {

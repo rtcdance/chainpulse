@@ -37,37 +37,37 @@ type SwapEvent struct {
 
 // SwapHistory represents historical swap data
 type SwapHistory struct {
-	Swaps          []*SwapEvent
-	TotalVolume0   *big.Int
-	TotalVolume1   *big.Int
-	AveragePrice   *big.Float
-	SwapCount      int64
-	FirstSwapTime  int64
-	LastSwapTime   int64
+	Swaps         []*SwapEvent
+	TotalVolume0  *big.Int
+	TotalVolume1  *big.Int
+	AveragePrice  *big.Float
+	SwapCount     int64
+	FirstSwapTime int64
+	LastSwapTime  int64
 }
 
 // UniswapIndexer indexes Uniswap V3 events
 type UniswapIndexer struct {
-	database         core.DatabasePlugin
-	cache            core.CachePlugin
-	logger           core.Logger
-	eventDecoder     *decoder.EventDecoder
-	contractManager  *decoder.ContractManager
-	mu               sync.RWMutex
-	poolMetadata     map[common.Address]*PoolMetadata
-	swapEventCache   map[string]*SwapEvent
+	database        core.DatabasePlugin
+	cache           core.CachePlugin
+	logger          core.Logger
+	eventDecoder    *decoder.EventDecoder
+	contractManager *decoder.ContractManager
+	mu              sync.RWMutex
+	poolMetadata    map[common.Address]*PoolMetadata
+	swapEventCache  map[string]*SwapEvent
 }
 
 // PoolMetadata stores metadata about a Uniswap pool
 type PoolMetadata struct {
-	Address     common.Address
-	Token0      common.Address
-	Token1      common.Address
-	Fee         uint32
-	Liquidity   *big.Int
+	Address      common.Address
+	Token0       common.Address
+	Token1       common.Address
+	Fee          uint32
+	Liquidity    *big.Int
 	SqrtPriceX96 *big.Int
-	Tick        int32
-	LastUpdated time.Time
+	Tick         int32
+	LastUpdated  time.Time
 }
 
 // NewUniswapIndexer creates a new Uniswap indexer
@@ -105,10 +105,10 @@ func (ui *UniswapIndexer) IndexSwapEvents(
 	for _, event := range events {
 		if err := ui.indexSwapEvent(ctx, event); err != nil {
 			ui.logger.Error("failed to index swap event", map[string]interface{}{
-				"error":      err.Error(),
-				"event_id":   event.ID,
-				"block":      event.BlockNumber,
-				"tx_hash":    event.TransactionHash.Hex(),
+				"error":    err.Error(),
+				"event_id": event.ID,
+				"block":    event.BlockNumber,
+				"tx_hash":  event.TransactionHash.Hex(),
 			})
 			continue
 		}

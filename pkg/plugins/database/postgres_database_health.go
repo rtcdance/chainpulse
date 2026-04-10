@@ -8,18 +8,18 @@ import (
 
 // HealthChecker manages database health checks
 type HealthChecker struct {
-	db                       *PostgreSQLDatabase
-	ticker                   *time.Ticker
-	stopChan                 chan bool
-	mu                       sync.RWMutex
-	lastHealthCheck          time.Time
-	isHealthy                bool
-	consecutiveErrors        int
-	maxConsecutiveErrors     int
-	recoveryAttempts         int
-	maxRecoveryAttempts      int
-	lastRecoveryAttemptTime  time.Time
-	recoveryAttemptInterval  time.Duration
+	db                      *PostgreSQLDatabase
+	ticker                  *time.Ticker
+	stopChan                chan bool
+	mu                      sync.RWMutex
+	lastHealthCheck         time.Time
+	isHealthy               bool
+	consecutiveErrors       int
+	maxConsecutiveErrors    int
+	recoveryAttempts        int
+	maxRecoveryAttempts     int
+	lastRecoveryAttemptTime time.Time
+	recoveryAttemptInterval time.Duration
 }
 
 // NewHealthChecker creates a new health checker

@@ -161,16 +161,16 @@ func TestCheckConsistencyHealthy(t *testing.T) {
 
 	// Add some events
 	event1 := &core.BlockchainEvent{
-		ID:          "event1",
-		BlockNumber: 100,
-		LogIndex:    0,
+		ID:              "event1",
+		BlockNumber:     100,
+		LogIndex:        0,
 		TransactionHash: common.HexToHash("0x1234"),
 		EventSignature:  common.HexToHash("0x5678"),
 	}
 	event2 := &core.BlockchainEvent{
-		ID:          "event2",
-		BlockNumber: 101,
-		LogIndex:    0,
+		ID:              "event2",
+		BlockNumber:     101,
+		LogIndex:        0,
 		TransactionHash: common.HexToHash("0x1235"),
 		EventSignature:  common.HexToHash("0x5679"),
 	}
@@ -197,16 +197,16 @@ func TestCheckConsistencyWithDuplicates(t *testing.T) {
 
 	// Add duplicate events
 	event1 := &core.BlockchainEvent{
-		ID:          "event1",
-		BlockNumber: 100,
-		LogIndex:    0,
+		ID:              "event1",
+		BlockNumber:     100,
+		LogIndex:        0,
 		TransactionHash: common.HexToHash("0x1234"),
 		EventSignature:  common.HexToHash("0x5678"),
 	}
 	event2 := &core.BlockchainEvent{
-		ID:          "event2",
-		BlockNumber: 100,
-		LogIndex:    0,
+		ID:              "event2",
+		BlockNumber:     100,
+		LogIndex:        0,
 		TransactionHash: common.HexToHash("0x1234"),
 		EventSignature:  common.HexToHash("0x5678"),
 	}
@@ -232,16 +232,16 @@ func TestVerifyEventSequence(t *testing.T) {
 
 	// Add events with gaps
 	event1 := &core.BlockchainEvent{
-		ID:          "event1",
-		BlockNumber: 100,
-		LogIndex:    0,
+		ID:              "event1",
+		BlockNumber:     100,
+		LogIndex:        0,
 		TransactionHash: common.HexToHash("0x1234"),
 		EventSignature:  common.HexToHash("0x5678"),
 	}
 	event2 := &core.BlockchainEvent{
-		ID:          "event2",
-		BlockNumber: 102,
-		LogIndex:    0,
+		ID:              "event2",
+		BlockNumber:     102,
+		LogIndex:        0,
 		TransactionHash: common.HexToHash("0x1235"),
 		EventSignature:  common.HexToHash("0x5679"),
 	}
@@ -294,16 +294,16 @@ func TestRepairInconsistencies(t *testing.T) {
 
 	// Add duplicate events
 	event1 := &core.BlockchainEvent{
-		ID:          "event1",
-		BlockNumber: 100,
-		LogIndex:    0,
+		ID:              "event1",
+		BlockNumber:     100,
+		LogIndex:        0,
 		TransactionHash: common.HexToHash("0x1234"),
 		EventSignature:  common.HexToHash("0x5678"),
 	}
 	event2 := &core.BlockchainEvent{
-		ID:          "event2",
-		BlockNumber: 100,
-		LogIndex:    0,
+		ID:              "event2",
+		BlockNumber:     100,
+		LogIndex:        0,
 		TransactionHash: common.HexToHash("0x1234"),
 		EventSignature:  common.HexToHash("0x5678"),
 	}
@@ -328,9 +328,9 @@ func TestGetEventConsistency(t *testing.T) {
 	cc := NewConsistencyChecker(db, logger)
 
 	event := &core.BlockchainEvent{
-		ID:          "event1",
-		BlockNumber: 100,
-		LogIndex:    0,
+		ID:              "event1",
+		BlockNumber:     100,
+		LogIndex:        0,
 		TransactionHash: common.HexToHash("0x1234"),
 		EventSignature:  common.HexToHash("0x5678"),
 	}
@@ -464,9 +464,9 @@ func TestEventConsistencyStructure(t *testing.T) {
 	cc := NewConsistencyChecker(db, logger)
 
 	event := &core.BlockchainEvent{
-		ID:          "event1",
-		BlockNumber: 100,
-		LogIndex:    0,
+		ID:              "event1",
+		BlockNumber:     100,
+		LogIndex:        0,
 		TransactionHash: common.HexToHash("0x1234"),
 		EventSignature:  common.HexToHash("0x5678"),
 	}

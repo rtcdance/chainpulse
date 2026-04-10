@@ -1,10 +1,11 @@
 package resilience
 
 import (
-	"chainpulse/pkg/core"
 	"context"
 	"testing"
 	"time"
+
+	"chainpulse/pkg/core"
 )
 
 func TestDefaultRecoveryManager_SaveCheckpoint(t *testing.T) {

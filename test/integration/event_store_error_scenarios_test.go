@@ -120,8 +120,8 @@ func TestNetworkPartition(t *testing.T) {
 func TestPartialDataLoss(t *testing.T) {
 	// Simulate partial data loss scenario
 	eventStore := &MockEventStoreWithFailure{
-		failureMode: FailurePartialWrite,
-		failureCount: 1,
+		failureMode:    FailurePartialWrite,
+		failureCount:   1,
 		currentAttempt: 0,
 	}
 

@@ -67,8 +67,8 @@ func TestIntegration_WebSocketRequestFlow(t *testing.T) {
 
 	// Create WebSocket request
 	req := NewBaseRequest(context.Background(), "GET", "/ws", map[string]string{
-		"Upgrade":     "websocket",
-		"Connection":  "Upgrade",
+		"Upgrade":    "websocket",
+		"Connection": "Upgrade",
 	}, nil)
 
 	// Detect protocol
@@ -108,8 +108,8 @@ func TestIntegration_GRPCRequestFlow(t *testing.T) {
 
 	// Create gRPC request
 	req := NewBaseRequest(context.Background(), "POST", "/api.Service/Method", map[string]string{
-		"Content-Type":   "application/grpc",
-		"grpc-encoding":  "gzip",
+		"Content-Type":  "application/grpc",
+		"grpc-encoding": "gzip",
 	}, []byte{0, 0, 0, 0, 2, 123, 125})
 
 	// Detect protocol
@@ -397,7 +397,6 @@ func TestIntegration_ConcurrentRequests(t *testing.T) {
 		go func(idx int) {
 			req := NewBaseRequest(context.Background(), "GET", "/api", map[string]string{}, nil)
 			resp, err := detector.Route(req)
-
 			if err != nil {
 				t.Errorf("unexpected error: %v", err)
 			}

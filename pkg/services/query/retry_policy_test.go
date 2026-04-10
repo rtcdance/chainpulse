@@ -138,7 +138,6 @@ func TestRetryHandlerExecuteSuccess(t *testing.T) {
 
 	ctx := context.Background()
 	err := handler.Execute(ctx, fn)
-
 	if err != nil {
 		t.Errorf("Expected no error, got %v", err)
 	}
@@ -185,7 +184,6 @@ func TestRetryHandlerExecuteEventualSuccess(t *testing.T) {
 
 	ctx := context.Background()
 	err := handler.Execute(ctx, fn)
-
 	if err != nil {
 		t.Errorf("Expected no error, got %v", err)
 	}
@@ -279,7 +277,6 @@ func TestRetryHandlerExecuteWithStats(t *testing.T) {
 
 	ctx := context.Background()
 	stats, err := handler.ExecuteWithStats(ctx, fn)
-
 	if err != nil {
 		t.Errorf("Expected no error, got %v", err)
 	}
@@ -369,7 +366,6 @@ func TestRetryPolicyCustom(t *testing.T) {
 
 	ctx := context.Background()
 	err := handler.Execute(ctx, fn)
-
 	if err != nil {
 		t.Errorf("Expected no error, got %v", err)
 	}
