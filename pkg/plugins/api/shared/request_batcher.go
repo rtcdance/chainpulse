@@ -105,12 +105,24 @@ func (b *RequestBatcher) Submit(ctx context.Context, id string, payload interfac
 	}
 }
 
-// Close closes the batcher
+// Close closes the batcher with a timeout to prevent indefinite blocking
 func (b *RequestBatcher) Close() error {
 	b.cancel()
 	close(b.queue)
-	b.wg.Wait()
-	return nil
+	
+	// Wait with timeout to prevent indefinite blocking
+	done := make(chan struct{})
+	go func() {
+		b.wg.Wait()
+		close(done)
+	}()
+	
+	select {
+	case <-done:
+		return nil
+	case <-time.After(30 * time.Second):
+		return fmt.Errorf("timeout waiting for batcher to close")
+	}
 }
 
 // GetMetrics returns batcher metrics

@@ -164,10 +164,9 @@ func (m *MockEventStore) Health(ctx context.Context) *core.HealthStatus {
 
 func TestEventStoreInterface(t *testing.T) {
 	t.Parallel()
-	var store EventStore = NewMockEventStore()
-	if store == nil {
-		t.Fatal("NewMockEventStore() returned nil")
-	}
+	store := NewMockEventStore()
+	// Verify the mock implements EventStore interface at compile time
+	_ = EventStore(store)
 }
 
 func TestEventStoreInitialize(t *testing.T) {
@@ -226,7 +225,7 @@ func TestEventStoreInsertInvalidEvent(t *testing.T) {
 	t.Parallel()
 	store := NewMockEventStore()
 	ctx := context.Background()
-	store.Initialize(ctx)
+	_ = store.Initialize(ctx)
 	_ = store.InsertEvent(ctx, nil)
 	_ = store.InsertEvent(ctx, &core.BlockchainEvent{ID: ""})
 }
@@ -235,7 +234,7 @@ func TestEventStoreInsertBatch(t *testing.T) {
 	t.Parallel()
 	store := NewMockEventStore()
 	ctx := context.Background()
-	store.Initialize(ctx)
+	_ = store.Initialize(ctx)
 	events := []*core.BlockchainEvent{
 		{ID: "batch-1", EventName: "Transfer", ChainID: "1"},
 		{ID: "batch-2", EventName: "Transfer", ChainID: "1"},
@@ -266,9 +265,9 @@ func TestEventStorePagination(t *testing.T) {
 	t.Parallel()
 	store := NewMockEventStore()
 	ctx := context.Background()
-	store.Initialize(ctx)
+	_ = store.Initialize(ctx)
 	for i := 0; i < 10; i++ {
-		store.InsertEvent(ctx, &core.BlockchainEvent{ID: "event-" + string(rune('0'+i))})
+		_ = store.InsertEvent(ctx, &core.BlockchainEvent{ID: "event-" + string(rune('0'+i))})
 	}
 	events, hasMore, err := store.GetEventsPaginated(ctx, "", 3)
 	if err != nil {
@@ -286,7 +285,7 @@ func TestEventStoreHealth(t *testing.T) {
 	t.Parallel()
 	store := NewMockEventStore()
 	ctx := context.Background()
-	store.Initialize(ctx)
+	_ = store.Initialize(ctx)
 	health := store.Health(ctx)
 	if health == nil {
 		t.Fatal("Health() returned nil")

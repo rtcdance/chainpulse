@@ -21,15 +21,15 @@ func BenchmarkMemoryMQ_Publish(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		mq.Publish(ctx, "bench-topic", msg)
+		_ = mq.Publish(ctx, "bench-topic", msg)
 	}
 }
 
 func BenchmarkMemoryMQ_Subscribe(b *testing.B) {
 	mq := mq.NewMemoryMQ()
-	mq.Initialize(core.Config{})
-	mq.Start()
-	defer mq.Stop()
+	_ = mq.Initialize(core.Config{})
+	_ = mq.Start()
+	defer func() { _ = mq.Stop() }()
 
 	ctx := context.Background()
 	received := 0

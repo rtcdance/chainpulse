@@ -684,7 +684,7 @@ func TestBuildOwnershipHealthComponentUnknownModeIsDegraded(t *testing.T) {
 }
 
 func TestBuildOwnershipHealthComponentMatchesAPIComponentContract(t *testing.T) {
-	var _ *api.ComponentStatus = buildOwnershipHealthComponent(nil, time.Unix(1700000002, 0))
+	_ = buildOwnershipHealthComponent(nil, time.Unix(1700000002, 0))
 }
 
 func TestBuildOwnershipReadinessDetailsShadow(t *testing.T) {

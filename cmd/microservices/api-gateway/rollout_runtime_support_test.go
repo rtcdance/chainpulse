@@ -94,7 +94,7 @@ func TestAPIGatewaySubscriptionRouteSupportsWebSocketUpgrade(t *testing.T) {
 		}
 		t.Fatalf("dial subscription websocket: %v status=%d body=%s", err, status, body)
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 }
 
 func TestAPIGatewayRuntimeRolloutRoute(t *testing.T) {
