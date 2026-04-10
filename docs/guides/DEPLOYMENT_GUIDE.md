@@ -169,11 +169,44 @@ kubectl apply -k k8s/overlays/microservice
 Compatibility mode (`kubectl apply -f`) is still supported via the legacy
 flat manifests under `k8s/`.
 
+### One-Click Deployment
+
+```bash
+# default overlay: microservice
+make k8s-up
+make k8s-status
+
+# one command: deploy + acceptance + status
+make k8s-oneclick
+
+# optional
+OVERLAY=monolithic make k8s-up
+make k8s-down
+```
+
 ### Capability & Acceptance
 
 ```bash
 make k8s-verify
 make k8s-acceptance
+```
+
+### Multi-Chain E2E Acceptance (EVM + Solana)
+
+```bash
+# auto mode: multi-EVM required, Solana optional (skip when unavailable)
+make multichain-e2e-acceptance
+
+# strict mode: require both multi-EVM and Solana RPC probes
+make multichain-e2e-acceptance-strict
+
+# fork mode (real-chain state simulation)
+EVM_FORK_URLS=ethereum=https://eth-mainnet.g.alchemy.com/v2/<KEY> \
+make multichain-e2e-fork-acceptance
+
+# strict fork mode (require EVM + Solana gates)
+EVM_FORK_URLS=ethereum=https://eth-mainnet.g.alchemy.com/v2/<KEY> \
+make multichain-e2e-fork-acceptance-strict
 ```
 
 ### 3. Verify Deployment

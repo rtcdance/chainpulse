@@ -52,10 +52,10 @@ func TestKafkaConfigValidate(t *testing.T) {
 // TestKafkaConfigValidateWithExistingValues tests validation preserves existing values
 func TestKafkaConfigValidateWithExistingValues(t *testing.T) {
 	config := &KafkaConfig{
-		Brokers:       []string{"broker1:9092", "broker2:9092"},
-		Topic:         "custom-topic",
-		ConsumerGroup: "custom-group",
-		Partitions:    5,
+		Brokers:           []string{"broker1:9092", "broker2:9092"},
+		Topic:             "custom-topic",
+		ConsumerGroup:     "custom-group",
+		Partitions:        5,
 		ReplicationFactor: 2,
 	}
 

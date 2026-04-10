@@ -1,10 +1,11 @@
 package cache
 
 import (
-	"chainpulse/pkg/core"
 	"fmt"
 	"testing"
 	"time"
+
+	"chainpulse/pkg/core"
 )
 
 // Property 12: Cache Hit Return
@@ -56,7 +57,6 @@ func TestAdvancedCacheHitReturn(t *testing.T) {
 			t.Fatalf("Expected value_%d, got %v", i, retrieved.Value)
 		}
 	}
-
 }
 
 // Property: Cache hits are recorded in advanced cache
@@ -94,7 +94,6 @@ func TestAdvancedCacheHitRecording(t *testing.T) {
 	if cache.GetHitCount() != 10 {
 		t.Fatalf("Expected 10 hits, got %d", cache.GetHitCount())
 	}
-
 }
 
 // Property: Cache misses are recorded in advanced cache
@@ -123,7 +122,6 @@ func TestAdvancedCacheMissRecording(t *testing.T) {
 	if cache.GetMissCount() != 10 {
 		t.Fatalf("Expected 10 misses, got %d", cache.GetMissCount())
 	}
-
 }
 
 // Property 14: Cache Expiration
@@ -172,7 +170,6 @@ func TestAdvancedCacheExpirationConsistency(t *testing.T) {
 	if retrieved != nil {
 		t.Fatal("Expected value to be expired")
 	}
-
 }
 
 // Property: LRU eviction maintains cache size limits
@@ -213,7 +210,6 @@ func TestAdvancedCacheLRUEvictionConsistency(t *testing.T) {
 	if cache.GetCurrentEntries() > 5 {
 		t.Fatalf("Expected entries <= 5, got %d", cache.GetCurrentEntries())
 	}
-
 }
 
 // Property: Size-based eviction maintains cache size limits
@@ -251,7 +247,6 @@ func TestAdvancedCacheSizeEvictionConsistency(t *testing.T) {
 	if cache.GetCurrentSize() > 500 {
 		t.Fatalf("Expected size <= 500, got %d", cache.GetCurrentSize())
 	}
-
 }
 
 // Property: Recently accessed entries are not evicted
@@ -301,7 +296,6 @@ func TestAdvancedCacheRecentAccessPreservation(t *testing.T) {
 	if retrieved == nil {
 		t.Fatal("Expected key_0 to still exist after access")
 	}
-
 }
 
 // Property: Delete operation removes entries
@@ -345,7 +339,6 @@ func TestAdvancedCacheDeleteConsistency(t *testing.T) {
 	if retrieved != nil {
 		t.Fatal("Expected value to be deleted")
 	}
-
 }
 
 // Property: Clear operation removes all entries
@@ -442,7 +435,6 @@ func TestAdvancedCacheStatsAccuracy(t *testing.T) {
 	if stats.EntryCount != 5 {
 		t.Fatalf("Expected 5 entries, got %d", stats.EntryCount)
 	}
-
 }
 
 // Property: Max size configuration is respected
@@ -469,7 +461,6 @@ func TestAdvancedCacheMaxSizeConfiguration(t *testing.T) {
 	if cache.GetMaxSize() != 2000 {
 		t.Fatalf("Expected max size 2000, got %d", cache.GetMaxSize())
 	}
-
 }
 
 // Property: Max entries configuration is respected
@@ -496,7 +487,6 @@ func TestAdvancedCacheMaxEntriesConfiguration(t *testing.T) {
 	if cache.GetMaxEntries() != 50 {
 		t.Fatalf("Expected max entries 50, got %d", cache.GetMaxEntries())
 	}
-
 }
 
 // Property: Eviction policy configuration is respected
@@ -523,7 +513,6 @@ func TestAdvancedCacheEvictionPolicyConfiguration(t *testing.T) {
 	if cache.GetEvictionPolicy() != "FIFO" {
 		t.Fatalf("Expected FIFO policy, got %s", cache.GetEvictionPolicy())
 	}
-
 }
 
 // Property: Concurrent operations maintain consistency
@@ -571,7 +560,6 @@ func TestAdvancedCacheConcurrentConsistency(t *testing.T) {
 	if cache.GetCurrentEntries() <= 0 {
 		t.Fatalf("Expected some entries, got %d", cache.GetCurrentEntries())
 	}
-
 }
 
 // Property: Entry count accuracy
@@ -615,7 +603,6 @@ func TestAdvancedCacheEntryCountAccuracy(t *testing.T) {
 			t.Fatalf("Expected %d entries, got %d", 10-i-1, cache.GetCurrentEntries())
 		}
 	}
-
 }
 
 // Property: Size tracking accuracy
@@ -659,7 +646,6 @@ func TestAdvancedCacheSizeTrackingAccuracy(t *testing.T) {
 	if cache.GetCurrentSize() >= sizeBeforeDelete {
 		t.Fatalf("Expected size to decrease, got %d", cache.GetCurrentSize())
 	}
-
 }
 
 // Property: Eviction count increases when entries are evicted
@@ -710,5 +696,4 @@ func TestAdvancedCacheEvictionTracking(t *testing.T) {
 	if cache.GetEvictionCount() <= initialEvictions {
 		t.Fatalf("Expected eviction count to increase, got %d", cache.GetEvictionCount())
 	}
-
 }

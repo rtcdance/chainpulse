@@ -12,13 +12,13 @@ type RouteOwnershipParityState struct {
 }
 
 type RouteOwnershipParitySourceSnapshot struct {
-	RuntimeSignalsPresent bool
-	MonolithOwnershipMode string
-	MonolithRolloutReady  bool
-	MonolithRolloutStatus string
-	MonolithRolloutReason string
-	MonolithParityPosture string
-	MonolithParityHint    string
+	RuntimeSignalsPresent  bool
+	MonolithOwnershipMode  string
+	MonolithRolloutReady   bool
+	MonolithRolloutStatus  string
+	MonolithRolloutReason  string
+	MonolithParityPosture  string
+	MonolithParityHint     string
 	MonolithTargetReady    bool
 	MonolithTargetDecision string
 	MonolithActionGuidance string

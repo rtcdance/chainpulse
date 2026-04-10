@@ -66,8 +66,8 @@ func (m *MockLogger) WithCorrelationID(id string) core.Logger {
 // MockMetricsCollector for testing
 type MockMetricsCollector struct{}
 
-func (m *MockMetricsCollector) RecordCounter(name string, value int64, tags map[string]string) {}
-func (m *MockMetricsCollector) RecordGauge(name string, value float64, tags map[string]string) {}
+func (m *MockMetricsCollector) RecordCounter(name string, value int64, tags map[string]string)     {}
+func (m *MockMetricsCollector) RecordGauge(name string, value float64, tags map[string]string)     {}
 func (m *MockMetricsCollector) RecordHistogram(name string, value float64, tags map[string]string) {}
 func (m *MockMetricsCollector) GetMetrics() map[string]interface{} {
 	return make(map[string]interface{})

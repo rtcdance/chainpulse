@@ -343,7 +343,6 @@ func (ah *AssertionHelper) AssertQueryResultEmpty(result *query.QueryResult) {
 	}
 }
 
-
 // AssertSliceLength asserts that a slice has the expected length
 func (ah *AssertionHelper) AssertSliceLength(slice interface{}, expectedLen int, message string) {
 	// Use reflection to get slice length

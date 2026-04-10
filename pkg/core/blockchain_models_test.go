@@ -83,12 +83,12 @@ func TestBlockchainEventValidate(t *testing.T) {
 
 func TestBlockchainEventStatus(t *testing.T) {
 	tests := []struct {
-		name       string
-		status     EventStatus
+		name        string
+		status      EventStatus
 		isConfirmed bool
-		isPending  bool
-		isFailed   bool
-		isReorged  bool
+		isPending   bool
+		isFailed    bool
+		isReorged   bool
 	}{
 		{
 			name:        "confirmed",
@@ -193,10 +193,10 @@ func TestTransactionValidate(t *testing.T) {
 
 func TestTransactionStatus(t *testing.T) {
 	tests := []struct {
-		name        string
-		status      uint64
+		name         string
+		status       uint64
 		isSuccessful bool
-		isFailed    bool
+		isFailed     bool
 	}{
 		{
 			name:         "successful",
@@ -290,10 +290,10 @@ func TestBlockGetTimestamp(t *testing.T) {
 
 func TestTransactionReceiptStatus(t *testing.T) {
 	tests := []struct {
-		name        string
-		status      uint64
+		name         string
+		status       uint64
 		isSuccessful bool
-		isFailed    bool
+		isFailed     bool
 	}{
 		{
 			name:         "successful",

@@ -8,11 +8,11 @@ import (
 
 // LoadBalancer distributes requests across handlers
 type LoadBalancer struct {
-	handlers      []*RequestHandler
-	currentIndex  int64
-	mu            sync.RWMutex
-	algorithm     string
-	metrics       *LoadBalancerMetrics
+	handlers     []*RequestHandler
+	currentIndex int64
+	mu           sync.RWMutex
+	algorithm    string
+	metrics      *LoadBalancerMetrics
 }
 
 // LoadBalancerMetrics represents load balancer metrics

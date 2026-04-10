@@ -46,8 +46,6 @@ type BlockchainManagerInterface interface {
 	GetContractABI(contractAddr string) (string, error)
 }
 
-
-
 // IndexerManager manages ChainPulse indexer components
 type IndexerManager interface {
 	// StartIndexer starts the indexer service
@@ -155,13 +153,13 @@ type IndexerConfig struct {
 
 // IndexerMetrics contains indexer performance metrics
 type IndexerMetrics struct {
-	EventsProcessed   int64
-	EventsIndexed     int64
-	ErrorCount        int64
-	AverageLatency    time.Duration
-	Throughput        float64
-	MemoryUsage       int64
-	CPUUsage          float64
+	EventsProcessed int64
+	EventsIndexed   int64
+	ErrorCount      int64
+	AverageLatency  time.Duration
+	Throughput      float64
+	MemoryUsage     int64
+	CPUUsage        float64
 }
 
 // TestMetrics contains collected test metrics
@@ -216,12 +214,12 @@ type Contract struct {
 
 // Event represents a blockchain event for multi-chain operations
 type Event struct {
-	ID                 string
-	ContractAddress    string
-	EventName          string
-	Parameters         map[string]interface{}
-	ChainID            string
-	BlockNumber        uint64
-	TransactionIndex   uint32
-	TransactionHash    string
+	ID               string
+	ContractAddress  string
+	EventName        string
+	Parameters       map[string]interface{}
+	ChainID          string
+	BlockNumber      uint64
+	TransactionIndex uint32
+	TransactionHash  string
 }

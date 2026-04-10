@@ -37,13 +37,13 @@ type TokenBalance struct {
 
 // TransferHistory represents historical transfer data
 type TransferHistory struct {
-	Transfers      []*TransferEvent
-	TotalIncoming  *big.Int
-	TotalOutgoing  *big.Int
-	NetChange      *big.Int
-	TransferCount  int64
-	FirstTransfer  int64
-	LastTransfer   int64
+	Transfers     []*TransferEvent
+	TotalIncoming *big.Int
+	TotalOutgoing *big.Int
+	NetChange     *big.Int
+	TransferCount int64
+	FirstTransfer int64
+	LastTransfer  int64
 }
 
 // ERC20Indexer indexes ERC20 token events
@@ -105,10 +105,10 @@ func (ei *ERC20Indexer) IndexTransfers(
 	for _, event := range events {
 		if err := ei.indexTransferEvent(ctx, event); err != nil {
 			ei.logger.Error("failed to index transfer event", map[string]interface{}{
-				"error":      err.Error(),
-				"event_id":   event.ID,
-				"block":      event.BlockNumber,
-				"tx_hash":    event.TransactionHash.Hex(),
+				"error":    err.Error(),
+				"event_id": event.ID,
+				"block":    event.BlockNumber,
+				"tx_hash":  event.TransactionHash.Hex(),
 			})
 			continue
 		}
@@ -293,10 +293,10 @@ func (ei *ERC20Indexer) GetTransferHistory(
 	}
 
 	ei.logger.Debug("getting transfer history", map[string]interface{}{
-		"token":       token.Hex(),
-		"account":     account.Hex(),
-		"from_block":  fromBlock,
-		"to_block":    toBlock,
+		"token":      token.Hex(),
+		"account":    account.Hex(),
+		"from_block": fromBlock,
+		"to_block":   toBlock,
 	})
 
 	// Create filter for transfer events
@@ -378,11 +378,11 @@ func (ei *ERC20Indexer) GetTransferHistory(
 	}
 
 	ei.logger.Debug("retrieved transfer history", map[string]interface{}{
-		"token":           token.Hex(),
-		"account":         account.Hex(),
-		"transfer_count":  len(transfers),
-		"total_incoming":  totalIncoming.String(),
-		"total_outgoing":  totalOutgoing.String(),
+		"token":          token.Hex(),
+		"account":        account.Hex(),
+		"transfer_count": len(transfers),
+		"total_incoming": totalIncoming.String(),
+		"total_outgoing": totalOutgoing.String(),
 	})
 
 	return history, nil

@@ -83,12 +83,12 @@ func (f *ServiceFactory) GetMetrics() map[string]interface{} {
 
 // GenericServiceHandler provides a generic service handler implementation
 type GenericServiceHandler struct {
-	name       string
-	backend    ServiceBackend
-	cache      ServiceCache
-	mu         sync.RWMutex
-	metrics    *ServiceMetrics
-	cacheTTL   time.Duration
+	name     string
+	backend  ServiceBackend
+	cache    ServiceCache
+	mu       sync.RWMutex
+	metrics  *ServiceMetrics
+	cacheTTL time.Duration
 }
 
 // NewGenericServiceHandler creates a new generic service handler

@@ -1,11 +1,13 @@
 package database
 
 import (
-	"github.com/ethereum/go-ethereum/common"
-	"chainpulse/pkg/core"
 	"fmt"
 	"testing"
 	"time"
+
+	"chainpulse/pkg/core"
+
+	"github.com/ethereum/go-ethereum/common"
 )
 
 // BenchmarkBatchInsert benchmarks batch insert performance
@@ -50,7 +52,7 @@ func BenchmarkBatchInsert(b *testing.B) {
 			ContractAddress: common.HexToAddress("0x123"),
 			EventName:       "Transfer",
 			EventData:       []byte("data1"),
-			BlockTimestamp: time.Now().Unix(),
+			BlockTimestamp:  time.Now().Unix(),
 		}
 	}
 
@@ -104,7 +106,7 @@ func TestBatchInsertPerformance(t *testing.T) {
 			ContractAddress: common.HexToAddress("0x123"),
 			EventName:       "Transfer",
 			EventData:       []byte("data1"),
-			BlockTimestamp: time.Now().Unix(),
+			BlockTimestamp:  time.Now().Unix(),
 		}
 	}
 
@@ -170,7 +172,7 @@ func TestBatchInsertVariousSizes(t *testing.T) {
 				ContractAddress: common.HexToAddress("0x123"),
 				EventName:       "Transfer",
 				EventData:       []byte("data1"),
-				BlockTimestamp: time.Now().Unix(),
+				BlockTimestamp:  time.Now().Unix(),
 			}
 		}
 
@@ -227,7 +229,7 @@ func TestSingleEventPerformance(t *testing.T) {
 			ContractAddress: common.HexToAddress("0x123"),
 			EventName:       "Transfer",
 			EventData:       []byte("data1"),
-			BlockTimestamp: time.Now().Unix(),
+			BlockTimestamp:  time.Now().Unix(),
 		}
 
 		err := db.WriteEvent(event)
@@ -285,7 +287,7 @@ func TestQueryPerformance(t *testing.T) {
 			ContractAddress: common.HexToAddress("0x123"),
 			EventName:       "Transfer",
 			EventData:       []byte("data1"),
-			BlockTimestamp: time.Now().Unix(),
+			BlockTimestamp:  time.Now().Unix(),
 		}
 	}
 

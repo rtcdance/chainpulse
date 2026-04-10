@@ -4,12 +4,12 @@ import "testing"
 
 func TestBuildEventQueryMetaFromInputDerivesSharedFields(t *testing.T) {
 	meta := buildEventQueryMetaFromInput(eventQueryMetaInput{
-		Source:               "event-retrieval",
-		QueryPath:            "retrieval-list",
-		MetadataCompleteness: "partial",
+		Source:                "event-retrieval",
+		QueryPath:             "retrieval-list",
+		MetadataCompleteness:  "partial",
 		MetadataAttachedCount: 1,
 		MetadataMissingCount:  1,
-		ResultCount:          2,
+		ResultCount:           2,
 	})
 
 	if meta == nil {
@@ -31,13 +31,13 @@ func TestBuildEventQueryMetaFromInputDerivesSharedFields(t *testing.T) {
 
 func TestBuildEventQueryMetaFromInputPreservesExplicitSourcePosture(t *testing.T) {
 	meta := buildEventQueryMetaFromInput(eventQueryMetaInput{
-		Source:               "cache",
-		QuerySourcePosture:   "cache-hit",
-		QueryPath:            "domain-list",
-		MetadataCompleteness: "none",
+		Source:                "cache",
+		QuerySourcePosture:    "cache-hit",
+		QueryPath:             "domain-list",
+		MetadataCompleteness:  "none",
 		MetadataAttachedCount: 0,
 		MetadataMissingCount:  3,
-		ResultCount:          3,
+		ResultCount:           3,
 	})
 
 	if meta == nil {

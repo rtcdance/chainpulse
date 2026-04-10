@@ -1,10 +1,11 @@
 package bootstrap
 
 import (
-	"chainpulse/pkg/core"
 	"os"
 	"reflect"
 	"testing"
+
+	"chainpulse/pkg/core"
 )
 
 func TestValidateCoreConfigOverridesForProfileProductionDenylist(t *testing.T) {

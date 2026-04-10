@@ -42,9 +42,9 @@ func TestProperty8_DeadLetterQueueConsistency(t *testing.T) {
 	numMessages := 10
 	for i := 0; i < numMessages; i++ {
 		message := MessageQueueMessage{
-			ID:      fmt.Sprintf("msg-%d", i),
-			Topic:   "blockchain_events",
-			Payload: []byte(fmt.Sprintf("payload-%d", i)),
+			ID:        fmt.Sprintf("msg-%d", i),
+			Topic:     "blockchain_events",
+			Payload:   []byte(fmt.Sprintf("payload-%d", i)),
 			Timestamp: time.Now().UTC(),
 		}
 
@@ -103,10 +103,10 @@ func TestProperty8_RetryLogicCorrectness(t *testing.T) {
 	defer cancel()
 
 	message := MessageQueueMessage{
-		ID:      "msg-1",
-		Topic:   "blockchain_events",
-		Payload: []byte("test payload"),
-		Timestamp: time.Now().UTC(),
+		ID:         "msg-1",
+		Topic:      "blockchain_events",
+		Payload:    []byte("test payload"),
+		Timestamp:  time.Now().UTC(),
 		RetryCount: 0,
 	}
 
@@ -156,9 +156,9 @@ func TestProperty8_MessageOrderingInDLQ(t *testing.T) {
 		messageIDs[i] = messageID
 
 		message := MessageQueueMessage{
-			ID:      messageID,
-			Topic:   "blockchain_events",
-			Payload: []byte(fmt.Sprintf("payload-%d", i)),
+			ID:        messageID,
+			Topic:     "blockchain_events",
+			Payload:   []byte(fmt.Sprintf("payload-%d", i)),
 			Timestamp: time.Now().UTC(),
 		}
 
@@ -223,9 +223,9 @@ func TestProperty8_DeadLetterQueueReasonPreservation(t *testing.T) {
 
 	for i, reason := range reasons {
 		message := MessageQueueMessage{
-			ID:      fmt.Sprintf("msg-%d", i),
-			Topic:   "blockchain_events",
-			Payload: []byte(fmt.Sprintf("payload-%d", i)),
+			ID:        fmt.Sprintf("msg-%d", i),
+			Topic:     "blockchain_events",
+			Payload:   []byte(fmt.Sprintf("payload-%d", i)),
 			Timestamp: time.Now().UTC(),
 		}
 
@@ -278,9 +278,9 @@ func TestProperty8_ConcurrentDLQOperations(t *testing.T) {
 
 			for i := 0; i < messagesPerGoroutine; i++ {
 				message := MessageQueueMessage{
-					ID:      fmt.Sprintf("msg-g%d-m%d", goroutineID, i),
-					Topic:   "blockchain_events",
-					Payload: []byte(fmt.Sprintf("payload-g%d-m%d", goroutineID, i)),
+					ID:        fmt.Sprintf("msg-g%d-m%d", goroutineID, i),
+					Topic:     "blockchain_events",
+					Payload:   []byte(fmt.Sprintf("payload-g%d-m%d", goroutineID, i)),
 					Timestamp: time.Now().UTC(),
 				}
 
@@ -329,9 +329,9 @@ func TestProperty8_DLQSizeTracking(t *testing.T) {
 
 	for i := 0; i < 5; i++ {
 		message := MessageQueueMessage{
-			ID:      fmt.Sprintf("msg-%d", i),
-			Topic:   "blockchain_events",
-			Payload: []byte(fmt.Sprintf("payload-%d", i)),
+			ID:        fmt.Sprintf("msg-%d", i),
+			Topic:     "blockchain_events",
+			Payload:   []byte(fmt.Sprintf("payload-%d", i)),
 			Timestamp: time.Now().UTC(),
 		}
 
@@ -377,10 +377,10 @@ func TestProperty8_RetryDelayRespected(t *testing.T) {
 	defer cancel()
 
 	message := MessageQueueMessage{
-		ID:      "msg-1",
-		Topic:   "blockchain_events",
-		Payload: []byte("test payload"),
-		Timestamp: time.Now().UTC(),
+		ID:         "msg-1",
+		Topic:      "blockchain_events",
+		Payload:    []byte("test payload"),
+		Timestamp:  time.Now().UTC(),
 		RetryCount: 0,
 	}
 
@@ -429,9 +429,9 @@ func TestProperty8_MessageDeliveryGuarantees(t *testing.T) {
 	numMessages := 10
 	for i := 0; i < numMessages; i++ {
 		message := MessageQueueMessage{
-			ID:      fmt.Sprintf("msg-%d", i),
-			Topic:   "blockchain_events",
-			Payload: []byte(fmt.Sprintf("payload-%d", i)),
+			ID:        fmt.Sprintf("msg-%d", i),
+			Topic:     "blockchain_events",
+			Payload:   []byte(fmt.Sprintf("payload-%d", i)),
 			Timestamp: time.Now().UTC(),
 		}
 
@@ -483,9 +483,9 @@ func TestProperty8_DLQMetricsCollection(t *testing.T) {
 	numMessages := 5
 	for i := 0; i < numMessages; i++ {
 		message := MessageQueueMessage{
-			ID:      fmt.Sprintf("msg-%d", i),
-			Topic:   "blockchain_events",
-			Payload: []byte(fmt.Sprintf("payload-%d", i)),
+			ID:        fmt.Sprintf("msg-%d", i),
+			Topic:     "blockchain_events",
+			Payload:   []byte(fmt.Sprintf("payload-%d", i)),
 			Timestamp: time.Now().UTC(),
 		}
 
@@ -538,10 +538,10 @@ func TestProperty8_ConcurrentRetryAndDLQ(t *testing.T) {
 			defer wg.Done()
 
 			message := MessageQueueMessage{
-				ID:      fmt.Sprintf("msg-g%d", goroutineID),
-				Topic:   "blockchain_events",
-				Payload: []byte(fmt.Sprintf("payload-g%d", goroutineID)),
-				Timestamp: time.Now().UTC(),
+				ID:         fmt.Sprintf("msg-g%d", goroutineID),
+				Topic:      "blockchain_events",
+				Payload:    []byte(fmt.Sprintf("payload-g%d", goroutineID)),
+				Timestamp:  time.Now().UTC(),
 				RetryCount: 0,
 			}
 
@@ -599,9 +599,9 @@ func TestProperty8_DLQRecovery(t *testing.T) {
 	numMessages := 5
 	for i := 0; i < numMessages; i++ {
 		message := MessageQueueMessage{
-			ID:      fmt.Sprintf("msg-%d", i),
-			Topic:   "blockchain_events",
-			Payload: []byte(fmt.Sprintf("payload-%d", i)),
+			ID:        fmt.Sprintf("msg-%d", i),
+			Topic:     "blockchain_events",
+			Payload:   []byte(fmt.Sprintf("payload-%d", i)),
 			Timestamp: time.Now().UTC(),
 		}
 
@@ -633,7 +633,6 @@ func TestProperty8_DLQRecovery(t *testing.T) {
 		}
 	}
 }
-
 
 // Property 2: Exactly-Once Semantics
 // For any message consumed from the queue, the message SHALL be processed exactly once
@@ -667,9 +666,9 @@ func TestProperty2_ExactlyOnceSemantics(t *testing.T) {
 	numMessages := 10
 	for i := 0; i < numMessages; i++ {
 		message := MessageQueueMessage{
-			ID:      fmt.Sprintf("msg-%d", i),
-			Topic:   "blockchain_events",
-			Payload: []byte(fmt.Sprintf("payload-%d", i)),
+			ID:        fmt.Sprintf("msg-%d", i),
+			Topic:     "blockchain_events",
+			Payload:   []byte(fmt.Sprintf("payload-%d", i)),
 			Timestamp: time.Now().UTC(),
 		}
 
@@ -692,9 +691,9 @@ func TestProperty2_ExactlyOnceSemantics(t *testing.T) {
 	// Process messages
 	for i := 0; i < numMessages; i++ {
 		message := MessageQueueMessage{
-			ID:      fmt.Sprintf("msg-%d", i),
-			Topic:   "blockchain_events",
-			Payload: []byte(fmt.Sprintf("payload-%d", i)),
+			ID:        fmt.Sprintf("msg-%d", i),
+			Topic:     "blockchain_events",
+			Payload:   []byte(fmt.Sprintf("payload-%d", i)),
 			Timestamp: time.Now().UTC(),
 		}
 
@@ -740,11 +739,11 @@ func TestProperty2_OffsetTracking(t *testing.T) {
 	numMessages := 10
 	for i := 0; i < numMessages; i++ {
 		message := MessageQueueMessage{
-			ID:      fmt.Sprintf("msg-%d", i),
-			Topic:   "blockchain_events",
-			Payload: []byte(fmt.Sprintf("payload-%d", i)),
+			ID:        fmt.Sprintf("msg-%d", i),
+			Topic:     "blockchain_events",
+			Payload:   []byte(fmt.Sprintf("payload-%d", i)),
 			Timestamp: time.Now().UTC(),
-			Offset:  int64(i),
+			Offset:    int64(i),
 		}
 
 		if err := plugin.PublishMessage(ctx, message); err != nil {
@@ -795,9 +794,9 @@ func TestProperty2_HandlerInvocation(t *testing.T) {
 	numMessages := 10
 	for i := 0; i < numMessages; i++ {
 		message := MessageQueueMessage{
-			ID:      fmt.Sprintf("msg-%d", i),
-			Topic:   "blockchain_events",
-			Payload: []byte(fmt.Sprintf("payload-%d", i)),
+			ID:        fmt.Sprintf("msg-%d", i),
+			Topic:     "blockchain_events",
+			Payload:   []byte(fmt.Sprintf("payload-%d", i)),
 			Timestamp: time.Now().UTC(),
 		}
 
@@ -861,9 +860,9 @@ func TestProperty2_ErrorHandling(t *testing.T) {
 	numMessages := 10
 	for i := 0; i < numMessages; i++ {
 		message := MessageQueueMessage{
-			ID:      fmt.Sprintf("msg-%d", i),
-			Topic:   "blockchain_events",
-			Payload: []byte(fmt.Sprintf("payload-%d", i)),
+			ID:        fmt.Sprintf("msg-%d", i),
+			Topic:     "blockchain_events",
+			Payload:   []byte(fmt.Sprintf("payload-%d", i)),
 			Timestamp: time.Now().UTC(),
 		}
 
@@ -977,9 +976,9 @@ func TestProperty2_ConcurrentConsumption(t *testing.T) {
 
 			for i := 0; i < messagesPerGoroutine; i++ {
 				message := MessageQueueMessage{
-					ID:      fmt.Sprintf("msg-g%d-m%d", goroutineID, i),
-					Topic:   "blockchain_events",
-					Payload: []byte(fmt.Sprintf("payload-g%d-m%d", goroutineID, i)),
+					ID:        fmt.Sprintf("msg-g%d-m%d", goroutineID, i),
+					Topic:     "blockchain_events",
+					Payload:   []byte(fmt.Sprintf("payload-g%d-m%d", goroutineID, i)),
 					Timestamp: time.Now().UTC(),
 				}
 
@@ -1085,9 +1084,9 @@ func TestProperty2_IdempotentProcessing(t *testing.T) {
 
 	// Process same message multiple times
 	message := MessageQueueMessage{
-		ID:      "msg-1",
-		Topic:   "blockchain_events",
-		Payload: []byte("data-1"),
+		ID:        "msg-1",
+		Topic:     "blockchain_events",
+		Payload:   []byte("data-1"),
 		Timestamp: time.Now().UTC(),
 	}
 
@@ -1134,11 +1133,11 @@ func TestProperty2_OffsetPersistence(t *testing.T) {
 
 	for _, offset := range offsets {
 		message := MessageQueueMessage{
-			ID:      fmt.Sprintf("msg-%d", offset),
-			Topic:   topic,
-			Payload: []byte(fmt.Sprintf("payload-%d", offset)),
+			ID:        fmt.Sprintf("msg-%d", offset),
+			Topic:     topic,
+			Payload:   []byte(fmt.Sprintf("payload-%d", offset)),
 			Timestamp: time.Now().UTC(),
-			Offset:  offset,
+			Offset:    offset,
 		}
 
 		if err := plugin.PublishMessage(ctx, message); err != nil {
@@ -1185,9 +1184,9 @@ func TestProperty1_MessageDeliveryGuarantee(t *testing.T) {
 	numMessages := 20
 	for i := 0; i < numMessages; i++ {
 		message := MessageQueueMessage{
-			ID:      fmt.Sprintf("msg-%d", i),
-			Topic:   "blockchain_events",
-			Payload: []byte(fmt.Sprintf("payload-%d", i)),
+			ID:        fmt.Sprintf("msg-%d", i),
+			Topic:     "blockchain_events",
+			Payload:   []byte(fmt.Sprintf("payload-%d", i)),
 			Timestamp: time.Now().UTC(),
 		}
 
@@ -1240,8 +1239,8 @@ func TestProperty1_MessageIDGeneration(t *testing.T) {
 
 	for i := 0; i < numMessages; i++ {
 		message := MessageQueueMessage{
-			Topic:   "blockchain_events",
-			Payload: []byte(fmt.Sprintf("payload-%d", i)),
+			Topic:     "blockchain_events",
+			Payload:   []byte(fmt.Sprintf("payload-%d", i)),
 			Timestamp: time.Now().UTC(),
 		}
 
@@ -1395,9 +1394,9 @@ func TestProperty1_MetricsRecording(t *testing.T) {
 	numMessages := 5
 	for i := 0; i < numMessages; i++ {
 		message := MessageQueueMessage{
-			ID:      fmt.Sprintf("msg-%d", i),
-			Topic:   "blockchain_events",
-			Payload: []byte(fmt.Sprintf("payload-%d", i)),
+			ID:        fmt.Sprintf("msg-%d", i),
+			Topic:     "blockchain_events",
+			Payload:   []byte(fmt.Sprintf("payload-%d", i)),
 			Timestamp: time.Now().UTC(),
 		}
 
@@ -1448,9 +1447,9 @@ func TestProperty1_ConcurrentPublishing(t *testing.T) {
 
 			for i := 0; i < messagesPerGoroutine; i++ {
 				message := MessageQueueMessage{
-					ID:      fmt.Sprintf("msg-g%d-m%d", goroutineID, i),
-					Topic:   "blockchain_events",
-					Payload: []byte(fmt.Sprintf("payload-g%d-m%d", goroutineID, i)),
+					ID:        fmt.Sprintf("msg-g%d-m%d", goroutineID, i),
+					Topic:     "blockchain_events",
+					Payload:   []byte(fmt.Sprintf("payload-g%d-m%d", goroutineID, i)),
 					Timestamp: time.Now().UTC(),
 				}
 
@@ -1496,9 +1495,9 @@ func TestProperty1_ErrorRecording(t *testing.T) {
 	defer cancel()
 
 	message := MessageQueueMessage{
-		ID:      "msg-1",
-		Topic:   "blockchain_events",
-		Payload: []byte("test payload"),
+		ID:        "msg-1",
+		Topic:     "blockchain_events",
+		Payload:   []byte("test payload"),
 		Timestamp: time.Now().UTC(),
 	}
 
@@ -1513,7 +1512,6 @@ func TestProperty1_ErrorRecording(t *testing.T) {
 		_ = stats.ErrorCount // Error count may not be incremented for this type of error
 	}
 }
-
 
 // Property 9: Configuration Validation
 // For any configuration provided to the MQ plugin, invalid configurations SHALL be rejected with clear error messages.

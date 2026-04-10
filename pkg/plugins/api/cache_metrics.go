@@ -9,10 +9,10 @@ import (
 
 // CacheMetrics collects cache performance metrics
 type CacheMetrics struct {
-	hitCount      int64
-	missCount     int64
-	evictionCount int64
-	invalidationCount int64
+	hitCount           int64
+	missCount          int64
+	evictionCount      int64
+	invalidationCount  int64
 	operationDurations []time.Duration
 
 	logger  core.Logger
@@ -126,12 +126,12 @@ func (cm *CacheMetrics) GetStats() map[string]interface{} {
 	}
 
 	return map[string]interface{}{
-		"hit_count":           cm.hitCount,
-		"miss_count":          cm.missCount,
-		"eviction_count":      cm.evictionCount,
-		"invalidation_count":  cm.invalidationCount,
-		"hit_rate":            hitRate,
-		"total_operations":    total,
+		"hit_count":                 cm.hitCount,
+		"miss_count":                cm.missCount,
+		"eviction_count":            cm.evictionCount,
+		"invalidation_count":        cm.invalidationCount,
+		"hit_rate":                  hitRate,
+		"total_operations":          total,
 		"avg_operation_duration_ms": avgDuration,
 	}
 }

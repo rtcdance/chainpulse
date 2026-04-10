@@ -135,7 +135,6 @@ func (p *WebSocketJSONRPCPuller) GetLatestBlock(ctx context.Context) (uint64, er
 		p.currentBlock, err = p.getLatestBlockNumber(ctx)
 		return err
 	})
-
 	if err != nil {
 		p.errorCounter++
 		p.lastError = err

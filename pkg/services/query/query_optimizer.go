@@ -11,51 +11,51 @@ import (
 
 // QueryOptimizer analyzes and optimizes database queries
 type QueryOptimizer struct {
-	mu                sync.RWMutex
-	queryStats        map[string]*QueryStatistics
+	mu                   sync.RWMutex
+	queryStats           map[string]*QueryStatistics
 	indexRecommendations map[string][]IndexRecommendation
-	cache             map[string]*OptimizedQuery
-	maxCacheSize      int
+	cache                map[string]*OptimizedQuery
+	maxCacheSize         int
 }
 
 // QueryStatistics tracks query performance metrics
 type QueryStatistics struct {
-	QueryHash        string
-	Query            string
-	ExecutionCount   int64
-	TotalDuration    time.Duration
-	AverageDuration  time.Duration
-	MinDuration      time.Duration
-	MaxDuration      time.Duration
-	ErrorCount       int64
-	LastExecuted     time.Time
-	EstimatedCost    float64
-	ActualCost       float64
-	IndexesUsed      []string
-	FullTableScans   int64
+	QueryHash       string
+	Query           string
+	ExecutionCount  int64
+	TotalDuration   time.Duration
+	AverageDuration time.Duration
+	MinDuration     time.Duration
+	MaxDuration     time.Duration
+	ErrorCount      int64
+	LastExecuted    time.Time
+	EstimatedCost   float64
+	ActualCost      float64
+	IndexesUsed     []string
+	FullTableScans  int64
 }
 
 // IndexRecommendation suggests an index for optimization
 type IndexRecommendation struct {
-	TableName       string
-	Columns         []string
-	Type            string // "BTREE", "HASH", "FULLTEXT"
-	Priority        int    // 1-10, higher is more important
-	EstimatedGain   float64
-	RecommendedAt   time.Time
-	ImplementedAt   *time.Time
+	TableName     string
+	Columns       []string
+	Type          string // "BTREE", "HASH", "FULLTEXT"
+	Priority      int    // 1-10, higher is more important
+	EstimatedGain float64
+	RecommendedAt time.Time
+	ImplementedAt *time.Time
 }
 
 // OptimizedQuery represents an optimized query plan
 type OptimizedQuery struct {
-	Original         string
-	Optimized        string
-	QueryHash        string
-	EstimatedCost    float64
-	RewriteRules     []string
-	IndexesUsed      []string
-	OptimizedAt      time.Time
-	CachedUntil      time.Time
+	Original      string
+	Optimized     string
+	QueryHash     string
+	EstimatedCost float64
+	RewriteRules  []string
+	IndexesUsed   []string
+	OptimizedAt   time.Time
+	CachedUntil   time.Time
 }
 
 // QueryPlan represents the execution plan for a query
@@ -72,14 +72,14 @@ type QueryPlan struct {
 
 // Operation represents a single operation in a query plan
 type Operation struct {
-	Type            string // "Scan", "Filter", "Join", "Sort", "Aggregate"
-	Table           string
-	Columns         []string
-	Condition       string
-	EstimatedRows   int64
-	EstimatedCost   float64
-	IndexUsed       string
-	FullTableScan   bool
+	Type          string // "Scan", "Filter", "Join", "Sort", "Aggregate"
+	Table         string
+	Columns       []string
+	Condition     string
+	EstimatedRows int64
+	EstimatedCost float64
+	IndexUsed     string
+	FullTableScan bool
 }
 
 // NewQueryOptimizer creates a new query optimizer

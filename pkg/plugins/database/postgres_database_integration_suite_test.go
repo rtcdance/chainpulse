@@ -1,11 +1,12 @@
 package database
 
 import (
-	"chainpulse/pkg/core"
 	"context"
 	"fmt"
 	"testing"
 	"time"
+
+	"chainpulse/pkg/core"
 
 	"github.com/ethereum/go-ethereum/common"
 )

@@ -1,11 +1,12 @@
 package cache
 
 import (
-	"chainpulse/pkg/core"
 	"container/list"
 	"encoding/json"
 	"fmt"
 	"time"
+
+	"chainpulse/pkg/core"
 )
 
 // Ensure list package is properly imported
@@ -14,7 +15,7 @@ var _ *list.List
 // AdvancedInMemoryCachePlugin provides advanced in-memory cache with LRU eviction
 type AdvancedInMemoryCachePlugin struct {
 	*BaseCachePlugin
-	data              map[string]*CacheEntry
+	data            map[string]*CacheEntry
 	lruList         *list.List
 	lruMap          map[string]*list.Element
 	maxSize         int64
@@ -30,16 +31,16 @@ type AdvancedInMemoryCachePlugin struct {
 // NewAdvancedInMemoryCachePlugin creates a new advanced in-memory cache plugin
 func NewAdvancedInMemoryCachePlugin(logger core.Logger, metricsCollector core.MetricsCollector) *AdvancedInMemoryCachePlugin {
 	return &AdvancedInMemoryCachePlugin{
-		BaseCachePlugin:  NewBaseCachePlugin(logger, metricsCollector),
-		data:             make(map[string]*CacheEntry),
-		lruList:          list.New(),
-		lruMap:           make(map[string]*list.Element),
-		maxSize:          1024 * 1024 * 100, // 100MB default
-		maxEntries:       10000,              // 10k entries default
-		evictionPolicy:   "LRU",
-		cleanupInterval:  30 * time.Second,
-		stopCleanup:      make(chan bool, 1),
-		cleanupDone:      make(chan struct{}),
+		BaseCachePlugin: NewBaseCachePlugin(logger, metricsCollector),
+		data:            make(map[string]*CacheEntry),
+		lruList:         list.New(),
+		lruMap:          make(map[string]*list.Element),
+		maxSize:         1024 * 1024 * 100, // 100MB default
+		maxEntries:      10000,             // 10k entries default
+		evictionPolicy:  "LRU",
+		cleanupInterval: 30 * time.Second,
+		stopCleanup:     make(chan bool, 1),
+		cleanupDone:     make(chan struct{}),
 	}
 }
 
@@ -64,9 +65,9 @@ func (p *AdvancedInMemoryCachePlugin) Initialize(config *core.Config) error {
 	// These are set to defaults in NewAdvancedInMemoryCachePlugin
 
 	p.logger.Info("Advanced in-memory cache plugin initialized", map[string]interface{}{
-		"component":    "advanced_cache",
-		"maxSize":      p.maxSize,
-		"maxEntries":   p.maxEntries,
+		"component":      "advanced_cache",
+		"maxSize":        p.maxSize,
+		"maxEntries":     p.maxEntries,
 		"evictionPolicy": p.evictionPolicy,
 	})
 
@@ -472,7 +473,7 @@ func (p *AdvancedInMemoryCachePlugin) recordEvictionUnlocked() {
 
 func (p *AdvancedInMemoryCachePlugin) cleanupExpiredEntries() {
 	defer close(p.cleanupDone)
-	
+
 	ticker := time.NewTicker(p.cleanupInterval)
 	defer ticker.Stop()
 

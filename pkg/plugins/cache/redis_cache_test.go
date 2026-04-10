@@ -1,10 +1,11 @@
 package cache
 
 import (
-	"chainpulse/pkg/core"
 	"context"
 	"testing"
 	"time"
+
+	"chainpulse/pkg/core"
 )
 
 func TestRedisCacheInitialize(t *testing.T) {

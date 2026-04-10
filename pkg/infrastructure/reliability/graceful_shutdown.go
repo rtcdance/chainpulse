@@ -20,28 +20,28 @@ type GracefulShutdownManager struct {
 
 // ShutdownInfo tracks shutdown information
 type ShutdownInfo struct {
-	ServiceID              string
-	Status                 string // "running", "draining", "stopped"
-	ActiveConnections      int
-	PendingRequests        int
-	DrainStartTime         time.Time
-	DrainCompleteTime      time.Time
-	LastConnectionClosed   time.Time
-	LastRequestCompleted   time.Time
+	ServiceID            string
+	Status               string // "running", "draining", "stopped"
+	ActiveConnections    int
+	PendingRequests      int
+	DrainStartTime       time.Time
+	DrainCompleteTime    time.Time
+	LastConnectionClosed time.Time
+	LastRequestCompleted time.Time
 }
 
 // ShutdownMetrics tracks shutdown metrics
 type ShutdownMetrics struct {
-	mu                    sync.RWMutex
-	ShutdownsInitiated    int64
-	ShutdownsCompleted    int64
-	ShutdownsFailed       int64
-	ConnectionsDrained    int64
-	RequestsCompleted     int64
-	AverageShutdownTime   time.Duration
-	TotalShutdownTime     time.Duration
-	LastShutdownTime      time.Time
-	ForcedTerminations    int64
+	mu                  sync.RWMutex
+	ShutdownsInitiated  int64
+	ShutdownsCompleted  int64
+	ShutdownsFailed     int64
+	ConnectionsDrained  int64
+	RequestsCompleted   int64
+	AverageShutdownTime time.Duration
+	TotalShutdownTime   time.Duration
+	LastShutdownTime    time.Time
+	ForcedTerminations  int64
 }
 
 // NewGracefulShutdownManager creates a new graceful shutdown manager
@@ -254,14 +254,14 @@ func (gsm *GracefulShutdownManager) GetMetrics() map[string]interface{} {
 	defer gsm.metrics.mu.RUnlock()
 
 	return map[string]interface{}{
-		"shutdowns_initiated":    gsm.metrics.ShutdownsInitiated,
-		"shutdowns_completed":    gsm.metrics.ShutdownsCompleted,
-		"shutdowns_failed":       gsm.metrics.ShutdownsFailed,
-		"connections_drained":    gsm.metrics.ConnectionsDrained,
-		"requests_completed":     gsm.metrics.RequestsCompleted,
-		"average_shutdown_time":  gsm.metrics.AverageShutdownTime.String(),
-		"total_shutdown_time":    gsm.metrics.TotalShutdownTime.String(),
-		"forced_terminations":    gsm.metrics.ForcedTerminations,
+		"shutdowns_initiated":   gsm.metrics.ShutdownsInitiated,
+		"shutdowns_completed":   gsm.metrics.ShutdownsCompleted,
+		"shutdowns_failed":      gsm.metrics.ShutdownsFailed,
+		"connections_drained":   gsm.metrics.ConnectionsDrained,
+		"requests_completed":    gsm.metrics.RequestsCompleted,
+		"average_shutdown_time": gsm.metrics.AverageShutdownTime.String(),
+		"total_shutdown_time":   gsm.metrics.TotalShutdownTime.String(),
+		"forced_terminations":   gsm.metrics.ForcedTerminations,
 	}
 }
 

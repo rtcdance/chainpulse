@@ -1,17 +1,18 @@
 package main
 
 import (
-	"chainpulse/pkg/core"
-	pluginapi "chainpulse/pkg/plugins/api"
-	"chainpulse/pkg/plugins/pullers"
-	"chainpulse/pkg/services/indexing"
-	"chainpulse/pkg/services/reorg"
 	"context"
 	"fmt"
 	"net/http"
 	"strings"
 	"sync"
 	"time"
+
+	"chainpulse/pkg/core"
+	pluginapi "chainpulse/pkg/plugins/api"
+	"chainpulse/pkg/plugins/pullers"
+	"chainpulse/pkg/services/indexing"
+	"chainpulse/pkg/services/reorg"
 
 	"github.com/ethereum/go-ethereum/common"
 )

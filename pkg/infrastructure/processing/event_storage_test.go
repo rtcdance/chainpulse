@@ -27,14 +27,14 @@ func TestStoreEvent(t *testing.T) {
 	ctx := context.Background()
 
 	event := &Event{
-		ID:               "event-1",
-		EventHash:        "hash-1",
-		ChainID:          "ethereum",
-		ContractAddress:  "0x1234",
-		EventName:        "Transfer",
-		BlockNumber:      100,
-		Timestamp:        time.Now(),
-		Status:           "confirmed",
+		ID:              "event-1",
+		EventHash:       "hash-1",
+		ChainID:         "ethereum",
+		ContractAddress: "0x1234",
+		EventName:       "Transfer",
+		BlockNumber:     100,
+		Timestamp:       time.Now(),
+		Status:          "confirmed",
 	}
 
 	err := store.StoreEvent(ctx, event)

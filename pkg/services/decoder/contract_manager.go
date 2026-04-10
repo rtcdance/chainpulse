@@ -5,19 +5,19 @@ import (
 	"fmt"
 	"sync"
 
+	"chainpulse/pkg/core"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
-	"chainpulse/pkg/core"
 )
 
 // ContractMetadata holds contract ABI and metadata
 type ContractMetadata struct {
-	Address  common.Address
-	ABI      abi.ABI
-	Name     string
-	Version  string
-	Events   map[string]abi.Event
-	Methods  map[string]abi.Method
+	Address common.Address
+	ABI     abi.ABI
+	Name    string
+	Version string
+	Events  map[string]abi.Event
+	Methods map[string]abi.Method
 }
 
 // ContractManager manages contract ABIs and metadata

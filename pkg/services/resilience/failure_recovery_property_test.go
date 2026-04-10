@@ -1,11 +1,12 @@
 package resilience
 
 import (
-	"chainpulse/pkg/core"
 	"context"
 	"fmt"
 	"testing"
 	"time"
+
+	"chainpulse/pkg/core"
 )
 
 // Property 20: Failure Recovery

@@ -1,10 +1,11 @@
 package indexing
 
 import (
-	"chainpulse/pkg/core"
 	"context"
 	"fmt"
 	"sync"
+
+	"chainpulse/pkg/core"
 )
 
 // MonolithicMemoryDatabase provides a debug-friendly in-memory implementation

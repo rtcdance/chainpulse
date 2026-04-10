@@ -171,7 +171,6 @@ func TestProperty_HandlerConsistency(t *testing.T) {
 	// Call handler multiple times
 	for i := 0; i < 5; i++ {
 		resp, err := handler.Handle(req)
-
 		if err != nil {
 			t.Errorf("iteration %d: unexpected error: %v", i, err)
 		}
@@ -213,7 +212,6 @@ func TestProperty_RouterRoutingCorrectness(t *testing.T) {
 	for route, expectedName := range handlers {
 		req := NewBaseRequest(context.Background(), "GET", route, nil, []byte(""))
 		resp, err := router.Handle(req)
-
 		if err != nil {
 			t.Errorf("route %s: unexpected error: %v", route, err)
 		}
@@ -262,7 +260,6 @@ func TestProperty_MiddlewareChainConsistency(t *testing.T) {
 
 	req := NewBaseRequest(context.Background(), "GET", "/api/test", nil, []byte(""))
 	resp, err := router.Handle(req)
-
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}

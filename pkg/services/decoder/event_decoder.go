@@ -3,10 +3,10 @@ package decoder
 import (
 	"fmt"
 
+	"chainpulse/pkg/core"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
-	"chainpulse/pkg/core"
 )
 
 // EventDecoder decodes raw blockchain events into structured data
@@ -95,9 +95,9 @@ func (ed *EventDecoder) DecodeEvent(
 			values, err := nonIndexedInputs.Unpack(rawEvent.Data)
 			if err != nil {
 				ed.logger.Error("failed to unpack event data", map[string]interface{}{
-					"error":     err.Error(),
-					"event":     event.Name,
-					"data_len":  len(rawEvent.Data),
+					"error":    err.Error(),
+					"event":    event.Name,
+					"data_len": len(rawEvent.Data),
 				})
 				return nil, fmt.Errorf("failed to unpack event data: %w", err)
 			}

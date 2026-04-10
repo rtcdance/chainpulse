@@ -360,7 +360,7 @@ func TestGetHitRate(t *testing.T) {
 	ctx := context.Background()
 
 	// Perform operations
- _ = rcm.Set(ctx, "key1", "value1", 1*time.Hour)
+	_ = rcm.Set(ctx, "key1", "value1", 1*time.Hour)
 	_, _ = rcm.Get(ctx, "key1") // hit
 	_, _ = rcm.Get(ctx, "key1") // hit
 	_, _ = rcm.Get(ctx, "key2") // miss
@@ -481,7 +481,7 @@ func TestFallbackMode(t *testing.T) {
 	ctx := context.Background()
 
 	// Initialize (will fail and enter fallback mode)
- _ = rcm.Initialize(ctx)
+	_ = rcm.Initialize(ctx)
 
 	// Should still be able to use local cache
 	testKey := "test:fallback"

@@ -15,8 +15,8 @@ import (
 
 // ShutdownHandler manages graceful shutdown of the system
 type ShutdownHandler struct {
-	logger              core.Logger
-	metricsCollector    core.MetricsCollector
+	logger             core.Logger
+	metricsCollector   core.MetricsCollector
 	shutdownTimeout    time.Duration
 	shutdownSignals    []os.Signal
 	shutdownCallbacks  []ShutdownCallback

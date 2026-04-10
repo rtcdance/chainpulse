@@ -1,11 +1,12 @@
 package cache
 
 import (
-	"chainpulse/pkg/core"
 	"context"
 	"fmt"
 	"testing"
 	"time"
+
+	"chainpulse/pkg/core"
 )
 
 // Property 12: Cache Hit Return
@@ -445,7 +446,7 @@ func TestRedisCacheExpireConsistency(t *testing.T) {
 	_ = cache.Set(entry)
 
 	// Update TTL to 5 seconds
- _ = cache.Expire("expire_key", 5)
+	_ = cache.Expire("expire_key", 5)
 
 	ttl, _ := cache.TTL("expire_key")
 	if ttl <= 0 || ttl > 5 {

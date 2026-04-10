@@ -2,29 +2,29 @@ package deployment
 
 // KafkaConfig holds Kafka configuration
 type KafkaConfig struct {
-	Brokers              []string
-	Topic                string
-	ConsumerGroup        string
-	Partitions           int
-	ReplicationFactor    int
-	RetentionMs          int64
-	CompressionType      string
-	SecurityProtocol     string
-	SASLMechanism        string
-	SASLUsername         string
-	SASLPassword         string
-	SSLCALocation        string
-	SSLCertLocation      string
-	SSLKeyLocation       string
-	SSLKeyPassword       string
-	ConnectTimeoutMs     int
-	RequestTimeoutMs     int
-	SessionTimeoutMs     int
-	HeartbeatIntervalMs  int
-	MaxPollIntervalMs    int
-	MaxPollRecords       int
-	FetchMinBytes        int
-	FetchMaxWaitMs       int
+	Brokers             []string
+	Topic               string
+	ConsumerGroup       string
+	Partitions          int
+	ReplicationFactor   int
+	RetentionMs         int64
+	CompressionType     string
+	SecurityProtocol    string
+	SASLMechanism       string
+	SASLUsername        string
+	SASLPassword        string
+	SSLCALocation       string
+	SSLCertLocation     string
+	SSLKeyLocation      string
+	SSLKeyPassword      string
+	ConnectTimeoutMs    int
+	RequestTimeoutMs    int
+	SessionTimeoutMs    int
+	HeartbeatIntervalMs int
+	MaxPollIntervalMs   int
+	MaxPollRecords      int
+	FetchMinBytes       int
+	FetchMaxWaitMs      int
 }
 
 // NewKafkaConfig creates a new Kafka configuration with defaults

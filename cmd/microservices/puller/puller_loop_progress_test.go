@@ -158,9 +158,11 @@ func (p *pullersTestPlugin) Health() error                       { return nil }
 func (p *pullersTestPlugin) PullEvents(ctx context.Context, fromBlock, toBlock uint64) ([]core.BlockchainEvent, error) {
 	return nil, nil
 }
+
 func (p *pullersTestPlugin) GetLatestBlock(ctx context.Context) (uint64, error) {
 	return p.latestBlock, nil
 }
+
 func (p *pullersTestPlugin) SubscribeToEvents(ctx context.Context, handler func(core.BlockchainEvent)) error {
 	return nil
 }

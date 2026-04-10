@@ -43,15 +43,20 @@ func (p *pullerExecutionTestPlugin) Health() error                       { retur
 func (p *pullerExecutionTestPlugin) PullEvents(ctx context.Context, fromBlock, toBlock uint64) ([]core.BlockchainEvent, error) {
 	return append([]core.BlockchainEvent(nil), p.events...), nil
 }
+
 func (p *pullerExecutionTestPlugin) GetLatestBlock(ctx context.Context) (uint64, error) {
 	return p.latestBlock, nil
 }
+
 func (p *pullerExecutionTestPlugin) SubscribeToEvents(ctx context.Context, handler func(core.BlockchainEvent)) error {
 	return nil
 }
-func (p *pullerExecutionTestPlugin) GetStats() map[string]interface{} { return map[string]interface{}{} }
-func (p *pullerExecutionTestPlugin) GetLastBlockNumber() uint64       { return p.lastBlock }
-func (p *pullerExecutionTestPlugin) SetLastBlockNumber(block uint64)  { p.lastBlock = block }
+
+func (p *pullerExecutionTestPlugin) GetStats() map[string]interface{} {
+	return map[string]interface{}{}
+}
+func (p *pullerExecutionTestPlugin) GetLastBlockNumber() uint64      { return p.lastBlock }
+func (p *pullerExecutionTestPlugin) SetLastBlockNumber(block uint64) { p.lastBlock = block }
 
 type pullerExecutionTestStatusProvider struct {
 	snapshot pullerExecutionRuntimeSnapshot

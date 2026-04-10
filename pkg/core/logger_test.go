@@ -263,7 +263,7 @@ func TestLoggerConcurrency(t *testing.T) {
 	// Use a thread-safe buffer wrapper
 	buf := &bytes.Buffer{}
 	lw := &lockedWriter{mu: &sync.Mutex{}, w: buf}
-	
+
 	logger := NewDefaultLoggerWithOutput(LogLevelInfo, lw)
 
 	var wg sync.WaitGroup

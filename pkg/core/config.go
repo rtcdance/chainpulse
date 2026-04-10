@@ -86,7 +86,7 @@ func (cm *DefaultConfigManager) Load() (Config, error) {
 		FeatureFlags: parseFeatureFlags(getEnv("FEATURE_FLAGS", "")),
 
 		// Multi-blockchain Configuration
-		Blockchains: make(map[string]BlockchainConfig),
+		Blockchains:  make(map[string]BlockchainConfig),
 		ActiveChains: make([]string, 0),
 	}
 
@@ -661,7 +661,6 @@ func contains(slice []string, item string) bool {
 	}
 	return false
 }
-
 
 // GetBlockchainConfig returns configuration for a specific blockchain
 func (cm *DefaultConfigManager) GetBlockchainConfig(chainName string) (BlockchainConfig, error) {

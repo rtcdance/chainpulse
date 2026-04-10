@@ -1,12 +1,13 @@
 package database
 
 import (
-	"chainpulse/pkg/core"
 	"context"
 	"database/sql"
 	"fmt"
 	"testing"
 	"time"
+
+	"chainpulse/pkg/core"
 
 	"github.com/ethereum/go-ethereum/common"
 )
@@ -64,7 +65,6 @@ func TestTransactionIsolation(t *testing.T) {
 		INSERT INTO blockchain_events (id, block_number, transaction_hash, log_index, contract_address, event_name, event_data, block_timestamp)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 	`, event.ID, event.BlockNumber, event.TransactionHash, event.LogIndex, event.ContractAddress, event.EventName, event.EventData, event.BlockTimestamp)
-
 	if err != nil {
 		_ = tx.Rollback()
 		t.Fatalf("Failed to insert: %v", err)

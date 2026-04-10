@@ -34,13 +34,15 @@ type Fixture struct {
 
 // FixtureFactory creates and manages fixtures
 type FixtureFactory struct {
-	mu       sync.RWMutex
-	fixtures map[string]*Fixture
+	mu        sync.RWMutex
+	fixtures  map[string]*Fixture
 	templates map[string]interface{}
 }
 
-var fixtureIDCounter atomic.Uint64
-var snapshotIDCounter atomic.Uint64
+var (
+	fixtureIDCounter  atomic.Uint64
+	snapshotIDCounter atomic.Uint64
+)
 
 // NewFixtureFactory creates a new fixture factory
 func NewFixtureFactory() *FixtureFactory {

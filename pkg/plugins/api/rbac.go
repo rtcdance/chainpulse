@@ -25,13 +25,13 @@ type RBACChecker struct {
 
 // AccessCheckResult represents the result of an access check
 type AccessCheckResult struct {
-	Allowed        bool
-	Reason         string
-	RequiredRoles  []string
-	RequiredPerms  []string
-	UserRoles      []string
-	UserPerms      []string
-	CheckDuration  time.Duration
+	Allowed       bool
+	Reason        string
+	RequiredRoles []string
+	RequiredPerms []string
+	UserRoles     []string
+	UserPerms     []string
+	CheckDuration time.Duration
 }
 
 // NewRBACChecker creates a new RBAC checker

@@ -1,11 +1,12 @@
 package resilience
 
 import (
-	"chainpulse/pkg/core"
 	"context"
 	"errors"
 	"testing"
 	"time"
+
+	"chainpulse/pkg/core"
 )
 
 func TestShutdownHandlerCreation(t *testing.T) {
@@ -117,7 +118,6 @@ func TestShutdownHandlerShutdown(t *testing.T) {
 
 	ctx := context.Background()
 	err := handler.Shutdown(ctx)
-
 	if err != nil {
 		t.Errorf("Expected no error, got %v", err)
 	}
@@ -205,7 +205,6 @@ func TestShutdownHandlerWaitForInFlightRequests(t *testing.T) {
 
 	ctx := context.Background()
 	err := handler.Shutdown(ctx)
-
 	if err != nil {
 		t.Errorf("Expected no error, got %v", err)
 	}
@@ -290,7 +289,6 @@ func TestShutdownManager(t *testing.T) {
 	// Shutdown all
 	ctx := context.Background()
 	err := manager.ShutdownAll(ctx)
-
 	if err != nil {
 		t.Errorf("Expected no error, got %v", err)
 	}

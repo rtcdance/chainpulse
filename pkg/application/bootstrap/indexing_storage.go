@@ -1,10 +1,11 @@
 package bootstrap
 
 import (
-	"chainpulse/pkg/core"
 	"context"
 	"fmt"
 	"sync"
+
+	"chainpulse/pkg/core"
 
 	indexingadapter "chainpulse/pkg/adapters/indexing"
 

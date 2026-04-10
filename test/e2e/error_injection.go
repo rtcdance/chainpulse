@@ -133,9 +133,9 @@ func (ei *ErrorInjector) Reset() {
 
 // ErrorRecoveryHandler handles error recovery
 type ErrorRecoveryHandler struct {
-	mu              sync.RWMutex
-	retryCount      map[string]int
-	lastErrorTime   map[string]time.Time
+	mu                 sync.RWMutex
+	retryCount         map[string]int
+	lastErrorTime      map[string]time.Time
 	recoveryStrategies map[string]RecoveryStrategy
 }
 
@@ -245,8 +245,8 @@ func (cbs *CircuitBreakerStrategy) GetState() string {
 // NewErrorRecoveryHandler creates a new error recovery handler
 func NewErrorRecoveryHandler() *ErrorRecoveryHandler {
 	return &ErrorRecoveryHandler{
-		retryCount:      make(map[string]int),
-		lastErrorTime:   make(map[string]time.Time),
+		retryCount:         make(map[string]int),
+		lastErrorTime:      make(map[string]time.Time),
 		recoveryStrategies: make(map[string]RecoveryStrategy),
 	}
 }

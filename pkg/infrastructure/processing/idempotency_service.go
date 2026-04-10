@@ -9,14 +9,14 @@ import (
 
 // IdempotencyService manages event idempotency
 type IdempotencyService struct {
-	mu                sync.RWMutex
-	processedEvents   map[string]*ProcessedEventRecord
-	duplicateCount    int64
-	checkCount        int64
-	cleanupInterval   time.Duration
-	recordTTL         time.Duration
-	lastCleanupTime   time.Time
-	counterMu         sync.Mutex // Separate mutex for counter updates
+	mu              sync.RWMutex
+	processedEvents map[string]*ProcessedEventRecord
+	duplicateCount  int64
+	checkCount      int64
+	cleanupInterval time.Duration
+	recordTTL       time.Duration
+	lastCleanupTime time.Time
+	counterMu       sync.Mutex // Separate mutex for counter updates
 }
 
 // ProcessedEventRecord tracks a processed event

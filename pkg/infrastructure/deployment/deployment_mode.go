@@ -12,33 +12,33 @@ type DeploymentMode string
 
 const (
 	// MonolithicMode represents a monolithic deployment mode.
-	MonolithicMode  DeploymentMode = "monolithic"
+	MonolithicMode DeploymentMode = "monolithic"
 	// MicroserviceMode represents a microservice deployment mode.
 	MicroserviceMode DeploymentMode = "microservice"
 )
 
 // DeploymentConfig holds deployment configuration
 type DeploymentConfig struct {
-	Mode                DeploymentMode
-	ServiceName         string
-	ServiceID           string
-	Environment         string
-	EnableServiceRegistry bool
-	EnableDistributedCache bool
-	EnableMessageQueue  bool
-	MaxConcurrentServices int
-	HealthCheckInterval time.Duration
+	Mode                    DeploymentMode
+	ServiceName             string
+	ServiceID               string
+	Environment             string
+	EnableServiceRegistry   bool
+	EnableDistributedCache  bool
+	EnableMessageQueue      bool
+	MaxConcurrentServices   int
+	HealthCheckInterval     time.Duration
 	GracefulShutdownTimeout time.Duration
 }
 
 // DeploymentModeManager manages deployment mode initialization
 type DeploymentModeManager struct {
-	mu                    sync.RWMutex
-	config                *DeploymentConfig
-	mode                  DeploymentMode
-	initialized           bool
-	components            map[string]interface{}
-	metrics               *DeploymentMetrics
+	mu          sync.RWMutex
+	config      *DeploymentConfig
+	mode        DeploymentMode
+	initialized bool
+	components  map[string]interface{}
+	metrics     *DeploymentMetrics
 }
 
 // DeploymentMetrics tracks deployment metrics

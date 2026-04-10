@@ -1,11 +1,12 @@
 package resilience
 
 import (
-	"chainpulse/pkg/core"
 	"context"
 	"errors"
 	"testing"
 	"time"
+
+	"chainpulse/pkg/core"
 )
 
 func TestDefaultRetryConfig(t *testing.T) {
@@ -107,7 +108,6 @@ func TestRetryExecutorSuccess(t *testing.T) {
 		attempts++
 		return nil
 	}, "test_source")
-
 	if err != nil {
 		t.Errorf("Expected no error, got %v", err)
 	}
@@ -143,7 +143,6 @@ func TestRetryExecutorTransientError(t *testing.T) {
 		}
 		return nil
 	}, "test_source")
-
 	if err != nil {
 		t.Errorf("Expected no error, got %v", err)
 	}
@@ -268,7 +267,6 @@ func TestRetryExecutorWithFallback(t *testing.T) {
 		fallbackCalled = true
 		return nil
 	}, "test_source")
-
 	if err != nil {
 		t.Errorf("Expected no error, got %v", err)
 	}
@@ -300,7 +298,6 @@ func TestRetryableOperation(t *testing.T) {
 	}, config, "test_source")
 
 	err := operation.Execute(ctx, executor)
-
 	if err != nil {
 		t.Errorf("Expected no error, got %v", err)
 	}
@@ -369,7 +366,6 @@ func TestRetryExecutorConcurrent(t *testing.T) {
 			err := executor.Execute(ctx, func() error {
 				return nil
 			}, "test_source")
-
 			if err != nil {
 				t.Errorf("Expected no error, got %v", err)
 			}
@@ -406,7 +402,6 @@ func TestRetryExecutorNilPolicy(t *testing.T) {
 	err := executor.Execute(ctx, func() error {
 		return nil
 	}, "test_source")
-
 	if err != nil {
 		t.Errorf("Expected no error, got %v", err)
 	}

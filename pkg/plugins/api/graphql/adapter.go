@@ -259,7 +259,6 @@ func (r *GraphQLResponse) IsHeadersSent() bool {
 	return r.sent
 }
 
-
 // parseQueryParams parses query parameters from a query string
 func parseQueryParams(query string) map[string]string {
 	params := make(map[string]string)

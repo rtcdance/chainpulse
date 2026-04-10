@@ -40,11 +40,11 @@ func TestMultiChainPullerRegistration(t *testing.T) {
 
 	mockPuller1 := &MockDataPuller{
 		chainID: "ethereum",
-		events: []BlockchainEvent{{ID: "1", ChainID: "ethereum", BlockNum: 100}},
+		events:  []BlockchainEvent{{ID: "1", ChainID: "ethereum", BlockNum: 100}},
 	}
 	mockPuller2 := &MockDataPuller{
 		chainID: "polygon",
-		events: []BlockchainEvent{{ID: "2", ChainID: "polygon", BlockNum: 200}},
+		events:  []BlockchainEvent{{ID: "2", ChainID: "polygon", BlockNum: 200}},
 	}
 
 	err := puller.RegisterPuller("ethereum", mockPuller1)
@@ -94,15 +94,15 @@ func TestMultiChainLatestBlockRetrieval(t *testing.T) {
 
 	ethPuller := &MockDataPuller{
 		chainID: "ethereum",
-		events: []BlockchainEvent{{ID: "eth-1", ChainID: "ethereum", BlockNum: 12345}},
+		events:  []BlockchainEvent{{ID: "eth-1", ChainID: "ethereum", BlockNum: 12345}},
 	}
 	polyPuller := &MockDataPuller{
 		chainID: "polygon",
-		events: []BlockchainEvent{{ID: "poly-1", ChainID: "polygon", BlockNum: 54321}},
+		events:  []BlockchainEvent{{ID: "poly-1", ChainID: "polygon", BlockNum: 54321}},
 	}
 	arbPuller := &MockDataPuller{
 		chainID: "arbitrum",
-		events: []BlockchainEvent{{ID: "arb-1", ChainID: "arbitrum", BlockNum: 99999}},
+		events:  []BlockchainEvent{{ID: "arb-1", ChainID: "arbitrum", BlockNum: 99999}},
 	}
 
 	err := puller.RegisterPuller("ethereum", ethPuller)
@@ -188,11 +188,11 @@ func TestMultiChainStats(t *testing.T) {
 
 	ethPuller := &MockDataPuller{
 		chainID: "ethereum",
-		events: []BlockchainEvent{{ID: "eth-1", ChainID: "ethereum", BlockNum: 12345}},
+		events:  []BlockchainEvent{{ID: "eth-1", ChainID: "ethereum", BlockNum: 12345}},
 	}
 	polyPuller := &MockDataPuller{
 		chainID: "polygon",
-		events: []BlockchainEvent{{ID: "poly-1", ChainID: "polygon", BlockNum: 54321}},
+		events:  []BlockchainEvent{{ID: "poly-1", ChainID: "polygon", BlockNum: 54321}},
 	}
 
 	err := puller.RegisterPuller("ethereum", ethPuller)

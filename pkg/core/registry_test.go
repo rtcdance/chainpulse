@@ -50,10 +50,10 @@ func (ml *RegistryTestLogger) WithCorrelationID(id string) Logger {
 
 // RegistryMockPlugin for testing
 type RegistryMockPlugin struct {
-	name      string
-	version   string
-	startErr  error
-	stopErr   error
+	name        string
+	version     string
+	startErr    error
+	stopErr     error
 	startCalled int32
 	stopCalled  int32
 }
@@ -438,9 +438,9 @@ func TestStopWithError(t *testing.T) {
 	}
 
 	plugin2 := &RegistryMockPlugin{
-		name:     "plugin-2",
-		version:  "1.0.0",
-		stopErr:  NewSystemError(ErrorTypeCritical, ErrorCodeInternalError, "stop failed", nil),
+		name:    "plugin-2",
+		version: "1.0.0",
+		stopErr: NewSystemError(ErrorTypeCritical, ErrorCodeInternalError, "stop failed", nil),
 	}
 
 	_ = registry.Register(plugin1)
@@ -596,13 +596,13 @@ func TestPluginVersions(t *testing.T) {
 	list := registry.List()
 
 	assert.Equal(t, 4, len(list))
-	
+
 	// Collect versions from list
 	versionMap := make(map[string]bool)
 	for _, plugin := range list {
 		versionMap[plugin.Version()] = true
 	}
-	
+
 	// Verify all expected versions are present
 	for _, version := range versions {
 		assert.True(t, versionMap[version], "version %s not found", version)

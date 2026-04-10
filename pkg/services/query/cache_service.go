@@ -12,13 +12,13 @@ import (
 
 // DefaultCacheService provides cache operations with Redis backend
 type DefaultCacheService struct {
-	mu              sync.RWMutex
-	cache           map[string]cacheEntry
-	logger          core.Logger
+	mu               sync.RWMutex
+	cache            map[string]cacheEntry
+	logger           core.Logger
 	metricsCollector core.MetricsCollector
-	initialized     bool
-	running         bool
-	done            chan struct{}
+	initialized      bool
+	running          bool
+	done             chan struct{}
 }
 
 // cacheEntry represents a cached value with expiration
@@ -92,7 +92,7 @@ func (cs *DefaultCacheService) Stop(ctx context.Context) error {
 	}
 
 	cs.running = false
-	
+
 	// Signal the cleanup goroutine to stop
 	select {
 	case <-cs.done:
@@ -100,7 +100,7 @@ func (cs *DefaultCacheService) Stop(ctx context.Context) error {
 	default:
 		close(cs.done)
 	}
-	
+
 	cs.logger.Info("Cache service stopped", map[string]interface{}{
 		"component": "cache-service",
 	})
@@ -236,9 +236,9 @@ func (cs *DefaultCacheService) Set(ctx context.Context, key string, value []core
 
 	cs.metricsCollector.RecordCounter("cache_set", 1, map[string]string{})
 	cs.logger.Debug("Cache set", map[string]interface{}{
-		"key":      key,
-		"count":    len(value),
-		"ttl_ms":   duration.Milliseconds(),
+		"key":    key,
+		"count":  len(value),
+		"ttl_ms": duration.Milliseconds(),
 	})
 
 	return nil

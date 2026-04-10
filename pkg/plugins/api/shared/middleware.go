@@ -85,9 +85,9 @@ func (g *SecurityMiddlewareGroup) GetMiddlewares() []core.Middleware {
 
 // ObservabilityMiddlewareGroup groups observability-related middleware
 type ObservabilityMiddlewareGroup struct {
-	healthMiddleware    core.Middleware
+	healthMiddleware     core.Middleware
 	monitoringMiddleware core.Middleware
-	mu                  sync.RWMutex
+	mu                   sync.RWMutex
 }
 
 // NewObservabilityMiddlewareGroup creates a new observability middleware group
@@ -260,11 +260,11 @@ func (b *MiddlewareBuilder) Build(handler core.Handler) core.Handler {
 
 // MiddlewareRegistry manages middleware groups
 type MiddlewareRegistry struct {
-	security       *SecurityMiddlewareGroup
-	observability  *ObservabilityMiddlewareGroup
-	performance    *PerformanceMiddlewareGroup
-	errorHandling  *ErrorHandlingMiddleware
-	mu             sync.RWMutex
+	security      *SecurityMiddlewareGroup
+	observability *ObservabilityMiddlewareGroup
+	performance   *PerformanceMiddlewareGroup
+	errorHandling *ErrorHandlingMiddleware
+	mu            sync.RWMutex
 }
 
 // NewMiddlewareRegistry creates a new middleware registry
@@ -393,14 +393,14 @@ func (r *MiddlewareRegistry) GetRuntimeMetrics() map[string]interface{} {
 	runtimePosture := classifyMiddlewareRuntimePosture(totalMiddleware, securityCount, observabilityCount, performanceCount, errorHandlingEnabled)
 
 	return map[string]interface{}{
-		"total_middleware":         totalMiddleware,
-		"security_count":          securityCount,
-		"observability_count":     observabilityCount,
-		"performance_count":       performanceCount,
-		"error_handling_enabled":  errorHandlingEnabled,
-		"coverage_posture":        coveragePosture,
-		"runtime_posture":         runtimePosture,
-		"reliability_hint":        buildMiddlewareReliabilityHint(coveragePosture, runtimePosture),
+		"total_middleware":       totalMiddleware,
+		"security_count":         securityCount,
+		"observability_count":    observabilityCount,
+		"performance_count":      performanceCount,
+		"error_handling_enabled": errorHandlingEnabled,
+		"coverage_posture":       coveragePosture,
+		"runtime_posture":        runtimePosture,
+		"reliability_hint":       buildMiddlewareReliabilityHint(coveragePosture, runtimePosture),
 	}
 }
 

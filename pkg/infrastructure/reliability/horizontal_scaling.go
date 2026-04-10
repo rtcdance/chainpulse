@@ -9,17 +9,17 @@ import (
 
 // HorizontalScaler manages horizontal scaling of services
 type HorizontalScaler struct {
-	mu                    sync.RWMutex
-	id                    string
-	minInstances          int
-	maxInstances          int
-	currentInstances      int
-	targetInstances       int
-	instances             map[string]*ServiceInstance
-	scalingPolicy         *ScalingPolicy
-	metrics               *ScalingMetrics
-	lastScalingTime       time.Time
-	scalingCooldown       time.Duration
+	mu               sync.RWMutex
+	id               string
+	minInstances     int
+	maxInstances     int
+	currentInstances int
+	targetInstances  int
+	instances        map[string]*ServiceInstance
+	scalingPolicy    *ScalingPolicy
+	metrics          *ScalingMetrics
+	lastScalingTime  time.Time
+	scalingCooldown  time.Duration
 }
 
 // ServiceInstance represents a service instance
@@ -298,17 +298,17 @@ func (hs *HorizontalScaler) GetMetrics() map[string]interface{} {
 	defer hs.metrics.mu.RUnlock()
 
 	return map[string]interface{}{
-		"current_instances":     hs.currentInstances,
-		"target_instances":      hs.targetInstances,
-		"min_instances":         hs.minInstances,
-		"max_instances":         hs.maxInstances,
-		"scale_up_events":       hs.metrics.ScaleUpEvents,
-		"scale_down_events":     hs.metrics.ScaleDownEvents,
-		"instances_created":     hs.metrics.InstancesCreated,
-		"instances_terminated":  hs.metrics.InstancesTerminated,
-		"average_scaling_time":  hs.metrics.AverageScalingTime.String(),
-		"total_scaling_time":    hs.metrics.TotalScalingTime.String(),
-		"last_scaling_time":     hs.metrics.LastScalingTime,
+		"current_instances":    hs.currentInstances,
+		"target_instances":     hs.targetInstances,
+		"min_instances":        hs.minInstances,
+		"max_instances":        hs.maxInstances,
+		"scale_up_events":      hs.metrics.ScaleUpEvents,
+		"scale_down_events":    hs.metrics.ScaleDownEvents,
+		"instances_created":    hs.metrics.InstancesCreated,
+		"instances_terminated": hs.metrics.InstancesTerminated,
+		"average_scaling_time": hs.metrics.AverageScalingTime.String(),
+		"total_scaling_time":   hs.metrics.TotalScalingTime.String(),
+		"last_scaling_time":    hs.metrics.LastScalingTime,
 	}
 }
 

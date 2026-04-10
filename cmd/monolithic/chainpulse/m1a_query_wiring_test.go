@@ -1,14 +1,15 @@
 package main
 
 import (
-	"chainpulse/pkg/application/bootstrap"
-	"chainpulse/pkg/core"
 	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"chainpulse/pkg/application/bootstrap"
+	"chainpulse/pkg/core"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"

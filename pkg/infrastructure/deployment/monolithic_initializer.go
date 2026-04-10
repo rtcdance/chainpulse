@@ -9,25 +9,25 @@ import (
 
 // MonolithicInitializer initializes monolithic deployment
 type MonolithicInitializer struct {
-	mu                    sync.RWMutex
-	config                *DeploymentConfig
-	apiGateway            interface{}
-	dataPuller            interface{}
-	eventProcessor        interface{}
-	cache                 interface{}
-	database              interface{}
-	metrics               *MonolithicMetrics
+	mu             sync.RWMutex
+	config         *DeploymentConfig
+	apiGateway     interface{}
+	dataPuller     interface{}
+	eventProcessor interface{}
+	cache          interface{}
+	database       interface{}
+	metrics        *MonolithicMetrics
 }
 
 // MonolithicMetrics tracks monolithic deployment metrics
 type MonolithicMetrics struct {
-	mu                    sync.RWMutex
-	InitializationTime    time.Duration
-	ComponentsReady       int
-	ComponentsFailed      int
-	LastHealthCheckTime   time.Time
-	HealthChecksPassed    int64
-	HealthChecksFailed    int64
+	mu                  sync.RWMutex
+	InitializationTime  time.Duration
+	ComponentsReady     int
+	ComponentsFailed    int
+	LastHealthCheckTime time.Time
+	HealthChecksPassed  int64
+	HealthChecksFailed  int64
 }
 
 // NewMonolithicInitializer creates a new monolithic initializer

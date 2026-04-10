@@ -12,11 +12,11 @@ import (
 
 // RetryConfig holds retry configuration
 type RetryConfig struct {
-	MaxRetries      int           // Maximum number of retry attempts
-	InitialBackoff  time.Duration // Initial backoff duration
-	MaxBackoff      time.Duration // Maximum backoff duration
-	BackoffMultiplier float64      // Multiplier for exponential backoff
-	JitterFraction  float64       // Fraction of backoff to add as jitter (0-1)
+	MaxRetries        int           // Maximum number of retry attempts
+	InitialBackoff    time.Duration // Initial backoff duration
+	MaxBackoff        time.Duration // Maximum backoff duration
+	BackoffMultiplier float64       // Multiplier for exponential backoff
+	JitterFraction    float64       // Fraction of backoff to add as jitter (0-1)
 }
 
 // DefaultRetryConfig returns default retry configuration
@@ -94,7 +94,7 @@ func (p *DefaultRetryPolicy) GetBackoff(attempt int) time.Duration {
 		jitterAmount := time.Duration(float64(backoff) * p.config.JitterFraction)
 		// Use a simple pseudo-random jitter based on attempt number
 		// This ensures deterministic behavior for testing
-		jitterValue := time.Duration((attempt * 7) % 100) * jitterAmount / 100
+		jitterValue := time.Duration((attempt*7)%100) * jitterAmount / 100
 		backoff = backoff + jitterValue
 	}
 
@@ -232,11 +232,11 @@ func (r *RetryableOperation) Execute(ctx context.Context, executor *RetryExecuto
 
 // RetryStats tracks retry statistics
 type RetryStats struct {
-	TotalAttempts    int64
+	TotalAttempts     int64
 	SuccessfulRetries int64
-	FailedRetries    int64
-	ExhaustedRetries int64
-	mu               sync.RWMutex
+	FailedRetries     int64
+	ExhaustedRetries  int64
+	mu                sync.RWMutex
 }
 
 // NewRetryStats creates new retry statistics
@@ -283,11 +283,11 @@ func (s *RetryStats) GetStats() map[string]interface{} {
 	}
 
 	return map[string]interface{}{
-		"total_attempts":      s.TotalAttempts,
-		"successful_retries":  s.SuccessfulRetries,
-		"failed_retries":      s.FailedRetries,
-		"exhausted_retries":   s.ExhaustedRetries,
-		"success_rate":        successRate,
+		"total_attempts":     s.TotalAttempts,
+		"successful_retries": s.SuccessfulRetries,
+		"failed_retries":     s.FailedRetries,
+		"exhausted_retries":  s.ExhaustedRetries,
+		"success_rate":       successRate,
 	}
 }
 

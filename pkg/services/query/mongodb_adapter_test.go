@@ -176,5 +176,3 @@ func TestMongoDBAdapterDoubleInitialization(t *testing.T) {
 		t.Error("Expected error for double initialization")
 	}
 }
-
-

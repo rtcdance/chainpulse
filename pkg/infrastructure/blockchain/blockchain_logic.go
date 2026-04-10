@@ -11,12 +11,12 @@ import (
 
 // BlockchainLogic represents blockchain-specific logic and transformations
 type BlockchainLogic struct {
-	mu                sync.RWMutex
-	blockchainType    string
-	validators        []EventValidator
-	transformers      []EventTransformer
-	filters           []EventFilter
-	metrics           *BlockchainLogicMetrics
+	mu             sync.RWMutex
+	blockchainType string
+	validators     []EventValidator
+	transformers   []EventTransformer
+	filters        []EventFilter
+	metrics        *BlockchainLogicMetrics
 }
 
 // EventValidator validates events for a specific blockchain
@@ -56,7 +56,7 @@ func NewBlockchainLogic(blockchainType string) *BlockchainLogic {
 		blockchainType: blockchainType,
 		validators:     make([]EventValidator, 0),
 		transformers:   make([]EventTransformer, 0),
-		filters:         make([]EventFilter, 0),
+		filters:        make([]EventFilter, 0),
 		metrics: &BlockchainLogicMetrics{
 			LastProcessedTime: time.Now(),
 		},
@@ -204,14 +204,14 @@ func (bl *BlockchainLogic) GetMetrics() map[string]interface{} {
 	defer bl.metrics.mu.RUnlock()
 
 	return map[string]interface{}{
-		"events_validated":         bl.metrics.EventsValidated,
-		"events_transformed":       bl.metrics.EventsTransformed,
-		"events_filtered":          bl.metrics.EventsFiltered,
-		"validation_errors":        bl.metrics.ValidationErrors,
-		"transformation_errors":    bl.metrics.TransformationErrors,
-		"average_validation_time":  bl.metrics.AverageValidationTime.String(),
-		"average_transform_time":   bl.metrics.AverageTransformTime.String(),
-		"last_processed_time":      bl.metrics.LastProcessedTime,
+		"events_validated":        bl.metrics.EventsValidated,
+		"events_transformed":      bl.metrics.EventsTransformed,
+		"events_filtered":         bl.metrics.EventsFiltered,
+		"validation_errors":       bl.metrics.ValidationErrors,
+		"transformation_errors":   bl.metrics.TransformationErrors,
+		"average_validation_time": bl.metrics.AverageValidationTime.String(),
+		"average_transform_time":  bl.metrics.AverageTransformTime.String(),
+		"last_processed_time":     bl.metrics.LastProcessedTime,
 	}
 }
 

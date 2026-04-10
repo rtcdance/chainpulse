@@ -535,4 +535,3 @@ func TestTopQueriesSorting(t *testing.T) {
 		t.Errorf("TopQueries[0].ExecutionCount = %d, want 15", agg.TopQueries[0].ExecutionCount)
 	}
 }
-

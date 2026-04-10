@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-
 )
 
 func TestNewCacheMiddleware(t *testing.T) {

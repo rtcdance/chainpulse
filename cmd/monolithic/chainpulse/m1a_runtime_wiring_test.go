@@ -1,13 +1,14 @@
 package main
 
 import (
-	"chainpulse/pkg/core"
-	"chainpulse/pkg/services/indexing"
 	"context"
 	"errors"
 	"sync"
 	"testing"
 	"time"
+
+	"chainpulse/pkg/core"
+	"chainpulse/pkg/services/indexing"
 
 	"github.com/ethereum/go-ethereum/common"
 

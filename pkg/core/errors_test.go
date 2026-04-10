@@ -133,9 +133,9 @@ func TestClassifyErrorContextCanceled(t *testing.T) {
 // TestClassifyErrorSyscall tests ClassifyError with syscall errors
 func TestClassifyErrorSyscall(t *testing.T) {
 	tests := []struct {
-		name      string
-		err       error
-		expected  ErrorType
+		name     string
+		err      error
+		expected ErrorType
 	}{
 		{"Connection Refused", syscall.ECONNREFUSED, ErrorTypeTransient},
 		{"Connection Reset", syscall.ECONNRESET, ErrorTypeTransient},

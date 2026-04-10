@@ -16,12 +16,12 @@ import (
 
 // DefaultPostgreSQLAdapter provides PostgreSQL query operations
 type DefaultPostgreSQLAdapter struct {
-	mu              sync.RWMutex
-	dbManager       database.DatabaseManager
-	db              *sql.DB
-	logger          core.Logger
+	mu               sync.RWMutex
+	dbManager        database.DatabaseManager
+	db               *sql.DB
+	logger           core.Logger
 	metricsCollector core.MetricsCollector
-	initialized     bool
+	initialized      bool
 }
 
 var postgresIdentifierPattern = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_]*$`)
@@ -268,7 +268,6 @@ func (pa *DefaultPostgreSQLAdapter) QueryByHash(ctx context.Context, hash string
 		&event.BlockTimestamp,
 		&event.ChainID,
 	)
-
 	if err != nil {
 		if err == sql.ErrNoRows {
 			duration := time.Since(start).Milliseconds()

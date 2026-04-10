@@ -10,9 +10,9 @@ import (
 
 // RetryPolicy defines retry behavior
 type RetryPolicy struct {
-	MaxRetries      int
-	InitialBackoff  time.Duration
-	MaxBackoff      time.Duration
+	MaxRetries        int
+	InitialBackoff    time.Duration
+	MaxBackoff        time.Duration
 	BackoffMultiplier float64
 }
 
@@ -20,23 +20,23 @@ type RetryPolicy struct {
 type CircuitBreakerState string
 
 const (
-	StateClosed     CircuitBreakerState = "closed"
-	StateOpen       CircuitBreakerState = "open"
-	StateHalfOpen   CircuitBreakerState = "half-open"
+	StateClosed   CircuitBreakerState = "closed"
+	StateOpen     CircuitBreakerState = "open"
+	StateHalfOpen CircuitBreakerState = "half-open"
 )
 
 // CircuitBreaker implements circuit breaker pattern
 type CircuitBreaker struct {
-	mu                sync.RWMutex
-	state             CircuitBreakerState
-	failureCount      int
-	successCount      int
-	lastFailureTime   time.Time
-	lastSuccessTime   time.Time
-	maxFailures       int
-	resetTimeout      time.Duration
-	halfOpenMaxTests  int
-	metrics           *CircuitBreakerMetrics
+	mu               sync.RWMutex
+	state            CircuitBreakerState
+	failureCount     int
+	successCount     int
+	lastFailureTime  time.Time
+	lastSuccessTime  time.Time
+	maxFailures      int
+	resetTimeout     time.Duration
+	halfOpenMaxTests int
+	metrics          *CircuitBreakerMetrics
 }
 
 // CircuitBreakerMetrics tracks circuit breaker metrics
@@ -51,10 +51,10 @@ type CircuitBreakerMetrics struct {
 
 // DeadLetterQueue stores failed events
 type DeadLetterQueue struct {
-	mu       sync.RWMutex
-	events   []*DeadLetterEvent
-	maxSize  int
-	metrics  *DLQMetrics
+	mu      sync.RWMutex
+	events  []*DeadLetterEvent
+	maxSize int
+	metrics *DLQMetrics
 }
 
 // DeadLetterEvent represents an event in the DLQ
@@ -69,21 +69,21 @@ type DeadLetterEvent struct {
 
 // DLQMetrics tracks DLQ metrics
 type DLQMetrics struct {
-	mu           sync.RWMutex
-	EventsQueued int64
+	mu             sync.RWMutex
+	EventsQueued   int64
 	EventsArchived int64
 	EventsResolved int64
 }
 
 // RetryManager manages retry logic
 type RetryManager struct {
-	mu                sync.RWMutex
-	policy            RetryPolicy
-	circuitBreaker    *CircuitBreaker
-	deadLetterQueue   *DeadLetterQueue
-	retryCount        int64
-	successCount      int64
-	failureCount      int64
+	mu              sync.RWMutex
+	policy          RetryPolicy
+	circuitBreaker  *CircuitBreaker
+	deadLetterQueue *DeadLetterQueue
+	retryCount      int64
+	successCount    int64
+	failureCount    int64
 }
 
 // NewRetryPolicy creates a new retry policy
@@ -128,7 +128,6 @@ func (cb *CircuitBreaker) Call(operation func() error) error {
 
 	// Execute operation
 	err := operation()
-
 	if err != nil {
 		cb.failureCount++
 		cb.lastFailureTime = time.Now()
@@ -213,14 +212,14 @@ func (cb *CircuitBreaker) GetMetrics() map[string]interface{} {
 	defer cb.metrics.mu.RUnlock()
 
 	return map[string]interface{}{
-		"state":              cb.state,
-		"failure_count":      cb.failureCount,
-		"success_count":      cb.successCount,
-		"state_changes":      cb.metrics.StateChanges,
-		"total_failures":     cb.metrics.FailureCount,
-		"total_successes":    cb.metrics.SuccessCount,
-		"rejected_count":     cb.metrics.RejectedCount,
-		"last_state_change":  cb.metrics.LastStateChange,
+		"state":             cb.state,
+		"failure_count":     cb.failureCount,
+		"success_count":     cb.successCount,
+		"state_changes":     cb.metrics.StateChanges,
+		"total_failures":    cb.metrics.FailureCount,
+		"total_successes":   cb.metrics.SuccessCount,
+		"rejected_count":    cb.metrics.RejectedCount,
+		"last_state_change": cb.metrics.LastStateChange,
 	}
 }
 

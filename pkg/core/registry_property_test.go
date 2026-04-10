@@ -12,9 +12,9 @@ import (
 // TestPropertyRegistryConsistency verifies registry consistency
 func TestPropertyRegistryConsistency(t *testing.T) {
 	tests := []struct {
-		name      string
+		name       string
 		operations []string // "register" or "unregister"
-		expected  int
+		expected   int
 	}{
 		{
 			name:       "empty registry",

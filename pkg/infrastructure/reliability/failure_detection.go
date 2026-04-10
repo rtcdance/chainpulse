@@ -9,42 +9,42 @@ import (
 
 // FailureDetector detects service failures
 type FailureDetector struct {
-	mu                    sync.RWMutex
-	id                    string
-	services              map[string]*ServiceHealthInfo
-	healthCheckInterval   time.Duration
-	failureThreshold      int
-	recoveryThreshold     int
-	metrics               *FailureMetrics
-	lastCheckTime         time.Time
-	predictiveDetection   bool
+	mu                  sync.RWMutex
+	id                  string
+	services            map[string]*ServiceHealthInfo
+	healthCheckInterval time.Duration
+	failureThreshold    int
+	recoveryThreshold   int
+	metrics             *FailureMetrics
+	lastCheckTime       time.Time
+	predictiveDetection bool
 }
 
 // ServiceHealthInfo tracks service health
 type ServiceHealthInfo struct {
-	ServiceID           string
-	Status              string // "healthy", "degraded", "unhealthy", "failed"
-	LastHealthCheck     time.Time
-	ConsecutiveFailures int
+	ServiceID            string
+	Status               string // "healthy", "degraded", "unhealthy", "failed"
+	LastHealthCheck      time.Time
+	ConsecutiveFailures  int
 	ConsecutiveSuccesses int
-	FailureHistory      []time.Time
-	ResponseTime        time.Duration
-	ErrorRate           float64
-	PredictedFailure    bool
-	PredictionScore     float64
+	FailureHistory       []time.Time
+	ResponseTime         time.Duration
+	ErrorRate            float64
+	PredictedFailure     bool
+	PredictionScore      float64
 }
 
 // FailureMetrics tracks failure detection metrics
 type FailureMetrics struct {
-	mu                    sync.RWMutex
-	FailuresDetected      int64
-	FalsePositives        int64
-	FalseNegatives        int64
-	AverageDetectionTime  time.Duration
-	TotalDetectionTime    time.Duration
-	LastDetectionTime     time.Time
-	PredictedFailures     int64
-	ActualFailures        int64
+	mu                   sync.RWMutex
+	FailuresDetected     int64
+	FalsePositives       int64
+	FalseNegatives       int64
+	AverageDetectionTime time.Duration
+	TotalDetectionTime   time.Duration
+	LastDetectionTime    time.Time
+	PredictedFailures    int64
+	ActualFailures       int64
 }
 
 // NewFailureDetector creates a new failure detector
@@ -245,13 +245,13 @@ func (fd *FailureDetector) GetMetrics() map[string]interface{} {
 
 // AutomaticFailover handles automatic failover
 type AutomaticFailover struct {
-	mu                    sync.RWMutex
-	id                    string
-	failureDetector       *FailureDetector
-	failoverStrategies    map[string]FailoverStrategy
-	metrics               *FailoverMetrics
-	lastFailoverTime      time.Time
-	failoverCooldown      time.Duration
+	mu                 sync.RWMutex
+	id                 string
+	failureDetector    *FailureDetector
+	failoverStrategies map[string]FailoverStrategy
+	metrics            *FailoverMetrics
+	lastFailoverTime   time.Time
+	failoverCooldown   time.Duration
 }
 
 // FailoverStrategy defines how to handle failover

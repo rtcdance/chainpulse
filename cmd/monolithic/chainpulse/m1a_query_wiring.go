@@ -1,12 +1,13 @@
 package main
 
 import (
+	"context"
+	"fmt"
+
 	"chainpulse/pkg/application/bootstrap"
 	"chainpulse/pkg/core"
 	"chainpulse/pkg/plugins/api"
 	"chainpulse/pkg/services/query"
-	"context"
-	"fmt"
 
 	indexingadapter "chainpulse/pkg/adapters/indexing"
 

@@ -98,11 +98,11 @@ func (r *APIRouter) GetRuntimeMetrics() map[string]interface{} {
 	runtimePosture := classifyRouterRuntimePosture(routeCount, middlewareCount)
 
 	return map[string]interface{}{
-		"route_count":       routeCount,
-		"middleware_count":  middlewareCount,
-		"coverage_posture":  coveragePosture,
-		"runtime_posture":   runtimePosture,
-		"reliability_hint":  buildRouterReliabilityHint(coveragePosture, runtimePosture),
+		"route_count":      routeCount,
+		"middleware_count": middlewareCount,
+		"coverage_posture": coveragePosture,
+		"runtime_posture":  runtimePosture,
+		"reliability_hint": buildRouterReliabilityHint(coveragePosture, runtimePosture),
 	}
 }
 
@@ -128,8 +128,7 @@ type ErrorMapper interface {
 }
 
 // DefaultErrorMapper provides default error mapping
-type DefaultErrorMapper struct {
-}
+type DefaultErrorMapper struct{}
 
 // NewDefaultErrorMapper creates a new default error mapper
 func NewDefaultErrorMapper() *DefaultErrorMapper {

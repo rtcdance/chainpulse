@@ -18,7 +18,7 @@ type AuthMiddleware struct {
 	metrics        core.MetricsCollector
 
 	// Configuration
-	requireAuth bool
+	requireAuth   bool
 	requiredRoles []string
 	requiredPerms []string
 }

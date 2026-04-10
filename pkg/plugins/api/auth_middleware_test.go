@@ -9,7 +9,6 @@ import (
 
 	"chainpulse/pkg/core"
 	"github.com/stretchr/testify/assert"
-
 )
 
 // MockTokenValidator for testing

@@ -150,9 +150,9 @@ func TestProperty_CriticalErrorSafety_ErrorTypeTracking(t *testing.T) {
 	ctx := context.Background()
 
 	errorCounts := map[CriticalErrorType]int{
-		CriticalErrorTypeDataCorruption:    10,
-		CriticalErrorTypeSystemFailure:     20,
-		CriticalErrorTypeSecurityBreach:    15,
+		CriticalErrorTypeDataCorruption:     10,
+		CriticalErrorTypeSystemFailure:      20,
+		CriticalErrorTypeSecurityBreach:     15,
 		CriticalErrorTypeResourceExhaustion: 5,
 	}
 

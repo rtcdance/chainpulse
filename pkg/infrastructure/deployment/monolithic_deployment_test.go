@@ -89,7 +89,9 @@ type MonoMockMetricsCollector struct{}
 
 func (m *MonoMockMetricsCollector) RecordCounter(name string, value int64, tags map[string]string) {}
 func (m *MonoMockMetricsCollector) RecordGauge(name string, value float64, tags map[string]string) {}
-func (m *MonoMockMetricsCollector) RecordHistogram(name string, value float64, tags map[string]string) {}
+func (m *MonoMockMetricsCollector) RecordHistogram(name string, value float64, tags map[string]string) {
+}
+
 func (m *MonoMockMetricsCollector) GetMetrics() map[string]interface{} {
 	return make(map[string]interface{})
 }

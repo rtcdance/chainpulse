@@ -39,10 +39,10 @@ type StatelessMetrics struct {
 
 // DistributedCache represents a distributed cache for state
 type DistributedCache struct {
-	mu       sync.RWMutex
-	data     map[string]interface{}
-	ttl      map[string]time.Time
-	metrics  *CacheMetrics
+	mu      sync.RWMutex
+	data    map[string]interface{}
+	ttl     map[string]time.Time
+	metrics *CacheMetrics
 }
 
 // CacheMetrics tracks cache metrics

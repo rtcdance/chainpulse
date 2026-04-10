@@ -165,10 +165,10 @@ func TestAddIndexRecommendation(t *testing.T) {
 	qo := NewQueryOptimizer(100)
 
 	rec := IndexRecommendation{
-		TableName:    "events",
-		Columns:      []string{"user_id"},
-		Type:         "BTREE",
-		Priority:     5,
+		TableName:     "events",
+		Columns:       []string{"user_id"},
+		Type:          "BTREE",
+		Priority:      5,
 		EstimatedGain: 0.25,
 		RecommendedAt: time.Now(),
 	}
@@ -189,10 +189,10 @@ func TestMarkIndexImplemented(t *testing.T) {
 	qo := NewQueryOptimizer(100)
 
 	rec := IndexRecommendation{
-		TableName:    "events",
-		Columns:      []string{"user_id"},
-		Type:         "BTREE",
-		Priority:     5,
+		TableName:     "events",
+		Columns:       []string{"user_id"},
+		Type:          "BTREE",
+		Priority:      5,
 		RecommendedAt: time.Now(),
 	}
 
@@ -255,10 +255,10 @@ func TestParseQueryOperations(t *testing.T) {
 	qo := NewQueryOptimizer(100)
 
 	tests := []struct {
-		name           string
-		query          string
-		expectedOps    int
-		expectedTypes  []string
+		name          string
+		query         string
+		expectedOps   int
+		expectedTypes []string
 	}{
 		{
 			name:          "simple select",

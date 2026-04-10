@@ -9,25 +9,25 @@ import (
 
 // MicroserviceInitializer initializes microservice deployment
 type MicroserviceInitializer struct {
-	mu                    sync.RWMutex
-	config                *DeploymentConfig
-	serviceRegistry       interface{}
-	messageQueue          interface{}
-	distributedCache      interface{}
-	services              map[string]interface{}
-	metrics               *MicroserviceMetrics
+	mu               sync.RWMutex
+	config           *DeploymentConfig
+	serviceRegistry  interface{}
+	messageQueue     interface{}
+	distributedCache interface{}
+	services         map[string]interface{}
+	metrics          *MicroserviceMetrics
 }
 
 // MicroserviceMetrics tracks microservice deployment metrics
 type MicroserviceMetrics struct {
-	mu                    sync.RWMutex
-	InitializationTime    time.Duration
-	ServicesRegistered    int
-	ServicesFailed        int
-	LastHealthCheckTime   time.Time
-	HealthChecksPassed    int64
-	HealthChecksFailed    int64
-	InterServiceCalls     int64
+	mu                  sync.RWMutex
+	InitializationTime  time.Duration
+	ServicesRegistered  int
+	ServicesFailed      int
+	LastHealthCheckTime time.Time
+	HealthChecksPassed  int64
+	HealthChecksFailed  int64
+	InterServiceCalls   int64
 }
 
 // NewMicroserviceInitializer creates a new microservice initializer
@@ -208,13 +208,13 @@ func (mi *MicroserviceInitializer) GetMetrics() map[string]interface{} {
 	defer mi.metrics.mu.RUnlock()
 
 	return map[string]interface{}{
-		"initialization_time":   mi.metrics.InitializationTime.String(),
-		"services_registered":   mi.metrics.ServicesRegistered,
-		"services_failed":       mi.metrics.ServicesFailed,
-		"health_checks_passed":  mi.metrics.HealthChecksPassed,
-		"health_checks_failed":  mi.metrics.HealthChecksFailed,
-		"inter_service_calls":   mi.metrics.InterServiceCalls,
-		"last_health_check":     mi.metrics.LastHealthCheckTime,
+		"initialization_time":  mi.metrics.InitializationTime.String(),
+		"services_registered":  mi.metrics.ServicesRegistered,
+		"services_failed":      mi.metrics.ServicesFailed,
+		"health_checks_passed": mi.metrics.HealthChecksPassed,
+		"health_checks_failed": mi.metrics.HealthChecksFailed,
+		"inter_service_calls":  mi.metrics.InterServiceCalls,
+		"last_health_check":    mi.metrics.LastHealthCheckTime,
 	}
 }
 

@@ -38,7 +38,6 @@ func TestProperty_AllProtocolsRoutingWorks(t *testing.T) {
 	for _, tc := range testCases {
 		req := NewBaseRequest(context.Background(), "POST", tc.path, tc.headers, tc.body)
 		resp, err := detector.Route(req)
-
 		if err != nil {
 			t.Errorf("routing failed for path %s: %v", tc.path, err)
 		}
@@ -137,7 +136,6 @@ func TestProperty_RequestResponseIntegrity(t *testing.T) {
 	for _, tc := range testCases {
 		req := NewBaseRequest(context.Background(), tc.method, tc.path, map[string]string{}, tc.body)
 		resp, err := detector.Route(req)
-
 		if err != nil {
 			t.Errorf("routing failed: %v", err)
 		}
@@ -251,7 +249,6 @@ func TestProperty_ProtocolIndependence(t *testing.T) {
 	for _, tc := range testCases {
 		req := NewBaseRequest(context.Background(), "POST", tc.path, tc.headers, tc.body)
 		resp, err := detector.Route(req)
-
 		if err != nil {
 			t.Errorf("routing failed: %v", err)
 		}
@@ -293,7 +290,6 @@ func TestProperty_ErrorHandlingConsistency(t *testing.T) {
 	for _, tc := range testCases {
 		req := NewBaseRequest(context.Background(), "POST", tc.path, tc.headers, tc.body)
 		resp, err := detector.Route(req)
-
 		if err != nil {
 			t.Errorf("unexpected error: %v", err)
 		}
@@ -336,7 +332,6 @@ func TestProperty_HeaderPreservation(t *testing.T) {
 
 	req := NewBaseRequest(context.Background(), "GET", "/api", headers, nil)
 	resp, err := detector.Route(req)
-
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

@@ -36,17 +36,17 @@ type ContractRegistry interface {
 
 // RegisteredContract represents a contract in the registry
 type RegisteredContract struct {
-	Address       string
-	Name          string
-	ChainID       string
-	ABI           string
-	Bytecode      string
-	DeployedAt    time.Time
-	DeploymentTx  string
+	Address         string
+	Name            string
+	ChainID         string
+	ABI             string
+	Bytecode        string
+	DeployedAt      time.Time
+	DeploymentTx    string
 	DeploymentBlock uint64
-	Metadata      map[string]interface{}
-	Events        []string
-	Functions     []string
+	Metadata        map[string]interface{}
+	Events          []string
+	Functions       []string
 }
 
 // RegistryStats contains registry statistics
@@ -59,12 +59,12 @@ type RegistryStats struct {
 
 // DefaultContractRegistry implements ContractRegistry
 type DefaultContractRegistry struct {
-	mu              sync.RWMutex
-	contracts       map[string]*RegisteredContract
-	contractsByName map[string]string
+	mu               sync.RWMutex
+	contracts        map[string]*RegisteredContract
+	contractsByName  map[string]string
 	contractsByChain map[string][]string
-	lastRegistered  time.Time
-	lastUpdated     time.Time
+	lastRegistered   time.Time
+	lastUpdated      time.Time
 }
 
 // NewContractRegistry creates a new contract registry

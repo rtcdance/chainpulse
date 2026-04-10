@@ -46,24 +46,24 @@ type DataPullerConfig struct {
 
 // DataPuller pulls events from a blockchain
 type DataPuller struct {
-	config           DataPullerConfig
-	currentBlock     uint64
-	lastProcessedAt  time.Time
-	running          bool
-	mutex            sync.RWMutex
-	metrics          *DataPullerMetrics
-	eventChan        chan *BlockchainEvent
-	errorChan        chan error
+	config          DataPullerConfig
+	currentBlock    uint64
+	lastProcessedAt time.Time
+	running         bool
+	mutex           sync.RWMutex
+	metrics         *DataPullerMetrics
+	eventChan       chan *BlockchainEvent
+	errorChan       chan error
 }
 
 // NewDataPuller creates a new data puller
 func NewDataPuller(config DataPullerConfig) *DataPuller {
 	return &DataPuller{
-		config:          config,
-		currentBlock:    config.StartBlock,
-		metrics:         NewDataPullerMetrics(),
-		eventChan:       make(chan *BlockchainEvent, 100),
-		errorChan:       make(chan error, 10),
+		config:       config,
+		currentBlock: config.StartBlock,
+		metrics:      NewDataPullerMetrics(),
+		eventChan:    make(chan *BlockchainEvent, 100),
+		errorChan:    make(chan error, 10),
 	}
 }
 

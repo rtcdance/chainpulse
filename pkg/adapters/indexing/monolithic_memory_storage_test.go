@@ -1,9 +1,10 @@
 package indexing
 
 import (
-	"chainpulse/pkg/core"
 	"context"
 	"testing"
+
+	"chainpulse/pkg/core"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/assert"

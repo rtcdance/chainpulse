@@ -1,10 +1,11 @@
 package database
 
 import (
-	"chainpulse/pkg/core"
 	"context"
 	"testing"
 	"time"
+
+	"chainpulse/pkg/core"
 )
 
 // TestPostgreSQLRealConnection tests connection to real PostgreSQL

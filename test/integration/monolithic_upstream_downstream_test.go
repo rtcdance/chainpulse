@@ -5,17 +5,17 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/suite"
 	"chainpulse/pkg/core"
+	"github.com/stretchr/testify/suite"
 )
 
 // UpstreamDownstreamTestSuite 测试上下游组件的完整流程
 type UpstreamDownstreamTestSuite struct {
 	suite.Suite
-	
+
 	// 下游组件 (数据访问层)
-	mqPlugin    core.MQPlugin
-	
+	mqPlugin core.MQPlugin
+
 	// 测试上下文
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -27,23 +27,23 @@ var _ suite.TestingSuite = (*UpstreamDownstreamTestSuite)(nil)
 // SetupSuite 初始化测试套件
 func (suite *UpstreamDownstreamTestSuite) SetupSuite() {
 	suite.ctx, suite.cancel = context.WithTimeout(context.Background(), 30*time.Second)
-	
+
 	// 初始化消息队列 (下游)
 	logger := NewDefaultLogger(LogLevelInfo)
 	metricsCollector := NewDefaultMetricsCollector()
 	_ = NewDefaultEventBus() // eventBus not used in this test
 	config := core.Config{}
-	
+
 	// Create a simple mock MQ plugin for testing
 	suite.mqPlugin = &MockMQPlugin{
-		logger: logger,
+		logger:  logger,
 		metrics: metricsCollector,
 	}
-	
+
 	// 初始化消息队列
 	err := suite.mqPlugin.Initialize(config)
 	suite.Require().NoError(err)
-	
+
 	err = suite.mqPlugin.Start()
 	suite.Require().NoError(err)
 }
@@ -60,7 +60,7 @@ func (suite *UpstreamDownstreamTestSuite) TearDownSuite() {
 func (suite *UpstreamDownstreamTestSuite) TestDownstreamMessagePublishing() {
 	// 准备消息
 	message := []byte(`{"event":"Transfer","from":"0xabc","to":"0xdef"}`)
-	
+
 	// 发布消息
 	err := suite.mqPlugin.Publish(suite.ctx, "blockchain-events", message)
 	suite.Require().NoError(err)
@@ -78,7 +78,7 @@ func (suite *UpstreamDownstreamTestSuite) TestDownstreamQueueDepth() {
 func (suite *UpstreamDownstreamTestSuite) TestHealthCheck() {
 	// 检查健康状态
 	err := suite.mqPlugin.Health()
-	
+
 	// 验证健康状态
 	suite.NoError(err)
 }

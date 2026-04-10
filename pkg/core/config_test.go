@@ -47,7 +47,6 @@ func TestLoadConfiguration(t *testing.T) {
 
 	cm := NewConfigManager(nil)
 	config, err := cm.Load()
-
 	if err != nil {
 		t.Errorf("expected no error, got %v", err)
 	}
@@ -68,30 +67,29 @@ func TestLoadConfiguration(t *testing.T) {
 // TestValidateConfigurationValid verifies valid configuration passes validation
 func TestValidateConfigurationValid(t *testing.T) {
 	config := Config{
-		DataPullerType:    "https-jsonrpc",
-		BlockchainNodeURL: "http://localhost:8545",
-		MQType:            "kafka",
-		MQConnectionURL:   "localhost:9092",
-		CacheType:         "redis",
+		DataPullerType:     "https-jsonrpc",
+		BlockchainNodeURL:  "http://localhost:8545",
+		MQType:             "kafka",
+		MQConnectionURL:    "localhost:9092",
+		CacheType:          "redis",
 		CacheConnectionURL: "localhost:6379",
-		CacheTTL:          3600,
-		DatabaseType:      "postgres",
-		DatabaseURL:       "postgres://localhost/chainpulse",
-		APIType:           "rest",
-		APIPort:           8080,
-		WorkerPoolSize:    10,
-		BatchSize:         100,
-		MaxRetries:        3,
-		RetryBackoff:      100,
-		DeploymentMode:    "monolithic",
-		ServiceName:       "chainpulse",
-		LogLevel:          "info",
-		FeatureFlags:      make(map[string]bool),
+		CacheTTL:           3600,
+		DatabaseType:       "postgres",
+		DatabaseURL:        "postgres://localhost/chainpulse",
+		APIType:            "rest",
+		APIPort:            8080,
+		WorkerPoolSize:     10,
+		BatchSize:          100,
+		MaxRetries:         3,
+		RetryBackoff:       100,
+		DeploymentMode:     "monolithic",
+		ServiceName:        "chainpulse",
+		LogLevel:           "info",
+		FeatureFlags:       make(map[string]bool),
 	}
 
 	cm := NewConfigManager(nil)
 	err := cm.Validate(config)
-
 	if err != nil {
 		t.Errorf("expected valid configuration to pass validation, got error %v", err)
 	}
@@ -100,25 +98,25 @@ func TestValidateConfigurationValid(t *testing.T) {
 // TestValidateConfigurationInvalidDataPullerType verifies invalid data puller type
 func TestValidateConfigurationInvalidDataPullerType(t *testing.T) {
 	config := Config{
-		DataPullerType:    "invalid",
-		BlockchainNodeURL: "http://localhost:8545",
-		MQType:            "kafka",
-		MQConnectionURL:   "localhost:9092",
-		CacheType:         "redis",
+		DataPullerType:     "invalid",
+		BlockchainNodeURL:  "http://localhost:8545",
+		MQType:             "kafka",
+		MQConnectionURL:    "localhost:9092",
+		CacheType:          "redis",
 		CacheConnectionURL: "localhost:6379",
-		CacheTTL:          3600,
-		DatabaseType:      "postgres",
-		DatabaseURL:       "postgres://localhost/chainpulse",
-		APIType:           "rest",
-		APIPort:           8080,
-		WorkerPoolSize:    10,
-		BatchSize:         100,
-		MaxRetries:        3,
-		RetryBackoff:      100,
-		DeploymentMode:    "monolithic",
-		ServiceName:       "chainpulse",
-		LogLevel:          "info",
-		FeatureFlags:      make(map[string]bool),
+		CacheTTL:           3600,
+		DatabaseType:       "postgres",
+		DatabaseURL:        "postgres://localhost/chainpulse",
+		APIType:            "rest",
+		APIPort:            8080,
+		WorkerPoolSize:     10,
+		BatchSize:          100,
+		MaxRetries:         3,
+		RetryBackoff:       100,
+		DeploymentMode:     "monolithic",
+		ServiceName:        "chainpulse",
+		LogLevel:           "info",
+		FeatureFlags:       make(map[string]bool),
 	}
 
 	cm := NewConfigManager(nil)
@@ -132,25 +130,25 @@ func TestValidateConfigurationInvalidDataPullerType(t *testing.T) {
 // TestValidateConfigurationMissingBlockchainNodeURL verifies missing blockchain node URL
 func TestValidateConfigurationMissingBlockchainNodeURL(t *testing.T) {
 	config := Config{
-		DataPullerType:    "https-jsonrpc",
-		BlockchainNodeURL: "",
-		MQType:            "kafka",
-		MQConnectionURL:   "localhost:9092",
-		CacheType:         "redis",
+		DataPullerType:     "https-jsonrpc",
+		BlockchainNodeURL:  "",
+		MQType:             "kafka",
+		MQConnectionURL:    "localhost:9092",
+		CacheType:          "redis",
 		CacheConnectionURL: "localhost:6379",
-		CacheTTL:          3600,
-		DatabaseType:      "postgres",
-		DatabaseURL:       "postgres://localhost/chainpulse",
-		APIType:           "rest",
-		APIPort:           8080,
-		WorkerPoolSize:    10,
-		BatchSize:         100,
-		MaxRetries:        3,
-		RetryBackoff:      100,
-		DeploymentMode:    "monolithic",
-		ServiceName:       "chainpulse",
-		LogLevel:          "info",
-		FeatureFlags:      make(map[string]bool),
+		CacheTTL:           3600,
+		DatabaseType:       "postgres",
+		DatabaseURL:        "postgres://localhost/chainpulse",
+		APIType:            "rest",
+		APIPort:            8080,
+		WorkerPoolSize:     10,
+		BatchSize:          100,
+		MaxRetries:         3,
+		RetryBackoff:       100,
+		DeploymentMode:     "monolithic",
+		ServiceName:        "chainpulse",
+		LogLevel:           "info",
+		FeatureFlags:       make(map[string]bool),
 	}
 
 	cm := NewConfigManager(nil)
@@ -164,25 +162,25 @@ func TestValidateConfigurationMissingBlockchainNodeURL(t *testing.T) {
 // TestValidateConfigurationInvalidAPIPort verifies invalid API port
 func TestValidateConfigurationInvalidAPIPort(t *testing.T) {
 	config := Config{
-		DataPullerType:    "https-jsonrpc",
-		BlockchainNodeURL: "http://localhost:8545",
-		MQType:            "kafka",
-		MQConnectionURL:   "localhost:9092",
-		CacheType:         "redis",
+		DataPullerType:     "https-jsonrpc",
+		BlockchainNodeURL:  "http://localhost:8545",
+		MQType:             "kafka",
+		MQConnectionURL:    "localhost:9092",
+		CacheType:          "redis",
 		CacheConnectionURL: "localhost:6379",
-		CacheTTL:          3600,
-		DatabaseType:      "postgres",
-		DatabaseURL:       "postgres://localhost/chainpulse",
-		APIType:           "rest",
-		APIPort:           99999,
-		WorkerPoolSize:    10,
-		BatchSize:         100,
-		MaxRetries:        3,
-		RetryBackoff:      100,
-		DeploymentMode:    "monolithic",
-		ServiceName:       "chainpulse",
-		LogLevel:          "info",
-		FeatureFlags:      make(map[string]bool),
+		CacheTTL:           3600,
+		DatabaseType:       "postgres",
+		DatabaseURL:        "postgres://localhost/chainpulse",
+		APIType:            "rest",
+		APIPort:            99999,
+		WorkerPoolSize:     10,
+		BatchSize:          100,
+		MaxRetries:         3,
+		RetryBackoff:       100,
+		DeploymentMode:     "monolithic",
+		ServiceName:        "chainpulse",
+		LogLevel:           "info",
+		FeatureFlags:       make(map[string]bool),
 	}
 
 	cm := NewConfigManager(nil)
@@ -196,25 +194,25 @@ func TestValidateConfigurationInvalidAPIPort(t *testing.T) {
 // TestGetConfigurationValue verifies getting configuration values
 func TestGetConfigurationValue(t *testing.T) {
 	config := Config{
-		DataPullerType:    "https-jsonrpc",
-		BlockchainNodeURL: "http://localhost:8545",
-		MQType:            "kafka",
-		MQConnectionURL:   "localhost:9092",
-		CacheType:         "redis",
+		DataPullerType:     "https-jsonrpc",
+		BlockchainNodeURL:  "http://localhost:8545",
+		MQType:             "kafka",
+		MQConnectionURL:    "localhost:9092",
+		CacheType:          "redis",
 		CacheConnectionURL: "localhost:6379",
-		CacheTTL:          3600,
-		DatabaseType:      "postgres",
-		DatabaseURL:       "postgres://localhost/chainpulse",
-		APIType:           "rest",
-		APIPort:           8080,
-		WorkerPoolSize:    10,
-		BatchSize:         100,
-		MaxRetries:        3,
-		RetryBackoff:      100,
-		DeploymentMode:    "monolithic",
-		ServiceName:       "chainpulse",
-		LogLevel:          "info",
-		FeatureFlags:      make(map[string]bool),
+		CacheTTL:           3600,
+		DatabaseType:       "postgres",
+		DatabaseURL:        "postgres://localhost/chainpulse",
+		APIType:            "rest",
+		APIPort:            8080,
+		WorkerPoolSize:     10,
+		BatchSize:          100,
+		MaxRetries:         3,
+		RetryBackoff:       100,
+		DeploymentMode:     "monolithic",
+		ServiceName:        "chainpulse",
+		LogLevel:           "info",
+		FeatureFlags:       make(map[string]bool),
 	}
 
 	cm := NewConfigManager(nil)

@@ -111,7 +111,6 @@ func TestBaseResponseSend(t *testing.T) {
 
 	resp.SetBody([]byte("test response"))
 	err := resp.Send()
-
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}

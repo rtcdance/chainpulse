@@ -131,7 +131,6 @@ func (f *DatabaseFixture) InsertEvent(ctx context.Context, event *core.Blockchai
 		event.TransactionHash.Hex(),
 		event.EventName,
 	)
-
 	if err != nil {
 		return fmt.Errorf("failed to insert event: %w", err)
 	}
@@ -165,7 +164,6 @@ func (f *DatabaseFixture) GetEvent(ctx context.Context, eventID string) (*core.B
 		&event.TransactionHash,
 		&event.EventName,
 	)
-
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("event not found: %s", eventID)

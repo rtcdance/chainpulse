@@ -53,14 +53,14 @@ func DefaultCircuitBreakerConfig() *CircuitBreakerConfig {
 
 // CircuitBreaker implements the circuit breaker pattern
 type CircuitBreaker struct {
-	config           *CircuitBreakerConfig
-	state            CircuitBreakerState
-	failureCount     int
-	successCount     int
-	lastFailureTime  time.Time
-	lastStateChange  time.Time
-	mu               sync.RWMutex
-	stateChangeHook  func(oldState, newState CircuitBreakerState)
+	config          *CircuitBreakerConfig
+	state           CircuitBreakerState
+	failureCount    int
+	successCount    int
+	lastFailureTime time.Time
+	lastStateChange time.Time
+	mu              sync.RWMutex
+	stateChangeHook func(oldState, newState CircuitBreakerState)
 }
 
 // NewCircuitBreaker creates a new circuit breaker
@@ -198,11 +198,11 @@ func (cb *CircuitBreaker) GetStats() CircuitBreakerStats {
 	defer cb.mu.RUnlock()
 
 	return CircuitBreakerStats{
-		State:              cb.state,
-		FailureCount:       cb.failureCount,
-		SuccessCount:       cb.successCount,
-		LastFailureTime:    cb.lastFailureTime,
-		LastStateChange:    cb.lastStateChange,
+		State:                cb.state,
+		FailureCount:         cb.failureCount,
+		SuccessCount:         cb.successCount,
+		LastFailureTime:      cb.lastFailureTime,
+		LastStateChange:      cb.lastStateChange,
 		TimeSinceLastFailure: time.Since(cb.lastFailureTime),
 		TimeSinceStateChange: time.Since(cb.lastStateChange),
 	}

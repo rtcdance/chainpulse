@@ -317,7 +317,7 @@ Overall Status: %s
 		statusIcon(result.InterClusterComm), statusText(result.InterClusterComm, result.InterClusterCommErr),
 		result.BackupStatus.BackupConfigured,
 		result.BackupStatus.LastBackupTime.Format(time.RFC3339),
-		statusIcon(result.AllHealthy) + " " + overallStatus(result.AllHealthy),
+		statusIcon(result.AllHealthy)+" "+overallStatus(result.AllHealthy),
 	)
 
 	return report

@@ -210,9 +210,9 @@ func TestExponentialBackoffDelay(t *testing.T) {
 	plugin.SetRetryDelay(100 * time.Millisecond)
 
 	tests := []struct {
-		retryCount   int
-		expectedMs   int64
-		description  string
+		retryCount  int
+		expectedMs  int64
+		description string
 	}{
 		{0, 100, "retry 0 should use base delay"},
 		{1, 100, "retry 1: 100ms * 2^0 = 100ms"},

@@ -12,13 +12,14 @@ func (h *testProtocolHandler) Start() error {
 	h.running = true
 	return nil
 }
+
 func (h *testProtocolHandler) Stop() error {
 	h.running = false
 	return nil
 }
-func (h *testProtocolHandler) IsRunning() bool { return h.running }
+func (h *testProtocolHandler) IsRunning() bool                                  { return h.running }
 func (h *testProtocolHandler) RegisterRoute(path string, handler Handler) error { return nil }
-func (h *testProtocolHandler) Use(middleware ...Middleware) error { return nil }
+func (h *testProtocolHandler) Use(middleware ...Middleware) error               { return nil }
 
 func TestProtocolRegistryRuntimeMetricsUnobserved(t *testing.T) {
 	registry := NewProtocolRegistry()

@@ -254,7 +254,6 @@ func TestSchemaBuilder_BuildSchema(t *testing.T) {
 
 	builder := NewSchemaBuilder(eventStore, logger, metrics, nil, authMiddleware)
 	schema, err := builder.BuildSchema()
-
 	if err != nil {
 		t.Fatalf("Failed to build schema: %v", err)
 	}
@@ -417,7 +416,6 @@ func TestEventResolver_ResolveEvent(t *testing.T) {
 	result, err := resolver.ResolveEvent(mockResolveParams(map[string]interface{}{
 		"id": "nonexistent",
 	}))
-
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
@@ -652,7 +650,6 @@ func TestCacheResolver_ResolveInvalidateCache(t *testing.T) {
 	result, err := resolver.ResolveInvalidateCache(mockResolveParams(map[string]interface{}{
 		"eventId": "test-id",
 	}))
-
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}

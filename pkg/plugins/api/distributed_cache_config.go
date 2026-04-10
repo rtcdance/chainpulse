@@ -9,20 +9,20 @@ import (
 // DistributedCacheConfig holds configuration for distributed caching in the API layer
 type DistributedCacheConfig struct {
 	// Redis configuration
-	RedisAddr            string
-	RedisPassword        string
-	RedisDB              int
-	PoolSize             int
-	MinIdleConns         int
-	MaxRetries           int
-	DialTimeout          time.Duration
-	ReadTimeout          time.Duration
-	WriteTimeout         time.Duration
-	HealthCheckInterval  time.Duration
-	MaxLocalCacheSize    int
-	DefaultTTL           time.Duration
-	FallbackEnabled      bool
-	CacheKeyPrefix       string
+	RedisAddr           string
+	RedisPassword       string
+	RedisDB             int
+	PoolSize            int
+	MinIdleConns        int
+	MaxRetries          int
+	DialTimeout         time.Duration
+	ReadTimeout         time.Duration
+	WriteTimeout        time.Duration
+	HealthCheckInterval time.Duration
+	MaxLocalCacheSize   int
+	DefaultTTL          time.Duration
+	FallbackEnabled     bool
+	CacheKeyPrefix      string
 }
 
 // NewDistributedCacheConfig creates a new distributed cache configuration for the API layer

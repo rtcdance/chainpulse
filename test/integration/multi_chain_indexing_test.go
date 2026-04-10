@@ -456,7 +456,7 @@ func TestDefaultChainIndexerResetStats(t *testing.T) {
 
 func TestConcurrentMultiChainIndexing(t *testing.T) {
 	t.Skip("Skipping concurrent test due to goroutine management issues - will be fixed in next iteration")
-	
+
 	logger := &MockLogger{}
 	config := &MockConfigManager{
 		blockchains: make(map[string]core.BlockchainConfig),

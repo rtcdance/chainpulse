@@ -10,12 +10,12 @@ import (
 
 // CacheInvalidator handles cache invalidation logic
 type CacheInvalidator struct {
-	cache              *CacheMiddleware
-	logger             core.Logger
-	metrics            core.MetricsCollector
-	invalidationQueue  chan InvalidationRequest
-	retryPolicy        *RetryPolicy
-	mu                 sync.RWMutex
+	cache             *CacheMiddleware
+	logger            core.Logger
+	metrics           core.MetricsCollector
+	invalidationQueue chan InvalidationRequest
+	retryPolicy       *RetryPolicy
+	mu                sync.RWMutex
 }
 
 // InvalidationRequest represents a cache invalidation request

@@ -1,9 +1,10 @@
 package cache
 
 import (
-	"chainpulse/pkg/core"
 	"testing"
 	"time"
+
+	"chainpulse/pkg/core"
 )
 
 func TestCachePluginInitialize(t *testing.T) {
@@ -47,7 +48,7 @@ func TestCachePluginLifecycle(t *testing.T) {
 		APIPort:           8080,
 	}
 
- _ = cache.Initialize(config)
+	_ = cache.Initialize(config)
 
 	// Start
 	err := cache.Start()
@@ -85,8 +86,8 @@ func TestCachePluginSetAndGet(t *testing.T) {
 		APIPort:           8080,
 	}
 
- _ = cache.Initialize(config)
- _ = cache.Start()
+	_ = cache.Initialize(config)
+	_ = cache.Start()
 
 	// Set a value
 	entry := &core.CacheEntry{
@@ -135,8 +136,8 @@ func TestCachePluginMiss(t *testing.T) {
 		APIPort:           8080,
 	}
 
- _ = cache.Initialize(config)
- _ = cache.Start()
+	_ = cache.Initialize(config)
+	_ = cache.Start()
 
 	// Get non-existent value
 	retrieved, err := cache.Get("non_existent")

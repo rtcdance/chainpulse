@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"testing"
+
 	"chainpulse/pkg/core"
 )
 
@@ -104,9 +105,9 @@ func TestPropertyFeatureFlagConsistency(t *testing.T) {
 
 	// Test that setting and getting feature flags is consistent
 	testFlags := map[string]bool{
-		"enable_cache":    true,
-		"enable_metrics":  false,
-		"enable_tracing":  true,
+		"enable_cache":     true,
+		"enable_metrics":   false,
+		"enable_tracing":   true,
 		"enable_profiling": false,
 	}
 

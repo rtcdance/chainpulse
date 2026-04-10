@@ -12,16 +12,16 @@ import (
 
 // RedisCacheManager manages distributed caching using Redis
 type RedisCacheManager struct {
-	client           *redis.Client
-	localCache       map[string]*CacheEntry
-	localCacheMutex  sync.RWMutex
-	stats            *CacheStatistics
-	statsMutex       sync.RWMutex
-	config           *DistributedCacheConfig
-	fallbackMode     bool
-	fallbackMutex    sync.RWMutex
-	healthCheckTick  *time.Ticker
-	done             chan struct{}
+	client          *redis.Client
+	localCache      map[string]*CacheEntry
+	localCacheMutex sync.RWMutex
+	stats           *CacheStatistics
+	statsMutex      sync.RWMutex
+	config          *DistributedCacheConfig
+	fallbackMode    bool
+	fallbackMutex   sync.RWMutex
+	healthCheckTick *time.Ticker
+	done            chan struct{}
 }
 
 // CacheEntry represents a cached value with metadata
@@ -36,14 +36,14 @@ type CacheEntry struct {
 
 // CacheStatistics tracks cache performance metrics
 type CacheStatistics struct {
-	Hits       int64
-	Misses     int64
-	Evictions  int64
-	Sets       int64
-	Deletes    int64
-	Errors     int64
-	LastReset  time.Time
-	StartTime  time.Time
+	Hits      int64
+	Misses    int64
+	Evictions int64
+	Sets      int64
+	Deletes   int64
+	Errors    int64
+	LastReset time.Time
+	StartTime time.Time
 }
 
 // NewRedisCacheManager creates a new Redis cache manager
