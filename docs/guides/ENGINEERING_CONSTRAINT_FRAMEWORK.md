@@ -128,5 +128,5 @@ Stop and escalate design review when any of the following occurs:
 
 - Architecture prompt: `docs/ARCHITECTURE_PROMPT.md`
 - Unit test standards: `docs/guides/UNIT_TEST_STANDARDS.md`
-- Error handling patterns: `docs/archive/ERROR_HANDLING_GUIDE.md`
+- Error handling patterns: `docs/project/ARCHITECTURE_RULES.md`
 - This workflow contract: `docs/guides/ENGINEERING_CONSTRAINT_FRAMEWORK.md`

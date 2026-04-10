@@ -1,6 +1,6 @@
 # Documentation Index
 
-**Last Updated**: 2026-04-09
+**Last Updated**: 2026-04-10
 
 ## Active Documentation
 
@@ -12,18 +12,12 @@
 - `DEBUGGING.md` - Debugging guide
 - `README.md` - Project overview
 - `project/README.md` - Project-level runnable/security/governance docs
-- `planning/README.md` - Planning and AI workflow document entrypoint
-- `planning/EXECUTION_PLAN.md` - Active restructuring/execution plan reference
-- `planning/GPT_PROMPT_TEMPLATE.md` - Historical GPT workflow template retained as planning context
 
 ### Guides
 - `guides/DEPLOYMENT_GUIDE.md` - Deployment instructions
 - `guides/OPERATIONS_GUIDE.md` - Operations runbook
 - `guides/DEVELOPER_GUIDE.md` - Developer onboarding
 - `deployment/monitoring.md` - Prometheus and Grafana monitoring guide with blueprint-aligned dashboard notes
-- `archive/ERROR_HANDLING_GUIDE.md` - Archived error-handling reference
-- `archive/RESILIENCE_PATTERNS_GUIDE.md` - Archived resilience reference
-- `archive/MICROSERVICES_IMPLEMENTATION_GUIDE.md` - Archived microservices implementation guide
 
 ### Operations
 - `operations/POLICY_ROLLOUT_SLO.md` - Policy rollout SLO/SLI definitions
@@ -441,10 +435,6 @@
 
 Large, outdated, or redundant docs moved to `docs/archive/`:
 - `ARCHITECTURE_v1.md` (907 lines → 40 lines)
-- `OPERATIONS_GUIDE_v1.md` (1019 lines → 80 lines)
-- `RESILIENCE_PATTERNS_GUIDE.md` (795 lines)
-- `ERROR_HANDLING_GUIDE.md` (745 lines)
-- `MICROSERVICES_IMPLEMENTATION_GUIDE.md` (668 lines)
 
 **Rationale**: Improve AI context efficiency and maintainability.
 
