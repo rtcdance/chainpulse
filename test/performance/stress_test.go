@@ -16,9 +16,9 @@ func TestStress_MemoryMQ_HighThroughput(t *testing.T) {
 	}
 
 	mq := mq.NewMemoryMQ()
-	mq.Initialize(core.Config{})
-	mq.Start()
-	defer mq.Stop()
+	_ = mq.Initialize(core.Config{})
+	_ = mq.Start()
+	defer func() { _ = mq.Stop() }()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -35,7 +35,7 @@ func TestStress_MemoryMQ_HighThroughput(t *testing.T) {
 		go func(id int) {
 			defer wg.Done()
 			count := 0
-			mq.Subscribe(ctx, "stress-topic", func(msg []byte) {
+			_ = mq.Subscribe(ctx, "stress-topic", func(msg []byte) {
 				count++
 			})
 			received <- count
@@ -50,7 +50,7 @@ func TestStress_MemoryMQ_HighThroughput(t *testing.T) {
 		go func(id int) {
 			defer wg.Done()
 			for j := 0; j < messagesPerPublisher; j++ {
-				mq.Publish(ctx, "stress-topic", []byte("stress message"))
+				_ = mq.Publish(ctx, "stress-topic", []byte("stress message"))
 			}
 		}(i)
 	}
@@ -88,12 +88,12 @@ func TestStress_MultiChain_Concurrent(t *testing.T) {
 			defer wg.Done()
 
 			mq := mq.NewMemoryMQ()
-			mq.Initialize(core.Config{})
-			mq.Start()
-			defer mq.Stop()
+			_ = mq.Initialize(core.Config{})
+			_ = mq.Start()
+			defer func() { _ = mq.Stop() }()
 
 			for event := 0; event < eventsPerChain; event++ {
-				mq.Publish(ctx, "chain-events", []byte("event"))
+				_ = mq.Publish(ctx, "chain-events", []byte("event"))
 			}
 		}(chain)
 	}

@@ -118,7 +118,7 @@ func TestWSSConnection(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to connect to WSS: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	defer func() { _ = conn.Close() }()
 
 	// Send test message
@@ -180,7 +180,7 @@ func TestWSAndWSSConcurrent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to connect to WS: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	defer func() {
 		if err := wsConn.Close(); err != nil {
 			t.Logf("failed to close connection: %v", err)
@@ -213,7 +213,7 @@ func TestWSAndWSSConcurrent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to connect to WSS: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	defer func() {
 		if err := wssConn.Close(); err != nil {
 			t.Logf("failed to close connection: %v", err)
@@ -322,7 +322,7 @@ func TestWebSocketPluginWithoutTLS(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to connect to WS: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	defer func() { _ = conn.Close() }()
 
 	err = conn.WriteMessage(websocket.TextMessage, []byte("test"))
@@ -391,7 +391,7 @@ func TestWSSClientCount(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to connect to WSS: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	time.Sleep(50 * time.Millisecond)
 

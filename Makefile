@@ -103,6 +103,8 @@ lint:
 	LINT_ARGS="--tests=false"; \
 	if [ -n "$(LINT_BASE_REF)" ]; then \
 		LINT_ARGS="$$LINT_ARGS --new-from-rev=$(LINT_BASE_REF)"; \
+	elif git rev-parse HEAD~1 >/dev/null 2>&1; then \
+		LINT_ARGS="$$LINT_ARGS --new-from-rev=HEAD~1"; \
 	fi; \
 	GOCACHE=$${GOCACHE:-/tmp/chainpulse-go-build-cache} "$$LINTER_BIN" run $$LINT_ARGS ./...
 
