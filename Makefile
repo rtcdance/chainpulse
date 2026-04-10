@@ -1,5 +1,5 @@
 # Development and Build Tooling
-.PHONY: all build test lint fmt clean help check-policy-contract check-migration-manifest export-migration-kpi compare-migration-kpi compare-ticket-registry-health smoke-baseline-governance-scope compare-baseline-scope-smoke preflight-migration-baseline-update test-baseline-update-resolver compare-baseline-resolver-test check-migration-baseline update-migration-baseline check-migration-changelog-quality export-migration-owner-drift
+.PHONY: all build test lint fmt clean help repo-hygiene check-policy-contract check-migration-manifest export-migration-kpi compare-migration-kpi compare-ticket-registry-health smoke-baseline-governance-scope compare-baseline-scope-smoke preflight-migration-baseline-update test-baseline-update-resolver compare-baseline-resolver-test check-migration-baseline update-migration-baseline check-migration-changelog-quality export-migration-owner-drift
 
 # Force-clear stale GOROOT (homebrew Go self-detects; stale value breaks builds)
 unexport GOROOT
@@ -224,6 +224,10 @@ docker-logs:
 
 ci: fmt-check lint vet test-unit
 
+repo-hygiene:
+	@echo "Checking repository file/structure hygiene..."
+	./scripts/check-file-organization.sh
+
 check-policy-contract:
 	@echo "Checking policy metric/tag contract..."
 	./scripts/check-policy-metric-contract.sh
@@ -345,5 +349,6 @@ help:
 	@echo "  deps-update          - Update dependencies"
 	@echo "  security             - Run security scan"
 	@echo "  ci                   - Run CI checks"
+	@echo "  repo-hygiene         - Run repository hygiene checks"
 	@echo "  clean                - Clean build artifacts"
 	@echo "  help                 - Show this help"

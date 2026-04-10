@@ -33,6 +33,12 @@ func (d *GoroutineLeakDetector) Finish() int {
 	d.finalCount = CountGoroutines()
 	d.leaked = d.finalCount - d.initialCount
 
+	// Ensure we never return a negative count
+	// If finalCount < initialCount, it means no leaks occurred
+	if d.leaked < 0 {
+		d.leaked = 0
+	}
+
 	return d.leaked
 }
 
