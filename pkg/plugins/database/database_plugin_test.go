@@ -100,7 +100,7 @@ func TestDatabasePluginWriteEvent(t *testing.T) {
 		BlockTimestamp:  time.Now().Unix(),
 	}
 
-	if err := db.WriteEvent(event); err != nil {
+	if err := db.WriteEvent(context.Background(), event); err != nil {
 		t.Fatalf("WriteEvent failed: %v", err)
 	}
 
@@ -139,7 +139,7 @@ func TestDatabasePluginWriteEvents(t *testing.T) {
 			EventHash:       fmt.Sprintf("0xhash%d", i),
 			BlockNumber:     uint64(12345 + i),
 			TransactionHash: common.HexToHash(fmt.Sprintf("0xtx%d", i)),
-			LogIndex:        uint(i),
+			LogIndex:        uint64(i),
 			ContractAddress: common.HexToAddress("0xcontract"),
 			EventName:       "Transfer",
 			ChainID:         "1",
@@ -147,7 +147,7 @@ func TestDatabasePluginWriteEvents(t *testing.T) {
 		}
 	}
 
-	if err := db.WriteEvents(events); err != nil {
+	if err := db.WriteEvents(context.Background(), events); err != nil {
 		t.Fatalf("WriteEvents failed: %v", err)
 	}
 
@@ -185,13 +185,13 @@ func TestDatabasePluginQueryEvents(t *testing.T) {
 			EventHash:       fmt.Sprintf("0xhash%d", i),
 			BlockNumber:     uint64(12345 + i),
 			TransactionHash: common.HexToHash(fmt.Sprintf("0xtx%d", i)),
-			LogIndex:        uint(i),
+			LogIndex:        uint64(i),
 			ContractAddress: common.HexToAddress("0xcontract"),
 			EventName:       "Transfer",
 			ChainID:         "1",
 			BlockTimestamp:  time.Now().Unix(),
 		}
-		if err := db.WriteEvent(event); err != nil {
+		if err := db.WriteEvent(context.Background(), event); err != nil {
 			t.Fatalf("WriteEvent failed: %v", err)
 		}
 	}
@@ -243,13 +243,13 @@ func TestDatabasePluginQueryEventsWithFilter(t *testing.T) {
 			EventHash:       fmt.Sprintf("0xhash%d", i),
 			BlockNumber:     uint64(12345 + i),
 			TransactionHash: common.HexToHash(fmt.Sprintf("0xtx%d", i)),
-			LogIndex:        uint(i),
+			LogIndex:        uint64(i),
 			ContractAddress: common.HexToAddress("0x1111111111111111111111111111111111111111"),
 			EventName:       "Transfer",
 			ChainID:         "1",
 			BlockTimestamp:  time.Now().Unix(),
 		}
-		if err := db.WriteEvent(event); err != nil {
+		if err := db.WriteEvent(context.Background(), event); err != nil {
 			t.Fatalf("WriteEvent failed: %v", err)
 		}
 	}
@@ -259,13 +259,13 @@ func TestDatabasePluginQueryEventsWithFilter(t *testing.T) {
 			EventHash:       fmt.Sprintf("0xhash%d", i),
 			BlockNumber:     uint64(12345 + i),
 			TransactionHash: common.HexToHash(fmt.Sprintf("0xtx%d", i)),
-			LogIndex:        uint(i),
+			LogIndex:        uint64(i),
 			ContractAddress: common.HexToAddress("0x2222222222222222222222222222222222222222"),
 			EventName:       "Approval",
 			ChainID:         "1",
 			BlockTimestamp:  time.Now().Unix(),
 		}
-		if err := db.WriteEvent(event); err != nil {
+		if err := db.WriteEvent(context.Background(), event); err != nil {
 			t.Fatalf("WriteEvent failed: %v", err)
 		}
 	}
@@ -320,7 +320,7 @@ func TestDatabasePluginGetEventByHash(t *testing.T) {
 		BlockTimestamp:  time.Now().Unix(),
 	}
 
-	if err := db.WriteEvent(event); err != nil {
+	if err := db.WriteEvent(context.Background(), event); err != nil {
 		t.Fatalf("WriteEvent failed: %v", err)
 	}
 
@@ -373,7 +373,7 @@ func TestDatabasePluginDeleteEvent(t *testing.T) {
 		BlockTimestamp:  time.Now().Unix(),
 	}
 
-	if err := db.WriteEvent(event); err != nil {
+	if err := db.WriteEvent(context.Background(), event); err != nil {
 		t.Fatalf("WriteEvent failed: %v", err)
 	}
 
@@ -423,13 +423,13 @@ func TestDatabasePluginStats(t *testing.T) {
 			EventHash:       fmt.Sprintf("0xhash%d", i),
 			BlockNumber:     uint64(12345 + i),
 			TransactionHash: common.HexToHash(fmt.Sprintf("0xtx%d", i)),
-			LogIndex:        uint(i),
+			LogIndex:        uint64(i),
 			ContractAddress: common.HexToAddress("0xcontract"),
 			EventName:       "Transfer",
 			ChainID:         "1",
 			BlockTimestamp:  time.Now().Unix(),
 		}
-		if err := db.WriteEvent(event); err != nil {
+		if err := db.WriteEvent(context.Background(), event); err != nil {
 			t.Fatalf("WriteEvent failed: %v", err)
 		}
 	}
@@ -496,13 +496,13 @@ func TestDatabasePluginConcurrentOperations(t *testing.T) {
 					EventHash:       fmt.Sprintf("0xhash_%d_%d", idx, j),
 					BlockNumber:     uint64(12345 + idx*10 + j),
 					TransactionHash: common.HexToHash(fmt.Sprintf("0xtx_%d_%d", idx, j)),
-					LogIndex:        uint(j),
+					LogIndex:        uint64(j),
 					ContractAddress: common.HexToAddress("0xcontract"),
 					EventName:       "Transfer",
 					ChainID:         "1",
 					BlockTimestamp:  time.Now().Unix(),
 				}
-				if err := db.WriteEvent(event); err != nil {
+				if err := db.WriteEvent(context.Background(), event); err != nil {
 					t.Logf("WriteEvent failed: %v", err)
 				}
 			}
@@ -554,7 +554,7 @@ func TestDatabasePluginErrorHandling(t *testing.T) {
 	}
 
 	// Test write with nil event
-	err := db.WriteEvent(nil)
+	err := db.WriteEvent(context.Background(), nil)
 	if err == nil {
 		t.Fatal("Expected error for nil event")
 	}
@@ -563,7 +563,7 @@ func TestDatabasePluginErrorHandling(t *testing.T) {
 	event := &core.BlockchainEvent{
 		BlockNumber: 12345,
 	}
-	err = db.WriteEvent(event)
+	err = db.WriteEvent(context.Background(), event)
 	if err == nil {
 		t.Fatal("Expected error for empty hash")
 	}
@@ -615,13 +615,13 @@ func TestDatabasePluginQueryWithPagination(t *testing.T) {
 			EventHash:       fmt.Sprintf("0xhash%d", i),
 			BlockNumber:     uint64(12345 + i),
 			TransactionHash: common.HexToHash(fmt.Sprintf("0xtx%d", i)),
-			LogIndex:        uint(i),
+			LogIndex:        uint64(i),
 			ContractAddress: common.HexToAddress("0xcontract"),
 			EventName:       "Transfer",
 			ChainID:         "1",
 			BlockTimestamp:  time.Now().Unix(),
 		}
-		if err := db.WriteEvent(event); err != nil {
+		if err := db.WriteEvent(context.Background(), event); err != nil {
 			t.Fatalf("WriteEvent failed: %v", err)
 		}
 	}

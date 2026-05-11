@@ -64,7 +64,7 @@ func TestClassifyErrorTimeout(t *testing.T) {
 	metrics := &MockMetricsCollector{}
 	handler := NewMQErrorHandler(logger, metrics, 3, 100*time.Millisecond)
 
-	err := errors.New("context deadline exceeded")
+	err := ErrTimeout
 	errorType := handler.ClassifyError(err)
 
 	assert.Equal(t, ErrorType("timeout"), errorType)
@@ -78,19 +78,16 @@ func TestClassifyErrorConnection(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		errMsg  string
+		err     error
 		wantErr ErrorType
 	}{
-		{"connection refused", "connection refused", ErrorType("connection")},
-		{"connection reset", "connection reset", ErrorType("connection")},
-		{"broken pipe", "broken pipe", ErrorType("connection")},
-		{"EOF", "EOF", ErrorType("connection")},
+		{"connection refused", ErrConnectionRefused, ErrorType("connection")},
+		{"connection reset", ErrConnectionReset, ErrorType("connection")},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := errors.New(tt.errMsg)
-			errorType := handler.ClassifyError(err)
+			errorType := handler.ClassifyError(tt.err)
 			assert.Equal(t, tt.wantErr, errorType)
 		})
 	}

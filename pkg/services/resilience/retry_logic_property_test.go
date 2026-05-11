@@ -2,7 +2,6 @@ package resilience
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -82,31 +81,31 @@ func TestProperty3ExponentialBackoffRetry(t *testing.T) {
 
 		ctx := context.Background()
 
-		// Test transient errors
-		transientErrors := []string{
-			"timeout",
-			"connection refused",
-			"connection reset",
-			"temporary failure",
-			"unavailable",
-			"deadline exceeded",
+		// Test transient errors using typed sentinels
+		transientErrors := []error{
+			core.ErrTimeout,
+			core.ErrConnectionRefused,
+			core.ErrConnectionReset,
+			core.ErrTemporaryFailure,
+			core.ErrUnavailable,
+			core.ErrDeadlineExceeded,
 		}
 
-		for _, errMsg := range transientErrors {
+		for _, transErr := range transientErrors {
 			attempts := 0
 			err := executor.Execute(ctx, func() error {
 				attempts++
 				if attempts < 2 {
-					return errors.New(errMsg)
+					return transErr
 				}
 				return nil
 			}, "test_source")
 			if err != nil {
-				t.Errorf("Expected retry to succeed for transient error: %s", errMsg)
+				t.Errorf("Expected retry to succeed for transient error: %v", transErr)
 			}
 
 			if attempts != 2 {
-				t.Errorf("Expected 2 attempts for transient error %s, got %d", errMsg, attempts)
+				t.Errorf("Expected 2 attempts for transient error %v, got %d", transErr, attempts)
 			}
 		}
 	})
@@ -125,29 +124,28 @@ func TestProperty3ExponentialBackoffRetry(t *testing.T) {
 
 		ctx := context.Background()
 
-		// Test permanent errors
-		permanentErrors := []string{
-			"invalid configuration",
-			"unauthorized",
-			"forbidden",
-			"not found",
-			"bad request",
-			"corrupted data",
+		// Test permanent errors using typed sentinels
+		permanentErrors := []error{
+			core.ErrBadRequest,
+			core.ErrUnauthorized,
+			core.ErrForbidden,
+			core.ErrNotFound,
+			core.ErrInvalidState,
 		}
 
-		for _, errMsg := range permanentErrors {
+		for _, permErr := range permanentErrors {
 			attempts := 0
 			err := executor.Execute(ctx, func() error {
 				attempts++
-				return errors.New(errMsg)
+				return permErr
 			}, "test_source")
 
 			if err == nil {
-				t.Errorf("Expected error for permanent error: %s", errMsg)
+				t.Errorf("Expected error for permanent error: %v", permErr)
 			}
 
 			if attempts != 1 {
-				t.Errorf("Expected 1 attempt for permanent error %s, got %d", errMsg, attempts)
+				t.Errorf("Expected 1 attempt for permanent error %v, got %d", permErr, attempts)
 			}
 		}
 	})
@@ -190,7 +188,7 @@ func TestProperty3ExponentialBackoffRetry(t *testing.T) {
 		attempts := 0
 		err := executor.Execute(ctx, func() error {
 			attempts++
-			return errors.New("timeout")
+			return core.ErrTimeout
 		}, "test_source")
 
 		if err == nil {
@@ -222,7 +220,7 @@ func TestProperty3ExponentialBackoffRetry(t *testing.T) {
 			err := executor.Execute(ctx, func() error {
 				attempts++
 				if attempts <= successAttempt {
-					return errors.New("timeout")
+					return core.ErrTimeout
 				}
 				return nil
 			}, "test_source")
@@ -280,7 +278,7 @@ func TestProperty3ExponentialBackoffRetry(t *testing.T) {
 				err := executor.Execute(ctx, func() error {
 					attempts++
 					if attempts < 2 {
-						return errors.New("timeout")
+						return core.ErrTimeout
 					}
 					return nil
 				}, fmt.Sprintf("test_source_%d", index))
@@ -376,7 +374,7 @@ func TestProperty3ExponentialBackoffRetry(t *testing.T) {
 		err := executor.Execute(ctx, func() error {
 			attempts++
 			if attempts < 2 {
-				return errors.New("timeout")
+				return core.ErrTimeout
 			}
 			return nil
 		}, "test_source")

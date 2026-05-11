@@ -1,12 +1,18 @@
 import { useEffect, useRef, useState } from 'react'
 import { Loader2, Plug, Radio, Send, Trash2 } from 'lucide-react'
-import { buildWebSocketUrl } from '../lib/chainpulse'
+import { buildWebSocketUrl, buildFilteredSubscribeUrl } from '../lib/chainpulse'
 
 interface MessageLog {
   id: number
   direction: 'system' | 'in' | 'out' | 'error'
   text: string
   timestamp: string
+}
+
+interface WSFilters {
+  chainId: string
+  contract: string
+  eventName: string
 }
 
 const endpointOptions = ['/ws', '/events/subscribe']
@@ -16,6 +22,8 @@ export default function WebSocket() {
   const [status, setStatus] = useState<'idle' | 'connecting' | 'connected'>('idle')
   const [messages, setMessages] = useState<MessageLog[]>([])
   const [draft, setDraft] = useState('{"type":"subscribe","topic":"events"}')
+  const [wsFilters, setWsFilters] = useState<WSFilters>({ chainId: '', contract: '', eventName: '' })
+  const [activePath, setActivePath] = useState('/ws')
   const socketRef = useRef<WebSocket | null>(null)
   const sequenceRef = useRef(0)
 
@@ -38,15 +46,34 @@ export default function WebSocket() {
     setStatus('idle')
   }
 
+  function getEffectivePath(): string {
+    if (selectedPath === '/events/subscribe') {
+      const filtered = buildFilteredSubscribeUrl(wsFilters)
+      if (filtered !== '/events/subscribe') return filtered
+    }
+    return selectedPath
+  }
+
   function connect(): void {
     disconnect()
     setStatus('connecting')
-    const socket = new window.WebSocket(buildWebSocketUrl(selectedPath))
+    const path = getEffectivePath()
+    setActivePath(path)
+    const socket = new window.WebSocket(buildWebSocketUrl(path))
     socketRef.current = socket
 
     socket.onopen = () => {
       setStatus('connected')
-      pushMessage('system', `connected ${selectedPath}`)
+      pushMessage('system', `connected ${path}`)
+    }
+
+    socket.onerror = () => {
+      pushMessage('error', `websocket error on ${path}`)
+    }
+
+    socket.onclose = () => {
+      setStatus('idle')
+      pushMessage('system', `closed ${path}`)
     }
 
     socket.onmessage = (event) => {
@@ -122,8 +149,40 @@ export default function WebSocket() {
           }`}>
             {status}
           </span>
-          <span className="font-mono text-sm text-sand/75">{buildWebSocketUrl(selectedPath)}</span>
+          <span className="font-mono text-sm text-sand/75">{buildWebSocketUrl(activePath)}</span>
         </div>
+
+        {selectedPath === '/events/subscribe' && (
+          <div className="mt-5 grid gap-4 md:grid-cols-3">
+            <label className="rounded-2xl border border-white/10 bg-black/15 px-4 py-3">
+              <span className="text-xs uppercase tracking-[0.2em] text-mist">Chain ID</span>
+              <input
+                value={wsFilters.chainId}
+                onChange={(event) => setWsFilters((current) => ({ ...current, chainId: event.target.value }))}
+                placeholder="ethereum / 1"
+                className="mt-3 w-full bg-transparent text-sm text-white outline-none placeholder:text-sand/35"
+              />
+            </label>
+            <label className="rounded-2xl border border-white/10 bg-black/15 px-4 py-3">
+              <span className="text-xs uppercase tracking-[0.2em] text-mist">Contract</span>
+              <input
+                value={wsFilters.contract}
+                onChange={(event) => setWsFilters((current) => ({ ...current, contract: event.target.value }))}
+                placeholder="0x..."
+                className="mt-3 w-full bg-transparent text-sm text-white outline-none placeholder:text-sand/35"
+              />
+            </label>
+            <label className="rounded-2xl border border-white/10 bg-black/15 px-4 py-3">
+              <span className="text-xs uppercase tracking-[0.2em] text-mist">Event Name</span>
+              <input
+                value={wsFilters.eventName}
+                onChange={(event) => setWsFilters((current) => ({ ...current, eventName: event.target.value }))}
+                placeholder="Transfer / Swap"
+                className="mt-3 w-full bg-transparent text-sm text-white outline-none placeholder:text-sand/35"
+              />
+            </label>
+          </div>
+        )}
       </section>
 
       <section className="grid gap-6 xl:grid-cols-[0.95fr,1.05fr]">

@@ -26,6 +26,7 @@ type GatewayRouterIntegration struct {
 	healthCheckHandler            *HealthCheckHandler
 	modelsHandler                 *ModelsHandler
 	graphqlHandler                *GraphQLHandler
+	dlqHandler                    *DLQHandler
 	upstreamQueryEndpoints        []string
 	upstreamQueryHTTPClient       *http.Client
 	upstreamQueryHealthHTTPClient *http.Client
@@ -181,6 +182,14 @@ func (gri *GatewayRouterIntegration) SetGraphQLHandler(handler *GraphQLHandler) 
 	gri.graphqlHandler = handler
 }
 
+// SetDLQHandler wires the DLQ handler for route registration.
+func (gri *GatewayRouterIntegration) SetDLQHandler(handler *DLQHandler) {
+	gri.mu.Lock()
+	defer gri.mu.Unlock()
+
+	gri.dlqHandler = handler
+}
+
 // registerRoutes registers all API routes.
 func (gri *GatewayRouterIntegration) registerRoutes() error {
 	if err := gri.registerSubscriptionRoutes(); err != nil {
@@ -199,6 +208,9 @@ func (gri *GatewayRouterIntegration) registerRoutes() error {
 		return err
 	}
 	if err := gri.registerGraphQLRoutes(); err != nil {
+		return err
+	}
+	if err := gri.registerDLQRoutes(); err != nil {
 		return err
 	}
 	if err := gri.attachUpstreamQueryHandlers(); err != nil {
@@ -326,6 +338,16 @@ func (gri *GatewayRouterIntegration) registerGraphQLRoutes() error {
 	return gri.registerRoute("graphql", "/graphql", "GET,POST,OPTIONS", 0)
 }
 
+func (gri *GatewayRouterIntegration) registerDLQRoutes() error {
+	if gri.dlqHandler == nil {
+		return nil
+	}
+	if err := gri.registerRoute("dlq-events", "/dlq/events", "GET", 0); err != nil {
+		return err
+	}
+	return gri.registerRoute("dlq-replay", "/dlq/replay", "POST", 0)
+}
+
 func (gri *GatewayRouterIntegration) shouldRegisterEventQueryRoutes() bool {
 	return gri.eventQueryHandler != nil || len(gri.upstreamQueryEndpoints) > 0
 }
@@ -401,6 +423,8 @@ var gatewayRouteHandlers = map[string]gatewayRouteHandler{
 	"runtime-replay":      gatewayHandleRuntimeReplay,
 	"models":              gatewayHandleModels,
 	"graphql":             gatewayHandleGraphQL,
+	"dlq-events":          gatewayHandleDLQEvents,
+	"dlq-replay":          gatewayHandleDLQReplay,
 }
 
 // HandleRequest handles an incoming HTTP request
@@ -414,7 +438,7 @@ func (gri *GatewayRouterIntegration) HandleRequest(w http.ResponseWriter, r *htt
 	gri.mu.RLock()
 	if !gri.initialized {
 		gri.mu.RUnlock()
-		http.Error(w, "Gateway not initialized", http.StatusInternalServerError)
+		(&APIError{Code: "INTERNAL_SERVER_ERROR", Message: "Gateway not initialized", Status: 500}).WriteHTTP(w)
 		return
 	}
 	gri.mu.RUnlock()
@@ -438,7 +462,7 @@ func (gri *GatewayRouterIntegration) HandleRequest(w http.ResponseWriter, r *htt
 		gri.logger.Warn("No route matched", "path", normalizedReq.URL.Path)
 		gri.metrics.RecordCounter("gateway_route_not_found", 1, nil)
 		gri.logger.Warn("Route match failed", "path", normalizedReq.URL.Path, "methods_tried", normalizedReq.Method)
-		http.Error(w, "Not Found", http.StatusNotFound)
+		(&APIError{Code: "NOT_FOUND", Message: "Not Found", Status: 404}).WriteHTTP(w)
 		return
 	}
 
@@ -454,7 +478,7 @@ func (gri *GatewayRouterIntegration) HandleRequest(w http.ResponseWriter, r *htt
 		if !matched {
 			gri.logger.Warn("Method mismatch", "route_method", route.Method, "request_method", normalizedReq.Method, "path", normalizedReq.URL.Path)
 			w.Header().Set("Allow", route.Method)
-			http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+		(&APIError{Code: "METHOD_NOT_ALLOWED", Message: "Method Not Allowed", Status: 405}).WriteHTTP(w)
 			gri.metrics.RecordCounter("gateway_method_not_allowed", 1, map[string]string{
 				"route_id": route.ID,
 				"method":   normalizedReq.Method,
@@ -466,7 +490,7 @@ func (gri *GatewayRouterIntegration) HandleRequest(w http.ResponseWriter, r *htt
 	handler, ok := gatewayRouteHandlers[route.ID]
 	if !ok {
 		gri.logger.Warn("Unknown route", "routeId", route.ID)
-		http.Error(w, "Not Found", http.StatusNotFound)
+		(&APIError{Code: "NOT_FOUND", Message: "Not Found", Status: 404}).WriteHTTP(w)
 	} else {
 		handler(gri, w, wrappedWriter, normalizedReq, route, params)
 	}
@@ -525,7 +549,7 @@ func gatewayHandleSubscribeAll(gri *GatewayRouterIntegration, w http.ResponseWri
 	gri.logger.Info("Handling WebSocket subscribe", "path", r.URL.Path, "handler_nil", gri.subscriptionHandler == nil)
 	if gri.subscriptionHandler == nil {
 		gri.logger.Error("subscriptionHandler is nil!")
-		http.Error(w, "Subscription handler not configured", http.StatusInternalServerError)
+		(&APIError{Code: "INTERNAL_SERVER_ERROR", Message: "Subscription handler not configured", Status: 500}).WriteHTTP(w)
 		return
 	}
 	gri.subscriptionHandler.HandleSubscribeAll(wrapped, r)
@@ -538,7 +562,7 @@ func gatewayHandleSubscribeChain(gri *GatewayRouterIntegration, w http.ResponseW
 	}
 	gri.logger.Info("Handling WebSocket subscribe-chain", "path", r.URL.Path, "chainId", chainID)
 	if gri.subscriptionHandler == nil {
-		http.Error(w, "Subscription handler not configured", http.StatusInternalServerError)
+		(&APIError{Code: "INTERNAL_SERVER_ERROR", Message: "Subscription handler not configured", Status: 500}).WriteHTTP(w)
 		return
 	}
 	gri.subscriptionHandler.HandleSubscribeChain(w, r, chainID)
@@ -550,7 +574,7 @@ func gatewayHandleSubscribeContract(gri *GatewayRouterIntegration, w http.Respon
 		address = params["address"]
 	}
 	if gri.subscriptionHandler == nil {
-		http.Error(w, "Subscription handler not configured", http.StatusInternalServerError)
+		(&APIError{Code: "INTERNAL_SERVER_ERROR", Message: "Subscription handler not configured", Status: 500}).WriteHTTP(w)
 		return
 	}
 	gri.subscriptionHandler.HandleSubscribeContract(w, r, address)
@@ -562,7 +586,7 @@ func gatewayHandleSubscribeName(gri *GatewayRouterIntegration, w http.ResponseWr
 		eventName = params["eventName"]
 	}
 	if gri.subscriptionHandler == nil {
-		http.Error(w, "Subscription handler not configured", http.StatusInternalServerError)
+		(&APIError{Code: "INTERNAL_SERVER_ERROR", Message: "Subscription handler not configured", Status: 500}).WriteHTTP(w)
 		return
 	}
 	gri.subscriptionHandler.HandleSubscribeName(w, r, eventName)
@@ -613,10 +637,26 @@ func gatewayHandleGraphQL(gri *GatewayRouterIntegration, w http.ResponseWriter, 
 		return
 	}
 	if gri.graphqlHandler == nil {
-		http.Error(w, "GraphQL handler not configured", http.StatusInternalServerError)
+		(&APIError{Code: "INTERNAL_SERVER_ERROR", Message: "GraphQL handler not configured", Status: 500}).WriteHTTP(w)
 		return
 	}
 	gri.graphqlHandler.Handle(w, r)
+}
+
+func gatewayHandleDLQEvents(gri *GatewayRouterIntegration, w http.ResponseWriter, _ http.ResponseWriter, r *http.Request, _ *Route, _ map[string]string) {
+	if gri.dlqHandler == nil {
+		(&APIError{Code: "NOT_FOUND", Message: "DLQ handler not configured", Status: 404}).WriteHTTP(w)
+		return
+	}
+	gri.dlqHandler.HandleListDLQEvents(w, r)
+}
+
+func gatewayHandleDLQReplay(gri *GatewayRouterIntegration, w http.ResponseWriter, _ http.ResponseWriter, r *http.Request, _ *Route, _ map[string]string) {
+	if gri.dlqHandler == nil {
+		(&APIError{Code: "NOT_FOUND", Message: "DLQ handler not configured", Status: 404}).WriteHTTP(w)
+		return
+	}
+	gri.dlqHandler.HandleReplayDLQEvents(w, r)
 }
 
 func normalizeGatewayAPIV1Request(r *http.Request) *http.Request {
@@ -645,7 +685,7 @@ func normalizeGatewayAPIV1Request(r *http.Request) *http.Request {
 
 func (gri *GatewayRouterIntegration) handleRuntimeControl(w http.ResponseWriter, r *http.Request) {
 	if gri.runtimeControlProvider == nil {
-		http.Error(w, "runtime control unavailable", http.StatusNotFound)
+		(&APIError{Code: "NOT_FOUND", Message: "runtime control unavailable", Status: 404}).WriteHTTP(w)
 		return
 	}
 
@@ -654,7 +694,7 @@ func (gri *GatewayRouterIntegration) handleRuntimeControl(w http.ResponseWriter,
 
 func (gri *GatewayRouterIntegration) handleRuntimeReplay(w http.ResponseWriter, r *http.Request) {
 	if gri.runtimeReplayProvider == nil {
-		http.Error(w, "runtime replay unavailable", http.StatusNotFound)
+		(&APIError{Code: "NOT_FOUND", Message: "runtime replay unavailable", Status: 404}).WriteHTTP(w)
 
 		return
 	}
@@ -736,13 +776,13 @@ func flattenRequestHeaders(header http.Header) map[string]string {
 
 func (gri *GatewayRouterIntegration) handleRuntimeMetrics(w http.ResponseWriter, r *http.Request) {
 	if gri.runtimeMetricsProvider == nil {
-		http.Error(w, "runtime metrics unavailable", http.StatusNotFound)
+		(&APIError{Code: "NOT_FOUND", Message: "runtime metrics unavailable", Status: 404}).WriteHTTP(w)
 		return
 	}
 
 	payload := gri.runtimeMetricsProvider(r)
 	if payload == nil {
-		http.Error(w, "runtime metrics unavailable", http.StatusServiceUnavailable)
+		(&APIError{Code: "SERVICE_UNAVAILABLE", Message: "runtime metrics unavailable", Status: 503}).WriteHTTP(w)
 		return
 	}
 
@@ -759,13 +799,13 @@ func (gri *GatewayRouterIntegration) handleRuntimeMetrics(w http.ResponseWriter,
 
 func (gri *GatewayRouterIntegration) handleRuntimeSummary(w http.ResponseWriter, r *http.Request) {
 	if gri.runtimeSummaryProvider == nil {
-		http.Error(w, "runtime summary unavailable", http.StatusNotFound)
+		(&APIError{Code: "NOT_FOUND", Message: "runtime summary unavailable", Status: 404}).WriteHTTP(w)
 		return
 	}
 
 	payload := gri.runtimeSummaryProvider(r)
 	if payload == nil {
-		http.Error(w, "runtime summary unavailable", http.StatusServiceUnavailable)
+		(&APIError{Code: "SERVICE_UNAVAILABLE", Message: "runtime summary unavailable", Status: 503}).WriteHTTP(w)
 		return
 	}
 
@@ -1045,7 +1085,8 @@ func NewRequestLogger(logger core.Logger) *RequestLogger {
 
 // LogRequest logs request details
 func (rl *RequestLogger) LogRequest(r *http.Request, statusCode int, duration time.Duration) {
-	rl.logger.Info("Request processed",
+	rl.logger.Info(
+		"Request processed",
 		"method", r.Method,
 		"path", r.URL.Path,
 		"status", statusCode,
@@ -1055,7 +1096,8 @@ func (rl *RequestLogger) LogRequest(r *http.Request, statusCode int, duration ti
 
 // LogError logs request error
 func (rl *RequestLogger) LogError(r *http.Request, err error) {
-	rl.logger.Error("Request error",
+	rl.logger.Error(
+		"Request error",
 		"method", r.Method,
 		"path", r.URL.Path,
 		"error", err.Error(),

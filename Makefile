@@ -1,5 +1,5 @@
 # Development and Build Tooling
-.PHONY: all build test lint fmt clean help repo-hygiene k8s-verify k8s-acceptance k8s-acceptance-strict k8s-up k8s-down k8s-status k8s-oneclick multichain-e2e-acceptance multichain-e2e-acceptance-strict multichain-e2e-fork-acceptance multichain-e2e-fork-acceptance-strict check-policy-contract check-migration-manifest export-migration-kpi compare-migration-kpi compare-ticket-registry-health smoke-baseline-governance-scope compare-baseline-scope-smoke preflight-migration-baseline-update test-baseline-update-resolver compare-baseline-resolver-test check-migration-baseline update-migration-baseline check-migration-changelog-quality export-migration-owner-drift
+.PHONY: all build test lint fmt clean help repo-hygiene k8s-verify k8s-acceptance k8s-acceptance-strict k8s-up k8s-down k8s-status k8s-oneclick deploy-event-acceptance multichain-e2e-acceptance multichain-e2e-acceptance-strict multichain-e2e-fork-acceptance multichain-e2e-fork-acceptance-strict deployed-real-event-acceptance check-policy-contract check-migration-manifest export-migration-kpi compare-migration-kpi compare-ticket-registry-health smoke-baseline-governance-scope compare-baseline-scope-smoke preflight-migration-baseline-update test-baseline-update-resolver compare-baseline-resolver-test check-migration-baseline update-migration-baseline check-migration-changelog-quality export-migration-owner-drift check test-short
 
 # Force-clear stale GOROOT (homebrew Go self-detects; stale value breaks builds)
 unexport GOROOT
@@ -86,6 +86,13 @@ test-bench:
 	$(GO) test -bench=. -benchmem ./...
 
 # ========== 代码质量 ==========
+
+check: vet fmt-check
+	@echo "All checks passed."
+
+test-short:
+	@echo "Running short tests (no integration/e2e)..."
+	$(GO) test -short -count=1 ./pkg/... ./cmd/...
 
 lint:
 	@echo "Running linter..."
@@ -222,7 +229,24 @@ docker-logs:
 
 # ========== CI/CD ==========
 
-ci: fmt-check lint vet test-unit k8s-verify
+ci: check test-short lint k8s-verify
+
+ci-full: check test-unit lint security k8s-verify
+	@echo "Full CI pipeline completed."
+
+# ========== Database Migration ==========
+
+migrate-up:
+	@echo "Running database migrations (up)..."
+	$(GO) run ./cmd/migrate -db "$${DATABASE_URL}" -path migrations up
+
+migrate-down:
+	@echo "Rolling back last migration..."
+	$(GO) run ./cmd/migrate -db "$${DATABASE_URL}" -path migrations down
+
+migrate-version:
+	@echo "Checking migration version..."
+	$(GO) run ./cmd/migrate -db "$${DATABASE_URL}" -path migrations version
 
 repo-hygiene:
 	@echo "Checking repository file/structure hygiene..."
@@ -256,6 +280,10 @@ k8s-oneclick:
 	@echo "Running one-click K8s deploy + acceptance + status..."
 	./scripts/run-k8s-deploy.sh all
 
+deploy-event-acceptance:
+	@echo "Running deploy -> real event -> API/H5 acceptance..."
+	bash scripts/run-deploy-event-acceptance.sh all
+
 multichain-e2e-acceptance:
 	@echo "Running multi-chain E2E acceptance (auto)..."
 	MODE=auto bash scripts/multi-chain-e2e.sh
@@ -271,6 +299,10 @@ multichain-e2e-fork-acceptance:
 multichain-e2e-fork-acceptance-strict:
 	@echo "Running strict multi-chain E2E acceptance in EVM fork mode..."
 	EVM_FORK_MODE=1 MODE=strict bash scripts/multi-chain-e2e.sh
+
+deployed-real-event-acceptance:
+	@echo "Running deployed real on-chain event acceptance..."
+	bash scripts/run-deployed-real-event-acceptance.sh
 
 check-policy-contract:
 	@echo "Checking policy metric/tag contract..."
@@ -360,6 +392,7 @@ help:
 	@echo "Test:"
 	@echo "  test                 - Run all tests"
 	@echo "  test-unit            - Run unit tests only"
+	@echo "  test-short           - Run short tests (no integration/e2e)"
 	@echo "  test-integration     - Run integration tests"
 	@echo "  test-e2e             - Run end-to-end tests"
 	@echo "  test-coverage        - Run tests with coverage report"
@@ -367,6 +400,7 @@ help:
 	@echo "  test-bench           - Run benchmarks"
 	@echo ""
 	@echo "Code Quality:"
+	@echo "  check                - Run vet + fmt-check (fast pre-push gate)"
 	@echo "  lint                 - Run golangci-lint"
 	@echo "  lint-fix             - Run linter with auto-fix"
 	@echo "  vet                  - Run go vet"
@@ -401,9 +435,11 @@ help:
 	@echo "  k8s-down             - One-click K8s deploy down (overlay via OVERLAY=...)"
 	@echo "  k8s-status           - Show K8s pods/services/deployments"
 	@echo "  k8s-oneclick         - Run K8s up + acceptance + status"
+	@echo "  deploy-event-acceptance - Deploy, inject a real event, then run API/H5 acceptance"
 	@echo "  multichain-e2e-acceptance - Run multi-chain E2E acceptance (multi-EVM + optional Solana)"
 	@echo "  multichain-e2e-acceptance-strict - Run strict multi-chain E2E acceptance (require Solana)"
 	@echo "  multichain-e2e-fork-acceptance - Run multi-chain E2E with EVM fork mode"
 	@echo "  multichain-e2e-fork-acceptance-strict - Run strict multi-chain E2E with EVM fork mode"
+	@echo "  deployed-real-event-acceptance - Inject a real chain event and verify deployed visibility"
 	@echo "  clean                - Clean build artifacts"
 	@echo "  help                 - Show this help"

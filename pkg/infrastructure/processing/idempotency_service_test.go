@@ -13,20 +13,17 @@ import (
 
 // TestNewIdempotencyService tests service creation
 func TestNewIdempotencyService(t *testing.T) {
-	ttl := 1 * time.Hour
-	service := NewIdempotencyService(ttl)
+	service := NewIdempotencyService()
 
 	assert.NotNil(t, service)
 	assert.NotNil(t, service.processedEvents)
-	assert.Equal(t, ttl, service.recordTTL)
-	assert.Equal(t, 5*time.Minute, service.cleanupInterval)
 	assert.Equal(t, int64(0), service.duplicateCount)
 	assert.Equal(t, int64(0), service.checkCount)
 }
 
 // TestIsDuplicateNotProcessed tests checking non-processed event
 func TestIsDuplicateNotProcessed(t *testing.T) {
-	service := NewIdempotencyService(1 * time.Hour)
+	service := NewIdempotencyService()
 	ctx := context.Background()
 
 	isDuplicate, err := service.IsDuplicate(ctx, "event-hash-1")
@@ -37,7 +34,7 @@ func TestIsDuplicateNotProcessed(t *testing.T) {
 
 // TestIsDuplicateEmptyHash tests checking with empty hash
 func TestIsDuplicateEmptyHash(t *testing.T) {
-	service := NewIdempotencyService(1 * time.Hour)
+	service := NewIdempotencyService()
 	ctx := context.Background()
 
 	_, err := service.IsDuplicate(ctx, "")
@@ -47,10 +44,10 @@ func TestIsDuplicateEmptyHash(t *testing.T) {
 
 // TestMarkProcessed tests marking event as processed
 func TestMarkProcessed(t *testing.T) {
-	service := NewIdempotencyService(1 * time.Hour)
+	service := NewIdempotencyService()
 	ctx := context.Background()
 
-	err := service.MarkProcessed(ctx, "event-hash-1", "ethereum", "tx-1", "success")
+	err := service.MarkProcessed(ctx, "event-hash-1", "ethereum", "tx-1", 100, "success")
 
 	assert.NoError(t, err)
 	assert.Equal(t, int64(1), service.GetProcessedCount())
@@ -58,20 +55,20 @@ func TestMarkProcessed(t *testing.T) {
 
 // TestMarkProcessedEmptyHash tests marking with empty hash
 func TestMarkProcessedEmptyHash(t *testing.T) {
-	service := NewIdempotencyService(1 * time.Hour)
+	service := NewIdempotencyService()
 	ctx := context.Background()
 
-	err := service.MarkProcessed(ctx, "", "ethereum", "tx-1", "success")
+	err := service.MarkProcessed(ctx, "", "ethereum", "tx-1", 0, "success")
 
 	assert.Error(t, err)
 }
 
 // TestMarkProcessedDefaultStatus tests marking with default status
 func TestMarkProcessedDefaultStatus(t *testing.T) {
-	service := NewIdempotencyService(1 * time.Hour)
+	service := NewIdempotencyService()
 	ctx := context.Background()
 
-	err := service.MarkProcessed(ctx, "event-hash-1", "ethereum", "tx-1", "")
+	err := service.MarkProcessed(ctx, "event-hash-1", "ethereum", "tx-1", 100, "")
 
 	assert.NoError(t, err)
 
@@ -82,10 +79,10 @@ func TestMarkProcessedDefaultStatus(t *testing.T) {
 
 // TestIsDuplicateAfterMarkProcessed tests duplicate detection after marking
 func TestIsDuplicateAfterMarkProcessed(t *testing.T) {
-	service := NewIdempotencyService(1 * time.Hour)
+	service := NewIdempotencyService()
 	ctx := context.Background()
 
-	_ = service.MarkProcessed(ctx, "event-hash-1", "ethereum", "tx-1", "success")
+	_ = service.MarkProcessed(ctx, "event-hash-1", "ethereum", "tx-1", 100, "success")
 
 	isDuplicate, err := service.IsDuplicate(ctx, "event-hash-1")
 
@@ -95,10 +92,10 @@ func TestIsDuplicateAfterMarkProcessed(t *testing.T) {
 
 // TestGetProcessedRecord tests retrieving processed record
 func TestGetProcessedRecord(t *testing.T) {
-	service := NewIdempotencyService(1 * time.Hour)
+	service := NewIdempotencyService()
 	ctx := context.Background()
 
-	_ = service.MarkProcessed(ctx, "event-hash-1", "ethereum", "tx-1", "success")
+	_ = service.MarkProcessed(ctx, "event-hash-1", "ethereum", "tx-1", 100, "success")
 
 	record, err := service.GetProcessedRecord(ctx, "event-hash-1")
 
@@ -112,7 +109,7 @@ func TestGetProcessedRecord(t *testing.T) {
 
 // TestGetProcessedRecordEmptyHash tests retrieving with empty hash
 func TestGetProcessedRecordEmptyHash(t *testing.T) {
-	service := NewIdempotencyService(1 * time.Hour)
+	service := NewIdempotencyService()
 	ctx := context.Background()
 
 	_, err := service.GetProcessedRecord(ctx, "")
@@ -122,7 +119,7 @@ func TestGetProcessedRecordEmptyHash(t *testing.T) {
 
 // TestGetProcessedRecordNotFound tests retrieving non-existent record
 func TestGetProcessedRecordNotFound(t *testing.T) {
-	service := NewIdempotencyService(1 * time.Hour)
+	service := NewIdempotencyService()
 	ctx := context.Background()
 
 	_, err := service.GetProcessedRecord(ctx, "nonexistent")
@@ -130,28 +127,27 @@ func TestGetProcessedRecordNotFound(t *testing.T) {
 	assert.Error(t, err)
 }
 
-// TestGetProcessedRecordExpired tests retrieving expired record
-func TestGetProcessedRecordExpired(t *testing.T) {
-	service := NewIdempotencyService(100 * time.Millisecond)
+// TestGetProcessedRecordExpired tests that records never expire (blockchain events are permanent)
+func TestGetProcessedRecordNeverExpires(t *testing.T) {
+	service := NewIdempotencyService()
 	ctx := context.Background()
 
-	_ = service.MarkProcessed(ctx, "event-hash-1", "ethereum", "tx-1", "success")
+	_ = service.MarkProcessed(ctx, "event-hash-1", "ethereum", "tx-1", 100, "success")
 
-	// Wait for expiration
-	time.Sleep(150 * time.Millisecond)
+	// Record should still exist after time passes — blockchain events never expire
+	time.Sleep(50 * time.Millisecond)
 
 	_, err := service.GetProcessedRecord(ctx, "event-hash-1")
 
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "expired")
+	assert.NoError(t, err)
 }
 
 // TestGetDuplicateCount tests getting duplicate count
 func TestGetDuplicateCount(t *testing.T) {
-	service := NewIdempotencyService(1 * time.Hour)
+	service := NewIdempotencyService()
 	ctx := context.Background()
 
-	_ = service.MarkProcessed(ctx, "event-hash-1", "ethereum", "tx-1", "success")
+	_ = service.MarkProcessed(ctx, "event-hash-1", "ethereum", "tx-1", 100, "success")
 
 	// First check - is duplicate
 	_, _ = service.IsDuplicate(ctx, "event-hash-1")
@@ -164,10 +160,10 @@ func TestGetDuplicateCount(t *testing.T) {
 
 // TestGetCheckCount tests getting check count
 func TestGetCheckCount(t *testing.T) {
-	service := NewIdempotencyService(1 * time.Hour)
+	service := NewIdempotencyService()
 	ctx := context.Background()
 
-	_ = service.MarkProcessed(ctx, "event-hash-1", "ethereum", "tx-1", "success")
+	_ = service.MarkProcessed(ctx, "event-hash-1", "ethereum", "tx-1", 100, "success")
 
 	assert.Equal(t, int64(0), service.GetCheckCount())
 
@@ -180,27 +176,27 @@ func TestGetCheckCount(t *testing.T) {
 
 // TestGetProcessedCountIdempotency tests getting processed count
 func TestGetProcessedCountIdempotency(t *testing.T) {
-	service := NewIdempotencyService(1 * time.Hour)
+	service := NewIdempotencyService()
 	ctx := context.Background()
 
 	assert.Equal(t, int64(0), service.GetProcessedCount())
 
-	_ = service.MarkProcessed(ctx, "event-hash-1", "ethereum", "tx-1", "success")
+	_ = service.MarkProcessed(ctx, "event-hash-1", "ethereum", "tx-1", 100, "success")
 	assert.Equal(t, int64(1), service.GetProcessedCount())
 
-	_ = service.MarkProcessed(ctx, "event-hash-2", "ethereum", "tx-2", "success")
+	_ = service.MarkProcessed(ctx, "event-hash-2", "ethereum", "tx-2", 200, "success")
 	assert.Equal(t, int64(2), service.GetProcessedCount())
 }
 
 // TestGetDuplicateRate tests getting duplicate rate
 func TestGetDuplicateRate(t *testing.T) {
-	service := NewIdempotencyService(1 * time.Hour)
+	service := NewIdempotencyService()
 	ctx := context.Background()
 
 	// No checks yet
 	assert.Equal(t, 0.0, service.GetDuplicateRate())
 
-	_ = service.MarkProcessed(ctx, "event-hash-1", "ethereum", "tx-1", "success")
+	_ = service.MarkProcessed(ctx, "event-hash-1", "ethereum", "tx-1", 100, "success")
 
 	// 1 check, 1 duplicate (event was already processed)
 	_, _ = service.IsDuplicate(ctx, "event-hash-1")
@@ -217,10 +213,10 @@ func TestGetDuplicateRate(t *testing.T) {
 
 // TestReset tests resetting service
 func TestReset(t *testing.T) {
-	service := NewIdempotencyService(1 * time.Hour)
+	service := NewIdempotencyService()
 	ctx := context.Background()
 
-	_ = service.MarkProcessed(ctx, "event-hash-1", "ethereum", "tx-1", "success")
+	_ = service.MarkProcessed(ctx, "event-hash-1", "ethereum", "tx-1", 100, "success")
 	_, _ = service.IsDuplicate(ctx, "event-hash-1")
 	_, _ = service.IsDuplicate(ctx, "event-hash-1")
 
@@ -237,10 +233,10 @@ func TestReset(t *testing.T) {
 
 // TestGetMetricsIdempotency tests getting metrics
 func TestGetMetricsIdempotency(t *testing.T) {
-	service := NewIdempotencyService(1 * time.Hour)
+	service := NewIdempotencyService()
 	ctx := context.Background()
 
-	_ = service.MarkProcessed(ctx, "event-hash-1", "ethereum", "tx-1", "success")
+	_ = service.MarkProcessed(ctx, "event-hash-1", "ethereum", "tx-1", 100, "success")
 	_, _ = service.IsDuplicate(ctx, "event-hash-1")
 
 	metrics := service.GetMetrics()
@@ -250,13 +246,11 @@ func TestGetMetricsIdempotency(t *testing.T) {
 	assert.Equal(t, int64(1), metrics["duplicate_count"])
 	assert.Equal(t, int64(1), metrics["check_count"])
 	assert.Contains(t, metrics, "duplicate_rate")
-	assert.Contains(t, metrics, "record_ttl")
-	assert.Contains(t, metrics, "cleanup_interval")
 }
 
 // TestValidateIdempotencyNilEvent tests validation with nil event
 func TestValidateIdempotencyNilEvent(t *testing.T) {
-	service := NewIdempotencyService(1 * time.Hour)
+	service := NewIdempotencyService()
 	ctx := context.Background()
 
 	err := service.ValidateIdempotency(ctx, nil)
@@ -266,7 +260,7 @@ func TestValidateIdempotencyNilEvent(t *testing.T) {
 
 // TestValidateIdempotencyEmptyHash tests validation with empty hash
 func TestValidateIdempotencyEmptyHash(t *testing.T) {
-	service := NewIdempotencyService(1 * time.Hour)
+	service := NewIdempotencyService()
 	ctx := context.Background()
 
 	event := &Event{EventHash: ""}
@@ -278,7 +272,7 @@ func TestValidateIdempotencyEmptyHash(t *testing.T) {
 
 // TestValidateIdempotencyNewEvent tests validation with new event
 func TestValidateIdempotencyNewEvent(t *testing.T) {
-	service := NewIdempotencyService(1 * time.Hour)
+	service := NewIdempotencyService()
 	ctx := context.Background()
 
 	event := &Event{EventHash: "event-hash-1"}
@@ -290,12 +284,12 @@ func TestValidateIdempotencyNewEvent(t *testing.T) {
 
 // TestValidateIdempotencyDuplicateEvent tests validation with duplicate event
 func TestValidateIdempotencyDuplicateEvent(t *testing.T) {
-	service := NewIdempotencyService(1 * time.Hour)
+	service := NewIdempotencyService()
 	ctx := context.Background()
 
 	event := &Event{EventHash: "event-hash-1"}
 
-	_ = service.MarkProcessed(ctx, "event-hash-1", "ethereum", "tx-1", "success")
+	_ = service.MarkProcessed(ctx, "event-hash-1", "ethereum", "tx-1", 100, "success")
 
 	err := service.ValidateIdempotency(ctx, event)
 
@@ -305,7 +299,7 @@ func TestValidateIdempotencyDuplicateEvent(t *testing.T) {
 
 // TestBatchValidateIdempotencyEmpty tests batch validation with empty list
 func TestBatchValidateIdempotencyEmpty(t *testing.T) {
-	service := NewIdempotencyService(1 * time.Hour)
+	service := NewIdempotencyService()
 	ctx := context.Background()
 
 	results, err := service.BatchValidateIdempotency(ctx, []*Event{})
@@ -316,7 +310,7 @@ func TestBatchValidateIdempotencyEmpty(t *testing.T) {
 
 // TestBatchValidateIdempotencyNewEvents tests batch validation with new events
 func TestBatchValidateIdempotencyNewEvents(t *testing.T) {
-	service := NewIdempotencyService(1 * time.Hour)
+	service := NewIdempotencyService()
 	ctx := context.Background()
 
 	events := []*Event{
@@ -336,11 +330,11 @@ func TestBatchValidateIdempotencyNewEvents(t *testing.T) {
 
 // TestBatchValidateIdempotencyMixedEvents tests batch validation with mixed events
 func TestBatchValidateIdempotencyMixedEvents(t *testing.T) {
-	service := NewIdempotencyService(1 * time.Hour)
+	service := NewIdempotencyService()
 	ctx := context.Background()
 
-	_ = service.MarkProcessed(ctx, "event-hash-1", "ethereum", "tx-1", "success")
-	_ = service.MarkProcessed(ctx, "event-hash-3", "ethereum", "tx-3", "success")
+	_ = service.MarkProcessed(ctx, "event-hash-1", "ethereum", "tx-1", 100, "success")
+	_ = service.MarkProcessed(ctx, "event-hash-3", "ethereum", "tx-3", 300, "success")
 
 	events := []*Event{
 		{EventHash: "event-hash-1"},
@@ -359,7 +353,7 @@ func TestBatchValidateIdempotencyMixedEvents(t *testing.T) {
 
 // TestBatchValidateIdempotencyNilEvents tests batch validation with nil events
 func TestBatchValidateIdempotencyNilEvents(t *testing.T) {
-	service := NewIdempotencyService(1 * time.Hour)
+	service := NewIdempotencyService()
 	ctx := context.Background()
 
 	events := []*Event{
@@ -379,12 +373,12 @@ func TestBatchValidateIdempotencyNilEvents(t *testing.T) {
 
 // TestMultipleProcessedRecords tests handling multiple processed records
 func TestMultipleProcessedRecords(t *testing.T) {
-	service := NewIdempotencyService(1 * time.Hour)
+	service := NewIdempotencyService()
 	ctx := context.Background()
 
 	for i := 1; i <= 10; i++ {
 		hash := "event-hash-" + string(rune(48+i))
-		_ = service.MarkProcessed(ctx, hash, "ethereum", "tx-"+string(rune(48+i)), "success")
+		_ = service.MarkProcessed(ctx, hash, "ethereum", "tx-"+string(rune(48+i)), uint64(i), "success")
 	}
 
 	assert.Equal(t, int64(10), service.GetProcessedCount())
@@ -399,7 +393,7 @@ func TestMultipleProcessedRecords(t *testing.T) {
 
 // TestConcurrentMarkProcessed tests concurrent marking
 func TestConcurrentMarkProcessed(t *testing.T) {
-	service := NewIdempotencyService(1 * time.Hour)
+	service := NewIdempotencyService()
 	ctx := context.Background()
 
 	var wg sync.WaitGroup
@@ -410,7 +404,7 @@ func TestConcurrentMarkProcessed(t *testing.T) {
 		go func(id int) {
 			defer wg.Done()
 			hash := "event-hash-" + string(rune(48+(id%10)))
-			_ = service.MarkProcessed(ctx, hash, "ethereum", "tx-"+string(rune(48+id)), "success")
+			_ = service.MarkProcessed(ctx, hash, "ethereum", "tx-"+string(rune(48+id)), uint64(id), "success")
 			atomic.AddInt32(&counter, 1)
 		}(i)
 	}
@@ -422,10 +416,10 @@ func TestConcurrentMarkProcessed(t *testing.T) {
 
 // TestConcurrentIsDuplicate tests concurrent duplicate checking
 func TestConcurrentIsDuplicate(t *testing.T) {
-	service := NewIdempotencyService(1 * time.Hour)
+	service := NewIdempotencyService()
 	ctx := context.Background()
 
-	_ = service.MarkProcessed(ctx, "event-hash-1", "ethereum", "tx-1", "success")
+	_ = service.MarkProcessed(ctx, "event-hash-1", "ethereum", "tx-1", 100, "success")
 
 	var wg sync.WaitGroup
 	var duplicateCount int32
@@ -446,37 +440,36 @@ func TestConcurrentIsDuplicate(t *testing.T) {
 	assert.Equal(t, int32(100), atomic.LoadInt32(&duplicateCount))
 }
 
-// TestRecordExpiration tests record expiration
-func TestRecordExpiration(t *testing.T) {
-	service := NewIdempotencyService(100 * time.Millisecond)
+// TestRecordPersistence tests that records persist indefinitely (no TTL expiry)
+func TestRecordPersistence(t *testing.T) {
+	service := NewIdempotencyService()
 	ctx := context.Background()
 
-	_ = service.MarkProcessed(ctx, "event-hash-1", "ethereum", "tx-1", "success")
+	_ = service.MarkProcessed(ctx, "event-hash-1", "ethereum", "tx-1", 100, "success")
 
 	// Should be duplicate immediately
 	isDuplicate, err := service.IsDuplicate(ctx, "event-hash-1")
 	assert.NoError(t, err)
 	assert.True(t, isDuplicate)
 
-	// Wait for expiration
-	time.Sleep(150 * time.Millisecond)
+	// Should still be duplicate after time passes — blockchain events never expire
+	time.Sleep(50 * time.Millisecond)
 
-	// Should not be duplicate after expiration
 	isDuplicate, err = service.IsDuplicate(ctx, "event-hash-1")
 	assert.NoError(t, err)
-	assert.False(t, isDuplicate)
+	assert.True(t, isDuplicate, "records must persist indefinitely for blockchain events")
 }
 
 // TestProcessedRecordFields tests processed record fields
 func TestProcessedRecordFields(t *testing.T) {
-	service := NewIdempotencyService(1 * time.Hour)
+	service := NewIdempotencyService()
 	ctx := context.Background()
 
 	chainID := "ethereum"
 	txID := "tx-123"
 	status := "success"
 
-	_ = service.MarkProcessed(ctx, "event-hash-1", chainID, txID, status)
+	_ = service.MarkProcessed(ctx, "event-hash-1", chainID, txID, 100, status)
 
 	record, err := service.GetProcessedRecord(ctx, "event-hash-1")
 
@@ -486,20 +479,18 @@ func TestProcessedRecordFields(t *testing.T) {
 	assert.Equal(t, txID, record.TransactionID)
 	assert.Equal(t, status, record.Status)
 	assert.NotZero(t, record.ProcessedAt)
-	assert.NotZero(t, record.ExpiresAt)
-	assert.True(t, record.ExpiresAt.After(record.ProcessedAt))
 }
 
 // TestDifferentStatuses tests different event statuses
 func TestDifferentStatuses(t *testing.T) {
-	service := NewIdempotencyService(1 * time.Hour)
+	service := NewIdempotencyService()
 	ctx := context.Background()
 
 	statuses := []string{"success", "failed", "pending"}
 
 	for i, status := range statuses {
 		hash := "event-hash-" + string(rune(49+i))
-		_ = service.MarkProcessed(ctx, hash, "ethereum", "tx-"+string(rune(49+i)), status)
+		_ = service.MarkProcessed(ctx, hash, "ethereum", "tx-"+string(rune(49+i)), uint64(i), status)
 	}
 
 	for i, status := range statuses {
@@ -510,41 +501,15 @@ func TestDifferentStatuses(t *testing.T) {
 	}
 }
 
-// TestCleanupExpiredRecords tests cleanup of expired records
-func TestCleanupExpiredRecords(t *testing.T) {
-	service := NewIdempotencyService(100 * time.Millisecond)
-	ctx := context.Background()
-
-	// Mark multiple events
-	for i := 1; i <= 5; i++ {
-		hash := "event-hash-" + string(rune(48+i))
-		_ = service.MarkProcessed(ctx, hash, "ethereum", "tx-"+string(rune(48+i)), "success")
-	}
-
-	assert.Equal(t, int64(5), service.GetProcessedCount())
-
-	// Wait for expiration
-	time.Sleep(150 * time.Millisecond)
-
-	// Manually trigger cleanup by calling cleanupExpiredRecords
-	// (normally triggered by MarkProcessed after cleanupInterval)
-	service.mu.Lock()
-	service.cleanupExpiredRecords()
-	service.mu.Unlock()
-
-	// Old records should be cleaned up
-	assert.Equal(t, int64(0), service.GetProcessedCount())
-}
-
 // TestDuplicateRateCalculation tests duplicate rate calculation
 func TestDuplicateRateCalculation(t *testing.T) {
-	service := NewIdempotencyService(1 * time.Hour)
+	service := NewIdempotencyService()
 	ctx := context.Background()
 
 	// Mark 3 events
 	for i := 1; i <= 3; i++ {
 		hash := "event-hash-" + strconv.Itoa(i)
-		_ = service.MarkProcessed(ctx, hash, "ethereum", "tx-"+strconv.Itoa(i), "success")
+		_ = service.MarkProcessed(ctx, hash, "ethereum", "tx-"+strconv.Itoa(i), uint64(i), "success")
 	}
 
 	// Check each event twice (both checks are duplicates since record exists)
@@ -563,11 +528,11 @@ func TestDuplicateRateCalculation(t *testing.T) {
 
 // TestProcessedRecordTimestamps tests processed record timestamps
 func TestProcessedRecordTimestamps(t *testing.T) {
-	service := NewIdempotencyService(1 * time.Hour)
+	service := NewIdempotencyService()
 	ctx := context.Background()
 
 	beforeMark := time.Now()
-	_ = service.MarkProcessed(ctx, "event-hash-1", "ethereum", "tx-1", "success")
+	_ = service.MarkProcessed(ctx, "event-hash-1", "ethereum", "tx-1", 100, "success")
 	afterMark := time.Now()
 
 	record, err := service.GetProcessedRecord(ctx, "event-hash-1")
@@ -575,18 +540,17 @@ func TestProcessedRecordTimestamps(t *testing.T) {
 	assert.NoError(t, err)
 	assert.True(t, record.ProcessedAt.After(beforeMark) || record.ProcessedAt.Equal(beforeMark))
 	assert.True(t, record.ProcessedAt.Before(afterMark) || record.ProcessedAt.Equal(afterMark))
-	assert.True(t, record.ExpiresAt.After(record.ProcessedAt))
 }
 
-// TestBatchValidateIdempotencyExpiredRecords tests batch validation with expired records
-func TestBatchValidateIdempotencyExpiredRecords(t *testing.T) {
-	service := NewIdempotencyService(100 * time.Millisecond)
+// TestBatchValidateIdempotencyPersists tests batch validation — records never expire
+func TestBatchValidateIdempotencyPersists(t *testing.T) {
+	service := NewIdempotencyService()
 	ctx := context.Background()
 
-	_ = service.MarkProcessed(ctx, "event-hash-1", "ethereum", "tx-1", "success")
+	_ = service.MarkProcessed(ctx, "event-hash-1", "ethereum", "tx-1", 100, "success")
 
-	// Wait for expiration
-	time.Sleep(150 * time.Millisecond)
+	// Records should persist — blockchain events never expire
+	time.Sleep(50 * time.Millisecond)
 
 	events := []*Event{
 		{EventHash: "event-hash-1"},
@@ -596,5 +560,5 @@ func TestBatchValidateIdempotencyExpiredRecords(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(results))
-	assert.False(t, results[0])
+	assert.True(t, results[0], "processed events must remain detectable as duplicates")
 }

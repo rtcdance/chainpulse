@@ -224,7 +224,7 @@ func TestProcessBatchSuccess(t *testing.T) {
 			ID:              fmt.Sprintf("event-%d", i),
 			BlockNumber:     uint64(12345 + i),
 			TransactionHash: fmt.Sprintf("0xabc%d", i),
-			LogIndex:        uint(i),
+			LogIndex:        uint64(i),
 			ContractAddress: "0xdef456",
 			EventName:       "Transfer",
 			EventData:       map[string]interface{}{},
@@ -324,10 +324,14 @@ func TestGenerateEventHash(t *testing.T) {
 	assert.Len(t, hash1, 64) // SHA256 hex is 64 characters
 }
 
-// TestGenerateEventHashDifferent tests that different events generate different hashes
+// TestGenerateEventHashDifferent tests that events with different natural keys
+// generate different hashes. Events that differ only in non-key fields (ID,
+// EventName, ContractAddress) should produce the SAME hash since they share
+// the same on-chain identity.
 func TestGenerateEventHashDifferent(t *testing.T) {
 	ep := NewEventProcessor("processor-1", "ethereum", 100)
 
+	// Same natural key, different ID → same hash (same on-chain event)
 	event1 := &Event{
 		ID:              "event-1",
 		BlockNumber:     12345,
@@ -352,8 +356,21 @@ func TestGenerateEventHashDifferent(t *testing.T) {
 
 	hash1 := ep.generateEventHash(event1)
 	hash2 := ep.generateEventHash(event2)
+	assert.Equal(t, hash1, hash2, "events with same natural key should have same hash")
 
-	assert.NotEqual(t, hash1, hash2)
+	// Different block number → different hash
+	event3 := &Event{
+		ID:              "event-3",
+		BlockNumber:     99999,
+		TransactionHash: "0xabc123",
+		LogIndex:        0,
+		ContractAddress: "0xdef456",
+		EventName:       "Transfer",
+		EventData:       map[string]interface{}{},
+		ChainID:         "ethereum",
+	}
+	hash3 := ep.generateEventHash(event3)
+	assert.NotEqual(t, hash1, hash3, "events with different block numbers should have different hashes")
 }
 
 // TestNormalizeAddress tests address normalization
@@ -468,7 +485,7 @@ func TestConcurrentProcessing(t *testing.T) {
 					ID:              fmt.Sprintf("event-%d-%d", goroutineID, i),
 					BlockNumber:     uint64(12345 + i),
 					TransactionHash: fmt.Sprintf("0xabc%d%d", goroutineID, i),
-					LogIndex:        uint(i),
+					LogIndex:        uint64(i),
 					ContractAddress: "0xdef456",
 					EventName:       "Transfer",
 					EventData:       map[string]interface{}{},
@@ -546,7 +563,7 @@ func TestProcessBatchLatencyRecording(t *testing.T) {
 			ID:              fmt.Sprintf("event-%d", i),
 			BlockNumber:     uint64(12345 + i),
 			TransactionHash: fmt.Sprintf("0xabc%d", i),
-			LogIndex:        uint(i),
+			LogIndex:        uint64(i),
 			ContractAddress: "0xdef456",
 			EventName:       "Transfer",
 			EventData:       map[string]interface{}{},

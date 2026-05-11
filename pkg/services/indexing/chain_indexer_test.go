@@ -143,6 +143,10 @@ func (m *MockDatabasePlugin) DeleteEventsByBlockRange(ctx context.Context, fromB
 	return count, nil
 }
 
+func (m *MockDatabasePlugin) MarkEventsAsReorged(ctx context.Context, fromBlock, toBlock uint64) (int64, error) {
+	return 0, nil
+}
+
 func (m *MockDatabasePlugin) GetReorgStats(ctx context.Context) (*core.ReorgStats, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -741,7 +745,7 @@ func TestIndexEventsSkipsDuplicateLegacyWriteAfterShadowPersistence(t *testing.T
 		EventSignature:  common.HexToHash("0x5678"),
 	}
 
-	shadowWriteTracker.mark(event)
+	markShadowWrite(event)
 
 	err := indexer.IndexEvents(context.Background(), []*core.BlockchainEvent{event})
 	require.NoError(t, err)

@@ -86,7 +86,8 @@ func (md *MonolithicDeployment) RegisterService(
 	md.serviceStoppers[name] = stopper
 
 	if md.logger != nil {
-		md.logger.Info("service registered",
+		md.logger.Info(
+			"service registered",
 			"service", name,
 		)
 	}
@@ -109,7 +110,8 @@ func (md *MonolithicDeployment) Initialize(ctx context.Context) error {
 	}
 
 	if md.logger != nil {
-		md.logger.Info("initializing monolithic deployment",
+		md.logger.Info(
+			"initializing monolithic deployment",
 			"service_count", len(md.serviceInitializers),
 		)
 	}
@@ -118,7 +120,8 @@ func (md *MonolithicDeployment) Initialize(ctx context.Context) error {
 	for name, initializer := range md.serviceInitializers {
 		if err := initializer(); err != nil {
 			if md.logger != nil {
-				md.logger.Error("failed to initialize service",
+				md.logger.Error(
+					"failed to initialize service",
 					"service", name,
 					"error", err.Error(),
 				)
@@ -132,7 +135,8 @@ func (md *MonolithicDeployment) Initialize(ctx context.Context) error {
 		}
 
 		if md.logger != nil {
-			md.logger.Info("service initialized",
+			md.logger.Info(
+				"service initialized",
 				"service", name,
 			)
 		}
@@ -157,7 +161,8 @@ func (md *MonolithicDeployment) Start(ctx context.Context) error {
 	md.mu.Unlock()
 
 	if md.logger != nil {
-		md.logger.Info("starting monolithic deployment",
+		md.logger.Info(
+			"starting monolithic deployment",
 			"service_count", len(md.serviceStarters),
 		)
 	}
@@ -170,7 +175,8 @@ func (md *MonolithicDeployment) Start(ctx context.Context) error {
 
 			if err := startFunc(); err != nil {
 				if md.logger != nil {
-					md.logger.Error("service error",
+					md.logger.Error(
+						"service error",
 						"service", serviceName,
 						"error", err.Error(),
 					)
@@ -184,7 +190,8 @@ func (md *MonolithicDeployment) Start(ctx context.Context) error {
 		}(name, starter)
 
 		if md.logger != nil {
-			md.logger.Info("service started",
+			md.logger.Info(
+				"service started",
 				"service", name,
 			)
 		}
@@ -207,7 +214,8 @@ func (md *MonolithicDeployment) Stop(ctx context.Context) error {
 	md.mu.Unlock()
 
 	if md.logger != nil {
-		md.logger.Info("stopping monolithic deployment",
+		md.logger.Info(
+			"stopping monolithic deployment",
 			"service_count", len(md.serviceStoppers),
 		)
 	}
@@ -225,14 +233,16 @@ func (md *MonolithicDeployment) Stop(ctx context.Context) error {
 
 		if err := stopper(); err != nil {
 			if md.logger != nil {
-				md.logger.Error("failed to stop service",
+				md.logger.Error(
+					"failed to stop service",
 					"service", name,
 					"error", err.Error(),
 				)
 			}
 		} else {
 			if md.logger != nil {
-				md.logger.Info("service stopped",
+				md.logger.Info(
+					"service stopped",
 					"service", name,
 				)
 			}

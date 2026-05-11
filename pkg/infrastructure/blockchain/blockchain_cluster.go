@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"chainpulse/pkg/core"
@@ -39,9 +40,9 @@ type BlockchainInstance struct {
 	Status          string // "running", "syncing", "stopped"
 	CurrentBlock    uint64
 	SyncedBlock     uint64
-	PendingEvents   int
-	ProcessedEvents int64
-	ErrorCount      int64
+	PendingEvents   atomic.Int64
+	ProcessedEvents atomic.Int64
+	ErrorCount      atomic.Int64
 	LastHealthCheck time.Time
 	CreatedAt       time.Time
 	Metrics         *InstanceMetrics
@@ -148,8 +149,8 @@ func (bc *BlockchainCluster) ProcessEvent(ctx context.Context, event *core.Block
 
 	// Process event
 	start := time.Now()
-	selectedInstance.PendingEvents++
-	selectedInstance.ProcessedEvents++
+	selectedInstance.PendingEvents.Add(1)
+	selectedInstance.ProcessedEvents.Add(1)
 
 	// Store event
 	if bc.dataStore != nil {
@@ -169,7 +170,7 @@ func (bc *BlockchainCluster) ProcessEvent(ctx context.Context, event *core.Block
 			Status:          string(event.Status),
 		}
 		if err := bc.dataStore.StoreEvent(ctx, procEvent); err != nil {
-			selectedInstance.ErrorCount++
+			selectedInstance.ErrorCount.Add(1)
 			bc.metrics.mu.Lock()
 			bc.metrics.EventsFailed++
 			bc.metrics.mu.Unlock()
@@ -191,7 +192,7 @@ func (bc *BlockchainCluster) ProcessEvent(ctx context.Context, event *core.Block
 	bc.metrics.LastProcessedTime = time.Now()
 	bc.metrics.mu.Unlock()
 
-	selectedInstance.PendingEvents--
+	selectedInstance.PendingEvents.Add(-1)
 
 	return nil
 }

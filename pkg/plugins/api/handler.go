@@ -2,14 +2,11 @@ package api
 
 import (
 	"fmt"
+	"log/slog"
 	"net/http"
 	"sync"
-	"sync/atomic"
 	"time"
 )
-
-// Ensure atomic types are properly imported
-var _ atomic.Int64
 
 // RequestHandler represents a request handler instance
 type RequestHandler struct {
@@ -75,18 +72,18 @@ func (h *RequestHandler) RecordRequest(duration time.Duration, success bool) {
 	h.Metrics.mu.Lock()
 	defer h.Metrics.mu.Unlock()
 
-	atomic.AddInt64(&h.Metrics.RequestCount, 1)
+	h.Metrics.RequestCount++
 
 	if success {
-		atomic.AddInt64(&h.Metrics.SuccessCount, 1)
+		h.Metrics.SuccessCount++
 	} else {
-		atomic.AddInt64(&h.Metrics.ErrorCount, 1)
+		h.Metrics.ErrorCount++
 	}
 
 	// Update average latency
-	totalLatency := h.Metrics.AvgLatency * (atomic.LoadInt64(&h.Metrics.RequestCount) - 1)
+	totalLatency := h.Metrics.AvgLatency * (h.Metrics.RequestCount - 1)
 	totalLatency += duration.Milliseconds()
-	h.Metrics.AvgLatency = totalLatency / atomic.LoadInt64(&h.Metrics.RequestCount)
+	h.Metrics.AvgLatency = totalLatency / h.Metrics.RequestCount
 
 	h.UpdatedAt = time.Now()
 }
@@ -101,7 +98,7 @@ func (h *RequestHandler) RecordError(errMsg string) {
 
 	h.Metrics.LastError = errMsg
 	h.Metrics.LastErrorTime = time.Now()
-	atomic.AddInt64(&h.Metrics.ErrorCount, 1)
+	h.Metrics.ErrorCount++
 
 	h.UpdatedAt = time.Now()
 }
@@ -139,7 +136,7 @@ func (h *RequestHandler) CheckHealth() bool {
 	}
 	defer func() {
 		if err := resp.Body.Close(); err != nil {
-			_ = err // Log but continue
+			slog.Debug("response body close error", "error", err)
 		}
 	}()
 
@@ -206,9 +203,9 @@ func (h *RequestHandler) GetMetrics() HandlerMetrics {
 	defer h.Metrics.mu.RUnlock()
 
 	return HandlerMetrics{
-		RequestCount:  atomic.LoadInt64(&h.Metrics.RequestCount),
-		SuccessCount:  atomic.LoadInt64(&h.Metrics.SuccessCount),
-		ErrorCount:    atomic.LoadInt64(&h.Metrics.ErrorCount),
+		RequestCount:  h.Metrics.RequestCount,
+		SuccessCount:  h.Metrics.SuccessCount,
+		ErrorCount:    h.Metrics.ErrorCount,
 		AvgLatency:    h.Metrics.AvgLatency,
 		LastError:     h.Metrics.LastError,
 		LastErrorTime: h.Metrics.LastErrorTime,
@@ -223,12 +220,12 @@ func (h *RequestHandler) GetSuccessRate() float64 {
 	h.Metrics.mu.RLock()
 	defer h.Metrics.mu.RUnlock()
 
-	totalRequests := atomic.LoadInt64(&h.Metrics.RequestCount)
+	totalRequests := h.Metrics.RequestCount
 	if totalRequests == 0 {
 		return 100.0
 	}
 
-	successCount := atomic.LoadInt64(&h.Metrics.SuccessCount)
+	successCount := h.Metrics.SuccessCount
 	return (float64(successCount) / float64(totalRequests)) * 100.0
 }
 

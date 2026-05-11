@@ -26,7 +26,7 @@ type DecodedContractEvent struct {
 	BlockNumber      uint64
 	BlockTimestamp   int64
 	TransactionHash  common.Hash
-	LogIndex         uint
+	LogIndex uint64
 	Parameters       map[string]interface{}
 	IndexedParams    map[string]interface{}
 	NonIndexedParams map[string]interface{}

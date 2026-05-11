@@ -3,6 +3,7 @@ package business
 import (
 	"context"
 	"fmt"
+	"log"
 	"time"
 )
 
@@ -54,7 +55,11 @@ func (s *UserService) CreateUser(ctx context.Context, user *User) (*User, error)
 	if err != nil {
 		return nil, err
 	}
-	return entity.(*User), nil
+	u, ok := entity.(*User)
+	if !ok {
+		return nil, fmt.Errorf("unexpected entity type: %T", entity)
+	}
+	return u, nil
 }
 
 // GetUser retrieves a user by ID
@@ -63,7 +68,11 @@ func (s *UserService) GetUser(ctx context.Context, id string) (*User, error) {
 	if err != nil {
 		return nil, err
 	}
-	return entity.(*User), nil
+	u, ok := entity.(*User)
+	if !ok {
+		return nil, fmt.Errorf("unexpected entity type: %T", entity)
+	}
+	return u, nil
 }
 
 // UpdateUser updates an existing user
@@ -72,7 +81,11 @@ func (s *UserService) UpdateUser(ctx context.Context, user *User) (*User, error)
 	if err != nil {
 		return nil, err
 	}
-	return entity.(*User), nil
+	u, ok := entity.(*User)
+	if !ok {
+		return nil, fmt.Errorf("unexpected entity type: %T", entity)
+	}
+	return u, nil
 }
 
 // DeleteUser deletes a user
@@ -89,7 +102,11 @@ func (s *UserService) ListUsers(ctx context.Context, limit, offset int) ([]*User
 
 	users := make([]*User, len(entities))
 	for i, entity := range entities {
-		users[i] = entity.(*User)
+		u, ok := entity.(*User)
+		if !ok {
+			return nil, fmt.Errorf("unexpected entity type: %T", entity)
+		}
+		users[i] = u
 	}
 	return users, nil
 }
@@ -103,7 +120,11 @@ func (s *UserService) QueryUsers(ctx context.Context, filter map[string]interfac
 
 	users := make([]*User, len(entities))
 	for i, entity := range entities {
-		users[i] = entity.(*User)
+		u, ok := entity.(*User)
+		if !ok {
+			return nil, fmt.Errorf("unexpected entity type: %T", entity)
+		}
+		users[i] = u
 	}
 	return users, nil
 }
@@ -114,7 +135,11 @@ func (s *UserService) GetUserByEmail(ctx context.Context, email string) (*User, 
 	cacheKey := fmt.Sprintf("user-service:email:%s", email)
 	if s.cache != nil {
 		if cached, err := s.cache.Get(ctx, cacheKey); err == nil && cached != nil {
-			return cached.(*User), nil
+			u, ok := cached.(*User)
+			if !ok {
+				return nil, fmt.Errorf("unexpected cached type: %T", cached)
+			}
+			return u, nil
 		}
 	}
 
@@ -126,7 +151,9 @@ func (s *UserService) GetUserByEmail(ctx context.Context, email string) (*User, 
 
 	// Cache result
 	if s.cache != nil && user != nil {
-		_ = s.cache.Set(ctx, cacheKey, user, 1*time.Hour)
+		if err := s.cache.Set(ctx, cacheKey, user, 1*time.Hour); err != nil {
+			log.Printf("UserService: cache set error for key %s: %v", cacheKey, err)
+		}
 	}
 
 	return user, nil
@@ -138,7 +165,10 @@ type userServiceAdapter struct {
 }
 
 func (a *userServiceAdapter) Create(ctx context.Context, entity Entity) (Entity, error) {
-	user := entity.(*User)
+	user, ok := entity.(*User)
+	if !ok {
+		return nil, fmt.Errorf("expected *User, got %T", entity)
+	}
 	return a.backend.Create(ctx, user)
 }
 
@@ -147,7 +177,10 @@ func (a *userServiceAdapter) Read(ctx context.Context, id string) (Entity, error
 }
 
 func (a *userServiceAdapter) Update(ctx context.Context, entity Entity) (Entity, error) {
-	user := entity.(*User)
+	user, ok := entity.(*User)
+	if !ok {
+		return nil, fmt.Errorf("expected *User, got %T", entity)
+	}
 	return a.backend.Update(ctx, user)
 }
 

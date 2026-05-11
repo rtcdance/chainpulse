@@ -65,6 +65,7 @@ func defaultRuntimeWiringDeps() runtimeWiringDeps {
 			return database.NewDatabaseManager(
 				cfg.MongoDBURI,
 				cfg.PostgresURL,
+				cfg.PostgresSSLMode,
 				cfg.PoolSize,
 				cfg.GetTimeout(),
 			)

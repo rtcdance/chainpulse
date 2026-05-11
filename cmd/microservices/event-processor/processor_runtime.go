@@ -16,9 +16,9 @@ type eventProcessorRuntimeProcessor interface {
 }
 
 type eventProcessorProcessingRuntime struct {
-	processor   *eventProcessorShadowRuntimeProcessor
-	idempotency *processor.DefaultIdempotencyService
-	database    *database.DefaultInMemoryDatabasePlugin
+	processor        *eventProcessorShadowRuntimeProcessor
+	idempotency      *processor.DefaultIdempotencyService
+	inMemoryDatabase *database.DefaultInMemoryDatabasePlugin
 }
 
 func newEventProcessorProcessingRuntime(
@@ -26,8 +26,16 @@ func newEventProcessorProcessingRuntime(
 	logger core.Logger,
 	metrics core.MetricsCollector,
 ) (*eventProcessorProcessingRuntime, error) {
+	return newEventProcessorProcessingRuntimeWithStorage(config, logger, metrics, nil)
+}
+
+func newEventProcessorProcessingRuntimeWithStorage(
+	config EventProcessorConfig,
+	logger core.Logger,
+	metrics core.MetricsCollector,
+	storage processor.EventStorage,
+) (*eventProcessorProcessingRuntime, error) {
 	idempotency := processor.NewDefaultIdempotencyService(logger, metrics)
-	inMemoryDatabase := database.NewDefaultInMemoryDatabasePlugin(logger, metrics)
 	processorConfig := &core.Config{
 		APIType:      "event-processor",
 		APIPort:      config.Port,
@@ -43,13 +51,20 @@ func newEventProcessorProcessingRuntime(
 	if err := idempotency.Start(); err != nil {
 		return nil, fmt.Errorf("start idempotency service: %w", err)
 	}
-	if err := inMemoryDatabase.Initialize(processorConfig); err != nil {
-		_ = idempotency.Stop()
-		return nil, fmt.Errorf("initialize in-memory processor database: %w", err)
-	}
-	if err := inMemoryDatabase.Start(); err != nil {
-		_ = idempotency.Stop()
-		return nil, fmt.Errorf("start in-memory processor database: %w", err)
+
+	var inMemoryDatabase *database.DefaultInMemoryDatabasePlugin
+	activeStorage := storage
+	if activeStorage == nil {
+		inMemoryDatabase = database.NewDefaultInMemoryDatabasePlugin(logger, metrics)
+		if err := inMemoryDatabase.Initialize(processorConfig); err != nil {
+			_ = idempotency.Stop()
+			return nil, fmt.Errorf("initialize in-memory processor database: %w", err)
+		}
+		if err := inMemoryDatabase.Start(); err != nil {
+			_ = idempotency.Stop()
+			return nil, fmt.Errorf("start in-memory processor database: %w", err)
+		}
+		activeStorage = inMemoryDatabase
 	}
 
 	eventProcessor := processor.NewDefaultEventProcessor(
@@ -57,24 +72,28 @@ func newEventProcessorProcessingRuntime(
 		metrics,
 		idempotency,
 		nil,
-		inMemoryDatabase,
+		activeStorage,
 		nil,
 	)
 	if err := eventProcessor.Initialize(processorConfig); err != nil {
-		_ = inMemoryDatabase.Stop()
+		if inMemoryDatabase != nil {
+			_ = inMemoryDatabase.Stop()
+		}
 		_ = idempotency.Stop()
 		return nil, fmt.Errorf("initialize event processor runtime: %w", err)
 	}
 	if err := eventProcessor.Start(); err != nil {
-		_ = inMemoryDatabase.Stop()
+		if inMemoryDatabase != nil {
+			_ = inMemoryDatabase.Stop()
+		}
 		_ = idempotency.Stop()
 		return nil, fmt.Errorf("start event processor runtime: %w", err)
 	}
 
 	return &eventProcessorProcessingRuntime{
-		processor:   newEventProcessorShadowRuntimeProcessor(eventProcessor, logger, metrics),
-		idempotency: idempotency,
-		database:    inMemoryDatabase,
+		processor:        newEventProcessorShadowRuntimeProcessor(eventProcessor, logger, metrics),
+		idempotency:      idempotency,
+		inMemoryDatabase: inMemoryDatabase,
 	}, nil
 }
 
@@ -108,8 +127,8 @@ func (r *eventProcessorProcessingRuntime) Stop() error {
 			stopErr = err
 		}
 	}
-	if r.database != nil {
-		if err := r.database.Stop(); err != nil && stopErr == nil {
+	if r.inMemoryDatabase != nil {
+		if err := r.inMemoryDatabase.Stop(); err != nil && stopErr == nil {
 			stopErr = err
 		}
 	}

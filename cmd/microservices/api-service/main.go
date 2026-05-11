@@ -3,6 +3,8 @@ package main
 
 import (
 	"context"
+	"database/sql"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/signal"
@@ -15,6 +17,7 @@ import (
 	"chainpulse/pkg/application/bootstrap"
 	"chainpulse/pkg/core"
 	"chainpulse/pkg/plugins/api"
+	"chainpulse/pkg/plugins/mq"
 )
 
 func main() {
@@ -136,6 +139,16 @@ func main() {
 	service.SetEventSubscriptionHandler(runtimeWiring.EventSubscriptionHandler)
 	service.SetHealthCheckHandler(runtimeWiring.HealthCheckHandler)
 	service.SetGraphQLHandler(runtimeWiring.GraphQLHandler)
+
+	// Wire DLQ handler using PostgreSQL
+	if runtimeWiring.DBManager != nil {
+		if pgDB, err := runtimeWiring.DBManager.GetPostgresDB(context.Background()); err == nil {
+			if sqlDB, ok := pgDB.(*sql.DB); ok {
+				dlqHandler := api.NewDLQHandler(sqlDB, nil, logger, metrics)
+				service.SetDLQHandler(dlqHandler)
+			}
+		}
+	}
 	service.SetRuntimeSummaryProvider(buildAPIServiceRuntimeSummaryProvider(config.InstanceID, metrics, service, runtimeWiring.QueryService))
 	service.SetRuntimeMetricsProvider(buildAPIServiceMetricsProvider(metrics))
 	if err := service.Initialize(*coreConfig); err != nil {
@@ -205,6 +218,18 @@ func main() {
 		}
 	}()
 	fmt.Println("  [2/2] API Service started")
+
+	// Start WebSocket event push consumer (listens for processed events and pushes to WebSocket clients)
+	var kafkaWG sync.WaitGroup
+	pushCancel := func() {}
+	if len(config.KafkaBrokers) > 0 && runtimeWiring.EventSubscriptionHandler != nil {
+		pushCtx, cancel := context.WithCancel(context.Background())
+		pushCancel = cancel
+		startEventPushConsumer(pushCtx, &kafkaWG, config, runtimeWiring.EventSubscriptionHandler, logger, metrics)
+		fmt.Println("  [3/3] WebSocket event push consumer started")
+	} else {
+		fmt.Println("  [3/3] WebSocket event push consumer skipped (no Kafka brokers)")
+	}
 	fmt.Println()
 
 	fmt.Println("✓ All services started successfully")
@@ -232,16 +257,29 @@ func main() {
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	// Stop API Service
-	if err := service.Stop(); err != nil {
+	// Stop API Service (graceful shutdown with context)
+	if err := service.ShutdownWithContext(shutdownCtx); err != nil {
 		logger.Error("Error stopping API Service", "error", err.Error())
 	}
-	fmt.Println("  [1/2] API Service stopped")
+	fmt.Println("  [1/3] API Service stopped")
+
+	// Stop WebSocket push consumer
+	pushCancel()
+	pushDone := make(chan struct{})
+	go func() {
+		kafkaWG.Wait()
+		close(pushDone)
+	}()
+	select {
+	case <-pushDone:
+	case <-time.After(5 * time.Second):
+	}
+	fmt.Println("  [2/3] WebSocket push consumer stopped")
 
 	if err := runtimeWiring.Close(shutdownCtx); err != nil {
 		logger.Error("Error closing runtime wiring", "error", err.Error())
 	}
-	fmt.Println("  [2/2] Runtime wiring closed")
+	fmt.Println("  [3/3] Runtime wiring closed")
 
 	// Wait for all goroutines to finish
 	done := make(chan struct{})
@@ -289,13 +327,13 @@ func loadAPIServiceConfig() APIServiceConfig {
 	}
 
 	return APIServiceConfig{
-		Port:               getEnvInt("SERVICE_PORT", 8081),
+		Port:               getEnvInt("API_SERVICE_PORT", 8081),
 		InstanceID:         instanceID,
-		DatabaseHost:       getEnv("DB_HOST", "postgres-primary"),
-		DatabasePort:       getEnvInt("DB_PORT", 5432),
+		DatabaseHost:       getEnv("API_SERVICE_DB_HOST", "postgres-primary"),
+		DatabasePort:       getEnvInt("API_SERVICE_DB_PORT", 5432),
 		RedisCluster:       []string{"redis-1:6379", "redis-2:6379", "redis-3:6379"},
-		KafkaBrokers:       []string{"kafka-1:9092", "kafka-2:9092", "kafka-3:9092"},
-		ConsumerGroup:      "api-service-consumers",
+		KafkaBrokers:       parseCommaSeparatedList(getEnv("API_SERVICE_KAFKA_BROKERS", "kafka:9092")),
+		ConsumerGroup:      getEnv("API_SERVICE_KAFKA_CONSUMER_GROUP", "api-service-consumers"),
 		LogLevel:           getEnv("LOG_LEVEL", "info"),
 		AuthEnabled:        parseBoolEnv("API_SERVICE_AUTH_ENABLED", false),
 		AuthJWTSecret:      getEnv("API_SERVICE_AUTH_JWT_SECRET", ""),
@@ -322,12 +360,15 @@ func buildAPIServiceSecurityControls(config APIServiceConfig, logger core.Logger
 			if !ok {
 				return nil, nil, fmt.Errorf("invalid API_SERVICE_AUTH_API_KEYS entry %q; expected key=clientID or key:clientID", entry)
 			}
-			if err := tokenValidator.RegisterAPIKey(apiKey, clientID); err != nil {
+			if err := tokenValidator.RegisterAPIKey(apiKey, clientID, "operator"); err != nil {
 				return nil, nil, err
 			}
 		}
 
 		rbacChecker := api.NewRBACChecker(logger, metrics)
+		if err := rbacChecker.RegisterDefaultRoles(); err != nil {
+			return nil, nil, fmt.Errorf("failed to register default RBAC roles: %w", err)
+		}
 		auditLogger := api.NewAuditLogger(logger, metrics)
 		authMiddleware = api.NewAuthMiddleware(tokenValidator, rbacChecker, auditLogger, logger, metrics)
 	}
@@ -401,4 +442,59 @@ func getEnvInt(key string, defaultValue int) int {
 		}
 	}
 	return defaultValue
+}
+
+// startEventPushConsumer starts a Kafka consumer that listens for processed events
+// and pushes them to WebSocket subscribers via BroadcastEvent().
+func startEventPushConsumer(
+	ctx context.Context,
+	wg *sync.WaitGroup,
+	config APIServiceConfig,
+	subscriptionHandler *api.EventSubscriptionHandler,
+	logger core.Logger,
+	metrics core.MetricsCollector,
+) {
+	kafkaMQ := mq.NewKafkaMQPlugin(
+		"api-service-push-consumer",
+		"1.0.0",
+		&core.Config{
+			APIType:  "kafka",
+			LogLevel: config.LogLevel,
+		},
+		logger,
+		metrics,
+		nil, // eventBus not needed
+		config.KafkaBrokers,
+		config.ConsumerGroup,
+	)
+	if err := kafkaMQ.Initialize(); err != nil {
+		logger.Error("Failed to initialize WebSocket push Kafka consumer", "error", err.Error())
+		return
+	}
+	if err := kafkaMQ.Start(); err != nil {
+		logger.Error("Failed to start WebSocket push Kafka consumer", "error", err.Error())
+		return
+	}
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		defer kafkaMQ.Stop() //nolint:errcheck // deferred stop
+
+		topic := "processed-events"
+		err := kafkaMQ.ConsumeMessages(ctx, topic, func(message core.MessageQueueMessage) error {
+			var event core.BlockchainEvent
+			if err := json.Unmarshal(message.Payload, &event); err != nil {
+				logger.Warn("Failed to unmarshal event for WebSocket push", "error", err.Error())
+				return nil // skip malformed messages
+			}
+			if err := subscriptionHandler.BroadcastEvent(ctx, &event); err != nil {
+				logger.Warn("Failed to broadcast event to WebSocket clients", "eventId", event.ID, "error", err.Error())
+			}
+			return nil
+		})
+		if err != nil && ctx.Err() == nil {
+			logger.Error("WebSocket push consumer stopped with error", "error", err.Error())
+		}
+	}()
 }

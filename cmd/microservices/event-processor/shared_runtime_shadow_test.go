@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"testing"
 
 	"chainpulse/pkg/core"
@@ -31,7 +32,7 @@ func TestEventProcessorShadowRuntimeProcessorTracksSharedRuntimeStatus(t *testin
 		t.Fatalf("build shadow event: %v", err)
 	}
 
-	if err := processorRuntime.ProcessEvent(event); err != nil {
+	if err := processorRuntime.ProcessEvent(context.Background(), event); err != nil {
 		t.Fatalf("process event: %v", err)
 	}
 

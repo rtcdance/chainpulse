@@ -87,6 +87,10 @@ func (m *MockEventStore) GetEventsPaginated(ctx context.Context, cursor string, 
 	return []*core.BlockchainEvent{}, false, nil
 }
 
+func (m *MockEventStore) CountEvents(ctx context.Context) (int64, error) {
+	return int64(len(m.events)), nil
+}
+
 func (m *MockEventStore) Health(ctx context.Context) *core.HealthStatus {
 	return &core.HealthStatus{
 		Status: "healthy",
@@ -747,6 +751,9 @@ func TestAuthMiddleware_Authenticate(t *testing.T) {
 	metrics := NewMockMetrics()
 
 	middleware := NewAuthMiddleware(logger, metrics)
+	// Set requireAuth=false so Authenticate works without a configured TokenValidator
+	// (the old behavior was to allow any token; the new behavior rejects when no validator is set)
+	middleware.SetRequireAuth(false)
 
 	authCtx, err := middleware.Authenticate(context.Background(), "test-token")
 	if err != nil {
@@ -1240,6 +1247,82 @@ func TestEventResolverResolveEventsByAddressIncludesCacheQuerySourcePosture(t *t
 	}
 	if got := first["querySourcePosture"]; got != "graphql-cache-hit" {
 		t.Fatalf("expected querySourcePosture graphql-cache-hit, got %v", got)
+	}
+}
+
+func TestRequireMutationAuth_NoAuthMiddleware(t *testing.T) {
+	logger := core.NewDefaultLogger(core.LogLevelError)
+	metrics := core.NewDefaultMetricsCollector()
+	store := &MockEventStore{}
+
+	sb := NewSchemaBuilder(store, logger, metrics, nil, nil)
+
+	// No auth middleware configured — development mode, should allow
+	params := graphql.ResolveParams{Context: context.Background()}
+	if err := sb.requireMutationAuth(params); err != nil {
+		t.Errorf("expected nil error in dev mode (no auth middleware), got: %v", err)
+	}
+}
+
+func TestRequireMutationAuth_MissingToken(t *testing.T) {
+	logger := core.NewDefaultLogger(core.LogLevelError)
+	metrics := core.NewDefaultMetricsCollector()
+	store := &MockEventStore{}
+	authMiddleware := NewAuthMiddleware(logger, metrics)
+
+	sb := NewSchemaBuilder(store, logger, metrics, nil, authMiddleware)
+
+	// No token in context
+	params := graphql.ResolveParams{Context: context.Background()}
+	err := sb.requireMutationAuth(params)
+	if err == nil {
+		t.Fatal("expected error when token is missing")
+	}
+	if err.Error() != "authentication required for mutations" {
+		t.Errorf("unexpected error message: %v", err)
+	}
+}
+
+func TestRequireMutationAuth_InvalidToken(t *testing.T) {
+	logger := core.NewDefaultLogger(core.LogLevelError)
+	metrics := core.NewDefaultMetricsCollector()
+	store := &MockEventStore{}
+	authMiddleware := NewAuthMiddleware(logger, metrics)
+
+	sb := NewSchemaBuilder(store, logger, metrics, nil, authMiddleware)
+
+	// Token present but too short (Authenticate returns error for < 3 chars)
+	ctx := context.WithValue(context.Background(), authTokenContextKey, "x")
+	params := graphql.ResolveParams{Context: ctx}
+	err := sb.requireMutationAuth(params)
+	if err == nil {
+		t.Fatal("expected error for invalid token")
+	}
+	if err.Error() != "authentication failed" {
+		t.Errorf("unexpected error message: %v", err)
+	}
+}
+
+func TestRequireMutationAuth_InsufficientScope(t *testing.T) {
+	logger := core.NewDefaultLogger(core.LogLevelError)
+	metrics := core.NewDefaultMetricsCollector()
+	store := &MockEventStore{}
+	authMiddleware := NewAuthMiddleware(logger, metrics)
+	authMiddleware.SetRequireAuth(false)
+
+	sb := NewSchemaBuilder(store, logger, metrics, nil, authMiddleware)
+
+	// Use a valid-format token but without write scope
+	ctx := context.WithValue(context.Background(), authTokenContextKey, "valid-test-token-12345")
+	params := graphql.ResolveParams{Context: ctx}
+
+	// The Authenticate method returns an AuthContext without "write:cache" or "admin"
+	err := sb.requireMutationAuth(params)
+	if err == nil {
+		t.Fatal("expected error for insufficient scope")
+	}
+	if err.Error() != "insufficient permissions for mutation" {
+		t.Errorf("unexpected error message: %v", err)
 	}
 }
 

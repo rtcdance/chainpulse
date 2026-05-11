@@ -26,7 +26,9 @@ func (m *eventProcessorTestDatabaseManager) Initialize(ctx context.Context) erro
 func (m *eventProcessorTestDatabaseManager) GetMongoClient(ctx context.Context) (interface{}, error) {
 	return nil, nil
 }
+
 func (m *eventProcessorTestDatabaseManager) GetMongoDatabase(name string) *mongo.Database { return nil }
+
 func (m *eventProcessorTestDatabaseManager) GetPostgresDB(ctx context.Context) (interface{}, error) {
 	return nil, nil
 }

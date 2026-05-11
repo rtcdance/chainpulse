@@ -39,6 +39,7 @@ func TestConnectionPoolReuse(t *testing.T) {
 			manager := NewDatabaseManager(
 				"mongodb://invalid-host:27017",
 				"postgres://invalid-host:5432",
+				"disable",
 				poolSize,
 				5*time.Second,
 			)
@@ -83,6 +84,7 @@ func TestHealthCheckAccuracy(t *testing.T) {
 			manager := NewDatabaseManager(
 				"mongodb://invalid-host:27017",
 				"postgres://invalid-host:5432",
+				"disable",
 				10,
 				time.Duration(timeout)*time.Second,
 			)
@@ -124,6 +126,7 @@ func TestDatabaseManagerConcurrency(t *testing.T) {
 			manager := NewDatabaseManager(
 				"mongodb://invalid-host:27017",
 				"postgres://invalid-host:5432",
+				"disable",
 				10,
 				5*time.Second,
 			)
@@ -178,6 +181,7 @@ func TestDatabaseManagerStateTransitions(t *testing.T) {
 			manager := NewDatabaseManager(
 				"mongodb://invalid-host:27017",
 				"postgres://invalid-host:5432",
+				"disable",
 				poolSize,
 				1*time.Second,
 			)
@@ -238,7 +242,7 @@ func TestDatabaseManagerConfigurationVariations(t *testing.T) {
 			postgresURL := "postgres://invalid-host:5432"
 			timeout := time.Duration(timeoutSecs) * time.Second
 
-			manager := NewDatabaseManager(mongoURI, postgresURL, poolSize, timeout)
+			manager := NewDatabaseManager(mongoURI, postgresURL, "disable", poolSize, timeout)
 
 			// Verify all configuration is stored correctly
 			if manager.mongoURI != mongoURI {

@@ -293,11 +293,11 @@ func TestWarmingData(t *testing.T) {
 	time.Sleep(50 * time.Millisecond)
 
 	// Verify data was cached
-	_, ok1 := cache.cache["key1"]
+	_, _, _, ok1 := cache.Get("key1")
 	assert.True(t, ok1)
-	_, ok2 := cache.cache["key2"]
+	_, _, _, ok2 := cache.Get("key2")
 	assert.True(t, ok2)
-	_, ok3 := cache.cache["key3"]
+	_, _, _, ok3 := cache.Get("key3")
 	assert.True(t, ok3)
 
 	err = warmer.Stop()
@@ -678,11 +678,11 @@ func TestWarmingDataWithDifferentStatusCodes(t *testing.T) {
 	time.Sleep(50 * time.Millisecond)
 
 	// Verify all data was cached regardless of status code
-	_, ok1 := cache.cache["key1"]
+	_, _, _, ok1 := cache.Get("key1")
 	assert.True(t, ok1)
-	_, ok2 := cache.cache["key2"]
+	_, _, _, ok2 := cache.Get("key2")
 	assert.True(t, ok2)
-	_, ok3 := cache.cache["key3"]
+	_, _, _, ok3 := cache.Get("key3")
 	assert.True(t, ok3)
 
 	err = warmer.Stop()
@@ -717,11 +717,11 @@ func TestWarmingDataWithDifferentTTLs(t *testing.T) {
 	time.Sleep(50 * time.Millisecond)
 
 	// Verify all data was cached
-	_, ok1 := cache.cache["key1"]
+	_, _, _, ok1 := cache.Get("key1")
 	assert.True(t, ok1)
-	_, ok2 := cache.cache["key2"]
+	_, _, _, ok2 := cache.Get("key2")
 	assert.True(t, ok2)
-	_, ok3 := cache.cache["key3"]
+	_, _, _, ok3 := cache.Get("key3")
 	assert.True(t, ok3)
 
 	err = warmer.Stop()

@@ -249,8 +249,12 @@ func (agc *APIGatewayCluster) GetClusterMetrics() map[string]interface{} {
 
 	for _, gateway := range agc.gateways {
 		metrics := gateway.metrics.GetMetrics()
-		totalRequests += metrics["total_requests"].(int64)
-		totalErrors += metrics["total_errors"].(int64)
+		if v, ok := metrics["total_requests"].(int64); ok {
+			totalRequests += v
+		}
+		if v, ok := metrics["total_errors"].(int64); ok {
+			totalErrors += v
+		}
 	}
 
 	return map[string]interface{}{

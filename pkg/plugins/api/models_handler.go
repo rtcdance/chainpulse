@@ -173,15 +173,36 @@ func (h *ModelsHandler) respondJSON(w http.ResponseWriter, statusCode int, data 
 	}
 }
 
-// respondError responds with an error message
+// respondError responds with an APIError
 func (h *ModelsHandler) respondError(w http.ResponseWriter, statusCode int, message string) {
-	response := map[string]interface{}{
-		"status":    "error",
-		"message":   message,
-		"timestamp": time.Now().Unix(),
+	apiErr := &APIError{
+		Code:    errorCodeFromStatus(statusCode),
+		Message: message,
+		Status:  statusCode,
 	}
+	apiErr.WriteHTTP(w)
+}
 
-	h.respondJSON(w, statusCode, response)
+// errorCodeFromStatus maps HTTP status codes to error code strings
+func errorCodeFromStatus(statusCode int) string {
+	switch statusCode {
+	case 400:
+		return "INVALID_REQUEST"
+	case 401:
+		return "UNAUTHORIZED"
+	case 403:
+		return "FORBIDDEN"
+	case 404:
+		return "NOT_FOUND"
+	case 429:
+		return "RATE_LIMIT_EXCEEDED"
+	case 500:
+		return "INTERNAL_SERVER_ERROR"
+	case 503:
+		return "SERVICE_UNAVAILABLE"
+	default:
+		return "INTERNAL_SERVER_ERROR"
+	}
 }
 
 // Health returns the health status of the models handler

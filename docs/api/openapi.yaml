@@ -1,14 +1,15 @@
 openapi: 3.0.3
 info:
   title: ChainPulse API
-  description: Blockchain event indexing and query API
+  description: Blockchain event indexing, query, and subscription API
   version: 1.0.0
   contact:
     name: ChainPulse Team
+
 servers:
-  - url: http://localhost:8080/api/v1
+  - url: http://localhost:8080
     description: Local development
-  - url: https://api.chainpulse.io/v1
+  - url: https://api.chainpulse.io
     description: Production
 
 paths:
@@ -18,66 +19,128 @@ paths:
       tags: [System]
       responses:
         '200':
-          description: Service is healthy
+          description: Service health status
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  status:
-                    type: string
-                    example: healthy
+                $ref: '#/components/schemas/HealthResponse'
+
+  /health/ready:
+    get:
+      summary: Readiness probe (Kubernetes)
+      tags: [System]
+      responses:
+        '200':
+          description: Service is ready
+        '503':
+          description: Service not ready
+
+  /health/live:
+    get:
+      summary: Liveness probe (Kubernetes)
+      tags: [System]
+      responses:
+        '200':
+          description: Service is alive
+
+  /health/components:
+    get:
+      summary: Detailed component health
+      tags: [System]
+      responses:
+        '200':
+          description: Component-level health details
+
+  /health/rollout:
+    get:
+      summary: Rollout report
+      tags: [System]
+      responses:
+        '200':
+          description: Rollout status report
 
   /events:
     get:
-      summary: Query blockchain events
+      summary: Query blockchain events with filters
       tags: [Events]
       parameters:
+        - name: chain
+          in: query
+          schema:
+            type: string
+          description: Filter by chain ID (e.g. "1" for Ethereum, "137" for Polygon)
         - name: contract
           in: query
           schema:
             type: string
-          description: Contract address
-        - name: fromBlock
+          description: Filter by contract address (hex)
+        - name: event_name
+          in: query
+          schema:
+            type: string
+          description: Filter by event name (e.g. "Transfer")
+        - name: event_signature
+          in: query
+          schema:
+            type: string
+          description: Filter by event signature hash (e.g. "0xddf252ad...")
+        - name: from_block
           in: query
           schema:
             type: integer
-          description: Start block number
-        - name: toBlock
+          description: Start block number (inclusive)
+        - name: to_block
           in: query
           schema:
             type: integer
-          description: End block number
-        - name: limit
+          description: End block number (inclusive)
+        - name: from_time
           in: query
           schema:
             type: integer
-            default: 100
-          description: Maximum number of results
+          description: Start timestamp (Unix seconds, inclusive)
+        - name: to_time
+          in: query
+          schema:
+            type: integer
+          description: End timestamp (Unix seconds, inclusive)
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, confirmed, failed, reorged]
+          description: Filter by event status
         - name: offset
           in: query
           schema:
             type: integer
             default: 0
           description: Pagination offset
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+          description: Maximum number of results per page
       responses:
         '200':
-          description: List of events
+          description: List of events with pagination
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  events:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/BlockchainEvent'
-                  total:
-                    type: integer
-                  limit:
-                    type: integer
-                  offset:
-                    type: integer
+                $ref: '#/components/schemas/EventListResponse'
+        '400':
+          description: Invalid query parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
 
   /events/{id}:
     get:
@@ -89,105 +152,445 @@ paths:
           required: true
           schema:
             type: string
+          description: Event ID (e.g. "ethereum-0xtxhash-0")
       responses:
         '200':
           description: Event details
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/BlockchainEvent'
+                $ref: '#/components/schemas/EventResponse'
         '404':
           description: Event not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
 
-  /blocks/{number}:
+  /events/chain/{chainId}:
     get:
-      summary: Get block by number
-      tags: [Blocks]
+      summary: Get events by chain ID
+      tags: [Events]
       parameters:
-        - name: number
+        - name: chainId
           in: path
           required: true
           schema:
+            type: string
+          description: Chain ID (e.g. "1", "137")
+        - name: offset
+          in: query
+          schema:
             type: integer
+            default: 0
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
       responses:
         '200':
-          description: Block details
+          description: List of events for the chain
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Block'
+                $ref: '#/components/schemas/EventListResponse'
+
+  /events/contract/{address}:
+    get:
+      summary: Get events by contract address
+      tags: [Events]
+      parameters:
+        - name: address
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Contract address (hex)
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: List of events for the contract
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventListResponse'
+
+  /events/name/{eventName}:
+    get:
+      summary: Get events by event name
+      tags: [Events]
+      parameters:
+        - name: eventName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Event name (e.g. "Transfer", "Approval")
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: List of events with the given name
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventListResponse'
+
+  /ws:
+    get:
+      summary: WebSocket endpoint for real-time event subscriptions
+      tags: [Subscriptions]
+      description: |
+        Upgrade to WebSocket for real-time event push. Supports subscription types:
+        - All events: connect to /ws or /events/subscribe
+        - By chain: /events/subscribe/chain/{chainId}
+        - By contract: /events/subscribe/contract/{address}
+        - By event name: /events/subscribe/name/{eventName}
+        
+        Authentication: Pass `Authorization: Bearer <token>` or `X-API-Key: <key>` header, or `?token=<jwt>` query parameter.
+      responses:
+        '101':
+          description: WebSocket upgrade successful
+
+  /events/subscribe:
+    get:
+      summary: Subscribe to all events via WebSocket
+      tags: [Subscriptions]
+      responses:
+        '101':
+          description: WebSocket upgrade successful
+
+  /events/subscribe/chain/{chainId}:
+    get:
+      summary: Subscribe to events by chain via WebSocket
+      tags: [Subscriptions]
+      parameters:
+        - name: chainId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '101':
+          description: WebSocket upgrade successful
+
+  /events/subscribe/contract/{address}:
+    get:
+      summary: Subscribe to events by contract via WebSocket
+      tags: [Subscriptions]
+      parameters:
+        - name: address
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '101':
+          description: WebSocket upgrade successful
+
+  /events/subscribe/name/{eventName}:
+    get:
+      summary: Subscribe to events by name via WebSocket
+      tags: [Subscriptions]
+      parameters:
+        - name: eventName
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '101':
+          description: WebSocket upgrade successful
+
+  /graphql:
+    get:
+      summary: GraphQL endpoint (queries, mutations, subscriptions)
+      tags: [GraphQL]
+      description: Supports query, mutation, and subscription operations. Playground available at /graphql/playground.
+      responses:
+        '200':
+          description: GraphQL response
+    post:
+      summary: GraphQL endpoint (queries and mutations)
+      tags: [GraphQL]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                query:
+                  type: string
+                variables:
+                  type: object
+                operationName:
+                  type: string
+      responses:
+        '200':
+          description: GraphQL response
+
+  /models:
+    get:
+      summary: Model introspection
+      tags: [System]
+      description: Returns metadata about available data models (BlockchainEvent, Transaction, Block, TransactionReceipt)
+      responses:
+        '200':
+          description: Model definitions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModelsResponse'
 
   /metrics:
     get:
-      summary: Get indexer metrics
-      tags: [Metrics]
+      summary: Prometheus metrics
+      tags: [System]
       responses:
         '200':
-          description: Indexer metrics
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Metrics'
+          description: Prometheus-format metrics
+
+  /runtime/summary:
+    get:
+      summary: Runtime state summary
+      tags: [Runtime]
+      responses:
+        '200':
+          description: Runtime summary
+
+  /runtime/control:
+    get:
+      summary: Runtime control state
+      tags: [Runtime]
+      responses:
+        '200':
+          description: Runtime control state
+
+  /runtime/indexing/dlq/replay:
+    post:
+      summary: Replay dead letter queue events
+      tags: [Runtime]
+      responses:
+        '200':
+          description: DLQ replay result
+
+  /dlq/events:
+    get:
+      summary: List dead letter queue events
+      tags: [DLQ]
+      responses:
+        '200':
+          description: DLQ event list
+
+  /dlq/replay:
+    post:
+      summary: Replay a DLQ event
+      tags: [DLQ]
+      responses:
+        '200':
+          description: Replay result
 
 components:
   schemas:
-    BlockchainEvent:
+    EventResponse:
       type: object
       properties:
-        id:
+        eventId:
           type: string
-        event_hash:
+          description: Unique event identifier
+          example: "ethereum-0xa1b2c3...-0"
+        chainId:
           type: string
-        block_number:
+          description: Chain ID (numeric string)
+          example: "1"
+        blockNumber:
           type: integer
-        block_hash:
+          description: Block number
+          example: 18500000
+        transactionHash:
           type: string
-        block_timestamp:
+          description: Transaction hash
+          example: "0xa1b2c3d4e5f6..."
+        logIndex:
           type: integer
-        transaction_hash:
+          description: Log index within the transaction
+          example: 0
+        contractAddress:
           type: string
-        contract_address:
+          description: Contract address that emitted the event
+          example: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"
+        eventName:
           type: string
-        event_name:
+          description: Decoded event name
+          example: "Transfer"
+        eventSignature:
           type: string
-        decoded_data:
+          description: Event signature hash
+          example: "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
+        eventData:
           type: object
-        status:
-          type: string
-          enum: [pending, confirmed, failed, reorged]
-
-    Block:
-      type: object
-      properties:
-        number:
-          type: integer
-        hash:
-          type: string
-        parent_hash:
-          type: string
+          description: Decoded event data as key-value pairs
+          additionalProperties: true
+          example:
+            from: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
+            to: "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"
+            value: "500"
         timestamp:
           type: integer
-        transactions:
-          type: array
-          items:
-            type: string
+          description: Block timestamp (Unix seconds)
+          example: 1700000000
+        processedAt:
+          type: integer
+          description: Processing timestamp (Unix seconds)
+          example: 1700000001
+        status:
+          type: string
+          description: Event processing status
+          enum: [pending, confirmed, failed, reorged]
+          example: "confirmed"
 
-    Metrics:
+    EventListResponse:
       type: object
       properties:
-        current_block:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/EventResponse'
+        events:
+          type: array
+          items:
+            $ref: '#/components/schemas/EventResponse'
+          description: Alias for data (same content)
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+        meta:
+          $ref: '#/components/schemas/QueryMeta'
+        timestamp:
           type: integer
-        latest_block:
+          description: Response timestamp (Unix seconds)
+
+    Pagination:
+      type: object
+      properties:
+        limit:
           type: integer
-        indexing_lag:
+          description: Maximum results per page
+          example: 20
+        offset:
           type: integer
-        events_indexed:
+          description: Current page offset
+          example: 0
+        total:
           type: integer
-        events_processed:
+          description: Total matching events
+          example: 1500
+
+    QueryMeta:
+      type: object
+      properties:
+        source:
+          type: string
+          example: "event-retrieval"
+        querySourcePosture:
+          type: string
+        queryPath:
+          type: string
+        consistencyPosture:
+          type: string
+        queryReliabilityHint:
+          type: string
+        queryExecutionSummary:
+          type: string
+
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: "healthy"
+        timestamp:
           type: integer
-        events_failed:
+        version:
+          type: string
+          example: "1.0.0"
+        components:
+          type: object
+          additionalProperties:
+            type: object
+            properties:
+              name:
+                type: string
+              status:
+                type: string
+              timestamp:
+                type: integer
+              responseTime:
+                type: integer
+
+    ModelsResponse:
+      type: object
+      properties:
+        models:
+          type: array
+          items:
+            $ref: '#/components/schemas/ModelInfo'
+        count:
           type: integer
-        cache_hit_rate:
-          type: number
-        reorgs_detected:
+        timestamp:
           type: integer
+
+    ModelInfo:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        package:
+          type: string
+        fields:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+              json_type:
+                type: string
+              json_tag:
+                type: string
+
+    APIError:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Machine-readable error code
+          example: "NOT_FOUND"
+        message:
+          type: string
+          description: Human-readable error message
+          example: "Event not found"
+        statusCode:
+          type: integer
+          description: HTTP status code
+          example: 404

@@ -2,10 +2,12 @@ package indexing
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 
 	"chainpulse/pkg/core"
+	"golang.org/x/sync/errgroup"
 )
 
 // MultiChainIndexer orchestrates indexing across multiple blockchains
@@ -118,33 +120,18 @@ func (mci *MultiChainIndexer) IndexEventsFromAllChains(
 		}
 	}
 
-	// Index from all chains in parallel
-	errChan := make(chan error, len(eventsByChain))
-	var wg sync.WaitGroup
+	// Index from all chains in parallel using errgroup
+	g, gCtx := errgroup.WithContext(ctx)
 
 	for chainID, events := range eventsByChain {
-		wg.Add(1)
-		go func(cID string, evts []*core.BlockchainEvent) {
-			defer wg.Done()
-			if err := mci.IndexEventsFromChain(ctx, cID, evts); err != nil {
-				errChan <- err
-			}
-		}(chainID, events)
+		cID, evts := chainID, events
+		g.Go(func() error {
+			return mci.IndexEventsFromChain(gCtx, cID, evts)
+		})
 	}
 
-	wg.Wait()
-	close(errChan)
-
-	// Collect errors
-	var errs []error
-	for err := range errChan {
-		if err != nil {
-			errs = append(errs, err)
-		}
-	}
-
-	if len(errs) > 0 {
-		return fmt.Errorf("indexing failed for %d chains: %v", len(errs), errs)
+	if err := g.Wait(); err != nil {
+		return fmt.Errorf("indexing failed: %w", err)
 	}
 
 	return nil
@@ -203,7 +190,7 @@ func (mci *MultiChainIndexer) Close() error {
 	}
 
 	if len(errs) > 0 {
-		return fmt.Errorf("failed to close %d indexers: %v", len(errs), errs)
+		return fmt.Errorf("failed to close %d indexers: %w", len(errs), errors.Join(errs...))
 	}
 
 	return nil

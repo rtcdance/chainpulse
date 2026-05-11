@@ -110,9 +110,22 @@ func NewCircuitBreaker(maxFailures int, resetTimeout time.Duration) *CircuitBrea
 }
 
 // Call executes an operation with circuit breaker protection
-func (cb *CircuitBreaker) Call(operation func() error) error {
+// CallWithContext executes the operation with context cancellation support.
+// If the context is cancelled before the operation runs, it returns the
+// context error without recording a failure against the circuit breaker.
+func (cb *CircuitBreaker) CallWithContext(ctx context.Context, operation func() error) error {
+	// Check context before acquiring the lock
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
 	cb.mu.Lock()
-	defer cb.mu.Unlock()
+
+	// Re-check context after acquiring the lock
+	if err := ctx.Err(); err != nil {
+		cb.mu.Unlock()
+		return err
+	}
 
 	// Check if we should transition from open to half-open
 	if cb.state == StateOpen {
@@ -122,13 +135,20 @@ func (cb *CircuitBreaker) Call(operation func() error) error {
 			cb.metrics.mu.Lock()
 			cb.metrics.RejectedCount++
 			cb.metrics.mu.Unlock()
+			cb.mu.Unlock()
 			return fmt.Errorf("circuit breaker is open")
 		}
 	}
 
-	// Execute operation
+	// Execute operation while holding the lock (consistent with existing behavior)
 	err := operation()
 	if err != nil {
+		// If context was cancelled, prefer the context error
+		if ctx.Err() != nil {
+			cb.mu.Unlock()
+			return ctx.Err()
+		}
+
 		cb.failureCount++
 		cb.lastFailureTime = time.Now()
 
@@ -141,6 +161,7 @@ func (cb *CircuitBreaker) Call(operation func() error) error {
 			cb.transitionToOpen()
 		}
 
+		cb.mu.Unlock()
 		return err
 	}
 
@@ -157,7 +178,14 @@ func (cb *CircuitBreaker) Call(operation func() error) error {
 		cb.transitionToClosed()
 	}
 
+	cb.mu.Unlock()
 	return nil
+}
+
+// Call executes an operation through the circuit breaker.
+// Deprecated: Use CallWithContext(ctx, operation) instead to propagate cancellation.
+func (cb *CircuitBreaker) Call(operation func() error) error {
+	return cb.CallWithContext(context.Background(), operation)
 }
 
 // transitionToOpen transitions circuit breaker to open state
@@ -317,7 +345,7 @@ func (rm *RetryManager) ExecuteWithRetry(ctx context.Context, operation func() e
 
 	for attempt := 0; attempt <= rm.policy.MaxRetries; attempt++ {
 		// Check circuit breaker
-		err := rm.circuitBreaker.Call(operation)
+		err := rm.circuitBreaker.CallWithContext(ctx, operation)
 		if err == nil {
 			rm.mu.Lock()
 			rm.successCount++

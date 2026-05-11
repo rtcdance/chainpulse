@@ -234,7 +234,10 @@ func (qs *DefaultQueryService) Query(ctx context.Context, req *QueryRequest) (*Q
 	if mongoErr == nil && mongoResult != nil && len(mongoResult.Events) > 0 {
 		// Cache the result
 		if req.CacheKey != "" {
-			_ = qs.cacheService.Set(ctx, req.CacheKey, mongoResult.Events, req.CacheTTL)
+			if err := qs.cacheService.Set(ctx, req.CacheKey, mongoResult.Events, req.CacheTTL); err != nil {
+				qs.logger.Warn("failed to cache query result", "cache_key", req.CacheKey, "error", err)
+				qs.metricsCollector.RecordCounter("query_cache_write_errors", 1, map[string]string{"adapter": "mongodb"})
+			}
 		}
 
 		duration := time.Since(start).Milliseconds()
@@ -254,7 +257,10 @@ func (qs *DefaultQueryService) Query(ctx context.Context, req *QueryRequest) (*Q
 	if postgresErr == nil && postgresResult != nil && len(postgresResult.Events) > 0 {
 		// Cache the result
 		if req.CacheKey != "" {
-			_ = qs.cacheService.Set(ctx, req.CacheKey, postgresResult.Events, req.CacheTTL)
+			if err := qs.cacheService.Set(ctx, req.CacheKey, postgresResult.Events, req.CacheTTL); err != nil {
+				qs.logger.Warn("failed to cache query result", "cache_key", req.CacheKey, "error", err)
+				qs.metricsCollector.RecordCounter("query_cache_write_errors", 1, map[string]string{"adapter": "postgres"})
+			}
 		}
 
 		duration := time.Since(start).Milliseconds()
@@ -321,7 +327,10 @@ func (qs *DefaultQueryService) QueryByHash(ctx context.Context, hash string) (*c
 	event, mongoErr := qs.mongoAdapter.QueryByHash(ctx, hash)
 	if mongoErr == nil && event != nil {
 		// Cache the result
-		_ = qs.cacheService.SetSingle(ctx, cacheKey, event, 1*time.Hour)
+		if err := qs.cacheService.SetSingle(ctx, cacheKey, event, 1*time.Hour); err != nil {
+			qs.logger.Warn("failed to cache event by hash", "hash", hash, "error", err)
+			qs.metricsCollector.RecordCounter("query_cache_write_errors", 1, map[string]string{"adapter": "mongodb", "op": "by_hash"})
+		}
 		duration := time.Since(start).Milliseconds()
 		qs.metricsCollector.RecordHistogram("query_by_hash_mongodb_time_ms", float64(duration), map[string]string{})
 		return event, nil
@@ -331,7 +340,10 @@ func (qs *DefaultQueryService) QueryByHash(ctx context.Context, hash string) (*c
 	event, postgresErr := qs.postgresAdapter.QueryByHash(ctx, hash)
 	if postgresErr == nil && event != nil {
 		// Cache the result
-		_ = qs.cacheService.SetSingle(ctx, cacheKey, event, 1*time.Hour)
+		if err := qs.cacheService.SetSingle(ctx, cacheKey, event, 1*time.Hour); err != nil {
+			qs.logger.Warn("failed to cache event by hash", "hash", hash, "error", err)
+			qs.metricsCollector.RecordCounter("query_cache_write_errors", 1, map[string]string{"adapter": "postgres", "op": "by_hash"})
+		}
 		duration := time.Since(start).Milliseconds()
 		qs.metricsCollector.RecordHistogram("query_by_hash_postgres_time_ms", float64(duration), map[string]string{})
 		return event, nil

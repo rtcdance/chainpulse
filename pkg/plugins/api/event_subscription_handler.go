@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -28,6 +29,7 @@ type EventSubscriptionHandler struct {
 	subscriptions     map[string]*Subscription
 	connectionCount   int
 	subscriptionCount int
+	wg                sync.WaitGroup // tracks active handleConnection goroutines
 
 	// Configuration
 	maxConnections   int
@@ -36,6 +38,8 @@ type EventSubscriptionHandler struct {
 	writeTimeout     time.Duration
 	readTimeout      time.Duration
 	rateLimiter      *RateLimiter
+	tokenValidator   *TokenValidator
+	allowedOrigins   []string
 }
 
 // SubscriptionConnection represents an active WebSocket connection
@@ -96,6 +100,16 @@ func (h *EventSubscriptionHandler) SetRateLimiter(limiter *RateLimiter) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.rateLimiter = limiter
+}
+
+// SetTokenValidator sets the token validator for WebSocket authentication
+func (h *EventSubscriptionHandler) SetTokenValidator(validator *TokenValidator) {
+	h.tokenValidator = validator
+}
+
+// SetAllowedOrigins sets the allowed origins for WebSocket upgrades
+func (h *EventSubscriptionHandler) SetAllowedOrigins(origins []string) {
+	h.allowedOrigins = origins
 }
 
 // Initialize initializes the event subscription handler
@@ -175,13 +189,20 @@ func (h *EventSubscriptionHandler) handleSubscription(w http.ResponseWriter, r *
 	}
 	h.mu.RUnlock()
 
+	// Validate authentication before upgrading
+	if h.tokenValidator != nil {
+		if !h.validateWSAuth(r) {
+			h.metrics.RecordCounter("event_subscription_auth_failed", 1, nil)
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+	}
+
 	// Upgrade HTTP connection to WebSocket
 	upgrader := websocket.Upgrader{
 		ReadBufferSize:  1024,
 		WriteBufferSize: 1024,
-		CheckOrigin: func(r *http.Request) bool {
-			return true // Allow all origins for now
-		},
+		CheckOrigin:     h.checkOrigin,
 	}
 
 	conn, err := upgrader.Upgrade(w, r, nil)
@@ -233,6 +254,7 @@ func (h *EventSubscriptionHandler) handleSubscription(w http.ResponseWriter, r *
 	h.metrics.RecordCounter("event_subscription_created", 1, nil)
 
 	// Handle connection
+	h.wg.Add(1)
 	go h.handleConnection(subConn, subscription)
 }
 
@@ -271,25 +293,43 @@ func (h *EventSubscriptionHandler) allowSubscriptionRequest(w http.ResponseWrite
 	return false
 }
 
+// readResult wraps the result of a WebSocket read operation
+type readResult struct {
+	message []byte
+	err     error
+}
+
 // handleConnection handles a WebSocket connection
 func (h *EventSubscriptionHandler) handleConnection(subConn *SubscriptionConnection, subscription *Subscription) {
+	defer h.wg.Done()
 	defer func() {
 		h.closeConnection(subConn)
 	}()
 
-	// Set up connection parameters
-	if err := subConn.Conn.SetReadDeadline(time.Now().Add(h.readTimeout)); err != nil {
+	// Read deadline must be longer than ping interval so pongs can refresh it
+	readDeadline := 60 * time.Second
+	if err := subConn.Conn.SetReadDeadline(time.Now().Add(readDeadline)); err != nil {
 		h.logger.Error("Failed to set read deadline", "connectionId", subConn.ID, "error", err.Error())
 	}
-	if err := subConn.Conn.SetWriteDeadline(time.Now().Add(h.writeTimeout)); err != nil {
-		h.logger.Error("Failed to set write deadline", "connectionId", subConn.ID, "error", err.Error())
-	}
 	subConn.Conn.SetPongHandler(func(string) error {
-		if err := subConn.Conn.SetReadDeadline(time.Now().Add(h.readTimeout)); err != nil {
+		if err := subConn.Conn.SetReadDeadline(time.Now().Add(readDeadline)); err != nil {
 			h.logger.Error("Failed to set read deadline in pong handler", "connectionId", subConn.ID, "error", err.Error())
 		}
 		return nil
 	})
+
+	// Dedicated read goroutine sends results through a channel so the
+	// select loop can still service ping/idle tickers and the Done signal.
+	readCh := make(chan readResult, 1)
+	go func() {
+		for {
+			_, message, err := subConn.Conn.ReadMessage()
+			readCh <- readResult{message: message, err: err}
+			if err != nil {
+				return
+			}
+		}
+	}()
 
 	// Start idle timeout checker
 	idleTicker := time.NewTicker(30 * time.Second)
@@ -303,6 +343,23 @@ func (h *EventSubscriptionHandler) handleConnection(subConn *SubscriptionConnect
 		select {
 		case <-subConn.Done:
 			return
+
+		case result := <-readCh:
+			if result.err != nil {
+				if websocket.IsUnexpectedCloseError(result.err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
+					h.logger.Error("WebSocket error", "connectionId", subConn.ID, "error", result.err.Error())
+					h.metrics.RecordCounter("event_subscription_read_error", 1, nil)
+				}
+				return
+			}
+
+			// Update last activity
+			subConn.mu.Lock()
+			subConn.LastActivity = time.Now()
+			subConn.mu.Unlock()
+
+			// Handle message (for future control messages)
+			_ = result.message
 
 		case <-idleTicker.C:
 			// Check for idle connection
@@ -329,31 +386,6 @@ func (h *EventSubscriptionHandler) handleConnection(subConn *SubscriptionConnect
 				h.logger.Error("Failed to send ping", "connectionId", subConn.ID, "error", err.Error())
 				return
 			}
-
-		default:
-			// Read message from client
-			subConn.mu.Lock()
-			if err := subConn.Conn.SetReadDeadline(time.Now().Add(h.readTimeout)); err != nil {
-				h.logger.Error("Failed to set read deadline", "connectionId", subConn.ID, "error", err.Error())
-			}
-			_, message, err := subConn.Conn.ReadMessage()
-			subConn.mu.Unlock()
-
-			if err != nil {
-				if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-					h.logger.Error("WebSocket error", "connectionId", subConn.ID, "error", err.Error())
-					h.metrics.RecordCounter("event_subscription_read_error", 1, nil)
-				}
-				return
-			}
-
-			// Update last activity
-			subConn.mu.Lock()
-			subConn.LastActivity = time.Now()
-			subConn.mu.Unlock()
-
-			// Handle message (for future control messages)
-			_ = message
 		}
 	}
 }
@@ -378,10 +410,10 @@ func (h *EventSubscriptionHandler) BroadcastEvent(ctx context.Context, event *co
 	// Convert event to response format
 	eventResponse := &EventResponse{
 		EventID:         event.ID,
-		ChainID:         0, // Parse from event.ChainID string if needed
+		ChainID:         event.ChainID,
 		BlockNumber:     safeUint64ToInt64(event.BlockNumber),
 		TransactionHash: event.TransactionHash.Hex(),
-		LogIndex:        safeUintToInt(event.LogIndex),
+		LogIndex:        int64(event.LogIndex),
 		ContractAddress: event.ContractAddress.Hex(),
 		EventName:       event.EventName,
 		EventData:       event.DecodedData,
@@ -411,11 +443,7 @@ func (h *EventSubscriptionHandler) matchesSubscription(event *core.BlockchainEve
 			return false
 		}
 		// Parse event.ChainID string to int for comparison
-		eventChainID, err := strconv.Atoi(event.ChainID)
-		if err != nil {
-			return false
-		}
-		return eventChainID == chainID
+		return core.ResolveChainID(event.ChainID) == chainID
 	case "contract":
 		return event.ContractAddress.Hex() == sub.FilterValue
 	case "name":
@@ -540,7 +568,49 @@ func (h *EventSubscriptionHandler) Close(ctx context.Context) error {
 		h.closeConnection(conn)
 	}
 
+	// Wait for all handleConnection goroutines to finish
+	h.wg.Wait()
+
 	h.initialized = false
 	h.logger.Info("Event subscription handler closed")
 	return nil
+}
+
+// validateWSAuth validates the auth header or API key on the WebSocket upgrade request
+func (h *EventSubscriptionHandler) validateWSAuth(r *http.Request) bool {
+	// 1. Check Authorization: Bearer header
+	authHeader := r.Header.Get("Authorization")
+	if strings.HasPrefix(authHeader, "Bearer ") {
+		token := strings.TrimPrefix(authHeader, "Bearer ")
+		result := h.tokenValidator.ValidateJWT(token)
+		return result.Valid
+	}
+
+	// 2. Check X-API-Key header
+	if apiKey := r.Header.Get("X-API-Key"); apiKey != "" {
+		result := h.tokenValidator.ValidateAPIKey(r.Context(), apiKey)
+		return result.Valid
+	}
+
+	return false
+}
+
+// checkOrigin validates the Origin header against the allowed origins list
+func (h *EventSubscriptionHandler) checkOrigin(r *http.Request) bool {
+	if len(h.allowedOrigins) == 0 {
+		return true
+	}
+
+	origin := r.Header.Get("Origin")
+	if origin == "" {
+		return true
+	}
+
+	for _, allowed := range h.allowedOrigins {
+		if allowed == "*" || allowed == origin {
+			return true
+		}
+	}
+
+	return false
 }

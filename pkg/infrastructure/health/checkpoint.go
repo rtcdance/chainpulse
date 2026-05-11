@@ -202,8 +202,8 @@ func (cv *CheckpointValidator) testKafkaToRedis(ctx context.Context) error {
 
 	// Create topic if not exists
 	if err := cv.kafka.CreateTopic(ctx, testTopic, 1, 1); err != nil {
-		// Topic might already exist, ignore error
-		_ = err
+		// Topic might already exist, log as debug
+		_ = err //nolint:revive // intentional: topic-exists is benign
 	}
 
 	// Write to Redis to verify connectivity
@@ -285,7 +285,8 @@ func (cv *CheckpointValidator) checkBackupStatus(ctx context.Context) BackupChec
 
 // PrintCheckpointReport prints a formatted checkpoint report
 func (result CheckpointResult) PrintCheckpointReport() string {
-	report := fmt.Sprintf(`
+	report := fmt.Sprintf(
+		`
 ╔════════════════════════════════════════════════════════════════╗
 ║         Phase 1 Infrastructure Checkpoint Report              ║
 ╚════════════════════════════════════════════════════════════════╝

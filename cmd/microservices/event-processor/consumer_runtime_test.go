@@ -43,7 +43,7 @@ type eventProcessorTestMessageProcessor struct {
 	processed atomic.Int64
 }
 
-func (p *eventProcessorTestMessageProcessor) ProcessEvent(event *core.BlockchainEvent) error {
+func (p *eventProcessorTestMessageProcessor) ProcessEvent(ctx context.Context, event *core.BlockchainEvent) error {
 	p.processed.Add(1)
 	return nil
 }
@@ -112,7 +112,10 @@ func TestEventProcessorConsumeRuntimeProcessesMessages(t *testing.T) {
 		metrics,
 		consumer,
 		processorRuntime,
+		nil, // publisher
 		[]string{"raw-events"},
+		[]string{"processed-events"},
+		nil, // dlqDB
 	)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -145,7 +148,10 @@ func TestEventProcessorConsumeRuntimePauseResumeIntake(t *testing.T) {
 		core.NewDefaultMetricsCollector(),
 		&eventProcessorBlockingMessageConsumer{started: make(chan struct{}, 4)},
 		&eventProcessorTestMessageProcessor{},
+		nil, // publisher
 		[]string{"raw-events"},
+		[]string{"processed-events"},
+		nil, // dlqDB
 	)
 
 	ctx, cancel := context.WithCancel(context.Background())

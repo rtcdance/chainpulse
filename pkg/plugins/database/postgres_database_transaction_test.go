@@ -141,7 +141,7 @@ func TestRollbackOnError(t *testing.T) {
 	}
 
 	// Try to write events (should fail on duplicate)
-	err = db.WriteEvents(events)
+	err = db.WriteEvents(context.Background(), events)
 	if err == nil {
 		t.Fatal("Expected error on duplicate hash")
 	}
@@ -194,14 +194,14 @@ func TestConcurrentTransactions(t *testing.T) {
 				ID:              fmt.Sprintf("test-concurrent-%d", id),
 				BlockNumber:     uint64(id),
 				TransactionHash: common.HexToHash(fmt.Sprintf("0x%064x", id)),
-				LogIndex:        uint(id),
+				LogIndex:        uint64(id),
 				ContractAddress: common.HexToAddress("0x123"),
 				EventName:       "Transfer",
 				EventData:       []byte("data1"),
 				BlockTimestamp:  time.Now().Unix(),
 			}
 
-			err := db.WriteEvent(event)
+			err := db.WriteEvent(context.Background(), event)
 			if err != nil {
 				t.Errorf("Failed to write event %d: %v", id, err)
 			}
@@ -257,7 +257,7 @@ func TestTransactionConsistency(t *testing.T) {
 		BlockTimestamp:  time.Now().Unix(),
 	}
 
-	err = db.WriteEvent(event)
+	err = db.WriteEvent(context.Background(), event)
 	if err != nil {
 		t.Fatalf("Failed to write event: %v", err)
 	}

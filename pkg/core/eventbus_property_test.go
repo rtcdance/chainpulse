@@ -59,7 +59,7 @@ func TestPropertyEventPublishingConsistency(t *testing.T) {
 					count++
 					mu.Unlock()
 				}
-				if err := eb.Subscribe(context.Background(), "test-topic", handler); err != nil {
+				if _, err := eb.Subscribe(context.Background(), "test-topic", handler); err != nil {
 					t.Fatalf("failed to subscribe: %v", err)
 				}
 			}
@@ -90,7 +90,7 @@ func TestPropertySubscriberCountConsistency(t *testing.T) {
 
 	// For any sequence of subscriptions, the subscriber count should match
 	for i := 0; i < 10; i++ {
-		if err := eb.Subscribe(context.Background(), "test-topic", handler); err != nil {
+		if _, err := eb.Subscribe(context.Background(), "test-topic", handler); err != nil {
 			t.Fatalf("failed to subscribe: %v", err)
 		}
 
@@ -123,7 +123,7 @@ func TestPropertyEventDataPreservation(t *testing.T) {
 			}
 
 			eb.Clear()
-			if err := eb.Subscribe(context.Background(), "test-topic", handler); err != nil {
+			if _, err := eb.Subscribe(context.Background(), "test-topic", handler); err != nil {
 				t.Fatalf("failed to subscribe: %v", err)
 			}
 			if err := eb.PublishSync(context.Background(), "test-topic", tt.event); err != nil {
@@ -169,10 +169,10 @@ func TestPropertyTopicIsolation(t *testing.T) {
 	}
 
 	// For any two topics, events published to one should not affect the other
-	if err := eb.Subscribe(context.Background(), "topic-1", handler1); err != nil {
+	if _, err := eb.Subscribe(context.Background(), "topic-1", handler1); err != nil {
 		t.Fatalf("failed to subscribe: %v", err)
 	}
-	if err := eb.Subscribe(context.Background(), "topic-2", handler2); err != nil {
+	if _, err := eb.Subscribe(context.Background(), "topic-2", handler2); err != nil {
 		t.Fatalf("failed to subscribe: %v", err)
 	}
 
@@ -226,7 +226,7 @@ func TestPropertySyncVsAsyncConsistency(t *testing.T) {
 			asyncReceived = true
 			mu1.Unlock()
 		}
-		if err := eb1.Subscribe(context.Background(), "test-topic", handler1); err != nil {
+		if _, err := eb1.Subscribe(context.Background(), "test-topic", handler1); err != nil {
 			t.Fatalf("failed to subscribe: %v", err)
 		}
 		if err := eb1.Publish(context.Background(), "test-topic", testEvent); err != nil {
@@ -243,7 +243,7 @@ func TestPropertySyncVsAsyncConsistency(t *testing.T) {
 			syncReceived = true
 			mu2.Unlock()
 		}
-		if err := eb2.Subscribe(context.Background(), "test-topic", handler2); err != nil {
+		if _, err := eb2.Subscribe(context.Background(), "test-topic", handler2); err != nil {
 			t.Fatalf("failed to subscribe: %v", err)
 		}
 		if err := eb2.PublishSync(context.Background(), "test-topic", testEvent); err != nil {
@@ -275,7 +275,7 @@ func TestPropertyClearConsistency(t *testing.T) {
 
 	// For any set of subscribers, clear should remove all of them
 	for i := 0; i < 5; i++ {
-		if err := eb.Subscribe(context.Background(), fmt.Sprintf("topic-%d", i), handler); err != nil {
+		if _, err := eb.Subscribe(context.Background(), fmt.Sprintf("topic-%d", i), handler); err != nil {
 			t.Fatalf("failed to subscribe: %v", err)
 		}
 	}
@@ -299,7 +299,7 @@ func TestPropertyClearConsistency(t *testing.T) {
 		mu.Unlock()
 	}
 
-	if err := eb.Subscribe(context.Background(), "test-topic", handler2); err != nil {
+	if _, err := eb.Subscribe(context.Background(), "test-topic", handler2); err != nil {
 		t.Fatalf("failed to subscribe: %v", err)
 	}
 	eb.Clear()
@@ -326,7 +326,7 @@ func TestPropertyConcurrentOperationsConsistency(t *testing.T) {
 	// Concurrent subscriptions
 	for i := 0; i < 10; i++ {
 		go func(index int) {
-			_ = eb.Subscribe(context.Background(), fmt.Sprintf("topic-%d", index%3), handler)
+			_, _ = eb.Subscribe(context.Background(), fmt.Sprintf("topic-%d", index%3), handler)
 			done <- true
 		}(i)
 	}
@@ -371,11 +371,11 @@ func TestPropertyHandlerPanicRecovery(t *testing.T) {
 		// This should still be called
 	}
 
-	err := eb.Subscribe(context.Background(), "test-topic", panicHandler)
+	_, err := eb.Subscribe(context.Background(), "test-topic", panicHandler)
 	if err != nil {
 		t.Fatalf("failed to subscribe panic handler: %v", err)
 	}
-	err = eb.Subscribe(context.Background(), "test-topic", normalHandler)
+	_, err = eb.Subscribe(context.Background(), "test-topic", normalHandler)
 	if err != nil {
 		t.Fatalf("failed to subscribe normal handler: %v", err)
 	}

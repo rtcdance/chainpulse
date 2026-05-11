@@ -21,6 +21,7 @@ type GRPCPuller struct {
 	currentBlock   uint64
 	stopChan       chan bool
 	eventHandlers  []func(core.BlockchainEvent)
+	timestampCache map[uint64]int64 // blockNumber -> unix timestamp
 	requestCounter int64
 	errorCounter   int64
 	lastError      error
@@ -53,6 +54,7 @@ func NewGRPCPuller(
 		currentBlock:         config.StartBlock,
 		stopChan:             make(chan bool),
 		eventHandlers:        make([]func(core.BlockchainEvent), 0),
+		timestampCache:       make(map[uint64]int64),
 		pollInterval:         5 * time.Second,
 		connectionPool:       10,
 		maxRetries:           3,
@@ -282,7 +284,7 @@ func (p *GRPCPuller) connect() error {
 
 	conn, err := grpc.NewClient(p.nodeURL, opts...)
 	if err != nil {
-		return fmt.Errorf("failed to connect to gRPC server: %v", err)
+		return fmt.Errorf("failed to connect to gRPC server: %w", err)
 	}
 
 	p.conn = conn
@@ -335,27 +337,63 @@ func (p *GRPCPuller) logToEvent(log Log) (core.BlockchainEvent, error) {
 	logIndex := hexToUint64(log.LogIndex)
 
 	eventName := ""
+	eventSig := common.Hash{}
+	eventTopics := make([]common.Hash, len(log.Topics))
+	for i, t := range log.Topics {
+		eventTopics[i] = common.HexToHash(t)
+	}
 	if len(log.Topics) > 0 {
-		eventName = log.Topics[0]
+		eventName = core.ResolveEventNameFromTopic(log.Topics[0])
+		eventSig = eventTopics[0]
 	}
 
 	txHash := common.HexToHash(log.TxHash)
 	contractAddr := common.HexToAddress(log.Address)
 
+	// Decode hex data string to binary bytes for ABI decoding and storage
+	eventDataBytes := common.FromHex(log.Data)
+
+	// Get block timestamp from cache or fallback
+	blockTimestamp := p.getBlockTimestampCached(blockNumber)
+
 	event := core.BlockchainEvent{
-		ID:              fmt.Sprintf("%s-%d", log.TxHash, logIndex),
+		ID:              fmt.Sprintf("%s-%s-%d", p.ChainID(), log.TxHash, logIndex),
 		BlockNumber:     blockNumber,
 		TransactionHash: txHash,
-		LogIndex:        uint(logIndex),
+		LogIndex:        logIndex,
 		ContractAddress: contractAddr,
 		EventName:       eventName,
-		EventData:       []byte(log.Data),
-		ChainID:         "1", // Default to mainnet
-		BlockTimestamp:  time.Now().Unix(),
+		EventSignature:  eventSig,
+		EventData:       eventDataBytes,
+		DecodedData:     core.DecodeEvent(eventName, eventTopics, eventDataBytes),
+		ChainID:         p.ChainID(),
+		Network:         p.Network(),
+		BlockTimestamp:  blockTimestamp,
 		Status:          core.EventStatusPending,
 	}
 
 	event.EventHash = p.GenerateEventHash(event)
 
 	return event, nil
+}
+
+// getBlockTimestampCached returns block timestamp from cache, falling back to current time
+// TODO: Implement gRPC GetBlockTimestamp service method for accurate timestamps
+func (p *GRPCPuller) getBlockTimestampCached(blockNumber uint64) int64 {
+	p.mu.RLock()
+	ts, ok := p.timestampCache[blockNumber]
+	p.mu.RUnlock()
+
+	if ok {
+		return ts
+	}
+
+	// Cache miss — no gRPC method available yet, use current time as fallback
+	// and cache it to avoid repeated time.Now() calls for the same block
+	ts = time.Now().Unix()
+	p.mu.Lock()
+	p.timestampCache[blockNumber] = ts
+	p.mu.Unlock()
+
+	return ts
 }

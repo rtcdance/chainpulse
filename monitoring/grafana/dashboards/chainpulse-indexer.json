@@ -180,6 +180,41 @@
         {"expr": "chainpulse_mq_broker_failures", "legendFormat": "{{chain_id}} broker failures"}
       ],
       "gridPos": {"h": 8, "w": 12, "x": 12, "y": 48}
+    },
+    {
+      "id": 15,
+      "title": "RPC | Upstream Call Duration P95",
+      "type": "graph",
+      "datasource": {"type": "prometheus", "uid": "chainpulse-prometheus"},
+      "targets": [
+        {"expr": "histogram_quantile(0.95, sum by (chain_id, le) (rate(chainpulse_rpc_call_duration_seconds_bucket[5m])))", "legendFormat": "{{chain_id}} P95 latency"},
+        {"expr": "histogram_quantile(0.50, sum by (chain_id, le) (rate(chainpulse_rpc_call_duration_seconds_bucket[5m])))", "legendFormat": "{{chain_id}} P50 latency"}
+      ],
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 56}
+    },
+    {
+      "id": 16,
+      "title": "Database | Connection Pool Utilization",
+      "type": "gauge",
+      "datasource": {"type": "prometheus", "uid": "chainpulse-prometheus"},
+      "targets": [
+        {"expr": "chainpulse_db_pool_in_use / chainpulse_db_pool_max_open_connections * 100", "legendFormat": "Pool Utilization %"}
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "thresholds": {
+            "steps": [
+              {"color": "green", "value": 0},
+              {"color": "yellow", "value": 60},
+              {"color": "red", "value": 80}
+            ]
+          },
+          "min": 0,
+          "max": 100
+        }
+      },
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 56}
     }
   ]
 }

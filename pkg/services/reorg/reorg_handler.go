@@ -13,21 +13,37 @@ import (
 
 // ReorgHandler detects and recovers from blockchain reorganizations.
 //
-//nolint:exported // Renaming would break many external uses.
+// Renaming would break many external uses.
 type ReorgHandler struct {
 	database core.DatabasePlugin
 	logger   core.Logger
 	mu       sync.RWMutex
 
+	// Chain identity and event publishing
+	chainID  string
+	eventBus core.EventBus
+
+	// Persistent checkpoint store (optional — falls back to in-memory if nil)
+	checkpointStore core.CheckpointStore
+
+	// Canonical chain hash provider — compares locally-indexed hashes
+	// against the live chain. Defaults to database (backward compat);
+	// production should inject an RPC-backed provider.
+	blockHashProvider core.BlockHashProvider
+
+	// Idempotency invalidator — clears idempotency entries for reorged
+	// block ranges so that re-indexed events are not rejected as duplicates.
+	idempotencyInvalidator core.IdempotencyInvalidator
+
 	// State tracking
-	lastKnownBlocks map[uint64]common.Hash // block number -> block hash
+	lastKnownBlocks map[uint64]common.Hash // block number -> block hash (LRU cache backed by DB)
 	reorgThreshold  uint64                 // blocks to keep for reorg detection
 	maxRollback     uint64                 // maximum blocks to rollback
 }
 
 // ReorgEvent represents a detected reorganization.
 //
-//nolint:exported // Renaming would break many external uses.
+// Renaming would break many external uses.
 type ReorgEvent struct {
 	DetectedAt       time.Time
 	ReorgBlock       uint64
@@ -44,13 +60,69 @@ func NewReorgHandler(
 	reorgThreshold uint64,
 	maxRollback uint64,
 ) *ReorgHandler {
-	return &ReorgHandler{
-		database:        database,
-		logger:          logger,
-		lastKnownBlocks: make(map[uint64]common.Hash),
-		reorgThreshold:  reorgThreshold,
-		maxRollback:     maxRollback,
+	rh := &ReorgHandler{
+		database:          database,
+		logger:            logger,
+		lastKnownBlocks:   make(map[uint64]common.Hash),
+		reorgThreshold:    reorgThreshold,
+		maxRollback:       maxRollback,
+		blockHashProvider: &DatabaseBlockHashProvider{db: database},
 	}
+	return rh
+}
+
+// SetBlockHashProvider sets the provider used to fetch canonical chain block hashes.
+// Production code should inject an RPC-backed provider so reorg detection compares
+// local hashes against the live chain. Defaults to database lookup.
+func (rh *ReorgHandler) SetBlockHashProvider(provider core.BlockHashProvider) {
+	rh.mu.Lock()
+	rh.blockHashProvider = provider
+	rh.mu.Unlock()
+}
+
+// SetIdempotencyInvalidator sets the invalidator used to clear idempotency entries
+// for reorged block ranges. Without this, re-indexed events after a reorg are
+// incorrectly rejected as duplicates.
+func (rh *ReorgHandler) SetIdempotencyInvalidator(invalidator core.IdempotencyInvalidator) {
+	rh.mu.Lock()
+	rh.idempotencyInvalidator = invalidator
+	rh.mu.Unlock()
+}
+
+// DatabaseBlockHashProvider fetches block hashes from the local database.
+// This is the default (backward-compatible) provider but is insufficient for
+// reorg detection because the database contains pre-reorg data.
+type DatabaseBlockHashProvider struct {
+	db core.DatabasePlugin
+}
+
+func (p *DatabaseBlockHashProvider) GetBlockHash(ctx context.Context, blockNumber uint64) (common.Hash, error) {
+	block, err := p.db.GetBlock(ctx, blockNumber)
+	if err != nil {
+		return common.Hash{}, err
+	}
+	if block == nil {
+		return common.Hash{}, nil
+	}
+	return block.Hash, nil
+}
+
+// WithChainID sets the chain identifier for reorg event publishing.
+func (rh *ReorgHandler) WithChainID(chainID string) *ReorgHandler {
+	rh.chainID = chainID
+	return rh
+}
+
+// WithEventBus sets the event bus for publishing reorg events.
+func (rh *ReorgHandler) WithEventBus(eventBus core.EventBus) *ReorgHandler {
+	rh.eventBus = eventBus
+	return rh
+}
+
+// WithCheckpointStore sets the checkpoint store for persisting block hashes across restarts.
+func (rh *ReorgHandler) WithCheckpointStore(store core.CheckpointStore) *ReorgHandler {
+	rh.checkpointStore = store
+	return rh
 }
 
 // DetectReorg detects if a reorg has occurred
@@ -62,8 +134,18 @@ func (rh *ReorgHandler) DetectReorg(
 	rh.mu.Lock()
 	defer rh.mu.Unlock()
 
-	// Get the stored hash for this block
+	// Get the stored hash for this block (check in-memory cache first)
 	storedHash, exists := rh.lastKnownBlocks[currentBlock]
+	if !exists && rh.checkpointStore != nil {
+		// Fall back to DB-backed checkpoint store
+		dbHash, err := rh.checkpointStore.GetBlockHash(ctx, rh.chainID, currentBlock)
+		if err == nil && dbHash != "" {
+			storedHash = common.HexToHash(dbHash)
+			exists = true
+			// Cache it for next time
+			rh.lastKnownBlocks[currentBlock] = storedHash
+		}
+	}
 	if !exists {
 		// First time seeing this block, store it
 		rh.lastKnownBlocks[currentBlock] = newBlockHash
@@ -76,7 +158,11 @@ func (rh *ReorgHandler) DetectReorg(
 	}
 
 	// Reorg detected - find the reorg block
-	reorgBlock := rh.findReorgBlock(ctx, currentBlock)
+	reorgBlock, err := rh.findReorgBlock(ctx, currentBlock)
+	if err != nil {
+		rh.logger.Warn("reorg scan failed", map[string]interface{}{"error": err.Error()})
+		return true, currentBlock, nil // Report reorg at current block as best guess
+	}
 	if reorgBlock == 0 {
 		return false, 0, fmt.Errorf("failed to find reorg block")
 	}
@@ -116,13 +202,41 @@ func (rh *ReorgHandler) HandleReorg(ctx context.Context, reorgBlock uint64) erro
 	}
 
 	// Rollback events
-	eventsRolledBack, err := rh.RollbackEvents(ctx, reorgBlock)
+	eventsRolledBack, err := rh.RollbackEvents(ctx, reorgBlock, currentBlock)
 	if err != nil {
 		return fmt.Errorf("failed to rollback events: %w", err)
 	}
 
 	// Clean up block cache
 	rh.cleanupBlockCache(reorgBlock)
+
+	// Publish reorg event if event bus is configured
+	if rh.eventBus != nil {
+		reorgEvt := &ReorgEvent{
+			DetectedAt:       time.Now(),
+			ReorgBlock:       reorgBlock,
+			BlocksAffected:   blocksToRollback,
+			EventsRolledBack: eventsRolledBack,
+		}
+		if err := rh.eventBus.Publish(ctx, "reorg-detected", reorgEvt); err != nil {
+			rh.logger.Error("Failed to publish reorg event", map[string]interface{}{
+				"error": err.Error(),
+			})
+		}
+
+		// Publish re-index trigger event so the puller can re-pull affected blocks
+		reindexEvt := &core.ReorgRollbackEvent{
+			ChainID:    rh.chainID,
+			FromBlock:  reorgBlock,
+			ToBlock:    currentBlock,
+			DetectedAt: time.Now(),
+		}
+		if err := rh.eventBus.Publish(ctx, "reorg-rollback", reindexEvt); err != nil {
+			rh.logger.Error("Failed to publish reorg rollback event", map[string]interface{}{
+				"error": err.Error(),
+			})
+		}
+	}
 
 	rh.logger.Info(
 		"Reorg handled successfully",
@@ -136,49 +250,137 @@ func (rh *ReorgHandler) HandleReorg(ctx context.Context, reorgBlock uint64) erro
 	return nil
 }
 
-// RollbackEvents rolls back events from a specific block
-func (rh *ReorgHandler) RollbackEvents(ctx context.Context, fromBlock uint64) (int64, error) {
-	// Get events to rollback
-	events, err := rh.database.GetEventsByBlockRange(ctx, fromBlock, ^uint64(0))
+// RollbackEvents marks events as reorged (soft delete) instead of hard-deleting them.
+// currentBlock is the highest known block at the time of reorg detection — only events
+// in [fromBlock, currentBlock] are marked, not future blocks.
+func (rh *ReorgHandler) RollbackEvents(ctx context.Context, fromBlock, currentBlock uint64) (int64, error) {
+	// Mark events as reorged instead of deleting
+	count, err := rh.database.MarkEventsAsReorged(ctx, fromBlock, currentBlock)
 	if err != nil {
-		return 0, fmt.Errorf("failed to get events: %w", err)
+		return 0, fmt.Errorf("failed to mark events as reorged: %w", err)
 	}
 
-	if len(events) == 0 {
-		return 0, nil
-	}
-
-	// Delete events
-	count, err := rh.database.DeleteEventsByBlockRange(ctx, fromBlock, ^uint64(0))
-	if err != nil {
-		return 0, fmt.Errorf("failed to delete events: %w", err)
+	// Clear idempotency entries for the reorged range so that
+	// re-indexed events are not rejected as duplicates.
+	if rh.idempotencyInvalidator != nil {
+		invalidated := rh.idempotencyInvalidator.InvalidateRange(fromBlock, currentBlock)
+		rh.logger.Info(
+			"Idempotency entries invalidated for reorged range",
+			map[string]interface{}{
+				"from_block":    fromBlock,
+				"current_block": currentBlock,
+				"invalidated":   invalidated,
+			},
+		)
 	}
 
 	rh.logger.Info(
-		"Events rolled back",
+		"Events marked as reorged",
 		map[string]interface{}{
-			"from_block": fromBlock,
-			"count":      count,
+			"from_block":    fromBlock,
+			"current_block": currentBlock,
+			"count":         count,
 		},
 	)
 
 	return count, nil
 }
 
-// findReorgBlock finds the block where reorg occurred
-func (rh *ReorgHandler) findReorgBlock(ctx context.Context, currentBlock uint64) uint64 {
-	// Start from current block and go backwards
-	for block := currentBlock; block > 0; block-- {
+// findReorgBlock finds the block where reorg occurred.
+// Uses binary search for efficiency (O(log n) vs O(n) linear scan),
+// falling back to linear scan on RPC errors.
+func (rh *ReorgHandler) findReorgBlock(ctx context.Context, currentBlock uint64) (uint64, error) {
+	maxScanDepth := uint64(256) // Prevent unbounded scan
+	if rh.maxRollback > 0 && rh.maxRollback < maxScanDepth {
+		maxScanDepth = rh.maxRollback
+	}
+
+	// Determine the lower bound for the search
+	lowerBound := uint64(1)
+	if currentBlock > maxScanDepth {
+		lowerBound = currentBlock - maxScanDepth
+	}
+
+	// Try binary search first
+	if reorgBlock, err := rh.binarySearchReorg(ctx, lowerBound, currentBlock); err == nil {
+		return reorgBlock, nil
+	}
+
+	// Fallback to linear scan if binary search fails (e.g., RPC errors)
+	rh.logger.Warn("binary search reorg detection failed, falling back to linear scan", "error", "binary_search_unavailable")
+	return rh.linearScanReorg(ctx, currentBlock, maxScanDepth)
+}
+
+// binarySearchReorg performs a binary search between lowerBound and currentBlock
+// to find the exact reorg divergence point. For each candidate block, it compares
+// the locally-indexed hash against the canonical chain hash (via blockHashProvider).
+// Time complexity: O(log n).
+func (rh *ReorgHandler) binarySearchReorg(ctx context.Context, lowerBound, currentBlock uint64) (uint64, error) {
+	lo, hi := lowerBound, currentBlock
+	result := currentBlock // Default: assume reorg at current block
+
+	for lo <= hi {
+		select {
+		case <-ctx.Done():
+			return currentBlock, ctx.Err()
+		default:
+		}
+
+		mid := lo + (hi-lo)/2
+
+		storedHash, exists := rh.lastKnownBlocks[mid]
+		if !exists {
+			// No stored hash for this block — move to higher blocks
+			lo = mid + 1
+			continue
+		}
+
+		canonicalHash, err := rh.blockHashProvider.GetBlockHash(ctx, mid)
+		if err != nil {
+			// Can't verify — return error to trigger linear fallback
+			return 0, fmt.Errorf("block hash lookup failed at block %d: %w", mid, err)
+		}
+
+		if canonicalHash == (common.Hash{}) {
+			// No block on canonical chain — move to higher blocks
+			lo = mid + 1
+			continue
+		}
+
+		if storedHash != canonicalHash {
+			// Reorg at or before this block
+			result = mid
+			hi = mid - 1 // Search lower half for earlier divergence
+		} else {
+			// No reorg at this block — search upper half
+			lo = mid + 1
+		}
+	}
+
+	return result, nil
+}
+
+// linearScanReorg scans backwards from currentBlock to find the reorg point (O(n)).
+func (rh *ReorgHandler) linearScanReorg(ctx context.Context, currentBlock, maxScanDepth uint64) (uint64, error) {
+	scanned := uint64(0)
+	for block := currentBlock; block > 0 && scanned < maxScanDepth; block-- {
+		scanned++
+
+		select {
+		case <-ctx.Done():
+			return currentBlock, ctx.Err()
+		default:
+		}
+
 		storedHash, exists := rh.lastKnownBlocks[block]
 		if !exists {
 			continue
 		}
 
-		// Get block from database
-		dbBlock, err := rh.database.GetBlock(ctx, block)
+		canonicalHash, err := rh.blockHashProvider.GetBlockHash(ctx, block)
 		if err != nil {
 			rh.logger.Error(
-				"Failed to get block from database",
+				"Failed to get canonical block hash",
 				map[string]interface{}{
 					"block": block,
 					"error": err.Error(),
@@ -187,25 +389,30 @@ func (rh *ReorgHandler) findReorgBlock(ctx context.Context, currentBlock uint64)
 			continue
 		}
 
-		if dbBlock == nil {
+		if canonicalHash == (common.Hash{}) {
 			continue
 		}
 
-		// Check if hash matches
-		if storedHash != dbBlock.Hash {
-			// Found the reorg point
-			return block
+		if storedHash != canonicalHash {
+			return block, nil
 		}
 	}
 
-	// If no mismatch found, reorg is at current block
-	return currentBlock
+	if scanned >= maxScanDepth {
+		return currentBlock, fmt.Errorf("reorg scan exceeded max depth %d without finding divergence point", maxScanDepth)
+	}
+
+	return currentBlock, nil
 }
 
 // cleanupBlockCache removes old blocks from cache
 func (rh *ReorgHandler) cleanupBlockCache(fromBlock uint64) {
 	// Remove blocks older than reorg threshold
-	cutoff := fromBlock - rh.reorgThreshold
+	var cutoff uint64
+	if fromBlock > rh.reorgThreshold {
+		cutoff = fromBlock - rh.reorgThreshold
+	}
+	// If fromBlock <= reorgThreshold, cutoff stays 0 — nothing is evicted
 	for block := range rh.lastKnownBlocks {
 		if block < cutoff {
 			delete(rh.lastKnownBlocks, block)

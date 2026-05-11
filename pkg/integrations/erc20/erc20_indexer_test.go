@@ -78,6 +78,10 @@ func (mdp *MockDatabasePlugin) DeleteEventsByBlockRange(ctx context.Context, fro
 	return 0, nil
 }
 
+func (mdp *MockDatabasePlugin) MarkEventsAsReorged(ctx context.Context, fromBlock, toBlock uint64) (int64, error) {
+	return 0, nil
+}
+
 func (mdp *MockDatabasePlugin) GetLatestBlock(ctx context.Context) (uint64, error) {
 	return 0, nil
 }

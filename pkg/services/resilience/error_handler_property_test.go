@@ -2,7 +2,6 @@ package resilience
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"testing"
 
@@ -34,7 +33,7 @@ func TestProperty18ErrorLoggingWithContext(t *testing.T) {
 
 	// Test 1: Transient error logging
 	t.Run("TransientErrorLogging", func(t *testing.T) {
-		err := errors.New("timeout")
+		err := core.ErrTimeout
 		handler.HandleError(ctx, err, "data_puller")
 
 		// Verify error is classified as transient
@@ -51,7 +50,7 @@ func TestProperty18ErrorLoggingWithContext(t *testing.T) {
 
 	// Test 2: Permanent error logging
 	t.Run("PermanentErrorLogging", func(t *testing.T) {
-		err := errors.New("invalid configuration")
+		err := core.ErrBadRequest
 		handler.HandleError(ctx, err, "config_manager")
 
 		// Verify error is classified as permanent
@@ -68,7 +67,7 @@ func TestProperty18ErrorLoggingWithContext(t *testing.T) {
 
 	// Test 3: Critical error logging
 	t.Run("CriticalErrorLogging", func(t *testing.T) {
-		err := errors.New("data corruption")
+		err := core.ErrDataCorruption
 		handler.HandleError(ctx, err, "database")
 
 		// Verify error is classified as critical
@@ -88,7 +87,7 @@ func TestProperty18ErrorLoggingWithContext(t *testing.T) {
 		sources := []string{"data_puller", "event_processor", "cache", "database", "api"}
 
 		for _, source := range sources {
-			err := errors.New("timeout")
+			err := core.ErrTimeout
 			handler.HandleError(ctx, err, source)
 
 			// Verify error is classified correctly
@@ -100,7 +99,7 @@ func TestProperty18ErrorLoggingWithContext(t *testing.T) {
 
 	// Test 5: Error logging consistency
 	t.Run("ErrorLoggingConsistency", func(t *testing.T) {
-		err := errors.New("timeout")
+		err := core.ErrTimeout
 
 		// Log same error multiple times
 		for i := 0; i < 5; i++ {
@@ -117,7 +116,7 @@ func TestProperty18ErrorLoggingWithContext(t *testing.T) {
 
 	// Test 6: Error logging with context information
 	t.Run("ErrorLoggingWithContext", func(t *testing.T) {
-		err := errors.New("timeout")
+		err := core.ErrTimeout
 
 		// Create custom context
 		customCtx := context.WithValue(ctx, testContextKey, "value")
@@ -139,7 +138,7 @@ func TestProperty18ErrorLoggingWithContext(t *testing.T) {
 
 	// Test 8: Error logging with empty source
 	t.Run("ErrorLoggingEmptySource", func(t *testing.T) {
-		err := errors.New("timeout")
+		err := core.ErrTimeout
 
 		// Should not panic
 		handler.HandleError(ctx, err, "")
@@ -147,14 +146,14 @@ func TestProperty18ErrorLoggingWithContext(t *testing.T) {
 
 	// Test 9: Error logging with various error types
 	t.Run("ErrorLoggingVariousTypes", func(t *testing.T) {
-		errors := []error{
-			errors.New("timeout"),
-			errors.New("connection refused"),
-			errors.New("invalid configuration"),
-			errors.New("data corruption"),
+		typedErrors := []error{
+			core.ErrTimeout,
+			core.ErrConnectionRefused,
+			core.ErrBadRequest,
+			core.ErrDataCorruption,
 		}
 
-		for _, err := range errors {
+		for _, err := range typedErrors {
 			handler.HandleError(ctx, err, "test_source")
 
 			// Verify error is classified
@@ -185,7 +184,7 @@ func TestProperty18ErrorLoggingWithContext(t *testing.T) {
 
 	// Test 11: Error classification consistency across multiple calls
 	t.Run("ErrorClassificationConsistency", func(t *testing.T) {
-		err := errors.New("timeout")
+		err := core.ErrTimeout
 
 		// Classify same error multiple times
 		categories := make([]ErrorCategory, 10)
@@ -210,7 +209,7 @@ func TestProperty18ErrorLoggingWithContext(t *testing.T) {
 		handler.RegisterErrorLogger("logger1", errorLogger1)
 		handler.RegisterErrorLogger("logger2", errorLogger2)
 
-		err := errors.New("timeout")
+		err := core.ErrTimeout
 
 		// Log error - should use all registered loggers
 		handler.HandleError(ctx, err, "test_source")
@@ -232,7 +231,7 @@ func TestProperty18ErrorLoggingWithContext(t *testing.T) {
 		handler.RegisterContextProvider("provider1", provider1)
 		handler.RegisterContextProvider("provider2", provider2)
 
-		err := errors.New("timeout")
+		err := core.ErrTimeout
 
 		// Log error - should use all context providers
 		handler.HandleError(ctx, err, "test_source")
@@ -247,7 +246,7 @@ func TestProperty18ErrorLoggingWithContext(t *testing.T) {
 
 	// Test 14: Error logging preserves error information
 	t.Run("ErrorLoggingPreservesInfo", func(t *testing.T) {
-		originalErr := errors.New("original error message")
+		originalErr := fmt.Errorf("original error message")
 		handler.HandleError(ctx, originalErr, "test_source")
 
 		// Verify error message is preserved
@@ -262,9 +261,9 @@ func TestProperty18ErrorLoggingWithContext(t *testing.T) {
 			err      error
 			expected ErrorCategory
 		}{
-			{errors.New("timeout"), ErrorCategoryTransient},
-			{errors.New("invalid"), ErrorCategoryPermanent},
-			{errors.New("data corruption"), ErrorCategoryCritical},
+			{core.ErrTimeout, ErrorCategoryTransient},
+			{core.ErrBadRequest, ErrorCategoryPermanent},
+			{core.ErrDataCorruption, ErrorCategoryCritical},
 		}
 
 		for _, cat := range categories {

@@ -3,9 +3,11 @@ package grpc
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net"
 	"sync"
 
+	api "chainpulse/pkg/plugins/api"
 	"google.golang.org/grpc"
 
 	"chainpulse/pkg/plugins/api/core"
@@ -13,16 +15,18 @@ import (
 
 // GRPCPlugin implements the gRPC protocol handler
 type GRPCPlugin struct {
-	name       string
-	port       int
-	apiLayer   *core.APILayer
-	server     *grpc.Server
-	processor  core.RequestProcessor
-	mu         sync.RWMutex
-	running    bool
-	middleware []core.Middleware
-	listener   net.Listener
-	router     *core.APIRouter
+	name              string
+	port              int
+	apiLayer          *core.APILayer
+	server            *grpc.Server
+	processor         core.RequestProcessor
+	mu                sync.RWMutex
+	running           bool
+	middleware        []core.Middleware
+	listener          net.Listener
+	router            *core.APIRouter
+	validator         *api.TokenValidator
+	chainPulseService *ChainPulseService
 }
 
 // NewGRPCPlugin creates a new gRPC plugin
@@ -41,33 +45,58 @@ func NewGRPCPlugin(name string, port int, apiLayer *core.APILayer) *GRPCPlugin {
 // Start starts the gRPC server
 func (p *GRPCPlugin) Start() error {
 	p.mu.Lock()
-	defer p.mu.Unlock()
 
 	if p.running {
+		p.mu.Unlock()
 		return fmt.Errorf("gRPC plugin already running")
 	}
 
 	// Create listener
 	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", p.port))
 	if err != nil {
+		p.mu.Unlock()
 		return err
 	}
 
 	p.listener = listener
 
-	// Create gRPC server
-	p.server = grpc.NewServer()
+	// Create gRPC server with auth interceptors
+	opts := []grpc.ServerOption{
+		grpc.UnaryInterceptor(UnaryAuthInterceptor(p.validator)),
+		grpc.StreamInterceptor(StreamAuthInterceptor(p.validator)),
+	}
+	p.server = grpc.NewServer(opts...)
+
+	// Register ChainPulseAPI service if available
+	if p.chainPulseService != nil {
+		p.chainPulseService.RegisterWithServer(p.server)
+	}
 
 	p.running = true
 
+	// Capture references before spawning goroutine to avoid race
+	srv := p.server
+	ln := p.listener
+	p.mu.Unlock()
+
 	// Start server in background
 	go func() {
-		if err := p.server.Serve(p.listener); err != nil {
-			fmt.Printf("gRPC server error: %v\n", err)
+		if err := srv.Serve(ln); err != nil {
+			slog.Error("gRPC server error", "error", err)
 		}
 	}()
 
 	return nil
+}
+
+// SetValidator sets the token validator for gRPC authentication
+func (p *GRPCPlugin) SetValidator(validator *api.TokenValidator) {
+	p.validator = validator
+}
+
+// SetChainPulseService sets the ChainPulseAPI service implementation
+func (p *GRPCPlugin) SetChainPulseService(service *ChainPulseService) {
+	p.chainPulseService = service
 }
 
 // Stop stops the gRPC server

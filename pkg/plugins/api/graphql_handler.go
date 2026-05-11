@@ -10,7 +10,17 @@ import (
 	"chainpulse/pkg/core"
 	domainquery "chainpulse/pkg/domain/query"
 	"github.com/graphql-go/graphql"
+	"github.com/graphql-go/graphql/language/ast"
 )
+
+// jsonScalar is a custom GraphQL scalar that passes through arbitrary JSON values
+var jsonScalar = graphql.NewScalar(graphql.ScalarConfig{
+	Name:         "JSON",
+	Description:  "Arbitrary JSON value",
+	Serialize:    func(value interface{}) interface{} { return value },
+	ParseValue:   func(value interface{}) interface{} { return value },
+	ParseLiteral: func(valueAST ast.Value) interface{} { return nil },
+})
 
 type GraphQLRequest struct {
 	Query         string                 `json:"query"`
@@ -24,9 +34,10 @@ type GraphQLResponse struct {
 }
 
 type GraphQLError struct {
-	Message   string        `json:"message"`
-	Locations []Location    `json:"locations,omitempty"`
-	Path      []interface{} `json:"path,omitempty"`
+	Message    string                 `json:"message"`
+	Locations  []Location             `json:"locations,omitempty"`
+	Path       []interface{}          `json:"path,omitempty"`
+	Extensions map[string]interface{} `json:"extensions,omitempty"`
 }
 
 type Location struct {
@@ -78,8 +89,11 @@ func (h *GraphQLHandler) buildSchema() (*graphql.Schema, error) {
 			"logIndex":         &graphql.Field{Type: graphql.Int},
 			"contractAddress":  &graphql.Field{Type: graphql.String},
 			"eventName":        &graphql.Field{Type: graphql.String},
+			"eventSignature":   &graphql.Field{Type: graphql.String},
+			"eventData":        &graphql.Field{Type: jsonScalar},
 			"chainId":          &graphql.Field{Type: graphql.String},
 			"status":           &graphql.Field{Type: graphql.String},
+			"processedAt":      &graphql.Field{Type: graphql.Int},
 		},
 	})
 
@@ -128,7 +142,7 @@ func (h *GraphQLHandler) buildSchema() (*graphql.Schema, error) {
 					}
 					evt, err := h.eventStore.GetEvent(p.Context, id)
 					if err != nil {
-						return nil, fmt.Errorf("failed to get event: %w", err)
+						return nil, fmt.Errorf("failed to get event")
 					}
 					if evt == nil {
 						return nil, nil
@@ -152,8 +166,10 @@ func (h *GraphQLHandler) buildSchema() (*graphql.Schema, error) {
 						first = 100
 					}
 
-					_, hasChainID := p.Args["chainId"]
-					_ = hasChainID
+					chainID := 0 // 0 = all chains
+					if cid, ok := p.Args["chainId"].(string); ok && cid != "" {
+						chainID = core.ResolveChainID(cid)
+					}
 
 					if h.eventStore == nil {
 						return map[string]interface{}{
@@ -166,9 +182,9 @@ func (h *GraphQLHandler) buildSchema() (*graphql.Schema, error) {
 						}, nil
 					}
 
-					events, err := h.eventStore.GetEventsByChain(p.Context, 0, first, 0)
+					events, err := h.eventStore.GetEventsByChain(p.Context, chainID, first, 0)
 					if err != nil {
-						return nil, fmt.Errorf("failed to list events: %w", err)
+						return nil, fmt.Errorf("failed to list events")
 					}
 
 					edges := make([]interface{}, len(events))
@@ -207,17 +223,7 @@ func (h *GraphQLHandler) buildSchema() (*graphql.Schema, error) {
 					"hash":   &graphql.ArgumentConfig{Type: graphql.String},
 				},
 				Resolve: func(p graphql.ResolveParams) (interface{}, error) {
-					number, _ := p.Args["number"].(int)
-					if number == 0 {
-						number = 1
-					}
-					return map[string]interface{}{
-						"number":       number,
-						"hash":         "0xabc123",
-						"parentHash":   "0xdef456",
-						"timestamp":    1775479000,
-						"transactions": []string{},
-					}, nil
+					return nil, fmt.Errorf("block queries are not supported; use the events query instead")
 				},
 			},
 		},
@@ -227,7 +233,7 @@ func (h *GraphQLHandler) buildSchema() (*graphql.Schema, error) {
 		Query: queryType,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to create schema: %w", err)
+		return nil, fmt.Errorf("failed to create schema")
 	}
 
 	h.logger.Info("GraphQL schema built successfully")
@@ -251,8 +257,11 @@ func eventToMap(evt interface{}) map[string]interface{} {
 			"logIndex":         e.LogIndex,
 			"contractAddress":  e.ContractAddress.Hex(),
 			"eventName":        e.EventName,
+			"eventSignature":   e.EventSignature.Hex(),
+			"eventData":        eventDataMap(e.DecodedData),
 			"chainId":          e.ChainID,
 			"status":           string(e.Status),
+			"processedAt":      e.BlockTimestamp,
 		}
 	}
 
@@ -268,12 +277,22 @@ func eventToMap(evt interface{}) map[string]interface{} {
 			"logIndex":         e.LogIndex,
 			"contractAddress":  e.ContractAddress.Hex(),
 			"eventName":        e.EventName,
+			"eventSignature":   e.EventSignature.Hex(),
+			"eventData":        eventDataMap(e.DecodedData),
 			"chainId":          e.ChainID,
 			"status":           string(e.Status),
+			"processedAt":      e.BlockTimestamp,
 		}
 	}
 
 	return map[string]interface{}{"id": "unknown"}
+}
+
+func eventDataMap(data map[string]interface{}) map[string]interface{} {
+	if data == nil {
+		return map[string]interface{}{}
+	}
+	return data
 }
 
 // Initialize initializes the GraphQL handler
@@ -358,14 +377,14 @@ func (h *GraphQLHandler) handlePost(w http.ResponseWriter, r *http.Request) {
 	if strings.Contains(contentType, "application/json") {
 		var gqlReq GraphQLRequest
 		if err := json.NewDecoder(r.Body).Decode(&gqlReq); err != nil {
-			h.writeError(w, http.StatusBadRequest, fmt.Sprintf("Invalid JSON: %v", err))
+			h.writeError(w, http.StatusBadRequest, "invalid JSON in request body")
 			return
 		}
 		query = gqlReq.Query
 		variables = gqlReq.Variables
 	} else {
 		if err := r.ParseForm(); err != nil {
-			h.writeError(w, http.StatusBadRequest, fmt.Sprintf("Failed to parse request: %v", err))
+			h.writeError(w, http.StatusBadRequest, "failed to parse request")
 			return
 		}
 		query = r.FormValue("query")

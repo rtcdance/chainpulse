@@ -7,7 +7,14 @@ import (
 	"time"
 )
 
-// EventStore defines the interface for event storage
+// EventStore defines the interface for event storage.
+// Note: This interface operates on the local *Event type (not *core.BlockchainEvent)
+// and uses a different method set than the domain/service-layer EventStore interfaces.
+//
+// See also:
+//   - pkg/domain/query/event_store.go — domain-layer EventStore (*core.BlockchainEvent, full CRUD)
+//   - pkg/services/query/event_store.go — service-layer EventStore (*core.BlockchainEvent, with doc comments)
+//   - pkg/services/processor/event_processor.go — EventStorage (minimal write-only interface)
 type EventStore interface {
 	StoreEvent(ctx context.Context, event *Event) error
 	StoreBatch(ctx context.Context, events []*Event) error

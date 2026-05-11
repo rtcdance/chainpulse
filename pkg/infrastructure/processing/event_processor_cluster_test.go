@@ -143,7 +143,7 @@ func TestClusterProcessBatch(t *testing.T) {
 			EventName:       "Transfer",
 			TransactionHash: fmt.Sprintf("0x%d", i),
 			BlockNumber:     uint64(100 + i),
-			LogIndex:        uint(i),
+			LogIndex:        uint64(i),
 			EventData:       make(map[string]interface{}),
 		}
 	}
@@ -338,7 +338,7 @@ func TestClusterConcurrentProcessing(t *testing.T) {
 				EventName:       "Transfer",
 				TransactionHash: fmt.Sprintf("0x%d", id),
 				BlockNumber:     uint64(100 + id),
-				LogIndex:        uint(id),
+				LogIndex:        uint64(id),
 				EventData:       make(map[string]interface{}),
 			}
 			if err := cluster.ProcessEvent(ctx, event); err == nil {

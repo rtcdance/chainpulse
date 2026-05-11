@@ -15,7 +15,7 @@ type GRPCRequest struct {
 }
 
 // NewGRPCRequest creates a new gRPC request adapter
-func NewGRPCRequest(method, path string, headers map[string]string, body []byte, ctx context.Context) *GRPCRequest {
+func NewGRPCRequest(method, path string, headers map[string]string, body []byte, ctx context.Context) *GRPCRequest { //nolint:revive // ctx cannot be first param; method is the primary identifier
 	if headers == nil {
 		headers = make(map[string]string)
 	}

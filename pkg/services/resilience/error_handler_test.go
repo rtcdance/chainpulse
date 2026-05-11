@@ -3,6 +3,7 @@ package resilience
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	"chainpulse/pkg/core"
@@ -12,12 +13,12 @@ func TestErrorClassifierTransient(t *testing.T) {
 	classifier := NewDefaultErrorClassifier()
 
 	transientErrors := []error{
-		errors.New("timeout"),
-		errors.New("connection refused"),
-		errors.New("connection reset"),
-		errors.New("temporary failure"),
-		errors.New("unavailable"),
-		errors.New("deadline exceeded"),
+		core.ErrTimeout,
+		core.ErrConnectionRefused,
+		core.ErrConnectionReset,
+		core.ErrTemporaryFailure,
+		core.ErrUnavailable,
+		core.ErrDeadlineExceeded,
 	}
 
 	for _, err := range transientErrors {
@@ -44,13 +45,12 @@ func TestErrorClassifierPermanent(t *testing.T) {
 	classifier := NewDefaultErrorClassifier()
 
 	permanentErrors := []error{
-		errors.New("invalid configuration"),
-		errors.New("unauthorized access"),
-		errors.New("forbidden resource"),
-		errors.New("not found"),
-		errors.New("bad request"),
-		errors.New("corrupted data"),
-		errors.New("authentication failed"),
+		core.ErrBadRequest,
+		core.ErrUnauthorized,
+		core.ErrForbidden,
+		core.ErrNotFound,
+		core.ErrInvalidState,
+		core.ErrAuthFailed,
 	}
 
 	for _, err := range permanentErrors {
@@ -77,10 +77,9 @@ func TestErrorClassifierCritical(t *testing.T) {
 	classifier := NewDefaultErrorClassifier()
 
 	criticalErrors := []error{
-		errors.New("data corruption detected"),
-		errors.New("critical error occurred"),
-		errors.New("fatal system error"),
-		errors.New("panic in handler"),
+		core.ErrDataCorruption,
+		core.ErrCriticalFailure,
+		core.ErrFatalError,
 	}
 
 	for _, err := range criticalErrors {
@@ -215,7 +214,7 @@ func TestErrorHandlerHandleError(t *testing.T) {
 	handler := NewErrorHandler(logger, metricsCollector)
 
 	ctx := context.Background()
-	err := errors.New("timeout")
+	err := core.ErrTimeout
 
 	// Should not panic
 	handler.HandleError(ctx, err, "test_source")
@@ -226,7 +225,7 @@ func TestErrorHandlerHandleError(t *testing.T) {
 	}
 
 	// Test with permanent error
-	err = errors.New("invalid configuration")
+	err = core.ErrBadRequest
 	handler.HandleError(ctx, err, "test_source")
 
 	if !handler.IsPermanent(err) {
@@ -234,7 +233,7 @@ func TestErrorHandlerHandleError(t *testing.T) {
 	}
 
 	// Test with critical error
-	err = errors.New("data corruption")
+	err = core.ErrDataCorruption
 	handler.HandleError(ctx, err, "test_source")
 
 	if !handler.IsCritical(err) {
@@ -254,10 +253,10 @@ func TestErrorHandlerClassify(t *testing.T) {
 		err      error
 		expected ErrorCategory
 	}{
-		{errors.New("timeout"), ErrorCategoryTransient},
-		{errors.New("invalid"), ErrorCategoryPermanent},
-		{errors.New("data corruption"), ErrorCategoryCritical},
-		{errors.New("unknown error"), ErrorCategoryUnknown},
+		{core.ErrTimeout, ErrorCategoryTransient},
+		{core.ErrBadRequest, ErrorCategoryPermanent},
+		{core.ErrDataCorruption, ErrorCategoryCritical},
+		{errors.New("unknown error"), ErrorCategoryPermanent}, // untyped defaults to permanent
 		{nil, ErrorCategoryUnknown},
 	}
 
@@ -280,7 +279,7 @@ func TestErrorHandlerConcurrentHandling(t *testing.T) {
 	// Concurrent error handling
 	for i := 0; i < 20; i++ {
 		go func(index int) {
-			err := errors.New("timeout")
+			err := core.ErrTimeout
 			handler.HandleError(ctx, err, "test_source")
 			done <- true
 		}(i)
@@ -302,7 +301,7 @@ func TestErrorHandlerWithContextProviders(t *testing.T) {
 	handler.RegisterContextProvider("test", contextProvider)
 
 	ctx := context.Background()
-	err := errors.New("timeout")
+	err := core.ErrTimeout
 
 	// Should not panic and should use context provider
 	handler.HandleError(ctx, err, "test_source")
@@ -316,15 +315,15 @@ func TestErrorHandlerMetricsRecording(t *testing.T) {
 	ctx := context.Background()
 
 	// Record transient error
-	err := errors.New("timeout")
+	err := core.ErrTimeout
 	handler.HandleError(ctx, err, "test_source")
 
 	// Record permanent error
-	err = errors.New("invalid")
+	err = core.ErrBadRequest
 	handler.HandleError(ctx, err, "test_source")
 
 	// Record critical error
-	err = errors.New("data corruption")
+	err = core.ErrDataCorruption
 	handler.HandleError(ctx, err, "test_source")
 
 	// Verify metrics were recorded
@@ -347,7 +346,7 @@ func TestErrorHandlerMultipleLoggers(t *testing.T) {
 	handler.RegisterErrorLogger("logger2", errorLogger2)
 
 	ctx := context.Background()
-	err := errors.New("timeout")
+	err := core.ErrTimeout
 
 	// Should use all registered loggers
 	handler.HandleError(ctx, err, "test_source")
@@ -365,36 +364,40 @@ func TestErrorHandlerErrorClassification(t *testing.T) {
 	metricsCollector := core.NewDefaultMetricsCollector()
 	handler := NewErrorHandler(logger, metricsCollector)
 
-	// Test various error messages
+	// Test typed sentinel error classification
 	tests := []struct {
-		errMsg   string
+		err      error
 		expected ErrorCategory
 	}{
-		{"connection timeout", ErrorCategoryTransient},
-		{"connection refused", ErrorCategoryTransient},
-		{"connection reset", ErrorCategoryTransient},
-		{"temporary failure", ErrorCategoryTransient},
-		{"service unavailable", ErrorCategoryTransient},
-		{"deadline exceeded", ErrorCategoryTransient},
-		{"invalid request", ErrorCategoryPermanent},
-		{"unauthorized", ErrorCategoryPermanent},
-		{"forbidden", ErrorCategoryPermanent},
-		{"not found", ErrorCategoryPermanent},
-		{"bad request", ErrorCategoryPermanent},
-		{"corrupted data", ErrorCategoryPermanent},
-		{"authentication failed", ErrorCategoryPermanent},
-		{"data corruption detected", ErrorCategoryCritical},
-		{"critical error", ErrorCategoryCritical},
-		{"fatal error", ErrorCategoryCritical},
-		{"panic", ErrorCategoryCritical},
-		{"unknown error", ErrorCategoryUnknown},
+		// Transient sentinels
+		{core.ErrTimeout, ErrorCategoryTransient},
+		{core.ErrConnectionRefused, ErrorCategoryTransient},
+		{core.ErrConnectionReset, ErrorCategoryTransient},
+		{core.ErrTemporaryFailure, ErrorCategoryTransient},
+		{core.ErrUnavailable, ErrorCategoryTransient},
+		{core.ErrDeadlineExceeded, ErrorCategoryTransient},
+		// Permanent sentinels
+		{core.ErrUnauthorized, ErrorCategoryPermanent},
+		{core.ErrForbidden, ErrorCategoryPermanent},
+		{core.ErrNotFound, ErrorCategoryPermanent},
+		{core.ErrBadRequest, ErrorCategoryPermanent},
+		{core.ErrInvalidState, ErrorCategoryPermanent},
+		{core.ErrAuthFailed, ErrorCategoryPermanent},
+		// Critical sentinels
+		{core.ErrDataCorruption, ErrorCategoryCritical},
+		{core.ErrCriticalFailure, ErrorCategoryCritical},
+		{core.ErrFatalError, ErrorCategoryCritical},
+		// Untyped errors default to permanent
+		{errors.New("unknown error"), ErrorCategoryPermanent},
+		// Wrapped errors preserve type via errors.Is
+		{fmt.Errorf("wrapped: %w", core.ErrTimeout), ErrorCategoryTransient},
+		{fmt.Errorf("wrapped: %w", core.ErrDataCorruption), ErrorCategoryCritical},
 	}
 
 	for _, test := range tests {
-		err := errors.New(test.errMsg)
-		category := handler.Classify(err)
+		category := handler.Classify(test.err)
 		if category != test.expected {
-			t.Errorf("For error '%s': expected %s, got %s", test.errMsg, test.expected, category)
+			t.Errorf("For error %v: expected %s, got %s", test.err, test.expected, category)
 		}
 	}
 }

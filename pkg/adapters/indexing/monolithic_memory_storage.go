@@ -181,6 +181,21 @@ func (db *MonolithicMemoryDatabase) DeleteEventsByBlockRange(ctx context.Context
 	return deleted, nil
 }
 
+func (db *MonolithicMemoryDatabase) MarkEventsAsReorged(ctx context.Context, fromBlock, toBlock uint64) (int64, error) {
+	db.mu.Lock()
+	defer db.mu.Unlock()
+
+	var count int64
+	for id, event := range db.events {
+		if event.BlockNumber >= fromBlock && event.BlockNumber <= toBlock {
+			event.Status = core.EventStatusReorged
+			db.events[id] = event
+			count++
+		}
+	}
+	return count, nil
+}
+
 func (db *MonolithicMemoryDatabase) GetReorgStats(ctx context.Context) (*core.ReorgStats, error) {
 	return &core.ReorgStats{}, nil
 }

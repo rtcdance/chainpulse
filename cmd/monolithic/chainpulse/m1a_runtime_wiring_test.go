@@ -132,7 +132,7 @@ func TestNewMonolithicPullerRuntimeRequiresAlignedChainsAndNodeURLs(t *testing.T
 		t.Fatalf("start db: %v", err)
 	}
 
-	_, err := newMonolithicPullerRuntime(core.Config{}, "http://localhost:8545", []string{"ethereum", "polygon"}, logger, metrics, db, indexer)
+	_, err := newMonolithicPullerRuntime(context.Background(), core.Config{}, "http://localhost:8545", []string{"ethereum", "polygon"}, logger, metrics, db, indexer)
 	if err == nil {
 		t.Fatalf("expected alignment error")
 	}
@@ -150,7 +150,7 @@ func TestMonolithicPullerRuntimeObserveEventDetectsAndHandlesReorg(t *testing.T)
 		t.Fatalf("start db: %v", err)
 	}
 
-	runtime, err := newMonolithicPullerRuntime(core.Config{}, "http://localhost:8545", []string{"ethereum"}, logger, metrics, db, indexer)
+	runtime, err := newMonolithicPullerRuntime(context.Background(), core.Config{}, "http://localhost:8545", []string{"ethereum"}, logger, metrics, db, indexer)
 	if err != nil {
 		t.Fatalf("new runtime: %v", err)
 	}
@@ -190,8 +190,11 @@ func TestMonolithicPullerRuntimeObserveEventDetectsAndHandlesReorg(t *testing.T)
 	if err != nil {
 		t.Fatalf("get old event after reorg: %v", err)
 	}
-	if removed != nil {
-		t.Fatalf("expected old event to be rolled back, got %#v", removed)
+	if removed == nil {
+		t.Fatalf("expected old event to be marked as reorged, got nil")
+	}
+	if removed.Status != core.EventStatusReorged {
+		t.Fatalf("expected old event status %q, got %q", core.EventStatusReorged, removed.Status)
 	}
 
 	block, err = db.GetBlock(context.Background(), 12)

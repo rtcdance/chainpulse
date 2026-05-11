@@ -87,10 +87,11 @@ func (h *DefaultHealthChecker) Check(ctx context.Context) (HealthStatus, error) 
 	status.Details["metrics"] = metricsHealth
 
 	// Determine overall status
-	if !pluginHealth["healthy"].(bool) ||
-		!configHealth["healthy"].(bool) ||
-		!eventBusHealth["healthy"].(bool) ||
-		!metricsHealth["healthy"].(bool) {
+	pluginOk, _ := pluginHealth["healthy"].(bool)
+	configOk, _ := configHealth["healthy"].(bool)
+	eventBusOk, _ := eventBusHealth["healthy"].(bool)
+	metricsOk, _ := metricsHealth["healthy"].(bool)
+	if !pluginOk || !configOk || !eventBusOk || !metricsOk {
 		status.Status = "unhealthy"
 		status.Message = "one or more components are unhealthy"
 	} else {

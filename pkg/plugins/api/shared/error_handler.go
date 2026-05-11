@@ -1,7 +1,11 @@
 package shared
 
 import (
+	"context"
+	"errors"
 	"fmt"
+	"net"
+	"strings"
 	"sync"
 	"time"
 )
@@ -183,7 +187,20 @@ func (eh *ErrorHandler) ClassifyError(err error) ErrorClassification {
 		return ErrorUnknown
 	}
 
+	// Use errors.Is / errors.As for known types before falling back to string matching.
+	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+		return ErrorTransient
+	}
+
+	var netErr net.Error
+	if errors.As(err, &netErr) {
+		// Network errors (timeouts, connection resets) are transient
+		return ErrorTransient
+	}
+
+	// Fallback to string matching for untyped errors
 	errMsg := err.Error()
+	errLower := strings.ToLower(errMsg)
 
 	// Transient errors
 	transientPatterns := []string{
@@ -196,13 +213,8 @@ func (eh *ErrorHandler) ClassifyError(err error) ErrorClassification {
 	}
 
 	for _, pattern := range transientPatterns {
-		if len(errMsg) > 0 && len(pattern) > 0 {
-			// Simple substring check
-			for i := 0; i <= len(errMsg)-len(pattern); i++ {
-				if errMsg[i:i+len(pattern)] == pattern {
-					return ErrorTransient
-				}
-			}
+		if strings.Contains(errLower, pattern) {
+			return ErrorTransient
 		}
 	}
 
@@ -216,12 +228,8 @@ func (eh *ErrorHandler) ClassifyError(err error) ErrorClassification {
 	}
 
 	for _, pattern := range permanentPatterns {
-		if len(errMsg) > 0 && len(pattern) > 0 {
-			for i := 0; i <= len(errMsg)-len(pattern); i++ {
-				if errMsg[i:i+len(pattern)] == pattern {
-					return ErrorPermanent
-				}
-			}
+		if strings.Contains(errLower, pattern) {
+			return ErrorPermanent
 		}
 	}
 

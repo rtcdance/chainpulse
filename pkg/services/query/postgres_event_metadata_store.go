@@ -3,6 +3,7 @@ package query
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -43,7 +44,7 @@ func (s *PostgreSQLEventMetadataStore) Initialize(ctx context.Context) error {
 	// Get PostgreSQL connection
 	db, err := s.dbManager.GetPostgresDB(ctx)
 	if err != nil {
-		s.logger.Error("Failed to get PostgreSQL connection", "error", err.Error())
+		s.logger.Error("Failed to get PostgreSQL connection", "error", err)
 		return fmt.Errorf("failed to get PostgreSQL connection: %w", err)
 	}
 
@@ -51,11 +52,15 @@ func (s *PostgreSQLEventMetadataStore) Initialize(ctx context.Context) error {
 		return fmt.Errorf("PostgreSQL connection is nil")
 	}
 
-	s.db = db.(*sql.DB)
+	sqlDB, ok := db.(*sql.DB)
+	if !ok {
+		return fmt.Errorf("expected *sql.DB, got %T", db)
+	}
+	s.db = sqlDB
 
 	// Create table if it doesn't exist
 	if err := s.createTable(ctx); err != nil {
-		s.logger.Error("Failed to create table", "error", err.Error())
+		s.logger.Error("Failed to create table", "error", err)
 		return fmt.Errorf("failed to create table: %w", err)
 	}
 
@@ -98,16 +103,16 @@ func (s *PostgreSQLEventMetadataStore) createTable(ctx context.Context) error {
 
 	// Create indexes
 	createIndexSQL := `
-	CREATE INDEX IF NOT EXISTS idx_events_metadata_chain_block 
+	CREATE INDEX IF NOT EXISTS idx_events_metadata_chain_block
 	ON events_metadata(chain_id, block_number DESC);
-	
-	CREATE INDEX IF NOT EXISTS idx_events_metadata_contract_event 
+
+	CREATE INDEX IF NOT EXISTS idx_events_metadata_contract_event
 	ON events_metadata(contract_address, event_name);
-	
-	CREATE INDEX IF NOT EXISTS idx_events_metadata_processed_at 
+
+	CREATE INDEX IF NOT EXISTS idx_events_metadata_processed_at
 	ON events_metadata(processed_at DESC);
-	
-	CREATE INDEX IF NOT EXISTS idx_events_metadata_status 
+
+	CREATE INDEX IF NOT EXISTS idx_events_metadata_status
 	ON events_metadata(processing_status);
 	`
 
@@ -117,6 +122,20 @@ func (s *PostgreSQLEventMetadataStore) createTable(ctx context.Context) error {
 			return nil
 		}
 		return fmt.Errorf("failed to create indexes: %w", err)
+	}
+
+	// Add unique constraint on natural key to prevent duplicate indexing
+	alterSQL := `
+	ALTER TABLE events_metadata
+	    ADD CONSTRAINT uq_events_metadata_natural_key
+	    UNIQUE (chain_id, block_number, transaction_hash, log_index);
+	`
+	_, err = s.db.ExecContext(ctx, alterSQL)
+	if err != nil {
+		if isIgnorablePostgresSchemaConflict(err) || strings.Contains(err.Error(), "already exists") {
+			return nil
+		}
+		return fmt.Errorf("failed to add natural key constraint: %w", err)
 	}
 
 	return nil
@@ -183,7 +202,7 @@ func (s *PostgreSQLEventMetadataStore) InsertMetadata(ctx context.Context, metad
 	}()
 
 	if err != nil {
-		s.logger.Error("Failed to insert metadata", "eventId", metadata.EventID, "error", err.Error())
+		s.logger.Error("Failed to insert metadata", "eventId", metadata.EventID, "error", err)
 		s.metrics.RecordCounter("postgres_metadata_insert_error", int64(1), nil)
 		return fmt.Errorf("failed to insert metadata: %w", err)
 	}
@@ -215,7 +234,7 @@ func (s *PostgreSQLEventMetadataStore) InsertMetadataBatch(ctx context.Context, 
 	// Start transaction
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
-		s.logger.Error("Failed to begin transaction", "error", err.Error())
+		s.logger.Error("Failed to begin transaction", "error", err)
 		s.metrics.RecordCounter("postgres_metadata_batch_insert_error", int64(1), nil)
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
@@ -247,7 +266,7 @@ func (s *PostgreSQLEventMetadataStore) InsertMetadataBatch(ctx context.Context, 
 			metadata.ProcessedAt, now, now,
 		).Scan(&metadata.ID)
 		if err != nil {
-			s.logger.Error("Failed to insert metadata in batch", "eventId", metadata.EventID, "error", err.Error())
+			s.logger.Error("Failed to insert metadata in batch", "eventId", metadata.EventID, "error", err)
 			s.metrics.RecordCounter("postgres_metadata_batch_insert_error", int64(1), nil)
 			return fmt.Errorf("failed to insert metadata in batch: %w", err)
 		}
@@ -255,7 +274,7 @@ func (s *PostgreSQLEventMetadataStore) InsertMetadataBatch(ctx context.Context, 
 
 	// Commit transaction
 	if err := tx.Commit(); err != nil {
-		s.logger.Error("Failed to commit transaction", "error", err.Error())
+		s.logger.Error("Failed to commit transaction", "error", err)
 		s.metrics.RecordCounter("postgres_metadata_batch_insert_error", int64(1), nil)
 		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
@@ -292,19 +311,12 @@ func (s *PostgreSQLEventMetadataStore) GetMetadata(ctx context.Context, eventID 
 	WHERE event_id = $1
 	`
 
-	metadata := &EventMetadata{}
-	err := s.db.QueryRowContext(ctx, query, eventID).Scan(
-		&metadata.ID, &metadata.EventID, &metadata.ChainID, &metadata.BlockNumber,
-		&metadata.TransactionHash, &metadata.LogIndex, &metadata.ContractAddress,
-		&metadata.EventName, &metadata.ProcessingStatus, &metadata.ProcessingError,
-		&metadata.RetryCount, &metadata.LastRetryAt, &metadata.ProcessedAt,
-		&metadata.CreatedAt, &metadata.UpdatedAt,
-	)
+	metadata, err := scanEventMetadataRow(s.db.QueryRowContext(ctx, query, eventID))
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
-		s.logger.Error("Failed to get metadata", "eventId", eventID, "error", err.Error())
+		s.logger.Error("Failed to get metadata", "eventId", eventID, "error", err)
 		s.metrics.RecordCounter("postgres_metadata_get_error", int64(1), nil)
 		return nil, fmt.Errorf("failed to get metadata: %w", err)
 	}
@@ -341,7 +353,7 @@ func (s *PostgreSQLEventMetadataStore) GetMetadataByChain(ctx context.Context, c
 
 	rows, err := s.db.QueryContext(ctx, query, chainID, limit, offset)
 	if err != nil {
-		s.logger.Error("Failed to query metadata by chain", "chainId", chainID, "error", err.Error())
+		s.logger.Error("Failed to query metadata by chain", "chainId", chainID, "error", err)
 		s.metrics.RecordCounter("postgres_metadata_query_chain_error", int64(1), nil)
 		return nil, fmt.Errorf("failed to query metadata by chain: %w", err)
 	}
@@ -349,28 +361,51 @@ func (s *PostgreSQLEventMetadataStore) GetMetadataByChain(ctx context.Context, c
 
 	var metadataList []*EventMetadata
 	for rows.Next() {
-		metadata := &EventMetadata{}
-		err := rows.Scan(
-			&metadata.ID, &metadata.EventID, &metadata.ChainID, &metadata.BlockNumber,
-			&metadata.TransactionHash, &metadata.LogIndex, &metadata.ContractAddress,
-			&metadata.EventName, &metadata.ProcessingStatus, &metadata.ProcessingError,
-			&metadata.RetryCount, &metadata.LastRetryAt, &metadata.ProcessedAt,
-			&metadata.CreatedAt, &metadata.UpdatedAt,
-		)
+		metadata, err := scanEventMetadataRow(rows)
 		if err != nil {
-			s.logger.Error("Failed to scan metadata", "error", err.Error())
+			s.logger.Error("Failed to scan metadata", "error", err)
 			return nil, fmt.Errorf("failed to scan metadata: %w", err)
 		}
 		metadataList = append(metadataList, metadata)
 	}
 
 	if err := rows.Err(); err != nil {
-		s.logger.Error("Error iterating metadata rows", "error", err.Error())
+		s.logger.Error("Error iterating metadata rows", "error", err)
 		return nil, fmt.Errorf("error iterating metadata rows: %w", err)
 	}
 
 	s.metrics.RecordHistogram("postgres_metadata_query_chain_success", float64(len(metadataList)), nil)
 	return metadataList, nil
+}
+
+type metadataRowScanner interface {
+	Scan(dest ...interface{}) error
+}
+
+func scanEventMetadataRow(scanner metadataRowScanner) (*EventMetadata, error) {
+	metadata := &EventMetadata{}
+	var processingError sql.NullString
+	var lastRetryAt sql.NullTime
+
+	err := scanner.Scan(
+		&metadata.ID, &metadata.EventID, &metadata.ChainID, &metadata.BlockNumber,
+		&metadata.TransactionHash, &metadata.LogIndex, &metadata.ContractAddress,
+		&metadata.EventName, &metadata.ProcessingStatus, &processingError,
+		&metadata.RetryCount, &lastRetryAt, &metadata.ProcessedAt,
+		&metadata.CreatedAt, &metadata.UpdatedAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	if processingError.Valid {
+		metadata.ProcessingError = processingError.String
+	}
+	if lastRetryAt.Valid {
+		retryAt := lastRetryAt.Time
+		metadata.LastRetryAt = &retryAt
+	}
+
+	return metadata, nil
 }
 
 // UpdateMetadata updates metadata for an event
@@ -407,14 +442,14 @@ func (s *PostgreSQLEventMetadataStore) UpdateMetadata(ctx context.Context, metad
 		metadata.LastRetryAt, now, metadata.EventID,
 	)
 	if err != nil {
-		s.logger.Error("Failed to update metadata", "eventId", metadata.EventID, "error", err.Error())
+		s.logger.Error("Failed to update metadata", "eventId", metadata.EventID, "error", err)
 		s.metrics.RecordCounter("postgres_metadata_update_error", int64(1), nil)
 		return fmt.Errorf("failed to update metadata: %w", err)
 	}
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		s.logger.Error("Failed to get rows affected", "error", err.Error())
+		s.logger.Error("Failed to get rows affected", "error", err)
 		return fmt.Errorf("failed to get rows affected: %w", err)
 	}
 

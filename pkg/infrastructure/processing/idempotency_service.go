@@ -7,15 +7,15 @@ import (
 	"time"
 )
 
-// IdempotencyService manages event idempotency
+// IdempotencyService manages event idempotency.
+// Blockchain events have a permanent natural key (chain_id, block_number, tx_hash, log_index)
+// that will never repeat, so processed records are never evicted.
+// Database-level unique constraints provide the ultimate dedup guarantee.
 type IdempotencyService struct {
 	mu              sync.RWMutex
 	processedEvents map[string]*ProcessedEventRecord
 	duplicateCount  int64
 	checkCount      int64
-	cleanupInterval time.Duration
-	recordTTL       time.Duration
-	lastCleanupTime time.Time
 	counterMu       sync.Mutex // Separate mutex for counter updates
 }
 
@@ -23,19 +23,16 @@ type IdempotencyService struct {
 type ProcessedEventRecord struct {
 	EventHash     string
 	ProcessedAt   time.Time
-	ExpiresAt     time.Time
 	ChainID       string
 	TransactionID string
+	BlockNumber   uint64 // stored for range-based invalidation on reorg
 	Status        string // "success", "failed", "pending"
 }
 
 // NewIdempotencyService creates a new idempotency service
-func NewIdempotencyService(recordTTL time.Duration) *IdempotencyService {
+func NewIdempotencyService() *IdempotencyService {
 	return &IdempotencyService{
 		processedEvents: make(map[string]*ProcessedEventRecord),
-		recordTTL:       recordTTL,
-		cleanupInterval: 5 * time.Minute,
-		lastCleanupTime: time.Now(),
 	}
 }
 
@@ -52,13 +49,8 @@ func (is *IdempotencyService) IsDuplicate(ctx context.Context, eventHash string)
 	is.mu.RLock()
 	defer is.mu.RUnlock()
 
-	record, exists := is.processedEvents[eventHash]
+	_, exists := is.processedEvents[eventHash]
 	if !exists {
-		return false, nil
-	}
-
-	// Check if record has expired
-	if time.Now().After(record.ExpiresAt) {
 		return false, nil
 	}
 
@@ -70,7 +62,7 @@ func (is *IdempotencyService) IsDuplicate(ctx context.Context, eventHash string)
 }
 
 // MarkProcessed marks an event as processed
-func (is *IdempotencyService) MarkProcessed(ctx context.Context, eventHash, chainID, txID string, status string) error {
+func (is *IdempotencyService) MarkProcessed(ctx context.Context, eventHash, chainID, txID string, blockNumber uint64, status string) error {
 	if eventHash == "" {
 		return fmt.Errorf("event hash is empty")
 	}
@@ -85,18 +77,13 @@ func (is *IdempotencyService) MarkProcessed(ctx context.Context, eventHash, chai
 	record := &ProcessedEventRecord{
 		EventHash:     eventHash,
 		ProcessedAt:   time.Now(),
-		ExpiresAt:     time.Now().Add(is.recordTTL),
 		ChainID:       chainID,
 		TransactionID: txID,
+		BlockNumber:   blockNumber,
 		Status:        status,
 	}
 
 	is.processedEvents[eventHash] = record
-
-	// Trigger cleanup if needed
-	if time.Since(is.lastCleanupTime) > is.cleanupInterval {
-		is.cleanupExpiredRecords()
-	}
 
 	return nil
 }
@@ -115,23 +102,7 @@ func (is *IdempotencyService) GetProcessedRecord(ctx context.Context, eventHash 
 		return nil, fmt.Errorf("record not found")
 	}
 
-	// Check if record has expired
-	if time.Now().After(record.ExpiresAt) {
-		return nil, fmt.Errorf("record expired")
-	}
-
 	return record, nil
-}
-
-// cleanupExpiredRecords removes expired records
-func (is *IdempotencyService) cleanupExpiredRecords() {
-	now := time.Now()
-	for hash, record := range is.processedEvents {
-		if now.After(record.ExpiresAt) {
-			delete(is.processedEvents, hash)
-		}
-	}
-	is.lastCleanupTime = now
 }
 
 // GetDuplicateCount returns the number of duplicates detected
@@ -180,18 +151,32 @@ func (is *IdempotencyService) Reset() {
 	is.checkCount = 0
 }
 
+// InvalidateRange removes idempotency entries for events in the given block range.
+// This is called after a reorg so that re-indexed events are not rejected as duplicates.
+func (is *IdempotencyService) InvalidateRange(fromBlock, toBlock uint64) int {
+	is.mu.Lock()
+	defer is.mu.Unlock()
+
+	removed := 0
+	for hash, record := range is.processedEvents {
+		if record.BlockNumber >= fromBlock && record.BlockNumber <= toBlock {
+			delete(is.processedEvents, hash)
+			removed++
+		}
+	}
+	return removed
+}
+
 // GetMetrics returns idempotency metrics
 func (is *IdempotencyService) GetMetrics() map[string]interface{} {
 	is.mu.RLock()
 	defer is.mu.RUnlock()
 
 	return map[string]interface{}{
-		"processed_count":  int64(len(is.processedEvents)),
-		"duplicate_count":  is.duplicateCount,
-		"check_count":      is.checkCount,
-		"duplicate_rate":   is.GetDuplicateRate(),
-		"record_ttl":       is.recordTTL.String(),
-		"cleanup_interval": is.cleanupInterval.String(),
+		"processed_count": int64(len(is.processedEvents)),
+		"duplicate_count": is.duplicateCount,
+		"check_count":     is.checkCount,
+		"duplicate_rate":  is.GetDuplicateRate(),
 	}
 }
 
@@ -235,14 +220,8 @@ func (is *IdempotencyService) BatchValidateIdempotency(ctx context.Context, even
 			continue
 		}
 
-		record, exists := is.processedEvents[event.EventHash]
+		_, exists := is.processedEvents[event.EventHash]
 		if !exists {
-			results[i] = false
-			continue
-		}
-
-		// Check if record has expired
-		if time.Now().After(record.ExpiresAt) {
 			results[i] = false
 			continue
 		}

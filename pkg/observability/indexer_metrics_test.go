@@ -19,6 +19,7 @@ func TestNewIndexerMetrics(t *testing.T) {
 	assert.Equal(t, int64(0), metrics.EventsFailed)
 	assert.NotNil(t, metrics.IndexingLatencies)
 	assert.NotNil(t, metrics.QueryLatencies)
+	assert.Equal(t, 0, metrics.IndexingLatencies.Len())
 	assert.NotNil(t, metrics.ErrorCount)
 }
 
@@ -49,8 +50,8 @@ func TestRecordEventIndexed(t *testing.T) {
 	metrics.RecordEventIndexed(latency)
 
 	assert.Equal(t, int64(1), metrics.EventsIndexed)
-	assert.Equal(t, 1, len(metrics.IndexingLatencies))
-	assert.Equal(t, latency, metrics.IndexingLatencies[0])
+	assert.Equal(t, 1, metrics.IndexingLatencies.Len())
+	assert.Equal(t, latency, metrics.IndexingLatencies.All()[0])
 }
 
 func TestRecordEventIndexedMultiple(t *testing.T) {
@@ -61,7 +62,7 @@ func TestRecordEventIndexedMultiple(t *testing.T) {
 	}
 
 	assert.Equal(t, int64(5), metrics.EventsIndexed)
-	assert.Equal(t, 5, len(metrics.IndexingLatencies))
+	assert.Equal(t, 5, metrics.IndexingLatencies.Len())
 }
 
 func TestRecordEventProcessed(t *testing.T) {
@@ -91,8 +92,8 @@ func TestRecordQueryLatency(t *testing.T) {
 	latency := 100 * time.Millisecond
 	metrics.RecordQueryLatency(latency)
 
-	assert.Equal(t, 1, len(metrics.QueryLatencies))
-	assert.Equal(t, latency, metrics.QueryLatencies[0])
+	assert.Equal(t, 1, metrics.QueryLatencies.Len())
+	assert.Equal(t, latency, metrics.QueryLatencies.All()[0])
 }
 
 func TestRecordReorg(t *testing.T) {
@@ -288,8 +289,8 @@ func TestReset(t *testing.T) {
 	assert.Equal(t, int64(0), metrics.EventsFailed)
 	assert.Equal(t, int64(0), metrics.CacheHits)
 	assert.Equal(t, int64(0), metrics.ReorgsDetected)
-	assert.Equal(t, 0, len(metrics.IndexingLatencies))
-	assert.Equal(t, 0, len(metrics.QueryLatencies))
+	assert.Equal(t, 0, metrics.IndexingLatencies.Len())
+	assert.Equal(t, 0, metrics.QueryLatencies.Len())
 	assert.Equal(t, 0, len(metrics.ErrorCount))
 }
 
@@ -333,7 +334,7 @@ func TestPropertyMetricsConsistency(t *testing.T) {
 
 	// Verify consistency
 	assert.Equal(t, int64(100), metrics.EventsIndexed)
-	assert.Equal(t, 100, len(metrics.IndexingLatencies))
+	assert.Equal(t, 100, metrics.IndexingLatencies.Len())
 
 	// Average should be within expected range
 	avg := metrics.GetAverageIndexingLatency()

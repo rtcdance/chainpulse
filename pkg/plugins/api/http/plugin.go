@@ -1,7 +1,9 @@
 package http
 
 import (
+	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strings"
 	"sync"
@@ -41,7 +43,7 @@ func NewHTTPPlugin(name string, port int, apiLayer *core.APILayer) *HTTPPlugin {
 		router:     core.NewAPIRouter(),
 		processor:  processor,
 		middleware: make([]core.Middleware, 0),
-		tracer:     observability.NewDefaultTracer(nil, nil),
+		tracer:     observability.NewDefaultTracer(nil, nil), // will be overridden via SetTracer if provider is available
 	}
 }
 
@@ -62,8 +64,15 @@ func NewHTTPPluginWithTLS(name string, port int, httpsPort int, certFile, keyFil
 		tlsManager: tlsManager,
 		processor:  processor,
 		middleware: make([]core.Middleware, 0),
-		tracer:     observability.NewDefaultTracer(nil, nil),
+		tracer:     observability.NewDefaultTracer(nil, nil), // will be overridden via SetTracer if provider is available
 	}, nil
+}
+
+// SetTracer sets the tracer for the HTTP plugin, replacing the default nil-logger tracer.
+func (p *HTTPPlugin) SetTracer(tracer *observability.DefaultTracer) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.tracer = tracer
 }
 
 // Start starts the HTTP server
@@ -83,6 +92,9 @@ func (p *HTTPPlugin) Start() error {
 		Addr:              fmt.Sprintf(":%d", p.port),
 		Handler:           mux,
 		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       15 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       120 * time.Second,
 	}
 
 	p.running = true
@@ -90,7 +102,7 @@ func (p *HTTPPlugin) Start() error {
 	// Start HTTP server in background
 	go func() {
 		if err := p.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			fmt.Printf("HTTP server error: %v\n", err)
+			slog.Error("HTTP server error", "error", err)
 		}
 	}()
 
@@ -111,20 +123,29 @@ func (p *HTTPPlugin) startHTTPS(mux *http.ServeMux) error {
 		Handler:           mux,
 		TLSConfig:         p.tlsManager.GetConfig(),
 		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       15 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       120 * time.Second,
 	}
 
 	// Start HTTPS server in background
 	go func() {
 		if err := p.httpsServer.ListenAndServeTLS("", ""); err != nil && err != http.ErrServerClosed {
-			fmt.Printf("HTTPS server error: %v\n", err)
+			slog.Error("HTTPS server error", "error", err)
 		}
 	}()
 
 	return nil
 }
 
-// Stop stops the HTTP server
+// Stop stops the HTTP server gracefully, draining in-flight requests.
 func (p *HTTPPlugin) Stop() error {
+	return p.ShutdownWithContext(context.Background())
+}
+
+// ShutdownWithContext stops the HTTP server with a context deadline,
+// allowing in-flight requests to complete before closing connections.
+func (p *HTTPPlugin) ShutdownWithContext(ctx context.Context) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -133,13 +154,13 @@ func (p *HTTPPlugin) Stop() error {
 	}
 
 	if p.server != nil {
-		if err := p.server.Close(); err != nil {
+		if err := p.server.Shutdown(ctx); err != nil {
 			return err
 		}
 	}
 
 	if p.httpsServer != nil {
-		if err := p.httpsServer.Close(); err != nil {
+		if err := p.httpsServer.Shutdown(ctx); err != nil {
 			return err
 		}
 	}

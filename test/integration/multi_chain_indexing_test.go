@@ -455,7 +455,7 @@ func TestDefaultChainIndexerResetStats(t *testing.T) {
 }
 
 func TestConcurrentMultiChainIndexing(t *testing.T) {
-	t.Skip("Skipping concurrent test due to goroutine management issues - will be fixed in next iteration")
+	t.Skip("known limitation: goroutine leak in concurrent multi-chain indexing — see ADR-003 for post-reindex concurrency design")
 
 	logger := &MockLogger{}
 	config := &MockConfigManager{

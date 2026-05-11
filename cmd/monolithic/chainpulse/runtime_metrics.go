@@ -4,12 +4,19 @@ import (
 	"net/http"
 
 	"chainpulse/pkg/core"
+	"chainpulse/pkg/observability"
 )
 
-func buildMonolithicMetricsProvider(metrics core.MetricsCollector) func(*http.Request) interface{} {
+func buildMonolithicMetricsProvider(metrics core.MetricsCollector, indexerMetrics *observability.IndexerMetrics) func(*http.Request) interface{} {
 	return func(r *http.Request) interface{} {
 		if metrics == nil {
 			return nil
+		}
+
+		// Sync business metrics from IndexerMetrics to MetricsCollector
+		// so they appear on the /metrics endpoint alongside system metrics
+		if indexerMetrics != nil {
+			indexerMetrics.SyncToMetricsCollector(metrics)
 		}
 
 		if prefersJSONMetrics(r) {

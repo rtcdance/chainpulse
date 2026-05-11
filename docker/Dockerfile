@@ -1,12 +1,9 @@
 # Multi-stage build for ChainPulse
-FROM golang:1.20-alpine AS builder
+FROM golang:1.24-alpine AS builder
 
 WORKDIR /app
 
-RUN apk add --no-cache git make curl
-
-RUN curl -L https://foundry.paradigm.xyz | bash && \
-    ln -sf /root/.foundry/bin/* /usr/local/bin/
+RUN apk add --no-cache git make
 
 COPY go.mod go.sum ./
 
@@ -16,16 +13,17 @@ COPY . .
 
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o chainpulse ./cmd/monolithic/chainpulse
 
-FROM alpine:latest
+FROM alpine:3.19
 
-WORKDIR /root/
+RUN adduser -S -D -H appuser
+
+WORKDIR /home/appuser/
 
 RUN apk --no-cache add ca-certificates curl
 
-RUN curl -L https://foundry.paradigm.xyz | bash && \
-    ln -sf /root/.foundry/bin/* /usr/local/bin/
-
 COPY --from=builder /app/chainpulse .
+
+USER appuser
 
 EXPOSE 8080 50051 8081
 

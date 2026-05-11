@@ -18,7 +18,7 @@ type TransferEvent struct {
 	TransactionHash common.Hash
 	BlockNumber     uint64
 	BlockTimestamp  int64
-	LogIndex        uint
+	LogIndex uint64
 	Token           common.Address
 	From            common.Address
 	To              common.Address
@@ -309,7 +309,7 @@ func (ei *ERC20Indexer) GetTransferHistory(
 	}
 
 	// Query events from database
-	events, err := ei.database.QueryEvents(context.Background(), filter)
+	events, err := ei.database.QueryEvents(ctx, filter)
 	if err != nil {
 		ei.logger.Error("failed to query transfer events", map[string]interface{}{
 			"error": err.Error(),

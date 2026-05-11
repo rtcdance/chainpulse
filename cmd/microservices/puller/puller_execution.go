@@ -15,6 +15,7 @@ import (
 	appindexing "chainpulse/pkg/application/indexing"
 	"chainpulse/pkg/core"
 	"chainpulse/pkg/plugins/pullers"
+	"github.com/ethereum/go-ethereum/common"
 )
 
 type pullerMessagePublisher interface {
@@ -56,6 +57,11 @@ type pullerExecutionRuntime struct {
 	publishedMessages int64
 	lastError         string
 	lastErrorAtUnix   int64
+
+	// Reorg detection: per-chain block hash tracking
+	reorgMu         sync.RWMutex
+	lastKnownBlocks map[string]map[uint64]common.Hash // chainID -> blockNumber -> hash
+	reorgDetected   int64
 }
 
 func newPullerExecutionRuntime(
@@ -65,11 +71,12 @@ func newPullerExecutionRuntime(
 	outputTopics []string,
 ) *pullerExecutionRuntime {
 	return &pullerExecutionRuntime{
-		logger:       logger,
-		metrics:      metrics,
-		publisher:    publisher,
-		outputTopics: append([]string(nil), outputTopics...),
-		runtimes:     make(map[string]*appindexing.SharedRuntime),
+		logger:          logger,
+		metrics:         metrics,
+		publisher:       publisher,
+		outputTopics:    append([]string(nil), outputTopics...),
+		runtimes:        make(map[string]*appindexing.SharedRuntime),
+		lastKnownBlocks: make(map[string]map[uint64]common.Hash),
 	}
 }
 
@@ -171,6 +178,9 @@ func (r *pullerExecutionRuntime) pollChain(
 	if err != nil {
 		return fmt.Errorf("pull events for %s [%d,%d]: %w", chainID, fromBlock, targetBlock, err)
 	}
+
+	// Check for reorg: compare block hashes against previously seen hashes
+	r.detectAndPublishReorg(ctx, chainID, events)
 
 	if err := r.publishEvents(ctx, config.InstanceID, events); err != nil {
 		return fmt.Errorf("publish events for %s: %w", chainID, err)
@@ -291,15 +301,73 @@ func (r *pullerExecutionRuntime) runtimeForChain(chainID string) (*appindexing.S
 	return runtime, nil
 }
 
-//nolint:unused
-func (r *pullerExecutionRuntime) recordError(err error) {
-	if r == nil || err == nil {
+// detectAndPublishReorg checks if any block hash has changed compared to previously seen hashes.
+// If a reorg is detected, it publishes a ReorgDetected message to the "reorg-events" Kafka topic.
+func (r *pullerExecutionRuntime) detectAndPublishReorg(ctx context.Context, chainID string, events []core.BlockchainEvent) {
+	if len(events) == 0 {
 		return
 	}
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.lastError = err.Error()
-	r.lastErrorAtUnix = time.Now().Unix()
+
+	r.reorgMu.Lock()
+	defer r.reorgMu.Unlock()
+
+	chainBlocks, ok := r.lastKnownBlocks[chainID]
+	if !ok {
+		chainBlocks = make(map[uint64]common.Hash)
+		r.lastKnownBlocks[chainID] = chainBlocks
+	}
+
+	for _, event := range events {
+		storedHash, exists := chainBlocks[event.BlockNumber]
+		if exists && storedHash != event.BlockHash {
+			// Reorg detected: same block number, different hash
+			r.reorgDetected++
+			r.logger.Warn("Reorg detected in puller", map[string]interface{}{
+				"chain_id":     chainID,
+				"block_number": event.BlockNumber,
+				"stored_hash":  storedHash.Hex(),
+				"new_hash":     event.BlockHash.Hex(),
+			})
+			if r.metrics != nil {
+				r.metrics.RecordCounter("puller_reorg_detected_total", 1, map[string]string{"chain_id": chainID})
+			}
+
+			// Publish reorg event to Kafka
+			reorgMsg := core.ReorgDetectedMessage{
+				ChainID:    chainID,
+				ReorgBlock: event.BlockNumber,
+				OldHash:    storedHash.Hex(),
+				NewHash:    event.BlockHash.Hex(),
+				DetectedAt: time.Now(),
+			}
+			if payload, err := json.Marshal(reorgMsg); err == nil {
+				if r.publisher != nil {
+					_ = r.publisher.Publish(ctx, "reorg-events", payload)
+				}
+			}
+
+			// Update stored hash to new value
+			chainBlocks[event.BlockNumber] = event.BlockHash
+		} else if !exists {
+			chainBlocks[event.BlockNumber] = event.BlockHash
+		}
+	}
+
+	// Prune old entries (keep last 256 blocks per chain)
+	if len(chainBlocks) > 256 {
+		var maxBlock uint64
+		for blk := range chainBlocks {
+			if blk > maxBlock {
+				maxBlock = blk
+			}
+		}
+		cutoff := maxBlock - 256
+		for blk := range chainBlocks {
+			if blk < cutoff {
+				delete(chainBlocks, blk)
+			}
+		}
+	}
 }
 
 func pullerShadowReceivedAt(event core.BlockchainEvent) time.Time {
@@ -335,15 +403,30 @@ func registerConfiguredPullers(
 			return registered, err
 		}
 
-		puller := pullers.NewHTTPSJSONRPCPuller(core.Config{
-			DataPullerType:    "https-jsonrpc",
-			BlockchainNodeURL: rpcURL,
-			StartBlock:        0,
-			BatchSize:         config.BatchSize,
-			MaxRetries:        config.MaxRetries,
-			RetryBackoff:      1000,
-			LogLevel:          config.LogLevel,
-		}, logger, metrics, nil)
+		var puller core.DataPullerPlugin
+		if isSolanaChain(chainID) {
+			puller = pullers.NewSolanaPuller(core.Config{
+				DataPullerType:    "solana",
+				BlockchainNodeURL: rpcURL,
+				ChainID:           chainID,
+				StartBlock:        0,
+				BatchSize:         config.BatchSize,
+				MaxRetries:        config.MaxRetries,
+				RetryBackoff:      1000,
+				LogLevel:          config.LogLevel,
+			}, logger, metrics)
+		} else {
+			puller = pullers.NewHTTPSJSONRPCPuller(core.Config{
+				DataPullerType:    "https-jsonrpc",
+				BlockchainNodeURL: rpcURL,
+				ChainID:           chainID,
+				StartBlock:        0,
+				BatchSize:         config.BatchSize,
+				MaxRetries:        config.MaxRetries,
+				RetryBackoff:      1000,
+				LogLevel:          config.LogLevel,
+			}, logger, metrics, nil)
+		}
 
 		if err := multi.RegisterPuller(chainID, puller); err != nil {
 			return registered, err
@@ -352,6 +435,11 @@ func registerConfiguredPullers(
 	}
 
 	return registered, nil
+}
+
+// isSolanaChain checks if the chain ID refers to a Solana chain
+func isSolanaChain(chainID string) bool {
+	return chainID == "solana" || chainID == "101" || chainID == "mainnet-beta"
 }
 
 func parsePullerRPCEntry(entry string, index int) (string, string, error) {

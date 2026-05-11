@@ -1,7 +1,6 @@
 package api
 
 import (
-	"fmt"
 	"sync"
 	"time"
 
@@ -51,7 +50,7 @@ func (al *AuditLogger) LogAuthenticationAttempt(clientID, method string) {
 	}
 
 	al.addEvent(event)
-	al.logger.Info(fmt.Sprintf("Authentication attempt: client=%s, method=%s", clientID, method))
+	al.logger.Info("Authentication attempt", "client", clientID, "method", method)
 	al.metrics.RecordCounter("audit.auth_attempt", 1, nil)
 }
 
@@ -68,7 +67,7 @@ func (al *AuditLogger) LogAuthenticationSuccess(clientID, userID, method string)
 	}
 
 	al.addEvent(event)
-	al.logger.Info(fmt.Sprintf("Authentication success: client=%s, user=%s, method=%s", clientID, userID, method))
+	al.logger.Info("Authentication success", "client", clientID, "user", userID, "method", method)
 	al.metrics.RecordCounter("audit.auth_success", 1, nil)
 }
 
@@ -85,7 +84,7 @@ func (al *AuditLogger) LogAuthenticationFailure(clientID, method, reason string)
 	}
 
 	al.addEvent(event)
-	al.logger.Warn(fmt.Sprintf("Authentication failure: client=%s, method=%s, reason=%s", clientID, method, reason))
+	al.logger.Warn("Authentication failure", "client", clientID, "method", method, "reason", reason)
 	al.metrics.RecordCounter("audit.auth_failure", 1, nil)
 }
 
@@ -104,7 +103,7 @@ func (al *AuditLogger) LogAuthorizationCheck(userID, resource, action string, ro
 	}
 
 	al.addEvent(event)
-	al.logger.Info(fmt.Sprintf("Authorization check: user=%s, resource=%s, action=%s", userID, resource, action))
+	al.logger.Info("Authorization check", "user", userID, "resource", resource, "action", action)
 	al.metrics.RecordCounter("audit.authz_check", 1, nil)
 }
 
@@ -124,7 +123,7 @@ func (al *AuditLogger) LogAuthorizationAllowed(userID, resource, action string, 
 	}
 
 	al.addEvent(event)
-	al.logger.Info(fmt.Sprintf("Authorization allowed: user=%s, resource=%s, action=%s", userID, resource, action))
+	al.logger.Info("Authorization allowed", "user", userID, "resource", resource, "action", action)
 	al.metrics.RecordCounter("audit.authz_allowed", 1, nil)
 }
 
@@ -145,7 +144,7 @@ func (al *AuditLogger) LogAuthorizationDenied(userID, resource, action, reason s
 	}
 
 	al.addEvent(event)
-	al.logger.Warn(fmt.Sprintf("Authorization denied: user=%s, resource=%s, action=%s, reason=%s", userID, resource, action, reason))
+	al.logger.Warn("Authorization denied", "user", userID, "resource", resource, "action", action, "reason", reason)
 	al.metrics.RecordCounter("audit.authz_denied", 1, nil)
 }
 
@@ -168,10 +167,10 @@ func (al *AuditLogger) LogTokenRefresh(clientID, userID string, success bool, re
 
 	al.addEvent(event)
 	if success {
-		al.logger.Info(fmt.Sprintf("Token refresh: client=%s, user=%s", clientID, userID))
+		al.logger.Info("Token refresh", "client", clientID, "user", userID)
 		al.metrics.RecordCounter("audit.token_refresh_success", 1, nil)
 	} else {
-		al.logger.Warn(fmt.Sprintf("Token refresh failed: client=%s, user=%s, reason=%s", clientID, userID, reason))
+		al.logger.Warn("Token refresh failed", "client", clientID, "user", userID, "reason", reason)
 		al.metrics.RecordCounter("audit.token_refresh_failure", 1, nil)
 	}
 }

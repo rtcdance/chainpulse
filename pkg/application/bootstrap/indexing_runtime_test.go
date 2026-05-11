@@ -447,6 +447,10 @@ func (d *runtimeTestDatabasePlugin) DeleteEventsByBlockRange(ctx context.Context
 	return 0, nil
 }
 
+func (d *runtimeTestDatabasePlugin) MarkEventsAsReorged(ctx context.Context, fromBlock, toBlock uint64) (int64, error) {
+	return 0, nil
+}
+
 func (d *runtimeTestDatabasePlugin) GetReorgStats(ctx context.Context) (*core.ReorgStats, error) {
 	return &core.ReorgStats{}, nil
 }

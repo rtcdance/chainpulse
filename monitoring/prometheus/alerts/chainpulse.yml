@@ -73,3 +73,30 @@ groups:
         annotations:
           summary: "Slow query performance for chain {{ $labels.chain_id }}"
           description: "95th percentile query cache latency for chain {{ $labels.chain_id }} is {{ $value }}ms"
+
+      - alert: HighGoroutineCount
+        expr: go_goroutines{job=~"chainpulse.*"} > 1000
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High goroutine count"
+          description: "{{ $labels.job }} has {{ $value }} goroutines, possible leak"
+
+      - alert: DBPoolSaturation
+        expr: chainpulse_db_pool_in_use / chainpulse_db_pool_max_open_connections > 0.8
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Database connection pool near saturation"
+          description: "DB pool is {{ $value | humanizePercentage }} utilized"
+
+      - alert: RPCErrorRate
+        expr: sum by (chain_id) (rate(chainpulse_rpc_call_errors_total[5m])) / sum by (chain_id) (rate(chainpulse_rpc_call_duration_seconds_count[5m])) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High RPC error rate for chain {{ $labels.chain_id }}"
+          description: "RPC error rate for chain {{ $labels.chain_id }} is {{ $value | humanizePercentage }}"

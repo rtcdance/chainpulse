@@ -33,6 +33,7 @@ type RedisMQPlugin struct {
 	retryDelay          time.Duration
 	connectionURL       string
 	offsetTracking      map[string]int64
+	inFlight            sync.WaitGroup // tracks in-flight publish/consume operations
 }
 
 // NewRedisMQPlugin creates a new Redis message queue plugin
@@ -120,20 +121,36 @@ func (p *RedisMQPlugin) Start() error {
 // Stop stops the Redis plugin
 func (p *RedisMQPlugin) Stop() error {
 	p.mu.Lock()
-	defer p.mu.Unlock()
-
 	if !p.isRunning {
+		p.mu.Unlock()
 		return nil
+	}
+	p.isRunning = false
+	p.mu.Unlock()
+
+	// Wait for in-flight operations with timeout
+	done := make(chan struct{})
+	go func() {
+		p.inFlight.Wait()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		p.logger.Info("Redis in-flight operations completed")
+	case <-time.After(10 * time.Second):
+		p.logger.Warn("Redis stop timed out waiting for in-flight operations")
 	}
 
 	// Close Redis connection
+	p.mu.Lock()
 	if p.client != nil {
 		if err := p.client.Close(); err != nil {
 			p.logger.Error("failed to close Redis connection", "error", err)
 		}
 	}
+	p.mu.Unlock()
 
-	p.isRunning = false
 	p.logger.Info("Redis MQ plugin stopped", "name", p.name)
 
 	return nil

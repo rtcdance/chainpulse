@@ -36,9 +36,19 @@ spec:
       labels:
         app: chainpulse-monolithic
     spec:
+      initContainers:
+      - name: migrate
+        image: chainpulse:latest  # Override with: kustomize edit set image chainpulse=your-registry/chainpulse:v1.0.0
+        command: ["./migrate", "-path", "/app/migrations", "up"]
+        env:
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: chainpulse-secrets
+              key: DATABASE_URL
       containers:
       - name: chainpulse
-        image: chainpulse:latest
+        image: chainpulse:latest  # Override with: kustomize edit set image chainpulse=your-registry/chainpulse:v1.0.0
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8080
@@ -79,9 +89,14 @@ spec:
               key: DATABASE_TYPE
         - name: DATABASE_URL
           valueFrom:
+            secretKeyRef:
+              name: chainpulse-secrets
+              key: DATABASE_URL
+        - name: DATABASE_SSLMODE
+          valueFrom:
             configMapKeyRef:
               name: chainpulse-config
-              key: DATABASE_URL
+              key: DATABASE_SSLMODE
         - name: CACHE_TYPE
           valueFrom:
             configMapKeyRef:
@@ -102,9 +117,31 @@ spec:
             configMapKeyRef:
               name: chainpulse-config
               key: MQ_BROKERS
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: redis-secret
+              key: password
+        - name: KAFKA_SASL_MECHANISM
+          value: "PLAIN"
+        - name: KAFKA_SECURITY_PROTOCOL
+          value: "SASL_PLAINTEXT"
+        - name: KAFKA_SASL_USERNAME
+          value: "admin"
+        - name: KAFKA_SASL_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: kafka-secret
+              key: kafka-password
+        startupProbe:
+          httpGet:
+            path: /health/live
+            port: 8080
+          failureThreshold: 30
+          periodSeconds: 5
         livenessProbe:
           httpGet:
-            path: /health
+            path: /health/live
             port: 8080
           initialDelaySeconds: 30
           periodSeconds: 10
@@ -112,7 +149,7 @@ spec:
           failureThreshold: 3
         readinessProbe:
           httpGet:
-            path: /health
+            path: /health/ready
             port: 8080
           initialDelaySeconds: 10
           periodSeconds: 5

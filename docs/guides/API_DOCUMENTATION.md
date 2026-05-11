@@ -2,23 +2,34 @@
 
 ## Overview
 
-ChainPulse provides a comprehensive REST API and gRPC API for querying indexed blockchain events. This documentation covers all available endpoints, request/response formats, error handling, and usage examples.
+ChainPulse provides a comprehensive REST API, GraphQL API, gRPC API, and WebSocket subscriptions for querying indexed blockchain events. This documentation covers all available endpoints, request/response formats, error handling, and usage examples.
 
 ## Base URLs
 
-- **REST API**: `http://localhost:8080/api/v1`
-- **gRPC API**: `grpc://localhost:50051`
+| Protocol | URL |
+|----------|-----|
+| REST API | `http://localhost:8080` |
+| GraphQL | `http://localhost:8080/graphql` |
+| gRPC | `grpc://localhost:50051` |
+| WebSocket | `ws://localhost:8080/ws` |
 
 ## Authentication
 
-Currently, ChainPulse does not require authentication. All endpoints are publicly accessible. Future versions will support API key authentication.
+ChainPulse supports the following authentication methods:
+
+- **API Key**: Pass via `X-API-Key` HTTP header
+- **JWT Bearer**: Pass via `Authorization: Bearer <token>` HTTP header
+- **WebSocket**: Use `?token=<jwt>` query parameter (for browser clients that cannot set custom headers)
+
+When authentication is not configured, all endpoints are publicly accessible.
 
 ## Rate Limiting
 
-- **Rate Limit**: 100 requests per minute per client IP
-- **Rate Limit Header**: `X-RateLimit-Remaining`
-- **Rate Limit Reset**: `X-RateLimit-Reset`
+- **Rate Limit**: 100 requests per minute per client (configurable)
+- **Rate Limit Headers**: `X-RateLimit-Remaining`, `Retry-After`
 - **Status Code**: 429 (Too Many Requests) when limit exceeded
+
+---
 
 ## REST API Endpoints
 
@@ -29,165 +40,224 @@ Currently, ChainPulse does not require authentication. All endpoints are publicl
 **Description**: Query blockchain events with optional filtering and pagination.
 
 **Query Parameters**:
-- `network` (string, required): Blockchain network (e.g., "ethereum", "polygon")
-- `block_number` (integer, optional): Specific block number to query
-- `transaction_hash` (string, optional): Specific transaction hash to query
-- `page` (integer, optional, default: 0): Page number for pagination
-- `limit` (integer, optional, default: 100, max: 1000): Number of results per page
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `chain` | string | - | Filter by chain ID (e.g. "1" for Ethereum, "137" for Polygon) |
+| `contract` | string | - | Filter by contract address (hex) |
+| `event_name` | string | - | Filter by event name (e.g. "Transfer") |
+| `event_signature` | string | - | Filter by event signature hash (e.g. "0xddf252ad...") |
+| `from_block` | integer | - | Start block number (inclusive) |
+| `to_block` | integer | - | End block number (inclusive) |
+| `from_time` | integer | - | Start timestamp (Unix seconds, inclusive) |
+| `to_time` | integer | - | End timestamp (Unix seconds, inclusive) |
+| `status` | string | - | Filter by event status: `pending`, `confirmed`, `failed`, `reorged` |
+| `offset` | integer | 0 | Pagination offset |
+| `limit` | integer | 20 | Maximum results per page |
 
 **Request Example**:
 ```bash
-curl -X GET "http://localhost:8080/api/v1/events?network=ethereum&page=0&limit=50"
+curl "http://localhost:8080/events?chain=1&contract=0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48&limit=50&offset=0"
 ```
 
 **Response Format**:
 ```json
 {
-  "status": "success",
   "data": [
     {
-      "network": "ethereum",
-      "block_number": 1000,
-      "transaction_hash": "0x1234567890abcdef",
-      "log_index": 0,
-      "event_data": "event_payload",
-      "timestamp": 1234567890
+      "eventId": "ethereum-0xa1b2c3...-0",
+      "chainId": "1",
+      "blockNumber": 18500000,
+      "transactionHash": "0xa1b2c3d4e5f6...",
+      "logIndex": 0,
+      "contractAddress": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+      "eventName": "Transfer",
+      "eventSignature": "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+      "eventData": {
+        "from": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+        "to": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+        "value": "500"
+      },
+      "timestamp": 1700000000,
+      "processedAt": 1700000001
     }
   ],
+  "events": [ ... ],
   "pagination": {
-    "page": 0,
     "limit": 50,
-    "total": 1000,
-    "has_next": true
+    "offset": 0,
+    "total": 1500
   },
-  "metadata": {
-    "cache_hit": true,
-    "query_time_ms": 5
-  }
+  "meta": {
+    "source": "event-retrieval",
+    "querySourcePosture": "retrieval-service",
+    "queryPath": "retrieval-list",
+    "consistencyPosture": "consistent",
+    "queryReliabilityHint": "query returned results successfully",
+    "queryExecutionSummary": "retrieval-list:event-retrieval:coverage-partial"
+  },
+  "timestamp": 1700000002
 }
 ```
 
-**Status Codes**:
-- `200 OK`: Successful query
-- `400 Bad Request`: Invalid parameters
-- `429 Too Many Requests`: Rate limit exceeded
-- `500 Internal Server Error`: Server error
+> **Note**: `data` and `events` contain the same content. Use either.
 
-### 2. Get Event by Hash
+### 2. Get Event by ID
 
-**Endpoint**: `GET /events/{transaction_hash}`
-
-**Description**: Retrieve a specific event by transaction hash.
+**Endpoint**: `GET /events/{id}`
 
 **Path Parameters**:
-- `transaction_hash` (string, required): Transaction hash (e.g., "0x1234567890abcdef")
+- `id` (string, required): Event ID (e.g. "ethereum-0xtxhash-0")
 
 **Request Example**:
 ```bash
-curl -X GET "http://localhost:8080/api/v1/events/0x1234567890abcdef"
+curl "http://localhost:8080/events/ethereum-0xa1b2c3d4e5f6...-0"
 ```
 
-**Response Format**:
+**Response**: Single `EventResponse` object (see fields above).
+
+### 3. Get Events by Chain
+
+**Endpoint**: `GET /events/chain/{chainId}`
+
+**Path Parameters**:
+- `chainId` (string, required): Chain ID (e.g. "1", "137")
+
+**Query Parameters**: `offset`, `limit` (same as above)
+
+### 4. Get Events by Contract
+
+**Endpoint**: `GET /events/contract/{address}`
+
+**Path Parameters**:
+- `address` (string, required): Contract address (hex)
+
+**Query Parameters**: `offset`, `limit` (same as above)
+
+### 5. Get Events by Name
+
+**Endpoint**: `GET /events/name/{eventName}`
+
+**Path Parameters**:
+- `eventName` (string, required): Event name (e.g. "Transfer")
+
+**Query Parameters**: `offset`, `limit` (same as above)
+
+---
+
+## WebSocket Subscriptions
+
+### Connect
+
+**Endpoint**: `ws://localhost:8080/ws` or `ws://localhost:8080/events/subscribe`
+
+### Subscription Types
+
+| Path | Filter |
+|------|--------|
+| `/ws` | All events |
+| `/events/subscribe` | All events |
+| `/events/subscribe/chain/{chainId}` | Events from specific chain |
+| `/events/subscribe/contract/{address}` | Events from specific contract |
+| `/events/subscribe/name/{eventName}` | Events with specific name |
+
+### Authentication
+
+Pass credentials during the HTTP upgrade:
+```javascript
+const ws = new WebSocket('ws://localhost:8080/events/subscribe/chain/1', {
+  headers: { 'X-API-Key': 'your-api-key' }
+});
+// Or via query parameter for browser clients:
+const ws = new WebSocket('ws://localhost:8080/events/subscribe?token=your-jwt');
+```
+
+### Message Format
+
+Each pushed event is a JSON object:
 ```json
 {
-  "status": "success",
-  "data": {
-    "network": "ethereum",
-    "block_number": 1000,
-    "transaction_hash": "0x1234567890abcdef",
-    "log_index": 0,
-    "event_data": "event_payload",
-    "timestamp": 1234567890
-  },
-  "metadata": {
-    "cache_hit": true,
-    "query_time_ms": 2
+  "type": "event",
+  "eventId": "ethereum-0xtxhash-0",
+  "chainId": "1",
+  "blockNumber": 18500000,
+  "contractAddress": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+  "eventName": "Transfer",
+  "eventData": { "from": "0x...", "to": "0x...", "value": "500" },
+  "timestamp": 1700000000
+}
+```
+
+---
+
+## GraphQL API
+
+**Endpoint**: `GET/POST /graphql`
+
+**Playground**: `http://localhost:8080/graphql/playground`
+
+### Example Queries
+
+```graphql
+# Get a single event
+query {
+  event(id: "ethereum-0xtxhash-0") {
+    eventId
+    eventName
+    contractAddress
+    blockNumber
+    eventData
   }
 }
-```
 
-**Status Codes**:
-- `200 OK`: Event found
-- `404 Not Found`: Event not found
-- `400 Bad Request`: Invalid transaction hash format
-- `429 Too Many Requests`: Rate limit exceeded
-- `500 Internal Server Error`: Server error
-
-### 3. Get System Statistics
-
-**Endpoint**: `GET /stats`
-
-**Description**: Retrieve system statistics and metrics.
-
-**Request Example**:
-```bash
-curl -X GET "http://localhost:8080/api/v1/stats"
-```
-
-**Response Format**:
-```json
-{
-  "status": "success",
-  "data": {
-    "total_events": 1000000,
-    "total_networks": 5,
-    "cache_hit_rate": 0.85,
-    "average_query_time_ms": 10,
-    "uptime_seconds": 86400,
-    "active_connections": 42
-  }
-}
-```
-
-**Status Codes**:
-- `200 OK`: Statistics retrieved
-- `500 Internal Server Error`: Server error
-
-### 4. Health Check
-
-**Endpoint**: `GET /health`
-
-**Description**: Check system health status.
-
-**Request Example**:
-```bash
-curl -X GET "http://localhost:8080/api/v1/health"
-```
-
-**Response Format**:
-```json
-{
-  "status": "healthy",
-  "components": {
-    "database": "healthy",
-    "cache": "healthy",
-    "message_queue": "healthy",
-    "api_gateway": "healthy"
-  },
-  "timestamp": 1234567890
-}
-```
-
-**Status Codes**:
-- `200 OK`: System healthy
-- `503 Service Unavailable`: System unhealthy
-
-## Error Responses
-
-All error responses follow this format:
-
-```json
-{
-  "status": "error",
-  "error": {
-    "code": "INVALID_PARAMETER",
-    "message": "Invalid network parameter",
-    "details": {
-      "parameter": "network",
-      "value": "invalid_network",
-      "valid_values": ["ethereum", "polygon", "arbitrum"]
+# List events with cursor-based pagination
+query {
+  events(first: 20, after: null, filter: "{\"eventName\":\"Transfer\"}") {
+    edges {
+      node {
+        eventId
+        eventName
+        blockNumber
+      }
+      cursor
+    }
+    pageInfo {
+      hasNextPage
+      endCursor
     }
   }
+}
+```
+
+---
+
+## Health & System Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/health` | GET | Full health check with component details |
+| `/health/ready` | GET | Kubernetes readiness probe |
+| `/health/live` | GET | Kubernetes liveness probe |
+| `/health/components` | GET | Detailed component status |
+| `/health/rollout` | GET | Rollout report |
+| `/models` | GET | Data model introspection |
+| `/metrics` | GET | Prometheus metrics |
+| `/runtime/summary` | GET | Runtime state summary |
+| `/runtime/control` | GET | Runtime control state |
+| `/dlq/events` | GET | List dead letter queue events |
+| `/dlq/replay` | POST | Replay a DLQ event |
+
+---
+
+## Error Handling
+
+All error responses follow a consistent format:
+
+```json
+{
+  "error": "NOT_FOUND",
+  "message": "Event not found",
+  "statusCode": 404
 }
 ```
 
@@ -195,195 +265,13 @@ All error responses follow this format:
 
 | Code | HTTP Status | Description |
 |------|-------------|-------------|
-| `INVALID_PARAMETER` | 400 | Invalid request parameter |
-| `MISSING_PARAMETER` | 400 | Required parameter missing |
+| `INVALID_REQUEST` | 400 | Malformed or invalid request |
+| `INVALID_PARAMETER` | 400 | Invalid query parameter value |
+| `MISSING_PARAMETER` | 400 | Required parameter is missing |
+| `VALIDATION_FAILED` | 400 | Request validation failed |
+| `UNAUTHORIZED` | 401 | Authentication required or failed |
+| `FORBIDDEN` | 403 | Insufficient permissions |
 | `NOT_FOUND` | 404 | Resource not found |
-| `RATE_LIMIT_EXCEEDED` | 429 | Rate limit exceeded |
-| `INTERNAL_ERROR` | 500 | Internal server error |
+| `RATE_LIMIT_EXCEEDED` | 429 | Too many requests |
+| `INTERNAL_SERVER_ERROR` | 500 | Unexpected server error |
 | `SERVICE_UNAVAILABLE` | 503 | Service temporarily unavailable |
-
-## gRPC API
-
-### Service Definition
-
-```protobuf
-service ChainPulseAPI {
-  rpc QueryEvents(QueryEventsRequest) returns (QueryEventsResponse);
-  rpc GetEventByHash(GetEventByHashRequest) returns (GetEventByHashResponse);
-  rpc GetStats(GetStatsRequest) returns (GetStatsResponse);
-  rpc HealthCheck(HealthCheckRequest) returns (HealthCheckResponse);
-}
-```
-
-### Message Definitions
-
-**QueryEventsRequest**:
-```protobuf
-message QueryEventsRequest {
-  string network = 1;
-  int64 block_number = 2;
-  string transaction_hash = 3;
-  int32 page = 4;
-  int32 limit = 5;
-}
-```
-
-**QueryEventsResponse**:
-```protobuf
-message QueryEventsResponse {
-  string status = 1;
-  repeated BlockchainEvent data = 2;
-  PaginationInfo pagination = 3;
-  QueryMetadata metadata = 4;
-}
-```
-
-**BlockchainEvent**:
-```protobuf
-message BlockchainEvent {
-  string network = 1;
-  int64 block_number = 2;
-  string transaction_hash = 3;
-  int64 log_index = 4;
-  string event_data = 5;
-  int64 timestamp = 6;
-}
-```
-
-## Usage Examples
-
-### Example 1: Query Events for Ethereum Network
-
-```bash
-# REST API
-curl -X GET "http://localhost:8080/api/v1/events?network=ethereum&limit=10"
-
-# Response
-{
-  "status": "success",
-  "data": [
-    {
-      "network": "ethereum",
-      "block_number": 1000,
-      "transaction_hash": "0x1234567890abcdef",
-      "log_index": 0,
-      "event_data": "event_payload",
-      "timestamp": 1234567890
-    }
-  ],
-  "pagination": {
-    "page": 0,
-    "limit": 10,
-    "total": 1000000,
-    "has_next": true
-  },
-  "metadata": {
-    "cache_hit": true,
-    "query_time_ms": 5
-  }
-}
-```
-
-### Example 2: Get Specific Event
-
-```bash
-# REST API
-curl -X GET "http://localhost:8080/api/v1/events/0x1234567890abcdef"
-
-# Response
-{
-  "status": "success",
-  "data": {
-    "network": "ethereum",
-    "block_number": 1000,
-    "transaction_hash": "0x1234567890abcdef",
-    "log_index": 0,
-    "event_data": "event_payload",
-    "timestamp": 1234567890
-  },
-  "metadata": {
-    "cache_hit": true,
-    "query_time_ms": 2
-  }
-}
-```
-
-### Example 3: Pagination
-
-```bash
-# Get page 2 with 50 results per page
-curl -X GET "http://localhost:8080/api/v1/events?network=ethereum&page=2&limit=50"
-
-# Response includes pagination info
-{
-  "status": "success",
-  "data": [...],
-  "pagination": {
-    "page": 2,
-    "limit": 50,
-    "total": 1000000,
-    "has_next": true
-  }
-}
-```
-
-### Example 4: Python Client
-
-```python
-import requests
-
-# Query events
-response = requests.get(
-    "http://localhost:8080/api/v1/events",
-    params={
-        "network": "ethereum",
-        "limit": 50
-    }
-)
-
-events = response.json()["data"]
-for event in events:
-    print(f"Block {event['block_number']}: {event['transaction_hash']}")
-```
-
-### Example 5: JavaScript Client
-
-```javascript
-// Query events
-fetch('http://localhost:8080/api/v1/events?network=ethereum&limit=50')
-  .then(response => response.json())
-  .then(data => {
-    data.data.forEach(event => {
-      console.log(`Block ${event.block_number}: ${event.transaction_hash}`);
-    });
-  });
-```
-
-## Supported Networks
-
-- `ethereum`: Ethereum mainnet
-- `polygon`: Polygon (Matic) network
-- `arbitrum`: Arbitrum One network
-- `optimism`: Optimism network
-- `base`: Base network
-
-## Performance Considerations
-
-1. **Pagination**: Always use pagination for large result sets. Maximum limit is 1000 results per page.
-2. **Caching**: Results are cached for 5 minutes. Use `cache_hit` metadata to optimize requests.
-3. **Filtering**: Use specific filters (network, block_number, transaction_hash) to reduce query time.
-4. **Rate Limiting**: Implement exponential backoff when receiving 429 responses.
-
-## Versioning
-
-The API follows semantic versioning. Current version is `v1`.
-
-- **v1**: Initial release with basic event querying
-- **v2** (planned): Advanced filtering, aggregations, and subscriptions
-
-## Support
-
-For API support and issues, please refer to:
-- GitHub Issues: https://github.com/chainpulse/chainpulse/issues
-- Documentation: https://docs.chainpulse.io
-- Community Discord: https://discord.gg/chainpulse

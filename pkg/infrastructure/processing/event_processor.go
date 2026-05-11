@@ -5,10 +5,13 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"runtime"
+	"sort"
 	"sync"
 	"time"
 
 	"chainpulse/pkg/core"
+	"golang.org/x/sync/errgroup"
 )
 
 // Event represents a blockchain event to be processed
@@ -17,7 +20,7 @@ type Event struct {
 	EventHash       string                 `json:"event_hash"`
 	BlockNumber     uint64                 `json:"block_number"`
 	TransactionHash string                 `json:"transaction_hash"`
-	LogIndex        uint                   `json:"log_index"`
+	LogIndex        uint64                 `json:"log_index"`
 	ContractAddress string                 `json:"contract_address"`
 	EventName       string                 `json:"event_name"`
 	EventData       map[string]interface{} `json:"event_data"`
@@ -31,7 +34,16 @@ type Event struct {
 type EventValidationError struct {
 	EventID string
 	Reason  string
+	Err     error // underlying error, if any
 }
+
+// Error implements the error interface
+func (e *EventValidationError) Error() string {
+	return fmt.Sprintf("validation failed for event %s: %s", e.EventID, e.Reason)
+}
+
+// Unwrap returns the underlying error, enabling errors.Is() and errors.As()
+func (e *EventValidationError) Unwrap() error { return e.Err }
 
 // EventProcessor processes blockchain events
 type EventProcessor struct {
@@ -103,7 +115,7 @@ func (ep *EventProcessor) ProcessEvent(ctx context.Context, event *Event) error 
 	return nil
 }
 
-// ProcessBatch processes a batch of events
+// ProcessBatch processes a batch of events with bounded concurrency
 func (ep *EventProcessor) ProcessBatch(ctx context.Context, events []*Event) error {
 	start := time.Now()
 	defer func() {
@@ -114,41 +126,41 @@ func (ep *EventProcessor) ProcessBatch(ctx context.Context, events []*Event) err
 		return nil
 	}
 
-	// Process events in parallel with context
-	errChan := make(chan error, len(events))
-	var wg sync.WaitGroup
+	// Sort events by (block_number, log_index) to guarantee strict ordering
+	// even though processing is concurrent. This ensures events from earlier
+	// blocks enter the processing pipeline before later blocks.
+	sort.Slice(events, func(i, j int) bool {
+		if events[i].BlockNumber != events[j].BlockNumber {
+			return events[i].BlockNumber < events[j].BlockNumber
+		}
+		return events[i].LogIndex < events[j].LogIndex
+	})
 
+	// Use errgroup with bounded concurrency to avoid spawning unlimited goroutines
+	g, gCtx := errgroup.WithContext(ctx)
+	g.SetLimit(runtime.NumCPU())
+
+	var mu sync.Mutex // protects failedCount updates
 	for i := range events {
-		wg.Add(1)
-		go func(event *Event) {
-			defer wg.Done()
-			if err := ep.ProcessEvent(ctx, event); err != nil {
-				errChan <- err
-				ep.mu.Lock()
+		event := events[i]
+		g.Go(func() error {
+			if err := ep.ProcessEvent(gCtx, event); err != nil {
+				mu.Lock()
 				ep.failedCount++
-				ep.mu.Unlock()
+				mu.Unlock()
+				return err
 			}
-		}(events[i])
+			return nil
+		})
 	}
 
-	wg.Wait()
-	close(errChan)
-
-	// Collect errors
-	var errs []error
-	for err := range errChan {
-		if err != nil {
-			errs = append(errs, err)
-		}
+	if err := g.Wait(); err != nil {
+		return fmt.Errorf("batch processing failed: %w", err)
 	}
 
 	ep.mu.Lock()
 	ep.metrics.BatchesProcessed++
 	ep.mu.Unlock()
-
-	if len(errs) > 0 {
-		return fmt.Errorf("batch processing failed with %d errors", len(errs))
-	}
 
 	return nil
 }
@@ -204,18 +216,16 @@ func (ep *EventProcessor) normalizeEvent(event *Event) {
 	}
 }
 
-// generateEventHash generates a deterministic hash for the event
+// generateEventHash generates a deterministic hash for the event using the
+// canonical natural key (chain_id, block_number, transaction_hash, log_index).
+// This produces the same result as core.ComputeEventHash for equivalent fields.
 func (ep *EventProcessor) generateEventHash(event *Event) string {
-	// Create a deterministic string representation
-	hashInput := fmt.Sprintf(
-		"%s:%s:%d:%s:%d:%s:%s",
+	// Same formula as core.ComputeEventHash: chain_id:block_number:tx_hash:log_index
+	hashInput := fmt.Sprintf("%s:%d:%s:%d",
 		event.ChainID,
+		event.BlockNumber,
 		event.TransactionHash,
 		event.LogIndex,
-		event.ContractAddress,
-		event.BlockNumber,
-		event.EventName,
-		event.ID,
 	)
 
 	hash := sha256.Sum256([]byte(hashInput))

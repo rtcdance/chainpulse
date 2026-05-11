@@ -141,8 +141,9 @@ func TestAllowRequestExceeded(t *testing.T) {
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	config := &RateLimitConfig{
-		DefaultRequestsPerSecond: 100.0,
+		DefaultRequestsPerSecond: 0.01,
 		DefaultBurstSize:         2,
+		CleanupInterval:          5 * time.Minute,
 	}
 
 	limiter := NewRateLimiter(logger, metrics, config)
@@ -221,7 +222,8 @@ func TestGetClientIP(t *testing.T) {
 			name:     "X-Forwarded-For",
 			headers:  map[string]string{"X-Forwarded-For": "192.168.1.1, 10.0.0.1"},
 			remoteIP: "127.0.0.1:8080",
-			expected: "192.168.1.1",
+			// Without trustedProxies, X-Forwarded-For is ignored; falls back to RemoteAddr
+			expected: "127.0.0.1",
 		},
 		{
 			name:     "X-Real-IP",
@@ -429,38 +431,6 @@ func TestRateLimitMiddlewareInjectsContext(t *testing.T) {
 	}
 }
 
-// TestParseIPList tests parsing IP list
-func TestParseIPList(t *testing.T) {
-	tests := []struct {
-		name     string
-		input    string
-		expected []string
-	}{
-		{
-			name:     "single IP",
-			input:    "192.168.1.1",
-			expected: []string{"192.168.1.1"},
-		},
-		{
-			name:     "multiple IPs",
-			input:    "192.168.1.1, 10.0.0.1, 172.16.0.1",
-			expected: []string{"192.168.1.1", "10.0.0.1", "172.16.0.1"},
-		},
-		{
-			name:     "IPs with spaces",
-			input:    "  192.168.1.1  ,  10.0.0.1  ",
-			expected: []string{"192.168.1.1", "10.0.0.1"},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := parseIPList(tt.input)
-			assert.Equal(t, tt.expected, result)
-		})
-	}
-}
-
 // TestRateLimitHeaders tests rate limit headers in response
 func TestRateLimitHeaders(t *testing.T) {
 	logger := &MockLogger{}
@@ -491,8 +461,9 @@ func TestRateLimitExceededResponse(t *testing.T) {
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	config := &RateLimitConfig{
-		DefaultRequestsPerSecond: 100.0,
+		DefaultRequestsPerSecond: 0.01,
 		DefaultBurstSize:         1,
+		CleanupInterval:          5 * time.Minute,
 	}
 
 	limiter := NewRateLimiter(logger, metrics, config)

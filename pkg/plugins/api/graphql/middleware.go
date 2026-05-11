@@ -2,12 +2,17 @@ package graphql
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
 
 	"chainpulse/pkg/core"
+	"github.com/graphql-go/graphql/language/ast"
+	"github.com/graphql-go/graphql/language/parser"
+	"github.com/graphql-go/graphql/language/source"
 )
 
 // AuthContext holds authentication and authorization information
@@ -75,16 +80,45 @@ func (ac *AuthContext) IsExpired() bool {
 
 // AuthMiddleware provides authentication and authorization
 type AuthMiddleware struct {
-	logger  core.Logger
-	metrics core.MetricsCollector
+	logger        core.Logger
+	metrics       core.MetricsCollector
+	tokenValidator TokenValidator
+	requireAuth   bool
+}
+
+// TokenValidator defines the interface for token validation
+type TokenValidator interface {
+	ValidateToken(ctx context.Context, authHeader string) ValidationResult
+	ValidateAPIKey(ctx context.Context, apiKey string) ValidationResult
+}
+
+// ValidationResult represents the outcome of token validation
+type ValidationResult struct {
+	Valid       bool
+	ClientID    string
+	UserID      string
+	Roles       []string
+	Permissions []string
+	Error       string
 }
 
 // NewAuthMiddleware creates a new auth middleware
 func NewAuthMiddleware(logger core.Logger, metrics core.MetricsCollector) *AuthMiddleware {
 	return &AuthMiddleware{
-		logger:  logger,
-		metrics: metrics,
+		logger:      logger,
+		metrics:     metrics,
+		requireAuth: true,
 	}
+}
+
+// SetTokenValidator sets the token validator for real authentication
+func (am *AuthMiddleware) SetTokenValidator(validator TokenValidator) {
+	am.tokenValidator = validator
+}
+
+// SetRequireAuth configures whether authentication is required
+func (am *AuthMiddleware) SetRequireAuth(require bool) {
+	am.requireAuth = require
 }
 
 // Authenticate extracts and validates authentication from request
@@ -93,30 +127,85 @@ func (am *AuthMiddleware) Authenticate(ctx context.Context, token string) (*Auth
 		return nil, fmt.Errorf("missing authentication token")
 	}
 
+	// If auth is not required, allow with limited scopes
+	if !am.requireAuth {
+		return &AuthContext{
+			UserID:    "anonymous",
+			Roles:     []string{"user"},
+			Scopes:    []string{"read:events", "list:events"},
+			ExpiresAt: time.Now().Add(1 * time.Hour),
+		}, nil
+	}
+
 	// Extract actual token (remove Bearer prefix if present)
 	actualToken := token
 	if len(token) > 7 && token[:7] == "Bearer " {
 		actualToken = token[7:]
 	}
 
-	// Basic validation - token should have some content
 	if len(actualToken) < 3 {
-		am.logger.Warn("Token too short")
-		am.metrics.RecordCounter("graphql_auth_invalid_token", 1, nil)
+		am.logWarn("Token too short")
+		am.recordCounter("graphql_auth_invalid_token", 1)
 		return nil, fmt.Errorf("invalid token")
 	}
 
-	// Create auth context with default scopes
-	authCtx := &AuthContext{
-		UserID:    "user-1",
-		Roles:     []string{"user"},
-		Scopes:    []string{"read:events", "list:events"},
-		ExpiresAt: time.Now().Add(24 * time.Hour),
+	// Use real token validator if available
+	if am.tokenValidator != nil {
+		// Try JWT token first
+		result := am.tokenValidator.ValidateToken(ctx, token)
+		if result.Valid {
+			authCtx := &AuthContext{
+				UserID:    result.UserID,
+				Roles:     result.Roles,
+				Scopes:    result.Permissions,
+				ExpiresAt: time.Now().Add(24 * time.Hour),
+			}
+			am.logInfo("User authenticated via JWT", "userId", authCtx.UserID)
+			am.recordCounter("graphql_auth_success", 1)
+			return authCtx, nil
+		}
+
+		// Try API key
+		result = am.tokenValidator.ValidateAPIKey(ctx, actualToken)
+		if result.Valid {
+			authCtx := &AuthContext{
+				UserID:    result.UserID,
+				Roles:     result.Roles,
+				Scopes:    result.Permissions,
+				ExpiresAt: time.Now().Add(24 * time.Hour),
+			}
+			am.logInfo("User authenticated via API key", "userId", authCtx.UserID)
+			am.recordCounter("graphql_auth_success", 1)
+			return authCtx, nil
+		}
+
+		am.logWarn("Authentication failed", "error", result.Error)
+		am.recordCounter("graphql_auth_failed", 1)
+		return nil, fmt.Errorf("authentication failed: %s", result.Error)
 	}
 
-	am.logger.Info("User authenticated", "userId", authCtx.UserID)
-	am.metrics.RecordCounter("graphql_auth_success", 1, nil)
-	return authCtx, nil
+	// No validator configured — reject in production mode
+	am.logWarn("No token validator configured, authentication denied")
+	am.recordCounter("graphql_auth_no_validator", 1)
+	return nil, fmt.Errorf("authentication not configured")
+}
+
+func (am *AuthMiddleware) logInfo(msg string, args ...interface{}) {
+	if am.logger != nil {
+		am.logger.Info(msg, args...)
+	}
+}
+
+func (am *AuthMiddleware) logWarn(msg string, args ...interface{}) {
+	if am.logger != nil {
+		am.logger.Warn(msg, args...)
+	}
+}
+
+func (am *AuthMiddleware) recordCounter(name string, value int64) {
+	if am.metrics != nil {
+		am.metrics.RecordCounter(name, value, nil)
+	}
 }
 
 // ComplexityMiddleware analyzes and limits query complexity
@@ -149,39 +238,72 @@ func (cm *ComplexityMiddleware) AnalyzeQuery(query string) (int, error) {
 	return complexity, nil
 }
 
-// calculateComplexity calculates query complexity based on heuristics
+// calculateComplexity calculates query complexity by walking the parsed AST.
+// Each field selection costs 1 point, each level of nesting multiplies by a
+// depth factor, and list fields (edges, events) carry an additional multiplier.
 func (cm *ComplexityMiddleware) calculateComplexity(query string) int {
-	complexity := 1
+	src := source.Source{Body: []byte(query)}
+	doc, err := parser.Parse(parser.ParseParams{Source: &src})
+	if err != nil {
+		// If the query cannot be parsed, fall back to character-based estimate
+		return len(query) / 10 + 1
+	}
 
-	// Count field selections
-	complexity += strings.Count(query, "{")
-
-	// Count arguments
-	complexity += strings.Count(query, "(") * 2
-
-	// Count aliases
-	complexity += strings.Count(query, ":") / 2
-
-	// Count fragments
-	complexity += strings.Count(query, "fragment") * 5
-
-	// Count nested queries
-	depth := 0
-	maxDepth := 0
-	for _, char := range query {
-		switch char {
-		case '{':
-			depth++
-			if depth > maxDepth {
-				maxDepth = depth
-			}
-		case '}':
-			depth--
+	total := 0
+	for _, def := range doc.Definitions {
+		if op, ok := def.(*ast.OperationDefinition); ok {
+			total += cm.walkSelectionSet(op.GetSelectionSet(), 1)
+		}
+		if frag, ok := def.(*ast.FragmentDefinition); ok {
+			total += cm.walkSelectionSet(frag.GetSelectionSet(), 1)
 		}
 	}
-	complexity += maxDepth * 3
+	if total == 0 {
+		return 1
+	}
+	return total
+}
 
-	return complexity
+// walkSelectionSet recursively walks a GraphQL selection set, accumulating
+// complexity. Each field costs 1, nested fields are multiplied by depthFactor,
+// and known list fields carry a listMultiplier.
+func (cm *ComplexityMiddleware) walkSelectionSet(selSet *ast.SelectionSet, depth int) int {
+	if selSet == nil {
+		return 0
+	}
+
+	const depthFactor = 2        // each nesting level doubles cost
+	const listMultiplier = 10    // list fields (edges, events) cost 10x
+
+	cost := 0
+	for _, sel := range selSet.Selections {
+		switch s := sel.(type) {
+		case *ast.Field:
+			fieldCost := 1
+			// Known list fields that return arrays
+			name := s.Name.Value
+			if name == "edges" || name == "events" || name == "nodes" ||
+				name == "transactions" || name == "logs" {
+				fieldCost *= listMultiplier
+			}
+			// Deeply nested fields are exponentially more expensive
+			if depth > 1 {
+				fieldCost *= depthFactor
+			}
+			cost += fieldCost
+			if s.SelectionSet != nil {
+				cost += cm.walkSelectionSet(s.SelectionSet, depth+1)
+			}
+		case *ast.InlineFragment:
+			if s.SelectionSet != nil {
+				cost += cm.walkSelectionSet(s.SelectionSet, depth)
+			}
+		case *ast.FragmentSpread:
+			// Fragment spreads are counted as their field count (estimate)
+			cost += 5
+		}
+	}
+	return cost
 }
 
 // RateLimitMiddleware implements rate limiting for GraphQL queries
@@ -292,14 +414,10 @@ func (cm *CachingMiddleware) SetCached(query string, result interface{}) error {
 	return nil
 }
 
-// hashQuery creates a hash of the query for caching
+// hashQuery creates a SHA-256 hash of the query for cache key generation.
 func hashQuery(query string) string {
-	// Simple hash implementation - in production use a proper hash function
-	hash := 0
-	for _, char := range query {
-		hash = ((hash << 5) - hash) + int(char)
-	}
-	return fmt.Sprintf("%d", hash)
+	h := sha256.Sum256([]byte(query))
+	return hex.EncodeToString(h[:16])
 }
 
 // ValidationMiddleware validates GraphQL queries
@@ -356,7 +474,8 @@ func NewLoggingMiddleware(logger core.Logger) *LoggingMiddleware {
 
 // LogQuery logs a GraphQL query
 func (lm *LoggingMiddleware) LogQuery(userID string, query string, duration time.Duration) {
-	lm.logger.Info("GraphQL query executed",
+	lm.logger.Info(
+		"GraphQL query executed",
 		"userId", userID,
 		"queryLength", len(query),
 		"duration", duration.Milliseconds(),
@@ -365,7 +484,8 @@ func (lm *LoggingMiddleware) LogQuery(userID string, query string, duration time
 
 // LogMutation logs a GraphQL mutation
 func (lm *LoggingMiddleware) LogMutation(userID string, mutation string, duration time.Duration) {
-	lm.logger.Info("GraphQL mutation executed",
+	lm.logger.Info(
+		"GraphQL mutation executed",
 		"userId", userID,
 		"mutationLength", len(mutation),
 		"duration", duration.Milliseconds(),
@@ -374,7 +494,8 @@ func (lm *LoggingMiddleware) LogMutation(userID string, mutation string, duratio
 
 // LogError logs a GraphQL error
 func (lm *LoggingMiddleware) LogError(userID string, operation string, err error) {
-	lm.logger.Error("GraphQL operation failed",
+	lm.logger.Error(
+		"GraphQL operation failed",
 		"userId", userID,
 		"operation", operation,
 		"error", err.Error(),

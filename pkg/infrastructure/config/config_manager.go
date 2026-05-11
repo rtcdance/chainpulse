@@ -8,6 +8,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"io"
+	"log/slog"
 	"sync"
 	"time"
 )
@@ -23,7 +24,7 @@ type ConsulClientInterface interface {
 
 // ConfigManager manages centralized configuration.
 //
-//nolint:exported // Renaming would break many external uses.
+// Renaming would break many external uses.
 type ConfigManager struct {
 	consul        ConsulClientInterface
 	cache         map[string]string
@@ -31,6 +32,7 @@ type ConfigManager struct {
 	encryptionKey []byte
 	watchers      map[string][]func(string)
 	watcherMutex  sync.RWMutex
+	watcherWg     sync.WaitGroup
 }
 
 // NewConfigManager creates a new configuration manager
@@ -78,6 +80,16 @@ func (cm *ConfigManager) GetConfig(ctx context.Context, key string) (string, err
 
 // SetConfig sets a configuration value
 func (cm *ConfigManager) SetConfig(ctx context.Context, key, value string) error {
+	if key == "" {
+		return fmt.Errorf("config key must not be empty")
+	}
+
+	// Save old cache value for rollback in case Consul write succeeds
+	// but cache update fails (should never happen, but defensive programming).
+	cm.cacheMutex.RLock()
+	oldValue, hadOld := cm.cache[key]
+	cm.cacheMutex.RUnlock()
+
 	// Encrypt if necessary
 	if isSensitive(key) {
 		encrypted, err := cm.encrypt(value)
@@ -96,6 +108,23 @@ func (cm *ConfigManager) SetConfig(ctx context.Context, key, value string) error
 	cm.cacheMutex.Lock()
 	cm.cache[key] = value
 	cm.cacheMutex.Unlock()
+
+	// Validate the written value by reading it back from Consul.
+	// If the read-back fails or the value differs, roll back the cache.
+	readback, err := cm.consul.GetConfig(ctx, key)
+	if err != nil || readback != value {
+		cm.cacheMutex.Lock()
+		if hadOld {
+			cm.cache[key] = oldValue
+		} else {
+			delete(cm.cache, key)
+		}
+		cm.cacheMutex.Unlock()
+		if err != nil {
+			return fmt.Errorf("config validation failed: read-back error: %w", err)
+		}
+		return fmt.Errorf("config validation failed: read-back value mismatch for key %s", key)
+	}
 
 	// Notify watchers
 	cm.notifyWatchers(key, value)
@@ -116,7 +145,7 @@ func (cm *ConfigManager) WatchConfig(ctx context.Context, key string, handler fu
 		if isSensitive(key) {
 			decrypted, err := cm.decrypt(value)
 			if err != nil {
-				fmt.Printf("failed to decrypt config: %v\n", err)
+				slog.Warn("failed to decrypt config", "error", err)
 				return
 			}
 			value = decrypted
@@ -139,8 +168,17 @@ func (cm *ConfigManager) notifyWatchers(key, value string) {
 	cm.watcherMutex.RUnlock()
 
 	for _, watcher := range watchers {
-		go watcher(value)
+		cm.watcherWg.Add(1)
+		go func(fn func(string)) {
+			defer cm.watcherWg.Done()
+			fn(value)
+		}(watcher)
 	}
+}
+
+// WaitWatchers waits for all in-flight watcher goroutines to complete
+func (cm *ConfigManager) WaitWatchers() {
+	cm.watcherWg.Wait()
 }
 
 // encrypt encrypts a value using AES-256-GCM
@@ -240,7 +278,7 @@ func isSensitive(key string) bool {
 
 // ConfigVersion represents a configuration version.
 //
-//nolint:exported // Renaming would break many external uses.
+// Renaming would break many external uses.
 type ConfigVersion struct {
 	Key       string
 	Value     string

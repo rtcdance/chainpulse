@@ -17,27 +17,27 @@ func minInt(a, b int) int {
 	return b
 }
 
-type MockEventStore struct {
+type mockEventStoreDomain struct {
 	events     map[string]*core.BlockchainEvent
 	initialize bool
 	close      bool
 }
 
-func NewMockEventStore() *MockEventStore {
-	return &MockEventStore{events: make(map[string]*core.BlockchainEvent)}
+func NewMockEventStoreDomain() *mockEventStoreDomain {
+	return &mockEventStoreDomain{events: make(map[string]*core.BlockchainEvent)}
 }
 
-func (m *MockEventStore) Initialize(ctx context.Context) error {
+func (m *mockEventStoreDomain) Initialize(ctx context.Context) error {
 	m.initialize = true
 	return nil
 }
 
-func (m *MockEventStore) Close(ctx context.Context) error {
+func (m *mockEventStoreDomain) Close(ctx context.Context) error {
 	m.close = true
 	return nil
 }
 
-func (m *MockEventStore) InsertEvent(ctx context.Context, event *core.BlockchainEvent) error {
+func (m *mockEventStoreDomain) InsertEvent(ctx context.Context, event *core.BlockchainEvent) error {
 	if event == nil || event.ID == "" {
 		return nil
 	}
@@ -45,7 +45,7 @@ func (m *MockEventStore) InsertEvent(ctx context.Context, event *core.Blockchain
 	return nil
 }
 
-func (m *MockEventStore) InsertEventBatch(ctx context.Context, events []*core.BlockchainEvent) error {
+func (m *mockEventStoreDomain) InsertEventBatch(ctx context.Context, events []*core.BlockchainEvent) error {
 	for _, e := range events {
 		if err := m.InsertEvent(ctx, e); err != nil {
 			return err
@@ -54,7 +54,7 @@ func (m *MockEventStore) InsertEventBatch(ctx context.Context, events []*core.Bl
 	return nil
 }
 
-func (m *MockEventStore) GetEvent(ctx context.Context, eventID string) (*core.BlockchainEvent, error) {
+func (m *mockEventStoreDomain) GetEvent(ctx context.Context, eventID string) (*core.BlockchainEvent, error) {
 	event, ok := m.events[eventID]
 	if !ok {
 		return nil, nil
@@ -62,7 +62,7 @@ func (m *MockEventStore) GetEvent(ctx context.Context, eventID string) (*core.Bl
 	return event, nil
 }
 
-func (m *MockEventStore) GetEventsByChain(ctx context.Context, chainID int, limit int, offset int) ([]*core.BlockchainEvent, error) {
+func (m *mockEventStoreDomain) GetEventsByChain(ctx context.Context, chainID int, limit int, offset int) ([]*core.BlockchainEvent, error) {
 	var result []*core.BlockchainEvent
 	chainIDStr := "1"
 	if chainID == 2 {
@@ -82,7 +82,7 @@ func (m *MockEventStore) GetEventsByChain(ctx context.Context, chainID int, limi
 	return result, nil
 }
 
-func (m *MockEventStore) GetEventsByContract(ctx context.Context, contractAddress string, limit int, offset int) ([]*core.BlockchainEvent, error) {
+func (m *mockEventStoreDomain) GetEventsByContract(ctx context.Context, contractAddress string, limit int, offset int) ([]*core.BlockchainEvent, error) {
 	var result []*core.BlockchainEvent
 	addr := common.HexToAddress(contractAddress)
 	for _, e := range m.events {
@@ -96,7 +96,7 @@ func (m *MockEventStore) GetEventsByContract(ctx context.Context, contractAddres
 	return result[offset:minInt(offset+limit, len(result))], nil
 }
 
-func (m *MockEventStore) GetEventsByEventName(ctx context.Context, eventName string, limit int, offset int) ([]*core.BlockchainEvent, error) {
+func (m *mockEventStoreDomain) GetEventsByEventName(ctx context.Context, eventName string, limit int, offset int) ([]*core.BlockchainEvent, error) {
 	var result []*core.BlockchainEvent
 	for _, e := range m.events {
 		if e.EventName == eventName {
@@ -109,7 +109,7 @@ func (m *MockEventStore) GetEventsByEventName(ctx context.Context, eventName str
 	return result[offset:minInt(offset+limit, len(result))], nil
 }
 
-func (m *MockEventStore) GetEventsByBlock(ctx context.Context, blockNumber int64) ([]*core.BlockchainEvent, error) {
+func (m *mockEventStoreDomain) GetEventsByBlock(ctx context.Context, blockNumber int64) ([]*core.BlockchainEvent, error) {
 	var result []*core.BlockchainEvent
 	for _, e := range m.events {
 		if e.BlockNumber == uint64(blockNumber) {
@@ -119,7 +119,7 @@ func (m *MockEventStore) GetEventsByBlock(ctx context.Context, blockNumber int64
 	return result, nil
 }
 
-func (m *MockEventStore) GetEventsByAddress(ctx context.Context, address string, limit int) ([]*core.BlockchainEvent, error) {
+func (m *mockEventStoreDomain) GetEventsByAddress(ctx context.Context, address string, limit int) ([]*core.BlockchainEvent, error) {
 	var result []*core.BlockchainEvent
 	addr := common.HexToAddress(address)
 	count := 0
@@ -135,11 +135,11 @@ func (m *MockEventStore) GetEventsByAddress(ctx context.Context, address string,
 	return result, nil
 }
 
-func (m *MockEventStore) GetEventsByName(ctx context.Context, eventName string, limit int) ([]*core.BlockchainEvent, error) {
+func (m *mockEventStoreDomain) GetEventsByName(ctx context.Context, eventName string, limit int) ([]*core.BlockchainEvent, error) {
 	return m.GetEventsByEventName(ctx, eventName, limit, 0)
 }
 
-func (m *MockEventStore) GetEventsPaginated(ctx context.Context, cursor string, limit int) ([]*core.BlockchainEvent, bool, error) {
+func (m *mockEventStoreDomain) GetEventsPaginated(ctx context.Context, cursor string, limit int) ([]*core.BlockchainEvent, bool, error) {
 	var result []*core.BlockchainEvent
 	count := 0
 	hasMore := false
@@ -154,24 +154,28 @@ func (m *MockEventStore) GetEventsPaginated(ctx context.Context, cursor string, 
 	return result, hasMore, nil
 }
 
-func (m *MockEventStore) DeleteExpiredEvents(ctx context.Context) (int64, error) {
+func (m *mockEventStoreDomain) DeleteExpiredEvents(ctx context.Context) (int64, error) {
 	return 0, nil
 }
 
-func (m *MockEventStore) Health(ctx context.Context) *core.HealthStatus {
+func (m *mockEventStoreDomain) CountEvents(ctx context.Context) (int64, error) {
+	return int64(len(m.events)), nil
+}
+
+func (m *mockEventStoreDomain) Health(ctx context.Context) *core.HealthStatus {
 	return &core.HealthStatus{Status: "healthy", Timestamp: time.Now()}
 }
 
 func TestEventStoreInterface(t *testing.T) {
 	t.Parallel()
-	store := NewMockEventStore()
+	store := NewMockEventStoreDomain()
 	// Verify the mock implements EventStore interface at compile time
 	_ = EventStore(store)
 }
 
 func TestEventStoreInitialize(t *testing.T) {
 	t.Parallel()
-	store := NewMockEventStore()
+	store := NewMockEventStoreDomain()
 	ctx := context.Background()
 	err := store.Initialize(ctx)
 	if err != nil {
@@ -185,7 +189,7 @@ func TestEventStoreInitialize(t *testing.T) {
 
 func TestEventStoreClose(t *testing.T) {
 	t.Parallel()
-	store := NewMockEventStore()
+	store := NewMockEventStoreDomain()
 	ctx := context.Background()
 	_ = store.Initialize(ctx)
 	err := store.Close(ctx)
@@ -196,7 +200,7 @@ func TestEventStoreClose(t *testing.T) {
 
 func TestEventStoreInsertEvent(t *testing.T) {
 	t.Parallel()
-	store := NewMockEventStore()
+	store := NewMockEventStoreDomain()
 	ctx := context.Background()
 	_ = store.Initialize(ctx)
 	event := &core.BlockchainEvent{
@@ -223,7 +227,7 @@ func TestEventStoreInsertEvent(t *testing.T) {
 
 func TestEventStoreInsertInvalidEvent(t *testing.T) {
 	t.Parallel()
-	store := NewMockEventStore()
+	store := NewMockEventStoreDomain()
 	ctx := context.Background()
 	_ = store.Initialize(ctx)
 	_ = store.InsertEvent(ctx, nil)
@@ -232,7 +236,7 @@ func TestEventStoreInsertInvalidEvent(t *testing.T) {
 
 func TestEventStoreInsertBatch(t *testing.T) {
 	t.Parallel()
-	store := NewMockEventStore()
+	store := NewMockEventStoreDomain()
 	ctx := context.Background()
 	_ = store.Initialize(ctx)
 	events := []*core.BlockchainEvent{
@@ -248,7 +252,7 @@ func TestEventStoreInsertBatch(t *testing.T) {
 
 func TestEventStoreGetEventsByChain(t *testing.T) {
 	t.Parallel()
-	store := NewMockEventStore()
+	store := NewMockEventStoreDomain()
 	ctx := context.Background()
 	_ = store.Initialize(ctx)
 	_ = store.InsertEvent(ctx, &core.BlockchainEvent{ID: "chain1-1", ChainID: "1"})
@@ -263,7 +267,7 @@ func TestEventStoreGetEventsByChain(t *testing.T) {
 
 func TestEventStorePagination(t *testing.T) {
 	t.Parallel()
-	store := NewMockEventStore()
+	store := NewMockEventStoreDomain()
 	ctx := context.Background()
 	_ = store.Initialize(ctx)
 	for i := 0; i < 10; i++ {
@@ -283,7 +287,7 @@ func TestEventStorePagination(t *testing.T) {
 
 func TestEventStoreHealth(t *testing.T) {
 	t.Parallel()
-	store := NewMockEventStore()
+	store := NewMockEventStoreDomain()
 	ctx := context.Background()
 	_ = store.Initialize(ctx)
 	health := store.Health(ctx)

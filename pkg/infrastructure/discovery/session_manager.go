@@ -78,22 +78,25 @@ func (sm *SessionManager) GetSession(ctx context.Context, sessionID string) (*Se
 
 // UpdateSession updates session data
 func (sm *SessionManager) UpdateSession(ctx context.Context, sessionID string, data map[string]interface{}) error {
-	session, err := sm.GetSession(ctx, sessionID)
-	if err != nil {
-		return err
+	sm.mutex.Lock()
+	session, exists := sm.sessions[sessionID]
+	if !exists {
+		sm.mutex.Unlock()
+		return fmt.Errorf("session not found: %s", sessionID)
 	}
 
-	// Update data
+	// Check expiration
+	if time.Now().After(session.ExpiresAt) {
+		delete(sm.sessions, sessionID)
+		sm.mutex.Unlock()
+		return fmt.Errorf("session expired: %s", sessionID)
+	}
+
+	// Update data and expiration under the same lock
 	for key, value := range data {
 		session.Data[key] = value
 	}
-
-	// Update expiration
 	session.ExpiresAt = time.Now().Add(sm.ttl)
-
-	// Update local map
-	sm.mutex.Lock()
-	sm.sessions[sessionID] = session
 	sm.mutex.Unlock()
 
 	return nil

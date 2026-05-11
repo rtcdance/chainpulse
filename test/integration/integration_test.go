@@ -138,7 +138,8 @@ func TestPhase1EventBusFlow(t *testing.T) {
 		receivedEvents = append(receivedEvents, event)
 	}
 
-	if err := eventBus.Subscribe(context.Background(), "test-topic", handler); err != nil {
+	subID, err := eventBus.Subscribe(context.Background(), "test-topic", handler)
+	if err != nil {
 		t.Fatalf("failed to subscribe: %v", err)
 	}
 	logger.Info("subscribed to topic", "topic", "test-topic")
@@ -159,7 +160,7 @@ func TestPhase1EventBusFlow(t *testing.T) {
 	}
 
 	// Unsubscribe
-	if err := eventBus.Unsubscribe("test-topic", handler); err != nil {
+	if err := eventBus.Unsubscribe(subID); err != nil {
 		t.Fatalf("failed to unsubscribe: %v", err)
 	}
 	logger.Info("unsubscribed from topic", "topic", "test-topic")
@@ -318,7 +319,7 @@ func TestPhase1EndToEndFlow(t *testing.T) {
 
 	// Subscribe to plugin events
 	eventCount := 0
-	_ = eventBus.Subscribe(context.Background(), "plugin-events", func(event interface{}) {
+	_, _ = eventBus.Subscribe(context.Background(), "plugin-events", func(event interface{}) {
 		eventCount++
 	})
 	logger.WithCorrelationID("flow-1").Info("subscribed to plugin events")

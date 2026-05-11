@@ -99,7 +99,8 @@ func (ci *CacheInvalidator) InvalidatePattern(pattern string, reason string) err
 func (ci *CacheInvalidator) InvalidateRelated(keys []string, reason string) error {
 	for _, key := range keys {
 		if err := ci.InvalidateKey(key, reason); err != nil {
-			ci.logger.Error("Failed to invalidate related key",
+			ci.logger.Error(
+				"Failed to invalidate related key",
 				"key", key,
 				"reason", reason,
 				"error", err,
@@ -121,7 +122,8 @@ func (ci *CacheInvalidator) processInvalidations() {
 func (ci *CacheInvalidator) processInvalidation(req InvalidationRequest) {
 	if req.Key != "" {
 		ci.cache.Invalidate(req.Key)
-		ci.logger.Info("Cache key invalidated",
+		ci.logger.Info(
+			"Cache key invalidated",
 			"key", req.Key,
 			"reason", req.Reason,
 		)
@@ -130,7 +132,8 @@ func (ci *CacheInvalidator) processInvalidation(req InvalidationRequest) {
 		})
 	} else if req.Pattern != "" {
 		ci.cache.InvalidatePattern(req.Pattern)
-		ci.logger.Info("Cache pattern invalidated",
+		ci.logger.Info(
+			"Cache pattern invalidated",
 			"pattern", req.Pattern,
 			"reason", req.Reason,
 		)

@@ -1,56 +1,19 @@
 package query
 
+//go:generate mockgen -destination=mock_event_store.go -package=query . EventMetadataStore
+
 import (
 	"context"
 	"time"
 
 	"chainpulse/pkg/core"
+	domainquery "chainpulse/pkg/domain/query"
 )
 
-// EventStore defines the interface for storing and retrieving events from MongoDB
-type EventStore interface {
-	// Initialize initializes the event store
-	Initialize(ctx context.Context) error
-
-	// InsertEvent inserts a single event into the store
-	InsertEvent(ctx context.Context, event *core.BlockchainEvent) error
-
-	// InsertEventBatch inserts multiple events in a batch operation
-	InsertEventBatch(ctx context.Context, events []*core.BlockchainEvent) error
-
-	// GetEvent retrieves a single event by ID
-	GetEvent(ctx context.Context, eventID string) (*core.BlockchainEvent, error)
-
-	// GetEventsByChain retrieves events for a specific chain
-	GetEventsByChain(ctx context.Context, chainID int, limit int, offset int) ([]*core.BlockchainEvent, error)
-
-	// GetEventsByContract retrieves events for a specific contract
-	GetEventsByContract(ctx context.Context, contractAddress string, limit int, offset int) ([]*core.BlockchainEvent, error)
-
-	// GetEventsByEventName retrieves events by event name
-	GetEventsByEventName(ctx context.Context, eventName string, limit int, offset int) ([]*core.BlockchainEvent, error)
-
-	// GetEventsByBlock retrieves events by block number
-	GetEventsByBlock(ctx context.Context, blockNumber int64) ([]*core.BlockchainEvent, error)
-
-	// GetEventsByAddress retrieves events by contract address with limit
-	GetEventsByAddress(ctx context.Context, address string, limit int) ([]*core.BlockchainEvent, error)
-
-	// GetEventsByName retrieves events by event name with limit
-	GetEventsByName(ctx context.Context, eventName string, limit int) ([]*core.BlockchainEvent, error)
-
-	// GetEventsPaginated retrieves events with cursor-based pagination
-	GetEventsPaginated(ctx context.Context, cursor string, limit int) ([]*core.BlockchainEvent, bool, error)
-
-	// DeleteExpiredEvents deletes events that have exceeded their TTL
-	DeleteExpiredEvents(ctx context.Context) (int64, error)
-
-	// Health returns the health status of the event store
-	Health(ctx context.Context) *core.HealthStatus
-
-	// Close closes the event store
-	Close(ctx context.Context) error
-}
+// EventStore is an alias for the canonical domain-layer EventStore interface.
+// All consumers should use this type; the underlying definition lives in
+// pkg/domain/query to maintain correct dependency direction.
+type EventStore = domainquery.EventStore
 
 // EventMetadataStore defines the interface for storing event metadata in PostgreSQL
 type EventMetadataStore interface {
@@ -86,7 +49,7 @@ type EventMetadata struct {
 	ChainID          int
 	BlockNumber      int64
 	TransactionHash  string
-	LogIndex         int
+	LogIndex         int64
 	ContractAddress  string
 	EventName        string
 	ProcessedAt      time.Time

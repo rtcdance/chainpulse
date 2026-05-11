@@ -527,3 +527,64 @@ func TestHealthCheckResponseTime(t *testing.T) {
 	assert.Equal(t, 150*time.Millisecond, result.ResponseTime)
 	assert.Greater(t, result.ResponseTime, time.Duration(0))
 }
+
+func TestHealthCheckSystemStopWaitsForGoroutines(t *testing.T) {
+	registry := NewMockServiceRegistry()
+	hcs := NewHealthCheckSystem(registry)
+
+	// Register a health check endpoint
+	ctx := context.Background()
+	endpoint := HealthCheckEndpoint{
+		ServiceID: "test-service",
+		URL:       "http://localhost:9999",
+		Timeout:   1 * time.Second,
+	}
+	_ = hcs.RegisterHealthCheckEndpoint(ctx, endpoint)
+
+	// Start the health check system
+	err := hcs.Start(ctx)
+	assert.NoError(t, err)
+	assert.True(t, hcs.running)
+
+	// Stop should complete without hanging (proves wg.Wait() works)
+	done := make(chan struct{})
+	go func() {
+		hcs.Stop()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		// Success — Stop() waited for goroutines and returned
+	case <-time.After(5 * time.Second):
+		t.Fatal("Stop() hung — goroutine leak not fixed")
+	}
+
+	assert.False(t, hcs.running)
+}
+
+func TestAutomaticDeregistrationStopWaitsForGoroutine(t *testing.T) {
+	registry := NewMockServiceRegistry()
+	fd := NewFailureDetector(NewHealthCheckSystem(registry), 3)
+	ad := NewAutomaticDeregistration(registry, fd, 30*time.Second)
+
+	ctx := context.Background()
+	err := ad.Start(ctx)
+	assert.NoError(t, err)
+	assert.True(t, ad.running)
+
+	done := make(chan struct{})
+	go func() {
+		ad.Stop()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		// Success
+	case <-time.After(5 * time.Second):
+		t.Fatal("AutomaticDeregistration.Stop() hung")
+	}
+
+	assert.False(t, ad.running)
+}

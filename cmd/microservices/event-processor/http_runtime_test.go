@@ -256,7 +256,10 @@ func TestBuildEventProcessorRuntimeHTTPHandlerExposesControlRoutes(t *testing.T)
 		core.NewDefaultMetricsCollector(),
 		nil,
 		nil,
+		nil,
 		[]string{"raw-events", "blockchain-events"},
+		[]string{"processed-events"},
+		nil,
 	)
 
 	mux := buildEventProcessorRuntimeHTTPHandler(nil, nil, nil, controller)
@@ -341,7 +344,10 @@ func TestBuildEventProcessorRuntimeHTTPHandlerSecuritySurfaceProtectsControlRout
 		metrics,
 		nil,
 		nil,
+		nil,
 		[]string{"raw-events"},
+		[]string{"processed-events"},
+		nil,
 	)
 
 	mux := buildEventProcessorRuntimeHTTPHandler(handler, metrics, nil, controller)

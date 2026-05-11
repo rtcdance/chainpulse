@@ -83,11 +83,18 @@ type PolicyMetricSchemaPlan struct {
 type OverridePolicyError struct {
 	Code    string
 	Message string
+	Err     error // underlying error, if any
 }
 
 func (e *OverridePolicyError) Error() string {
+	if e.Err != nil {
+		return fmt.Sprintf("%s: %s: %v", e.Code, e.Message, e.Err)
+	}
 	return fmt.Sprintf("%s: %s", e.Code, e.Message)
 }
+
+// Unwrap returns the underlying error, enabling errors.Is() and errors.As()
+func (e *OverridePolicyError) Unwrap() error { return e.Err }
 
 // RuntimeProfileFromEnv returns normalized runtime profile.
 func RuntimeProfileFromEnv() string {

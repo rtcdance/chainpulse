@@ -85,7 +85,8 @@ func (md *MicroserviceDeployment) RegisterService(
 	md.serviceStopper = stopper
 
 	if md.logger != nil {
-		md.logger.Info("microservice registered",
+		md.logger.Info(
+			"microservice registered",
 			"service", md.serviceName,
 			"instance_id", md.instanceID,
 		)
@@ -118,7 +119,8 @@ func (md *MicroserviceDeployment) Initialize(ctx context.Context) error {
 	}
 
 	if md.logger != nil {
-		md.logger.Info("initializing microservice",
+		md.logger.Info(
+			"initializing microservice",
 			"service", md.serviceName,
 			"instance_id", md.instanceID,
 		)
@@ -126,7 +128,8 @@ func (md *MicroserviceDeployment) Initialize(ctx context.Context) error {
 
 	if err := md.serviceInitializer(); err != nil {
 		if md.logger != nil {
-			md.logger.Error("failed to initialize microservice",
+			md.logger.Error(
+				"failed to initialize microservice",
 				"service", md.serviceName,
 				"error", err.Error(),
 			)
@@ -140,7 +143,8 @@ func (md *MicroserviceDeployment) Initialize(ctx context.Context) error {
 	}
 
 	if md.logger != nil {
-		md.logger.Info("microservice initialized",
+		md.logger.Info(
+			"microservice initialized",
 			"service", md.serviceName,
 		)
 	}
@@ -165,7 +169,8 @@ func (md *MicroserviceDeployment) Start(ctx context.Context) error {
 	md.mu.Unlock()
 
 	if md.logger != nil {
-		md.logger.Info("starting microservice",
+		md.logger.Info(
+			"starting microservice",
 			"service", md.serviceName,
 			"instance_id", md.instanceID,
 		)
@@ -182,7 +187,8 @@ func (md *MicroserviceDeployment) Start(ctx context.Context) error {
 
 		if err := md.serviceStarter(); err != nil {
 			if md.logger != nil {
-				md.logger.Error("microservice error",
+				md.logger.Error(
+					"microservice error",
 					"service", md.serviceName,
 					"error", err.Error(),
 				)
@@ -196,7 +202,8 @@ func (md *MicroserviceDeployment) Start(ctx context.Context) error {
 	}()
 
 	if md.logger != nil {
-		md.logger.Info("microservice started",
+		md.logger.Info(
+			"microservice started",
 			"service", md.serviceName,
 		)
 	}
@@ -218,7 +225,8 @@ func (md *MicroserviceDeployment) Stop(ctx context.Context) error {
 	md.mu.Unlock()
 
 	if md.logger != nil {
-		md.logger.Info("stopping microservice",
+		md.logger.Info(
+			"stopping microservice",
 			"service", md.serviceName,
 		)
 	}
@@ -226,7 +234,8 @@ func (md *MicroserviceDeployment) Stop(ctx context.Context) error {
 	if md.serviceStopper != nil {
 		if err := md.serviceStopper(); err != nil {
 			if md.logger != nil {
-				md.logger.Error("failed to stop microservice",
+				md.logger.Error(
+					"failed to stop microservice",
 					"service", md.serviceName,
 					"error", err.Error(),
 				)
@@ -244,7 +253,8 @@ func (md *MicroserviceDeployment) Stop(ctx context.Context) error {
 	select {
 	case <-done:
 		if md.logger != nil {
-			md.logger.Info("microservice stopped",
+			md.logger.Info(
+				"microservice stopped",
 				"service", md.serviceName,
 			)
 		}

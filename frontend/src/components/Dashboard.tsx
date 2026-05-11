@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Activity, CheckCircle2, Loader2, RefreshCw, ShieldAlert, Waves } from 'lucide-react'
+import { Activity, CheckCircle2, Loader2, RefreshCw, ShieldAlert, Waves, AlertTriangle } from 'lucide-react'
 import {
   fetchCurrentSliceReport,
   fetchEvents,
@@ -125,6 +125,10 @@ export default function Dashboard() {
     return { total, ok }
   }, [state.serviceReports])
 
+  const reorgedCount = useMemo(() => {
+    return state.sampleEvents?.events.filter((e) => e.status === 'reorged').length ?? 0
+  }, [state.sampleEvents])
+
   if (loading) {
     return (
       <div className="flex h-72 items-center justify-center rounded-[28px] border border-white/10 bg-white/5">
@@ -170,7 +174,7 @@ export default function Dashboard() {
         </section>
       ) : null}
 
-      <section className="grid gap-4 xl:grid-cols-4">
+      <section className="grid gap-4 xl:grid-cols-5">
         <article className="rounded-[26px] border border-white/10 bg-white/5 p-5">
           <div className="flex items-center justify-between">
             <span className="text-xs uppercase tracking-[0.25em] text-mist">Gateway Health</span>
@@ -212,6 +216,17 @@ export default function Dashboard() {
           <div className="mt-4 text-3xl font-semibold text-white">{availability.ok}/{availability.total}</div>
           <p className="mt-3 text-sm text-sand/75">
             Successful probes across the current runnable slice
+          </p>
+        </article>
+
+        <article className={`rounded-[26px] border p-5 ${reorgedCount > 0 ? 'border-amber-300/30 bg-amber-300/5' : 'border-white/10 bg-white/5'}`}>
+          <div className="flex items-center justify-between">
+            <span className="text-xs uppercase tracking-[0.25em] text-mist">Recent Reorgs</span>
+            <AlertTriangle className={`h-5 w-5 ${reorgedCount > 0 ? 'text-amber-300' : 'text-glow'}`} />
+          </div>
+          <div className={`mt-4 text-3xl font-semibold ${reorgedCount > 0 ? 'text-amber-200' : 'text-white'}`}>{reorgedCount}</div>
+          <p className="mt-3 text-sm text-sand/75">
+            {reorgedCount > 0 ? 'Reorged events detected in recent sample' : 'No reorgs in recent sample'}
           </p>
         </article>
       </section>

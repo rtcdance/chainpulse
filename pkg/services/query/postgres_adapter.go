@@ -3,6 +3,7 @@ package query
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"regexp"
 	"strconv"
@@ -58,7 +59,11 @@ func (pa *DefaultPostgreSQLAdapter) Initialize(ctx context.Context) error {
 		return fmt.Errorf("PostgreSQL connection is nil")
 	}
 
-	pa.db = db.(*sql.DB)
+	sqlDB, ok := db.(*sql.DB)
+	if !ok {
+		return fmt.Errorf("expected *sql.DB, got %T", db)
+	}
+	pa.db = sqlDB
 	pa.initialized = true
 
 	pa.logger.Info("PostgreSQL adapter initialized", map[string]interface{}{
@@ -269,7 +274,7 @@ func (pa *DefaultPostgreSQLAdapter) QueryByHash(ctx context.Context, hash string
 		&event.ChainID,
 	)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			duration := time.Since(start).Milliseconds()
 			pa.logger.Debug("Event not found in PostgreSQL", map[string]interface{}{
 				"hash":     hash,

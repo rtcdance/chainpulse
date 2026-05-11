@@ -45,3 +45,11 @@ type ReorgStats struct {
 	LastReorgTime         time.Time
 	LastReorgBlock        uint64
 }
+
+// ReorgRollbackEvent is published after a reorg rollback to trigger re-indexing
+type ReorgRollbackEvent struct {
+	ChainID     string
+	FromBlock   uint64
+	ToBlock     uint64
+	DetectedAt  time.Time
+}

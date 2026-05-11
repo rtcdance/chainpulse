@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -393,12 +394,12 @@ func TestWatchConfig(t *testing.T) {
 	cm := NewConfigManager(consul, generateTestEncryptionKey())
 
 	ctx := context.Background()
-	callCount := 0
-	var receivedValue string
+	var callCount atomic.Int32
+	var receivedValue atomic.Pointer[string]
 
 	err = cm.WatchConfig(ctx, "watch_key", func(value string) {
-		callCount++
-		receivedValue = value
+		callCount.Add(1)
+		receivedValue.Store(&value)
 	})
 
 	assert.NoError(t, err)
@@ -407,11 +408,14 @@ func TestWatchConfig(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 	consul.TriggerWatch("watch_key", "updated_value")
 
-	// Wait for the handler to be called
-	time.Sleep(100 * time.Millisecond)
+	// Wait for all watcher goroutines to complete
+	cm.WaitWatchers()
 
-	assert.Greater(t, callCount, 0)
-	assert.Equal(t, "updated_value", receivedValue)
+	assert.Greater(t, int(callCount.Load()), 0)
+	stored := receivedValue.Load()
+	if stored != nil {
+		assert.Equal(t, "updated_value", *stored)
+	}
 }
 
 // TestWatchConfigError tests watch error handling

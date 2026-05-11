@@ -1,5 +1,7 @@
 package query
 
+//go:generate mockgen -destination=mock_service.go -package=query . Service
+
 import (
 	"context"
 	"time"

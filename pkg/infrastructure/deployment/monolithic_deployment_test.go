@@ -64,11 +64,11 @@ func (m *MonoMockEventBus) Publish(ctx context.Context, topic string, event inte
 	return nil
 }
 
-func (m *MonoMockEventBus) Subscribe(ctx context.Context, topic string, handler func(interface{})) error {
-	return nil
+func (m *MonoMockEventBus) Subscribe(ctx context.Context, topic string, handler func(interface{})) (uint64, error) {
+	return 0, nil
 }
 
-func (m *MonoMockEventBus) Unsubscribe(topic string, handler func(interface{})) error {
+func (m *MonoMockEventBus) Unsubscribe(subscriptionID uint64) error {
 	return nil
 }
 
@@ -88,7 +88,9 @@ func (m *MonoMockLogger) WithCorrelationID(id string) core.Logger {
 type MonoMockMetricsCollector struct{}
 
 func (m *MonoMockMetricsCollector) RecordCounter(name string, value int64, tags map[string]string) {}
+
 func (m *MonoMockMetricsCollector) RecordGauge(name string, value float64, tags map[string]string) {}
+
 func (m *MonoMockMetricsCollector) RecordHistogram(name string, value float64, tags map[string]string) {
 }
 

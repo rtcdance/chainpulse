@@ -238,7 +238,7 @@ func (h *GenericServiceHandler) handleRead(ctx context.Context, req *ReadRequest
 	// Cache result
 	if h.cache != nil && entity != nil {
 		cacheKey := h.getCacheKey("read", req.ID)
-		_ = h.cache.Set(ctx, cacheKey, entity, h.cacheTTL)
+		logCacheErr("set", cacheKey, h.cache.Set(ctx, cacheKey, entity, h.cacheTTL))
 	}
 
 	return entity, nil
@@ -254,7 +254,7 @@ func (h *GenericServiceHandler) handleUpdate(ctx context.Context, req *UpdateReq
 	// Invalidate cache for this entity
 	if h.cache != nil {
 		cacheKey := h.getCacheKey("read", req.Entity.GetID())
-		_ = h.cache.Delete(ctx, cacheKey)
+		logCacheErr("delete", cacheKey, h.cache.Delete(ctx, cacheKey))
 	}
 
 	// Invalidate list cache
@@ -273,7 +273,7 @@ func (h *GenericServiceHandler) handleDelete(ctx context.Context, req *DeleteReq
 	// Invalidate cache for this entity
 	if h.cache != nil {
 		cacheKey := h.getCacheKey("read", req.ID)
-		_ = h.cache.Delete(ctx, cacheKey)
+		logCacheErr("delete", cacheKey, h.cache.Delete(ctx, cacheKey))
 	}
 
 	// Invalidate list cache
@@ -307,7 +307,7 @@ func (h *GenericServiceHandler) handleList(ctx context.Context, req *ListRequest
 	// Cache result
 	if h.cache != nil && entities != nil {
 		cacheKey := h.getCacheKey("list", fmt.Sprintf("limit:%d:offset:%d", limit, offset))
-		_ = h.cache.Set(ctx, cacheKey, entities, h.cacheTTL)
+		logCacheErr("set", cacheKey, h.cache.Set(ctx, cacheKey, entities, h.cacheTTL))
 	}
 
 	return entities, nil
@@ -338,7 +338,7 @@ func (h *GenericServiceHandler) handleQuery(ctx context.Context, req *QueryReque
 	// Cache result
 	if h.cache != nil && entities != nil {
 		cacheKey := h.getCacheKey("query", fmt.Sprintf("filter:%v:limit:%d:offset:%d", req.Filter, limit, offset))
-		_ = h.cache.Set(ctx, cacheKey, entities, h.cacheTTL)
+		logCacheErr("set", cacheKey, h.cache.Set(ctx, cacheKey, entities, h.cacheTTL))
 	}
 
 	return entities, nil

@@ -54,6 +54,9 @@ type DataPuller struct {
 	metrics         *DataPullerMetrics
 	eventChan       chan *BlockchainEvent
 	errorChan       chan error
+	done            chan struct{}  // signals pullLoop to stop
+	wg              sync.WaitGroup // waits for pullLoop goroutine to exit
+	stopOnce        sync.Once      // ensures Stop() cleanup runs only once
 }
 
 // NewDataPuller creates a new data puller
@@ -75,34 +78,42 @@ func (dp *DataPuller) Start(ctx context.Context) error {
 		return fmt.Errorf("data puller already running")
 	}
 	dp.running = true
+	dp.done = make(chan struct{})
+	dp.wg.Add(1)
 	dp.mutex.Unlock()
 
 	go dp.pullLoop(ctx)
 	return nil
 }
 
-// Stop stops the data puller
+// Stop stops the data puller.
+// It signals the pullLoop goroutine to exit, waits for it to finish,
+// and then safely closes the event and error channels.
 func (dp *DataPuller) Stop() error {
-	dp.mutex.Lock()
-	defer dp.mutex.Unlock()
+	dp.stopOnce.Do(func() {
+		dp.mutex.Lock()
+		dp.running = false
+		close(dp.done) // signal pullLoop to exit
+		dp.mutex.Unlock()
 
-	if !dp.running {
-		return fmt.Errorf("data puller not running")
-	}
+		dp.wg.Wait() // wait for pullLoop goroutine to finish
 
-	dp.running = false
-	close(dp.eventChan)
-	close(dp.errorChan)
+		close(dp.eventChan)
+		close(dp.errorChan)
+	})
 	return nil
 }
 
 // pullLoop continuously pulls events
 func (dp *DataPuller) pullLoop(ctx context.Context) {
+	defer dp.wg.Done()
 	ticker := time.NewTicker(dp.config.PollInterval)
 	defer ticker.Stop()
 
 	for {
 		select {
+		case <-dp.done:
+			return
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
@@ -193,6 +204,9 @@ func (dp *DataPuller) GetProcessedHeight(ctx context.Context) (uint64, error) {
 		return 0, fmt.Errorf("data puller not running")
 	}
 
+	if dp.currentBlock == 0 {
+		return 0, nil
+	}
 	return dp.currentBlock - 1, nil
 }
 

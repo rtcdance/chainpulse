@@ -105,11 +105,27 @@ func (s *MonolithicIndexingEventStore) GetEventsByName(ctx context.Context, even
 func (s *MonolithicIndexingEventStore) GetEventsPaginated(ctx context.Context, cursor string, limit int) ([]*core.BlockchainEvent, bool, error) {
 	offset := 0
 	if cursor != "" {
-		parsed, err := strconv.Atoi(cursor)
-		if err != nil {
-			return nil, false, fmt.Errorf("invalid cursor: %w", err)
+		// Try decoding as opaque PageCursor first
+		if pc, ok := domainquery.DecodePageCursor(cursor); ok {
+			// Find the offset by locating the event with matching block+logIndex
+			allEvents, err := s.loadAllEvents(ctx)
+			if err != nil {
+				return nil, false, err
+			}
+			for i, e := range allEvents {
+				if e.BlockNumber == pc.BlockNumber && e.LogIndex == pc.LogIndex {
+					offset = i + 1 // Start after the cursor position
+					break
+				}
+			}
+		} else {
+			// Legacy cursor: treat as offset integer
+			parsed, err := strconv.Atoi(cursor)
+			if err != nil {
+				return nil, false, fmt.Errorf("invalid cursor: %w", err)
+			}
+			offset = parsed
 		}
-		offset = parsed
 	}
 
 	events, err := s.filterEvents(ctx, limit, offset, func(event *core.BlockchainEvent) bool {
@@ -126,6 +142,14 @@ func (s *MonolithicIndexingEventStore) GetEventsPaginated(ctx context.Context, c
 
 	hasMore := offset+len(events) < len(allEvents)
 	return events, hasMore, nil
+}
+
+func (s *MonolithicIndexingEventStore) CountEvents(ctx context.Context) (int64, error) {
+	allEvents, err := s.loadAllEvents(ctx)
+	if err != nil {
+		return 0, err
+	}
+	return int64(len(allEvents)), nil
 }
 
 func (s *MonolithicIndexingEventStore) DeleteExpiredEvents(ctx context.Context) (int64, error) {
@@ -512,7 +536,7 @@ func buildSyntheticMetadata(event *core.BlockchainEvent) *query.EventMetadata {
 		ChainID:          chainID,
 		BlockNumber:      saturatingUint64ToInt64(event.BlockNumber),
 		TransactionHash:  event.TransactionHash.Hex(),
-		LogIndex:         saturatingUintToInt(event.LogIndex),
+		LogIndex:         int64(event.LogIndex),
 		ContractAddress:  event.ContractAddress.Hex(),
 		EventName:        event.EventName,
 		ProcessedAt:      processedAt,
@@ -552,15 +576,4 @@ func saturatingUint64ToInt64(value uint64) int64 {
 		return math.MaxInt64
 	}
 	return int64(value)
-}
-
-func saturatingUintToInt(value uint) int {
-	if uint64(value) > uint64(math.MaxInt) {
-		return math.MaxInt
-	}
-	parsedValue, err := strconv.Atoi(strconv.FormatUint(uint64(value), 10))
-	if err != nil {
-		return math.MaxInt
-	}
-	return parsedValue
 }

@@ -349,3 +349,248 @@ func TestTransactionWithLogs(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotNil(t, tx.Logs)
 }
+
+func TestTransactionTypeClassification(t *testing.T) {
+	baseTx := Transaction{
+		Hash:        common.HexToHash("0x1234"),
+		From:        common.HexToAddress("0x5678"),
+		BlockNumber: 1000,
+	}
+
+	tests := []struct {
+		name           string
+		txType         uint8
+		isLegacy       bool
+		isAccessList   bool
+		isEIP1559      bool
+		isBlob         bool
+	}{
+		{"legacy", TxLegacy, true, false, false, false},
+		{"access_list", TxAccessList, false, true, false, false},
+		{"eip1559", TxEIP1559, false, false, true, false},
+		{"blob", TxBlob, false, false, false, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tx := baseTx
+			tx.Type = tt.txType
+			assert.Equal(t, tt.isLegacy, tx.IsLegacyTx())
+			assert.Equal(t, tt.isAccessList, tx.IsAccessListTx())
+			assert.Equal(t, tt.isEIP1559, tx.IsEIP1559())
+			assert.Equal(t, tt.isBlob, tx.IsBlobTx())
+		})
+	}
+}
+
+func TestTransactionEIP1559Fields(t *testing.T) {
+	tx := &Transaction{
+		Hash:                  common.HexToHash("0xabc"),
+		From:                  common.HexToAddress("0x123"),
+		BlockNumber:           18000000,
+		Type:                  TxEIP1559,
+		MaxFeePerGas:          big.NewInt(50000000000),    // 50 Gwei
+		MaxPriorityFeePerGas:  big.NewInt(2000000000),     // 2 Gwei
+		GasPrice:              nil, // Not required for EIP-1559
+	}
+
+	assert.True(t, tx.IsEIP1559())
+	assert.False(t, tx.IsLegacyTx())
+	assert.Nil(t, tx.GasPrice) // EIP-1559 uses MaxFeePerGas instead
+	assert.NotNil(t, tx.MaxFeePerGas)
+	assert.NotNil(t, tx.MaxPriorityFeePerGas)
+}
+
+func TestTransactionBlobFields(t *testing.T) {
+	blobHash := common.HexToHash("0x01" + "00000000000000000000000000000000000000000000000000000000000000")
+
+	tx := &Transaction{
+		Hash:                 common.HexToHash("0xdef"),
+		From:                 common.HexToAddress("0x456"),
+		BlockNumber:          19000000,
+		Type:                 TxBlob,
+		MaxFeePerGas:         big.NewInt(30000000000),
+		MaxPriorityFeePerGas: big.NewInt(1000000000),
+		BlobVersionedHashes:  []common.Hash{blobHash},
+		MaxFeePerBlobGas:     big.NewInt(100000000000), // 100 Gwei per blob gas
+	}
+
+	assert.True(t, tx.IsBlobTx())
+	assert.False(t, tx.IsEIP1559())
+	assert.Len(t, tx.BlobVersionedHashes, 1)
+	assert.NotNil(t, tx.MaxFeePerBlobGas)
+}
+
+func TestTransactionAccessListFields(t *testing.T) {
+	tx := &Transaction{
+		Hash:        common.HexToHash("0x789"),
+		From:        common.HexToAddress("0x789"),
+		BlockNumber: 17000000,
+		Type:        TxAccessList,
+		AccessList: types.AccessList{
+			{
+				Address:     common.HexToAddress("0xdead"),
+				StorageKeys: []common.Hash{common.HexToHash("0x01")},
+			},
+		},
+	}
+
+	assert.True(t, tx.IsAccessListTx())
+	assert.Len(t, tx.AccessList, 1)
+	assert.Equal(t, common.HexToAddress("0xdead"), tx.AccessList[0].Address)
+}
+
+func TestBlockEIP1559Fields(t *testing.T) {
+	block := &Block{
+		Number:  18000000,
+		Hash:    common.HexToHash("0xabc"),
+		BaseFee: big.NewInt(30000000000),
+	}
+
+	assert.NotNil(t, block.BaseFee)
+	assert.Equal(t, int64(30000000000), block.BaseFee.Int64())
+}
+
+func TestBlockWithdrawals(t *testing.T) {
+	addr := common.HexToAddress("0xvalidator")
+	block := &Block{
+		Number: 19000000,
+		Hash:   common.HexToHash("0xdef"),
+		Withdrawals: []*Withdrawal{
+			{
+				Index:          0,
+				ValidatorIndex: 100,
+				Address:        addr,
+				Amount:         big.NewInt(32000000000),
+			},
+		},
+	}
+
+	assert.Len(t, block.Withdrawals, 1)
+	assert.Equal(t, uint64(100), block.Withdrawals[0].ValidatorIndex)
+	assert.Equal(t, addr, block.Withdrawals[0].Address)
+}
+
+func TestBlockUncles(t *testing.T) {
+	uncleHash := common.HexToHash("0xuncle1")
+	block := &Block{
+		Number:         15000000,
+		Hash:           common.HexToHash("0xb1"),
+		Uncles:         []common.Hash{uncleHash},
+		TotalDifficulty: big.NewInt(1000000),
+	}
+
+	assert.Len(t, block.Uncles, 1)
+	assert.Equal(t, uncleHash, block.Uncles[0])
+	assert.NotNil(t, block.TotalDifficulty)
+}
+
+func TestTransactionReceiptEIP1559Fields(t *testing.T) {
+	receipt := &TransactionReceipt{
+		TransactionHash:   common.HexToHash("0xtx"),
+		BlockNumber:       18000000,
+		Type:              TxEIP1559,
+		EffectiveGasPrice: big.NewInt(25000000000),
+		Status:            1,
+	}
+
+	assert.Equal(t, uint8(TxEIP1559), receipt.Type)
+	assert.NotNil(t, receipt.EffectiveGasPrice)
+}
+
+func TestTransactionReceiptBlobFields(t *testing.T) {
+	receipt := &TransactionReceipt{
+		TransactionHash: common.HexToHash("0xblob"),
+		BlockNumber:     19000000,
+		Type:            TxBlob,
+		BlobGasUsed:     131072,
+		BlobGasPrice:    big.NewInt(1000000000),
+		Status:          1,
+	}
+
+	assert.Equal(t, uint8(TxBlob), receipt.Type)
+	assert.Equal(t, uint64(131072), receipt.BlobGasUsed)
+	assert.NotNil(t, receipt.BlobGasPrice)
+}
+
+func TestBlobSidecarVerifyBlobProof(t *testing.T) {
+	// Use SizeOnlyKZGVerifier for structural tests — zeroed bytes won't pass real crypto.
+	origVerifier := defaultKZGVerifier
+	SetKZGVerifier(&SizeOnlyKZGVerifier{})
+	defer SetKZGVerifier(origVerifier)
+
+	t.Run("valid sidecar", func(t *testing.T) {
+		sidecar := &BlobSidecar{
+			Blobs:          make([]Blob, 2),
+			KZGCommitments: make([]KZGCommitment, 2),
+			KZGProofs:      make([]KZGProof, 2),
+		}
+		assert.NoError(t, sidecar.VerifyBlobProof(0))
+		assert.NoError(t, sidecar.VerifyBlobProof(1))
+	})
+
+	t.Run("nil sidecar", func(t *testing.T) {
+		var sidecar *BlobSidecar
+		assert.Error(t, sidecar.VerifyBlobProof(0))
+	})
+
+	t.Run("index out of range", func(t *testing.T) {
+		sidecar := &BlobSidecar{
+			Blobs:          make([]Blob, 1),
+			KZGCommitments: make([]KZGCommitment, 1),
+			KZGProofs:      make([]KZGProof, 1),
+		}
+		assert.Error(t, sidecar.VerifyBlobProof(-1))
+		assert.Error(t, sidecar.VerifyBlobProof(1))
+	})
+
+	t.Run("commitment count mismatch", func(t *testing.T) {
+		sidecar := &BlobSidecar{
+			Blobs:          make([]Blob, 2),
+			KZGCommitments: make([]KZGCommitment, 1),
+			KZGProofs:      make([]KZGProof, 2),
+		}
+		assert.Error(t, sidecar.VerifyBlobProof(0))
+	})
+
+	t.Run("proof count mismatch", func(t *testing.T) {
+		sidecar := &BlobSidecar{
+			Blobs:          make([]Blob, 2),
+			KZGCommitments: make([]KZGCommitment, 2),
+			KZGProofs:      make([]KZGProof, 1),
+		}
+		assert.Error(t, sidecar.VerifyBlobProof(0))
+	})
+}
+
+func TestTransactionBlobSidecarField(t *testing.T) {
+	origVerifier := defaultKZGVerifier
+	SetKZGVerifier(&SizeOnlyKZGVerifier{})
+	defer SetKZGVerifier(origVerifier)
+
+	tx := &Transaction{
+		Hash:              common.HexToHash("0xblobtx"),
+		Type:              TxBlob,
+		BlobVersionedHashes: []common.Hash{common.HexToHash("0x01"), common.HexToHash("0x02")},
+		MaxFeePerBlobGas:  big.NewInt(1000000000),
+		BlobSidecar: &BlobSidecar{
+			Blobs:          make([]Blob, 2),
+			KZGCommitments: make([]KZGCommitment, 2),
+			KZGProofs:      make([]KZGProof, 2),
+		},
+	}
+
+	assert.True(t, tx.IsBlobTx())
+	assert.NotNil(t, tx.BlobSidecar)
+	assert.Len(t, tx.BlobVersionedHashes, 2)
+	assert.NoError(t, tx.BlobSidecar.VerifyBlobProof(0))
+}
+
+func TestTransactionNilBlobSidecar(t *testing.T) {
+	tx := &Transaction{
+		Hash: common.HexToHash("0xlegacy"),
+		Type: TxLegacy,
+	}
+	assert.True(t, tx.IsLegacyTx())
+	assert.Nil(t, tx.BlobSidecar)
+}

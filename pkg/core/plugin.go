@@ -1,8 +1,12 @@
 package core
 
+//go:generate mockgen -destination=mock_plugins.go -package=core . Plugin,PluginRegistry,ConfigManager,EventBus,Logger,MetricsCollector,HealthChecker,CheckpointStore,DataPullerPlugin,MQPlugin,CachePlugin,EventReader,EventWriter,DatabasePlugin,APIPlugin,ProcessingPlugin
+
 import (
 	"context"
 	"time"
+
+	"github.com/ethereum/go-ethereum/common"
 )
 
 // Plugin is the base interface for all plugins
@@ -13,6 +17,40 @@ type Plugin interface {
 	Start() error
 	Stop() error
 	Health() error
+}
+
+// ContextualStarter is an optional interface that plugins can implement to
+// receive a context during startup. This enables cancellation, timeouts,
+// and tracing through the plugin lifecycle. If a plugin does not implement
+// this interface, Start() is called as a fallback.
+type ContextualStarter interface {
+	StartWithContext(ctx context.Context) error
+}
+
+// ContextualStopper is an optional interface that plugins can implement to
+// receive a context during shutdown. This enables graceful shutdown with
+// deadlines and cancellation. If a plugin does not implement this interface,
+// Stop() is called as a fallback.
+type ContextualStopper interface {
+	StopWithContext(ctx context.Context) error
+}
+
+// StartPlugin starts a plugin, using StartWithContext if the plugin implements
+// ContextualStarter, otherwise falling back to Start().
+func StartPlugin(ctx context.Context, p Plugin) error {
+	if cs, ok := p.(ContextualStarter); ok {
+		return cs.StartWithContext(ctx)
+	}
+	return p.Start()
+}
+
+// StopPlugin stops a plugin, using StopWithContext if the plugin implements
+// ContextualStopper, otherwise falling back to Stop().
+func StopPlugin(ctx context.Context, p Plugin) error {
+	if cs, ok := p.(ContextualStopper); ok {
+		return cs.StopWithContext(ctx)
+	}
+	return p.Stop()
 }
 
 // PluginRegistry manages plugin lifecycle
@@ -36,8 +74,16 @@ type ConfigManager interface {
 // EventBus provides pub-sub communication
 type EventBus interface {
 	Publish(ctx context.Context, topic string, event interface{}) error
-	Subscribe(ctx context.Context, topic string, handler func(interface{})) error
-	Unsubscribe(topic string, handler func(interface{})) error
+	Subscribe(ctx context.Context, topic string, handler func(interface{})) (uint64, error)
+	Unsubscribe(subscriptionID uint64) error
+}
+
+// IdempotencyInvalidator clears idempotency entries for a block range.
+// After a reorg, previously-processed events in the reorged range must be
+// removed from the idempotency store so that re-indexed events are not
+// incorrectly rejected as duplicates.
+type IdempotencyInvalidator interface {
+	InvalidateRange(fromBlock, toBlock uint64) int
 }
 
 // Logger provides structured logging
@@ -63,6 +109,13 @@ type HealthChecker interface {
 	Check(ctx context.Context) (HealthStatus, error)
 }
 
+// CheckpointStore persists indexing progress across restarts
+type CheckpointStore interface {
+	GetLastIndexedBlock(ctx context.Context, chainID string) (uint64, string, error)
+	SaveLastIndexedBlock(ctx context.Context, chainID string, blockNumber uint64, blockHash string) error
+	GetBlockHash(ctx context.Context, chainID string, blockNumber uint64) (string, error)
+}
+
 // HealthStatus represents system health
 type HealthStatus struct {
 	Status    string                 `json:"status"`
@@ -74,9 +127,12 @@ type HealthStatus struct {
 // Config represents system configuration
 type Config struct {
 	// Data Puller Configuration
-	DataPullerType    string `json:"data_puller_type"`
-	BlockchainNodeURL string `json:"blockchain_node_url"`
-	StartBlock        uint64 `json:"start_block"`
+	DataPullerType    string   `json:"data_puller_type"`
+	BlockchainNodeURL string   `json:"blockchain_node_url"`
+	StartBlock        uint64   `json:"start_block"`
+	ContractAddresses []string `json:"contract_addresses"`  // optional address filter for eth_getLogs
+	EventSignatures    []string `json:"event_signatures"`     // optional topic0 hashes for eth_getLogs topics filter
+	BlockChunkSize    int      `json:"block_chunk_size"`    // blocks per eth_getLogs request (default 1000)
 
 	// Message Queue Configuration
 	MQType          string `json:"mq_type"`
@@ -111,6 +167,12 @@ type Config struct {
 	// Deployment Configuration
 	DeploymentMode string `json:"deployment_mode"`
 	ServiceName    string `json:"service_name"`
+	ChainID        string `json:"chain_id"` // Per-chain identifier for multi-chain indexing
+	Network        string `json:"network"`  // Chain network: "mainnet", "testnet", "devnet"
+
+	// Idempotency Configuration
+	IdempotencyRecordTTL       int `json:"idempotency_record_ttl"`       // in seconds, default 86400 (24h)
+	IdempotencyCleanupInterval int `json:"idempotency_cleanup_interval"` // in seconds, default 600 (10m)
 
 	// Logging Configuration
 	LogLevel string `json:"log_level"`
@@ -119,8 +181,9 @@ type Config struct {
 	FeatureFlags map[string]bool `json:"feature_flags"`
 
 	// Multi-blockchain Configuration
-	Blockchains  map[string]BlockchainConfig `json:"blockchains"`
-	ActiveChains []string                    `json:"active_chains"`
+	Blockchains      map[string]BlockchainConfig `json:"blockchains"`
+	ActiveChains     []string                    `json:"active_chains"`
+	SkipRemovedLogs  bool                        `json:"skip_removed_logs"` // skip log.Removed=true events from reorgs (default: false, publish with flag)
 }
 
 // GetString retrieves a string configuration value
@@ -190,20 +253,57 @@ type CacheStats struct {
 }
 
 // DatabasePlugin manages database operations
-type DatabasePlugin interface {
-	Plugin
-	StoreEvent(ctx context.Context, event interface{}) error
+// EventReader provides read-only access to blockchain events.
+// Consumers that only need to query events should depend on this interface
+// rather than the full DatabasePlugin, following the Interface Segregation Principle.
+type EventReader interface {
 	GetEvent(ctx context.Context, id string) (*BlockchainEvent, error)
 	QueryEvents(ctx context.Context, filter interface{}) ([]interface{}, error)
-	BatchStoreEvents(ctx context.Context, events []interface{}) error
 	GetAllEvents(ctx context.Context) ([]*BlockchainEvent, error)
-	GetAllBlocks(ctx context.Context) ([]*Block, error)
-	DeleteEvent(ctx context.Context, eventID string) error
 	GetEventsByBlockRange(ctx context.Context, fromBlock, toBlock uint64) ([]*BlockchainEvent, error)
+}
+
+// EventWriter provides write access to blockchain events.
+type EventWriter interface {
+	StoreEvent(ctx context.Context, event interface{}) error
+	BatchStoreEvents(ctx context.Context, events []interface{}) error
+	DeleteEvent(ctx context.Context, eventID string) error
+	DeleteEventsByBlockRange(ctx context.Context, fromBlock, toBlock uint64) (int64, error)
+	MarkEventsAsReorged(ctx context.Context, fromBlock, toBlock uint64) (int64, error)
+}
+
+// BlockReader provides read-only access to blockchain blocks.
+type BlockReader interface {
 	GetBlock(ctx context.Context, blockNumber uint64) (*Block, error)
 	GetLatestBlock(ctx context.Context) (uint64, error)
-	DeleteEventsByBlockRange(ctx context.Context, fromBlock, toBlock uint64) (int64, error)
+	GetAllBlocks(ctx context.Context) ([]*Block, error)
+}
+
+// ReorgStatsProvider provides chain reorganization statistics.
+type ReorgStatsProvider interface {
 	GetReorgStats(ctx context.Context) (*ReorgStats, error)
+}
+
+// BlockHashProvider returns the canonical chain block hash for a given block number.
+// Implementations may query an RPC node (production) or a local database (testing).
+// This is used by reorg detection to compare locally-indexed hashes against
+// the live canonical chain — comparing against a local database is insufficient
+// because both sources contain old-chain data after a reorg.
+type BlockHashProvider interface {
+	GetBlockHash(ctx context.Context, blockNumber uint64) (common.Hash, error)
+}
+
+// DatabasePlugin provides full database access for blockchain data.
+// It composes fine-grained interfaces for event reading, event writing,
+// block reading, and reorg statistics. Consumers should depend on the
+// smallest interface that satisfies their needs (e.g., EventReader for
+// query-only services).
+type DatabasePlugin interface {
+	Plugin
+	EventReader
+	EventWriter
+	BlockReader
+	ReorgStatsProvider
 }
 
 // APIPlugin serves data to clients

@@ -1,0 +1,366 @@
+# ChainPulse Full Acceptance Stack
+# Usage: docker compose -f docker-compose.acceptance.yml up -d
+#
+# Includes: 7 Anvil chains + PostgreSQL + Redis + MongoDB + Kafka + ChainPulse + Frontend + Observability
+# Prerequisites: Run `bash docker/acceptance.sh build` first to build images
+
+services:
+  # ============================================
+  # Blockchain Nodes (Anvil) - 7 Chains
+  # ============================================
+
+  anvil-ethereum:
+    image: ghcr.io/foundry-rs/foundry:latest
+    container_name: chainpulse-anvil-ethereum
+    environment:
+      ANVIL_IP_ADDR: "0.0.0.0"
+    ports:
+      - "8545:8545"
+    command: anvil --host 0.0.0.0 --port 8545 --chain-id 1 --accounts 10 --balance 10000 --timestamp 0
+    healthcheck:
+      test: ["CMD-SHELL", "cast chain --rpc-url http://localhost:8545 2>/dev/null || curl -sf -X POST http://localhost:8545 -H 'Content-Type: application/json' -d '{\"jsonrpc\":\"2.0\",\"method\":\"eth_blockNumber\",\"params\":[],\"id\":1}'"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - chainpulse-network
+
+  anvil-polygon:
+    image: ghcr.io/foundry-rs/foundry:latest
+    container_name: chainpulse-anvil-polygon
+    environment:
+      ANVIL_IP_ADDR: "0.0.0.0"
+    ports:
+      - "8546:8545"
+    command: anvil --host 0.0.0.0 --port 8545 --chain-id 137 --accounts 10 --balance 10000 --timestamp 0
+    healthcheck:
+      test: ["CMD-SHELL", "cast chain --rpc-url http://localhost:8545 2>/dev/null || curl -sf -X POST http://localhost:8545 -H 'Content-Type: application/json' -d '{\"jsonrpc\":\"2.0\",\"method\":\"eth_blockNumber\",\"params\":[],\"id\":1}'"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - chainpulse-network
+
+  anvil-bsc:
+    image: ghcr.io/foundry-rs/foundry:latest
+    container_name: chainpulse-anvil-bsc
+    environment:
+      ANVIL_IP_ADDR: "0.0.0.0"
+    ports:
+      - "8547:8545"
+    command: anvil --host 0.0.0.0 --port 8545 --chain-id 97 --accounts 10 --balance 10000 --timestamp 0
+    healthcheck:
+      test: ["CMD-SHELL", "cast chain --rpc-url http://localhost:8545 2>/dev/null || curl -sf -X POST http://localhost:8545 -H 'Content-Type: application/json' -d '{\"jsonrpc\":\"2.0\",\"method\":\"eth_blockNumber\",\"params\":[],\"id\":1}'"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - chainpulse-network
+
+  anvil-arbitrum:
+    image: ghcr.io/foundry-rs/foundry:latest
+    container_name: chainpulse-anvil-arbitrum
+    environment:
+      ANVIL_IP_ADDR: "0.0.0.0"
+    ports:
+      - "8548:8545"
+    command: anvil --host 0.0.0.0 --port 8545 --chain-id 421614 --accounts 10 --balance 10000 --timestamp 0
+    healthcheck:
+      test: ["CMD-SHELL", "cast chain --rpc-url http://localhost:8545 2>/dev/null || curl -sf -X POST http://localhost:8545 -H 'Content-Type: application/json' -d '{\"jsonrpc\":\"2.0\",\"method\":\"eth_blockNumber\",\"params\":[],\"id\":1}'"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - chainpulse-network
+
+  anvil-optimism:
+    image: ghcr.io/foundry-rs/foundry:latest
+    container_name: chainpulse-anvil-optimism
+    environment:
+      ANVIL_IP_ADDR: "0.0.0.0"
+    ports:
+      - "8549:8545"
+    command: anvil --host 0.0.0.0 --port 8545 --chain-id 11155420 --accounts 10 --balance 10000 --timestamp 0
+    healthcheck:
+      test: ["CMD-SHELL", "cast chain --rpc-url http://localhost:8545 2>/dev/null || curl -sf -X POST http://localhost:8545 -H 'Content-Type: application/json' -d '{\"jsonrpc\":\"2.0\",\"method\":\"eth_blockNumber\",\"params\":[],\"id\":1}'"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - chainpulse-network
+
+  anvil-base:
+    image: ghcr.io/foundry-rs/foundry:latest
+    container_name: chainpulse-anvil-base
+    environment:
+      ANVIL_IP_ADDR: "0.0.0.0"
+    ports:
+      - "8550:8545"
+    command: anvil --host 0.0.0.0 --port 8545 --chain-id 84532 --accounts 10 --balance 10000 --timestamp 0
+    healthcheck:
+      test: ["CMD-SHELL", "cast chain --rpc-url http://localhost:8545 2>/dev/null || curl -sf -X POST http://localhost:8545 -H 'Content-Type: application/json' -d '{\"jsonrpc\":\"2.0\",\"method\":\"eth_blockNumber\",\"params\":[],\"id\":1}'"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - chainpulse-network
+
+  anvil-avalanche:
+    image: ghcr.io/foundry-rs/foundry:latest
+    container_name: chainpulse-anvil-avalanche
+    environment:
+      ANVIL_IP_ADDR: "0.0.0.0"
+    ports:
+      - "8551:8545"
+    command: anvil --host 0.0.0.0 --port 8545 --chain-id 43113 --accounts 10 --balance 10000 --timestamp 0
+    healthcheck:
+      test: ["CMD-SHELL", "cast chain --rpc-url http://localhost:8545 2>/dev/null || curl -sf -X POST http://localhost:8545 -H 'Content-Type: application/json' -d '{\"jsonrpc\":\"2.0\",\"method\":\"eth_blockNumber\",\"params\":[],\"id\":1}'"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - chainpulse-network
+
+  # ============================================
+  # Infrastructure Services
+  # ============================================
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: chainpulse-postgres
+    environment:
+      POSTGRES_USER: chainpulse
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: chainpulse
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U chainpulse -d chainpulse"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - chainpulse-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: chainpulse-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - chainpulse-network
+
+  mongodb:
+    image: mongo:7
+    container_name: chainpulse-mongodb
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - chainpulse-network
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: chainpulse-zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    healthcheck:
+      test: ["CMD-SHELL", "echo srvr | nc localhost 2181 | grep -q Mode"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - chainpulse-network
+
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: chainpulse-kafka
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    networks:
+      - chainpulse-network
+
+  # ============================================
+  # ChainPulse Application (Monolithic)
+  # ============================================
+
+  chainpulse:
+    image: chainpulse-acceptance:latest
+    container_name: chainpulse-app
+    depends_on:
+      anvil-ethereum:
+        condition: service_healthy
+      anvil-polygon:
+        condition: service_healthy
+      anvil-bsc:
+        condition: service_healthy
+      anvil-arbitrum:
+        condition: service_healthy
+      anvil-optimism:
+        condition: service_healthy
+      anvil-base:
+        condition: service_healthy
+      anvil-avalanche:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    environment:
+      CHAINS: ethereum,polygon,bsc,arbitrum,optimism,base,avalanche
+      BLOCKCHAIN_NODE_URLS: http://anvil-ethereum:8545,http://anvil-polygon:8545,http://anvil-bsc:8545,http://anvil-arbitrum:8545,http://anvil-optimism:8545,http://anvil-base:8545,http://anvil-avalanche:8545
+      DATA_PULLER_TYPE: https-jsonrpc
+      DEPLOYMENT_MODE: monolithic
+      LOG_LEVEL: info
+      API_PORT: "8080"
+      GRPC_PORT: "50051"
+      WORKER_POOL_SIZE: "8"
+      BATCH_SIZE: "100"
+      CACHE_TYPE: redis
+      CACHE_CONNECTION_URL: redis://redis:6379
+      DATABASE_TYPE: postgres
+      DATABASE_URL: ${DATABASE_URL}
+      MONGODB_URI: mongodb://mongodb:27017
+      MQ_TYPE: kafka
+      MQ_CONNECTION_URL: kafka:29092
+      MONOLITHIC_DLQ_RETENTION: 168h
+    ports:
+      - "8080:8080"
+      - "50051:50051"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 15s
+      timeout: 5s
+      start_period: 30s
+      retries: 10
+    networks:
+      - chainpulse-network
+    restart: unless-stopped
+
+  # ============================================
+  # Frontend (React + Nginx)
+  # ============================================
+
+  frontend:
+    image: chainpulse-frontend:latest
+    container_name: chainpulse-frontend
+    depends_on:
+      chainpulse:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
+    networks:
+      - chainpulse-network
+    restart: unless-stopped
+
+  # ============================================
+  # Observability Stack
+  # ============================================
+
+  prometheus:
+    image: prom/prometheus:v2.47.0
+    container_name: chainpulse-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ../monitoring/prometheus/alerts:/etc/prometheus/alerts:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.enable-lifecycle'
+    depends_on:
+      chainpulse:
+        condition: service_healthy
+    networks:
+      - chainpulse-network
+
+  grafana:
+    image: grafana/grafana:10.1.0
+    container_name: chainpulse-grafana
+    ports:
+      - "3001:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GF_SECURITY_ADMIN_PASSWORD}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ../monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ../monitoring/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+    depends_on:
+      - prometheus
+    networks:
+      - chainpulse-network
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.49
+    container_name: chainpulse-jaeger
+    ports:
+      - "16686:16686"
+      - "4317:4317"
+      - "4318:4318"
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    networks:
+      - chainpulse-network
+
+volumes:
+  postgres_data:
+  redis_data:
+  mongo_data:
+  prometheus_data:
+  grafana_data:
+
+networks:
+  chainpulse-network:
+    driver: bridge

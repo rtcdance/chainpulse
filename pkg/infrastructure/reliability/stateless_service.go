@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"chainpulse/pkg/core"
-	"chainpulse/pkg/services/query"
+	domainquery "chainpulse/pkg/domain/query"
 )
 
 // StatelessService represents a service with no local state
@@ -16,7 +16,7 @@ type StatelessService struct {
 	id           string
 	name         string
 	cache        *DistributedCache
-	database     query.EventStore
+	database     domainquery.EventStore
 	stateVersion int64
 	lastSyncTime time.Time
 	metrics      *StatelessMetrics
@@ -63,7 +63,7 @@ type MessageQueueClient interface {
 }
 
 // NewStatelessService creates a new stateless service
-func NewStatelessService(id, name string, cache *DistributedCache, db query.EventStore) *StatelessService {
+func NewStatelessService(id, name string, cache *DistributedCache, db domainquery.EventStore) *StatelessService {
 	return &StatelessService{
 		id:           id,
 		name:         name,
@@ -168,7 +168,10 @@ func (ss *StatelessService) storeState(ctx context.Context, requestID string, st
 
 	// Store in database
 	if ss.database != nil && ss.isEvent(state) {
-		event := state.(*core.BlockchainEvent)
+		event, ok := state.(*core.BlockchainEvent)
+		if !ok {
+			return fmt.Errorf("state is not a BlockchainEvent")
+		}
 		if err := ss.database.InsertEvent(ctx, event); err != nil {
 			return err
 		}

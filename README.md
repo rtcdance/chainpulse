@@ -5,27 +5,52 @@ comprehensive testing, and a minimum production-readiness rehearsal baseline.
 
 ## 🎯 Milestone Status
 
-| Milestone | Status | Description |
-|-----------|--------|-------------|
-| M1a | ✅ Complete | 单体基础数据链路 |
-| M1b | ✅ Complete | 单体容错层 |
-| M1c | ✅ Complete | 单体可观测性 + API Gateway |
-| M2 | ✅ Complete | 双模式切换 (单体/微服务) |
-| M3a | ✅ Complete | 微服务部署验证 |
-| M3b | ✅ Complete | 可观测性 + 告警 |
-| M3c | ✅ Complete | 生产就绪演练 |
+| Milestone | Status     | Description          |
+| --------- | ---------- | -------------------- |
+| M1a       | ✅ Complete | 单体基础数据链路             |
+| M1b       | ✅ Complete | 单体容错层                |
+| M1c       | ✅ Complete | 单体可观测性 + API Gateway |
+| M2        | ✅ Complete | 双模式切换 (单体/微服务)       |
+| M3a       | ✅ Complete | 微服务部署验证              |
+| M3b       | ✅ Complete | 可观测性 + 告警            |
+| M3c       | ✅ Complete | 生产就绪演练               |
 
 **All milestones completed.** Full blueprint-aligned sequence done.
 Current operational posture: `staging-ready / rehearsal-ready`, not yet fully `production-ready`.
 
 ## 🚀 Quick Start
 
+### 3-Step Launch (Docker)
+
+```bash
+# 1. Configure environment
+cp docker/.env.example docker/.env
+# Edit docker/.env — set POSTGRES_PASSWORD, JWT_SECRET, etc.
+
+# 2. Launch the full stack
+docker compose -f docker/docker-compose.yml up -d
+
+# 3. Verify it's running
+curl http://localhost:8080/health
+```
+
 ### Prerequisites
+
 - Go 1.24+
 - Docker & Docker Compose
 - (Optional) PostgreSQL, Redis, Kafka for full stack
 
-### Local Development
+### Local Development (without Docker)
+
+```bash
+# Start infrastructure only (PostgreSQL, Redis, Kafka)
+docker compose -f docker/docker-compose.dev.yml up -d
+
+# Run the monolithic app
+go run cmd/monolithic/chainpulse/main.go
+```
+
+### Advanced Scripts
 
 ```bash
 # Start the current minimal runnable app
@@ -107,6 +132,18 @@ For one-click Docker startup and acceptance:
 bash scripts/run-docker-acceptance.sh all
 ```
 
+For a single deploy -> real Event -> API/H5 acceptance chain:
+
+```bash
+make deploy-event-acceptance
+
+# Kubernetes variant
+PROVIDER=k8s make deploy-event-acceptance
+
+# Skip Playwright H5 acceptance when only API/runtime gates are needed
+RUN_H5_ACCEPTANCE=0 make deploy-event-acceptance
+```
+
 Useful day-to-day subcommands:
 
 ```bash
@@ -130,6 +167,7 @@ For the full repository-root runbook, see
 See [docs/README.md](docs/README.md) for complete documentation index.
 
 ### Quick Links
+
 - **[Runnable App](docs/project/RUNNABLE_APP.md)** - Current runbook for the minimum viable blueprint-aligned app
 - **[Security Baseline](docs/project/SECURITY_BASELINE.md)** - Overview of the current optional four-service security posture
 - **[Security Rollout](docs/project/SECURITY_ROLLOUT.md)** - Incremental enablement and rollback guidance for the opt-in four-service security surface
@@ -190,34 +228,36 @@ chainpulse/
 
 ChainPulse supports two deployment modes from the same codebase:
 
-| Mode | Use Case | Components |
-|------|----------|------------|
-| **Monolithic** | Local development, debugging | Single binary, in-memory DB, EventBus |
-| **Microservice** | Production, scaling | 4 services, PostgreSQL, Kafka, Redis |
+| Mode             | Use Case                     | Components                            |
+| ---------------- | ---------------------------- | ------------------------------------- |
+| **Monolithic**   | Local development, debugging | Single binary, in-memory DB, EventBus |
+| **Microservice** | Production, scaling          | 4 services, PostgreSQL, Kafka, Redis  |
 
 Set via: `export DEPLOYMENT_MODE=monolithic` or `export DEPLOYMENT_MODE=microservice`
 
 ### Key Capabilities
 
-| Feature | Details |
-|---------|---------|
-| **Data Collection** | Multiple protocols (HTTPS-JSONRPC, WebSocket-JSONRPC, gRPC) |
-| **Event Processing** | Idempotency, batch processing, error recovery |
-| **Caching** | Redis and in-memory backends with TTL support |
-| **Persistence** | PostgreSQL and MongoDB support |
-| **APIs** | REST, gRPC, and WebSocket protocols |
-| **Deployment** | Monolithic and microservice modes |
-| **Observability** | Metrics, logging, tracing, health checks |
-| **Resilience** | Error handling, retry logic, graceful shutdown |
+| Feature              | Details                                                     |
+| -------------------- | ----------------------------------------------------------- |
+| **Data Collection**  | Multiple protocols (HTTPS-JSONRPC, WebSocket-JSONRPC, gRPC) |
+| **Event Processing** | Idempotency, batch processing, error recovery               |
+| **Caching**          | Redis and in-memory backends with TTL support               |
+| **Persistence**      | PostgreSQL and MongoDB support                              |
+| **APIs**             | REST, gRPC, and WebSocket protocols                         |
+| **Deployment**       | Monolithic and microservice modes                           |
+| **Observability**    | Metrics, logging, tracing, health checks                    |
+| **Resilience**       | Error handling, retry logic, graceful shutdown              |
 
 ## 🧪 Testing
 
 ### Run All Tests
+
 ```bash
 go test ./...
 ```
 
 ### Run Specific Test Suite
+
 ```bash
 # Unit tests
 go test ./pkg/...
@@ -233,16 +273,19 @@ go test ./pkg/domain/...
 ```
 
 ### Run with Coverage
+
 ```bash
 go test -cover ./...
 ```
 
 ### Repository Hygiene
+
 ```bash
 make repo-hygiene
 ```
 
 ### UI Acceptance Tests (Playwright)
+
 ```bash
 # Install dependencies
 npm install
@@ -261,7 +304,8 @@ npm run test:report
 ```
 
 ### Verify Scripts
-```bash
+
+````bash
 # Local runnable app
 bash scripts/verify-local-runnable-app.sh --profile minimal
 
@@ -289,9 +333,10 @@ docker-compose -f docker/docker-compose.yml logs -f
 
 # Stop services
 docker-compose -f docker/docker-compose.yml down
-```
+````
 
 ### Using Makefile
+
 ```bash
 cd docker
 make up      # Start services
@@ -303,6 +348,7 @@ make clean   # Clean up
 See [docker/README.md](docker/README.md) for detailed Docker documentation.
 
 ### Kubernetes
+
 ```bash
 # Deploy monolithic mode (recommended)
 kubectl apply -k k8s/overlays/monolithic
@@ -318,6 +364,7 @@ See [k8s/README.md](k8s/README.md) for Kustomize layout and compatibility comman
 See [Deployment Guide](docs/guides/DEPLOYMENT_GUIDE.md) for complete configuration options.
 
 ### Core Environment Variables
+
 - `CHAINPULSE_LOG_LEVEL` - Logging level (DEBUG, INFO, WARN, ERROR, FATAL)
 - `CHAINPULSE_DEPLOYMENT_MODE` - Deployment mode (monolithic, microservice)
 - `CHAINPULSE_BLOCKCHAIN_NODE_URL` - Blockchain node RPC endpoint
@@ -331,12 +378,14 @@ See [Deployment Guide](docs/guides/DEPLOYMENT_GUIDE.md) for complete configurati
 See [API Documentation](docs/guides/API_DOCUMENTATION.md) for complete API reference.
 
 ### REST API
+
 ```bash
 curl http://localhost:8080/api/v1/events?contract=0x...&limit=10
 curl http://localhost:8080/health
 ```
 
 ### Runtime Operator API
+
 ```bash
 # Inspect runtime summary
 curl http://localhost:8080/runtime/summary
@@ -362,11 +411,13 @@ The DLQ replay route currently applies to the running monolithic process where
 the shared-runtime DLQ journal is held in memory.
 
 ### gRPC API
+
 ```bash
 grpcurl -plaintext localhost:50051 list
 ```
 
 ### WebSocket API
+
 ```bash
 wscat -c ws://localhost:8080/ws
 ```
@@ -376,6 +427,7 @@ wscat -c ws://localhost:8080/ws
 See [Developer Guide](docs/guides/DEPLOYMENT_GUIDE.md) for detailed guidelines.
 
 ### Project Organization (DDD)
+
 - `pkg/core` - Foundation interfaces and types
 - `pkg/domain` - Domain models and interfaces
 - `pkg/application` - Use cases and orchestration
@@ -386,12 +438,14 @@ See [Developer Guide](docs/guides/DEPLOYMENT_GUIDE.md) for detailed guidelines.
 - `test/acceptance` - Playwright UI acceptance tests
 
 ### Adding a New Plugin
+
 1. Create directory: `pkg/plugins/{type}/{name}/`
 2. Implement plugin interface from `pkg/core`
 3. Add tests in same directory
 4. Update imports in dependent code
 
 ### Code Review & Quality
+
 ```bash
 # Lint
 golangci-lint run
@@ -420,16 +474,17 @@ See LICENSE file for details.
 ## 📞 Support
 
 For questions or issues:
+
 1. Check [Developer Guide](docs/guides/DEPLOYMENT_GUIDE.md)
 2. Review [Operations Guide](docs/guides/OPERATIONS_GUIDE.md)
 3. Open an issue on GitHub
 
 ## 📈 Code Statistics
 
-| Metric | Value |
-|--------|-------|
-| Total Go Code | ~195,559 lines |
-| Project Code | ~85,748 lines (43.8%) |
-| Test Code | ~109,811 lines (56.2%) |
-| Go Version | 1.24 |
-| Milestones | 7/7 Completed |
+| Metric        | Value                   |
+| ------------- | ----------------------- |
+| Total Go Code | \~195,559 lines         |
+| Project Code  | \~85,748 lines (43.8%)  |
+| Test Code     | \~109,811 lines (56.2%) |
+| Go Version    | 1.24                    |
+| Milestones    | 7/7 Completed           |

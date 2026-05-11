@@ -181,6 +181,21 @@ func (m *MockDB) DeleteEventsByBlockRange(ctx context.Context, fromBlock, toBloc
 	return count, nil
 }
 
+func (m *MockDB) MarkEventsAsReorged(ctx context.Context, fromBlock, toBlock uint64) (int64, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	var count int64
+	for id, event := range m.events {
+		if event.BlockNumber >= fromBlock && event.BlockNumber <= toBlock {
+			event.Status = core.EventStatusReorged
+			m.events[id] = event
+			count++
+		}
+	}
+	return count, nil
+}
+
 func (m *MockDB) GetReorgStats(ctx context.Context) (*core.ReorgStats, error) {
 	return &core.ReorgStats{}, nil
 }

@@ -4,6 +4,8 @@ package main
 
 import (
 	"context"
+	"database/sql"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
@@ -19,6 +21,7 @@ import (
 	"chainpulse/pkg/plugins/api"
 	"chainpulse/pkg/plugins/mq"
 	"chainpulse/pkg/services/query"
+	"chainpulse/pkg/services/reorg"
 )
 
 //nolint:wsl,nlreturn // Command entrypoint is intentionally verbose.
@@ -78,6 +81,7 @@ func main() {
 	dbManager := database.NewDatabaseManager(
 		dbConfig.MongoDBURI,
 		dbConfig.PostgresURL,
+		dbConfig.PostgresSSLMode,
 		dbConfig.PoolSize,
 		dbConfig.GetTimeout(),
 	)
@@ -143,7 +147,12 @@ func main() {
 	}
 	fmt.Println("  ✓ Kafka Message Queue initialized")
 
-	processorRuntime, err := newEventProcessorProcessingRuntime(config, logger, metrics)
+	processorRuntime, err := newEventProcessorProcessingRuntimeWithStorage(
+		config,
+		logger,
+		metrics,
+		newPersistentEventProcessorStorage(eventStore, metadataStore),
+	)
 	if err != nil {
 		logger.Error("Failed to initialize processor runtime", "error", err.Error())
 		os.Exit(1)
@@ -155,7 +164,20 @@ func main() {
 		metrics,
 		kafkaMQ,
 		processorRuntime.MessageProcessor(),
+		kafkaMQ,
 		config.InputTopics,
+		config.OutputTopics,
+		func() *sql.DB {
+			raw, err := dbManager.GetPostgresDB(context.Background())
+			if err != nil {
+				return nil
+			}
+			db, ok := raw.(*sql.DB)
+			if !ok {
+				return nil
+			}
+			return db
+		}(),
 	)
 	fmt.Println("  ✓ Consume/process seam initialized")
 	authMiddleware, rateLimitMiddleware, err := buildEventProcessorSecurityControls(config, logger, metrics)
@@ -221,6 +243,43 @@ func main() {
 	consumeCtx, consumeCancel := context.WithCancel(context.Background())
 	consumeRuntime.Start(consumeCtx, &wg)
 	fmt.Println("  [2/3] Consume/process seam started")
+
+	// Start reorg event consumer
+	// Note: uses database-backed block hash provider (default). For production,
+	// inject an RPC-backed provider via reorgHandler.SetBlockHashProvider()
+	// so reorg detection compares against the live canonical chain.
+	reorgHandler := reorg.NewReorgHandler(
+		newReorgEventProcessorDatabaseAdapter(eventStore, metadataStore),
+		logger,
+		12,  // reorg threshold
+		120, // max rollback
+	)
+	// Note: For production, inject an RPC-backed provider via
+	// reorgHandler.SetBlockHashProvider() and wire the idempotency
+	// service via reorgHandler.SetIdempotencyInvalidator() so that
+	// re-indexed events after a reorg are not rejected as duplicates.
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		reorgErr := kafkaMQ.ConsumeMessages(consumeCtx, "reorg-events", func(msg core.MessageQueueMessage) error {
+			var reorgMsg core.ReorgDetectedMessage
+			if err := json.Unmarshal(msg.Payload, &reorgMsg); err != nil {
+				logger.Error("Failed to unmarshal reorg message", "error", err.Error())
+				return err
+			}
+			logger.Info("Reorg event received", "chain_id", reorgMsg.ChainID, "reorg_block", reorgMsg.ReorgBlock)
+			if err := reorgHandler.HandleReorg(consumeCtx, reorgMsg.ReorgBlock); err != nil {
+				logger.Error("Failed to handle reorg", "chain_id", reorgMsg.ChainID, "reorg_block", reorgMsg.ReorgBlock, "error", err.Error())
+				return err
+			}
+			logger.Info("Reorg handled successfully", "chain_id", reorgMsg.ChainID, "reorg_block", reorgMsg.ReorgBlock)
+			return nil
+		})
+		if reorgErr != nil && reorgErr != context.Canceled {
+			logger.Error("Reorg consumer stopped with error", "error", reorgErr.Error())
+		}
+	}()
+	fmt.Println("  [2.5/3] Reorg event consumer started")
 
 	wg.Add(1)
 	go func() {
@@ -346,10 +405,10 @@ func loadEventProcessorConfig() EventProcessorConfig {
 	return EventProcessorConfig{
 		Port:               getEnvInt("PROCESSOR_PORT", 8082),
 		InstanceID:         instanceID,
-		KafkaBrokers:       []string{"kafka-1:9092", "kafka-2:9092", "kafka-3:9092"},
-		ConsumerGroup:      "event-processor-consumers",
-		InputTopics:        []string{"raw-events", "blockchain-events"},
-		OutputTopics:       []string{"processed-events", "indexed-events"},
+		KafkaBrokers:       parseStringList(getEnv("KAFKA_BROKERS", "kafka-1:9092,kafka-2:9092,kafka-3:9092")),
+		ConsumerGroup:      getEnv("KAFKA_CONSUMER_GROUP", "event-processor-consumers"),
+		InputTopics:        parseStringList(getEnv("KAFKA_INPUT_TOPICS", "raw-events,blockchain-events")),
+		OutputTopics:       parseStringList(getEnv("KAFKA_OUTPUT_TOPICS", "processed-events,indexed-events")),
 		BatchSize:          getEnvInt("BATCH_SIZE", 100),
 		EventTTLDays:       getEnvInt("EVENT_TTL_DAYS", 30),
 		LogLevel:           getEnv("LOG_LEVEL", "info"),
@@ -424,12 +483,15 @@ func buildEventProcessorSecurityControls(config EventProcessorConfig, logger cor
 			if !ok {
 				return nil, nil, fmt.Errorf("invalid EVENT_PROCESSOR_AUTH_API_KEYS entry %q; expected key=clientID or key:clientID", entry)
 			}
-			if err := tokenValidator.RegisterAPIKey(apiKey, clientID); err != nil {
+			if err := tokenValidator.RegisterAPIKey(apiKey, clientID, "operator"); err != nil {
 				return nil, nil, err
 			}
 		}
 
 		rbacChecker := api.NewRBACChecker(logger, metrics)
+		if err := rbacChecker.RegisterDefaultRoles(); err != nil {
+			return nil, nil, fmt.Errorf("failed to register default RBAC roles: %w", err)
+		}
 		auditLogger := api.NewAuditLogger(logger, metrics)
 		authMiddleware = api.NewAuthMiddleware(tokenValidator, rbacChecker, auditLogger, logger, metrics)
 	}
@@ -459,4 +521,82 @@ func parseKeyValuePair(entry string) (string, string, bool) {
 		}
 	}
 	return "", "", false
+}
+
+// reorgEventProcessorDatabaseAdapter adapts existing stores to core.DatabasePlugin
+// for use by ReorgHandler in the event-processor microservice.
+type reorgEventProcessorDatabaseAdapter struct {
+	eventStore    *query.MongoDBEventStore
+	metadataStore *query.PostgreSQLEventMetadataStore
+}
+
+func newReorgEventProcessorDatabaseAdapter(
+	eventStore *query.MongoDBEventStore,
+	metadataStore *query.PostgreSQLEventMetadataStore,
+) *reorgEventProcessorDatabaseAdapter {
+	return &reorgEventProcessorDatabaseAdapter{eventStore: eventStore, metadataStore: metadataStore}
+}
+
+func (a *reorgEventProcessorDatabaseAdapter) Name() string                   { return "reorg-adapter" }
+func (a *reorgEventProcessorDatabaseAdapter) Version() string                { return "1.0.0" }
+func (a *reorgEventProcessorDatabaseAdapter) Initialize(_ core.Config) error { return nil }
+func (a *reorgEventProcessorDatabaseAdapter) Start() error                   { return nil }
+func (a *reorgEventProcessorDatabaseAdapter) Stop() error                    { return nil }
+func (a *reorgEventProcessorDatabaseAdapter) Health() error                  { return nil }
+
+// EventReader
+func (a *reorgEventProcessorDatabaseAdapter) GetEvent(_ context.Context, _ string) (*core.BlockchainEvent, error) {
+	return nil, fmt.Errorf("not implemented in reorg adapter")
+}
+
+func (a *reorgEventProcessorDatabaseAdapter) QueryEvents(_ context.Context, _ interface{}) ([]interface{}, error) {
+	return nil, fmt.Errorf("not implemented in reorg adapter")
+}
+
+func (a *reorgEventProcessorDatabaseAdapter) GetAllEvents(_ context.Context) ([]*core.BlockchainEvent, error) {
+	return nil, fmt.Errorf("not implemented in reorg adapter")
+}
+
+func (a *reorgEventProcessorDatabaseAdapter) GetEventsByBlockRange(ctx context.Context, fromBlock, toBlock uint64) ([]*core.BlockchainEvent, error) {
+	return a.eventStore.GetEventsByBlockRange(ctx, fromBlock, toBlock)
+}
+
+// EventWriter
+func (a *reorgEventProcessorDatabaseAdapter) StoreEvent(_ context.Context, _ interface{}) error {
+	return fmt.Errorf("not implemented in reorg adapter")
+}
+
+func (a *reorgEventProcessorDatabaseAdapter) BatchStoreEvents(_ context.Context, _ []interface{}) error {
+	return fmt.Errorf("not implemented in reorg adapter")
+}
+
+func (a *reorgEventProcessorDatabaseAdapter) DeleteEvent(_ context.Context, _ string) error {
+	return fmt.Errorf("not implemented in reorg adapter")
+}
+
+func (a *reorgEventProcessorDatabaseAdapter) DeleteEventsByBlockRange(ctx context.Context, fromBlock, toBlock uint64) (int64, error) {
+	return a.eventStore.DeleteEventsByBlockRange(ctx, fromBlock, toBlock)
+}
+
+func (a *reorgEventProcessorDatabaseAdapter) MarkEventsAsReorged(ctx context.Context, fromBlock, toBlock uint64) (int64, error) {
+	// Delegate to DeleteEventsByBlockRange as fallback if the store doesn't support soft-delete
+	return a.eventStore.DeleteEventsByBlockRange(ctx, fromBlock, toBlock)
+}
+
+// BlockReader
+func (a *reorgEventProcessorDatabaseAdapter) GetBlock(_ context.Context, _ uint64) (*core.Block, error) {
+	return nil, fmt.Errorf("not implemented in reorg adapter")
+}
+
+func (a *reorgEventProcessorDatabaseAdapter) GetLatestBlock(_ context.Context) (uint64, error) {
+	return 0, fmt.Errorf("not implemented in reorg adapter — puller tracks block heights")
+}
+
+func (a *reorgEventProcessorDatabaseAdapter) GetAllBlocks(_ context.Context) ([]*core.Block, error) {
+	return nil, fmt.Errorf("not implemented in reorg adapter")
+}
+
+// ReorgStatsProvider
+func (a *reorgEventProcessorDatabaseAdapter) GetReorgStats(_ context.Context) (*core.ReorgStats, error) {
+	return &core.ReorgStats{}, nil
 }

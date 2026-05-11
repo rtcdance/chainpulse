@@ -83,7 +83,8 @@ func (cw *CacheWarmer) Start(ctx context.Context) error {
 
 	go cw.run(ctx)
 
-	cw.logger.Info("Cache warmer started",
+	cw.logger.Info(
+		"Cache warmer started",
 		"interval", cw.config.WarmingInterval,
 		"batchSize", cw.config.WarmingBatchSize,
 	)
@@ -133,7 +134,8 @@ func (cw *CacheWarmer) warm(ctx context.Context) {
 		cw.failedWarmingCount++
 		cw.mu.Unlock()
 
-		cw.logger.Error("Failed to get warming data",
+		cw.logger.Error(
+			"Failed to get warming data",
 			"error", err,
 		)
 		cw.metrics.RecordCounter("cache_warming_failed", 1, map[string]string{
@@ -156,7 +158,8 @@ func (cw *CacheWarmer) warm(ctx context.Context) {
 
 	duration := time.Since(start)
 
-	cw.logger.Info("Cache warming completed",
+	cw.logger.Info(
+		"Cache warming completed",
 		"itemsWarmed", successCount,
 		"duration", duration,
 	)

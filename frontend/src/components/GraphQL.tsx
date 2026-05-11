@@ -11,6 +11,7 @@ const presets = [
     types { name }
   }
 }`,
+    variables: '',
   },
   {
     label: 'Events Connection',
@@ -28,6 +29,7 @@ const presets = [
     }
   }
 }`,
+    variables: '',
   },
   {
     label: 'Block Surface',
@@ -39,20 +41,53 @@ const presets = [
     timestamp
   }
 }`,
+    variables: '',
+  },
+  {
+    label: 'Events by Chain',
+    value: `query EventsByChain($chainId: String!) {
+  events(first: 10, chainId: $chainId) {
+    total
+    edges {
+      node {
+        id
+        eventName
+        chainId
+        blockNumber
+      }
+    }
+  }
+}`,
+    variables: `{
+  "chainId": "ethereum"
+}`,
   },
 ]
 
 export default function GraphQL() {
   const [query, setQuery] = useState<string>(presets[1].value)
+  const [variables, setVariables] = useState<string>(presets[1].variables)
   const [result, setResult] = useState<string>('No query has been executed yet.')
   const [path, setPath] = useState('/graphql')
   const [loading, setLoading] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [variablesError, setVariablesError] = useState<string | null>(null)
 
   async function runQuery(): Promise<void> {
     setLoading(true)
+    setVariablesError(null)
     try {
-      const payload = await executeGraphQL(query)
+      let parsedVariables: Record<string, unknown> | undefined
+      if (variables.trim()) {
+        try {
+          parsedVariables = JSON.parse(variables)
+        } catch {
+          setVariablesError('Invalid JSON in variables editor')
+          setLoading(false)
+          return
+        }
+      }
+      const payload = await executeGraphQL(query, parsedVariables)
       setResult(JSON.stringify(payload.body, null, 2))
       setPath(payload.evidence.path)
     } catch (error) {
@@ -74,14 +109,14 @@ export default function GraphQL() {
         <p className="text-xs uppercase tracking-[0.25em] text-mist">GraphQL Acceptance</p>
         <h2 className="mt-3 text-2xl font-semibold text-white">Explorer, schema, and query evidence</h2>
         <p className="mt-3 max-w-3xl text-sm leading-6 text-sand/75">
-          The console ships with introspection, event connection, and block query presets so the team can prove the GraphQL surface quickly during a live review.
+          The console ships with introspection, event connection, and block query presets. Use the variables editor to test parameterized queries.
         </p>
 
         <div className="mt-5 flex flex-wrap gap-3">
           {presets.map((preset) => (
             <button
               key={preset.label}
-              onClick={() => setQuery(preset.value)}
+              onClick={() => { setQuery(preset.value); setVariables(preset.variables) }}
               className="rounded-full border border-white/15 bg-white/10 px-4 py-2 text-sm text-white transition hover:bg-white/15"
             >
               {preset.label}
@@ -110,9 +145,23 @@ export default function GraphQL() {
           <textarea
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            className="mt-5 h-[28rem] w-full rounded-[24px] border border-white/10 bg-black/25 p-5 font-mono text-sm leading-6 text-sand outline-none placeholder:text-sand/35"
+            className="mt-5 h-[22rem] w-full rounded-[24px] border border-white/10 bg-black/25 p-5 font-mono text-sm leading-6 text-sand outline-none placeholder:text-sand/35"
             spellCheck={false}
           />
+
+          <div className="mt-4">
+            <div className="flex items-center justify-between">
+              <p className="text-xs uppercase tracking-[0.25em] text-mist">Variables (JSON)</p>
+              {variablesError && <p className="text-xs text-rose-300">{variablesError}</p>}
+            </div>
+            <textarea
+              value={variables}
+              onChange={(event) => { setVariables(event.target.value); setVariablesError(null) }}
+              placeholder='{"chainId": "ethereum"}'
+              className="mt-2 h-32 w-full rounded-[24px] border border-white/10 bg-black/25 p-5 font-mono text-sm leading-6 text-sand outline-none placeholder:text-sand/35"
+              spellCheck={false}
+            />
+          </div>
         </article>
 
         <article className="rounded-[28px] border border-white/10 bg-white/5 p-6">

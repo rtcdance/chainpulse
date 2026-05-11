@@ -13,7 +13,7 @@ COPY . .
 ARG SERVICE
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o /app/service ./cmd/microservices/${SERVICE}
 
-FROM alpine:latest
+FROM alpine:3.19
 
 WORKDIR /root/
 

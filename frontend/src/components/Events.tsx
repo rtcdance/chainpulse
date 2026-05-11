@@ -18,6 +18,7 @@ export default function Events() {
   const [error, setError] = useState<string | null>(null)
   const [limit] = useState(10)
   const [offset, setOffset] = useState(0)
+  const [reorgedOnly, setReorgedOnly] = useState(false)
 
   async function loadEvents(nextOffset = offset, nextFilters: Filters = filters): Promise<void> {
     setLoading(true)
@@ -131,6 +132,16 @@ export default function Events() {
           >
             Clear filters
           </button>
+          <button
+            onClick={() => setReorgedOnly(!reorgedOnly)}
+            className={`rounded-full border px-4 py-2 text-sm transition ${
+              reorgedOnly
+                ? 'border-amber-300/40 bg-amber-300/15 text-amber-100'
+                : 'border-white/15 bg-white/10 text-white hover:bg-white/15'
+            }`}
+          >
+            Reorged Only
+          </button>
         </div>
 
         {result && (
@@ -159,22 +170,32 @@ export default function Events() {
                   <span>Block</span>
                 </div>
                 <div className="divide-y divide-white/10">
-                  {result?.events.map((event) => (
+                  {(reorgedOnly ? result?.events.filter((e) => e.status === 'reorged') : result?.events)?.map((event) => {
+                    const isReorged = event.status === 'reorged'
+                    return (
                     <button
                       key={event.id || event.eventId}
                       onClick={() => void loadDetail(event.id || event.eventId)}
-                      className="grid w-full gap-2 bg-transparent px-4 py-4 text-left transition hover:bg-white/5 md:grid-cols-[1.3fr,0.8fr,1fr,0.9fr] md:gap-4"
+                      className={`grid w-full gap-2 bg-transparent px-4 py-4 text-left transition hover:bg-white/5 md:grid-cols-[1.3fr,0.8fr,1fr,0.9fr] md:gap-4 ${isReorged ? 'border-l-2 border-l-amber-400' : ''}`}
                     >
                       <div>
-                        <div className="font-medium text-white">{event.eventName}</div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-white">{event.eventName}</span>
+                          {isReorged && (
+                            <span className="rounded-full border border-amber-300/30 bg-amber-300/15 px-2 py-0.5 text-[10px] uppercase tracking-wider text-amber-200">
+                              reorged
+                            </span>
+                          )}
+                        </div>
                         <div className="mt-1 font-mono text-xs text-sand/55">{event.id || event.eventId}</div>
                       </div>
                       <div className="text-sm text-sand/75">{event.chainId}</div>
                       <div className="truncate font-mono text-sm text-sand/75">{event.contractAddress || '-'}</div>
                       <div className="text-sm text-sand/75">{event.blockNumber ?? '-'}</div>
                     </button>
-                  ))}
-                  {result?.events.length === 0 && (
+                    )
+                  })}
+                  {(reorgedOnly ? result?.events.filter((e) => e.status === 'reorged') : result?.events)?.length === 0 && (
                     <div className="px-4 py-12 text-center text-sm text-sand/60">
                       No events matched the current filters, but the endpoint is still reachable and ready for acceptance checks with other criteria.
                     </div>
@@ -184,7 +205,7 @@ export default function Events() {
 
               <div className="mt-4 flex items-center justify-between text-sm text-sand/75">
                 <span>
-                  offset={result?.pagination.offset || 0} / total={result?.pagination.total || 0}
+                  Page {Math.floor((result?.pagination.offset || 0) / limit) + 1} of {Math.max(1, Math.ceil((result?.pagination.total || 0) / limit))}
                 </span>
                 <div className="flex gap-2">
                   <button

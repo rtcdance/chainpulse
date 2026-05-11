@@ -89,6 +89,13 @@ func (m *MockEventStoreForRecovery) GetEventsPaginated(ctx context.Context, curs
 	return []*core.BlockchainEvent{}, false, nil
 }
 
+func (m *MockEventStoreForRecovery) CountEvents(ctx context.Context) (int64, error) {
+	if !m.healthy {
+		return 0, m.err
+	}
+	return 0, nil
+}
+
 func (m *MockEventStoreForRecovery) DeleteExpiredEvents(ctx context.Context) (int64, error) {
 	if !m.healthy {
 		return 0, m.err

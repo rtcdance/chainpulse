@@ -10,17 +10,18 @@ import (
 
 // Route represents a route pattern with handlers
 type Route struct {
-	ID         string
-	Pattern    string
-	Method     string
-	Priority   int // Higher priority routes are matched first (default 0)
-	Handlers   []*RequestHandler
-	Middleware []func(http.Handler) http.Handler
-	CreatedAt  time.Time
-	UpdatedAt  time.Time
-	mu         sync.RWMutex
-	pathRegex  *regexp.Regexp
-	paramNames []string
+	ID          string
+	Pattern     string
+	Method      string
+	Priority    int // Higher priority routes are matched first (default 0)
+	Handlers    []*RequestHandler
+	Middleware  []func(http.Handler) http.Handler
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+	mu          sync.RWMutex
+	compileOnce sync.Once
+	pathRegex   *regexp.Regexp
+	paramNames  []string
 }
 
 // NewRoute creates a new route
@@ -94,11 +95,12 @@ func (r *Route) GetHandlers() []*RequestHandler {
 
 // Match checks if a path matches this route and extracts parameters
 func (r *Route) Match(path string) (map[string]string, bool) {
-	// Compile regex if not already done
+	// Compile regex exactly once (safe for concurrent Match calls)
+	r.compileOnce.Do(func() {
+		_ = r.compilePattern()
+	})
 	if r.pathRegex == nil {
-		if err := r.compilePattern(); err != nil {
-			return nil, false
-		}
+		return nil, false
 	}
 
 	matches := r.pathRegex.FindStringSubmatch(path)

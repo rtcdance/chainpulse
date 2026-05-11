@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -16,7 +17,7 @@ type DefaultMetricsCollector struct {
 	mu         sync.RWMutex
 	counters   map[string]int64
 	gauges     map[string]float64
-	histograms map[string][]float64
+	histograms map[string]*boundedHistogram
 	tags       map[string]map[string]string
 	timestamps map[string]time.Time
 }
@@ -53,7 +54,7 @@ func NewDefaultMetricsCollector() *DefaultMetricsCollector {
 	return &DefaultMetricsCollector{
 		counters:   make(map[string]int64),
 		gauges:     make(map[string]float64),
-		histograms: make(map[string][]float64),
+		histograms: make(map[string]*boundedHistogram),
 		tags:       make(map[string]map[string]string),
 		timestamps: make(map[string]time.Time),
 	}
@@ -87,7 +88,10 @@ func (m *DefaultMetricsCollector) RecordHistogram(name string, value float64, ta
 	defer m.mu.Unlock()
 
 	key := m.buildKey(name, tags)
-	m.histograms[key] = append(m.histograms[key], value)
+	if m.histograms[key] == nil {
+		m.histograms[key] = newBoundedHistogram(1024)
+	}
+	m.histograms[key].Record(value)
 	m.tags[key] = tags
 	m.timestamps[key] = time.Now().UTC()
 }
@@ -123,9 +127,21 @@ func (m *DefaultMetricsCollector) GetMetrics() map[string]interface{} {
 
 	// Add histograms
 	histograms := make(map[string]interface{})
-	for key, values := range m.histograms {
+	for key, h := range m.histograms {
+		if h == nil || h.Count() == 0 {
+			continue
+		}
 		histograms[key] = map[string]interface{}{
-			"stats":     m.calculateHistogramStats(values),
+			"stats": HistogramStats{
+				Count:        int64(h.Count()),
+				Sum:          h.Sum(),
+				Min:          h.Min(),
+				Max:          h.Max(),
+				Mean:         h.Avg(),
+				Percentile50: h.Percentile(50),
+				Percentile95: h.Percentile(95),
+				Percentile99: h.Percentile(99),
+			},
 			"tags":      m.tags[key],
 			"timestamp": m.timestamps[key],
 		}
@@ -186,7 +202,6 @@ func (m *DefaultMetricsCollector) ExportPrometheus() string {
 		writePrometheusHeader(&builder, name, "histogram")
 		writePrometheusHistogram(&builder, name, tags, m.histograms[key])
 	}
-
 	writePrometheusRuntimeMetrics(&builder)
 
 	return builder.String()
@@ -239,8 +254,20 @@ func (m *DefaultMetricsCollector) GetHistogramStats(name string, tags map[string
 	defer m.mu.RUnlock()
 
 	key := m.buildKey(name, tags)
-	values := m.histograms[key]
-	return m.calculateHistogramStats(values)
+	h := m.histograms[key]
+	if h == nil || h.Count() == 0 {
+		return HistogramStats{}
+	}
+	return HistogramStats{
+		Count:        int64(h.Count()),
+		Sum:          h.Sum(),
+		Min:          h.Min(),
+		Max:          h.Max(),
+		Mean:         h.Avg(),
+		Percentile50: h.Percentile(50),
+		Percentile95: h.Percentile(95),
+		Percentile99: h.Percentile(99),
+	}
 }
 
 // Reset clears all metrics
@@ -250,7 +277,7 @@ func (m *DefaultMetricsCollector) Reset() {
 
 	m.counters = make(map[string]int64)
 	m.gauges = make(map[string]float64)
-	m.histograms = make(map[string][]float64)
+	m.histograms = make(map[string]*boundedHistogram)
 	m.tags = make(map[string]map[string]string)
 	m.timestamps = make(map[string]time.Time)
 }
@@ -384,13 +411,14 @@ func writePrometheusSample(builder *strings.Builder, name string, tags map[strin
 	builder.WriteByte('\n')
 }
 
-func writePrometheusHistogram(builder *strings.Builder, name string, tags map[string]string, values []float64) {
-	buckets := prometheusHistogramBuckets(values)
-	sum := 0.0
-
-	for _, value := range values {
-		sum += value
+func writePrometheusHistogram(builder *strings.Builder, name string, tags map[string]string, h *boundedHistogram) {
+	values := h.All()
+	if len(values) == 0 {
+		return
 	}
+
+	buckets := prometheusHistogramBuckets(values)
+	sum := h.Sum()
 
 	for _, upperBound := range buckets {
 		cumulative := 0
@@ -408,9 +436,9 @@ func writePrometheusHistogram(builder *strings.Builder, name string, tags map[st
 
 	infTags := copyMetricTags(tags)
 	infTags["le"] = "+Inf"
-	writePrometheusSample(builder, name+"_bucket", infTags, strconv.Itoa(len(values)))
+	writePrometheusSample(builder, name+"_bucket", infTags, strconv.Itoa(h.Count()))
 	writePrometheusSample(builder, name+"_sum", tags, formatPrometheusFloat(sum))
-	writePrometheusSample(builder, name+"_count", tags, strconv.Itoa(len(values)))
+	writePrometheusSample(builder, name+"_count", tags, strconv.Itoa(h.Count()))
 }
 
 func writePrometheusTags(builder *strings.Builder, tags map[string]string) {
@@ -600,6 +628,24 @@ func prometheusHistogramBuckets(values []float64) []float64 {
 	return buckets
 }
 
+// DBPoolStats holds database connection pool statistics for Prometheus export.
+type DBPoolStats struct {
+	MaxOpenConnections int
+	OpenConnections    int
+	InUse              int
+	Idle               int
+	WaitCount          int64
+	WaitDuration       time.Duration
+}
+
+// dbPoolStats is the global database pool stats holder.
+var dbPoolStats atomic.Value
+
+// SetDBPoolStats updates the global database pool statistics for metrics export.
+func SetDBPoolStats(stats DBPoolStats) {
+	dbPoolStats.Store(stats)
+}
+
 func writePrometheusRuntimeMetrics(builder *strings.Builder) {
 	var memStats runtime.MemStats
 
@@ -611,68 +657,24 @@ func writePrometheusRuntimeMetrics(builder *strings.Builder) {
 	writePrometheusSample(builder, "go_memstats_alloc_bytes", nil, strconv.FormatUint(memStats.Alloc, 10))
 	writePrometheusHeader(builder, "go_memstats_sys_bytes", "gauge")
 	writePrometheusSample(builder, "go_memstats_sys_bytes", nil, strconv.FormatUint(memStats.Sys, 10))
-}
+	writePrometheusHeader(builder, "chainpulse_unknown_event_signatures_total", "counter")
+	writePrometheusSample(builder, "chainpulse_unknown_event_signatures_total", nil, strconv.FormatInt(GetUnknownEventSignatureCount(), 10))
 
-// calculateHistogramStats calculates statistics for histogram values
-func (m *DefaultMetricsCollector) calculateHistogramStats(values []float64) HistogramStats {
-	if len(values) == 0 {
-		return HistogramStats{}
-	}
-
-	stats := HistogramStats{
-		Count: int64(len(values)),
-	}
-
-	// Calculate sum and find min/max
-	sum := 0.0
-	min := values[0]
-	max := values[0]
-
-	for _, v := range values {
-		sum += v
-		if v < min {
-			min = v
-		}
-		if v > max {
-			max = v
+	// Database connection pool stats
+	if val := dbPoolStats.Load(); val != nil {
+		if stats, ok := val.(DBPoolStats); ok {
+			writePrometheusHeader(builder, "chainpulse_db_pool_max_open_connections", "gauge")
+			writePrometheusSample(builder, "chainpulse_db_pool_max_open_connections", nil, strconv.Itoa(stats.MaxOpenConnections))
+			writePrometheusHeader(builder, "chainpulse_db_pool_open_connections", "gauge")
+			writePrometheusSample(builder, "chainpulse_db_pool_open_connections", nil, strconv.Itoa(stats.OpenConnections))
+			writePrometheusHeader(builder, "chainpulse_db_pool_in_use", "gauge")
+			writePrometheusSample(builder, "chainpulse_db_pool_in_use", nil, strconv.Itoa(stats.InUse))
+			writePrometheusHeader(builder, "chainpulse_db_pool_idle", "gauge")
+			writePrometheusSample(builder, "chainpulse_db_pool_idle", nil, strconv.Itoa(stats.Idle))
+			writePrometheusHeader(builder, "chainpulse_db_pool_wait_count_total", "counter")
+			writePrometheusSample(builder, "chainpulse_db_pool_wait_count_total", nil, strconv.FormatInt(stats.WaitCount, 10))
+			writePrometheusHeader(builder, "chainpulse_db_pool_wait_duration_seconds_total", "counter")
+			writePrometheusSample(builder, "chainpulse_db_pool_wait_duration_seconds_total", nil, strconv.FormatFloat(stats.WaitDuration.Seconds(), 'f', -1, 64))
 		}
 	}
-
-	stats.Sum = sum
-	stats.Min = min
-	stats.Max = max
-	stats.Mean = sum / float64(len(values))
-
-	// Calculate percentiles
-	stats.Percentile50 = m.calculatePercentile(values, 50)
-	stats.Percentile95 = m.calculatePercentile(values, 95)
-	stats.Percentile99 = m.calculatePercentile(values, 99)
-
-	return stats
-}
-
-// calculatePercentile calculates a percentile value
-func (m *DefaultMetricsCollector) calculatePercentile(values []float64, percentile float64) float64 {
-	if len(values) == 0 {
-		return 0
-	}
-
-	// Simple percentile calculation
-	index := int(float64(len(values)) * percentile / 100)
-	if index >= len(values) {
-		index = len(values) - 1
-	}
-
-	// Sort values (simple bubble sort for small arrays)
-	sorted := make([]float64, len(values))
-	copy(sorted, values)
-	for i := 0; i < len(sorted); i++ {
-		for j := i + 1; j < len(sorted); j++ {
-			if sorted[j] < sorted[i] {
-				sorted[i], sorted[j] = sorted[j], sorted[i]
-			}
-		}
-	}
-
-	return sorted[index]
 }

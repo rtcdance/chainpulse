@@ -14,6 +14,7 @@ export interface NormalizedEvent {
   blockNumber: number | null
   timestamp: number | null
   transactionHash: string
+  status: string
   raw: Record<string, unknown>
 }
 
@@ -238,6 +239,7 @@ function normalizeEvent(value: unknown): NormalizedEvent {
     blockNumber: toNumber(getField(raw, ['blockNumber', 'block_number'], null)),
     timestamp: toNumber(getField(raw, ['timestamp', 'blockTimestamp', 'block_timestamp', 'processedAt'], null)),
     transactionHash: String(getField(raw, ['transactionHash', 'transaction_hash'], '')),
+    status: String(getField(raw, ['status'], '')),
     raw,
   }
 }
@@ -445,19 +447,113 @@ export async function fetchEventDetail(eventId: string): Promise<{ event: Normal
   )
 }
 
-export async function executeGraphQL(query: string): Promise<GraphQLPayload> {
+export async function executeGraphQL(query: string, variables?: Record<string, unknown>): Promise<GraphQLPayload> {
   return requestFirstMatch<Record<string, unknown>, GraphQLPayload>(
     ['/graphql'],
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      data: { query },
+      data: variables ? { query, variables } : { query },
     },
     (response, candidate) => ({
       body: toRecord(response.data),
       evidence: { label: 'GraphQL', path: candidate },
     }),
   )
+}
+
+export async function postRuntimeControl(
+  serviceId: 'puller' | 'event-processor',
+  action: 'pause' | 'resume' | 'pause-intake' | 'resume-intake',
+): Promise<ControlResult> {
+  const services = getServiceDefinitions()
+  const service = services.find((s) => s.id === serviceId)
+  const baseUrl = service?.baseUrl || getHttpBaseUrl()
+
+  try {
+    const response = await axios.request<Record<string, unknown>>({
+      method: 'POST',
+      url: `${trimTrailingSlash(baseUrl)}/runtime/control/${action}`,
+      timeout: 8000,
+      validateStatus: () => true,
+    })
+
+    const ok = response.status >= 200 && response.status < 300
+    const body = toRecord(response.data)
+    return {
+      success: ok,
+      message: String(getField(body, ['message', 'status'], ok ? `${action} succeeded` : `${action} failed (${response.status})`)),
+      evidence: { label: 'Runtime Control', path: `/runtime/control/${action}` },
+    }
+  } catch (error) {
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : 'request failed',
+      evidence: { label: 'Runtime Control', path: `/runtime/control/${action}` },
+    }
+  }
+}
+
+export async function fetchDLQEvents(params?: { limit?: number; offset?: number }): Promise<DLQEventList> {
+  const search = new URLSearchParams()
+  if (params?.limit) search.set('limit', String(params.limit))
+  if (params?.offset) search.set('offset', String(params.offset))
+  const qs = search.toString()
+
+  return requestFirstMatch<Record<string, unknown>, DLQEventList>(
+    [`/dlq/events${qs ? `?${qs}` : ''}`, `/api/v1/dlq/events${qs ? `?${qs}` : ''}`],
+    { method: 'GET' },
+    (response, candidate) => {
+      const body = toRecord(response.data)
+      const list = Array.isArray(body.events) ? body.events : Array.isArray(body.data) ? body.data : []
+      const total = toNumber(getField(body, ['total'], list.length)) ?? list.length
+
+      return {
+        events: list.map((item: unknown) => {
+          const raw = toRecord(item)
+          return {
+            id: String(getField(raw, ['id', 'eventId', 'event_id'], '')),
+            eventName: String(getField(raw, ['eventName', 'event_name'], 'unknown')),
+            chainId: String(getField(raw, ['chainId', 'chain_id'], 'unknown')),
+            reason: String(getField(raw, ['reason', 'deadLetterReason', 'dead_letter_reason'], '')),
+            retryCount: toNumber(getField(raw, ['retryCount', 'retry_count'], 0)) ?? 0,
+            timestamp: toNumber(getField(raw, ['timestamp', 'processedAt'], null)),
+            raw,
+          }
+        }),
+        total,
+        evidence: { label: 'DLQ Events', path: candidate },
+      }
+    },
+  )
+}
+
+export async function replayDLQEvents(eventIDs?: string[]): Promise<ControlResult> {
+  const body = eventIDs?.length ? { event_ids: eventIDs } : {}
+
+  return requestFirstMatch<Record<string, unknown>, ControlResult>(
+    ['/dlq/replay', '/api/v1/dlq/replay', '/runtime/indexing/dlq/replay'],
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      data: body,
+    },
+    (response, candidate) => {
+      const resBody = toRecord(response.data)
+      return {
+        success: true,
+        message: String(getField(resBody, ['message', 'status'], 'replay initiated')),
+        evidence: { label: 'DLQ Replay', path: candidate },
+      }
+    },
+  )
+}
+
+export function buildFilteredSubscribeUrl(filters: { chainId?: string; contract?: string; eventName?: string }): string {
+  if (filters.eventName) return `/events/subscribe/name/${encodeURIComponent(filters.eventName)}`
+  if (filters.contract) return `/events/subscribe/contract/${encodeURIComponent(filters.contract)}`
+  if (filters.chainId) return `/events/subscribe/chain/${encodeURIComponent(filters.chainId)}`
+  return '/events/subscribe'
 }
 
 export function formatTimestamp(value: number | null): string {
@@ -471,6 +567,28 @@ export function formatTimestamp(value: number | null): string {
     return String(value)
   }
   return date.toLocaleString()
+}
+
+export interface DLQEvent {
+  id: string
+  eventName: string
+  chainId: string
+  reason: string
+  retryCount: number
+  timestamp: number | null
+  raw: Record<string, unknown>
+}
+
+export interface DLQEventList {
+  events: DLQEvent[]
+  total: number
+  evidence: EndpointEvidence
+}
+
+export interface ControlResult {
+  success: boolean
+  message: string
+  evidence: EndpointEvidence
 }
 
 export function summarizeMetricGroups(samples: MetricSample[]): Array<{ name: string; count: number }> {

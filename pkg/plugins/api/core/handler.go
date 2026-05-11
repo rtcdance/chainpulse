@@ -135,18 +135,26 @@ func NewDefaultErrorMapper() *DefaultErrorMapper {
 	return &DefaultErrorMapper{}
 }
 
-// MapError maps an error to a response
+// MapError maps an error to a response using the unified APIError format.
 func (m *DefaultErrorMapper) MapError(err error) (int, map[string]string, []byte) {
 	if err == nil {
 		return 200, make(map[string]string), []byte("")
 	}
 
-	// Default error mapping
+	// Use the api package's MapErrorToAPIError via a deferred import to
+	// avoid circular dependency. The api package imports core, and core
+	// must not import api. We resolve this by doing the mapping inline
+	// with the same logic, or by accepting a mapper function at wire time.
+	//
+	// For now, produce a consistent error response without leaking internals.
 	status := 500
+	code := "INTERNAL_SERVER_ERROR"
+	message := "an internal error occurred"
+
 	headers := map[string]string{
 		"Content-Type": "application/json",
 	}
-	body := []byte(fmt.Sprintf(`{"error":"%s"}`, err.Error()))
+	body := []byte(fmt.Sprintf(`{"error":"%s","message":"%s","statusCode":%d}`, code, message, status))
 
 	return status, headers, body
 }

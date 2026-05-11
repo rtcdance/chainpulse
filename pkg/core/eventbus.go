@@ -4,28 +4,81 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"sync/atomic"
 )
+
+// Default worker pool size for event bus
+const defaultEventBusWorkers = 16
+
+// eventBusJob wraps a handler call for the worker pool
+type eventBusJob struct {
+	handler EventHandler
+	event   interface{}
+	topic   string
+	ctx     context.Context
+}
 
 // DefaultEventBus is the default implementation of EventBus
 type DefaultEventBus struct {
-	subscribers map[string][]EventHandler
+	subscribers map[string]map[uint64]EventHandler // topic -> subID -> handler
+	subIndex    map[uint64]string                  // subID -> topic (reverse lookup for Unsubscribe)
+	nextSubID   atomic.Uint64
 	mu          sync.RWMutex
 	logger      Logger
+
+	// Worker pool for backpressure
+	workerPool chan struct{}
+	wg         sync.WaitGroup
+
+	// Graceful shutdown
+	stopped atomic.Bool
+	done    chan struct{}
 }
 
 // EventHandler is a function that handles events
 type EventHandler func(interface{})
 
-// NewEventBus creates a new event bus
+// SubscribeTyped subscribes to topic with a type-safe handler function.
+// It wraps the underlying EventBus.Subscribe, performing the type assertion
+// from interface{} to T centrally so callers don't need to.
+// If the assertion fails (e.g. wrong concrete type published to the topic),
+// the handler is silently skipped — matching the existing !ok pattern.
+func SubscribeTyped[T any](bus EventBus, ctx context.Context, topic string, handler func(T)) (uint64, error) { //nolint:revive // ctx cannot be first param; bus is the receiver-like primary argument
+	return bus.Subscribe(ctx, topic, func(raw interface{}) {
+		typed, ok := raw.(T)
+		if !ok {
+			return
+		}
+		handler(typed)
+	})
+}
+
+// NewEventBus creates a new event bus with a bounded worker pool
 func NewEventBus(logger Logger) *DefaultEventBus {
+	pool := make(chan struct{}, defaultEventBusWorkers)
+	for i := 0; i < defaultEventBusWorkers; i++ {
+		pool <- struct{}{}
+	}
 	return &DefaultEventBus{
-		subscribers: make(map[string][]EventHandler),
+		subscribers: make(map[string]map[uint64]EventHandler),
+		subIndex:    make(map[uint64]string),
 		logger:      logger,
+		workerPool:  pool,
+		done:        make(chan struct{}),
 	}
 }
 
 // Publish publishes an event to a topic
 func (eb *DefaultEventBus) Publish(ctx context.Context, topic string, event interface{}) error {
+	if eb.stopped.Load() {
+		return NewSystemError(
+			ErrorTypePermanent,
+			ErrorCodeValidation,
+			"event bus is stopped",
+			nil,
+		)
+	}
+
 	if topic == "" {
 		return NewSystemError(
 			ErrorTypePermanent,
@@ -44,53 +97,83 @@ func (eb *DefaultEventBus) Publish(ctx context.Context, topic string, event inte
 		)
 	}
 
+	// Copy handlers under RLock to avoid data race: holding a reference to the
+	// map and iterating it after releasing the lock races with concurrent
+	// Subscribe/Unsubscribe writes. A snapshot slice is safe to iterate unlocked.
 	eb.mu.RLock()
-	handlers, exists := eb.subscribers[topic]
+	snapshot := make([]EventHandler, 0, len(eb.subscribers[topic]))
+	for _, h := range eb.subscribers[topic] {
+		snapshot = append(snapshot, h)
+	}
 	eb.mu.RUnlock()
 
-	if !exists || len(handlers) == 0 {
+	if len(snapshot) == 0 {
 		if eb.logger != nil {
 			eb.logger.Debug("no subscribers for topic", "topic", topic)
 		}
 		return nil
 	}
 
-	// Publish event to all subscribers asynchronously
-	for _, handler := range handlers {
-		go func(eventHandler EventHandler) {
-			// Check context before executing handler
+	// Publish event to all subscribers via worker pool for backpressure
+	for _, handler := range snapshot {
+		// Check context before dispatching — avoid spawning goroutines that will immediately exit
+		select {
+		case <-ctx.Done():
+			if eb.logger != nil {
+				eb.logger.Debug("context canceled, skipping remaining handlers", "topic", topic)
+			}
+			return nil
+		default:
+		}
+
+		eb.wg.Add(1)
+		job := eventBusJob{
+			handler: handler,
+			event:   event,
+			topic:   topic,
+			ctx:     ctx,
+		}
+		go func(j eventBusJob) {
+			defer eb.wg.Done()
+
+			// Acquire worker slot (blocks if pool is full)
 			select {
-			case <-ctx.Done():
+			case <-j.ctx.Done():
 				if eb.logger != nil {
-					eb.logger.Debug("context canceled before handler execution", "topic", topic)
+					eb.logger.Debug("context canceled while waiting for worker slot", "topic", j.topic)
 				}
 				return
-			default:
-				// Execute handler with panic recovery
-				defer func() {
-					if r := recover(); r != nil {
-						if eb.logger != nil {
-							eb.logger.Error("handler panic", "topic", topic, "panic", r)
-						}
-					}
-				}()
-
-				eventHandler(event)
+			case <-eb.workerPool:
+				// Got a worker slot
 			}
-		}(handler)
+
+			// Release worker slot when done
+			defer func() { eb.workerPool <- struct{}{} }()
+
+			// Execute handler with panic recovery
+			defer func() {
+				if r := recover(); r != nil {
+					if eb.logger != nil {
+						eb.logger.Error("handler panic", "topic", j.topic, "panic", r)
+					}
+				}
+			}()
+
+			j.handler(j.event)
+		}(job)
 	}
 
 	if eb.logger != nil {
-		eb.logger.Debug("event published", "topic", topic, "subscribers", len(handlers))
+		eb.logger.Debug("event published", "topic", topic, "subscribers", len(snapshot))
 	}
 
 	return nil
 }
 
-// Subscribe subscribes to a topic
-func (eb *DefaultEventBus) Subscribe(ctx context.Context, topic string, handler func(interface{})) error {
+// Subscribe subscribes to a topic and returns a subscription ID for later unsubscription
+func (eb *DefaultEventBus) Subscribe(ctx context.Context, topic string, handler func(interface{})) (uint64, error) {
 	if topic == "" {
-		return NewSystemError(
+		return 0, NewSystemError(
 			ErrorTypePermanent,
 			ErrorCodeValidation,
 			"topic cannot be empty",
@@ -99,7 +182,7 @@ func (eb *DefaultEventBus) Subscribe(ctx context.Context, topic string, handler 
 	}
 
 	if handler == nil {
-		return NewSystemError(
+		return 0, NewSystemError(
 			ErrorTypePermanent,
 			ErrorCodeValidation,
 			"handler cannot be nil",
@@ -110,66 +193,70 @@ func (eb *DefaultEventBus) Subscribe(ctx context.Context, topic string, handler 
 	eb.mu.Lock()
 	defer eb.mu.Unlock()
 
-	eb.subscribers[topic] = append(eb.subscribers[topic], handler)
+	subID := eb.nextSubID.Add(1)
+
+	if eb.subscribers[topic] == nil {
+		eb.subscribers[topic] = make(map[uint64]EventHandler)
+	}
+	eb.subscribers[topic][subID] = handler
+	eb.subIndex[subID] = topic
 
 	if eb.logger != nil {
-		eb.logger.Debug("subscriber added", "topic", topic, "total_subscribers", len(eb.subscribers[topic]))
+		eb.logger.Debug("subscriber added", "topic", topic, "subscription_id", subID, "total_subscribers", len(eb.subscribers[topic]))
 	}
 
-	return nil
+	return subID, nil
 }
 
-// Unsubscribe unsubscribes from a topic
-func (eb *DefaultEventBus) Unsubscribe(topic string, handler func(interface{})) error {
-	if topic == "" {
-		return NewSystemError(
-			ErrorTypePermanent,
-			ErrorCodeValidation,
-			"topic cannot be empty",
-			nil,
-		)
-	}
-
-	if handler == nil {
-		return NewSystemError(
-			ErrorTypePermanent,
-			ErrorCodeValidation,
-			"handler cannot be nil",
-			nil,
-		)
-	}
-
+// Unsubscribe removes a subscription by its ID
+func (eb *DefaultEventBus) Unsubscribe(subscriptionID uint64) error {
 	eb.mu.Lock()
 	defer eb.mu.Unlock()
 
-	handlers, exists := eb.subscribers[topic]
+	topic, exists := eb.subIndex[subscriptionID]
 	if !exists {
 		return NewSystemError(
 			ErrorTypePermanent,
 			ErrorCodeNotFound,
-			fmt.Sprintf("topic %s not found", topic),
+			fmt.Sprintf("subscription %d not found", subscriptionID),
 			nil,
 		)
 	}
 
-	// Find and remove the handler
-	// Note: This is a simplified implementation that removes the first matching handler
-	// In production, you might want to use a more sophisticated approach
-	for i := range handlers {
-		// Since we can't directly compare function pointers, we'll remove by index
-		// This is a limitation of Go's function comparison
-		if i == len(handlers)-1 {
-			eb.subscribers[topic] = handlers[:i]
+	delete(eb.subscribers[topic], subscriptionID)
+	delete(eb.subIndex, subscriptionID)
 
-			break
-		}
+	// Clean up empty topic map
+	if len(eb.subscribers[topic]) == 0 {
+		delete(eb.subscribers, topic)
 	}
 
 	if eb.logger != nil {
-		eb.logger.Debug("subscriber removed", "topic", topic, "total_subscribers", len(eb.subscribers[topic]))
+		eb.logger.Debug("subscriber removed", "topic", topic, "subscription_id", subscriptionID, "total_subscribers", len(eb.subscribers[topic]))
 	}
 
 	return nil
+}
+
+// Wait blocks until all in-flight event handlers have completed.
+// Call this during graceful shutdown to ensure no events are lost.
+func (eb *DefaultEventBus) Wait() {
+	eb.wg.Wait()
+}
+
+// Stop prevents new publications and waits for in-flight handlers to finish.
+// After Stop is called, Publish returns an error. It is safe to call Stop
+// multiple times — subsequent calls are no-ops.
+func (eb *DefaultEventBus) Stop() {
+	if !eb.stopped.CompareAndSwap(false, true) {
+		return // already stopped
+	}
+	close(eb.done)
+	eb.wg.Wait()
+
+	if eb.logger != nil {
+		eb.logger.Info("event bus stopped")
+	}
 }
 
 // GetSubscriberCount returns the number of subscribers for a topic
@@ -203,7 +290,8 @@ func (eb *DefaultEventBus) Clear() {
 	eb.mu.Lock()
 	defer eb.mu.Unlock()
 
-	eb.subscribers = make(map[string][]EventHandler)
+	eb.subscribers = make(map[string]map[uint64]EventHandler)
+	eb.subIndex = make(map[uint64]string)
 
 	if eb.logger != nil {
 		eb.logger.Info("event bus cleared")
@@ -231,10 +319,13 @@ func (eb *DefaultEventBus) PublishSync(ctx context.Context, topic string, event 
 	}
 
 	eb.mu.RLock()
-	handlers, exists := eb.subscribers[topic]
+	snapshot := make([]EventHandler, 0, len(eb.subscribers[topic]))
+	for _, h := range eb.subscribers[topic] {
+		snapshot = append(snapshot, h)
+	}
 	eb.mu.RUnlock()
 
-	if !exists || len(handlers) == 0 {
+	if len(snapshot) == 0 {
 		if eb.logger != nil {
 			eb.logger.Debug("no subscribers for topic", "topic", topic)
 		}
@@ -242,7 +333,7 @@ func (eb *DefaultEventBus) PublishSync(ctx context.Context, topic string, event 
 	}
 
 	// Execute handlers synchronously
-	for _, handler := range handlers {
+	for _, handler := range snapshot {
 		// Check context before executing handler
 		select {
 		case <-ctx.Done():
@@ -251,21 +342,24 @@ func (eb *DefaultEventBus) PublishSync(ctx context.Context, topic string, event 
 			}
 			return ctx.Err()
 		default:
-			// Execute handler with panic recovery
-			defer func() {
-				if r := recover(); r != nil {
-					if eb.logger != nil {
-						eb.logger.Error("handler panic", "topic", topic, "panic", r)
+			// Execute handler with per-invocation panic recovery.
+			// Must use a separate function — defer in a loop stacks until
+			// function exit and a panic from handler N would skip handlers N+1..K.
+			func(h EventHandler) {
+				defer func() {
+					if r := recover(); r != nil {
+						if eb.logger != nil {
+							eb.logger.Error("handler panic", "topic", topic, "panic", r)
+						}
 					}
-				}
-			}()
-
-			handler(event)
+				}()
+				h(event)
+			}(handler)
 		}
 	}
 
 	if eb.logger != nil {
-		eb.logger.Debug("event published synchronously", "topic", topic, "subscribers", len(handlers))
+		eb.logger.Debug("event published synchronously", "topic", topic, "subscribers", len(snapshot))
 	}
 
 	return nil

@@ -153,8 +153,8 @@ func main() {
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	// Stop API Gateway
-	if err := gateway.Stop(); err != nil {
+	// Stop API Gateway (graceful shutdown with context)
+	if err := gateway.ShutdownWithContext(shutdownCtx); err != nil {
 		logger.Error("Error stopping API Gateway", "error", err.Error())
 	}
 	fmt.Println("  [1/1] API Gateway stopped")
@@ -329,12 +329,15 @@ func buildAPIGatewaySecurityControls(config GatewayConfig, logger core.Logger, m
 			if !ok {
 				return nil, nil, fmt.Errorf("invalid GATEWAY_AUTH_API_KEYS entry %q; expected key=clientID or key:clientID", entry)
 			}
-			if err := tokenValidator.RegisterAPIKey(apiKey, clientID); err != nil {
+			if err := tokenValidator.RegisterAPIKey(apiKey, clientID, "operator"); err != nil {
 				return nil, nil, err
 			}
 		}
 
 		rbacChecker := api.NewRBACChecker(logger, metrics)
+		if err := rbacChecker.RegisterDefaultRoles(); err != nil {
+			return nil, nil, fmt.Errorf("failed to register default RBAC roles: %w", err)
+		}
 		auditLogger := api.NewAuditLogger(logger, metrics)
 		authMiddleware = api.NewAuthMiddleware(tokenValidator, rbacChecker, auditLogger, logger, metrics)
 	}

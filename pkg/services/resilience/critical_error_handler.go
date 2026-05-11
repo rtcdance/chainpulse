@@ -32,7 +32,20 @@ type CriticalError struct {
 	Details     map[string]interface{}
 	StackTrace  string
 	Recoverable bool
+	Err         error // underlying error, if any
 }
+
+// Error implements the error interface
+func (ce *CriticalError) Error() string {
+	if ce.Err != nil {
+		return fmt.Sprintf("[%s] %s: %v", ce.Type, ce.Message, ce.Err)
+	}
+	return fmt.Sprintf("[%s] %s", ce.Type, ce.Message)
+}
+
+// Unwrap returns the underlying error, enabling errors.Is() and errors.As()
+// to traverse the error chain through CriticalError.
+func (ce *CriticalError) Unwrap() error { return ce.Err }
 
 // CriticalErrorAlert represents an alert for a critical error
 type CriticalErrorAlert struct {

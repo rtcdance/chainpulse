@@ -6,6 +6,9 @@ import (
 	"sync"
 	"time"
 
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
+
 	"chainpulse/pkg/core"
 )
 
@@ -18,6 +21,7 @@ type MongoDBDatabase struct {
 	maxConnections   int
 	queryTimeout     time.Duration
 	mu               sync.RWMutex
+	client           *mongo.Client // MongoDB client for real connection management
 	events           map[string]*core.BlockchainEvent // in-memory cache for testing
 	eventsMu         sync.RWMutex
 }
@@ -65,19 +69,28 @@ func (m *MongoDBDatabase) Initialize(config *core.Config) error {
 	m.databaseName = config.GetString("MONGODB_DATABASE", "chainpulse")
 	m.collectionName = config.GetString("MONGODB_COLLECTION", "events")
 
-	// Test connection
+	// Connect to MongoDB
 	ctx, cancel := context.WithTimeout(context.Background(), m.queryTimeout)
 	defer cancel()
 
-	// In a real implementation, we would connect to MongoDB here
-	// For now, we just validate the configuration
-	if m.connectionString == "" {
+	clientOpts := options.Client().ApplyURI(m.connectionString).
+		SetMaxPoolSize(uint64(m.maxConnections))
+
+	client, err := mongo.Connect(ctx, clientOpts)
+	if err != nil {
 		m.RecordError()
-		m.logger.Error("MongoDB connection string is empty", map[string]interface{}{})
-		return fmt.Errorf("MongoDB connection string is required")
+		m.logger.Error("Failed to connect to MongoDB", map[string]interface{}{"error": err.Error()})
+		return fmt.Errorf("failed to connect to MongoDB: %w", err)
 	}
 
-	_ = ctx // Use context to avoid unused variable warning
+	// Verify connection
+	if err := client.Ping(ctx, nil); err != nil {
+		m.RecordError()
+		m.logger.Error("Failed to ping MongoDB", map[string]interface{}{"error": err.Error()})
+		return fmt.Errorf("failed to ping MongoDB: %w", err)
+	}
+
+	m.client = client
 
 	m.logger.Info("MongoDB database initialized", map[string]interface{}{
 		"component":  "mongodb_database",
@@ -114,7 +127,16 @@ func (m *MongoDBDatabase) Stop() error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	// In a real implementation, we would close connections here
+	// Disconnect MongoDB client
+	if m.client != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if err := m.client.Disconnect(ctx); err != nil {
+			m.logger.Error("Failed to disconnect MongoDB client", map[string]interface{}{"error": err.Error()})
+		}
+		m.client = nil
+	}
+
 	m.logger.Info("MongoDB database stopped", map[string]interface{}{
 		"component": "mongodb_database",
 	})
@@ -123,7 +145,7 @@ func (m *MongoDBDatabase) Stop() error {
 }
 
 // WriteEvent writes a blockchain event to the database
-func (m *MongoDBDatabase) WriteEvent(event *core.BlockchainEvent) error {
+func (m *MongoDBDatabase) WriteEvent(ctx context.Context, event *core.BlockchainEvent) error {
 	if event == nil {
 		return fmt.Errorf("event is required")
 	}
@@ -157,7 +179,7 @@ func (m *MongoDBDatabase) WriteEvent(event *core.BlockchainEvent) error {
 }
 
 // WriteEvents writes multiple blockchain events to the database (batch)
-func (m *MongoDBDatabase) WriteEvents(events []core.BlockchainEvent) error {
+func (m *MongoDBDatabase) WriteEvents(ctx context.Context, events []core.BlockchainEvent) error {
 	if len(events) == 0 {
 		return nil
 	}

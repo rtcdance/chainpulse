@@ -1,6 +1,6 @@
 # Policy Rollout SLO
 
-**Status**: Active | **Last Updated**: 2026-03-30
+**Status**: Active | **Last Updated**: 2026-03-30 | **Deadline**: 2026-08-01
 
 ## Scope
 
@@ -68,7 +68,10 @@ These metrics are emitted by both startup modes:
 - `policy_blocked_rate > 2%` for 15m (enforce mode).
 - Any production high-risk violation observed.
 
-## Ownership
+## Owner
 
-- Primary: Platform/Backend On-call
-- Secondary: Indexer Domain Owner
+indexer-team
+
+## Delivery Status
+
+Planned

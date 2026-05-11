@@ -1,33 +1,36 @@
 package api
 
 import (
-	"crypto/hmac"
+	"context"
 	"crypto/sha256"
-	"encoding/base64"
-	"encoding/json"
+	"encoding/hex"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"chainpulse/pkg/core"
+
+	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 )
+
+// apiKeyEntry stores client ID and roles for an in-memory API key
+type apiKeyEntry struct {
+	ClientID string
+	Roles    []string
+}
 
 // TokenValidator handles JWT and API key validation
 type TokenValidator struct {
 	jwtSecret       string
-	apiKeyWhitelist map[string]string // apiKey -> clientID
+	apiKeyWhitelist map[string]apiKeyEntry // apiKeyHash -> entry (loaded from DB)
+	apiKeyStore     *APIKeyStore           // persistent store (nil = in-memory only)
+	whitelistMu     sync.RWMutex           // protects apiKeyWhitelist
+	revokedTokens   map[string]time.Time   // jti -> expiry (auto-cleanup)
+	revokeMu        sync.RWMutex
 	logger          core.Logger
 	metrics         core.MetricsCollector
-}
-
-// JWTClaims represents JWT token claims
-type JWTClaims struct {
-	ClientID    string   `json:"client_id"`
-	UserID      string   `json:"user_id"`
-	Roles       []string `json:"roles"`
-	Permissions []string `json:"permissions"`
-	ExpiresAt   int64    `json:"exp"` // Unix timestamp in milliseconds
-	IssuedAt    int64    `json:"iat"` // Unix timestamp in milliseconds
 }
 
 // ValidationResult represents the result of token validation
@@ -37,6 +40,7 @@ type ValidationResult struct {
 	UserID      string
 	Roles       []string
 	Permissions []string
+	TokenType   string // "access" or "refresh"
 	Error       string
 }
 
@@ -44,23 +48,58 @@ type ValidationResult struct {
 func NewTokenValidator(jwtSecret string, logger core.Logger, metrics core.MetricsCollector) *TokenValidator {
 	return &TokenValidator{
 		jwtSecret:       jwtSecret,
-		apiKeyWhitelist: make(map[string]string),
+		apiKeyWhitelist: make(map[string]apiKeyEntry),
+		revokedTokens:   make(map[string]time.Time),
 		logger:          logger,
 		metrics:         metrics,
 	}
 }
 
-// RegisterAPIKey registers an API key with a client ID
-func (tv *TokenValidator) RegisterAPIKey(apiKey, clientID string) error {
+// SetAPIKeyStore sets the persistent API key store for database-backed validation
+func (tv *TokenValidator) SetAPIKeyStore(store *APIKeyStore) {
+	tv.apiKeyStore = store
+}
+
+// LoadAPIKeysFromDB loads all enabled API keys from the database into memory
+func (tv *TokenValidator) LoadAPIKeysFromDB(ctx context.Context) error {
+	if tv.apiKeyStore == nil {
+		return fmt.Errorf("API key store not configured")
+	}
+	whitelist, err := tv.apiKeyStore.LoadAllKeys(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to load API keys: %w", err)
+	}
+	tv.whitelistMu.Lock()
+	tv.apiKeyWhitelist = make(map[string]apiKeyEntry, len(whitelist))
+	for k, v := range whitelist {
+		tv.apiKeyWhitelist[k] = apiKeyEntry{ClientID: v}
+	}
+	tv.whitelistMu.Unlock()
+	tv.logger.Info("loaded API keys from database", "count", len(whitelist))
+	return nil
+}
+
+// RegisterAPIKey registers an API key with a client ID and optional roles.
+// The key is stored as SHA-256 hash — the plain key is never retained in memory.
+func (tv *TokenValidator) RegisterAPIKey(apiKey, clientID string, roles ...string) error {
 	if apiKey == "" || clientID == "" {
 		return fmt.Errorf("api key and client id cannot be empty")
 	}
-	tv.apiKeyWhitelist[apiKey] = clientID
+	keyHash := KeyHash(apiKey)
+	if keyHash == "" {
+		// Non-cp_ keys: hash directly with SHA-256
+		h := sha256.Sum256([]byte(apiKey))
+		keyHash = hex.EncodeToString(h[:])
+		tv.logger.Warn("API key does not use cp_ prefix; consider using APIKeyStore.CreateAPIKey for production", "client_id", clientID)
+	}
+	tv.whitelistMu.Lock()
+	tv.apiKeyWhitelist[keyHash] = apiKeyEntry{ClientID: clientID, Roles: roles}
+	tv.whitelistMu.Unlock()
 	return nil
 }
 
 // ValidateAPIKey validates an API key
-func (tv *TokenValidator) ValidateAPIKey(apiKey string) ValidationResult {
+func (tv *TokenValidator) ValidateAPIKey(ctx context.Context, apiKey string) ValidationResult {
 	start := time.Now()
 	defer func() {
 		tv.metrics.RecordHistogram("auth.api_key_validation_duration_ms", float64(time.Since(start).Milliseconds()), nil)
@@ -74,7 +113,30 @@ func (tv *TokenValidator) ValidateAPIKey(apiKey string) ValidationResult {
 		}
 	}
 
-	clientID, exists := tv.apiKeyWhitelist[apiKey]
+	// Try database-backed validation first
+	if tv.apiKeyStore != nil {
+		record, err := tv.apiKeyStore.ValidateAPIKey(ctx, apiKey)
+		if err == nil && record != nil {
+			tv.metrics.RecordCounter("auth.api_key_validation_success", 1, nil)
+			return ValidationResult{
+				Valid:       true,
+				ClientID:    record.ClientID,
+				Permissions: record.Permissions,
+			}
+		}
+		// Key not found in DB — fall through to in-memory whitelist
+	}
+
+	// Fallback to in-memory whitelist (keys are stored as SHA-256 hashes)
+	keyHash := KeyHash(apiKey)
+	if keyHash == "" {
+		// Non-cp_ keys: hash directly
+		h := sha256.Sum256([]byte(apiKey))
+		keyHash = hex.EncodeToString(h[:])
+	}
+	tv.whitelistMu.RLock()
+	entry, exists := tv.apiKeyWhitelist[keyHash]
+	tv.whitelistMu.RUnlock()
 	if !exists {
 		tv.metrics.RecordCounter("auth.api_key_validation_failed", 1, nil)
 		return ValidationResult{
@@ -86,11 +148,32 @@ func (tv *TokenValidator) ValidateAPIKey(apiKey string) ValidationResult {
 	tv.metrics.RecordCounter("auth.api_key_validation_success", 1, nil)
 	return ValidationResult{
 		Valid:    true,
-		ClientID: clientID,
+		ClientID: entry.ClientID,
+		Roles:    entry.Roles,
 	}
 }
 
-// ValidateJWT validates a JWT token
+// RevokeToken revokes a JWT by its jti claim. The token remains revoked until its expiry.
+func (tv *TokenValidator) RevokeToken(jti string, expiresAt time.Time) {
+	tv.revokeMu.Lock()
+	tv.revokedTokens[jti] = expiresAt
+	tv.revokeMu.Unlock()
+	tv.metrics.RecordCounter("auth.jwt_revoked", 1, nil)
+}
+
+// cleanupRevoked removes expired entries from the revocation list
+func (tv *TokenValidator) cleanupRevoked() {
+	now := time.Now()
+	tv.revokeMu.Lock()
+	for jti, exp := range tv.revokedTokens {
+		if now.After(exp) {
+			delete(tv.revokedTokens, jti)
+		}
+	}
+	tv.revokeMu.Unlock()
+}
+
+// ValidateJWT validates a JWT token using golang-jwt/jwt/v5
 func (tv *TokenValidator) ValidateJWT(token string) ValidationResult {
 	start := time.Now()
 	defer func() {
@@ -105,108 +188,115 @@ func (tv *TokenValidator) ValidateJWT(token string) ValidationResult {
 		}
 	}
 
-	// Parse JWT token (format: header.payload.signature)
-	parts := strings.Split(token, ".")
-	if len(parts) != 3 {
-		tv.metrics.RecordCounter("auth.jwt_validation_failed", 1, nil)
-		return ValidationResult{
-			Valid: false,
-			Error: "invalid token format",
-		}
-	}
+	// Periodically clean up expired revocations
+	tv.cleanupRevoked()
 
-	// Decode payload
-	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
+	parsedToken, err := jwt.Parse(token, func(t *jwt.Token) (interface{}, error) {
+		// Enforce HS256 algorithm — reject alg:none or algorithm confusion attacks
+		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
+		}
+		return []byte(tv.jwtSecret), nil
+	}, jwt.WithIssuer("chainpulse"), jwt.WithAudience("chainpulse-api"))
+
 	if err != nil {
 		tv.metrics.RecordCounter("auth.jwt_validation_failed", 1, nil)
 		return ValidationResult{
 			Valid: false,
-			Error: fmt.Sprintf("failed to decode payload: %v", err),
+			Error: fmt.Sprintf("token validation failed: %v", err),
 		}
 	}
 
-	// Parse claims
-	var claims JWTClaims
-	if err := json.Unmarshal(payload, &claims); err != nil {
+	claims, ok := parsedToken.Claims.(jwt.MapClaims)
+	if !ok || !parsedToken.Valid {
 		tv.metrics.RecordCounter("auth.jwt_validation_failed", 1, nil)
 		return ValidationResult{
 			Valid: false,
-			Error: fmt.Sprintf("failed to parse claims: %v", err),
+			Error: "invalid token claims",
 		}
 	}
 
-	// Check expiration (using milliseconds for precision)
-	if claims.ExpiresAt < time.Now().UnixMilli() {
-		tv.metrics.RecordCounter("auth.jwt_validation_failed", 1, nil)
-		return ValidationResult{
-			Valid: false,
-			Error: "token expired",
+	// Check revocation by jti
+	if jti, _ := claims["jti"].(string); jti != "" {
+		tv.revokeMu.RLock()
+		_, revoked := tv.revokedTokens[jti]
+		tv.revokeMu.RUnlock()
+		if revoked {
+			tv.metrics.RecordCounter("auth.jwt_validation_failed", 1, nil)
+			return ValidationResult{
+				Valid: false,
+				Error: "token has been revoked",
+			}
 		}
 	}
 
-	// Verify signature
-	expectedSignature := tv.generateSignature(parts[0], parts[1])
-	if !hmac.Equal([]byte(parts[2]), []byte(expectedSignature)) {
-		tv.metrics.RecordCounter("auth.jwt_validation_failed", 1, nil)
-		return ValidationResult{
-			Valid: false,
-			Error: "invalid signature",
+	// Extract custom claims
+	clientID, _ := claims["client_id"].(string)
+	userID, _ := claims["user_id"].(string)
+	tokenType, _ := claims["token_type"].(string)
+
+	var roles []string
+	if r, ok := claims["roles"].([]interface{}); ok {
+		for _, v := range r {
+			if s, ok := v.(string); ok {
+				roles = append(roles, s)
+			}
+		}
+	}
+
+	var permissions []string
+	if p, ok := claims["permissions"].([]interface{}); ok {
+		for _, v := range p {
+			if s, ok := v.(string); ok {
+				permissions = append(permissions, s)
+			}
 		}
 	}
 
 	tv.metrics.RecordCounter("auth.jwt_validation_success", 1, nil)
 	return ValidationResult{
 		Valid:       true,
-		ClientID:    claims.ClientID,
-		UserID:      claims.UserID,
-		Roles:       claims.Roles,
-		Permissions: claims.Permissions,
-	}
-}
-
-// GenerateJWT generates a new JWT token
-func (tv *TokenValidator) GenerateJWT(clientID, userID string, roles, permissions []string, expiresIn time.Duration) (string, error) {
-	now := time.Now()
-	claims := JWTClaims{
 		ClientID:    clientID,
 		UserID:      userID,
 		Roles:       roles,
 		Permissions: permissions,
-		IssuedAt:    now.UnixMilli(),
-		ExpiresAt:   now.Add(expiresIn).UnixMilli(),
+		TokenType:   tokenType,
 	}
-
-	// Create header
-	header := map[string]string{
-		"alg": "HS256",
-		"typ": "JWT",
-	}
-
-	headerJSON, _ := json.Marshal(header)
-	headerB64 := base64.RawURLEncoding.EncodeToString(headerJSON)
-
-	// Create payload
-	claimsJSON, _ := json.Marshal(claims)
-	payloadB64 := base64.RawURLEncoding.EncodeToString(claimsJSON)
-
-	// Create signature
-	signature := tv.generateSignature(headerB64, payloadB64)
-
-	token := fmt.Sprintf("%s.%s.%s", headerB64, payloadB64, signature)
-	tv.metrics.RecordCounter("auth.jwt_generated", 1, nil)
-	return token, nil
 }
 
-// generateSignature generates HMAC-SHA256 signature
-func (tv *TokenValidator) generateSignature(header, payload string) string {
-	message := fmt.Sprintf("%s.%s", header, payload)
-	h := hmac.New(sha256.New, []byte(tv.jwtSecret))
-	h.Write([]byte(message))
-	return base64.RawURLEncoding.EncodeToString(h.Sum(nil))
+// GenerateJWT generates a new JWT token using golang-jwt/jwt/v5
+func (tv *TokenValidator) GenerateJWT(clientID, userID string, roles, permissions []string, expiresIn time.Duration) (string, error) {
+	return tv.GenerateJWTWithType(clientID, userID, roles, permissions, expiresIn, "access")
+}
+
+// GenerateJWTWithType generates a JWT with a specific token_type claim
+func (tv *TokenValidator) GenerateJWTWithType(clientID, userID string, roles, permissions []string, expiresIn time.Duration, tokenType string) (string, error) {
+	now := time.Now()
+	claims := jwt.MapClaims{
+		"client_id":   clientID,
+		"user_id":     userID,
+		"roles":       roles,
+		"permissions": permissions,
+		"token_type":  tokenType,
+		"iss":         "chainpulse",
+		"aud":         "chainpulse-api",
+		"jti":         uuid.New().String(),
+		"iat":         now.Unix(),
+		"exp":         now.Add(expiresIn).Unix(),
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	signed, err := token.SignedString([]byte(tv.jwtSecret))
+	if err != nil {
+		return "", fmt.Errorf("failed to sign token: %w", err)
+	}
+
+	tv.metrics.RecordCounter("auth.jwt_generated", 1, nil)
+	return signed, nil
 }
 
 // ValidateToken validates either API key or JWT token
-func (tv *TokenValidator) ValidateToken(authHeader string) ValidationResult {
+func (tv *TokenValidator) ValidateToken(ctx context.Context, authHeader string) ValidationResult {
 	if authHeader == "" {
 		return ValidationResult{
 			Valid: false,
@@ -221,5 +311,5 @@ func (tv *TokenValidator) ValidateToken(authHeader string) ValidationResult {
 	}
 
 	// Check for API key (X-API-Key header would be passed directly)
-	return tv.ValidateAPIKey(authHeader)
+	return tv.ValidateAPIKey(ctx, authHeader)
 }

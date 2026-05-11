@@ -16,6 +16,7 @@ import (
 type HealthCheckHandler struct {
 	dbManager   database.DatabaseManager
 	cachePlugin core.CachePlugin
+	mqPlugin    core.MQPlugin
 	logger      core.Logger
 	metrics     core.MetricsCollector
 	initialized bool
@@ -106,6 +107,12 @@ func NewHealthCheckHandler(
 // that do not exercise full dependency bootstrapping.
 func (h *HealthCheckHandler) InitializedForTests() {
 	h.initialized = true
+}
+
+// WithMQPlugin sets the MQ plugin for Kafka health checking.
+func (h *HealthCheckHandler) WithMQPlugin(mq core.MQPlugin) *HealthCheckHandler {
+	h.mqPlugin = mq
+	return h
 }
 
 // Initialize initializes the health check handler
@@ -365,6 +372,15 @@ func (h *HealthCheckHandler) performHealthCheck(ctx context.Context) *HealthChec
 		response.Status = "degraded"
 	}
 
+	// Check Kafka (if configured)
+	if h.mqPlugin != nil {
+		kafkaStatus := h.checkKafkaHealth(ctx)
+		response.Components["kafka"] = kafkaStatus
+		if kafkaStatus.Status != "healthy" {
+			response.Status = "unhealthy"
+		}
+	}
+
 	if h.runtimeComponentProvider != nil {
 		if runtimeStatus := h.runtimeComponentProvider(ctx); runtimeStatus != nil {
 			response.Components["indexing_runtime"] = runtimeStatus
@@ -447,7 +463,7 @@ func (h *HealthCheckHandler) checkMongoDBHealth(ctx context.Context) *ComponentS
 	err := h.dbManager.CheckMongoHealth(ctx)
 	if err != nil {
 		status.Status = "unhealthy"
-		status.Error = err.Error()
+		status.Error = "MongoDB health check failed"
 		h.logger.Error("MongoDB health check failed", "error", err.Error())
 	}
 
@@ -475,7 +491,7 @@ func (h *HealthCheckHandler) checkPostgresHealth(ctx context.Context) *Component
 	err := h.dbManager.CheckPostgresHealth(ctx)
 	if err != nil {
 		status.Status = "unhealthy"
-		status.Error = err.Error()
+		status.Error = "PostgreSQL health check failed"
 		h.logger.Error("PostgreSQL health check failed", "error", err.Error())
 	}
 
@@ -513,7 +529,26 @@ func (h *HealthCheckHandler) checkRedisHealth(ctx context.Context) *ComponentSta
 
 	if err := h.cachePlugin.HealthCheck(pingCtx); err != nil {
 		status.Status = "degraded"
-		status.Error = "Redis health check failed: " + err.Error()
+		status.Error = "Redis health check failed"
+	}
+
+	status.ResponseTime = time.Since(start).Milliseconds()
+	return status
+}
+
+// checkKafkaHealth checks the health of the Kafka message queue
+func (h *HealthCheckHandler) checkKafkaHealth(ctx context.Context) *ComponentStatus {
+	start := time.Now()
+	status := &ComponentStatus{
+		Name:      "Kafka",
+		Status:    "healthy",
+		Timestamp: time.Now().Unix(),
+	}
+
+	if err := h.mqPlugin.Health(); err != nil {
+		status.Status = "unhealthy"
+		status.Error = "Kafka health check failed"
+		h.logger.Error("Kafka health check failed", "error", err.Error())
 	}
 
 	status.ResponseTime = time.Since(start).Milliseconds()
@@ -532,13 +567,11 @@ func (h *HealthCheckHandler) respondJSON(w http.ResponseWriter, statusCode int, 
 
 // respondError responds with an error message
 func (h *HealthCheckHandler) respondError(w http.ResponseWriter, statusCode int, message string) {
-	response := map[string]interface{}{
-		"status":    "error",
-		"message":   message,
-		"timestamp": time.Now().Unix(),
+	code := "INTERNAL_SERVER_ERROR"
+	if statusCode == http.StatusServiceUnavailable {
+		code = "SERVICE_UNAVAILABLE"
 	}
-
-	h.respondJSON(w, statusCode, response)
+	(&APIError{Code: code, Message: message, Status: statusCode}).WriteHTTP(w)
 }
 
 // Health returns the health status of the health check handler

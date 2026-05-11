@@ -435,7 +435,10 @@ func (p *AdvancedInMemoryCachePlugin) evictEntries(requiredSize int64) {
 			break
 		}
 
-		key := elem.Value.(string)
+		key, ok := elem.Value.(string)
+		if !ok {
+			break
+		}
 		p.removeEntry(key)
 		p.recordEvictionUnlocked()
 		if p.metricsCollector != nil {

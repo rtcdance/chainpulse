@@ -43,11 +43,11 @@ func (m *MockEventBus) Publish(ctx context.Context, topic string, event interfac
 	return nil
 }
 
-func (m *MockEventBus) Subscribe(ctx context.Context, topic string, handler func(interface{})) error {
-	return nil
+func (m *MockEventBus) Subscribe(ctx context.Context, topic string, handler func(interface{})) (uint64, error) {
+	return 0, nil
 }
 
-func (m *MockEventBus) Unsubscribe(topic string, handler func(interface{})) error {
+func (m *MockEventBus) Unsubscribe(subscriptionID uint64) error {
 	return nil
 }
 
@@ -66,9 +66,12 @@ func (m *MockLogger) WithCorrelationID(id string) core.Logger {
 // MockMetricsCollector for testing
 type MockMetricsCollector struct{}
 
-func (m *MockMetricsCollector) RecordCounter(name string, value int64, tags map[string]string)     {}
-func (m *MockMetricsCollector) RecordGauge(name string, value float64, tags map[string]string)     {}
+func (m *MockMetricsCollector) RecordCounter(name string, value int64, tags map[string]string) {}
+
+func (m *MockMetricsCollector) RecordGauge(name string, value float64, tags map[string]string) {}
+
 func (m *MockMetricsCollector) RecordHistogram(name string, value float64, tags map[string]string) {}
+
 func (m *MockMetricsCollector) GetMetrics() map[string]interface{} {
 	return make(map[string]interface{})
 }

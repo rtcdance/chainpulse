@@ -123,9 +123,15 @@ func (m *MultiChainDataPuller) PullEventsFromChain(
 		return nil, err
 	}
 
-	// Ensure all events have correct chain ID
+	// Validate that all events carry the expected chain ID
 	for i := range events {
-		events[i].ChainID = chainID
+		if events[i].ChainID != chainID {
+			if m.logger != nil {
+				m.logger.Warn("event chain ID mismatch — correcting",
+					"expected", chainID, "got", events[i].ChainID, "event_hash", events[i].EventHash)
+			}
+			events[i].ChainID = chainID
+		}
 	}
 
 	return events, nil

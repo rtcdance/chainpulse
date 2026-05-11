@@ -59,7 +59,7 @@ func (s *LegacyRuntimeSink) Persist(ctx context.Context, events []appindexing.Ev
 		if err := s.database.StoreEvent(ctx, event); err != nil {
 			return fmt.Errorf("store event %s: %w", event.ID, err)
 		}
-		shadowWriteTracker.mark(event)
+		markShadowWrite(event)
 
 		if s.cache == nil {
 			continue

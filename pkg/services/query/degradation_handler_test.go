@@ -8,107 +8,111 @@ import (
 	"chainpulse/pkg/core"
 )
 
-// MockEventStore for testing
-type MockEventStore struct {
+// mockEventStoreDegradation for testing
+type mockEventStoreDegradation struct {
 	healthy bool
 }
 
-func (m *MockEventStore) Initialize(ctx context.Context) error {
+func (m *mockEventStoreDegradation) Initialize(ctx context.Context) error {
 	return nil
 }
 
-func (m *MockEventStore) InsertEvent(ctx context.Context, event *core.BlockchainEvent) error {
+func (m *mockEventStoreDegradation) InsertEvent(ctx context.Context, event *core.BlockchainEvent) error {
 	return nil
 }
 
-func (m *MockEventStore) InsertEventBatch(ctx context.Context, events []*core.BlockchainEvent) error {
+func (m *mockEventStoreDegradation) InsertEventBatch(ctx context.Context, events []*core.BlockchainEvent) error {
 	return nil
 }
 
-func (m *MockEventStore) GetEvent(ctx context.Context, eventID string) (*core.BlockchainEvent, error) {
+func (m *mockEventStoreDegradation) GetEvent(ctx context.Context, eventID string) (*core.BlockchainEvent, error) {
 	return nil, nil
 }
 
-func (m *MockEventStore) GetEventsByChain(ctx context.Context, chainID int, limit int, offset int) ([]*core.BlockchainEvent, error) {
+func (m *mockEventStoreDegradation) GetEventsByChain(ctx context.Context, chainID int, limit int, offset int) ([]*core.BlockchainEvent, error) {
 	return nil, nil
 }
 
-func (m *MockEventStore) GetEventsByContract(ctx context.Context, contractAddress string, limit int, offset int) ([]*core.BlockchainEvent, error) {
+func (m *mockEventStoreDegradation) GetEventsByContract(ctx context.Context, contractAddress string, limit int, offset int) ([]*core.BlockchainEvent, error) {
 	return nil, nil
 }
 
-func (m *MockEventStore) GetEventsByEventName(ctx context.Context, eventName string, limit int, offset int) ([]*core.BlockchainEvent, error) {
+func (m *mockEventStoreDegradation) GetEventsByEventName(ctx context.Context, eventName string, limit int, offset int) ([]*core.BlockchainEvent, error) {
 	return nil, nil
 }
 
-func (m *MockEventStore) GetEventsByBlock(ctx context.Context, blockNumber int64) ([]*core.BlockchainEvent, error) {
+func (m *mockEventStoreDegradation) GetEventsByBlock(ctx context.Context, blockNumber int64) ([]*core.BlockchainEvent, error) {
 	return nil, nil
 }
 
-func (m *MockEventStore) GetEventsByAddress(ctx context.Context, address string, limit int) ([]*core.BlockchainEvent, error) {
+func (m *mockEventStoreDegradation) GetEventsByAddress(ctx context.Context, address string, limit int) ([]*core.BlockchainEvent, error) {
 	return nil, nil
 }
 
-func (m *MockEventStore) GetEventsByName(ctx context.Context, eventName string, limit int) ([]*core.BlockchainEvent, error) {
+func (m *mockEventStoreDegradation) GetEventsByName(ctx context.Context, eventName string, limit int) ([]*core.BlockchainEvent, error) {
 	return nil, nil
 }
 
-func (m *MockEventStore) GetEventsPaginated(ctx context.Context, cursor string, limit int) ([]*core.BlockchainEvent, bool, error) {
+func (m *mockEventStoreDegradation) GetEventsPaginated(ctx context.Context, cursor string, limit int) ([]*core.BlockchainEvent, bool, error) {
 	return nil, false, nil
 }
 
-func (m *MockEventStore) DeleteExpiredEvents(ctx context.Context) (int64, error) {
+func (m *mockEventStoreDegradation) CountEvents(ctx context.Context) (int64, error) {
 	return 0, nil
 }
 
-func (m *MockEventStore) Health(ctx context.Context) *core.HealthStatus {
+func (m *mockEventStoreDegradation) DeleteExpiredEvents(ctx context.Context) (int64, error) {
+	return 0, nil
+}
+
+func (m *mockEventStoreDegradation) Health(ctx context.Context) *core.HealthStatus {
 	if m.healthy {
 		return &core.HealthStatus{Status: "healthy"}
 	}
 	return &core.HealthStatus{Status: "unhealthy"}
 }
 
-func (m *MockEventStore) Close(ctx context.Context) error {
+func (m *mockEventStoreDegradation) Close(ctx context.Context) error {
 	return nil
 }
 
 // MockEventMetadataStore for testing
-type MockEventMetadataStore struct {
+type mockMetadataStoreDegradation struct {
 	healthy bool
 }
 
-func (m *MockEventMetadataStore) Initialize(ctx context.Context) error {
+func (m *mockMetadataStoreDegradation) Initialize(ctx context.Context) error {
 	return nil
 }
 
-func (m *MockEventMetadataStore) InsertMetadata(ctx context.Context, metadata *EventMetadata) error {
+func (m *mockMetadataStoreDegradation) InsertMetadata(ctx context.Context, metadata *EventMetadata) error {
 	return nil
 }
 
-func (m *MockEventMetadataStore) InsertMetadataBatch(ctx context.Context, metadataList []*EventMetadata) error {
+func (m *mockMetadataStoreDegradation) InsertMetadataBatch(ctx context.Context, metadataList []*EventMetadata) error {
 	return nil
 }
 
-func (m *MockEventMetadataStore) GetMetadata(ctx context.Context, eventID string) (*EventMetadata, error) {
+func (m *mockMetadataStoreDegradation) GetMetadata(ctx context.Context, eventID string) (*EventMetadata, error) {
 	return nil, nil
 }
 
-func (m *MockEventMetadataStore) GetMetadataByChain(ctx context.Context, chainID int, limit int, offset int) ([]*EventMetadata, error) {
+func (m *mockMetadataStoreDegradation) GetMetadataByChain(ctx context.Context, chainID int, limit int, offset int) ([]*EventMetadata, error) {
 	return nil, nil
 }
 
-func (m *MockEventMetadataStore) UpdateMetadata(ctx context.Context, metadata *EventMetadata) error {
+func (m *mockMetadataStoreDegradation) UpdateMetadata(ctx context.Context, metadata *EventMetadata) error {
 	return nil
 }
 
-func (m *MockEventMetadataStore) Health(ctx context.Context) *core.HealthStatus {
+func (m *mockMetadataStoreDegradation) Health(ctx context.Context) *core.HealthStatus {
 	if m.healthy {
 		return &core.HealthStatus{Status: "healthy"}
 	}
 	return &core.HealthStatus{Status: "unhealthy"}
 }
 
-func (m *MockEventMetadataStore) Close(ctx context.Context) error {
+func (m *mockMetadataStoreDegradation) Close(ctx context.Context) error {
 	return nil
 }
 
@@ -207,8 +211,8 @@ func (m *MockMetricsCollector) GetMetric(name string) float64 {
 
 func TestDegradationHandlerInitialization(t *testing.T) {
 	ctx := context.Background()
-	eventStore := &MockEventStore{healthy: true}
-	metadataStore := &MockEventMetadataStore{healthy: true}
+	eventStore := &mockEventStoreDegradation{healthy: true}
+	metadataStore := &mockMetadataStoreDegradation{healthy: true}
 	cacheService := &MockCacheService{healthy: true}
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
@@ -242,8 +246,8 @@ func TestDegradationHandlerNilStores(t *testing.T) {
 
 func TestDegradationModeNormal(t *testing.T) {
 	ctx := context.Background()
-	eventStore := &MockEventStore{healthy: true}
-	metadataStore := &MockEventMetadataStore{healthy: true}
+	eventStore := &mockEventStoreDegradation{healthy: true}
+	metadataStore := &mockMetadataStoreDegradation{healthy: true}
 	cacheService := &MockCacheService{healthy: true}
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
@@ -261,8 +265,8 @@ func TestDegradationModeNormal(t *testing.T) {
 
 func TestDegradationModeMongoDBAnavailable(t *testing.T) {
 	ctx := context.Background()
-	eventStore := &MockEventStore{healthy: false}
-	metadataStore := &MockEventMetadataStore{healthy: true}
+	eventStore := &mockEventStoreDegradation{healthy: false}
+	metadataStore := &mockMetadataStoreDegradation{healthy: true}
 	cacheService := &MockCacheService{healthy: true}
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
@@ -280,8 +284,8 @@ func TestDegradationModeMongoDBAnavailable(t *testing.T) {
 
 func TestDegradationModePostgreSQLUnavailable(t *testing.T) {
 	ctx := context.Background()
-	eventStore := &MockEventStore{healthy: true}
-	metadataStore := &MockEventMetadataStore{healthy: false}
+	eventStore := &mockEventStoreDegradation{healthy: true}
+	metadataStore := &mockMetadataStoreDegradation{healthy: false}
 	cacheService := &MockCacheService{healthy: true}
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
@@ -299,8 +303,8 @@ func TestDegradationModePostgreSQLUnavailable(t *testing.T) {
 
 func TestDegradationModeCacheUnavailable(t *testing.T) {
 	ctx := context.Background()
-	eventStore := &MockEventStore{healthy: true}
-	metadataStore := &MockEventMetadataStore{healthy: true}
+	eventStore := &mockEventStoreDegradation{healthy: true}
+	metadataStore := &mockMetadataStoreDegradation{healthy: true}
 	cacheService := &MockCacheService{healthy: false}
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
@@ -316,8 +320,8 @@ func TestDegradationModeCacheUnavailable(t *testing.T) {
 
 func TestDegradationModeMultipleUnavailable(t *testing.T) {
 	ctx := context.Background()
-	eventStore := &MockEventStore{healthy: false}
-	metadataStore := &MockEventMetadataStore{healthy: false}
+	eventStore := &mockEventStoreDegradation{healthy: false}
+	metadataStore := &mockMetadataStoreDegradation{healthy: false}
 	cacheService := &MockCacheService{healthy: true}
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
@@ -333,8 +337,8 @@ func TestDegradationModeMultipleUnavailable(t *testing.T) {
 
 func TestDegradationHandlerMetrics(t *testing.T) {
 	ctx := context.Background()
-	eventStore := &MockEventStore{healthy: true}
-	metadataStore := &MockEventMetadataStore{healthy: true}
+	eventStore := &mockEventStoreDegradation{healthy: true}
+	metadataStore := &mockMetadataStoreDegradation{healthy: true}
 	cacheService := &MockCacheService{healthy: true}
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
@@ -355,8 +359,8 @@ func TestDegradationHandlerTimeout(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Millisecond)
 	defer cancel()
 
-	eventStore := &MockEventStore{healthy: true}
-	metadataStore := &MockEventMetadataStore{healthy: true}
+	eventStore := &mockEventStoreDegradation{healthy: true}
+	metadataStore := &mockMetadataStoreDegradation{healthy: true}
 	cacheService := &MockCacheService{healthy: true}
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()

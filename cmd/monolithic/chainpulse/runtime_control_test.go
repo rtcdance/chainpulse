@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -25,7 +26,7 @@ func TestMonolithicRuntimeControlRoute(t *testing.T) {
 	}
 
 	indexer := indexing.NewMultiChainIndexer(logger, nil)
-	runtime, err := newMonolithicPullerRuntime(core.Config{}, "http://localhost:8545", []string{"ethereum"}, logger, metrics, db, indexer)
+	runtime, err := newMonolithicPullerRuntime(context.Background(), core.Config{}, "http://localhost:8545", []string{"ethereum"}, logger, metrics, db, indexer)
 	if err != nil {
 		t.Fatalf("new monolithic runtime: %v", err)
 	}

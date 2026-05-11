@@ -2,7 +2,9 @@ package resilience
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net"
 	"sync"
 	"time"
 
@@ -48,72 +50,54 @@ const (
 	ErrorCategoryUnknown   ErrorCategory = "unknown"
 )
 
-// DefaultErrorClassifier implements ErrorClassifier
-type DefaultErrorClassifier struct {
-	transientPatterns []string
-	permanentPatterns []string
-	criticalPatterns  []string
-}
+// DefaultErrorClassifier implements ErrorClassifier using type assertions
+// and errors.Is()/errors.As() instead of fragile string matching.
+type DefaultErrorClassifier struct{}
 
 // NewDefaultErrorClassifier creates a new default error classifier
 func NewDefaultErrorClassifier() *DefaultErrorClassifier {
-	return &DefaultErrorClassifier{
-		transientPatterns: []string{
-			"timeout",
-			"connection refused",
-			"connection reset",
-			"temporary failure",
-			"unavailable",
-			"deadline exceeded",
-		},
-		permanentPatterns: []string{
-			"invalid",
-			"unauthorized",
-			"forbidden",
-			"not found",
-			"bad request",
-			"corrupted",
-			"authentication failed",
-		},
-		criticalPatterns: []string{
-			"data corruption",
-			"critical error",
-			"fatal",
-			"panic",
-		},
-	}
+	return &DefaultErrorClassifier{}
 }
 
-// Classify classifies an error into a category
+// Classify classifies an error into a category using type assertions.
+// Priority: SystemError type → typed sentinels → net.Error → syscall → default.
 func (c *DefaultErrorClassifier) Classify(err error) ErrorCategory {
 	if err == nil {
 		return ErrorCategoryUnknown
 	}
 
-	errMsg := err.Error()
-
-	// Check critical patterns first
-	for _, pattern := range c.criticalPatterns {
-		if contains(errMsg, pattern) {
+	// 1. Check SystemError type — covers all typed sentinel errors
+	var sysErr *core.SystemError
+	if errors.As(err, &sysErr) {
+		switch sysErr.Type {
+		case core.ErrorTypeTransient:
+			return ErrorCategoryTransient
+		case core.ErrorTypePermanent:
+			return ErrorCategoryPermanent
+		case core.ErrorTypeCritical:
 			return ErrorCategoryCritical
 		}
 	}
 
-	// Check transient patterns
-	for _, pattern := range c.transientPatterns {
-		if contains(errMsg, pattern) {
-			return ErrorCategoryTransient
-		}
+	// 2. Check typed sentinels via errors.Is (handles wrapped errors)
+	if errors.Is(err, core.ErrTimeout) || errors.Is(err, core.ErrConnectionRefused) ||
+		errors.Is(err, core.ErrConnectionReset) || errors.Is(err, core.ErrUnavailable) ||
+		errors.Is(err, core.ErrDeadlineExceeded) || errors.Is(err, core.ErrTemporaryFailure) {
+		return ErrorCategoryTransient
+	}
+	if errors.Is(err, core.ErrDataCorruption) || errors.Is(err, core.ErrCriticalFailure) ||
+		errors.Is(err, core.ErrFatalError) {
+		return ErrorCategoryCritical
 	}
 
-	// Check permanent patterns
-	for _, pattern := range c.permanentPatterns {
-		if contains(errMsg, pattern) {
-			return ErrorCategoryPermanent
-		}
+	// 3. Check net.Error interface
+	var netErr net.Error
+	if errors.As(err, &netErr) {
+		return ErrorCategoryTransient
 	}
 
-	return ErrorCategoryUnknown
+	// 4. Default to permanent
+	return ErrorCategoryPermanent
 }
 
 // IsTransient checks if an error is transient
@@ -144,7 +128,7 @@ func NewDefaultErrorLogger(logger core.Logger) *DefaultErrorLogger {
 }
 
 // LogError logs an error with context
-func (l *DefaultErrorLogger) LogError(ctx context.Context, err error, category ErrorCategory, context map[string]interface{}) {
+func (l *DefaultErrorLogger) LogError(ctx context.Context, err error, category ErrorCategory, errContext map[string]interface{}) {
 	if err == nil {
 		return
 	}
@@ -153,9 +137,9 @@ func (l *DefaultErrorLogger) LogError(ctx context.Context, err error, category E
 	logMsg := fmt.Sprintf("Error [%s]: %v", category, err)
 
 	// Add context information
-	if len(context) > 0 {
+	if len(errContext) > 0 {
 		logMsg += " | Context: "
-		for key, value := range context {
+		for key, value := range errContext {
 			logMsg += fmt.Sprintf("%s=%v ", key, value)
 		}
 	}
@@ -298,21 +282,4 @@ func (h *ErrorHandler) IsCritical(err error) bool {
 // Classify classifies an error
 func (h *ErrorHandler) Classify(err error) ErrorCategory {
 	return h.errorClassifier.Classify(err)
-}
-
-// Helper function to check if a string contains a substring (case-insensitive)
-func contains(s, substr string) bool {
-	if len(substr) == 0 {
-		return true
-	}
-	if len(s) < len(substr) {
-		return false
-	}
-	// Simple substring check (case-sensitive for now)
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
 }

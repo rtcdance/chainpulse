@@ -3,6 +3,8 @@ package config
 import (
 	"context"
 	"fmt"
+	"log/slog"
+	"sync"
 	"time"
 
 	"github.com/hashicorp/consul/api"
@@ -20,6 +22,7 @@ type ConsulConfig struct {
 type ConsulClient struct {
 	client *api.Client
 	config *ConsulConfig
+	wg     sync.WaitGroup
 }
 
 // NewConsulClient creates a new Consul client
@@ -116,7 +119,9 @@ func (c *ConsulClient) SetConfig(ctx context.Context, key, value string) error {
 // WatchConfig watches for configuration changes
 func (c *ConsulClient) WatchConfig(ctx context.Context, key string, handler func(string)) error {
 	// Use a goroutine to poll for changes instead of deprecated WatchPlan
+	c.wg.Add(1)
 	go func() {
+		defer c.wg.Done()
 		var lastIndex uint64
 		ticker := time.NewTicker(1 * time.Second)
 		defer ticker.Stop()
@@ -131,7 +136,7 @@ func (c *ConsulClient) WatchConfig(ctx context.Context, key string, handler func
 					WaitTime:  30 * time.Second,
 				})
 				if err != nil {
-					fmt.Printf("watch error: %v\n", err)
+					slog.Warn("consul watch error", "error", err)
 					continue
 				}
 
@@ -157,9 +162,9 @@ func (c *ConsulClient) Health(ctx context.Context) error {
 	return nil
 }
 
-// Close closes the Consul client connection
+// Close closes the Consul client connection and waits for watch goroutines to exit
 func (c *ConsulClient) Close() error {
-	// Consul client doesn't require explicit close
+	c.wg.Wait()
 	return nil
 }
 

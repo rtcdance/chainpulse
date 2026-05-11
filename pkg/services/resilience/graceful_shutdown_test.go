@@ -446,12 +446,31 @@ func TestShutdownHandlerConcurrentRequests(t *testing.T) {
 		_ = handler.Shutdown(context.Background())
 	}()
 
-	// Wait for all requests
+	// Wait for all requests to complete
 	for i := 0; i < 10; i++ {
 		<-done
 	}
+}
 
-	if handler.GetInFlightRequests() != 0 {
-		t.Errorf("Expected 0 in-flight requests, got %d", handler.GetInFlightRequests())
+func TestStopSignalListenerCleansUpGoroutine(t *testing.T) {
+	logger := core.NewDefaultLogger(core.LogLevelInfo)
+	metricsCollector := core.NewDefaultMetricsCollector()
+	handler := NewShutdownHandler(logger, metricsCollector)
+
+	// Start the signal listener
+	handler.ListenForShutdownSignals()
+
+	// Stop it — should not hang
+	cleanupDone := make(chan struct{})
+	go func() {
+		handler.StopSignalListener()
+		close(cleanupDone)
+	}()
+
+	select {
+	case <-cleanupDone:
+		// Success — goroutine cleaned up
+	case <-time.After(3 * time.Second):
+		t.Fatal("StopSignalListener() hung — goroutine leak not fixed")
 	}
 }

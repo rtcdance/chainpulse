@@ -2,12 +2,14 @@ package mq
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/bits"
 	"sync"
 	"time"
 
 	"chainpulse/pkg/core"
+	"chainpulse/pkg/observability"
 	"github.com/segmentio/kafka-go"
 )
 
@@ -60,6 +62,8 @@ type KafkaMQPlugin struct {
 	consumerGroupMutex   sync.RWMutex
 	offsetPersistenceMap map[string]map[int32]int64 // topic -> partition -> offset
 	offsetPersistMutex   sync.RWMutex
+	tracer               *observability.DefaultTracer
+	inFlight             sync.WaitGroup // tracks in-flight publish/consume operations
 }
 
 // NewKafkaMQPlugin creates a new Kafka message queue plugin
@@ -97,6 +101,7 @@ func NewKafkaMQPlugin(
 		brokerRecoveryCount:  0,
 		consumerGroupMetrics: make(map[string]int64),
 		offsetPersistenceMap: make(map[string]map[int32]int64),
+		tracer:               observability.NewDefaultTracer(logger, metricsCollector),
 	}
 }
 
@@ -111,8 +116,9 @@ func (p *KafkaMQPlugin) Initialize() error {
 
 	// Create Kafka writer (producer)
 	writer := &kafka.Writer{
-		Addr:     kafka.TCP(p.brokers...),
-		Balancer: &kafka.LeastBytes{},
+		Addr:                   kafka.TCP(p.brokers...),
+		Balancer:               &kafka.LeastBytes{},
+		AllowAutoTopicCreation: true,
 	}
 
 	p.producer = &KafkaProducer{
@@ -149,13 +155,29 @@ func (p *KafkaMQPlugin) Start() error {
 // Stop stops the Kafka plugin
 func (p *KafkaMQPlugin) Stop() error {
 	p.mu.Lock()
-	defer p.mu.Unlock()
-
 	if !p.isRunning {
+		p.mu.Unlock()
 		return nil
+	}
+	p.isRunning = false
+	p.mu.Unlock()
+
+	// Wait for in-flight operations with timeout
+	done := make(chan struct{})
+	go func() {
+		p.inFlight.Wait()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		p.logger.Info("Kafka in-flight operations completed")
+	case <-time.After(10 * time.Second):
+		p.logger.Warn("Kafka stop timed out waiting for in-flight operations")
 	}
 
 	// Close producer
+	p.mu.Lock()
 	if p.producer != nil && p.producer.writer != nil {
 		if err := p.producer.writer.Close(); err != nil {
 			p.logger.Error("failed to close Kafka writer", "error", err)
@@ -170,8 +192,8 @@ func (p *KafkaMQPlugin) Stop() error {
 			}
 		}
 	}
+	p.mu.Unlock()
 
-	p.isRunning = false
 	p.logger.Info("Kafka MQ plugin stopped", "name", p.name)
 
 	return nil
@@ -246,6 +268,11 @@ func (p *KafkaMQPlugin) Publish(ctx context.Context, topic string, message []byt
 
 // PublishMessage publishes a message to a Kafka topic with comprehensive metrics
 func (p *KafkaMQPlugin) PublishMessage(ctx context.Context, message core.MessageQueueMessage) error {
+	ctx, span := p.tracer.StartSpan(ctx, "mq.publish", observability.SpanKindProducer)
+	defer p.tracer.EndSpan(&span)
+	p.tracer.SetAttribute(&span, "topic", message.Topic)
+	p.tracer.SetAttribute(&span, "message_id", message.ID)
+
 	startTime := time.Now()
 
 	p.mu.Lock()
@@ -272,6 +299,7 @@ func (p *KafkaMQPlugin) PublishMessage(ctx context.Context, message core.Message
 
 	// Create Kafka message with partition key routing
 	kafkaMsg := kafka.Message{
+		Topic: message.Topic,
 		Key:   []byte(message.PartitionKey),
 		Value: message.Payload,
 		Headers: []kafka.Header{
@@ -362,6 +390,9 @@ func (p *KafkaMQPlugin) ConsumeMessages(ctx context.Context, topic string, handl
 	// Track in-flight operations for graceful shutdown
 	var inFlightOps sync.WaitGroup
 
+	// Track consecutive read errors for backoff and reader recreation
+	consecutiveErrors := 0
+
 	// Read messages in a loop
 	for {
 		select {
@@ -393,11 +424,12 @@ func (p *KafkaMQPlugin) ConsumeMessages(ctx context.Context, topic string, handl
 			cancel()
 
 			if err != nil {
-				if err == context.DeadlineExceeded {
-					// Timeout is normal, continue
+				if errors.Is(err, context.DeadlineExceeded) {
+					// Timeout is normal (no new messages), reset error counter
+					consecutiveErrors = 0
 					continue
 				}
-				if err == context.Canceled {
+				if errors.Is(err, context.Canceled) {
 					// Context was cancelled
 					continue
 				}
@@ -410,9 +442,47 @@ func (p *KafkaMQPlugin) ConsumeMessages(ctx context.Context, topic string, handl
 				p.mu.Unlock()
 
 				p.metricsCollector.RecordCounter("mq_consume_read_errors", 1, map[string]string{"topic": topic})
-				p.logger.Error("failed to read message from Kafka", "topic", topic, "error", err)
+				p.logger.Error("failed to read message from Kafka", "topic", topic, "error", err.Error())
+
+				// Apply exponential backoff to avoid tight spin loop
+				consecutiveErrors++
+				p.RecordBrokerFailure()
+				backoff := p.CalculateExponentialBackoffDelay(consecutiveErrors)
+				p.logger.Warn("backing off after read error", "topic", topic, "consecutive_errors", consecutiveErrors, "backoff_ms", backoff.Milliseconds())
+
+				select {
+				case <-time.After(backoff):
+				case <-ctx.Done():
+					return ctx.Err()
+				}
+
+				// Recreate reader after too many consecutive errors
+				if consecutiveErrors >= 10 {
+					p.logger.Warn("too many consecutive read errors, recreating reader", "topic", topic, "consecutive_errors", consecutiveErrors)
+					_ = reader.Close()
+					reader = kafka.NewReader(kafka.ReaderConfig{
+						Brokers:        p.brokers,
+						Topic:          topic,
+						GroupID:        p.consumerGroup,
+						StartOffset:    kafka.LastOffset,
+						CommitInterval: time.Second,
+						MaxBytes:       10e6,
+					})
+					p.mu.Lock()
+					p.consumers[topic] = &KafkaConsumer{
+						reader: reader,
+						config: p.config,
+						logger: p.logger,
+					}
+					p.mu.Unlock()
+					consecutiveErrors = 0
+				}
+
 				continue
 			}
+
+			// Reset error counter on successful read
+			consecutiveErrors = 0
 
 			// Extract message metadata from headers
 			messageID := ""
@@ -442,7 +512,12 @@ func (p *KafkaMQPlugin) ConsumeMessages(ctx context.Context, topic string, handl
 			// Call handler with exactly-once semantics
 			// Handler is responsible for idempotent processing
 			consumeStartTime := time.Now()
+			_, consumeSpan := p.tracer.StartSpan(ctx, "mq.process_message", observability.SpanKindConsumer)
+			p.tracer.SetAttribute(&consumeSpan, "topic", topic)
+			p.tracer.SetAttribute(&consumeSpan, "message_id", messageID)
 			handlerErr := handler(queueMsg)
+			p.tracer.SetAttribute(&consumeSpan, "error", handlerErr != nil)
+			p.tracer.EndSpan(&consumeSpan)
 			consumeLatency := time.Since(consumeStartTime).Milliseconds()
 
 			if handlerErr != nil {
@@ -539,6 +614,7 @@ func (p *KafkaMQPlugin) SendToDeadLetterQueue(ctx context.Context, message core.
 
 	// Create Kafka message for DLQ with all metadata preserved
 	kafkaMsg := kafka.Message{
+		Topic: dlqTopic,
 		Key:   []byte(message.PartitionKey),
 		Value: message.Payload,
 		Headers: []kafka.Header{
@@ -620,7 +696,7 @@ func (p *KafkaMQPlugin) GetDeadLetterQueueMessages(ctx context.Context, limit in
 		cancel()
 
 		if err != nil {
-			if err == context.DeadlineExceeded {
+			if errors.Is(err, context.DeadlineExceeded) {
 				// No more messages available
 				break
 			}

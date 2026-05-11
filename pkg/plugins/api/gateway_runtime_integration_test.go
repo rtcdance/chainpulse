@@ -209,8 +209,21 @@ func TestGatewayRuntimeRouteCompositionEventByChainDomainQuerySource(t *testing.
 			if req == nil {
 				t.Fatal("expected domain query request")
 			}
-			if got := req.Filter["chainId"]; got != 1 {
-				t.Fatalf("expected chainId filter 1, got %v", got)
+			if got := req.Filter["chainId"]; got == nil {
+				t.Fatal("expected chainId filter")
+			} else if inMap, ok := got.(map[string]interface{}); ok {
+				values, _ := inMap["$in"].([]interface{})
+				found := false
+				for _, v := range values {
+					if v == 1 || v == "1" {
+						found = true
+					}
+				}
+				if !found {
+					t.Fatalf("expected $in filter to include 1 or \"1\", got %v", values)
+				}
+			} else if got != 1 {
+				t.Fatalf("expected chainId filter 1 or $in filter, got %v", got)
 			}
 			return &domainquery.Result{
 				Events: []core.BlockchainEvent{
@@ -383,8 +396,8 @@ func TestGatewayRuntimeRouteCompositionEventByContractDomainQuerySource(t *testi
 			if req == nil {
 				t.Fatal("expected domain query request")
 			}
-			if got := req.Filter["contractAddress"]; got != "0xabc" {
-				t.Fatalf("expected contractAddress filter 0xabc, got %v", got)
+			if got := req.Filter["contractAddress"]; got != "0xabc0000000000000000000000000000000000000" {
+				t.Fatalf("expected contractAddress filter, got %v", got)
 			}
 			return &domainquery.Result{
 				Events: []core.BlockchainEvent{
@@ -421,7 +434,7 @@ func TestGatewayRuntimeRouteCompositionEventByContractDomainQuerySource(t *testi
 		t.Fatalf("initialize plugin: %v", err)
 	}
 
-	req := httptest.NewRequest(http.MethodGet, "/events/contract/0xabc?limit=1", nil)
+	req := httptest.NewRequest(http.MethodGet, "/events/contract/0xabc0000000000000000000000000000000000000?limit=1", nil)
 	rr := httptest.NewRecorder()
 	plugin.routerIntegration.HandleRequest(rr, req)
 

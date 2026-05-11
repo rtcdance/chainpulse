@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Sidebar from './components/Sidebar'
 import Dashboard from './components/Dashboard'
 import Events from './components/Events'
@@ -6,12 +6,27 @@ import GraphQL from './components/GraphQL'
 import Metrics from './components/Metrics'
 import WebSocket from './components/WebSocket'
 import Runtime from './components/Runtime'
+import DLQ from './components/DLQ'
 import { getHttpBaseLabel, getWebSocketBaseLabel } from './lib/chainpulse'
 
-type View = 'dashboard' | 'events' | 'graphql' | 'metrics' | 'websocket' | 'runtime'
+type View = 'dashboard' | 'events' | 'graphql' | 'metrics' | 'websocket' | 'runtime' | 'dlq'
 
 function App() {
   const [view, setView] = useState<View>('dashboard')
+
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent): void {
+      if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return
+      const map: Record<string, View> = {
+        '1': 'dashboard', '2': 'events', '3': 'graphql',
+        '4': 'metrics', '5': 'websocket', '6': 'runtime', '7': 'dlq',
+      }
+      const next = map[event.key]
+      if (next) setView(next)
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [])
 
   const renderView = () => {
     switch (view) {
@@ -21,6 +36,7 @@ function App() {
       case 'metrics': return <Metrics />
       case 'websocket': return <WebSocket />
       case 'runtime': return <Runtime />
+      case 'dlq': return <DLQ />
       default: return <Dashboard />
     }
   }

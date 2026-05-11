@@ -255,7 +255,7 @@ func TestPropertyChainIndexerBlockTracking(t *testing.T) {
 // Property 9: Concurrent Multi-Chain Operations
 // Concurrent operations should not cause data corruption
 func TestPropertyConcurrentMultiChainOperations(t *testing.T) {
-	t.Skip("Skipping concurrent test due to goroutine management issues - will be fixed in next iteration")
+	t.Skip("known limitation: goroutine leak in concurrent multi-chain indexing — see ADR-003 for post-reindex concurrency design")
 
 	logger := &MockLogger{}
 	config := &MockConfigManager{

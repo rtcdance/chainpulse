@@ -3,7 +3,9 @@ package database
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
+	"log"
 	"math"
 	"strings"
 	"sync"
@@ -52,11 +54,14 @@ type DefaultDatabaseManager struct {
 }
 
 // NewDatabaseManager creates a new database manager
-func NewDatabaseManager(mongoURI, postgresURL string, poolSize int, timeout time.Duration) *DefaultDatabaseManager {
+func NewDatabaseManager(mongoURI, postgresURL, postgresSSLMode string, poolSize int, timeout time.Duration) *DefaultDatabaseManager {
+	if postgresSSLMode == "" {
+		postgresSSLMode = "disable"
+	}
 	return &DefaultDatabaseManager{
 		mongoURI:        mongoURI,
 		postgresURL:     postgresURL,
-		postgresSSLMode: "disable",
+		postgresSSLMode: postgresSSLMode,
 		mongoTimeout:    timeout,
 		postgresTimeout: timeout,
 		poolSize:        poolSize,
@@ -80,7 +85,9 @@ func (m *DefaultDatabaseManager) Initialize(ctx context.Context) error {
 	// Initialize PostgreSQL
 	if err := m.initPostgres(ctx); err != nil {
 		// Close MongoDB if PostgreSQL fails
-		_ = m.mongoClient.Disconnect(context.Background())
+		if disconnectErr := m.mongoClient.Disconnect(context.Background()); disconnectErr != nil {
+			log.Printf("WARN: failed to disconnect MongoDB during cleanup: %v", disconnectErr)
+		}
 		return fmt.Errorf("failed to initialize PostgreSQL: %w", err)
 	}
 
@@ -112,7 +119,9 @@ func (m *DefaultDatabaseManager) initMongo(ctx context.Context) error {
 	defer cancel()
 
 	if err := client.Ping(pingCtx, nil); err != nil {
-		_ = client.Disconnect(context.Background())
+		if disconnectErr := client.Disconnect(context.Background()); disconnectErr != nil {
+			log.Printf("WARN: failed to disconnect MongoDB during cleanup: %v", disconnectErr)
+		}
 		return fmt.Errorf("failed to ping MongoDB: %w", err)
 	}
 
@@ -154,6 +163,7 @@ func (m *DefaultDatabaseManager) initPostgres(ctx context.Context) error {
 	db.SetMaxOpenConns(m.poolSize)
 	db.SetMaxIdleConns(m.poolSize / 2)
 	db.SetConnMaxLifetime(time.Hour)
+	db.SetConnMaxIdleTime(30 * time.Minute)
 
 	// Verify connection
 	pingCtx, cancel := context.WithTimeout(ctx, m.postgresTimeout)
@@ -299,7 +309,7 @@ func (m *DefaultDatabaseManager) Close(ctx context.Context) error {
 	m.closed = true
 
 	if len(errs) > 0 {
-		return fmt.Errorf("errors closing database connections: %v", errs)
+		return errors.Join(errs...)
 	}
 
 	return nil

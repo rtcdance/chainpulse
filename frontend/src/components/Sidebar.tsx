@@ -1,21 +1,22 @@
 import type { ReactNode } from 'react'
-import { Activity, Database, FileJson, BarChart3, Zap, Server } from 'lucide-react'
+import { Activity, Database, FileJson, BarChart3, Zap, Server, AlertTriangle } from 'lucide-react'
 import { getHttpBaseLabel } from '../lib/chainpulse'
 
-type View = 'dashboard' | 'events' | 'graphql' | 'metrics' | 'websocket' | 'runtime'
+type View = 'dashboard' | 'events' | 'graphql' | 'metrics' | 'websocket' | 'runtime' | 'dlq'
 
 interface SidebarProps {
   currentView: View
   onNavigate: (view: View) => void
 }
 
-const menuItems: { id: View; label: string; icon: ReactNode }[] = [
-  { id: 'dashboard', label: 'Dashboard', icon: <Activity size={20} /> },
-  { id: 'events', label: 'Events', icon: <Database size={20} /> },
-  { id: 'graphql', label: 'GraphQL', icon: <FileJson size={20} /> },
-  { id: 'metrics', label: 'Metrics', icon: <BarChart3 size={20} /> },
-  { id: 'websocket', label: 'WebSocket', icon: <Zap size={20} /> },
-  { id: 'runtime', label: 'Runtime', icon: <Server size={20} /> },
+const menuItems: { id: View; label: string; icon: ReactNode; shortcut: string }[] = [
+  { id: 'dashboard', label: 'Dashboard', icon: <Activity size={20} />, shortcut: '1' },
+  { id: 'events', label: 'Events', icon: <Database size={20} />, shortcut: '2' },
+  { id: 'graphql', label: 'GraphQL', icon: <FileJson size={20} />, shortcut: '3' },
+  { id: 'metrics', label: 'Metrics', icon: <BarChart3 size={20} />, shortcut: '4' },
+  { id: 'websocket', label: 'WebSocket', icon: <Zap size={20} />, shortcut: '5' },
+  { id: 'runtime', label: 'Runtime', icon: <Server size={20} />, shortcut: '6' },
+  { id: 'dlq', label: 'DLQ', icon: <AlertTriangle size={20} />, shortcut: '7' },
 ]
 
 export default function Sidebar({ currentView, onNavigate }: SidebarProps) {
@@ -51,6 +52,7 @@ export default function Sidebar({ currentView, onNavigate }: SidebarProps) {
             <div className="flex items-center gap-3">
               <span className={currentView === item.id ? 'text-glow' : 'text-mist'}>{item.icon}</span>
               <span className="font-medium">{item.label}</span>
+              <span className={`ml-auto text-xs ${currentView === item.id ? 'text-glow/60' : 'text-sand/30'}`}>{item.shortcut}</span>
             </div>
           </button>
         ))}
@@ -62,7 +64,7 @@ export default function Sidebar({ currentView, onNavigate }: SidebarProps) {
           {getHttpBaseLabel()}
         </p>
         <div className="mt-4 text-xs leading-5 text-sand/70">
-          Start with Dashboard, then walk through Events, GraphQL, WebSocket, Metrics, and Runtime.
+          Navigate with sidebar or keys 1-7. Start with Dashboard, then walk through each surface.
         </div>
       </div>
     </aside>

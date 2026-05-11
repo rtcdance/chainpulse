@@ -56,7 +56,7 @@ func newEventProcessorShadowRuntimeProcessor(
 	}
 }
 
-func (p *eventProcessorShadowRuntimeProcessor) ProcessEvent(event *core.BlockchainEvent) error {
+func (p *eventProcessorShadowRuntimeProcessor) ProcessEvent(ctx context.Context, event *core.BlockchainEvent) error {
 	if p == nil || p.base == nil {
 		return fmt.Errorf("event processor runtime is not configured")
 	}
@@ -70,7 +70,7 @@ func (p *eventProcessorShadowRuntimeProcessor) ProcessEvent(event *core.Blockcha
 		)
 	}
 
-	if err := p.base.ProcessEvent(event); err != nil {
+	if err := p.base.ProcessEvent(ctx, event); err != nil {
 		return err
 	}
 	if event == nil {

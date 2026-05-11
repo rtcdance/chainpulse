@@ -66,7 +66,7 @@ func buildPullerRuntimeRolloutState(
 
 func buildPullerRuntimeRolloutStateAt(
 	now time.Time,
-	ctx context.Context,
+	ctx context.Context, //nolint:revive // ctx cannot be first; now is the temporal anchor parameter
 	dbManager database.DatabaseManager,
 	kafkaHealth pullerKafkaHealthProvider,
 	config pullerRolloutRuntimeConfig,

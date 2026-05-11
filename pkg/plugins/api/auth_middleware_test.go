@@ -26,7 +26,7 @@ func NewMockTokenValidator() *MockTokenValidator {
 	}
 }
 
-func (mtv *MockTokenValidator) ValidateToken(token string) ValidationResult {
+func (mtv *MockTokenValidator) ValidateToken(ctx context.Context, token string) ValidationResult {
 	if result, ok := mtv.validTokens[token]; ok {
 		return ValidationResult{
 			Valid:       result.Valid,
@@ -60,7 +60,7 @@ func (mtv *MockTokenValidator) ValidateJWT(token string) ValidationResult {
 	}
 }
 
-func (mtv *MockTokenValidator) ValidateAPIKey(apiKey string) ValidationResult {
+func (mtv *MockTokenValidator) ValidateAPIKey(ctx context.Context, apiKey string) ValidationResult {
 	if result, ok := mtv.validTokens[apiKey]; ok {
 		return ValidationResult{
 			Valid:    result.Valid,
@@ -100,7 +100,7 @@ type MockRBACChecker struct {
 
 func NewMockRBACChecker() *MockRBACChecker {
 	return &MockRBACChecker{
-		RBACChecker:      &RBACChecker{},
+		RBACChecker:      NewRBACChecker(&MockLogger{}, NewMockMetricsCollector()),
 		allowedEndpoints: make(map[string]bool),
 	}
 }
@@ -443,7 +443,8 @@ func TestTokenRefreshHandlerValidToken(t *testing.T) {
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	tokenValidator := NewTokenValidator("test-secret", logger, metrics)
-	token, _ := tokenValidator.GenerateJWT("client1", "user1", []string{"admin"}, []string{"read"}, 1*time.Hour)
+	// Generate a refresh token — the handler now requires token_type=refresh
+	token, _ := tokenValidator.GenerateJWTWithType("client1", "user1", []string{"admin"}, []string{"read"}, 1*time.Hour, "refresh")
 
 	auditLogger := NewAuditLogger(&MockLogger{}, NewMockMetricsCollector())
 

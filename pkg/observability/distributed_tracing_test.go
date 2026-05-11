@@ -16,10 +16,15 @@ type MockLogger struct {
 }
 
 func (ml *MockLogger) Debug(msg string, args ...interface{}) { ml.messages = append(ml.messages, msg) }
-func (ml *MockLogger) Info(msg string, args ...interface{})  { ml.messages = append(ml.messages, msg) }
-func (ml *MockLogger) Warn(msg string, args ...interface{})  { ml.messages = append(ml.messages, msg) }
+
+func (ml *MockLogger) Info(msg string, args ...interface{}) { ml.messages = append(ml.messages, msg) }
+
+func (ml *MockLogger) Warn(msg string, args ...interface{}) { ml.messages = append(ml.messages, msg) }
+
 func (ml *MockLogger) Error(msg string, args ...interface{}) { ml.messages = append(ml.messages, msg) }
+
 func (ml *MockLogger) Fatal(msg string, args ...interface{}) { ml.messages = append(ml.messages, msg) }
+
 func (ml *MockLogger) WithCorrelationID(id string) core.Logger {
 	return ml
 }

@@ -37,7 +37,9 @@ func (f *fakeQueryRuntimeService) Query(ctx context.Context, req *query.QueryReq
 func (f *fakeQueryRuntimeService) QueryByHash(ctx context.Context, hash string) (*core.BlockchainEvent, error) {
 	return nil, nil
 }
+
 func (f *fakeQueryRuntimeService) InvalidateCache(ctx context.Context, key string) error { return nil }
+
 func (f *fakeQueryRuntimeService) Health(ctx context.Context) *core.HealthStatus {
 	return &core.HealthStatus{Status: "healthy", Message: "ok"}
 }

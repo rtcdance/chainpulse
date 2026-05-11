@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"sync"
 	"time"
 )
@@ -104,8 +105,7 @@ func (c *ResponseCompressor) Decompress(data []byte) ([]byte, error) {
 	}
 	defer func() {
 		if err := reader.Close(); err != nil {
-			// Ignore close errors in defer
-			_ = err
+			slog.Debug("gzip reader close error", "error", err)
 		}
 	}()
 

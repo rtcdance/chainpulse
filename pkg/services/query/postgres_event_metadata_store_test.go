@@ -10,6 +10,36 @@ import (
 	"chainpulse/pkg/core"
 )
 
+type metadataRowScannerStub struct {
+	values []interface{}
+	err    error
+}
+
+func (s metadataRowScannerStub) Scan(dest ...interface{}) error {
+	if s.err != nil {
+		return s.err
+	}
+	for i := range dest {
+		switch target := dest[i].(type) {
+		case *int64:
+			*target = s.values[i].(int64)
+		case *int:
+			*target = s.values[i].(int)
+		case *string:
+			*target = s.values[i].(string)
+		case *sql.NullString:
+			*target = s.values[i].(sql.NullString)
+		case *sql.NullTime:
+			*target = s.values[i].(sql.NullTime)
+		case *time.Time:
+			*target = s.values[i].(time.Time)
+		default:
+			panic("unsupported scan target")
+		}
+	}
+	return nil
+}
+
 // TestPostgreSQLEventMetadataStoreInitialize tests metadata store initialization
 func TestPostgreSQLEventMetadataStoreInitialize(t *testing.T) {
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
@@ -140,6 +170,35 @@ func TestPostgreSQLEventMetadataStoreGetMetadata(t *testing.T) {
 	_, err = store.GetMetadata(ctx, "")
 	if err == nil {
 		t.Error("GetMetadata should fail with empty event ID")
+	}
+}
+
+func TestScanEventMetadataRowHandlesNullableFields(t *testing.T) {
+	now := time.Now().UTC()
+	metadata, err := scanEventMetadataRow(metadataRowScannerStub{
+		values: []interface{}{
+			int64(1), "event-1", 0, int64(100), "0xabc", int64(2), "0xcontract",
+			"Ping", "confirmed",
+			sql.NullString{},
+			0,
+			sql.NullTime{},
+			now, now, now,
+		},
+	})
+	if err != nil {
+		t.Fatalf("scan event metadata row: %v", err)
+	}
+	if metadata == nil {
+		t.Fatal("expected metadata")
+	}
+	if metadata.ProcessingError != "" {
+		t.Fatalf("expected empty processing error, got %q", metadata.ProcessingError)
+	}
+	if metadata.LastRetryAt != nil {
+		t.Fatal("expected nil last retry at")
+	}
+	if metadata.EventName != "Ping" {
+		t.Fatalf("expected event name Ping, got %q", metadata.EventName)
 	}
 }
 

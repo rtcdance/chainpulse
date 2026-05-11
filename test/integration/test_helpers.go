@@ -299,6 +299,10 @@ func (m *MockDatabasePlugin) DeleteEventsByBlockRange(ctx context.Context, fromB
 	return 0, nil
 }
 
+func (m *MockDatabasePlugin) MarkEventsAsReorged(ctx context.Context, fromBlock, toBlock uint64) (int64, error) {
+	return 0, nil
+}
+
 func (m *MockDatabasePlugin) GetReorgStats(ctx context.Context) (*core.ReorgStats, error) {
 	return nil, nil
 }
@@ -578,11 +582,13 @@ func (m *DefaultConfigManager) Set(key string, value interface{}) error {
 // DefaultEventBus is a default implementation of EventBus for testing
 type DefaultEventBus struct {
 	subscribers map[string][]func(interface{})
+	nextID      uint64
 }
 
-func (b *DefaultEventBus) Subscribe(ctx context.Context, topic string, handler func(interface{})) error {
+func (b *DefaultEventBus) Subscribe(ctx context.Context, topic string, handler func(interface{})) (uint64, error) {
 	b.subscribers[topic] = append(b.subscribers[topic], handler)
-	return nil
+	b.nextID++
+	return b.nextID, nil
 }
 
 func (b *DefaultEventBus) Publish(ctx context.Context, topic string, event interface{}) error {
@@ -594,8 +600,9 @@ func (b *DefaultEventBus) Publish(ctx context.Context, topic string, event inter
 	return nil
 }
 
-func (b *DefaultEventBus) Unsubscribe(topic string, handler func(interface{})) error {
-	delete(b.subscribers, topic)
+func (b *DefaultEventBus) Unsubscribe(subscriptionID uint64) error {
+	// Simplified test implementation: remove all handlers for the topic
+	// In production code, use the proper subscription ID-based approach
 	return nil
 }
 

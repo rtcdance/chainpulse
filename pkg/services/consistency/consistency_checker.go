@@ -11,7 +11,7 @@ import (
 
 // ConsistencyChecker verifies and repairs data consistency.
 //
-//nolint:exported // Renaming would break many external uses.
+// Renaming would break many external uses.
 type ConsistencyChecker struct {
 	database core.DatabasePlugin
 	logger   core.Logger
@@ -20,7 +20,7 @@ type ConsistencyChecker struct {
 
 // ConsistencyReport contains consistency check results.
 //
-//nolint:exported // Renaming would break many external uses.
+// Renaming would break many external uses.
 type ConsistencyReport struct {
 	CheckedAt          time.Time
 	TotalEvents        int64

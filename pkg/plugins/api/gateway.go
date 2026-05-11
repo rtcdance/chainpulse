@@ -23,6 +23,7 @@ type APIGatewayPlugin struct {
 	eventSubHandler               *EventSubscriptionHandler
 	healthCheckHandler            *HealthCheckHandler
 	graphqlHandler                *GraphQLHandler
+	dlqHandler                    *DLQHandler
 	upstreamQueryEndpoints        []string
 	upstreamQueryHTTPClient       *http.Client
 	upstreamQueryHealthHTTPClient *http.Client
@@ -226,6 +227,14 @@ func (g *APIGatewayPlugin) SetGraphQLHandler(handler *GraphQLHandler) {
 	g.graphqlHandler = handler
 }
 
+// SetDLQHandler wires an optional DLQ handler.
+func (g *APIGatewayPlugin) SetDLQHandler(handler *DLQHandler) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	g.dlqHandler = handler
+}
+
 // IsHealthCheckHandlerEnabled returns whether runtime health handler is configured.
 func (g *APIGatewayPlugin) IsHealthCheckHandlerEnabled() bool {
 	g.mu.RLock()
@@ -374,6 +383,9 @@ func (g *APIGatewayPlugin) Initialize(config corelib.Config) error {
 		if g.graphqlHandler != nil {
 			integration.SetGraphQLHandler(g.graphqlHandler)
 		}
+		if g.dlqHandler != nil {
+			integration.SetDLQHandler(g.dlqHandler)
+		}
 		if err := integration.Initialize(context.Background()); err != nil {
 			return fmt.Errorf("failed to initialize gateway router integration: %w", err)
 		}
@@ -451,8 +463,14 @@ func (g *APIGatewayPlugin) Start() error {
 	return nil
 }
 
-// Stop stops the API gateway
+// Stop stops the API gateway gracefully
 func (g *APIGatewayPlugin) Stop() error {
+	return g.ShutdownWithContext(context.Background())
+}
+
+// ShutdownWithContext stops the gateway gracefully with a context deadline,
+// allowing in-flight HTTP requests to complete.
+func (g *APIGatewayPlugin) ShutdownWithContext(ctx context.Context) error {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 
@@ -460,7 +478,7 @@ func (g *APIGatewayPlugin) Stop() error {
 		return fmt.Errorf("API gateway not running")
 	}
 
-	if err := g.httpPlugin.Stop(); err != nil {
+	if err := g.httpPlugin.ShutdownWithContext(ctx); err != nil {
 		return fmt.Errorf("failed to stop HTTP plugin: %w", err)
 	}
 

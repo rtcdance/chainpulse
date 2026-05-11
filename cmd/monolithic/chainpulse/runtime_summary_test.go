@@ -524,7 +524,7 @@ func TestMonolithicRuntimeSummaryRouteReflectsReadyRuntimeSurfaceInventory(t *te
 	}
 
 	gateway.SetRuntimeSummaryProvider(buildMonolithicRuntimeSummaryProvider(metrics, gateway, sharedRuntime, indexer, reorgRuntime, pullerRuntime, querySurface, deploymentMode))
-	gateway.SetRuntimeMetricsProvider(buildMonolithicMetricsProvider(metrics))
+	gateway.SetRuntimeMetricsProvider(buildMonolithicMetricsProvider(metrics, nil))
 	gateway.SetRuntimeControlProvider(func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("ok"))
 	})

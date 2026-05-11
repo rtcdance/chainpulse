@@ -3,6 +3,7 @@ package database
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -51,9 +52,10 @@ func (p *PostgreSQLDatabase) Initialize(config *core.Config) error {
 		user := config.GetString("POSTGRES_USER", "postgres")
 		password := config.GetString("POSTGRES_PASSWORD", "")
 		dbname := config.GetString("POSTGRES_DB", "chainpulse")
+		sslmode := config.GetString("DATABASE_SSLMODE", "disable")
 
-		connStr = fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
-			host, port, user, password, dbname)
+		connStr = fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
+			host, port, user, password, dbname, sslmode)
 	}
 
 	// Open database connection
@@ -72,7 +74,7 @@ func (p *PostgreSQLDatabase) Initialize(config *core.Config) error {
 	db.SetConnMaxLifetime(time.Hour)
 
 	// Test connection
-	ctx, cancel := NewContextWithTimeout(p.queryTimeout)
+	ctx, cancel := NewContextWithTimeout(context.Background(), p.queryTimeout)
 	defer cancel()
 
 	if err := db.PingContext(ctx); err != nil {
@@ -104,25 +106,29 @@ func (p *PostgreSQLDatabase) createTables() error {
 	createTableSQL := `
 	CREATE TABLE IF NOT EXISTS blockchain_events (
 		id SERIAL PRIMARY KEY,
-		event_hash VARCHAR(255) UNIQUE NOT NULL,
+		event_hash VARCHAR(255) NOT NULL,
+		chain_id VARCHAR(255) NOT NULL DEFAULT '',
 		block_number BIGINT NOT NULL,
 		transaction_hash VARCHAR(255) NOT NULL,
 		log_index BIGINT NOT NULL,
 		contract_address VARCHAR(255) NOT NULL,
 		event_name VARCHAR(255),
 		event_data BYTEA,
+		status VARCHAR(50) NOT NULL DEFAULT 'pending',
 		timestamp BIGINT NOT NULL,
 		processed_at TIMESTAMP,
 		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-		updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+		updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+		CONSTRAINT uq_event_natural_key UNIQUE (chain_id, block_number, transaction_hash, log_index)
 	);
 	CREATE INDEX IF NOT EXISTS idx_event_hash ON blockchain_events(event_hash);
 	CREATE INDEX IF NOT EXISTS idx_block_number ON blockchain_events(block_number);
 	CREATE INDEX IF NOT EXISTS idx_contract_address ON blockchain_events(contract_address);
 	CREATE INDEX IF NOT EXISTS idx_timestamp ON blockchain_events(timestamp);
+	CREATE INDEX IF NOT EXISTS idx_chain_id ON blockchain_events(chain_id);
 	`
 
-	ctx, cancel := NewContextWithTimeout(p.queryTimeout)
+	ctx, cancel := NewContextWithTimeout(context.Background(), p.queryTimeout)
 	defer cancel()
 
 	_, err := p.db.ExecContext(ctx, createTableSQL)
@@ -143,7 +149,7 @@ func (p *PostgreSQLDatabase) Start() error {
 	defer p.mu.Unlock()
 
 	// Verify connection is still active
-	ctx, cancel := NewContextWithTimeout(p.queryTimeout)
+	ctx, cancel := NewContextWithTimeout(context.Background(), p.queryTimeout)
 	defer cancel()
 
 	if err := p.db.PingContext(ctx); err != nil {
@@ -185,7 +191,7 @@ func (p *PostgreSQLDatabase) Stop() error {
 }
 
 // WriteEvent writes a blockchain event to the database
-func (p *PostgreSQLDatabase) WriteEvent(event *core.BlockchainEvent) error {
+func (p *PostgreSQLDatabase) WriteEvent(ctx context.Context, event *core.BlockchainEvent) error {
 	if event == nil {
 		return fmt.Errorf("event is required")
 	}
@@ -201,17 +207,19 @@ func (p *PostgreSQLDatabase) WriteEvent(event *core.BlockchainEvent) error {
 		return fmt.Errorf("database not initialized")
 	}
 
-	ctx, cancel := NewContextWithTimeout(p.queryTimeout)
+	ctx, cancel := NewContextWithTimeout(ctx, p.queryTimeout)
 	defer cancel()
 
 	insertSQL := `
-	INSERT INTO blockchain_events (event_hash, block_number, transaction_hash, log_index, contract_address, event_name, event_data, timestamp)
-	VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-	ON CONFLICT (event_hash) DO UPDATE SET processed_at = CURRENT_TIMESTAMP
+INSERT INTO blockchain_events (event_hash, chain_id, block_number, transaction_hash, log_index, contract_address, event_name, event_data, timestamp)
+	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+	ON CONFLICT (chain_id, block_number, transaction_hash, log_index) DO NOTHING
 	`
 
-	_, err := db.ExecContext(ctx, insertSQL,
+	_, err := db.ExecContext(
+		ctx, insertSQL,
 		event.EventHash,
+		event.ChainID,
 		event.BlockNumber,
 		event.TransactionHash,
 		event.LogIndex,
@@ -246,7 +254,7 @@ func (p *PostgreSQLDatabase) WriteEvent(event *core.BlockchainEvent) error {
 }
 
 // WriteEvents writes multiple blockchain events to the database (batch)
-func (p *PostgreSQLDatabase) WriteEvents(events []core.BlockchainEvent) error {
+func (p *PostgreSQLDatabase) WriteEvents(ctx context.Context, events []core.BlockchainEvent) error {
 	if len(events) == 0 {
 		return nil
 	}
@@ -262,7 +270,7 @@ func (p *PostgreSQLDatabase) WriteEvents(events []core.BlockchainEvent) error {
 		return fmt.Errorf("database not initialized")
 	}
 
-	ctx, cancel := NewContextWithTimeout(p.queryTimeout)
+	ctx, cancel := NewContextWithTimeout(ctx, p.queryTimeout)
 	defer cancel()
 
 	tx, err := db.BeginTx(ctx, nil)
@@ -272,9 +280,9 @@ func (p *PostgreSQLDatabase) WriteEvents(events []core.BlockchainEvent) error {
 	}
 
 	insertSQL := `
-	INSERT INTO blockchain_events (event_hash, block_number, transaction_hash, log_index, contract_address, event_name, event_data, timestamp)
-	VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-	ON CONFLICT (event_hash) DO UPDATE SET processed_at = CURRENT_TIMESTAMP
+	INSERT INTO blockchain_events (event_hash, chain_id, block_number, transaction_hash, log_index, contract_address, event_name, event_data, timestamp)
+	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+	ON CONFLICT (chain_id, block_number, transaction_hash, log_index) DO NOTHING
 	`
 
 	stmt, err := tx.PrepareContext(ctx, insertSQL)
@@ -292,8 +300,10 @@ func (p *PostgreSQLDatabase) WriteEvents(events []core.BlockchainEvent) error {
 	}()
 
 	for _, event := range events {
-		_, err := stmt.ExecContext(ctx,
+		_, err := stmt.ExecContext(
+			ctx,
 			event.EventHash,
+			event.ChainID,
 			event.BlockNumber,
 			event.TransactionHash,
 			event.LogIndex,
@@ -351,7 +361,7 @@ func (p *PostgreSQLDatabase) QueryEvents(filter *core.EventFilter) (*core.QueryR
 		return nil, fmt.Errorf("database not initialized")
 	}
 
-	ctx, cancel := NewContextWithTimeout(p.queryTimeout)
+	ctx, cancel := NewContextWithTimeout(context.Background(), p.queryTimeout)
 	defer cancel()
 
 	// Build query
@@ -467,7 +477,7 @@ func (p *PostgreSQLDatabase) GetEventByHash(hash string) (*core.BlockchainEvent,
 		return nil, fmt.Errorf("database not initialized")
 	}
 
-	ctx, cancel := NewContextWithTimeout(p.queryTimeout)
+	ctx, cancel := NewContextWithTimeout(context.Background(), p.queryTimeout)
 	defer cancel()
 
 	query := "SELECT event_hash, block_number, transaction_hash, log_index, contract_address, event_name, event_data, timestamp FROM blockchain_events WHERE event_hash = $1"
@@ -484,7 +494,7 @@ func (p *PostgreSQLDatabase) GetEventByHash(hash string) (*core.BlockchainEvent,
 		&event.BlockTimestamp,
 	)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			duration := time.Since(start).Milliseconds()
 			p.RecordRead(duration)
 			return nil, nil
@@ -590,7 +600,7 @@ func (p *PostgreSQLDatabase) updateEventCount() {
 		return
 	}
 
-	ctx, cancel := NewContextWithTimeout(p.queryTimeout)
+	ctx, cancel := NewContextWithTimeout(context.Background(), p.queryTimeout)
 	defer cancel()
 
 	var count int64
@@ -605,9 +615,9 @@ func (p *PostgreSQLDatabase) updateEventCount() {
 	p.UpdateEventCount(count)
 }
 
-// NewContextWithTimeout creates a context with timeout
-func NewContextWithTimeout(timeout time.Duration) (context.Context, context.CancelFunc) {
-	return context.WithTimeout(context.Background(), timeout)
+// NewContextWithTimeout creates a context with timeout derived from the parent context
+func NewContextWithTimeout(parent context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(parent, timeout)
 }
 
 // GetAllEvents retrieves all events from the database
@@ -838,6 +848,34 @@ func (p *PostgreSQLDatabase) DeleteEventsByBlockRange(ctx context.Context, fromB
 	}
 
 	p.RecordDelete()
+	return rowsAffected, nil
+}
+
+// MarkEventsAsReorged marks events within a block range as reorged (soft delete)
+func (p *PostgreSQLDatabase) MarkEventsAsReorged(ctx context.Context, fromBlock, toBlock uint64) (int64, error) {
+	p.mu.RLock()
+	db := p.db
+	p.mu.RUnlock()
+
+	if db == nil {
+		return 0, fmt.Errorf("database not initialized")
+	}
+
+	query := `UPDATE blockchain_events SET status = 'reorged' WHERE block_number >= $1 AND block_number <= $2`
+
+	result, err := db.ExecContext(ctx, query, fromBlock, toBlock)
+	if err != nil {
+		p.RecordError()
+		return 0, fmt.Errorf("failed to mark events as reorged: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		p.RecordError()
+		return 0, fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	p.RecordWrite(rowsAffected)
 	return rowsAffected, nil
 }
 

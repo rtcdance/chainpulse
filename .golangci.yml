@@ -1,0 +1,91 @@
+version: "2"
+
+run:
+  timeout: 5m
+  modules-download-mode: readonly
+
+linters:
+  enable:
+    - errcheck
+    - govet
+    - revive
+    - staticcheck
+    - unused
+    - ineffassign
+    - gocritic
+    - misspell
+
+  settings:
+    errcheck:
+      check-type-assertions: true
+    govet:
+      enable-all: true
+      disable:
+        - fieldalignment
+        - unusedwrite
+    revive:
+      rules:
+        - name: unused-parameter
+        - name: unreachable-code
+        - name: context-as-argument
+        - name: error-return
+        - name: error-strings
+        - name: error-naming
+        - name: increment-decrement
+        - name: var-naming
+          arguments:
+            - ["API", "ASCII", "CPU", "CSS", "DNS", "EOF", "GUID", "HTML", "HTTP", "HTTPS", "ID", "IP", "JSON", "QPS", "RAM", "RPC", "SLA", "SMTP", "SQL", "SSH", "TCP", "TLS", "TTL", "UDP", "UI", "GID", "UID", "UUID", "URI", "URL", "UTF8", "VM", "XML", "XMPP", "XSRF", "XSS", "SNMP"]
+            - ["dbus", "helper", "types", "common", "util", "models", "http"]
+        - name: package-comments
+          disabled: true
+        - name: exported
+          disabled: true
+    gocritic:
+      enabled-tags:
+        - diagnostic
+        - style
+      disabled-checks:
+        - rangeValCopy
+        - assignOp
+        - ifElseChain
+        - deprecatedComment
+        - exitAfterDefer
+        - paramTypeCombine
+        - httpNoBody
+        - unnamedResult
+        - emptyStringTest
+        - commentedOutCode
+        - sprintfQuotedString
+        - nestingReduce
+        - builtinShadow
+        - unnecessaryDefer
+        - whyNoLint
+        - stringConcatSimplify
+        - deferInLoop
+
+  exclusions:
+    generated: lax
+    rules:
+      - path: _test\.go
+        linters:
+          - errcheck
+          - revive
+          - staticcheck
+          - gocritic
+          - govet
+      - path: test/integration/
+        linters:
+          - errcheck
+      - linters:
+          - revive
+        text: "unused-parameter"
+      - linters:
+          - govet
+        text: "shadow"
+      - linters:
+          - revive
+        text: "avoid meaningless package names"
+
+issues:
+  max-issues-per-linter: 50
+  max-same-issues: 5

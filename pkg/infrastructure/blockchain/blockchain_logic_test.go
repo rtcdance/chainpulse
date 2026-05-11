@@ -405,7 +405,7 @@ func TestNewEVMValidator(t *testing.T) {
 func TestEVMValidatorValidate(t *testing.T) {
 	validator := NewEVMValidator()
 	event := &core.BlockchainEvent{
-		ChainID:         "EVM",
+		ChainID:         "1", // Ethereum mainnet — a valid EVM chain ID
 		ContractAddress: common.Address{0x1},
 		EventName:       "Transfer",
 	}
@@ -432,7 +432,7 @@ func TestEVMValidatorMissingContractAddress(t *testing.T) {
 	validator := NewEVMValidator()
 	// Create event with zero address
 	event := &core.BlockchainEvent{
-		ChainID:         "EVM",
+		ChainID:         "1", // Ethereum mainnet — a valid EVM chain ID
 		ContractAddress: common.Address{}, // Zero address - String() returns "0x0000000000000000000000000000000000000000"
 		EventName:       "Transfer",
 	}
@@ -470,7 +470,7 @@ func TestNewCosmosValidator(t *testing.T) {
 func TestCosmosValidatorValidate(t *testing.T) {
 	validator := NewCosmosValidator()
 	event := &core.BlockchainEvent{
-		ChainID:   "Cosmos",
+		ChainID:   "cosmos", // Cosmos Hub — a valid Cosmos chain ID
 		EventName: "Transfer",
 	}
 

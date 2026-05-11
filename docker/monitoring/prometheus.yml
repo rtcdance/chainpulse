@@ -1,0 +1,20 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'chainpulse'
+    environment: 'acceptance'
+
+scrape_configs:
+  - job_name: 'chainpulse-monolithic'
+    static_configs:
+      - targets: ['chainpulse-app:8080']
+    metrics_path: '/metrics'
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: []
+
+rule_files:
+  - '/etc/prometheus/alerts/*.yml'

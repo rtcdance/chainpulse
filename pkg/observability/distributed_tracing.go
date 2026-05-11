@@ -3,6 +3,7 @@ package observability
 import (
 	"context"
 	"fmt"
+	"os"
 	"sync"
 	"time"
 
@@ -10,6 +11,7 @@ import (
 	"go.opentelemetry.io/otel"
 	otelattribute "go.opentelemetry.io/otel/attribute"
 	otelcodes "go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.opentelemetry.io/otel/propagation"
 	sdkresource "go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
@@ -127,6 +129,7 @@ type Tracer interface {
 type DefaultTracer struct {
 	mu               sync.RWMutex
 	spans            []Span
+	maxSpans         int // cap on recorded spans to prevent unbounded growth
 	activeSpans      map[string]*activeSpanState
 	traceIDCounter   uint64
 	spanIDCounter    uint64
@@ -138,14 +141,45 @@ type DefaultTracer struct {
 
 // NewDefaultTracer creates a new tracer
 func NewDefaultTracer(logger core.Logger, metrics core.MetricsCollector) *DefaultTracer {
-	provider := sdktrace.NewTracerProvider(
-		sdktrace.WithSampler(sdktrace.AlwaysSample()),
-		sdktrace.WithResource(sdkresource.NewWithAttributes(
-			"",
-			otelattribute.String("service.name", "chainpulse"),
-			otelattribute.String("service.namespace", "pkg.observability"),
-		)),
+	res := sdkresource.NewWithAttributes(
+		"",
+		otelattribute.String("service.name", "chainpulse"),
+		otelattribute.String("service.namespace", "pkg.observability"),
 	)
+
+	var provider *sdktrace.TracerProvider
+
+	// Configure OTLP exporter if endpoint is set
+	otlpEndpoint := os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
+	if otlpEndpoint != "" {
+		exporter, err := otlptracegrpc.New(context.Background(),
+			otlptracegrpc.WithEndpoint(otlpEndpoint),
+			otlptracegrpc.WithInsecure(),
+		)
+		if err != nil {
+			// Fall back to noop provider if exporter fails
+			if logger != nil {
+				logger.Error("failed to create OTLP exporter, using noop tracer", "error", err)
+			}
+			provider = sdktrace.NewTracerProvider(
+				sdktrace.WithSampler(sdktrace.AlwaysSample()),
+				sdktrace.WithResource(res),
+			)
+		} else {
+			provider = sdktrace.NewTracerProvider(
+				sdktrace.WithSampler(sdktrace.AlwaysSample()),
+				sdktrace.WithResource(res),
+				sdktrace.WithBatcher(exporter),
+			)
+		}
+	} else {
+		// No endpoint configured, use in-process provider (spans are recorded but not exported)
+		provider = sdktrace.NewTracerProvider(
+			sdktrace.WithSampler(sdktrace.AlwaysSample()),
+			sdktrace.WithResource(res),
+		)
+	}
+
 	otel.SetTracerProvider(provider)
 	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(
 		propagation.TraceContext{},
@@ -154,13 +188,14 @@ func NewDefaultTracer(logger core.Logger, metrics core.MetricsCollector) *Defaul
 
 	return &DefaultTracer{
 		spans:            make([]Span, 0),
+		maxSpans:         10000,
 		activeSpans:      make(map[string]*activeSpanState),
 		traceIDCounter:   1,
 		spanIDCounter:    1,
 		logger:           logger,
 		metricsCollector: metrics,
 		otelProvider:     provider,
-		otelTracer:       provider.Tracer("chainpulse/pkg/observability"),
+		otelTracer:       provider.Tracer("chainpulse/pkg.observability"),
 	}
 }
 
@@ -276,7 +311,15 @@ func (t *DefaultTracer) EndSpan(span *Span) {
 	// Remove from active spans
 	delete(t.activeSpans, span.SpanID)
 
-	// Add to recorded spans
+	// Add to recorded spans with bounded capacity
+	if t.maxSpans > 0 && len(t.spans) >= t.maxSpans {
+		// Evict oldest half to amortize the cost
+		half := t.maxSpans / 2
+		if half < len(t.spans) {
+			copy(t.spans, t.spans[half:])
+			t.spans = t.spans[:len(t.spans)-half]
+		}
+	}
 	t.spans = append(t.spans, *span)
 
 	// Record metric
@@ -497,14 +540,16 @@ type TracingContext struct {
 
 // SpanRecorder records spans for testing and analysis
 type SpanRecorder struct {
-	mu    sync.RWMutex
-	spans []Span
+	mu       sync.RWMutex
+	spans    []Span
+	maxSpans int // cap to prevent unbounded growth
 }
 
 // NewSpanRecorder creates a new span recorder
 func NewSpanRecorder() *SpanRecorder {
 	return &SpanRecorder{
-		spans: make([]Span, 0),
+		spans:    make([]Span, 0),
+		maxSpans: 10000,
 	}
 }
 
@@ -512,6 +557,13 @@ func NewSpanRecorder() *SpanRecorder {
 func (sr *SpanRecorder) Record(span Span) {
 	sr.mu.Lock()
 	defer sr.mu.Unlock()
+	if sr.maxSpans > 0 && len(sr.spans) >= sr.maxSpans {
+		half := sr.maxSpans / 2
+		if half < len(sr.spans) {
+			copy(sr.spans, sr.spans[half:])
+			sr.spans = sr.spans[:len(sr.spans)-half]
+		}
+	}
 	sr.spans = append(sr.spans, span)
 }
 

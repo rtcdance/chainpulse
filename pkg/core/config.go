@@ -11,11 +11,13 @@ import (
 
 // BlockchainConfig represents configuration for a single blockchain
 type BlockchainConfig struct {
-	ChainID    string
-	NodeURL    string
-	StartBlock uint64
-	ChainName  string
-	Network    string
+	ChainID          string
+	NodeURL          string
+	FallbackNodeURLs []string // backup RPC endpoints for failover
+	StartBlock       uint64
+	ChainName        string
+	Network          string
+	EventSignatures  []string // topic0 hashes for eth_getLogs topics filter
 }
 
 // DefaultConfigManager is the default implementation of ConfigManager
@@ -78,6 +80,11 @@ func (cm *DefaultConfigManager) Load() (Config, error) {
 		// Deployment Configuration
 		DeploymentMode: getEnv("DEPLOYMENT_MODE", "monolithic"),
 		ServiceName:    getEnv("SERVICE_NAME", "chainpulse"),
+		ChainID:        getEnv("CHAIN_ID", ""),
+
+		// Idempotency Configuration
+		IdempotencyRecordTTL:       getEnvInt("IDEMPOTENCY_RECORD_TTL", 86400),
+		IdempotencyCleanupInterval: getEnvInt("IDEMPOTENCY_CLEANUP_INTERVAL", 600),
 
 		// Logging Configuration
 		LogLevel: getEnv("LOG_LEVEL", "info"),
@@ -104,6 +111,7 @@ func (cm *DefaultConfigManager) Load() (Config, error) {
 			nodeURL := getEnv(fmt.Sprintf("CHAINPULSE_%s_NODE_URL", strings.ToUpper(chain)), "")
 			chainID := getEnv(fmt.Sprintf("CHAINPULSE_%s_CHAIN_ID", strings.ToUpper(chain)), "")
 			startBlockStr := getEnv(fmt.Sprintf("CHAINPULSE_%s_START_BLOCK", strings.ToUpper(chain)), "0")
+			network := getEnv(fmt.Sprintf("CHAINPULSE_%s_NETWORK", strings.ToUpper(chain)), "mainnet")
 
 			startBlock := uint64(0)
 			if startBlockStr != "" {
@@ -118,7 +126,7 @@ func (cm *DefaultConfigManager) Load() (Config, error) {
 					NodeURL:    nodeURL,
 					StartBlock: startBlock,
 					ChainName:  chain,
-					Network:    "devnet",
+					Network:    network,
 				}
 				config.ActiveChains = append(config.ActiveChains, chain)
 			}
@@ -129,12 +137,14 @@ func (cm *DefaultConfigManager) Load() (Config, error) {
 
 	if cm.logger != nil {
 		if len(config.ActiveChains) > 0 {
-			cm.logger.Info("multi-blockchain configuration loaded",
+			cm.logger.Info(
+				"multi-blockchain configuration loaded",
 				"active_chains", strings.Join(config.ActiveChains, ","),
 				"chain_count", len(config.ActiveChains),
 			)
 		} else {
-			cm.logger.Info("configuration loaded",
+			cm.logger.Info(
+				"configuration loaded",
 				"data_puller_type", config.DataPullerType,
 				"mq_type", config.MQType,
 				"cache_type", config.CacheType,
@@ -551,7 +561,8 @@ func (cm *DefaultConfigManager) SetFeatureFlag(flag string, enabled bool) error 
 	cm.config.FeatureFlags[flag] = enabled
 
 	if cm.logger != nil {
-		cm.logger.Info("feature flag updated",
+		cm.logger.Info(
+			"feature flag updated",
 			"flag", flag,
 			"enabled", enabled,
 		)
@@ -588,7 +599,8 @@ func (cm *DefaultConfigManager) SetHotReloadEnabled(enabled bool) {
 	cm.hotReloadEnabled = enabled
 
 	if cm.logger != nil {
-		cm.logger.Info("hot reload configuration",
+		cm.logger.Info(
+			"hot reload configuration",
 			"enabled", enabled,
 		)
 	}
@@ -604,7 +616,14 @@ func (cm *DefaultConfigManager) GetLastLoadTime() time.Time {
 
 // Helper functions
 
+// getEnv reads an environment variable with CHAINPULSE_ prefix fallback.
+// It first checks the CHAINPULSE_-prefixed key (e.g., CHAINPULSE_DATABASE_URL),
+// then falls back to the bare key (e.g., DATABASE_URL) for backward compatibility.
 func getEnv(key, defaultValue string) string {
+	prefixedKey := "CHAINPULSE_" + key
+	if value := os.Getenv(prefixedKey); value != "" {
+		return value
+	}
 	if value := os.Getenv(key); value != "" {
 		return value
 	}
@@ -612,6 +631,12 @@ func getEnv(key, defaultValue string) string {
 }
 
 func getEnvInt(key string, defaultValue int) int {
+	prefixedKey := "CHAINPULSE_" + key
+	if value := os.Getenv(prefixedKey); value != "" {
+		if intVal, err := strconv.Atoi(value); err == nil {
+			return intVal
+		}
+	}
 	if value := os.Getenv(key); value != "" {
 		if intVal, err := strconv.Atoi(value); err == nil {
 			return intVal
@@ -621,6 +646,12 @@ func getEnvInt(key string, defaultValue int) int {
 }
 
 func getEnvUint64(key string, defaultValue uint64) uint64 {
+	prefixedKey := "CHAINPULSE_" + key
+	if value := os.Getenv(prefixedKey); value != "" {
+		if uint64Val, err := strconv.ParseUint(value, 10, 64); err == nil {
+			return uint64Val
+		}
+	}
 	if value := os.Getenv(key); value != "" {
 		if uint64Val, err := strconv.ParseUint(value, 10, 64); err == nil {
 			return uint64Val

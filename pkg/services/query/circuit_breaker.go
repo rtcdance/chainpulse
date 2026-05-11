@@ -1,8 +1,10 @@
 package query
 
 import (
+	"context"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -40,14 +42,18 @@ type CircuitBreakerConfig struct {
 	SuccessThreshold int
 	// Timeout is the duration to wait before transitioning from open to half-open
 	Timeout time.Duration
+	// HalfOpenProbeLimit is the maximum number of concurrent requests allowed in half-open state.
+	// Default is 1 (only one probe request at a time).
+	HalfOpenProbeLimit int32
 }
 
 // DefaultCircuitBreakerConfig returns the default circuit breaker configuration
 func DefaultCircuitBreakerConfig() *CircuitBreakerConfig {
 	return &CircuitBreakerConfig{
-		FailureThreshold: 5,
-		SuccessThreshold: 2,
-		Timeout:          30 * time.Second,
+		FailureThreshold:   5,
+		SuccessThreshold:   2,
+		Timeout:            30 * time.Second,
+		HalfOpenProbeLimit: 1,
 	}
 }
 
@@ -61,6 +67,7 @@ type CircuitBreaker struct {
 	lastStateChange time.Time
 	mu              sync.RWMutex
 	stateChangeHook func(oldState, newState CircuitBreakerState)
+	halfOpenProbes  int32 // atomic counter for concurrent probes in half-open state
 }
 
 // NewCircuitBreaker creates a new circuit breaker
@@ -84,25 +91,89 @@ func (cb *CircuitBreaker) GetState() CircuitBreakerState {
 	return cb.state
 }
 
-// Call executes the function if the circuit breaker allows it
+// Call executes the function if the circuit breaker allows it.
+// Deprecated: Use CallWithContext(ctx, fn) instead to propagate cancellation.
 func (cb *CircuitBreaker) Call(fn func() error) error {
+	return cb.CallWithContext(context.Background(), fn)
+}
+
+// CallWithContext executes the function if the circuit breaker allows it,
+// respecting context cancellation. If the context is cancelled before the
+// function is executed, it returns the context error immediately without
+// recording a failure against the circuit breaker.
+func (cb *CircuitBreaker) CallWithContext(ctx context.Context, fn func() error) error {
+	// Check context before acquiring the lock
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
 	cb.mu.Lock()
-	defer cb.mu.Unlock()
+
+	// Re-check context after acquiring the lock
+	if err := ctx.Err(); err != nil {
+		cb.mu.Unlock()
+		return err
+	}
 
 	// Check if we need to transition from open to half-open
 	if cb.state == StateOpen {
 		if time.Since(cb.lastFailureTime) > cb.config.Timeout {
 			cb.transitionToHalfOpen()
 		} else {
+			cb.mu.Unlock()
 			return fmt.Errorf("circuit breaker is open")
 		}
 	}
 
-	// Execute the function
+	// In half-open state, limit concurrent probe requests
+	if cb.state == StateHalfOpen {
+		probeLimit := cb.config.HalfOpenProbeLimit
+		if probeLimit <= 0 {
+			probeLimit = 1
+		}
+		if atomic.LoadInt32(&cb.halfOpenProbes) >= probeLimit {
+			cb.mu.Unlock()
+			return fmt.Errorf("circuit breaker is half-open, probe limit reached")
+		}
+		atomic.AddInt32(&cb.halfOpenProbes, 1)
+		cb.mu.Unlock()
+
+		// Execute fn() outside the lock, ensuring probe counter is always decremented
+		var err error
+		func() {
+			defer atomic.AddInt32(&cb.halfOpenProbes, -1)
+			err = fn()
+		}()
+
+		// Record the result under the lock
+		cb.mu.Lock()
+		defer cb.mu.Unlock()
+
+		if err != nil {
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
+			cb.recordFailure()
+		} else {
+			cb.recordSuccess()
+		}
+
+		return err
+	}
+
+	// Closed state: execute normally outside the lock
+	cb.mu.Unlock()
+
 	err := fn()
 
-	// Handle the result
+	// Record the result under the lock
+	cb.mu.Lock()
+	defer cb.mu.Unlock()
+
 	if err != nil {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
 		cb.recordFailure()
 	} else {
 		cb.recordSuccess()
@@ -145,6 +216,7 @@ func (cb *CircuitBreaker) transitionToClosed() {
 	cb.failureCount = 0
 	cb.successCount = 0
 	cb.lastStateChange = time.Now()
+	atomic.StoreInt32(&cb.halfOpenProbes, 0)
 
 	if cb.stateChangeHook != nil {
 		cb.stateChangeHook(oldState, StateClosed)

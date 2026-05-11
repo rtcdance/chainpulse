@@ -2,6 +2,8 @@ package query
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"sort"
 	"strings"
@@ -424,10 +426,10 @@ func (qo *QueryOptimizer) evictOldestCacheEntry() {
 	}
 }
 
-// hashQuery generates a hash for a query
+// hashQuery generates a SHA-256 hash for a query to use as a cache key.
 func hashQuery(query string) string {
-	// Simple hash - in production, use a proper hash function
-	return fmt.Sprintf("%d", len(query))
+	h := sha256.Sum256([]byte(query))
+	return hex.EncodeToString(h[:16])
 }
 
 // columnsEqual checks if two column lists are equal

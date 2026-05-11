@@ -114,7 +114,7 @@ func (mb *MutationBuilder) resolveInvalidateCache(p graphql.ResolveParams) (inte
 	if err := mb.cache.Delete(p.Context, cacheKey); err != nil {
 		mb.logger.Error("Failed to invalidate cache", "eventId", eventID, "error", err.Error())
 		mb.metrics.RecordCounter("graphql_mutation_invalidate_cache_error", 1, nil)
-		return false, fmt.Errorf("failed to invalidate cache: %w", err)
+		return false, fmt.Errorf("failed to invalidate cache")
 	}
 
 	// Also invalidate related cache entries
@@ -204,7 +204,7 @@ func (mb *MutationBuilder) resolveRefreshEventCache(p graphql.ResolveParams) (in
 	if err != nil {
 		mb.logger.Error("Failed to refresh cache", "eventId", eventID, "error", err.Error())
 		mb.metrics.RecordCounter("graphql_mutation_refresh_cache_error", 1, nil)
-		return false, fmt.Errorf("failed to refresh cache: %w", err)
+		return false, fmt.Errorf("failed to refresh cache")
 	}
 
 	if event == nil {
@@ -218,7 +218,7 @@ func (mb *MutationBuilder) resolveRefreshEventCache(p graphql.ResolveParams) (in
 	if err := mb.cache.Set(p.Context, cacheKey, resultBytes, 300); err != nil { // 5 minutes
 		mb.logger.Error("Failed to cache event", "eventId", eventID, "error", err.Error())
 		mb.metrics.RecordCounter("graphql_mutation_refresh_cache_error", 1, nil)
-		return false, fmt.Errorf("failed to cache event: %w", err)
+		return false, fmt.Errorf("failed to cache event")
 	}
 
 	mb.logger.Info("Cache refreshed", "eventId", eventID)
@@ -253,7 +253,7 @@ func (mb *MutationBuilder) resolveWarmCache(p graphql.ResolveParams) (interface{
 	if err != nil {
 		mb.logger.Error("Failed to warm cache", "error", err.Error())
 		mb.metrics.RecordCounter("graphql_mutation_warm_cache_error", 1, nil)
-		return 0, fmt.Errorf("failed to warm cache: %w", err)
+		return 0, fmt.Errorf("failed to warm cache")
 	}
 
 	// Cache each event

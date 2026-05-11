@@ -125,3 +125,22 @@ docker_acceptance_wait_for_http() {
   echo "timed out waiting for ${label}: ${url}" >&2
   exit 1
 }
+
+docker_acceptance_wait_for_evm_rpc() {
+  local label="$1"
+  local url="$2"
+  local deadline=$((SECONDS + WAIT_TIMEOUT_SECONDS))
+
+  while (( SECONDS < deadline )); do
+    if curl -sS -X POST "${url}" \
+      -H 'Content-Type: application/json' \
+      --data '{"jsonrpc":"2.0","id":1,"method":"eth_chainId","params":[]}' >/dev/null 2>&1; then
+      "${DOCKER_ACCEPTANCE_LOG_FN}" "Ready: ${label}"
+      return 0
+    fi
+    sleep 2
+  done
+
+  echo "timed out waiting for ${label}: ${url}" >&2
+  exit 1
+}

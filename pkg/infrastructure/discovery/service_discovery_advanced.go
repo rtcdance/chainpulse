@@ -23,6 +23,7 @@ type AdvancedServiceDiscoveryClient struct {
 	registry        *ServiceRegistry
 	listeners       map[string][]RoutingUpdateListener
 	listenerMutex   sync.RWMutex
+	listenerWg      sync.WaitGroup
 	running         bool
 	runningMutex    sync.RWMutex
 }
@@ -112,7 +113,11 @@ func (asdc *AdvancedServiceDiscoveryClient) notifyListeners(serviceName string, 
 	asdc.listenerMutex.RUnlock()
 
 	for _, listener := range listeners {
-		go listener(update)
+		asdc.listenerWg.Add(1)
+		go func(l RoutingUpdateListener) {
+			defer asdc.listenerWg.Done()
+			l(update)
+		}(listener)
 	}
 }
 

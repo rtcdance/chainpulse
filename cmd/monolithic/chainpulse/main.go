@@ -16,12 +16,17 @@ import (
 
 	"chainpulse/pkg/application/bootstrap"
 	"chainpulse/pkg/core"
+	"chainpulse/pkg/observability"
 	"chainpulse/pkg/plugins/api"
+	sharedhttp "chainpulse/pkg/infrastructure/http"
 	"chainpulse/pkg/services/indexing"
 )
 
 //nolint:gocyclo // Monolithic entrypoint orchestrates many subsystems; keep linear startup/shutdown flow for ops visibility.
 func main() {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	// Print header
 	fmt.Println("╔════════════════════════════════════════════════════════════╗")
 	fmt.Println("║         ChainPulse - Monolithic Indexer Service            ║")
@@ -56,18 +61,35 @@ func main() {
 	if config.LogLevel == "debug" {
 		logLevel = core.LogLevelDebug
 	}
-	logger := core.NewDefaultLogger(logLevel)
+
+	logFormat := getEnv("LOG_FORMAT", "slog")
+	var logger core.Logger
+	if logFormat == "legacy" {
+		logger = core.NewDefaultLogger(logLevel)
+	} else {
+		logger = core.NewSlogLogger(logLevel, logFormat)
+	}
 	metrics := core.NewDefaultMetricsCollector()
 	registry := core.NewPluginRegistry(logger)
 
-	fmt.Println("  [1/3] Logger initialized")
-	fmt.Println("  [2/3] Metrics collector initialized")
-	fmt.Println("  [3/3] Plugin registry initialized")
+	// Create shared observability provider (single TracerProvider)
+	obsProvider, err := observability.NewObservabilityProvider(
+		observability.ObservabilityConfig{ServiceName: "chainpulse-monolithic"},
+		logger,
+	)
+	if err != nil {
+		logger.Warn("Observability provider initialization failed, tracing disabled", "error", err.Error())
+	}
+
+	fmt.Println("  [1/4] Logger initialized")
+	fmt.Println("  [2/4] Metrics collector initialized")
+	fmt.Println("  [3/4] Plugin registry initialized")
+	fmt.Println("  [4/4] Observability provider initialized")
 	fmt.Println()
 
 	// Build shared runtime wiring
 	fmt.Println("Building Runtime Wiring:")
-	runtimeWiring, err := bootstrap.BuildRuntimeWiring(context.Background(), logger, metrics)
+	runtimeWiring, err := bootstrap.BuildRuntimeWiring(ctx, logger, metrics)
 	if err != nil {
 		logger.Error("Failed to build runtime wiring", "error", err.Error())
 		os.Exit(1)
@@ -136,6 +158,14 @@ func main() {
 		metricSchemaMode,
 	)
 	coreConfig := &coreCfg
+
+	// Validate the resolved core configuration
+	configManager := core.NewConfigManager(logger)
+	if err := configManager.Validate(*coreConfig); err != nil {
+		logger.Error("Core configuration validation failed", "error", err.Error())
+		os.Exit(1)
+	}
+
 	chains, err := parseChains(config.Chains)
 	if err != nil {
 		logger.Error("Failed to parse chain configuration", "error", err.Error())
@@ -161,7 +191,7 @@ func main() {
 
 	// Build indexing-backed monolithic query surface
 	fmt.Println("Initializing Monolithic Query Surface:")
-	monolithicQuerySurface, err := resolveMonolithicQuerySurface(context.Background(), config, runtimeWiring, indexingDatabase, logger, metrics)
+	monolithicQuerySurface, err := resolveMonolithicQuerySurface(ctx, config, runtimeWiring, indexingDatabase, logger, metrics)
 	if err != nil {
 		logger.Error("Failed to build monolithic query surface", "error", err.Error())
 		os.Exit(1)
@@ -206,16 +236,16 @@ func main() {
 		logger.Error("Failed to build shared indexing runtime", "error", err.Error())
 		os.Exit(1)
 	}
-	if err := sharedIndexingRuntime.Initialize(context.Background()); err != nil {
+	if err := sharedIndexingRuntime.Initialize(ctx); err != nil {
 		logger.Error("Failed to initialize shared indexing runtime", "error", err.Error())
 		os.Exit(1)
 	}
-	if err := sharedIndexingRuntime.Start(context.Background()); err != nil {
+	if err := sharedIndexingRuntime.Start(ctx); err != nil {
 		logger.Error("Failed to start shared indexing runtime", "error", err.Error())
 		os.Exit(1)
 	}
 	for _, chainID := range chains {
-		if err := sharedIndexingRuntime.RecoverChain(context.Background(), chainID); err != nil {
+		if err := sharedIndexingRuntime.RecoverChain(ctx, chainID); err != nil {
 			logger.Warn("Shared indexing runtime recovery probe failed", "service", "monolithic", "chain_id", chainID, "error", err.Error())
 		}
 	}
@@ -277,7 +307,7 @@ func main() {
 	// Initialize monolithic puller runtime closure
 	fmt.Println("Initializing Monolithic Puller Runtime:")
 
-	monolithicPullerRuntime, err := newMonolithicPullerRuntime(*coreConfig, config.BlockchainNodeURLs, chains, logger, metrics, indexingDatabase, multiChainIndexer)
+	monolithicPullerRuntime, err := newMonolithicPullerRuntime(ctx, *coreConfig, config.BlockchainNodeURLs, chains, logger, metrics, indexingDatabase, multiChainIndexer)
 	if err != nil {
 		logger.Error("Failed to initialize monolithic puller runtime", "error", err.Error())
 		os.Exit(1)
@@ -298,7 +328,7 @@ func main() {
 		healthCheckHandler:       runtimeWiring.HealthCheckHandler,
 		upstreamQueryEndpoints:   config.UpstreamQueryServices,
 	})
-	gateway.SetRuntimeMetricsProvider(buildMonolithicMetricsProvider(metrics))
+	gateway.SetRuntimeMetricsProvider(buildMonolithicMetricsProvider(metrics, nil))
 	gateway.SetRuntimeSummaryProvider(buildMonolithicRuntimeSummaryProvider(metrics, gateway, sharedIndexingRuntime, multiChainIndexer, monolithicPullerRuntime, monolithicPullerRuntime, monolithicQuerySurface, config))
 	gateway.SetRuntimeControlProvider(monolithicPullerRuntime.HandleRuntimeControl)
 	gateway.SetRuntimeReplayProvider(newMonolithicDLQReplayHandler(sharedIndexingRuntime))
@@ -345,6 +375,30 @@ func main() {
 		logger.Info("JWT secret not set, auth disabled")
 	}
 
+	// Build and inject auth middleware if authentication is enabled
+	if config.AuthEnabled && config.JWTSecret != "" {
+		tokenValidator := api.NewTokenValidator(config.JWTSecret, logger, metrics)
+		for _, entry := range config.AuthAPIKeys {
+			apiKey, clientID, ok := parseMonolithicKeyPair(entry)
+			if !ok {
+				logger.Warn("invalid CHAINPULSE_AUTH_API_KEYS entry; expected key=clientID or key:clientID", "entry", entry)
+				continue
+			}
+			if err := tokenValidator.RegisterAPIKey(apiKey, clientID, "operator"); err != nil {
+				logger.Warn("failed to register API key", "error", err.Error())
+			}
+		}
+		rbacChecker := api.NewRBACChecker(logger, metrics)
+		if err := rbacChecker.RegisterDefaultRoles(); err != nil {
+			logger.Warn("failed to register default RBAC roles", "error", err.Error())
+		}
+		auditLogger := api.NewAuditLogger(logger, metrics)
+		authMiddleware := api.NewAuthMiddleware(tokenValidator, rbacChecker, auditLogger, logger, metrics)
+		gateway.SetAuthMiddleware(authMiddleware)
+		logger.Info("Auth middleware enabled for monolithic mode")
+		fmt.Println("  ✓ Auth middleware wired to API Gateway")
+	}
+
 	if gateway.IsRuntimeRoutesEnabled() {
 		fmt.Println("  ✓ Runtime route composition enabled")
 	}
@@ -363,14 +417,14 @@ func main() {
 	fmt.Println("Starting Services:")
 	var wg sync.WaitGroup
 
-	pullerCtx, stopPullers := context.WithCancel(context.Background())
+	pullerCtx, stopPullers := context.WithCancel(ctx)
 	defer stopPullers()
 
 	// Start Query Service
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		if err := runtimeWiring.QueryService.Start(context.Background()); err != nil {
+		if err := runtimeWiring.QueryService.Start(ctx); err != nil {
 			logger.Error("Query Service error", "error", err.Error())
 		}
 	}()
@@ -380,7 +434,7 @@ func main() {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		if err := gateway.Start(); err != nil {
+		if err := core.StartPlugin(ctx, gateway); err != nil {
 			logger.Error("API Gateway error", "error", err.Error())
 		}
 	}()
@@ -429,12 +483,12 @@ func main() {
 
 	// Graceful shutdown
 	fmt.Println("Shutting Down Services:")
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	shutdownCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 	stopPullers()
 
 	// Stop API Gateway
-	if err := gateway.Stop(); err != nil {
+	if err := core.StopPlugin(shutdownCtx, gateway); err != nil {
 		logger.Error("Error stopping API Gateway", "error", err.Error())
 	}
 	fmt.Println("  [1/3] API Gateway stopped")
@@ -476,6 +530,19 @@ func main() {
 	}
 
 	fmt.Println("  [6/6] Multi-chain indexer closed")
+
+	// Shutdown observability provider (flush pending spans)
+	if obsProvider != nil {
+		if err := obsProvider.Shutdown(shutdownCtx); err != nil {
+			logger.Error("Error shutting down observability provider", "error", err.Error())
+		}
+		fmt.Println("  [7/7] Observability provider shut down")
+	}
+
+	// Close shared HTTP connection pool
+	sharedhttp.DefaultSharedHTTPClient.CloseIdleConnections()
+	fmt.Println("  Shared HTTP connection pool drained")
+
 	finalRolloutSummary := buildOwnershipRolloutSummary(multiChainIndexer.GetStatus())
 	emitOwnershipRolloutSummaryMetrics(metrics, finalRolloutSummary, "shutdown")
 	logOwnershipRolloutSummary(logger, "shutdown", finalRolloutSummary)
@@ -536,6 +603,8 @@ type Configuration struct {
 	TLSCertPath              string
 	TLSKeyPath               string
 	JWTSecret                string
+	AuthEnabled              bool
+	AuthAPIKeys              []string
 }
 
 // loadConfiguration loads configuration from environment variables
@@ -564,7 +633,7 @@ func loadConfiguration() Configuration {
 		CacheConnectionURL:       getEnv("CACHE_CONNECTION_URL", "localhost:6379"),
 		DatabaseType:             getEnv("DATABASE_TYPE", "postgres"),
 		DatabaseURL:              getEnv("DATABASE_URL", "postgres://localhost/chainpulse"),
-		DatabaseSSLMode:          getEnv("DATABASE_SSL_MODE", "disable"),
+		DatabaseSSLMode:          getEnv("DATABASE_SSLMODE", "prefer"),
 		APIType:                  getEnv("API_TYPE", "graphql"),
 		APIPort:                  getEnv("API_PORT", "8080"),
 		WorkerPoolSize:           getEnv("WORKER_POOL_SIZE", "8"),
@@ -577,6 +646,8 @@ func loadConfiguration() Configuration {
 		TLSCertPath:              getEnv("GATEWAY_TLS_CERT", ""),
 		TLSKeyPath:               getEnv("GATEWAY_TLS_KEY", ""),
 		JWTSecret:                getEnv("API_JWT_SECRET", ""),
+		AuthEnabled:              getEnvBool("CHAINPULSE_AUTH_ENABLED", false),
+		AuthAPIKeys:              getEnvCSV("CHAINPULSE_AUTH_API_KEYS", nil),
 	}
 }
 
@@ -747,4 +818,18 @@ func int64Value(value interface{}) int64 {
 	default:
 		return 0
 	}
+}
+
+// parseMonolithicKeyPair parses a "key=clientID" or "key:clientID" entry
+func parseMonolithicKeyPair(entry string) (string, string, bool) {
+	for _, separator := range []string{"=", ":"} {
+		if idx := strings.Index(entry, separator); idx > 0 && idx < len(entry)-1 {
+			key := strings.TrimSpace(entry[:idx])
+			clientID := strings.TrimSpace(entry[idx+1:])
+			if key != "" && clientID != "" {
+				return key, clientID, true
+			}
+		}
+	}
+	return "", "", false
 }

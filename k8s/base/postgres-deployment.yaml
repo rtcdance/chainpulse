@@ -63,7 +63,8 @@ spec:
           periodSeconds: 10
       volumes:
       - name: postgres-storage
-        emptyDir: {}
+        persistentVolumeClaim:
+          claimName: postgres-pvc
 
 ---
 apiVersion: v1
@@ -72,5 +73,5 @@ metadata:
   name: postgres-secret
   namespace: chainpulse
 type: Opaque
-stringData:
-  password: chainpulse_password
+data:
+  password: UkVQTEFDRV9NRQ==

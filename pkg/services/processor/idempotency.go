@@ -1,8 +1,7 @@
 package processor
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
+	"context"
 	"fmt"
 	"sync"
 
@@ -27,10 +26,10 @@ type IdempotencyService interface {
 	GenerateHash(event *core.BlockchainEvent) (string, error)
 
 	// IsDuplicate checks if an event has been processed before
-	IsDuplicate(hash string) (bool, error)
+	IsDuplicate(ctx context.Context, hash string) (bool, error)
 
 	// MarkProcessed marks an event as processed
-	MarkProcessed(hash string) error
+	MarkProcessed(ctx context.Context, hash string) error
 
 	// GetProcessedCount returns the count of processed events
 	GetProcessedCount() int64
@@ -42,10 +41,14 @@ type IdempotencyService interface {
 	Clear() error
 }
 
-// DefaultIdempotencyService provides default idempotency implementation
+// DefaultIdempotencyService provides default idempotency implementation.
+// The in-memory store acts as a fast path that never evicts records —
+// blockchain events are permanently unique, so the natural key
+// (chain_id, block_number, tx_hash, log_index) will never be seen again.
+// Database-level unique constraints provide the ultimate dedup guarantee.
 type DefaultIdempotencyService struct {
 	mu               sync.RWMutex
-	processedHashes  map[string]bool
+	processedHashes  map[string]bool // hash → true (no TTL, no timestamps)
 	processedCount   int64
 	duplicateCount   int64
 	initialized      bool
@@ -102,6 +105,7 @@ func (s *DefaultIdempotencyService) Start() error {
 	}
 
 	s.running = true
+
 	s.lastHealthCheck = &core.HealthStatus{
 		Status:  "healthy",
 		Message: "Idempotency service started",
@@ -117,17 +121,14 @@ func (s *DefaultIdempotencyService) Start() error {
 // Stop stops the idempotency service
 func (s *DefaultIdempotencyService) Stop() error {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 
 	if !s.running {
+		s.mu.Unlock()
 		return fmt.Errorf("idempotency service not running")
 	}
 
 	s.running = false
-	s.lastHealthCheck = &core.HealthStatus{
-		Status:  "healthy",
-		Message: "Idempotency service stopped",
-	}
+	s.mu.Unlock()
 
 	s.logger.Info("Idempotency service stopped", map[string]interface{}{
 		"component": "idempotency",
@@ -161,34 +162,24 @@ func (s *DefaultIdempotencyService) Health() *core.HealthStatus {
 	}
 }
 
-// GenerateHash generates a deterministic hash for an event
+// GenerateHash generates a deterministic hash for an event using the
+// canonical ComputeEventHash function from pkg/core.
 func (s *DefaultIdempotencyService) GenerateHash(event *core.BlockchainEvent) (string, error) {
 	if event == nil {
 		return "", fmt.Errorf("event is required")
 	}
 
-	// Create a deterministic string representation of the event
-	hashInput := fmt.Sprintf("%s:%d:%s:%d:%s",
-		event.Network,
-		event.BlockNumber,
-		event.TransactionHash.Hex(),
-		event.LogIndex,
-		event.ContractAddress.Hex(),
-	)
-
-	// Generate SHA256 hash
-	hash := sha256.Sum256([]byte(hashInput))
-	hashStr := hex.EncodeToString(hash[:])
+	hash := core.ComputeEventHash(event)
 
 	s.metricsCollector.RecordCounter("idempotency_hash_generated", 1, map[string]string{
 		"network": event.Network,
 	})
 
-	return hashStr, nil
+	return hash, nil
 }
 
 // IsDuplicate checks if an event has been processed before
-func (s *DefaultIdempotencyService) IsDuplicate(hash string) (bool, error) {
+func (s *DefaultIdempotencyService) IsDuplicate(ctx context.Context, hash string) (bool, error) {
 	if hash == "" {
 		return false, fmt.Errorf("hash is required")
 	}
@@ -200,17 +191,18 @@ func (s *DefaultIdempotencyService) IsDuplicate(hash string) (bool, error) {
 		return false, fmt.Errorf("idempotency service not running")
 	}
 
-	isDuplicate := s.processedHashes[hash]
-
-	if isDuplicate {
-		s.metricsCollector.RecordCounter("idempotency_duplicate_detected", 1, map[string]string{})
+	exists := s.processedHashes[hash]
+	if !exists {
+		return false, nil
 	}
 
-	return isDuplicate, nil
+	s.metricsCollector.RecordCounter("idempotency_duplicate_detected", 1, map[string]string{})
+
+	return true, nil
 }
 
 // MarkProcessed marks an event as processed
-func (s *DefaultIdempotencyService) MarkProcessed(hash string) error {
+func (s *DefaultIdempotencyService) MarkProcessed(ctx context.Context, hash string) error {
 	if hash == "" {
 		return fmt.Errorf("hash is required")
 	}
@@ -234,6 +226,7 @@ func (s *DefaultIdempotencyService) MarkProcessed(hash string) error {
 
 	s.metricsCollector.RecordCounter("idempotency_event_marked", 1, map[string]string{})
 	s.metricsCollector.RecordGauge("idempotency_processed_count", float64(s.processedCount), map[string]string{})
+	s.metricsCollector.RecordGauge("idempotency_stored_count", float64(len(s.processedHashes)), map[string]string{})
 
 	return nil
 }

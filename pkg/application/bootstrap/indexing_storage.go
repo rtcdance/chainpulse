@@ -19,9 +19,7 @@ type monolithicIndexingStorageDeps struct {
 
 func defaultMonolithicIndexingStorageDeps() monolithicIndexingStorageDeps {
 	return monolithicIndexingStorageDeps{
-		newDatabase: func(logger core.Logger, config core.Config) core.DatabasePlugin {
-			return newMonolithicIndexingDatabaseForMode(logger, config)
-		},
+		newDatabase: newMonolithicIndexingDatabaseForMode,
 		newCache: func() core.CachePlugin {
 			return indexingadapter.NewMonolithicMemoryCache()
 		},

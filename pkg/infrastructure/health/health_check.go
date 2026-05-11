@@ -3,6 +3,7 @@ package health
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"sync"
 	"time"
 
@@ -20,7 +21,7 @@ type ServiceRegistryInterface interface {
 
 // HealthCheckResult represents the result of a health check.
 //
-//nolint:exported // Renaming would break many external uses.
+// Renaming would break many external uses.
 type HealthCheckResult struct {
 	ServiceID    string
 	ServiceName  string
@@ -32,7 +33,7 @@ type HealthCheckResult struct {
 
 // HealthCheckEndpoint represents a health check endpoint.
 //
-//nolint:exported // Renaming would break many external uses.
+// Renaming would break many external uses.
 type HealthCheckEndpoint struct {
 	ServiceID string
 	URL       string
@@ -42,13 +43,15 @@ type HealthCheckEndpoint struct {
 
 // HealthCheckSystem manages health checks for all services.
 //
-//nolint:exported // Renaming would break many external uses.
+// Renaming would break many external uses.
 type HealthCheckSystem struct {
 	registry  ServiceRegistryInterface
 	endpoints map[string]*HealthCheckEndpoint
 	results   map[string]*HealthCheckResult
 	mutex     sync.RWMutex
 	running   bool
+	wg        sync.WaitGroup
+	stopCh    chan struct{}
 }
 
 // NewHealthCheckSystem creates a new health check system
@@ -78,28 +81,46 @@ func (hcs *HealthCheckSystem) Start(ctx context.Context) error {
 		return fmt.Errorf("health check system already running")
 	}
 	hcs.running = true
+	hcs.stopCh = make(chan struct{})
 	hcs.mutex.Unlock()
 
+	hcs.wg.Add(1)
 	go hcs.checkLoop(ctx)
 	return nil
 }
 
-// Stop stops the health check system
+// Stop stops the health check system and waits for the check loop to exit
 func (hcs *HealthCheckSystem) Stop() {
 	hcs.mutex.Lock()
-	defer hcs.mutex.Unlock()
+	if !hcs.running {
+		hcs.mutex.Unlock()
+		return
+	}
 	hcs.running = false
+	close(hcs.stopCh)
+	hcs.mutex.Unlock()
+
+	hcs.wg.Wait()
 }
 
 // checkLoop performs periodic health checks
 func (hcs *HealthCheckSystem) checkLoop(ctx context.Context) {
+	defer hcs.wg.Done()
+
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
+
+	// Run once immediately
+	hcs.performAllHealthChecks(ctx)
+
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		default:
+		case <-hcs.stopCh:
+			return
+		case <-ticker.C:
 			hcs.performAllHealthChecks(ctx)
-			time.Sleep(5 * time.Second)
 		}
 	}
 }
@@ -114,7 +135,11 @@ func (hcs *HealthCheckSystem) performAllHealthChecks(ctx context.Context) {
 	hcs.mutex.RUnlock()
 
 	for serviceID, endpoint := range endpoints {
-		go hcs.performHealthCheck(ctx, serviceID, endpoint)
+		hcs.wg.Add(1)
+		go func(sid string, ep *HealthCheckEndpoint) {
+			defer hcs.wg.Done()
+			hcs.performHealthCheck(ctx, sid, ep)
+		}(serviceID, endpoint)
 	}
 }
 
@@ -157,11 +182,24 @@ func (hcs *HealthCheckSystem) performHealthCheck(ctx context.Context, serviceID 
 	}
 }
 
-// checkEndpoint checks if an endpoint is healthy
+// checkEndpoint checks if an endpoint is healthy by making an HTTP GET
+// request to its /health/live endpoint with a 5-second timeout.
 func (hcs *HealthCheckSystem) checkEndpoint(ctx context.Context, url string) bool {
-	// This is a placeholder for actual health check logic
-	// In production, this would make HTTP requests to the health check endpoint
-	return true
+	checkCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(checkCtx, http.MethodGet, url+"/health/live", nil)
+	if err != nil {
+		return false
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return false
+	}
+	defer resp.Body.Close() //nolint:errcheck // defer close
+
+	return resp.StatusCode == http.StatusOK
 }
 
 // handleUnhealthyService handles an unhealthy service
@@ -264,6 +302,8 @@ type AutomaticDeregistration struct {
 	deregistrationTTL time.Duration
 	mutex             sync.RWMutex
 	running           bool
+	wg                sync.WaitGroup
+	stopCh            chan struct{}
 }
 
 // NewAutomaticDeregistration creates a new automatic deregistration system
@@ -283,27 +323,40 @@ func (ad *AutomaticDeregistration) Start(ctx context.Context) error {
 		return fmt.Errorf("automatic deregistration already running")
 	}
 	ad.running = true
+	ad.stopCh = make(chan struct{})
 	ad.mutex.Unlock()
 
+	ad.wg.Add(1)
 	go ad.deregistrationLoop(ctx)
 	return nil
 }
 
-// Stop stops the automatic deregistration system
+// Stop stops the automatic deregistration system and waits for the loop to exit
 func (ad *AutomaticDeregistration) Stop() {
 	ad.mutex.Lock()
-	defer ad.mutex.Unlock()
+	if !ad.running {
+		ad.mutex.Unlock()
+		return
+	}
 	ad.running = false
+	close(ad.stopCh)
+	ad.mutex.Unlock()
+
+	ad.wg.Wait()
 }
 
 // deregistrationLoop performs periodic deregistration checks
 func (ad *AutomaticDeregistration) deregistrationLoop(ctx context.Context) {
+	defer ad.wg.Done()
+
 	ticker := time.NewTicker(10 * time.Second)
 	defer ticker.Stop()
 
 	for {
 		select {
 		case <-ctx.Done():
+			return
+		case <-ad.stopCh:
 			return
 		case <-ticker.C:
 			failedServices := ad.failureDetector.DetectFailures(ctx)

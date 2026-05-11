@@ -18,7 +18,7 @@ type SwapEvent struct {
 	TransactionHash common.Hash
 	BlockNumber     uint64
 	BlockTimestamp  int64
-	LogIndex        uint
+	LogIndex uint64
 	Pool            common.Address
 	Sender          common.Address
 	Recipient       common.Address
@@ -272,7 +272,7 @@ func (ui *UniswapIndexer) updatePoolMetadata(swapEvent *SwapEvent) {
 
 // GetSwapHistory retrieves swap history for a pool
 func (ui *UniswapIndexer) GetSwapHistory(
-	_ context.Context,
+	ctx context.Context,
 	pool common.Address,
 	fromBlock, toBlock uint64,
 ) (*SwapHistory, error) {
@@ -300,7 +300,7 @@ func (ui *UniswapIndexer) GetSwapHistory(
 	}
 
 	// Query events from database
-	events, err := ui.database.QueryEvents(context.Background(), filter)
+	events, err := ui.database.QueryEvents(ctx, filter)
 	if err != nil {
 		ui.logger.Error("failed to query swap events", map[string]interface{}{
 			"error": err.Error(),

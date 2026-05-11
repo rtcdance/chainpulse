@@ -1,6 +1,14 @@
 # Policy Metric Versioning and Deprecation
 
-**Status**: Active | **Last Updated**: 2026-03-30
+**Status**: Active | **Last Updated**: 2026-03-30 | **Deadline**: 2026-07-01
+
+## Owner
+
+platform-team
+
+## Delivery Status
+
+Implemented
 
 ## Goal
 

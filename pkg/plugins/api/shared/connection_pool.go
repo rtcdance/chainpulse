@@ -102,19 +102,33 @@ func (p *ConnectionPool) Acquire(ctx context.Context) (Connection, error) {
 	default:
 	}
 
-	// No available connections, check if we can create a new one
-	p.mu.RLock()
-	currentSize := int64(len(p.inUse))
-	p.mu.RUnlock()
+	// No available connections, check if we can create a new one.
+	// Hold write lock for the check + reserve to prevent TOCTOU race:
+	// multiple goroutines could otherwise read the same size and all create.
+	p.mu.Lock()
+	if int64(len(p.inUse)) >= int64(p.maxSize) {
+		p.mu.Unlock()
+	} else {
+		// Reserve a slot with a nil placeholder to prevent over-allocation
+		slotID := fmt.Sprintf("creating-%d", time.Now().UnixNano())
+		p.inUse[slotID] = nil
+		p.mu.Unlock()
 
-	if currentSize < int64(p.maxSize) {
 		conn, err := p.factory.Create(ctx)
 		if err != nil {
+			// Remove the placeholder on failure
+			p.mu.Lock()
+			delete(p.inUse, slotID)
+			p.mu.Unlock()
 			p.recordError()
 			return nil, fmt.Errorf("failed to create connection: %w", err)
 		}
 		p.recordCreated()
-		p.recordInUse(conn)
+		// Replace placeholder with real connection
+		p.mu.Lock()
+		delete(p.inUse, slotID)
+		p.inUse[conn.GetID()] = conn
+		p.mu.Unlock()
 		return conn, nil
 	}
 

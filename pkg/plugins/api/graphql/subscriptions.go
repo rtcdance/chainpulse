@@ -185,10 +185,14 @@ func NewSubscriptionTopics() *SubscriptionTopics {
 
 // EventSubscriptionPayload represents the payload for event subscriptions
 type EventSubscriptionPayload struct {
-	Type      string                 `json:"type"`
-	EventID   string                 `json:"eventId"`
-	Event     map[string]interface{} `json:"event,omitempty"`
-	Timestamp time.Time              `json:"timestamp"`
+	Type            string                 `json:"type"`
+	EventID         string                 `json:"eventId"`
+	ChainID         string                 `json:"chainId,omitempty"`
+	ContractAddress string                 `json:"contractAddress,omitempty"`
+	EventName       string                 `json:"eventName,omitempty"`
+	BlockNumber     int64                  `json:"blockNumber,omitempty"`
+	Event           map[string]interface{} `json:"event,omitempty"`
+	Timestamp       int64                  `json:"timestamp"`
 }
 
 // SubscriptionHandler handles subscription operations
@@ -219,7 +223,7 @@ func (sh *SubscriptionHandler) OnEventCreated(event *core.BlockchainEvent) error
 		Type:      "created",
 		EventID:   event.ID,
 		Event:     eventToGraphQL(event),
-		Timestamp: time.Now(),
+		Timestamp: time.Now().Unix(),
 	}
 
 	return sh.manager.Publish(sh.topics.EventCreated, payload)
@@ -231,7 +235,7 @@ func (sh *SubscriptionHandler) OnEventUpdated(event *core.BlockchainEvent) error
 		Type:      "updated",
 		EventID:   event.ID,
 		Event:     eventToGraphQL(event),
-		Timestamp: time.Now(),
+		Timestamp: time.Now().Unix(),
 	}
 
 	return sh.manager.Publish(sh.topics.EventUpdated, payload)
@@ -242,7 +246,7 @@ func (sh *SubscriptionHandler) OnEventDeleted(eventID string) error {
 	payload := EventSubscriptionPayload{
 		Type:      "deleted",
 		EventID:   eventID,
-		Timestamp: time.Now(),
+		Timestamp: time.Now().Unix(),
 	}
 
 	return sh.manager.Publish(sh.topics.EventDeleted, payload)
@@ -254,7 +258,7 @@ func (sh *SubscriptionHandler) OnEventConfirmed(event *core.BlockchainEvent) err
 		Type:      "confirmed",
 		EventID:   event.ID,
 		Event:     eventToGraphQL(event),
-		Timestamp: time.Now(),
+		Timestamp: time.Now().Unix(),
 	}
 
 	return sh.manager.Publish(sh.topics.EventConfirmed, payload)
@@ -266,7 +270,7 @@ func (sh *SubscriptionHandler) OnEventFailed(event *core.BlockchainEvent) error 
 		Type:      "failed",
 		EventID:   event.ID,
 		Event:     eventToGraphQL(event),
-		Timestamp: time.Now(),
+		Timestamp: time.Now().Unix(),
 	}
 
 	return sh.manager.Publish(sh.topics.EventFailed, payload)

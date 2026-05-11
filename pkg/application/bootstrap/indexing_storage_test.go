@@ -68,6 +68,9 @@ func (s *stubDatabasePlugin) GetLatestBlock(ctx context.Context) (uint64, error)
 func (s *stubDatabasePlugin) DeleteEventsByBlockRange(ctx context.Context, fromBlock, toBlock uint64) (int64, error) {
 	return 0, nil
 }
+func (s *stubDatabasePlugin) MarkEventsAsReorged(ctx context.Context, fromBlock, toBlock uint64) (int64, error) {
+	return 0, nil
+}
 
 func (s *stubDatabasePlugin) GetReorgStats(ctx context.Context) (*core.ReorgStats, error) {
 	return &core.ReorgStats{}, nil

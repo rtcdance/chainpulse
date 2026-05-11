@@ -1,6 +1,7 @@
 package database
 
 import (
+	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -48,7 +49,7 @@ func BenchmarkBatchInsert(b *testing.B) {
 			EventHash:       fmt.Sprintf("bench-hash-%d", i),
 			BlockNumber:     uint64(i),
 			TransactionHash: common.HexToHash(fmt.Sprintf("bench-tx-%d", i)),
-			LogIndex:        uint(i),
+			LogIndex:        uint64(i),
 			ContractAddress: common.HexToAddress("0x123"),
 			EventName:       "Transfer",
 			EventData:       []byte("data1"),
@@ -60,7 +61,7 @@ func BenchmarkBatchInsert(b *testing.B) {
 
 	// Benchmark
 	for i := 0; i < b.N; i++ {
-		err := db.WriteEvents(events)
+		err := db.WriteEvents(context.Background(), events)
 		if err != nil {
 			b.Fatalf("Failed to write events: %v", err)
 		}
@@ -102,7 +103,7 @@ func TestBatchInsertPerformance(t *testing.T) {
 			EventHash:       fmt.Sprintf("perf-hash-%d-%d", time.Now().UnixNano(), i),
 			BlockNumber:     uint64(i),
 			TransactionHash: common.HexToHash(fmt.Sprintf("perf-tx-%d", i)),
-			LogIndex:        uint(i),
+			LogIndex:        uint64(i),
 			ContractAddress: common.HexToAddress("0x123"),
 			EventName:       "Transfer",
 			EventData:       []byte("data1"),
@@ -112,7 +113,7 @@ func TestBatchInsertPerformance(t *testing.T) {
 
 	// Measure write time
 	start := time.Now()
-	err = db.WriteEvents(events)
+	err = db.WriteEvents(context.Background(), events)
 	duration := time.Since(start)
 
 	if err != nil {
@@ -168,7 +169,7 @@ func TestBatchInsertVariousSizes(t *testing.T) {
 				EventHash:       fmt.Sprintf("batch-size-test-%d-%d-%d", batchSize, time.Now().UnixNano(), i),
 				BlockNumber:     uint64(i),
 				TransactionHash: common.HexToHash(fmt.Sprintf("batch-tx-%d", i)),
-				LogIndex:        uint(i),
+				LogIndex:        uint64(i),
 				ContractAddress: common.HexToAddress("0x123"),
 				EventName:       "Transfer",
 				EventData:       []byte("data1"),
@@ -177,7 +178,7 @@ func TestBatchInsertVariousSizes(t *testing.T) {
 		}
 
 		start := time.Now()
-		err := db.WriteEvents(events)
+		err := db.WriteEvents(context.Background(), events)
 		duration := time.Since(start)
 
 		if err != nil {
@@ -225,14 +226,14 @@ func TestSingleEventPerformance(t *testing.T) {
 			EventHash:       fmt.Sprintf("single-event-%d-%d", time.Now().UnixNano(), i),
 			BlockNumber:     uint64(i),
 			TransactionHash: common.HexToHash(fmt.Sprintf("single-tx-%d", i)),
-			LogIndex:        uint(i),
+			LogIndex:        uint64(i),
 			ContractAddress: common.HexToAddress("0x123"),
 			EventName:       "Transfer",
 			EventData:       []byte("data1"),
 			BlockTimestamp:  time.Now().Unix(),
 		}
 
-		err := db.WriteEvent(event)
+		err := db.WriteEvent(context.Background(), event)
 		if err != nil {
 			t.Fatalf("Failed to write event %d: %v", i, err)
 		}
@@ -283,7 +284,7 @@ func TestQueryPerformance(t *testing.T) {
 			EventHash:       fmt.Sprintf("query-perf-%d-%d", time.Now().UnixNano(), i),
 			BlockNumber:     uint64(i),
 			TransactionHash: common.HexToHash(fmt.Sprintf("query-tx-%d", i)),
-			LogIndex:        uint(i),
+			LogIndex:        uint64(i),
 			ContractAddress: common.HexToAddress("0x123"),
 			EventName:       "Transfer",
 			EventData:       []byte("data1"),
@@ -291,7 +292,7 @@ func TestQueryPerformance(t *testing.T) {
 		}
 	}
 
-	err = db.WriteEvents(events)
+	err = db.WriteEvents(context.Background(), events)
 	if err != nil {
 		t.Fatalf("Failed to write events: %v", err)
 	}

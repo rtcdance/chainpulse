@@ -342,3 +342,59 @@ func TestWebSocketPluginConcurrentOperations(t *testing.T) {
 		<-done
 	}
 }
+
+func TestCheckOrigin_EmptyAllowedOrigins(t *testing.T) {
+	apiLayer := core.NewAPILayer()
+	plugin := NewWebSocketPlugin("ws-test", 0, apiLayer)
+
+	// No origins configured — development mode, all allowed
+	req := &http.Request{Header: http.Header{"Origin": []string{"https://evil.example.com"}}}
+	if !plugin.checkOrigin(req) {
+		t.Error("expected checkOrigin to return true when no origins configured (dev mode)")
+	}
+}
+
+func TestCheckOrigin_NonBrowserClient(t *testing.T) {
+	apiLayer := core.NewAPILayer()
+	plugin := NewWebSocketPlugin("ws-test", 0, apiLayer).
+		WithAllowedOrigins([]string{"https://app.example.com"})
+
+	// Non-browser clients don't send Origin header
+	req := &http.Request{Header: http.Header{}}
+	if !plugin.checkOrigin(req) {
+		t.Error("expected checkOrigin to return true for non-browser client (no Origin header)")
+	}
+}
+
+func TestCheckOrigin_MatchingOrigin(t *testing.T) {
+	apiLayer := core.NewAPILayer()
+	plugin := NewWebSocketPlugin("ws-test", 0, apiLayer).
+		WithAllowedOrigins([]string{"https://app.example.com", "https://admin.example.com"})
+
+	req := &http.Request{Header: http.Header{"Origin": []string{"https://app.example.com"}}}
+	if !plugin.checkOrigin(req) {
+		t.Error("expected checkOrigin to return true for matching origin")
+	}
+}
+
+func TestCheckOrigin_RejectedOrigin(t *testing.T) {
+	apiLayer := core.NewAPILayer()
+	plugin := NewWebSocketPlugin("ws-test", 0, apiLayer).
+		WithAllowedOrigins([]string{"https://app.example.com"})
+
+	req := &http.Request{Header: http.Header{"Origin": []string{"https://evil.example.com"}}}
+	if plugin.checkOrigin(req) {
+		t.Error("expected checkOrigin to return false for non-matching origin")
+	}
+}
+
+func TestCheckOrigin_CaseInsensitive(t *testing.T) {
+	apiLayer := core.NewAPILayer()
+	plugin := NewWebSocketPlugin("ws-test", 0, apiLayer).
+		WithAllowedOrigins([]string{"https://App.Example.COM"})
+
+	req := &http.Request{Header: http.Header{"Origin": []string{"https://app.example.com"}}}
+	if !plugin.checkOrigin(req) {
+		t.Error("expected checkOrigin to be case-insensitive")
+	}
+}

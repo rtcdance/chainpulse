@@ -11,7 +11,7 @@ import (
 
 // DatabaseStats tracks database performance metrics.
 //
-//nolint:exported // Renaming would break many external uses.
+// Renaming would break many external uses.
 type DatabaseStats struct {
 	WriteCount     int64
 	ReadCount      int64
@@ -298,7 +298,7 @@ func NewDefaultInMemoryDatabasePlugin(logger core.Logger, metricsCollector core.
 }
 
 // WriteEvent writes a blockchain event to the database
-func (p *DefaultInMemoryDatabasePlugin) WriteEvent(event *core.BlockchainEvent) error {
+func (p *DefaultInMemoryDatabasePlugin) WriteEvent(ctx context.Context, event *core.BlockchainEvent) error {
 	if event == nil {
 		return fmt.Errorf("event is required")
 	}
@@ -325,7 +325,7 @@ func (p *DefaultInMemoryDatabasePlugin) WriteEvent(event *core.BlockchainEvent) 
 }
 
 // WriteEvents writes multiple blockchain events to the database (batch)
-func (p *DefaultInMemoryDatabasePlugin) WriteEvents(events []core.BlockchainEvent) error {
+func (p *DefaultInMemoryDatabasePlugin) WriteEvents(ctx context.Context, events []core.BlockchainEvent) error {
 	if len(events) == 0 {
 		return fmt.Errorf("events list is required")
 	}
@@ -611,6 +611,27 @@ func (p *DefaultInMemoryDatabasePlugin) DeleteEventsByBlockRange(ctx context.Con
 			p.metricsCollector.RecordCounter("database_delete", 1, map[string]string{})
 		}
 		p.updateEventCountUnlocked(int64(len(p.events)))
+	}
+
+	return count, nil
+}
+
+// MarkEventsAsReorged marks events within a block range as reorged (soft delete)
+func (p *DefaultInMemoryDatabasePlugin) MarkEventsAsReorged(ctx context.Context, fromBlock, toBlock uint64) (int64, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	if !p.running {
+		return 0, fmt.Errorf("database plugin not running")
+	}
+
+	count := int64(0)
+	for key, event := range p.events {
+		if event.BlockNumber >= fromBlock && event.BlockNumber <= toBlock {
+			event.Status = core.EventStatusReorged
+			p.events[key] = event
+			count++
+		}
 	}
 
 	return count, nil

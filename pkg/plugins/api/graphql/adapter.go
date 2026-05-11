@@ -227,8 +227,8 @@ func (r *GraphQLResponse) SetGraphQLResult(data map[string]interface{}, errors [
 
 	if len(errors) > 0 {
 		errorMessages := make([]string, len(errors))
-		for i, err := range errors {
-			errorMessages[i] = err.Error()
+		for i := range errors {
+			errorMessages[i] = "internal error"
 		}
 		result["errors"] = errorMessages
 	}

@@ -2,6 +2,7 @@ package query
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -200,7 +201,7 @@ func (ma *DefaultMongoDBAdapter) QueryByHash(ctx context.Context, hash string) (
 	var event core.BlockchainEvent
 	err := collection.FindOne(ctx, filter).Decode(&event)
 	if err != nil {
-		if err == mongo.ErrNoDocuments {
+		if errors.Is(err, mongo.ErrNoDocuments) {
 			duration := time.Since(start).Milliseconds()
 			ma.logger.Debug("Event not found in MongoDB", map[string]interface{}{
 				"hash":     hash,

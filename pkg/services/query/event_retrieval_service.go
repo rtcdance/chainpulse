@@ -77,7 +77,7 @@ func (s *EventRetrievalService) GetEventWithMetadata(ctx context.Context, eventI
 	// Get event from MongoDB
 	event, err := s.eventStore.GetEvent(ctx, eventID)
 	if err != nil {
-		s.logger.Error("Failed to get event", "eventId", eventID, "error", err.Error())
+		s.logger.Error("Failed to get event", "eventId", eventID, "error", err)
 		s.metrics.RecordCounter("event_retrieval_get_with_metadata_error", 1, nil)
 		return nil, fmt.Errorf("failed to get event: %w", err)
 	}
@@ -89,7 +89,7 @@ func (s *EventRetrievalService) GetEventWithMetadata(ctx context.Context, eventI
 	// Get metadata from PostgreSQL
 	metadata, err := s.metadataStore.GetMetadata(ctx, eventID)
 	if err != nil {
-		s.logger.Error("Failed to get metadata", "eventId", eventID, "error", err.Error())
+		s.logger.Error("Failed to get metadata", "eventId", eventID, "error", err)
 		s.metrics.RecordCounter("event_retrieval_get_with_metadata_error", 1, nil)
 		return nil, fmt.Errorf("failed to get metadata: %w", err)
 	}
@@ -121,7 +121,7 @@ func (s *EventRetrievalService) GetEventsByChainWithMetadata(
 	// Get events from MongoDB
 	events, err := s.eventStore.GetEventsByChain(ctx, chainID, limit, offset)
 	if err != nil {
-		s.logger.Error("Failed to get events by chain", "chainId", chainID, "error", err.Error())
+		s.logger.Error("Failed to get events by chain", "chainId", chainID, "error", err)
 		s.metrics.RecordCounter("event_retrieval_get_by_chain_with_metadata_error", 1, nil)
 		return nil, fmt.Errorf("failed to get events by chain: %w", err)
 	}
@@ -135,7 +135,7 @@ func (s *EventRetrievalService) GetEventsByChainWithMetadata(
 	for _, event := range events {
 		metadata, err := s.metadataStore.GetMetadata(ctx, event.ID)
 		if err != nil {
-			s.logger.Warn("Failed to get metadata for event", "eventId", event.ID, "error", err.Error())
+			s.logger.Warn("Failed to get metadata for event", "eventId", event.ID, "error", err)
 			// Continue with nil metadata if retrieval fails
 			result = append(result, &EventWithMetadata{
 				Event:    event,
@@ -178,7 +178,7 @@ func (s *EventRetrievalService) GetEventsByContractWithMetadata(
 	// Get events from MongoDB
 	events, err := s.eventStore.GetEventsByContract(ctx, contractAddress, limit, offset)
 	if err != nil {
-		s.logger.Error("Failed to get events by contract", "contractAddress", contractAddress, "error", err.Error())
+		s.logger.Error("Failed to get events by contract", "contractAddress", contractAddress, "error", err)
 		s.metrics.RecordCounter("event_retrieval_get_by_contract_with_metadata_error", 1, nil)
 		return nil, fmt.Errorf("failed to get events by contract: %w", err)
 	}
@@ -192,7 +192,7 @@ func (s *EventRetrievalService) GetEventsByContractWithMetadata(
 	for _, event := range events {
 		metadata, err := s.metadataStore.GetMetadata(ctx, event.ID)
 		if err != nil {
-			s.logger.Warn("Failed to get metadata for event", "eventId", event.ID, "error", err.Error())
+			s.logger.Warn("Failed to get metadata for event", "eventId", event.ID, "error", err)
 			// Continue with nil metadata if retrieval fails
 			result = append(result, &EventWithMetadata{
 				Event:    event,
@@ -235,7 +235,7 @@ func (s *EventRetrievalService) GetEventsByEventNameWithMetadata(
 	// Get events from MongoDB
 	events, err := s.eventStore.GetEventsByEventName(ctx, eventName, limit, offset)
 	if err != nil {
-		s.logger.Error("Failed to get events by name", "eventName", eventName, "error", err.Error())
+		s.logger.Error("Failed to get events by name", "eventName", eventName, "error", err)
 		s.metrics.RecordCounter("event_retrieval_get_by_name_with_metadata_error", 1, nil)
 		return nil, fmt.Errorf("failed to get events by name: %w", err)
 	}
@@ -249,7 +249,7 @@ func (s *EventRetrievalService) GetEventsByEventNameWithMetadata(
 	for _, event := range events {
 		metadata, err := s.metadataStore.GetMetadata(ctx, event.ID)
 		if err != nil {
-			s.logger.Warn("Failed to get metadata for event", "eventId", event.ID, "error", err.Error())
+			s.logger.Warn("Failed to get metadata for event", "eventId", event.ID, "error", err)
 			// Continue with nil metadata if retrieval fails
 			result = append(result, &EventWithMetadata{
 				Event:    event,

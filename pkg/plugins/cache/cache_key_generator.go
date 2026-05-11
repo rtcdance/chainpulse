@@ -10,7 +10,7 @@ import (
 
 // CacheKeyGenerator generates cache keys for different types of queries.
 //
-//nolint:exported // Renaming would break many external uses.
+// Renaming would break many external uses.
 type CacheKeyGenerator struct {
 	prefix string
 }

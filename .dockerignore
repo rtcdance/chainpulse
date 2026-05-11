@@ -1,0 +1,38 @@
+# Build outputs (keep build/bin/linux/microservices/ for Docker)
+build/bin/linux/chainpulse
+build/bin/linux/microservices/*.test
+bin/
+dist/
+
+# Frontend
+frontend/
+
+# Documentation
+docs/
+*.md
+!go.mod
+!go.sum
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+
+# Docker
+docker/
+
+# Test
+testdata/
+*_test.go
+
+# Compose specs
+.comate/

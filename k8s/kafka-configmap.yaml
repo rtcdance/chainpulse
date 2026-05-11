@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kafka-config
+  namespace: chainpulse
+data:
+  # JAAS config references KAFKA_USERNAME and KAFKA_PASSWORD from the chainpulse-secrets Secret.
+  # The actual credentials are injected via the Kafka Deployment's envFrom.
+  kafka-client.properties: |
+    security.protocol=SASL_PLAINTEXT
+    sasl.mechanism=PLAIN

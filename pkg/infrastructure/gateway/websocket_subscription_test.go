@@ -498,11 +498,13 @@ func TestEventDeliveryChannelFull(t *testing.T) {
 	// Fill channel
 	ch <- &core.BlockchainEvent{ChainID: "ethereum"}
 
-	// Try to deliver (should skip due to full channel)
+	// Try to deliver — channel is full, will wait briefly then count as dropped
 	event := &core.BlockchainEvent{ChainID: "ethereum"}
 	err := deliveryMgr.DeliverEvent(ctx, event)
 
 	assert.NoError(t, err)
+	// Event should be counted as dropped since the channel stays full
+	assert.Equal(t, int64(1), deliveryMgr.GetDroppedCount())
 }
 
 // TestConnectionPoolMaxConnections tests connection pool max connections
@@ -566,4 +568,38 @@ func TestConnectionIDUniqueness(t *testing.T) {
 	conn2, _ := manager.AddConnection(ctx, "client-1")
 
 	assert.NotEqual(t, conn1.ID, conn2.ID)
+}
+
+func TestConcurrentUnregisterAndDeliverNoPanic(t *testing.T) {
+	// Regression test: UnregisterDeliveryChannel used to close the channel,
+	// which could cause DeliverEvent to panic on send-to-closed-channel.
+	subMgr := NewSubscriptionManager()
+	deliveryMgr := NewEventDeliveryManager(subMgr)
+	ctx := context.Background()
+
+	const numSubs = 100
+	var wg sync.WaitGroup
+
+	// Register many subscriptions
+	for i := 0; i < numSubs; i++ {
+		sub, _ := subMgr.Subscribe(ctx, "client-1", "ethereum", "Transfer")
+		ch := make(chan *core.BlockchainEvent, 10)
+		_ = deliveryMgr.RegisterDeliveryChannel(sub.ID, ch)
+
+		// Concurrently unregister and deliver
+		wg.Add(2)
+		go func(subID string) {
+			defer wg.Done()
+			time.Sleep(time.Duration(i%10) * time.Millisecond)
+			_ = deliveryMgr.UnregisterDeliveryChannel(subID)
+		}(sub.ID)
+		go func() {
+			defer wg.Done()
+			time.Sleep(time.Duration(i%10) * time.Millisecond)
+			_ = deliveryMgr.DeliverEvent(ctx, &core.BlockchainEvent{ChainID: "ethereum"})
+		}()
+	}
+
+	wg.Wait()
+	// If we get here without panicking, the test passes.
 }

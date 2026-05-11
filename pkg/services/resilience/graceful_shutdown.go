@@ -27,6 +27,8 @@ type ShutdownHandler struct {
 	inFlightRequests   int64
 	resourceCleanups   []ResourceCleanup
 	resourceCleanupsMu sync.RWMutex
+	wg                 sync.WaitGroup
+	stopSignalCh       chan struct{}
 }
 
 // ShutdownCallback is called during shutdown
@@ -92,16 +94,37 @@ func (h *ShutdownHandler) GetShutdownChan() <-chan struct{} {
 	return h.shutdownChan
 }
 
-// ListenForShutdownSignals listens for shutdown signals
+// ListenForShutdownSignals listens for shutdown signals.
+// Call StopSignalListener() to clean up the goroutine.
 func (h *ShutdownHandler) ListenForShutdownSignals() {
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, h.shutdownSignals...)
 
+	h.stopSignalCh = make(chan struct{})
+
+	h.wg.Add(1)
 	go func() {
-		sig := <-sigChan
-		h.logger.Info(fmt.Sprintf("Received shutdown signal: %v", sig))
-		_ = h.Shutdown(context.Background())
+		defer h.wg.Done()
+		defer signal.Stop(sigChan)
+
+		select {
+		case sig := <-sigChan:
+			h.logger.Info("Received shutdown signal", "signal", sig)
+			if err := h.Shutdown(context.Background()); err != nil {
+				h.logger.Warn("error during graceful shutdown", "error", err)
+			}
+		case <-h.stopSignalCh:
+			// StopSignalListener was called
+		}
 	}()
+}
+
+// StopSignalListener stops the signal listener goroutine and waits for it to exit.
+func (h *ShutdownHandler) StopSignalListener() {
+	if h.stopSignalCh != nil {
+		close(h.stopSignalCh)
+	}
+	h.wg.Wait()
 }
 
 // Shutdown initiates graceful shutdown
@@ -123,13 +146,13 @@ func (h *ShutdownHandler) Shutdown(ctx context.Context) error {
 		// Wait for in-flight requests to complete
 		shutdownErr = h.waitForInFlightRequests(shutdownCtx)
 		if shutdownErr != nil {
-			h.logger.Warn(fmt.Sprintf("Timeout waiting for in-flight requests: %v", shutdownErr))
+			h.logger.Warn("Timeout waiting for in-flight requests", "error", shutdownErr)
 		}
 
 		// Execute shutdown callbacks
 		callbackErr := h.executeShutdownCallbacks(shutdownCtx)
 		if callbackErr != nil {
-			h.logger.Warn(fmt.Sprintf("Error executing shutdown callbacks: %v", callbackErr))
+			h.logger.Warn("Error executing shutdown callbacks", "error", callbackErr)
 			if shutdownErr == nil {
 				shutdownErr = callbackErr
 			}
@@ -138,7 +161,7 @@ func (h *ShutdownHandler) Shutdown(ctx context.Context) error {
 		// Clean up resources
 		cleanupErr := h.cleanupResources(shutdownCtx)
 		if cleanupErr != nil {
-			h.logger.Warn(fmt.Sprintf("Error cleaning up resources: %v", cleanupErr))
+			h.logger.Warn("Error cleaning up resources", "error", cleanupErr)
 			if shutdownErr == nil {
 				shutdownErr = cleanupErr
 			}
@@ -167,7 +190,7 @@ func (h *ShutdownHandler) waitForInFlightRequests(ctx context.Context) error {
 			return nil
 		}
 
-		h.logger.Debug(fmt.Sprintf("Waiting for %d in-flight requests to complete", inFlight))
+		h.logger.Debug("Waiting for in-flight requests to complete", "in_flight", inFlight)
 
 		select {
 		case <-ctx.Done():
@@ -188,11 +211,11 @@ func (h *ShutdownHandler) executeShutdownCallbacks(ctx context.Context) error {
 	var lastErr error
 
 	for i, callback := range callbacks {
-		h.logger.Debug(fmt.Sprintf("Executing shutdown callback %d/%d", i+1, len(callbacks)))
+		h.logger.Debug("Executing shutdown callback", "index", i+1, "total", len(callbacks))
 
 		err := callback(ctx)
 		if err != nil {
-			h.logger.Warn(fmt.Sprintf("Shutdown callback %d failed: %v", i+1, err))
+			h.logger.Warn("Shutdown callback failed", "index", i+1, "error", err)
 			lastErr = err
 		}
 	}
@@ -210,11 +233,11 @@ func (h *ShutdownHandler) cleanupResources(ctx context.Context) error {
 	var lastErr error
 
 	for i, cleanup := range cleanups {
-		h.logger.Debug(fmt.Sprintf("Cleaning up resource %d/%d", i+1, len(cleanups)))
+		h.logger.Debug("Cleaning up resource", "index", i+1, "total", len(cleanups))
 
 		err := cleanup(ctx)
 		if err != nil {
-			h.logger.Warn(fmt.Sprintf("Resource cleanup %d failed: %v", i+1, err))
+			h.logger.Warn("Resource cleanup failed", "index", i+1, "error", err)
 			lastErr = err
 		}
 	}
@@ -268,11 +291,11 @@ func (m *ShutdownManager) ShutdownAll(ctx context.Context) error {
 	var lastErr error
 
 	for name, handler := range handlers {
-		m.logger.Info(fmt.Sprintf("Shutting down handler: %s", name))
+		m.logger.Info("Shutting down handler", "handler", name)
 
 		err := handler.Shutdown(ctx)
 		if err != nil {
-			m.logger.Warn(fmt.Sprintf("Handler %s shutdown failed: %v", name, err))
+			m.logger.Warn("Handler shutdown failed", "handler", name, "error", err)
 			lastErr = err
 		}
 	}

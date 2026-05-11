@@ -22,6 +22,37 @@ var (
 	ErrInvalidTimestamp       = errors.New("invalid timestamp")
 )
 
+// Typed sentinel errors for error classification via errors.Is().
+// Each wraps a SystemError with the appropriate ErrorType so that
+// DefaultErrorClassifier can use type assertions instead of string matching.
+
+// Transient errors — retryable, typically network or timeout related.
+var (
+	ErrTimeout           = NewSystemError(ErrorTypeTransient, ErrorCodeTimeout, "timeout", nil)
+	ErrConnectionRefused = NewSystemError(ErrorTypeTransient, ErrorCodeNetworkError, "connection refused", nil)
+	ErrConnectionReset   = NewSystemError(ErrorTypeTransient, ErrorCodeNetworkError, "connection reset", nil)
+	ErrUnavailable       = NewSystemError(ErrorTypeTransient, ErrorCodeNetworkError, "service unavailable", nil)
+	ErrDeadlineExceeded  = NewSystemError(ErrorTypeTransient, ErrorCodeTimeout, "deadline exceeded", nil)
+	ErrTemporaryFailure  = NewSystemError(ErrorTypeTransient, ErrorCodeNetworkError, "temporary failure", nil)
+)
+
+// Permanent errors — not retryable, indicate a client or logic error.
+var (
+	ErrUnauthorized      = NewSystemError(ErrorTypePermanent, ErrorCodeValidation, "unauthorized", nil)
+	ErrForbidden         = NewSystemError(ErrorTypePermanent, ErrorCodeValidation, "forbidden", nil)
+	ErrNotFound          = NewSystemError(ErrorTypePermanent, ErrorCodeNotFound, "not found", nil)
+	ErrBadRequest        = NewSystemError(ErrorTypePermanent, ErrorCodeValidation, "bad request", nil)
+	ErrInvalidState      = NewSystemError(ErrorTypePermanent, ErrorCodeValidation, "invalid state", nil)
+	ErrAuthFailed        = NewSystemError(ErrorTypePermanent, ErrorCodeValidation, "authentication failed", nil)
+)
+
+// Critical errors — require immediate attention, indicate data corruption or system failure.
+var (
+	ErrDataCorruption   = NewSystemError(ErrorTypeCritical, ErrorCodeInternalError, "data corruption", nil)
+	ErrCriticalFailure  = NewSystemError(ErrorTypeCritical, ErrorCodeInternalError, "critical failure", nil)
+	ErrFatalError       = NewSystemError(ErrorTypeCritical, ErrorCodeInternalError, "fatal error", nil)
+)
+
 // Constants for configuration
 const (
 	DefaultWorkerPoolSize = 10
@@ -65,6 +96,10 @@ func (e *SystemError) Error() string {
 	return fmt.Sprintf("[%s] %s: %s", e.Type, e.Code, e.Message)
 }
 
+// Unwrap returns the underlying error, enabling errors.Is() and errors.As()
+// to traverse the error chain through SystemError.
+func (e *SystemError) Unwrap() error { return e.Err }
+
 // WithDetail adds a detail to the error
 func (e *SystemError) WithDetail(key string, value interface{}) *SystemError {
 	e.Details[key] = value
@@ -92,27 +127,37 @@ func ClassifyError(err error) ErrorType {
 		return ErrorTypePermanent
 	}
 
-	// Check if it's a SystemError first
-	if sysErr, ok := err.(*SystemError); ok {
+	// 1. Check if it's a SystemError (covers all typed sentinel errors)
+	var sysErr *SystemError
+	if errors.As(err, &sysErr) {
 		return sysErr.Type
 	}
 
-	// Check for network errors (transient)
-	if netErr, ok := err.(net.Error); ok {
-		if netErr.Timeout() {
-			return ErrorTypeTransient
-		}
+	// 2. Check typed sentinels via errors.Is (handles wrapped errors)
+	if errors.Is(err, ErrTimeout) || errors.Is(err, ErrConnectionRefused) ||
+		errors.Is(err, ErrConnectionReset) || errors.Is(err, ErrUnavailable) ||
+		errors.Is(err, ErrDeadlineExceeded) || errors.Is(err, ErrTemporaryFailure) {
+		return ErrorTypeTransient
+	}
+	if errors.Is(err, ErrDataCorruption) || errors.Is(err, ErrCriticalFailure) ||
+		errors.Is(err, ErrFatalError) {
+		return ErrorTypeCritical
 	}
 
-	// Note: Temporary() is deprecated, but we keep timeout check above
-
-	// Check for syscall errors (transient)
-	if err == syscall.ECONNREFUSED || err == syscall.ECONNRESET || err == syscall.ETIMEDOUT {
+	// 3. Check for net.Error interface (transient network errors)
+	var netErr net.Error
+	if errors.As(err, &netErr) {
 		return ErrorTypeTransient
 	}
 
-	// Check for context deadline exceeded (transient)
-	if err == context.DeadlineExceeded {
+	// 4. Check for syscall errors (transient)
+	if errors.Is(err, syscall.ECONNREFUSED) || errors.Is(err, syscall.ECONNRESET) ||
+		errors.Is(err, syscall.ETIMEDOUT) {
+		return ErrorTypeTransient
+	}
+
+	// 5. Context deadline exceeded (transient)
+	if errors.Is(err, context.DeadlineExceeded) {
 		return ErrorTypeTransient
 	}
 
@@ -186,10 +231,7 @@ func RetryWithBackoff(ctx context.Context, config RetryConfig, operation func() 
 
 // IsContextError checks if error is a context error
 func IsContextError(err error) bool {
-	if err == context.Canceled || err == context.DeadlineExceeded {
-		return true
-	}
-	return false
+	return errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
 }
 
 // WrapError wraps an error with additional context

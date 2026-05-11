@@ -90,6 +90,13 @@ func (m *mockEventStore) GetEventsPaginated(ctx context.Context, cursor string, 
 	return nil, false, nil
 }
 
+func (m *mockEventStore) CountEvents(ctx context.Context) (int64, error) {
+	if m.shouldFail {
+		return 0, errors.New("count events failed")
+	}
+	return 0, nil
+}
+
 func (m *mockEventStore) DeleteExpiredEvents(ctx context.Context) (int64, error) {
 	if m.shouldFail {
 		return 0, errors.New("delete expired failed")

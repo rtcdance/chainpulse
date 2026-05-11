@@ -15,6 +15,7 @@ type InMemoryCache struct {
 	mu      sync.RWMutex
 	started bool
 	stats   core.CacheStats
+	done    chan struct{}
 }
 
 type cacheItem struct {
@@ -27,6 +28,7 @@ func NewInMemoryCache() *InMemoryCache {
 		name:    "inmemory-cache",
 		version: "1.0.0",
 		data:    make(map[string]*cacheItem),
+		done:    make(chan struct{}),
 	}
 }
 
@@ -47,9 +49,12 @@ func (c *InMemoryCache) Start() error {
 
 func (c *InMemoryCache) Stop() error {
 	c.mu.Lock()
-	defer c.mu.Unlock()
 	c.started = false
+	c.mu.Unlock()
+	close(c.done) // Signal cleanup goroutine to exit
+	c.mu.Lock()
 	c.data = make(map[string]*cacheItem)
+	c.mu.Unlock()
 	return nil
 }
 
@@ -120,20 +125,25 @@ func (c *InMemoryCache) cleanup() {
 	ticker := time.NewTicker(1 * time.Minute)
 	defer ticker.Stop()
 
-	for range ticker.C {
-		c.mu.Lock()
-		if !c.started {
-			c.mu.Unlock()
+	for {
+		select {
+		case <-c.done:
 			return
-		}
-
-		now := time.Now()
-		for key, item := range c.data {
-			if now.After(item.expiresAt) {
-				delete(c.data, key)
-				c.stats.EvictionCount++
+		case <-ticker.C:
+			c.mu.Lock()
+			if !c.started {
+				c.mu.Unlock()
+				return
 			}
+
+			now := time.Now()
+			for key, item := range c.data {
+				if now.After(item.expiresAt) {
+					delete(c.data, key)
+					c.stats.EvictionCount++
+				}
+			}
+			c.mu.Unlock()
 		}
-		c.mu.Unlock()
 	}
 }

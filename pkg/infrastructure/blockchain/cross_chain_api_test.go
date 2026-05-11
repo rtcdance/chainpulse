@@ -101,9 +101,7 @@ func TestCrossChainAPIMaxConcurrentQueries(t *testing.T) {
 	cache := &MockDistributedCache{data: make(map[string]interface{})}
 	api := NewCrossChainAPI(nil, cache)
 
-	api.mu.Lock()
-	api.activeQueries = api.maxConcurrentQueries
-	api.mu.Unlock()
+	api.activeQueries.Store(int32(api.maxConcurrentQueries))
 
 	query := &CrossChainQuery{
 		QueryID:     "query-1",
@@ -186,14 +184,10 @@ func TestCrossChainAPIActiveQueries(t *testing.T) {
 	cache := &MockDistributedCache{data: make(map[string]interface{})}
 	api := NewCrossChainAPI(nil, cache)
 
-	api.mu.Lock()
-	assert.Equal(t, 0, api.activeQueries)
-	api.activeQueries = 5
-	api.mu.Unlock()
+	assert.Equal(t, int32(0), api.activeQueries.Load())
+	api.activeQueries.Store(5)
 
-	api.mu.RLock()
-	assert.Equal(t, 5, api.activeQueries)
-	api.mu.RUnlock()
+	assert.Equal(t, int32(5), api.activeQueries.Load())
 }
 
 // TestCrossChainAPIMetricsTracking tests metrics tracking

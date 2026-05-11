@@ -139,16 +139,19 @@ func (p *BaseMQPlugin) Start() error {
 // Stop stops the plugin
 func (p *BaseMQPlugin) Stop() error {
 	p.mu.Lock()
-	defer p.mu.Unlock()
-
 	if !p.isRunning {
+		p.mu.Unlock()
 		return nil
 	}
 
 	p.isRunning = false
 	p.logger.Info("message queue plugin stopping", "name", p.name)
+	p.mu.Unlock()
 
-	// Wait for all in-flight operations to complete
+	// Wait for all in-flight operations to complete.
+	// Must be done outside the lock to avoid deadlock: if an in-flight
+	// operation tries to acquire p.mu (e.g., in PublishMessage), it would
+	// deadlock if we held the lock during Wait().
 	p.inFlightWaitGroup.Wait()
 	p.logger.Info("message queue plugin stopped", "name", p.name)
 
@@ -835,7 +838,8 @@ func (p *BaseMQPlugin) ApplyMQConfiguration(config MQConfiguration) error {
 	p.maxRetries = config.MaxRetries
 	p.retryDelay = config.RetryDelay
 
-	p.logger.Info("MQ configuration applied",
+	p.logger.Info(
+		"MQ configuration applied",
 		"batch_size", config.BatchSize,
 		"max_retries", config.MaxRetries,
 		"retry_delay", config.RetryDelay,

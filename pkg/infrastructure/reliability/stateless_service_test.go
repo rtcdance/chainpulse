@@ -95,6 +95,11 @@ func (m *MockEventStore) GetEventsPaginated(ctx context.Context, cursor string, 
 	return args.Get(0).([]*core.BlockchainEvent), args.Bool(1), args.Error(2)
 }
 
+func (m *MockEventStore) CountEvents(ctx context.Context) (int64, error) {
+	args := m.Called(ctx)
+	return args.Get(0).(int64), args.Error(1)
+}
+
 func (m *MockEventStore) DeleteExpiredEvents(ctx context.Context) (int64, error) {
 	args := m.Called(ctx)
 	return args.Get(0).(int64), args.Error(1)

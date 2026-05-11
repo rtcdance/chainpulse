@@ -3,6 +3,7 @@ package gateway
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -152,7 +153,7 @@ func (agcd *APIGatewayClusterDeployment) Undeploy(ctx context.Context) error {
 		// Deregister service
 		if err := agcd.registry.DeregisterService(ctx, instanceID); err != nil {
 			// Log error but continue with cleanup
-			fmt.Printf("Failed to deregister service %s: %v\n", instanceID, err)
+			slog.Warn("failed to deregister service", "instanceID", instanceID, "error", err)
 		}
 	}
 
@@ -286,8 +287,12 @@ func (agcd *APIGatewayClusterDeployment) GetMetrics() map[string]interface{} {
 
 	for _, gateway := range agcd.gateways {
 		metrics := gateway.metrics.GetMetrics()
-		totalRequests += metrics["total_requests"].(int64)
-		totalErrors += metrics["total_errors"].(int64)
+		if v, ok := metrics["total_requests"].(int64); ok {
+			totalRequests += v
+		}
+		if v, ok := metrics["total_errors"].(int64); ok {
+			totalErrors += v
+		}
 	}
 
 	return map[string]interface{}{

@@ -2,7 +2,6 @@ package resilience
 
 import (
 	"context"
-	"errors"
 	"testing"
 	"time"
 
@@ -38,13 +37,13 @@ func TestDefaultRetryPolicyShouldRetry(t *testing.T) {
 	policy := NewDefaultRetryPolicy(config, errorHandler)
 
 	// Test 1: Should retry on transient error
-	transientErr := errors.New("timeout")
+	transientErr := core.ErrTimeout
 	if !policy.ShouldRetry(0, transientErr) {
 		t.Error("Expected to retry on transient error")
 	}
 
 	// Test 2: Should not retry on permanent error
-	permanentErr := errors.New("invalid configuration")
+	permanentErr := core.ErrBadRequest
 	if policy.ShouldRetry(0, permanentErr) {
 		t.Error("Expected not to retry on permanent error")
 	}
@@ -139,7 +138,7 @@ func TestRetryExecutorTransientError(t *testing.T) {
 	err := executor.Execute(ctx, func() error {
 		attempts++
 		if attempts < 3 {
-			return errors.New("timeout")
+			return core.ErrTimeout
 		}
 		return nil
 	}, "test_source")
@@ -167,7 +166,7 @@ func TestRetryExecutorPermanentError(t *testing.T) {
 	attempts := 0
 	err := executor.Execute(ctx, func() error {
 		attempts++
-		return errors.New("invalid configuration")
+		return core.ErrBadRequest
 	}, "test_source")
 
 	if err == nil {
@@ -200,7 +199,7 @@ func TestRetryExecutorExhaustedRetries(t *testing.T) {
 	attempts := 0
 	err := executor.Execute(ctx, func() error {
 		attempts++
-		return errors.New("timeout")
+		return core.ErrTimeout
 	}, "test_source")
 
 	if err == nil {
@@ -236,7 +235,7 @@ func TestRetryExecutorContextCancellation(t *testing.T) {
 		if attempts == 2 {
 			cancel()
 		}
-		return errors.New("timeout")
+		return core.ErrTimeout
 	}, "test_source")
 
 	if err == nil {
@@ -262,7 +261,7 @@ func TestRetryExecutorWithFallback(t *testing.T) {
 	// Test: Fallback on failure
 	fallbackCalled := false
 	err := executor.ExecuteWithFallback(ctx, func() error {
-		return errors.New("invalid configuration")
+		return core.ErrBadRequest
 	}, func() error {
 		fallbackCalled = true
 		return nil
@@ -292,7 +291,7 @@ func TestRetryableOperation(t *testing.T) {
 	operation := NewRetryableOperation(func() error {
 		attempts++
 		if attempts < 2 {
-			return errors.New("timeout")
+			return core.ErrTimeout
 		}
 		return nil
 	}, config, "test_source")

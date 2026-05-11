@@ -3,6 +3,7 @@ package shared
 import (
 	"context"
 	"fmt"
+	"runtime/debug"
 	"sync"
 	"time"
 )
@@ -83,7 +84,7 @@ func (b *RequestBatcher) Submit(ctx context.Context, id string, payload interfac
 	// Use defer to recover from panic if channel is closed
 	defer func() {
 		if r := recover(); r != nil {
-			_ = r // Channel was closed, ignore the panic
+			debug.PrintStack()
 		}
 	}()
 
@@ -242,7 +243,7 @@ func (b *RequestBatcher) processBatch(batch []*BatchRequest) {
 		func() {
 			defer func() {
 				if r := recover(); r != nil {
-					_ = r // Channel was closed, ignore the panic
+					debug.PrintStack()
 				}
 			}()
 

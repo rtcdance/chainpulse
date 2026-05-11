@@ -4,6 +4,7 @@ package business
 import (
 	"context"
 	"fmt"
+	"log"
 	"sync"
 	"time"
 )
@@ -11,6 +12,14 @@ import (
 // Entity represents a generic entity in the system
 type Entity interface {
 	GetID() string
+}
+
+// logCacheErr logs a cache operation error. Uses the standard logger since
+// AbstractService does not carry a structured logger.
+func logCacheErr(op, key string, err error) {
+	if err != nil {
+		log.Printf("%s: cache %s error for key %s: %v", "AbstractService", op, key, err)
+	}
 }
 
 // BaseService defines a generic service interface for CRUD operations
@@ -140,7 +149,7 @@ func (s *AbstractService) Read(ctx context.Context, id string) (Entity, error) {
 	// Cache result
 	if s.cache != nil && entity != nil {
 		cacheKey := s.getCacheKey("read", id)
-		_ = s.cache.Set(ctx, cacheKey, entity, s.cacheTTL)
+		logCacheErr("set", cacheKey, s.cache.Set(ctx, cacheKey, entity, s.cacheTTL))
 	}
 
 	return entity, nil
@@ -166,7 +175,7 @@ func (s *AbstractService) Update(ctx context.Context, entity Entity) (Entity, er
 	// Invalidate cache for this entity
 	if s.cache != nil {
 		cacheKey := s.getCacheKey("read", entity.GetID())
-		_ = s.cache.Delete(ctx, cacheKey)
+		logCacheErr("delete", cacheKey, s.cache.Delete(ctx, cacheKey))
 	}
 
 	// Invalidate list cache
@@ -195,7 +204,7 @@ func (s *AbstractService) Delete(ctx context.Context, id string) error {
 	// Invalidate cache for this entity
 	if s.cache != nil {
 		cacheKey := s.getCacheKey("read", id)
-		_ = s.cache.Delete(ctx, cacheKey)
+		logCacheErr("delete", cacheKey, s.cache.Delete(ctx, cacheKey))
 	}
 
 	// Invalidate list cache
@@ -240,7 +249,7 @@ func (s *AbstractService) List(ctx context.Context, limit, offset int) ([]Entity
 	// Cache result
 	if s.cache != nil && entities != nil {
 		cacheKey := s.getCacheKey("list", fmt.Sprintf("limit:%d:offset:%d", limit, offset))
-		_ = s.cache.Set(ctx, cacheKey, entities, s.cacheTTL)
+		logCacheErr("set", cacheKey, s.cache.Set(ctx, cacheKey, entities, s.cacheTTL))
 	}
 
 	return entities, nil
@@ -265,7 +274,9 @@ func (s *AbstractService) Query(ctx context.Context, filter map[string]interface
 		cacheKey := s.getCacheKey("query", fmt.Sprintf("filter:%v:limit:%d:offset:%d", filter, limit, offset))
 		if cached, err := s.cache.Get(ctx, cacheKey); err == nil && cached != nil {
 			s.recordCacheHit()
-			return cached.([]Entity), nil
+			if typed, ok := cached.([]Entity); ok {
+				return typed, nil
+			}
 		}
 		s.recordCacheMiss()
 	}
@@ -280,7 +291,7 @@ func (s *AbstractService) Query(ctx context.Context, filter map[string]interface
 	// Cache result
 	if s.cache != nil && entities != nil {
 		cacheKey := s.getCacheKey("query", fmt.Sprintf("filter:%v:limit:%d:offset:%d", filter, limit, offset))
-		_ = s.cache.Set(ctx, cacheKey, entities, s.cacheTTL)
+		logCacheErr("set", cacheKey, s.cache.Set(ctx, cacheKey, entities, s.cacheTTL))
 	}
 
 	return entities, nil

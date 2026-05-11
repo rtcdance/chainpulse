@@ -77,6 +77,7 @@ func main() {
 	dbManager := database.NewDatabaseManager(
 		dbConfig.MongoDBURI,
 		dbConfig.PostgresURL,
+		dbConfig.PostgresSSLMode,
 		dbConfig.PoolSize,
 		dbConfig.GetTimeout(),
 	)
@@ -210,11 +211,12 @@ func main() {
 	fmt.Println("  [2/3] Runtime HTTP health surface started")
 
 	// Start Multi-Chain Data Puller polling loop
+	pullerCtx, pullerCancel := context.WithCancel(context.Background())
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
 		runPullerLoop(
-			context.Background(),
+			pullerCtx,
 			multiChainPuller,
 			config,
 			logger,
@@ -255,6 +257,10 @@ func main() {
 	fmt.Println("Shutting Down Services:")
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
+
+	// Signal puller loop to stop
+	pullerCancel()
+	fmt.Println("  [0/3] Puller loop signaled to stop")
 
 	// Stop Kafka Message Queue
 	if err := runtimeHTTPServer.Shutdown(shutdownCtx); err != nil {
@@ -429,12 +435,15 @@ func buildPullerSecurityControls(config PullerConfig, logger core.Logger, metric
 			if !ok {
 				return nil, nil, fmt.Errorf("invalid PULLER_AUTH_API_KEYS entry %q; expected key=clientID or key:clientID", entry)
 			}
-			if err := tokenValidator.RegisterAPIKey(apiKey, clientID); err != nil {
+			if err := tokenValidator.RegisterAPIKey(apiKey, clientID, "operator"); err != nil {
 				return nil, nil, err
 			}
 		}
 
 		rbacChecker := api.NewRBACChecker(logger, metrics)
+		if err := rbacChecker.RegisterDefaultRoles(); err != nil {
+			return nil, nil, fmt.Errorf("failed to register default RBAC roles: %w", err)
+		}
 		auditLogger := api.NewAuditLogger(logger, metrics)
 		authMiddleware = api.NewAuthMiddleware(tokenValidator, rbacChecker, auditLogger, logger, metrics)
 	}

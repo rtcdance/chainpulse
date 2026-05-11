@@ -28,7 +28,19 @@ type LogEntry struct {
 	Fields        map[string]interface{} `json:"fields,omitempty"`
 }
 
-// NewDefaultLogger creates a new logger instance
+// NewProductionLogger returns a slog-backed Logger (Go 1.21+ standard).
+// This is the recommended constructor for production deployments.
+func NewProductionLogger() Logger {
+	return NewSlogLogger(LogLevelInfo, "json")
+}
+
+// NewProductionLoggerWithLevel returns a slog-backed Logger with the specified level.
+func NewProductionLoggerWithLevel(level LogLevel) Logger {
+	return NewSlogLogger(level, "json")
+}
+
+// NewDefaultLogger creates a new logger instance.
+// Deprecated: Use NewProductionLogger or NewSlogLogger for slog-backed logging.
 func NewDefaultLogger(level LogLevel) *DefaultLogger {
 	return &DefaultLogger{
 		level:           level,

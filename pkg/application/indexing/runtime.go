@@ -16,7 +16,7 @@ type EventEnvelope struct {
 	ChainID          string
 	BlockNumber      uint64
 	TransactionHash  string
-	LogIndex         uint
+	LogIndex         uint64
 	Payload          interface{}
 	ReceivedAt       time.Time
 	CheckpointCursor string

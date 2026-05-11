@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"chainpulse/pkg/core"
 )
@@ -17,6 +18,7 @@ func TestEventSubscriptionHandlerRateLimitsHandshakeWithoutContext(t *testing.T)
 	handler.SetRateLimiter(NewRateLimiter(logger, metrics, &RateLimitConfig{
 		DefaultRequestsPerSecond: 1,
 		DefaultBurstSize:         1,
+		CleanupInterval:          5 * time.Minute,
 	}))
 
 	req1 := httptest.NewRequest(http.MethodGet, "/events/subscribe", nil)
@@ -52,6 +54,7 @@ func TestEventSubscriptionHandlerSkipsDirectRateLimitWhenContextAlreadyLimited(t
 	handler.SetRateLimiter(NewRateLimiter(logger, metrics, &RateLimitConfig{
 		DefaultRequestsPerSecond: 1,
 		DefaultBurstSize:         1,
+		CleanupInterval:          5 * time.Minute,
 	}))
 
 	req := httptest.NewRequest(http.MethodGet, "/events/subscribe", nil)

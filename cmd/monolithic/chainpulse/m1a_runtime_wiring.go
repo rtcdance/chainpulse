@@ -32,6 +32,7 @@ type monolithicPullerRuntime struct {
 	loopChains  map[string]*monolithicPullLoopRuntime
 	backoffBase time.Duration
 	backoffMax  time.Duration
+	ctx         context.Context
 }
 
 type monolithicBlockSnapshotStore interface {
@@ -70,6 +71,7 @@ type monolithicPullLoopRuntime struct {
 }
 
 func newMonolithicPullerRuntime(
+	ctx context.Context,
 	baseConfig core.Config,
 	rawNodeURLs string,
 	chains []string,
@@ -105,15 +107,17 @@ func newMonolithicPullerRuntime(
 		loopChains:  make(map[string]*monolithicPullLoopRuntime, len(chains)),
 		backoffBase: 250 * time.Millisecond,
 		backoffMax:  5 * time.Second,
+		ctx:         ctx,
 	}
 
 	for idx, chainID := range chains {
 		pullerConfig := baseConfig
+		pullerConfig.ChainID = chainID
 		pullerConfig.ServiceName = chainID
 		pullerConfig.BlockchainNodeURL = nodeURLs[idx]
-		fmt.Printf("  [DEBUG] Creating puller for chain=%s, nodeURL=%s\n", chainID, nodeURLs[idx])
+		logger.Debug("creating puller", "chain", chainID, "nodeURL", nodeURLs[idx])
 		puller := pullers.NewHTTPSJSONRPCPuller(pullerConfig, logger, metrics, eventBus)
-		if err := puller.SubscribeToEvents(context.Background(), runtime.observeEvent); err != nil {
+		if err := puller.SubscribeToEvents(ctx, runtime.observeEvent); err != nil {
 			return nil, err
 		}
 		runtime.pullers = append(runtime.pullers, puller)
@@ -124,9 +128,16 @@ func newMonolithicPullerRuntime(
 				logger,
 				reorgThreshold,
 				reorgThreshold*10,
-			),
+			).WithChainID(chainID).WithEventBus(runtime.eventBus),
 			chainID: chainID,
 		}
+		// Inject RPC-backed block hash provider so reorg detection
+		// compares local hashes against the live canonical chain.
+		rpcProvider := pullers.NewRPCBlockHashProvider(puller)
+		runtime.reorgChains[chainID].handler.SetBlockHashProvider(rpcProvider)
+		// Note: SetIdempotencyInvalidator should be called here if an
+		// IdempotencyService is available in the runtime, so that re-indexed
+		// events after a reorg are not rejected as duplicates.
 		runtime.loopChains[chainID] = &monolithicPullLoopRuntime{
 			chainID: chainID,
 			state:   "primed",
@@ -292,7 +303,7 @@ func (m *monolithicPullerRuntime) observeEvent(event core.BlockchainEvent) {
 		return
 	}
 
-	ctx := context.Background()
+	ctx := m.ctx
 	reorgDetected, reorgBlock, err := chainRuntime.handler.DetectReorg(ctx, event.BlockNumber, event.BlockHash)
 	if err != nil {
 		chainRuntime.recordError(err)
@@ -589,7 +600,7 @@ func subscribeMonolithicIndexer(
 	multiChainIndexer *indexing.MultiChainIndexer,
 	logger core.Logger,
 ) error {
-	return eventBus.Subscribe(ctx, monolithicEventTopic, func(payload interface{}) {
+	_, err := eventBus.Subscribe(ctx, monolithicEventTopic, func(payload interface{}) {
 		event, ok := payload.(core.BlockchainEvent)
 		if !ok {
 			logger.Warn("ignored unexpected monolithic event payload", "topic", monolithicEventTopic)
@@ -602,6 +613,7 @@ func subscribeMonolithicIndexer(
 			logger.Error("failed to route monolithic event to indexer", "chain_id", eventCopy.ChainID, "error", err.Error())
 		}
 	})
+	return err
 }
 
 func parseNodeURLs(raw string) ([]string, error) {

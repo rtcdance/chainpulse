@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
+	"go.mongodb.org/mongo-driver/bson"
 
 	"chainpulse/pkg/core"
 )
@@ -164,6 +165,50 @@ func TestMongoDBEventStoreGetEventsByChain(t *testing.T) {
 	if err == nil {
 		t.Error("GetEventsByChain should fail when store is not initialized")
 	}
+}
+
+func TestBuildChainLookupFilter(t *testing.T) {
+	t.Run("all events", func(t *testing.T) {
+		got := buildChainLookupFilter(0)
+		if len(got) != 0 {
+			t.Fatalf("expected empty filter, got %v", got)
+		}
+	})
+
+	t.Run("string chain match", func(t *testing.T) {
+		got := buildChainLookupFilter(1)
+		chainFilterValue, ok := got["chainId"]
+		if !ok {
+			t.Fatalf("expected chainId filter, got %v", got)
+		}
+		inFilter, ok := chainFilterValue.(bson.M)
+		if !ok {
+			t.Fatalf("expected chainId filter map, got %T", chainFilterValue)
+		}
+		values, ok := inFilter["$in"].([]interface{})
+		if !ok {
+			t.Fatalf("expected $in slice, got %T", inFilter["$in"])
+		}
+		// After ChainID string migration, $in contains only string values
+		if len(values) < 1 {
+			t.Fatalf("expected at least 1 value, got %v", values)
+		}
+		for _, v := range values {
+			if _, isStr := v.(string); !isStr {
+				t.Errorf("expected string value in $in, got %T: %v", v, v)
+			}
+		}
+		// Must include "1" (numeric string for chain ID 1)
+		found := false
+		for _, v := range values {
+			if v == "1" {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf("expected $in to include \"1\", got %v", values)
+		}
+	})
 }
 
 // TestMongoDBEventStoreGetEventsByContract tests contract event retrieval

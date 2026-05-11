@@ -55,7 +55,7 @@ func (rc *RBACChecker) RegisterRole(role string, permissions []string) error {
 	defer rc.mu.Unlock()
 
 	rc.rolePermissions[role] = permissions
-	rc.logger.Info(fmt.Sprintf("Registered role: %s with %d permissions", role, len(permissions)))
+	rc.logger.Info("Registered role", "role", role, "permissions", len(permissions))
 	return nil
 }
 
@@ -69,7 +69,7 @@ func (rc *RBACChecker) RegisterEndpointRoles(endpoint string, roles []string) er
 	defer rc.mu.Unlock()
 
 	rc.endpointRoles[endpoint] = roles
-	rc.logger.Info(fmt.Sprintf("Registered endpoint %s with required roles: %v", endpoint, roles))
+	rc.logger.Info("Registered endpoint roles", "endpoint", endpoint, "roles", roles)
 	return nil
 }
 
@@ -83,7 +83,7 @@ func (rc *RBACChecker) RegisterEndpointPermissions(endpoint string, permissions 
 	defer rc.mu.Unlock()
 
 	rc.endpointPermissions[endpoint] = permissions
-	rc.logger.Info(fmt.Sprintf("Registered endpoint %s with required permissions: %v", endpoint, permissions))
+	rc.logger.Info("Registered endpoint permissions", "endpoint", endpoint, "permissions", permissions)
 	return nil
 }
 
@@ -219,4 +219,87 @@ func (rc *RBACChecker) GetEndpointRequirements(endpoint string) ([]string, []str
 	defer rc.mu.RUnlock()
 
 	return rc.endpointRoles[endpoint], rc.endpointPermissions[endpoint]
+}
+
+// RegisterDefaultRoles registers the standard ChainPulse roles and endpoint mappings.
+// Must be called after NewRBACChecker to enable RBAC enforcement.
+//
+// Roles:
+//   - admin: full access to all endpoints and operations
+//   - operator: read-write access, excluding admin API key management
+//   - viewer: read-only access to queries, status, and health
+func (rc *RBACChecker) RegisterDefaultRoles() error {
+	// --- Define role → permissions ---
+	if err := rc.RegisterRole("admin", []string{
+		"*", // full wildcard
+	}); err != nil {
+		return err
+	}
+
+	if err := rc.RegisterRole("operator", []string{
+		"events:*",
+		"blocks:*",
+		"chains:*",
+		"indexing:*",
+		"query:*",
+		"runtime:*",
+		"health:*",
+		"status:*",
+		"dlq:*",
+		"replay:*",
+	}); err != nil {
+		return err
+	}
+
+	if err := rc.RegisterRole("viewer", []string{
+		"events:read",
+		"blocks:read",
+		"chains:read",
+		"query:read",
+		"health:read",
+		"status:read",
+	}); err != nil {
+		return err
+	}
+
+	// --- Define endpoint → required roles ---
+	// Note: endpoints are registered WITHOUT /api/v1 prefix so they match
+	// the actual route paths. The auth middleware normalises incoming
+	// request paths before the RBAC lookup.
+	adminEndpoints := map[string][]string{
+		"/admin/keys":      {"admin"},
+		"/admin/keys/{id}": {"admin"},
+	}
+	for endpoint, roles := range adminEndpoints {
+		if err := rc.RegisterEndpointRoles(endpoint, roles); err != nil {
+			return err
+		}
+	}
+
+	operatorEndpoints := map[string][]string{
+		"/indexing/start":   {"admin", "operator"},
+		"/indexing/stop":    {"admin", "operator"},
+		"/indexing/restart": {"admin", "operator"},
+		"/dlq/replay":       {"admin", "operator"},
+		"/runtime/control":  {"admin", "operator"},
+	}
+	for endpoint, roles := range operatorEndpoints {
+		if err := rc.RegisterEndpointRoles(endpoint, roles); err != nil {
+			return err
+		}
+	}
+
+	// Write endpoints require operator+
+	writeEndpoints := map[string][]string{
+		"/events/subscribe":   {"admin", "operator"},
+		"/events/unsubscribe": {"admin", "operator"},
+	}
+	for endpoint, roles := range writeEndpoints {
+		if err := rc.RegisterEndpointRoles(endpoint, roles); err != nil {
+			return err
+		}
+	}
+
+	rc.logger.Info("Registered default RBAC roles (admin, operator, viewer) and endpoint mappings")
+	return nil
 }

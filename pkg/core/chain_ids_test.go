@@ -1,0 +1,127 @@
+package core
+
+import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+)
+
+func TestResolveChainID(t *testing.T) {
+	tests := []struct {
+		input string
+		want  int
+	}{
+		{input: "1", want: 1},
+		{input: "ethereum", want: 1},
+		{input: "polygon", want: 137},
+		{input: "base", want: 8453},
+		{input: "zksync", want: 324},
+		{input: "scroll", want: 534352},
+		{input: "linea", want: 59144},
+		{input: "mantle", want: 5000},
+		{input: "unknown", want: 0},
+	}
+
+	for _, tt := range tests {
+		if got := ResolveChainID(tt.input); got != tt.want {
+			t.Fatalf("ResolveChainID(%q)=%d want %d", tt.input, got, tt.want)
+		}
+	}
+}
+
+func TestResolveChainName(t *testing.T) {
+	tests := []struct {
+		id   int
+		want string
+	}{
+		{id: 1, want: "ethereum"},
+		{id: 137, want: "polygon"},
+		{id: 56, want: "bsc"},
+		{id: 42161, want: "arbitrum"},
+		{id: 10, want: "optimism"},
+		{id: 8453, want: "base"},
+		{id: 43114, want: "avalanche"},
+		{id: 324, want: "zksync"},
+		{id: 534352, want: "scroll"},
+		{id: 0, want: "0"},
+		{id: 99999, want: "99999"},
+	}
+
+	for _, tt := range tests {
+		if got := ResolveChainName(tt.id); got != tt.want {
+			t.Fatalf("ResolveChainName(%d)=%q want %q", tt.id, got, tt.want)
+		}
+	}
+}
+
+func TestGetRollupType(t *testing.T) {
+	tests := []struct {
+		chainID int
+		want    RollupType
+	}{
+		{1, RollupNone},          // Ethereum L1
+		{137, RollupNone},        // Polygon
+		{42161, RollupOptimistic}, // Arbitrum
+		{10, RollupOptimistic},    // Optimism
+		{8453, RollupOptimistic},  // Base
+		{5000, RollupOptimistic},  // Mantle
+		{324, RollupZK},           // zkSync Era
+		{534352, RollupZK},        // Scroll
+		{59144, RollupZK},         // Linea
+		{99999, RollupNone},       // Unknown
+	}
+
+	for _, tt := range tests {
+		got := GetRollupType(tt.chainID)
+		assert.Equal(t, tt.want, got, "GetRollupType(%d)", tt.chainID)
+	}
+}
+
+func TestGetL2ChainInfo(t *testing.T) {
+	t.Run("arbitrum info", func(t *testing.T) {
+		info := GetL2ChainInfo(42161)
+		assert.NotNil(t, info)
+		assert.Equal(t, RollupOptimistic, info.RollupType)
+		assert.Equal(t, 1, info.L1ChainID)
+		assert.Equal(t, "arbitrum", info.Name)
+		assert.Greater(t, info.FinalityBlocks, 0)
+	})
+
+	t.Run("zksync info", func(t *testing.T) {
+		info := GetL2ChainInfo(324)
+		assert.NotNil(t, info)
+		assert.Equal(t, RollupZK, info.RollupType)
+		assert.Equal(t, 1, info.L1ChainID)
+		assert.Equal(t, "zksync", info.Name)
+	})
+
+	t.Run("non-L2 returns nil", func(t *testing.T) {
+		info := GetL2ChainInfo(1)
+		assert.Nil(t, info)
+	})
+
+	t.Run("unknown chain returns nil", func(t *testing.T) {
+		info := GetL2ChainInfo(99999)
+		assert.Nil(t, info)
+	})
+}
+
+func TestRollupTypeString(t *testing.T) {
+	assert.Equal(t, "none", RollupNone.String())
+	assert.Equal(t, "optimistic", RollupOptimistic.String())
+	assert.Equal(t, "zk", RollupZK.String())
+}
+
+func TestIsL2ChainIncludesNewChains(t *testing.T) {
+	assert.True(t, IsL2Chain(324), "zkSync Era should be L2")
+	assert.True(t, IsL2Chain(534352), "Scroll should be L2")
+	assert.True(t, IsL2Chain(59144), "Linea should be L2")
+	assert.True(t, IsL2Chain(5000), "Mantle should be L2")
+	assert.False(t, IsL2Chain(1), "Ethereum L1 should not be L2")
+}
+
+func TestGetChainTypeIncludesNewEVMChains(t *testing.T) {
+	assert.Equal(t, "EVM", GetChainType("324"))
+	assert.Equal(t, "EVM", GetChainType("534352"))
+	assert.Equal(t, "EVM", GetChainType("59144"))
+}

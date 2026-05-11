@@ -2,6 +2,7 @@ package decoder
 
 import (
 	"fmt"
+	"math/big"
 
 	"chainpulse/pkg/core"
 	"github.com/ethereum/go-ethereum/accounts/abi"
@@ -69,14 +70,15 @@ func (ed *EventDecoder) DecodeEvent(
 		NonIndexed: make(map[string]interface{}),
 	}
 
-	// Decode indexed parameters from topics
+	// Decode indexed parameters from topics with type-aware decoding
 	topicIndex := 1
 	for _, input := range event.Inputs {
 		if input.Indexed {
 			if topicIndex < len(rawEvent.Topics) {
 				topic := rawEvent.Topics[topicIndex]
-				decoded.Indexed[input.Name] = topic.Hex()
-				decoded.Parameters[input.Name] = topic.Hex()
+				val := decodeIndexedTopic(input.Type.String(), topic)
+				decoded.Indexed[input.Name] = val
+				decoded.Parameters[input.Name] = val
 				topicIndex++
 			}
 		}
@@ -195,4 +197,30 @@ func (ed *EventDecoder) GetEventSignatures(contractName string) (map[string]comm
 	}
 
 	return signatures, nil
+}
+
+// decodeIndexedTopic performs type-aware decoding of an indexed topic.
+// EVM topics are 32 bytes left-padded; address types need the last 20 bytes,
+// uint/int types need big.Int conversion, bool needs the last byte, etc.
+func decodeIndexedTopic(abiType string, topic common.Hash) interface{} {
+	switch abiType {
+	case "address":
+		return common.BytesToAddress(topic.Bytes()[12:]).Hex()
+	case "bool":
+		return topic.Bytes()[31] != 0
+	case "uint8", "uint16", "uint32", "uint64", "uint128", "uint256":
+		return new(big.Int).SetBytes(topic.Bytes()).String()
+	case "int8", "int16", "int32", "int64", "int128", "int256":
+		v := new(big.Int).SetBytes(topic.Bytes())
+		bitLen := v.BitLen()
+		if bitLen > 0 && bitLen == 256 && v.Bit(255) == 1 {
+			v.Sub(v, new(big.Int).Lsh(big.NewInt(1), 256))
+		}
+		return v.String()
+	case "bytes32":
+		return "0x" + common.Bytes2Hex(topic.Bytes())
+	default:
+		// Fallback: return raw hex for unknown types
+		return topic.Hex()
+	}
 }
