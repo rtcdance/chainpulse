@@ -19,13 +19,13 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version-file: go.mod
+          go-version: '1.25'
           cache: true
 
       - name: Vet
         run: |
           rm -f go.work go.work.sum
-          go vet ./pkg/... ./cmd/microservices/... ./cmd/monolithic/...
+          go vet ./...
 
       - name: Format check
         run: |
@@ -37,7 +37,7 @@ jobs:
           fi
 
       - name: Test (short, with race detector)
-        run: go test -race -short -timeout 120s ./pkg/... ./cmd/microservices/... ./cmd/monolithic/...
+        run: go test -race -short -timeout 120s ./...
 
       - name: Build monolithic
         run: go build ./cmd/monolithic/chainpulse/

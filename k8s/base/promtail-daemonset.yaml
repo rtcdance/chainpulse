@@ -1,0 +1,103 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: promtail-config
+  namespace: chainpulse
+data:
+  promtail.yaml: |
+    server:
+      http_listen_port: 9080
+      grpc_listen_port: 0
+
+    clients:
+      - url: http://loki:3100/loki/api/v1/push
+
+    positions:
+      filename: /tmp/positions.yaml
+
+    scrape_configs:
+      - job_name: kubernetes-pods
+        kubernetes_sd_configs:
+          - role: pod
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_label_app]
+            target_label: app
+          - source_labels: [__meta_kubernetes_namespace]
+            target_label: namespace
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: pod
+          - source_labels: [__meta_kubernetes_pod_container_name]
+            target_label: container
+          - action: drop
+            regex: ''
+            source_labels: [__meta_kubernetes_pod_label_app]
+        pipeline_stages:
+          - match:
+              selector: '{app=~"chainpulse.*"}'
+              stages:
+                - json:
+                    expressions:
+                      level: level
+                      msg: msg
+                      caller: caller
+                - labels:
+                    level:
+                    caller:
+      - job_name: journal
+        journal:
+          path: /var/log/journal
+        relabel_configs:
+          - source_labels: [__journal__systemd_unit]
+            target_label: unit
+
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: promtail
+  namespace: chainpulse
+spec:
+  selector:
+    matchLabels:
+      app: promtail
+  template:
+    metadata:
+      labels:
+        app: promtail
+    spec:
+      serviceAccountName: chainpulse
+      containers:
+      - name: promtail
+        image: grafana/promtail:3.0
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            cpu: 200m
+            memory: 128Mi
+        args:
+        - -config.file=/etc/promtail/promtail.yaml
+        volumeMounts:
+        - name: promtail-config
+          mountPath: /etc/promtail
+        - name: varlog
+          mountPath: /var/log
+          readOnly: true
+        - name: podlogs
+          mountPath: /var/log/pods
+          readOnly: true
+        - name: positions
+          mountPath: /tmp
+      volumes:
+      - name: promtail-config
+        configMap:
+          name: promtail-config
+      - name: varlog
+        hostPath:
+          path: /var/log
+      - name: podlogs
+        hostPath:
+          path: /var/log/pods
+      - name: positions
+        emptyDir: {}

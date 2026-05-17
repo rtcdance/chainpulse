@@ -455,7 +455,9 @@ func (g *APIGatewayPlugin) Start() error {
 
 // Stop stops the API gateway gracefully
 func (g *APIGatewayPlugin) Stop() error {
-	return g.ShutdownWithContext(context.Background())
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	return g.ShutdownWithContext(ctx)
 }
 
 // ShutdownWithContext stops the gateway gracefully with a context deadline,
