@@ -22,6 +22,19 @@ jobs:
           go-version-file: go.mod
           cache: true
 
+      - name: Fix Go 1.25 module resolution
+        run: go env -w GOFLAGS="" GONOSUMCHECK="*"
+
+      - name: Debug Go env
+        run: |
+          echo "GOROOT=$(go env GOROOT)"
+          echo "GOPATH=$(go env GOPATH)"
+          echo "GOFLAGS=$(go env GOFLAGS)"
+          echo "GOEXPERIMENT=$(go env GOEXPERIMENT)"
+          go env GONOSUMCHECK
+          echo "--- checking GOROOT for chainpulse ---"
+          ls /opt/hostedtoolcache/go/1.25.0/x64/src/ 2>/dev/null | grep -i chain || echo "no chainpulse dir in GOROOT src"
+
       - name: Vet
         run: |
           rm -f go.work go.work.sum
