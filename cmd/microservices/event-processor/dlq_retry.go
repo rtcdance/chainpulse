@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 const (

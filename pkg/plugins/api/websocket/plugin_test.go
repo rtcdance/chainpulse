@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"chainpulse/pkg/plugins/api/core"
-	"chainpulse/pkg/plugins/api/shared"
+	"github.com/rtcdance/chainpulse/pkg/plugins/api/core"
+	"github.com/rtcdance/chainpulse/pkg/plugins/api/shared"
 	"github.com/gorilla/websocket"
 )
 

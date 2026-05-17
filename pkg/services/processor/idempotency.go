@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sync"
 
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 // IdempotencyService provides duplicate detection for events

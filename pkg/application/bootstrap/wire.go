@@ -6,11 +6,11 @@ package bootstrap
 import (
 	"context"
 
-	"chainpulse/pkg/core"
-	"chainpulse/pkg/observability"
-	"chainpulse/pkg/plugins/api"
-	"chainpulse/pkg/services/indexing"
-	"chainpulse/pkg/services/query"
+	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/observability"
+	"github.com/rtcdance/chainpulse/pkg/plugins/api"
+	"github.com/rtcdance/chainpulse/pkg/services/indexing"
+	"github.com/rtcdance/chainpulse/pkg/services/query"
 
 	"github.com/google/wire"
 )

@@ -4,7 +4,7 @@ import (
 	"context"
 	"strings"
 
-	api "chainpulse/pkg/plugins/api"
+	api "github.com/rtcdance/chainpulse/pkg/plugins/api"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"

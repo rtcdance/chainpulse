@@ -7,11 +7,11 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"chainpulse/pkg/core"
-	"chainpulse/pkg/plugins/api"
-	"chainpulse/pkg/services/indexing"
+	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/plugins/api"
+	"github.com/rtcdance/chainpulse/pkg/services/indexing"
 
-	appindexingadapter "chainpulse/pkg/application/bootstrap"
+	appindexingadapter "github.com/rtcdance/chainpulse/pkg/application/bootstrap"
 )
 
 func TestMonolithicRuntimeControlRoute(t *testing.T) {

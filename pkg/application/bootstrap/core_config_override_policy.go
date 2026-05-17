@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 const (

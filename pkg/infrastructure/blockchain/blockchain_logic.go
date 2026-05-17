@@ -6,8 +6,8 @@ import (
 	"sync"
 	"time"
 
-	"chainpulse/pkg/core"
-	"chainpulse/pkg/services/query"
+	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/services/query"
 )
 
 // BlockchainLogic represents blockchain-specific logic and transformations

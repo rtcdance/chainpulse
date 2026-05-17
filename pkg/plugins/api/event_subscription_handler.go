@@ -12,8 +12,8 @@ import (
 
 	"github.com/gorilla/websocket"
 
-	"chainpulse/pkg/core"
-	"chainpulse/pkg/services/query"
+	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/services/query"
 )
 
 // EventSubscriptionHandler handles event subscription requests via WebSocket

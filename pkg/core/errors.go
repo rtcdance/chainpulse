@@ -195,7 +195,7 @@ func ClassifyError(err error) ErrorType {
 	return ErrorTypePermanent
 }
 
-// DEPRECATED: Use chainpulse/pkg/services/resilience.RetryConfig instead.
+// DEPRECATED: Use github.com/rtcdance/chainpulse/pkg/services/resilience.RetryConfig instead.
 // RetryConfig represents retry configuration retained for legacy callers.
 // New code should import the resilience package which provides richer retry
 // with jitter, configurable backoff multipliers, and context-aware execution.
@@ -216,7 +216,7 @@ func DefaultRetryConfig() RetryConfig {
 	}
 }
 
-// DEPRECATED: Use chainpulse/pkg/services/resilience instead.
+// DEPRECATED: Use github.com/rtcdance/chainpulse/pkg/services/resilience instead.
 // RetryWithBackoff retries an operation with exponential backoff.
 // Prefer using services/resilience.RetryExecutor for new code.
 func RetryWithBackoff(ctx context.Context, config RetryConfig, operation func() error) error {

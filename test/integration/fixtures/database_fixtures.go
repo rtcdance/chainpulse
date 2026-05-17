@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 // DatabaseFixture provides database setup and teardown for integration tests

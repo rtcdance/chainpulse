@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core"
 	"go.opentelemetry.io/otel"
 	otelattribute "go.opentelemetry.io/otel/attribute"
 	otelcodes "go.opentelemetry.io/otel/codes"
@@ -209,7 +209,7 @@ func NewDefaultTracer(logger core.Logger, metrics core.MetricsCollector) *Defaul
 		logger:           logger,
 		metricsCollector: metrics,
 		otelProvider:     provider,
-		otelTracer:       provider.Tracer("chainpulse/pkg.observability"),
+		otelTracer:       provider.Tracer("github.com/rtcdance/chainpulse/pkg.observability"),
 	}
 }
 

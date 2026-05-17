@@ -3,7 +3,7 @@ package indexing
 import (
 	"sync"
 
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 // ShadowWriteTracker tracks events that have been written to detect

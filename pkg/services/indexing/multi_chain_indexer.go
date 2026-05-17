@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"sync"
 
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core"
 	"golang.org/x/sync/errgroup"
 )
 

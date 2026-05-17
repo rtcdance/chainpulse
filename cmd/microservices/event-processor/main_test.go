@@ -3,7 +3,7 @@ package main
 import (
 	"testing"
 
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 func TestLoadEventProcessorConfigDefaultsToSecurityDisabled(t *testing.T) {

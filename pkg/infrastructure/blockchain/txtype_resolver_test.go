@@ -9,7 +9,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 
-	core "chainpulse/pkg/core"
+	core "github.com/rtcdance/chainpulse/pkg/core"
 )
 
 func TestNewRPCTxTypeResolver(t *testing.T) {

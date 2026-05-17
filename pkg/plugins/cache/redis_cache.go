@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core"
 
 	"github.com/redis/go-redis/v9"
 )

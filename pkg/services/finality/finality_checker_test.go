@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 // mockLogger implements core.Logger for testing

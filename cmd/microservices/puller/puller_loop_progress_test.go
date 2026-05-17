@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"chainpulse/pkg/core"
-	"chainpulse/pkg/plugins/pullers"
+	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/plugins/pullers"
 )
 
 func TestCapturePullerBlockProgress(t *testing.T) {

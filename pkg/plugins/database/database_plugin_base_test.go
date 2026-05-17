@@ -3,7 +3,7 @@ package database
 import (
 	"testing"
 
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 func newBasePlugin() *BaseDatabasePlugin {

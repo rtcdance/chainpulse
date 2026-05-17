@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 type multiChainPullerTestPlugin struct {

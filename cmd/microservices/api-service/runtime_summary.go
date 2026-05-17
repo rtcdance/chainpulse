@@ -6,9 +6,9 @@ import (
 	"strconv"
 	"time"
 
-	"chainpulse/pkg/core"
-	"chainpulse/pkg/plugins/api"
-	"chainpulse/pkg/services/query"
+	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/plugins/api"
+	"github.com/rtcdance/chainpulse/pkg/services/query"
 )
 
 type apiServiceRuntimeSummaryResponse struct {

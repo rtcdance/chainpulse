@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"chainpulse/pkg/plugins/api"
+	"github.com/rtcdance/chainpulse/pkg/plugins/api"
 )
 
 const (

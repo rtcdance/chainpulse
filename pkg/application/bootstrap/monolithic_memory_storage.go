@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sync"
 
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 // MonolithicMemoryDatabase provides a debug-friendly in-memory implementation

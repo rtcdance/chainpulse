@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"sync"
 
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core"
 
-	plugindatabase "chainpulse/pkg/plugins/database"
+	plugindatabase "github.com/rtcdance/chainpulse/pkg/plugins/database"
 )
 
 type monolithicIndexingStorageDeps struct {

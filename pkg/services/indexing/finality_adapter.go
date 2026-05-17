@@ -6,8 +6,8 @@ import (
 	"sync"
 	"time"
 
-	"chainpulse/pkg/core"
-	"chainpulse/pkg/services/finality"
+	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/services/finality"
 )
 
 // FinalityStrategy defines how a specific chain determines block finality.

@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 const apiV1Prefix = "/api/v1"

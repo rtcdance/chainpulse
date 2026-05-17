@@ -11,12 +11,12 @@ import (
 	"sync"
 	"time"
 
-	"chainpulse/pkg/application/bootstrap"
-	"chainpulse/pkg/core"
-	"chainpulse/pkg/env"
-	"chainpulse/pkg/infrastructure/database"
-	"chainpulse/pkg/plugins/mq"
-	"chainpulse/pkg/plugins/pullers"
+	"github.com/rtcdance/chainpulse/pkg/application/bootstrap"
+	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/env"
+	"github.com/rtcdance/chainpulse/pkg/infrastructure/database"
+	"github.com/rtcdance/chainpulse/pkg/plugins/mq"
+	"github.com/rtcdance/chainpulse/pkg/plugins/pullers"
 )
 
 //nolint:wsl,nlreturn // Command entrypoint is intentionally verbose.

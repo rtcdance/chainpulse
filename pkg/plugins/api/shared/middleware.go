@@ -3,7 +3,7 @@ package shared
 import (
 	"sync"
 
-	"chainpulse/pkg/plugins/api/core"
+	"github.com/rtcdance/chainpulse/pkg/plugins/api/core"
 )
 
 // MiddlewareChain represents a chain of middleware

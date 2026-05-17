@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 // DegradationMode represents the current degradation state

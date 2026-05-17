@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 func newTestPlayground(t *testing.T) *playground {

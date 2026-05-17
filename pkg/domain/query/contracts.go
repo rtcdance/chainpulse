@@ -2,7 +2,7 @@ package query
 
 //go:generate mockgen -destination=mock_service.go -package=query . Service
 
-import "chainpulse/pkg/core"
+import "github.com/rtcdance/chainpulse/pkg/core"
 
 // Request, Result, and Service are type aliases for core.QueryRequest,
 // core.QueryResult, and core.QueryService. The concrete types live in

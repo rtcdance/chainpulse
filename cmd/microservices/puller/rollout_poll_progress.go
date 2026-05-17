@@ -3,7 +3,7 @@ package main
 import (
 	"time"
 
-	"chainpulse/pkg/plugins/api"
+	"github.com/rtcdance/chainpulse/pkg/plugins/api"
 )
 
 func buildPullerPollProgressSnapshot(

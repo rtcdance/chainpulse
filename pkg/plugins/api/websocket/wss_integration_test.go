@@ -15,7 +15,7 @@ import (
 
 	"github.com/gorilla/websocket"
 
-	"chainpulse/pkg/plugins/api/core"
+	"github.com/rtcdance/chainpulse/pkg/plugins/api/core"
 )
 
 // generateTestCertificate generates a self-signed certificate for testing

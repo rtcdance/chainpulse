@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"testing"
 
-	"chainpulse/pkg/core"
-	"chainpulse/pkg/plugins/pullers"
+	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/plugins/pullers"
 	"github.com/ethereum/go-ethereum/common"
 )
 

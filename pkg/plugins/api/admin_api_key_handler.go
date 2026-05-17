@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"time"
 
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 // AdminAPIKeyHandler handles admin API key management endpoints

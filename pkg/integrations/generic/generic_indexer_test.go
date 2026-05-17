@@ -9,8 +9,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"chainpulse/pkg/core"
-	"chainpulse/pkg/services/decoder"
+	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/services/decoder"
 )
 
 // MockLogger for testing

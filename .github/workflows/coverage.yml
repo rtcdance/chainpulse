@@ -115,7 +115,7 @@ jobs:
             # Show which packages are in the coverage file
             echo ""
             echo "Packages in coverage file:"
-            go tool cover -func=coverage.out 2>/dev/null | grep "chainpulse/pkg" | cut -d'/' -f1-3 | sort -u
+            go tool cover -func=coverage.out 2>/dev/null | grep "github.com/rtcdance/chainpulse/pkg" | cut -d'/' -f1-3 | sort -u
             
             # Show summary by package
             echo ""
@@ -178,7 +178,7 @@ jobs:
           echo ""
           echo "Packages in coverage file:"
           if [ -f coverage.out ] && [ -s coverage.out ]; then
-            go tool cover -func=coverage.out 2>/dev/null | grep "chainpulse/pkg" | cut -d'/' -f1-2 | sort -u > /tmp/packages_in_coverage.txt
+            go tool cover -func=coverage.out 2>/dev/null | grep "github.com/rtcdance/chainpulse/pkg" | cut -d'/' -f1-2 | sort -u > /tmp/packages_in_coverage.txt
             cat /tmp/packages_in_coverage.txt
             
             # Find missing packages
@@ -322,7 +322,7 @@ jobs:
               echo '            </div>'
               echo '            <div class="stat-card">'
               echo '                <div class="stat-label">Packages Tested</div>'
-              echo "                <div class=\"stat-value\">$(go tool cover -func=coverage.out 2>/dev/null | grep -c "chainpulse/pkg" || echo "0")</div>"
+              echo "                <div class=\"stat-value\">$(go tool cover -func=coverage.out 2>/dev/null | grep -c "github.com/rtcdance/chainpulse/pkg" || echo "0")</div>"
               echo '            </div>'
               echo '            <div class="stat-card">'
               echo '                <div class="stat-label">Functions Covered</div>'
@@ -343,7 +343,7 @@ jobs:
             } > coverage-enhanced.html
             
             # Add package coverage data
-            go tool cover -func=coverage.out 2>/dev/null | grep "chainpulse/pkg" | awk '{
+            go tool cover -func=coverage.out 2>/dev/null | grep "github.com/rtcdance/chainpulse/pkg" | awk '{
                 package=$1; gsub(/\/[^\/]*$/, "", package);
                 functions=$2;
                 coverage=$NF;
@@ -422,7 +422,7 @@ jobs:
             } > coverage-files-detailed.txt
             
             # Extract all unique files from coverage data and generate report
-            go tool cover -func=coverage.out 2>/dev/null | grep "chainpulse/pkg" | awk -F: '{print $1}' | sort -u | while read file; do
+            go tool cover -func=coverage.out 2>/dev/null | grep "github.com/rtcdance/chainpulse/pkg" | awk -F: '{print $1}' | sort -u | while read file; do
               # Extract package and filename
               package=$(echo "$file" | sed 's|/[^/]*$||')
               filename=$(basename "$file")
@@ -446,7 +446,7 @@ jobs:
               echo ""
               
               # Get unique packages
-              go tool cover -func=coverage.out 2>/dev/null | grep "chainpulse/pkg" | awk -F: '{print $1}' | sed 's|/[^/]*$||' | sort -u | while read package; do
+              go tool cover -func=coverage.out 2>/dev/null | grep "github.com/rtcdance/chainpulse/pkg" | awk -F: '{print $1}' | sed 's|/[^/]*$||' | sort -u | while read package; do
                 echo "### $package"
                 echo ""
                 echo "| File | Functions | Coverage |"

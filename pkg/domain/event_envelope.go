@@ -6,7 +6,7 @@ import (
 	"context"
 	"time"
 
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 // EventEnvelope is an alias for the core EventEnvelope.

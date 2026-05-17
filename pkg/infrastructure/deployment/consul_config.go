@@ -1,6 +1,6 @@
 package deployment
 
-import "chainpulse/pkg/core"
+import "github.com/rtcdance/chainpulse/pkg/core"
 
 // ConsulConfig holds Consul configuration
 type ConsulConfig struct {

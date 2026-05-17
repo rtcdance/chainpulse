@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"chainpulse/pkg/core"
-	"chainpulse/pkg/plugins/api/shared"
+	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/plugins/api/shared"
 	"github.com/graphql-go/graphql/language/ast"
 	"github.com/graphql-go/graphql/language/parser"
 	"github.com/graphql-go/graphql/language/source"

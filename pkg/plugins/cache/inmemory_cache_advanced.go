@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 // Ensure list package is properly imported

@@ -7,10 +7,10 @@ import (
 	"sync"
 	"time"
 
-	"chainpulse/pkg/application/bootstrap"
-	appindexing "chainpulse/pkg/application/indexing"
-	"chainpulse/pkg/core"
-	"chainpulse/pkg/services/processor"
+	"github.com/rtcdance/chainpulse/pkg/application/bootstrap"
+	appindexing "github.com/rtcdance/chainpulse/pkg/application/indexing"
+	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/services/processor"
 )
 
 type eventProcessorSharedRuntimeShadowSnapshot struct {

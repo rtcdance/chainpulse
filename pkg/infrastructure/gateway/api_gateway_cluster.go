@@ -7,8 +7,8 @@ import (
 	"sync"
 	"time"
 
-	"chainpulse/pkg/infrastructure/discovery"
-	"chainpulse/pkg/infrastructure/health"
+	"github.com/rtcdance/chainpulse/pkg/infrastructure/discovery"
+	"github.com/rtcdance/chainpulse/pkg/infrastructure/health"
 )
 
 // APIGatewayClusterConfig represents API gateway cluster configuration

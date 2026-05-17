@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"chainpulse/pkg/observability"
+	"github.com/rtcdance/chainpulse/pkg/observability"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

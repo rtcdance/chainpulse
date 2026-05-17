@@ -3,7 +3,7 @@ package pullers
 import (
 	"testing"
 
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 func TestHexToUint64(t *testing.T) {

@@ -1,6 +1,6 @@
 package deployment
 
-import "chainpulse/pkg/core"
+import "github.com/rtcdance/chainpulse/pkg/core"
 
 // KafkaConfig holds Kafka configuration
 type KafkaConfig struct {

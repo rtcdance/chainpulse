@@ -7,7 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"chainpulse/pkg/infrastructure/database"
+	"github.com/rtcdance/chainpulse/pkg/infrastructure/database"
 	"go.mongodb.org/mongo-driver/mongo"
 )
 

@@ -10,8 +10,8 @@ import (
 	"sync"
 	"time"
 
-	"chainpulse/pkg/core"
-	"chainpulse/pkg/observability"
+	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/observability"
 )
 
 // RequestRouter manages route registration and request forwarding

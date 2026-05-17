@@ -8,7 +8,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 // Subscription represents a WebSocket subscription

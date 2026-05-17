@@ -3,7 +3,7 @@ package api
 import (
 	"testing"
 
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 func TestAPIGatewayPluginDomainBridgeToggle(t *testing.T) {

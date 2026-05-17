@@ -3,7 +3,7 @@ package deployment
 import (
 	"testing"
 
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core"
 
 	"github.com/stretchr/testify/assert"
 )

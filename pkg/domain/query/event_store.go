@@ -5,7 +5,7 @@ package query
 import (
 	"context"
 
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 // EventWriter defines write-only contract for event persistence at the domain boundary.

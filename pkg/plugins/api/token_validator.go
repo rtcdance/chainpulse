@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"

@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 // MockStreamingBackend implements StreamingBackend for testing

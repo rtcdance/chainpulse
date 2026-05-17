@@ -5,9 +5,9 @@ import (
 	"strings"
 	"time"
 
-	"chainpulse/pkg/core"
-	"chainpulse/pkg/env"
-	"chainpulse/pkg/plugins/api"
+	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/env"
+	"github.com/rtcdance/chainpulse/pkg/plugins/api"
 )
 
 // SecurityControlsConfig holds the configuration needed to build auth and rate limit middleware.

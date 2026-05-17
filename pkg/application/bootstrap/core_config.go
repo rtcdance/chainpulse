@@ -1,8 +1,8 @@
 package bootstrap
 
 import (
-	"chainpulse/pkg/core"
-	"chainpulse/pkg/env"
+	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/env"
 )
 
 // CoreConfigOverrides defines additive deployment-mode overrides.

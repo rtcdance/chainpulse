@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 // MonolithicDeployment represents a monolithic deployment mode where all services run in a single binary

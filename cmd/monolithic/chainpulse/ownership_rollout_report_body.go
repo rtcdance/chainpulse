@@ -1,6 +1,6 @@
 package main
 
-import "chainpulse/pkg/plugins/api"
+import "github.com/rtcdance/chainpulse/pkg/plugins/api"
 
 func buildOwnershipRolloutReportBody(details *api.RolloutReportDetails, snapshot ownershipRolloutSummarySnapshot) {
 	if details == nil {

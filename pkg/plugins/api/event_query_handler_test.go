@@ -11,9 +11,9 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 
-	"chainpulse/pkg/core"
-	domainquery "chainpulse/pkg/domain/query"
-	"chainpulse/pkg/services/query"
+	"github.com/rtcdance/chainpulse/pkg/core"
+	domainquery "github.com/rtcdance/chainpulse/pkg/domain/query"
+	"github.com/rtcdance/chainpulse/pkg/services/query"
 )
 
 type mockDomainQueryService struct {

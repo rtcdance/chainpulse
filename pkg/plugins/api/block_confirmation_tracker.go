@@ -10,9 +10,9 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 
-	"chainpulse/pkg/core"
-	"chainpulse/pkg/services/finality"
-	"chainpulse/pkg/services/reorg"
+	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/services/finality"
+	"github.com/rtcdance/chainpulse/pkg/services/reorg"
 )
 
 // BlockConfirmationTracker monitors chain heads and transitions pending events

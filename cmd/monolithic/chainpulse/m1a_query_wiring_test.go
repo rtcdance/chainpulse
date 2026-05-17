@@ -8,13 +8,13 @@ import (
 	"testing"
 	"time"
 
-	"chainpulse/pkg/application/bootstrap"
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/application/bootstrap"
+	"github.com/rtcdance/chainpulse/pkg/core"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 
-	indexingadapter "chainpulse/pkg/application/bootstrap"
+	indexingadapter "github.com/rtcdance/chainpulse/pkg/application/bootstrap"
 )
 
 func TestMonolithicIndexingBackedQuerySurfaceServesEventsFromIndexingDatabase(t *testing.T) {

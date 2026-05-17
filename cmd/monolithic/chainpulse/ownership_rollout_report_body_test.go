@@ -3,7 +3,7 @@ package main
 import (
 	"testing"
 
-	"chainpulse/pkg/plugins/api"
+	"github.com/rtcdance/chainpulse/pkg/plugins/api"
 )
 
 func TestBuildOwnershipRolloutReportBody(t *testing.T) {

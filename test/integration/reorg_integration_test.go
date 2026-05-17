@@ -7,8 +7,8 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 
-	"chainpulse/pkg/core"
-	"chainpulse/pkg/services/reorg"
+	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/services/reorg"
 )
 
 // mockReorgIntegrationDB implements core.DatabasePlugin for reorg integration testing.

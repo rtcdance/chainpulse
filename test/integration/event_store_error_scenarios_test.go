@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"chainpulse/pkg/core"
-	"chainpulse/pkg/services/query"
+	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/services/query"
 )
 
 // TestMongoDBConnectionFailure tests MongoDB connection failure handling

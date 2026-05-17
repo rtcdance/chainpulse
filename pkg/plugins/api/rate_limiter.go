@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 // contextKey is a custom type for context keys to avoid collisions

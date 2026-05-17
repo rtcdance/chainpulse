@@ -6,11 +6,11 @@ import (
 	"testing"
 	"time"
 
-	"chainpulse/pkg/core"
-	domainquery "chainpulse/pkg/domain/query"
-	"chainpulse/pkg/infrastructure/database"
-	"chainpulse/pkg/plugins/api"
-	"chainpulse/pkg/services/query"
+	"github.com/rtcdance/chainpulse/pkg/core"
+	domainquery "github.com/rtcdance/chainpulse/pkg/domain/query"
+	"github.com/rtcdance/chainpulse/pkg/infrastructure/database"
+	"github.com/rtcdance/chainpulse/pkg/plugins/api"
+	"github.com/rtcdance/chainpulse/pkg/services/query"
 	"go.mongodb.org/mongo-driver/mongo"
 )
 

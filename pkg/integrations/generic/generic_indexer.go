@@ -8,8 +8,8 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 
-	"chainpulse/pkg/core"
-	"chainpulse/pkg/services/decoder"
+	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/services/decoder"
 )
 
 // EventHandler defines the interface for handling decoded events

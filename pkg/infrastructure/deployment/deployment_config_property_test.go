@@ -5,7 +5,7 @@ import (
 	"os"
 	"testing"
 
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 // TestPropertyConfigurationValidation tests that configuration validation is consistent

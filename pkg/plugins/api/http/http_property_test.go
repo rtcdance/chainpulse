@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"testing"
 
-	"chainpulse/pkg/plugins/api/core"
+	"github.com/rtcdance/chainpulse/pkg/plugins/api/core"
 )
 
 // Property 1: Request Abstraction Consistency

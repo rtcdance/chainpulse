@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 // MessageQueueFixture provides message queue setup and teardown for integration tests

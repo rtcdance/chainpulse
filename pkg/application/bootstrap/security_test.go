@@ -3,7 +3,7 @@ package bootstrap
 import (
 	"testing"
 
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 func TestBuildSecurityControls_BothDisabled(t *testing.T) {

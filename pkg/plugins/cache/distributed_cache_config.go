@@ -3,8 +3,8 @@ package cache
 import (
 	"time"
 
-	"chainpulse/pkg/core"
-	"chainpulse/pkg/env"
+	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/env"
 )
 
 // DistributedCacheConfig holds configuration for distributed caching

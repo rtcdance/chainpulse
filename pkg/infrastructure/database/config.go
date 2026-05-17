@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"chainpulse/pkg/env"
+	"github.com/rtcdance/chainpulse/pkg/env"
 )
 
 // Config represents database configuration

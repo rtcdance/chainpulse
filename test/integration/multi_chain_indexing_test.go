@@ -10,10 +10,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"chainpulse/pkg/core"
-	"chainpulse/pkg/integrations/generic"
-	"chainpulse/pkg/services/decoder"
-	"chainpulse/pkg/services/indexing"
+	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/integrations/generic"
+	"github.com/rtcdance/chainpulse/pkg/services/decoder"
+	"github.com/rtcdance/chainpulse/pkg/services/indexing"
 )
 
 // MockDatabasePlugin for testing - defined in test_helpers.go

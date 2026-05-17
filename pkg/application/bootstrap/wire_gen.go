@@ -9,7 +9,7 @@ package bootstrap
 import (
 	"context"
 
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 // InitializeMonolithicRuntime creates the monolithic runtime wiring using

@@ -8,8 +8,8 @@ import (
 	"sync"
 	"time"
 
-	"chainpulse/pkg/core"
-	"chainpulse/pkg/infrastructure/database"
+	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/infrastructure/database"
 )
 
 // HealthCheckHandler handles health check requests

@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"chainpulse/pkg/core"
-	"chainpulse/pkg/services/query"
-	"chainpulse/test/integration/fixtures"
+	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/services/query"
+	"github.com/rtcdance/chainpulse/test/integration/fixtures"
 )
 
 // AssertionHelper provides assertion helpers for integration tests

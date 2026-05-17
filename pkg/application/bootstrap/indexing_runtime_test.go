@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	appindexing "chainpulse/pkg/application/indexing"
-	"chainpulse/pkg/core"
+	appindexing "github.com/rtcdance/chainpulse/pkg/application/indexing"
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 func TestBuildMonolithicIndexingRuntimeRequiresLogger(t *testing.T) {

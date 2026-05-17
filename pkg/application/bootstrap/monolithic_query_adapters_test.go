@@ -8,8 +8,8 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 
-	"chainpulse/pkg/core"
-	domainquery "chainpulse/pkg/domain/query"
+	"github.com/rtcdance/chainpulse/pkg/core"
+	domainquery "github.com/rtcdance/chainpulse/pkg/domain/query"
 )
 
 func TestMonolithicIndexingEventStoreFiltersByContractAndName(t *testing.T) {

@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"testing"
 
-	"chainpulse/pkg/plugins/api/core"
+	"github.com/rtcdance/chainpulse/pkg/plugins/api/core"
 )
 
 func skipGraphQLLifecycleTestsInShortMode(t *testing.T) {

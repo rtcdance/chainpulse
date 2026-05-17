@@ -9,10 +9,10 @@ import (
 	"sync"
 	"time"
 
-	"chainpulse/pkg/application/bootstrap"
-	"chainpulse/pkg/core"
-	"chainpulse/pkg/env"
-	"chainpulse/pkg/plugins/api"
+	"github.com/rtcdance/chainpulse/pkg/application/bootstrap"
+	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/env"
+	"github.com/rtcdance/chainpulse/pkg/plugins/api"
 )
 
 //nolint:wsl,nlreturn,funlen // Command entrypoint is intentionally verbose.

@@ -7,10 +7,10 @@ import (
 	"net"
 	"sync"
 
-	api "chainpulse/pkg/plugins/api"
+	api "github.com/rtcdance/chainpulse/pkg/plugins/api"
 	"google.golang.org/grpc"
 
-	"chainpulse/pkg/plugins/api/core"
+	"github.com/rtcdance/chainpulse/pkg/plugins/api/core"
 )
 
 // GRPCPlugin implements the gRPC protocol handler

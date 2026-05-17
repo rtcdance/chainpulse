@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 // TestConfigurationLoading tests loading configuration from environment variables

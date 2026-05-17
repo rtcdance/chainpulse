@@ -11,11 +11,11 @@ import (
 	"sync"
 	"time"
 
-	"chainpulse/pkg/application/bootstrap"
-	"chainpulse/pkg/core"
-	"chainpulse/pkg/env"
-	"chainpulse/pkg/plugins/api"
-	"chainpulse/pkg/plugins/mq"
+	"github.com/rtcdance/chainpulse/pkg/application/bootstrap"
+	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/env"
+	"github.com/rtcdance/chainpulse/pkg/plugins/api"
+	"github.com/rtcdance/chainpulse/pkg/plugins/mq"
 )
 
 func main() {

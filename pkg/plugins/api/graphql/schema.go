@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"chainpulse/pkg/core"
-	domainquery "chainpulse/pkg/domain/query"
+	"github.com/rtcdance/chainpulse/pkg/core"
+	domainquery "github.com/rtcdance/chainpulse/pkg/domain/query"
 
 	"github.com/graphql-go/graphql"
 	"github.com/graphql-go/graphql/language/ast"

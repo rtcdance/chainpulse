@@ -10,8 +10,8 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 
-	"chainpulse/pkg/core"
-	"chainpulse/pkg/observability"
+	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/observability"
 )
 
 // EventStorage persists processed events.

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sync"
 
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 // MockDatabase is a mock implementation of a database for testing

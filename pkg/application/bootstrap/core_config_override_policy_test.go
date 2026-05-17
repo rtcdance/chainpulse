@@ -5,7 +5,7 @@ import (
 	"reflect"
 	"testing"
 
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 func TestValidateCoreConfigOverridesForProfileProductionDenylist(t *testing.T) {

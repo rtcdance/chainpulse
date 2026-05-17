@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 // TestPostgreSQLAdapterInitialization tests adapter initialization

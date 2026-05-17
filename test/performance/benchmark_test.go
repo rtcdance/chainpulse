@@ -4,10 +4,10 @@ import (
 	"context"
 	"testing"
 
-	"chainpulse/pkg/core"
-	"chainpulse/pkg/plugins/cache"
-	"chainpulse/pkg/plugins/database"
-	"chainpulse/pkg/plugins/mq"
+	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/plugins/cache"
+	"github.com/rtcdance/chainpulse/pkg/plugins/database"
+	"github.com/rtcdance/chainpulse/pkg/plugins/mq"
 )
 
 func BenchmarkMemoryMQ_Publish(b *testing.B) {

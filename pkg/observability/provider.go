@@ -6,7 +6,7 @@ import (
 	"os"
 	"sync"
 
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core"
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -136,6 +136,6 @@ func NewDefaultTracerWithProvider(provider *ObservabilityProvider, logger core.L
 		logger:           logger,
 		metricsCollector: metrics,
 		otelProvider:     provider.TracerProvider(),
-		otelTracer:       provider.Tracer(fmt.Sprintf("chainpulse/%s", provider.serviceName)),
+		otelTracer:       provider.Tracer(fmt.Sprintf("github.com/rtcdance/chainpulse/%s", provider.serviceName)),
 	}
 }

@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 // APIError represents a structured API error with consistent JSON output.

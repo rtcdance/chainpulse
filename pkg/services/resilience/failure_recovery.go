@@ -8,7 +8,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 // RecoveryState represents the state that can be persisted and recovered

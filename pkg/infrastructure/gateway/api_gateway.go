@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"chainpulse/pkg/infrastructure/discovery"
+	"github.com/rtcdance/chainpulse/pkg/infrastructure/discovery"
 )
 
 // APIGatewayConfig represents API gateway configuration

@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"chainpulse/pkg/plugins/api"
+	"github.com/rtcdance/chainpulse/pkg/plugins/api"
 )
 
 func TestAPIServiceRolloutReportProducerSkeleton(t *testing.T) {

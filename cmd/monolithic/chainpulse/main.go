@@ -11,13 +11,13 @@ import (
 	"syscall"
 	"time"
 
-	"chainpulse/pkg/application/bootstrap"
-	"chainpulse/pkg/core"
-	"chainpulse/pkg/env"
-	sharedhttp "chainpulse/pkg/infrastructure/http"
-	"chainpulse/pkg/observability"
-	"chainpulse/pkg/plugins/api"
-	"chainpulse/pkg/services/indexing"
+	"github.com/rtcdance/chainpulse/pkg/application/bootstrap"
+	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/env"
+	sharedhttp "github.com/rtcdance/chainpulse/pkg/infrastructure/http"
+	"github.com/rtcdance/chainpulse/pkg/observability"
+	"github.com/rtcdance/chainpulse/pkg/plugins/api"
+	"github.com/rtcdance/chainpulse/pkg/services/indexing"
 )
 
 func run() error {

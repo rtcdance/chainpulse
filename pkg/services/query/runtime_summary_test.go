@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 func TestQueryServiceRuntimeSummaryReady(t *testing.T) {

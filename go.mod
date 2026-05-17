@@ -1,4 +1,4 @@
-module chainpulse
+module github.com/rtcdance/chainpulse
 
 go 1.25.0
 

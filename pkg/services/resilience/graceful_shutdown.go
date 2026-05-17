@@ -10,7 +10,7 @@ import (
 	"syscall"
 	"time"
 
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 // ShutdownHandler manages graceful shutdown of the system

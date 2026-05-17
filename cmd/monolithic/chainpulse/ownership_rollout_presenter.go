@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"io"
 
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 type ownershipRolloutPresenterLine struct {

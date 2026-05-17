@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"chainpulse/pkg/infrastructure/deployment"
+	"github.com/rtcdance/chainpulse/pkg/infrastructure/deployment"
 )
 
 // Integration test for deployment mode support

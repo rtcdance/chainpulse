@@ -11,10 +11,10 @@ import (
 	"sync"
 	"time"
 
-	"chainpulse/pkg/application/bootstrap"
-	appindexing "chainpulse/pkg/application/indexing"
-	"chainpulse/pkg/core"
-	"chainpulse/pkg/plugins/pullers"
+	"github.com/rtcdance/chainpulse/pkg/application/bootstrap"
+	appindexing "github.com/rtcdance/chainpulse/pkg/application/indexing"
+	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/plugins/pullers"
 
 	"github.com/ethereum/go-ethereum/common"
 	"golang.org/x/sync/errgroup"

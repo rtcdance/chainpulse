@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 // EventRetrievalService provides unified event retrieval from MongoDB and PostgreSQL

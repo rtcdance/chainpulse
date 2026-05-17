@@ -7,7 +7,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 // Ensure atomic types are properly imported

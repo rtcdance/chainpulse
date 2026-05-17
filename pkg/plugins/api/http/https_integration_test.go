@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"chainpulse/pkg/plugins/api/core"
+	"github.com/rtcdance/chainpulse/pkg/plugins/api/core"
 )
 
 func skipHTTPIntegrationUnlessEnabled(t *testing.T) {

@@ -3,7 +3,7 @@ package indexing
 import (
 	"testing"
 
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 func TestShadowWriteTracker_MarkAndConsume(t *testing.T) {

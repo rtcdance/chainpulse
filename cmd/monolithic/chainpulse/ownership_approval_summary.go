@@ -1,6 +1,6 @@
 package main
 
-import "chainpulse/pkg/core"
+import "github.com/rtcdance/chainpulse/pkg/core"
 
 type ownershipApprovalSummary struct {
 	ManualApprovalCheckpoint ownershipManualApprovalCheckpoint

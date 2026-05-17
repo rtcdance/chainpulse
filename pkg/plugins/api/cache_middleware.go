@@ -9,8 +9,8 @@ import (
 	"sync"
 	"time"
 
-	"chainpulse/pkg/core"
-	"chainpulse/pkg/plugins/api/shared"
+	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/plugins/api/shared"
 )
 
 // CacheEntry represents a cached response

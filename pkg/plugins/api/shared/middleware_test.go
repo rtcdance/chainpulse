@@ -3,7 +3,7 @@ package shared
 import (
 	"testing"
 
-	"chainpulse/pkg/plugins/api/core"
+	"github.com/rtcdance/chainpulse/pkg/plugins/api/core"
 )
 
 func noopMiddleware(next core.Handler) core.Handler {

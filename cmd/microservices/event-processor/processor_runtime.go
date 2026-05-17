@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"chainpulse/pkg/core"
-	"chainpulse/pkg/plugins/database"
-	"chainpulse/pkg/services/processor"
+	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/plugins/database"
+	"github.com/rtcdance/chainpulse/pkg/services/processor"
 )
 
 type eventProcessorRuntimeProcessor interface {

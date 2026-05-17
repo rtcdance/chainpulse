@@ -8,9 +8,9 @@ import (
 	"strings"
 	"testing"
 
-	"chainpulse/pkg/core"
-	"chainpulse/pkg/plugins/api"
-	"chainpulse/pkg/services/query"
+	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/plugins/api"
+	"github.com/rtcdance/chainpulse/pkg/services/query"
 )
 
 func TestAPIServiceRolloutReportRouteParityMetadataAndBodyBoundaries(t *testing.T) {

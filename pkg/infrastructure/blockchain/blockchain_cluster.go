@@ -7,8 +7,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"chainpulse/pkg/core"
-	"chainpulse/pkg/infrastructure/processing"
+	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/infrastructure/processing"
 )
 
 // DistributedCache defines the interface for distributed caching

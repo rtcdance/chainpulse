@@ -3,8 +3,8 @@ package main
 import (
 	"net/http"
 
-	"chainpulse/pkg/core"
-	"chainpulse/pkg/observability"
+	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/observability"
 )
 
 func buildMonolithicMetricsProvider(metrics core.MetricsCollector, indexerMetrics *observability.IndexerMetrics) func(*http.Request) any {

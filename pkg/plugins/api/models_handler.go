@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"time"
 
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 // ModelsHandler handles model introspection requests

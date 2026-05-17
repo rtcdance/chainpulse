@@ -7,12 +7,12 @@ import (
 	"testing"
 	"time"
 
-	"chainpulse/pkg/core"
-	"chainpulse/pkg/services/indexing"
+	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/services/indexing"
 
 	"github.com/ethereum/go-ethereum/common"
 
-	appindexingadapter "chainpulse/pkg/application/bootstrap"
+	appindexingadapter "github.com/rtcdance/chainpulse/pkg/application/bootstrap"
 )
 
 func TestParseNodeURLs(t *testing.T) {

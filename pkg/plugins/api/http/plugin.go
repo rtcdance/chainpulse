@@ -9,9 +9,9 @@ import (
 	"sync"
 	"time"
 
-	"chainpulse/pkg/observability"
-	"chainpulse/pkg/plugins/api/core"
-	"chainpulse/pkg/plugins/api/shared"
+	"github.com/rtcdance/chainpulse/pkg/observability"
+	"github.com/rtcdance/chainpulse/pkg/plugins/api/core"
+	"github.com/rtcdance/chainpulse/pkg/plugins/api/shared"
 )
 
 // HTTPPlugin implements the HTTP protocol handler

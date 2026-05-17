@@ -4,7 +4,7 @@ import (
 	"context"
 	"sync"
 
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 type MockDB struct {

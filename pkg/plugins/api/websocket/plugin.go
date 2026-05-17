@@ -11,8 +11,8 @@ import (
 
 	"github.com/gorilla/websocket"
 
-	"chainpulse/pkg/plugins/api/core"
-	"chainpulse/pkg/plugins/api/shared"
+	"github.com/rtcdance/chainpulse/pkg/plugins/api/core"
+	"github.com/rtcdance/chainpulse/pkg/plugins/api/shared"
 )
 
 // Plugin implements the WebSocket protocol handler.

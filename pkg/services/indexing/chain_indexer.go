@@ -6,8 +6,8 @@ import (
 	"sync"
 	"time"
 
-	"chainpulse/pkg/core"
-	"chainpulse/pkg/integrations/generic"
+	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/integrations/generic"
 )
 
 type sharedBatchRuntime interface {

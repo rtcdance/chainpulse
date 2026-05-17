@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 // TestKafkaIntegrationPublishAndConsume tests publishing and consuming messages

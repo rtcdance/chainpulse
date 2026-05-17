@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"chainpulse/pkg/plugins/pullers"
+	"github.com/rtcdance/chainpulse/pkg/plugins/pullers"
 )
 
 // 实际项目中的数据拉取集成测试示例

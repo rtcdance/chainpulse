@@ -3,9 +3,9 @@ package deployment
 import (
 	"context"
 
-	"chainpulse/pkg/plugins/cache"
-	"chainpulse/pkg/plugins/database"
-	"chainpulse/pkg/plugins/mq"
+	"github.com/rtcdance/chainpulse/pkg/plugins/cache"
+	"github.com/rtcdance/chainpulse/pkg/plugins/database"
+	"github.com/rtcdance/chainpulse/pkg/plugins/mq"
 )
 
 // RegisterDefaultFactories registers the default in-memory/mock plugin factories.

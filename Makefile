@@ -9,7 +9,7 @@ export PATH := $(GOPATH_BIN):$(PATH)
 
 # 变量
 PROJECT_NAME := chainpulse
-MODULE := chainpulse
+MODULE := github.com/rtcdance/chainpulse
 BUILD_DIR := ./build
 BIN_DIR := $(BUILD_DIR)/bin
 COVERAGE_DIR := $(BUILD_DIR)/coverage

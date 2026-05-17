@@ -11,8 +11,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"chainpulse/pkg/core"
-	"chainpulse/pkg/observability"
+	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/observability"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"

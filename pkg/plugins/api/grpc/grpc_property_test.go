@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"chainpulse/pkg/plugins/api/core"
+	"github.com/rtcdance/chainpulse/pkg/plugins/api/core"
 )
 
 func skipGRPCPropertyLifecycleTestsInShortMode(t *testing.T) {

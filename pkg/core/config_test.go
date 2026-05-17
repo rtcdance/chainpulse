@@ -4,7 +4,7 @@ import (
 	"os"
 	"testing"
 
-	"chainpulse/pkg/env"
+	"github.com/rtcdance/chainpulse/pkg/env"
 )
 
 // TestNewConfigManager verifies config manager creation

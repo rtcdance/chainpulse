@@ -3,7 +3,7 @@ package observability
 import (
 	"time"
 
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 // Metric name constants for RED (Rate/Errors/Duration) observability.

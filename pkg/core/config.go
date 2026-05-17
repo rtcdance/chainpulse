@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"chainpulse/pkg/env"
+	"github.com/rtcdance/chainpulse/pkg/env"
 )
 
 // BlockchainConfig represents configuration for a single blockchain

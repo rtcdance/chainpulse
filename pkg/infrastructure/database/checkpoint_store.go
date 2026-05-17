@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 // PostgresCheckpointStore implements core.CheckpointStore using PostgreSQL

@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 // CacheFixture provides cache setup and teardown for integration tests

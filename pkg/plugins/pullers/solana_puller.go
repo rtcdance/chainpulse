@@ -10,8 +10,8 @@ import (
 	"sync"
 	"time"
 
-	"chainpulse/pkg/core"
-	sharedhttp "chainpulse/pkg/infrastructure/http"
+	"github.com/rtcdance/chainpulse/pkg/core"
+	sharedhttp "github.com/rtcdance/chainpulse/pkg/infrastructure/http"
 
 	"github.com/ethereum/go-ethereum/common"
 )

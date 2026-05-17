@@ -6,7 +6,7 @@ import (
 	"os"
 	"sync"
 
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 // PluginFactory is a function that creates a plugin instance.

@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core"
 	"github.com/stretchr/testify/assert"
 )
 

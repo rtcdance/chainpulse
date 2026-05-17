@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 // ExampleNewEventBus demonstrates basic publish/subscribe with PublishSync.

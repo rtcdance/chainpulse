@@ -5,8 +5,8 @@ import (
 	"strings"
 	"time"
 
-	"chainpulse/pkg/core"
-	"chainpulse/pkg/infrastructure/rpc"
+	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/infrastructure/rpc"
 	"github.com/ethereum/go-ethereum/ethclient"
 )
 

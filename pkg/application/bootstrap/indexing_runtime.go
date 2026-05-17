@@ -8,9 +8,9 @@ import (
 	"sync"
 	"time"
 
-	appindexing "chainpulse/pkg/application/indexing"
-	"chainpulse/pkg/core"
-	serviceindexing "chainpulse/pkg/services/indexing"
+	appindexing "github.com/rtcdance/chainpulse/pkg/application/indexing"
+	"github.com/rtcdance/chainpulse/pkg/core"
+	serviceindexing "github.com/rtcdance/chainpulse/pkg/services/indexing"
 )
 
 type monolithicIndexingRuntimeDeps struct {

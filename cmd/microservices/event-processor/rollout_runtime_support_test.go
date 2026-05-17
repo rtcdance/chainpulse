@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"chainpulse/pkg/core"
-	"chainpulse/pkg/infrastructure/database"
-	"chainpulse/pkg/plugins/api"
+	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/infrastructure/database"
+	"github.com/rtcdance/chainpulse/pkg/plugins/api"
 	"go.mongodb.org/mongo-driver/mongo"
 )
 

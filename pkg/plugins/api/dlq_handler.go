@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"time"
 
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 // DLQHandler handles dead letter queue operations

@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"strings"
 
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 func buildAPIServiceMetricsProvider(metrics core.MetricsCollector) func(*http.Request) any {

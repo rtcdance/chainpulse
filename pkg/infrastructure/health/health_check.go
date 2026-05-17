@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"chainpulse/pkg/infrastructure/discovery"
+	"github.com/rtcdance/chainpulse/pkg/infrastructure/discovery"
 )
 
 // ServiceRegistryInterface defines the interface for service registry operations
