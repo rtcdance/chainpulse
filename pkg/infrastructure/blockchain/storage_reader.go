@@ -51,7 +51,7 @@ func (r *StorageReader) ReadStorageSlot(ctx context.Context, address common.Addr
 		blockNumber = "latest"
 	}
 
-	reqBody := map[string]interface{}{
+	reqBody := map[string]any{
 		"jsonrpc": "2.0",
 		"id":      1,
 		"method":  "eth_getStorageAt",

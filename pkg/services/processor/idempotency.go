@@ -31,6 +31,10 @@ type IdempotencyService interface {
 	// MarkProcessed marks an event as processed
 	MarkProcessed(ctx context.Context, hash string) error
 
+	// WarmUp pre-populates the dedup store from persisted state to
+	// minimize duplicate-key errors after a restart.
+	WarmUp(ctx context.Context, hashes []string) error
+
 	// GetProcessedCount returns the count of processed events
 	GetProcessedCount() int64
 
@@ -84,9 +88,7 @@ func (s *DefaultIdempotencyService) Initialize(config *core.Config) error {
 	s.config = config
 	s.initialized = true
 
-	s.logger.Info("Idempotency service initialized", map[string]interface{}{
-		"component": "idempotency",
-	})
+	s.logger.Info("Idempotency service initialized", core.LogKeyComponent, "idempotency")
 
 	return nil
 }
@@ -111,9 +113,7 @@ func (s *DefaultIdempotencyService) Start() error {
 		Message: "Idempotency service started",
 	}
 
-	s.logger.Info("Idempotency service started", map[string]interface{}{
-		"component": "idempotency",
-	})
+	s.logger.Info("Idempotency service started", core.LogKeyComponent, "idempotency")
 
 	return nil
 }
@@ -130,9 +130,7 @@ func (s *DefaultIdempotencyService) Stop() error {
 	s.running = false
 	s.mu.Unlock()
 
-	s.logger.Info("Idempotency service stopped", map[string]interface{}{
-		"component": "idempotency",
-	})
+	s.logger.Info("Idempotency service stopped", core.LogKeyComponent, "idempotency")
 
 	return nil
 }
@@ -227,6 +225,42 @@ func (s *DefaultIdempotencyService) MarkProcessed(ctx context.Context, hash stri
 	s.metricsCollector.RecordCounter("idempotency_event_marked", 1, map[string]string{})
 	s.metricsCollector.RecordGauge("idempotency_processed_count", float64(s.processedCount), map[string]string{})
 	s.metricsCollector.RecordGauge("idempotency_stored_count", float64(len(s.processedHashes)), map[string]string{})
+
+	return nil
+}
+
+// WarmUp pre-populates the in-memory dedup store to minimize duplicate-key
+// errors after a restart. Only hashes that are not yet tracked are added.
+func (s *DefaultIdempotencyService) WarmUp(_ context.Context, hashes []string) error {
+	if len(hashes) == 0 {
+		return nil
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if !s.running {
+		return fmt.Errorf("idempotency service not running")
+	}
+
+	added := 0
+	for _, hash := range hashes {
+		if hash == "" {
+			continue
+		}
+		if !s.processedHashes[hash] {
+			s.processedHashes[hash] = true
+			added++
+		}
+	}
+
+	if added > 0 {
+		s.logger.Info("idempotency warm-up complete",
+			"total_loaded", len(hashes),
+			"newly_added", added,
+			"total_stored", len(s.processedHashes))
+		s.metricsCollector.RecordCounter("idempotency_warmup_loaded", int64(added), nil)
+	}
 
 	return nil
 }

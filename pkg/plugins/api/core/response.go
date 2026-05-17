@@ -60,7 +60,7 @@ func NewBaseResponse(writer io.Writer) *BaseResponse {
 
 // GetRuntimeMetrics returns a compact runtime surface for response readiness
 // on top of status, body/header coverage, send state, and writer presence.
-func (r *BaseResponse) GetRuntimeMetrics() map[string]interface{} {
+func (r *BaseResponse) GetRuntimeMetrics() map[string]any {
 	headerCount := len(r.headers)
 	bodyBytes := len(r.body)
 	writerConfigured := r.writer != nil
@@ -68,7 +68,7 @@ func (r *BaseResponse) GetRuntimeMetrics() map[string]interface{} {
 	coveragePosture := classifyBaseResponseCoveragePosture(headerCount, bodyBytes)
 	runtimePosture := classifyBaseResponseRuntimePosture(r.headersSent, writerConfigured, bodyBytes)
 
-	return map[string]interface{}{
+	return map[string]any{
 		"status":            r.status,
 		"header_count":      headerCount,
 		"body_bytes":        bodyBytes,

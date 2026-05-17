@@ -128,13 +128,13 @@ func (hc *HealthCheck) GetComponentStatus(component string) HealthStatus {
 }
 
 // GetComponentMetrics returns metrics for a component
-func (hc *HealthCheck) GetComponentMetrics(component string) map[string]interface{} {
+func (hc *HealthCheck) GetComponentMetrics(component string) map[string]any {
 	hc.mu.RLock()
 	ch, ok := hc.components[component]
 	hc.mu.RUnlock()
 
 	if !ok {
-		return map[string]interface{}{
+		return map[string]any{
 			"component": component,
 			"error":     "component not found",
 		}
@@ -144,7 +144,7 @@ func (hc *HealthCheck) GetComponentMetrics(component string) map[string]interfac
 }
 
 // getMetrics returns metrics from component health
-func (ch *ComponentHealth) getMetrics() map[string]interface{} {
+func (ch *ComponentHealth) getMetrics() map[string]any {
 	ch.mu.RLock()
 	defer ch.mu.RUnlock()
 
@@ -158,7 +158,7 @@ func (ch *ComponentHealth) getMetrics() map[string]interface{} {
 		statusStr = "unhealthy"
 	}
 
-	return map[string]interface{}{
+	return map[string]any{
 		"component":          ch.name,
 		"status":             statusStr,
 		"last_check_time":    ch.lastCheckTime,
@@ -206,11 +206,11 @@ func (hc *HealthCheck) GetOverallHealth() HealthStatus {
 }
 
 // GetAllMetrics returns metrics for all components
-func (hc *HealthCheck) GetAllMetrics() map[string]map[string]interface{} {
+func (hc *HealthCheck) GetAllMetrics() map[string]map[string]any {
 	hc.mu.RLock()
 	defer hc.mu.RUnlock()
 
-	result := make(map[string]map[string]interface{})
+	result := make(map[string]map[string]any)
 	for name, ch := range hc.components {
 		result[name] = ch.getMetrics()
 	}
@@ -219,7 +219,7 @@ func (hc *HealthCheck) GetAllMetrics() map[string]map[string]interface{} {
 }
 
 // GetHealthSummary returns a summary of overall health
-func (hc *HealthCheck) GetHealthSummary() map[string]interface{} {
+func (hc *HealthCheck) GetHealthSummary() map[string]any {
 	hc.mu.RLock()
 	defer hc.mu.RUnlock()
 
@@ -253,7 +253,7 @@ func (hc *HealthCheck) GetHealthSummary() map[string]interface{} {
 	coveragePosture := classifyHealthCoveragePosture(len(hc.components), healthyCount, degradedCount, unhealthyCount)
 	runtimePosture := classifyHealthRuntimePosture(overallStatus, len(hc.components), degradedCount, unhealthyCount)
 
-	return map[string]interface{}{
+	return map[string]any{
 		"overall_status":   overallStatus,
 		"total_components": len(hc.components),
 		"healthy_count":    healthyCount,
@@ -267,13 +267,13 @@ func (hc *HealthCheck) GetHealthSummary() map[string]interface{} {
 
 // GetRuntimeMetrics returns a compact runtime surface with coverage posture,
 // runtime posture, and reliability hint on top of raw health counts.
-func (hc *HealthCheck) GetRuntimeMetrics() map[string]interface{} {
+func (hc *HealthCheck) GetRuntimeMetrics() map[string]any {
 	return hc.GetHealthSummary()
 }
 
 // GetRuntimeSummary keeps backward compatibility for existing callers that
 // still consume summary-oriented health runtime fields.
-func (hc *HealthCheck) GetRuntimeSummary() map[string]interface{} {
+func (hc *HealthCheck) GetRuntimeSummary() map[string]any {
 	return hc.GetRuntimeMetrics()
 }
 

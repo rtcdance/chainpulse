@@ -25,8 +25,8 @@ type ERC20Transfer struct {
 	Value *big.Int       `json:"value"`
 }
 
-func (e *ERC20Transfer) EventName() string    { return "Transfer" }
-func (e *ERC20Transfer) Topic0() common.Hash  { return topic0ForName("Transfer") }
+func (e *ERC20Transfer) EventName() string   { return "Transfer" }
+func (e *ERC20Transfer) Topic0() common.Hash { return topic0ForName("Transfer") }
 
 // ERC20Approval represents an ERC-20 Approval event
 // Approval(address indexed owner, address indexed spender, uint256 value)
@@ -36,8 +36,8 @@ type ERC20Approval struct {
 	Value   *big.Int       `json:"value"`
 }
 
-func (e *ERC20Approval) EventName() string    { return "Approval" }
-func (e *ERC20Approval) Topic0() common.Hash  { return topic0ForName("Approval") }
+func (e *ERC20Approval) EventName() string   { return "Approval" }
+func (e *ERC20Approval) Topic0() common.Hash { return topic0ForName("Approval") }
 
 // ERC721ApprovalForAll represents an ERC-721 ApprovalForAll event
 // ApprovalForAll(address indexed owner, address indexed operator, bool approved)
@@ -47,8 +47,8 @@ type ERC721ApprovalForAll struct {
 	Approved bool           `json:"approved"`
 }
 
-func (e *ERC721ApprovalForAll) EventName() string    { return "ApprovalForAll" }
-func (e *ERC721ApprovalForAll) Topic0() common.Hash  { return topic0ForName("ApprovalForAll") }
+func (e *ERC721ApprovalForAll) EventName() string   { return "ApprovalForAll" }
+func (e *ERC721ApprovalForAll) Topic0() common.Hash { return topic0ForName("ApprovalForAll") }
 
 // ERC1155TransferSingle represents an ERC-1155 TransferSingle event
 // TransferSingle(address indexed operator, address indexed from, address indexed to, uint256 id, uint256 value)
@@ -60,8 +60,8 @@ type ERC1155TransferSingle struct {
 	Value    *big.Int       `json:"value"`
 }
 
-func (e *ERC1155TransferSingle) EventName() string    { return "TransferSingle" }
-func (e *ERC1155TransferSingle) Topic0() common.Hash  { return topic0ForName("TransferSingle") }
+func (e *ERC1155TransferSingle) EventName() string   { return "TransferSingle" }
+func (e *ERC1155TransferSingle) Topic0() common.Hash { return topic0ForName("TransferSingle") }
 
 // ERC1155TransferBatch represents an ERC-1155 TransferBatch event
 // TransferBatch(address indexed operator, address indexed from, address indexed to, uint256[] ids, uint256[] values)
@@ -73,8 +73,8 @@ type ERC1155TransferBatch struct {
 	Values   []*big.Int     `json:"values"`
 }
 
-func (e *ERC1155TransferBatch) EventName() string    { return "TransferBatch" }
-func (e *ERC1155TransferBatch) Topic0() common.Hash  { return topic0ForName("TransferBatch") }
+func (e *ERC1155TransferBatch) EventName() string   { return "TransferBatch" }
+func (e *ERC1155TransferBatch) Topic0() common.Hash { return topic0ForName("TransferBatch") }
 
 // ERC1155URI represents an ERC-1155 URI event
 // URI(string value, uint256 indexed id)
@@ -83,8 +83,8 @@ type ERC1155URI struct {
 	ID    *big.Int `json:"id"`
 }
 
-func (e *ERC1155URI) EventName() string    { return "URI" }
-func (e *ERC1155URI) Topic0() common.Hash  { return topic0ForName("URI") }
+func (e *ERC1155URI) EventName() string   { return "URI" }
+func (e *ERC1155URI) Topic0() common.Hash { return topic0ForName("URI") }
 
 // UniswapV3Swap represents a Uniswap V3 Swap event
 // Swap(address indexed sender, int256 amount0, int256 amount1, uint160 sqrtPriceX96, uint128 liquidity, int24 tick)
@@ -97,8 +97,8 @@ type UniswapV3Swap struct {
 	Tick         *big.Int       `json:"tick"`
 }
 
-func (e *UniswapV3Swap) EventName() string    { return "Swap" }
-func (e *UniswapV3Swap) Topic0() common.Hash  { return topic0ForName("Swap") }
+func (e *UniswapV3Swap) EventName() string   { return "Swap" }
+func (e *UniswapV3Swap) Topic0() common.Hash { return topic0ForName("Swap") }
 
 // topic0ForName looks up the topic0 hash for a known event name.
 func topic0ForName(name string) common.Hash {

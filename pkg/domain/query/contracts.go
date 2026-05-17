@@ -2,38 +2,16 @@ package query
 
 //go:generate mockgen -destination=mock_service.go -package=query . Service
 
-import (
-	"context"
-	"time"
+import "chainpulse/pkg/core"
 
-	"chainpulse/pkg/core"
+// Request, Result, and Service are type aliases for core.QueryRequest,
+// core.QueryResult, and core.QueryService. The concrete types live in
+// pkg/core so that service-layer packages can reference them without
+// depending on domain/query.
+//
+// New code should prefer importing from core directly.
+type (
+	Request = core.QueryRequest
+	Result  = core.QueryResult
+	Service = core.QueryService
 )
-
-// Request defines query input at the domain boundary.
-type Request struct {
-	QueryType  string
-	Collection string
-	Filter     map[string]interface{}
-	Limit      int64
-	Offset     int64
-	CacheKey   string
-	CacheTTL   time.Duration
-	Sort       map[string]int
-}
-
-// Result defines query output at the domain boundary.
-type Result struct {
-	Events       []core.BlockchainEvent
-	Total        int64
-	CacheHit     bool
-	ResponseTime int64
-	Source       string
-}
-
-// Service is the domain-facing query contract.
-type Service interface {
-	Query(ctx context.Context, req *Request) (*Result, error)
-	QueryByHash(ctx context.Context, hash string) (*core.BlockchainEvent, error)
-	InvalidateCache(ctx context.Context, key string) error
-	Health(ctx context.Context) *core.HealthStatus
-}

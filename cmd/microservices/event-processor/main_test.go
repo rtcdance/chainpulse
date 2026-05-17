@@ -18,8 +18,8 @@ func TestLoadEventProcessorConfigDefaultsToSecurityDisabled(t *testing.T) {
 	if cfg.AuthEnabled {
 		t.Fatal("expected auth to be disabled by default")
 	}
-	if cfg.RateLimitEnabled {
-		t.Fatal("expected rate limiting to be disabled by default")
+	if !cfg.RateLimitEnabled {
+		t.Fatal("expected rate limiting to be enabled by default (secure-by-default)")
 	}
 	if len(cfg.AuthAPIKeys) != 0 {
 		t.Fatalf("expected no auth api keys by default, got %d", len(cfg.AuthAPIKeys))

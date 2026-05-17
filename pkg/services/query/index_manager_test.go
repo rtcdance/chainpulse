@@ -7,6 +7,7 @@ import (
 )
 
 func TestNewIndexManager(t *testing.T) {
+	t.Parallel()
 	im := NewIndexManager()
 	if im == nil {
 		t.Fatal("expected non-nil IndexManager")
@@ -14,6 +15,7 @@ func TestNewIndexManager(t *testing.T) {
 }
 
 func TestCreateIndex(t *testing.T) {
+	t.Parallel()
 	im := NewIndexManager()
 	ctx := context.Background()
 
@@ -36,6 +38,7 @@ func TestCreateIndex(t *testing.T) {
 }
 
 func TestCreateIndexDuplicate(t *testing.T) {
+	t.Parallel()
 	im := NewIndexManager()
 	ctx := context.Background()
 
@@ -48,6 +51,7 @@ func TestCreateIndexDuplicate(t *testing.T) {
 }
 
 func TestCreateIndexInvalidParams(t *testing.T) {
+	t.Parallel()
 	im := NewIndexManager()
 	ctx := context.Background()
 
@@ -92,6 +96,7 @@ func TestCreateIndexInvalidParams(t *testing.T) {
 }
 
 func TestDeleteIndex(t *testing.T) {
+	t.Parallel()
 	im := NewIndexManager()
 	ctx := context.Background()
 
@@ -109,6 +114,7 @@ func TestDeleteIndex(t *testing.T) {
 }
 
 func TestDeleteIndexNotFound(t *testing.T) {
+	t.Parallel()
 	im := NewIndexManager()
 
 	err := im.DeleteIndex("nonexistent")
@@ -118,6 +124,7 @@ func TestDeleteIndexNotFound(t *testing.T) {
 }
 
 func TestGetIndex(t *testing.T) {
+	t.Parallel()
 	im := NewIndexManager()
 	ctx := context.Background()
 
@@ -134,6 +141,7 @@ func TestGetIndex(t *testing.T) {
 }
 
 func TestGetIndexesByTable(t *testing.T) {
+	t.Parallel()
 	im := NewIndexManager()
 	ctx := context.Background()
 
@@ -154,6 +162,7 @@ func TestGetIndexesByTable(t *testing.T) {
 }
 
 func TestGetAllIndexes(t *testing.T) {
+	t.Parallel()
 	im := NewIndexManager()
 	ctx := context.Background()
 
@@ -171,6 +180,7 @@ func TestGetAllIndexes(t *testing.T) {
 }
 
 func TestRecordIndexUsage(t *testing.T) {
+	t.Parallel()
 	im := NewIndexManager()
 	ctx := context.Background()
 
@@ -195,6 +205,7 @@ func TestRecordIndexUsage(t *testing.T) {
 }
 
 func TestRecordIndexUsageMultipleOperations(t *testing.T) {
+	t.Parallel()
 	im := NewIndexManager()
 	ctx := context.Background()
 
@@ -230,6 +241,7 @@ func TestRecordIndexUsageMultipleOperations(t *testing.T) {
 }
 
 func TestGetAllIndexStatistics(t *testing.T) {
+	t.Parallel()
 	im := NewIndexManager()
 	ctx := context.Background()
 
@@ -246,6 +258,7 @@ func TestGetAllIndexStatistics(t *testing.T) {
 }
 
 func TestAnalyzeIndexFragmentation(t *testing.T) {
+	t.Parallel()
 	im := NewIndexManager()
 	ctx := context.Background()
 
@@ -262,6 +275,7 @@ func TestAnalyzeIndexFragmentation(t *testing.T) {
 }
 
 func TestAnalyzeIndexFragmentationNotFound(t *testing.T) {
+	t.Parallel()
 	im := NewIndexManager()
 
 	_, err := im.AnalyzeIndexFragmentation("nonexistent")
@@ -271,6 +285,7 @@ func TestAnalyzeIndexFragmentationNotFound(t *testing.T) {
 }
 
 func TestRebuildIndex(t *testing.T) {
+	t.Parallel()
 	im := NewIndexManager()
 	ctx := context.Background()
 
@@ -288,6 +303,7 @@ func TestRebuildIndex(t *testing.T) {
 }
 
 func TestGetUnusedIndexes(t *testing.T) {
+	t.Parallel()
 	im := NewIndexManager()
 	ctx := context.Background()
 
@@ -307,6 +323,7 @@ func TestGetUnusedIndexes(t *testing.T) {
 }
 
 func TestGetIneffectiveIndexes(t *testing.T) {
+	t.Parallel()
 	im := NewIndexManager()
 	ctx := context.Background()
 
@@ -325,6 +342,7 @@ func TestGetIneffectiveIndexes(t *testing.T) {
 }
 
 func TestValidateIndex(t *testing.T) {
+	t.Parallel()
 	im := NewIndexManager()
 	ctx := context.Background()
 
@@ -341,6 +359,7 @@ func TestValidateIndex(t *testing.T) {
 }
 
 func TestUpdateIndexStatistics(t *testing.T) {
+	t.Parallel()
 	im := NewIndexManager()
 	ctx := context.Background()
 
@@ -362,6 +381,7 @@ func TestUpdateIndexStatistics(t *testing.T) {
 }
 
 func TestCreatePendingIndex(t *testing.T) {
+	t.Parallel()
 	im := NewIndexManager()
 
 	pending := im.CreatePendingIndex("idx_events_id", "events", []string{"id"}, "BTREE", 5)
@@ -379,6 +399,7 @@ func TestCreatePendingIndex(t *testing.T) {
 }
 
 func TestGetPendingIndexes(t *testing.T) {
+	t.Parallel()
 	im := NewIndexManager()
 
 	im.CreatePendingIndex("idx_events_id", "events", []string{"id"}, "BTREE", 5)
@@ -391,6 +412,7 @@ func TestGetPendingIndexes(t *testing.T) {
 }
 
 func TestUpdatePendingIndexStatus(t *testing.T) {
+	t.Parallel()
 	im := NewIndexManager()
 
 	im.CreatePendingIndex("idx_events_id", "events", []string{"id"}, "BTREE", 5)
@@ -407,6 +429,7 @@ func TestUpdatePendingIndexStatus(t *testing.T) {
 }
 
 func TestGetIndexSize(t *testing.T) {
+	t.Parallel()
 	im := NewIndexManager()
 	ctx := context.Background()
 
@@ -424,6 +447,7 @@ func TestGetIndexSize(t *testing.T) {
 }
 
 func TestGetTotalIndexSize(t *testing.T) {
+	t.Parallel()
 	im := NewIndexManager()
 	ctx := context.Background()
 
@@ -440,6 +464,7 @@ func TestGetTotalIndexSize(t *testing.T) {
 }
 
 func TestConcurrentIndexOperations(t *testing.T) {
+	t.Parallel()
 	im := NewIndexManager()
 	ctx := context.Background()
 

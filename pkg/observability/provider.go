@@ -11,10 +11,10 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
+	"go.opentelemetry.io/otel/propagation"
 	sdkresource "go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	oteltrace "go.opentelemetry.io/otel/trace"
-	"go.opentelemetry.io/otel/propagation"
 )
 
 // ObservabilityProvider owns a shared TracerProvider and manages its lifecycle.
@@ -29,9 +29,9 @@ type ObservabilityProvider struct {
 
 // ObservabilityConfig holds configuration for the shared observability provider.
 type ObservabilityConfig struct {
-	ServiceName    string
-	OTLPEndpoint  string // OTEL_EXPORTER_OTLP_ENDPOINT override
-	SamplingRate   float64
+	ServiceName  string
+	OTLPEndpoint string // OTEL_EXPORTER_OTLP_ENDPOINT override
+	SamplingRate float64
 }
 
 // NewObservabilityProvider creates a shared observability provider with a single
@@ -128,13 +128,14 @@ func NewDefaultTracerWithProvider(provider *ObservabilityProvider, logger core.L
 	}
 
 	return &DefaultTracer{
-		spans:          make([]Span, 0),
-		activeSpans:    make(map[string]*activeSpanState),
-		traceIDCounter: 1,
-		spanIDCounter:  1,
-		logger:         logger,
+		spans:            make([]Span, 0),
+		maxSpans:         10000,
+		activeSpans:      make(map[string]*activeSpanState),
+		traceIDCounter:   1,
+		spanIDCounter:    1,
+		logger:           logger,
 		metricsCollector: metrics,
-		otelProvider:   provider.TracerProvider(),
-		otelTracer:     provider.Tracer(fmt.Sprintf("%s/default", provider.serviceName)),
+		otelProvider:     provider.TracerProvider(),
+		otelTracer:       provider.Tracer(fmt.Sprintf("chainpulse/%s", provider.serviceName)),
 	}
 }

@@ -82,6 +82,7 @@ func isValidProtocol(p ProtocolType) bool {
 
 // --- Property 1: For ANY request, detection always returns a valid protocol type ---
 func TestPBT_DetectorAlwaysReturnsValidProtocol(t *testing.T) {
+	t.Parallel()
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 200
 	properties := gopter.NewProperties(parameters)
@@ -103,6 +104,7 @@ func TestPBT_DetectorAlwaysReturnsValidProtocol(t *testing.T) {
 
 // --- Property 2: Detection is deterministic (same request => same result) ---
 func TestPBT_DetectionIsDeterministic(t *testing.T) {
+	t.Parallel()
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 200
 	properties := gopter.NewProperties(parameters)
@@ -130,6 +132,7 @@ func TestPBT_DetectionIsDeterministic(t *testing.T) {
 
 // --- Property 3: GraphQL path always detected as ProtocolGraphQL ---
 func TestPBT_GraphQLPathDetectedCorrectly(t *testing.T) {
+	t.Parallel()
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 100
 	properties := gopter.NewProperties(parameters)
@@ -148,6 +151,7 @@ func TestPBT_GraphQLPathDetectedCorrectly(t *testing.T) {
 
 // --- Property 4: WebSocket upgrade header always detected ---
 func TestPBT_WebSocketHeaderDetectedCorrectly(t *testing.T) {
+	t.Parallel()
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 100
 	properties := gopter.NewProperties(parameters)
@@ -170,6 +174,7 @@ func TestPBT_WebSocketHeaderDetectedCorrectly(t *testing.T) {
 
 // --- Property 5: gRPC content-type always detected ---
 func TestPBT_GRPCContentTypeDetectedCorrectly(t *testing.T) {
+	t.Parallel()
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 100
 	properties := gopter.NewProperties(parameters)
@@ -194,6 +199,7 @@ func TestPBT_GRPCContentTypeDetectedCorrectly(t *testing.T) {
 
 // --- Property 6: Registration doesn't affect detection results ---
 func TestPBT_RegistrationDoesNotAffectDetection(t *testing.T) {
+	t.Parallel()
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 100
 	properties := gopter.NewProperties(parameters)
@@ -223,6 +229,7 @@ func TestPBT_RegistrationDoesNotAffectDetection(t *testing.T) {
 
 // --- Property 7: Request abstraction preserves all fields ---
 func TestPBT_RequestAbstractionPreservesFields(t *testing.T) {
+	t.Parallel()
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 200
 	properties := gopter.NewProperties(parameters)
@@ -267,6 +274,7 @@ func TestPBT_RequestAbstractionPreservesFields(t *testing.T) {
 
 // --- Property 8: Registered protocol count matches registrations ---
 func TestPBT_ProtocolCountMatchesRegistrations(t *testing.T) {
+	t.Parallel()
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 100
 	properties := gopter.NewProperties(parameters)
@@ -291,6 +299,7 @@ func TestPBT_ProtocolCountMatchesRegistrations(t *testing.T) {
 
 // --- Property 9: GraphQL body with "query" key is always detected ---
 func TestPBT_GraphQLBodyDetectedCorrectly(t *testing.T) {
+	t.Parallel()
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 100
 	properties := gopter.NewProperties(parameters)
@@ -317,6 +326,7 @@ func TestPBT_GraphQLBodyDetectedCorrectly(t *testing.T) {
 
 // --- Property 10: Path with /ws always detected as WebSocket ---
 func TestPBT_WSPathDetectedCorrectly(t *testing.T) {
+	t.Parallel()
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 100
 	properties := gopter.NewProperties(parameters)
@@ -335,6 +345,7 @@ func TestPBT_WSPathDetectedCorrectly(t *testing.T) {
 
 // --- Property 11: Registered protocols list contains all registered types ---
 func TestPBT_RegisteredProtocolsListComplete(t *testing.T) {
+	t.Parallel()
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 50
 	properties := gopter.NewProperties(parameters)
@@ -366,6 +377,7 @@ func TestPBT_RegisteredProtocolsListComplete(t *testing.T) {
 
 // --- Property 12: Concurrent operations don't crash ---
 func TestPBT_ConcurrentOperationsAreSafe(t *testing.T) {
+	t.Parallel()
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 20
 	properties := gopter.NewProperties(parameters)

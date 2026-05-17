@@ -11,7 +11,7 @@ import (
 // MockDatabase is a mock implementation of a database for testing
 type MockDatabase struct {
 	mu       sync.RWMutex
-	data     map[string]interface{}
+	data     map[string]any
 	calls    map[string]int
 	errors   map[string]error
 	failNext map[string]bool
@@ -20,7 +20,7 @@ type MockDatabase struct {
 // NewMockDatabase creates a new mock database
 func NewMockDatabase() *MockDatabase {
 	return &MockDatabase{
-		data:     make(map[string]interface{}),
+		data:     make(map[string]any),
 		calls:    make(map[string]int),
 		errors:   make(map[string]error),
 		failNext: make(map[string]bool),
@@ -28,7 +28,7 @@ func NewMockDatabase() *MockDatabase {
 }
 
 // Insert inserts a record into the database
-func (md *MockDatabase) Insert(ctx context.Context, collection string, data interface{}) (string, error) {
+func (md *MockDatabase) Insert(ctx context.Context, collection string, data any) (string, error) {
 	md.mu.Lock()
 	defer md.mu.Unlock()
 
@@ -50,7 +50,7 @@ func (md *MockDatabase) Insert(ctx context.Context, collection string, data inte
 }
 
 // Find retrieves records from the database
-func (md *MockDatabase) Find(ctx context.Context, collection string, query map[string]interface{}) ([]interface{}, error) {
+func (md *MockDatabase) Find(ctx context.Context, collection string, query map[string]any) ([]any, error) {
 	md.mu.RLock()
 	defer md.mu.RUnlock()
 
@@ -65,7 +65,7 @@ func (md *MockDatabase) Find(ctx context.Context, collection string, query map[s
 		return nil, err
 	}
 
-	var results []interface{}
+	var results []any
 	for key, value := range md.data {
 		if len(key) > len(collection) && key[:len(collection)] == collection {
 			results = append(results, value)
@@ -76,7 +76,7 @@ func (md *MockDatabase) Find(ctx context.Context, collection string, query map[s
 }
 
 // FindOne retrieves a single record from the database
-func (md *MockDatabase) FindOne(ctx context.Context, collection string, query map[string]interface{}) (interface{}, error) {
+func (md *MockDatabase) FindOne(ctx context.Context, collection string, query map[string]any) (any, error) {
 	md.mu.RLock()
 	defer md.mu.RUnlock()
 
@@ -101,7 +101,7 @@ func (md *MockDatabase) FindOne(ctx context.Context, collection string, query ma
 }
 
 // Update updates a record in the database
-func (md *MockDatabase) Update(ctx context.Context, collection string, query map[string]interface{}, update interface{}) error {
+func (md *MockDatabase) Update(ctx context.Context, collection string, query map[string]any, update any) error {
 	md.mu.Lock()
 	defer md.mu.Unlock()
 
@@ -127,7 +127,7 @@ func (md *MockDatabase) Update(ctx context.Context, collection string, query map
 }
 
 // Delete deletes a record from the database
-func (md *MockDatabase) Delete(ctx context.Context, collection string, query map[string]interface{}) error {
+func (md *MockDatabase) Delete(ctx context.Context, collection string, query map[string]any) error {
 	md.mu.Lock()
 	defer md.mu.Unlock()
 
@@ -153,7 +153,7 @@ func (md *MockDatabase) Delete(ctx context.Context, collection string, query map
 }
 
 // Count counts records in the database
-func (md *MockDatabase) Count(ctx context.Context, collection string, query map[string]interface{}) (int64, error) {
+func (md *MockDatabase) Count(ctx context.Context, collection string, query map[string]any) (int64, error) {
 	md.mu.RLock()
 	defer md.mu.RUnlock()
 
@@ -203,16 +203,16 @@ func (md *MockDatabase) FailNext(method string) {
 func (md *MockDatabase) Clear() {
 	md.mu.Lock()
 	defer md.mu.Unlock()
-	md.data = make(map[string]interface{})
+	md.data = make(map[string]any)
 	md.calls = make(map[string]int)
 }
 
 // GetData returns all data in the database
-func (md *MockDatabase) GetData() map[string]interface{} {
+func (md *MockDatabase) GetData() map[string]any {
 	md.mu.RLock()
 	defer md.mu.RUnlock()
 
-	data := make(map[string]interface{})
+	data := make(map[string]any)
 	for k, v := range md.data {
 		data[k] = v
 	}

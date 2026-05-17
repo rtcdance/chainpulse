@@ -11,8 +11,8 @@ import (
 // BatchRequest represents a single request in a batch
 type BatchRequest struct {
 	ID       string
-	Payload  interface{}
-	Response chan interface{}
+	Payload  any
+	Response chan any
 	Error    chan error
 }
 
@@ -66,7 +66,7 @@ func NewRequestBatcher(name string, processor BatchProcessor, batchSize int, bat
 }
 
 // Submit submits a request to the batcher
-func (b *RequestBatcher) Submit(ctx context.Context, id string, payload interface{}) (interface{}, error) {
+func (b *RequestBatcher) Submit(ctx context.Context, id string, payload any) (any, error) {
 	// Check if batcher is closed first
 	select {
 	case <-b.ctx.Done():
@@ -77,7 +77,7 @@ func (b *RequestBatcher) Submit(ctx context.Context, id string, payload interfac
 	req := &BatchRequest{
 		ID:       id,
 		Payload:  payload,
-		Response: make(chan interface{}, 1),
+		Response: make(chan any, 1),
 		Error:    make(chan error, 1),
 	}
 
@@ -127,7 +127,7 @@ func (b *RequestBatcher) Close() error {
 }
 
 // GetMetrics returns batcher metrics
-func (b *RequestBatcher) GetMetrics() map[string]interface{} {
+func (b *RequestBatcher) GetMetrics() map[string]any {
 	b.metrics.mu.RLock()
 	totalRequests := b.metrics.totalRequests
 	totalBatches := b.metrics.totalBatches
@@ -144,7 +144,7 @@ func (b *RequestBatcher) GetMetrics() map[string]interface{} {
 	capacityPosture := classifyBatcherCapacityPosture(totalRequests, totalBatches, avgBatchSize)
 	runtimePosture := classifyBatcherRuntimePosture(totalRequests, totalBatches, errors)
 
-	return map[string]interface{}{
+	return map[string]any{
 		"batcher_name":     b.name,
 		"total_requests":   totalRequests,
 		"total_batches":    totalBatches,
@@ -161,7 +161,7 @@ func (b *RequestBatcher) GetMetrics() map[string]interface{} {
 
 // GetRuntimeMetrics returns a compact runtime surface for batch cadence and
 // delivery reliability on top of the raw batch metrics.
-func (b *RequestBatcher) GetRuntimeMetrics() map[string]interface{} {
+func (b *RequestBatcher) GetRuntimeMetrics() map[string]any {
 	metrics := b.GetMetrics()
 
 	totalRequests, _ := metrics["total_requests"].(int64)
@@ -169,7 +169,7 @@ func (b *RequestBatcher) GetRuntimeMetrics() map[string]interface{} {
 	avgBatchSize, _ := metrics["avg_batch_size"].(float64)
 	errors, _ := metrics["errors"].(int64)
 
-	return map[string]interface{}{
+	return map[string]any{
 		"batcher_name":     b.name,
 		"total_requests":   totalRequests,
 		"total_batches":    totalBatches,

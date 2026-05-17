@@ -137,6 +137,7 @@ func (m *mockMetadataStore) Health(ctx context.Context) *core.HealthStatus {
 func (m *mockMetadataStore) Close(ctx context.Context) error { return nil }
 
 func TestEventQueryHandlerDomainFirstSuccess(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	retrieval := query.NewEventRetrievalService(&mockEventStore{}, &mockMetadataStore{}, logger, metrics)
@@ -153,7 +154,7 @@ func TestEventQueryHandlerDomainFirstSuccess(t *testing.T) {
 				BlockNumber:    123,
 				BlockTimestamp: time.Now().Unix(),
 				EventName:      "Transfer",
-				DecodedData:    map[string]interface{}{"ok": true},
+				DecodedData:    map[string]any{"ok": true},
 				CreatedAt:      time.Now(),
 				ProcessedAt:    time.Now(),
 				IndexedAt:      time.Now(),
@@ -173,11 +174,11 @@ func TestEventQueryHandlerDomainFirstSuccess(t *testing.T) {
 		t.Fatalf("expected status 200, got %d, body=%s", rr.Code, rr.Body.String())
 	}
 
-	var payload map[string]interface{}
+	var payload map[string]any
 	if err := json.Unmarshal(rr.Body.Bytes(), &payload); err != nil {
 		t.Fatalf("unmarshal response: %v", err)
 	}
-	meta, ok := payload["meta"].(map[string]interface{})
+	meta, ok := payload["meta"].(map[string]any)
 	if !ok {
 		t.Fatalf("expected meta object in response: %v", payload)
 	}
@@ -217,6 +218,7 @@ func TestEventQueryHandlerDomainFirstSuccess(t *testing.T) {
 }
 
 func TestEventQueryHandlerDomainFirstFallbackToRetrieval(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	retrieval := query.NewEventRetrievalService(&mockEventStore{
@@ -226,7 +228,7 @@ func TestEventQueryHandlerDomainFirstFallbackToRetrieval(t *testing.T) {
 				BlockNumber:    456,
 				BlockTimestamp: time.Now().Unix(),
 				EventName:      "Approval",
-				DecodedData:    map[string]interface{}{"fallback": true},
+				DecodedData:    map[string]any{"fallback": true},
 				CreatedAt:      time.Now(),
 				ProcessedAt:    time.Now(),
 				IndexedAt:      time.Now(),
@@ -257,19 +259,19 @@ func TestEventQueryHandlerDomainFirstFallbackToRetrieval(t *testing.T) {
 		t.Fatalf("expected status 200, got %d, body=%s", rr.Code, rr.Body.String())
 	}
 
-	var payload map[string]interface{}
+	var payload map[string]any
 	if err := json.Unmarshal(rr.Body.Bytes(), &payload); err != nil {
 		t.Fatalf("unmarshal response: %v", err)
 	}
 
-	data, ok := payload["data"].(map[string]interface{})
+	data, ok := payload["data"].(map[string]any)
 	if !ok {
 		t.Fatalf("expected data object in response: %v", payload)
 	}
 	if got, ok := data["eventId"].(string); !ok || got != "retrieval-hit" {
 		t.Fatalf("expected fallback retrieval eventId retrieval-hit, got %v", data["eventId"])
 	}
-	meta, ok := payload["meta"].(map[string]interface{})
+	meta, ok := payload["meta"].(map[string]any)
 	if !ok {
 		t.Fatalf("expected meta object in response: %v", payload)
 	}
@@ -309,6 +311,7 @@ func TestEventQueryHandlerDomainFirstFallbackToRetrieval(t *testing.T) {
 }
 
 func TestEventQueryHandlerConvertEventResponseParsesNumericChainID(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	retrieval := query.NewEventRetrievalService(&mockEventStore{}, &mockMetadataStore{}, logger, metrics)
@@ -338,6 +341,7 @@ func TestEventQueryHandlerConvertEventResponseParsesNumericChainID(t *testing.T)
 }
 
 func TestEventQueryHandlerConvertEventResponseResolvesNamedChainID(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	retrieval := query.NewEventRetrievalService(&mockEventStore{}, &mockMetadataStore{}, logger, metrics)
@@ -367,6 +371,7 @@ func TestEventQueryHandlerConvertEventResponseResolvesNamedChainID(t *testing.T)
 }
 
 func TestEventQueryHandlerGetByChainIncludesQueryMeta(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	retrieval := query.NewEventRetrievalService(&mockEventStore{
@@ -377,7 +382,7 @@ func TestEventQueryHandlerGetByChainIncludesQueryMeta(t *testing.T) {
 					BlockNumber:    100,
 					BlockTimestamp: time.Now().Unix(),
 					EventName:      "Transfer",
-					DecodedData:    map[string]interface{}{"value": "1"},
+					DecodedData:    map[string]any{"value": "1"},
 					CreatedAt:      time.Now(),
 					ProcessedAt:    time.Now(),
 					IndexedAt:      time.Now(),
@@ -387,7 +392,7 @@ func TestEventQueryHandlerGetByChainIncludesQueryMeta(t *testing.T) {
 					BlockNumber:    101,
 					BlockTimestamp: time.Now().Unix(),
 					EventName:      "Approval",
-					DecodedData:    map[string]interface{}{"value": "2"},
+					DecodedData:    map[string]any{"value": "2"},
 					CreatedAt:      time.Now(),
 					ProcessedAt:    time.Now(),
 					IndexedAt:      time.Now(),
@@ -420,12 +425,12 @@ func TestEventQueryHandlerGetByChainIncludesQueryMeta(t *testing.T) {
 		t.Fatalf("expected status 200, got %d, body=%s", rr.Code, rr.Body.String())
 	}
 
-	var payload map[string]interface{}
+	var payload map[string]any
 	if err := json.Unmarshal(rr.Body.Bytes(), &payload); err != nil {
 		t.Fatalf("unmarshal response: %v", err)
 	}
 
-	meta, ok := payload["meta"].(map[string]interface{})
+	meta, ok := payload["meta"].(map[string]any)
 	if !ok {
 		t.Fatalf("expected meta object in response: %v", payload)
 	}
@@ -468,6 +473,7 @@ func TestEventQueryHandlerGetByChainIncludesQueryMeta(t *testing.T) {
 }
 
 func TestEventQueryHandlerGetByChainDomainQueryMeta(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	retrieval := query.NewEventRetrievalService(&mockEventStore{}, &mockMetadataStore{}, logger, metrics)
@@ -490,8 +496,8 @@ func TestEventQueryHandlerGetByChainDomainQueryMeta(t *testing.T) {
 			}
 			if got := req.Filter["chainId"]; got == nil {
 				t.Fatal("expected chainId filter")
-			} else if inMap, ok := got.(map[string]interface{}); ok {
-				values, _ := inMap["$in"].([]interface{})
+			} else if inMap, ok := got.(map[string]any); ok {
+				values, _ := inMap["$in"].([]any)
 				found := false
 				for _, v := range values {
 					if v == 1 || v == "1" {
@@ -511,7 +517,7 @@ func TestEventQueryHandlerGetByChainDomainQueryMeta(t *testing.T) {
 						BlockNumber:    222,
 						BlockTimestamp: time.Now().Unix(),
 						EventName:      "Transfer",
-						DecodedData:    map[string]interface{}{"path": "domain-chain"},
+						DecodedData:    map[string]any{"path": "domain-chain"},
 						CreatedAt:      time.Now(),
 						ProcessedAt:    time.Now(),
 						IndexedAt:      time.Now(),
@@ -534,12 +540,12 @@ func TestEventQueryHandlerGetByChainDomainQueryMeta(t *testing.T) {
 		t.Fatalf("expected status 200, got %d, body=%s", rr.Code, rr.Body.String())
 	}
 
-	var payload map[string]interface{}
+	var payload map[string]any
 	if err := json.Unmarshal(rr.Body.Bytes(), &payload); err != nil {
 		t.Fatalf("unmarshal response: %v", err)
 	}
 
-	meta, ok := payload["meta"].(map[string]interface{})
+	meta, ok := payload["meta"].(map[string]any)
 	if !ok {
 		t.Fatalf("expected meta object in response: %v", payload)
 	}
@@ -564,6 +570,7 @@ func TestEventQueryHandlerGetByChainDomainQueryMeta(t *testing.T) {
 }
 
 func TestEventQueryHandlerGetByChainStringDomainQueryMeta(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	retrieval := query.NewEventRetrievalService(&mockEventStore{}, &mockMetadataStore{}, logger, metrics)
@@ -589,7 +596,7 @@ func TestEventQueryHandlerGetByChainStringDomainQueryMeta(t *testing.T) {
 						BlockNumber:    333,
 						BlockTimestamp: time.Now().Unix(),
 						EventName:      "Transfer",
-						DecodedData:    map[string]interface{}{"path": "domain-chain-string"},
+						DecodedData:    map[string]any{"path": "domain-chain-string"},
 						CreatedAt:      time.Now(),
 						ProcessedAt:    time.Now(),
 						IndexedAt:      time.Now(),
@@ -612,12 +619,12 @@ func TestEventQueryHandlerGetByChainStringDomainQueryMeta(t *testing.T) {
 		t.Fatalf("expected status 200, got %d, body=%s", rr.Code, rr.Body.String())
 	}
 
-	var payload map[string]interface{}
+	var payload map[string]any
 	if err := json.Unmarshal(rr.Body.Bytes(), &payload); err != nil {
 		t.Fatalf("unmarshal response: %v", err)
 	}
 
-	meta, ok := payload["meta"].(map[string]interface{})
+	meta, ok := payload["meta"].(map[string]any)
 	if !ok {
 		t.Fatalf("expected meta object in response: %v", payload)
 	}
@@ -630,6 +637,7 @@ func TestEventQueryHandlerGetByChainStringDomainQueryMeta(t *testing.T) {
 }
 
 func TestEventQueryHandlerGetAllEventsDomainListMeta(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	retrieval := query.NewEventRetrievalService(&mockEventStore{}, &mockMetadataStore{}, logger, metrics)
@@ -648,7 +656,7 @@ func TestEventQueryHandlerGetAllEventsDomainListMeta(t *testing.T) {
 						BlockNumber:    111,
 						BlockTimestamp: time.Now().Unix(),
 						EventName:      "Transfer",
-						DecodedData:    map[string]interface{}{"path": "domain-list"},
+						DecodedData:    map[string]any{"path": "domain-list"},
 						CreatedAt:      time.Now(),
 						ProcessedAt:    time.Now(),
 						IndexedAt:      time.Now(),
@@ -672,11 +680,11 @@ func TestEventQueryHandlerGetAllEventsDomainListMeta(t *testing.T) {
 		t.Fatalf("expected status 200, got %d, body=%s", rr.Code, rr.Body.String())
 	}
 
-	var payload map[string]interface{}
+	var payload map[string]any
 	if err := json.Unmarshal(rr.Body.Bytes(), &payload); err != nil {
 		t.Fatalf("unmarshal response: %v", err)
 	}
-	meta, ok := payload["meta"].(map[string]interface{})
+	meta, ok := payload["meta"].(map[string]any)
 	if !ok {
 		t.Fatalf("expected meta object in response: %v", payload)
 	}
@@ -701,6 +709,7 @@ func TestEventQueryHandlerGetAllEventsDomainListMeta(t *testing.T) {
 }
 
 func TestEventQueryHandlerGetByNameDomainQueryMeta(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	retrieval := query.NewEventRetrievalService(&mockEventStore{}, &mockMetadataStore{}, logger, metrics)
@@ -731,7 +740,7 @@ func TestEventQueryHandlerGetByNameDomainQueryMeta(t *testing.T) {
 						BlockNumber:    333,
 						BlockTimestamp: time.Now().Unix(),
 						EventName:      "Transfer",
-						DecodedData:    map[string]interface{}{"path": "domain-name"},
+						DecodedData:    map[string]any{"path": "domain-name"},
 						CreatedAt:      time.Now(),
 						ProcessedAt:    time.Now(),
 						IndexedAt:      time.Now(),
@@ -754,12 +763,12 @@ func TestEventQueryHandlerGetByNameDomainQueryMeta(t *testing.T) {
 		t.Fatalf("expected status 200, got %d, body=%s", rr.Code, rr.Body.String())
 	}
 
-	var payload map[string]interface{}
+	var payload map[string]any
 	if err := json.Unmarshal(rr.Body.Bytes(), &payload); err != nil {
 		t.Fatalf("unmarshal response: %v", err)
 	}
 
-	meta, ok := payload["meta"].(map[string]interface{})
+	meta, ok := payload["meta"].(map[string]any)
 	if !ok {
 		t.Fatalf("expected meta object in response: %v", payload)
 	}
@@ -784,6 +793,7 @@ func TestEventQueryHandlerGetByNameDomainQueryMeta(t *testing.T) {
 }
 
 func TestEventQueryHandlerGetByContractDomainQueryMeta(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	retrieval := query.NewEventRetrievalService(&mockEventStore{}, &mockMetadataStore{}, logger, metrics)
@@ -814,7 +824,7 @@ func TestEventQueryHandlerGetByContractDomainQueryMeta(t *testing.T) {
 						BlockNumber:    444,
 						BlockTimestamp: time.Now().Unix(),
 						EventName:      "Transfer",
-						DecodedData:    map[string]interface{}{"path": "domain-contract"},
+						DecodedData:    map[string]any{"path": "domain-contract"},
 						CreatedAt:      time.Now(),
 						ProcessedAt:    time.Now(),
 						IndexedAt:      time.Now(),
@@ -837,12 +847,12 @@ func TestEventQueryHandlerGetByContractDomainQueryMeta(t *testing.T) {
 		t.Fatalf("expected status 200, got %d, body=%s", rr.Code, rr.Body.String())
 	}
 
-	var payload map[string]interface{}
+	var payload map[string]any
 	if err := json.Unmarshal(rr.Body.Bytes(), &payload); err != nil {
 		t.Fatalf("unmarshal response: %v", err)
 	}
 
-	meta, ok := payload["meta"].(map[string]interface{})
+	meta, ok := payload["meta"].(map[string]any)
 	if !ok {
 		t.Fatalf("expected meta object in response: %v", payload)
 	}

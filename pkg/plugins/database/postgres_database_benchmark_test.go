@@ -19,7 +19,7 @@ func BenchmarkBatchInsert(b *testing.B) {
 		PostgresHost:     "localhost",
 		PostgresPort:     "5432",
 		PostgresUser:     "chainpulse",
-		PostgresPassword: "chainpulse",
+		PostgresPassword: core.SecretString("chainpulse"),
 		PostgresDB:       "chainpulse",
 	}
 
@@ -76,7 +76,7 @@ func TestBatchInsertPerformance(t *testing.T) {
 		PostgresHost:     "localhost",
 		PostgresPort:     "5432",
 		PostgresUser:     "chainpulse",
-		PostgresPassword: "chainpulse",
+		PostgresPassword: core.SecretString("chainpulse"),
 		PostgresDB:       "chainpulse",
 	}
 
@@ -140,7 +140,7 @@ func TestBatchInsertVariousSizes(t *testing.T) {
 		PostgresHost:     "localhost",
 		PostgresPort:     "5432",
 		PostgresUser:     "chainpulse",
-		PostgresPassword: "chainpulse",
+		PostgresPassword: core.SecretString("chainpulse"),
 		PostgresDB:       "chainpulse",
 	}
 
@@ -198,7 +198,7 @@ func TestSingleEventPerformance(t *testing.T) {
 		PostgresHost:     "localhost",
 		PostgresPort:     "5432",
 		PostgresUser:     "chainpulse",
-		PostgresPassword: "chainpulse",
+		PostgresPassword: core.SecretString("chainpulse"),
 		PostgresDB:       "chainpulse",
 	}
 
@@ -253,7 +253,7 @@ func TestQueryPerformance(t *testing.T) {
 		PostgresHost:     "localhost",
 		PostgresPort:     "5432",
 		PostgresUser:     "chainpulse",
-		PostgresPassword: "chainpulse",
+		PostgresPassword: core.SecretString("chainpulse"),
 		PostgresDB:       "chainpulse",
 	}
 

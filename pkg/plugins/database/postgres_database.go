@@ -44,27 +44,25 @@ func (p *PostgreSQLDatabase) Initialize(config *core.Config) error {
 	defer p.mu.Unlock()
 
 	// Extract PostgreSQL connection string from config
-	connStr := config.GetString("POSTGRES_CONNECTION_STRING", "")
+	connStr := core.ConfigString(config, "POSTGRES_CONNECTION_STRING", "")
 	if connStr == "" {
 		// Build connection string from individual components
-		host := config.GetString("POSTGRES_HOST", "localhost")
-		port := config.GetString("POSTGRES_PORT", "5432")
-		user := config.GetString("POSTGRES_USER", "postgres")
-		password := config.GetString("POSTGRES_PASSWORD", "")
-		dbname := config.GetString("POSTGRES_DB", "chainpulse")
-		sslmode := config.GetString("DATABASE_SSLMODE", "disable")
+		host := core.ConfigString(config, "POSTGRES_HOST", "localhost")
+		port := core.ConfigString(config, "POSTGRES_PORT", "5432")
+		user := core.ConfigString(config, "POSTGRES_USER", "postgres")
+		password := core.SecretString(core.ConfigString(config, "POSTGRES_PASSWORD", ""))
+		dbname := core.ConfigString(config, "POSTGRES_DB", "chainpulse")
+		sslmode := core.ConfigString(config, "DATABASE_SSLMODE", "require")
 
 		connStr = fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
-			host, port, user, password, dbname, sslmode)
+			host, port, user, password.Value(), dbname, sslmode)
 	}
 
 	// Open database connection
 	db, err := sql.Open("postgres", connStr)
 	if err != nil {
 		p.RecordError()
-		p.logger.Error("Failed to open PostgreSQL connection", map[string]interface{}{
-			"error": err.Error(),
-		})
+		p.logger.Error("Failed to open PostgreSQL connection", core.LogKeyError, err)
 		return fmt.Errorf("failed to open PostgreSQL connection: %w", err)
 	}
 
@@ -79,9 +77,7 @@ func (p *PostgreSQLDatabase) Initialize(config *core.Config) error {
 
 	if err := db.PingContext(ctx); err != nil {
 		p.RecordError()
-		p.logger.Error("Failed to ping PostgreSQL", map[string]interface{}{
-			"error": err.Error(),
-		})
+		p.logger.Error("Failed to ping PostgreSQL", core.LogKeyError, err)
 		return fmt.Errorf("failed to ping PostgreSQL: %w", err)
 	}
 
@@ -94,9 +90,7 @@ func (p *PostgreSQLDatabase) Initialize(config *core.Config) error {
 		return fmt.Errorf("failed to create tables: %w", err)
 	}
 
-	p.logger.Info("PostgreSQL database initialized", map[string]interface{}{
-		"component": "postgres_database",
-	})
+	p.logger.Info("PostgreSQL database initialized", core.LogKeyComponent, "postgres_database")
 
 	return nil
 }
@@ -157,9 +151,7 @@ func (p *PostgreSQLDatabase) Start() error {
 		return fmt.Errorf("failed to verify PostgreSQL connection: %w", err)
 	}
 
-	p.logger.Info("PostgreSQL database started", map[string]interface{}{
-		"component": "postgres_database",
-	})
+	p.logger.Info("PostgreSQL database started", core.LogKeyComponent, "postgres_database")
 
 	return nil
 }
@@ -176,16 +168,12 @@ func (p *PostgreSQLDatabase) Stop() error {
 	if p.db != nil {
 		if err := p.db.Close(); err != nil {
 			p.RecordError()
-			p.logger.Error("Failed to close PostgreSQL connection", map[string]interface{}{
-				"error": err.Error(),
-			})
+			p.logger.Error("Failed to close PostgreSQL connection", core.LogKeyError, err)
 			return fmt.Errorf("failed to close PostgreSQL connection: %w", err)
 		}
 	}
 
-	p.logger.Info("PostgreSQL database stopped", map[string]interface{}{
-		"component": "postgres_database",
-	})
+	p.logger.Info("PostgreSQL database stopped", core.LogKeyComponent, "postgres_database")
 
 	return nil
 }
@@ -233,10 +221,7 @@ INSERT INTO blockchain_events (event_hash, chain_id, block_number, transaction_h
 
 	if err != nil {
 		p.RecordError()
-		p.logger.Error("Failed to write event to PostgreSQL", map[string]interface{}{
-			"error": err.Error(),
-			"hash":  event.EventHash,
-		})
+		p.logger.Error("Failed to write event to PostgreSQL", core.LogKeyError, err, core.LogKeyHash, event.EventHash)
 		return fmt.Errorf("failed to write event: %w", err)
 	}
 
@@ -288,14 +273,14 @@ func (p *PostgreSQLDatabase) WriteEvents(ctx context.Context, events []core.Bloc
 	stmt, err := tx.PrepareContext(ctx, insertSQL)
 	if err != nil {
 		if rbErr := tx.Rollback(); rbErr != nil {
-			p.logger.Error("failed to rollback transaction", map[string]interface{}{"error": rbErr})
+			p.logger.Error("failed to rollback transaction", core.LogKeyError, rbErr)
 		}
 		p.RecordError()
 		return fmt.Errorf("failed to prepare statement: %w", err)
 	}
 	defer func() {
 		if err := stmt.Close(); err != nil {
-			p.logger.Error("failed to close statement", map[string]interface{}{"error": err})
+			p.logger.Error("failed to close statement", core.LogKeyError, err)
 		}
 	}()
 
@@ -314,13 +299,10 @@ func (p *PostgreSQLDatabase) WriteEvents(ctx context.Context, events []core.Bloc
 		)
 		if err != nil {
 			if rbErr := tx.Rollback(); rbErr != nil {
-				p.logger.Error("failed to rollback transaction", map[string]interface{}{"error": rbErr})
+				p.logger.Error("failed to rollback transaction", core.LogKeyError, rbErr)
 			}
 			p.RecordError()
-			p.logger.Error("Failed to write event in batch", map[string]interface{}{
-				"error": err.Error(),
-				"hash":  event.EventHash,
-			})
+			p.logger.Error("Failed to write event in batch", core.LogKeyError, err, core.LogKeyHash, event.EventHash)
 			return fmt.Errorf("failed to write event in batch: %w", err)
 		}
 
@@ -366,7 +348,7 @@ func (p *PostgreSQLDatabase) QueryEvents(filter *core.EventFilter) (*core.QueryR
 
 	// Build query
 	query := "SELECT event_hash, block_number, transaction_hash, log_index, contract_address, event_name, event_data, timestamp FROM blockchain_events WHERE 1=1"
-	args := []interface{}{}
+	args := []any{}
 	argIndex := 1
 
 	if len(filter.ContractAddress) > 0 {
@@ -402,14 +384,12 @@ func (p *PostgreSQLDatabase) QueryEvents(filter *core.EventFilter) (*core.QueryR
 	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
 		p.RecordError()
-		p.logger.Error("Failed to query events from PostgreSQL", map[string]interface{}{
-			"error": err.Error(),
-		})
+		p.logger.Error("Failed to query events from PostgreSQL", core.LogKeyError, err)
 		return nil, fmt.Errorf("failed to query events: %w", err)
 	}
 	defer func() {
 		if err := rows.Close(); err != nil {
-			p.logger.Error("failed to close rows", map[string]interface{}{"error": err})
+			p.logger.Error("failed to close rows", core.LogKeyError, err)
 		}
 	}()
 
@@ -500,10 +480,7 @@ func (p *PostgreSQLDatabase) GetEventByHash(hash string) (*core.BlockchainEvent,
 			return nil, nil
 		}
 		p.RecordError()
-		p.logger.Error("Failed to get event by hash from PostgreSQL", map[string]interface{}{
-			"error": err.Error(),
-			"hash":  hash,
-		})
+		p.logger.Error("Failed to get event by hash from PostgreSQL", core.LogKeyError, err, core.LogKeyHash, hash)
 		return nil, fmt.Errorf("failed to get event by hash: %w", err)
 	}
 
@@ -538,10 +515,7 @@ func (p *PostgreSQLDatabase) DeleteEvent(ctx context.Context, eventID string) er
 	result, err := db.ExecContext(ctx, query, eventID)
 	if err != nil {
 		p.RecordError()
-		p.logger.Error("Failed to delete event from PostgreSQL", map[string]interface{}{
-			"error":    err.Error(),
-			"event_id": eventID,
-		})
+		p.logger.Error("Failed to delete event from PostgreSQL", core.LogKeyError, err, core.LogKeyEventID, eventID)
 		return fmt.Errorf("failed to delete event: %w", err)
 	}
 
@@ -606,9 +580,7 @@ func (p *PostgreSQLDatabase) updateEventCount() {
 	var count int64
 	err := db.QueryRowContext(ctx, "SELECT COUNT(*) FROM blockchain_events").Scan(&count)
 	if err != nil {
-		p.logger.Error("Failed to update event count", map[string]interface{}{
-			"error": err.Error(),
-		})
+		p.logger.Error("Failed to update event count", core.LogKeyError, err)
 		return
 	}
 
@@ -645,7 +617,7 @@ func (p *PostgreSQLDatabase) GetAllEvents(ctx context.Context) ([]*core.Blockcha
 	}
 	defer func() {
 		if err := rows.Close(); err != nil {
-			p.logger.Error("failed to close rows", map[string]interface{}{"error": err})
+			p.logger.Error("failed to close rows", core.LogKeyError, err)
 		}
 	}()
 

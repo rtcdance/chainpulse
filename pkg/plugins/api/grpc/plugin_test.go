@@ -16,6 +16,7 @@ func skipGRPCPluginLifecycleTestsInShortMode(t *testing.T) {
 }
 
 func TestNewGRPCPlugin(t *testing.T) {
+	t.Parallel()
 	apiLayer := core.NewAPILayer()
 	plugin := NewGRPCPlugin("grpc", 9090, apiLayer)
 
@@ -33,6 +34,7 @@ func TestNewGRPCPlugin(t *testing.T) {
 }
 
 func TestGRPCPluginStart(t *testing.T) {
+	t.Parallel()
 	skipGRPCPluginLifecycleTestsInShortMode(t)
 
 	apiLayer := core.NewAPILayer()
@@ -52,6 +54,7 @@ func TestGRPCPluginStart(t *testing.T) {
 }
 
 func TestGRPCPluginStartAlreadyRunning(t *testing.T) {
+	t.Parallel()
 	skipGRPCPluginLifecycleTestsInShortMode(t)
 
 	apiLayer := core.NewAPILayer()
@@ -68,6 +71,7 @@ func TestGRPCPluginStartAlreadyRunning(t *testing.T) {
 }
 
 func TestGRPCPluginStop(t *testing.T) {
+	t.Parallel()
 	skipGRPCPluginLifecycleTestsInShortMode(t)
 
 	apiLayer := core.NewAPILayer()
@@ -86,6 +90,7 @@ func TestGRPCPluginStop(t *testing.T) {
 }
 
 func TestGRPCPluginStopNotRunning(t *testing.T) {
+	t.Parallel()
 	apiLayer := core.NewAPILayer()
 	plugin := NewGRPCPlugin("grpc", 9094, apiLayer)
 
@@ -96,6 +101,7 @@ func TestGRPCPluginStopNotRunning(t *testing.T) {
 }
 
 func TestGRPCPluginGetName(t *testing.T) {
+	t.Parallel()
 	apiLayer := core.NewAPILayer()
 	plugin := NewGRPCPlugin("test-grpc", 9095, apiLayer)
 
@@ -105,6 +111,7 @@ func TestGRPCPluginGetName(t *testing.T) {
 }
 
 func TestGRPCPluginIsRunning(t *testing.T) {
+	t.Parallel()
 	skipGRPCPluginLifecycleTestsInShortMode(t)
 
 	apiLayer := core.NewAPILayer()
@@ -123,6 +130,7 @@ func TestGRPCPluginIsRunning(t *testing.T) {
 }
 
 func TestGRPCPluginUseMiddleware(t *testing.T) {
+	t.Parallel()
 	apiLayer := core.NewAPILayer()
 	plugin := NewGRPCPlugin("grpc", 9097, apiLayer)
 
@@ -144,6 +152,7 @@ func TestGRPCPluginUseMiddleware(t *testing.T) {
 }
 
 func TestGRPCPluginMultipleMiddleware(t *testing.T) {
+	t.Parallel()
 	apiLayer := core.NewAPILayer()
 	plugin := NewGRPCPlugin("grpc", 9098, apiLayer)
 
@@ -167,6 +176,7 @@ func TestGRPCPluginMultipleMiddleware(t *testing.T) {
 }
 
 func TestGRPCPluginProcessRequestExecutesMiddleware(t *testing.T) {
+	t.Parallel()
 	apiLayer := core.NewAPILayer()
 	plugin := NewGRPCPlugin("grpc", 9101, apiLayer)
 
@@ -206,6 +216,7 @@ func TestGRPCPluginProcessRequestExecutesMiddleware(t *testing.T) {
 }
 
 func TestGRPCPluginConcurrentOperations(t *testing.T) {
+	t.Parallel()
 	skipGRPCPluginLifecycleTestsInShortMode(t)
 
 	apiLayer := core.NewAPILayer()

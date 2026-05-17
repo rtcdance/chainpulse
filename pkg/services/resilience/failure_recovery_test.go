@@ -9,6 +9,7 @@ import (
 )
 
 func TestDefaultRecoveryManager_SaveCheckpoint(t *testing.T) {
+	t.Parallel()
 	rm := NewDefaultRecoveryManager(10, 5*time.Second)
 	ctx := context.Background()
 
@@ -18,9 +19,9 @@ func TestDefaultRecoveryManager_SaveCheckpoint(t *testing.T) {
 		LastProcessedTimestamp:   time.Now().Unix(),
 		ProcessedEventHashes:     make(map[string]bool),
 		PendingEvents:            make([]core.BlockchainEvent, 0),
-		CacheState:               make(map[string]interface{}),
-		QueueState:               make(map[string]interface{}),
-		DatabaseState:            make(map[string]interface{}),
+		CacheState:               make(map[string]any),
+		QueueState:               make(map[string]any),
+		DatabaseState:            make(map[string]any),
 	}
 
 	err := rm.SaveCheckpoint(ctx, state)
@@ -38,6 +39,7 @@ func TestDefaultRecoveryManager_SaveCheckpoint(t *testing.T) {
 }
 
 func TestDefaultRecoveryManager_SaveCheckpoint_InvalidState(t *testing.T) {
+	t.Parallel()
 	rm := NewDefaultRecoveryManager(10, 5*time.Second)
 	ctx := context.Background()
 
@@ -46,9 +48,9 @@ func TestDefaultRecoveryManager_SaveCheckpoint_InvalidState(t *testing.T) {
 		LastProcessedBlockNumber: -1,
 		ProcessedEventHashes:     make(map[string]bool),
 		PendingEvents:            make([]core.BlockchainEvent, 0),
-		CacheState:               make(map[string]interface{}),
-		QueueState:               make(map[string]interface{}),
-		DatabaseState:            make(map[string]interface{}),
+		CacheState:               make(map[string]any),
+		QueueState:               make(map[string]any),
+		DatabaseState:            make(map[string]any),
 	}
 
 	err := rm.SaveCheckpoint(ctx, state)
@@ -58,6 +60,7 @@ func TestDefaultRecoveryManager_SaveCheckpoint_InvalidState(t *testing.T) {
 }
 
 func TestDefaultRecoveryManager_LoadCheckpoint(t *testing.T) {
+	t.Parallel()
 	rm := NewDefaultRecoveryManager(10, 5*time.Second)
 	ctx := context.Background()
 
@@ -67,9 +70,9 @@ func TestDefaultRecoveryManager_LoadCheckpoint(t *testing.T) {
 		LastProcessedTimestamp:   time.Now().Unix(),
 		ProcessedEventHashes:     make(map[string]bool),
 		PendingEvents:            make([]core.BlockchainEvent, 0),
-		CacheState:               make(map[string]interface{}),
-		QueueState:               make(map[string]interface{}),
-		DatabaseState:            make(map[string]interface{}),
+		CacheState:               make(map[string]any),
+		QueueState:               make(map[string]any),
+		DatabaseState:            make(map[string]any),
 	}
 
 	err := rm.SaveCheckpoint(ctx, state)
@@ -92,6 +95,7 @@ func TestDefaultRecoveryManager_LoadCheckpoint(t *testing.T) {
 }
 
 func TestDefaultRecoveryManager_LoadCheckpoint_NoCheckpoint(t *testing.T) {
+	t.Parallel()
 	rm := NewDefaultRecoveryManager(10, 5*time.Second)
 	ctx := context.Background()
 
@@ -106,6 +110,7 @@ func TestDefaultRecoveryManager_LoadCheckpoint_NoCheckpoint(t *testing.T) {
 }
 
 func TestDefaultRecoveryManager_VerifyCheckpoint(t *testing.T) {
+	t.Parallel()
 	rm := NewDefaultRecoveryManager(10, 5*time.Second)
 	ctx := context.Background()
 
@@ -113,9 +118,9 @@ func TestDefaultRecoveryManager_VerifyCheckpoint(t *testing.T) {
 		LastProcessedBlockNumber: 100,
 		ProcessedEventHashes:     make(map[string]bool),
 		PendingEvents:            make([]core.BlockchainEvent, 0),
-		CacheState:               make(map[string]interface{}),
-		QueueState:               make(map[string]interface{}),
-		DatabaseState:            make(map[string]interface{}),
+		CacheState:               make(map[string]any),
+		QueueState:               make(map[string]any),
+		DatabaseState:            make(map[string]any),
 	}
 
 	err := rm.SaveCheckpoint(ctx, state)
@@ -132,6 +137,7 @@ func TestDefaultRecoveryManager_VerifyCheckpoint(t *testing.T) {
 }
 
 func TestDefaultRecoveryManager_VerifyCheckpoint_Nil(t *testing.T) {
+	t.Parallel()
 	rm := NewDefaultRecoveryManager(10, 5*time.Second)
 	ctx := context.Background()
 
@@ -142,6 +148,7 @@ func TestDefaultRecoveryManager_VerifyCheckpoint_Nil(t *testing.T) {
 }
 
 func TestDefaultRecoveryManager_DeleteCheckpoint(t *testing.T) {
+	t.Parallel()
 	rm := NewDefaultRecoveryManager(10, 5*time.Second)
 	ctx := context.Background()
 
@@ -149,9 +156,9 @@ func TestDefaultRecoveryManager_DeleteCheckpoint(t *testing.T) {
 		LastProcessedBlockNumber: 100,
 		ProcessedEventHashes:     make(map[string]bool),
 		PendingEvents:            make([]core.BlockchainEvent, 0),
-		CacheState:               make(map[string]interface{}),
-		QueueState:               make(map[string]interface{}),
-		DatabaseState:            make(map[string]interface{}),
+		CacheState:               make(map[string]any),
+		QueueState:               make(map[string]any),
+		DatabaseState:            make(map[string]any),
 	}
 
 	err := rm.SaveCheckpoint(ctx, state)
@@ -170,6 +177,7 @@ func TestDefaultRecoveryManager_DeleteCheckpoint(t *testing.T) {
 }
 
 func TestDefaultRecoveryManager_GetCheckpointHistory(t *testing.T) {
+	t.Parallel()
 	rm := NewDefaultRecoveryManager(10, 5*time.Second)
 	ctx := context.Background()
 
@@ -179,9 +187,9 @@ func TestDefaultRecoveryManager_GetCheckpointHistory(t *testing.T) {
 			LastProcessedBlockNumber: int64(100 + i),
 			ProcessedEventHashes:     make(map[string]bool),
 			PendingEvents:            make([]core.BlockchainEvent, 0),
-			CacheState:               make(map[string]interface{}),
-			QueueState:               make(map[string]interface{}),
-			DatabaseState:            make(map[string]interface{}),
+			CacheState:               make(map[string]any),
+			QueueState:               make(map[string]any),
+			DatabaseState:            make(map[string]any),
 		}
 
 		err := rm.SaveCheckpoint(ctx, state)
@@ -201,6 +209,7 @@ func TestDefaultRecoveryManager_GetCheckpointHistory(t *testing.T) {
 }
 
 func TestDefaultRecoveryManager_Health(t *testing.T) {
+	t.Parallel()
 	rm := NewDefaultRecoveryManager(10, 5*time.Second)
 	ctx := context.Background()
 
@@ -213,9 +222,9 @@ func TestDefaultRecoveryManager_Health(t *testing.T) {
 		LastProcessedBlockNumber: 100,
 		ProcessedEventHashes:     make(map[string]bool),
 		PendingEvents:            make([]core.BlockchainEvent, 0),
-		CacheState:               make(map[string]interface{}),
-		QueueState:               make(map[string]interface{}),
-		DatabaseState:            make(map[string]interface{}),
+		CacheState:               make(map[string]any),
+		QueueState:               make(map[string]any),
+		DatabaseState:            make(map[string]any),
 	}
 
 	err := rm.SaveCheckpoint(ctx, state)
@@ -230,6 +239,7 @@ func TestDefaultRecoveryManager_Health(t *testing.T) {
 }
 
 func TestDefaultRecoveryExecutor_RecoverFromCheckpoint(t *testing.T) {
+	t.Parallel()
 	rm := NewDefaultRecoveryManager(10, 5*time.Second)
 	re := NewDefaultRecoveryExecutor(rm)
 	ctx := context.Background()
@@ -238,9 +248,9 @@ func TestDefaultRecoveryExecutor_RecoverFromCheckpoint(t *testing.T) {
 		LastProcessedBlockNumber: 100,
 		ProcessedEventHashes:     make(map[string]bool),
 		PendingEvents:            make([]core.BlockchainEvent, 0),
-		CacheState:               make(map[string]interface{}),
-		QueueState:               make(map[string]interface{}),
-		DatabaseState:            make(map[string]interface{}),
+		CacheState:               make(map[string]any),
+		QueueState:               make(map[string]any),
+		DatabaseState:            make(map[string]any),
 	}
 
 	err := rm.SaveCheckpoint(ctx, state)
@@ -257,6 +267,7 @@ func TestDefaultRecoveryExecutor_RecoverFromCheckpoint(t *testing.T) {
 }
 
 func TestDefaultRecoveryExecutor_RecoverFromCheckpoint_Nil(t *testing.T) {
+	t.Parallel()
 	rm := NewDefaultRecoveryManager(10, 5*time.Second)
 	re := NewDefaultRecoveryExecutor(rm)
 	ctx := context.Background()
@@ -268,6 +279,7 @@ func TestDefaultRecoveryExecutor_RecoverFromCheckpoint_Nil(t *testing.T) {
 }
 
 func TestDefaultRecoveryExecutor_VerifyDataConsistency(t *testing.T) {
+	t.Parallel()
 	rm := NewDefaultRecoveryManager(10, 5*time.Second)
 	re := NewDefaultRecoveryExecutor(rm)
 	ctx := context.Background()
@@ -276,9 +288,9 @@ func TestDefaultRecoveryExecutor_VerifyDataConsistency(t *testing.T) {
 		LastProcessedBlockNumber: 100,
 		ProcessedEventHashes:     make(map[string]bool),
 		PendingEvents:            make([]core.BlockchainEvent, 0),
-		CacheState:               make(map[string]interface{}),
-		QueueState:               make(map[string]interface{}),
-		DatabaseState:            make(map[string]interface{}),
+		CacheState:               make(map[string]any),
+		QueueState:               make(map[string]any),
+		DatabaseState:            make(map[string]any),
 	}
 
 	err := rm.SaveCheckpoint(ctx, state)
@@ -293,6 +305,7 @@ func TestDefaultRecoveryExecutor_VerifyDataConsistency(t *testing.T) {
 }
 
 func TestDefaultRecoveryExecutor_VerifyDataConsistency_DuplicateEvent(t *testing.T) {
+	t.Parallel()
 	rm := NewDefaultRecoveryManager(10, 5*time.Second)
 	re := NewDefaultRecoveryExecutor(rm)
 	ctx := context.Background()
@@ -307,9 +320,9 @@ func TestDefaultRecoveryExecutor_VerifyDataConsistency_DuplicateEvent(t *testing
 				LogIndex:    0,
 			},
 		},
-		CacheState:    make(map[string]interface{}),
-		QueueState:    make(map[string]interface{}),
-		DatabaseState: make(map[string]interface{}),
+		CacheState:    make(map[string]any),
+		QueueState:    make(map[string]any),
+		DatabaseState: make(map[string]any),
 	}
 
 	err := rm.SaveCheckpoint(ctx, state)
@@ -324,6 +337,7 @@ func TestDefaultRecoveryExecutor_VerifyDataConsistency_DuplicateEvent(t *testing
 }
 
 func TestDefaultRecoveryExecutor_GetRecoveryStats(t *testing.T) {
+	t.Parallel()
 	rm := NewDefaultRecoveryManager(10, 5*time.Second)
 	re := NewDefaultRecoveryExecutor(rm)
 	ctx := context.Background()
@@ -332,9 +346,9 @@ func TestDefaultRecoveryExecutor_GetRecoveryStats(t *testing.T) {
 		LastProcessedBlockNumber: 100,
 		ProcessedEventHashes:     make(map[string]bool),
 		PendingEvents:            make([]core.BlockchainEvent, 0),
-		CacheState:               make(map[string]interface{}),
-		QueueState:               make(map[string]interface{}),
-		DatabaseState:            make(map[string]interface{}),
+		CacheState:               make(map[string]any),
+		QueueState:               make(map[string]any),
+		DatabaseState:            make(map[string]any),
 	}
 
 	err := rm.SaveCheckpoint(ctx, state)
@@ -360,6 +374,7 @@ func TestDefaultRecoveryExecutor_GetRecoveryStats(t *testing.T) {
 }
 
 func TestDefaultSafeStateManager_EnterSafeState(t *testing.T) {
+	t.Parallel()
 	ssm := NewDefaultSafeStateManager()
 	ctx := context.Background()
 
@@ -379,6 +394,7 @@ func TestDefaultSafeStateManager_EnterSafeState(t *testing.T) {
 }
 
 func TestDefaultSafeStateManager_EnterSafeState_AlreadyInSafeState(t *testing.T) {
+	t.Parallel()
 	ssm := NewDefaultSafeStateManager()
 	ctx := context.Background()
 
@@ -394,6 +410,7 @@ func TestDefaultSafeStateManager_EnterSafeState_AlreadyInSafeState(t *testing.T)
 }
 
 func TestDefaultSafeStateManager_ExitSafeState(t *testing.T) {
+	t.Parallel()
 	ssm := NewDefaultSafeStateManager()
 	ctx := context.Background()
 
@@ -413,6 +430,7 @@ func TestDefaultSafeStateManager_ExitSafeState(t *testing.T) {
 }
 
 func TestDefaultSafeStateManager_ExitSafeState_NotInSafeState(t *testing.T) {
+	t.Parallel()
 	ssm := NewDefaultSafeStateManager()
 	ctx := context.Background()
 
@@ -423,6 +441,7 @@ func TestDefaultSafeStateManager_ExitSafeState_NotInSafeState(t *testing.T) {
 }
 
 func TestRecoveryManager_ConcurrentOperations(t *testing.T) {
+	t.Parallel()
 	rm := NewDefaultRecoveryManager(10, 5*time.Second)
 	ctx := context.Background()
 
@@ -431,9 +450,9 @@ func TestRecoveryManager_ConcurrentOperations(t *testing.T) {
 		LastProcessedBlockNumber: 100,
 		ProcessedEventHashes:     make(map[string]bool),
 		PendingEvents:            make([]core.BlockchainEvent, 0),
-		CacheState:               make(map[string]interface{}),
-		QueueState:               make(map[string]interface{}),
-		DatabaseState:            make(map[string]interface{}),
+		CacheState:               make(map[string]any),
+		QueueState:               make(map[string]any),
+		DatabaseState:            make(map[string]any),
 	}
 
 	err := rm.SaveCheckpoint(ctx, state)
@@ -459,6 +478,7 @@ func TestRecoveryManager_ConcurrentOperations(t *testing.T) {
 }
 
 func TestRecoveryManager_CheckpointHistoryLimit(t *testing.T) {
+	t.Parallel()
 	rm := NewDefaultRecoveryManager(3, 5*time.Second)
 	ctx := context.Background()
 
@@ -468,9 +488,9 @@ func TestRecoveryManager_CheckpointHistoryLimit(t *testing.T) {
 			LastProcessedBlockNumber: int64(100 + i),
 			ProcessedEventHashes:     make(map[string]bool),
 			PendingEvents:            make([]core.BlockchainEvent, 0),
-			CacheState:               make(map[string]interface{}),
-			QueueState:               make(map[string]interface{}),
-			DatabaseState:            make(map[string]interface{}),
+			CacheState:               make(map[string]any),
+			QueueState:               make(map[string]any),
+			DatabaseState:            make(map[string]any),
 		}
 
 		err := rm.SaveCheckpoint(ctx, state)

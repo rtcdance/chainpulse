@@ -10,6 +10,7 @@ import (
 
 	"chainpulse/pkg/core"
 	domainquery "chainpulse/pkg/domain/query"
+
 	"github.com/graphql-go/graphql"
 	"github.com/graphql-go/graphql/language/ast"
 )
@@ -26,18 +27,18 @@ var authTokenContextKey = authTokenKeyType{}
 var JSONScalar = graphql.NewScalar(graphql.ScalarConfig{
 	Name:         "JSON",
 	Description:  "Arbitrary JSON value",
-	Serialize:    func(value interface{}) interface{} { return value },
-	ParseValue:   func(value interface{}) interface{} { return value },
-	ParseLiteral: func(valueAST ast.Value) interface{} { return nil },
+	Serialize:    func(value any) any { return value },
+	ParseValue:   func(value any) any { return value },
+	ParseLiteral: func(valueAST ast.Value) any { return nil },
 })
 
 // SchemaBuilder builds the GraphQL schema
 type SchemaBuilder struct {
-	eventStore         domainquery.EventStore
-	logger             core.Logger
-	metrics            core.MetricsCollector
-	cache              core.CachePlugin
-	authMiddleware     *AuthMiddleware
+	eventStore          domainquery.EventReader
+	logger              core.Logger
+	metrics             core.MetricsCollector
+	cache               core.CachePlugin
+	authMiddleware      *AuthMiddleware
 	subscriptionManager *SubscriptionManager
 }
 
@@ -48,7 +49,7 @@ func (sb *SchemaBuilder) SetSubscriptionManager(sm *SubscriptionManager) {
 
 // NewSchemaBuilder creates a new schema builder
 func NewSchemaBuilder(
-	eventStore domainquery.EventStore,
+	eventStore domainquery.EventReader,
 	logger core.Logger,
 	metrics core.MetricsCollector,
 	cache core.CachePlugin,
@@ -66,7 +67,7 @@ func NewSchemaBuilder(
 // Subscription resolver methods
 
 // subscribeEventCreated returns a channel that emits newly created events
-func (sb *SchemaBuilder) subscribeEventCreated(p graphql.ResolveParams) (interface{}, error) {
+func (sb *SchemaBuilder) subscribeEventCreated(p graphql.ResolveParams) (any, error) {
 	if sb.subscriptionManager == nil {
 		return nil, fmt.Errorf("subscriptions are not available")
 	}
@@ -79,7 +80,7 @@ func (sb *SchemaBuilder) subscribeEventCreated(p graphql.ResolveParams) (interfa
 		return nil, err
 	}
 
-	filtered := make(chan interface{}, 100)
+	filtered := make(chan any, 100)
 	go func() {
 		defer close(filtered)
 		for {
@@ -113,7 +114,7 @@ func (sb *SchemaBuilder) subscribeEventCreated(p graphql.ResolveParams) (interfa
 }
 
 // subscribeEventConfirmed returns a channel that emits confirmed events
-func (sb *SchemaBuilder) subscribeEventConfirmed(p graphql.ResolveParams) (interface{}, error) {
+func (sb *SchemaBuilder) subscribeEventConfirmed(p graphql.ResolveParams) (any, error) {
 	if sb.subscriptionManager == nil {
 		return nil, fmt.Errorf("subscriptions are not available")
 	}
@@ -123,7 +124,7 @@ func (sb *SchemaBuilder) subscribeEventConfirmed(p graphql.ResolveParams) (inter
 		return nil, err
 	}
 
-	ch := make(chan interface{}, 100)
+	ch := make(chan any, 100)
 	go func() {
 		defer close(ch)
 		for {
@@ -151,7 +152,7 @@ func (sb *SchemaBuilder) subscribeEventConfirmed(p graphql.ResolveParams) (inter
 }
 
 // subscribeEventFailed returns a channel that emits failed event notifications
-func (sb *SchemaBuilder) subscribeEventFailed(p graphql.ResolveParams) (interface{}, error) {
+func (sb *SchemaBuilder) subscribeEventFailed(p graphql.ResolveParams) (any, error) {
 	if sb.subscriptionManager == nil {
 		return nil, fmt.Errorf("subscriptions are not available")
 	}
@@ -161,7 +162,7 @@ func (sb *SchemaBuilder) subscribeEventFailed(p graphql.ResolveParams) (interfac
 		return nil, err
 	}
 
-	ch := make(chan interface{}, 100)
+	ch := make(chan any, 100)
 	go func() {
 		defer close(ch)
 		for {
@@ -189,8 +190,8 @@ func (sb *SchemaBuilder) subscribeEventFailed(p graphql.ResolveParams) (interfac
 }
 
 // mapToSubscriptionPayload converts an EventSubscriptionPayload to a map for GraphQL resolution
-func mapToSubscriptionPayload(payload *EventSubscriptionPayload) map[string]interface{} {
-	return map[string]interface{}{
+func mapToSubscriptionPayload(payload *EventSubscriptionPayload) map[string]any {
+	return map[string]any{
 		"type":            payload.Type,
 		"eventId":         payload.EventID,
 		"chainId":         payload.ChainID,
@@ -207,13 +208,13 @@ func (sb *SchemaBuilder) BuildSchema() (graphql.Schema, error) {
 	bigIntType := graphql.NewScalar(graphql.ScalarConfig{
 		Name:        "BigInt",
 		Description: "Big integer type for large numbers",
-		Serialize: func(value interface{}) interface{} {
+		Serialize: func(value any) any {
 			return fmt.Sprintf("%v", value)
 		},
-		ParseValue: func(value interface{}) interface{} {
+		ParseValue: func(value any) any {
 			return value
 		},
-		ParseLiteral: func(valueAST ast.Value) interface{} {
+		ParseLiteral: func(valueAST ast.Value) any {
 			switch v := valueAST.(type) {
 			case *ast.StringValue:
 				return v.Value
@@ -440,7 +441,7 @@ func (sb *SchemaBuilder) BuildSchema() (graphql.Schema, error) {
 		Description: "Sort criteria for blockchain events",
 		Fields: graphql.InputObjectConfigFieldMap{
 			"field": &graphql.InputObjectFieldConfig{
-				Type: graphql.NewNonNull(graphql.String),
+				Type:        graphql.NewNonNull(graphql.String),
 				Description: "Field to sort by (blockNumber, blockTimestamp, logIndex, eventName)",
 			},
 			"order": &graphql.InputObjectFieldConfig{
@@ -478,14 +479,14 @@ func (sb *SchemaBuilder) BuildSchema() (graphql.Schema, error) {
 						Type:        graphql.String,
 						Description: "Cursor for pagination",
 					},
-				"filter": &graphql.ArgumentConfig{
-					Type:        eventFilterInput,
-					Description: "Structured filter criteria for events",
-				},
-				"sort": &graphql.ArgumentConfig{
-					Type:        eventSortInput,
-					Description: "Sort criteria for events",
-				},
+					"filter": &graphql.ArgumentConfig{
+						Type:        eventFilterInput,
+						Description: "Structured filter criteria for events",
+					},
+					"sort": &graphql.ArgumentConfig{
+						Type:        eventSortInput,
+						Description: "Sort criteria for events",
+					},
 				},
 				Resolve: sb.resolveEvents,
 			},
@@ -533,7 +534,7 @@ func (sb *SchemaBuilder) BuildSchema() (graphql.Schema, error) {
 			"health": &graphql.Field{
 				Type:        graphql.String,
 				Description: "Health check",
-				Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+				Resolve: func(p graphql.ResolveParams) (any, error) {
 					return "healthy", nil
 				},
 			},
@@ -587,12 +588,12 @@ func (sb *SchemaBuilder) BuildSchema() (graphql.Schema, error) {
 			"eventConfirmed": &graphql.Field{
 				Type:        eventSubscriptionPayloadType,
 				Description: "Subscribe to confirmed events",
-				Subscribe: sb.subscribeEventConfirmed,
+				Subscribe:   sb.subscribeEventConfirmed,
 			},
 			"eventFailed": &graphql.Field{
 				Type:        eventSubscriptionPayloadType,
 				Description: "Subscribe to failed event notifications",
-				Subscribe: sb.subscribeEventFailed,
+				Subscribe:   sb.subscribeEventFailed,
 			},
 		},
 	})
@@ -613,7 +614,7 @@ func (sb *SchemaBuilder) BuildSchema() (graphql.Schema, error) {
 }
 
 // Resolver functions
-func (sb *SchemaBuilder) resolveEvent(p graphql.ResolveParams) (interface{}, error) {
+func (sb *SchemaBuilder) resolveEvent(p graphql.ResolveParams) (any, error) {
 	id, ok := p.Args["id"].(string)
 	if !ok {
 		return nil, fmt.Errorf("invalid id parameter")
@@ -623,7 +624,7 @@ func (sb *SchemaBuilder) resolveEvent(p graphql.ResolveParams) (interface{}, err
 		cacheKey := fmt.Sprintf("graphql:event:%s", id)
 		if cached, err := sb.cache.Get(p.Context, cacheKey); err == nil && cached != nil {
 			sb.metrics.RecordCounter("graphql_cache_hit", 1, nil)
-			var result map[string]interface{}
+			var result map[string]any
 			if err := json.Unmarshal(cached, &result); err == nil {
 				return withQuerySourcePosture(result, "graphql-cache-hit"), nil
 			}
@@ -657,7 +658,7 @@ func (sb *SchemaBuilder) resolveEvent(p graphql.ResolveParams) (interface{}, err
 	return result, nil
 }
 
-func (sb *SchemaBuilder) resolveEvents(p graphql.ResolveParams) (interface{}, error) {
+func (sb *SchemaBuilder) resolveEvents(p graphql.ResolveParams) (any, error) {
 	// Limit maximum page size
 	first := 20
 	if f, ok := p.Args["first"].(int); ok && f > 0 {
@@ -677,7 +678,7 @@ func (sb *SchemaBuilder) resolveEvents(p graphql.ResolveParams) (interface{}, er
 		cacheKey := fmt.Sprintf("graphql:events:root:after:%s:first:%d", after, first)
 		if cached, err := sb.cache.Get(p.Context, cacheKey); err == nil && cached != nil {
 			sb.metrics.RecordCounter("graphql_cache_hit", 1, nil)
-			var connection map[string]interface{}
+			var connection map[string]any
 			if err := json.Unmarshal(cached, &connection); err == nil {
 				return withQuerySourcePostureConnection(connection, "graphql-cache-hit"), nil
 			}
@@ -726,11 +727,11 @@ func (sb *SchemaBuilder) resolveEvents(p graphql.ResolveParams) (interface{}, er
 	}
 
 	// Build edges with opaque cursors based on stable sort keys
-	edges := make([]interface{}, 0, len(events))
+	edges := make([]any, 0, len(events))
 	var endCursor string
 	for i, event := range events {
 		cursor := domainquery.EncodePageCursor(event.BlockNumber, event.LogIndex, event.ID)
-		edges = append(edges, map[string]interface{}{
+		edges = append(edges, map[string]any{
 			"node":   withQuerySourcePosture(eventToGraphQLResponse(event), "graphql-event-store"),
 			"cursor": cursor,
 		})
@@ -739,9 +740,9 @@ func (sb *SchemaBuilder) resolveEvents(p graphql.ResolveParams) (interface{}, er
 		}
 	}
 
-	connection := map[string]interface{}{
+	connection := map[string]any{
 		"edges": edges,
-		"pageInfo": map[string]interface{}{
+		"pageInfo": map[string]any{
 			"hasNextPage":     hasNextPage,
 			"hasPreviousPage": after != "",
 			"startCursor":     after,
@@ -761,7 +762,7 @@ func (sb *SchemaBuilder) resolveEvents(p graphql.ResolveParams) (interface{}, er
 	return connection, nil
 }
 
-func (sb *SchemaBuilder) resolveEventsByBlock(p graphql.ResolveParams) (interface{}, error) {
+func (sb *SchemaBuilder) resolveEventsByBlock(p graphql.ResolveParams) (any, error) {
 	blockNumber, ok := p.Args["blockNumber"].(int)
 	if !ok {
 		return nil, fmt.Errorf("invalid blockNumber parameter")
@@ -776,7 +777,7 @@ func (sb *SchemaBuilder) resolveEventsByBlock(p graphql.ResolveParams) (interfac
 	}
 
 	// Convert to GraphQL response format
-	result := make([]interface{}, 0, len(events))
+	result := make([]any, 0, len(events))
 	for _, event := range events {
 		result = append(result, withQuerySourcePosture(eventToGraphQLResponse(event), "graphql-event-store"))
 	}
@@ -785,7 +786,7 @@ func (sb *SchemaBuilder) resolveEventsByBlock(p graphql.ResolveParams) (interfac
 	return result, nil
 }
 
-func (sb *SchemaBuilder) resolveEventsByAddress(p graphql.ResolveParams) (interface{}, error) {
+func (sb *SchemaBuilder) resolveEventsByAddress(p graphql.ResolveParams) (any, error) {
 	address, ok := p.Args["address"].(string)
 	if !ok {
 		return nil, fmt.Errorf("invalid address parameter")
@@ -803,7 +804,7 @@ func (sb *SchemaBuilder) resolveEventsByAddress(p graphql.ResolveParams) (interf
 		cacheKey := fmt.Sprintf("graphql:events:address:%s:limit:%d", address, limit)
 		if cached, err := sb.cache.Get(p.Context, cacheKey); err == nil && cached != nil {
 			sb.metrics.RecordCounter("graphql_cache_hit", 1, nil)
-			var result []interface{}
+			var result []any
 			if err := json.Unmarshal(cached, &result); err == nil {
 				return withQuerySourcePostureList(result, "graphql-cache-hit"), nil
 			}
@@ -820,7 +821,7 @@ func (sb *SchemaBuilder) resolveEventsByAddress(p graphql.ResolveParams) (interf
 	}
 
 	// Convert to GraphQL response format
-	result := make([]interface{}, 0, len(events))
+	result := make([]any, 0, len(events))
 	for _, event := range events {
 		result = append(result, withQuerySourcePosture(eventToGraphQLResponse(event), "graphql-event-store"))
 	}
@@ -836,7 +837,7 @@ func (sb *SchemaBuilder) resolveEventsByAddress(p graphql.ResolveParams) (interf
 	return result, nil
 }
 
-func (sb *SchemaBuilder) resolveEventsByName(p graphql.ResolveParams) (interface{}, error) {
+func (sb *SchemaBuilder) resolveEventsByName(p graphql.ResolveParams) (any, error) {
 	eventName, ok := p.Args["eventName"].(string)
 	if !ok {
 		return nil, fmt.Errorf("invalid eventName parameter")
@@ -854,7 +855,7 @@ func (sb *SchemaBuilder) resolveEventsByName(p graphql.ResolveParams) (interface
 		cacheKey := fmt.Sprintf("graphql:events:name:%s:limit:%d", eventName, limit)
 		if cached, err := sb.cache.Get(p.Context, cacheKey); err == nil && cached != nil {
 			sb.metrics.RecordCounter("graphql_cache_hit", 1, nil)
-			var result []interface{}
+			var result []any
 			if err := json.Unmarshal(cached, &result); err == nil {
 				return withQuerySourcePostureList(result, "graphql-cache-hit"), nil
 			}
@@ -871,7 +872,7 @@ func (sb *SchemaBuilder) resolveEventsByName(p graphql.ResolveParams) (interface
 	}
 
 	// Convert to GraphQL response format
-	result := make([]interface{}, 0, len(events))
+	result := make([]any, 0, len(events))
 	for _, event := range events {
 		result = append(result, withQuerySourcePosture(eventToGraphQLResponse(event), "graphql-event-store"))
 	}
@@ -887,7 +888,7 @@ func (sb *SchemaBuilder) resolveEventsByName(p graphql.ResolveParams) (interface
 	return result, nil
 }
 
-func (sb *SchemaBuilder) resolveInvalidateCache(p graphql.ResolveParams) (interface{}, error) {
+func (sb *SchemaBuilder) resolveInvalidateCache(p graphql.ResolveParams) (any, error) {
 	if err := sb.requireMutationAuth(p); err != nil {
 		return nil, err
 	}
@@ -909,7 +910,7 @@ func (sb *SchemaBuilder) resolveInvalidateCache(p graphql.ResolveParams) (interf
 	return true, nil
 }
 
-func (sb *SchemaBuilder) resolveClearCache(p graphql.ResolveParams) (interface{}, error) {
+func (sb *SchemaBuilder) resolveClearCache(p graphql.ResolveParams) (any, error) {
 	if err := sb.requireMutationAuth(p); err != nil {
 		return nil, err
 	}
@@ -944,8 +945,8 @@ func (sb *SchemaBuilder) requireMutationAuth(p graphql.ResolveParams) error {
 	}
 
 	// Extract token from context (set by HTTP handler from Authorization header)
-	token, _ := p.Context.Value(authTokenContextKey).(string)
-	if token == "" {
+	token, ok := p.Context.Value(authTokenContextKey).(string)
+	if !ok || token == "" {
 		sb.metrics.RecordCounter("graphql_mutation_auth_missing", 1, nil)
 		return fmt.Errorf("authentication required for mutations")
 	}
@@ -973,13 +974,13 @@ func (sb *SchemaBuilder) requireMutationAuth(p graphql.ResolveParams) error {
 }
 
 // Helper function to convert event to GraphQL response format
-func eventToGraphQLResponse(event *core.BlockchainEvent) map[string]interface{} {
+func eventToGraphQLResponse(event *core.BlockchainEvent) map[string]any {
 	decodedData := event.DecodedData
 	if decodedData == nil {
-		decodedData = map[string]interface{}{}
+		decodedData = map[string]any{}
 	}
 
-	return map[string]interface{}{
+	return map[string]any{
 		"id":               event.ID,
 		"eventHash":        event.EventHash,
 		"blockNumber":      event.BlockNumber,
@@ -1004,8 +1005,8 @@ func eventToGraphQLResponse(event *core.BlockchainEvent) map[string]interface{} 
 }
 
 // applyEventFilter applies structured filter criteria to a list of events.
-func applyEventFilter(events []*core.BlockchainEvent, filterRaw interface{}) []*core.BlockchainEvent {
-	filter, ok := filterRaw.(map[string]interface{})
+func applyEventFilter(events []*core.BlockchainEvent, filterRaw any) []*core.BlockchainEvent {
+	filter, ok := filterRaw.(map[string]any)
 	if !ok {
 		return events
 	}
@@ -1020,7 +1021,7 @@ func applyEventFilter(events []*core.BlockchainEvent, filterRaw interface{}) []*
 }
 
 // matchesFilter checks if a single event matches all provided filter criteria.
-func matchesFilter(event *core.BlockchainEvent, filter map[string]interface{}) bool {
+func matchesFilter(event *core.BlockchainEvent, filter map[string]any) bool {
 	if v, ok := filter["chainId"].(string); ok && v != "" {
 		if event.ChainID != v {
 			return false
@@ -1060,8 +1061,8 @@ func matchesFilter(event *core.BlockchainEvent, filter map[string]interface{}) b
 }
 
 // applyEventSort sorts events based on the structured sort input.
-func applyEventSort(events []*core.BlockchainEvent, sortRaw interface{}) []*core.BlockchainEvent {
-	sortInput, ok := sortRaw.(map[string]interface{})
+func applyEventSort(events []*core.BlockchainEvent, sortRaw any) []*core.BlockchainEvent {
+	sortInput, ok := sortRaw.(map[string]any)
 	if !ok {
 		return events
 	}

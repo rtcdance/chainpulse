@@ -99,7 +99,7 @@ func (r *RPCTxTypeResolver) addToCache(hash common.Hash, entry txTypeCacheEntry)
 
 // resolveViaRPC fetches the transaction type and receipt status via eth_getTransactionReceipt.
 func (r *RPCTxTypeResolver) resolveViaRPC(ctx context.Context, txHash string) (uint8, uint8, error) {
-	reqBody := map[string]interface{}{
+	reqBody := map[string]any{
 		"jsonrpc": "2.0",
 		"id":      1,
 		"method":  "eth_getTransactionReceipt",

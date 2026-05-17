@@ -17,7 +17,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 )
 
-const monolithicEventTopic = "blockchain-events"
+const monolithicEventTopic = core.TopicBlockchainEvents
 
 type monolithicPullerRuntime struct {
 	logger      core.Logger
@@ -32,7 +32,6 @@ type monolithicPullerRuntime struct {
 	loopChains  map[string]*monolithicPullLoopRuntime
 	backoffBase time.Duration
 	backoffMax  time.Duration
-	ctx         context.Context
 }
 
 type monolithicBlockSnapshotStore interface {
@@ -44,7 +43,7 @@ type monolithicPollingPuller interface {
 	Stop() error
 	Poll(ctx context.Context) error
 	GetConfig() core.Config
-	GetStats() map[string]interface{}
+	GetStats() map[string]any
 }
 
 type monolithicChainReorgRuntime struct {
@@ -107,7 +106,6 @@ func newMonolithicPullerRuntime(
 		loopChains:  make(map[string]*monolithicPullLoopRuntime, len(chains)),
 		backoffBase: 250 * time.Millisecond,
 		backoffMax:  5 * time.Second,
-		ctx:         ctx,
 	}
 
 	for idx, chainID := range chains {
@@ -157,7 +155,7 @@ func (m *monolithicPullerRuntime) Start(ctx context.Context, wg *sync.WaitGroup)
 		if err := puller.Start(); err != nil {
 			_ = m.Stop()
 
-			return err
+			return fmt.Errorf("failed to start puller: %w", err)
 		}
 
 		wg.Add(1)
@@ -195,9 +193,9 @@ func (m *monolithicPullerRuntime) runPullerLoop(ctx context.Context, wg *sync.Wa
 		m.logger.Error("monolithic puller exited", "chain_id", chainID, "error", err.Error(), "restart_backoff", backoff.String())
 
 		timer := time.NewTimer(backoff)
-		defer timer.Stop()
 		select {
 		case <-ctx.Done():
+			timer.Stop()
 			m.recordLoopState(chainID, "stopped")
 			return
 		case <-timer.C:
@@ -303,7 +301,7 @@ func (m *monolithicPullerRuntime) observeEvent(event core.BlockchainEvent) {
 		return
 	}
 
-	ctx := m.ctx
+	ctx := context.Background()
 	reorgDetected, reorgBlock, err := chainRuntime.handler.DetectReorg(ctx, event.BlockNumber, event.BlockHash)
 	if err != nil {
 		chainRuntime.recordError(err)
@@ -600,7 +598,7 @@ func subscribeMonolithicIndexer(
 	multiChainIndexer *indexing.MultiChainIndexer,
 	logger core.Logger,
 ) error {
-	_, err := eventBus.Subscribe(ctx, monolithicEventTopic, func(payload interface{}) {
+	_, err := eventBus.SubscribeNamed(ctx, monolithicEventTopic, "monolithic-indexer", func(payload any) {
 		event, ok := payload.(core.BlockchainEvent)
 		if !ok {
 			logger.Warn("ignored unexpected monolithic event payload", "topic", monolithicEventTopic)

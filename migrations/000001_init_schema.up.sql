@@ -2,7 +2,7 @@
 -- Creates core tables for blockchain event indexing
 
 -- Indexed blockchain events
-CREATE TABLE IF NOT EXISTS events (
+CREATE TABLE IF NOT EXISTS blockchain_events (
     id VARCHAR(255) PRIMARY KEY,
     chain_id VARCHAR(64) NOT NULL,
     block_number BIGINT NOT NULL,
@@ -16,11 +16,11 @@ CREATE TABLE IF NOT EXISTS events (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX IF NOT EXISTS idx_events_chain_id ON events(chain_id);
-CREATE INDEX IF NOT EXISTS idx_events_block_number ON events(block_number);
-CREATE INDEX IF NOT EXISTS idx_events_contract_address ON events(contract_address);
-CREATE INDEX IF NOT EXISTS idx_events_event_name ON events(event_name);
-CREATE INDEX IF NOT EXISTS idx_events_transaction_hash ON events(transaction_hash);
+CREATE INDEX IF NOT EXISTS idx_events_chain_id ON blockchain_events(chain_id);
+CREATE INDEX IF NOT EXISTS idx_events_block_number ON blockchain_events(block_number);
+CREATE INDEX IF NOT EXISTS idx_events_contract_address ON blockchain_events(contract_address);
+CREATE INDEX IF NOT EXISTS idx_events_event_name ON blockchain_events(event_name);
+CREATE INDEX IF NOT EXISTS idx_events_transaction_hash ON blockchain_events(transaction_hash);
 
 -- Indexed blockchain blocks
 CREATE TABLE IF NOT EXISTS blocks (

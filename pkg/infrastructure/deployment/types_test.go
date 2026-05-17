@@ -9,6 +9,7 @@ import (
 
 // TestNewServiceInfo tests creating a new service info
 func TestNewServiceInfo(t *testing.T) {
+	t.Parallel()
 	info := NewServiceInfo("service-1", "my-service", "1.0.0")
 
 	assert.NotNil(t, info)
@@ -23,6 +24,7 @@ func TestNewServiceInfo(t *testing.T) {
 
 // TestServiceInfoIsHealthy tests health status check
 func TestServiceInfoIsHealthy(t *testing.T) {
+	t.Parallel()
 	info := NewServiceInfo("service-1", "my-service", "1.0.0")
 
 	assert.False(t, info.IsHealthy())
@@ -36,6 +38,7 @@ func TestServiceInfoIsHealthy(t *testing.T) {
 
 // TestServiceInfoUpdateStatus tests updating service status
 func TestServiceInfoUpdateStatus(t *testing.T) {
+	t.Parallel()
 	info := NewServiceInfo("service-1", "my-service", "1.0.0")
 	originalTime := info.LastHeartbeat
 
@@ -54,6 +57,7 @@ func TestServiceInfoUpdateStatus(t *testing.T) {
 
 // TestServiceInfoAddTag tests adding tags
 func TestServiceInfoAddTag(t *testing.T) {
+	t.Parallel()
 	info := NewServiceInfo("service-1", "my-service", "1.0.0")
 
 	info.AddTag("production")
@@ -66,6 +70,7 @@ func TestServiceInfoAddTag(t *testing.T) {
 
 // TestServiceInfoAddMultipleTags tests adding multiple tags
 func TestServiceInfoAddMultipleTags(t *testing.T) {
+	t.Parallel()
 	info := NewServiceInfo("service-1", "my-service", "1.0.0")
 
 	tags := []string{"tag1", "tag2", "tag3", "tag4", "tag5"}
@@ -81,6 +86,7 @@ func TestServiceInfoAddMultipleTags(t *testing.T) {
 
 // TestServiceInfoSetMetadata tests setting metadata
 func TestServiceInfoSetMetadata(t *testing.T) {
+	t.Parallel()
 	info := NewServiceInfo("service-1", "my-service", "1.0.0")
 
 	info.SetMetadata("region", "us-west-2")
@@ -92,6 +98,7 @@ func TestServiceInfoSetMetadata(t *testing.T) {
 
 // TestServiceInfoGetMetadataNotFound tests getting non-existent metadata
 func TestServiceInfoGetMetadataNotFound(t *testing.T) {
+	t.Parallel()
 	info := NewServiceInfo("service-1", "my-service", "1.0.0")
 
 	value := info.GetMetadata("nonexistent")
@@ -101,6 +108,7 @@ func TestServiceInfoGetMetadataNotFound(t *testing.T) {
 
 // TestServiceInfoMetadataOverwrite tests overwriting metadata
 func TestServiceInfoMetadataOverwrite(t *testing.T) {
+	t.Parallel()
 	info := NewServiceInfo("service-1", "my-service", "1.0.0")
 
 	info.SetMetadata("key", "value1")
@@ -112,6 +120,7 @@ func TestServiceInfoMetadataOverwrite(t *testing.T) {
 
 // TestServiceInfoMultipleMetadata tests setting multiple metadata
 func TestServiceInfoMultipleMetadata(t *testing.T) {
+	t.Parallel()
 	info := NewServiceInfo("service-1", "my-service", "1.0.0")
 
 	metadata := map[string]string{
@@ -132,6 +141,7 @@ func TestServiceInfoMultipleMetadata(t *testing.T) {
 
 // TestServiceInfoEndpoint tests endpoint configuration
 func TestServiceInfoEndpoint(t *testing.T) {
+	t.Parallel()
 	info := NewServiceInfo("service-1", "my-service", "1.0.0")
 
 	info.Endpoint = "localhost"
@@ -145,6 +155,7 @@ func TestServiceInfoEndpoint(t *testing.T) {
 
 // TestServiceInfoHealthCheckURL tests health check URL
 func TestServiceInfoHealthCheckURL(t *testing.T) {
+	t.Parallel()
 	info := NewServiceInfo("service-1", "my-service", "1.0.0")
 
 	info.HealthCheckURL = "http://localhost:8080/health"
@@ -154,6 +165,7 @@ func TestServiceInfoHealthCheckURL(t *testing.T) {
 
 // TestServiceInfoDeregisterAfter tests deregister after setting
 func TestServiceInfoDeregisterAfter(t *testing.T) {
+	t.Parallel()
 	info := NewServiceInfo("service-1", "my-service", "1.0.0")
 
 	info.DeregisterAfter = "30s"
@@ -163,6 +175,7 @@ func TestServiceInfoDeregisterAfter(t *testing.T) {
 
 // TestServiceInfoRegisteredAt tests registered at timestamp
 func TestServiceInfoRegisteredAt(t *testing.T) {
+	t.Parallel()
 	before := time.Now()
 	info := NewServiceInfo("service-1", "my-service", "1.0.0")
 	after := time.Now()
@@ -173,6 +186,7 @@ func TestServiceInfoRegisteredAt(t *testing.T) {
 
 // TestServiceInfoLastHeartbeat tests last heartbeat timestamp
 func TestServiceInfoLastHeartbeat(t *testing.T) {
+	t.Parallel()
 	info := NewServiceInfo("service-1", "my-service", "1.0.0")
 
 	assert.True(t, info.LastHeartbeat.IsZero())
@@ -184,10 +198,11 @@ func TestServiceInfoLastHeartbeat(t *testing.T) {
 
 // TestHealthStatusStructure tests health status structure
 func TestHealthStatusStructure(t *testing.T) {
+	t.Parallel()
 	status := HealthStatus{
 		Status:  "healthy",
 		Message: "All systems operational",
-		Details: map[string]interface{}{
+		Details: map[string]any{
 			"cpu":    "50%",
 			"memory": "60%",
 		},
@@ -201,6 +216,7 @@ func TestHealthStatusStructure(t *testing.T) {
 
 // TestServiceInfoMultipleInstances tests creating multiple service info instances
 func TestServiceInfoMultipleInstances(t *testing.T) {
+	t.Parallel()
 	info1 := NewServiceInfo("service-1", "service-a", "1.0.0")
 	info2 := NewServiceInfo("service-2", "service-b", "2.0.0")
 
@@ -211,6 +227,7 @@ func TestServiceInfoMultipleInstances(t *testing.T) {
 
 // TestServiceInfoConcurrentMetadataAccess tests concurrent metadata access
 func TestServiceInfoConcurrentMetadataAccess(t *testing.T) {
+	t.Parallel()
 	info := NewServiceInfo("service-1", "my-service", "1.0.0")
 
 	// Sequential access instead of concurrent (metadata is not thread-safe)
@@ -224,6 +241,7 @@ func TestServiceInfoConcurrentMetadataAccess(t *testing.T) {
 
 // TestServiceInfoConcurrentTagAccess tests concurrent tag access
 func TestServiceInfoConcurrentTagAccess(t *testing.T) {
+	t.Parallel()
 	info := NewServiceInfo("service-1", "my-service", "1.0.0")
 
 	// Sequential access instead of concurrent (tags are not thread-safe)
@@ -236,6 +254,7 @@ func TestServiceInfoConcurrentTagAccess(t *testing.T) {
 
 // TestServiceInfoStatusTransitions tests status transitions
 func TestServiceInfoStatusTransitions(t *testing.T) {
+	t.Parallel()
 	info := NewServiceInfo("service-1", "my-service", "1.0.0")
 
 	statuses := []string{"unknown", "starting", "healthy", "degraded", "unhealthy", "stopped"}
@@ -248,6 +267,7 @@ func TestServiceInfoStatusTransitions(t *testing.T) {
 
 // TestServiceInfoEmptyMetadata tests empty metadata
 func TestServiceInfoEmptyMetadata(t *testing.T) {
+	t.Parallel()
 	info := NewServiceInfo("service-1", "my-service", "1.0.0")
 
 	assert.NotNil(t, info.Metadata)
@@ -256,6 +276,7 @@ func TestServiceInfoEmptyMetadata(t *testing.T) {
 
 // TestServiceInfoEmptyTags tests empty tags
 func TestServiceInfoEmptyTags(t *testing.T) {
+	t.Parallel()
 	info := NewServiceInfo("service-1", "my-service", "1.0.0")
 
 	assert.NotNil(t, info.Tags)
@@ -264,6 +285,7 @@ func TestServiceInfoEmptyTags(t *testing.T) {
 
 // TestServiceInfoVersions tests various version formats
 func TestServiceInfoVersions(t *testing.T) {
+	t.Parallel()
 	versions := []string{"1.0.0", "2.1.3", "0.0.1", "10.20.30", "1.0.0-alpha", "1.0.0-beta.1"}
 
 	for _, version := range versions {
@@ -274,6 +296,7 @@ func TestServiceInfoVersions(t *testing.T) {
 
 // TestServiceInfoNames tests various service names
 func TestServiceInfoNames(t *testing.T) {
+	t.Parallel()
 	names := []string{"api-service", "auth-service", "payment-service", "notification-service"}
 
 	for _, name := range names {
@@ -284,6 +307,7 @@ func TestServiceInfoNames(t *testing.T) {
 
 // TestServiceInfoIDs tests various service IDs
 func TestServiceInfoIDs(t *testing.T) {
+	t.Parallel()
 	ids := []string{"service-1", "service-2", "api-prod", "auth-staging"}
 
 	for _, id := range ids {
@@ -294,6 +318,7 @@ func TestServiceInfoIDs(t *testing.T) {
 
 // TestServiceInfoPorts tests various port numbers
 func TestServiceInfoPorts(t *testing.T) {
+	t.Parallel()
 	ports := []int{8080, 8081, 3000, 5000, 9000}
 
 	for _, port := range ports {
@@ -305,6 +330,7 @@ func TestServiceInfoPorts(t *testing.T) {
 
 // TestServiceInfoProtocols tests various protocols
 func TestServiceInfoProtocols(t *testing.T) {
+	t.Parallel()
 	protocols := []string{"http", "https", "grpc", "tcp", "udp"}
 
 	for _, protocol := range protocols {
@@ -316,6 +342,7 @@ func TestServiceInfoProtocols(t *testing.T) {
 
 // TestServiceInfoEndpoints tests various endpoints
 func TestServiceInfoEndpoints(t *testing.T) {
+	t.Parallel()
 	endpoints := []string{"localhost", "127.0.0.1", "service.example.com", "api.prod.example.com"}
 
 	for _, endpoint := range endpoints {
@@ -327,12 +354,13 @@ func TestServiceInfoEndpoints(t *testing.T) {
 
 // TestServiceInfoStatusDetails tests status with details
 func TestServiceInfoStatusDetails(t *testing.T) {
+	t.Parallel()
 	info := NewServiceInfo("service-1", "my-service", "1.0.0")
 
 	status := HealthStatus{
 		Status:  "degraded",
 		Message: "High latency detected",
-		Details: map[string]interface{}{
+		Details: map[string]any{
 			"latency_ms": 500,
 			"error_rate": 0.05,
 			"uptime":     "99.5%",

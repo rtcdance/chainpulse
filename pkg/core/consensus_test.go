@@ -6,6 +6,7 @@ import (
 )
 
 func TestCanTransition(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		from, to ValidatorState
 		want     bool
@@ -33,13 +34,14 @@ func TestCanTransition(t *testing.T) {
 }
 
 func TestValidatorLifecycleTracker_RegisterAndTransition(t *testing.T) {
+	t.Parallel()
 	tracker := NewValidatorLifecycleTracker()
 
 	v := &ValidatorInfo{
-		Index:           0,
-		PublicKey:       "0xabc",
-		State:           ValidatorPending,
-		ActivationEpoch: 5,
+		Index:            0,
+		PublicKey:        "0xabc",
+		State:            ValidatorPending,
+		ActivationEpoch:  5,
 		EffectiveBalance: 32_000_000_000,
 	}
 
@@ -72,13 +74,14 @@ func TestValidatorLifecycleTracker_RegisterAndTransition(t *testing.T) {
 }
 
 func TestValidatorLifecycleTracker_ProcessEpoch(t *testing.T) {
+	t.Parallel()
 	tracker := NewValidatorLifecycleTracker()
 
 	// Register a pending validator with activation epoch 3
 	tracker.Register(&ValidatorInfo{
-		Index:           1,
-		State:           ValidatorPending,
-		ActivationEpoch: 3,
+		Index:            1,
+		State:            ValidatorPending,
+		ActivationEpoch:  3,
 		EffectiveBalance: 32_000_000_000,
 	})
 
@@ -119,10 +122,11 @@ func TestValidatorLifecycleTracker_ProcessEpoch(t *testing.T) {
 }
 
 func TestValidatorLifecycleTracker_SlashedTransition(t *testing.T) {
+	t.Parallel()
 	tracker := NewValidatorLifecycleTracker()
 	tracker.Register(&ValidatorInfo{
-		Index:           10,
-		State:           ValidatorActive,
+		Index:            10,
+		State:            ValidatorActive,
 		EffectiveBalance: 32_000_000_000,
 	})
 
@@ -140,6 +144,7 @@ func TestValidatorLifecycleTracker_SlashedTransition(t *testing.T) {
 }
 
 func TestValidatorInfo_Eligibility(t *testing.T) {
+	t.Parallel()
 	v := &ValidatorInfo{
 		State:           ValidatorPending,
 		ActivationEpoch: 10,
@@ -164,6 +169,7 @@ func TestValidatorInfo_Eligibility(t *testing.T) {
 }
 
 func TestValidatorInfo_EffectiveBalanceEth(t *testing.T) {
+	t.Parallel()
 	v := &ValidatorInfo{EffectiveBalance: 32_000_000_000}
 	if got := v.EffectiveBalanceEth(); got != 32.0 {
 		t.Errorf("EffectiveBalanceEth() = %f, want 32.0", got)
@@ -173,6 +179,7 @@ func TestValidatorInfo_EffectiveBalanceEth(t *testing.T) {
 // ─── Attestation Stats Tests ─────────────────────────────────────────────────
 
 func TestAttestationStats_ParticipationRate(t *testing.T) {
+	t.Parallel()
 	stats := NewAttestationStats()
 
 	if rate := stats.ParticipationRate(); rate != 0 {
@@ -189,6 +196,7 @@ func TestAttestationStats_ParticipationRate(t *testing.T) {
 }
 
 func TestAttestationStats_InclusionDistance(t *testing.T) {
+	t.Parallel()
 	stats := NewAttestationStats()
 
 	stats.RecordAttestation(1, true, true, true)
@@ -207,6 +215,7 @@ func TestAttestationStats_InclusionDistance(t *testing.T) {
 }
 
 func TestAttestationStats_CorrectnessRates(t *testing.T) {
+	t.Parallel()
 	stats := NewAttestationStats()
 
 	// 4 attestations: all source correct, 3 target, 2 head
@@ -227,6 +236,7 @@ func TestAttestationStats_CorrectnessRates(t *testing.T) {
 }
 
 func TestAttestationRewardEstimate(t *testing.T) {
+	t.Parallel()
 	baseReward := uint64(10000)
 
 	// Distance 1: full reward (1 - 0/32) * 10000 = 10000
@@ -257,6 +267,7 @@ func TestAttestationRewardEstimate(t *testing.T) {
 // ─── Sync Committee Tests ────────────────────────────────────────────────────
 
 func TestSyncCommitteePeriodForEpoch(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		epoch uint64
 		want  uint64
@@ -276,6 +287,7 @@ func TestSyncCommitteePeriodForEpoch(t *testing.T) {
 }
 
 func TestIsSyncCommitteeRotationEpoch(t *testing.T) {
+	t.Parallel()
 	if !IsSyncCommitteeRotationEpoch(0) {
 		t.Error("epoch 0 should be rotation epoch")
 	}
@@ -288,6 +300,7 @@ func TestIsSyncCommitteeRotationEpoch(t *testing.T) {
 }
 
 func TestNewSyncCommitteeInfo(t *testing.T) {
+	t.Parallel()
 	// Create validator list of 512
 	validators := make([]uint64, SyncCommitteeSize)
 	for i := range validators {
@@ -334,6 +347,7 @@ func TestNewSyncCommitteeInfo(t *testing.T) {
 }
 
 func TestNewSyncCommitteeInfo_WrongSize(t *testing.T) {
+	t.Parallel()
 	_, err := NewSyncCommitteeInfo(0, make([]uint64, 100))
 	if err == nil {
 		t.Fatal("expected error for wrong size")
@@ -341,6 +355,7 @@ func TestNewSyncCommitteeInfo_WrongSize(t *testing.T) {
 }
 
 func TestSyncCommitteeInfo_Participation(t *testing.T) {
+	t.Parallel()
 	validators := make([]uint64, SyncCommitteeSize)
 	for i := range validators {
 		validators[i] = uint64(i)
@@ -371,6 +386,7 @@ func TestSyncCommitteeInfo_Participation(t *testing.T) {
 }
 
 func TestSyncCommitteeInfo_RecordParticipation_Bounds(t *testing.T) {
+	t.Parallel()
 	validators := make([]uint64, SyncCommitteeSize)
 	info, _ := NewSyncCommitteeInfo(0, validators)
 
@@ -384,6 +400,7 @@ func TestSyncCommitteeInfo_RecordParticipation_Bounds(t *testing.T) {
 }
 
 func TestTimeUntilNextSyncCommitteePeriod(t *testing.T) {
+	t.Parallel()
 	// At epoch 0, slot 0: next period starts at epoch 256
 	// Slots until = 256 * 32 = 8192
 	// Duration = 8192 * 12s = 98304s

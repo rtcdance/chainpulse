@@ -64,12 +64,7 @@ func (p *AdvancedInMemoryCachePlugin) Initialize(config *core.Config) error {
 	// Note: core.Config doesn't have CacheMaxSize/CacheMaxEntries fields
 	// These are set to defaults in NewAdvancedInMemoryCachePlugin
 
-	p.logger.Info("Advanced in-memory cache plugin initialized", map[string]interface{}{
-		"component":      "advanced_cache",
-		"maxSize":        p.maxSize,
-		"maxEntries":     p.maxEntries,
-		"evictionPolicy": p.evictionPolicy,
-	})
+	p.logger.Info("Advanced in-memory cache plugin initialized", core.LogKeyComponent, "advanced_cache", "maxSize", p.maxSize, "maxEntries", p.maxEntries, "evictionPolicy", p.evictionPolicy)
 
 	return nil
 }
@@ -97,9 +92,7 @@ func (p *AdvancedInMemoryCachePlugin) Start() error {
 	// Start cleanup goroutine
 	go p.cleanupExpiredEntries()
 
-	p.logger.Info("Advanced cache plugin started", map[string]interface{}{
-		"component": "advanced_cache",
-	})
+	p.logger.Info("Advanced cache plugin started", core.LogKeyComponent, "advanced_cache")
 
 	return nil
 }
@@ -127,9 +120,7 @@ func (p *AdvancedInMemoryCachePlugin) Stop() error {
 		Timestamp: time.Now(),
 	}
 
-	p.logger.Info("Advanced cache plugin stopped", map[string]interface{}{
-		"component": "advanced_cache",
-	})
+	p.logger.Info("Advanced cache plugin stopped", core.LogKeyComponent, "advanced_cache")
 
 	return nil
 }

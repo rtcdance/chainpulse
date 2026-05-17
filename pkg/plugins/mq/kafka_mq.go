@@ -118,7 +118,7 @@ func (p *KafkaMQPlugin) Initialize() error {
 	writer := &kafka.Writer{
 		Addr:                   kafka.TCP(p.brokers...),
 		Balancer:               &kafka.LeastBytes{},
-		AllowAutoTopicCreation: true,
+		AllowAutoTopicCreation: false,
 	}
 
 	p.producer = &KafkaProducer{
@@ -216,7 +216,7 @@ func (p *KafkaMQPlugin) Health() *core.HealthStatus {
 	return &core.HealthStatus{
 		Status:    status,
 		Timestamp: time.Now().UTC(),
-		Details: map[string]interface{}{
+		Details: map[string]any{
 			"name":                   p.name,
 			"version":                p.version,
 			"is_running":             p.isRunning,
@@ -1117,7 +1117,7 @@ func (p *KafkaMQPlugin) testBrokerConnection(ctx context.Context) error {
 }
 
 // GetKafkaSpecificMetrics returns comprehensive Kafka-specific metrics
-func (p *KafkaMQPlugin) GetKafkaSpecificMetrics() map[string]interface{} {
+func (p *KafkaMQPlugin) GetKafkaSpecificMetrics() map[string]any {
 	p.mu.RLock()
 	brokerFailures := p.brokerFailureCount
 	brokerRecoveries := p.brokerRecoveryCount
@@ -1139,7 +1139,7 @@ func (p *KafkaMQPlugin) GetKafkaSpecificMetrics() map[string]interface{} {
 
 	consumerGroupMetrics := p.GetConsumerGroupMetrics()
 
-	return map[string]interface{}{
+	return map[string]any{
 		"brokers":                p.brokers,
 		"consumer_group":         p.consumerGroup,
 		"broker_failures":        brokerFailures,
@@ -1152,11 +1152,11 @@ func (p *KafkaMQPlugin) GetKafkaSpecificMetrics() map[string]interface{} {
 }
 
 // GetConsumerGroupStatus returns the status of the consumer group
-func (p *KafkaMQPlugin) GetConsumerGroupStatus() map[string]interface{} {
+func (p *KafkaMQPlugin) GetConsumerGroupStatus() map[string]any {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
-	return map[string]interface{}{
+	return map[string]any{
 		"consumer_group":     p.consumerGroup,
 		"active_consumers":   len(p.consumers),
 		"is_running":         p.isRunning,
@@ -1195,7 +1195,7 @@ func (p *KafkaMQPlugin) RebalanceConsumerGroup(ctx context.Context) error {
 }
 
 // GetOffsetPersistenceStats returns statistics about offset persistence
-func (p *KafkaMQPlugin) GetOffsetPersistenceStats() map[string]interface{} {
+func (p *KafkaMQPlugin) GetOffsetPersistenceStats() map[string]any {
 	p.offsetPersistMutex.RLock()
 	defer p.offsetPersistMutex.RUnlock()
 
@@ -1206,7 +1206,7 @@ func (p *KafkaMQPlugin) GetOffsetPersistenceStats() map[string]interface{} {
 		totalOffsets += int64(len(partitionOffsets))
 	}
 
-	return map[string]interface{}{
+	return map[string]any{
 		"topics_with_persisted_offsets": topicCount,
 		"total_persisted_offsets":       totalOffsets,
 	}

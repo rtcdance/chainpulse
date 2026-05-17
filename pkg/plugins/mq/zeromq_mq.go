@@ -175,7 +175,7 @@ func (p *ZeroMQMQPlugin) Health() *core.HealthStatus {
 	return &core.HealthStatus{
 		Status:    status,
 		Timestamp: time.Now().UTC(),
-		Details: map[string]interface{}{
+		Details: map[string]any{
 			"name":                   p.name,
 			"version":                p.version,
 			"is_running":             p.isRunning,
@@ -466,17 +466,17 @@ func (p *ZeroMQMQPlugin) RecordCounter(name string, value int64, tags map[string
 }
 
 // LogInfo logs an info message
-func (p *ZeroMQMQPlugin) LogInfo(message string, fields ...interface{}) {
+func (p *ZeroMQMQPlugin) LogInfo(message string, fields ...any) {
 	p.logger.Info(message, fields...)
 }
 
 // LogError logs an error message
-func (p *ZeroMQMQPlugin) LogError(message string, fields ...interface{}) {
+func (p *ZeroMQMQPlugin) LogError(message string, fields ...any) {
 	p.logger.Error(message, fields...)
 }
 
 // LogWarn logs a warning message
-func (p *ZeroMQMQPlugin) LogWarn(message string, fields ...interface{}) {
+func (p *ZeroMQMQPlugin) LogWarn(message string, fields ...any) {
 	p.logger.Warn(message, fields...)
 }
 

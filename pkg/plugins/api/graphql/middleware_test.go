@@ -7,8 +7,8 @@ import (
 
 // mockTokenValidator implements TokenValidator for testing
 type mockTokenValidator struct {
-	tokenResult   ValidationResult
-	apiKeyResult  ValidationResult
+	tokenResult  ValidationResult
+	apiKeyResult ValidationResult
 }
 
 func (m *mockTokenValidator) ValidateToken(ctx context.Context, authHeader string) ValidationResult {
@@ -20,6 +20,7 @@ func (m *mockTokenValidator) ValidateAPIKey(ctx context.Context, apiKey string) 
 }
 
 func TestAuthenticate_MissingToken(t *testing.T) {
+	t.Parallel()
 	am := NewAuthMiddleware(nil, nil)
 	_, err := am.Authenticate(context.Background(), "")
 	if err == nil {
@@ -28,6 +29,7 @@ func TestAuthenticate_MissingToken(t *testing.T) {
 }
 
 func TestAuthenticate_TokenTooShort(t *testing.T) {
+	t.Parallel()
 	am := NewAuthMiddleware(nil, nil)
 	am.SetRequireAuth(true)
 	_, err := am.Authenticate(context.Background(), "ab")
@@ -37,6 +39,7 @@ func TestAuthenticate_TokenTooShort(t *testing.T) {
 }
 
 func TestAuthenticate_NoValidatorRejection(t *testing.T) {
+	t.Parallel()
 	am := NewAuthMiddleware(nil, nil)
 	am.SetRequireAuth(true)
 	_, err := am.Authenticate(context.Background(), "some-valid-token")
@@ -46,6 +49,7 @@ func TestAuthenticate_NoValidatorRejection(t *testing.T) {
 }
 
 func TestAuthenticate_ValidJWT(t *testing.T) {
+	t.Parallel()
 	am := NewAuthMiddleware(nil, nil)
 	am.SetRequireAuth(true)
 	am.SetTokenValidator(&mockTokenValidator{
@@ -70,6 +74,7 @@ func TestAuthenticate_ValidJWT(t *testing.T) {
 }
 
 func TestAuthenticate_ValidAPIKey(t *testing.T) {
+	t.Parallel()
 	am := NewAuthMiddleware(nil, nil)
 	am.SetRequireAuth(true)
 	am.SetTokenValidator(&mockTokenValidator{
@@ -92,6 +97,7 @@ func TestAuthenticate_ValidAPIKey(t *testing.T) {
 }
 
 func TestAuthenticate_InvalidCredentials(t *testing.T) {
+	t.Parallel()
 	am := NewAuthMiddleware(nil, nil)
 	am.SetRequireAuth(true)
 	am.SetTokenValidator(&mockTokenValidator{
@@ -106,6 +112,7 @@ func TestAuthenticate_InvalidCredentials(t *testing.T) {
 }
 
 func TestAuthenticate_AuthDisabled(t *testing.T) {
+	t.Parallel()
 	am := NewAuthMiddleware(nil, nil)
 	am.SetRequireAuth(false)
 

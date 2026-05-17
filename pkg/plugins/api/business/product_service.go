@@ -32,7 +32,7 @@ type ProductBackend interface {
 	Update(ctx context.Context, product *Product) (*Product, error)
 	Delete(ctx context.Context, id string) error
 	List(ctx context.Context, limit, offset int) ([]*Product, error)
-	Query(ctx context.Context, filter map[string]interface{}, limit, offset int) ([]*Product, error)
+	Query(ctx context.Context, filter map[string]any, limit, offset int) ([]*Product, error)
 	GetByCategory(ctx context.Context, category string, limit, offset int) ([]*Product, error)
 	UpdateStock(ctx context.Context, id string, quantity int64) error
 }
@@ -115,7 +115,7 @@ func (s *ProductService) ListProducts(ctx context.Context, limit, offset int) ([
 }
 
 // QueryProducts queries products with filtering
-func (s *ProductService) QueryProducts(ctx context.Context, filter map[string]interface{}, limit, offset int) ([]*Product, error) {
+func (s *ProductService) QueryProducts(ctx context.Context, filter map[string]any, limit, offset int) ([]*Product, error) {
 	entities, err := s.Query(ctx, filter, limit, offset)
 	if err != nil {
 		return nil, err
@@ -223,7 +223,7 @@ func (a *productServiceAdapter) List(ctx context.Context, limit, offset int) ([]
 	return entities, nil
 }
 
-func (a *productServiceAdapter) Query(ctx context.Context, filter map[string]interface{}, limit, offset int) ([]Entity, error) {
+func (a *productServiceAdapter) Query(ctx context.Context, filter map[string]any, limit, offset int) ([]Entity, error) {
 	products, err := a.backend.Query(ctx, filter, limit, offset)
 	if err != nil {
 		return nil, err

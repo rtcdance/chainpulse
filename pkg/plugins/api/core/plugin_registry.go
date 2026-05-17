@@ -51,7 +51,7 @@ type Plugin interface {
 	GetStatus() PluginStatus
 
 	// GetMetrics returns plugin metrics
-	GetMetrics() map[string]interface{}
+	GetMetrics() map[string]any
 }
 
 // PluginRegistry manages plugin lifecycle
@@ -249,7 +249,7 @@ func (r *PluginRegistry) GetMetadata() []PluginMetadata {
 }
 
 // GetRegistryMetrics returns registry metrics
-func (r *PluginRegistry) GetRegistryMetrics() map[string]interface{} {
+func (r *PluginRegistry) GetRegistryMetrics() map[string]any {
 	r.metrics.mu.RLock()
 	totalLoaded := r.metrics.totalLoaded
 	totalUnloaded := r.metrics.totalUnloaded
@@ -260,7 +260,7 @@ func (r *PluginRegistry) GetRegistryMetrics() map[string]interface{} {
 	coveragePosture := classifyPluginRegistryCoveragePosture(int(activePlugins), loadedCount, runningCount, stoppedCount, errorCount)
 	runtimePosture := classifyPluginRegistryRuntimePosture(int(activePlugins), runningCount, errorCount, totalErrors)
 
-	return map[string]interface{}{
+	return map[string]any{
 		"total_loaded":     totalLoaded,
 		"total_unloaded":   totalUnloaded,
 		"active_plugins":   activePlugins,
@@ -273,7 +273,7 @@ func (r *PluginRegistry) GetRegistryMetrics() map[string]interface{} {
 
 // GetRuntimeMetrics returns a compact runtime surface for plugin-registry
 // coverage and lifecycle readiness on top of the raw registry metrics.
-func (r *PluginRegistry) GetRuntimeMetrics() map[string]interface{} {
+func (r *PluginRegistry) GetRuntimeMetrics() map[string]any {
 	metrics := r.GetRegistryMetrics()
 	loadedCount := 0
 	runningCount := 0
@@ -281,7 +281,7 @@ func (r *PluginRegistry) GetRuntimeMetrics() map[string]interface{} {
 	errorCount := 0
 	activePlugins, loadedCount, runningCount, stoppedCount, errorCount := r.snapshotRuntimeCounts()
 
-	return map[string]interface{}{
+	return map[string]any{
 		"total_loaded":     metrics["total_loaded"],
 		"total_unloaded":   metrics["total_unloaded"],
 		"active_plugins":   activePlugins,

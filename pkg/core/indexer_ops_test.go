@@ -9,6 +9,7 @@ import (
 // ─── Backfill Coordinator Tests ──────────────────────────────────────────────
 
 func TestBackfillCoordinator_PartitionRange(t *testing.T) {
+	t.Parallel()
 	bc := NewBackfillCoordinator(BackfillConfig{ChunkSize: 100})
 
 	chunks := bc.PartitionRange(BackfillRange{FromBlock: 0, ToBlock: 249})
@@ -27,6 +28,7 @@ func TestBackfillCoordinator_PartitionRange(t *testing.T) {
 }
 
 func TestBackfillCoordinator_PartitionRange_ExactFit(t *testing.T) {
+	t.Parallel()
 	bc := NewBackfillCoordinator(BackfillConfig{ChunkSize: 100})
 	chunks := bc.PartitionRange(BackfillRange{FromBlock: 0, ToBlock: 99})
 	if len(chunks) != 1 {
@@ -35,6 +37,7 @@ func TestBackfillCoordinator_PartitionRange_ExactFit(t *testing.T) {
 }
 
 func TestBackfillCoordinator_PartitionRange_Inverted(t *testing.T) {
+	t.Parallel()
 	bc := NewBackfillCoordinator(BackfillConfig{ChunkSize: 100})
 	chunks := bc.PartitionRange(BackfillRange{FromBlock: 200, ToBlock: 100})
 	if chunks != nil {
@@ -43,6 +46,7 @@ func TestBackfillCoordinator_PartitionRange_Inverted(t *testing.T) {
 }
 
 func TestBackfillCoordinator_JobLifecycle(t *testing.T) {
+	t.Parallel()
 	bc := NewBackfillCoordinator(DefaultBackfillConfig())
 
 	job := bc.CreateJob("ethereum", BackfillRange{FromBlock: 1000, ToBlock: 5000})
@@ -78,6 +82,7 @@ func TestBackfillCoordinator_JobLifecycle(t *testing.T) {
 }
 
 func TestBackfillCoordinator_FailJob(t *testing.T) {
+	t.Parallel()
 	bc := NewBackfillCoordinator(DefaultBackfillConfig())
 	job := bc.CreateJob("ethereum", BackfillRange{FromBlock: 0, ToBlock: 100})
 	bc.StartJob(job.ID)
@@ -93,6 +98,7 @@ func TestBackfillCoordinator_FailJob(t *testing.T) {
 }
 
 func TestBackfillCoordinator_CancelJob(t *testing.T) {
+	t.Parallel()
 	bc := NewBackfillCoordinator(DefaultBackfillConfig())
 	job := bc.CreateJob("ethereum", BackfillRange{FromBlock: 0, ToBlock: 100})
 	bc.StartJob(job.ID)
@@ -105,6 +111,7 @@ func TestBackfillCoordinator_CancelJob(t *testing.T) {
 }
 
 func TestBackfillCoordinator_ActiveJobs(t *testing.T) {
+	t.Parallel()
 	bc := NewBackfillCoordinator(DefaultBackfillConfig())
 	bc.CreateJob("eth", BackfillRange{0, 100})
 	job2 := bc.CreateJob("eth", BackfillRange{200, 300})
@@ -118,6 +125,7 @@ func TestBackfillCoordinator_ActiveJobs(t *testing.T) {
 }
 
 func TestBackfillCoordinator_ConcurrencySemaphore(t *testing.T) {
+	t.Parallel()
 	bc := NewBackfillCoordinator(BackfillConfig{MaxConcurrency: 2})
 
 	if !bc.TryAcquireSlot() {
@@ -138,6 +146,7 @@ func TestBackfillCoordinator_ConcurrencySemaphore(t *testing.T) {
 }
 
 func TestBackfillJob_PercentComplete(t *testing.T) {
+	t.Parallel()
 	job := &BackfillJob{
 		Range:    BackfillRange{FromBlock: 100, ToBlock: 200},
 		Progress: 150,
@@ -150,6 +159,7 @@ func TestBackfillJob_PercentComplete(t *testing.T) {
 // ─── Head Tracker Tests ─────────────────────────────────────────────────────
 
 func TestHeadTracker_NoGapOnFirst(t *testing.T) {
+	t.Parallel()
 	ht := NewHeadTracker("ethereum")
 	gap := ht.AdvanceHead(100)
 	if gap != nil {
@@ -161,6 +171,7 @@ func TestHeadTracker_NoGapOnFirst(t *testing.T) {
 }
 
 func TestHeadTracker_NormalProgression(t *testing.T) {
+	t.Parallel()
 	ht := NewHeadTracker("ethereum")
 	ht.AdvanceHead(100)
 	gap := ht.AdvanceHead(101)
@@ -170,6 +181,7 @@ func TestHeadTracker_NormalProgression(t *testing.T) {
 }
 
 func TestHeadTracker_GapDetection(t *testing.T) {
+	t.Parallel()
 	ht := NewHeadTracker("ethereum")
 	ht.AdvanceHead(100)
 
@@ -186,6 +198,7 @@ func TestHeadTracker_GapDetection(t *testing.T) {
 }
 
 func TestHeadTracker_StaleBlock(t *testing.T) {
+	t.Parallel()
 	ht := NewHeadTracker("ethereum")
 	ht.AdvanceHead(100)
 	gap := ht.AdvanceHead(99)
@@ -195,6 +208,7 @@ func TestHeadTracker_StaleBlock(t *testing.T) {
 }
 
 func TestHeadTracker_Callback(t *testing.T) {
+	t.Parallel()
 	ht := NewHeadTracker("ethereum")
 	var calledWith struct{ from, to uint64 }
 	ht.OnGapDetected(func(chainID string, fromBlock, toBlock uint64) {
@@ -243,6 +257,7 @@ func (m *mockCheckpointStore) GetBlockHash(_ context.Context, _ string, _ uint64
 }
 
 func TestCheckpointManager_AdvanceAndFlush(t *testing.T) {
+	t.Parallel()
 	store := newMockCheckpointStore()
 	cm := NewCheckpointManager(store)
 
@@ -272,6 +287,7 @@ func TestCheckpointManager_AdvanceAndFlush(t *testing.T) {
 }
 
 func TestCheckpointManager_Load(t *testing.T) {
+	t.Parallel()
 	store := newMockCheckpointStore()
 	store.data["ethereum"] = 500
 
@@ -289,6 +305,7 @@ func TestCheckpointManager_Load(t *testing.T) {
 }
 
 func TestCheckpointManager_FlushError(t *testing.T) {
+	t.Parallel()
 	store := newMockCheckpointStore()
 	store.err = errors.New("disk full")
 
@@ -301,6 +318,7 @@ func TestCheckpointManager_FlushError(t *testing.T) {
 }
 
 func TestCheckpointManager_MultipleChains(t *testing.T) {
+	t.Parallel()
 	store := newMockCheckpointStore()
 	cm := NewCheckpointManager(store)
 

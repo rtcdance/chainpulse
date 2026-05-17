@@ -51,7 +51,7 @@ type ForwardedRequest struct {
 type AggregatedResponse struct {
 	Status  int
 	Headers map[string]string
-	Body    interface{}
+	Body    any
 	Error   string
 }
 
@@ -355,16 +355,16 @@ func (rr *RequestRouter) GetRoutes() []*Route {
 }
 
 // GetMetrics returns router metrics
-func (rr *RequestRouter) GetMetrics() map[string]interface{} {
+func (rr *RequestRouter) GetMetrics() map[string]any {
 	rr.mu.RLock()
 	defer rr.mu.RUnlock()
 
-	metrics := make(map[string]interface{})
+	metrics := make(map[string]any)
 	metrics["route_count"] = len(rr.routes)
 	metrics["load_balancer_count"] = len(rr.loadBalancers)
 
 	// Collect load balancer metrics
-	lbMetrics := make(map[string]interface{})
+	lbMetrics := make(map[string]any)
 	for routeID, lb := range rr.loadBalancers {
 		lbMetrics[routeID] = lb.GetMetrics()
 	}
@@ -412,21 +412,17 @@ func (cb *CircuitBreaker) RecordFailure() {
 	}
 }
 
-// IsOpen checks if the circuit breaker is open
+// IsOpen checks if the circuit breaker is open.
+// Uses write-lock to prevent TOCTOU race between state-read and state-transition.
 func (cb *CircuitBreaker) IsOpen() bool {
-	cb.mu.RLock()
-	defer cb.mu.RUnlock()
+	cb.mu.Lock()
+	defer cb.mu.Unlock()
 
 	if cb.state == "open" {
-		// Check if timeout has passed
 		if time.Since(cb.lastFailureTime) > cb.timeout {
-			cb.mu.RUnlock()
-			cb.mu.Lock()
 			cb.state = "half-open"
 			cb.failureCount = 0
 			cb.successCount = 0
-			cb.mu.Unlock()
-			cb.mu.RLock()
 			return false
 		}
 		return true

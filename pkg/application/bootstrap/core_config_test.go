@@ -3,6 +3,7 @@ package bootstrap
 import "testing"
 
 func TestNewAPIServiceCoreConfigDefaults(t *testing.T) {
+	t.Parallel()
 	cfg := NewAPIServiceCoreConfig(18081, "info")
 	if cfg.APIType != "service" {
 		t.Fatalf("expected APIType service, got %s", cfg.APIType)
@@ -16,9 +17,10 @@ func TestNewAPIServiceCoreConfigDefaults(t *testing.T) {
 }
 
 func TestNewMonolithicCoreConfigDefaults(t *testing.T) {
-	cfg := NewMonolithicCoreConfig("debug", "postgres", "postgres://x", "redis")
-	if cfg.APIType != "graphql" {
-		t.Fatalf("expected APIType graphql, got %s", cfg.APIType)
+	t.Parallel()
+	cfg := NewMonolithicCoreConfig("debug", "postgres", "postgres://x", "redis", "https-jsonrpc", "http://localhost:8545")
+	if cfg.APIType != "rest" {
+		t.Errorf("expected APIType rest, got %s", cfg.APIType)
 	}
 	if cfg.APIPort != 8080 {
 		t.Fatalf("expected APIPort 8080, got %d", cfg.APIPort)
@@ -29,6 +31,7 @@ func TestNewMonolithicCoreConfigDefaults(t *testing.T) {
 }
 
 func TestApplyCoreConfigOverridesTableDriven(t *testing.T) {
+	t.Parallel()
 	apiType := "rest"
 	apiPort := 9099
 

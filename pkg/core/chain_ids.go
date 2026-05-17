@@ -83,9 +83,9 @@ var l2ChainIDs = map[int]bool{
 type RollupType int
 
 const (
-	RollupNone      RollupType = iota // Not an L2
-	RollupOptimistic                  // Optimistic rollup (Arbitrum, Optimism, Base, Mantle)
-	RollupZK                          // ZK rollup (zkSync, Scroll, Linea)
+	RollupNone       RollupType = iota // Not an L2
+	RollupOptimistic                   // Optimistic rollup (Arbitrum, Optimism, Base, Mantle)
+	RollupZK                           // ZK rollup (zkSync, Scroll, Linea)
 )
 
 // L2ChainInfo describes a Layer 2 rollup chain's finality characteristics
@@ -93,26 +93,26 @@ type L2ChainInfo struct {
 	ChainID        int
 	Name           string
 	RollupType     RollupType
-	L1ChainID      int  // Parent L1 chain ID (1 for Ethereum mainnet L2s)
-	FinalityBlocks int  // Approximate L1 blocks until L2 state is confirmed
+	L1ChainID      int // Parent L1 chain ID (1 for Ethereum mainnet L2s)
+	FinalityBlocks int // Approximate L1 blocks until L2 state is confirmed
 }
 
 // l2ChainInfo maps L2 chain IDs to their rollup-specific info
 var l2ChainInfo = map[int]*L2ChainInfo{
 	// Optimistic rollups
-	42161:    {ChainID: 42161, Name: "arbitrum", RollupType: RollupOptimistic, L1ChainID: 1, FinalityBlocks: 960},       // ~4h at 12s blocks
+	42161:    {ChainID: 42161, Name: "arbitrum", RollupType: RollupOptimistic, L1ChainID: 1, FinalityBlocks: 960}, // ~4h at 12s blocks
 	421614:   {ChainID: 421614, Name: "arbitrum-sepolia", RollupType: RollupOptimistic, L1ChainID: 11155111, FinalityBlocks: 960},
-	10:       {ChainID: 10, Name: "optimism", RollupType: RollupOptimistic, L1ChainID: 1, FinalityBlocks: 50400},           // ~7 day challenge window
+	10:       {ChainID: 10, Name: "optimism", RollupType: RollupOptimistic, L1ChainID: 1, FinalityBlocks: 50400}, // ~7 day challenge window
 	11155420: {ChainID: 11155420, Name: "optimism-sepolia", RollupType: RollupOptimistic, L1ChainID: 11155111, FinalityBlocks: 50400},
-	8453:     {ChainID: 8453, Name: "base", RollupType: RollupOptimistic, L1ChainID: 1, FinalityBlocks: 50400},              // OP Stack, same as Optimism
+	8453:     {ChainID: 8453, Name: "base", RollupType: RollupOptimistic, L1ChainID: 1, FinalityBlocks: 50400}, // OP Stack, same as Optimism
 	84532:    {ChainID: 84532, Name: "base-sepolia", RollupType: RollupOptimistic, L1ChainID: 11155111, FinalityBlocks: 50400},
 	5000:     {ChainID: 5000, Name: "mantle", RollupType: RollupOptimistic, L1ChainID: 1, FinalityBlocks: 960},
 	// ZK rollups
-	324:    {ChainID: 324, Name: "zksync", RollupType: RollupZK, L1ChainID: 1, FinalityBlocks: 720},       // ~2.4h for proof submission
+	324:    {ChainID: 324, Name: "zksync", RollupType: RollupZK, L1ChainID: 1, FinalityBlocks: 720}, // ~2.4h for proof submission
 	300:    {ChainID: 300, Name: "zksync-sepolia", RollupType: RollupZK, L1ChainID: 11155111, FinalityBlocks: 720},
-	534352: {ChainID: 534352, Name: "scroll", RollupType: RollupZK, L1ChainID: 1, FinalityBlocks: 1440},   // ~4.8h for proof verification
+	534352: {ChainID: 534352, Name: "scroll", RollupType: RollupZK, L1ChainID: 1, FinalityBlocks: 1440}, // ~4.8h for proof verification
 	534351: {ChainID: 534351, Name: "scroll-sepolia", RollupType: RollupZK, L1ChainID: 11155111, FinalityBlocks: 1440},
-	59144:  {ChainID: 59144, Name: "linea", RollupType: RollupZK, L1ChainID: 1, FinalityBlocks: 1440},      // ~4.8h for proof verification
+	59144:  {ChainID: 59144, Name: "linea", RollupType: RollupZK, L1ChainID: 1, FinalityBlocks: 1440}, // ~4.8h for proof verification
 	59141:  {ChainID: 59141, Name: "linea-sepolia", RollupType: RollupZK, L1ChainID: 11155111, FinalityBlocks: 1440},
 }
 

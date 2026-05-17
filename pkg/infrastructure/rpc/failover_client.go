@@ -15,17 +15,17 @@ type EndpointHealth struct {
 	URL         string
 	consecutive int64 // consecutive failures
 	lastFailure time.Time
-	circuitOpen bool   // true = skip this endpoint
+	circuitOpen bool // true = skip this endpoint
 	openedAt    time.Time
 }
 
 // FailoverRPCClient rotates through RPC endpoints on failure,
 // with per-endpoint circuit breaking and request rate limiting.
 type FailoverRPCClient struct {
-	mu         sync.RWMutex
-	endpoints  []*EndpointHealth
-	client     *http.Client
-	current    uint64 // atomic index into endpoints
+	mu        sync.RWMutex
+	endpoints []*EndpointHealth
+	client    *http.Client
+	current   uint64 // atomic index into endpoints
 
 	// Circuit breaker thresholds
 	maxConsecutiveFailures int

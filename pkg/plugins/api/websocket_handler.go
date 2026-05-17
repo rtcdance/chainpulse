@@ -21,8 +21,8 @@ const replayBufferCapacity = 1000
 
 // replayEntry is a single buffered event with a monotonic sequence ID
 type replayEntry struct {
-	Seq  uint64      `json:"seq"`
-	Data interface{} `json:"data"`
+	Seq  uint64 `json:"seq"`
+	Data any    `json:"data"`
 }
 
 // topicReplayBuffer is a ring buffer of recent events for a single topic
@@ -39,7 +39,7 @@ func newTopicReplayBuffer() *topicReplayBuffer {
 }
 
 // Add appends an event to the ring buffer, returning its sequence number
-func (b *topicReplayBuffer) Add(seq uint64, data interface{}) {
+func (b *topicReplayBuffer) Add(seq uint64, data any) {
 	b.entries[b.head] = replayEntry{Seq: seq, Data: data}
 	b.head = (b.head + 1) % replayBufferCapacity
 	if b.count < replayBufferCapacity {
@@ -78,7 +78,7 @@ func NewSubscriptionHub() *SubscriptionHub {
 }
 
 // BufferEvent stores an event in the replay buffer and returns its sequence number
-func (h *SubscriptionHub) BufferEvent(topic string, data interface{}) uint64 {
+func (h *SubscriptionHub) BufferEvent(topic string, data any) uint64 {
 	h.mu.Lock()
 	buf, ok := h.replayBuffers[topic]
 	if !ok {
@@ -144,7 +144,7 @@ type WSSubscription struct {
 	id        string
 	topic     string
 	query     string
-	variables map[string]interface{}
+	variables map[string]any
 	done      chan struct{}
 	closeOnce sync.Once
 }
@@ -405,11 +405,11 @@ func (h *WebSocketHandler) manageConnection(wsConn *WSConnection) {
 // handleMessage processes a WebSocket message
 func (h *WebSocketHandler) handleMessage(wsConn *WSConnection, data []byte) {
 	var msg struct {
-		Type    string                 `json:"type"`
-		ID      string                 `json:"id"`
-		Topic   string                 `json:"topic"`
-		Query   string                 `json:"query"`
-		Variables map[string]interface{} `json:"variables"`
+		Type      string         `json:"type"`
+		ID        string         `json:"id"`
+		Topic     string         `json:"topic"`
+		Query     string         `json:"query"`
+		Variables map[string]any `json:"variables"`
 	}
 	if err := json.Unmarshal(data, &msg); err != nil {
 		wsConn.mu.Lock()
@@ -427,13 +427,13 @@ func (h *WebSocketHandler) handleMessage(wsConn *WSConnection, data []byte) {
 			return
 		}
 		if err := h.AddSubscription(wsConn.id, msg.ID, msg.Topic, msg.Query, msg.Variables); err != nil {
-			errMsg, _ := json.Marshal(map[string]interface{}{"type": "error", "message": err.Error()})
+			errMsg, _ := json.Marshal(map[string]any{"type": "error", "message": err.Error()})
 			wsConn.mu.Lock()
 			_ = wsConn.conn.WriteMessage(websocket.TextMessage, errMsg)
 			wsConn.mu.Unlock()
 			return
 		}
-		ack, _ := json.Marshal(map[string]interface{}{"type": "subscribed", "id": msg.ID, "topic": msg.Topic})
+		ack, _ := json.Marshal(map[string]any{"type": "subscribed", "id": msg.ID, "topic": msg.Topic})
 		wsConn.mu.Lock()
 		_ = wsConn.conn.WriteMessage(websocket.TextMessage, ack)
 		wsConn.mu.Unlock()
@@ -449,7 +449,7 @@ func (h *WebSocketHandler) handleMessage(wsConn *WSConnection, data []byte) {
 }
 
 // AddSubscription adds a subscription to a connection, replaying missed events if available
-func (h *WebSocketHandler) AddSubscription(connID string, subID string, topic string, query string, variables map[string]interface{}) error {
+func (h *WebSocketHandler) AddSubscription(connID string, subID string, topic string, query string, variables map[string]any) error {
 	h.mu.RLock()
 	wsConn, exists := h.activeConnections[connID]
 	h.mu.RUnlock()
@@ -480,11 +480,11 @@ func (h *WebSocketHandler) AddSubscription(connID string, subID string, topic st
 		if entries := h.hub.GetReplayEvents(topic, afterSeq); len(entries) > 0 {
 			go func() {
 				for _, entry := range entries {
-					msg, _ := json.Marshal(map[string]interface{}{
-						"type":        "data",
+					msg, _ := json.Marshal(map[string]any{
+						"type":         "data",
 						"subscription": subID,
-						"seq":         entry.Seq,
-						"payload":     entry.Data,
+						"seq":          entry.Seq,
+						"payload":      entry.Data,
 					})
 					wsConn.mu.Lock()
 					_ = wsConn.conn.WriteMessage(websocket.TextMessage, msg)
@@ -519,7 +519,7 @@ func (h *WebSocketHandler) RemoveSubscription(connID string, subID string) error
 }
 
 // BroadcastToConnection sends a message to a specific connection
-func (h *WebSocketHandler) BroadcastToConnection(connID string, message interface{}) error {
+func (h *WebSocketHandler) BroadcastToConnection(connID string, message any) error {
 	h.mu.RLock()
 	wsConn, exists := h.activeConnections[connID]
 	h.mu.RUnlock()
@@ -596,7 +596,7 @@ func (h *WebSocketHandler) IsConnectionSecure(connID string) bool {
 }
 
 // GetConnectionInfo returns information about a connection
-func (h *WebSocketHandler) GetConnectionInfo(connID string) map[string]interface{} {
+func (h *WebSocketHandler) GetConnectionInfo(connID string) map[string]any {
 	h.mu.RLock()
 	wsConn, exists := h.activeConnections[connID]
 	h.mu.RUnlock()
@@ -608,7 +608,7 @@ func (h *WebSocketHandler) GetConnectionInfo(connID string) map[string]interface
 	wsConn.mu.RLock()
 	defer wsConn.mu.RUnlock()
 
-	return map[string]interface{}{
+	return map[string]any{
 		"id":              wsConn.id,
 		"remote_addr":     wsConn.remoteAddr,
 		"tls_enabled":     wsConn.tlsEnabled,

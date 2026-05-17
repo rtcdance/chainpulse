@@ -12,6 +12,7 @@ import (
 
 // TestNewGracefulShutdownManager tests manager creation
 func TestNewGracefulShutdownManager(t *testing.T) {
+	t.Parallel()
 	manager := NewGracefulShutdownManager("test-manager")
 
 	assert.NotNil(t, manager)
@@ -24,6 +25,7 @@ func TestNewGracefulShutdownManager(t *testing.T) {
 
 // TestRegisterService tests registering a service
 func TestRegisterService(t *testing.T) {
+	t.Parallel()
 	manager := NewGracefulShutdownManager("test-manager")
 
 	manager.RegisterService("service-1")
@@ -37,6 +39,7 @@ func TestRegisterService(t *testing.T) {
 
 // TestRegisterMultipleServices tests registering multiple services
 func TestRegisterMultipleServices(t *testing.T) {
+	t.Parallel()
 	manager := NewGracefulShutdownManager("test-manager")
 
 	for i := 1; i <= 5; i++ {
@@ -49,6 +52,7 @@ func TestRegisterMultipleServices(t *testing.T) {
 
 // TestInitiateShutdown tests initiating shutdown
 func TestInitiateShutdown(t *testing.T) {
+	t.Parallel()
 	manager := NewGracefulShutdownManager("test-manager")
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -64,6 +68,7 @@ func TestInitiateShutdown(t *testing.T) {
 
 // TestInitiateShutdownAlreadyInProgress tests initiating shutdown when already in progress
 func TestInitiateShutdownAlreadyInProgress(t *testing.T) {
+	t.Parallel()
 	manager := NewGracefulShutdownManager("test-manager")
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -82,6 +87,7 @@ func TestInitiateShutdownAlreadyInProgress(t *testing.T) {
 
 // TestUpdateConnectionCount tests updating connection count
 func TestUpdateConnectionCount(t *testing.T) {
+	t.Parallel()
 	manager := NewGracefulShutdownManager("test-manager")
 
 	manager.RegisterService("service-1")
@@ -94,6 +100,7 @@ func TestUpdateConnectionCount(t *testing.T) {
 
 // TestUpdateConnectionCountNotFound tests updating non-existent service
 func TestUpdateConnectionCountNotFound(t *testing.T) {
+	t.Parallel()
 	manager := NewGracefulShutdownManager("test-manager")
 
 	err := manager.UpdateConnectionCount("nonexistent", 5)
@@ -103,6 +110,7 @@ func TestUpdateConnectionCountNotFound(t *testing.T) {
 
 // TestUpdateConnectionCountZero tests updating connection count to zero
 func TestUpdateConnectionCountZero(t *testing.T) {
+	t.Parallel()
 	manager := NewGracefulShutdownManager("test-manager")
 
 	manager.RegisterService("service-1")
@@ -117,6 +125,7 @@ func TestUpdateConnectionCountZero(t *testing.T) {
 
 // TestUpdatePendingRequests tests updating pending requests
 func TestUpdatePendingRequests(t *testing.T) {
+	t.Parallel()
 	manager := NewGracefulShutdownManager("test-manager")
 
 	manager.RegisterService("service-1")
@@ -129,6 +138,7 @@ func TestUpdatePendingRequests(t *testing.T) {
 
 // TestUpdatePendingRequestsNotFound tests updating non-existent service
 func TestUpdatePendingRequestsNotFound(t *testing.T) {
+	t.Parallel()
 	manager := NewGracefulShutdownManager("test-manager")
 
 	err := manager.UpdatePendingRequests("nonexistent", 10)
@@ -138,6 +148,7 @@ func TestUpdatePendingRequestsNotFound(t *testing.T) {
 
 // TestUpdatePendingRequestsZero tests updating pending requests to zero
 func TestUpdatePendingRequestsZero(t *testing.T) {
+	t.Parallel()
 	manager := NewGracefulShutdownManager("test-manager")
 
 	manager.RegisterService("service-1")
@@ -152,6 +163,7 @@ func TestUpdatePendingRequestsZero(t *testing.T) {
 
 // TestGetShutdownStatus tests getting shutdown status
 func TestGetShutdownStatus(t *testing.T) {
+	t.Parallel()
 	manager := NewGracefulShutdownManager("test-manager")
 
 	manager.RegisterService("service-1")
@@ -162,7 +174,7 @@ func TestGetShutdownStatus(t *testing.T) {
 
 	assert.NotNil(t, status)
 	assert.Contains(t, status, "service-1")
-	serviceStatus := status["service-1"].(map[string]interface{})
+	serviceStatus := status["service-1"].(map[string]any)
 	assert.Equal(t, "running", serviceStatus["status"])
 	assert.Equal(t, 5, serviceStatus["active_connections"])
 	assert.Equal(t, 10, serviceStatus["pending_requests"])
@@ -170,6 +182,7 @@ func TestGetShutdownStatus(t *testing.T) {
 
 // TestGetMetricsGracefulShutdown tests getting metrics
 func TestGetMetricsGracefulShutdown(t *testing.T) {
+	t.Parallel()
 	manager := NewGracefulShutdownManager("test-manager")
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -190,6 +203,7 @@ func TestGetMetricsGracefulShutdown(t *testing.T) {
 
 // TestIsShutdownInProgress tests checking if shutdown is in progress
 func TestIsShutdownInProgress(t *testing.T) {
+	t.Parallel()
 	manager := NewGracefulShutdownManager("test-manager")
 
 	assert.False(t, manager.IsShutdownInProgress())
@@ -201,6 +215,7 @@ func TestIsShutdownInProgress(t *testing.T) {
 
 // TestDeregister tests deregistering a service
 func TestDeregister(t *testing.T) {
+	t.Parallel()
 	manager := NewGracefulShutdownManager("test-manager")
 
 	manager.RegisterService("service-1")
@@ -214,6 +229,7 @@ func TestDeregister(t *testing.T) {
 
 // TestDeregisterNotFound tests deregistering non-existent service
 func TestDeregisterNotFound(t *testing.T) {
+	t.Parallel()
 	manager := NewGracefulShutdownManager("test-manager")
 
 	err := manager.Deregister("nonexistent")
@@ -223,6 +239,7 @@ func TestDeregisterNotFound(t *testing.T) {
 
 // TestShutdownInfoFields tests shutdown info fields
 func TestShutdownInfoFields(t *testing.T) {
+	t.Parallel()
 	manager := NewGracefulShutdownManager("test-manager")
 
 	manager.RegisterService("service-1")
@@ -239,6 +256,7 @@ func TestShutdownInfoFields(t *testing.T) {
 
 // TestMultipleServicesShutdown tests shutting down multiple services
 func TestMultipleServicesShutdown(t *testing.T) {
+	t.Parallel()
 	manager := NewGracefulShutdownManager("test-manager")
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -263,6 +281,7 @@ func TestMultipleServicesShutdown(t *testing.T) {
 
 // TestShutdownMetricsTracking tests shutdown metrics tracking
 func TestShutdownMetricsTracking(t *testing.T) {
+	t.Parallel()
 	manager := NewGracefulShutdownManager("test-manager")
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -280,6 +299,7 @@ func TestShutdownMetricsTracking(t *testing.T) {
 
 // TestConnectionDrainTime tests connection drain time
 func TestConnectionDrainTime(t *testing.T) {
+	t.Parallel()
 	manager := NewGracefulShutdownManager("test-manager")
 
 	assert.Equal(t, 30*time.Second, manager.connectionDrainTime)
@@ -291,6 +311,7 @@ func TestConnectionDrainTime(t *testing.T) {
 
 // TestRequestCompletionWait tests request completion wait time
 func TestRequestCompletionWait(t *testing.T) {
+	t.Parallel()
 	manager := NewGracefulShutdownManager("test-manager")
 
 	assert.Equal(t, 60*time.Second, manager.requestCompletionWait)
@@ -302,6 +323,7 @@ func TestRequestCompletionWait(t *testing.T) {
 
 // TestConcurrentServiceRegistration tests concurrent service registration
 func TestConcurrentServiceRegistration(t *testing.T) {
+	t.Parallel()
 	manager := NewGracefulShutdownManager("test-manager")
 
 	var wg sync.WaitGroup
@@ -324,6 +346,7 @@ func TestConcurrentServiceRegistration(t *testing.T) {
 
 // TestConcurrentConnectionUpdates tests concurrent connection count updates
 func TestConcurrentConnectionUpdates(t *testing.T) {
+	t.Parallel()
 	manager := NewGracefulShutdownManager("test-manager")
 
 	manager.RegisterService("service-1")
@@ -347,6 +370,7 @@ func TestConcurrentConnectionUpdates(t *testing.T) {
 
 // TestConcurrentRequestUpdates tests concurrent pending request updates
 func TestConcurrentRequestUpdates(t *testing.T) {
+	t.Parallel()
 	manager := NewGracefulShutdownManager("test-manager")
 
 	manager.RegisterService("service-1")
@@ -370,6 +394,7 @@ func TestConcurrentRequestUpdates(t *testing.T) {
 
 // TestShutdownContextCancellation tests shutdown with context cancellation
 func TestShutdownContextCancellation(t *testing.T) {
+	t.Parallel()
 	manager := NewGracefulShutdownManager("test-manager")
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -387,6 +412,7 @@ func TestShutdownContextCancellation(t *testing.T) {
 
 // TestShutdownWithActiveConnections tests shutdown with active connections
 func TestShutdownWithActiveConnections(t *testing.T) {
+	t.Parallel()
 	manager := NewGracefulShutdownManager("test-manager")
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -402,6 +428,7 @@ func TestShutdownWithActiveConnections(t *testing.T) {
 
 // TestShutdownWithPendingRequests tests shutdown with pending requests
 func TestShutdownWithPendingRequests(t *testing.T) {
+	t.Parallel()
 	manager := NewGracefulShutdownManager("test-manager")
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -417,6 +444,7 @@ func TestShutdownWithPendingRequests(t *testing.T) {
 
 // TestShutdownStatusTransitions tests shutdown status transitions
 func TestShutdownStatusTransitions(t *testing.T) {
+	t.Parallel()
 	manager := NewGracefulShutdownManager("test-manager")
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -434,6 +462,7 @@ func TestShutdownStatusTransitions(t *testing.T) {
 
 // TestDrainStartAndCompleteTime tests drain start and complete times
 func TestDrainStartAndCompleteTime(t *testing.T) {
+	t.Parallel()
 	manager := NewGracefulShutdownManager("test-manager")
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -453,6 +482,7 @@ func TestDrainStartAndCompleteTime(t *testing.T) {
 
 // TestMetricsAverageShutdownTime tests average shutdown time calculation
 func TestMetricsAverageShutdownTime(t *testing.T) {
+	t.Parallel()
 	manager := NewGracefulShutdownManager("test-manager")
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -469,6 +499,7 @@ func TestMetricsAverageShutdownTime(t *testing.T) {
 
 // TestEmptyServicesList tests shutdown with empty services list
 func TestEmptyServicesList(t *testing.T) {
+	t.Parallel()
 	manager := NewGracefulShutdownManager("test-manager")
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -481,6 +512,7 @@ func TestEmptyServicesList(t *testing.T) {
 
 // TestGetShutdownStatusEmpty tests getting status with no services
 func TestGetShutdownStatusEmpty(t *testing.T) {
+	t.Parallel()
 	manager := NewGracefulShutdownManager("test-manager")
 
 	status := manager.GetShutdownStatus()
@@ -491,6 +523,7 @@ func TestGetShutdownStatusEmpty(t *testing.T) {
 
 // TestMultipleDeregister tests deregistering multiple services
 func TestMultipleDeregister(t *testing.T) {
+	t.Parallel()
 	manager := NewGracefulShutdownManager("test-manager")
 
 	for i := 1; i <= 3; i++ {
@@ -511,6 +544,7 @@ func TestMultipleDeregister(t *testing.T) {
 
 // TestShutdownMetricsInitialization tests metrics initialization
 func TestShutdownMetricsInitialization(t *testing.T) {
+	t.Parallel()
 	manager := NewGracefulShutdownManager("test-manager")
 
 	assert.Equal(t, int64(0), manager.metrics.ShutdownsInitiated)
@@ -523,6 +557,7 @@ func TestShutdownMetricsInitialization(t *testing.T) {
 
 // TestConnectionCountTracking tests connection count tracking
 func TestConnectionCountTracking(t *testing.T) {
+	t.Parallel()
 	manager := NewGracefulShutdownManager("test-manager")
 
 	manager.RegisterService("service-1")
@@ -537,6 +572,7 @@ func TestConnectionCountTracking(t *testing.T) {
 
 // TestPendingRequestsTracking tests pending requests tracking
 func TestPendingRequestsTracking(t *testing.T) {
+	t.Parallel()
 	manager := NewGracefulShutdownManager("test-manager")
 
 	manager.RegisterService("service-1")

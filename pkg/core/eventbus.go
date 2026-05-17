@@ -12,19 +12,21 @@ const defaultEventBusWorkers = 16
 
 // eventBusJob wraps a handler call for the worker pool
 type eventBusJob struct {
-	handler EventHandler
-	event   interface{}
-	topic   string
-	ctx     context.Context
+	handler        EventHandler
+	event          any
+	topic          string
+	subscriberName string
+	ctx            context.Context
 }
 
 // DefaultEventBus is the default implementation of EventBus
 type DefaultEventBus struct {
-	subscribers map[string]map[uint64]EventHandler // topic -> subID -> handler
-	subIndex    map[uint64]string                  // subID -> topic (reverse lookup for Unsubscribe)
-	nextSubID   atomic.Uint64
-	mu          sync.RWMutex
-	logger      Logger
+	subscribers     map[string]map[uint64]EventHandler // topic -> subID -> handler
+	subIndex        map[uint64]string                  // subID -> topic (reverse lookup for Unsubscribe)
+	subscriberNames map[uint64]string                  // subID -> human-readable name (for debugging)
+	nextSubID       atomic.Uint64
+	mu              sync.RWMutex
+	logger          Logger
 
 	// Worker pool for backpressure
 	workerPool chan struct{}
@@ -36,7 +38,7 @@ type DefaultEventBus struct {
 }
 
 // EventHandler is a function that handles events
-type EventHandler func(interface{})
+type EventHandler func(any)
 
 // SubscribeTyped subscribes to topic with a type-safe handler function.
 // It wraps the underlying EventBus.Subscribe, performing the type assertion
@@ -44,7 +46,19 @@ type EventHandler func(interface{})
 // If the assertion fails (e.g. wrong concrete type published to the topic),
 // the handler is silently skipped — matching the existing !ok pattern.
 func SubscribeTyped[T any](bus EventBus, ctx context.Context, topic string, handler func(T)) (uint64, error) { //nolint:revive // ctx cannot be first param; bus is the receiver-like primary argument
-	return bus.Subscribe(ctx, topic, func(raw interface{}) {
+	return bus.Subscribe(ctx, topic, func(raw any) {
+		typed, ok := raw.(T)
+		if !ok {
+			return
+		}
+		handler(typed)
+	})
+}
+
+// SubscribeTypedNamed is like SubscribeTyped but records a human-readable
+// subscriber name for debugging. The name appears in panic recovery logs.
+func SubscribeTypedNamed[T any](bus EventBus, ctx context.Context, topic, name string, handler func(T)) (uint64, error) { //nolint:revive // ctx cannot be first param; bus is the receiver-like primary argument
+	return bus.SubscribeNamed(ctx, topic, name, func(raw any) {
 		typed, ok := raw.(T)
 		if !ok {
 			return
@@ -60,16 +74,17 @@ func NewEventBus(logger Logger) *DefaultEventBus {
 		pool <- struct{}{}
 	}
 	return &DefaultEventBus{
-		subscribers: make(map[string]map[uint64]EventHandler),
-		subIndex:    make(map[uint64]string),
-		logger:      logger,
-		workerPool:  pool,
-		done:        make(chan struct{}),
+		subscribers:     make(map[string]map[uint64]EventHandler),
+		subIndex:        make(map[uint64]string),
+		subscriberNames: make(map[uint64]string),
+		logger:          logger,
+		workerPool:      pool,
+		done:            make(chan struct{}),
 	}
 }
 
 // Publish publishes an event to a topic
-func (eb *DefaultEventBus) Publish(ctx context.Context, topic string, event interface{}) error {
+func (eb *DefaultEventBus) Publish(ctx context.Context, topic string, event any) error {
 	if eb.stopped.Load() {
 		return NewSystemError(
 			ErrorTypePermanent,
@@ -101,9 +116,13 @@ func (eb *DefaultEventBus) Publish(ctx context.Context, topic string, event inte
 	// map and iterating it after releasing the lock races with concurrent
 	// Subscribe/Unsubscribe writes. A snapshot slice is safe to iterate unlocked.
 	eb.mu.RLock()
-	snapshot := make([]EventHandler, 0, len(eb.subscribers[topic]))
-	for _, h := range eb.subscribers[topic] {
-		snapshot = append(snapshot, h)
+	type subEntry struct {
+		handler EventHandler
+		name    string
+	}
+	snapshot := make([]subEntry, 0, len(eb.subscribers[topic]))
+	for subID, h := range eb.subscribers[topic] {
+		snapshot = append(snapshot, subEntry{handler: h, name: eb.subscriberNames[subID]})
 	}
 	eb.mu.RUnlock()
 
@@ -115,7 +134,7 @@ func (eb *DefaultEventBus) Publish(ctx context.Context, topic string, event inte
 	}
 
 	// Publish event to all subscribers via worker pool for backpressure
-	for _, handler := range snapshot {
+	for _, entry := range snapshot {
 		// Check context before dispatching — avoid spawning goroutines that will immediately exit
 		select {
 		case <-ctx.Done():
@@ -128,10 +147,11 @@ func (eb *DefaultEventBus) Publish(ctx context.Context, topic string, event inte
 
 		eb.wg.Add(1)
 		job := eventBusJob{
-			handler: handler,
-			event:   event,
-			topic:   topic,
-			ctx:     ctx,
+			handler:        entry.handler,
+			event:          event,
+			topic:          topic,
+			subscriberName: entry.name,
+			ctx:            ctx,
 		}
 		go func(j eventBusJob) {
 			defer eb.wg.Done()
@@ -154,7 +174,7 @@ func (eb *DefaultEventBus) Publish(ctx context.Context, topic string, event inte
 			defer func() {
 				if r := recover(); r != nil {
 					if eb.logger != nil {
-						eb.logger.Error("handler panic", "topic", j.topic, "panic", r)
+						eb.logger.Error("handler panic", "topic", j.topic, "subscriber", j.subscriberName, "panic", r)
 					}
 				}
 			}()
@@ -171,7 +191,7 @@ func (eb *DefaultEventBus) Publish(ctx context.Context, topic string, event inte
 }
 
 // Subscribe subscribes to a topic and returns a subscription ID for later unsubscription
-func (eb *DefaultEventBus) Subscribe(ctx context.Context, topic string, handler func(interface{})) (uint64, error) {
+func (eb *DefaultEventBus) Subscribe(ctx context.Context, topic string, handler func(any)) (uint64, error) {
 	if topic == "" {
 		return 0, NewSystemError(
 			ErrorTypePermanent,
@@ -208,6 +228,25 @@ func (eb *DefaultEventBus) Subscribe(ctx context.Context, topic string, handler 
 	return subID, nil
 }
 
+// SubscribeNamed subscribes to a topic with a human-readable name for debugging.
+// The name appears in panic recovery logs and debug output, making it easy to
+// identify which component crashed or is handling an event. If name is empty,
+// falls back to Subscribe (no name recorded).
+func (eb *DefaultEventBus) SubscribeNamed(ctx context.Context, topic, name string, handler func(any)) (uint64, error) {
+	subID, err := eb.Subscribe(ctx, topic, handler)
+	if err != nil {
+		return 0, err
+	}
+
+	if name != "" {
+		eb.mu.Lock()
+		eb.subscriberNames[subID] = name
+		eb.mu.Unlock()
+	}
+
+	return subID, nil
+}
+
 // Unsubscribe removes a subscription by its ID
 func (eb *DefaultEventBus) Unsubscribe(subscriptionID uint64) error {
 	eb.mu.Lock()
@@ -225,6 +264,7 @@ func (eb *DefaultEventBus) Unsubscribe(subscriptionID uint64) error {
 
 	delete(eb.subscribers[topic], subscriptionID)
 	delete(eb.subIndex, subscriptionID)
+	delete(eb.subscriberNames, subscriptionID)
 
 	// Clean up empty topic map
 	if len(eb.subscribers[topic]) == 0 {
@@ -292,6 +332,7 @@ func (eb *DefaultEventBus) Clear() {
 
 	eb.subscribers = make(map[string]map[uint64]EventHandler)
 	eb.subIndex = make(map[uint64]string)
+	eb.subscriberNames = make(map[uint64]string)
 
 	if eb.logger != nil {
 		eb.logger.Info("event bus cleared")
@@ -299,7 +340,7 @@ func (eb *DefaultEventBus) Clear() {
 }
 
 // PublishSync publishes an event synchronously
-func (eb *DefaultEventBus) PublishSync(ctx context.Context, topic string, event interface{}) error {
+func (eb *DefaultEventBus) PublishSync(ctx context.Context, topic string, event any) error {
 	if topic == "" {
 		return NewSystemError(
 			ErrorTypePermanent,

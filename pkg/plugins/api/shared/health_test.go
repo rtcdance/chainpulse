@@ -6,6 +6,7 @@ import (
 )
 
 func TestHealthCheckRuntimeSummaryHealthy(t *testing.T) {
+	t.Parallel()
 	hc := NewHealthCheck()
 	hc.RegisterComponent("db", time.Minute, 2)
 	hc.RecordSuccess("db")
@@ -23,6 +24,7 @@ func TestHealthCheckRuntimeSummaryHealthy(t *testing.T) {
 }
 
 func TestHealthCheckRuntimeSummaryDegraded(t *testing.T) {
+	t.Parallel()
 	hc := NewHealthCheck()
 	hc.RegisterComponent("db", time.Minute, 3)
 	hc.RecordError("db")
@@ -37,6 +39,7 @@ func TestHealthCheckRuntimeSummaryDegraded(t *testing.T) {
 }
 
 func TestHealthCheckRuntimeSummaryUnhealthy(t *testing.T) {
+	t.Parallel()
 	hc := NewHealthCheck()
 	hc.RegisterComponent("db", time.Minute, 1)
 	hc.RecordError("db")
@@ -54,6 +57,7 @@ func TestHealthCheckRuntimeSummaryUnhealthy(t *testing.T) {
 }
 
 func TestHealthCheckRuntimeSummaryUnobserved(t *testing.T) {
+	t.Parallel()
 	hc := NewHealthCheck()
 
 	summary := hc.GetRuntimeSummary()
@@ -66,6 +70,7 @@ func TestHealthCheckRuntimeSummaryUnobserved(t *testing.T) {
 }
 
 func TestHealthCheckHealthSummaryIncludesPostureFields(t *testing.T) {
+	t.Parallel()
 	hc := NewHealthCheck()
 	hc.RegisterComponent("db", time.Minute, 2)
 	hc.RecordSuccess("db")
@@ -83,6 +88,7 @@ func TestHealthCheckHealthSummaryIncludesPostureFields(t *testing.T) {
 }
 
 func TestHealthCheckRuntimeMetricsUnconfigured(t *testing.T) {
+	t.Parallel()
 	hc := NewHealthCheck()
 
 	metrics := hc.GetRuntimeMetrics()
@@ -95,6 +101,7 @@ func TestHealthCheckRuntimeMetricsUnconfigured(t *testing.T) {
 }
 
 func TestHealthCheckRuntimeMetricsPartial(t *testing.T) {
+	t.Parallel()
 	hc := NewHealthCheck()
 	hc.RegisterComponent("db", time.Minute, 3)
 	hc.RegisterComponent("cache", time.Minute, 3)
@@ -111,6 +118,7 @@ func TestHealthCheckRuntimeMetricsPartial(t *testing.T) {
 }
 
 func TestHealthCheckRuntimeMetricsComplete(t *testing.T) {
+	t.Parallel()
 	hc := NewHealthCheck()
 	hc.RegisterComponent("db", time.Minute, 2)
 	hc.RegisterComponent("cache", time.Minute, 2)

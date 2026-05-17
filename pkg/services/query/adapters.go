@@ -2,6 +2,7 @@ package query
 
 import (
 	"context"
+	"time"
 
 	"chainpulse/pkg/core"
 )
@@ -54,10 +55,16 @@ type CacheService interface {
 	GetSingle(ctx context.Context, key string) (*core.BlockchainEvent, error)
 
 	// Set sets a cached value
-	Set(ctx context.Context, key string, value []core.BlockchainEvent, ttl interface{}) error
+	Set(ctx context.Context, key string, value []core.BlockchainEvent, ttl time.Duration) error
 
 	// SetSingle sets a single cached value
-	SetSingle(ctx context.Context, key string, value *core.BlockchainEvent, ttl interface{}) error
+	SetSingle(ctx context.Context, key string, value *core.BlockchainEvent, ttl time.Duration) error
+
+	// SetQueryResult caches a query result with total count
+	SetQueryResult(ctx context.Context, key string, events []core.BlockchainEvent, total int64, ttl time.Duration) error
+
+	// GetQueryResult retrieves a cached query result with total count
+	GetQueryResult(ctx context.Context, key string) ([]core.BlockchainEvent, int64, error)
 
 	// Delete deletes a cached value
 	Delete(ctx context.Context, key string) error

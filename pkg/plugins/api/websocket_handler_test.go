@@ -9,6 +9,7 @@ import (
 // TestWSSubscriptionCloseOnce verifies that closing a subscription's done channel
 // via closeOnce.Do is idempotent and does not panic on double close
 func TestWSSubscriptionCloseOnce(t *testing.T) {
+	t.Parallel()
 	sub := &WSSubscription{
 		id:    "test-sub",
 		topic: "test-topic",
@@ -28,6 +29,7 @@ func TestWSSubscriptionCloseOnce(t *testing.T) {
 // TestWSSubscriptionCloseOnceConcurrent verifies that concurrent close attempts
 // don't cause a panic
 func TestWSSubscriptionCloseOnceConcurrent(t *testing.T) {
+	t.Parallel()
 	sub := &WSSubscription{
 		id:    "concurrent-sub",
 		topic: "test-topic",

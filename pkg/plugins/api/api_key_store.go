@@ -33,11 +33,11 @@ type APIKeyRecord struct {
 
 // APIKeyStore manages persistent API key storage
 type APIKeyStore struct {
-	db      *sql.DB
-	logger  core.Logger
-	metrics core.MetricsCollector
-	wg      sync.WaitGroup
-	done    chan struct{}
+	db       *sql.DB
+	logger   core.Logger
+	metrics  core.MetricsCollector
+	wg       sync.WaitGroup
+	done     chan struct{}
 	stopOnce sync.Once
 }
 
@@ -77,7 +77,7 @@ func (s *APIKeyStore) CreateAPIKey(ctx context.Context, clientID, name string, p
 	id := fmt.Sprintf("ak_%s", hex.EncodeToString(raw[:16]))
 	permsJSON, _ := json.Marshal(permissions)
 
-	var expiresAtVal interface{}
+	var expiresAtVal any
 	if expiresAt != nil {
 		expiresAtVal = expiresAt.UTC()
 	}
@@ -223,6 +223,9 @@ func (s *APIKeyStore) ListAPIKeys(ctx context.Context, clientID string, limit, o
 		}
 		records = append(records, &r)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, err
+	}
 
 	return records, total, nil
 }
@@ -257,6 +260,66 @@ func (s *APIKeyStore) ToggleAPIKey(ctx context.Context, id string, enabled bool)
 	return nil
 }
 
+// RotateKey rotates an API key with an overlap window for zero-downtime transition.
+func (s *APIKeyStore) RotateKey(ctx context.Context, id string, overlapWindow time.Duration) (*APIKeyRecord, string, error) {
+	oldKey, err := s.getKeyByID(ctx, id)
+	if err != nil {
+		return nil, "", fmt.Errorf("get key %s: %w", id, err)
+	}
+	extendedExpiry := time.Now().Add(overlapWindow)
+	if err := s.extendKeyExpiry(ctx, id, extendedExpiry); err != nil {
+		return nil, "", fmt.Errorf("extend old key: %w", err)
+	}
+	return s.CreateAPIKey(ctx, oldKey.ClientID, oldKey.Name, oldKey.Permissions, &extendedExpiry)
+}
+
+// ListExpiringKeys returns keys expiring before the given time.
+func (s *APIKeyStore) ListExpiringKeys(ctx context.Context, before time.Time) ([]*APIKeyRecord, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT id, client_id, name, key_prefix, enabled, expires_at
+		 FROM api_keys WHERE enabled = true AND expires_at IS NOT NULL AND expires_at <= $1
+		 ORDER BY expires_at ASC`, before.UTC())
+	if err != nil {
+		return nil, fmt.Errorf("query expiring keys: %w", err)
+	}
+	defer rows.Close()
+	var keys []*APIKeyRecord
+	for rows.Next() {
+		var k APIKeyRecord
+		var expiresAt sql.NullTime
+		if err := rows.Scan(&k.ID, &k.ClientID, &k.Name, &k.KeyPrefix, &k.Enabled, &expiresAt); err != nil {
+			return nil, fmt.Errorf("scan key: %w", err)
+		}
+		if expiresAt.Valid {
+			formatted := expiresAt.Time.Format(time.RFC3339)
+			k.ExpiresAt = &formatted
+		}
+		keys = append(keys, &k)
+	}
+	return keys, rows.Err()
+}
+
+func (s *APIKeyStore) getKeyByID(ctx context.Context, id string) (*APIKeyRecord, error) {
+	var k APIKeyRecord
+	var permsJSON string
+	err := s.db.QueryRowContext(ctx,
+		`SELECT id, client_id, name, key_prefix, permissions, enabled FROM api_keys WHERE id = $1`,
+		id,
+	).Scan(&k.ID, &k.ClientID, &k.Name, &k.KeyPrefix, &permsJSON, &k.Enabled)
+	if err != nil {
+		return nil, err
+	}
+	json.Unmarshal([]byte(permsJSON), &k.Permissions) //nolint:errcheck
+	return &k, nil
+}
+
+func (s *APIKeyStore) extendKeyExpiry(ctx context.Context, id string, newExpiry time.Time) error {
+	_, err := s.db.ExecContext(ctx,
+		`UPDATE api_keys SET expires_at = $1, updated_at = NOW() WHERE id = $2`,
+		newExpiry.UTC(), id)
+	return err
+}
+
 // LoadAllKeys loads all enabled API keys into the in-memory whitelist for TokenValidator
 func (s *APIKeyStore) LoadAllKeys(ctx context.Context) (map[string]string, error) {
 	rows, err := s.db.QueryContext(ctx,
@@ -276,6 +339,9 @@ func (s *APIKeyStore) LoadAllKeys(ctx context.Context) (map[string]string, error
 			return nil, err
 		}
 		whitelist[keyHash] = clientID
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 
 	return whitelist, nil

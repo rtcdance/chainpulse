@@ -9,6 +9,7 @@ import (
 )
 
 func TestDefaultRetryConfig(t *testing.T) {
+	t.Parallel()
 	config := DefaultRetryConfig()
 
 	if config.MaxRetries != 3 {
@@ -29,6 +30,7 @@ func TestDefaultRetryConfig(t *testing.T) {
 }
 
 func TestDefaultRetryPolicyShouldRetry(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metricsCollector := core.NewDefaultMetricsCollector()
 	errorHandler := NewErrorHandler(logger, metricsCollector)
@@ -60,6 +62,7 @@ func TestDefaultRetryPolicyShouldRetry(t *testing.T) {
 }
 
 func TestDefaultRetryPolicyGetBackoff(t *testing.T) {
+	t.Parallel()
 	config := DefaultRetryConfig()
 	policy := NewDefaultRetryPolicy(config, nil)
 
@@ -91,6 +94,7 @@ func TestDefaultRetryPolicyGetBackoff(t *testing.T) {
 }
 
 func TestRetryExecutorSuccess(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metricsCollector := core.NewDefaultMetricsCollector()
 	errorHandler := NewErrorHandler(logger, metricsCollector)
@@ -117,6 +121,7 @@ func TestRetryExecutorSuccess(t *testing.T) {
 }
 
 func TestRetryExecutorTransientError(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metricsCollector := core.NewDefaultMetricsCollector()
 	errorHandler := NewErrorHandler(logger, metricsCollector)
@@ -152,6 +157,7 @@ func TestRetryExecutorTransientError(t *testing.T) {
 }
 
 func TestRetryExecutorPermanentError(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metricsCollector := core.NewDefaultMetricsCollector()
 	errorHandler := NewErrorHandler(logger, metricsCollector)
@@ -179,6 +185,7 @@ func TestRetryExecutorPermanentError(t *testing.T) {
 }
 
 func TestRetryExecutorExhaustedRetries(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metricsCollector := core.NewDefaultMetricsCollector()
 	errorHandler := NewErrorHandler(logger, metricsCollector)
@@ -212,6 +219,7 @@ func TestRetryExecutorExhaustedRetries(t *testing.T) {
 }
 
 func TestRetryExecutorContextCancellation(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metricsCollector := core.NewDefaultMetricsCollector()
 	errorHandler := NewErrorHandler(logger, metricsCollector)
@@ -248,6 +256,7 @@ func TestRetryExecutorContextCancellation(t *testing.T) {
 }
 
 func TestRetryExecutorWithFallback(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metricsCollector := core.NewDefaultMetricsCollector()
 	errorHandler := NewErrorHandler(logger, metricsCollector)
@@ -276,6 +285,7 @@ func TestRetryExecutorWithFallback(t *testing.T) {
 }
 
 func TestRetryableOperation(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metricsCollector := core.NewDefaultMetricsCollector()
 	errorHandler := NewErrorHandler(logger, metricsCollector)
@@ -307,6 +317,7 @@ func TestRetryableOperation(t *testing.T) {
 }
 
 func TestRetryStats(t *testing.T) {
+	t.Parallel()
 	stats := NewRetryStats()
 
 	// Test initial state
@@ -348,6 +359,7 @@ func TestRetryStats(t *testing.T) {
 }
 
 func TestRetryExecutorConcurrent(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metricsCollector := core.NewDefaultMetricsCollector()
 	errorHandler := NewErrorHandler(logger, metricsCollector)
@@ -380,6 +392,7 @@ func TestRetryExecutorConcurrent(t *testing.T) {
 }
 
 func TestRetryPolicyGetMaxRetries(t *testing.T) {
+	t.Parallel()
 	config := &RetryConfig{
 		MaxRetries: 5,
 	}
@@ -391,6 +404,7 @@ func TestRetryPolicyGetMaxRetries(t *testing.T) {
 }
 
 func TestRetryExecutorNilPolicy(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metricsCollector := core.NewDefaultMetricsCollector()
 
@@ -407,6 +421,7 @@ func TestRetryExecutorNilPolicy(t *testing.T) {
 }
 
 func TestRetryBackoffCalculation(t *testing.T) {
+	t.Parallel()
 	config := &RetryConfig{
 		MaxRetries:        10,
 		InitialBackoff:    100 * time.Millisecond,

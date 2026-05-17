@@ -3,6 +3,7 @@ package core
 import (
 	"fmt"
 	"math"
+	"regexp"
 	"runtime"
 	"sort"
 	"strconv"
@@ -26,7 +27,7 @@ type DefaultMetricsCollector struct {
 type MetricEntry struct {
 	Name      string            `json:"name"`
 	Type      string            `json:"type"`
-	Value     interface{}       `json:"value"`
+	Value     any               `json:"value"`
 	Tags      map[string]string `json:"tags,omitempty"`
 	Timestamp time.Time         `json:"timestamp"`
 }
@@ -97,16 +98,16 @@ func (m *DefaultMetricsCollector) RecordHistogram(name string, value float64, ta
 }
 
 // GetMetrics returns all collected metrics
-func (m *DefaultMetricsCollector) GetMetrics() map[string]interface{} {
+func (m *DefaultMetricsCollector) GetMetrics() map[string]any {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	result := make(map[string]interface{})
+	result := make(map[string]any)
 
 	// Add counters
-	counters := make(map[string]interface{})
+	counters := make(map[string]any)
 	for key, value := range m.counters {
-		counters[key] = map[string]interface{}{
+		counters[key] = map[string]any{
 			"value":     value,
 			"tags":      m.tags[key],
 			"timestamp": m.timestamps[key],
@@ -115,9 +116,9 @@ func (m *DefaultMetricsCollector) GetMetrics() map[string]interface{} {
 	result["counters"] = counters
 
 	// Add gauges
-	gauges := make(map[string]interface{})
+	gauges := make(map[string]any)
 	for key, value := range m.gauges {
-		gauges[key] = map[string]interface{}{
+		gauges[key] = map[string]any{
 			"value":     value,
 			"tags":      m.tags[key],
 			"timestamp": m.timestamps[key],
@@ -126,12 +127,12 @@ func (m *DefaultMetricsCollector) GetMetrics() map[string]interface{} {
 	result["gauges"] = gauges
 
 	// Add histograms
-	histograms := make(map[string]interface{})
+	histograms := make(map[string]any)
 	for key, h := range m.histograms {
 		if h == nil || h.Count() == 0 {
 			continue
 		}
-		histograms[key] = map[string]interface{}{
+		histograms[key] = map[string]any{
 			"stats": HistogramStats{
 				Count:        int64(h.Count()),
 				Sum:          h.Sum(),
@@ -152,7 +153,7 @@ func (m *DefaultMetricsCollector) GetMetrics() map[string]interface{} {
 }
 
 // Export returns all collected metrics (alias for GetMetrics)
-func (m *DefaultMetricsCollector) Export() map[string]interface{} {
+func (m *DefaultMetricsCollector) Export() map[string]any {
 	return m.GetMetrics()
 }
 
@@ -221,7 +222,7 @@ func ExportMetricsPrometheus(metrics MetricsCollector) string {
 }
 
 // FormatPrometheusMetrics renders a generic metrics payload into Prometheus text.
-func FormatPrometheusMetrics(payload map[string]interface{}) string {
+func FormatPrometheusMetrics(payload map[string]any) string {
 	var builder strings.Builder
 
 	writePrometheusPayloadSection(&builder, payload, "counters", "counter")
@@ -367,8 +368,8 @@ func (m *DefaultMetricsCollector) metricNameAndTags(key string) (string, map[str
 	return normalizeExportedPrometheusMetricName(name), normalizeExportedPrometheusLabels(tags, name)
 }
 
-func writePrometheusPayloadSection(builder *strings.Builder, payload map[string]interface{}, section, metricType string) {
-	rawSection, ok := payload[section].(map[string]interface{})
+func writePrometheusPayloadSection(builder *strings.Builder, payload map[string]any, section, metricType string) {
+	rawSection, ok := payload[section].(map[string]any)
 	if !ok {
 		return
 	}
@@ -381,7 +382,7 @@ func writePrometheusPayloadSection(builder *strings.Builder, payload map[string]
 	sort.Strings(keys)
 
 	for _, key := range keys {
-		entry, ok := rawSection[key].(map[string]interface{})
+		entry, ok := rawSection[key].(map[string]any)
 		if !ok {
 			continue
 		}
@@ -480,6 +481,18 @@ func normalizePrometheusMetricName(name string) string {
 	return name
 }
 
+var prometheusMetricNamePattern = regexp.MustCompile(`^[a-zA-Z_:][a-zA-Z0-9_:]*$`)
+
+func validatePrometheusMetricName(name string) error {
+	if name == "" {
+		return fmt.Errorf("metric name must not be empty")
+	}
+	if !prometheusMetricNamePattern.MatchString(name) {
+		return fmt.Errorf("metric name %q contains invalid characters; must match [a-zA-Z_:][a-zA-Z0-9_:]*", name)
+	}
+	return nil
+}
+
 func normalizeExportedPrometheusMetricName(name string) string {
 	name = normalizePrometheusMetricName(name)
 
@@ -540,7 +553,7 @@ func formatPrometheusFloat(value float64) string {
 	}
 }
 
-func formatPrometheusInterface(value interface{}) string {
+func formatPrometheusInterface(value any) string {
 	switch typed := value.(type) {
 	case float64:
 		return formatPrometheusFloat(typed)
@@ -563,13 +576,13 @@ func formatPrometheusInterface(value interface{}) string {
 	}
 }
 
-func interfaceMapToStringMap(raw interface{}) map[string]string {
+func interfaceMapToStringMap(raw any) map[string]string {
 	typed, ok := raw.(map[string]string)
 	if ok {
 		return typed
 	}
 
-	values, ok := raw.(map[string]interface{})
+	values, ok := raw.(map[string]any)
 	if !ok {
 		return nil
 	}

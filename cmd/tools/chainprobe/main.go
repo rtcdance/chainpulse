@@ -187,12 +187,12 @@ func main() {
 	}
 
 	// Build EIP-1559 transaction
-	gasTipCap := big.NewInt(2_000_000_000)     // 2 Gwei max priority fee
+	gasTipCap := big.NewInt(2_000_000_000)                                   // 2 Gwei max priority fee
 	gasFeeCap := new(big.Int).Add(header.BaseFee, big.NewInt(5_000_000_000)) // baseFee + 5 Gwei
-	gasLimit := uint64(21_000)                   // simple ETH transfer
+	gasLimit := uint64(21_000)                                               // simple ETH transfer
 
 	toAddr := common.HexToAddress("0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045") // vitalik.eth
-	transferValue := big.NewInt(1_000_000_000_000_000) // 0.001 ETH
+	transferValue := big.NewInt(1_000_000_000_000_000)                          // 0.001 ETH
 
 	tx := types.NewTx(&types.DynamicFeeTx{
 		ChainID:   chainID,

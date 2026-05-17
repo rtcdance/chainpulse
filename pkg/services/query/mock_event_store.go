@@ -330,6 +330,21 @@ func (mr *MockEventMetadataStoreMockRecorder) GetMetadataByChain(ctx, chainID, l
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMetadataByChain", reflect.TypeOf((*MockEventMetadataStore)(nil).GetMetadataByChain), ctx, chainID, limit, offset)
 }
 
+// GetMetadataBatch mocks base method.
+func (m *MockEventMetadataStore) GetMetadataBatch(ctx context.Context, eventIDs []string) (map[string]*EventMetadata, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetMetadataBatch", ctx, eventIDs)
+	ret0, _ := ret[0].(map[string]*EventMetadata)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetMetadataBatch indicates an expected call of GetMetadataBatch.
+func (mr *MockEventMetadataStoreMockRecorder) GetMetadataBatch(ctx, eventIDs any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMetadataBatch", reflect.TypeOf((*MockEventMetadataStore)(nil).GetMetadataBatch), ctx, eventIDs)
+}
+
 // Health mocks base method.
 func (m *MockEventMetadataStore) Health(ctx context.Context) *core.HealthStatus {
 	m.ctrl.T.Helper()

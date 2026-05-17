@@ -40,10 +40,10 @@ type BaseService interface {
 	List(ctx context.Context, limit, offset int) ([]Entity, error)
 
 	// Query retrieves entities matching a filter
-	Query(ctx context.Context, filter map[string]interface{}, limit, offset int) ([]Entity, error)
+	Query(ctx context.Context, filter map[string]any, limit, offset int) ([]Entity, error)
 
 	// GetMetrics returns service metrics
-	GetMetrics() map[string]interface{}
+	GetMetrics() map[string]any
 }
 
 // ServiceMetrics tracks service operation metrics
@@ -73,13 +73,13 @@ type ServiceBackend interface {
 	Update(ctx context.Context, entity Entity) (Entity, error)
 	Delete(ctx context.Context, id string) error
 	List(ctx context.Context, limit, offset int) ([]Entity, error)
-	Query(ctx context.Context, filter map[string]interface{}, limit, offset int) ([]Entity, error)
+	Query(ctx context.Context, filter map[string]any, limit, offset int) ([]Entity, error)
 }
 
 // ServiceCache defines the caching interface
 type ServiceCache interface {
-	Get(ctx context.Context, key string) (interface{}, error)
-	Set(ctx context.Context, key string, value interface{}, ttl time.Duration) error
+	Get(ctx context.Context, key string) (any, error)
+	Set(ctx context.Context, key string, value any, ttl time.Duration) error
 	Delete(ctx context.Context, key string) error
 }
 
@@ -256,7 +256,7 @@ func (s *AbstractService) List(ctx context.Context, limit, offset int) ([]Entity
 }
 
 // Query retrieves entities matching a filter
-func (s *AbstractService) Query(ctx context.Context, filter map[string]interface{}, limit, offset int) ([]Entity, error) {
+func (s *AbstractService) Query(ctx context.Context, filter map[string]any, limit, offset int) ([]Entity, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -298,7 +298,7 @@ func (s *AbstractService) Query(ctx context.Context, filter map[string]interface
 }
 
 // GetMetrics returns service metrics
-func (s *AbstractService) GetMetrics() map[string]interface{} {
+func (s *AbstractService) GetMetrics() map[string]any {
 	s.metrics.mu.RLock()
 	defer s.metrics.mu.RUnlock()
 
@@ -313,7 +313,7 @@ func (s *AbstractService) GetMetrics() map[string]interface{} {
 		cacheHitRate = float64(s.metrics.cacheHits) / float64(totalCacheOps) * 100.0
 	}
 
-	return map[string]interface{}{
+	return map[string]any{
 		"service_name":     s.name,
 		"total_operations": s.metrics.totalOperations,
 		"cache_hits":       s.metrics.cacheHits,

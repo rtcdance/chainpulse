@@ -152,7 +152,7 @@ func (r *Response) Send() error {
 	r.messageSent = true
 
 	// Create response envelope with status and headers
-	envelope := map[string]interface{}{
+	envelope := map[string]any{
 		"status":  r.status,
 		"headers": r.headers,
 		"body":    string(r.body),

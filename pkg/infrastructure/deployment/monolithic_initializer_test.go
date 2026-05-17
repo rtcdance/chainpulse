@@ -12,6 +12,7 @@ import (
 
 // TestNewMonolithicInitializer tests initializer creation
 func TestNewMonolithicInitializer(t *testing.T) {
+	t.Parallel()
 	config := &DeploymentConfig{
 		Mode:                    MonolithicMode,
 		ServiceName:             "test-service",
@@ -28,6 +29,7 @@ func TestNewMonolithicInitializer(t *testing.T) {
 
 // TestMonolithicInitializerInitialize tests monolithic initializer initialization
 func TestMonolithicInitializerInitialize(t *testing.T) {
+	t.Parallel()
 	config := &DeploymentConfig{
 		Mode:                    MonolithicMode,
 		ServiceName:             "test-service",
@@ -49,6 +51,7 @@ func TestMonolithicInitializerInitialize(t *testing.T) {
 
 // TestMonolithicInitializeWithTimeout tests initialization with timeout
 func TestMonolithicInitializeWithTimeout(t *testing.T) {
+	t.Parallel()
 	config := &DeploymentConfig{
 		Mode:                    MonolithicMode,
 		ServiceName:             "test-service",
@@ -67,6 +70,7 @@ func TestMonolithicInitializeWithTimeout(t *testing.T) {
 
 // TestMonolithicInitializeWithCancelledContext tests initialization with cancelled context
 func TestMonolithicInitializeWithCancelledContext(t *testing.T) {
+	t.Parallel()
 	config := &DeploymentConfig{
 		Mode:                    MonolithicMode,
 		ServiceName:             "test-service",
@@ -85,6 +89,7 @@ func TestMonolithicInitializeWithCancelledContext(t *testing.T) {
 
 // TestMonolithicHealthCheck tests health check
 func TestMonolithicHealthCheck(t *testing.T) {
+	t.Parallel()
 	config := &DeploymentConfig{
 		Mode:                    MonolithicMode,
 		ServiceName:             "test-service",
@@ -102,6 +107,7 @@ func TestMonolithicHealthCheck(t *testing.T) {
 
 // TestMonolithicHealthCheckNotInitialized tests health check without initialization
 func TestMonolithicHealthCheckNotInitialized(t *testing.T) {
+	t.Parallel()
 	config := &DeploymentConfig{
 		Mode:                    MonolithicMode,
 		ServiceName:             "test-service",
@@ -118,6 +124,7 @@ func TestMonolithicHealthCheckNotInitialized(t *testing.T) {
 
 // TestMonolithicInitializerGetMetrics tests metrics retrieval
 func TestMonolithicInitializerGetMetrics(t *testing.T) {
+	t.Parallel()
 	config := &DeploymentConfig{
 		Mode:                    MonolithicMode,
 		ServiceName:             "test-service",
@@ -136,6 +143,7 @@ func TestMonolithicInitializerGetMetrics(t *testing.T) {
 
 // TestMonolithicShutdown tests graceful shutdown
 func TestMonolithicShutdown(t *testing.T) {
+	t.Parallel()
 	config := &DeploymentConfig{
 		Mode:                    MonolithicMode,
 		ServiceName:             "test-service",
@@ -157,6 +165,7 @@ func TestMonolithicShutdown(t *testing.T) {
 
 // TestMonolithicShutdownWithTimeout tests shutdown with timeout
 func TestMonolithicShutdownWithTimeout(t *testing.T) {
+	t.Parallel()
 	config := &DeploymentConfig{
 		Mode:                    MonolithicMode,
 		ServiceName:             "test-service",
@@ -176,6 +185,7 @@ func TestMonolithicShutdownWithTimeout(t *testing.T) {
 
 // TestMonolithicMultipleHealthChecks tests multiple health checks
 func TestMonolithicMultipleHealthChecks(t *testing.T) {
+	t.Parallel()
 	config := &DeploymentConfig{
 		Mode:                    MonolithicMode,
 		ServiceName:             "test-service",
@@ -194,6 +204,7 @@ func TestMonolithicMultipleHealthChecks(t *testing.T) {
 
 // TestMonolithicConcurrentHealthChecks tests concurrent health checks
 func TestMonolithicConcurrentHealthChecks(t *testing.T) {
+	t.Parallel()
 	config := &DeploymentConfig{
 		Mode:                    MonolithicMode,
 		ServiceName:             "test-service",
@@ -223,6 +234,7 @@ func TestMonolithicConcurrentHealthChecks(t *testing.T) {
 
 // TestMonolithicInitializationMetrics tests initialization metrics
 func TestMonolithicInitializationMetrics(t *testing.T) {
+	t.Parallel()
 	config := &DeploymentConfig{
 		Mode:                    MonolithicMode,
 		ServiceName:             "test-service",
@@ -239,6 +251,7 @@ func TestMonolithicInitializationMetrics(t *testing.T) {
 
 // TestMonolithicDatabase tests database initialization
 func TestMonolithicDatabase(t *testing.T) {
+	t.Parallel()
 	config := &DeploymentConfig{
 		Mode:                    MonolithicMode,
 		ServiceName:             "test-service",
@@ -253,6 +266,7 @@ func TestMonolithicDatabase(t *testing.T) {
 
 // TestMonolithicCache tests cache initialization
 func TestMonolithicCache(t *testing.T) {
+	t.Parallel()
 	config := &DeploymentConfig{
 		Mode:                    MonolithicMode,
 		ServiceName:             "test-service",
@@ -267,6 +281,7 @@ func TestMonolithicCache(t *testing.T) {
 
 // TestMonolithicDataPuller tests data puller initialization
 func TestMonolithicDataPuller(t *testing.T) {
+	t.Parallel()
 	config := &DeploymentConfig{
 		Mode:                    MonolithicMode,
 		ServiceName:             "test-service",
@@ -281,6 +296,7 @@ func TestMonolithicDataPuller(t *testing.T) {
 
 // TestMonolithicEventProcessor tests event processor initialization
 func TestMonolithicEventProcessor(t *testing.T) {
+	t.Parallel()
 	config := &DeploymentConfig{
 		Mode:                    MonolithicMode,
 		ServiceName:             "test-service",
@@ -295,6 +311,7 @@ func TestMonolithicEventProcessor(t *testing.T) {
 
 // TestMonolithicAPIGateway tests API gateway initialization
 func TestMonolithicAPIGateway(t *testing.T) {
+	t.Parallel()
 	config := &DeploymentConfig{
 		Mode:                    MonolithicMode,
 		ServiceName:             "test-service",
@@ -309,6 +326,7 @@ func TestMonolithicAPIGateway(t *testing.T) {
 
 // TestMonolithicMetricsLastHealthCheckTime tests last health check time tracking
 func TestMonolithicMetricsLastHealthCheckTime(t *testing.T) {
+	t.Parallel()
 	config := &DeploymentConfig{
 		Mode:                    MonolithicMode,
 		ServiceName:             "test-service",
@@ -328,6 +346,7 @@ func TestMonolithicMetricsLastHealthCheckTime(t *testing.T) {
 
 // TestMonolithicGetMetricsContent tests metrics content
 func TestMonolithicGetMetricsContent(t *testing.T) {
+	t.Parallel()
 	config := &DeploymentConfig{
 		Mode:                    MonolithicMode,
 		ServiceName:             "test-service",
@@ -349,6 +368,7 @@ func TestMonolithicGetMetricsContent(t *testing.T) {
 
 // TestMonolithicComponentOrder tests that components are initialized in correct order
 func TestMonolithicComponentOrder(t *testing.T) {
+	t.Parallel()
 	config := &DeploymentConfig{
 		Mode:                    MonolithicMode,
 		ServiceName:             "test-service",
@@ -369,6 +389,7 @@ func TestMonolithicComponentOrder(t *testing.T) {
 
 // TestMonolithicShutdownOrder tests that components are shut down in reverse order
 func TestMonolithicShutdownOrder(t *testing.T) {
+	t.Parallel()
 	config := &DeploymentConfig{
 		Mode:                    MonolithicMode,
 		ServiceName:             "test-service",
@@ -391,6 +412,7 @@ func TestMonolithicShutdownOrder(t *testing.T) {
 
 // TestMonolithicHealthCheckPartialInitialization tests health check with partial initialization
 func TestMonolithicHealthCheckPartialInitialization(t *testing.T) {
+	t.Parallel()
 	config := &DeploymentConfig{
 		Mode:                    MonolithicMode,
 		ServiceName:             "test-service",

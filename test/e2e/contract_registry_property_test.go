@@ -136,7 +136,7 @@ func TestContractRegistry_PropertyMetadataIsolation(t *testing.T) {
 		}
 
 		// Update metadata for contract1
-		metadata := map[string]interface{}{
+		metadata := map[string]any{
 			"version": "1.0",
 		}
 		if err := registry.UpdateMetadata(ctx, contract1.Address, metadata); err != nil {

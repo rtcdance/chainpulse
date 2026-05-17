@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 	"sync"
 	"time"
 
@@ -26,9 +27,6 @@ type SolanaPuller struct {
 	stopChan       chan bool
 	eventHandlers  []func(core.BlockchainEvent)
 	requestCounter int64
-	errorCounter   int64
-	lastError      error
-	lastErrorTime  time.Time
 }
 
 // NewSolanaPuller creates a new Solana puller
@@ -38,9 +36,9 @@ func NewSolanaPuller(config core.Config, logger core.Logger, metrics core.Metric
 	return &SolanaPuller{
 		BaseDataPullerPlugin: base,
 		client:               sharedhttp.DefaultSharedHTTPClient.Client(),
-		nodeURL:               config.BlockchainNodeURL,
-		pollInterval:          5 * time.Second,
-		stopChan:              make(chan bool, 1),
+		nodeURL:              config.BlockchainNodeURL,
+		pollInterval:         5 * time.Second,
+		stopChan:             make(chan bool, 1),
 	}
 }
 
@@ -51,7 +49,7 @@ func (p *SolanaPuller) PullEvents(ctx context.Context, fromSlot, toSlot uint64) 
 	for slot := fromSlot; slot <= toSlot; slot++ {
 		blockEvents, err := p.getEventsFromSlot(ctx, slot)
 		if err != nil {
-			p.recordError(err)
+			p.RecordError(err)
 			p.LogWarn("failed to get events from slot",
 				"slot", slot, "from_slot", fromSlot, "to_slot", toSlot, "error", err)
 			if p.metricsCollector != nil {
@@ -92,17 +90,16 @@ func (p *SolanaPuller) SubscribeToEvents(ctx context.Context, handler func(core.
 }
 
 // GetStats returns puller statistics
-func (p *SolanaPuller) GetStats() map[string]interface{} {
+func (p *SolanaPuller) GetStats() map[string]any {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
-	return map[string]interface{}{
-		"type":           "solana",
-		"nodeURL":        p.nodeURL,
-		"currentSlot":    p.currentSlot,
-		"requestCounter": p.requestCounter,
-		"errorCounter":   p.errorCounter,
-	}
+	stats := p.BaseStats()
+	stats["type"] = "solana"
+	stats["nodeURL"] = p.nodeURL
+	stats["currentSlot"] = p.currentSlot
+	stats["requestCounter"] = p.requestCounter
+	return stats
 }
 
 // Poll runs the continuous polling loop
@@ -119,7 +116,7 @@ func (p *SolanaPuller) Poll(ctx context.Context) {
 		case <-ticker.C:
 			latestSlot, err := p.GetLatestBlock(ctx)
 			if err != nil {
-				p.recordError(err)
+				p.RecordError(err)
 				continue
 			}
 
@@ -135,7 +132,7 @@ func (p *SolanaPuller) Poll(ctx context.Context) {
 
 			events, err := p.PullEvents(ctx, fromSlot, latestSlot)
 			if err != nil {
-				p.recordError(err)
+				p.RecordError(err)
 				continue
 			}
 
@@ -173,13 +170,13 @@ type solanaTransaction struct {
 		} `json:"message"`
 	} `json:"transaction"`
 	Meta *struct {
-		Err         interface{} `json:"err"`
-		LogMessages []string    `json:"logMessages"`
+		Err         any      `json:"err"`
+		LogMessages []string `json:"logMessages"`
 	} `json:"meta"`
 }
 
 func (p *SolanaPuller) getEventsFromSlot(ctx context.Context, slot uint64) ([]core.BlockchainEvent, error) {
-	params := []interface{}{slot, map[string]interface{}{
+	params := []any{slot, map[string]any{
 		"encoding":                       "json",
 		"maxSupportedTransactionVersion": 0,
 		"transactionDetails":             "full",
@@ -203,7 +200,7 @@ func (p *SolanaPuller) getEventsFromSlot(ctx context.Context, slot uint64) ([]co
 		}
 
 		// Extract events from log messages
-		decodedData := make(map[string]interface{})
+		decodedData := make(map[string]any)
 		eventName := "Transaction"
 		if tx.Meta != nil {
 			for _, logMsg := range tx.Meta.LogMessages {
@@ -222,9 +219,11 @@ func (p *SolanaPuller) getEventsFromSlot(ctx context.Context, slot uint64) ([]co
 			decodedData["signer"] = tx.Transaction.Message.AccountKeys[len(tx.Transaction.Message.AccountKeys)-1]
 		}
 
+		eventID := "sol-" + strconv.FormatUint(slot, 10) + "-" + sig
+
 		event := core.BlockchainEvent{
-			ID:               fmt.Sprintf("sol-%d-%s", slot, sig),
-			EventHash:        fmt.Sprintf("sol-%d-%s", slot, sig),
+			ID:               eventID,
+			EventHash:        eventID,
 			ChainID:          "solana",
 			Network:          "solana",
 			BlockNumber:      slot,
@@ -250,10 +249,10 @@ func (p *SolanaPuller) getEventsFromSlot(ctx context.Context, slot uint64) ([]co
 
 // solanaRPCRequest represents a JSON-RPC request to Solana
 type solanaRPCRequest struct {
-	JSONRPC string        `json:"jsonrpc"`
-	ID      int           `json:"id"`
-	Method  string        `json:"method"`
-	Params  []interface{} `json:"params"`
+	JSONRPC string `json:"jsonrpc"`
+	ID      int    `json:"id"`
+	Method  string `json:"method"`
+	Params  []any  `json:"params"`
 }
 
 // solanaRPCResponse represents a JSON-RPC response from Solana
@@ -267,7 +266,7 @@ type solanaRPCResponse struct {
 	} `json:"error"`
 }
 
-func (p *SolanaPuller) sendRPCRequest(ctx context.Context, method string, params []interface{}, result interface{}) error {
+func (p *SolanaPuller) sendRPCRequest(ctx context.Context, method string, params []any, result any) error {
 	rpcReq := solanaRPCRequest{
 		JSONRPC: "2.0",
 		ID:      int(time.Now().UnixNano()),
@@ -308,12 +307,4 @@ func (p *SolanaPuller) sendRPCRequest(ctx context.Context, method string, params
 	}
 
 	return nil
-}
-
-func (p *SolanaPuller) recordError(err error) {
-	p.mu.Lock()
-	p.errorCounter++
-	p.lastError = err
-	p.lastErrorTime = time.Now()
-	p.mu.Unlock()
 }

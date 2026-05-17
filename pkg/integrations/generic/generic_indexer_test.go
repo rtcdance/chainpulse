@@ -16,11 +16,11 @@ import (
 // MockLogger for testing
 type MockLogger struct{}
 
-func (ml *MockLogger) Debug(msg string, args ...interface{}) {}
-func (ml *MockLogger) Info(msg string, args ...interface{})  {}
-func (ml *MockLogger) Warn(msg string, args ...interface{})  {}
-func (ml *MockLogger) Error(msg string, args ...interface{}) {}
-func (ml *MockLogger) Fatal(msg string, args ...interface{}) {}
+func (ml *MockLogger) Debug(msg string, args ...any) {}
+func (ml *MockLogger) Info(msg string, args ...any)  {}
+func (ml *MockLogger) Warn(msg string, args ...any)  {}
+func (ml *MockLogger) Error(msg string, args ...any) {}
+func (ml *MockLogger) Fatal(msg string, args ...any) {}
 func (ml *MockLogger) WithCorrelationID(id string) core.Logger {
 	return ml
 }
@@ -30,7 +30,7 @@ type MockDatabasePlugin struct {
 	events []*core.BlockchainEvent
 }
 
-func (mdp *MockDatabasePlugin) StoreEvent(ctx context.Context, event interface{}) error {
+func (mdp *MockDatabasePlugin) StoreEvent(ctx context.Context, event any) error {
 	if e, ok := event.(*core.BlockchainEvent); ok {
 		mdp.events = append(mdp.events, e)
 	}
@@ -49,7 +49,7 @@ func (mdp *MockDatabasePlugin) GetEventsByBlockRange(ctx context.Context, from, 
 	return nil, nil
 }
 
-func (mdp *MockDatabasePlugin) QueryEvents(ctx context.Context, filter interface{}) ([]interface{}, error) {
+func (mdp *MockDatabasePlugin) QueryEvents(ctx context.Context, filter any) ([]any, error) {
 	return nil, nil
 }
 
@@ -65,7 +65,7 @@ func (mdp *MockDatabasePlugin) GetAllBlocks(ctx context.Context) ([]*core.Block,
 	return nil, nil
 }
 
-func (mdp *MockDatabasePlugin) BatchStoreEvents(ctx context.Context, events []interface{}) error {
+func (mdp *MockDatabasePlugin) BatchStoreEvents(ctx context.Context, events []any) error {
 	for _, event := range events {
 		if e, ok := event.(*core.BlockchainEvent); ok {
 			mdp.events = append(mdp.events, e)
@@ -187,6 +187,7 @@ func (mcp *MockCachePlugin) HealthCheck(ctx context.Context) error {
 }
 
 func TestNewGenericContractIndexer(t *testing.T) {
+	t.Parallel()
 	db := &MockDatabasePlugin{}
 	cache := NewMockCachePlugin()
 	logger := &MockLogger{}
@@ -199,6 +200,7 @@ func TestNewGenericContractIndexer(t *testing.T) {
 }
 
 func TestRegisterContractABI(t *testing.T) {
+	t.Parallel()
 	db := &MockDatabasePlugin{}
 	cache := NewMockCachePlugin()
 	logger := &MockLogger{}
@@ -213,6 +215,7 @@ func TestRegisterContractABI(t *testing.T) {
 }
 
 func TestRegisterContractABIEmptyName(t *testing.T) {
+	t.Parallel()
 	db := &MockDatabasePlugin{}
 	cache := NewMockCachePlugin()
 	logger := &MockLogger{}
@@ -228,6 +231,7 @@ func TestRegisterContractABIEmptyName(t *testing.T) {
 }
 
 func TestRegisterEventHandler(t *testing.T) {
+	t.Parallel()
 	db := &MockDatabasePlugin{}
 	cache := NewMockCachePlugin()
 	logger := &MockLogger{}
@@ -243,6 +247,7 @@ func TestRegisterEventHandler(t *testing.T) {
 }
 
 func TestRegisterEventHandlerEmptyName(t *testing.T) {
+	t.Parallel()
 	db := &MockDatabasePlugin{}
 	cache := NewMockCachePlugin()
 	logger := &MockLogger{}
@@ -259,6 +264,7 @@ func TestRegisterEventHandlerEmptyName(t *testing.T) {
 }
 
 func TestRegisterEventHandlerNil(t *testing.T) {
+	t.Parallel()
 	db := &MockDatabasePlugin{}
 	cache := NewMockCachePlugin()
 	logger := &MockLogger{}
@@ -273,6 +279,7 @@ func TestRegisterEventHandlerNil(t *testing.T) {
 }
 
 func TestIndexEvents(t *testing.T) {
+	t.Parallel()
 	db := &MockDatabasePlugin{}
 	cache := NewMockCachePlugin()
 	logger := &MockLogger{}
@@ -298,6 +305,7 @@ func TestIndexEvents(t *testing.T) {
 }
 
 func TestIndexEventsNotRegistered(t *testing.T) {
+	t.Parallel()
 	db := &MockDatabasePlugin{}
 	cache := NewMockCachePlugin()
 	logger := &MockLogger{}
@@ -318,6 +326,7 @@ func TestIndexEventsNotRegistered(t *testing.T) {
 }
 
 func TestGetEventsByName(t *testing.T) {
+	t.Parallel()
 	db := &MockDatabasePlugin{}
 	cache := NewMockCachePlugin()
 	logger := &MockLogger{}
@@ -332,6 +341,7 @@ func TestGetEventsByName(t *testing.T) {
 }
 
 func TestGetEventsByContract(t *testing.T) {
+	t.Parallel()
 	db := &MockDatabasePlugin{}
 	cache := NewMockCachePlugin()
 	logger := &MockLogger{}
@@ -347,6 +357,7 @@ func TestGetEventsByContract(t *testing.T) {
 }
 
 func TestGetContractMetadata(t *testing.T) {
+	t.Parallel()
 	db := &MockDatabasePlugin{}
 	cache := NewMockCachePlugin()
 	logger := &MockLogger{}
@@ -362,6 +373,7 @@ func TestGetContractMetadata(t *testing.T) {
 }
 
 func TestSetContractMetadata(t *testing.T) {
+	t.Parallel()
 	db := &MockDatabasePlugin{}
 	cache := NewMockCachePlugin()
 	logger := &MockLogger{}
@@ -385,6 +397,7 @@ func TestSetContractMetadata(t *testing.T) {
 }
 
 func TestSetContractMetadataNil(t *testing.T) {
+	t.Parallel()
 	db := &MockDatabasePlugin{}
 	cache := NewMockCachePlugin()
 	logger := &MockLogger{}
@@ -398,6 +411,7 @@ func TestSetContractMetadataNil(t *testing.T) {
 }
 
 func TestSetContractMetadataEmptyAddress(t *testing.T) {
+	t.Parallel()
 	db := &MockDatabasePlugin{}
 	cache := NewMockCachePlugin()
 	logger := &MockLogger{}
@@ -416,6 +430,7 @@ func TestSetContractMetadataEmptyAddress(t *testing.T) {
 }
 
 func TestGetCacheStats(t *testing.T) {
+	t.Parallel()
 	db := &MockDatabasePlugin{}
 	cache := NewMockCachePlugin()
 	logger := &MockLogger{}
@@ -434,6 +449,7 @@ func TestGetCacheStats(t *testing.T) {
 }
 
 func TestClearCache(t *testing.T) {
+	t.Parallel()
 	db := &MockDatabasePlugin{}
 	cache := NewMockCachePlugin()
 	logger := &MockLogger{}
@@ -449,6 +465,7 @@ func TestClearCache(t *testing.T) {
 }
 
 func TestGetRegisteredContracts(t *testing.T) {
+	t.Parallel()
 	db := &MockDatabasePlugin{}
 	cache := NewMockCachePlugin()
 	logger := &MockLogger{}
@@ -469,6 +486,7 @@ func TestGetRegisteredContracts(t *testing.T) {
 }
 
 func TestContractMetadataStructure(t *testing.T) {
+	t.Parallel()
 	var contractABI abi.ABI
 	metadata := &ContractMetadata{
 		Address:     common.HexToAddress("0x1111"),
@@ -484,6 +502,7 @@ func TestContractMetadataStructure(t *testing.T) {
 }
 
 func TestDecodedContractEventStructure(t *testing.T) {
+	t.Parallel()
 	event := &DecodedContractEvent{
 		ContractAddress:  common.HexToAddress("0x1111"),
 		EventName:        "Transfer",
@@ -492,9 +511,9 @@ func TestDecodedContractEventStructure(t *testing.T) {
 		BlockTimestamp:   1234567890,
 		TransactionHash:  common.HexToHash("0x5678"),
 		LogIndex:         0,
-		Parameters:       make(map[string]interface{}),
-		IndexedParams:    make(map[string]interface{}),
-		NonIndexedParams: make(map[string]interface{}),
+		Parameters:       make(map[string]any),
+		IndexedParams:    make(map[string]any),
+		NonIndexedParams: make(map[string]any),
 	}
 
 	assert.Equal(t, "Transfer", event.EventName)
@@ -515,6 +534,7 @@ func (meh *MockEventHandler) GetEventName() string {
 }
 
 func TestConcurrentIndexing(t *testing.T) {
+	t.Parallel()
 	db := &MockDatabasePlugin{}
 	cache := NewMockCachePlugin()
 	logger := &MockLogger{}

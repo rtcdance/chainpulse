@@ -6,43 +6,45 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
 	"chainpulse/pkg/plugins/api/core"
-	"github.com/graphql-go/graphql"
 	"github.com/gorilla/websocket"
+	"github.com/graphql-go/graphql"
 )
 
 // GraphQLPlugin implements the GraphQL protocol handler
 type GraphQLPlugin struct {
-	name               string
-	port               int
-	apiLayer           *core.APILayer
-	schema             graphql.Schema
-	server             *http.Server
-	processor          core.RequestProcessor
-	mu                 sync.RWMutex
-	running            bool
-	middleware         []core.Middleware
-	resolvers          map[string]GraphQLResolver
-	router             *core.APIRouter
-	schemaBuilder      *SchemaBuilder
+	name                string
+	port                int
+	apiLayer            *core.APILayer
+	schema              graphql.Schema
+	server              *http.Server
+	processor           core.RequestProcessor
+	mu                  sync.RWMutex
+	running             bool
+	middleware          []core.Middleware
+	resolvers           map[string]GraphQLResolver
+	router              *core.APIRouter
+	schemaBuilder       *SchemaBuilder
 	subscriptionManager *SubscriptionManager
-	upgrader           websocket.Upgrader
+	upgrader            websocket.Upgrader
+	allowedOrigins      []string
 
 	// WebSocket safety
-	wsMu sync.Mutex   // protects concurrent WebSocket writes
+	wsMu sync.Mutex     // protects concurrent WebSocket writes
 	wsWg sync.WaitGroup // tracks subscription goroutines for graceful shutdown
 }
 
 // GraphQLResolver defines a GraphQL resolver function
-type GraphQLResolver func(p graphql.ResolveParams) (interface{}, error)
+type GraphQLResolver func(p graphql.ResolveParams) (any, error)
 
 // NewGraphQLPlugin creates a new GraphQL plugin
 func NewGraphQLPlugin(name string, port int, apiLayer *core.APILayer) *GraphQLPlugin {
 	processor := core.NewDefaultRequestProcessor(apiLayer)
-	return &GraphQLPlugin{
+	p := &GraphQLPlugin{
 		name:       name,
 		port:       port,
 		apiLayer:   apiLayer,
@@ -50,10 +52,9 @@ func NewGraphQLPlugin(name string, port int, apiLayer *core.APILayer) *GraphQLPl
 		middleware: make([]core.Middleware, 0),
 		resolvers:  make(map[string]GraphQLResolver),
 		router:     core.NewAPIRouter(),
-		upgrader: websocket.Upgrader{
-			CheckOrigin: func(r *http.Request) bool { return true },
-		},
 	}
+	p.upgrader = websocket.Upgrader{CheckOrigin: p.checkOrigin}
+	return p
 }
 
 // SetSchemaBuilder sets the schema builder for building the GraphQL schema
@@ -66,6 +67,29 @@ func (p *GraphQLPlugin) SetSubscriptionManager(sm *SubscriptionManager) {
 	p.subscriptionManager = sm
 }
 
+func (p *GraphQLPlugin) WithAllowedOrigins(origins []string) *GraphQLPlugin {
+	p.allowedOrigins = origins
+	return p
+}
+
+func (p *GraphQLPlugin) checkOrigin(r *http.Request) bool {
+	if len(p.allowedOrigins) == 0 {
+		return true
+	}
+
+	origin := r.Header.Get("Origin")
+	if origin == "" {
+		return true
+	}
+
+	for _, allowed := range p.allowedOrigins {
+		if strings.EqualFold(origin, allowed) {
+			return true
+		}
+	}
+	return false
+}
+
 // Start starts the GraphQL server
 func (p *GraphQLPlugin) Start() error {
 	p.mu.Lock()
@@ -73,6 +97,10 @@ func (p *GraphQLPlugin) Start() error {
 	if p.running {
 		p.mu.Unlock()
 		return fmt.Errorf("GraphQL plugin already running")
+	}
+
+	if len(p.allowedOrigins) == 0 {
+		slog.Warn("GraphQL WebSocket: no origin restrictions configured — accepting all origins (development mode only)")
 	}
 
 	// Build schema
@@ -125,7 +153,7 @@ func (p *GraphQLPlugin) Stop() error {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		if err := p.server.Shutdown(ctx); err != nil {
-			return err
+			return fmt.Errorf("failed to shutdown GraphQL server: %w", err)
 		}
 	}
 
@@ -204,7 +232,7 @@ func (p *GraphQLPlugin) buildSchema() error {
 		Fields: graphql.Fields{
 			"health": &graphql.Field{
 				Type:    graphql.String,
-				Resolve: func(p graphql.ResolveParams) (interface{}, error) { return "healthy", nil },
+				Resolve: func(p graphql.ResolveParams) (any, error) { return "healthy", nil },
 			},
 		},
 	})
@@ -250,7 +278,7 @@ func (p *GraphQLPlugin) handleWebSocket(w http.ResponseWriter, r *http.Request) 
 	defer conn.Close() //nolint:errcheck // deferred close
 
 	// Thread-safe write helper — gorilla/websocket requires serialized writes
-	writeMsg := func(v interface{}) {
+	writeMsg := func(v any) {
 		p.wsMu.Lock()
 		defer p.wsMu.Unlock()
 		_ = conn.WriteJSON(v)
@@ -268,7 +296,7 @@ func (p *GraphQLPlugin) handleWebSocket(w http.ResponseWriter, r *http.Request) 
 			Payload json.RawMessage `json:"payload"`
 		}
 		if err := json.Unmarshal(msg, &req); err != nil {
-			writeMsg(map[string]interface{}{
+			writeMsg(map[string]any{
 				"type":    "error",
 				"payload": map[string]string{"message": "invalid message format"},
 			})
@@ -277,18 +305,18 @@ func (p *GraphQLPlugin) handleWebSocket(w http.ResponseWriter, r *http.Request) 
 
 		switch req.Type {
 		case "connection_init":
-			writeMsg(map[string]interface{}{
+			writeMsg(map[string]any{
 				"type": "connection_ack",
 			})
 
 		case "start":
 			var payload struct {
-				Query         string                 `json:"query"`
-				OperationName string                 `json:"operationName"`
-				Variables     map[string]interface{} `json:"variables"`
+				Query         string         `json:"query"`
+				OperationName string         `json:"operationName"`
+				Variables     map[string]any `json:"variables"`
 			}
 			if err := json.Unmarshal(req.Payload, &payload); err != nil {
-				writeMsg(map[string]interface{}{
+				writeMsg(map[string]any{
 					"id":   req.ID,
 					"type": "error",
 					"payload": map[string]string{
@@ -314,13 +342,13 @@ func (p *GraphQLPlugin) handleWebSocket(w http.ResponseWriter, r *http.Request) 
 					select {
 					case data, ok := <-ch:
 						if !ok {
-							writeMsg(map[string]interface{}{
+							writeMsg(map[string]any{
 								"id":   id,
 								"type": "complete",
 							})
 							return
 						}
-						writeMsg(map[string]interface{}{
+						writeMsg(map[string]any{
 							"id":      id,
 							"type":    "data",
 							"payload": data,

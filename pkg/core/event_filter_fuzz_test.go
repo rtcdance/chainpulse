@@ -10,13 +10,13 @@ import (
 func FuzzParseEventFilter(f *testing.F) {
 	// Fuzz the EventFilter.Validate method with various field combinations
 	seeds := []struct {
-		network  string
-		fromBlk  uint64
-		toBlk    uint64
-		limit    int
-		offset   int
-		minVal   int64
-		maxVal   int64
+		network string
+		fromBlk uint64
+		toBlk   uint64
+		limit   int
+		offset  int
+		minVal  int64
+		maxVal  int64
 	}{
 		{"ethereum", 0, 0, 10, 0, 0, 0},
 		{"", 0, 0, 0, 0, 0, 0},
@@ -29,13 +29,13 @@ func FuzzParseEventFilter(f *testing.F) {
 
 	f.Fuzz(func(t *testing.T, network string, fromBlk, toBlk uint64, limit, offset int, minVal, maxVal int64) {
 		ef := &EventFilter{
-			Network:    network,
-			FromBlock:  fromBlk,
-			ToBlock:    toBlk,
-			Limit:      limit,
-			Offset:     offset,
-			MinValue:   big.NewInt(minVal),
-			MaxValue:   big.NewInt(maxVal),
+			Network:   network,
+			FromBlock: fromBlk,
+			ToBlock:   toBlk,
+			Limit:     limit,
+			Offset:    offset,
+			MinValue:  big.NewInt(minVal),
+			MaxValue:  big.NewInt(maxVal),
 		}
 
 		// Validate should never panic

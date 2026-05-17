@@ -4,13 +4,16 @@ import (
 	"context"
 	"testing"
 	"time"
+
+	"chainpulse/pkg/core"
 )
 
 // TestNewRedisCacheManager tests creating a new Redis cache manager
 func TestNewRedisCacheManager(t *testing.T) {
+	t.Parallel()
 	config := &DistributedCacheConfig{
 		RedisAddr:           "localhost:6379",
-		RedisPassword:       "",
+		RedisPassword:       core.SecretString(""),
 		RedisDB:             0,
 		PoolSize:            10,
 		MinIdleConns:        5,
@@ -45,9 +48,10 @@ func TestNewRedisCacheManager(t *testing.T) {
 
 // TestSetAndGet tests setting and getting values
 func TestSetAndGet(t *testing.T) {
+	t.Parallel()
 	config := &DistributedCacheConfig{
 		RedisAddr:           "localhost:6379",
-		RedisPassword:       "",
+		RedisPassword:       core.SecretString(""),
 		RedisDB:             0,
 		PoolSize:            10,
 		MinIdleConns:        5,
@@ -66,7 +70,7 @@ func TestSetAndGet(t *testing.T) {
 
 	// Test setting and getting a value
 	testKey := "test:key"
-	testValue := map[string]interface{}{
+	testValue := map[string]any{
 		"id":   "123",
 		"name": "test",
 	}
@@ -99,9 +103,10 @@ func TestSetAndGet(t *testing.T) {
 
 // TestDelete tests deleting values
 func TestDelete(t *testing.T) {
+	t.Parallel()
 	config := &DistributedCacheConfig{
 		RedisAddr:           "localhost:6379",
-		RedisPassword:       "",
+		RedisPassword:       core.SecretString(""),
 		RedisDB:             0,
 		PoolSize:            10,
 		MinIdleConns:        5,
@@ -148,9 +153,10 @@ func TestDelete(t *testing.T) {
 
 // TestExists tests checking if a key exists
 func TestExists(t *testing.T) {
+	t.Parallel()
 	config := &DistributedCacheConfig{
 		RedisAddr:           "localhost:6379",
-		RedisPassword:       "",
+		RedisPassword:       core.SecretString(""),
 		RedisDB:             0,
 		PoolSize:            10,
 		MinIdleConns:        5,
@@ -199,9 +205,10 @@ func TestExists(t *testing.T) {
 
 // TestInvalidate tests invalidating a key
 func TestInvalidate(t *testing.T) {
+	t.Parallel()
 	config := &DistributedCacheConfig{
 		RedisAddr:           "localhost:6379",
-		RedisPassword:       "",
+		RedisPassword:       core.SecretString(""),
 		RedisDB:             0,
 		PoolSize:            10,
 		MinIdleConns:        5,
@@ -246,9 +253,10 @@ func TestInvalidate(t *testing.T) {
 
 // TestFlush tests flushing all cache entries
 func TestFlush(t *testing.T) {
+	t.Parallel()
 	config := &DistributedCacheConfig{
 		RedisAddr:           "localhost:6379",
-		RedisPassword:       "",
+		RedisPassword:       core.SecretString(""),
 		RedisDB:             0,
 		PoolSize:            10,
 		MinIdleConns:        5,
@@ -296,9 +304,10 @@ func TestFlush(t *testing.T) {
 
 // TestGetStatistics tests getting cache statistics
 func TestGetStatistics(t *testing.T) {
+	t.Parallel()
 	config := &DistributedCacheConfig{
 		RedisAddr:           "localhost:6379",
-		RedisPassword:       "",
+		RedisPassword:       core.SecretString(""),
 		RedisDB:             0,
 		PoolSize:            10,
 		MinIdleConns:        5,
@@ -340,9 +349,10 @@ func TestGetStatistics(t *testing.T) {
 
 // TestGetHitRate tests calculating hit rate
 func TestGetHitRate(t *testing.T) {
+	t.Parallel()
 	config := &DistributedCacheConfig{
 		RedisAddr:           "localhost:6379",
-		RedisPassword:       "",
+		RedisPassword:       core.SecretString(""),
 		RedisDB:             0,
 		PoolSize:            10,
 		MinIdleConns:        5,
@@ -377,9 +387,10 @@ func TestGetHitRate(t *testing.T) {
 
 // TestResetStatistics tests resetting statistics
 func TestResetStatistics(t *testing.T) {
+	t.Parallel()
 	config := &DistributedCacheConfig{
 		RedisAddr:           "localhost:6379",
-		RedisPassword:       "",
+		RedisPassword:       core.SecretString(""),
 		RedisDB:             0,
 		PoolSize:            10,
 		MinIdleConns:        5,
@@ -421,9 +432,10 @@ func TestResetStatistics(t *testing.T) {
 
 // TestExpiredEntryEviction tests that expired entries are evicted
 func TestExpiredEntryEviction(t *testing.T) {
+	t.Parallel()
 	config := &DistributedCacheConfig{
 		RedisAddr:           "localhost:6379",
-		RedisPassword:       "",
+		RedisPassword:       core.SecretString(""),
 		RedisDB:             0,
 		PoolSize:            10,
 		MinIdleConns:        5,
@@ -461,9 +473,10 @@ func TestExpiredEntryEviction(t *testing.T) {
 
 // TestFallbackMode tests fallback to local cache
 func TestFallbackMode(t *testing.T) {
+	t.Parallel()
 	config := &DistributedCacheConfig{
 		RedisAddr:           "invalid:9999", // Invalid address to trigger fallback
-		RedisPassword:       "",
+		RedisPassword:       core.SecretString(""),
 		RedisDB:             0,
 		PoolSize:            10,
 		MinIdleConns:        5,
@@ -504,9 +517,10 @@ func TestFallbackMode(t *testing.T) {
 
 // TestClose tests closing the cache manager
 func TestClose(t *testing.T) {
+	t.Parallel()
 	config := &DistributedCacheConfig{
 		RedisAddr:           "localhost:6379",
-		RedisPassword:       "",
+		RedisPassword:       core.SecretString(""),
 		RedisDB:             0,
 		PoolSize:            10,
 		MinIdleConns:        5,

@@ -1,31 +1,19 @@
 # Core Package
 
-Interface and model definition layer for ChainPulse.
+Shared kernel for ChainPulse: core abstractions, data models, and foundational implementations.
 
 ## Responsibility
 
-This package defines all cross-package shared interfaces and data models.
-**It contains NO implementation logic.**
+This package is the **shared kernel** of ChainPulse. It defines:
+- Cross-package interfaces (ports)
+- Shared data models (blockchain events, config, health status)
+- Foundational implementations that are tightly coupled to the shared types
+  (event bus, config manager, confirmation tracker, MEV pipeline, etc.)
 
-All implementations should be in `pkg/infrastructure`.
-
-## Modules
-
-### Interfaces
-- **plugin.go** - Plugin interface and lifecycle management
-- **eventbus.go** - Event bus for inter-component communication
-- **config.go** - Configuration interface
-- **logger.go** - Logging interface
-- **metrics.go** - Metrics interface
-- **health.go** - Health check interface
-
-### Data Models
-- **blockchain_models.go** - Blockchain data structures (Block, Transaction, Event, Log)
-- **event_filter.go** - Event filtering and query logic
-
-### Other
-- **errors.go** - Custom error types and error handling
-- **registry.go** - Component registry for dependency management
+**Important**: New business logic implementations should prefer `pkg/services/`
+or `pkg/infrastructure/`. Only place implementations here if they are
+fundamental cross-cutting utilities or if they implement core interfaces
+from this same package.
 
 ## Key Interfaces
 
@@ -53,16 +41,18 @@ type EventBus interface {
 ### Config Interface
 ```go
 type Config interface {
-    Get(key string) interface{}
-    Set(key string, value interface{})
+    Get(key string) any
+    Set(key string, value any)
 }
 ```
 
 ### Logger Interface
 ```go
 type Logger interface {
-    Log(level string, msg string)
-    Logf(level string, format string, args ...interface{})
+    Debug(msg string, fields ...any)
+    Info(msg string, fields ...any)
+    Warn(msg string, fields ...any)
+    Error(msg string, fields ...any)
 }
 ```
 
@@ -81,37 +71,42 @@ type HealthChecker interface {
 }
 ```
 
+## Key Implementations
+
+### Configuration
+- **config.go** — DefaultConfigManager (env-based config, hot-reload)
+- **config_validation.go** — Config validation rules
+- **config_extensions.go** — Feature flags, multi-chain support
+
+### Event Bus
+- **eventbus.go** — DefaultEventBus with bounded worker pool and panic recovery
+
+### Confirmation Tracker
+- **confirmation.go** — Pending → Confirmed → Finalized lifecycle
+
+### Logging
+- **slog_logger.go** — Slog-based Logger implementation
+
+### Metrics
+- **metrics.go** — In-memory metrics collector
+
+### Web3 Utilities
+- **blockchain_models.go** — Block, Transaction, Event, Log data structures
+- **mev_pipeline.go**, **mev_builder.go**, **mev_flashbots.go** — MEV-Boost pipeline
+- **aa_mempool.go**, **aa_bundler.go** — ERC-4337 Account Abstraction
+- **l2_bridge.go** — L2→L1 message verification
+- **defi_primitives.go** — AMM math, lending health factors
+- **gas_estimator.go** — Gas estimation and history
+- **consensus.go** — Consensus rules and validation
+
 ## Important Rules
 
-1. **Do NOT add implementation logic** to this package
-2. **Do NOT define new interfaces** in `pkg/infrastructure`
-3. All implementations must implement interfaces from this package
+1. **Do NOT define new interfaces** in `pkg/infrastructure` — define them here
+2. All implementations in `pkg/infrastructure` must implement interfaces from here
+3. Do NOT import `pkg/services/` or `pkg/infrastructure/` from this package
 4. Use this package for cross-package contracts
 
-## Usage
+## Documentation
 
-Import the core package:
-```go
-import "chainpulse/pkg/core"
-```
-
-Implement an interface:
-```go
-type MyLogger struct {}
-
-func (l *MyLogger) Log(level string, msg string) {
-    // Implementation in pkg/infrastructure/logging
-}
-```
-
-## Testing
-
-Run tests:
-```bash
-go test ./pkg/core/...
-```
-
-Run property-based tests:
-```bash
-go test ./pkg/core/... -run Property
-```
+Inline doc comments in this package serve as the primary reference.
+For architecture decisions, see `docs/specs/`.

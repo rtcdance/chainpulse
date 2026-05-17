@@ -2,6 +2,7 @@ package core
 
 import (
 	"math/big"
+	"strings"
 	"testing"
 )
 
@@ -93,9 +94,9 @@ func TestValidateChainIDReplayProtection(t *testing.T) {
 
 func TestInferEIP155SignerType(t *testing.T) {
 	tests := []struct {
-		name     string
-		chainID  *big.Int
-		want     SignerType
+		name    string
+		chainID *big.Int
+		want    SignerType
 	}{
 		{"nil_chain_id", nil, SignerHomestead},
 		{"zero_chain_id", big.NewInt(0), SignerHomestead},
@@ -198,10 +199,5 @@ func TestValidateSignatureV(t *testing.T) {
 }
 
 func containsSubstring(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
+	return strings.Contains(s, substr)
 }

@@ -24,22 +24,22 @@ func TestContextWithDeadline(t *testing.T, deadline time.Time) context.Context {
 }
 
 // MustNoError asserts that error is nil
-func MustNoError(t *testing.T, err error, msgAndArgs ...interface{}) {
+func MustNoError(t *testing.T, err error, msgAndArgs ...any) {
 	require.NoError(t, err, msgAndArgs...)
 }
 
 // MustError asserts that error is not nil
-func MustError(t *testing.T, err error, msgAndArgs ...interface{}) {
+func MustError(t *testing.T, err error, msgAndArgs ...any) {
 	require.Error(t, err, msgAndArgs...)
 }
 
 // MustEqual asserts that two values are equal
-func MustEqual(t *testing.T, expected, actual interface{}, msgAndArgs ...interface{}) {
+func MustEqual(t *testing.T, expected, actual any, msgAndArgs ...any) {
 	require.Equal(t, expected, actual, msgAndArgs...)
 }
 
 // AssertInDelta asserts that two float64 values are within delta
-func AssertInDelta(t *testing.T, expected, actual, delta float64, msgAndArgs ...interface{}) {
+func AssertInDelta(t *testing.T, expected, actual, delta float64, msgAndArgs ...any) {
 	assert.InDelta(t, expected, actual, delta, msgAndArgs...)
 }
 

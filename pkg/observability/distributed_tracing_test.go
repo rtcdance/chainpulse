@@ -15,15 +15,15 @@ type MockLogger struct {
 	messages []string
 }
 
-func (ml *MockLogger) Debug(msg string, args ...interface{}) { ml.messages = append(ml.messages, msg) }
+func (ml *MockLogger) Debug(msg string, args ...any) { ml.messages = append(ml.messages, msg) }
 
-func (ml *MockLogger) Info(msg string, args ...interface{}) { ml.messages = append(ml.messages, msg) }
+func (ml *MockLogger) Info(msg string, args ...any) { ml.messages = append(ml.messages, msg) }
 
-func (ml *MockLogger) Warn(msg string, args ...interface{}) { ml.messages = append(ml.messages, msg) }
+func (ml *MockLogger) Warn(msg string, args ...any) { ml.messages = append(ml.messages, msg) }
 
-func (ml *MockLogger) Error(msg string, args ...interface{}) { ml.messages = append(ml.messages, msg) }
+func (ml *MockLogger) Error(msg string, args ...any) { ml.messages = append(ml.messages, msg) }
 
-func (ml *MockLogger) Fatal(msg string, args ...interface{}) { ml.messages = append(ml.messages, msg) }
+func (ml *MockLogger) Fatal(msg string, args ...any) { ml.messages = append(ml.messages, msg) }
 
 func (ml *MockLogger) WithCorrelationID(id string) core.Logger {
 	return ml
@@ -52,8 +52,8 @@ func (mmc *MockMetricsCollector) RecordHistogram(name string, value float64, tag
 
 func (mmc *MockMetricsCollector) RecordGauge(name string, value float64, tags map[string]string) {}
 
-func (mmc *MockMetricsCollector) GetMetrics() map[string]interface{} {
-	return map[string]interface{}{
+func (mmc *MockMetricsCollector) GetMetrics() map[string]any {
+	return map[string]any{
 		"counters":   mmc.counters,
 		"histograms": mmc.histograms,
 	}
@@ -62,6 +62,7 @@ func (mmc *MockMetricsCollector) GetMetrics() map[string]interface{} {
 func (mmc *MockMetricsCollector) Close() error { return nil }
 
 func TestNewDefaultTracer(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 
@@ -72,6 +73,7 @@ func TestNewDefaultTracer(t *testing.T) {
 }
 
 func TestStartSpan(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	tracer := NewDefaultTracer(logger, metrics)
@@ -87,6 +89,7 @@ func TestStartSpan(t *testing.T) {
 }
 
 func TestEndSpan(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	tracer := NewDefaultTracer(logger, metrics)
@@ -104,26 +107,28 @@ func TestEndSpan(t *testing.T) {
 }
 
 func TestAddEvent(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	tracer := NewDefaultTracer(logger, metrics)
 
 	_, span := tracer.StartSpan(context.Background(), "test_span", SpanKindInternal)
 
-	tracer.AddEvent(&span, "test_event", map[string]interface{}{"key": "value"})
+	tracer.AddEvent(&span, "test_event", map[string]any{"key": "value"})
 
 	assert.Equal(t, 1, len(span.Events))
 	assert.Equal(t, "test_event", span.Events[0].Name)
 }
 
 func TestAddLink(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	tracer := NewDefaultTracer(logger, metrics)
 
 	_, span := tracer.StartSpan(context.Background(), "test_span", SpanKindInternal)
 
-	tracer.AddLink(&span, "trace123", "span456", map[string]interface{}{"key": "value"})
+	tracer.AddLink(&span, "trace123", "span456", map[string]any{"key": "value"})
 
 	assert.Equal(t, 1, len(span.Links))
 	assert.Equal(t, "trace123", span.Links[0].TraceID)
@@ -131,6 +136,7 @@ func TestAddLink(t *testing.T) {
 }
 
 func TestSetAttribute(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	tracer := NewDefaultTracer(logger, metrics)
@@ -145,6 +151,7 @@ func TestSetAttribute(t *testing.T) {
 }
 
 func TestSetStatus(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	tracer := NewDefaultTracer(logger, metrics)
@@ -159,6 +166,7 @@ func TestSetStatus(t *testing.T) {
 }
 
 func TestSetStatusError(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	tracer := NewDefaultTracer(logger, metrics)
@@ -172,6 +180,7 @@ func TestSetStatusError(t *testing.T) {
 }
 
 func TestExtractContext(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	tracer := NewDefaultTracer(logger, metrics)
@@ -187,6 +196,7 @@ func TestExtractContext(t *testing.T) {
 }
 
 func TestInjectContext(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	tracer := NewDefaultTracer(logger, metrics)
@@ -205,6 +215,7 @@ func TestInjectContext(t *testing.T) {
 }
 
 func TestGetSpans(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	tracer := NewDefaultTracer(logger, metrics)
@@ -221,6 +232,7 @@ func TestGetSpans(t *testing.T) {
 }
 
 func TestNestedSpans(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	tracer := NewDefaultTracer(logger, metrics)
@@ -240,6 +252,7 @@ func TestNestedSpans(t *testing.T) {
 }
 
 func TestSpanDuration(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	tracer := NewDefaultTracer(logger, metrics)
@@ -255,6 +268,7 @@ func TestSpanDuration(t *testing.T) {
 }
 
 func TestSpanKinds(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	tracer := NewDefaultTracer(logger, metrics)
@@ -278,6 +292,7 @@ func TestSpanKinds(t *testing.T) {
 }
 
 func TestNewSpanRecorder(t *testing.T) {
+	t.Parallel()
 	recorder := NewSpanRecorder()
 
 	assert.NotNil(t, recorder)
@@ -285,6 +300,7 @@ func TestNewSpanRecorder(t *testing.T) {
 }
 
 func TestSpanRecorderRecord(t *testing.T) {
+	t.Parallel()
 	recorder := NewSpanRecorder()
 
 	span := Span{
@@ -299,6 +315,7 @@ func TestSpanRecorderRecord(t *testing.T) {
 }
 
 func TestSpanRecorderGetRecordedSpans(t *testing.T) {
+	t.Parallel()
 	recorder := NewSpanRecorder()
 
 	span1 := Span{TraceID: "trace1", SpanID: "span1", Name: "span1"}
@@ -313,6 +330,7 @@ func TestSpanRecorderGetRecordedSpans(t *testing.T) {
 }
 
 func TestSpanRecorderClear(t *testing.T) {
+	t.Parallel()
 	recorder := NewSpanRecorder()
 
 	span := Span{TraceID: "trace1", SpanID: "span1"}
@@ -326,6 +344,7 @@ func TestSpanRecorderClear(t *testing.T) {
 }
 
 func TestSpanRecorderGetSpansByTraceID(t *testing.T) {
+	t.Parallel()
 	recorder := NewSpanRecorder()
 
 	span1 := Span{TraceID: "trace1", SpanID: "span1"}
@@ -342,6 +361,7 @@ func TestSpanRecorderGetSpansByTraceID(t *testing.T) {
 }
 
 func TestSpanRecorderGetSpansByName(t *testing.T) {
+	t.Parallel()
 	recorder := NewSpanRecorder()
 
 	span1 := Span{TraceID: "trace1", SpanID: "span1", Name: "operation1"}
@@ -358,10 +378,11 @@ func TestSpanRecorderGetSpansByName(t *testing.T) {
 }
 
 func TestSpanEventStructure(t *testing.T) {
+	t.Parallel()
 	event := SpanEvent{
 		Name:       "test_event",
 		Timestamp:  time.Now(),
-		Attributes: map[string]interface{}{"key": "value"},
+		Attributes: map[string]any{"key": "value"},
 	}
 
 	assert.Equal(t, "test_event", event.Name)
@@ -370,10 +391,11 @@ func TestSpanEventStructure(t *testing.T) {
 }
 
 func TestSpanLinkStructure(t *testing.T) {
+	t.Parallel()
 	link := SpanLink{
 		TraceID:    "trace123",
 		SpanID:     "span456",
-		Attributes: map[string]interface{}{"key": "value"},
+		Attributes: map[string]any{"key": "value"},
 	}
 
 	assert.Equal(t, "trace123", link.TraceID)
@@ -381,6 +403,7 @@ func TestSpanLinkStructure(t *testing.T) {
 }
 
 func TestTraceContextStructure(t *testing.T) {
+	t.Parallel()
 	ctx := TraceContext{
 		TraceID:  "trace123",
 		SpanID:   "span456",
@@ -396,6 +419,7 @@ func TestTraceContextStructure(t *testing.T) {
 }
 
 func TestMetricsRecording(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	tracer := NewDefaultTracer(logger, metrics)
@@ -408,6 +432,7 @@ func TestMetricsRecording(t *testing.T) {
 }
 
 func TestConcurrentSpans(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	tracer := NewDefaultTracer(logger, metrics)
@@ -428,16 +453,4 @@ func TestConcurrentSpans(t *testing.T) {
 
 	spans := tracer.GetSpans()
 	assert.Equal(t, 10, len(spans))
-}
-
-func TestParseTraceParent(t *testing.T) {
-	traceparent := "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01"
-
-	parts := parseTraceParent(traceparent)
-
-	assert.Equal(t, 4, len(parts))
-	assert.Equal(t, "00", parts[0])
-	assert.Equal(t, "0af7651916cd43dd8448eb211c80319c", parts[1])
-	assert.Equal(t, "b7ad6b7169203331", parts[2])
-	assert.Equal(t, "01", parts[3])
 }

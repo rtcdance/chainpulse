@@ -32,8 +32,8 @@ func (m *MockMetricsCollector) RecordHistogram(name string, value float64, tags 
 	m.metrics[name] = int64(value)
 }
 
-func (m *MockMetricsCollector) GetMetrics() map[string]interface{} {
-	result := make(map[string]interface{})
+func (m *MockMetricsCollector) GetMetrics() map[string]any {
+	result := make(map[string]any)
 	for k, v := range m.metrics {
 		result[k] = v
 	}
@@ -51,23 +51,23 @@ func NewMockLogger() *MockLogger {
 	}
 }
 
-func (m *MockLogger) Debug(message string, fields ...interface{}) {
+func (m *MockLogger) Debug(message string, fields ...any) {
 	m.logs = append(m.logs, fmt.Sprintf("DEBUG: %s", message))
 }
 
-func (m *MockLogger) Info(message string, fields ...interface{}) {
+func (m *MockLogger) Info(message string, fields ...any) {
 	m.logs = append(m.logs, fmt.Sprintf("INFO: %s", message))
 }
 
-func (m *MockLogger) Error(message string, fields ...interface{}) {
+func (m *MockLogger) Error(message string, fields ...any) {
 	m.logs = append(m.logs, fmt.Sprintf("ERROR: %s", message))
 }
 
-func (m *MockLogger) Warn(message string, fields ...interface{}) {
+func (m *MockLogger) Warn(message string, fields ...any) {
 	m.logs = append(m.logs, fmt.Sprintf("WARN: %s", message))
 }
 
-func (m *MockLogger) Fatal(message string, fields ...interface{}) {
+func (m *MockLogger) Fatal(message string, fields ...any) {
 	m.logs = append(m.logs, fmt.Sprintf("FATAL: %s", message))
 }
 
@@ -77,6 +77,7 @@ func (m *MockLogger) WithCorrelationID(id string) core.Logger {
 
 // TestKafkaOffsetPersistence tests offset persistence functionality
 func TestKafkaOffsetPersistence(t *testing.T) {
+	t.Parallel()
 	plugin := NewKafkaMQPlugin(
 		"kafka-test",
 		"1.0.0",
@@ -122,6 +123,7 @@ func TestKafkaOffsetPersistence(t *testing.T) {
 
 // TestKafkaConsumerGroupMetrics tests consumer group metrics
 func TestKafkaConsumerGroupMetrics(t *testing.T) {
+	t.Parallel()
 	plugin := NewKafkaMQPlugin(
 		"kafka-test",
 		"1.0.0",
@@ -157,6 +159,7 @@ func TestKafkaConsumerGroupMetrics(t *testing.T) {
 
 // TestKafkaBrokerFailureRecovery tests broker failure and recovery tracking
 func TestKafkaBrokerFailureRecovery(t *testing.T) {
+	t.Parallel()
 	plugin := NewKafkaMQPlugin(
 		"kafka-test",
 		"1.0.0",
@@ -195,6 +198,7 @@ func TestKafkaBrokerFailureRecovery(t *testing.T) {
 
 // TestExponentialBackoffDelay tests exponential backoff calculation
 func TestExponentialBackoffDelay(t *testing.T) {
+	t.Parallel()
 	plugin := NewKafkaMQPlugin(
 		"kafka-test",
 		"1.0.0",
@@ -234,6 +238,7 @@ func TestExponentialBackoffDelay(t *testing.T) {
 
 // TestKafkaSpecificMetrics tests Kafka-specific metrics collection
 func TestKafkaSpecificMetrics(t *testing.T) {
+	t.Parallel()
 	plugin := NewKafkaMQPlugin(
 		"kafka-test",
 		"1.0.0",
@@ -279,6 +284,7 @@ func TestKafkaSpecificMetrics(t *testing.T) {
 
 // TestConsumerGroupStatus tests consumer group status reporting
 func TestConsumerGroupStatus(t *testing.T) {
+	t.Parallel()
 	plugin := NewKafkaMQPlugin(
 		"kafka-test",
 		"1.0.0",
@@ -312,6 +318,7 @@ func TestConsumerGroupStatus(t *testing.T) {
 
 // TestOffsetPersistenceStats tests offset persistence statistics
 func TestOffsetPersistenceStats(t *testing.T) {
+	t.Parallel()
 	plugin := NewKafkaMQPlugin(
 		"kafka-test",
 		"1.0.0",
@@ -347,6 +354,7 @@ func TestOffsetPersistenceStats(t *testing.T) {
 
 // TestRebalanceConsumerGroup tests consumer group rebalancing
 func TestRebalanceConsumerGroup(t *testing.T) {
+	t.Parallel()
 	plugin := NewKafkaMQPlugin(
 		"kafka-test",
 		"1.0.0",
@@ -378,6 +386,7 @@ func TestRebalanceConsumerGroup(t *testing.T) {
 
 // TestConcurrentOffsetPersistence tests concurrent offset persistence
 func TestConcurrentOffsetPersistence(t *testing.T) {
+	t.Parallel()
 	plugin := NewKafkaMQPlugin(
 		"kafka-test",
 		"1.0.0",
@@ -425,6 +434,7 @@ func TestConcurrentOffsetPersistence(t *testing.T) {
 
 // TestConcurrentMetricsUpdates tests concurrent consumer group metrics updates
 func TestConcurrentMetricsUpdates(t *testing.T) {
+	t.Parallel()
 	plugin := NewKafkaMQPlugin(
 		"kafka-test",
 		"1.0.0",
@@ -464,6 +474,7 @@ func TestConcurrentMetricsUpdates(t *testing.T) {
 
 // TestBrokerFailureRecoverySequence tests a sequence of failures and recoveries
 func TestBrokerFailureRecoverySequence(t *testing.T) {
+	t.Parallel()
 	plugin := NewKafkaMQPlugin(
 		"kafka-test",
 		"1.0.0",
@@ -494,6 +505,7 @@ func TestBrokerFailureRecoverySequence(t *testing.T) {
 
 // TestKafkaSpecificFeaturesIntegration tests integration of all Kafka-specific features
 func TestKafkaSpecificFeaturesIntegration(t *testing.T) {
+	t.Parallel()
 	plugin := NewKafkaMQPlugin(
 		"kafka-test",
 		"1.0.0",

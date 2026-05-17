@@ -13,6 +13,7 @@ import (
 )
 
 func TestNewRPCTxTypeResolver(t *testing.T) {
+	t.Parallel()
 	r := NewRPCTxTypeResolver("http://localhost:8545", nil)
 	if r == nil {
 		t.Fatal("NewRPCTxTypeResolver returned nil")
@@ -26,6 +27,7 @@ func TestNewRPCTxTypeResolver(t *testing.T) {
 }
 
 func TestRPCTxTypeResolver_CacheHit(t *testing.T) {
+	t.Parallel()
 	r := NewRPCTxTypeResolver("http://localhost:8545", nil)
 
 	// Pre-populate cache
@@ -42,6 +44,7 @@ func TestRPCTxTypeResolver_CacheHit(t *testing.T) {
 }
 
 func TestRPCTxTypeResolver_RPCSuccess(t *testing.T) {
+	t.Parallel()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte(`{"jsonrpc":"2.0","id":1,"result":{"type":"0x2","status":"0x1"}}`))
@@ -68,6 +71,7 @@ func TestRPCTxTypeResolver_RPCSuccess(t *testing.T) {
 }
 
 func TestRPCTxTypeResolver_RPCBlobTx(t *testing.T) {
+	t.Parallel()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte(`{"jsonrpc":"2.0","id":1,"result":{"type":"0x3","status":"0x1"}}`))
@@ -86,6 +90,7 @@ func TestRPCTxTypeResolver_RPCBlobTx(t *testing.T) {
 }
 
 func TestRPCTxTypeResolver_RPCError(t *testing.T) {
+	t.Parallel()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte(`{"jsonrpc":"2.0","id":1,"error":{"code":-32603,"message":"internal error"}}`))
@@ -105,6 +110,7 @@ func TestRPCTxTypeResolver_RPCError(t *testing.T) {
 }
 
 func TestRPCTxTypeResolver_ReceiptNotFound(t *testing.T) {
+	t.Parallel()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte(`{"jsonrpc":"2.0","id":1,"result":null}`))
@@ -123,6 +129,7 @@ func TestRPCTxTypeResolver_ReceiptNotFound(t *testing.T) {
 }
 
 func TestRPCTxTypeResolver_ContextCancellation(t *testing.T) {
+	t.Parallel()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		// Never respond
 		select {}
@@ -144,6 +151,7 @@ func TestRPCTxTypeResolver_ContextCancellation(t *testing.T) {
 }
 
 func TestRPCTxTypeResolver_CacheEviction(t *testing.T) {
+	t.Parallel()
 	r := NewRPCTxTypeResolver("http://localhost:8545", nil)
 	r.maxCache = 10 // Small cache for testing
 
@@ -160,6 +168,7 @@ func TestRPCTxTypeResolver_CacheEviction(t *testing.T) {
 }
 
 func TestRPCTxTypeResolver_ClearCache(t *testing.T) {
+	t.Parallel()
 	r := NewRPCTxTypeResolver("http://localhost:8545", nil)
 	r.addToCache(common.HexToHash("0x1"), txTypeCacheEntry{txType: core.TxEIP1559, txStatus: core.TxStatusSuccess})
 	r.addToCache(common.HexToHash("0x2"), txTypeCacheEntry{txType: core.TxBlob, txStatus: core.TxStatusSuccess})
@@ -176,6 +185,7 @@ func TestRPCTxTypeResolver_ClearCache(t *testing.T) {
 }
 
 func TestRPCTxTypeResolver_FailedTransaction(t *testing.T) {
+	t.Parallel()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte(`{"jsonrpc":"2.0","id":1,"result":{"type":"0x2","status":"0x0"}}`))
@@ -197,6 +207,7 @@ func TestRPCTxTypeResolver_FailedTransaction(t *testing.T) {
 }
 
 func TestParseHexUint8(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		input   string
 		want    uint8

@@ -94,7 +94,7 @@ func BuildRouteOwnershipParityStateFromSource(service string, source RouteOwners
 	return BuildRouteOwnershipParityState(service, snapshot.RuntimeSignalsPresent, reviewFields...)
 }
 
-func BuildRouteOwnershipParitySourceSnapshotFromReadinessDetails(details map[string]interface{}) RouteOwnershipParitySourceSnapshot {
+func BuildRouteOwnershipParitySourceSnapshotFromReadinessDetails(details map[string]any) RouteOwnershipParitySourceSnapshot {
 	mode := ownershipParityStringValue(details["ownership_mode"])
 	status := ownershipParityStringValue(details["rollout_status"])
 	ready := ownershipParityBoolValue(details["rollout_ready_for_runtime_owned"])
@@ -228,7 +228,7 @@ func AppendMonolithOwnershipParityReason(parts []string, snapshot RouteOwnership
 	return parts
 }
 
-func ownershipParityStringValue(value interface{}) string {
+func ownershipParityStringValue(value any) string {
 	switch v := value.(type) {
 	case string:
 		return v
@@ -237,7 +237,7 @@ func ownershipParityStringValue(value interface{}) string {
 	}
 }
 
-func ownershipParityBoolValue(value interface{}) bool {
+func ownershipParityBoolValue(value any) bool {
 	switch v := value.(type) {
 	case bool:
 		return v

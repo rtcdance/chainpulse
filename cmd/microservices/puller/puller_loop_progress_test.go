@@ -166,5 +166,6 @@ func (p *pullersTestPlugin) GetLatestBlock(ctx context.Context) (uint64, error) 
 func (p *pullersTestPlugin) SubscribeToEvents(ctx context.Context, handler func(core.BlockchainEvent)) error {
 	return nil
 }
-func (p *pullersTestPlugin) GetStats() map[string]interface{} { return map[string]interface{}{} }
-func (p *pullersTestPlugin) GetLastBlockNumber() uint64       { return p.lastBlock }
+func (p *pullersTestPlugin) ChainID() string            { return p.name }
+func (p *pullersTestPlugin) GetStats() map[string]any   { return map[string]any{} }
+func (p *pullersTestPlugin) GetLastBlockNumber() uint64 { return p.lastBlock }

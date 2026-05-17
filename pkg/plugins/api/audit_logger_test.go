@@ -9,6 +9,7 @@ import (
 )
 
 func TestNewAuditLogger(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 
@@ -19,6 +20,7 @@ func TestNewAuditLogger(t *testing.T) {
 }
 
 func TestLogAuthenticationAttempt(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	al := NewAuditLogger(logger, metrics)
@@ -36,6 +38,7 @@ func TestLogAuthenticationAttempt(t *testing.T) {
 }
 
 func TestLogAuthenticationSuccess(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	al := NewAuditLogger(logger, metrics)
@@ -54,6 +57,7 @@ func TestLogAuthenticationSuccess(t *testing.T) {
 }
 
 func TestLogAuthenticationFailure(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	al := NewAuditLogger(logger, metrics)
@@ -71,6 +75,7 @@ func TestLogAuthenticationFailure(t *testing.T) {
 }
 
 func TestLogAuthorizationCheck(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	al := NewAuditLogger(logger, metrics)
@@ -92,6 +97,7 @@ func TestLogAuthorizationCheck(t *testing.T) {
 }
 
 func TestLogAuthorizationAllowed(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	al := NewAuditLogger(logger, metrics)
@@ -111,6 +117,7 @@ func TestLogAuthorizationAllowed(t *testing.T) {
 }
 
 func TestLogAuthorizationDenied(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	al := NewAuditLogger(logger, metrics)
@@ -131,6 +138,7 @@ func TestLogAuthorizationDenied(t *testing.T) {
 }
 
 func TestLogTokenRefresh(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	al := NewAuditLogger(logger, metrics)
@@ -147,6 +155,7 @@ func TestLogTokenRefresh(t *testing.T) {
 }
 
 func TestLogTokenRefreshFailure(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	al := NewAuditLogger(logger, metrics)
@@ -163,6 +172,7 @@ func TestLogTokenRefreshFailure(t *testing.T) {
 }
 
 func TestGetEventsByType(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	al := NewAuditLogger(logger, metrics)
@@ -182,6 +192,7 @@ func TestGetEventsByType(t *testing.T) {
 }
 
 func TestGetEventsByUser(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	al := NewAuditLogger(logger, metrics)
@@ -198,6 +209,7 @@ func TestGetEventsByUser(t *testing.T) {
 }
 
 func TestGetEventsByClient(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	al := NewAuditLogger(logger, metrics)
@@ -214,6 +226,7 @@ func TestGetEventsByClient(t *testing.T) {
 }
 
 func TestClearEvents(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	al := NewAuditLogger(logger, metrics)
@@ -230,6 +243,7 @@ func TestClearEvents(t *testing.T) {
 }
 
 func TestMaxSizeLimit(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	al := NewAuditLogger(logger, metrics)
@@ -244,6 +258,7 @@ func TestMaxSizeLimit(t *testing.T) {
 }
 
 func TestEventTimestamps(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	al := NewAuditLogger(logger, metrics)
@@ -260,6 +275,7 @@ func TestEventTimestamps(t *testing.T) {
 }
 
 func TestConcurrentEventLogging(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	al := NewAuditLogger(logger, metrics)
@@ -282,6 +298,7 @@ func TestConcurrentEventLogging(t *testing.T) {
 }
 
 func TestEventDetails(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	al := NewAuditLogger(logger, metrics)

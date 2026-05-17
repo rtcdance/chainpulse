@@ -75,11 +75,7 @@ func (cm *ContractManager) LoadContractABI(
 
 	cm.contracts[name] = metadata
 
-	cm.logger.Info("contract ABI loaded", map[string]interface{}{
-		"contract": name,
-		"events":   len(metadata.Events),
-		"methods":  len(metadata.Methods),
-	})
+	cm.logger.Info("contract ABI loaded", "contract", name, "events", len(metadata.Events), "methods", len(metadata.Methods))
 
 	return nil
 }
@@ -218,9 +214,7 @@ func (cm *ContractManager) RemoveContract(name string) error {
 	}
 
 	delete(cm.contracts, name)
-	cm.logger.Info("contract removed", map[string]interface{}{
-		"contract": name,
-	})
+	cm.logger.Info("contract removed", "contract", name)
 
 	return nil
 }

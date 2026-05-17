@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"math"
 	"math/rand/v2"
 	"sync"
 	"time"
@@ -17,42 +16,43 @@ import (
 // WebSocketJSONRPCPuller implements WebSocket-JSONRPC protocol for pulling blockchain events
 type WebSocketJSONRPCPuller struct {
 	*BaseDataPullerPlugin
-	mu              sync.RWMutex
-	conn            *websocket.Conn
-	nodeURL         string
-	currentBlock    uint64
-	stopChan        chan bool
-	eventHandlers   []func(core.BlockchainEvent)
-	subscriptions   map[string]string         // subscription ID -> filter
-	savedFilters    []map[string]interface{} // filters to re-subscribe on reconnect
-	timestampCache  map[uint64]int64         // blockNumber -> unix timestamp (bounded)
-	cacheOrder      []uint64                 // FIFO order for eviction
-	maxTimestampCache int                    // maximum cache entries (default 1000)
-	requestCounter  int64
-	errorCounter    int64
-	lastError       error
-	lastErrorTime   time.Time
-	reconnectDelay  time.Duration            // initial reconnect delay
-	maxReconnects   int
-	reconnectCount  int
-	readTimeout     time.Duration
-	writeTimeout    time.Duration
-	pingInterval    time.Duration // how often to send ping frames (default 30s)
-	pingStop       chan struct{} // signal to stop the ping goroutine
-	maxBackoff      time.Duration // maximum backoff duration (default 60s)
+	mu                sync.RWMutex
+	conn              *websocket.Conn
+	nodeURL           string
+	currentBlock      uint64
+	stopChan          chan bool
+	eventHandlers     []func(core.BlockchainEvent)
+	subscriptions     map[string]string // subscription ID -> filter
+	savedFilters      []map[string]any  // filters to re-subscribe on reconnect
+	timestampCache    map[uint64]int64  // blockNumber -> unix timestamp (bounded)
+	cacheOrder        []uint64          // FIFO order for eviction
+	maxTimestampCache int               // maximum cache entries (default 1000)
+	requestCounter    int64
+	reconnectDelay    time.Duration // initial reconnect delay
+	maxReconnects     int
+	reconnectCount    int
+	readTimeout       time.Duration
+	writeTimeout      time.Duration
+	pingInterval      time.Duration // how often to send ping frames (default 30s)
+	pingStop          chan struct{} // signal to stop the ping goroutine
+	maxBackoff        time.Duration // maximum backoff duration (default 60s)
 
 	// Reorg detection via newHeads subscription
-	lastHeadHash    common.Hash // hash of the last seen head block
-	lastHeadNumber  uint64      // number of the last seen head block
-	newHeadsSubID   string      // subscription ID for newHeads
+	lastHeadHash   common.Hash // hash of the last seen head block
+	lastHeadNumber uint64      // number of the last seen head block
+	newHeadsSubID  string      // subscription ID for newHeads
+
+	// Lifecycle context for goroutine management
+	lifecycleCtx    context.Context
+	lifecycleCancel context.CancelFunc
 }
 
 // WebSocketJSONRPCRequest represents a JSON-RPC request over WebSocket
 type WebSocketJSONRPCRequest struct {
-	JSONRPC string        `json:"jsonrpc"`
-	Method  string        `json:"method"`
-	Params  []interface{} `json:"params"`
-	ID      int64         `json:"id"`
+	JSONRPC string `json:"jsonrpc"`
+	Method  string `json:"method"`
+	Params  []any  `json:"params"`
+	ID      int64  `json:"id"`
 }
 
 // WebSocketJSONRPCResponse represents a JSON-RPC response over WebSocket
@@ -81,7 +81,7 @@ func NewWebSocketJSONRPCPuller(
 		stopChan:             make(chan bool),
 		eventHandlers:        make([]func(core.BlockchainEvent), 0),
 		subscriptions:        make(map[string]string),
-		savedFilters:         make([]map[string]interface{}, 0),
+		savedFilters:         make([]map[string]any, 0),
 		timestampCache:       make(map[uint64]int64),
 		cacheOrder:           make([]uint64, 0),
 		maxTimestampCache:    1000,
@@ -99,12 +99,18 @@ func NewWebSocketJSONRPCPuller(
 // Start starts the WebSocket-JSONRPC puller
 func (p *WebSocketJSONRPCPuller) Start() error {
 	if err := p.BaseDataPullerPlugin.Start(); err != nil {
-		return err
+		return fmt.Errorf("failed to start base puller: %w", err)
 	}
+
+	// Create lifecycle context for goroutine management
+	p.lifecycleCtx, p.lifecycleCancel = context.WithCancel(context.Background())
+
+	// Set lifecycle context on base plugin for checkpoint persistence goroutines
+	p.SetLifecycleContext(p.lifecycleCtx)
 
 	if err := p.connect(); err != nil {
 		p.LogError("failed to connect to WebSocket", "error", err.Error())
-		return err
+		return fmt.Errorf("failed to connect to WebSocket: %w", err)
 	}
 
 	// Subscribe to newHeads for reorg detection
@@ -114,7 +120,7 @@ func (p *WebSocketJSONRPCPuller) Start() error {
 
 	// Subscribe to reorg-rollback events on the EventBus (to reset cursor on reorg)
 	if p.eventBus != nil {
-		if _, err := core.SubscribeTyped[*core.ReorgRollbackEvent](p.eventBus, context.Background(), "reorg-rollback", func(reorgEvt *core.ReorgRollbackEvent) {
+		if _, err := core.SubscribeTypedNamed[*core.ReorgRollbackEvent](p.eventBus, p.lifecycleCtx, core.TopicReorgRollback, "ws-puller-reorg", func(reorgEvt *core.ReorgRollbackEvent) {
 			if reorgEvt.ChainID != p.ChainID() {
 				return
 			}
@@ -137,12 +143,17 @@ func (p *WebSocketJSONRPCPuller) Start() error {
 // Stop stops the WebSocket-JSONRPC puller
 func (p *WebSocketJSONRPCPuller) Stop() error {
 	if err := p.BaseDataPullerPlugin.Stop(); err != nil {
-		return err
+		return fmt.Errorf("failed to stop base puller: %w", err)
 	}
 
 	select {
 	case p.stopChan <- true:
 	default:
+	}
+
+	// Cancel lifecycle context to release subscribed goroutines
+	if p.lifecycleCancel != nil {
+		p.lifecycleCancel()
 	}
 
 	p.disconnect()
@@ -155,7 +166,7 @@ func (p *WebSocketJSONRPCPuller) PullEvents(ctx context.Context, fromBlock, toBl
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	events := make([]core.BlockchainEvent, 0)
+	events := make([]core.BlockchainEvent, 0, 8)
 
 	// For WebSocket, we use subscriptions instead of polling
 	// This method is kept for interface compatibility
@@ -176,12 +187,13 @@ func (p *WebSocketJSONRPCPuller) GetLatestBlock(ctx context.Context) (uint64, er
 	err := p.RetryWithBackoff(ctx, func() error {
 		var err error
 		p.currentBlock, err = p.getLatestBlockNumber(ctx)
-		return err
+		if err != nil {
+			return fmt.Errorf("failed to get latest block number after retries: %w", err)
+		}
+		return nil
 	})
 	if err != nil {
-		p.errorCounter++
-		p.lastError = err
-		p.lastErrorTime = time.Now()
+		p.RecordError(err)
 		p.RecordMetric("latest_block_errors", int64(1), nil)
 		p.LogError("failed to get latest block", "error", err.Error())
 		return 0, err
@@ -204,7 +216,7 @@ func (p *WebSocketJSONRPCPuller) SubscribeToEvents(ctx context.Context, handler 
 }
 
 // SubscribeToLogs subscribes to blockchain logs via WebSocket
-func (p *WebSocketJSONRPCPuller) SubscribeToLogs(ctx context.Context, filter map[string]interface{}) (string, error) {
+func (p *WebSocketJSONRPCPuller) SubscribeToLogs(ctx context.Context, filter map[string]any) (string, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -215,7 +227,7 @@ func (p *WebSocketJSONRPCPuller) SubscribeToLogs(ctx context.Context, filter map
 	req := WebSocketJSONRPCRequest{
 		JSONRPC: "2.0",
 		Method:  "eth_subscribe",
-		Params: []interface{}{
+		Params: []any{
 			"logs",
 			filter,
 		},
@@ -223,9 +235,7 @@ func (p *WebSocketJSONRPCPuller) SubscribeToLogs(ctx context.Context, filter map
 	}
 
 	if err := p.sendWebSocketRequest(req); err != nil {
-		p.errorCounter++
-		p.lastError = err
-		p.lastErrorTime = time.Now()
+		p.RecordError(err)
 		p.RecordMetric("subscribe_errors", int64(1), nil)
 		p.LogError("failed to subscribe to logs", "error", err.Error())
 		return "", err
@@ -279,9 +289,7 @@ func (p *WebSocketJSONRPCPuller) Listen(ctx context.Context) error {
 
 			resp, err := p.readWebSocketResponse()
 			if err != nil {
-				p.errorCounter++
-				p.lastError = err
-				p.lastErrorTime = time.Now()
+				p.RecordError(err)
 				p.RecordMetric("listen_errors", int64(1), nil)
 				p.LogError("failed to read WebSocket message", "error", err.Error())
 
@@ -334,7 +342,7 @@ func (p *WebSocketJSONRPCPuller) subscribeNewHeads() error {
 	req := WebSocketJSONRPCRequest{
 		JSONRPC: "2.0",
 		Method:  "eth_subscribe",
-		Params:  []interface{}{"newHeads"},
+		Params:  []any{"newHeads"},
 		ID:      p.requestCounter + 1,
 	}
 
@@ -409,7 +417,7 @@ func (p *WebSocketJSONRPCPuller) handleNewHeadsNotification(ctx context.Context,
 				ToBlock:    prevNumber,
 				DetectedAt: time.Now(),
 			}
-			if err := p.eventBus.Publish(ctx, "reorg-rollback", reorgEvt); err != nil {
+			if err := p.eventBus.Publish(ctx, core.TopicReorgRollback, reorgEvt); err != nil {
 				p.LogError("failed to publish reorg-rollback event", "error", err.Error())
 			}
 		}
@@ -424,23 +432,18 @@ func (p *WebSocketJSONRPCPuller) handleNewHeadsNotification(ctx context.Context,
 }
 
 // GetStats returns statistics about the puller
-func (p *WebSocketJSONRPCPuller) GetStats() map[string]interface{} {
+func (p *WebSocketJSONRPCPuller) GetStats() map[string]any {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
-	isConnected := p.conn != nil
-	return map[string]interface{}{
-		"node_url":        p.nodeURL,
-		"current_block":   p.currentBlock,
-		"request_count":   p.requestCounter,
-		"error_count":     p.errorCounter,
-		"last_error":      p.lastError,
-		"last_error_time": p.lastErrorTime,
-		"is_running":      p.IsRunning(),
-		"is_connected":    isConnected,
-		"subscriptions":   len(p.subscriptions),
-		"reconnect_count": p.reconnectCount,
-	}
+	stats := p.BaseStats()
+	stats["node_url"] = p.nodeURL
+	stats["current_block"] = p.currentBlock
+	stats["request_count"] = p.requestCounter
+	stats["is_connected"] = p.conn != nil
+	stats["subscriptions"] = len(p.subscriptions)
+	stats["reconnect_count"] = p.reconnectCount
+	return stats
 }
 
 // SetReconnectDelay sets the reconnection delay
@@ -484,13 +487,6 @@ func (p *WebSocketJSONRPCPuller) computeBackoff() time.Duration {
 	}
 
 	return backoff
-}
-
-func saturatingPullerBlockMetric(block uint64) int64 {
-	if block > math.MaxInt64 {
-		return math.MaxInt64
-	}
-	return int64(block)
 }
 
 // connect establishes a WebSocket connection
@@ -593,12 +589,12 @@ func (p *WebSocketJSONRPCPuller) reconnect() error {
 // resubscribeAll re-subscribes to all previously saved filters after a reconnect
 func (p *WebSocketJSONRPCPuller) resubscribeAll() error {
 	p.mu.RLock()
-	filters := make([]map[string]interface{}, len(p.savedFilters))
+	filters := make([]map[string]any, len(p.savedFilters))
 	copy(filters, p.savedFilters)
 	p.mu.RUnlock()
 
 	for _, filter := range filters {
-		if _, err := p.SubscribeToLogs(context.Background(), filter); err != nil {
+		if _, err := p.SubscribeToLogs(p.lifecycleCtx, filter); err != nil {
 			p.LogError("failed to resubscribe to filter after reconnect", "error", err.Error())
 			return err
 		}
@@ -646,7 +642,7 @@ func (p *WebSocketJSONRPCPuller) getLatestBlockNumber(ctx context.Context) (uint
 	req := WebSocketJSONRPCRequest{
 		JSONRPC: "2.0",
 		Method:  "eth_blockNumber",
-		Params:  []interface{}{},
+		Params:  []any{},
 		ID:      1,
 	}
 
@@ -747,33 +743,16 @@ func (p *WebSocketJSONRPCPuller) logToEvent(log Log) (core.BlockchainEvent, erro
 
 	txHash := common.HexToHash(log.TxHash)
 	contractAddr := common.HexToAddress(log.Address)
-
-	// Decode hex data string to binary bytes for ABI decoding and storage
 	eventDataBytes := common.FromHex(log.Data)
-
-	// Get block timestamp from cache or RPC
 	blockTimestamp := p.getBlockTimestampCached(blockNumber)
 
-	event := core.BlockchainEvent{
-		ID:              fmt.Sprintf("%s-%s-%d", p.ChainID(), log.TxHash, logIndex),
-		BlockNumber:     blockNumber,
-		TransactionHash: txHash,
-		LogIndex:        logIndex,
-		ContractAddress: contractAddr,
-		EventName:       eventName,
-		EventSignature:  eventSig,
-		EventData:       eventDataBytes,
-		DecodedData:     core.DecodeEvent(eventName, eventTopics, eventDataBytes),
-		ChainID:         p.ChainID(),
-		Network:         p.Network(),
-		BlockTimestamp:  blockTimestamp,
-		Status:          core.EventStatusPending,
-		Removed:         log.Removed,
-	}
-
-	event.EventHash = p.GenerateEventHash(event)
-
-	return event, nil
+	return p.BuildBlockchainEvent(
+		p.ChainID(), p.Network(),
+		txHash, blockNumber, logIndex,
+		contractAddr, eventDataBytes,
+		eventTopics, eventName, eventSig,
+		blockTimestamp, log.Removed,
+	), nil
 }
 
 // getBlockTimestampCached returns the block timestamp, using cache or fetching via RPC
@@ -796,7 +775,7 @@ func (p *WebSocketJSONRPCPuller) getBlockTimestampCached(blockNumber uint64) int
 	req := WebSocketJSONRPCRequest{
 		JSONRPC: "2.0",
 		Method:  "eth_getBlockByNumber",
-		Params: []interface{}{
+		Params: []any{
 			uint64ToHex(blockNumber),
 			false,
 		},

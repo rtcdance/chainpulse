@@ -285,7 +285,7 @@ func (p *HTTPPlugin) GetHTTPSPort() int {
 }
 
 // GetTLSMetrics returns TLS metrics
-func (p *HTTPPlugin) GetTLSMetrics() map[string]interface{} {
+func (p *HTTPPlugin) GetTLSMetrics() map[string]any {
 	if p.tlsManager == nil {
 		return nil
 	}
@@ -294,14 +294,14 @@ func (p *HTTPPlugin) GetTLSMetrics() map[string]interface{} {
 
 // GetRuntimeMetrics returns compact runtime metrics for the HTTP transport
 // surface.
-func (p *HTTPPlugin) GetRuntimeMetrics() map[string]interface{} {
+func (p *HTTPPlugin) GetRuntimeMetrics() map[string]any {
 	running := p.IsRunning()
 	routeCount := p.router.RouteCount()
 	transportPosture := classifyHTTPTransportPosture(p.tlsManager != nil)
 	routePosture := classifyHTTPRoutePosture(routeCount)
 	runtimePosture := classifyHTTPRuntimePosture(running, routeCount)
 
-	return map[string]interface{}{
+	return map[string]any{
 		"running":           running,
 		"route_count":       routeCount,
 		"transport_posture": transportPosture,

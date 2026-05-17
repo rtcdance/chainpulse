@@ -9,19 +9,19 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"os/signal"
-	"strconv"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 
+	"chainpulse/pkg/application/bootstrap"
 	"chainpulse/pkg/core"
+	"chainpulse/pkg/env"
 	"chainpulse/pkg/infrastructure/database"
-	"chainpulse/pkg/plugins/api"
 	"chainpulse/pkg/plugins/mq"
 	"chainpulse/pkg/services/query"
 	"chainpulse/pkg/services/reorg"
+
+	"github.com/ethereum/go-ethereum/common"
 )
 
 //nolint:wsl,nlreturn // Command entrypoint is intentionally verbose.
@@ -34,6 +34,17 @@ func main() {
 
 	// Load configuration from environment
 	config := loadEventProcessorConfig()
+
+	if err := validateEventProcessorConfig(config); err != nil {
+		fmt.Printf("config validation failed: %v\n", err)
+		os.Exit(1)
+	}
+
+	runtimeProfile := bootstrap.RuntimeProfileFromEnv()
+	if err := validateEventProcessorProductionSecurity(config, runtimeProfile); err != nil {
+		fmt.Printf("production security validation failed: %v\n", err)
+		os.Exit(1)
+	}
 
 	// Print configuration
 	fmt.Println("Configuration Loaded:")
@@ -159,6 +170,24 @@ func main() {
 	}
 	fmt.Println("  ✓ Processor runtime initialized")
 
+	warmUpCtx, warmUpCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	if events, _, err := eventStore.GetEventsPaginated(warmUpCtx, "", 10000); err == nil && len(events) > 0 {
+		hashes := make([]string, 0, len(events))
+		for _, e := range events {
+			if e != nil {
+				hashes = append(hashes, core.ComputeEventHash(e))
+			}
+		}
+		if wuErr := processorRuntime.WarmUpIdempotency(warmUpCtx, hashes); wuErr != nil {
+			logger.Warn("Idempotency warm-up failed (DB unique index will handle duplicates)", "error", wuErr.Error())
+		} else {
+			fmt.Printf("  ✓ Idempotency warm-up: loaded %d hashes from %d events\n", len(hashes), len(events))
+		}
+	} else if err != nil {
+		logger.Warn("Idempotency warm-up skipped (could not query recent events)", "error", err.Error())
+	}
+	warmUpCancel()
+
 	consumeRuntime := newEventProcessorConsumeRuntime(
 		logger,
 		metrics,
@@ -180,7 +209,33 @@ func main() {
 		}(),
 	)
 	fmt.Println("  ✓ Consume/process seam initialized")
-	authMiddleware, rateLimitMiddleware, err := buildEventProcessorSecurityControls(config, logger, metrics)
+
+	dlqRetry := newDLQRetryService(
+		logger,
+		metrics,
+		func() *sql.DB {
+			raw, err := dbManager.GetPostgresDB(context.Background())
+			if err != nil {
+				return nil
+			}
+			db, ok := raw.(*sql.DB)
+			if !ok {
+				return nil
+			}
+			return db
+		}(),
+		processorRuntime.MessageProcessor(),
+	)
+	fmt.Println("  ✓ DLQ retry service initialized")
+	authMiddleware, rateLimitMiddleware, err := bootstrap.BuildSecurityControls(bootstrap.SecurityControlsConfig{
+		AuthEnabled:        config.AuthEnabled,
+		AuthJWTSecret:      config.AuthJWTSecret,
+		AuthAPIKeys:        config.AuthAPIKeys,
+		RateLimitEnabled:   config.RateLimitEnabled,
+		RateLimitPerMinute: config.RateLimitPerMinute,
+		ServiceName:        "event processor",
+		EnvPrefix:          "EVENT_PROCESSOR",
+	}, logger, metrics)
 	if err != nil {
 		logger.Error("Failed to build event processor security controls", "error", err.Error())
 		os.Exit(1)
@@ -203,7 +258,6 @@ func main() {
 		logger.Error("Failed to initialize rollout health handler", "error", err.Error())
 		os.Exit(1)
 	}
-	_ = rolloutHealthHandler
 	runtimeHTTPServer := newEventProcessorRuntimeHTTPServer(
 		config.Port,
 		rolloutHealthHandler,
@@ -244,12 +298,15 @@ func main() {
 	consumeRuntime.Start(consumeCtx, &wg)
 	fmt.Println("  [2/3] Consume/process seam started")
 
+	dlqRetry.Start(consumeCtx, &wg)
+	fmt.Println("  [2.2/3] DLQ retry service started")
+
 	// Start reorg event consumer
 	// Note: uses database-backed block hash provider (default). For production,
 	// inject an RPC-backed provider via reorgHandler.SetBlockHashProvider()
 	// so reorg detection compares against the live canonical chain.
 	reorgHandler := reorg.NewReorgHandler(
-		newReorgEventProcessorDatabaseAdapter(eventStore, metadataStore),
+		newReorgEventProcessorDatabaseAdapter(eventStore, metadataStore, getDB(dbManager)),
 		logger,
 		12,  // reorg threshold
 		120, // max rollback
@@ -265,12 +322,12 @@ func main() {
 			var reorgMsg core.ReorgDetectedMessage
 			if err := json.Unmarshal(msg.Payload, &reorgMsg); err != nil {
 				logger.Error("Failed to unmarshal reorg message", "error", err.Error())
-				return err
+				return fmt.Errorf("failed to unmarshal reorg message: %w", err)
 			}
 			logger.Info("Reorg event received", "chain_id", reorgMsg.ChainID, "reorg_block", reorgMsg.ReorgBlock)
 			if err := reorgHandler.HandleReorg(consumeCtx, reorgMsg.ReorgBlock); err != nil {
 				logger.Error("Failed to handle reorg", "chain_id", reorgMsg.ChainID, "reorg_block", reorgMsg.ReorgBlock, "error", err.Error())
-				return err
+				return fmt.Errorf("failed to handle reorg at block %d: %w", reorgMsg.ReorgBlock, err)
 			}
 			logger.Info("Reorg handled successfully", "chain_id", reorgMsg.ChainID, "reorg_block", reorgMsg.ReorgBlock)
 			return nil
@@ -307,14 +364,7 @@ func main() {
 	fmt.Println()
 
 	// Setup signal handling
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
-
-	// Wait for shutdown signal
-	sig := <-sigChan
-	fmt.Println()
-	fmt.Printf("Received signal: %v\n", sig)
-	fmt.Println()
+	_ = bootstrap.WaitForSignal()
 
 	// Graceful shutdown
 	fmt.Println("Shutting Down Services:")
@@ -338,6 +388,9 @@ func main() {
 	}
 	fmt.Println("  [3/6] Processor runtime stopped")
 
+	dlqRetry.Stop()
+	fmt.Println("  [3.5/6] DLQ retry service stopped")
+
 	// Close Event Store
 	if err := eventStore.Close(shutdownCtx); err != nil {
 		logger.Error("Error closing event store", "error", err.Error())
@@ -356,21 +409,7 @@ func main() {
 	}
 	fmt.Println("  [6/6] Database manager closed")
 
-	// Wait for all goroutines to finish
-	done := make(chan struct{})
-	go func() {
-		wg.Wait()
-		close(done)
-	}()
-
-	select {
-	case <-done:
-		fmt.Println()
-		fmt.Println("✓ All services stopped successfully")
-	case <-shutdownCtx.Done():
-		fmt.Println()
-		fmt.Println("⚠ Shutdown timeout exceeded")
-	}
+	bootstrap.ShutdownWithTimeout(&wg, 30*time.Second)
 
 	fmt.Println()
 	fmt.Println("Status: Shutdown complete")
@@ -389,7 +428,7 @@ type EventProcessorConfig struct {
 	EventTTLDays       int
 	LogLevel           string
 	AuthEnabled        bool
-	AuthJWTSecret      string
+	AuthJWTSecret      core.SecretString
 	AuthAPIKeys        []string
 	RateLimitEnabled   bool
 	RateLimitPerMinute int
@@ -397,130 +436,59 @@ type EventProcessorConfig struct {
 
 // loadEventProcessorConfig loads configuration from environment variables
 func loadEventProcessorConfig() EventProcessorConfig {
-	instanceID := getEnv("HOSTNAME", "event-processor-1")
-	if id := getEnv("INSTANCE_ID", ""); id != "" {
+	instanceID := env.Get("HOSTNAME", "event-processor-1")
+	if id := env.Get("INSTANCE_ID", ""); id != "" {
 		instanceID = id
 	}
 
 	return EventProcessorConfig{
-		Port:               getEnvInt("PROCESSOR_PORT", 8082),
+		Port:               env.GetInt("PROCESSOR_PORT", 8082),
 		InstanceID:         instanceID,
-		KafkaBrokers:       parseStringList(getEnv("KAFKA_BROKERS", "kafka-1:9092,kafka-2:9092,kafka-3:9092")),
-		ConsumerGroup:      getEnv("KAFKA_CONSUMER_GROUP", "event-processor-consumers"),
-		InputTopics:        parseStringList(getEnv("KAFKA_INPUT_TOPICS", "raw-events,blockchain-events")),
-		OutputTopics:       parseStringList(getEnv("KAFKA_OUTPUT_TOPICS", "processed-events,indexed-events")),
-		BatchSize:          getEnvInt("BATCH_SIZE", 100),
-		EventTTLDays:       getEnvInt("EVENT_TTL_DAYS", 30),
-		LogLevel:           getEnv("LOG_LEVEL", "info"),
-		AuthEnabled:        parseBoolEnv("EVENT_PROCESSOR_AUTH_ENABLED", false),
-		AuthJWTSecret:      getEnv("EVENT_PROCESSOR_AUTH_JWT_SECRET", ""),
-		AuthAPIKeys:        parseStringList(getEnv("EVENT_PROCESSOR_AUTH_API_KEYS", "")),
-		RateLimitEnabled:   parseBoolEnv("EVENT_PROCESSOR_RATE_LIMIT_ENABLED", false),
-		RateLimitPerMinute: getEnvInt("EVENT_PROCESSOR_RATE_LIMIT", 100),
+		KafkaBrokers:       env.GetCSV("KAFKA_BROKERS", []string{"kafka-1:9092", "kafka-2:9092", "kafka-3:9092"}),
+		ConsumerGroup:      env.Get("KAFKA_CONSUMER_GROUP", "event-processor-consumers"),
+		InputTopics:        env.GetCSV("KAFKA_INPUT_TOPICS", []string{"raw-events", "blockchain-events"}),
+		OutputTopics:       env.GetCSV("KAFKA_OUTPUT_TOPICS", []string{"processed-events", "indexed-events"}),
+		BatchSize:          env.GetInt("BATCH_SIZE", 100),
+		EventTTLDays:       env.GetInt("EVENT_TTL_DAYS", 30),
+		LogLevel:           env.Get("LOG_LEVEL", "info"),
+		AuthEnabled:        env.GetBool("EVENT_PROCESSOR_AUTH_ENABLED", false),
+		AuthJWTSecret:      core.SecretString(env.Get("EVENT_PROCESSOR_AUTH_JWT_SECRET", "")),
+		AuthAPIKeys:        env.GetCSV("EVENT_PROCESSOR_AUTH_API_KEYS", nil),
+		RateLimitEnabled:   env.GetBool("EVENT_PROCESSOR_RATE_LIMIT_ENABLED", true),
+		RateLimitPerMinute: env.GetInt("EVENT_PROCESSOR_RATE_LIMIT", 100),
 	}
 }
 
-// getEnv gets an environment variable with a default value
-func getEnv(key, defaultValue string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
+func validateEventProcessorConfig(c EventProcessorConfig) error {
+	if c.BatchSize < 1 {
+		return fmt.Errorf("BATCH_SIZE must be >= 1, got %d", c.BatchSize)
 	}
-	return defaultValue
+	if c.EventTTLDays < 1 {
+		return fmt.Errorf("EVENT_TTL_DAYS must be >= 1, got %d", c.EventTTLDays)
+	}
+	if c.AuthEnabled && strings.TrimSpace(c.AuthJWTSecret.Value()) == "" {
+		return fmt.Errorf("EVENT_PROCESSOR_AUTH_JWT_SECRET must not be empty when EVENT_PROCESSOR_AUTH_ENABLED is true")
+	}
+	return nil
 }
 
-// getEnvInt gets an environment variable as integer with a default value
-func getEnvInt(key string, defaultValue int) int {
-	if value := os.Getenv(key); value != "" {
-		if intVal, err := strconv.Atoi(value); err == nil {
-			return intVal
-		}
+func validateEventProcessorProductionSecurity(c EventProcessorConfig, runtimeProfile string) error {
+	if runtimeProfile != "production" {
+		return nil
 	}
-	return defaultValue
-}
-
-//nolint:wsl,nlreturn // Small env parser stays centralized in the command entrypoint.
-func parseBoolEnv(key string, defaultValue bool) bool {
-	value := strings.TrimSpace(strings.ToLower(os.Getenv(key)))
-	if value == "" {
-		return defaultValue
+	if !c.AuthEnabled {
+		return fmt.Errorf("production event processor requires EVENT_PROCESSOR_AUTH_ENABLED=true")
 	}
-	switch value {
-	case "1", "true", "yes", "on":
-		return true
-	case "0", "false", "no", "off":
-		return false
-	default:
-		return defaultValue
+	if strings.TrimSpace(c.AuthJWTSecret.Value()) == "" {
+		return fmt.Errorf("production event processor requires non-empty EVENT_PROCESSOR_AUTH_JWT_SECRET")
 	}
-}
-
-//nolint:wsl,nlreturn // Command config parsing stays centralized here.
-func parseStringList(s string) []string {
-	var result []string
-	for _, item := range strings.Split(s, ",") {
-		if trimmed := strings.TrimSpace(item); trimmed != "" {
-			result = append(result, trimmed)
-		}
+	if !c.RateLimitEnabled {
+		return fmt.Errorf("production event processor requires EVENT_PROCESSOR_RATE_LIMIT_ENABLED=true")
 	}
-	return result
-}
-
-//nolint:wsl,nlreturn // Security wiring stays centralized in the command entrypoint.
-func buildEventProcessorSecurityControls(config EventProcessorConfig, logger core.Logger, metrics core.MetricsCollector) (*api.AuthMiddleware, *api.RateLimitMiddleware, error) {
-	if !config.AuthEnabled && !config.RateLimitEnabled {
-		return nil, nil, nil
+	if c.RateLimitPerMinute <= 0 {
+		return fmt.Errorf("production event processor requires EVENT_PROCESSOR_RATE_LIMIT > 0")
 	}
-
-	var authMiddleware *api.AuthMiddleware
-	if config.AuthEnabled {
-		if strings.TrimSpace(config.AuthJWTSecret) == "" {
-			return nil, nil, fmt.Errorf("event processor auth is enabled but EVENT_PROCESSOR_AUTH_JWT_SECRET is empty")
-		}
-
-		tokenValidator := api.NewTokenValidator(config.AuthJWTSecret, logger, metrics)
-		for _, entry := range config.AuthAPIKeys {
-			apiKey, clientID, ok := parseKeyValuePair(entry)
-			if !ok {
-				return nil, nil, fmt.Errorf("invalid EVENT_PROCESSOR_AUTH_API_KEYS entry %q; expected key=clientID or key:clientID", entry)
-			}
-			if err := tokenValidator.RegisterAPIKey(apiKey, clientID, "operator"); err != nil {
-				return nil, nil, err
-			}
-		}
-
-		rbacChecker := api.NewRBACChecker(logger, metrics)
-		if err := rbacChecker.RegisterDefaultRoles(); err != nil {
-			return nil, nil, fmt.Errorf("failed to register default RBAC roles: %w", err)
-		}
-		auditLogger := api.NewAuditLogger(logger, metrics)
-		authMiddleware = api.NewAuthMiddleware(tokenValidator, rbacChecker, auditLogger, logger, metrics)
-	}
-
-	var rateLimitMiddleware *api.RateLimitMiddleware
-	if config.RateLimitEnabled {
-		rateLimiter := api.NewRateLimiter(logger, metrics, &api.RateLimitConfig{
-			DefaultRequestsPerSecond: api.RequestsPerMinuteToPerSecond(config.RateLimitPerMinute),
-			DefaultBurstSize:         api.BurstSizeFromRequestsPerMinute(config.RateLimitPerMinute),
-			CleanupInterval:          5 * time.Minute,
-		})
-		rateLimitMiddleware = api.NewRateLimitMiddleware(rateLimiter, logger)
-	}
-
-	return authMiddleware, rateLimitMiddleware, nil
-}
-
-//nolint:wsl,nlreturn // Command config parsing stays centralized here.
-func parseKeyValuePair(entry string) (string, string, bool) {
-	for _, separator := range []string{"=", ":"} {
-		if idx := strings.Index(entry, separator); idx > 0 && idx < len(entry)-1 {
-			key := strings.TrimSpace(entry[:idx])
-			clientID := strings.TrimSpace(entry[idx+1:])
-			if key != "" && clientID != "" {
-				return key, clientID, true
-			}
-		}
-	}
-	return "", "", false
+	return nil
 }
 
 // reorgEventProcessorDatabaseAdapter adapts existing stores to core.DatabasePlugin
@@ -528,13 +496,15 @@ func parseKeyValuePair(entry string) (string, string, bool) {
 type reorgEventProcessorDatabaseAdapter struct {
 	eventStore    *query.MongoDBEventStore
 	metadataStore *query.PostgreSQLEventMetadataStore
+	db            *sql.DB
 }
 
 func newReorgEventProcessorDatabaseAdapter(
 	eventStore *query.MongoDBEventStore,
 	metadataStore *query.PostgreSQLEventMetadataStore,
+	db *sql.DB,
 ) *reorgEventProcessorDatabaseAdapter {
-	return &reorgEventProcessorDatabaseAdapter{eventStore: eventStore, metadataStore: metadataStore}
+	return &reorgEventProcessorDatabaseAdapter{eventStore: eventStore, metadataStore: metadataStore, db: db}
 }
 
 func (a *reorgEventProcessorDatabaseAdapter) Name() string                   { return "reorg-adapter" }
@@ -549,7 +519,7 @@ func (a *reorgEventProcessorDatabaseAdapter) GetEvent(_ context.Context, _ strin
 	return nil, fmt.Errorf("not implemented in reorg adapter")
 }
 
-func (a *reorgEventProcessorDatabaseAdapter) QueryEvents(_ context.Context, _ interface{}) ([]interface{}, error) {
+func (a *reorgEventProcessorDatabaseAdapter) QueryEvents(_ context.Context, _ any) ([]any, error) {
 	return nil, fmt.Errorf("not implemented in reorg adapter")
 }
 
@@ -562,11 +532,11 @@ func (a *reorgEventProcessorDatabaseAdapter) GetEventsByBlockRange(ctx context.C
 }
 
 // EventWriter
-func (a *reorgEventProcessorDatabaseAdapter) StoreEvent(_ context.Context, _ interface{}) error {
+func (a *reorgEventProcessorDatabaseAdapter) StoreEvent(_ context.Context, _ any) error {
 	return fmt.Errorf("not implemented in reorg adapter")
 }
 
-func (a *reorgEventProcessorDatabaseAdapter) BatchStoreEvents(_ context.Context, _ []interface{}) error {
+func (a *reorgEventProcessorDatabaseAdapter) BatchStoreEvents(_ context.Context, _ []any) error {
 	return fmt.Errorf("not implemented in reorg adapter")
 }
 
@@ -584,12 +554,29 @@ func (a *reorgEventProcessorDatabaseAdapter) MarkEventsAsReorged(ctx context.Con
 }
 
 // BlockReader
-func (a *reorgEventProcessorDatabaseAdapter) GetBlock(_ context.Context, _ uint64) (*core.Block, error) {
-	return nil, fmt.Errorf("not implemented in reorg adapter")
+func (a *reorgEventProcessorDatabaseAdapter) GetBlock(_ context.Context, blockNum uint64) (*core.Block, error) {
+	if a.db == nil {
+		return nil, fmt.Errorf("reorg adapter: no database connection")
+	}
+	row := a.db.QueryRow("SELECT block_hash, block_number FROM blockchain_events WHERE block_number = $1 LIMIT 1", blockNum)
+	var hash string
+	var number uint64
+	if err := row.Scan(&hash, &number); err != nil {
+		return nil, fmt.Errorf("reorg adapter: block %d not found: %w", blockNum, err)
+	}
+	return &core.Block{Number: number, Hash: common.HexToHash(hash)}, nil
 }
 
 func (a *reorgEventProcessorDatabaseAdapter) GetLatestBlock(_ context.Context) (uint64, error) {
-	return 0, fmt.Errorf("not implemented in reorg adapter — puller tracks block heights")
+	if a.db == nil {
+		return 0, fmt.Errorf("reorg adapter: no database connection")
+	}
+	var maxBlock uint64
+	err := a.db.QueryRow("SELECT COALESCE(MAX(block_number), 0) FROM blockchain_events").Scan(&maxBlock)
+	if err != nil {
+		return 0, fmt.Errorf("reorg adapter: failed to query latest block: %w", err)
+	}
+	return maxBlock, nil
 }
 
 func (a *reorgEventProcessorDatabaseAdapter) GetAllBlocks(_ context.Context) ([]*core.Block, error) {
@@ -599,4 +586,16 @@ func (a *reorgEventProcessorDatabaseAdapter) GetAllBlocks(_ context.Context) ([]
 // ReorgStatsProvider
 func (a *reorgEventProcessorDatabaseAdapter) GetReorgStats(_ context.Context) (*core.ReorgStats, error) {
 	return &core.ReorgStats{}, nil
+}
+
+func getDB(dbManager database.DatabaseManager) *sql.DB {
+	raw, err := dbManager.GetPostgresDB(context.Background())
+	if err != nil {
+		return nil
+	}
+	db, ok := raw.(*sql.DB)
+	if !ok {
+		return nil
+	}
+	return db
 }

@@ -11,6 +11,7 @@ import (
 
 // TestNewRBACChecker tests RBAC checker initialization
 func TestNewRBACChecker(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 
@@ -24,6 +25,7 @@ func TestNewRBACChecker(t *testing.T) {
 
 // TestRegisterRole tests role registration
 func TestRegisterRole(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	checker := NewRBACChecker(logger, metrics)
@@ -37,6 +39,7 @@ func TestRegisterRole(t *testing.T) {
 
 // TestRegisterRoleEmptyName tests registering role with empty name
 func TestRegisterRoleEmptyName(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	checker := NewRBACChecker(logger, metrics)
@@ -49,6 +52,7 @@ func TestRegisterRoleEmptyName(t *testing.T) {
 
 // TestRegisterEndpointRoles tests endpoint role registration
 func TestRegisterEndpointRoles(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	checker := NewRBACChecker(logger, metrics)
@@ -63,6 +67,7 @@ func TestRegisterEndpointRoles(t *testing.T) {
 
 // TestRegisterEndpointRolesEmptyEndpoint tests registering with empty endpoint
 func TestRegisterEndpointRolesEmptyEndpoint(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	checker := NewRBACChecker(logger, metrics)
@@ -75,6 +80,7 @@ func TestRegisterEndpointRolesEmptyEndpoint(t *testing.T) {
 
 // TestRegisterEndpointPermissions tests endpoint permission registration
 func TestRegisterEndpointPermissions(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	checker := NewRBACChecker(logger, metrics)
@@ -89,6 +95,7 @@ func TestRegisterEndpointPermissions(t *testing.T) {
 
 // TestRegisterEndpointPermissionsEmptyEndpoint tests registering with empty endpoint
 func TestRegisterEndpointPermissionsEmptyEndpoint(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	checker := NewRBACChecker(logger, metrics)
@@ -101,6 +108,7 @@ func TestRegisterEndpointPermissionsEmptyEndpoint(t *testing.T) {
 
 // TestCheckRole tests role checking
 func TestCheckRole(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	checker := NewRBACChecker(logger, metrics)
@@ -128,6 +136,7 @@ func TestCheckRole(t *testing.T) {
 
 // TestCheckPermission tests permission checking
 func TestCheckPermission(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	checker := NewRBACChecker(logger, metrics)
@@ -156,6 +165,7 @@ func TestCheckPermission(t *testing.T) {
 
 // TestCheckEndpointAccess tests endpoint access checking
 func TestCheckEndpointAccess(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	checker := NewRBACChecker(logger, metrics)
@@ -184,6 +194,7 @@ func TestCheckEndpointAccess(t *testing.T) {
 
 // TestCheckEndpointAccessNoRequirements tests endpoint with no requirements
 func TestCheckEndpointAccessNoRequirements(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	checker := NewRBACChecker(logger, metrics)
@@ -195,6 +206,7 @@ func TestCheckEndpointAccessNoRequirements(t *testing.T) {
 
 // TestGetRolePermissions tests getting role permissions
 func TestGetRolePermissions(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	checker := NewRBACChecker(logger, metrics)
@@ -209,6 +221,7 @@ func TestGetRolePermissions(t *testing.T) {
 
 // TestGetRolePermissionsNonexistent tests getting permissions for nonexistent role
 func TestGetRolePermissionsNonexistent(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	checker := NewRBACChecker(logger, metrics)
@@ -219,6 +232,7 @@ func TestGetRolePermissionsNonexistent(t *testing.T) {
 
 // TestGetEndpointRequirements tests getting endpoint requirements
 func TestGetEndpointRequirements(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	checker := NewRBACChecker(logger, metrics)
@@ -238,6 +252,7 @@ func TestGetEndpointRequirements(t *testing.T) {
 
 // TestWildcardPermissions tests wildcard permission matching
 func TestWildcardPermissions(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	checker := NewRBACChecker(logger, metrics)
@@ -266,6 +281,7 @@ func TestWildcardPermissions(t *testing.T) {
 
 // TestConcurrentRoleRegistration tests concurrent role registration
 func TestConcurrentRoleRegistration(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	checker := NewRBACChecker(logger, metrics)
@@ -290,6 +306,7 @@ func TestConcurrentRoleRegistration(t *testing.T) {
 
 // TestConcurrentEndpointRegistration tests concurrent endpoint registration
 func TestConcurrentEndpointRegistration(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	checker := NewRBACChecker(logger, metrics)
@@ -314,6 +331,7 @@ func TestConcurrentEndpointRegistration(t *testing.T) {
 
 // TestConcurrentAccessChecks tests concurrent access checks
 func TestConcurrentAccessChecks(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	checker := NewRBACChecker(logger, metrics)
@@ -365,6 +383,7 @@ func TestConcurrentAccessChecks(t *testing.T) {
 
 // TestAccessCheckDuration tests access check duration recording
 func TestAccessCheckDuration(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	checker := NewRBACChecker(logger, metrics)
@@ -379,6 +398,7 @@ func TestAccessCheckDuration(t *testing.T) {
 
 // TestMultipleRoles tests checking with multiple roles
 func TestMultipleRoles(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	checker := NewRBACChecker(logger, metrics)
@@ -401,6 +421,7 @@ func TestMultipleRoles(t *testing.T) {
 
 // TestMultiplePermissions tests checking with multiple permissions
 func TestMultiplePermissions(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	checker := NewRBACChecker(logger, metrics)
@@ -423,6 +444,7 @@ func TestMultiplePermissions(t *testing.T) {
 
 // TestComplexRBACScenario tests complex RBAC scenario
 func TestComplexRBACScenario(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	checker := NewRBACChecker(logger, metrics)
@@ -469,6 +491,7 @@ func TestComplexRBACScenario(t *testing.T) {
 
 // TestAccessCheckResultFields tests access check result fields
 func TestAccessCheckResultFields(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	checker := NewRBACChecker(logger, metrics)
@@ -489,6 +512,7 @@ func TestAccessCheckResultFields(t *testing.T) {
 
 // TestMetricsRecording tests metrics recording during access checks
 func TestMetricsRecording(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	checker := NewRBACChecker(logger, metrics)
@@ -507,6 +531,7 @@ func TestMetricsRecording(t *testing.T) {
 
 // TestEmptyUserRoles tests with empty user roles
 func TestEmptyUserRoles(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	checker := NewRBACChecker(logger, metrics)
@@ -517,6 +542,7 @@ func TestEmptyUserRoles(t *testing.T) {
 
 // TestEmptyUserPermissions tests with empty user permissions
 func TestEmptyUserPermissions(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	checker := NewRBACChecker(logger, metrics)
@@ -527,6 +553,7 @@ func TestEmptyUserPermissions(t *testing.T) {
 
 // TestCaseInsensitivePermissions tests permission matching
 func TestPermissionMatching(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	checker := NewRBACChecker(logger, metrics)

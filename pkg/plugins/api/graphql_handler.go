@@ -17,27 +17,27 @@ import (
 var jsonScalar = graphql.NewScalar(graphql.ScalarConfig{
 	Name:         "JSON",
 	Description:  "Arbitrary JSON value",
-	Serialize:    func(value interface{}) interface{} { return value },
-	ParseValue:   func(value interface{}) interface{} { return value },
-	ParseLiteral: func(valueAST ast.Value) interface{} { return nil },
+	Serialize:    func(value any) any { return value },
+	ParseValue:   func(value any) any { return value },
+	ParseLiteral: func(valueAST ast.Value) any { return nil },
 })
 
 type GraphQLRequest struct {
-	Query         string                 `json:"query"`
-	Variables     map[string]interface{} `json:"variables"`
-	OperationName string                 `json:"operationName"`
+	Query         string         `json:"query"`
+	Variables     map[string]any `json:"variables"`
+	OperationName string         `json:"operationName"`
 }
 
 type GraphQLResponse struct {
-	Data   interface{}    `json:"data,omitempty"`
+	Data   any            `json:"data,omitempty"`
 	Errors []GraphQLError `json:"errors,omitempty"`
 }
 
 type GraphQLError struct {
-	Message    string                 `json:"message"`
-	Locations  []Location             `json:"locations,omitempty"`
-	Path       []interface{}          `json:"path,omitempty"`
-	Extensions map[string]interface{} `json:"extensions,omitempty"`
+	Message    string         `json:"message"`
+	Locations  []Location     `json:"locations,omitempty"`
+	Path       []any          `json:"path,omitempty"`
+	Extensions map[string]any `json:"extensions,omitempty"`
 }
 
 type Location struct {
@@ -132,7 +132,7 @@ func (h *GraphQLHandler) buildSchema() (*graphql.Schema, error) {
 				Args: graphql.FieldConfigArgument{
 					"id": &graphql.ArgumentConfig{Type: graphql.NewNonNull(graphql.String)},
 				},
-				Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+				Resolve: func(p graphql.ResolveParams) (any, error) {
 					id, ok := p.Args["id"].(string)
 					if !ok || id == "" {
 						return nil, fmt.Errorf("id is required")
@@ -157,7 +157,7 @@ func (h *GraphQLHandler) buildSchema() (*graphql.Schema, error) {
 					"after":   &graphql.ArgumentConfig{Type: graphql.String},
 					"chainId": &graphql.ArgumentConfig{Type: graphql.String},
 				},
-				Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+				Resolve: func(p graphql.ResolveParams) (any, error) {
 					first := 20
 					if f, ok := p.Args["first"].(int); ok && f > 0 {
 						first = f
@@ -172,9 +172,9 @@ func (h *GraphQLHandler) buildSchema() (*graphql.Schema, error) {
 					}
 
 					if h.eventStore == nil {
-						return map[string]interface{}{
-							"edges": []interface{}{},
-							"pageInfo": map[string]interface{}{
+						return map[string]any{
+							"edges": []any{},
+							"pageInfo": map[string]any{
 								"hasNextPage":     false,
 								"hasPreviousPage": false,
 							},
@@ -187,17 +187,17 @@ func (h *GraphQLHandler) buildSchema() (*graphql.Schema, error) {
 						return nil, fmt.Errorf("failed to list events")
 					}
 
-					edges := make([]interface{}, len(events))
+					edges := make([]any, len(events))
 					for i, evt := range events {
-						edges[i] = map[string]interface{}{
+						edges[i] = map[string]any{
 							"node":   eventToMap(evt),
 							"cursor": fmt.Sprintf("cursor:%d", i),
 						}
 					}
 
-					return map[string]interface{}{
+					return map[string]any{
 						"edges": edges,
-						"pageInfo": map[string]interface{}{
+						"pageInfo": map[string]any{
 							"hasNextPage":     len(events) >= first,
 							"hasPreviousPage": false,
 							"startCursor":     "",
@@ -222,7 +222,7 @@ func (h *GraphQLHandler) buildSchema() (*graphql.Schema, error) {
 					"number": &graphql.ArgumentConfig{Type: graphql.Int},
 					"hash":   &graphql.ArgumentConfig{Type: graphql.String},
 				},
-				Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+				Resolve: func(p graphql.ResolveParams) (any, error) {
 					return nil, fmt.Errorf("block queries are not supported; use the events query instead")
 				},
 			},
@@ -240,13 +240,13 @@ func (h *GraphQLHandler) buildSchema() (*graphql.Schema, error) {
 	return &schema, nil
 }
 
-func eventToMap(evt interface{}) map[string]interface{} {
+func eventToMap(evt any) map[string]any {
 	if evt == nil {
 		return nil
 	}
 
 	if e, ok := evt.(*core.BlockchainEvent); ok {
-		return map[string]interface{}{
+		return map[string]any{
 			"id":               e.ID,
 			"eventHash":        e.EventHash,
 			"blockNumber":      e.BlockNumber,
@@ -266,7 +266,7 @@ func eventToMap(evt interface{}) map[string]interface{} {
 	}
 
 	if e, ok := evt.(core.BlockchainEvent); ok {
-		return map[string]interface{}{
+		return map[string]any{
 			"id":               e.ID,
 			"eventHash":        e.EventHash,
 			"blockNumber":      e.BlockNumber,
@@ -285,12 +285,12 @@ func eventToMap(evt interface{}) map[string]interface{} {
 		}
 	}
 
-	return map[string]interface{}{"id": "unknown"}
+	return map[string]any{"id": "unknown"}
 }
 
-func eventDataMap(data map[string]interface{}) map[string]interface{} {
+func eventDataMap(data map[string]any) map[string]any {
 	if data == nil {
-		return map[string]interface{}{}
+		return map[string]any{}
 	}
 	return data
 }
@@ -306,9 +306,7 @@ func (h *GraphQLHandler) Initialize(config *core.Config) error {
 
 	h.initialized = true
 
-	h.logger.Info("GraphQL handler initialized", map[string]interface{}{
-		"component": "graphql_handler",
-	})
+	h.logger.Info("GraphQL handler initialized", core.LogKeyComponent, "graphql_handler")
 
 	return nil
 }
@@ -372,7 +370,7 @@ func (h *GraphQLHandler) handlePost(w http.ResponseWriter, r *http.Request) {
 	contentType := r.Header.Get("Content-Type")
 
 	var query string
-	var variables map[string]interface{}
+	var variables map[string]any
 
 	if strings.Contains(contentType, "application/json") {
 		var gqlReq GraphQLRequest
@@ -451,9 +449,7 @@ func (h *GraphQLHandler) Stop() error {
 
 	h.initialized = false
 
-	h.logger.Info("GraphQL handler stopped", map[string]interface{}{
-		"component": "graphql_handler",
-	})
+	h.logger.Info("GraphQL handler stopped", core.LogKeyComponent, "graphql_handler")
 
 	return nil
 }

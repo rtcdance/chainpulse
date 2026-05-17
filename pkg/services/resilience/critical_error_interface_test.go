@@ -7,6 +7,7 @@ import (
 )
 
 func TestCriticalError_ImplementsError(t *testing.T) {
+	t.Parallel()
 	ce := &CriticalError{
 		Type:        CriticalErrorTypeDataCorruption,
 		Message:     "block hash mismatch",
@@ -28,6 +29,7 @@ func TestCriticalError_ImplementsError(t *testing.T) {
 }
 
 func TestCriticalError_ErrorFormat(t *testing.T) {
+	t.Parallel()
 	ce := &CriticalError{
 		Type:      CriticalErrorTypeSystemFailure,
 		Message:   "out of memory",
@@ -40,11 +42,12 @@ func TestCriticalError_ErrorFormat(t *testing.T) {
 }
 
 func TestCriticalError_ErrorWithWrap(t *testing.T) {
+	t.Parallel()
 	inner := errors.New("disk full")
 	ce := &CriticalError{
-		Type:      CriticalErrorTypeResourceExhaustion,
-		Message:   "storage exhausted",
-		Err:       inner,
+		Type:    CriticalErrorTypeResourceExhaustion,
+		Message: "storage exhausted",
+		Err:     inner,
 	}
 	msg := ce.Error()
 	if msg == "" {
@@ -53,6 +56,7 @@ func TestCriticalError_ErrorWithWrap(t *testing.T) {
 }
 
 func TestCriticalError_Unwrap(t *testing.T) {
+	t.Parallel()
 	inner := errors.New("connection refused")
 	ce := &CriticalError{
 		Type:    CriticalErrorTypeSystemFailure,
@@ -70,6 +74,7 @@ func TestCriticalError_Unwrap(t *testing.T) {
 }
 
 func TestCriticalError_UnwrapNil(t *testing.T) {
+	t.Parallel()
 	ce := &CriticalError{
 		Type:    CriticalErrorTypeSecurityBreach,
 		Message: "unauthorized access",
@@ -80,6 +85,7 @@ func TestCriticalError_UnwrapNil(t *testing.T) {
 }
 
 func TestCriticalError_ErrorsAs(t *testing.T) {
+	t.Parallel()
 	inner := errors.New("disk full")
 	ce := &CriticalError{
 		Type:    CriticalErrorTypeDataCorruption,

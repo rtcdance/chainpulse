@@ -90,46 +90,46 @@ func TestLiquidationEvent(t *testing.T) {
 
 func TestHealthFactor(t *testing.T) {
 	tests := []struct {
-		name                string
-		collateral          *big.Int
+		name                 string
+		collateral           *big.Int
 		liquidationThreshold *big.Int
-		debt                *big.Int
-		wantLiquidatable    bool
+		debt                 *big.Int
+		wantLiquidatable     bool
 	}{
 		{
-			name:                "healthy_position",
-			collateral:          big.NewInt(2000),
+			name:                 "healthy_position",
+			collateral:           big.NewInt(2000),
 			liquidationThreshold: big.NewInt(800), // 80%
-			debt:                big.NewInt(1000),
-			wantLiquidatable:    false, // HF = 2000*800*1e18/1000 = 1.6e21 > 1e18
+			debt:                 big.NewInt(1000),
+			wantLiquidatable:     false, // HF = 2000*800*1e18/1000 = 1.6e21 > 1e18
 		},
 		{
-			name:                "liquidatable_position",
-			collateral:          big.NewInt(10),
+			name:                 "liquidatable_position",
+			collateral:           big.NewInt(10),
 			liquidationThreshold: big.NewInt(8), // 80%
-			debt:                big.NewInt(1000),
-			wantLiquidatable:    true, // HF = 10*8*1e18/1000 = 8e16 < 1e18
+			debt:                 big.NewInt(1000),
+			wantLiquidatable:     true, // HF = 10*8*1e18/1000 = 8e16 < 1e18
 		},
 		{
-			name:                "no_debt_infinite_hf",
-			collateral:          big.NewInt(1000),
+			name:                 "no_debt_infinite_hf",
+			collateral:           big.NewInt(1000),
 			liquidationThreshold: big.NewInt(800),
-			debt:                big.NewInt(0),
-			wantLiquidatable:    false,
+			debt:                 big.NewInt(0),
+			wantLiquidatable:     false,
 		},
 		{
-			name:                "nil_collateral",
-			collateral:          nil,
+			name:                 "nil_collateral",
+			collateral:           nil,
 			liquidationThreshold: big.NewInt(800),
-			debt:                big.NewInt(1000),
-			wantLiquidatable:    true, // HF = 0 < 1e18
+			debt:                 big.NewInt(1000),
+			wantLiquidatable:     true, // HF = 0 < 1e18
 		},
 		{
-			name:                "nil_debt_no_liquidation",
-			collateral:          big.NewInt(1000),
+			name:                 "nil_debt_no_liquidation",
+			collateral:           big.NewInt(1000),
 			liquidationThreshold: big.NewInt(800),
-			debt:                nil,
-			wantLiquidatable:    false, // nil debt = no liquidation
+			debt:                 nil,
+			wantLiquidatable:     false, // nil debt = no liquidation
 		},
 	}
 
@@ -166,12 +166,12 @@ func TestProtocolName(t *testing.T) {
 
 func TestDEXSwapEvent(t *testing.T) {
 	event := DEXSwapEvent{
-		Protocol: "uniswap_v3",
-		Sender:   common.HexToAddress("0xSender"),
-		To:       common.HexToAddress("0xRecipient"),
-		TokenIn:  common.HexToAddress("0xTokenA"),
-		TokenOut: common.HexToAddress("0xTokenB"),
-		AmountIn: big.NewInt(1000),
+		Protocol:  "uniswap_v3",
+		Sender:    common.HexToAddress("0xSender"),
+		To:        common.HexToAddress("0xRecipient"),
+		TokenIn:   common.HexToAddress("0xTokenA"),
+		TokenOut:  common.HexToAddress("0xTokenB"),
+		AmountIn:  big.NewInt(1000),
 		AmountOut: big.NewInt(500),
 	}
 

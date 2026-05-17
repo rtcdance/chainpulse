@@ -16,10 +16,10 @@ import (
 func UnaryAuthInterceptor(validator *api.TokenValidator) grpc.UnaryServerInterceptor {
 	return func(
 		ctx context.Context,
-		req interface{},
+		req any,
 		info *grpc.UnaryServerInfo,
 		handler grpc.UnaryHandler,
-	) (interface{}, error) {
+	) (any, error) {
 		if validator == nil {
 			return handler(ctx, req)
 		}
@@ -36,7 +36,7 @@ func UnaryAuthInterceptor(validator *api.TokenValidator) grpc.UnaryServerInterce
 // JWT Bearer tokens or API Keys. If validator is nil, all requests are allowed.
 func StreamAuthInterceptor(validator *api.TokenValidator) grpc.StreamServerInterceptor {
 	return func(
-		srv interface{},
+		srv any,
 		ss grpc.ServerStream,
 		info *grpc.StreamServerInfo,
 		handler grpc.StreamHandler,

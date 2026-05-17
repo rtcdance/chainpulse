@@ -19,6 +19,7 @@ const (
 // For any protocol-specific request, converting it to Request abstraction and back
 // SHALL produce an equivalent request.
 func TestProperty_RequestAbstractionConsistency(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name    string
 		method  string
@@ -92,6 +93,7 @@ func TestProperty_RequestAbstractionConsistency(t *testing.T) {
 // For any Response abstraction, converting it to protocol-specific format and back
 // SHALL produce an equivalent response.
 func TestProperty_ResponseAbstractionConsistency(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name    string
 		status  int
@@ -159,6 +161,7 @@ func TestProperty_ResponseAbstractionConsistency(t *testing.T) {
 // For any handler implementing the Handler interface, calling Handle() multiple times
 // with the same request SHALL produce consistent results.
 func TestProperty_HandlerConsistency(t *testing.T) {
+	t.Parallel()
 	handler := HandlerFunc(func(req Request) (Response, error) {
 		resp := NewBaseResponse(nil)
 		resp.SetStatus(200)
@@ -188,6 +191,7 @@ func TestProperty_HandlerConsistency(t *testing.T) {
 // Property 4: Router Routing Correctness
 // For any registered route, the router SHALL route requests to the correct handler.
 func TestProperty_RouterRoutingCorrectness(t *testing.T) {
+	t.Parallel()
 	router := NewAPIRouter()
 
 	// Register multiple handlers
@@ -225,6 +229,7 @@ func TestProperty_RouterRoutingCorrectness(t *testing.T) {
 // Property 5: Middleware Chain Consistency
 // For any middleware chain, the middleware SHALL be applied in the correct order.
 func TestProperty_MiddlewareChainConsistency(t *testing.T) {
+	t.Parallel()
 	router := NewAPIRouter()
 
 	// Create middleware that appends to a string
@@ -277,6 +282,7 @@ func TestProperty_MiddlewareChainConsistency(t *testing.T) {
 // Property 6: Error Mapping Consistency
 // For any error, the error mapper SHALL consistently map it to the same status code.
 func TestProperty_ErrorMappingConsistency(t *testing.T) {
+	t.Parallel()
 	mapper := NewDefaultErrorMapper()
 
 	// Map the same error multiple times
@@ -306,6 +312,7 @@ func TestProperty_ErrorMappingConsistency(t *testing.T) {
 // Property 7: API Layer Request Routing
 // For any request to the API layer, the request SHALL be routed to the correct handler.
 func TestProperty_APILayerRoutingCorrectness(t *testing.T) {
+	t.Parallel()
 	layer := NewAPILayer()
 
 	// Register handlers for different routes
@@ -339,6 +346,7 @@ func TestProperty_APILayerRoutingCorrectness(t *testing.T) {
 // Property 8: Request Context Preservation
 // For any request with a context, the context SHALL be preserved through the abstraction.
 func TestProperty_RequestContextPreservation(t *testing.T) {
+	t.Parallel()
 	ctx := context.WithValue(context.Background(), userIDKey, "123")
 	req := NewBaseRequest(ctx, "GET", "/api/users", nil, []byte(""))
 

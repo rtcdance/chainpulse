@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Activity, CheckCircle2, Loader2, RefreshCw, ShieldAlert, Waves, AlertTriangle } from 'lucide-react'
+import { Activity, CheckCircle2, Loader2, RefreshCw, ShieldAlert, Waves, AlertTriangle, BarChart3, Database, Radio, Cpu } from 'lucide-react'
 import {
   fetchCurrentSliceReport,
   fetchEvents,
@@ -12,6 +12,8 @@ import {
   type RuntimePayload,
   type ServiceAcceptanceReport,
 } from '../lib/chainpulse'
+import LearnContext from './LearnContext'
+import DataFlow from './DataFlow'
 
 interface DashboardState {
   health: HealthPayload | null
@@ -139,17 +141,25 @@ export default function Dashboard() {
 
   if (error) {
     return (
-      <div className="rounded-[28px] border border-rose-400/30 bg-rose-400/10 p-8">
-        <ShieldAlert className="h-10 w-10 text-rose-200" />
-        <h2 className="mt-4 text-2xl font-semibold text-white">Acceptance dashboard unavailable</h2>
-        <p className="mt-2 max-w-2xl text-sm leading-6 text-rose-100/90">{error}</p>
-        <button
-          onClick={() => void load()}
-          className="mt-5 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-4 py-2 text-sm text-white transition hover:bg-white/15"
-        >
-          <RefreshCw className="h-4 w-4" />
-          Retry
-        </button>
+      <div className="space-y-6">
+        <LearnContext
+          title="这个页面是做什么的？"
+          concept="Dashboard 展示 ChainPulse 的运行概览：是否健康、已索引多少事件、RPC 调用是否正常。绿色 = 正常，红色 = 异常。如果所有面板都是绿色，说明 ChainPulse 正在正常运行。"
+          codePath="frontend/src/components/Dashboard.tsx"
+          debugTip="在 https_jsonrpc_puller.go:299 设断点，观察 Poll 循环如何定期拉取新区块"
+        />
+        <div className={`rounded-2xl border p-6 ${tone(false)}`}>
+          <div className="flex items-center gap-3">
+            <AlertTriangle className="h-6 w-6" />
+            <div>
+              <p className="font-medium">Failed to load dashboard</p>
+              <p className="mt-1 text-sm opacity-80">{error}</p>
+            </div>
+          </div>
+          <button onClick={load} className="mt-4 flex items-center gap-2 rounded-lg border border-current/20 px-4 py-2 text-sm hover:bg-current/10">
+            <RefreshCw className="h-4 w-4" /> Retry
+          </button>
+        </div>
       </div>
     )
   }
@@ -174,61 +184,45 @@ export default function Dashboard() {
         </section>
       ) : null}
 
-      <section className="grid gap-4 xl:grid-cols-5">
-        <article className="rounded-[26px] border border-white/10 bg-white/5 p-5">
-          <div className="flex items-center justify-between">
-            <span className="text-xs uppercase tracking-[0.25em] text-mist">Gateway Health</span>
-            <Activity className="h-5 w-5 text-glow" />
-          </div>
-          <div className="mt-4 text-3xl font-semibold text-white">{state.health?.status || 'unknown'}</div>
-          <p className="mt-3 text-sm text-sand/75">
-            Source <span className="font-mono text-white/90">{state.health?.evidence.path}</span>
-          </p>
-        </article>
+      <section className="mb-6">
+        <LearnContext
+          title="ChainPulse 数据流 — 从 RPC 到 API"
+          concept="一笔链上事件的生命周期：Puller 通过 eth_getLogs 从节点拉取 → ABI 解码为 BlockchainEvent → EventBus 分发给 Processor → 持久化存储 → API 查询返回。整个过程可以在 delve 中用 6 个断点完整追踪。"
+          codePath="docs/guides/CODE_TRACE.md"
+          debugTip="断点顺序: https_jsonrpc_puller.go:299 → eventbus.go:87 → event_processor.go → event_query_handler.go"
+        />
+        <DataFlow />
+        <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
 
-        <article className="rounded-[26px] border border-white/10 bg-white/5 p-5">
-          <div className="flex items-center justify-between">
-            <span className="text-xs uppercase tracking-[0.25em] text-mist">Sample Events</span>
-            <Waves className="h-5 w-5 text-glow" />
+          <div className={`rounded-2xl border p-4 ${state.health?.status === 'healthy' ? 'border-emerald-300/25 bg-emerald-300/10 text-emerald-100' : 'border-rose-400/25 bg-rose-400/10 text-rose-100'}`}>
+            <div className="flex items-center gap-2 text-sm font-medium"> <Activity className="h-4 w-4" /> 服务健康</div>
+            <p className="mt-2 text-2xl font-semibold">{state.health?.status ?? '—'}</p>
+            <p className="mt-1 text-xs opacity-70">GET /health</p>
           </div>
-          <div className="mt-4 text-3xl font-semibold text-white">{state.sampleEvents?.events.length || 0}</div>
-          <p className="mt-3 text-sm text-sand/75">
-            Live sample from {state.sampleEvents?.evidence.path || '/events'}
-          </p>
-        </article>
 
-        <article className="rounded-[26px] border border-white/10 bg-white/5 p-5">
-          <div className="flex items-center justify-between">
-            <span className="text-xs uppercase tracking-[0.25em] text-mist">Metrics Samples</span>
-            <Activity className="h-5 w-5 text-glow" />
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+            <div className="flex items-center gap-2 text-sm font-medium text-sand/80"><Waves className="h-4 w-4" /> 已索引</div>
+            <p className="mt-2 text-2xl font-semibold text-white">
+              {(state.runtime?.summary as Record<string, unknown>)?.shadow_owned_events != null
+                ? (state.runtime.summary as Record<string, unknown>).shadow_owned_events as number
+                : state.sampleEvents?.events.length ?? '—'}
+            </p>
+            <p className="mt-1 text-xs opacity-70">Shared Runtime 事件</p>
           </div>
-          <div className="mt-4 text-3xl font-semibold text-white">{state.metrics?.samples.length || 0}</div>
-          <p className="mt-3 text-sm text-sand/75">
-            Parsed from {state.metrics?.evidence.path || '/metrics'}
-          </p>
-        </article>
 
-        <article className="rounded-[26px] border border-white/10 bg-white/5 p-5">
-          <div className="flex items-center justify-between">
-            <span className="text-xs uppercase tracking-[0.25em] text-mist">Slice Coverage</span>
-            <CheckCircle2 className="h-5 w-5 text-glow" />
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+            <div className="flex items-center gap-2 text-sm font-medium text-sand/80"><BarChart3 className="h-4 w-4" /> 拉取请求</div>
+            <p className="mt-2 text-2xl font-semibold text-white">{state.metrics?.samples.length || 0}</p>
+            <p className="mt-1 text-xs opacity-70">/metrics 采样数</p>
           </div>
-          <div className="mt-4 text-3xl font-semibold text-white">{availability.ok}/{availability.total}</div>
-          <p className="mt-3 text-sm text-sand/75">
-            Successful probes across the current runnable slice
-          </p>
-        </article>
 
-        <article className={`rounded-[26px] border p-5 ${reorgedCount > 0 ? 'border-amber-300/30 bg-amber-300/5' : 'border-white/10 bg-white/5'}`}>
-          <div className="flex items-center justify-between">
-            <span className="text-xs uppercase tracking-[0.25em] text-mist">Recent Reorgs</span>
-            <AlertTriangle className={`h-5 w-5 ${reorgedCount > 0 ? 'text-amber-300' : 'text-glow'}`} />
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+            <div className="flex items-center gap-2 text-sm font-medium text-sand/80"><Cpu className="h-4 w-4" /> 重组</div>
+            <p className="mt-2 text-2xl font-semibold text-white">{(state.runtime?.summary as Record<string, unknown>)?.reorg_posture === 'monolithic-reorg-armed' ? '✓ 已就绪' : '—'}</p>
+            <p className="mt-1 text-xs opacity-70">reorg handler</p>
           </div>
-          <div className={`mt-4 text-3xl font-semibold ${reorgedCount > 0 ? 'text-amber-200' : 'text-white'}`}>{reorgedCount}</div>
-          <p className="mt-3 text-sm text-sand/75">
-            {reorgedCount > 0 ? 'Reorged events detected in recent sample' : 'No reorgs in recent sample'}
-          </p>
-        </article>
+
+        </div>
       </section>
 
       <section className="grid gap-6 xl:grid-cols-[1.1fr,0.9fr]">

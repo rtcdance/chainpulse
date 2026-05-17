@@ -83,11 +83,11 @@ func TestLocalRunnableGatewayQuerySmoke(t *testing.T) {
 	if summaryRec.Code != http.StatusOK {
 		t.Fatalf("expected summary status 200, got %d body=%s", summaryRec.Code, summaryRec.Body.String())
 	}
-	var summary map[string]interface{}
+	var summary map[string]any
 	if err := json.Unmarshal(summaryRec.Body.Bytes(), &summary); err != nil {
 		t.Fatalf("decode runtime summary: %v", err)
 	}
-	gatewaySection, ok := summary["gateway"].(map[string]interface{})
+	gatewaySection, ok := summary["gateway"].(map[string]any)
 	if !ok {
 		t.Fatalf("expected gateway section, got %#v", summary["gateway"])
 	}
@@ -219,11 +219,11 @@ func TestLocalRunnableGatewayQuerySmokeWithSecurityControls(t *testing.T) {
 	if summaryRec.Code != http.StatusOK {
 		t.Fatalf("expected summary status 200, got %d body=%s", summaryRec.Code, summaryRec.Body.String())
 	}
-	var summary map[string]interface{}
+	var summary map[string]any
 	if err := json.Unmarshal(summaryRec.Body.Bytes(), &summary); err != nil {
 		t.Fatalf("decode runtime summary: %v", err)
 	}
-	gatewaySection, ok := summary["gateway"].(map[string]interface{})
+	gatewaySection, ok := summary["gateway"].(map[string]any)
 	if !ok {
 		t.Fatalf("expected gateway section, got %#v", summary["gateway"])
 	}

@@ -2,14 +2,13 @@ package graphql
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
 
 	"chainpulse/pkg/core"
+	"chainpulse/pkg/plugins/api/shared"
 	"github.com/graphql-go/graphql/language/ast"
 	"github.com/graphql-go/graphql/language/parser"
 	"github.com/graphql-go/graphql/language/source"
@@ -80,10 +79,10 @@ func (ac *AuthContext) IsExpired() bool {
 
 // AuthMiddleware provides authentication and authorization
 type AuthMiddleware struct {
-	logger        core.Logger
-	metrics       core.MetricsCollector
+	logger         core.Logger
+	metrics        core.MetricsCollector
 	tokenValidator TokenValidator
-	requireAuth   bool
+	requireAuth    bool
 }
 
 // TokenValidator defines the interface for token validation
@@ -190,13 +189,13 @@ func (am *AuthMiddleware) Authenticate(ctx context.Context, token string) (*Auth
 	return nil, fmt.Errorf("authentication not configured")
 }
 
-func (am *AuthMiddleware) logInfo(msg string, args ...interface{}) {
+func (am *AuthMiddleware) logInfo(msg string, args ...any) {
 	if am.logger != nil {
 		am.logger.Info(msg, args...)
 	}
 }
 
-func (am *AuthMiddleware) logWarn(msg string, args ...interface{}) {
+func (am *AuthMiddleware) logWarn(msg string, args ...any) {
 	if am.logger != nil {
 		am.logger.Warn(msg, args...)
 	}
@@ -246,7 +245,7 @@ func (cm *ComplexityMiddleware) calculateComplexity(query string) int {
 	doc, err := parser.Parse(parser.ParseParams{Source: &src})
 	if err != nil {
 		// If the query cannot be parsed, fall back to character-based estimate
-		return len(query) / 10 + 1
+		return len(query)/10 + 1
 	}
 
 	total := 0
@@ -272,8 +271,8 @@ func (cm *ComplexityMiddleware) walkSelectionSet(selSet *ast.SelectionSet, depth
 		return 0
 	}
 
-	const depthFactor = 2        // each nesting level doubles cost
-	const listMultiplier = 10    // list fields (edges, events) cost 10x
+	const depthFactor = 2     // each nesting level doubles cost
+	const listMultiplier = 10 // list fields (edges, events) cost 10x
 
 	cost := 0
 	for _, sel := range selSet.Selections {
@@ -375,12 +374,12 @@ func NewCachingMiddleware(cache core.CachePlugin, ttl time.Duration, logger core
 }
 
 // GetCached retrieves cached query result
-func (cm *CachingMiddleware) GetCached(query string) (interface{}, error) {
+func (cm *CachingMiddleware) GetCached(query string) (any, error) {
 	if cm.cache == nil {
 		return nil, fmt.Errorf("cache not available")
 	}
 
-	cacheKey := fmt.Sprintf("graphql:query:%s", hashQuery(query))
+	cacheKey := fmt.Sprintf("graphql:query:%s", shared.HashCacheKey(query))
 	result, err := cm.cache.Get(context.Background(), cacheKey)
 	if err != nil {
 		cm.metrics.RecordCounter("graphql_cache_miss", 1, nil)
@@ -393,12 +392,12 @@ func (cm *CachingMiddleware) GetCached(query string) (interface{}, error) {
 }
 
 // SetCached caches query result
-func (cm *CachingMiddleware) SetCached(query string, result interface{}) error {
+func (cm *CachingMiddleware) SetCached(query string, result any) error {
 	if cm.cache == nil {
 		return fmt.Errorf("cache not available")
 	}
 
-	cacheKey := fmt.Sprintf("graphql:query:%s", hashQuery(query))
+	cacheKey := fmt.Sprintf("graphql:query:%s", shared.HashCacheKey(query))
 	resultBytes, err := json.Marshal(result)
 	if err != nil {
 		return err
@@ -412,12 +411,6 @@ func (cm *CachingMiddleware) SetCached(query string, result interface{}) error {
 	}
 
 	return nil
-}
-
-// hashQuery creates a SHA-256 hash of the query for cache key generation.
-func hashQuery(query string) string {
-	h := sha256.Sum256([]byte(query))
-	return hex.EncodeToString(h[:16])
 }
 
 // ValidationMiddleware validates GraphQL queries

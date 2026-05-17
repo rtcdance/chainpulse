@@ -29,6 +29,11 @@ type EventMetadataStore interface {
 	// GetMetadata retrieves metadata for a single event
 	GetMetadata(ctx context.Context, eventID string) (*EventMetadata, error)
 
+	// GetMetadataBatch retrieves metadata for multiple events in a single query.
+	// Returns a map of eventID → *EventMetadata. Missing entries indicate
+	// metadata was not found for that eventID (no error).
+	GetMetadataBatch(ctx context.Context, eventIDs []string) (map[string]*EventMetadata, error)
+
 	// GetMetadataByChain retrieves metadata for events in a specific chain
 	GetMetadataByChain(ctx context.Context, chainID int, limit int, offset int) ([]*EventMetadata, error)
 

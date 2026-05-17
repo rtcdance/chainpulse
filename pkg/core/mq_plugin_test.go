@@ -13,6 +13,7 @@ import (
 
 // TestMQPluginCreation tests message queue plugin creation
 func TestMQPluginCreation(t *testing.T) {
+	t.Parallel()
 	config := Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -38,6 +39,7 @@ func TestMQPluginCreation(t *testing.T) {
 
 // TestMQPluginInitialization tests plugin initialization
 func TestMQPluginInitialization(t *testing.T) {
+	t.Parallel()
 	config := Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -64,6 +66,7 @@ func TestMQPluginInitialization(t *testing.T) {
 
 // TestMQPluginLifecycle tests plugin lifecycle
 func TestMQPluginLifecycle(t *testing.T) {
+	t.Parallel()
 	config := Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -97,6 +100,7 @@ func TestMQPluginLifecycle(t *testing.T) {
 
 // TestMQPluginPublishMessage tests publishing a message
 func TestMQPluginPublishMessage(t *testing.T) {
+	t.Parallel()
 	config := Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -137,6 +141,7 @@ func TestMQPluginPublishMessage(t *testing.T) {
 
 // TestMQPluginAcknowledgeMessage tests acknowledging a message
 func TestMQPluginAcknowledgeMessage(t *testing.T) {
+	t.Parallel()
 	config := Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -172,6 +177,7 @@ func TestMQPluginAcknowledgeMessage(t *testing.T) {
 
 // TestMQPluginDeadLetterQueue tests dead letter queue handling
 func TestMQPluginDeadLetterQueue(t *testing.T) {
+	t.Parallel()
 	config := Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -212,6 +218,7 @@ func TestMQPluginDeadLetterQueue(t *testing.T) {
 
 // TestMQPluginRetryMessage tests message retry
 func TestMQPluginRetryMessage(t *testing.T) {
+	t.Parallel()
 	config := Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -252,6 +259,7 @@ func TestMQPluginRetryMessage(t *testing.T) {
 
 // TestMQPluginGetStats tests statistics retrieval
 func TestMQPluginGetStats(t *testing.T) {
+	t.Parallel()
 	config := Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -279,6 +287,7 @@ func TestMQPluginGetStats(t *testing.T) {
 
 // TestMQPluginSetBatchSize tests setting batch size
 func TestMQPluginSetBatchSize(t *testing.T) {
+	t.Parallel()
 	config := Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -299,6 +308,7 @@ func TestMQPluginSetBatchSize(t *testing.T) {
 
 // TestMQPluginSetMaxRetries tests setting max retries
 func TestMQPluginSetMaxRetries(t *testing.T) {
+	t.Parallel()
 	config := Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -319,6 +329,7 @@ func TestMQPluginSetMaxRetries(t *testing.T) {
 
 // TestMQPluginSetRetryDelay tests setting retry delay
 func TestMQPluginSetRetryDelay(t *testing.T) {
+	t.Parallel()
 	config := Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -339,6 +350,7 @@ func TestMQPluginSetRetryDelay(t *testing.T) {
 
 // TestMQPluginConcurrentOperations tests concurrent operations
 func TestMQPluginConcurrentOperations(t *testing.T) {
+	t.Parallel()
 	config := Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -396,6 +408,7 @@ func TestMQPluginConcurrentOperations(t *testing.T) {
 
 // TestMQPluginHealth tests health check
 func TestMQPluginHealth(t *testing.T) {
+	t.Parallel()
 	config := Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -423,6 +436,7 @@ func TestMQPluginHealth(t *testing.T) {
 
 // TestMQPluginConsumeMessages tests consuming messages
 func TestMQPluginConsumeMessages(t *testing.T) {
+	t.Parallel()
 	config := Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -458,6 +472,7 @@ func TestMQPluginConsumeMessages(t *testing.T) {
 
 // TestMQPluginGetDeadLetterQueueMessages tests retrieving dead letter queue messages
 func TestMQPluginGetDeadLetterQueueMessages(t *testing.T) {
+	t.Parallel()
 	config := Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -491,6 +506,7 @@ func TestMQPluginGetDeadLetterQueueMessages(t *testing.T) {
 
 // TestMQPluginConsumeMessagesWithHandler tests consuming messages with handler
 func TestMQPluginConsumeMessagesWithHandler(t *testing.T) {
+	t.Parallel()
 	config := Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -525,6 +541,7 @@ func TestMQPluginConsumeMessagesWithHandler(t *testing.T) {
 
 // TestMQPluginConsumeMessagesContextCancellation tests context cancellation
 func TestMQPluginConsumeMessagesContextCancellation(t *testing.T) {
+	t.Parallel()
 	config := Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -560,6 +577,7 @@ func TestMQPluginConsumeMessagesContextCancellation(t *testing.T) {
 
 // TestMQPluginConsumeMessagesErrorHandling tests error handling in consumption
 func TestMQPluginConsumeMessagesErrorHandling(t *testing.T) {
+	t.Parallel()
 	config := Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -592,6 +610,7 @@ func TestMQPluginConsumeMessagesErrorHandling(t *testing.T) {
 
 // TestMQPluginConsumeMessagesNilHandler tests nil handler validation
 func TestMQPluginConsumeMessagesNilHandler(t *testing.T) {
+	t.Parallel()
 	config := Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -622,6 +641,7 @@ func TestMQPluginConsumeMessagesNilHandler(t *testing.T) {
 
 // TestMQPluginConsumeMessagesEmptyTopic tests empty topic validation
 func TestMQPluginConsumeMessagesEmptyTopic(t *testing.T) {
+	t.Parallel()
 	config := Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -656,6 +676,7 @@ func TestMQPluginConsumeMessagesEmptyTopic(t *testing.T) {
 
 // TestMQPluginConsumeMessagesNilContext tests nil context validation
 func TestMQPluginConsumeMessagesNilContext(t *testing.T) {
+	t.Parallel()
 	config := Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -690,6 +711,7 @@ func TestMQPluginConsumeMessagesNilContext(t *testing.T) {
 
 // TestMQPluginConsumeMessagesNotRunning tests consuming when plugin not running
 func TestMQPluginConsumeMessagesNotRunning(t *testing.T) {
+	t.Parallel()
 	config := Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -720,6 +742,7 @@ func TestMQPluginConsumeMessagesNotRunning(t *testing.T) {
 
 // TestMQPluginOffsetTracking tests offset tracking per topic
 func TestMQPluginOffsetTracking(t *testing.T) {
+	t.Parallel()
 	config := Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -747,6 +770,7 @@ func TestMQPluginOffsetTracking(t *testing.T) {
 
 // TestMQPluginMessageQueueMessageStructure tests message structure
 func TestMQPluginMessageQueueMessageStructure(t *testing.T) {
+	t.Parallel()
 	msg := MessageQueueMessage{
 		ID:               "msg-1",
 		Topic:            "events",
@@ -778,6 +802,7 @@ func TestMQPluginMessageQueueMessageStructure(t *testing.T) {
 
 // TestMQPluginConsumeMessagesMultipleTopics tests consuming from multiple topics
 func TestMQPluginConsumeMessagesMultipleTopics(t *testing.T) {
+	t.Parallel()
 	config := Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -817,6 +842,7 @@ func TestMQPluginConsumeMessagesMultipleTopics(t *testing.T) {
 
 // TestMQPluginConsumeMessagesGracefulShutdown tests graceful shutdown
 func TestMQPluginConsumeMessagesGracefulShutdown(t *testing.T) {
+	t.Parallel()
 	config := Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -866,6 +892,7 @@ func TestMQPluginConsumeMessagesGracefulShutdown(t *testing.T) {
 
 // TestMQPluginAcknowledgeMessageWithValidation tests acknowledging a message with validation
 func TestMQPluginAcknowledgeMessageWithValidation(t *testing.T) {
+	t.Parallel()
 	config := Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -902,6 +929,7 @@ func TestMQPluginAcknowledgeMessageWithValidation(t *testing.T) {
 
 // TestMQPluginAcknowledgeMessageNilContext tests acknowledging with nil context
 func TestMQPluginAcknowledgeMessageNilContext(t *testing.T) {
+	t.Parallel()
 	config := Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -930,6 +958,7 @@ func TestMQPluginAcknowledgeMessageNilContext(t *testing.T) {
 
 // TestMQPluginAcknowledgeMessageEmptyTopic tests acknowledging with empty topic
 func TestMQPluginAcknowledgeMessageEmptyTopic(t *testing.T) {
+	t.Parallel()
 	config := Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -967,6 +996,7 @@ func TestMQPluginAcknowledgeMessageEmptyTopic(t *testing.T) {
 
 // TestMQPluginAcknowledgeMessageEmptyID tests acknowledging with empty message ID
 func TestMQPluginAcknowledgeMessageEmptyID(t *testing.T) {
+	t.Parallel()
 	config := Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -1004,6 +1034,7 @@ func TestMQPluginAcknowledgeMessageEmptyID(t *testing.T) {
 
 // TestMQPluginAcknowledgeMessageNotRunning tests acknowledging when plugin not running
 func TestMQPluginAcknowledgeMessageNotRunning(t *testing.T) {
+	t.Parallel()
 	config := Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -1037,6 +1068,7 @@ func TestMQPluginAcknowledgeMessageNotRunning(t *testing.T) {
 
 // TestMQPluginAcknowledgeMessageBatch tests batch acknowledgment
 func TestMQPluginAcknowledgeMessageBatch(t *testing.T) {
+	t.Parallel()
 	config := Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -1089,6 +1121,7 @@ func TestMQPluginAcknowledgeMessageBatch(t *testing.T) {
 
 // TestMQPluginAcknowledgeMessageBatchEmpty tests batch acknowledgment with empty slice
 func TestMQPluginAcknowledgeMessageBatchEmpty(t *testing.T) {
+	t.Parallel()
 	config := Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -1121,6 +1154,7 @@ func TestMQPluginAcknowledgeMessageBatchEmpty(t *testing.T) {
 
 // TestMQPluginAcknowledgeMessageBatchNilContext tests batch acknowledgment with nil context
 func TestMQPluginAcknowledgeMessageBatchNilContext(t *testing.T) {
+	t.Parallel()
 	config := Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -1149,6 +1183,7 @@ func TestMQPluginAcknowledgeMessageBatchNilContext(t *testing.T) {
 
 // TestMQPluginAcknowledgeMessageBatchMultipleTopics tests batch acknowledgment with multiple topics
 func TestMQPluginAcknowledgeMessageBatchMultipleTopics(t *testing.T) {
+	t.Parallel()
 	config := Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -1201,6 +1236,7 @@ func TestMQPluginAcknowledgeMessageBatchMultipleTopics(t *testing.T) {
 
 // TestMQPluginAcknowledgeMessageBatchInvalidMessage tests batch acknowledgment with invalid message
 func TestMQPluginAcknowledgeMessageBatchInvalidMessage(t *testing.T) {
+	t.Parallel()
 	config := Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -1246,6 +1282,7 @@ func TestMQPluginAcknowledgeMessageBatchInvalidMessage(t *testing.T) {
 
 // TestMQPluginAcknowledgeMessageBatchNotRunning tests batch acknowledgment when plugin not running
 func TestMQPluginAcknowledgeMessageBatchNotRunning(t *testing.T) {
+	t.Parallel()
 	config := Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -1281,6 +1318,7 @@ func TestMQPluginAcknowledgeMessageBatchNotRunning(t *testing.T) {
 
 // TestMQPluginAcknowledgeMessageConcurrent tests concurrent acknowledgments
 func TestMQPluginAcknowledgeMessageConcurrent(t *testing.T) {
+	t.Parallel()
 	config := Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -1329,6 +1367,7 @@ func TestMQPluginAcknowledgeMessageConcurrent(t *testing.T) {
 
 // TestMQPluginAcknowledgeMessageOffsetTracking tests offset tracking during acknowledgment
 func TestMQPluginAcknowledgeMessageOffsetTracking(t *testing.T) {
+	t.Parallel()
 	config := Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -1374,6 +1413,7 @@ func TestMQPluginAcknowledgeMessageOffsetTracking(t *testing.T) {
 
 // TestMQPluginAcknowledgeMessageMetrics tests metrics recording for acknowledgments
 func TestMQPluginAcknowledgeMessageMetrics(t *testing.T) {
+	t.Parallel()
 	config := Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -1417,6 +1457,7 @@ func TestMQPluginAcknowledgeMessageMetrics(t *testing.T) {
 
 // TestMQPluginRetryMessageIncrementsRetryCount tests that retry count is incremented
 func TestMQPluginRetryMessageIncrementsRetryCount(t *testing.T) {
+	t.Parallel()
 	config := Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -1467,6 +1508,7 @@ func TestMQPluginRetryMessageIncrementsRetryCount(t *testing.T) {
 
 // TestMQPluginRetryMessageExponentialBackoffDelay tests exponential backoff calculation
 func TestMQPluginRetryMessageExponentialBackoffDelay(t *testing.T) {
+	t.Parallel()
 	config := Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -1510,6 +1552,7 @@ func TestMQPluginRetryMessageExponentialBackoffDelay(t *testing.T) {
 
 // TestMQPluginRetryMessageMaxRetriesEnforcement tests that max retries is enforced
 func TestMQPluginRetryMessageMaxRetriesEnforcement(t *testing.T) {
+	t.Parallel()
 	config := Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -1559,6 +1602,7 @@ func TestMQPluginRetryMessageMaxRetriesEnforcement(t *testing.T) {
 
 // TestMQPluginRetryMessageSendsToDLQOnMaxRetries tests that message is sent to DLQ when max retries exceeded
 func TestMQPluginRetryMessageSendsToDLQOnMaxRetries(t *testing.T) {
+	t.Parallel()
 	config := Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -1607,6 +1651,7 @@ func TestMQPluginRetryMessageSendsToDLQOnMaxRetries(t *testing.T) {
 
 // TestMQPluginRetryMessagePreservesPayload tests that original message payload is preserved
 func TestMQPluginRetryMessagePreservesPayload(t *testing.T) {
+	t.Parallel()
 	config := Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -1650,6 +1695,7 @@ func TestMQPluginRetryMessagePreservesPayload(t *testing.T) {
 
 // TestMQPluginRetryMessagePreservesMetadata tests that message metadata is preserved
 func TestMQPluginRetryMessagePreservesMetadata(t *testing.T) {
+	t.Parallel()
 	config := Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -1708,6 +1754,7 @@ func TestMQPluginRetryMessagePreservesMetadata(t *testing.T) {
 
 // TestMQPluginRetryMessageContextCancellation tests that retry respects context cancellation
 func TestMQPluginRetryMessageContextCancellation(t *testing.T) {
+	t.Parallel()
 	config := Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -1754,6 +1801,7 @@ func TestMQPluginRetryMessageContextCancellation(t *testing.T) {
 
 // TestMQPluginRetryMessageNilContext tests that nil context is rejected
 func TestMQPluginRetryMessageNilContext(t *testing.T) {
+	t.Parallel()
 	config := Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -1785,6 +1833,7 @@ func TestMQPluginRetryMessageNilContext(t *testing.T) {
 
 // TestMQPluginRetryMessageEmptyTopic tests that empty topic is rejected
 func TestMQPluginRetryMessageEmptyTopic(t *testing.T) {
+	t.Parallel()
 	config := Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -1827,6 +1876,7 @@ func TestMQPluginRetryMessageEmptyTopic(t *testing.T) {
 
 // TestMQPluginRetryMessageEmptyID tests that empty message ID is rejected
 func TestMQPluginRetryMessageEmptyID(t *testing.T) {
+	t.Parallel()
 	config := Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -1869,6 +1919,7 @@ func TestMQPluginRetryMessageEmptyID(t *testing.T) {
 
 // TestMQPluginRetryMessageNotRunning tests that retry fails when plugin not running
 func TestMQPluginRetryMessageNotRunning(t *testing.T) {
+	t.Parallel()
 	config := Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -1907,6 +1958,7 @@ func TestMQPluginRetryMessageNotRunning(t *testing.T) {
 
 // TestMQPluginRetryMessageRecordsMetrics tests that retry metrics are recorded
 func TestMQPluginRetryMessageRecordsMetrics(t *testing.T) {
+	t.Parallel()
 	config := Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -1948,6 +2000,7 @@ func TestMQPluginRetryMessageRecordsMetrics(t *testing.T) {
 
 // TestMQPluginRetryMessageMultipleRetries tests multiple retry attempts
 func TestMQPluginRetryMessageMultipleRetries(t *testing.T) {
+	t.Parallel()
 	config := Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -2010,6 +2063,7 @@ func TestMQPluginRetryMessageMultipleRetries(t *testing.T) {
 
 // TestMQPluginConcurrentPublishMessages tests multiple goroutines publishing messages
 func TestMQPluginConcurrentPublishMessages(t *testing.T) {
+	t.Parallel()
 	config := Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -2066,6 +2120,7 @@ func TestMQPluginConcurrentPublishMessages(t *testing.T) {
 
 // TestMQPluginConcurrentConsumeMessages tests multiple goroutines consuming messages
 func TestMQPluginConcurrentConsumeMessages(t *testing.T) {
+	t.Parallel()
 	config := Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -2122,6 +2177,7 @@ func TestMQPluginConcurrentConsumeMessages(t *testing.T) {
 
 // TestMQPluginConcurrentStatsAccess tests multiple goroutines accessing stats
 func TestMQPluginConcurrentStatsAccess(t *testing.T) {
+	t.Parallel()
 	config := Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -2200,6 +2256,7 @@ func TestMQPluginConcurrentStatsAccess(t *testing.T) {
 
 // TestMQPluginConcurrentAcknowledgments tests multiple goroutines acknowledging messages
 func TestMQPluginConcurrentAcknowledgments(t *testing.T) {
+	t.Parallel()
 	config := Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -2248,6 +2305,7 @@ func TestMQPluginConcurrentAcknowledgments(t *testing.T) {
 
 // TestMQPluginConcurrentRetries tests multiple goroutines retrying messages
 func TestMQPluginConcurrentRetries(t *testing.T) {
+	t.Parallel()
 	config := Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -2314,6 +2372,7 @@ func TestMQPluginConcurrentRetries(t *testing.T) {
 
 // TestMQPluginConcurrentMixedOperations tests mixed concurrent operations
 func TestMQPluginConcurrentMixedOperations(t *testing.T) {
+	t.Parallel()
 	config := Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -2406,6 +2465,7 @@ func TestMQPluginConcurrentMixedOperations(t *testing.T) {
 
 // TestMQPluginConfigurationUpdatesDuringOperations tests that config updates don't affect in-flight operations
 func TestMQPluginConfigurationUpdatesDuringOperations(t *testing.T) {
+	t.Parallel()
 	config := Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -2476,6 +2536,7 @@ func TestMQPluginConfigurationUpdatesDuringOperations(t *testing.T) {
 
 // TestMQPluginGracefulShutdownWithInFlightOperations tests graceful shutdown waits for in-flight operations
 func TestMQPluginGracefulShutdownWithInFlightOperations(t *testing.T) {
+	t.Parallel()
 	config := Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -2554,6 +2615,7 @@ func TestMQPluginGracefulShutdownWithInFlightOperations(t *testing.T) {
 
 // TestMQPluginInFlightOperationTracking tests in-flight operation tracking
 func TestMQPluginInFlightOperationTracking(t *testing.T) {
+	t.Parallel()
 	config := Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -2611,6 +2673,7 @@ func TestMQPluginInFlightOperationTracking(t *testing.T) {
 
 // TestMQPluginAtomicCounterAccuracy tests that atomic counters maintain accuracy
 func TestMQPluginAtomicCounterAccuracy(t *testing.T) {
+	t.Parallel()
 	config := Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -2667,6 +2730,7 @@ func TestMQPluginAtomicCounterAccuracy(t *testing.T) {
 
 // TestMQPluginHealthCheckUnderConcurrentLoad tests health check under concurrent load
 func TestMQPluginHealthCheckUnderConcurrentLoad(t *testing.T) {
+	t.Parallel()
 	config := Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -2743,6 +2807,7 @@ func TestMQPluginHealthCheckUnderConcurrentLoad(t *testing.T) {
 
 // TestMQPluginMetricsSnapshotConsistency tests metrics snapshot consistency under concurrent access
 func TestMQPluginMetricsSnapshotConsistency(t *testing.T) {
+	t.Parallel()
 	config := Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,

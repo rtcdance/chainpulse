@@ -14,6 +14,7 @@ import (
 // with configurable maximum retries
 
 func TestProperty3ExponentialBackoffRetry(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metricsCollector := core.NewDefaultMetricsCollector()
 	errorHandler := NewErrorHandler(logger, metricsCollector)

@@ -258,21 +258,30 @@ func (cm *ConfigManager) GetCacheSize() int {
 
 // isSensitive checks if a configuration key is sensitive
 func isSensitive(key string) bool {
-	sensitiveKeys := map[string]bool{
-		"password":   true,
-		"token":      true,
-		"secret":     true,
-		"api_key":    true,
-		"private":    true,
-		"credential": true,
+	sensitiveKeys := []string{
+		"password",
+		"token",
+		"secret",
+		"api_key",
+		"private",
+		"credential",
 	}
 
-	for sensitiveKey := range sensitiveKeys {
-		if len(key) >= len(sensitiveKey) && key[:len(sensitiveKey)] == sensitiveKey {
+	for _, sensitiveKey := range sensitiveKeys {
+		if len(key) >= len(sensitiveKey) && containsSubstring(key, sensitiveKey) {
 			return true
 		}
 	}
 
+	return false
+}
+
+func containsSubstring(s, substr string) bool {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return true
+		}
+	}
 	return false
 }
 

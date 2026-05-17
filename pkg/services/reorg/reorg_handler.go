@@ -160,7 +160,7 @@ func (rh *ReorgHandler) DetectReorg(
 	// Reorg detected - find the reorg block
 	reorgBlock, err := rh.findReorgBlock(ctx, currentBlock)
 	if err != nil {
-		rh.logger.Warn("reorg scan failed", map[string]interface{}{"error": err.Error()})
+		rh.logger.Warn("reorg scan failed", core.LogKeyError, err)
 		return true, currentBlock, nil // Report reorg at current block as best guess
 	}
 	if reorgBlock == 0 {
@@ -169,11 +169,9 @@ func (rh *ReorgHandler) DetectReorg(
 
 	rh.logger.Warn(
 		"Reorg detected",
-		map[string]interface{}{
-			"reorg_block":     reorgBlock,
-			"current_block":   currentBlock,
-			"blocks_affected": currentBlock - reorgBlock + 1,
-		},
+		core.LogKeyReorgBlock, reorgBlock,
+		core.LogKeyCurrentBlock, currentBlock,
+		core.LogKeyBlocksAffected, currentBlock-reorgBlock+1,
 	)
 
 	return true, reorgBlock, nil
@@ -218,10 +216,8 @@ func (rh *ReorgHandler) HandleReorg(ctx context.Context, reorgBlock uint64) erro
 			BlocksAffected:   blocksToRollback,
 			EventsRolledBack: eventsRolledBack,
 		}
-		if err := rh.eventBus.Publish(ctx, "reorg-detected", reorgEvt); err != nil {
-			rh.logger.Error("Failed to publish reorg event", map[string]interface{}{
-				"error": err.Error(),
-			})
+		if err := rh.eventBus.Publish(ctx, core.TopicReorgDetected, reorgEvt); err != nil {
+			rh.logger.Error("Failed to publish reorg event", core.LogKeyError, err)
 		}
 
 		// Publish re-index trigger event so the puller can re-pull affected blocks
@@ -231,20 +227,16 @@ func (rh *ReorgHandler) HandleReorg(ctx context.Context, reorgBlock uint64) erro
 			ToBlock:    currentBlock,
 			DetectedAt: time.Now(),
 		}
-		if err := rh.eventBus.Publish(ctx, "reorg-rollback", reindexEvt); err != nil {
-			rh.logger.Error("Failed to publish reorg rollback event", map[string]interface{}{
-				"error": err.Error(),
-			})
+		if err := rh.eventBus.Publish(ctx, core.TopicReorgRollback, reindexEvt); err != nil {
+			rh.logger.Error("Failed to publish reorg rollback event", core.LogKeyError, err)
 		}
 	}
 
 	rh.logger.Info(
 		"Reorg handled successfully",
-		map[string]interface{}{
-			"reorg_block":        reorgBlock,
-			"blocks_rolled_back": blocksToRollback,
-			"events_rolled_back": eventsRolledBack,
-		},
+		core.LogKeyReorgBlock, reorgBlock,
+		core.LogKeyBlocksRolledBack, blocksToRollback,
+		core.LogKeyEventsRolledBack, eventsRolledBack,
 	)
 
 	return nil
@@ -266,21 +258,17 @@ func (rh *ReorgHandler) RollbackEvents(ctx context.Context, fromBlock, currentBl
 		invalidated := rh.idempotencyInvalidator.InvalidateRange(fromBlock, currentBlock)
 		rh.logger.Info(
 			"Idempotency entries invalidated for reorged range",
-			map[string]interface{}{
-				"from_block":    fromBlock,
-				"current_block": currentBlock,
-				"invalidated":   invalidated,
-			},
+			core.LogKeyFromBlock, fromBlock,
+			core.LogKeyCurrentBlock, currentBlock,
+			core.LogKeyInvalidated, invalidated,
 		)
 	}
 
 	rh.logger.Info(
 		"Events marked as reorged",
-		map[string]interface{}{
-			"from_block":    fromBlock,
-			"current_block": currentBlock,
-			"count":         count,
-		},
+		core.LogKeyFromBlock, fromBlock,
+		core.LogKeyCurrentBlock, currentBlock,
+		core.LogKeyCount, count,
 	)
 
 	return count, nil
@@ -381,10 +369,8 @@ func (rh *ReorgHandler) linearScanReorg(ctx context.Context, currentBlock, maxSc
 		if err != nil {
 			rh.logger.Error(
 				"Failed to get canonical block hash",
-				map[string]interface{}{
-					"block": block,
-					"error": err.Error(),
-				},
+				core.LogKeyBlockNumber, block,
+				core.LogKeyError, err,
 			)
 			continue
 		}

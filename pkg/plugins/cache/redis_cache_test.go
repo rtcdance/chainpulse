@@ -9,6 +9,7 @@ import (
 )
 
 func TestRedisCacheInitialize(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	cache := NewRedisCachePlugin(logger, metrics)
@@ -38,6 +39,7 @@ func TestRedisCacheInitialize(t *testing.T) {
 }
 
 func TestRedisCacheLifecycle(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	cache := NewRedisCachePlugin(logger, metrics)
@@ -77,6 +79,7 @@ func TestRedisCacheLifecycle(t *testing.T) {
 }
 
 func TestRedisCacheSetAndGet(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	cache := NewRedisCachePlugin(logger, metrics)
@@ -124,6 +127,7 @@ func TestRedisCacheSetAndGet(t *testing.T) {
 }
 
 func TestRedisCacheDelete(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	cache := NewRedisCachePlugin(logger, metrics)
@@ -168,6 +172,7 @@ func TestRedisCacheDelete(t *testing.T) {
 }
 
 func TestRedisCacheExists(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	cache := NewRedisCachePlugin(logger, metrics)
@@ -214,6 +219,7 @@ func TestRedisCacheExists(t *testing.T) {
 }
 
 func TestRedisCacheExpire(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	cache := NewRedisCachePlugin(logger, metrics)
@@ -255,6 +261,7 @@ func TestRedisCacheExpire(t *testing.T) {
 }
 
 func TestRedisCacheTTL(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	cache := NewRedisCachePlugin(logger, metrics)
@@ -301,6 +308,7 @@ func TestRedisCacheTTL(t *testing.T) {
 }
 
 func TestRedisCacheIncrement(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	cache := NewRedisCachePlugin(logger, metrics)
@@ -338,6 +346,7 @@ func TestRedisCacheIncrement(t *testing.T) {
 }
 
 func TestRedisCacheDecrement(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	cache := NewRedisCachePlugin(logger, metrics)
@@ -374,6 +383,7 @@ func TestRedisCacheDecrement(t *testing.T) {
 }
 
 func TestRedisCacheGetAllKeys(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	cache := NewRedisCachePlugin(logger, metrics)
@@ -411,6 +421,7 @@ func TestRedisCacheGetAllKeys(t *testing.T) {
 }
 
 func TestRedisCachePing(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	cache := NewRedisCachePlugin(logger, metrics)
@@ -434,6 +445,7 @@ func TestRedisCachePing(t *testing.T) {
 }
 
 func TestRedisCacheFlushDB(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	cache := NewRedisCachePlugin(logger, metrics)
@@ -473,6 +485,7 @@ func TestRedisCacheFlushDB(t *testing.T) {
 }
 
 func TestRedisCacheGetKeyCount(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	cache := NewRedisCachePlugin(logger, metrics)
@@ -506,6 +519,7 @@ func TestRedisCacheGetKeyCount(t *testing.T) {
 }
 
 func TestRedisCacheStats(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	cache := NewRedisCachePlugin(logger, metrics)
@@ -557,6 +571,7 @@ func TestRedisCacheStats(t *testing.T) {
 }
 
 func TestRedisCacheConcurrentOperations(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	cache := NewRedisCachePlugin(logger, metrics)
@@ -600,6 +615,7 @@ func TestRedisCacheConcurrentOperations(t *testing.T) {
 }
 
 func TestRedisCacheDefaultConnectionURL(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	cache := NewRedisCachePlugin(logger, metrics)

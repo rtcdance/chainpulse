@@ -82,11 +82,11 @@ func (v *VaultShareMath) PreviewRedeem(shares *big.Int) *big.Int {
 
 // VaultFeeConfig represents fee configuration for an ERC-4626 vault.
 type VaultFeeConfig struct {
-	ManagementFeeBP uint64 `json:"management_fee_bp"` // annual management fee in basis points
-	PerformanceFeeBP uint64 `json:"performance_fee_bp"` // performance fee in basis points
-	EntryFeeBP      uint64 `json:"entry_fee_bp"`       // deposit fee in basis points
-	ExitFeeBP       uint64 `json:"exit_fee_bp"`        // withdrawal fee in basis points
-	FeeRecipient    common.Address `json:"fee_recipient"`
+	ManagementFeeBP  uint64         `json:"management_fee_bp"`  // annual management fee in basis points
+	PerformanceFeeBP uint64         `json:"performance_fee_bp"` // performance fee in basis points
+	EntryFeeBP       uint64         `json:"entry_fee_bp"`       // deposit fee in basis points
+	ExitFeeBP        uint64         `json:"exit_fee_bp"`        // withdrawal fee in basis points
+	FeeRecipient     common.Address `json:"fee_recipient"`
 }
 
 // CalculateEntryFee returns the entry fee for a deposit amount.
@@ -115,7 +115,7 @@ func (f *VaultFeeConfig) CalculateExitFee(withdrawalAmount *big.Int) *big.Int {
 
 // RoyaltyInfo implements ERC-2981 royalty calculation.
 type RoyaltyInfo struct {
-	RoyaltyFraction *big.Int `json:"royalty_fraction"` // royalty in basis points (e.g., 250 = 2.5%)
+	RoyaltyFraction  *big.Int       `json:"royalty_fraction"` // royalty in basis points (e.g., 250 = 2.5%)
 	RoyaltyRecipient common.Address `json:"royalty_recipient"`
 }
 
@@ -141,8 +141,8 @@ func (r *RoyaltyInfo) CalculateRoyalty(salePrice *big.Int) *big.Int {
 
 // RoyaltyRecipientForToken returns the royalty recipient (per-token override support).
 type RoyaltyManager struct {
-	defaultRoyalty  *RoyaltyInfo
-	tokenRoyalties  map[uint64]*RoyaltyInfo // tokenId → override
+	defaultRoyalty *RoyaltyInfo
+	tokenRoyalties map[uint64]*RoyaltyInfo // tokenId → override
 }
 
 // NewRoyaltyManager creates a new royalty manager.
@@ -170,12 +170,12 @@ func (rm *RoyaltyManager) RoyaltyInfoForToken(tokenID uint64) *RoyaltyInfo {
 
 // BatchTransfer represents a batch of token transfers for ERC-1155.
 type BatchTransfer struct {
-	Operator common.Address   `json:"operator"`
-	From     common.Address   `json:"from"`
-	To       common.Address   `json:"to"`
-	TokenIDs []*big.Int       `json:"token_ids"`
-	Amounts  []*big.Int       `json:"amounts"`
-	Data     []byte           `json:"data,omitempty"`
+	Operator common.Address `json:"operator"`
+	From     common.Address `json:"from"`
+	To       common.Address `json:"to"`
+	TokenIDs []*big.Int     `json:"token_ids"`
+	Amounts  []*big.Int     `json:"amounts"`
+	Data     []byte         `json:"data,omitempty"`
 }
 
 // Validate checks that the batch transfer is well-formed.

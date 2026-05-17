@@ -11,6 +11,7 @@ import (
 
 // TestKafkaIntegrationPublishAndConsume tests publishing and consuming messages
 func TestKafkaIntegrationPublishAndConsume(t *testing.T) {
+	t.Parallel()
 	requireMQIntegration(t)
 
 	config := &core.Config{
@@ -62,6 +63,7 @@ func TestKafkaIntegrationPublishAndConsume(t *testing.T) {
 
 // TestKafkaIntegrationBatchPublish tests batch publishing
 func TestKafkaIntegrationBatchPublish(t *testing.T) {
+	t.Parallel()
 	requireMQIntegration(t)
 
 	config := &core.Config{
@@ -115,6 +117,7 @@ func TestKafkaIntegrationBatchPublish(t *testing.T) {
 
 // TestKafkaIntegrationErrorHandling tests error handling
 func TestKafkaIntegrationErrorHandling(t *testing.T) {
+	t.Parallel()
 	requireMQIntegration(t)
 
 	config := &core.Config{
@@ -168,6 +171,7 @@ func TestKafkaIntegrationErrorHandling(t *testing.T) {
 
 // TestKafkaIntegrationDeadLetterQueue tests dead letter queue
 func TestKafkaIntegrationDeadLetterQueue(t *testing.T) {
+	t.Parallel()
 	requireMQIntegration(t)
 
 	config := &core.Config{
@@ -217,6 +221,7 @@ func TestKafkaIntegrationDeadLetterQueue(t *testing.T) {
 
 // TestKafkaIntegrationMultipleConsumers tests multiple consumers
 func TestKafkaIntegrationMultipleConsumers(t *testing.T) {
+	t.Parallel()
 	requireMQIntegration(t)
 
 	config := &core.Config{
@@ -264,6 +269,7 @@ func TestKafkaIntegrationMultipleConsumers(t *testing.T) {
 
 // TestKafkaIntegrationOffsetTracking tests offset tracking
 func TestKafkaIntegrationOffsetTracking(t *testing.T) {
+	t.Parallel()
 	requireMQIntegration(t)
 
 	config := &core.Config{
@@ -299,6 +305,7 @@ func TestKafkaIntegrationOffsetTracking(t *testing.T) {
 
 // TestKafkaIntegrationHealthCheck tests health check
 func TestKafkaIntegrationHealthCheck(t *testing.T) {
+	t.Parallel()
 	requireMQIntegration(t)
 
 	config := &core.Config{
@@ -336,6 +343,7 @@ func TestKafkaIntegrationHealthCheck(t *testing.T) {
 
 // TestKafkaIntegrationPerformance tests performance
 func TestKafkaIntegrationPerformance(t *testing.T) {
+	t.Parallel()
 	requireMQIntegration(t)
 
 	config := &core.Config{

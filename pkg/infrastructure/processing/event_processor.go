@@ -1,3 +1,10 @@
+// Package processing contains infrastructure-level event processing types.
+//
+// Deprecated: The canonical implementations have moved to pkg/services/processor/
+// (event_processor.go) and pkg/services/query/ (event_store.go). This package is
+// retained for backward compatibility and is currently consumed by
+// pkg/infrastructure/blockchain/blockchain_cluster.go. New code should use the
+// service-layer equivalents.
 package processing
 
 import (
@@ -16,18 +23,18 @@ import (
 
 // Event represents a blockchain event to be processed
 type Event struct {
-	ID              string                 `json:"id"`
-	EventHash       string                 `json:"event_hash"`
-	BlockNumber     uint64                 `json:"block_number"`
-	TransactionHash string                 `json:"transaction_hash"`
-	LogIndex        uint64                 `json:"log_index"`
-	ContractAddress string                 `json:"contract_address"`
-	EventName       string                 `json:"event_name"`
-	EventData       map[string]interface{} `json:"event_data"`
-	ChainID         string                 `json:"chain_id"`
-	Timestamp       time.Time              `json:"timestamp"`
-	ProcessedAt     time.Time              `json:"processed_at"`
-	Status          string                 `json:"status"` // pending, processed, failed
+	ID              string         `json:"id"`
+	EventHash       string         `json:"event_hash"`
+	BlockNumber     uint64         `json:"block_number"`
+	TransactionHash string         `json:"transaction_hash"`
+	LogIndex        uint64         `json:"log_index"`
+	ContractAddress string         `json:"contract_address"`
+	EventName       string         `json:"event_name"`
+	EventData       map[string]any `json:"event_data"`
+	ChainID         string         `json:"chain_id"`
+	Timestamp       time.Time      `json:"timestamp"`
+	ProcessedAt     time.Time      `json:"processed_at"`
+	Status          string         `json:"status"` // pending, processed, failed
 }
 
 // EventValidationError represents validation errors
@@ -192,7 +199,7 @@ func (ep *EventProcessor) validateEvent(event *Event) error {
 	}
 
 	if event.EventData == nil {
-		event.EventData = make(map[string]interface{})
+		event.EventData = make(map[string]any)
 	}
 
 	return nil
@@ -306,7 +313,7 @@ func (ep *EventProcessor) Health() core.HealthStatus {
 	status := core.HealthStatus{
 		Status:    "healthy",
 		Timestamp: time.Now(),
-		Details: map[string]interface{}{
+		Details: map[string]any{
 			"processor_id":      ep.id,
 			"chain_id":          ep.chainID,
 			"processed_count":   ep.processedCount,

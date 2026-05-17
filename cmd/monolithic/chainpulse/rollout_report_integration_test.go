@@ -18,7 +18,7 @@ func TestMonolithicRolloutReportRouteParityMetadataAndBodyBoundaries(t *testing.
 	healthHandler := api.NewHealthCheckHandler(nil, logger, metrics)
 	healthHandler.SetRolloutReportProducer(api.RolloutReportProducerFunc(func(ctx context.Context) *api.RolloutReportDetails {
 		_ = ctx
-		return buildOwnershipRolloutSummary(map[string]map[string]interface{}{
+		return buildOwnershipRolloutSummary(map[string]map[string]any{
 			"ethereum": {
 				"shadow_owned_events": int64(4),
 				"legacy_owned_events": int64(2),

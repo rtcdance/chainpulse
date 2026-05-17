@@ -12,6 +12,7 @@ import (
 
 // TestZeroMQMQPluginCreation tests ZeroMQ MQ plugin creation
 func TestZeroMQMQPluginCreation(t *testing.T) {
+	t.Parallel()
 	config := &core.Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -38,6 +39,7 @@ func TestZeroMQMQPluginCreation(t *testing.T) {
 
 // TestZeroMQMQPluginInitialization tests ZeroMQ plugin initialization
 func TestZeroMQMQPluginInitialization(t *testing.T) {
+	t.Parallel()
 	config := &core.Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -68,6 +70,7 @@ func TestZeroMQMQPluginInitialization(t *testing.T) {
 
 // TestZeroMQMQPluginLifecycle tests ZeroMQ plugin lifecycle
 func TestZeroMQMQPluginLifecycle(t *testing.T) {
+	t.Parallel()
 	requireMQIntegration(t)
 
 	config := &core.Config{
@@ -106,6 +109,7 @@ func TestZeroMQMQPluginLifecycle(t *testing.T) {
 
 // TestZeroMQMQPluginPublishMessage tests publishing a message
 func TestZeroMQMQPluginPublishMessage(t *testing.T) {
+	t.Parallel()
 	requireMQIntegration(t)
 
 	config := &core.Config{
@@ -151,6 +155,7 @@ func TestZeroMQMQPluginPublishMessage(t *testing.T) {
 
 // TestZeroMQMQPluginAcknowledgeMessage tests acknowledging a message
 func TestZeroMQMQPluginAcknowledgeMessage(t *testing.T) {
+	t.Parallel()
 	requireMQIntegration(t)
 
 	config := &core.Config{
@@ -196,6 +201,7 @@ func TestZeroMQMQPluginAcknowledgeMessage(t *testing.T) {
 
 // TestZeroMQMQPluginDeadLetterQueue tests dead letter queue handling
 func TestZeroMQMQPluginDeadLetterQueue(t *testing.T) {
+	t.Parallel()
 	requireMQIntegration(t)
 
 	config := &core.Config{
@@ -246,6 +252,7 @@ func TestZeroMQMQPluginDeadLetterQueue(t *testing.T) {
 
 // TestZeroMQMQPluginRetryMessage tests message retry
 func TestZeroMQMQPluginRetryMessage(t *testing.T) {
+	t.Parallel()
 	requireMQIntegration(t)
 
 	config := &core.Config{
@@ -297,6 +304,7 @@ func TestZeroMQMQPluginRetryMessage(t *testing.T) {
 
 // TestZeroMQMQPluginGetStats tests statistics retrieval
 func TestZeroMQMQPluginGetStats(t *testing.T) {
+	t.Parallel()
 	config := &core.Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -327,6 +335,7 @@ func TestZeroMQMQPluginGetStats(t *testing.T) {
 
 // TestZeroMQMQPluginSetBatchSize tests setting batch size
 func TestZeroMQMQPluginSetBatchSize(t *testing.T) {
+	t.Parallel()
 	config := &core.Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -348,6 +357,7 @@ func TestZeroMQMQPluginSetBatchSize(t *testing.T) {
 
 // TestZeroMQMQPluginSetMaxRetries tests setting max retries
 func TestZeroMQMQPluginSetMaxRetries(t *testing.T) {
+	t.Parallel()
 	config := &core.Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -369,6 +379,7 @@ func TestZeroMQMQPluginSetMaxRetries(t *testing.T) {
 
 // TestZeroMQMQPluginSetRetryDelay tests setting retry delay
 func TestZeroMQMQPluginSetRetryDelay(t *testing.T) {
+	t.Parallel()
 	config := &core.Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -390,6 +401,7 @@ func TestZeroMQMQPluginSetRetryDelay(t *testing.T) {
 
 // TestZeroMQMQPluginConcurrentOperations tests concurrent operations
 func TestZeroMQMQPluginConcurrentOperations(t *testing.T) {
+	t.Parallel()
 	requireMQIntegration(t)
 
 	config := &core.Config{
@@ -452,6 +464,7 @@ func TestZeroMQMQPluginConcurrentOperations(t *testing.T) {
 
 // TestZeroMQMQPluginHealth tests health check
 func TestZeroMQMQPluginHealth(t *testing.T) {
+	t.Parallel()
 	config := &core.Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -482,6 +495,7 @@ func TestZeroMQMQPluginHealth(t *testing.T) {
 
 // TestZeroMQMQPluginEndpointConfiguration tests endpoint configuration
 func TestZeroMQMQPluginEndpointConfiguration(t *testing.T) {
+	t.Parallel()
 	config := &core.Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -507,6 +521,7 @@ func TestZeroMQMQPluginEndpointConfiguration(t *testing.T) {
 
 // TestZeroMQMQPluginMultipleEndpoints tests handling multiple endpoints
 func TestZeroMQMQPluginMultipleEndpoints(t *testing.T) {
+	t.Parallel()
 	config := &core.Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -532,6 +547,7 @@ func TestZeroMQMQPluginMultipleEndpoints(t *testing.T) {
 
 // TestZeroMQMQPluginGetDeadLetterQueueMessages tests retrieving DLQ messages
 func TestZeroMQMQPluginGetDeadLetterQueueMessages(t *testing.T) {
+	t.Parallel()
 	requireMQIntegration(t)
 
 	config := &core.Config{

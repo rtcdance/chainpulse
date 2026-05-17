@@ -9,6 +9,7 @@ import (
 )
 
 func TestNewIndexerMetrics(t *testing.T) {
+	t.Parallel()
 	metrics := NewIndexerMetrics()
 
 	require.NotNil(t, metrics)
@@ -24,6 +25,7 @@ func TestNewIndexerMetrics(t *testing.T) {
 }
 
 func TestRecordIndexingProgress(t *testing.T) {
+	t.Parallel()
 	metrics := NewIndexerMetrics()
 
 	metrics.RecordIndexingProgress(1000, 1100)
@@ -34,6 +36,7 @@ func TestRecordIndexingProgress(t *testing.T) {
 }
 
 func TestRecordIndexingProgressNoLag(t *testing.T) {
+	t.Parallel()
 	metrics := NewIndexerMetrics()
 
 	metrics.RecordIndexingProgress(1000, 1000)
@@ -44,6 +47,7 @@ func TestRecordIndexingProgressNoLag(t *testing.T) {
 }
 
 func TestRecordEventIndexed(t *testing.T) {
+	t.Parallel()
 	metrics := NewIndexerMetrics()
 
 	latency := 50 * time.Millisecond
@@ -55,6 +59,7 @@ func TestRecordEventIndexed(t *testing.T) {
 }
 
 func TestRecordEventIndexedMultiple(t *testing.T) {
+	t.Parallel()
 	metrics := NewIndexerMetrics()
 
 	for i := 0; i < 5; i++ {
@@ -66,6 +71,7 @@ func TestRecordEventIndexedMultiple(t *testing.T) {
 }
 
 func TestRecordEventProcessed(t *testing.T) {
+	t.Parallel()
 	metrics := NewIndexerMetrics()
 
 	metrics.RecordEventProcessed()
@@ -75,6 +81,7 @@ func TestRecordEventProcessed(t *testing.T) {
 }
 
 func TestRecordEventFailed(t *testing.T) {
+	t.Parallel()
 	metrics := NewIndexerMetrics()
 
 	metrics.RecordEventFailed("decode_error")
@@ -87,6 +94,7 @@ func TestRecordEventFailed(t *testing.T) {
 }
 
 func TestRecordQueryLatency(t *testing.T) {
+	t.Parallel()
 	metrics := NewIndexerMetrics()
 
 	latency := 100 * time.Millisecond
@@ -97,6 +105,7 @@ func TestRecordQueryLatency(t *testing.T) {
 }
 
 func TestRecordReorg(t *testing.T) {
+	t.Parallel()
 	metrics := NewIndexerMetrics()
 
 	metrics.RecordReorg(50)
@@ -107,6 +116,7 @@ func TestRecordReorg(t *testing.T) {
 }
 
 func TestRecordCacheHit(t *testing.T) {
+	t.Parallel()
 	metrics := NewIndexerMetrics()
 
 	metrics.RecordCacheHit()
@@ -116,6 +126,7 @@ func TestRecordCacheHit(t *testing.T) {
 }
 
 func TestRecordCacheMiss(t *testing.T) {
+	t.Parallel()
 	metrics := NewIndexerMetrics()
 
 	metrics.RecordCacheMiss()
@@ -126,6 +137,7 @@ func TestRecordCacheMiss(t *testing.T) {
 }
 
 func TestGetAverageIndexingLatency(t *testing.T) {
+	t.Parallel()
 	metrics := NewIndexerMetrics()
 
 	metrics.RecordEventIndexed(10 * time.Millisecond)
@@ -137,6 +149,7 @@ func TestGetAverageIndexingLatency(t *testing.T) {
 }
 
 func TestGetAverageIndexingLatencyEmpty(t *testing.T) {
+	t.Parallel()
 	metrics := NewIndexerMetrics()
 
 	avg := metrics.GetAverageIndexingLatency()
@@ -144,6 +157,7 @@ func TestGetAverageIndexingLatencyEmpty(t *testing.T) {
 }
 
 func TestGetMaxIndexingLatency(t *testing.T) {
+	t.Parallel()
 	metrics := NewIndexerMetrics()
 
 	metrics.RecordEventIndexed(10 * time.Millisecond)
@@ -155,6 +169,7 @@ func TestGetMaxIndexingLatency(t *testing.T) {
 }
 
 func TestGetMaxIndexingLatencyEmpty(t *testing.T) {
+	t.Parallel()
 	metrics := NewIndexerMetrics()
 
 	max := metrics.GetMaxIndexingLatency()
@@ -162,6 +177,7 @@ func TestGetMaxIndexingLatencyEmpty(t *testing.T) {
 }
 
 func TestGetAverageQueryLatency(t *testing.T) {
+	t.Parallel()
 	metrics := NewIndexerMetrics()
 
 	metrics.RecordQueryLatency(50 * time.Millisecond)
@@ -173,6 +189,7 @@ func TestGetAverageQueryLatency(t *testing.T) {
 }
 
 func TestGetMaxQueryLatency(t *testing.T) {
+	t.Parallel()
 	metrics := NewIndexerMetrics()
 
 	metrics.RecordQueryLatency(50 * time.Millisecond)
@@ -184,6 +201,7 @@ func TestGetMaxQueryLatency(t *testing.T) {
 }
 
 func TestGetCacheHitRate(t *testing.T) {
+	t.Parallel()
 	metrics := NewIndexerMetrics()
 
 	metrics.RecordCacheHit()
@@ -196,6 +214,7 @@ func TestGetCacheHitRate(t *testing.T) {
 }
 
 func TestGetCacheHitRateEmpty(t *testing.T) {
+	t.Parallel()
 	metrics := NewIndexerMetrics()
 
 	rate := metrics.GetCacheHitRate()
@@ -203,6 +222,7 @@ func TestGetCacheHitRateEmpty(t *testing.T) {
 }
 
 func TestGetCacheHitRateAllHits(t *testing.T) {
+	t.Parallel()
 	metrics := NewIndexerMetrics()
 
 	metrics.RecordCacheHit()
@@ -214,6 +234,7 @@ func TestGetCacheHitRateAllHits(t *testing.T) {
 }
 
 func TestGetIndexingRate(t *testing.T) {
+	t.Parallel()
 	metrics := NewIndexerMetrics()
 
 	// Record some events
@@ -226,6 +247,7 @@ func TestGetIndexingRate(t *testing.T) {
 }
 
 func TestGetErrorRate(t *testing.T) {
+	t.Parallel()
 	metrics := NewIndexerMetrics()
 
 	for i := 0; i < 8; i++ {
@@ -240,6 +262,7 @@ func TestGetErrorRate(t *testing.T) {
 }
 
 func TestGetErrorRateEmpty(t *testing.T) {
+	t.Parallel()
 	metrics := NewIndexerMetrics()
 
 	rate := metrics.GetErrorRate()
@@ -247,6 +270,7 @@ func TestGetErrorRateEmpty(t *testing.T) {
 }
 
 func TestGetMetricsSummary(t *testing.T) {
+	t.Parallel()
 	metrics := NewIndexerMetrics()
 
 	metrics.RecordIndexingProgress(1000, 1100)
@@ -271,6 +295,7 @@ func TestGetMetricsSummary(t *testing.T) {
 }
 
 func TestReset(t *testing.T) {
+	t.Parallel()
 	metrics := NewIndexerMetrics()
 
 	metrics.RecordIndexingProgress(1000, 1100)
@@ -297,6 +322,7 @@ func TestReset(t *testing.T) {
 // Property-based tests
 
 func TestPropertyMetricsThreadSafety(t *testing.T) {
+	t.Parallel()
 	metrics := NewIndexerMetrics()
 
 	// Simulate concurrent access
@@ -325,6 +351,7 @@ func TestPropertyMetricsThreadSafety(t *testing.T) {
 }
 
 func TestPropertyMetricsConsistency(t *testing.T) {
+	t.Parallel()
 	metrics := NewIndexerMetrics()
 
 	// Record events
@@ -343,6 +370,7 @@ func TestPropertyMetricsConsistency(t *testing.T) {
 }
 
 func TestPropertyMetricsAccuracy(t *testing.T) {
+	t.Parallel()
 	metrics := NewIndexerMetrics()
 
 	// Record specific values
@@ -360,6 +388,7 @@ func TestPropertyMetricsAccuracy(t *testing.T) {
 }
 
 func TestPropertyMetricsLatencyBounds(t *testing.T) {
+	t.Parallel()
 	metrics := NewIndexerMetrics()
 
 	// Record latencies

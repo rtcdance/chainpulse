@@ -33,7 +33,7 @@ func (s *stubDatabasePlugin) Start() error {
 }
 func (s *stubDatabasePlugin) Stop() error   { s.stopped = true; return nil }
 func (s *stubDatabasePlugin) Health() error { return nil }
-func (s *stubDatabasePlugin) StoreEvent(ctx context.Context, event interface{}) error {
+func (s *stubDatabasePlugin) StoreEvent(ctx context.Context, event any) error {
 	return nil
 }
 
@@ -41,11 +41,11 @@ func (s *stubDatabasePlugin) GetEvent(ctx context.Context, id string) (*core.Blo
 	return nil, nil
 }
 
-func (s *stubDatabasePlugin) QueryEvents(ctx context.Context, filter interface{}) ([]interface{}, error) {
+func (s *stubDatabasePlugin) QueryEvents(ctx context.Context, filter any) ([]any, error) {
 	return nil, nil
 }
 
-func (s *stubDatabasePlugin) BatchStoreEvents(ctx context.Context, events []interface{}) error {
+func (s *stubDatabasePlugin) BatchStoreEvents(ctx context.Context, events []any) error {
 	return nil
 }
 
@@ -107,6 +107,7 @@ func (s *stubCachePlugin) Delete(ctx context.Context, key string) error { return
 func (s *stubCachePlugin) GetStats() core.CacheStats                    { return core.CacheStats{} }
 
 func TestBuildMonolithicIndexingStorageRequiresLogger(t *testing.T) {
+	t.Parallel()
 	db, cache, err := buildMonolithicIndexingStorageWithDeps(nil, core.Config{}, defaultMonolithicIndexingStorageDeps())
 	if err == nil {
 		t.Fatal("expected logger validation error")
@@ -117,6 +118,7 @@ func TestBuildMonolithicIndexingStorageRequiresLogger(t *testing.T) {
 }
 
 func TestBuildMonolithicIndexingStorageSuccess(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 
 	db, cache, err := BuildMonolithicIndexingStorage(logger, core.Config{})
@@ -129,6 +131,7 @@ func TestBuildMonolithicIndexingStorageSuccess(t *testing.T) {
 }
 
 func TestNewMonolithicIndexingDatabaseForMode(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 
 	monolithicDB := newMonolithicIndexingDatabaseForMode(logger, core.Config{DeploymentMode: "monolithic"})
@@ -143,6 +146,7 @@ func TestNewMonolithicIndexingDatabaseForMode(t *testing.T) {
 }
 
 func TestSnapshotCompatibleDatabaseStoresBlockSnapshots(t *testing.T) {
+	t.Parallel()
 	db := newSnapshotCompatibleDatabase(&stubDatabasePlugin{})
 
 	hash := common.HexToHash("0xabc")
@@ -161,6 +165,7 @@ func TestSnapshotCompatibleDatabaseStoresBlockSnapshots(t *testing.T) {
 }
 
 func TestBuildMonolithicIndexingStorageStopsDatabaseIfCacheStartFails(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	db := &stubDatabasePlugin{}
 	cache := &stubCachePlugin{startErr: errors.New("cache start boom")}

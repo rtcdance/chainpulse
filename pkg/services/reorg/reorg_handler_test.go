@@ -49,7 +49,7 @@ func (m *mockReorgDatabase) GetEvent(_ context.Context, _ string) (*core.Blockch
 	return nil, nil
 }
 
-func (m *mockReorgDatabase) QueryEvents(_ context.Context, _ interface{}) ([]interface{}, error) {
+func (m *mockReorgDatabase) QueryEvents(_ context.Context, _ any) ([]any, error) {
 	return nil, nil
 }
 
@@ -68,9 +68,9 @@ func (m *mockReorgDatabase) GetEventsByBlockRange(_ context.Context, fromBlock, 
 }
 
 // EventWriter
-func (m *mockReorgDatabase) StoreEvent(_ context.Context, _ interface{}) error { return nil }
+func (m *mockReorgDatabase) StoreEvent(_ context.Context, _ any) error { return nil }
 
-func (m *mockReorgDatabase) BatchStoreEvents(_ context.Context, _ []interface{}) error { return nil }
+func (m *mockReorgDatabase) BatchStoreEvents(_ context.Context, _ []any) error { return nil }
 
 func (m *mockReorgDatabase) DeleteEvent(_ context.Context, _ string) error { return nil }
 
@@ -328,7 +328,7 @@ func TestHandleReorgPublishesEvent(t *testing.T) {
 
 	published := make(chan *ReorgEvent, 1)
 	bus := core.NewEventBus(core.NewDefaultLogger(core.LogLevelError))
-	_, _ = bus.Subscribe(context.Background(), "reorg-detected", func(payload interface{}) {
+	_, _ = bus.Subscribe(context.Background(), "reorg-detected", func(payload any) {
 		published <- payload.(*ReorgEvent)
 	})
 

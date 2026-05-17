@@ -26,7 +26,7 @@ type AuditEvent struct {
 	Action    string
 	Result    string // "success", "failure"
 	Reason    string
-	Details   map[string]interface{}
+	Details   map[string]any
 }
 
 // NewAuditLogger creates a new audit logger
@@ -46,7 +46,7 @@ func (al *AuditLogger) LogAuthenticationAttempt(clientID, method string) {
 		EventType: "auth_attempt",
 		ClientID:  clientID,
 		Action:    method,
-		Details:   make(map[string]interface{}),
+		Details:   make(map[string]any),
 	}
 
 	al.addEvent(event)
@@ -63,7 +63,7 @@ func (al *AuditLogger) LogAuthenticationSuccess(clientID, userID, method string)
 		UserID:    userID,
 		Action:    method,
 		Result:    "success",
-		Details:   make(map[string]interface{}),
+		Details:   make(map[string]any),
 	}
 
 	al.addEvent(event)
@@ -80,7 +80,7 @@ func (al *AuditLogger) LogAuthenticationFailure(clientID, method, reason string)
 		Action:    method,
 		Result:    "failure",
 		Reason:    reason,
-		Details:   make(map[string]interface{}),
+		Details:   make(map[string]any),
 	}
 
 	al.addEvent(event)
@@ -96,7 +96,7 @@ func (al *AuditLogger) LogAuthorizationCheck(userID, resource, action string, ro
 		UserID:    userID,
 		Resource:  resource,
 		Action:    action,
-		Details: map[string]interface{}{
+		Details: map[string]any{
 			"roles":       roles,
 			"permissions": permissions,
 		},
@@ -116,7 +116,7 @@ func (al *AuditLogger) LogAuthorizationAllowed(userID, resource, action string, 
 		Resource:  resource,
 		Action:    action,
 		Result:    "success",
-		Details: map[string]interface{}{
+		Details: map[string]any{
 			"roles":       roles,
 			"permissions": permissions,
 		},
@@ -137,7 +137,7 @@ func (al *AuditLogger) LogAuthorizationDenied(userID, resource, action, reason s
 		Action:    action,
 		Result:    "failure",
 		Reason:    reason,
-		Details: map[string]interface{}{
+		Details: map[string]any{
 			"roles":       roles,
 			"permissions": permissions,
 		},
@@ -162,7 +162,7 @@ func (al *AuditLogger) LogTokenRefresh(clientID, userID string, success bool, re
 		UserID:    userID,
 		Result:    result,
 		Reason:    reason,
-		Details:   make(map[string]interface{}),
+		Details:   make(map[string]any),
 	}
 
 	al.addEvent(event)

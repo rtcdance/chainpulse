@@ -13,6 +13,7 @@ import (
 
 // TestMongoDBEventStoreInitialize tests event store initialization
 func TestMongoDBEventStoreInitialize(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	config := DefaultEventStoreConfig()
@@ -40,6 +41,7 @@ func TestMongoDBEventStoreInitialize(t *testing.T) {
 
 // TestMongoDBEventStoreInsertEvent tests single event insertion
 func TestMongoDBEventStoreInsertEvent(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	config := DefaultEventStoreConfig()
@@ -56,7 +58,7 @@ func TestMongoDBEventStoreInsertEvent(t *testing.T) {
 		ContractAddress: common.HexToAddress("0xcontract"),
 		EventName:       "Transfer",
 		EventData:       []byte{},
-		DecodedData:     map[string]interface{}{"amount": "1000"},
+		DecodedData:     map[string]any{"amount": "1000"},
 		BlockTimestamp:  time.Now().Unix(),
 	}
 
@@ -77,6 +79,7 @@ func TestMongoDBEventStoreInsertEvent(t *testing.T) {
 
 // TestMongoDBEventStoreInsertEventBatch tests batch event insertion
 func TestMongoDBEventStoreInsertEventBatch(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	config := DefaultEventStoreConfig()
@@ -94,7 +97,7 @@ func TestMongoDBEventStoreInsertEventBatch(t *testing.T) {
 			ContractAddress: common.HexToAddress("0xcontract"),
 			EventName:       "Transfer",
 			EventData:       []byte{},
-			DecodedData:     map[string]interface{}{},
+			DecodedData:     map[string]any{},
 			BlockTimestamp:  time.Now().Unix(),
 		},
 		{
@@ -106,7 +109,7 @@ func TestMongoDBEventStoreInsertEventBatch(t *testing.T) {
 			ContractAddress: common.HexToAddress("0xcontract"),
 			EventName:       "Transfer",
 			EventData:       []byte{},
-			DecodedData:     map[string]interface{}{},
+			DecodedData:     map[string]any{},
 			BlockTimestamp:  time.Now().Unix(),
 		},
 	}
@@ -128,6 +131,7 @@ func TestMongoDBEventStoreInsertEventBatch(t *testing.T) {
 
 // TestMongoDBEventStoreGetEvent tests single event retrieval
 func TestMongoDBEventStoreGetEvent(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	config := DefaultEventStoreConfig()
@@ -152,6 +156,7 @@ func TestMongoDBEventStoreGetEvent(t *testing.T) {
 
 // TestMongoDBEventStoreGetEventsByChain tests chain event retrieval
 func TestMongoDBEventStoreGetEventsByChain(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	config := DefaultEventStoreConfig()
@@ -168,6 +173,7 @@ func TestMongoDBEventStoreGetEventsByChain(t *testing.T) {
 }
 
 func TestBuildChainLookupFilter(t *testing.T) {
+	t.Parallel()
 	t.Run("all events", func(t *testing.T) {
 		got := buildChainLookupFilter(0)
 		if len(got) != 0 {
@@ -185,7 +191,7 @@ func TestBuildChainLookupFilter(t *testing.T) {
 		if !ok {
 			t.Fatalf("expected chainId filter map, got %T", chainFilterValue)
 		}
-		values, ok := inFilter["$in"].([]interface{})
+		values, ok := inFilter["$in"].([]any)
 		if !ok {
 			t.Fatalf("expected $in slice, got %T", inFilter["$in"])
 		}
@@ -213,6 +219,7 @@ func TestBuildChainLookupFilter(t *testing.T) {
 
 // TestMongoDBEventStoreGetEventsByContract tests contract event retrieval
 func TestMongoDBEventStoreGetEventsByContract(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	config := DefaultEventStoreConfig()
@@ -237,6 +244,7 @@ func TestMongoDBEventStoreGetEventsByContract(t *testing.T) {
 
 // TestMongoDBEventStoreGetEventsByEventName tests event name retrieval
 func TestMongoDBEventStoreGetEventsByEventName(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	config := DefaultEventStoreConfig()
@@ -261,6 +269,7 @@ func TestMongoDBEventStoreGetEventsByEventName(t *testing.T) {
 
 // TestMongoDBEventStoreDeleteExpiredEvents tests expired event deletion
 func TestMongoDBEventStoreDeleteExpiredEvents(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	config := DefaultEventStoreConfig()
@@ -289,6 +298,7 @@ func TestMongoDBEventStoreDeleteExpiredEvents(t *testing.T) {
 
 // TestMongoDBEventStoreHealth tests health check
 func TestMongoDBEventStoreHealth(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	config := DefaultEventStoreConfig()
@@ -314,6 +324,7 @@ func TestMongoDBEventStoreHealth(t *testing.T) {
 
 // TestMongoDBEventStoreClose tests store closure
 func TestMongoDBEventStoreClose(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	config := DefaultEventStoreConfig()
@@ -344,6 +355,7 @@ func TestMongoDBEventStoreClose(t *testing.T) {
 
 // TestMongoDBEventStoreConfigDefaults tests default configuration
 func TestMongoDBEventStoreConfigDefaults(t *testing.T) {
+	t.Parallel()
 	config := DefaultEventStoreConfig()
 
 	if config.CollectionName != "events" {
@@ -365,6 +377,7 @@ func TestMongoDBEventStoreConfigDefaults(t *testing.T) {
 
 // TestMongoDBEventStoreMetricsCollection tests that metrics are collected
 func TestMongoDBEventStoreMetricsCollection(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	config := DefaultEventStoreConfig()

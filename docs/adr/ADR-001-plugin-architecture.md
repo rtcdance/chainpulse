@@ -53,4 +53,4 @@ pkg/core/plugin.go:
 
 **ChainedDecoder**: A 3-strategy event decoder (`pkg/core/chained_decoder.go`) was added. Decode chain: runtime ABIs → static known ABIs → raw hex fallback. Unknown events are preserved with `_raw: true` flag instead of being silently dropped.
 
-**Environment variable unification**: `getEnv()` in `pkg/core/config.go` now reads `CHAINPULSE_` prefixed keys first, falling back to bare names for backward compatibility. See ADR-004.
+**Environment variable unification**: `getEnv()` in `pkg/core/config.go` now reads `CHAINPULSE_` prefixed keys first, falling back to bare names for backward compatibility.

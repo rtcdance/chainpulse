@@ -11,9 +11,9 @@ import (
 
 // mockTxTypeResolver implements TxTypeResolver for testing
 type mockTxTypeResolver struct {
-	result  uint8
-	err     error
-	calls   []string
+	result uint8
+	err    error
+	calls  []string
 }
 
 func (m *mockTxTypeResolver) ResolveTxType(ctx context.Context, txHash string) (uint8, uint8, error) {
@@ -80,11 +80,11 @@ func TestTransactionTypeConstants(t *testing.T) {
 
 func TestBlockchainEventTransactionTypeField(t *testing.T) {
 	event := BlockchainEvent{
-		BlockNumber:      1,
-		TransactionHash:  common.HexToHash("0x01"),
-		ContractAddress:  common.HexToAddress("0x1234567890123456789012345678901234567890"),
-		EventName:        "Transfer",
-		TransactionType:  TxEIP1559,
+		BlockNumber:     1,
+		TransactionHash: common.HexToHash("0x01"),
+		ContractAddress: common.HexToAddress("0x1234567890123456789012345678901234567890"),
+		EventName:       "Transfer",
+		TransactionType: TxEIP1559,
 	}
 	assert.Equal(t, TxEIP1559, event.TransactionType)
 	assert.True(t, event.IsEIP1559Tx())

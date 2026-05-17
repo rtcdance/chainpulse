@@ -127,7 +127,7 @@ func TestBoundedHistogram_Percentile(t *testing.T) {
 		want float64
 	}{
 		{0, 10},
-		{50, 55},   // interpolated: index 4.5 → (50+60)/2 = 55
+		{50, 55}, // interpolated: index 4.5 → (50+60)/2 = 55
 		{100, 100},
 	}
 

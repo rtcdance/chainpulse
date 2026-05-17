@@ -2,6 +2,7 @@ package core
 
 import (
 	"fmt"
+	"sort"
 	"sync"
 	"time"
 
@@ -27,20 +28,20 @@ type PayloadAttributes struct {
 type SlotAuctionPhase string
 
 const (
-	PhaseBidSubmission SlotAuctionPhase = "bid_submission"  // builders submit bids
-	PhaseCutoff        SlotAuctionPhase = "cutoff"          // deadline for bid submission
-	PhaseReveal        SlotAuctionPhase = "reveal"          // relay selects top bid
-	PhaseInclusion     SlotAuctionPhase = "inclusion"       // proposer seals the block
+	PhaseBidSubmission SlotAuctionPhase = "bid_submission" // builders submit bids
+	PhaseCutoff        SlotAuctionPhase = "cutoff"         // deadline for bid submission
+	PhaseReveal        SlotAuctionPhase = "reveal"         // relay selects top bid
+	PhaseInclusion     SlotAuctionPhase = "inclusion"      // proposer seals the block
 )
 
 // SlotAuctionTimeline tracks the timing of PBS slot auction phases.
 type SlotAuctionTimeline struct {
-	Slot          uint64            `json:"slot"`
-	Phase         SlotAuctionPhase  `json:"phase"`
-	BidSubmission time.Time         `json:"bid_submission_at"`
-	Cutoff        time.Time         `json:"cutoff_at"`
-	Reveal        time.Time         `json:"reveal_at"`
-	Inclusion     time.Time         `json:"inclusion_at"`
+	Slot          uint64           `json:"slot"`
+	Phase         SlotAuctionPhase `json:"phase"`
+	BidSubmission time.Time        `json:"bid_submission_at"`
+	Cutoff        time.Time        `json:"cutoff_at"`
+	Reveal        time.Time        `json:"reveal_at"`
+	Inclusion     time.Time        `json:"inclusion_at"`
 }
 
 // Duration returns the duration between two phases.
@@ -79,9 +80,9 @@ type PBSLatency struct {
 	mu sync.RWMutex
 
 	// Per-slot latency tracking
-	builderToRelay []time.Duration
+	builderToRelay  []time.Duration
 	relayToProposer []time.Duration
-	e2eLatency     []time.Duration
+	e2eLatency      []time.Duration
 
 	maxSamples int
 }
@@ -191,9 +192,9 @@ type SandwichDetection struct {
 // DetectSandwichAttack analyzes transaction ordering within a block to detect
 // potential sandwich attacks. It looks for the canonical pattern:
 //
-//	1. Attacker buys token T (front-run)
-//	2. Victim buys token T (the swap being attacked)
-//	3. Attacker sells token T (back-run, profiting from price impact)
+//  1. Attacker buys token T (front-run)
+//  2. Victim buys token T (the swap being attacked)
+//  3. Attacker sells token T (back-run, profiting from price impact)
 //
 // Heuristic signals:
 //   - Same sender (attacker) has transactions before AND after the victim
@@ -320,11 +321,7 @@ func calculateSandwichConfidence(frontrun, victim, backrun BlockchainEvent) floa
 
 // sortEventsByTxIndex sorts events by transaction index within a block.
 func sortEventsByTxIndex(events []BlockchainEvent) {
-	for i := 0; i < len(events); i++ {
-		for j := i + 1; j < len(events); j++ {
-			if events[j].TransactionIndex < events[i].TransactionIndex {
-				events[i], events[j] = events[j], events[i]
-			}
-		}
-	}
+	sort.Slice(events, func(i, j int) bool {
+		return events[i].TransactionIndex < events[j].TransactionIndex
+	})
 }

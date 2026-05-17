@@ -205,14 +205,14 @@ func (lb *LoadBalancer) recordDistribution(handlerID string) {
 }
 
 // GetMetrics returns load balancer metrics
-func (lb *LoadBalancer) GetMetrics() map[string]interface{} {
+func (lb *LoadBalancer) GetMetrics() map[string]any {
 	lb.mu.RLock()
 	defer lb.mu.RUnlock()
 
 	lb.metrics.mu.RLock()
 	defer lb.metrics.mu.RUnlock()
 
-	metrics := make(map[string]interface{})
+	metrics := make(map[string]any)
 	metrics["total_requests"] = atomic.LoadInt64(&lb.metrics.TotalRequests)
 	metrics["algorithm"] = lb.algorithm
 	metrics["handler_count"] = len(lb.handlers)

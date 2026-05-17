@@ -98,7 +98,7 @@ func (tm *TLSManager) SetReloadTTL(ttl time.Duration) {
 }
 
 // GetMetrics returns TLS metrics
-func (tm *TLSManager) GetMetrics() map[string]interface{} {
+func (tm *TLSManager) GetMetrics() map[string]any {
 	tm.mu.RLock()
 	configPresent := tm.config != nil
 	reloadTTL := tm.reloadTTL
@@ -114,7 +114,7 @@ func (tm *TLSManager) GetMetrics() map[string]interface{} {
 	certificatePosture := classifyTLSCertificatePosture(configPresent, errors)
 	reloadPosture := classifyTLSReloadPosture(lastReload, reloadTTL, reloads, errors)
 
-	return map[string]interface{}{
+	return map[string]any{
 		"reloads":             reloads,
 		"errors":              errors,
 		"last_reload_at":      lastReloadAt,
@@ -127,7 +127,7 @@ func (tm *TLSManager) GetMetrics() map[string]interface{} {
 
 // GetRuntimeMetrics returns a compact runtime surface for TLS readiness and
 // certificate reload posture.
-func (tm *TLSManager) GetRuntimeMetrics() map[string]interface{} {
+func (tm *TLSManager) GetRuntimeMetrics() map[string]any {
 	tm.mu.RLock()
 	configPresent := tm.config != nil
 	reloadTTL := tm.reloadTTL
@@ -135,7 +135,7 @@ func (tm *TLSManager) GetRuntimeMetrics() map[string]interface{} {
 
 	metrics := tm.GetMetrics()
 
-	return map[string]interface{}{
+	return map[string]any{
 		"enabled":             configPresent,
 		"reload_ttl":          reloadTTL.String(),
 		"reloads":             metrics["reloads"],

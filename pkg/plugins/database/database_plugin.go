@@ -70,9 +70,7 @@ func (p *BaseDatabasePlugin) Initialize(config *core.Config) error {
 	p.config = config
 	p.initialized = true
 
-	p.logger.Info("Database plugin initialized", map[string]interface{}{
-		"component": "database",
-	})
+	p.logger.Info("Database plugin initialized", core.LogKeyComponent, "database")
 
 	return nil
 }
@@ -96,9 +94,7 @@ func (p *BaseDatabasePlugin) Start() error {
 		Message: "Database plugin started",
 	}
 
-	p.logger.Info("Database plugin started", map[string]interface{}{
-		"component": "database",
-	})
+	p.logger.Info("Database plugin started", core.LogKeyComponent, "database")
 
 	return nil
 }
@@ -118,9 +114,7 @@ func (p *BaseDatabasePlugin) Stop() error {
 		Message: "Database plugin stopped",
 	}
 
-	p.logger.Info("Database plugin stopped", map[string]interface{}{
-		"component": "database",
-	})
+	p.logger.Info("Database plugin stopped", core.LogKeyComponent, "database")
 
 	return nil
 }

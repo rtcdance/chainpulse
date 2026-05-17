@@ -9,12 +9,13 @@ import (
 )
 
 func TestEffectiveGasPrice_EIP1559(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
-		name       string
-		baseFee    *big.Int
-		maxFee     *big.Int
-		priority   *big.Int
-		want       int64
+		name     string
+		baseFee  *big.Int
+		maxFee   *big.Int
+		priority *big.Int
+		want     int64
 	}{
 		{
 			name:     "tip_below_maxFee",
@@ -57,6 +58,7 @@ func TestEffectiveGasPrice_EIP1559(t *testing.T) {
 }
 
 func TestEffectiveGasPrice_LegacyTx(t *testing.T) {
+	t.Parallel()
 	// Legacy transaction: maxFeePerGas is nil, gasPrice is set
 	gasPrice := big.NewInt(500)
 	got := EffectiveGasPrice(nil, gasPrice, nil, nil)
@@ -66,6 +68,7 @@ func TestEffectiveGasPrice_LegacyTx(t *testing.T) {
 }
 
 func TestEffectiveGasPrice_NilBaseFee(t *testing.T) {
+	t.Parallel()
 	// Pre-EIP-1559 chain: baseFee is nil
 	maxFee := big.NewInt(200)
 	got := EffectiveGasPrice(nil, nil, maxFee, big.NewInt(10))
@@ -75,6 +78,7 @@ func TestEffectiveGasPrice_NilBaseFee(t *testing.T) {
 }
 
 func TestEffectiveGasPrice_NilPriorityFee(t *testing.T) {
+	t.Parallel()
 	// EIP-1559 tx with nil maxPriorityFeePerGas — should default to 0
 	baseFee := big.NewInt(30)
 	maxFee := big.NewInt(100)
@@ -85,13 +89,14 @@ func TestEffectiveGasPrice_NilPriorityFee(t *testing.T) {
 }
 
 func TestPredictNextBaseFee(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
-		name         string
-		baseFee      *big.Int
-		gasUsed      uint64
-		gasLimit     uint64
-		wantGTE      int64 // result must be >= this
-		wantLTE      int64 // result must be <= this
+		name     string
+		baseFee  *big.Int
+		gasUsed  uint64
+		gasLimit uint64
+		wantGTE  int64 // result must be >= this
+		wantLTE  int64 // result must be <= this
 	}{
 		{
 			name:     "exactly_half_utilization_no_change",
@@ -138,6 +143,7 @@ func TestPredictNextBaseFee(t *testing.T) {
 }
 
 func TestPredictNextBaseFee_EdgeCases(t *testing.T) {
+	t.Parallel()
 	t.Run("nil_baseFee", func(t *testing.T) {
 		got := PredictNextBaseFee(nil, 100, 200)
 		if got.Int64() != 0 {
@@ -161,11 +167,12 @@ func TestPredictNextBaseFee_EdgeCases(t *testing.T) {
 }
 
 func TestGasCost(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
-		name     string
-		gasUsed  uint64
-		price    *big.Int
-		want     int64
+		name    string
+		gasUsed uint64
+		price   *big.Int
+		want    int64
 	}{
 		{"normal", 21000, big.NewInt(100), 2100000},
 		{"zero_gas", 0, big.NewInt(100), 0},
@@ -183,15 +190,16 @@ func TestGasCost(t *testing.T) {
 }
 
 func TestCongestionLevel(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		gasUsed  uint64
 		gasLimit uint64
 		want     float64
 	}{
-		{"half_full", 7500000, 15000000, 1.0},   // exactly at target (gasLimit/2)
+		{"half_full", 7500000, 15000000, 1.0}, // exactly at target (gasLimit/2)
 		{"empty", 0, 15000000, 0.0},
-		{"full", 15000000, 15000000, 2.0},       // 2x target
+		{"full", 15000000, 15000000, 2.0},        // 2x target
 		{"over_full", 20000000, 15000000, 2.667}, // well above target
 		{"zero_limit", 100, 0, 0.0},
 	}
@@ -207,6 +215,7 @@ func TestCongestionLevel(t *testing.T) {
 }
 
 func TestCongestionBand(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		level float64
 		want  string
@@ -229,6 +238,7 @@ func TestCongestionBand(t *testing.T) {
 }
 
 func TestMaxPriorityFeeSuggestion(t *testing.T) {
+	t.Parallel()
 	t.Run("empty_transactions_returns_default", func(t *testing.T) {
 		got := MaxPriorityFeeSuggestion(big.NewInt(100), nil)
 		want := big.NewInt(1e9) // 1 Gwei default
@@ -283,6 +293,7 @@ func TestMaxPriorityFeeSuggestion(t *testing.T) {
 }
 
 func TestIsEIP1559Tx(t *testing.T) {
+	t.Parallel()
 	t.Run("eip1559_tx", func(t *testing.T) {
 		tx := &Transaction{MaxFeePerGas: big.NewInt(200), MaxPriorityFeePerGas: big.NewInt(10)}
 		if !IsEIP1559Tx(tx) {
@@ -305,6 +316,7 @@ func TestIsEIP1559Tx(t *testing.T) {
 }
 
 func TestAssessBlockCongestion(t *testing.T) {
+	t.Parallel()
 	t.Run("normal_block", func(t *testing.T) {
 		block := &Block{
 			GasUsed:  10000000,
@@ -340,10 +352,11 @@ func TestAssessBlockCongestion(t *testing.T) {
 }
 
 func TestEffectiveGasPrice_LargeValues(t *testing.T) {
+	t.Parallel()
 	// Test with realistic Gwei values
-	baseFee := new(big.Int).Mul(big.NewInt(30), big.NewInt(1e9))  // 30 Gwei
-	maxFee := new(big.Int).Mul(big.NewInt(100), big.NewInt(1e9))  // 100 Gwei
-	priority := new(big.Int).Mul(big.NewInt(2), big.NewInt(1e9))  // 2 Gwei
+	baseFee := new(big.Int).Mul(big.NewInt(30), big.NewInt(1e9)) // 30 Gwei
+	maxFee := new(big.Int).Mul(big.NewInt(100), big.NewInt(1e9)) // 100 Gwei
+	priority := new(big.Int).Mul(big.NewInt(2), big.NewInt(1e9)) // 2 Gwei
 
 	got := EffectiveGasPrice(baseFee, nil, maxFee, priority)
 	want := new(big.Int).Mul(big.NewInt(32), big.NewInt(1e9)) // 32 Gwei
@@ -355,13 +368,14 @@ func TestEffectiveGasPrice_LargeValues(t *testing.T) {
 // --- EIP-4844 Blob Gas Tests ---
 
 func TestCalculateBlobBaseFee(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name          string
 		excessBlobGas uint64
 		wantGTE       int64 // result must be >= this
 	}{
-		{"zero_excess", 0, 1},        // minimum 1 wei
-		{"low_excess", 100, 1},       // ~1 wei
+		{"zero_excess", 0, 1},         // minimum 1 wei
+		{"low_excess", 100, 1},        // ~1 wei
 		{"medium_excess", 1000000, 1}, // ~1 wei (still small relative to update fraction)
 		{"high_excess", 100000000, 1}, // higher excess, still >= 1
 	}
@@ -400,13 +414,14 @@ func TestCalculateBlobBaseFee(t *testing.T) {
 }
 
 func TestPredictNextExcessBlobGas(t *testing.T) {
+	t.Parallel()
 	targetGas := uint64(BlobTxTargetBlobCount) * uint64(BlobTxBlobGasPerBlob) // 3 * 131072
 
 	tests := []struct {
-		name          string
-		excess        uint64
-		blobGasUsed   uint64
-		want          uint64
+		name        string
+		excess      uint64
+		blobGasUsed uint64
+		want        uint64
 	}{
 		{
 			name:        "at_target_no_change",
@@ -429,8 +444,8 @@ func TestPredictNextExcessBlobGas(t *testing.T) {
 		{
 			name:        "excess_clamps_to_zero",
 			excess:      100,
-			blobGasUsed: 0,          // no blobs
-			want:        0,          // can't go negative
+			blobGasUsed: 0, // no blobs
+			want:        0, // can't go negative
 		},
 		{
 			name:        "zero_excess_stays_near_zero",
@@ -451,18 +466,19 @@ func TestPredictNextExcessBlobGas(t *testing.T) {
 }
 
 func TestEstimateBlobGasCost(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
-		name           string
-		numBlobs       int
-		blobBaseFee    *big.Int
-		maxFeePerBlob  *big.Int
-		wantGTE        int64
+		name          string
+		numBlobs      int
+		blobBaseFee   *big.Int
+		maxFeePerBlob *big.Int
+		wantGTE       int64
 	}{
 		{"zero_blobs", 0, big.NewInt(100), nil, 0},
-		{"one_blob_base_fee", 1, big.NewInt(100), nil, 13107200}, // 1 * 131072 * 100
-		{"three_blobs_base_fee", 3, big.NewInt(100), nil, 39321600}, // 3 * 131072 * 100
+		{"one_blob_base_fee", 1, big.NewInt(100), nil, 13107200},          // 1 * 131072 * 100
+		{"three_blobs_base_fee", 3, big.NewInt(100), nil, 39321600},       // 3 * 131072 * 100
 		{"max_fee_caps", 2, big.NewInt(1000), big.NewInt(500), 131072000}, // 2 * 131072 * 500 (capped)
-		{"nil_base_fee_uses_min", 1, nil, nil, 131072}, // 1 * 131072 * 1
+		{"nil_base_fee_uses_min", 1, nil, nil, 131072},                    // 1 * 131072 * 1
 	}
 
 	for _, tt := range tests {
@@ -476,6 +492,7 @@ func TestEstimateBlobGasCost(t *testing.T) {
 }
 
 func TestIsCancunBlock(t *testing.T) {
+	t.Parallel()
 	t.Run("nil_block", func(t *testing.T) {
 		if IsCancunBlock(nil) {
 			t.Error("IsCancunBlock(nil) = true, want false")
@@ -499,15 +516,16 @@ func TestIsCancunBlock(t *testing.T) {
 }
 
 func TestBlobCountFromGas(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		blobGas uint64
 		want    int
 	}{
 		{0, 0},
-		{131072, 1},          // exactly 1 blob
-		{262144, 2},          // exactly 2 blobs
-		{393216, 3},          // exactly 3 blobs (target)
-		{786432, 6},          // exactly 6 blobs (max)
+		{131072, 1}, // exactly 1 blob
+		{262144, 2}, // exactly 2 blobs
+		{393216, 3}, // exactly 3 blobs (target)
+		{786432, 6}, // exactly 6 blobs (max)
 	}
 
 	for _, tt := range tests {
@@ -521,6 +539,7 @@ func TestBlobCountFromGas(t *testing.T) {
 // --- EIP-2930 Access List Gas Tests ---
 
 func TestAccessListGasCost(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name       string
 		baseGas    uint64
@@ -571,16 +590,17 @@ func TestAccessListGasCost(t *testing.T) {
 }
 
 func TestAccessListGasSavings(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
-		name                 string
-		coldSloads           uint64
-		coldAccountAccesses  uint64
-		wantPositive         bool
+		name                string
+		coldSloads          uint64
+		coldAccountAccesses uint64
+		wantPositive        bool
 	}{
 		{"no_accesses", 0, 0, false},
-		{"one_cold_sload", 1, 0, true},        // 100 savings > 0
-		{"many_cold_sloads", 10, 0, true},     // 10 * 100 = 1000 savings
-		{"one_address_access", 0, 1, true},    // 100 savings
+		{"one_cold_sload", 1, 0, true},         // 100 savings > 0
+		{"many_cold_sloads", 10, 0, true},      // 10 * 100 = 1000 savings
+		{"one_address_access", 0, 1, true},     // 100 savings
 		{"many_address_accesses", 0, 10, true}, // 10 * 100 = 1000 savings
 		{"mixed", 5, 5, true},                  // 500 + 500 = 1000 savings
 	}
@@ -608,6 +628,7 @@ func TestAccessListGasSavings(t *testing.T) {
 }
 
 func TestShouldUseAccessList(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name                string
 		coldSloads          uint64
@@ -617,9 +638,9 @@ func TestShouldUseAccessList(t *testing.T) {
 	}{
 		{"no_accesses", 0, 0, 0, false},
 		{"below_threshold", 5, 0, 1000, false}, // 500 < 1000
-		{"at_threshold", 10, 0, 1000, true},     // 1000 >= 1000
-		{"above_threshold", 20, 0, 1000, true},  // 2000 >= 1000
-		{"default_threshold", 10, 0, 0, true},   // uses default 1000
+		{"at_threshold", 10, 0, 1000, true},    // 1000 >= 1000
+		{"above_threshold", 20, 0, 1000, true}, // 2000 >= 1000
+		{"default_threshold", 10, 0, 0, true},  // uses default 1000
 	}
 
 	for _, tt := range tests {
@@ -633,6 +654,7 @@ func TestShouldUseAccessList(t *testing.T) {
 }
 
 func TestBuildAccessListForTransfer(t *testing.T) {
+	t.Parallel()
 	from := common.Address{0x01}
 	to := common.Address{0x02}
 

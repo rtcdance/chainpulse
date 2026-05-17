@@ -41,7 +41,7 @@ func buildPullerRuntimeRolloutHealthHandler(
 		runtimeState := buildPullerRuntimeRolloutState(context.Background(), dbManager, kafkaHealth, config, checkpointSource, progress, execution)
 		return buildPullerRuntimeComponentStatus(runtimeState, time.Now())
 	})
-	healthHandler.SetReadinessDetailsProvider(func(ctx context.Context) map[string]interface{} {
+	healthHandler.SetReadinessDetailsProvider(func(ctx context.Context) map[string]any {
 		runtimeState := buildPullerRuntimeRolloutState(context.Background(), dbManager, kafkaHealth, config, checkpointSource, progress, execution)
 		return buildPullerRuntimeReadinessDetails(runtimeState)
 	})
@@ -169,7 +169,7 @@ func pullerDatabaseHealthFields(ctx context.Context, dbManager database.Database
 	}
 
 	health := dbManager.Health(ctx)
-	healthMap, ok := health.(map[string]interface{})
+	healthMap, ok := health.(map[string]any)
 	if !ok {
 		return "", ""
 	}
@@ -210,10 +210,10 @@ func buildPullerRuntimeComponentStatus(runtimeState pullerRolloutRuntimeState, n
 	}
 }
 
-func buildPullerRuntimeReadinessDetails(runtimeState pullerRolloutRuntimeState) map[string]interface{} {
+func buildPullerRuntimeReadinessDetails(runtimeState pullerRolloutRuntimeState) map[string]any {
 	//nolint:funlen // Readiness details builder has many field assignments.
 	completeness := classifyPullerRolloutWiringCompleteness(runtimeState)
-	details := map[string]interface{}{
+	details := map[string]any{
 		"runtime_mode":               completeness.Mode,
 		"rollout_ready":              completeness.AdvisoryReady,
 		"rollout_status":             completeness.AdvisoryStatus,
@@ -340,12 +340,12 @@ func buildPullerRuntimeSummary(
 	}
 }
 
-func buildPullerSecurityRuntimeSection(authEnabled, rateLimitEnabled bool) map[string]interface{} {
+func buildPullerSecurityRuntimeSection(authEnabled, rateLimitEnabled bool) map[string]any {
 	authPosture := classifyPullerAuthPosture(authEnabled)
 	rateLimitPosture := classifyPullerRateLimitPosture(rateLimitEnabled)
 	securityPosture := classifyPullerSecurityPosture(authEnabled, rateLimitEnabled)
 
-	return map[string]interface{}{
+	return map[string]any{
 		"route_boundary":     "runtime-entrypoint",
 		"auth_enabled":       authEnabled,
 		"rate_limit_enabled": rateLimitEnabled,
@@ -399,8 +399,8 @@ func classifyPullerSecurityHint(authEnabled, rateLimitEnabled bool) string {
 	}
 }
 
-func buildPullerMetricsSummary(metrics core.MetricsCollector) map[string]interface{} {
-	summary := map[string]interface{}{
+func buildPullerMetricsSummary(metrics core.MetricsCollector) map[string]any {
+	summary := map[string]any{
 		"counter_count":   0,
 		"gauge_count":     0,
 		"histogram_count": 0,
@@ -425,11 +425,11 @@ func buildPullerMetricsSummary(metrics core.MetricsCollector) map[string]interfa
 	return summary
 }
 
-func pullerMetricsSectionCount(exported map[string]interface{}, section string) int {
+func pullerMetricsSectionCount(exported map[string]any, section string) int {
 	if exported == nil {
 		return 0
 	}
-	values, ok := exported[section].(map[string]interface{})
+	values, ok := exported[section].(map[string]any)
 	if !ok {
 		return 0
 	}

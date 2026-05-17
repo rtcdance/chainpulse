@@ -15,7 +15,9 @@ import (
 	appindexing "chainpulse/pkg/application/indexing"
 	"chainpulse/pkg/core"
 	"chainpulse/pkg/plugins/pullers"
+
 	"github.com/ethereum/go-ethereum/common"
+	"golang.org/x/sync/errgroup"
 )
 
 type pullerMessagePublisher interface {
@@ -136,17 +138,21 @@ func (r *pullerExecutionRuntime) Poll(ctx context.Context, puller *pullers.Multi
 		return nil
 	}
 
-	var firstErr error
 	processedBlocks := puller.GetProcessedBlocksFromAllChains()
-
-	for _, chainID := range puller.RegisteredChains() {
-		err := r.pollChain(ctx, puller, config, chainID, processedBlocks)
-		if err != nil && firstErr == nil {
-			firstErr = err
-		}
+	chains := puller.RegisteredChains()
+	if len(chains) == 0 {
+		return nil
 	}
 
-	return firstErr
+	g, gCtx := errgroup.WithContext(ctx)
+	for _, chainID := range chains {
+		cid := chainID
+		g.Go(func() error {
+			return r.pollChain(gCtx, puller, config, cid, processedBlocks)
+		})
+	}
+
+	return g.Wait()
 }
 
 func (r *pullerExecutionRuntime) pollChain(
@@ -182,15 +188,26 @@ func (r *pullerExecutionRuntime) pollChain(
 	// Check for reorg: compare block hashes against previously seen hashes
 	r.detectAndPublishReorg(ctx, chainID, events)
 
-	if err := r.publishEvents(ctx, config.InstanceID, events); err != nil {
-		return fmt.Errorf("publish events for %s: %w", chainID, err)
+	safeCheckpoint, err := r.publishEvents(ctx, config.InstanceID, events)
+	if err != nil {
+		r.logger.Warn("publishEvents: some events skipped, checkpoint limited to safe block",
+			"safe_checkpoint", safeCheckpoint, "target_block", targetBlock, "error", err.Error())
 	}
 
 	if err := r.shadowEvents(ctx, chainID, events); err != nil {
 		return fmt.Errorf("shadow events for %s: %w", chainID, err)
 	}
 
-	return puller.SetLastProcessedBlock(chainID, targetBlock)
+	checkpoint := safeCheckpoint
+	if checkpoint == 0 {
+		checkpoint = targetBlock
+	}
+	if checkpoint > 0 {
+		if err := puller.SetLastProcessedBlock(chainID, checkpoint); err != nil {
+			return fmt.Errorf("set last processed block for %s: %w", chainID, err)
+		}
+	}
+	return nil
 }
 
 func safePositiveIntToUint64(value int) (uint64, bool) {
@@ -205,20 +222,29 @@ func safePositiveIntToUint64(value int) (uint64, bool) {
 	return uint64(value), true
 }
 
-func (r *pullerExecutionRuntime) publishEvents(ctx context.Context, instanceID string, events []core.BlockchainEvent) error {
+func (r *pullerExecutionRuntime) publishEvents(ctx context.Context, instanceID string, events []core.BlockchainEvent) (uint64, error) {
 	if r == nil || r.publisher == nil || len(r.outputTopics) == 0 || len(events) == 0 {
-		return nil
+		return 0, nil
 	}
 
+	var lastPublishedBlock uint64
+	var skipped, published int
 	for _, event := range events {
 		payload, err := json.Marshal(event)
 		if err != nil {
-			return err
+			r.logger.Warn("publishEvents: marshal failed, skipping event",
+				"event_id", event.ID, "chain_id", event.ChainID, "error", err.Error())
+			skipped++
+			continue
 		}
 
+		publishFailed := false
 		for _, topic := range r.outputTopics {
 			if err := r.publisher.Publish(ctx, topic, payload); err != nil {
-				return err
+				r.logger.Warn("publishEvents: publish to topic failed, skipping event",
+					"topic", topic, "event_id", event.ID, "chain_id", event.ChainID, "error", err.Error())
+				publishFailed = true
+				break
 			}
 			if r.metrics != nil {
 				r.metrics.RecordCounter("puller_published_messages_total", 1, map[string]string{"topic": topic})
@@ -227,15 +253,29 @@ func (r *pullerExecutionRuntime) publishEvents(ctx context.Context, instanceID s
 			r.publishedMessages++
 			r.mu.Unlock()
 		}
+		if publishFailed {
+			skipped++
+			continue
+		}
+
+		lastPublishedBlock = event.BlockNumber
+
 		if r.metrics != nil {
 			r.metrics.RecordCounter("puller_published_events_total", 1, map[string]string{"instance": instanceID})
 		}
 		r.mu.Lock()
 		r.publishedEvents++
 		r.mu.Unlock()
+		published++
 	}
 
-	return nil
+	if skipped > 0 {
+		r.logger.Warn("publishEvents: some events skipped",
+			"published", published, "skipped", skipped, "total", len(events),
+			"safe_checkpoint", lastPublishedBlock)
+		return lastPublishedBlock, fmt.Errorf("%d/%d events skipped during publish", skipped, len(events))
+	}
+	return lastPublishedBlock, nil
 }
 
 func (r *pullerExecutionRuntime) shadowEvents(ctx context.Context, chainID string, events []core.BlockchainEvent) error {
@@ -322,12 +362,11 @@ func (r *pullerExecutionRuntime) detectAndPublishReorg(ctx context.Context, chai
 		if exists && storedHash != event.BlockHash {
 			// Reorg detected: same block number, different hash
 			r.reorgDetected++
-			r.logger.Warn("Reorg detected in puller", map[string]interface{}{
-				"chain_id":     chainID,
-				"block_number": event.BlockNumber,
-				"stored_hash":  storedHash.Hex(),
-				"new_hash":     event.BlockHash.Hex(),
-			})
+			r.logger.Warn("Reorg detected in puller",
+				core.LogKeyChainID, chainID,
+				core.LogKeyBlockNumber, event.BlockNumber,
+				core.LogKeyOldBlockHash, storedHash.Hex(),
+				core.LogKeyNewBlockHash, event.BlockHash.Hex())
 			if r.metrics != nil {
 				r.metrics.RecordCounter("puller_reorg_detected_total", 1, map[string]string{"chain_id": chainID})
 			}

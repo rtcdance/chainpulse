@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"time"
 
+	"chainpulse/pkg/core"
+
 	redisv9 "github.com/redis/go-redis/v9"
 )
 
@@ -12,7 +14,7 @@ import (
 type RedisConfig struct {
 	Host     string
 	Port     int
-	Password string
+	Password core.SecretString
 	DB       int
 }
 
@@ -35,7 +37,7 @@ func NewRedisCluster(cfg *RedisConfig) (*RedisCluster, error) {
 
 	client := redisv9.NewClient(&redisv9.Options{
 		Addr:     fmt.Sprintf("%s:%d", cfg.Host, cfg.Port),
-		Password: cfg.Password,
+		Password: cfg.Password.Value(),
 		DB:       cfg.DB,
 	})
 
@@ -63,7 +65,7 @@ func (r *RedisCluster) Close() error {
 }
 
 // WaitForRedis waits for Redis to be available
-func WaitForRedis(cfg *RedisConfig, timeout time.Duration) error {
+func WaitForRedis(ctx context.Context, cfg *RedisConfig, timeout time.Duration) error {
 	cluster, err := NewRedisCluster(cfg)
 	if err != nil {
 		return err
@@ -80,14 +82,18 @@ func WaitForRedis(cfg *RedisConfig, timeout time.Duration) error {
 			return fmt.Errorf("timeout waiting for Redis")
 		}
 
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		err := cluster.Health(ctx)
+		healthCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		err := cluster.Health(healthCtx)
 		cancel()
 
 		if err == nil {
 			return nil
 		}
 
-		time.Sleep(1 * time.Second)
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(1 * time.Second):
+		}
 	}
 }

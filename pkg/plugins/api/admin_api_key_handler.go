@@ -74,7 +74,7 @@ func (h *AdminAPIKeyHandler) HandleCreateAPIKey(w http.ResponseWriter, r *http.R
 	}
 
 	// Return the plain key only on creation — it cannot be retrieved later
-	writeJSONResponse(w, http.StatusCreated, map[string]interface{}{
+	writeJSONResponse(w, http.StatusCreated, map[string]any{
 		"key":    plainKey,
 		"record": record,
 	})
@@ -109,7 +109,7 @@ func (h *AdminAPIKeyHandler) HandleListAPIKeys(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	writeJSONResponse(w, http.StatusOK, map[string]interface{}{
+	writeJSONResponse(w, http.StatusOK, map[string]any{
 		"data":      records,
 		"total":     total,
 		"limit":     limit,
@@ -148,7 +148,7 @@ func (h *AdminAPIKeyHandler) HandleDeleteAPIKey(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	writeJSONResponse(w, http.StatusOK, map[string]interface{}{
+	writeJSONResponse(w, http.StatusOK, map[string]any{
 		"message":   "api key deleted",
 		"timestamp": time.Now().UTC().Format(time.RFC3339),
 	})
@@ -194,7 +194,7 @@ func (h *AdminAPIKeyHandler) HandleToggleAPIKey(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	writeJSONResponse(w, http.StatusOK, map[string]interface{}{
+	writeJSONResponse(w, http.StatusOK, map[string]any{
 		"message":   fmt.Sprintf("api key %s", map[bool]string{true: "enabled", false: "disabled"}[req.Enabled]),
 		"timestamp": time.Now().UTC().Format(time.RFC3339),
 	})

@@ -27,7 +27,7 @@ type BlockchainEvent struct {
 	LogIndex        uint
 	ContractAddress string
 	EventName       string
-	EventData       map[string]interface{}
+	EventData       map[string]any
 	ChainID         string
 	Timestamp       time.Time
 	ProcessedAt     time.Time
@@ -167,7 +167,7 @@ func (dp *DataPuller) simulatePullEvents(fromBlock uint64) []*BlockchainEvent {
 			LogIndex:        uint(i),
 			ContractAddress: "0x1234567890123456789012345678901234567890",
 			EventName:       "Transfer",
-			EventData: map[string]interface{}{
+			EventData: map[string]any{
 				"from":   "0x1111111111111111111111111111111111111111",
 				"to":     "0x2222222222222222222222222222222222222222",
 				"amount": "1000000000000000000",
@@ -273,11 +273,11 @@ func (dpm *DataPullerMetrics) RecordError() {
 }
 
 // GetMetrics returns current metrics
-func (dpm *DataPullerMetrics) GetMetrics() map[string]interface{} {
+func (dpm *DataPullerMetrics) GetMetrics() map[string]any {
 	dpm.mutex.RLock()
 	defer dpm.mutex.RUnlock()
 
-	return map[string]interface{}{
+	return map[string]any{
 		"events_pulled":  dpm.eventsPulled,
 		"events_dropped": dpm.eventsDropped,
 		"errors":         dpm.errors,
@@ -373,11 +373,11 @@ func (mcdp *MultiChainDataPuller) StopAll() error {
 }
 
 // GetAllMetrics gets metrics from all pullers
-func (mcdp *MultiChainDataPuller) GetAllMetrics() map[string]map[string]interface{} {
+func (mcdp *MultiChainDataPuller) GetAllMetrics() map[string]map[string]any {
 	mcdp.mutex.RLock()
 	defer mcdp.mutex.RUnlock()
 
-	metrics := make(map[string]map[string]interface{})
+	metrics := make(map[string]map[string]any)
 	for chainID, puller := range mcdp.pullers {
 		metrics[chainID] = puller.metrics.GetMetrics()
 	}

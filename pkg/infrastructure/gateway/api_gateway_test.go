@@ -51,6 +51,7 @@ func (mslb *MockServiceLoadBalancer) SelectService(ctx context.Context, serviceN
 
 // TestNewAPIGateway tests gateway creation
 func TestNewAPIGateway(t *testing.T) {
+	t.Parallel()
 	config := APIGatewayConfig{
 		Port:              8080,
 		Protocols:         []string{"rest", "grpc"},
@@ -70,6 +71,7 @@ func TestNewAPIGateway(t *testing.T) {
 
 // TestStartGateway tests starting the gateway
 func TestStartGateway(t *testing.T) {
+	t.Parallel()
 	config := APIGatewayConfig{Port: 8080}
 	// Using nil for discovery client
 	// Using nil for load balancer
@@ -85,6 +87,7 @@ func TestStartGateway(t *testing.T) {
 
 // TestStartGatewayAlreadyRunning tests starting already running gateway
 func TestStartGatewayAlreadyRunning(t *testing.T) {
+	t.Parallel()
 	config := APIGatewayConfig{Port: 8080}
 	// Using nil for discovery client
 	// Using nil for load balancer
@@ -101,6 +104,7 @@ func TestStartGatewayAlreadyRunning(t *testing.T) {
 
 // TestStopGateway tests stopping the gateway
 func TestStopGateway(t *testing.T) {
+	t.Parallel()
 	config := APIGatewayConfig{Port: 8080}
 	// Using nil for discovery client
 	// Using nil for load balancer
@@ -117,6 +121,7 @@ func TestStopGateway(t *testing.T) {
 
 // TestStopGatewayNotRunning tests stopping non-running gateway
 func TestStopGatewayNotRunning(t *testing.T) {
+	t.Parallel()
 	config := APIGatewayConfig{Port: 8080}
 	// Using nil for discovery client
 	// Using nil for load balancer
@@ -130,6 +135,7 @@ func TestStopGatewayNotRunning(t *testing.T) {
 
 // TestHandleRequestWithoutLoadBalancer tests that HandleRequest requires proper initialization
 func TestHandleRequestWithoutLoadBalancer(t *testing.T) {
+	t.Parallel()
 	config := APIGatewayConfig{Port: 8080}
 	gateway := NewAPIGateway(config, nil, nil)
 	ctx := context.Background()
@@ -147,6 +153,7 @@ func TestHandleRequestWithoutLoadBalancer(t *testing.T) {
 
 // TestAPIMetricsRecordRequest tests recording requests
 func TestAPIMetricsRecordRequest(t *testing.T) {
+	t.Parallel()
 	metrics := NewAPIMetrics()
 
 	assert.Equal(t, int64(0), metrics.totalRequests)
@@ -160,6 +167,7 @@ func TestAPIMetricsRecordRequest(t *testing.T) {
 
 // TestAPIMetricsRecordError tests recording errors
 func TestAPIMetricsRecordError(t *testing.T) {
+	t.Parallel()
 	metrics := NewAPIMetrics()
 
 	assert.Equal(t, int64(0), metrics.totalErrors)
@@ -173,6 +181,7 @@ func TestAPIMetricsRecordError(t *testing.T) {
 
 // TestAPIMetricsRecordLatency tests recording latency
 func TestAPIMetricsRecordLatency(t *testing.T) {
+	t.Parallel()
 	metrics := NewAPIMetrics()
 
 	assert.Equal(t, int64(0), metrics.totalLatency)
@@ -186,6 +195,7 @@ func TestAPIMetricsRecordLatency(t *testing.T) {
 
 // TestAPIMetricsGetMetrics tests getting metrics
 func TestAPIMetricsGetMetrics(t *testing.T) {
+	t.Parallel()
 	metrics := NewAPIMetrics()
 
 	metrics.RecordRequest()
@@ -203,6 +213,7 @@ func TestAPIMetricsGetMetrics(t *testing.T) {
 
 // TestNewAPIGatewayCluster tests cluster creation
 func TestNewAPIGatewayCluster(t *testing.T) {
+	t.Parallel()
 	cluster := NewAPIGatewayCluster()
 
 	assert.NotNil(t, cluster)
@@ -212,6 +223,7 @@ func TestNewAPIGatewayCluster(t *testing.T) {
 
 // TestAddGateway tests adding a gateway to cluster
 func TestAddGateway(t *testing.T) {
+	t.Parallel()
 	cluster := NewAPIGatewayCluster()
 	config := APIGatewayConfig{Port: 8080}
 	// Using nil for discovery client
@@ -227,6 +239,7 @@ func TestAddGateway(t *testing.T) {
 
 // TestAddGatewayDuplicate tests adding duplicate gateway
 func TestAddGatewayDuplicate(t *testing.T) {
+	t.Parallel()
 	cluster := NewAPIGatewayCluster()
 	config := APIGatewayConfig{Port: 8080}
 	// Using nil for discovery client
@@ -242,6 +255,7 @@ func TestAddGatewayDuplicate(t *testing.T) {
 
 // TestRemoveGateway tests removing a gateway from cluster
 func TestRemoveGateway(t *testing.T) {
+	t.Parallel()
 	cluster := NewAPIGatewayCluster()
 	config := APIGatewayConfig{Port: 8080}
 	// Using nil for discovery client
@@ -258,6 +272,7 @@ func TestRemoveGateway(t *testing.T) {
 
 // TestRemoveGatewayNotFound tests removing non-existent gateway
 func TestRemoveGatewayNotFound(t *testing.T) {
+	t.Parallel()
 	cluster := NewAPIGatewayCluster()
 
 	err := cluster.RemoveGateway("nonexistent")
@@ -267,6 +282,7 @@ func TestRemoveGatewayNotFound(t *testing.T) {
 
 // TestGetGateway tests getting a gateway from cluster
 func TestGetGateway(t *testing.T) {
+	t.Parallel()
 	cluster := NewAPIGatewayCluster()
 	config := APIGatewayConfig{Port: 8080}
 	// Using nil for discovery client
@@ -283,6 +299,7 @@ func TestGetGateway(t *testing.T) {
 
 // TestGetGatewayNotFound tests getting non-existent gateway
 func TestGetGatewayNotFound(t *testing.T) {
+	t.Parallel()
 	cluster := NewAPIGatewayCluster()
 
 	_, err := cluster.GetGateway("nonexistent")
@@ -292,6 +309,7 @@ func TestGetGatewayNotFound(t *testing.T) {
 
 // TestListGateways tests listing all gateways
 func TestListGateways(t *testing.T) {
+	t.Parallel()
 	cluster := NewAPIGatewayCluster()
 	config := APIGatewayConfig{Port: 8080}
 	// Using nil for discovery client
@@ -309,6 +327,7 @@ func TestListGateways(t *testing.T) {
 
 // TestGetClusterMetrics tests getting cluster metrics
 func TestGetClusterMetrics(t *testing.T) {
+	t.Parallel()
 	cluster := NewAPIGatewayCluster()
 	config := APIGatewayConfig{Port: 8080}
 	// Using nil for discovery client
@@ -329,6 +348,7 @@ func TestGetClusterMetrics(t *testing.T) {
 
 // TestConcurrentMetricsRecording tests concurrent metrics recording
 func TestConcurrentMetricsRecording(t *testing.T) {
+	t.Parallel()
 	metrics := NewAPIMetrics()
 
 	var wg sync.WaitGroup
@@ -351,6 +371,7 @@ func TestConcurrentMetricsRecording(t *testing.T) {
 
 // TestConcurrentGatewayOperations tests concurrent gateway operations
 func TestConcurrentGatewayOperations(t *testing.T) {
+	t.Parallel()
 	cluster := NewAPIGatewayCluster()
 	config := APIGatewayConfig{Port: 8080}
 	// Using nil for discovery client
@@ -378,6 +399,7 @@ func TestConcurrentGatewayOperations(t *testing.T) {
 
 // TestAPIRequestFields tests API request fields
 func TestAPIRequestFields(t *testing.T) {
+	t.Parallel()
 	req := &APIRequest{
 		SessionID:   "session-1",
 		ServiceName: "api-service",
@@ -400,6 +422,7 @@ func TestAPIRequestFields(t *testing.T) {
 
 // TestAPIResponseFields tests API response fields
 func TestAPIResponseFields(t *testing.T) {
+	t.Parallel()
 	resp := &APIResponse{
 		SessionID:   "session-1",
 		ServiceName: "api-service",
@@ -420,6 +443,7 @@ func TestAPIResponseFields(t *testing.T) {
 
 // TestGatewayConfigFields tests gateway config fields
 func TestGatewayConfigFields(t *testing.T) {
+	t.Parallel()
 	config := APIGatewayConfig{
 		Port:              8080,
 		Protocols:         []string{"rest", "grpc", "websocket"},
@@ -439,6 +463,7 @@ func TestGatewayConfigFields(t *testing.T) {
 
 // TestMultipleGatewaysInCluster tests multiple gateways in cluster
 func TestMultipleGatewaysInCluster(t *testing.T) {
+	t.Parallel()
 	cluster := NewAPIGatewayCluster()
 	config := APIGatewayConfig{Port: 8080}
 	// Using nil for discovery client
@@ -454,6 +479,7 @@ func TestMultipleGatewaysInCluster(t *testing.T) {
 
 // TestMetricsAverageLatency tests average latency calculation
 func TestMetricsAverageLatency(t *testing.T) {
+	t.Parallel()
 	metrics := NewAPIMetrics()
 
 	metrics.RecordRequest()
@@ -469,6 +495,7 @@ func TestMetricsAverageLatency(t *testing.T) {
 
 // TestGatewayStartStopCycle tests start/stop cycle
 func TestGatewayStartStopCycle(t *testing.T) {
+	t.Parallel()
 	config := APIGatewayConfig{Port: 8080}
 	// Using nil for discovery client
 	// Using nil for load balancer
@@ -487,6 +514,7 @@ func TestGatewayStartStopCycle(t *testing.T) {
 
 // TestClusterMetricsAggregation tests cluster metrics aggregation
 func TestClusterMetricsAggregation(t *testing.T) {
+	t.Parallel()
 	cluster := NewAPIGatewayCluster()
 	config := APIGatewayConfig{Port: 8080}
 	// Using nil for discovery client

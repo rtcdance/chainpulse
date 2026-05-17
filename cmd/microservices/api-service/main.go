@@ -7,15 +7,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"os/signal"
-	"strconv"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 
 	"chainpulse/pkg/application/bootstrap"
 	"chainpulse/pkg/core"
+	"chainpulse/pkg/env"
 	"chainpulse/pkg/plugins/api"
 	"chainpulse/pkg/plugins/mq"
 )
@@ -29,6 +27,11 @@ func main() {
 
 	// Load configuration from environment
 	config := loadAPIServiceConfig()
+
+	if err := validateAPIServiceConfig(config); err != nil {
+		fmt.Printf("config validation failed: %v\n", err)
+		os.Exit(1)
+	}
 
 	// Print configuration
 	fmt.Println("Configuration Loaded:")
@@ -109,6 +112,10 @@ func main() {
 			"policy_code", policyEval.ViolationCode,
 		)
 	}
+	if err := validateAPIServiceProductionSecurity(config, runtimeProfile); err != nil {
+		logger.Error("API Service production security gate rejected startup", "profile", runtimeProfile, "error", err.Error())
+		os.Exit(1)
+	}
 	coreCfg = bootstrap.ApplyCoreConfigOverrides(coreCfg, coreOverrides)
 	logger.Info("Core config overrides applied", "overrides", bootstrap.SummarizeCoreConfigOverrides(coreOverrides))
 	metricSchemaMode := bootstrap.ResolvePolicyMetricSchemaModeFromEnv()
@@ -127,7 +134,15 @@ func main() {
 	// Initialize API Service Plugin
 	fmt.Println("Initializing API Service:")
 	service := api.NewAPIGatewayPlugin(logger, metrics)
-	authMiddleware, rateLimitMiddleware, err := buildAPIServiceSecurityControls(config, logger, metrics)
+	authMiddleware, rateLimitMiddleware, err := bootstrap.BuildSecurityControls(bootstrap.SecurityControlsConfig{
+		AuthEnabled:        config.AuthEnabled,
+		AuthJWTSecret:      config.AuthJWTSecret,
+		AuthAPIKeys:        config.AuthAPIKeys,
+		RateLimitEnabled:   config.RateLimitEnabled,
+		RateLimitPerMinute: config.RateLimitPerMinute,
+		ServiceName:        "api service",
+		EnvPrefix:          "API_SERVICE",
+	}, logger, metrics)
 	if err != nil {
 		logger.Error("Failed to build API Service security controls", "error", err.Error())
 		os.Exit(1)
@@ -243,14 +258,7 @@ func main() {
 	fmt.Println()
 
 	// Setup signal handling
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
-
-	// Wait for shutdown signal
-	sig := <-sigChan
-	fmt.Println()
-	fmt.Printf("Received signal: %v\n", sig)
-	fmt.Println()
+	_ = bootstrap.WaitForSignal()
 
 	// Graceful shutdown
 	fmt.Println("Shutting Down Services:")
@@ -281,21 +289,7 @@ func main() {
 	}
 	fmt.Println("  [3/3] Runtime wiring closed")
 
-	// Wait for all goroutines to finish
-	done := make(chan struct{})
-	go func() {
-		wg.Wait()
-		close(done)
-	}()
-
-	select {
-	case <-done:
-		fmt.Println()
-		fmt.Println("✓ All services stopped successfully")
-	case <-shutdownCtx.Done():
-		fmt.Println()
-		fmt.Println("⚠ Shutdown timeout exceeded")
-	}
+	bootstrap.ShutdownWithTimeout(&wg, 30*time.Second)
 
 	fmt.Println()
 	fmt.Println("Status: Shutdown complete")
@@ -313,7 +307,7 @@ type APIServiceConfig struct {
 	ConsumerGroup      string
 	LogLevel           string
 	AuthEnabled        bool
-	AuthJWTSecret      string
+	AuthJWTSecret      core.SecretString
 	AuthAPIKeys        []string
 	RateLimitEnabled   bool
 	RateLimitPerMinute int
@@ -321,127 +315,58 @@ type APIServiceConfig struct {
 
 // loadAPIServiceConfig loads configuration from environment variables
 func loadAPIServiceConfig() APIServiceConfig {
-	instanceID := getEnv("HOSTNAME", "api-service-1")
-	if id := getEnv("INSTANCE_ID", ""); id != "" {
+	instanceID := env.Get("HOSTNAME", "api-service-1")
+	if id := env.Get("INSTANCE_ID", ""); id != "" {
 		instanceID = id
 	}
 
 	return APIServiceConfig{
-		Port:               getEnvInt("API_SERVICE_PORT", 8081),
+		Port:               env.GetInt("API_SERVICE_PORT", 8081),
 		InstanceID:         instanceID,
-		DatabaseHost:       getEnv("API_SERVICE_DB_HOST", "postgres-primary"),
-		DatabasePort:       getEnvInt("API_SERVICE_DB_PORT", 5432),
+		DatabaseHost:       env.Get("API_SERVICE_DB_HOST", "postgres-primary"),
+		DatabasePort:       env.GetInt("API_SERVICE_DB_PORT", 5432),
 		RedisCluster:       []string{"redis-1:6379", "redis-2:6379", "redis-3:6379"},
-		KafkaBrokers:       parseCommaSeparatedList(getEnv("API_SERVICE_KAFKA_BROKERS", "kafka:9092")),
-		ConsumerGroup:      getEnv("API_SERVICE_KAFKA_CONSUMER_GROUP", "api-service-consumers"),
-		LogLevel:           getEnv("LOG_LEVEL", "info"),
-		AuthEnabled:        parseBoolEnv("API_SERVICE_AUTH_ENABLED", false),
-		AuthJWTSecret:      getEnv("API_SERVICE_AUTH_JWT_SECRET", ""),
-		AuthAPIKeys:        parseCommaSeparatedList(getEnv("API_SERVICE_AUTH_API_KEYS", "")),
-		RateLimitEnabled:   parseBoolEnv("API_SERVICE_RATE_LIMIT_ENABLED", false),
-		RateLimitPerMinute: getEnvInt("API_SERVICE_RATE_LIMIT", 100),
+		KafkaBrokers:       env.GetCSV("API_SERVICE_KAFKA_BROKERS", []string{"kafka:9092"}),
+		ConsumerGroup:      env.Get("API_SERVICE_KAFKA_CONSUMER_GROUP", "api-service-consumers"),
+		LogLevel:           env.Get("LOG_LEVEL", "info"),
+		AuthEnabled:        env.GetBool("API_SERVICE_AUTH_ENABLED", false),
+		AuthJWTSecret:      core.SecretString(env.Get("API_SERVICE_AUTH_JWT_SECRET", "")),
+		AuthAPIKeys:        env.GetCSV("API_SERVICE_AUTH_API_KEYS", nil),
+		RateLimitEnabled:   env.GetBool("API_SERVICE_RATE_LIMIT_ENABLED", true),
+		RateLimitPerMinute: env.GetInt("API_SERVICE_RATE_LIMIT", 100),
 	}
 }
 
-func buildAPIServiceSecurityControls(config APIServiceConfig, logger core.Logger, metrics core.MetricsCollector) (*api.AuthMiddleware, *api.RateLimitMiddleware, error) {
-	if !config.AuthEnabled && !config.RateLimitEnabled {
-		return nil, nil, nil
+func validateAPIServiceConfig(c APIServiceConfig) error {
+	if c.DatabasePort < 1 || c.DatabasePort > 65535 {
+		return fmt.Errorf("API_SERVICE_DB_PORT must be between 1 and 65535, got %d", c.DatabasePort)
 	}
-
-	var authMiddleware *api.AuthMiddleware
-	if config.AuthEnabled {
-		if strings.TrimSpace(config.AuthJWTSecret) == "" {
-			return nil, nil, fmt.Errorf("api service auth is enabled but API_SERVICE_AUTH_JWT_SECRET is empty")
-		}
-
-		tokenValidator := api.NewTokenValidator(config.AuthJWTSecret, logger, metrics)
-		for _, entry := range config.AuthAPIKeys {
-			apiKey, clientID, ok := parseKeyValuePair(entry)
-			if !ok {
-				return nil, nil, fmt.Errorf("invalid API_SERVICE_AUTH_API_KEYS entry %q; expected key=clientID or key:clientID", entry)
-			}
-			if err := tokenValidator.RegisterAPIKey(apiKey, clientID, "operator"); err != nil {
-				return nil, nil, err
-			}
-		}
-
-		rbacChecker := api.NewRBACChecker(logger, metrics)
-		if err := rbacChecker.RegisterDefaultRoles(); err != nil {
-			return nil, nil, fmt.Errorf("failed to register default RBAC roles: %w", err)
-		}
-		auditLogger := api.NewAuditLogger(logger, metrics)
-		authMiddleware = api.NewAuthMiddleware(tokenValidator, rbacChecker, auditLogger, logger, metrics)
+	if c.RateLimitPerMinute < 1 {
+		return fmt.Errorf("API_SERVICE_RATE_LIMIT must be >= 1, got %d", c.RateLimitPerMinute)
 	}
-
-	var rateLimitMiddleware *api.RateLimitMiddleware
-	if config.RateLimitEnabled {
-		rateLimiter := api.NewRateLimiter(logger, metrics, &api.RateLimitConfig{
-			DefaultRequestsPerSecond: api.RequestsPerMinuteToPerSecond(config.RateLimitPerMinute),
-			DefaultBurstSize:         api.BurstSizeFromRequestsPerMinute(config.RateLimitPerMinute),
-			CleanupInterval:          5 * time.Minute,
-		})
-		rateLimitMiddleware = api.NewRateLimitMiddleware(rateLimiter, logger)
+	if c.AuthEnabled && strings.TrimSpace(c.AuthJWTSecret.Value()) == "" {
+		return fmt.Errorf("API_SERVICE_AUTH_JWT_SECRET must not be empty when API_SERVICE_AUTH_ENABLED is true")
 	}
-
-	return authMiddleware, rateLimitMiddleware, nil
+	return nil
 }
 
-func parseCommaSeparatedList(value string) []string {
-	parts := strings.Split(value, ",")
-	result := make([]string, 0, len(parts))
-	for _, part := range parts {
-		trimmed := strings.TrimSpace(part)
-		if trimmed != "" {
-			result = append(result, trimmed)
-		}
+func validateAPIServiceProductionSecurity(c APIServiceConfig, runtimeProfile string) error {
+	if runtimeProfile != "production" {
+		return nil
 	}
-	return result
-}
-
-func parseKeyValuePair(entry string) (string, string, bool) {
-	for _, separator := range []string{"=", ":"} {
-		if idx := strings.Index(entry, separator); idx > 0 && idx < len(entry)-1 {
-			key := strings.TrimSpace(entry[:idx])
-			clientID := strings.TrimSpace(entry[idx+1:])
-			if key != "" && clientID != "" {
-				return key, clientID, true
-			}
-		}
+	if !c.AuthEnabled {
+		return fmt.Errorf("production api service requires API_SERVICE_AUTH_ENABLED=true")
 	}
-	return "", "", false
-}
-
-func parseBoolEnv(key string, defaultValue bool) bool {
-	value := strings.TrimSpace(strings.ToLower(os.Getenv(key)))
-	if value == "" {
-		return defaultValue
+	if strings.TrimSpace(c.AuthJWTSecret.Value()) == "" {
+		return fmt.Errorf("production api service requires non-empty API_SERVICE_AUTH_JWT_SECRET")
 	}
-	switch value {
-	case "1", "true", "yes", "on":
-		return true
-	case "0", "false", "no", "off":
-		return false
-	default:
-		return defaultValue
+	if !c.RateLimitEnabled {
+		return fmt.Errorf("production api service requires API_SERVICE_RATE_LIMIT_ENABLED=true")
 	}
-}
-
-// getEnv gets an environment variable with a default value
-func getEnv(key, defaultValue string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
+	if c.RateLimitPerMinute < 1 {
+		return fmt.Errorf("production api service requires API_SERVICE_RATE_LIMIT >= 1")
 	}
-	return defaultValue
-}
-
-// getEnvInt gets an environment variable as integer with a default value
-func getEnvInt(key string, defaultValue int) int {
-	if value := os.Getenv(key); value != "" {
-		if intVal, err := strconv.Atoi(value); err == nil {
-			return intVal
-		}
-	}
-	return defaultValue
+	return nil
 }
 
 // startEventPushConsumer starts a Kafka consumer that listens for processed events

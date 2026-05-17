@@ -12,6 +12,7 @@ import (
 // Validates: Requirements 3.2
 // Data found in cache should be returned immediately
 func TestCachePluginHitReturn(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	cache := NewDefaultInMemoryCachePlugin(logger, metrics)
@@ -60,6 +61,7 @@ func TestCachePluginHitReturn(t *testing.T) {
 
 // Property: Cache hits are recorded
 func TestCachePluginHitRecording(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	cache := NewDefaultInMemoryCachePlugin(logger, metrics)
@@ -100,6 +102,7 @@ func TestCachePluginHitRecording(t *testing.T) {
 // Validates: Requirements 3.4
 // Expired data should be evicted and not returned
 func TestCachePluginExpirationConsistency(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	cache := NewDefaultInMemoryCachePlugin(logger, metrics)
@@ -145,6 +148,7 @@ func TestCachePluginExpirationConsistency(t *testing.T) {
 
 // Property: Eviction count increases for expired entries
 func TestCachePluginEvictionTracking(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	cache := NewDefaultInMemoryCachePlugin(logger, metrics)

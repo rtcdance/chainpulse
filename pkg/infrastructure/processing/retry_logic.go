@@ -1,3 +1,8 @@
+// Package processing contains infrastructure-level event processing types.
+//
+// Deprecated: The canonical retry logic implementation has moved to
+// pkg/services/resilience/retry_logic.go. This file is retained for backward
+// compatibility. New code should use pkg/services/resilience.
 package processing
 
 import (
@@ -232,14 +237,14 @@ func (cb *CircuitBreaker) GetState() CircuitBreakerState {
 }
 
 // GetMetrics returns circuit breaker metrics
-func (cb *CircuitBreaker) GetMetrics() map[string]interface{} {
+func (cb *CircuitBreaker) GetMetrics() map[string]any {
 	cb.mu.RLock()
 	defer cb.mu.RUnlock()
 
 	cb.metrics.mu.RLock()
 	defer cb.metrics.mu.RUnlock()
 
-	return map[string]interface{}{
+	return map[string]any{
 		"state":             cb.state,
 		"failure_count":     cb.failureCount,
 		"success_count":     cb.successCount,
@@ -313,14 +318,14 @@ func (dlq *DeadLetterQueue) GetEvents() []*DeadLetterEvent {
 }
 
 // GetMetrics returns DLQ metrics
-func (dlq *DeadLetterQueue) GetMetrics() map[string]interface{} {
+func (dlq *DeadLetterQueue) GetMetrics() map[string]any {
 	dlq.mu.RLock()
 	defer dlq.mu.RUnlock()
 
 	dlq.metrics.mu.RLock()
 	defer dlq.metrics.mu.RUnlock()
 
-	return map[string]interface{}{
+	return map[string]any{
 		"queued_count":   dlq.metrics.EventsQueued,
 		"archived_count": dlq.metrics.EventsArchived,
 		"resolved_count": dlq.metrics.EventsResolved,
@@ -386,11 +391,11 @@ func (rm *RetryManager) ExecuteWithRetry(ctx context.Context, operation func() e
 }
 
 // GetMetrics returns retry manager metrics
-func (rm *RetryManager) GetMetrics() map[string]interface{} {
+func (rm *RetryManager) GetMetrics() map[string]any {
 	rm.mu.RLock()
 	defer rm.mu.RUnlock()
 
-	return map[string]interface{}{
+	return map[string]any{
 		"retry_count":        rm.retryCount,
 		"success_count":      rm.successCount,
 		"failure_count":      rm.failureCount,

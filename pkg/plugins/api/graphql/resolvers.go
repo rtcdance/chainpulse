@@ -16,7 +16,7 @@ import (
 
 // ResolverContext holds context for resolvers
 type ResolverContext struct {
-	EventStore  domainquery.EventStore
+	EventStore  domainquery.EventReader
 	Logger      core.Logger
 	Metrics     core.MetricsCollector
 	Cache       core.CachePlugin
@@ -34,7 +34,7 @@ func NewEventResolver(ctx *ResolverContext) *EventResolver {
 }
 
 // ResolveEvent resolves a single event by ID
-func (r *EventResolver) ResolveEvent(p graphql.ResolveParams) (interface{}, error) {
+func (r *EventResolver) ResolveEvent(p graphql.ResolveParams) (any, error) {
 	id, ok := p.Args["id"].(string)
 	if !ok || id == "" {
 		return nil, fmt.Errorf("invalid or missing id parameter")
@@ -56,7 +56,7 @@ func (r *EventResolver) ResolveEvent(p graphql.ResolveParams) (interface{}, erro
 		cacheKey := fmt.Sprintf("graphql:event:%s", id)
 		if cached, err := r.ctx.Cache.Get(p.Context, cacheKey); err == nil && cached != nil {
 			r.ctx.Metrics.RecordCounter("graphql_cache_hit", 1, nil)
-			var result map[string]interface{}
+			var result map[string]any
 			if err := json.Unmarshal(cached, &result); err == nil {
 				return withQuerySourcePosture(result, "graphql-cache-hit"), nil
 			}
@@ -94,7 +94,7 @@ func (r *EventResolver) ResolveEvent(p graphql.ResolveParams) (interface{}, erro
 }
 
 // ResolveEvents resolves events with pagination
-func (r *EventResolver) ResolveEvents(p graphql.ResolveParams) (interface{}, error) {
+func (r *EventResolver) ResolveEvents(p graphql.ResolveParams) (any, error) {
 	// Limit maximum page size
 	first := 20
 	if f, ok := p.Args["first"].(int); ok && f > 0 {
@@ -126,7 +126,7 @@ func (r *EventResolver) ResolveEvents(p graphql.ResolveParams) (interface{}, err
 		cacheKey := fmt.Sprintf("graphql:events:root:after:%s:first:%d", after, first)
 		if cached, err := r.ctx.Cache.Get(p.Context, cacheKey); err == nil && cached != nil {
 			r.ctx.Metrics.RecordCounter("graphql_cache_hit", 1, nil)
-			var connection map[string]interface{}
+			var connection map[string]any
 			if err := json.Unmarshal(cached, &connection); err == nil {
 				return withQuerySourcePostureConnection(connection, "graphql-cache-hit"), nil
 			}
@@ -164,11 +164,11 @@ func (r *EventResolver) ResolveEvents(p graphql.ResolveParams) (interface{}, err
 	}
 
 	// Build edges with opaque cursors based on stable sort keys
-	edges := make([]interface{}, 0, len(events))
+	edges := make([]any, 0, len(events))
 	var endCursor string
 	for i, event := range events {
 		cursor := domainquery.EncodePageCursor(event.BlockNumber, event.LogIndex, event.ID)
-		edges = append(edges, map[string]interface{}{
+		edges = append(edges, map[string]any{
 			"node":   withQuerySourcePosture(eventToGraphQL(event), "graphql-event-store"),
 			"cursor": cursor,
 		})
@@ -177,9 +177,9 @@ func (r *EventResolver) ResolveEvents(p graphql.ResolveParams) (interface{}, err
 		}
 	}
 
-	connection := map[string]interface{}{
+	connection := map[string]any{
 		"edges": edges,
-		"pageInfo": map[string]interface{}{
+		"pageInfo": map[string]any{
 			"hasNextPage":     hasNextPage,
 			"hasPreviousPage": after != "",
 			"startCursor":     after,
@@ -201,7 +201,7 @@ func (r *EventResolver) ResolveEvents(p graphql.ResolveParams) (interface{}, err
 }
 
 // ResolveEventsByBlock resolves events by block number
-func (r *EventResolver) ResolveEventsByBlock(p graphql.ResolveParams) (interface{}, error) {
+func (r *EventResolver) ResolveEventsByBlock(p graphql.ResolveParams) (any, error) {
 	blockNumber, ok := p.Args["blockNumber"].(int)
 	if !ok || blockNumber < 0 {
 		return nil, fmt.Errorf("invalid or missing blockNumber parameter")
@@ -227,7 +227,7 @@ func (r *EventResolver) ResolveEventsByBlock(p graphql.ResolveParams) (interface
 	}
 
 	// Convert to GraphQL response format
-	result := make([]interface{}, 0, len(events))
+	result := make([]any, 0, len(events))
 	for _, event := range events {
 		result = append(result, withQuerySourcePosture(eventToGraphQL(event), "graphql-event-store"))
 	}
@@ -237,7 +237,7 @@ func (r *EventResolver) ResolveEventsByBlock(p graphql.ResolveParams) (interface
 }
 
 // ResolveEventsByAddress resolves events by contract address
-func (r *EventResolver) ResolveEventsByAddress(p graphql.ResolveParams) (interface{}, error) {
+func (r *EventResolver) ResolveEventsByAddress(p graphql.ResolveParams) (any, error) {
 	address, ok := p.Args["address"].(string)
 	if !ok || address == "" {
 		return nil, fmt.Errorf("invalid or missing address parameter")
@@ -269,7 +269,7 @@ func (r *EventResolver) ResolveEventsByAddress(p graphql.ResolveParams) (interfa
 		cacheKey := fmt.Sprintf("graphql:events:address:%s:limit:%d", address, limit)
 		if cached, err := r.ctx.Cache.Get(p.Context, cacheKey); err == nil && cached != nil {
 			r.ctx.Metrics.RecordCounter("graphql_cache_hit", 1, nil)
-			var result []interface{}
+			var result []any
 			if err := json.Unmarshal(cached, &result); err == nil {
 				return withQuerySourcePostureList(result, "graphql-cache-hit"), nil
 			}
@@ -285,7 +285,7 @@ func (r *EventResolver) ResolveEventsByAddress(p graphql.ResolveParams) (interfa
 	}
 
 	// Convert to GraphQL response format
-	result := make([]interface{}, 0, len(events))
+	result := make([]any, 0, len(events))
 	for _, event := range events {
 		result = append(result, withQuerySourcePosture(eventToGraphQL(event), "graphql-event-store"))
 	}
@@ -304,7 +304,7 @@ func (r *EventResolver) ResolveEventsByAddress(p graphql.ResolveParams) (interfa
 }
 
 // ResolveEventsByName resolves events by event name
-func (r *EventResolver) ResolveEventsByName(p graphql.ResolveParams) (interface{}, error) {
+func (r *EventResolver) ResolveEventsByName(p graphql.ResolveParams) (any, error) {
 	eventName, ok := p.Args["eventName"].(string)
 	if !ok || eventName == "" {
 		return nil, fmt.Errorf("invalid or missing eventName parameter")
@@ -336,7 +336,7 @@ func (r *EventResolver) ResolveEventsByName(p graphql.ResolveParams) (interface{
 		cacheKey := fmt.Sprintf("graphql:events:name:%s:limit:%d", eventName, limit)
 		if cached, err := r.ctx.Cache.Get(p.Context, cacheKey); err == nil && cached != nil {
 			r.ctx.Metrics.RecordCounter("graphql_cache_hit", 1, nil)
-			var result []interface{}
+			var result []any
 			if err := json.Unmarshal(cached, &result); err == nil {
 				return withQuerySourcePostureList(result, "graphql-cache-hit"), nil
 			}
@@ -352,7 +352,7 @@ func (r *EventResolver) ResolveEventsByName(p graphql.ResolveParams) (interface{
 	}
 
 	// Convert to GraphQL response format
-	result := make([]interface{}, 0, len(events))
+	result := make([]any, 0, len(events))
 	for _, event := range events {
 		result = append(result, withQuerySourcePosture(eventToGraphQL(event), "graphql-event-store"))
 	}
@@ -381,7 +381,7 @@ func NewCacheResolver(ctx *ResolverContext) *CacheResolver {
 }
 
 // ResolveInvalidateCache invalidates cache for an event
-func (r *CacheResolver) ResolveInvalidateCache(p graphql.ResolveParams) (interface{}, error) {
+func (r *CacheResolver) ResolveInvalidateCache(p graphql.ResolveParams) (any, error) {
 	eventID, ok := p.Args["eventId"].(string)
 	if !ok || eventID == "" {
 		return nil, fmt.Errorf("invalid or missing eventId parameter")
@@ -409,7 +409,7 @@ func (r *CacheResolver) ResolveInvalidateCache(p graphql.ResolveParams) (interfa
 }
 
 // ResolveClearCache clears all cache
-func (r *CacheResolver) ResolveClearCache(p graphql.ResolveParams) (interface{}, error) {
+func (r *CacheResolver) ResolveClearCache(p graphql.ResolveParams) (any, error) {
 	// Check authorization
 	if r.ctx.AuthContext != nil && !r.ctx.AuthContext.CanManageCache() {
 		return nil, fmt.Errorf("unauthorized to manage cache")
@@ -433,7 +433,7 @@ func (r *CacheResolver) ResolveClearCache(p graphql.ResolveParams) (interface{},
 }
 
 // Helper function to convert event to GraphQL response format
-func eventToGraphQL(event *core.BlockchainEvent) map[string]interface{} {
+func eventToGraphQL(event *core.BlockchainEvent) map[string]any {
 	decodedData := ""
 	if event.DecodedData != nil {
 		if data, err := json.Marshal(event.DecodedData); err == nil {
@@ -441,7 +441,7 @@ func eventToGraphQL(event *core.BlockchainEvent) map[string]interface{} {
 		}
 	}
 
-	return map[string]interface{}{
+	return map[string]any{
 		"id":               event.ID,
 		"eventHash":        event.EventHash,
 		"blockNumber":      event.BlockNumber,

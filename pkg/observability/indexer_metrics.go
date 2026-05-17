@@ -256,7 +256,7 @@ func (im *IndexerMetrics) GetErrorRate() float64 {
 }
 
 // GetMetricsSummary returns a summary of all metrics
-func (im *IndexerMetrics) GetMetricsSummary() map[string]interface{} {
+func (im *IndexerMetrics) GetMetricsSummary() map[string]any {
 	im.mu.RLock()
 	defer im.mu.RUnlock()
 
@@ -288,7 +288,7 @@ func (im *IndexerMetrics) GetMetricsSummary() map[string]interface{} {
 		errorRate = float64(im.EventsFailed) / float64(im.EventsIndexed) * 100
 	}
 
-	return map[string]interface{}{
+	return map[string]any{
 		"current_block":            im.CurrentBlockNumber,
 		"latest_block":             im.LatestBlockNumber,
 		"indexing_lag":             im.IndexingLag,

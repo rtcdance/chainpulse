@@ -7,8 +7,8 @@ import (
 	"chainpulse/pkg/core"
 )
 
-func buildAPIServiceMetricsProvider(metrics core.MetricsCollector) func(*http.Request) interface{} {
-	return func(r *http.Request) interface{} {
+func buildAPIServiceMetricsProvider(metrics core.MetricsCollector) func(*http.Request) any {
+	return func(r *http.Request) any {
 		if metrics == nil {
 			return nil
 		}

@@ -44,6 +44,7 @@ func (mcc *MockConsulClient) DeregisterService(ctx context.Context, serviceID st
 
 // TestNewServiceRegistry tests registry creation
 func TestNewServiceRegistry(t *testing.T) {
+	t.Parallel()
 	consul := &MockConsulClient{registeredServices: make(map[string]bool)}
 	registry := NewServiceRegistry(consul)
 
@@ -54,6 +55,7 @@ func TestNewServiceRegistry(t *testing.T) {
 
 // TestRegisterService tests registering a service
 func TestRegisterService(t *testing.T) {
+	t.Parallel()
 	consul := &MockConsulClient{registeredServices: make(map[string]bool)}
 	registry := NewServiceRegistry(consul)
 	ctx := context.Background()
@@ -74,6 +76,7 @@ func TestRegisterService(t *testing.T) {
 
 // TestRegisterServiceConsulError tests registration with Consul error
 func TestRegisterServiceConsulError(t *testing.T) {
+	t.Parallel()
 	consul := &MockConsulClient{
 		registeredServices: make(map[string]bool),
 		registerError:      assert.AnError,
@@ -95,6 +98,7 @@ func TestRegisterServiceConsulError(t *testing.T) {
 
 // TestDeregisterService tests deregistering a service
 func TestDeregisterService(t *testing.T) {
+	t.Parallel()
 	consul := &MockConsulClient{registeredServices: make(map[string]bool)}
 	registry := NewServiceRegistry(consul)
 	ctx := context.Background()
@@ -115,6 +119,7 @@ func TestDeregisterService(t *testing.T) {
 
 // TestDeregisterServiceNotFound tests deregistering non-existent service
 func TestDeregisterServiceNotFound(t *testing.T) {
+	t.Parallel()
 	consul := &MockConsulClient{registeredServices: make(map[string]bool)}
 	registry := NewServiceRegistry(consul)
 	ctx := context.Background()
@@ -126,6 +131,7 @@ func TestDeregisterServiceNotFound(t *testing.T) {
 
 // TestGetService tests retrieving a service
 func TestGetService(t *testing.T) {
+	t.Parallel()
 	consul := &MockConsulClient{registeredServices: make(map[string]bool)}
 	registry := NewServiceRegistry(consul)
 	ctx := context.Background()
@@ -149,6 +155,7 @@ func TestGetService(t *testing.T) {
 
 // TestGetServiceNotFound tests retrieving non-existent service
 func TestGetServiceNotFound(t *testing.T) {
+	t.Parallel()
 	consul := &MockConsulClient{registeredServices: make(map[string]bool)}
 	registry := NewServiceRegistry(consul)
 	ctx := context.Background()
@@ -160,6 +167,7 @@ func TestGetServiceNotFound(t *testing.T) {
 
 // TestDiscoverServices tests discovering services by name
 func TestDiscoverServices(t *testing.T) {
+	t.Parallel()
 	consul := &MockConsulClient{registeredServices: make(map[string]bool)}
 	registry := NewServiceRegistry(consul)
 	ctx := context.Background()
@@ -182,6 +190,7 @@ func TestDiscoverServices(t *testing.T) {
 
 // TestDiscoverServicesNoMatch tests discovering with no matching services
 func TestDiscoverServicesNoMatch(t *testing.T) {
+	t.Parallel()
 	consul := &MockConsulClient{registeredServices: make(map[string]bool)}
 	registry := NewServiceRegistry(consul)
 	ctx := context.Background()
@@ -194,6 +203,7 @@ func TestDiscoverServicesNoMatch(t *testing.T) {
 
 // TestUpdateServiceStatus tests updating service status
 func TestUpdateServiceStatus(t *testing.T) {
+	t.Parallel()
 	consul := &MockConsulClient{registeredServices: make(map[string]bool)}
 	registry := NewServiceRegistry(consul)
 	ctx := context.Background()
@@ -217,6 +227,7 @@ func TestUpdateServiceStatus(t *testing.T) {
 
 // TestUpdateServiceStatusNotFound tests updating non-existent service
 func TestUpdateServiceStatusNotFound(t *testing.T) {
+	t.Parallel()
 	consul := &MockConsulClient{registeredServices: make(map[string]bool)}
 	registry := NewServiceRegistry(consul)
 	ctx := context.Background()
@@ -228,6 +239,7 @@ func TestUpdateServiceStatusNotFound(t *testing.T) {
 
 // TestListServices tests listing all services
 func TestListServices(t *testing.T) {
+	t.Parallel()
 	consul := &MockConsulClient{registeredServices: make(map[string]bool)}
 	registry := NewServiceRegistry(consul)
 	ctx := context.Background()
@@ -249,6 +261,7 @@ func TestListServices(t *testing.T) {
 
 // TestListServicesEmpty tests listing when no services registered
 func TestListServicesEmpty(t *testing.T) {
+	t.Parallel()
 	consul := &MockConsulClient{registeredServices: make(map[string]bool)}
 	registry := NewServiceRegistry(consul)
 	ctx := context.Background()
@@ -260,6 +273,7 @@ func TestListServicesEmpty(t *testing.T) {
 
 // TestGetHealthyServices tests getting only healthy services
 func TestGetHealthyServices(t *testing.T) {
+	t.Parallel()
 	consul := &MockConsulClient{registeredServices: make(map[string]bool)}
 	registry := NewServiceRegistry(consul)
 	ctx := context.Background()
@@ -284,6 +298,7 @@ func TestGetHealthyServices(t *testing.T) {
 
 // TestNewHealthChecker tests health checker creation
 func TestNewHealthChecker(t *testing.T) {
+	t.Parallel()
 	consul := &MockConsulClient{registeredServices: make(map[string]bool)}
 	registry := NewServiceRegistry(consul)
 	hc := NewHealthChecker(registry, 1*time.Second, 5*time.Second)
@@ -296,6 +311,7 @@ func TestNewHealthChecker(t *testing.T) {
 
 // TestHealthCheckerStart tests starting health checker
 func TestHealthCheckerStart(t *testing.T) {
+	t.Parallel()
 	consul := &MockConsulClient{registeredServices: make(map[string]bool)}
 	registry := NewServiceRegistry(consul)
 	hc := NewHealthChecker(registry, 1*time.Second, 5*time.Second)
@@ -311,6 +327,7 @@ func TestHealthCheckerStart(t *testing.T) {
 
 // TestHealthCheckerStartAlreadyRunning tests starting already running checker
 func TestHealthCheckerStartAlreadyRunning(t *testing.T) {
+	t.Parallel()
 	consul := &MockConsulClient{registeredServices: make(map[string]bool)}
 	registry := NewServiceRegistry(consul)
 	hc := NewHealthChecker(registry, 1*time.Second, 5*time.Second)
@@ -326,6 +343,7 @@ func TestHealthCheckerStartAlreadyRunning(t *testing.T) {
 
 // TestHealthCheckerStop tests stopping health checker
 func TestHealthCheckerStop(t *testing.T) {
+	t.Parallel()
 	consul := &MockConsulClient{registeredServices: make(map[string]bool)}
 	registry := NewServiceRegistry(consul)
 	hc := NewHealthChecker(registry, 1*time.Second, 5*time.Second)
@@ -339,6 +357,7 @@ func TestHealthCheckerStop(t *testing.T) {
 
 // TestNewServiceDiscoveryClient tests discovery client creation
 func TestNewServiceDiscoveryClient(t *testing.T) {
+	t.Parallel()
 	consul := &MockConsulClient{registeredServices: make(map[string]bool)}
 	registry := NewServiceRegistry(consul)
 	sdc := NewServiceDiscoveryClient(registry, 5*time.Minute)
@@ -350,6 +369,7 @@ func TestNewServiceDiscoveryClient(t *testing.T) {
 
 // TestServiceDiscoveryClientGetService tests getting a service
 func TestServiceDiscoveryClientGetService(t *testing.T) {
+	t.Parallel()
 	consul := &MockConsulClient{registeredServices: make(map[string]bool)}
 	registry := NewServiceRegistry(consul)
 	sdc := NewServiceDiscoveryClient(registry, 5*time.Minute)
@@ -373,6 +393,7 @@ func TestServiceDiscoveryClientGetService(t *testing.T) {
 
 // TestServiceDiscoveryClientGetServiceNotFound tests getting non-existent service
 func TestServiceDiscoveryClientGetServiceNotFound(t *testing.T) {
+	t.Parallel()
 	consul := &MockConsulClient{registeredServices: make(map[string]bool)}
 	registry := NewServiceRegistry(consul)
 	sdc := NewServiceDiscoveryClient(registry, 5*time.Minute)
@@ -385,6 +406,7 @@ func TestServiceDiscoveryClientGetServiceNotFound(t *testing.T) {
 
 // TestServiceDiscoveryClientGetServices tests getting multiple services
 func TestServiceDiscoveryClientGetServices(t *testing.T) {
+	t.Parallel()
 	consul := &MockConsulClient{registeredServices: make(map[string]bool)}
 	registry := NewServiceRegistry(consul)
 	sdc := NewServiceDiscoveryClient(registry, 5*time.Minute)
@@ -407,6 +429,7 @@ func TestServiceDiscoveryClientGetServices(t *testing.T) {
 
 // TestServiceDiscoveryClientCaching tests service caching
 func TestServiceDiscoveryClientCaching(t *testing.T) {
+	t.Parallel()
 	consul := &MockConsulClient{registeredServices: make(map[string]bool)}
 	registry := NewServiceRegistry(consul)
 	sdc := NewServiceDiscoveryClient(registry, 5*time.Minute)
@@ -435,6 +458,7 @@ func TestServiceDiscoveryClientCaching(t *testing.T) {
 
 // TestServiceDiscoveryClientInvalidateCache tests cache invalidation
 func TestServiceDiscoveryClientInvalidateCache(t *testing.T) {
+	t.Parallel()
 	consul := &MockConsulClient{registeredServices: make(map[string]bool)}
 	registry := NewServiceRegistry(consul)
 	sdc := NewServiceDiscoveryClient(registry, 5*time.Minute)
@@ -461,6 +485,7 @@ func TestServiceDiscoveryClientInvalidateCache(t *testing.T) {
 
 // TestServiceDiscoveryClientInvalidateAllCache tests invalidating all caches
 func TestServiceDiscoveryClientInvalidateAllCache(t *testing.T) {
+	t.Parallel()
 	consul := &MockConsulClient{registeredServices: make(map[string]bool)}
 	registry := NewServiceRegistry(consul)
 	sdc := NewServiceDiscoveryClient(registry, 5*time.Minute)
@@ -489,6 +514,7 @@ func TestServiceDiscoveryClientInvalidateAllCache(t *testing.T) {
 
 // TestNewLoadBalancer tests load balancer creation
 func TestNewLoadBalancer(t *testing.T) {
+	t.Parallel()
 	consul := &MockConsulClient{registeredServices: make(map[string]bool)}
 	registry := NewServiceRegistry(consul)
 	sdc := NewServiceDiscoveryClient(registry, 5*time.Minute)
@@ -501,6 +527,7 @@ func TestNewLoadBalancer(t *testing.T) {
 
 // TestLoadBalancerSelectService tests selecting a service
 func TestLoadBalancerSelectService(t *testing.T) {
+	t.Parallel()
 	consul := &MockConsulClient{registeredServices: make(map[string]bool)}
 	registry := NewServiceRegistry(consul)
 	sdc := NewServiceDiscoveryClient(registry, 5*time.Minute)
@@ -525,6 +552,7 @@ func TestLoadBalancerSelectService(t *testing.T) {
 
 // TestLoadBalancerSelectServiceNotFound tests selecting non-existent service
 func TestLoadBalancerSelectServiceNotFound(t *testing.T) {
+	t.Parallel()
 	consul := &MockConsulClient{registeredServices: make(map[string]bool)}
 	registry := NewServiceRegistry(consul)
 	sdc := NewServiceDiscoveryClient(registry, 5*time.Minute)
@@ -538,6 +566,7 @@ func TestLoadBalancerSelectServiceNotFound(t *testing.T) {
 
 // TestConcurrentRegisterDeregister tests concurrent registration
 func TestConcurrentRegisterDeregister(t *testing.T) {
+	t.Parallel()
 	consul := &MockConsulClient{registeredServices: make(map[string]bool)}
 	registry := NewServiceRegistry(consul)
 	ctx := context.Background()
@@ -568,6 +597,7 @@ func TestConcurrentRegisterDeregister(t *testing.T) {
 
 // TestServiceInfoFields tests service info fields
 func TestServiceInfoFields(t *testing.T) {
+	t.Parallel()
 	consul := &MockConsulClient{registeredServices: make(map[string]bool)}
 	registry := NewServiceRegistry(consul)
 	ctx := context.Background()
@@ -600,6 +630,7 @@ func TestServiceInfoFields(t *testing.T) {
 
 // TestDiscoverServicesUnhealthy tests that unhealthy services are not discovered
 func TestDiscoverServicesUnhealthy(t *testing.T) {
+	t.Parallel()
 	consul := &MockConsulClient{registeredServices: make(map[string]bool)}
 	registry := NewServiceRegistry(consul)
 	ctx := context.Background()
@@ -624,6 +655,7 @@ func TestDiscoverServicesUnhealthy(t *testing.T) {
 
 // TestMultipleServiceTypes tests registering multiple service types
 func TestMultipleServiceTypes(t *testing.T) {
+	t.Parallel()
 	consul := &MockConsulClient{registeredServices: make(map[string]bool)}
 	registry := NewServiceRegistry(consul)
 	ctx := context.Background()
@@ -649,6 +681,7 @@ func TestMultipleServiceTypes(t *testing.T) {
 
 // TestHealthCheckerPerformHealthCheck tests health check
 func TestHealthCheckerPerformHealthCheck(t *testing.T) {
+	t.Parallel()
 	consul := &MockConsulClient{registeredServices: make(map[string]bool)}
 	registry := NewServiceRegistry(consul)
 	hc := NewHealthChecker(registry, 1*time.Second, 5*time.Second)

@@ -58,6 +58,7 @@ type eventProcessorConsumeRuntime struct {
 	reason          string
 	updatedAtUnix   int64
 	waitCh          chan struct{}
+	closeOnce       sync.Once
 }
 
 type eventProcessorMessagePublisher interface {
@@ -179,7 +180,9 @@ func (r *eventProcessorConsumeRuntime) ResumeIntake(reason string) eventProcesso
 	r.reason = reason
 	r.lastAction = "resume-intake"
 	r.updatedAtUnix = time.Now().Unix()
-	close(r.waitCh)
+	r.closeOnce.Do(func() {
+		close(r.waitCh)
+	})
 	r.waitCh = make(chan struct{})
 	r.mu.Unlock()
 
@@ -299,11 +302,16 @@ func (r *eventProcessorConsumeRuntime) writeToDLQ(ctx context.Context, event *co
 	if r.dlqDB == nil {
 		return
 	}
-	_, err := r.dlqDB.ExecContext(ctx,
-		`INSERT INTO dlq_events (id, chain_id, original_event_id, error_message, retry_count, status)
-		 VALUES ($1, $2, $3, $4, 0, 'pending')
-		 ON CONFLICT (id) DO UPDATE SET retry_count = dlq_events.retry_count + 1, error_message = $4, status = 'pending', updated_at = NOW()`,
-		event.ID, event.ChainID, event.ID, processErr.Error())
+	payload, err := json.Marshal(event)
+	if err != nil {
+		r.logger.Warn("Failed to marshal event for DLQ", "eventId", event.ID, "error", err.Error())
+		return
+	}
+	_, err = r.dlqDB.ExecContext(ctx,
+		`INSERT INTO dlq_events (id, chain_id, original_event_id, error_message, retry_count, status, payload)
+		 VALUES ($1, $2, $3, $4, 0, 'pending', $5)
+		 ON CONFLICT (id) DO UPDATE SET retry_count = dlq_events.retry_count + 1, error_message = $4, status = 'pending', payload = $5, updated_at = NOW()`,
+		event.ID, event.ChainID, event.ID, processErr.Error(), string(payload))
 	if err != nil {
 		r.logger.Warn("Failed to write event to DLQ", "eventId", event.ID, "error", err.Error())
 	}

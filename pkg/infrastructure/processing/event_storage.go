@@ -1,3 +1,8 @@
+// Package processing contains infrastructure-level event processing types.
+//
+// Deprecated: The canonical event storage interface has moved to
+// pkg/services/query/event_store.go. This file is retained for backward
+// compatibility. New code should use pkg/services/query.
 package processing
 
 import (
@@ -7,14 +12,13 @@ import (
 	"time"
 )
 
-// EventStore defines the interface for event storage.
-// Note: This interface operates on the local *Event type (not *core.BlockchainEvent)
-// and uses a different method set than the domain/service-layer EventStore interfaces.
+// EventStore defines the interface for in-memory event storage.
+// Deprecated: Use domain/query.EventStore for canonical event storage interface.
+// This local interface only exists for the in-memory store's internal Event type
+// and should not be used as a general-purpose storage abstraction.
 //
 // See also:
-//   - pkg/domain/query/event_store.go — domain-layer EventStore (*core.BlockchainEvent, full CRUD)
-//   - pkg/services/query/event_store.go — service-layer EventStore (*core.BlockchainEvent, with doc comments)
-//   - pkg/services/processor/event_processor.go — EventStorage (minimal write-only interface)
+//   - pkg/domain/query/event_store.go — canonical EventStore (*core.BlockchainEvent, full CRUD)
 type EventStore interface {
 	StoreEvent(ctx context.Context, event *Event) error
 	StoreBatch(ctx context.Context, events []*Event) error
@@ -398,11 +402,11 @@ func (tm *TransactionManager) RollbackTransaction(txID string) error {
 }
 
 // GetMetrics returns transaction manager metrics
-func (tm *TransactionManager) GetMetrics() map[string]interface{} {
+func (tm *TransactionManager) GetMetrics() map[string]any {
 	tm.mu.RLock()
 	defer tm.mu.RUnlock()
 
-	return map[string]interface{}{
+	return map[string]any{
 		"active_transactions": len(tm.activeTransactions),
 		"commit_count":        tm.commitCount,
 		"rollback_count":      tm.rollbackCount,

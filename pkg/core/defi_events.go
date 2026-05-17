@@ -9,13 +9,13 @@ import (
 // This is the most critical DeFi risk event — it signals that a borrower's
 // position was forcibly closed due to falling below the health factor threshold.
 type LiquidationEvent struct {
-	CollateralAsset           common.Address `json:"collateral_asset"`
-	DebtAsset                 common.Address `json:"debt_asset"`
-	Debtor                    common.Address `json:"debtor"`
-	Liquidator                common.Address `json:"liquidator"`
-	DebtToCover               *big.Int       `json:"debt_to_cover"`
-	LiquidatedCollateralAmount *big.Int      `json:"liquidated_collateral_amount"`
-	ReceiveAToken             bool           `json:"receive_a_token"`
+	CollateralAsset            common.Address `json:"collateral_asset"`
+	DebtAsset                  common.Address `json:"debt_asset"`
+	Debtor                     common.Address `json:"debtor"`
+	Liquidator                 common.Address `json:"liquidator"`
+	DebtToCover                *big.Int       `json:"debt_to_cover"`
+	LiquidatedCollateralAmount *big.Int       `json:"liquidated_collateral_amount"`
+	ReceiveAToken              bool           `json:"receive_a_token"`
 }
 
 // IsLiquidationTopic0 checks if the given topic0 matches Aave V3 LiquidationCall.
@@ -27,14 +27,14 @@ func IsLiquidationTopic0(topic0 string) bool {
 // Different DEX protocols emit different swap events, but they all share
 // the concept of tokens flowing in and out.
 type DEXSwapEvent struct {
-	Protocol   string         `json:"protocol"`   // "uniswap_v2", "uniswap_v3", "curve", "balancer"
-	Sender     common.Address `json:"sender"`
-	To         common.Address `json:"to"`
-	TokenIn    common.Address `json:"token_in"`    // zero if not available
-	TokenOut   common.Address `json:"token_out"`   // zero if not available
-	AmountIn   *big.Int       `json:"amount_in"`   // V2: amount0In+amount1In, V3: amount0 or amount1
-	AmountOut  *big.Int       `json:"amount_out"`  // V2: amount0Out+amount1Out, V3: the other amount
-	Pool       common.Address `json:"pool"`        // contract address emitting the event
+	Protocol  string         `json:"protocol"` // "uniswap_v2", "uniswap_v3", "curve", "balancer"
+	Sender    common.Address `json:"sender"`
+	To        common.Address `json:"to"`
+	TokenIn   common.Address `json:"token_in"`   // zero if not available
+	TokenOut  common.Address `json:"token_out"`  // zero if not available
+	AmountIn  *big.Int       `json:"amount_in"`  // V2: amount0In+amount1In, V3: amount0 or amount1
+	AmountOut *big.Int       `json:"amount_out"` // V2: amount0Out+amount1Out, V3: the other amount
+	Pool      common.Address `json:"pool"`       // contract address emitting the event
 }
 
 // LendingSupplyEvent represents a supply/deposit event from a lending protocol.
@@ -188,13 +188,81 @@ func (e *BridgeTransferEvent) IsCrossChain() bool {
 
 // LayerZeroChainIDToEVM maps LayerZero chain IDs to EVM chain IDs for common chains.
 var LayerZeroChainIDToEVM = map[uint64]uint64{
-	101: 1,      // Ethereum Mainnet
-	102: 56,     // BSC
-	106: 137,    // Polygon
-	110: 42161,  // Arbitrum One
-	111: 43114,  // Avalanche C-Chain
-	112: 10,     // Optimism
+	101: 1,     // Ethereum Mainnet
+	102: 56,    // BSC
+	106: 137,   // Polygon
+	110: 42161, // Arbitrum One
+	111: 43114, // Avalanche C-Chain
+	112: 10,    // Optimism
 }
+
+// --- L2 Bridge Events (Optimism, Arbitrum) ---
+
+// OptimismSentMessageEvent represents an Optimism L2→L1 message sent via
+// the L2CrossDomainMessenger. This is emitted when a message is sent from L2
+// to L1 and must be relayed on L1 after the challenge window.
+//
+// Reference: https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L2/L2CrossDomainMessenger.sol
+type OptimismSentMessageEvent struct {
+	Target       common.Address `json:"target"`
+	Sender       common.Address `json:"sender"`
+	Message      []byte         `json:"message"`
+	MessageNonce *big.Int       `json:"message_nonce"`
+	GasLimit     *big.Int       `json:"gas_limit"`
+}
+
+// OptimismRelayedMessageEvent represents a message successfully relayed on L1
+// by the Optimism L1CrossDomainMessenger.
+type OptimismRelayedMessageEvent struct {
+	MessageHash common.Hash `json:"msg_hash"`
+}
+
+// OptimismFailedRelayedMessageEvent represents a message that failed to relay on L1.
+type OptimismFailedRelayedMessageEvent struct {
+	MessageHash common.Hash `json:"msg_hash"`
+}
+
+// ArbitrumL2ToL1TransactionEvent represents an Arbitrum L2→L1 transaction.
+// Emitted by the Arbitrum Outbox contract when a withdrawal is initiated on L2.
+//
+// Reference: https://github.com/OffchainLabs/arbitrum/blob/master/src/bridge/ArbSys.sol
+type ArbitrumL2ToL1TransactionEvent struct {
+	Caller      common.Address `json:"caller"`
+	Destination common.Address `json:"destination"`
+	Hash        common.Hash    `json:"hash"`
+	Position    *big.Int       `json:"position"`
+	Timestamp   *big.Int       `json:"timestamp"`
+	Data        []byte         `json:"data"`
+}
+
+// ArbitrumRetryableTicketEvent represents an Arbitrum retryable ticket creation.
+// Retryable tickets are the L1→L2 deposit mechanism for Arbitrum.
+type ArbitrumRetryableTicketEvent struct {
+	TicketID    common.Hash    `json:"ticket_id"`
+	Sender      common.Address `json:"sender"`
+	Destination common.Address `json:"destination"`
+	Value       *big.Int       `json:"value"`
+}
+
+// L1TransactionDepositedEvent represents an L1→L2 deposit on Optimism.
+// Emitted by the OptimismPortal contract when ETH or data is deposited to L2.
+type L1TransactionDepositedEvent struct {
+	From    common.Address `json:"from"`
+	To      common.Address `json:"to"`
+	Version *big.Int       `json:"version"`
+	Data    []byte         `json:"data"`
+}
+
+// BridgeEventType categorizes a cross-chain bridge event for routing and indexing.
+type BridgeEventType string
+
+const (
+	BridgeOptimismSent      BridgeEventType = "optimism_sent"
+	BridgeOptimismRelayed   BridgeEventType = "optimism_relayed"
+	BridgeArbitrumOutbound  BridgeEventType = "arbitrum_outbound"
+	BridgeArbitrumRetryable BridgeEventType = "arbitrum_retryable"
+	BridgeL1Deposit         BridgeEventType = "l1_deposit"
+)
 
 // --- NFT Events ---
 

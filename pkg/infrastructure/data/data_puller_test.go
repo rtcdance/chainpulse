@@ -9,6 +9,7 @@ import (
 
 // TestBlockchainTypeConstants tests blockchain type constants
 func TestBlockchainTypeConstants(t *testing.T) {
+	t.Parallel()
 	assert.Equal(t, BlockchainType("evm"), EVM)
 	assert.Equal(t, BlockchainType("cosmos"), Cosmos)
 	assert.Equal(t, BlockchainType("solana"), Solana)
@@ -16,6 +17,7 @@ func TestBlockchainTypeConstants(t *testing.T) {
 
 // TestBlockchainEventCreation tests blockchain event creation
 func TestBlockchainEventCreation(t *testing.T) {
+	t.Parallel()
 	event := &BlockchainEvent{
 		ID:              "event-1",
 		EventHash:       "0x123",
@@ -24,7 +26,7 @@ func TestBlockchainEventCreation(t *testing.T) {
 		LogIndex:        0,
 		ContractAddress: "0xabc",
 		EventName:       "Transfer",
-		EventData:       map[string]interface{}{"from": "0x123", "to": "0x456"},
+		EventData:       map[string]any{"from": "0x123", "to": "0x456"},
 		ChainID:         "ethereum",
 		Timestamp:       time.Now(),
 		ProcessedAt:     time.Now(),
@@ -39,6 +41,7 @@ func TestBlockchainEventCreation(t *testing.T) {
 
 // TestDataPullerConfigCreation tests data puller config creation
 func TestDataPullerConfigCreation(t *testing.T) {
+	t.Parallel()
 	config := DataPullerConfig{
 		ChainType:      EVM,
 		ChainID:        "ethereum",
@@ -56,6 +59,7 @@ func TestDataPullerConfigCreation(t *testing.T) {
 
 // TestDataPullerCreation tests data puller creation
 func TestDataPullerCreation(t *testing.T) {
+	t.Parallel()
 	config := DataPullerConfig{
 		ChainType:      EVM,
 		ChainID:        "ethereum",
@@ -77,10 +81,11 @@ func TestDataPullerCreation(t *testing.T) {
 
 // TestBlockchainEventWithEmptyData tests blockchain event with empty data
 func TestBlockchainEventWithEmptyData(t *testing.T) {
+	t.Parallel()
 	event := &BlockchainEvent{
 		ID:        "event-1",
 		EventName: "Transfer",
-		EventData: map[string]interface{}{},
+		EventData: map[string]any{},
 	}
 
 	assert.Equal(t, 0, len(event.EventData))
@@ -88,10 +93,11 @@ func TestBlockchainEventWithEmptyData(t *testing.T) {
 
 // TestBlockchainEventWithMultipleData tests blockchain event with multiple data
 func TestBlockchainEventWithMultipleData(t *testing.T) {
+	t.Parallel()
 	event := &BlockchainEvent{
 		ID:        "event-1",
 		EventName: "Transfer",
-		EventData: map[string]interface{}{
+		EventData: map[string]any{
 			"from":   "0x123",
 			"to":     "0x456",
 			"value":  "1000",
@@ -110,6 +116,7 @@ func TestBlockchainEventWithMultipleData(t *testing.T) {
 
 // TestDataPullerConfigWithDifferentChainTypes tests config with different chain types
 func TestDataPullerConfigWithDifferentChainTypes(t *testing.T) {
+	t.Parallel()
 	chainTypes := []BlockchainType{EVM, Cosmos, Solana}
 
 	for _, chainType := range chainTypes {
@@ -123,6 +130,7 @@ func TestDataPullerConfigWithDifferentChainTypes(t *testing.T) {
 
 // TestDataPullerConfigWithDifferentBatchSizes tests config with different batch sizes
 func TestDataPullerConfigWithDifferentBatchSizes(t *testing.T) {
+	t.Parallel()
 	batchSizes := []uint64{10, 100, 1000, 10000}
 
 	for _, batchSize := range batchSizes {
@@ -136,6 +144,7 @@ func TestDataPullerConfigWithDifferentBatchSizes(t *testing.T) {
 
 // TestDataPullerConfigWithDifferentPollIntervals tests config with different poll intervals
 func TestDataPullerConfigWithDifferentPollIntervals(t *testing.T) {
+	t.Parallel()
 	intervals := []time.Duration{
 		1 * time.Second,
 		5 * time.Second,
@@ -154,6 +163,7 @@ func TestDataPullerConfigWithDifferentPollIntervals(t *testing.T) {
 
 // TestBlockchainEventTimestamps tests blockchain event timestamps
 func TestBlockchainEventTimestamps(t *testing.T) {
+	t.Parallel()
 	now := time.Now()
 	event := &BlockchainEvent{
 		ID:          "event-1",
@@ -166,6 +176,7 @@ func TestBlockchainEventTimestamps(t *testing.T) {
 
 // TestBlockchainEventBlockNumber tests blockchain event block number
 func TestBlockchainEventBlockNumber(t *testing.T) {
+	t.Parallel()
 	blockNumbers := []uint64{0, 1, 100, 1000, 10000000}
 
 	for _, blockNum := range blockNumbers {
@@ -178,6 +189,7 @@ func TestBlockchainEventBlockNumber(t *testing.T) {
 
 // TestBlockchainEventLogIndex tests blockchain event log index
 func TestBlockchainEventLogIndex(t *testing.T) {
+	t.Parallel()
 	logIndices := []uint{0, 1, 5, 10, 100}
 
 	for _, logIndex := range logIndices {
@@ -190,6 +202,7 @@ func TestBlockchainEventLogIndex(t *testing.T) {
 
 // TestBlockchainEventStatus tests blockchain event status
 func TestBlockchainEventStatus(t *testing.T) {
+	t.Parallel()
 	statuses := []string{"pending", "confirmed", "failed", "reorged"}
 
 	for _, status := range statuses {
@@ -202,6 +215,7 @@ func TestBlockchainEventStatus(t *testing.T) {
 
 // TestDataPullerConfigStartBlock tests data puller config start block
 func TestDataPullerConfigStartBlock(t *testing.T) {
+	t.Parallel()
 	startBlocks := []uint64{0, 1, 100, 1000, 10000000}
 
 	for _, startBlock := range startBlocks {
@@ -215,6 +229,7 @@ func TestDataPullerConfigStartBlock(t *testing.T) {
 
 // TestBlockchainEventChainID tests blockchain event chain ID
 func TestBlockchainEventChainID(t *testing.T) {
+	t.Parallel()
 	chainIDs := []string{"ethereum", "polygon", "arbitrum", "optimism"}
 
 	for _, chainID := range chainIDs {
@@ -227,6 +242,7 @@ func TestBlockchainEventChainID(t *testing.T) {
 
 // TestDataPullerConfigChainID tests data puller config chain ID
 func TestDataPullerConfigChainID(t *testing.T) {
+	t.Parallel()
 	chainIDs := []string{"ethereum", "polygon", "arbitrum", "optimism"}
 
 	for _, chainID := range chainIDs {
@@ -240,6 +256,7 @@ func TestDataPullerConfigChainID(t *testing.T) {
 
 // TestBlockchainEventEventName tests blockchain event event name
 func TestBlockchainEventEventName(t *testing.T) {
+	t.Parallel()
 	eventNames := []string{"Transfer", "Approval", "Swap", "Mint", "Burn"}
 
 	for _, eventName := range eventNames {
@@ -252,6 +269,7 @@ func TestBlockchainEventEventName(t *testing.T) {
 
 // TestBlockchainEventAddresses tests blockchain event addresses
 func TestBlockchainEventAddresses(t *testing.T) {
+	t.Parallel()
 	event := &BlockchainEvent{
 		ContractAddress: "0x1234567890123456789012345678901234567890",
 	}
@@ -261,6 +279,7 @@ func TestBlockchainEventAddresses(t *testing.T) {
 
 // TestBlockchainEventHashes tests blockchain event hashes
 func TestBlockchainEventHashes(t *testing.T) {
+	t.Parallel()
 	event := &BlockchainEvent{
 		EventHash:       "0xevent123",
 		TransactionHash: "0xtx456",
@@ -272,6 +291,7 @@ func TestBlockchainEventHashes(t *testing.T) {
 
 // TestDataPullerConfigBlockchainNode tests data puller config blockchain node
 func TestDataPullerConfigBlockchainNode(t *testing.T) {
+	t.Parallel()
 	nodes := []string{
 		"http://localhost:8545",
 		"https://mainnet.infura.io/v3/YOUR-PROJECT-ID",
@@ -289,6 +309,7 @@ func TestDataPullerConfigBlockchainNode(t *testing.T) {
 
 // TestBlockchainEventID tests blockchain event ID
 func TestBlockchainEventID(t *testing.T) {
+	t.Parallel()
 	event := &BlockchainEvent{
 		ID: "event-12345",
 	}
@@ -298,6 +319,7 @@ func TestBlockchainEventID(t *testing.T) {
 
 // TestDataPullerCurrentBlock tests data puller current block tracking
 func TestDataPullerCurrentBlock(t *testing.T) {
+	t.Parallel()
 	config := DataPullerConfig{
 		ChainType:  EVM,
 		StartBlock: 100,
@@ -313,6 +335,7 @@ func TestDataPullerCurrentBlock(t *testing.T) {
 
 // TestBlockchainEventComparison tests blockchain event comparison
 func TestBlockchainEventComparison(t *testing.T) {
+	t.Parallel()
 	event1 := &BlockchainEvent{
 		ID:          "event-1",
 		BlockNumber: 100,
@@ -332,6 +355,7 @@ func TestBlockchainEventComparison(t *testing.T) {
 
 // TestDataPullerConfigComparison tests data puller config comparison
 func TestDataPullerConfigComparison(t *testing.T) {
+	t.Parallel()
 	config1 := DataPullerConfig{
 		ChainType:    EVM,
 		ChainID:      "ethereum",

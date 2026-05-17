@@ -304,7 +304,7 @@ func TestRequestStruct(t *testing.T) {
 	req := &Request{
 		QueryType:  "events",
 		Collection: "transfers",
-		Filter:     map[string]interface{}{"chain_id": "1"},
+		Filter:     map[string]any{"chain_id": "1"},
 		Limit:      100,
 		Offset:     0,
 		CacheKey:   "cache-key",

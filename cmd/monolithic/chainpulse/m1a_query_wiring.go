@@ -9,8 +9,6 @@ import (
 	"chainpulse/pkg/plugins/api"
 	"chainpulse/pkg/services/query"
 
-	indexingadapter "chainpulse/pkg/adapters/indexing"
-
 	domainquery "chainpulse/pkg/domain/query"
 )
 
@@ -19,7 +17,7 @@ type monolithicQuerySurface struct {
 	eventRetrievalService    *query.EventRetrievalService
 	eventQueryHandler        *api.EventQueryHandler
 	eventSubscriptionHandler *api.EventSubscriptionHandler
-	summaryData              map[string]interface{}
+	summaryData              map[string]any
 }
 
 func buildMonolithicIndexingBackedQuerySurface(
@@ -28,12 +26,12 @@ func buildMonolithicIndexingBackedQuerySurface(
 	logger core.Logger,
 	metrics core.MetricsCollector,
 ) (*monolithicQuerySurface, error) {
-	eventStore := indexingadapter.NewMonolithicIndexingEventStore(indexingDatabase, logger, metrics)
+	eventStore := bootstrap.NewMonolithicIndexingEventStore(indexingDatabase, logger, metrics)
 	if err := eventStore.Initialize(ctx); err != nil {
 		return nil, fmt.Errorf("initialize monolithic event store: %w", err)
 	}
 
-	metadataStore := indexingadapter.NewMonolithicIndexingMetadataStore(indexingDatabase)
+	metadataStore := bootstrap.NewMonolithicIndexingMetadataStore(indexingDatabase)
 	if err := metadataStore.Initialize(ctx); err != nil {
 		return nil, fmt.Errorf("initialize monolithic metadata store: %w", err)
 	}
@@ -43,7 +41,7 @@ func buildMonolithicIndexingBackedQuerySurface(
 		return nil, fmt.Errorf("initialize monolithic event retrieval service: %w", err)
 	}
 
-	domainService := indexingadapter.NewMonolithicIndexingDomainQueryService(indexingDatabase, logger, metrics)
+	domainService := bootstrap.NewMonolithicIndexingDomainQueryService(indexingDatabase, logger, metrics)
 	eventQueryHandler := api.NewEventQueryHandler(eventRetrievalService, logger, metrics)
 	eventQueryHandler.SetDomainQueryService(domainService)
 	if err := eventQueryHandler.Initialize(ctx); err != nil {
@@ -60,7 +58,7 @@ func buildMonolithicIndexingBackedQuerySurface(
 		eventRetrievalService:    eventRetrievalService,
 		eventQueryHandler:        eventQueryHandler,
 		eventSubscriptionHandler: eventSubscriptionHandler,
-		summaryData: map[string]interface{}{
+		summaryData: map[string]any{
 			"query_alignment_posture":    "monolithic-query-indexing-aligned",
 			"domain_query_source":        "monolithic-indexing",
 			"event_retrieval_source":     "monolithic-indexing",
@@ -77,7 +75,7 @@ func buildMonolithicIndexingBackedQuerySurface(
 func buildManagedDBRuntimeQuerySurface(runtimeWiring *bootstrap.RuntimeWiring) *monolithicQuerySurface {
 	if runtimeWiring == nil {
 		return &monolithicQuerySurface{
-			summaryData: map[string]interface{}{
+			summaryData: map[string]any{
 				"query_alignment_posture": "monolithic-query-unaligned",
 				"query_runtime_adapter":   "managed-db-runtime-wiring",
 				"query_selection_posture": "query-surface-unconfigured",
@@ -92,7 +90,7 @@ func buildManagedDBRuntimeQuerySurface(runtimeWiring *bootstrap.RuntimeWiring) *
 		eventRetrievalService:    runtimeWiring.EventRetrievalService,
 		eventQueryHandler:        runtimeWiring.EventQueryHandler,
 		eventSubscriptionHandler: runtimeWiring.EventSubscriptionHandler,
-		summaryData: map[string]interface{}{
+		summaryData: map[string]any{
 			"query_alignment_posture":    "monolithic-query-managed-runtime",
 			"domain_query_source":        "managed-db-runtime",
 			"event_retrieval_source":     "managed-db-runtime",
@@ -121,9 +119,9 @@ func resolveMonolithicQuerySurface(
 	return buildMonolithicIndexingBackedQuerySurface(ctx, indexingDatabase, logger, metrics)
 }
 
-func (s *monolithicQuerySurface) summary() map[string]interface{} {
+func (s *monolithicQuerySurface) summary() map[string]any {
 	if s == nil || s.summaryData == nil {
-		return map[string]interface{}{
+		return map[string]any{
 			"query_alignment_posture": "monolithic-query-unaligned",
 			"query_reliability_hint":  "monolithic query surface is not yet reading from indexing-backed storage",
 		}

@@ -3,6 +3,7 @@ package health
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"sync"
 	"time"
 )
@@ -25,7 +26,7 @@ type KafkaCluster interface {
 type RedisCluster interface {
 	IsHealthy(ctx context.Context) bool
 	Health(ctx context.Context) error
-	Set(ctx context.Context, key string, value interface{}, ttl int) error
+	Set(ctx context.Context, key string, value any, ttl int) error
 	Get(ctx context.Context, key string) (string, error)
 }
 
@@ -33,13 +34,13 @@ type RedisCluster interface {
 type PostgresCluster interface {
 	IsHealthy(ctx context.Context) bool
 	Health(ctx context.Context) error
-	Exec(ctx context.Context, query string, args ...interface{}) error
-	QueryRow(ctx context.Context, query string, args ...interface{}) PostgresRow
+	Exec(ctx context.Context, query string, args ...any) error
+	QueryRow(ctx context.Context, query string, args ...any) PostgresRow
 }
 
 // PostgresRow represents a single row from a query
 type PostgresRow interface {
-	Scan(dest ...interface{}) error
+	Scan(dest ...any) error
 }
 
 // CheckpointValidator validates infrastructure readiness
@@ -271,16 +272,11 @@ func (cv *CheckpointValidator) testDBToKafka(ctx context.Context) error {
 
 // checkBackupStatus checks backup status
 func (cv *CheckpointValidator) checkBackupStatus(ctx context.Context) BackupCheckStatus {
-	status := BackupCheckStatus{
+	slog.Warn("checkBackupStatus: placeholder — backup status check not yet implemented, reporting as not configured")
+
+	return BackupCheckStatus{
 		BackupConfigured: false,
 	}
-
-	// Check if backup is configured
-	// This is a placeholder for actual backup status checking
-	status.BackupConfigured = true
-	status.LastBackupTime = time.Now().Add(-24 * time.Hour)
-
-	return status
 }
 
 // PrintCheckpointReport prints a formatted checkpoint report
@@ -386,12 +382,12 @@ func (cv *CheckpointValidator) ValidateBackupAndRecovery(ctx context.Context) er
 
 // testPostgresBackup tests PostgreSQL backup capability
 func (cv *CheckpointValidator) testPostgresBackup(ctx context.Context) error {
-	// This is a placeholder for actual backup testing
+	slog.Warn("testPostgresBackup: placeholder — PostgreSQL backup test not yet implemented")
 	return nil
 }
 
 // testRedisBackup tests Redis backup capability
 func (cv *CheckpointValidator) testRedisBackup(ctx context.Context) error {
-	// This is a placeholder for actual backup testing
+	slog.Warn("testRedisBackup: placeholder — Redis backup test not yet implemented")
 	return nil
 }

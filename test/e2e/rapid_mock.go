@@ -40,21 +40,21 @@ func NewTestLogger() Logger {
 }
 
 // Infof logs an info message
-func (tl *TestLogger) Infof(format string, args ...interface{}) {
+func (tl *TestLogger) Infof(format string, args ...any) {
 	// No-op for testing
 }
 
 // Warnf logs a warning message
-func (tl *TestLogger) Warnf(format string, args ...interface{}) {
+func (tl *TestLogger) Warnf(format string, args ...any) {
 	// No-op for testing
 }
 
 // Errorf logs an error message
-func (tl *TestLogger) Errorf(format string, args ...interface{}) {
+func (tl *TestLogger) Errorf(format string, args ...any) {
 	// No-op for testing
 }
 
 // Debugf logs a debug message
-func (tl *TestLogger) Debugf(format string, args ...interface{}) {
+func (tl *TestLogger) Debugf(format string, args ...any) {
 	// No-op for testing
 }

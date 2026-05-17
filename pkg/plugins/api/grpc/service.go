@@ -38,7 +38,7 @@ type SubscriptionManager interface {
 // Subscription represents an active subscription
 type Subscription struct {
 	ID      string
-	Channel chan interface{}
+	Channel chan any
 	Cancel  context.CancelFunc
 }
 
@@ -147,7 +147,7 @@ func (s *ChainPulseService) methodGetEvent(srv any, ctx context.Context, dec fun
 }
 
 func (s *ChainPulseService) methodGetTokenBalance(srv any, ctx context.Context, dec func(any) error, interceptor grpc.UnaryServerInterceptor) (any, error) { //nolint:revive // gRPC handler signature
-	return nil, status.Error(codes.Unimplemented, "GetTokenBalance is not yet implemented")
+	return nil, status.Error(codes.Unimplemented, "GetTokenBalance requires ERC-20 adapter injection; not yet configured")
 }
 
 func (s *ChainPulseService) methodHealthCheck(srv any, ctx context.Context, dec func(any) error, interceptor grpc.UnaryServerInterceptor) (any, error) { //nolint:revive // gRPC handler signature

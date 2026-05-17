@@ -40,6 +40,13 @@ spec:
       containers:
       - name: redis
         image: redis:7-alpine
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
         command:
         - redis-server
         - --requirepass
@@ -55,6 +62,16 @@ spec:
         volumeMounts:
         - name: redis-storage
           mountPath: /data
+        startupProbe:
+          exec:
+            command:
+            - redis-cli
+            - -a
+            - $(REDIS_PASSWORD)
+            - ping
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          failureThreshold: 30
         livenessProbe:
           exec:
             command:

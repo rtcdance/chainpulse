@@ -3,6 +3,7 @@ package api
 import "testing"
 
 func TestBuildRouteOwnershipParityHint(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name                  string
 		service               string
@@ -33,6 +34,7 @@ func TestBuildRouteOwnershipParityHint(t *testing.T) {
 }
 
 func TestBuildOwnershipParityReviewFields(t *testing.T) {
+	t.Parallel()
 	got := BuildOwnershipParityReviewFields("runtime_routes_enabled", "event_query_enabled")
 	want := "runtime_routes_enabled,event_query_enabled,ownership_runtime_parity"
 	if got != want {
@@ -41,6 +43,7 @@ func TestBuildOwnershipParityReviewFields(t *testing.T) {
 }
 
 func TestBuildOwnershipParityReviewFieldsDeduplicates(t *testing.T) {
+	t.Parallel()
 	got := BuildOwnershipParityReviewFields("runtime_routes_enabled", OwnershipRuntimeParityReviewField, "runtime_routes_enabled")
 	want := "runtime_routes_enabled,ownership_runtime_parity"
 	if got != want {
@@ -49,6 +52,7 @@ func TestBuildOwnershipParityReviewFieldsDeduplicates(t *testing.T) {
 }
 
 func TestBuildRouteOwnershipParityState(t *testing.T) {
+	t.Parallel()
 	got := BuildRouteOwnershipParityState("api-service", true, "runtime_routes_enabled", "event_query_enabled")
 	if got.Service != "api-service" {
 		t.Fatalf("expected service api-service, got %q", got.Service)
@@ -65,6 +69,7 @@ func TestBuildRouteOwnershipParityState(t *testing.T) {
 }
 
 func TestBuildRouteOwnershipParityStateFromSource(t *testing.T) {
+	t.Parallel()
 	got := BuildRouteOwnershipParityStateFromSource("api-gateway", RouteOwnershipParitySourceFunc(func() RouteOwnershipParitySourceSnapshot {
 		return RouteOwnershipParitySourceSnapshot{RuntimeSignalsPresent: true}
 	}), "runtime_routes_enabled")
@@ -78,7 +83,8 @@ func TestBuildRouteOwnershipParityStateFromSource(t *testing.T) {
 }
 
 func TestBuildRouteOwnershipParitySourceSnapshotFromReadinessDetailsShadow(t *testing.T) {
-	got := BuildRouteOwnershipParitySourceSnapshotFromReadinessDetails(map[string]interface{}{
+	t.Parallel()
+	got := BuildRouteOwnershipParitySourceSnapshotFromReadinessDetails(map[string]any{
 		"ownership_mode":                  "shadow",
 		"rollout_ready_for_runtime_owned": false,
 		"rollout_status":                  "shadow-observe",
@@ -118,7 +124,8 @@ func TestBuildRouteOwnershipParitySourceSnapshotFromReadinessDetailsShadow(t *te
 }
 
 func TestBuildRouteOwnershipParitySourceSnapshotFromReadinessDetailsRuntimeOwned(t *testing.T) {
-	got := BuildRouteOwnershipParitySourceSnapshotFromReadinessDetails(map[string]interface{}{
+	t.Parallel()
+	got := BuildRouteOwnershipParitySourceSnapshotFromReadinessDetails(map[string]any{
 		"ownership_mode":                  "runtime-owned",
 		"rollout_ready_for_runtime_owned": true,
 		"rollout_status":                  "ready",
@@ -152,7 +159,8 @@ func TestBuildRouteOwnershipParitySourceSnapshotFromReadinessDetailsRuntimeOwned
 }
 
 func TestBuildRouteOwnershipParitySourceSnapshotFromReadinessDetailsIdle(t *testing.T) {
-	got := BuildRouteOwnershipParitySourceSnapshotFromReadinessDetails(map[string]interface{}{
+	t.Parallel()
+	got := BuildRouteOwnershipParitySourceSnapshotFromReadinessDetails(map[string]any{
 		"ownership_mode":                  "idle",
 		"rollout_ready_for_runtime_owned": false,
 		"rollout_status":                  "idle",
@@ -176,6 +184,7 @@ func TestBuildRouteOwnershipParitySourceSnapshotFromReadinessDetailsIdle(t *test
 }
 
 func TestClassifyMonolithOwnershipParityPosture(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name        string
 		mode        string
@@ -200,6 +209,7 @@ func TestClassifyMonolithOwnershipParityPosture(t *testing.T) {
 }
 
 func TestBuildMonolithOwnershipParityHint(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name    string
 		posture string
@@ -242,6 +252,7 @@ func TestBuildMonolithOwnershipParityHint(t *testing.T) {
 }
 
 func TestBuildMonolithOwnershipParityTargetDecision(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name    string
 		posture string
@@ -264,6 +275,7 @@ func TestBuildMonolithOwnershipParityTargetDecision(t *testing.T) {
 }
 
 func TestBuildMonolithOwnershipParityActionGuidance(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		decision string
@@ -286,6 +298,7 @@ func TestBuildMonolithOwnershipParityActionGuidance(t *testing.T) {
 }
 
 func TestAppendMonolithOwnershipParityReason(t *testing.T) {
+	t.Parallel()
 	parts := AppendMonolithOwnershipParityReason([]string{"enabled: runtime_routes_enabled"}, RouteOwnershipParitySourceSnapshot{
 		MonolithParityPosture:  "monolith-shadow-observe",
 		MonolithParityHint:     "monolith ownership rollout is still in shadow observe posture; do not treat route parity as complete yet",
@@ -311,6 +324,7 @@ func TestAppendMonolithOwnershipParityReason(t *testing.T) {
 }
 
 func TestBuildMonolithOwnershipParityRecommendationBundle(t *testing.T) {
+	t.Parallel()
 	bundle := BuildMonolithOwnershipParityRecommendationBundle(RouteOwnershipParitySourceSnapshot{
 		MonolithParityPosture:  "monolith-runtime-owned-ready",
 		MonolithParityHint:     "monolith ownership rollout is runtime-owned and ready; use this as the target parity posture",
@@ -333,6 +347,7 @@ func TestBuildMonolithOwnershipParityRecommendationBundle(t *testing.T) {
 }
 
 func TestAppendOwnershipParityHintReason(t *testing.T) {
+	t.Parallel()
 	parts, hint := AppendOwnershipParityHintReason([]string{"enabled: runtime_routes_enabled"}, "api-service", true)
 	if hint != "api-service runtime wiring is present, but ownership runtime parity with monolith is still pending" {
 		t.Fatalf("unexpected hint %q", hint)
@@ -346,6 +361,7 @@ func TestAppendOwnershipParityHintReason(t *testing.T) {
 }
 
 func TestAppendRouteOwnershipParityStateReason(t *testing.T) {
+	t.Parallel()
 	state := BuildRouteOwnershipParityState("api-gateway", false, "runtime_routes_enabled")
 	parts, hint := AppendRouteOwnershipParityStateReason([]string{"missing: domain_bridge_enabled"}, state)
 	if hint != state.Hint {
@@ -357,6 +373,7 @@ func TestAppendRouteOwnershipParityStateReason(t *testing.T) {
 }
 
 func TestBuildOwnershipParityApprovalWorkItem(t *testing.T) {
+	t.Parallel()
 	got := BuildOwnershipParityApprovalWorkItem(OwnershipParityApprovalWorkItemInput{
 		State:  BuildRouteOwnershipParityState("api-gateway", true, "runtime_routes_enabled", "event_query_enabled"),
 		Status: "none",

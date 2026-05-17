@@ -22,12 +22,12 @@ const (
 // Dencun shipped with target=3 / max=6 blobs. Pectra (EIP-7668) raises
 // max to 9, keeping the same update fraction for backward compatibility.
 type BlobParams struct {
-	Fork                    ForkName
-	TargetBlobCount         uint64 // target blobs per block
-	MaxBlobCount            uint64 // max blobs per block
-	BlobGasPerBlob          uint64 // gas consumed per blob (2^17 = 131072)
-	MinBlobGasPrice         uint64 // minimum blob gas price (1 wei)
-	BlobGasPriceUpdateFrac  uint64 // update fraction for fake-exponential
+	Fork                   ForkName
+	TargetBlobCount        uint64 // target blobs per block
+	MaxBlobCount           uint64 // max blobs per block
+	BlobGasPerBlob         uint64 // gas consumed per blob (2^17 = 131072)
+	MinBlobGasPrice        uint64 // minimum blob gas price (1 wei)
+	BlobGasPriceUpdateFrac uint64 // update fraction for fake-exponential
 }
 
 // Pre-defined fork parameters.
@@ -54,7 +54,7 @@ var (
 // forkBlobParams is the registry mapping fork names to their blob parameters.
 // It can be extended for future forks (e.g., Osaka).
 var (
-	forkBlobParams   = map[ForkName]BlobParams{
+	forkBlobParams = map[ForkName]BlobParams{
 		ForkDencun: BlobParamsDencun,
 		ForkPectra: BlobParamsPectra,
 	}

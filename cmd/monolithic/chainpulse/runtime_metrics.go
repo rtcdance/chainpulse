@@ -7,8 +7,8 @@ import (
 	"chainpulse/pkg/observability"
 )
 
-func buildMonolithicMetricsProvider(metrics core.MetricsCollector, indexerMetrics *observability.IndexerMetrics) func(*http.Request) interface{} {
-	return func(r *http.Request) interface{} {
+func buildMonolithicMetricsProvider(metrics core.MetricsCollector, indexerMetrics *observability.IndexerMetrics) func(*http.Request) any {
+	return func(r *http.Request) any {
 		if metrics == nil {
 			return nil
 		}

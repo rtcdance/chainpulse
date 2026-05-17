@@ -1,5 +1,7 @@
 package deployment
 
+import "chainpulse/pkg/core"
+
 // KafkaConfig holds Kafka configuration
 type KafkaConfig struct {
 	Brokers             []string
@@ -12,11 +14,11 @@ type KafkaConfig struct {
 	SecurityProtocol    string
 	SASLMechanism       string
 	SASLUsername        string
-	SASLPassword        string
+	SASLPassword        core.SecretString
 	SSLCALocation       string
 	SSLCertLocation     string
 	SSLKeyLocation      string
-	SSLKeyPassword      string
+	SSLKeyPassword      core.SecretString
 	ConnectTimeoutMs    int
 	RequestTimeoutMs    int
 	SessionTimeoutMs    int

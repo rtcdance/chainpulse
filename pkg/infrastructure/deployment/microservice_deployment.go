@@ -332,7 +332,7 @@ func (md *MicroserviceDeployment) GetHealth(ctx context.Context) (core.HealthSta
 		return core.HealthStatus{
 			Status:    "unhealthy",
 			Timestamp: time.Now(),
-			Details: map[string]interface{}{
+			Details: map[string]any{
 				"reason": "microservice not running",
 			},
 		}, nil
@@ -348,7 +348,7 @@ func (md *MicroserviceDeployment) GetHealth(ctx context.Context) (core.HealthSta
 	return core.HealthStatus{
 		Status:    status,
 		Timestamp: time.Now(),
-		Details: map[string]interface{}{
+		Details: map[string]any{
 			"service":              md.serviceName,
 			"instance_id":          md.instanceID,
 			"time_since_heartbeat": timeSinceHeartbeat.String(),
@@ -357,11 +357,11 @@ func (md *MicroserviceDeployment) GetHealth(ctx context.Context) (core.HealthSta
 }
 
 // GetMetrics returns metrics for the microservice
-func (md *MicroserviceDeployment) GetMetrics() map[string]interface{} {
+func (md *MicroserviceDeployment) GetMetrics() map[string]any {
 	md.mu.RLock()
 	defer md.mu.RUnlock()
 
-	metrics := make(map[string]interface{})
+	metrics := make(map[string]any)
 	metrics["is_running"] = md.isRunning
 	metrics["service_name"] = md.serviceName
 	metrics["instance_id"] = md.instanceID

@@ -20,8 +20,8 @@ type DepositProof struct {
 	L2TxHash      [32]byte `json:"l2_tx_hash"`
 	L2BlockNumber uint64   `json:"l2_block_number"`
 	// MessagePasser storage slot on L2 proving the deposit was processed
-	StorageSlot   [32]byte `json:"storage_slot"`
-	StorageValue  [32]byte `json:"storage_value"`
+	StorageSlot  [32]byte `json:"storage_slot"`
+	StorageValue [32]byte `json:"storage_value"`
 }
 
 // VerifyDepositInclusion performs basic validation of a deposit proof.
@@ -62,8 +62,8 @@ type WithdrawalProof struct {
 	OutputRootIndex uint64     `json:"output_root_index"` // index in the output root list
 	MerkleProof     [][32]byte `json:"merkle_proof"`      // merkle proof from withdrawal to output root
 	L1BridgeAddress [20]byte   `json:"l1_bridge_address"`
-	WithdrawalHash  [32]byte   `json:"withdrawal_hash"`   // merkle leaf: keccak256 of the withdrawal transaction
-	L1BlockNumber   uint64     `json:"l1_block_number"`   // L1 block where output root was submitted (0 = unknown)
+	WithdrawalHash  [32]byte   `json:"withdrawal_hash"` // merkle leaf: keccak256 of the withdrawal transaction
+	L1BlockNumber   uint64     `json:"l1_block_number"` // L1 block where output root was submitted (0 = unknown)
 }
 
 // VerifyWithdrawalProof validates a withdrawal proof. It checks that required
@@ -150,9 +150,9 @@ func NewStateRootVerifier(chainID string, l1Contract [20]byte) *StateRootVerifie
 
 // L2OutputRoot represents a state root posted to L1.
 type L2OutputRoot struct {
-	Index           uint64   `json:"index"`
-	L2BlockNumber   uint64   `json:"l2_block_number"`
-	OutputRoot      [32]byte `json:"output_root"`
+	Index            uint64   `json:"index"`
+	L2BlockNumber    uint64   `json:"l2_block_number"`
+	OutputRoot       [32]byte `json:"output_root"`
 	L1Timestamp      uint64   `json:"l1_timestamp"`
 	SubmissionTxHash [32]byte `json:"submission_tx_hash"`
 }
@@ -194,14 +194,14 @@ func WithdrawalDelay(chainID string) (time.Duration, error) {
 
 // BridgeMessage represents a cross-chain message.
 type BridgeMessage struct {
-	Direction     string   `json:"direction"` // "deposit" or "withdrawal"
-	FromChain     string   `json:"from_chain"`
-	ToChain       string   `json:"to_chain"`
-	Amount        *big.Int `json:"amount"`
-	Sender        [20]byte `json:"sender"`
-	Recipient     [20]byte `json:"recipient"`
-	TxHash        [32]byte `json:"tx_hash"`
-	BlockNumber   uint64   `json:"block_number"`
+	Direction   string   `json:"direction"` // "deposit" or "withdrawal"
+	FromChain   string   `json:"from_chain"`
+	ToChain     string   `json:"to_chain"`
+	Amount      *big.Int `json:"amount"`
+	Sender      [20]byte `json:"sender"`
+	Recipient   [20]byte `json:"recipient"`
+	TxHash      [32]byte `json:"tx_hash"`
+	BlockNumber uint64   `json:"block_number"`
 }
 
 // IsDeposit returns true if this is an L1→L2 deposit message.

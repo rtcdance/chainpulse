@@ -19,15 +19,15 @@ type mockLogger struct {
 	errors []string
 }
 
-func (m *mockLogger) Debug(msg string, fields ...interface{}) {}
-func (m *mockLogger) Info(msg string, fields ...interface{})  {}
-func (m *mockLogger) Warn(msg string, fields ...interface{}) {
+func (m *mockLogger) Debug(msg string, fields ...any) {}
+func (m *mockLogger) Info(msg string, fields ...any)  {}
+func (m *mockLogger) Warn(msg string, fields ...any) {
 	m.warns = append(m.warns, msg)
 }
-func (m *mockLogger) Error(msg string, fields ...interface{}) {
+func (m *mockLogger) Error(msg string, fields ...any) {
 	m.errors = append(m.errors, msg)
 }
-func (m *mockLogger) Fatal(msg string, fields ...interface{}) {}
+func (m *mockLogger) Fatal(msg string, fields ...any)         {}
 func (m *mockLogger) WithCorrelationID(id string) core.Logger { return m }
 
 // rpcResponse builds a JSON-RPC response for eth_getBlockByNumber
@@ -44,11 +44,12 @@ func rpcResponse(blockNumber string, errMsg string) string {
 // --- L1 "finalized" tag ---
 
 func TestGetFinalizedBlockNumber_L1Finalized(t *testing.T) {
+	t.Parallel()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Verify the request uses "finalized" tag
-		var req map[string]interface{}
+		var req map[string]any
 		json.NewDecoder(r.Body).Decode(&req)
-		params, _ := req["params"].([]interface{})
+		params, _ := req["params"].([]any)
 		tag, _ := params[0].(string)
 
 		if tag != "finalized" {
@@ -75,10 +76,11 @@ func TestGetFinalizedBlockNumber_L1Finalized(t *testing.T) {
 // --- L2 "safe" tag ---
 
 func TestGetFinalizedBlockNumber_L2Safe(t *testing.T) {
+	t.Parallel()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var req map[string]interface{}
+		var req map[string]any
 		json.NewDecoder(r.Body).Decode(&req)
-		params, _ := req["params"].([]interface{})
+		params, _ := req["params"].([]any)
 		tag, _ := params[0].(string)
 
 		if tag != "safe" {
@@ -104,6 +106,7 @@ func TestGetFinalizedBlockNumber_L2Safe(t *testing.T) {
 }
 
 func TestGetFinalizedBlockNumber_L2FinalityDiscountUnderflow(t *testing.T) {
+	t.Parallel()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		fmt.Fprint(w, rpcResponse("0x1f4", "")) // block 500
@@ -126,11 +129,12 @@ func TestGetFinalizedBlockNumber_L2FinalityDiscountUnderflow(t *testing.T) {
 // --- Fallback: finalized fails → safe → latest ---
 
 func TestGetFinalizedBlockNumber_FallbackToLatest(t *testing.T) {
+	t.Parallel()
 	callCount := int32(0)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var req map[string]interface{}
+		var req map[string]any
 		json.NewDecoder(r.Body).Decode(&req)
-		params, _ := req["params"].([]interface{})
+		params, _ := req["params"].([]any)
 		tag, _ := params[0].(string)
 
 		atomic.AddInt32(&callCount, 1)
@@ -172,10 +176,11 @@ func TestGetFinalizedBlockNumber_FallbackToLatest(t *testing.T) {
 // --- Fallback: L2 safe fails → latest ---
 
 func TestGetFinalizedBlockNumber_L2FallbackToLatest(t *testing.T) {
+	t.Parallel()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var req map[string]interface{}
+		var req map[string]any
 		json.NewDecoder(r.Body).Decode(&req)
-		params, _ := req["params"].([]interface{})
+		params, _ := req["params"].([]any)
 		tag, _ := params[0].(string)
 
 		w.Header().Set("Content-Type", "application/json")
@@ -207,6 +212,7 @@ func TestGetFinalizedBlockNumber_L2FallbackToLatest(t *testing.T) {
 // --- All fallbacks fail ---
 
 func TestGetFinalizedBlockNumber_AllFallbacksFail(t *testing.T) {
+	t.Parallel()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		fmt.Fprint(w, rpcResponse("", "node unavailable"))
@@ -225,6 +231,7 @@ func TestGetFinalizedBlockNumber_AllFallbacksFail(t *testing.T) {
 // --- Unregistered chain ---
 
 func TestGetFinalizedBlockNumber_UnregisteredChain(t *testing.T) {
+	t.Parallel()
 	fc := NewRPCFinalityChecker(&mockLogger{})
 	// Don't register any chain
 
@@ -237,6 +244,7 @@ func TestGetFinalizedBlockNumber_UnregisteredChain(t *testing.T) {
 // --- Cache hit ---
 
 func TestGetFinalizedBlockNumber_CacheHit(t *testing.T) {
+	t.Parallel()
 	callCount := int32(0)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		atomic.AddInt32(&callCount, 1)
@@ -268,6 +276,7 @@ func TestGetFinalizedBlockNumber_CacheHit(t *testing.T) {
 // --- Cache expiry ---
 
 func TestGetFinalizedBlockNumber_CacheExpiry(t *testing.T) {
+	t.Parallel()
 	callCount := int32(0)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		count := atomic.AddInt32(&callCount, 1)
@@ -306,6 +315,7 @@ func TestGetFinalizedBlockNumber_CacheExpiry(t *testing.T) {
 // --- RPC error response ---
 
 func TestGetFinalizedBlockNumber_RPCErrorResponse(t *testing.T) {
+	t.Parallel()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		fmt.Fprint(w, rpcResponse("", "method not found"))
@@ -324,6 +334,7 @@ func TestGetFinalizedBlockNumber_RPCErrorResponse(t *testing.T) {
 // --- Null result (block tag returns null) ---
 
 func TestGetFinalizedBlockNumber_NullResult(t *testing.T) {
+	t.Parallel()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		fmt.Fprint(w, `{"jsonrpc":"2.0","id":1,"result":null}`)
@@ -342,6 +353,7 @@ func TestGetFinalizedBlockNumber_NullResult(t *testing.T) {
 // --- Invalid JSON response ---
 
 func TestGetFinalizedBlockNumber_InvalidJSON(t *testing.T) {
+	t.Parallel()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		fmt.Fprint(w, "not json at all")
@@ -360,6 +372,7 @@ func TestGetFinalizedBlockNumber_InvalidJSON(t *testing.T) {
 // --- IsBlockFinalized ---
 
 func TestIsBlockFinalized_True(t *testing.T) {
+	t.Parallel()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		fmt.Fprint(w, rpcResponse("0x3e8", "")) // block 1000
@@ -379,6 +392,7 @@ func TestIsBlockFinalized_True(t *testing.T) {
 }
 
 func TestIsBlockFinalized_False(t *testing.T) {
+	t.Parallel()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		fmt.Fprint(w, rpcResponse("0x3e8", "")) // block 1000
@@ -400,6 +414,7 @@ func TestIsBlockFinalized_False(t *testing.T) {
 // --- Context cancellation ---
 
 func TestGetFinalizedBlockNumber_ContextCancelled(t *testing.T) {
+	t.Parallel()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		time.Sleep(5 * time.Second) // Slow response
 		w.Header().Set("Content-Type", "application/json")
@@ -422,6 +437,7 @@ func TestGetFinalizedBlockNumber_ContextCancelled(t *testing.T) {
 // --- Non-200 HTTP response ---
 
 func TestGetFinalizedBlockNumber_Non200Response(t *testing.T) {
+	t.Parallel()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 	}))
@@ -439,6 +455,7 @@ func TestGetFinalizedBlockNumber_Non200Response(t *testing.T) {
 // --- IsBlockFinalizedWithStatus ---
 
 func TestIsBlockFinalizedWithStatus_Degraded(t *testing.T) {
+	t.Parallel()
 	callCount := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		callCount++
@@ -469,6 +486,7 @@ func TestIsBlockFinalizedWithStatus_Degraded(t *testing.T) {
 }
 
 func TestIsBlockFinalizedWithStatus_NotDegraded(t *testing.T) {
+	t.Parallel()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		fmt.Fprint(w, rpcResponse("0x3e8", "")) // block 1000

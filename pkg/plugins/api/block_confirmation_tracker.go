@@ -23,10 +23,10 @@ type BlockConfirmationTracker struct {
 	db              *sql.DB
 	logger          core.Logger
 	metrics         core.MetricsCollector
-	subscriptionHub *SubscriptionHub // for buffering replay events
+	subscriptionHub *SubscriptionHub               // for buffering replay events
 	reorgHandlers   map[string]*reorg.ReorgHandler // chainID -> reorg handler
-	finalityChecker finality.FinalityChecker        // optional: PoS finality support
-	confirmationMap map[uint64]int    // chainID (numeric) -> confirmation blocks
+	finalityChecker finality.FinalityChecker       // optional: PoS finality support
+	confirmationMap map[uint64]int                 // chainID (numeric) -> confirmation blocks
 	mu              sync.RWMutex
 	running         bool
 	cancel          context.CancelFunc
@@ -43,18 +43,18 @@ func NewBlockConfirmationTracker(
 ) *BlockConfirmationTracker {
 	if confirmationMap == nil {
 		confirmationMap = map[uint64]int{
-			1:       12,  // Ethereum
-			137:     128, // Polygon
-			56:      15,  // BSC
-			97:      15,  // BSC Testnet
-			42161:   12,  // Arbitrum One
-			421614:  12,  // Arbitrum Sepolia
-			10:      12,  // Optimism
-			11155420:12,  // Optimism Sepolia
-			8453:    12,  // Base
-			84532:   12,  // Base Sepolia
-			43114:   12,  // Avalanche C-Chain
-			43113:   12,  // Avalanche Fuji
+			1:        12,  // Ethereum
+			137:      128, // Polygon
+			56:       15,  // BSC
+			97:       15,  // BSC Testnet
+			42161:    12,  // Arbitrum One
+			421614:   12,  // Arbitrum Sepolia
+			10:       12,  // Optimism
+			11155420: 12,  // Optimism Sepolia
+			8453:     12,  // Base
+			84532:    12,  // Base Sepolia
+			43114:    12,  // Avalanche C-Chain
+			43113:    12,  // Avalanche Fuji
 		}
 	}
 	return &BlockConfirmationTracker{
@@ -157,6 +157,10 @@ func (t *BlockConfirmationTracker) checkConfirmations(ctx context.Context) {
 			continue
 		}
 		heads = append(heads, h)
+	}
+	if err := rows.Err(); err != nil {
+		t.logger.Error("error iterating indexing state rows", "error", err)
+		return
 	}
 	rows.Close() //nolint:errcheck
 
@@ -269,7 +273,7 @@ func (t *BlockConfirmationTracker) notifyConfirmedEvents(ctx context.Context, ch
 			continue
 		}
 
-		payload := map[string]interface{}{
+		payload := map[string]any{
 			"type":            "confirmed",
 			"eventId":         id,
 			"chainId":         chainID,
@@ -279,6 +283,9 @@ func (t *BlockConfirmationTracker) notifyConfirmedEvents(ctx context.Context, ch
 			"timestamp":       time.Now().Unix(),
 		}
 		t.subscriptionHub.BufferEvent("event:confirmed", payload)
+	}
+	if err := rows.Err(); err != nil {
+		t.logger.Error("error iterating confirmed events rows", "error", err)
 	}
 }
 
@@ -328,24 +335,24 @@ func (t *BlockConfirmationTracker) detectReorgs(ctx context.Context, chainID str
 
 		// Notify subscribers
 		if t.subscriptionHub != nil {
-			t.subscriptionHub.BufferEvent("event:reorged", map[string]interface{}{
-				"type":        "reorged",
-				"chainId":     chainID,
-				"reorgBlock":  reorgBlock,
-				"headBlock":   headBlock,
-				"timestamp":   time.Now().Unix(),
+			t.subscriptionHub.BufferEvent("event:reorged", map[string]any{
+				"type":       "reorged",
+				"chainId":    chainID,
+				"reorgBlock": reorgBlock,
+				"headBlock":  headBlock,
+				"timestamp":  time.Now().Unix(),
 			})
 		}
 	}
 }
 
 // GetConfirmationStats returns current confirmation statistics
-func (t *BlockConfirmationTracker) GetConfirmationStats(ctx context.Context) (map[string]interface{}, error) {
+func (t *BlockConfirmationTracker) GetConfirmationStats(ctx context.Context) (map[string]any, error) {
 	if t.db == nil {
 		return nil, fmt.Errorf("database not configured")
 	}
 
-	stats := make(map[string]interface{})
+	stats := make(map[string]any)
 
 	// Count pending events
 	var pendingCount int64

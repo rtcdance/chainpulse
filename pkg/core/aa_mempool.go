@@ -25,11 +25,11 @@ type AAMempoolEntry struct {
 // PreValidationResult captures the outcome of off-chain simulation before
 // a bundler includes a UserOperation in a bundle.
 type PreValidationResult struct {
-	Success           bool     `json:"success"`
-	SimulationGasUsed uint64   `json:"simulation_gas_used"`
-	GasOverhead       uint64   `json:"gas_overhead"` // actual gas minus estimated
-	StakeValid        bool     `json:"stake_valid"`  // paymaster/factory stake sufficient
-	FailureReason     string   `json:"failure_reason,omitempty"`
+	Success           bool             `json:"success"`
+	SimulationGasUsed uint64           `json:"simulation_gas_used"`
+	GasOverhead       uint64           `json:"gas_overhead"` // actual gas minus estimated
+	StakeValid        bool             `json:"stake_valid"`  // paymaster/factory stake sufficient
+	FailureReason     string           `json:"failure_reason,omitempty"`
 	AccessedAddresses []common.Address `json:"accessed_addresses,omitempty"`
 	AccessedSlots     []common.Hash    `json:"accessed_slots,omitempty"`
 }
@@ -38,11 +38,11 @@ type PreValidationResult struct {
 // Entries are ordered by priority fee (highest first) and bounded to
 // prevent unbounded memory growth.
 type AAMempool struct {
-	mu         sync.RWMutex
-	entries    map[string]*AAMempoolEntry // hash → entry
-	ordered    []*AAMempoolEntry          // sorted by priority fee desc
-	maxSize    int
-	entryTTL   time.Duration // entries older than this are evicted
+	mu       sync.RWMutex
+	entries  map[string]*AAMempoolEntry // hash → entry
+	ordered  []*AAMempoolEntry          // sorted by priority fee desc
+	maxSize  int
+	entryTTL time.Duration // entries older than this are evicted
 }
 
 // NewAAMempool creates an alternative mempool with the given capacity.

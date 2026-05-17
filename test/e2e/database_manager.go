@@ -80,7 +80,7 @@ func (dm *DatabaseManager) GetConnection(ctx context.Context) (*pgxpool.Conn, er
 }
 
 // ExecuteQuery executes a query and returns rows
-func (dm *DatabaseManager) ExecuteQuery(ctx context.Context, query string, args ...interface{}) (pgx.Rows, error) {
+func (dm *DatabaseManager) ExecuteQuery(ctx context.Context, query string, args ...any) (pgx.Rows, error) {
 	if !dm.initialized {
 		return nil, fmt.Errorf("database manager not initialized")
 	}
@@ -94,7 +94,7 @@ func (dm *DatabaseManager) ExecuteQuery(ctx context.Context, query string, args 
 }
 
 // ExecuteCommand executes a command (INSERT, UPDATE, DELETE)
-func (dm *DatabaseManager) ExecuteCommand(ctx context.Context, query string, args ...interface{}) (int64, error) {
+func (dm *DatabaseManager) ExecuteCommand(ctx context.Context, query string, args ...any) (int64, error) {
 	if !dm.initialized {
 		return 0, fmt.Errorf("database manager not initialized")
 	}
@@ -108,7 +108,7 @@ func (dm *DatabaseManager) ExecuteCommand(ctx context.Context, query string, arg
 }
 
 // ExecuteRow executes a query that returns a single row
-func (dm *DatabaseManager) ExecuteRow(ctx context.Context, query string, args ...interface{}) pgx.Row {
+func (dm *DatabaseManager) ExecuteRow(ctx context.Context, query string, args ...any) pgx.Row {
 	if !dm.initialized {
 		return nil
 	}

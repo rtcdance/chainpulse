@@ -7,10 +7,10 @@ import (
 
 // Logger defines logging interface
 type Logger interface {
-	Infof(format string, args ...interface{})
-	Warnf(format string, args ...interface{})
-	Errorf(format string, args ...interface{})
-	Debugf(format string, args ...interface{})
+	Infof(format string, args ...any)
+	Warnf(format string, args ...any)
+	Errorf(format string, args ...any)
+	Debugf(format string, args ...any)
 }
 
 // BlockchainManagerInterface defines the interface for blockchain managers
@@ -31,7 +31,7 @@ type BlockchainManagerInterface interface {
 	DeployContract(ctx context.Context, contract ContractDefinition) (*DeployedContract, error)
 
 	// EmitEvent triggers an event emission
-	EmitEvent(ctx context.Context, contractAddr string, eventName string, params map[string]interface{}) (*EventEmission, error)
+	EmitEvent(ctx context.Context, contractAddr string, eventName string, params map[string]any) (*EventEmission, error)
 
 	// GetBlockNumber returns current block number
 	GetBlockNumber(ctx context.Context) (uint64, error)
@@ -87,7 +87,7 @@ type ContractDefinition struct {
 	Name        string
 	Bytecode    string
 	ABI         string
-	Constructor []interface{}
+	Constructor []any
 }
 
 // DeployedContract represents a deployed smart contract
@@ -108,7 +108,7 @@ type EventEmission struct {
 	TxHash          string
 	BlockNumber     uint64
 	LogIndex        uint32
-	Parameters      map[string]interface{}
+	Parameters      map[string]any
 	Timestamp       time.Time
 }
 
@@ -120,7 +120,7 @@ type IndexedEvent struct {
 	TxHash          string
 	BlockNumber     uint64
 	LogIndex        uint32
-	DecodedData     map[string]interface{}
+	DecodedData     map[string]any
 	IndexedAt       time.Time
 	ChainID         string
 }
@@ -217,7 +217,7 @@ type Event struct {
 	ID               string
 	ContractAddress  string
 	EventName        string
-	Parameters       map[string]interface{}
+	Parameters       map[string]any
 	ChainID          string
 	BlockNumber      uint64
 	TransactionIndex uint32

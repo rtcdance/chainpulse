@@ -12,6 +12,7 @@ import (
 )
 
 func TestNewWebSocketPlugin(t *testing.T) {
+	t.Parallel()
 	apiLayer := core.NewAPILayer()
 	plugin := NewWebSocketPlugin("websocket", 8090, apiLayer)
 
@@ -29,6 +30,7 @@ func TestNewWebSocketPlugin(t *testing.T) {
 }
 
 func TestWebSocketPluginStart(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}
@@ -51,6 +53,7 @@ func TestWebSocketPluginStart(t *testing.T) {
 }
 
 func TestWebSocketPluginStartAlreadyRunning(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}
@@ -72,6 +75,7 @@ func TestWebSocketPluginStartAlreadyRunning(t *testing.T) {
 }
 
 func TestWebSocketPluginStop(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}
@@ -94,6 +98,7 @@ func TestWebSocketPluginStop(t *testing.T) {
 }
 
 func TestWebSocketPluginStopNotRunning(t *testing.T) {
+	t.Parallel()
 	apiLayer := core.NewAPILayer()
 	plugin := NewWebSocketPlugin("websocket", 8094, apiLayer)
 
@@ -104,6 +109,7 @@ func TestWebSocketPluginStopNotRunning(t *testing.T) {
 }
 
 func TestWebSocketPluginGetName(t *testing.T) {
+	t.Parallel()
 	apiLayer := core.NewAPILayer()
 	plugin := NewWebSocketPlugin("test-ws", 8095, apiLayer)
 
@@ -113,6 +119,7 @@ func TestWebSocketPluginGetName(t *testing.T) {
 }
 
 func TestWebSocketPluginIsRunning(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}
@@ -136,6 +143,7 @@ func TestWebSocketPluginIsRunning(t *testing.T) {
 }
 
 func TestWebSocketPluginGetClientCount(t *testing.T) {
+	t.Parallel()
 	apiLayer := core.NewAPILayer()
 	plugin := NewWebSocketPlugin("websocket", 8097, apiLayer)
 
@@ -146,6 +154,7 @@ func TestWebSocketPluginGetClientCount(t *testing.T) {
 }
 
 func TestWebSocketPluginGetConnectionMetricsPlaintextIdle(t *testing.T) {
+	t.Parallel()
 	apiLayer := core.NewAPILayer()
 	plugin := NewWebSocketPlugin("websocket", 8097, apiLayer)
 
@@ -159,6 +168,7 @@ func TestWebSocketPluginGetConnectionMetricsPlaintextIdle(t *testing.T) {
 }
 
 func TestWebSocketPluginGetConnectionMetricsTLSIdle(t *testing.T) {
+	t.Parallel()
 	apiLayer := core.NewAPILayer()
 	plugin := &Plugin{
 		name:       "tls-ws",
@@ -179,6 +189,7 @@ func TestWebSocketPluginGetConnectionMetricsTLSIdle(t *testing.T) {
 }
 
 func TestWebSocketPluginGetConnectionMetricsActiveHint(t *testing.T) {
+	t.Parallel()
 	apiLayer := core.NewAPILayer()
 	plugin := NewWebSocketPlugin("websocket", 8099, apiLayer)
 	plugin.running = true
@@ -196,6 +207,7 @@ func TestWebSocketPluginGetConnectionMetricsActiveHint(t *testing.T) {
 }
 
 func TestWebSocketPluginUseMiddleware(t *testing.T) {
+	t.Parallel()
 	apiLayer := core.NewAPILayer()
 	plugin := NewWebSocketPlugin("websocket", 8098, apiLayer)
 
@@ -219,6 +231,7 @@ func TestWebSocketPluginUseMiddleware(t *testing.T) {
 }
 
 func TestWebSocketPluginMultipleMiddleware(t *testing.T) {
+	t.Parallel()
 	apiLayer := core.NewAPILayer()
 	plugin := NewWebSocketPlugin("websocket", 8099, apiLayer)
 
@@ -244,6 +257,7 @@ func TestWebSocketPluginMultipleMiddleware(t *testing.T) {
 }
 
 func TestWebSocketPluginProcessRequestExecutesMiddleware(t *testing.T) {
+	t.Parallel()
 	apiLayer := core.NewAPILayer()
 	plugin := NewWebSocketPlugin("websocket", 8101, apiLayer)
 
@@ -292,6 +306,7 @@ func newWebSocketTestHTTPRequest(path string) *http.Request {
 }
 
 func TestWebSocketPluginConcurrentOperations(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}
@@ -344,6 +359,7 @@ func TestWebSocketPluginConcurrentOperations(t *testing.T) {
 }
 
 func TestCheckOrigin_EmptyAllowedOrigins(t *testing.T) {
+	t.Parallel()
 	apiLayer := core.NewAPILayer()
 	plugin := NewWebSocketPlugin("ws-test", 0, apiLayer)
 
@@ -355,6 +371,7 @@ func TestCheckOrigin_EmptyAllowedOrigins(t *testing.T) {
 }
 
 func TestCheckOrigin_NonBrowserClient(t *testing.T) {
+	t.Parallel()
 	apiLayer := core.NewAPILayer()
 	plugin := NewWebSocketPlugin("ws-test", 0, apiLayer).
 		WithAllowedOrigins([]string{"https://app.example.com"})
@@ -367,6 +384,7 @@ func TestCheckOrigin_NonBrowserClient(t *testing.T) {
 }
 
 func TestCheckOrigin_MatchingOrigin(t *testing.T) {
+	t.Parallel()
 	apiLayer := core.NewAPILayer()
 	plugin := NewWebSocketPlugin("ws-test", 0, apiLayer).
 		WithAllowedOrigins([]string{"https://app.example.com", "https://admin.example.com"})
@@ -378,6 +396,7 @@ func TestCheckOrigin_MatchingOrigin(t *testing.T) {
 }
 
 func TestCheckOrigin_RejectedOrigin(t *testing.T) {
+	t.Parallel()
 	apiLayer := core.NewAPILayer()
 	plugin := NewWebSocketPlugin("ws-test", 0, apiLayer).
 		WithAllowedOrigins([]string{"https://app.example.com"})
@@ -389,6 +408,7 @@ func TestCheckOrigin_RejectedOrigin(t *testing.T) {
 }
 
 func TestCheckOrigin_CaseInsensitive(t *testing.T) {
+	t.Parallel()
 	apiLayer := core.NewAPILayer()
 	plugin := NewWebSocketPlugin("ws-test", 0, apiLayer).
 		WithAllowedOrigins([]string{"https://App.Example.COM"})

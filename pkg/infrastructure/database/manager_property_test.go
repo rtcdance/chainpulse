@@ -25,6 +25,7 @@ func (r *testReporter) ReportTestResult(name string, result *gopter.TestResult) 
 // For any sequence of database operations, connections should be reused from the pool
 // rather than creating new connections.
 func TestConnectionPoolReuse(t *testing.T) {
+	t.Parallel()
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 10
 	properties := gopter.NewProperties(parameters)
@@ -70,6 +71,7 @@ func TestConnectionPoolReuse(t *testing.T) {
 // For any database health check, the result should accurately reflect the current
 // connectivity status of that database.
 func TestHealthCheckAccuracy(t *testing.T) {
+	t.Parallel()
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 10
 	properties := gopter.NewProperties(parameters)
@@ -112,6 +114,7 @@ func TestHealthCheckAccuracy(t *testing.T) {
 // TestDatabaseManagerConcurrency validates that DatabaseManager is thread-safe
 // Multiple goroutines should be able to access the manager concurrently
 func TestDatabaseManagerConcurrency(t *testing.T) {
+	t.Parallel()
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 10
 	properties := gopter.NewProperties(parameters)
@@ -167,6 +170,7 @@ func TestDatabaseManagerConcurrency(t *testing.T) {
 // TestDatabaseManagerStateTransitions validates state transitions
 // The manager should properly track initialization and closure states
 func TestDatabaseManagerStateTransitions(t *testing.T) {
+	t.Parallel()
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 10
 	properties := gopter.NewProperties(parameters)
@@ -223,6 +227,7 @@ func TestDatabaseManagerStateTransitions(t *testing.T) {
 // TestDatabaseManagerConfigurationVariations validates configuration handling
 // Different configurations should be properly stored and accessible
 func TestDatabaseManagerConfigurationVariations(t *testing.T) {
+	t.Parallel()
 	parameters := gopter.DefaultTestParameters()
 	parameters.MinSuccessfulTests = 10
 	properties := gopter.NewProperties(parameters)

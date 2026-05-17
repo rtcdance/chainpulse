@@ -127,7 +127,10 @@ spec:
         - name: KAFKA_SECURITY_PROTOCOL
           value: "SASL_PLAINTEXT"
         - name: KAFKA_SASL_USERNAME
-          value: "admin"
+          valueFrom:
+            secretKeyRef:
+              name: kafka-secret
+              key: kafka-username
         - name: KAFKA_SASL_PASSWORD
           valueFrom:
             secretKeyRef:

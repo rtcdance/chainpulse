@@ -8,16 +8,19 @@ import (
 	"time"
 
 	"chainpulse/pkg/core"
-	"chainpulse/pkg/infrastructure/database"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
+type mongoClientProvider interface {
+	GetMongoClient(ctx context.Context) (any, error)
+}
+
 // DefaultMongoDBAdapter provides MongoDB query operations
 type DefaultMongoDBAdapter struct {
 	mu               sync.RWMutex
-	dbManager        database.DatabaseManager
+	dbManager        mongoClientProvider
 	mongoClient      *mongo.Client
 	logger           core.Logger
 	metricsCollector core.MetricsCollector
@@ -26,7 +29,7 @@ type DefaultMongoDBAdapter struct {
 
 // NewMongoDBAdapter creates a new MongoDB adapter
 func NewMongoDBAdapter(
-	dbManager database.DatabaseManager,
+	dbManager mongoClientProvider,
 	logger core.Logger,
 	metricsCollector core.MetricsCollector,
 ) MongoDBAdapter {
@@ -61,9 +64,7 @@ func (ma *DefaultMongoDBAdapter) Initialize(ctx context.Context) error {
 	ma.mongoClient = client
 	ma.initialized = true
 
-	ma.logger.Info("MongoDB adapter initialized", map[string]interface{}{
-		"component": "mongodb-adapter",
-	})
+	ma.logger.Info("MongoDB adapter initialized", core.LogKeyComponent, "mongodb-adapter")
 
 	return nil
 }
@@ -125,11 +126,7 @@ func (ma *DefaultMongoDBAdapter) Query(ctx context.Context, req *QueryRequest) (
 	if err != nil {
 		duration := time.Since(start).Milliseconds()
 		ma.metricsCollector.RecordCounter("mongodb_query_error", 1, map[string]string{})
-		ma.logger.Error("MongoDB query failed", map[string]interface{}{
-			"collection": req.Collection,
-			"error":      err.Error(),
-			"duration":   duration,
-		})
+		ma.logger.Error("MongoDB query failed", "collection", req.Collection, core.LogKeyError, err, core.LogKeyDuration, duration)
 		return nil, fmt.Errorf("MongoDB query failed: %w", err)
 	}
 	defer func() { _ = cursor.Close(ctx) }()
@@ -139,21 +136,14 @@ func (ma *DefaultMongoDBAdapter) Query(ctx context.Context, req *QueryRequest) (
 	if err := cursor.All(ctx, &events); err != nil {
 		duration := time.Since(start).Milliseconds()
 		ma.metricsCollector.RecordCounter("mongodb_decode_error", 1, map[string]string{})
-		ma.logger.Error("Failed to decode MongoDB results", map[string]interface{}{
-			"collection": req.Collection,
-			"error":      err.Error(),
-			"duration":   duration,
-		})
+		ma.logger.Error("Failed to decode MongoDB results", "collection", req.Collection, core.LogKeyError, err, core.LogKeyDuration, duration)
 		return nil, fmt.Errorf("failed to decode results: %w", err)
 	}
 
 	// Get total count
 	total, err := collection.CountDocuments(ctx, filter)
 	if err != nil {
-		ma.logger.Error("Failed to count MongoDB documents", map[string]interface{}{
-			"collection": req.Collection,
-			"error":      err.Error(),
-		})
+		ma.logger.Error("Failed to count MongoDB documents", "collection", req.Collection, core.LogKeyError, err)
 		total = int64(len(events))
 	}
 
@@ -161,12 +151,7 @@ func (ma *DefaultMongoDBAdapter) Query(ctx context.Context, req *QueryRequest) (
 	ma.metricsCollector.RecordHistogram("mongodb_query_time_ms", float64(duration), map[string]string{})
 	ma.metricsCollector.RecordCounter("mongodb_query_success", 1, map[string]string{})
 
-	ma.logger.Info("MongoDB query successful", map[string]interface{}{
-		"collection": req.Collection,
-		"count":      len(events),
-		"total":      total,
-		"duration":   duration,
-	})
+	ma.logger.Info("MongoDB query successful", "collection", req.Collection, core.LogKeyCount, len(events), "total", total, core.LogKeyDuration, duration)
 
 	return &QueryResult{
 		Events:       events,
@@ -203,20 +188,13 @@ func (ma *DefaultMongoDBAdapter) QueryByHash(ctx context.Context, hash string) (
 	if err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
 			duration := time.Since(start).Milliseconds()
-			ma.logger.Debug("Event not found in MongoDB", map[string]interface{}{
-				"hash":     hash,
-				"duration": duration,
-			})
+			ma.logger.Debug("Event not found in MongoDB", core.LogKeyHash, hash, core.LogKeyDuration, duration)
 			return nil, nil
 		}
 
 		duration := time.Since(start).Milliseconds()
 		ma.metricsCollector.RecordCounter("mongodb_query_by_hash_error", 1, map[string]string{})
-		ma.logger.Error("MongoDB query by hash failed", map[string]interface{}{
-			"hash":     hash,
-			"error":    err.Error(),
-			"duration": duration,
-		})
+		ma.logger.Error("MongoDB query by hash failed", core.LogKeyHash, hash, core.LogKeyError, err, core.LogKeyDuration, duration)
 		return nil, fmt.Errorf("MongoDB query failed: %w", err)
 	}
 
@@ -224,10 +202,7 @@ func (ma *DefaultMongoDBAdapter) QueryByHash(ctx context.Context, hash string) (
 	ma.metricsCollector.RecordHistogram("mongodb_query_by_hash_time_ms", float64(duration), map[string]string{})
 	ma.metricsCollector.RecordCounter("mongodb_query_by_hash_success", 1, map[string]string{})
 
-	ma.logger.Info("MongoDB query by hash successful", map[string]interface{}{
-		"hash":     hash,
-		"duration": duration,
-	})
+	ma.logger.Info("MongoDB query by hash successful", core.LogKeyHash, hash, core.LogKeyDuration, duration)
 
 	return &event, nil
 }

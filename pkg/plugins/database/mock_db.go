@@ -57,7 +57,7 @@ func (m *MockDB) Health() error {
 	return nil
 }
 
-func (m *MockDB) StoreEvent(ctx context.Context, event interface{}) error {
+func (m *MockDB) StoreEvent(ctx context.Context, event any) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -78,18 +78,18 @@ func (m *MockDB) GetEvent(ctx context.Context, id string) (*core.BlockchainEvent
 	return event, nil
 }
 
-func (m *MockDB) QueryEvents(ctx context.Context, filter interface{}) ([]interface{}, error) {
+func (m *MockDB) QueryEvents(ctx context.Context, filter any) ([]any, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	results := make([]interface{}, 0, len(m.events))
+	results := make([]any, 0, len(m.events))
 	for _, event := range m.events {
 		results = append(results, event)
 	}
 	return results, nil
 }
 
-func (m *MockDB) BatchStoreEvents(ctx context.Context, events []interface{}) error {
+func (m *MockDB) BatchStoreEvents(ctx context.Context, events []any) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 

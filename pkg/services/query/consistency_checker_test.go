@@ -154,6 +154,13 @@ func (m *mockMetadataStore) GetMetadataByChain(ctx context.Context, chainID int,
 	return nil, nil
 }
 
+func (m *mockMetadataStore) GetMetadataBatch(ctx context.Context, eventIDs []string) (map[string]*EventMetadata, error) {
+	if m.shouldFail {
+		return nil, errors.New("get batch failed")
+	}
+	return nil, nil
+}
+
 func (m *mockMetadataStore) UpdateMetadata(ctx context.Context, metadata *EventMetadata) error {
 	if m.shouldFail {
 		return errors.New("update failed")
@@ -173,6 +180,7 @@ func (m *mockMetadataStore) Close(ctx context.Context) error {
 
 // TestConsistencyCheckerInitialize tests initialization
 func TestConsistencyCheckerInitialize(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 
@@ -198,6 +206,7 @@ func TestConsistencyCheckerInitialize(t *testing.T) {
 
 // TestConsistencyCheckerInitializeWithNilStores tests initialization with nil stores
 func TestConsistencyCheckerInitializeWithNilStores(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 
@@ -219,6 +228,7 @@ func TestConsistencyCheckerInitializeWithNilStores(t *testing.T) {
 
 // TestConsistencyCheckerCheckConsistency tests consistency check
 func TestConsistencyCheckerCheckConsistency(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 
@@ -256,6 +266,7 @@ func TestConsistencyCheckerCheckConsistency(t *testing.T) {
 
 // TestConsistencyCheckerHealth tests health check
 func TestConsistencyCheckerHealth(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 
@@ -285,6 +296,7 @@ func TestConsistencyCheckerHealth(t *testing.T) {
 
 // TestConsistencyCheckerClose tests closure
 func TestConsistencyCheckerClose(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 
@@ -316,6 +328,7 @@ func TestConsistencyCheckerClose(t *testing.T) {
 
 // TestConsistencyCheckResultIsConsistent tests result consistency flag
 func TestConsistencyCheckResultIsConsistent(t *testing.T) {
+	t.Parallel()
 	result := &ConsistencyCheckResult{
 		EventCount:        10,
 		MetadataCount:     10,
@@ -343,6 +356,7 @@ func TestConsistencyCheckResultIsConsistent(t *testing.T) {
 
 // TestConsistencyCheckResultOrphanedMetadata tests orphaned metadata detection
 func TestConsistencyCheckResultOrphanedMetadata(t *testing.T) {
+	t.Parallel()
 	result := &ConsistencyCheckResult{
 		EventCount:        10,
 		MetadataCount:     15,
@@ -366,6 +380,7 @@ func TestConsistencyCheckResultOrphanedMetadata(t *testing.T) {
 
 // TestConsistencyCheckResultMissingMetadata tests missing metadata detection
 func TestConsistencyCheckResultMissingMetadata(t *testing.T) {
+	t.Parallel()
 	result := &ConsistencyCheckResult{
 		EventCount:        15,
 		MetadataCount:     10,
@@ -389,6 +404,7 @@ func TestConsistencyCheckResultMissingMetadata(t *testing.T) {
 
 // TestConsistencyCheckResultCorruptedEvents tests corrupted events detection
 func TestConsistencyCheckResultCorruptedEvents(t *testing.T) {
+	t.Parallel()
 	result := &ConsistencyCheckResult{
 		EventCount:        10,
 		MetadataCount:     10,
@@ -412,6 +428,7 @@ func TestConsistencyCheckResultCorruptedEvents(t *testing.T) {
 
 // TestConsistencyCheckResultIssues tests issues tracking
 func TestConsistencyCheckResultIssues(t *testing.T) {
+	t.Parallel()
 	result := &ConsistencyCheckResult{
 		EventCount:        10,
 		MetadataCount:     10,
@@ -436,6 +453,7 @@ func TestConsistencyCheckResultIssues(t *testing.T) {
 
 // TestConsistencyCheckerMultipleChecks tests multiple consistency checks
 func TestConsistencyCheckerMultipleChecks(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 
@@ -462,6 +480,7 @@ func TestConsistencyCheckerMultipleChecks(t *testing.T) {
 
 // TestConsistencyCheckerWithFailingStores tests with failing stores
 func TestConsistencyCheckerWithFailingStores(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 

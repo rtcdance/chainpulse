@@ -51,12 +51,12 @@ function App() {
           <section className="mb-6 overflow-hidden rounded-[28px] border border-white/10 bg-white/5 p-5 shadow-[0_30px_120px_rgba(8,12,19,0.45)] backdrop-blur">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
               <div>
-                <p className="text-xs uppercase tracking-[0.35em] text-mist">ChainPulse Acceptance Console</p>
+                <p className="text-xs uppercase tracking-[0.35em] text-mist">ChainPulse Learning Dashboard</p>
                 <h1 className="mt-3 text-3xl font-semibold text-white sm:text-4xl">
-                  One H5 console for health, query, subscription, metrics, and runtime acceptance
+                  ChainPulse 学习仪表盘 — 可视化理解区块链索引器
                 </h1>
                 <p className="mt-3 max-w-3xl text-sm leading-6 text-sand/80 sm:text-base">
-                  This demo is built for acceptance, not for decoration. Every page executes real backend actions and preserves endpoint evidence so the team can verify the current ChainPulse slice live.
+                  每个页面展示 ChainPulse 的一个核心能力。数据来自运行中的后端，配合调试器断点可以完整追踪一笔事件从 RPC 拉取到 API 查询的全路径。按 <kbd className="rounded border border-white/10 bg-white/5 px-1.5 py-0.5 font-mono text-xs">1</kbd>-<kbd className="rounded border border-white/10 bg-white/5 px-1.5 py-0.5 font-mono text-xs">7</kbd> 切换页面。
                 </p>
               </div>
               <div className="grid gap-3 sm:grid-cols-2">

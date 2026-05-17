@@ -12,6 +12,7 @@ import (
 
 // TestCircuitBreakerInitialState tests initial state is closed
 func TestCircuitBreakerInitialState(t *testing.T) {
+	t.Parallel()
 	cb := NewCircuitBreaker(DefaultCircuitBreakerConfig())
 
 	if cb.GetState() != StateClosed {
@@ -21,6 +22,7 @@ func TestCircuitBreakerInitialState(t *testing.T) {
 
 // TestCircuitBreakerSuccessfulCall tests successful call
 func TestCircuitBreakerSuccessfulCall(t *testing.T) {
+	t.Parallel()
 	cb := NewCircuitBreaker(DefaultCircuitBreakerConfig())
 
 	err := cb.Call(func() error {
@@ -37,6 +39,7 @@ func TestCircuitBreakerSuccessfulCall(t *testing.T) {
 
 // TestCircuitBreakerFailedCall tests failed call
 func TestCircuitBreakerFailedCall(t *testing.T) {
+	t.Parallel()
 	cb := NewCircuitBreaker(DefaultCircuitBreakerConfig())
 
 	err := cb.Call(func() error {
@@ -54,6 +57,7 @@ func TestCircuitBreakerFailedCall(t *testing.T) {
 
 // TestCircuitBreakerTransitionToOpen tests transition to open state
 func TestCircuitBreakerTransitionToOpen(t *testing.T) {
+	t.Parallel()
 	config := &CircuitBreakerConfig{
 		FailureThreshold: 3,
 		SuccessThreshold: 2,
@@ -75,6 +79,7 @@ func TestCircuitBreakerTransitionToOpen(t *testing.T) {
 
 // TestCircuitBreakerRejectCallsWhenOpen tests that calls are rejected when open
 func TestCircuitBreakerRejectCallsWhenOpen(t *testing.T) {
+	t.Parallel()
 	config := &CircuitBreakerConfig{
 		FailureThreshold: 1,
 		SuccessThreshold: 2,
@@ -99,6 +104,7 @@ func TestCircuitBreakerRejectCallsWhenOpen(t *testing.T) {
 
 // TestCircuitBreakerTransitionToHalfOpen tests transition to half-open state
 func TestCircuitBreakerTransitionToHalfOpen(t *testing.T) {
+	t.Parallel()
 	config := &CircuitBreakerConfig{
 		FailureThreshold: 1,
 		SuccessThreshold: 2,
@@ -130,6 +136,7 @@ func TestCircuitBreakerTransitionToHalfOpen(t *testing.T) {
 
 // TestCircuitBreakerTransitionToClosed tests transition from half-open to closed
 func TestCircuitBreakerTransitionToClosed(t *testing.T) {
+	t.Parallel()
 	config := &CircuitBreakerConfig{
 		FailureThreshold: 1,
 		SuccessThreshold: 2,
@@ -159,6 +166,7 @@ func TestCircuitBreakerTransitionToClosed(t *testing.T) {
 
 // TestCircuitBreakerTransitionBackToOpen tests transition from half-open back to open
 func TestCircuitBreakerTransitionBackToOpen(t *testing.T) {
+	t.Parallel()
 	config := &CircuitBreakerConfig{
 		FailureThreshold: 1,
 		SuccessThreshold: 2,
@@ -195,6 +203,7 @@ func TestCircuitBreakerTransitionBackToOpen(t *testing.T) {
 
 // TestCircuitBreakerReset tests reset functionality
 func TestCircuitBreakerReset(t *testing.T) {
+	t.Parallel()
 	config := &CircuitBreakerConfig{
 		FailureThreshold: 1,
 		SuccessThreshold: 2,
@@ -221,6 +230,7 @@ func TestCircuitBreakerReset(t *testing.T) {
 
 // TestCircuitBreakerGetStats tests statistics
 func TestCircuitBreakerGetStats(t *testing.T) {
+	t.Parallel()
 	config := &CircuitBreakerConfig{
 		FailureThreshold: 3,
 		SuccessThreshold: 2,
@@ -256,6 +266,7 @@ func TestCircuitBreakerGetStats(t *testing.T) {
 
 // TestCircuitBreakerStateChangeHook tests state change hook
 func TestCircuitBreakerStateChangeHook(t *testing.T) {
+	t.Parallel()
 	config := &CircuitBreakerConfig{
 		FailureThreshold: 1,
 		SuccessThreshold: 2,
@@ -291,6 +302,7 @@ func TestCircuitBreakerStateChangeHook(t *testing.T) {
 
 // TestCircuitBreakerNilConfig tests circuit breaker with nil config
 func TestCircuitBreakerNilConfig(t *testing.T) {
+	t.Parallel()
 	cb := NewCircuitBreaker(nil)
 
 	if cb.GetState() != StateClosed {
@@ -304,6 +316,7 @@ func TestCircuitBreakerNilConfig(t *testing.T) {
 
 // TestCircuitBreakerPoolGetOrCreate tests pool get or create
 func TestCircuitBreakerPoolGetOrCreate(t *testing.T) {
+	t.Parallel()
 	pool := NewCircuitBreakerPool()
 
 	cb1 := pool.GetOrCreate("test", DefaultCircuitBreakerConfig())
@@ -316,6 +329,7 @@ func TestCircuitBreakerPoolGetOrCreate(t *testing.T) {
 
 // TestCircuitBreakerPoolGet tests pool get
 func TestCircuitBreakerPoolGet(t *testing.T) {
+	t.Parallel()
 	pool := NewCircuitBreakerPool()
 
 	cb1 := pool.GetOrCreate("test", DefaultCircuitBreakerConfig())
@@ -333,6 +347,7 @@ func TestCircuitBreakerPoolGet(t *testing.T) {
 
 // TestCircuitBreakerPoolResetAll tests pool reset all
 func TestCircuitBreakerPoolResetAll(t *testing.T) {
+	t.Parallel()
 	pool := NewCircuitBreakerPool()
 
 	cb1 := pool.GetOrCreate("test1", DefaultCircuitBreakerConfig())
@@ -364,6 +379,7 @@ func TestCircuitBreakerPoolResetAll(t *testing.T) {
 
 // TestCircuitBreakerPoolGetStats tests pool get stats
 func TestCircuitBreakerPoolGetStats(t *testing.T) {
+	t.Parallel()
 	pool := NewCircuitBreakerPool()
 
 	cb1 := pool.GetOrCreate("test1", DefaultCircuitBreakerConfig())
@@ -393,6 +409,7 @@ func TestCircuitBreakerPoolGetStats(t *testing.T) {
 
 // TestCircuitBreakerStateString tests state string representation
 func TestCircuitBreakerStateString(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		state    CircuitBreakerState
 		expected string
@@ -414,6 +431,7 @@ func TestCircuitBreakerStateString(t *testing.T) {
 // TestCircuitBreakerCallWithContextCancelled tests that a cancelled context
 // is rejected without counting as a failure
 func TestCircuitBreakerCallWithContextCancelled(t *testing.T) {
+	t.Parallel()
 	cb := NewCircuitBreaker(DefaultCircuitBreakerConfig())
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -437,6 +455,7 @@ func TestCircuitBreakerCallWithContextCancelled(t *testing.T) {
 
 // TestCircuitBreakerCallWithContextSuccess tests normal operation with context
 func TestCircuitBreakerCallWithContextSuccess(t *testing.T) {
+	t.Parallel()
 	cb := NewCircuitBreaker(DefaultCircuitBreakerConfig())
 
 	err := cb.CallWithContext(context.Background(), func() error {
@@ -455,6 +474,7 @@ func TestCircuitBreakerCallWithContextSuccess(t *testing.T) {
 
 // TestCircuitBreakerCallWithContextFailure tests failure recording with context
 func TestCircuitBreakerCallWithContextFailure(t *testing.T) {
+	t.Parallel()
 	config := &CircuitBreakerConfig{
 		FailureThreshold: 3,
 		SuccessThreshold: 1,
@@ -479,6 +499,7 @@ func TestCircuitBreakerCallWithContextFailure(t *testing.T) {
 // TestCircuitBreakerCallWithContextCancellationDuringExecution tests that
 // context cancellation during fn execution doesn't count as circuit failure
 func TestCircuitBreakerCallWithContextCancellationDuringExecution(t *testing.T) {
+	t.Parallel()
 	cb := NewCircuitBreaker(DefaultCircuitBreakerConfig())
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -502,6 +523,7 @@ func TestCircuitBreakerCallWithContextCancellationDuringExecution(t *testing.T) 
 
 // TestCircuitBreakerCallWithContextTimeout tests context deadline exceeded
 func TestCircuitBreakerCallWithContextTimeout(t *testing.T) {
+	t.Parallel()
 	cb := NewCircuitBreaker(DefaultCircuitBreakerConfig())
 
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Nanosecond)
@@ -527,6 +549,7 @@ func TestCircuitBreakerCallWithContextTimeout(t *testing.T) {
 
 // TestCircuitBreakerCallDelegatesToCallWithContext tests backward compatibility
 func TestCircuitBreakerCallDelegatesToCallWithContext(t *testing.T) {
+	t.Parallel()
 	cb := NewCircuitBreaker(DefaultCircuitBreakerConfig())
 
 	err := cb.Call(func() error {
@@ -539,6 +562,7 @@ func TestCircuitBreakerCallDelegatesToCallWithContext(t *testing.T) {
 }
 
 func TestCircuitBreaker_HalfOpenProbeLimit(t *testing.T) {
+	t.Parallel()
 	config := &CircuitBreakerConfig{
 		FailureThreshold:   1,
 		SuccessThreshold:   2,
@@ -595,6 +619,7 @@ func TestCircuitBreaker_HalfOpenProbeLimit(t *testing.T) {
 }
 
 func TestCircuitBreaker_HalfOpenProbeLimitMultiple(t *testing.T) {
+	t.Parallel()
 	config := &CircuitBreakerConfig{
 		FailureThreshold:   1,
 		SuccessThreshold:   3,
@@ -645,6 +670,7 @@ func TestCircuitBreaker_HalfOpenProbeLimitMultiple(t *testing.T) {
 }
 
 func TestCircuitBreaker_HalfOpenProbeCounterResetOnClose(t *testing.T) {
+	t.Parallel()
 	config := &CircuitBreakerConfig{
 		FailureThreshold:   1,
 		SuccessThreshold:   1,

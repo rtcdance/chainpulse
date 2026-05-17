@@ -66,11 +66,11 @@ type Subscription struct {
 
 // SubscriptionMessage represents a message sent to subscriber
 type SubscriptionMessage struct {
-	Type      string      `json:"type"` // "event", "error", "ping"
-	Event     interface{} `json:"event,omitempty"`
-	Error     string      `json:"error,omitempty"`
-	Message   string      `json:"message,omitempty"`
-	Timestamp int64       `json:"timestamp"`
+	Type      string `json:"type"` // "event", "error", "ping"
+	Event     any    `json:"event,omitempty"`
+	Error     string `json:"error,omitempty"`
+	Message   string `json:"message,omitempty"`
+	Timestamp int64  `json:"timestamp"`
 }
 
 // NewEventSubscriptionHandler creates a new event subscription handler
@@ -119,6 +119,11 @@ func (h *EventSubscriptionHandler) Initialize(ctx context.Context) error {
 	}
 
 	h.initialized = true
+
+	if len(h.allowedOrigins) == 0 {
+		h.logger.Warn("Event subscription handler: no origin restrictions configured — accepting all origins (development mode only)")
+	}
+
 	if h.retrievalService == nil {
 		h.logger.Info("Event subscription handler initialized without retrieval service")
 		return nil
@@ -607,7 +612,7 @@ func (h *EventSubscriptionHandler) checkOrigin(r *http.Request) bool {
 	}
 
 	for _, allowed := range h.allowedOrigins {
-		if allowed == "*" || allowed == origin {
+		if strings.EqualFold(allowed, origin) {
 			return true
 		}
 	}

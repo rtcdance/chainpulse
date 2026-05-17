@@ -164,7 +164,7 @@ func (h *ModelsHandler) listModels() []ModelInfo {
 }
 
 // respondJSON responds with JSON data
-func (h *ModelsHandler) respondJSON(w http.ResponseWriter, statusCode int, data interface{}) {
+func (h *ModelsHandler) respondJSON(w http.ResponseWriter, statusCode int, data any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
 

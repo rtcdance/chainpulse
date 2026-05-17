@@ -8,6 +8,7 @@ import (
 )
 
 func TestCachePluginInitialize(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	cache := NewDefaultInMemoryCachePlugin(logger, metrics)
@@ -38,6 +39,7 @@ func TestCachePluginInitialize(t *testing.T) {
 }
 
 func TestCachePluginLifecycle(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	cache := NewDefaultInMemoryCachePlugin(logger, metrics)
@@ -76,6 +78,7 @@ func TestCachePluginLifecycle(t *testing.T) {
 }
 
 func TestCachePluginSetAndGet(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	cache := NewDefaultInMemoryCachePlugin(logger, metrics)
@@ -126,6 +129,7 @@ func TestCachePluginSetAndGet(t *testing.T) {
 }
 
 func TestCachePluginMiss(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	cache := NewDefaultInMemoryCachePlugin(logger, metrics)
@@ -156,6 +160,7 @@ func TestCachePluginMiss(t *testing.T) {
 }
 
 func TestCachePluginDelete(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	cache := NewDefaultInMemoryCachePlugin(logger, metrics)
@@ -204,6 +209,7 @@ func TestCachePluginDelete(t *testing.T) {
 }
 
 func TestCachePluginClear(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	cache := NewDefaultInMemoryCachePlugin(logger, metrics)
@@ -247,6 +253,7 @@ func TestCachePluginClear(t *testing.T) {
 }
 
 func TestCachePluginExpiration(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	cache := NewDefaultInMemoryCachePlugin(logger, metrics)

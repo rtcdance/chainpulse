@@ -59,8 +59,8 @@ func TestGetRollupType(t *testing.T) {
 		chainID int
 		want    RollupType
 	}{
-		{1, RollupNone},          // Ethereum L1
-		{137, RollupNone},        // Polygon
+		{1, RollupNone},           // Ethereum L1
+		{137, RollupNone},         // Polygon
 		{42161, RollupOptimistic}, // Arbitrum
 		{10, RollupOptimistic},    // Optimism
 		{8453, RollupOptimistic},  // Base

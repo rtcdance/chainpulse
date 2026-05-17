@@ -150,11 +150,78 @@ func TestClassifyErrorSyscall(t *testing.T) {
 	}
 }
 
-// TestClassifyErrorGeneric tests ClassifyError with generic error
+// TestClassifyErrorGeneric tests ClassifyError with generic error and sentinel errors
 func TestClassifyErrorGeneric(t *testing.T) {
-	err := errors.New("generic error")
-	errorType := ClassifyError(err)
-	assert.Equal(t, ErrorTypePermanent, errorType)
+	tests := []struct {
+		name     string
+		err      error
+		expected ErrorType
+	}{
+		{"Generic Error", errors.New("generic error"), ErrorTypePermanent},
+		{"ErrInvalidBlockNumber", ErrInvalidBlockNumber, ErrorTypePermanent},
+		{"ErrInvalidTransactionHash", ErrInvalidTransactionHash, ErrorTypePermanent},
+		{"ErrInvalidContractAddress", ErrInvalidContractAddress, ErrorTypePermanent},
+		{"ErrInvalidEventName", ErrInvalidEventName, ErrorTypePermanent},
+		{"ErrInvalidAddress", ErrInvalidAddress, ErrorTypePermanent},
+		{"ErrInvalidBlockHash", ErrInvalidBlockHash, ErrorTypePermanent},
+		{"ErrInvalidLogIndex", ErrInvalidLogIndex, ErrorTypePermanent},
+		{"ErrInvalidEventData", ErrInvalidEventData, ErrorTypePermanent},
+		{"ErrInvalidTimestamp", ErrInvalidTimestamp, ErrorTypePermanent},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			errorType := ClassifyError(tt.err)
+			assert.Equal(t, tt.expected, errorType)
+		})
+	}
+}
+
+// TestClassifyErrorSentinel tests all classification sentinel errors
+func TestClassifyErrorSentinel(t *testing.T) {
+	tests := []struct {
+		name     string
+		err      error
+		expected ErrorType
+	}{
+		// Transient errors
+		{"ErrTimeout", ErrTimeout, ErrorTypeTransient},
+		{"ErrConnectionRefused", ErrConnectionRefused, ErrorTypeTransient},
+		{"ErrConnectionReset", ErrConnectionReset, ErrorTypeTransient},
+		{"ErrUnavailable", ErrUnavailable, ErrorTypeTransient},
+		{"ErrDeadlineExceeded", ErrDeadlineExceeded, ErrorTypeTransient},
+		{"ErrTemporaryFailure", ErrTemporaryFailure, ErrorTypeTransient},
+		// Permanent errors
+		{"ErrUnauthorized", ErrUnauthorized, ErrorTypePermanent},
+		{"ErrForbidden", ErrForbidden, ErrorTypePermanent},
+		{"ErrNotFound", ErrNotFound, ErrorTypePermanent},
+		{"ErrBadRequest", ErrBadRequest, ErrorTypePermanent},
+		{"ErrInvalidState", ErrInvalidState, ErrorTypePermanent},
+		{"ErrAuthFailed", ErrAuthFailed, ErrorTypePermanent},
+		// Critical errors
+		{"ErrDataCorruption", ErrDataCorruption, ErrorTypeCritical},
+		{"ErrCriticalFailure", ErrCriticalFailure, ErrorTypeCritical},
+		{"ErrFatalError", ErrFatalError, ErrorTypeCritical},
+		// Web3-specific errors
+		{"ErrBlockNotFound", ErrBlockNotFound, ErrorTypePermanent},
+		{"ErrEventNotFound", ErrEventNotFound, ErrorTypePermanent},
+		{"ErrChainNotFound", ErrChainNotFound, ErrorTypePermanent},
+		{"ErrChainNotSupported", ErrChainNotSupported, ErrorTypePermanent},
+		{"ErrTxNotFound", ErrTxNotFound, ErrorTypePermanent},
+		{"ErrContractNotFound", ErrContractNotFound, ErrorTypePermanent},
+		{"ErrRPCError", ErrRPCError, ErrorTypeTransient},
+		{"ErrRPCRateLimited", ErrRPCRateLimited, ErrorTypeTransient},
+		{"ErrEventDecodeFailed", ErrEventDecodeFailed, ErrorTypePermanent},
+		{"ErrABINotFound", ErrABINotFound, ErrorTypePermanent},
+		{"ErrFinalityNotReady", ErrFinalityNotReady, ErrorTypeTransient},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			errorType := ClassifyError(tt.err)
+			assert.Equal(t, tt.expected, errorType)
+		})
+	}
 }
 
 // TestDefaultRetryConfig tests DefaultRetryConfig

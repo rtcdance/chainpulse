@@ -11,6 +11,7 @@ import (
 
 // TestKafkaPropertyMessageIDUniqueness tests that message IDs are unique
 func TestKafkaPropertyMessageIDUniqueness(t *testing.T) {
+	t.Parallel()
 	config := &core.Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -65,6 +66,7 @@ func TestKafkaPropertyMessageIDUniqueness(t *testing.T) {
 
 // TestKafkaPropertyOffsetMonotonicity tests that offsets are monotonically increasing
 func TestKafkaPropertyOffsetMonotonicity(t *testing.T) {
+	t.Parallel()
 	config := &core.Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -99,6 +101,7 @@ func TestKafkaPropertyOffsetMonotonicity(t *testing.T) {
 
 // TestKafkaPropertyBatchSizeConsistency tests batch size consistency
 func TestKafkaPropertyBatchSizeConsistency(t *testing.T) {
+	t.Parallel()
 	config := &core.Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -123,6 +126,7 @@ func TestKafkaPropertyBatchSizeConsistency(t *testing.T) {
 
 // TestKafkaPropertyMaxRetriesConsistency tests max retries consistency
 func TestKafkaPropertyMaxRetriesConsistency(t *testing.T) {
+	t.Parallel()
 	config := &core.Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -147,6 +151,7 @@ func TestKafkaPropertyMaxRetriesConsistency(t *testing.T) {
 
 // TestKafkaPropertyRetryDelayConsistency tests retry delay consistency
 func TestKafkaPropertyRetryDelayConsistency(t *testing.T) {
+	t.Parallel()
 	config := &core.Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -178,6 +183,7 @@ func TestKafkaPropertyRetryDelayConsistency(t *testing.T) {
 
 // TestKafkaPropertyHealthStatusConsistency tests health status consistency
 func TestKafkaPropertyHealthStatusConsistency(t *testing.T) {
+	t.Parallel()
 	config := &core.Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -224,6 +230,7 @@ func TestKafkaPropertyHealthStatusConsistency(t *testing.T) {
 
 // TestKafkaPropertyStatsAccuracy tests stats accuracy
 func TestKafkaPropertyStatsAccuracy(t *testing.T) {
+	t.Parallel()
 	config := &core.Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -275,6 +282,7 @@ func TestKafkaPropertyStatsAccuracy(t *testing.T) {
 
 // TestKafkaPropertyBrokerConfigurationImmutability tests broker configuration immutability
 func TestKafkaPropertyBrokerConfigurationImmutability(t *testing.T) {
+	t.Parallel()
 	config := &core.Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -301,6 +309,7 @@ func TestKafkaPropertyBrokerConfigurationImmutability(t *testing.T) {
 
 // TestKafkaPropertyConsumerGroupImmutability tests consumer group immutability
 func TestKafkaPropertyConsumerGroupImmutability(t *testing.T) {
+	t.Parallel()
 	config := &core.Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -321,6 +330,7 @@ func TestKafkaPropertyConsumerGroupImmutability(t *testing.T) {
 
 // TestKafkaPropertyPluginNameAndVersion tests plugin name and version
 func TestKafkaPropertyPluginNameAndVersion(t *testing.T) {
+	t.Parallel()
 	config := &core.Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -347,6 +357,7 @@ func TestKafkaPropertyPluginNameAndVersion(t *testing.T) {
 
 // TestKafkaPropertyInitializationIdempotency tests initialization idempotency
 func TestKafkaPropertyInitializationIdempotency(t *testing.T) {
+	t.Parallel()
 	config := &core.Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -376,6 +387,7 @@ func TestKafkaPropertyInitializationIdempotency(t *testing.T) {
 
 // TestKafkaPropertyStartStopCycle tests start/stop cycle
 func TestKafkaPropertyStartStopCycle(t *testing.T) {
+	t.Parallel()
 	config := &core.Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,

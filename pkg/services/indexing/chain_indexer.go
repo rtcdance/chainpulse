@@ -6,13 +6,12 @@ import (
 	"sync"
 	"time"
 
-	appindexing "chainpulse/pkg/application/indexing"
 	"chainpulse/pkg/core"
 	"chainpulse/pkg/integrations/generic"
 )
 
 type sharedBatchRuntime interface {
-	ProcessBatch(ctx context.Context, chainID string, events []appindexing.EventEnvelope) error
+	ProcessBatch(ctx context.Context, chainID string, events []core.EventEnvelope) error
 }
 
 // DefaultChainIndexer implements ChainIndexer for a specific blockchain
@@ -162,7 +161,7 @@ func (dci *DefaultChainIndexer) forwardShadowBatch(ctx context.Context, events [
 		return
 	}
 
-	envelopes := make([]appindexing.EventEnvelope, 0, len(events))
+	envelopes := make([]core.EventEnvelope, 0, len(events))
 	for _, event := range events {
 		envelopes = append(envelopes, toEventEnvelope(event))
 	}
@@ -184,8 +183,8 @@ func (dci *DefaultChainIndexer) forwardShadowBatch(ctx context.Context, events [
 	}
 }
 
-func toEventEnvelope(event *core.BlockchainEvent) appindexing.EventEnvelope {
-	return appindexing.EventEnvelope{
+func toEventEnvelope(event *core.BlockchainEvent) core.EventEnvelope {
+	return core.EventEnvelope{
 		EventKey:         event.ID,
 		ChainID:          event.ChainID,
 		BlockNumber:      event.BlockNumber,
@@ -237,7 +236,7 @@ func (dci *DefaultChainIndexer) GetChainID() string {
 }
 
 // GetStatus returns status information for this chain indexer
-func (dci *DefaultChainIndexer) GetStatus() map[string]interface{} {
+func (dci *DefaultChainIndexer) GetStatus() map[string]any {
 	dci.mu.RLock()
 	defer dci.mu.RUnlock()
 
@@ -253,7 +252,7 @@ func (dci *DefaultChainIndexer) GetStatus() map[string]interface{} {
 		errorRate = float64(dci.totalErrorsEncountered) / float64(total)
 	}
 
-	status := map[string]interface{}{
+	status := map[string]any{
 		"chain_id":             dci.chainID,
 		"last_indexed_block":   dci.lastIndexedBlock,
 		"total_events_indexed": dci.totalEventsIndexed,
@@ -266,9 +265,9 @@ func (dci *DefaultChainIndexer) GetStatus() map[string]interface{} {
 	}
 
 	if dci.confirmationTracker != nil {
-		status["confirmation_pending"]    = dci.confirmationTracker.PendingCount()
-		status["confirmation_confirmed"]  = dci.confirmationTracker.ConfirmedCount()
-		status["confirmation_finalized"]  = dci.confirmationTracker.FinalizedCount()
+		status["confirmation_pending"] = dci.confirmationTracker.PendingCount()
+		status["confirmation_confirmed"] = dci.confirmationTracker.ConfirmedCount()
+		status["confirmation_finalized"] = dci.confirmationTracker.FinalizedCount()
 	}
 
 	return status

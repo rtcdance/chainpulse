@@ -1,6 +1,9 @@
 package core
 
-import "strings"
+import (
+	"strings"
+	"sync"
+)
 
 // knownEventSignatureNames maps keccak256 event signature hashes to human-readable names.
 // These are the canonical topic0 values for standard ERC events.
@@ -93,7 +96,7 @@ var knownEventSignatureNames = map[string]string{
 	// --- ERC-4337 Stake Events ---
 	"0x5548c837ab068cf56a2c2479dfc84251b12e6d57f472a5859c3ba3764a4e3e3e": "StakeLocked",
 	"0x45b5e9a5e0e09a969c6c20c3c98f6a439d2fa8114e7da6d4e52ea2d0e4e8c5bd": "StakeUnlocked",
-	"0x4e2c6d84e62b59f0c1e0e0e7a9e9875e44e0e0e0e0e0e0e0e0e0e0e0e0e0e0e": "StakeWithdrawn",
+	"0x4e2c6d84e62b59f0c1e0e0e7a9e9875e44e0e0e0e0e0e0e0e0e0e0e0e0e0e0e":  "StakeWithdrawn",
 
 	// --- Post-Dencun Events ---
 
@@ -107,14 +110,18 @@ var knownEventSignatureNames = map[string]string{
 // knownNameToSignatures provides reverse lookup from event name to canonical signature hash.
 var knownNameToSignatures map[string]string
 
-func init() {
-	knownNameToSignatures = make(map[string]string, len(knownEventSignatureNames))
-	for sig, name := range knownEventSignatureNames {
-		// First mapping wins (Transfer maps to ERC-20/721 shared hash)
-		if _, exists := knownNameToSignatures[name]; !exists {
-			knownNameToSignatures[name] = sig
+var initNameToSigsOnce sync.Once
+
+func ensureNameToSignaturesInitialized() {
+	initNameToSigsOnce.Do(func() {
+		knownNameToSignatures = make(map[string]string, len(knownEventSignatureNames))
+		for sig, name := range knownEventSignatureNames {
+			// First mapping wins (Transfer maps to ERC-20/721 shared hash)
+			if _, exists := knownNameToSignatures[name]; !exists {
+				knownNameToSignatures[name] = sig
+			}
 		}
-	}
+	})
 }
 
 // ResolveEventNameFromTopic resolves a keccak256 event topic (topic0) to a human-readable
@@ -133,6 +140,7 @@ func ResolveEventNameFromTopic(topic string) string {
 // ResolveTopicFromName performs a reverse lookup from an event name to its canonical
 // keccak256 signature hash. Returns empty string if the name is not recognized.
 func ResolveTopicFromName(name string) string {
+	ensureNameToSignaturesInitialized()
 	if sig, ok := knownNameToSignatures[name]; ok {
 		return sig
 	}

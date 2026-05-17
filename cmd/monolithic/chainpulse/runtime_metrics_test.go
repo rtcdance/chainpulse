@@ -23,8 +23,8 @@ func TestMonolithicRuntimeMetricsRoute(t *testing.T) {
 	healthHandler.InitializedForTests()
 	gateway.SetHealthCheckHandler(healthHandler)
 	gateway.SetRuntimeMetricsProvider(buildMonolithicMetricsProvider(metrics, nil))
-	gateway.SetRuntimeSummaryProvider(func(r *http.Request) interface{} {
-		return map[string]interface{}{"service": "monolithic"}
+	gateway.SetRuntimeSummaryProvider(func(r *http.Request) any {
+		return map[string]any{"service": "monolithic"}
 	})
 
 	if err := gateway.Initialize(core.Config{}); err != nil {

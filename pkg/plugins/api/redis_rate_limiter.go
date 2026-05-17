@@ -65,12 +65,16 @@ func NewRedisRateLimiter(
 
 // slidingWindowLua atomically increments a sliding-window counter and returns
 // the current count. Keys:
-//   KEYS[1] = current window key
-//   KEYS[2] = previous window key
+//
+//	KEYS[1] = current window key
+//	KEYS[2] = previous window key
+//
 // Argv:
-//   ARGV[1] = window size in milliseconds
-//   ARGV[2] = current timestamp in milliseconds
-//   ARGV[3] = max requests allowed in the window
+//
+//	ARGV[1] = window size in milliseconds
+//	ARGV[2] = current timestamp in milliseconds
+//	ARGV[3] = max requests allowed in the window
+//
 // Returns: count (integer) or -1 on error.
 var slidingWindowLua = redisv9.NewScript(`
 local current_key   = KEYS[1]
@@ -211,6 +215,6 @@ func (rl *RedisRateLimiter) SetIPLimit(ip string, requestsPerSecond float64, bur
 }
 
 // GetStats returns rate limiter statistics from the fallback in-memory limiter.
-func (rl *RedisRateLimiter) GetStats() map[string]interface{} {
+func (rl *RedisRateLimiter) GetStats() map[string]any {
 	return rl.fallback.GetStats()
 }

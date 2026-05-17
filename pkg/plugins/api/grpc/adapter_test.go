@@ -7,6 +7,7 @@ import (
 )
 
 func TestNewGRPCRequest(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	headers := map[string]string{"Authorization": "Bearer token"}
 	body := []byte(`{"method":"Query","params":{}}`)
@@ -23,6 +24,7 @@ func TestNewGRPCRequest(t *testing.T) {
 }
 
 func TestGRPCRequestMethod(t *testing.T) {
+	t.Parallel()
 	methods := []string{"POST", "GET", "PUT"}
 
 	for _, method := range methods {
@@ -35,6 +37,7 @@ func TestGRPCRequestMethod(t *testing.T) {
 }
 
 func TestGRPCRequestPath(t *testing.T) {
+	t.Parallel()
 	paths := []string{"/api.Service/Method", "/api.Query/Execute", "/api.Admin/GetStatus"}
 
 	for _, path := range paths {
@@ -47,6 +50,7 @@ func TestGRPCRequestPath(t *testing.T) {
 }
 
 func TestGRPCRequestHeaders(t *testing.T) {
+	t.Parallel()
 	headers := map[string]string{
 		"Authorization": "Bearer token",
 		"X-Request-ID":  "req-123",
@@ -69,6 +73,7 @@ func TestGRPCRequestHeaders(t *testing.T) {
 }
 
 func TestGRPCRequestBody(t *testing.T) {
+	t.Parallel()
 	body := []byte(`{"method":"Query","params":{"id":123}}`)
 	req := NewGRPCRequest("POST", "/api.Service/Method", nil, body, context.Background())
 
@@ -78,6 +83,7 @@ func TestGRPCRequestBody(t *testing.T) {
 }
 
 func TestGRPCRequestContext(t *testing.T) {
+	t.Parallel()
 	ctx := context.WithValue(context.Background(), userIDKey, "user-123")
 	req := NewGRPCRequest("POST", "/api.Service/Method", nil, []byte("{}"), ctx)
 
@@ -87,6 +93,7 @@ func TestGRPCRequestContext(t *testing.T) {
 }
 
 func TestGRPCRequestQuery(t *testing.T) {
+	t.Parallel()
 	req := NewGRPCRequest("POST", "/api.Service/Method", nil, []byte("{}"), context.Background())
 
 	// gRPC doesn't use query parameters
@@ -101,6 +108,7 @@ func TestGRPCRequestQuery(t *testing.T) {
 }
 
 func TestNewGRPCResponse(t *testing.T) {
+	t.Parallel()
 	resp := NewGRPCResponse()
 
 	if resp == nil {
@@ -113,6 +121,7 @@ func TestNewGRPCResponse(t *testing.T) {
 }
 
 func TestGRPCResponseStatus(t *testing.T) {
+	t.Parallel()
 	resp := NewGRPCResponse()
 
 	resp.SetStatus(201)
@@ -127,6 +136,7 @@ func TestGRPCResponseStatus(t *testing.T) {
 }
 
 func TestGRPCResponseHeaders(t *testing.T) {
+	t.Parallel()
 	resp := NewGRPCResponse()
 
 	resp.SetHeader("X-Message-ID", "msg-123")
@@ -143,6 +153,7 @@ func TestGRPCResponseHeaders(t *testing.T) {
 }
 
 func TestGRPCResponseBody(t *testing.T) {
+	t.Parallel()
 	resp := NewGRPCResponse()
 
 	body := []byte(`{"status":"ok","data":{"id":1}}`)
@@ -154,6 +165,7 @@ func TestGRPCResponseBody(t *testing.T) {
 }
 
 func TestGRPCResponseWrite(t *testing.T) {
+	t.Parallel()
 	resp := NewGRPCResponse()
 
 	n, err := resp.Write([]byte("hello"))
@@ -171,6 +183,7 @@ func TestGRPCResponseWrite(t *testing.T) {
 }
 
 func TestGRPCResponseSend(t *testing.T) {
+	t.Parallel()
 	resp := NewGRPCResponse()
 
 	resp.SetStatus(201)
@@ -188,6 +201,7 @@ func TestGRPCResponseSend(t *testing.T) {
 }
 
 func TestGRPCResponseToJSON(t *testing.T) {
+	t.Parallel()
 	resp := NewGRPCResponse()
 
 	resp.SetStatus(200)
@@ -199,7 +213,7 @@ func TestGRPCResponseToJSON(t *testing.T) {
 		t.Errorf("unexpected error: %v", err)
 	}
 
-	var envelope map[string]interface{}
+	var envelope map[string]any
 	err = json.Unmarshal(data, &envelope)
 	if err != nil {
 		t.Errorf("unexpected error unmarshaling: %v", err)
@@ -211,6 +225,7 @@ func TestGRPCResponseToJSON(t *testing.T) {
 }
 
 func TestGRPCResponseFromJSON(t *testing.T) {
+	t.Parallel()
 	data := []byte(`{"status":201,"headers":{"X-Message-ID":"msg-123"},"body":"{\"id\":1}"}`)
 
 	resp := NewGRPCResponse()
@@ -233,6 +248,7 @@ func TestGRPCResponseFromJSON(t *testing.T) {
 }
 
 func TestGRPCResponseHeaderImmutabilityAfterSend(t *testing.T) {
+	t.Parallel()
 	resp := NewGRPCResponse()
 
 	resp.SetStatus(200)

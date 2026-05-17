@@ -13,6 +13,7 @@ import (
 )
 
 func TestReadStorageSlot(t *testing.T) {
+	t.Parallel()
 	slotValue := "0x0000000000000000000000000000000000000000000000000000000000000001"
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
@@ -36,6 +37,7 @@ func TestReadStorageSlot(t *testing.T) {
 }
 
 func TestReadStorageSlot_RPCError(t *testing.T) {
+	t.Parallel()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte(`{"jsonrpc":"2.0","id":1,"error":{"code":-32000,"message":"header not found"}}`))
@@ -56,6 +58,7 @@ func TestReadStorageSlot_RPCError(t *testing.T) {
 }
 
 func TestReadProxyImplementation(t *testing.T) {
+	t.Parallel()
 	implAddr := common.HexToAddress("0xabcdefabcdefabcdefabcdefabcdefabcdefabcd")
 	// Left-pad the address to 32 bytes (as stored in the slot)
 	slotHex := "0x000000000000000000000000" + implAddr.Hex()[2:]
@@ -79,6 +82,7 @@ func TestReadProxyImplementation(t *testing.T) {
 }
 
 func TestReadERC20BalanceOf(t *testing.T) {
+	t.Parallel()
 	balance := big.NewInt(1000000)
 	balanceHex := "0x" + hex.EncodeToString(balance.Bytes())
 
@@ -103,6 +107,7 @@ func TestReadERC20BalanceOf(t *testing.T) {
 }
 
 func TestReadStorageSlot_ContextCanceled(t *testing.T) {
+	t.Parallel()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		// Never respond
 		select {}
@@ -123,6 +128,7 @@ func TestReadStorageSlot_ContextCanceled(t *testing.T) {
 }
 
 func TestComputeMappingKey(t *testing.T) {
+	t.Parallel()
 	// Known test vector: mapping(address => uint256) at slot 0
 	// key = keccak256(pad32(address) ++ pad32(0))
 	account := common.HexToAddress("0x2222222222222222222222222222222222222222")
@@ -140,10 +146,11 @@ func TestComputeMappingKey(t *testing.T) {
 }
 
 func TestParseHash(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
-		name   string
-		input  string
-		want   string
+		name  string
+		input string
+		want  string
 	}{
 		{"full_32_bytes", "0x" + strings.Repeat("ab", 32), "0x" + strings.Repeat("ab", 32)},
 		{"short_value", "0x01", "0x0000000000000000000000000000000000000000000000000000000000000001"},
@@ -164,6 +171,7 @@ func TestParseHash(t *testing.T) {
 }
 
 func TestNewStorageReader_DefaultClient(t *testing.T) {
+	t.Parallel()
 	reader := NewStorageReader("http://localhost:8545", nil)
 	if reader.client == nil {
 		t.Error("NewStorageReader with nil client should use http.DefaultClient")

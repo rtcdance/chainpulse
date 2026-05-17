@@ -3,6 +3,7 @@ package discovery
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"sync"
 	"time"
 )
@@ -236,8 +237,7 @@ func (hc *HealthChecker) checkService(ctx context.Context, service *ServiceInfo)
 
 // performHealthCheck performs the actual health check
 func (hc *HealthChecker) performHealthCheck(ctx context.Context, service *ServiceInfo) bool {
-	// This is a placeholder for actual health check logic
-	// In production, this would make HTTP requests to the health check endpoint
+	slog.Warn("performHealthCheck: placeholder — actual health check (HTTP/TCP probe) not yet implemented, returning true")
 	return true
 }
 

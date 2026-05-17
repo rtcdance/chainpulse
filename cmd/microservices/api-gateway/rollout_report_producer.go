@@ -51,7 +51,7 @@ func newAPIGatewayRolloutReportProducer(instanceID string, stateProvider func() 
 func newAPIGatewayRolloutReportProducerWithReadinessDetails(
 	instanceID string,
 	stateProvider func() apiGatewayRolloutRuntimeState,
-	readinessDetailsProvider func() map[string]interface{},
+	readinessDetailsProvider func() map[string]any,
 ) api.RolloutReportProducer {
 	return newAPIGatewayRolloutReportProducerWithOwnershipSource(
 		instanceID,
@@ -361,7 +361,7 @@ func buildAPIGatewayOwnershipParitySource(runtimeSignalsPresent bool) api.RouteO
 }
 
 //nolint:unused
-func buildAPIGatewayOwnershipParitySourceFromReadinessDetails(readinessDetailsProvider func() map[string]interface{}) api.RouteOwnershipParitySource {
+func buildAPIGatewayOwnershipParitySourceFromReadinessDetails(readinessDetailsProvider func() map[string]any) api.RouteOwnershipParitySource {
 	return api.RouteOwnershipParitySourceFunc(func() api.RouteOwnershipParitySourceSnapshot {
 		if readinessDetailsProvider == nil {
 			return api.RouteOwnershipParitySourceSnapshot{}

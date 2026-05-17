@@ -3,6 +3,7 @@ package mq
 import (
 	"context"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"chainpulse/pkg/core"
@@ -11,8 +12,8 @@ import (
 const subscriberTTL = 5 * time.Minute
 
 type subscriberInfo struct {
-	ch          chan []byte
-	lastActive  time.Time
+	ch         chan []byte
+	lastActive atomic.Int64 // UnixNano timestamp, race-safe
 }
 
 type MemoryMQ struct {
@@ -99,7 +100,7 @@ func (m *MemoryMQ) Publish(ctx context.Context, topic string, message []byte) er
 	for _, sub := range subscribers {
 		select {
 		case sub.ch <- message:
-			sub.lastActive = now
+			sub.lastActive.Store(now.UnixNano())
 		case <-ctx.Done():
 			return ctx.Err()
 		default:
@@ -111,9 +112,9 @@ func (m *MemoryMQ) Publish(ctx context.Context, topic string, message []byte) er
 
 func (m *MemoryMQ) Subscribe(ctx context.Context, topic string, handler func([]byte)) error {
 	info := &subscriberInfo{
-		ch:         make(chan []byte, 100),
-		lastActive: time.Now(),
+		ch: make(chan []byte, 100),
 	}
+	info.lastActive.Store(time.Now().UnixNano())
 
 	m.mu.Lock()
 	m.topics[topic] = append(m.topics[topic], info)
@@ -128,7 +129,7 @@ func (m *MemoryMQ) Subscribe(ctx context.Context, topic string, handler func([]b
 				if !ok {
 					return
 				}
-				info.lastActive = time.Now()
+				info.lastActive.Store(time.Now().UnixNano())
 				handler(msg)
 			case <-ctx.Done():
 				return
@@ -163,7 +164,7 @@ func (m *MemoryMQ) evictOnce() {
 	for topic, subscribers := range m.topics {
 		var alive []*subscriberInfo
 		for _, sub := range subscribers {
-			if now.Sub(sub.lastActive) > subscriberTTL {
+			if now.Sub(time.Unix(0, sub.lastActive.Load())) > subscriberTTL {
 				close(sub.ch)
 			} else {
 				alive = append(alive, sub)

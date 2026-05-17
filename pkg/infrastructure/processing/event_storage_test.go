@@ -13,6 +13,7 @@ import (
 
 // TestNewInMemoryEventStore tests store creation
 func TestNewInMemoryEventStore(t *testing.T) {
+	t.Parallel()
 	store := NewInMemoryEventStore(1000)
 
 	assert.NotNil(t, store)
@@ -23,6 +24,7 @@ func TestNewInMemoryEventStore(t *testing.T) {
 
 // TestStoreEvent tests storing a single event
 func TestStoreEvent(t *testing.T) {
+	t.Parallel()
 	store := NewInMemoryEventStore(1000)
 	ctx := context.Background()
 
@@ -46,6 +48,7 @@ func TestStoreEvent(t *testing.T) {
 
 // TestStoreEventNil tests storing nil event
 func TestStoreEventNil(t *testing.T) {
+	t.Parallel()
 	store := NewInMemoryEventStore(1000)
 	ctx := context.Background()
 
@@ -58,6 +61,7 @@ func TestStoreEventNil(t *testing.T) {
 
 // TestStoreEventEmptyID tests storing event with empty ID
 func TestStoreEventEmptyID(t *testing.T) {
+	t.Parallel()
 	store := NewInMemoryEventStore(1000)
 	ctx := context.Background()
 
@@ -73,6 +77,7 @@ func TestStoreEventEmptyID(t *testing.T) {
 
 // TestStoreEventFull tests storing when store is full
 func TestStoreEventFull(t *testing.T) {
+	t.Parallel()
 	store := NewInMemoryEventStore(2)
 	ctx := context.Background()
 
@@ -91,6 +96,7 @@ func TestStoreEventFull(t *testing.T) {
 
 // TestStoreBatch tests storing a batch of events
 func TestStoreBatch(t *testing.T) {
+	t.Parallel()
 	store := NewInMemoryEventStore(1000)
 	ctx := context.Background()
 
@@ -110,6 +116,7 @@ func TestStoreBatch(t *testing.T) {
 
 // TestStoreBatchEmpty tests storing empty batch
 func TestStoreBatchEmpty(t *testing.T) {
+	t.Parallel()
 	store := NewInMemoryEventStore(1000)
 	ctx := context.Background()
 
@@ -121,6 +128,7 @@ func TestStoreBatchEmpty(t *testing.T) {
 
 // TestStoreBatchExceedsCapacity tests storing batch that exceeds capacity
 func TestStoreBatchExceedsCapacity(t *testing.T) {
+	t.Parallel()
 	store := NewInMemoryEventStore(2)
 	ctx := context.Background()
 
@@ -138,6 +146,7 @@ func TestStoreBatchExceedsCapacity(t *testing.T) {
 
 // TestGetEvent tests retrieving a single event
 func TestGetEvent(t *testing.T) {
+	t.Parallel()
 	store := NewInMemoryEventStore(1000)
 	ctx := context.Background()
 
@@ -159,6 +168,7 @@ func TestGetEvent(t *testing.T) {
 
 // TestGetEventEmptyID tests retrieving with empty ID
 func TestGetEventEmptyID(t *testing.T) {
+	t.Parallel()
 	store := NewInMemoryEventStore(1000)
 	ctx := context.Background()
 
@@ -169,6 +179,7 @@ func TestGetEventEmptyID(t *testing.T) {
 
 // TestGetEventNotFound tests retrieving non-existent event
 func TestGetEventNotFound(t *testing.T) {
+	t.Parallel()
 	store := NewInMemoryEventStore(1000)
 	ctx := context.Background()
 
@@ -179,6 +190,7 @@ func TestGetEventNotFound(t *testing.T) {
 
 // TestQueryEventsNoFilter tests querying with no filter
 func TestQueryEventsNoFilter(t *testing.T) {
+	t.Parallel()
 	store := NewInMemoryEventStore(1000)
 	ctx := context.Background()
 
@@ -198,6 +210,7 @@ func TestQueryEventsNoFilter(t *testing.T) {
 
 // TestQueryEventsByChainID tests querying by chain ID
 func TestQueryEventsByChainID(t *testing.T) {
+	t.Parallel()
 	store := NewInMemoryEventStore(1000)
 	ctx := context.Background()
 
@@ -218,6 +231,7 @@ func TestQueryEventsByChainID(t *testing.T) {
 
 // TestQueryEventsByEventName tests querying by event name
 func TestQueryEventsByEventName(t *testing.T) {
+	t.Parallel()
 	store := NewInMemoryEventStore(1000)
 	ctx := context.Background()
 
@@ -238,6 +252,7 @@ func TestQueryEventsByEventName(t *testing.T) {
 
 // TestQueryEventsByBlockRange tests querying by block range
 func TestQueryEventsByBlockRange(t *testing.T) {
+	t.Parallel()
 	store := NewInMemoryEventStore(1000)
 	ctx := context.Background()
 
@@ -259,6 +274,7 @@ func TestQueryEventsByBlockRange(t *testing.T) {
 
 // TestQueryEventsByStatus tests querying by status
 func TestQueryEventsByStatus(t *testing.T) {
+	t.Parallel()
 	store := NewInMemoryEventStore(1000)
 	ctx := context.Background()
 
@@ -279,6 +295,7 @@ func TestQueryEventsByStatus(t *testing.T) {
 
 // TestQueryEventsWithLimit tests querying with limit
 func TestQueryEventsWithLimit(t *testing.T) {
+	t.Parallel()
 	store := NewInMemoryEventStore(1000)
 	ctx := context.Background()
 
@@ -301,6 +318,7 @@ func TestQueryEventsWithLimit(t *testing.T) {
 
 // TestQueryEventsWithOffset tests querying with offset
 func TestQueryEventsWithOffset(t *testing.T) {
+	t.Parallel()
 	store := NewInMemoryEventStore(1000)
 	ctx := context.Background()
 
@@ -323,6 +341,7 @@ func TestQueryEventsWithOffset(t *testing.T) {
 
 // TestQueryEventsMultipleFilters tests querying with multiple filters
 func TestQueryEventsMultipleFilters(t *testing.T) {
+	t.Parallel()
 	store := NewInMemoryEventStore(1000)
 	ctx := context.Background()
 
@@ -349,6 +368,7 @@ func TestQueryEventsMultipleFilters(t *testing.T) {
 
 // TestDeleteEvent tests deleting an event
 func TestDeleteEvent(t *testing.T) {
+	t.Parallel()
 	store := NewInMemoryEventStore(1000)
 	ctx := context.Background()
 
@@ -366,6 +386,7 @@ func TestDeleteEvent(t *testing.T) {
 
 // TestDeleteEventEmptyID tests deleting with empty ID
 func TestDeleteEventEmptyID(t *testing.T) {
+	t.Parallel()
 	store := NewInMemoryEventStore(1000)
 	ctx := context.Background()
 
@@ -376,6 +397,7 @@ func TestDeleteEventEmptyID(t *testing.T) {
 
 // TestDeleteEventNotFound tests deleting non-existent event
 func TestDeleteEventNotFound(t *testing.T) {
+	t.Parallel()
 	store := NewInMemoryEventStore(1000)
 	ctx := context.Background()
 
@@ -386,6 +408,7 @@ func TestDeleteEventNotFound(t *testing.T) {
 
 // TestGetMetricsEventStorage tests getting metrics
 func TestGetMetricsEventStorage(t *testing.T) {
+	t.Parallel()
 	store := NewInMemoryEventStore(1000)
 	ctx := context.Background()
 
@@ -402,6 +425,7 @@ func TestGetMetricsEventStorage(t *testing.T) {
 
 // TestClear tests clearing the store
 func TestClear(t *testing.T) {
+	t.Parallel()
 	store := NewInMemoryEventStore(1000)
 	ctx := context.Background()
 
@@ -421,6 +445,7 @@ func TestClear(t *testing.T) {
 
 // TestConcurrentStoreEvent tests concurrent storing
 func TestConcurrentStoreEvent(t *testing.T) {
+	t.Parallel()
 	store := NewInMemoryEventStore(1000)
 	ctx := context.Background()
 
@@ -446,6 +471,7 @@ func TestConcurrentStoreEvent(t *testing.T) {
 
 // TestConcurrentGetEvent tests concurrent retrieval
 func TestConcurrentGetEvent(t *testing.T) {
+	t.Parallel()
 	store := NewInMemoryEventStore(1000)
 	ctx := context.Background()
 
@@ -472,6 +498,7 @@ func TestConcurrentGetEvent(t *testing.T) {
 
 // TestEventFilterByContractAddress tests filtering by contract address
 func TestEventFilterByContractAddress(t *testing.T) {
+	t.Parallel()
 	store := NewInMemoryEventStore(1000)
 	ctx := context.Background()
 
@@ -492,6 +519,7 @@ func TestEventFilterByContractAddress(t *testing.T) {
 
 // TestEventFilterByTimeRange tests filtering by time range
 func TestEventFilterByTimeRange(t *testing.T) {
+	t.Parallel()
 	store := NewInMemoryEventStore(1000)
 	ctx := context.Background()
 
@@ -516,6 +544,7 @@ func TestEventFilterByTimeRange(t *testing.T) {
 
 // TestNewTransactionManager tests transaction manager creation
 func TestNewTransactionManager(t *testing.T) {
+	t.Parallel()
 	tm := NewTransactionManager()
 
 	assert.NotNil(t, tm)
@@ -526,6 +555,7 @@ func TestNewTransactionManager(t *testing.T) {
 
 // TestBeginTransaction tests beginning a transaction
 func TestBeginTransaction(t *testing.T) {
+	t.Parallel()
 	tm := NewTransactionManager()
 
 	tx := tm.BeginTransaction("tx-1")
@@ -538,6 +568,7 @@ func TestBeginTransaction(t *testing.T) {
 
 // TestCommitTransaction tests committing a transaction
 func TestCommitTransaction(t *testing.T) {
+	t.Parallel()
 	tm := NewTransactionManager()
 
 	_ = tm.BeginTransaction("tx-1")
@@ -549,6 +580,7 @@ func TestCommitTransaction(t *testing.T) {
 
 // TestCommitTransactionNotFound tests committing non-existent transaction
 func TestCommitTransactionNotFound(t *testing.T) {
+	t.Parallel()
 	tm := NewTransactionManager()
 
 	err := tm.CommitTransaction("nonexistent")
@@ -558,6 +590,7 @@ func TestCommitTransactionNotFound(t *testing.T) {
 
 // TestRollbackTransaction tests rolling back a transaction
 func TestRollbackTransaction(t *testing.T) {
+	t.Parallel()
 	tm := NewTransactionManager()
 
 	_ = tm.BeginTransaction("tx-1")
@@ -569,6 +602,7 @@ func TestRollbackTransaction(t *testing.T) {
 
 // TestRollbackTransactionNotFound tests rolling back non-existent transaction
 func TestRollbackTransactionNotFound(t *testing.T) {
+	t.Parallel()
 	tm := NewTransactionManager()
 
 	err := tm.RollbackTransaction("nonexistent")
@@ -578,6 +612,7 @@ func TestRollbackTransactionNotFound(t *testing.T) {
 
 // TestTransactionManagerMetrics tests getting transaction metrics
 func TestTransactionManagerMetrics(t *testing.T) {
+	t.Parallel()
 	tm := NewTransactionManager()
 
 	_ = tm.BeginTransaction("tx-1")
@@ -595,6 +630,7 @@ func TestTransactionManagerMetrics(t *testing.T) {
 
 // TestStorageMetricsLatency tests latency recording
 func TestStorageMetricsLatency(t *testing.T) {
+	t.Parallel()
 	store := NewInMemoryEventStore(1000)
 	ctx := context.Background()
 
@@ -609,6 +645,7 @@ func TestStorageMetricsLatency(t *testing.T) {
 
 // TestMultipleTransactions tests multiple transactions
 func TestMultipleTransactions(t *testing.T) {
+	t.Parallel()
 	tm := NewTransactionManager()
 
 	for i := 1; i <= 5; i++ {
@@ -622,6 +659,7 @@ func TestMultipleTransactions(t *testing.T) {
 
 // TestStoreBatchWithNilEvents tests batch with nil events
 func TestStoreBatchWithNilEvents(t *testing.T) {
+	t.Parallel()
 	store := NewInMemoryEventStore(1000)
 	ctx := context.Background()
 
@@ -640,6 +678,7 @@ func TestStoreBatchWithNilEvents(t *testing.T) {
 
 // TestQueryEventsEmpty tests querying empty store
 func TestQueryEventsEmpty(t *testing.T) {
+	t.Parallel()
 	store := NewInMemoryEventStore(1000)
 	ctx := context.Background()
 
@@ -651,6 +690,7 @@ func TestQueryEventsEmpty(t *testing.T) {
 
 // TestStoreEventLatency tests event storage latency
 func TestStoreEventLatency(t *testing.T) {
+	t.Parallel()
 	store := NewInMemoryEventStore(1000)
 	ctx := context.Background()
 
@@ -665,6 +705,7 @@ func TestStoreEventLatency(t *testing.T) {
 
 // TestGetSize tests getting store size
 func TestGetSize(t *testing.T) {
+	t.Parallel()
 	store := NewInMemoryEventStore(1000)
 	ctx := context.Background()
 
@@ -680,6 +721,7 @@ func TestGetSize(t *testing.T) {
 
 // TestTransactionAddEvents tests adding events to transaction
 func TestTransactionAddEvents(t *testing.T) {
+	t.Parallel()
 	tm := NewTransactionManager()
 
 	tx := tm.BeginTransaction("tx-1")

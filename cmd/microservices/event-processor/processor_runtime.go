@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 
 	"chainpulse/pkg/core"
@@ -109,6 +110,13 @@ func (r *eventProcessorProcessingRuntime) MessageProcessor() eventProcessorMessa
 		return nil
 	}
 	return r.processor
+}
+
+func (r *eventProcessorProcessingRuntime) WarmUpIdempotency(ctx context.Context, hashes []string) error {
+	if r == nil || r.idempotency == nil {
+		return nil
+	}
+	return r.idempotency.WarmUp(ctx, hashes)
 }
 
 func (r *eventProcessorProcessingRuntime) Stop() error {

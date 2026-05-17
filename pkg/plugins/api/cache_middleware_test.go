@@ -11,6 +11,7 @@ import (
 )
 
 func TestNewCacheMiddleware(t *testing.T) {
+	t.Parallel()
 	config := DefaultCacheConfig()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
@@ -23,6 +24,7 @@ func TestNewCacheMiddleware(t *testing.T) {
 }
 
 func TestCacheEntryIsExpired(t *testing.T) {
+	t.Parallel()
 	entry := &CacheEntry{
 		ExpiresAt: time.Now().Add(-1 * time.Hour),
 	}
@@ -31,6 +33,7 @@ func TestCacheEntryIsExpired(t *testing.T) {
 }
 
 func TestCacheEntryNotExpired(t *testing.T) {
+	t.Parallel()
 	entry := &CacheEntry{
 		ExpiresAt: time.Now().Add(1 * time.Hour),
 	}
@@ -39,6 +42,7 @@ func TestCacheEntryNotExpired(t *testing.T) {
 }
 
 func TestCacheGet(t *testing.T) {
+	t.Parallel()
 	config := DefaultCacheConfig()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
@@ -60,6 +64,7 @@ func TestCacheGet(t *testing.T) {
 }
 
 func TestCacheGetNotFound(t *testing.T) {
+	t.Parallel()
 	config := DefaultCacheConfig()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
@@ -73,6 +78,7 @@ func TestCacheGetNotFound(t *testing.T) {
 }
 
 func TestCacheGetExpired(t *testing.T) {
+	t.Parallel()
 	config := DefaultCacheConfig()
 	config.DefaultTTL = 1 * time.Millisecond
 	logger := &MockLogger{}
@@ -91,6 +97,7 @@ func TestCacheGetExpired(t *testing.T) {
 }
 
 func TestCacheSet(t *testing.T) {
+	t.Parallel()
 	config := DefaultCacheConfig()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
@@ -106,6 +113,7 @@ func TestCacheSet(t *testing.T) {
 }
 
 func TestCacheInvalidate(t *testing.T) {
+	t.Parallel()
 	config := DefaultCacheConfig()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
@@ -123,6 +131,7 @@ func TestCacheInvalidate(t *testing.T) {
 }
 
 func TestCacheInvalidatePattern(t *testing.T) {
+	t.Parallel()
 	config := DefaultCacheConfig()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
@@ -142,6 +151,7 @@ func TestCacheInvalidatePattern(t *testing.T) {
 }
 
 func TestCacheClear(t *testing.T) {
+	t.Parallel()
 	config := DefaultCacheConfig()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
@@ -160,6 +170,7 @@ func TestCacheClear(t *testing.T) {
 }
 
 func TestCacheGetStats(t *testing.T) {
+	t.Parallel()
 	config := DefaultCacheConfig()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
@@ -178,6 +189,7 @@ func TestCacheGetStats(t *testing.T) {
 }
 
 func TestLRUEvictionStrategy(t *testing.T) {
+	t.Parallel()
 	config := DefaultCacheConfig()
 	config.MaxSize = 2
 	config.EvictionStrategy = "LRU"
@@ -207,6 +219,7 @@ func TestLRUEvictionStrategy(t *testing.T) {
 }
 
 func TestLFUEvictionStrategy(t *testing.T) {
+	t.Parallel()
 	config := DefaultCacheConfig()
 	config.MaxSize = 2
 	config.EvictionStrategy = "LFU"
@@ -237,6 +250,7 @@ func TestLFUEvictionStrategy(t *testing.T) {
 }
 
 func TestFIFOEvictionStrategy(t *testing.T) {
+	t.Parallel()
 	config := DefaultCacheConfig()
 	config.MaxSize = 2
 	config.EvictionStrategy = "FIFO"
@@ -263,6 +277,7 @@ func TestFIFOEvictionStrategy(t *testing.T) {
 }
 
 func TestMiddlewareGetRequest(t *testing.T) {
+	t.Parallel()
 	config := DefaultCacheConfig()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
@@ -297,6 +312,7 @@ func TestMiddlewareGetRequest(t *testing.T) {
 }
 
 func TestMiddlewarePostRequest(t *testing.T) {
+	t.Parallel()
 	config := DefaultCacheConfig()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
@@ -318,6 +334,7 @@ func TestMiddlewarePostRequest(t *testing.T) {
 }
 
 func TestGenerateCacheKey(t *testing.T) {
+	t.Parallel()
 	req := httptest.NewRequest("GET", "/api/test?param1=value1&param2=value2", nil)
 	req.Header.Set("X-User-ID", "user123")
 
@@ -328,6 +345,7 @@ func TestGenerateCacheKey(t *testing.T) {
 }
 
 func TestMatchPattern(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		key     string
 		pattern string
@@ -349,6 +367,7 @@ func TestMatchPattern(t *testing.T) {
 }
 
 func TestCacheMetricsRecording(t *testing.T) {
+	t.Parallel()
 	config := DefaultCacheConfig()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
@@ -369,6 +388,7 @@ func TestCacheMetricsRecording(t *testing.T) {
 }
 
 func TestConcurrentCacheAccess(t *testing.T) {
+	t.Parallel()
 	config := DefaultCacheConfig()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
@@ -394,6 +414,7 @@ func TestConcurrentCacheAccess(t *testing.T) {
 }
 
 func TestResponseRecorder(t *testing.T) {
+	t.Parallel()
 	w := httptest.NewRecorder()
 	rr := &responseRecorder{
 		ResponseWriter: w,
@@ -409,6 +430,7 @@ func TestResponseRecorder(t *testing.T) {
 }
 
 func TestCacheMaxSizeEnforcement(t *testing.T) {
+	t.Parallel()
 	config := DefaultCacheConfig()
 	config.MaxSize = 3
 	logger := &MockLogger{}

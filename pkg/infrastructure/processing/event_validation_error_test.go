@@ -6,6 +6,7 @@ import (
 )
 
 func TestEventValidationError_ImplementsError(t *testing.T) {
+	t.Parallel()
 	eve := &EventValidationError{
 		EventID: "evt-123",
 		Reason:  "invalid signature",
@@ -24,6 +25,7 @@ func TestEventValidationError_ImplementsError(t *testing.T) {
 }
 
 func TestEventValidationError_ErrorFormat(t *testing.T) {
+	t.Parallel()
 	eve := &EventValidationError{
 		EventID: "evt-456",
 		Reason:  "block number is zero",
@@ -36,6 +38,7 @@ func TestEventValidationError_ErrorFormat(t *testing.T) {
 }
 
 func TestEventValidationError_Unwrap(t *testing.T) {
+	t.Parallel()
 	inner := errors.New("abi decoding failed")
 	eve := &EventValidationError{
 		EventID: "evt-789",
@@ -53,6 +56,7 @@ func TestEventValidationError_Unwrap(t *testing.T) {
 }
 
 func TestEventValidationError_UnwrapNil(t *testing.T) {
+	t.Parallel()
 	eve := &EventValidationError{
 		EventID: "evt-000",
 		Reason:  "missing field",

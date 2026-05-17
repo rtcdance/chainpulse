@@ -3,6 +3,7 @@ package bootstrap
 import "testing"
 
 func TestParseCoreConfigOverridesFromCLITable(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name         string
 		args         []string
@@ -94,6 +95,7 @@ func TestParseCoreConfigOverridesFromCLITable(t *testing.T) {
 }
 
 func TestMergeCoreConfigOverridesPrecedence(t *testing.T) {
+	t.Parallel()
 	lowType := "service"
 	highType := "graphql"
 	lowPort := 8080

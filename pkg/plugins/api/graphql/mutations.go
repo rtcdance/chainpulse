@@ -12,7 +12,7 @@ import (
 
 // MutationBuilder builds GraphQL mutations
 type MutationBuilder struct {
-	eventStore domainquery.EventStore
+	eventStore domainquery.EventReader
 	logger     core.Logger
 	metrics    core.MetricsCollector
 	cache      core.CachePlugin
@@ -20,7 +20,7 @@ type MutationBuilder struct {
 
 // NewMutationBuilder creates a new mutation builder
 func NewMutationBuilder(
-	eventStore domainquery.EventStore,
+	eventStore domainquery.EventReader,
 	logger core.Logger,
 	metrics core.MetricsCollector,
 	cache core.CachePlugin,
@@ -93,7 +93,7 @@ func (mb *MutationBuilder) BuildMutations() *graphql.Object {
 }
 
 // resolveInvalidateCache invalidates cache for a specific event
-func (mb *MutationBuilder) resolveInvalidateCache(p graphql.ResolveParams) (interface{}, error) {
+func (mb *MutationBuilder) resolveInvalidateCache(p graphql.ResolveParams) (any, error) {
 	eventID, ok := p.Args["eventId"].(string)
 	if !ok || eventID == "" {
 		return nil, fmt.Errorf("invalid or missing eventId parameter")
@@ -136,7 +136,7 @@ func (mb *MutationBuilder) resolveInvalidateCache(p graphql.ResolveParams) (inte
 }
 
 // resolveInvalidateCacheByPattern invalidates cache entries matching a pattern
-func (mb *MutationBuilder) resolveInvalidateCacheByPattern(p graphql.ResolveParams) (interface{}, error) {
+func (mb *MutationBuilder) resolveInvalidateCacheByPattern(p graphql.ResolveParams) (any, error) {
 	pattern, ok := p.Args["pattern"].(string)
 	if !ok || pattern == "" {
 		return nil, fmt.Errorf("invalid or missing pattern parameter")
@@ -163,7 +163,7 @@ func (mb *MutationBuilder) resolveInvalidateCacheByPattern(p graphql.ResolvePara
 }
 
 // resolveClearCache clears all cache
-func (mb *MutationBuilder) resolveClearCache(p graphql.ResolveParams) (interface{}, error) {
+func (mb *MutationBuilder) resolveClearCache(p graphql.ResolveParams) (any, error) {
 	start := time.Now()
 	defer func() {
 		duration := time.Since(start).Milliseconds()
@@ -183,7 +183,7 @@ func (mb *MutationBuilder) resolveClearCache(p graphql.ResolveParams) (interface
 }
 
 // resolveRefreshEventCache refreshes cache for a specific event
-func (mb *MutationBuilder) resolveRefreshEventCache(p graphql.ResolveParams) (interface{}, error) {
+func (mb *MutationBuilder) resolveRefreshEventCache(p graphql.ResolveParams) (any, error) {
 	eventID, ok := p.Args["eventId"].(string)
 	if !ok || eventID == "" {
 		return nil, fmt.Errorf("invalid or missing eventId parameter")
@@ -227,7 +227,7 @@ func (mb *MutationBuilder) resolveRefreshEventCache(p graphql.ResolveParams) (in
 }
 
 // resolveWarmCache warms cache with recent events
-func (mb *MutationBuilder) resolveWarmCache(p graphql.ResolveParams) (interface{}, error) {
+func (mb *MutationBuilder) resolveWarmCache(p graphql.ResolveParams) (any, error) {
 	// Limit maximum warm cache size
 	limit := 100
 	if l, ok := p.Args["limit"].(int); ok && l > 0 {

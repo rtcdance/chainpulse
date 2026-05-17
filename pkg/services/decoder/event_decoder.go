@@ -2,9 +2,9 @@ package decoder
 
 import (
 	"fmt"
-	"math/big"
 
 	"chainpulse/pkg/core"
+
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -19,9 +19,9 @@ type EventDecoder struct {
 // DecodedEvent represents a decoded blockchain event
 type DecodedEvent struct {
 	EventName  string
-	Parameters map[string]interface{}
-	Indexed    map[string]interface{}
-	NonIndexed map[string]interface{}
+	Parameters map[string]any
+	Indexed    map[string]any
+	NonIndexed map[string]any
 }
 
 // NewEventDecoder creates a new event decoder
@@ -65,9 +65,9 @@ func (ed *EventDecoder) DecodeEvent(
 	// Decode indexed and non-indexed parameters
 	decoded := &DecodedEvent{
 		EventName:  event.Name,
-		Parameters: make(map[string]interface{}),
-		Indexed:    make(map[string]interface{}),
-		NonIndexed: make(map[string]interface{}),
+		Parameters: make(map[string]any),
+		Indexed:    make(map[string]any),
+		NonIndexed: make(map[string]any),
 	}
 
 	// Decode indexed parameters from topics with type-aware decoding
@@ -96,18 +96,15 @@ func (ed *EventDecoder) DecodeEvent(
 		if len(nonIndexedInputs) > 0 {
 			values, err := nonIndexedInputs.Unpack(rawEvent.Data)
 			if err != nil {
-				ed.logger.Error("failed to unpack event data", map[string]interface{}{
-					"error":    err.Error(),
-					"event":    event.Name,
-					"data_len": len(rawEvent.Data),
-				})
+				ed.logger.Error("failed to unpack event data", core.LogKeyError, err, core.LogKeyEventName, event.Name, "data_len", len(rawEvent.Data))
 				return nil, fmt.Errorf("failed to unpack event data: %w", err)
 			}
 
 			for i, input := range nonIndexedInputs {
 				if i < len(values) {
-					decoded.NonIndexed[input.Name] = values[i]
-					decoded.Parameters[input.Name] = values[i]
+					formatted := core.FormatDecodedValue(values[i])
+					decoded.NonIndexed[input.Name] = formatted
+					decoded.Parameters[input.Name] = formatted
 				}
 			}
 		}
@@ -129,9 +126,7 @@ func (ed *EventDecoder) DecodeEventBatch(
 	for _, rawEvent := range rawEvents {
 		decodedEvent, err := ed.DecodeEvent(rawEvent, contractABI)
 		if err != nil {
-			ed.logger.Warn("failed to decode event", map[string]interface{}{
-				"error": err.Error(),
-			})
+			ed.logger.Warn("failed to decode event", core.LogKeyError, err)
 			continue
 		}
 		decoded = append(decoded, decodedEvent)
@@ -199,28 +194,8 @@ func (ed *EventDecoder) GetEventSignatures(contractName string) (map[string]comm
 	return signatures, nil
 }
 
-// decodeIndexedTopic performs type-aware decoding of an indexed topic.
-// EVM topics are 32 bytes left-padded; address types need the last 20 bytes,
-// uint/int types need big.Int conversion, bool needs the last byte, etc.
-func decodeIndexedTopic(abiType string, topic common.Hash) interface{} {
-	switch abiType {
-	case "address":
-		return common.BytesToAddress(topic.Bytes()[12:]).Hex()
-	case "bool":
-		return topic.Bytes()[31] != 0
-	case "uint8", "uint16", "uint32", "uint64", "uint128", "uint256":
-		return new(big.Int).SetBytes(topic.Bytes()).String()
-	case "int8", "int16", "int32", "int64", "int128", "int256":
-		v := new(big.Int).SetBytes(topic.Bytes())
-		bitLen := v.BitLen()
-		if bitLen > 0 && bitLen == 256 && v.Bit(255) == 1 {
-			v.Sub(v, new(big.Int).Lsh(big.NewInt(1), 256))
-		}
-		return v.String()
-	case "bytes32":
-		return "0x" + common.Bytes2Hex(topic.Bytes())
-	default:
-		// Fallback: return raw hex for unknown types
-		return topic.Hex()
-	}
+// decodeIndexedTopic performs type-aware decoding of an indexed topic
+// using the core decoder's type-aware conversion.
+func decodeIndexedTopic(abiType string, topic common.Hash) any {
+	return core.FormatIndexedTopicValue(abiType, topic)
 }

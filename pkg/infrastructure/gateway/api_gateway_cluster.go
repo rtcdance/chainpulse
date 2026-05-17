@@ -192,7 +192,7 @@ func (agcd *APIGatewayClusterDeployment) ListInstances() []*APIGateway {
 }
 
 // GetClusterHealth gets the health status of the cluster
-func (agcd *APIGatewayClusterDeployment) GetClusterHealth(ctx context.Context) (map[string]interface{}, error) {
+func (agcd *APIGatewayClusterDeployment) GetClusterHealth(ctx context.Context) (map[string]any, error) {
 	agcd.mutex.RLock()
 	defer agcd.mutex.RUnlock()
 
@@ -210,7 +210,7 @@ func (agcd *APIGatewayClusterDeployment) GetClusterHealth(ctx context.Context) (
 		}
 	}
 
-	return map[string]interface{}{
+	return map[string]any{
 		"status":             "ok",
 		"healthy_instances":  healthyInstances,
 		"total_instances":    totalInstances,
@@ -278,7 +278,7 @@ func (agcd *APIGatewayClusterDeployment) ScaleDown(ctx context.Context, count in
 }
 
 // GetMetrics gets cluster metrics
-func (agcd *APIGatewayClusterDeployment) GetMetrics() map[string]interface{} {
+func (agcd *APIGatewayClusterDeployment) GetMetrics() map[string]any {
 	agcd.mutex.RLock()
 	defer agcd.mutex.RUnlock()
 
@@ -295,7 +295,7 @@ func (agcd *APIGatewayClusterDeployment) GetMetrics() map[string]interface{} {
 		}
 	}
 
-	return map[string]interface{}{
+	return map[string]any{
 		"total_requests": totalRequests,
 		"total_errors":   totalErrors,
 		"instance_count": len(agcd.gateways),

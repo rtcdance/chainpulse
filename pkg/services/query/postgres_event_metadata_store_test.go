@@ -11,11 +11,11 @@ import (
 )
 
 type metadataRowScannerStub struct {
-	values []interface{}
+	values []any
 	err    error
 }
 
-func (s metadataRowScannerStub) Scan(dest ...interface{}) error {
+func (s metadataRowScannerStub) Scan(dest ...any) error {
 	if s.err != nil {
 		return s.err
 	}
@@ -42,6 +42,7 @@ func (s metadataRowScannerStub) Scan(dest ...interface{}) error {
 
 // TestPostgreSQLEventMetadataStoreInitialize tests metadata store initialization
 func TestPostgreSQLEventMetadataStoreInitialize(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 
@@ -67,6 +68,7 @@ func TestPostgreSQLEventMetadataStoreInitialize(t *testing.T) {
 
 // TestPostgreSQLEventMetadataStoreInsertMetadata tests single metadata insertion
 func TestPostgreSQLEventMetadataStoreInsertMetadata(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 
@@ -103,6 +105,7 @@ func TestPostgreSQLEventMetadataStoreInsertMetadata(t *testing.T) {
 
 // TestPostgreSQLEventMetadataStoreInsertMetadataBatch tests batch metadata insertion
 func TestPostgreSQLEventMetadataStoreInsertMetadataBatch(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 
@@ -151,6 +154,7 @@ func TestPostgreSQLEventMetadataStoreInsertMetadataBatch(t *testing.T) {
 
 // TestPostgreSQLEventMetadataStoreGetMetadata tests single metadata retrieval
 func TestPostgreSQLEventMetadataStoreGetMetadata(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 
@@ -174,9 +178,10 @@ func TestPostgreSQLEventMetadataStoreGetMetadata(t *testing.T) {
 }
 
 func TestScanEventMetadataRowHandlesNullableFields(t *testing.T) {
+	t.Parallel()
 	now := time.Now().UTC()
 	metadata, err := scanEventMetadataRow(metadataRowScannerStub{
-		values: []interface{}{
+		values: []any{
 			int64(1), "event-1", 0, int64(100), "0xabc", int64(2), "0xcontract",
 			"Ping", "confirmed",
 			sql.NullString{},
@@ -204,6 +209,7 @@ func TestScanEventMetadataRowHandlesNullableFields(t *testing.T) {
 
 // TestPostgreSQLEventMetadataStoreGetMetadataByChain tests chain metadata retrieval
 func TestPostgreSQLEventMetadataStoreGetMetadataByChain(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 
@@ -220,6 +226,7 @@ func TestPostgreSQLEventMetadataStoreGetMetadataByChain(t *testing.T) {
 
 // TestPostgreSQLEventMetadataStoreUpdateMetadata tests metadata update
 func TestPostgreSQLEventMetadataStoreUpdateMetadata(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 
@@ -249,6 +256,7 @@ func TestPostgreSQLEventMetadataStoreUpdateMetadata(t *testing.T) {
 
 // TestPostgreSQLEventMetadataStoreHealth tests health check
 func TestPostgreSQLEventMetadataStoreHealth(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 
@@ -274,6 +282,7 @@ func TestPostgreSQLEventMetadataStoreHealth(t *testing.T) {
 
 // TestPostgreSQLEventMetadataStoreClose tests store closure
 func TestPostgreSQLEventMetadataStoreClose(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 
@@ -302,6 +311,7 @@ func TestPostgreSQLEventMetadataStoreClose(t *testing.T) {
 }
 
 func TestIsIgnorablePostgresSchemaConflict(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		name string
 		err  error
@@ -341,6 +351,7 @@ func TestIsIgnorablePostgresSchemaConflict(t *testing.T) {
 
 // TestEventMetadataDefaults tests EventMetadata default values
 func TestEventMetadataDefaults(t *testing.T) {
+	t.Parallel()
 	metadata := &EventMetadata{
 		EventID:     "event-1",
 		ChainID:     1,
@@ -360,6 +371,7 @@ func TestEventMetadataDefaults(t *testing.T) {
 
 // TestPostgreSQLEventMetadataStoreMetricsCollection tests that metrics are collected
 func TestPostgreSQLEventMetadataStoreMetricsCollection(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 
@@ -387,6 +399,7 @@ func TestPostgreSQLEventMetadataStoreMetricsCollection(t *testing.T) {
 
 // TestPostgreSQLEventMetadataStoreProcessingStatusHandling tests processing status handling
 func TestPostgreSQLEventMetadataStoreProcessingStatusHandling(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 
@@ -415,6 +428,7 @@ func TestPostgreSQLEventMetadataStoreProcessingStatusHandling(t *testing.T) {
 
 // TestPostgreSQLEventMetadataStoreRetryHandling tests retry count handling
 func TestPostgreSQLEventMetadataStoreRetryHandling(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 

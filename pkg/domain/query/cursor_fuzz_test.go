@@ -19,9 +19,9 @@ func FuzzPageCursorRoundTrip(f *testing.F) {
 	// Also test arbitrary strings (invalid cursors should return false)
 	f.Add("")
 	f.Add("not-valid-base64!!!")
-	f.Add("aW52YWxpZCBqc29u")      // valid base64 but not a PageCursor JSON
-	f.Add("eyJibiI6MX0=")         // {"bn":1} — partial PageCursor
-	f.Add("///")                   // edge-case base64
+	f.Add("aW52YWxpZCBqc29u") // valid base64 but not a PageCursor JSON
+	f.Add("eyJibiI6MX0=")     // {"bn":1} — partial PageCursor
+	f.Add("///")              // edge-case base64
 
 	f.Fuzz(func(t *testing.T, cursor string) {
 		pc, ok := DecodePageCursor(cursor)

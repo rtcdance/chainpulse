@@ -10,23 +10,23 @@ import (
 )
 
 type apiGatewayRuntimeSummaryResponse struct {
-	Service        string                 `json:"service"`
-	Timestamp      int64                  `json:"timestamp"`
-	DeploymentMode string                 `json:"deployment_mode"`
-	RuntimeMode    string                 `json:"runtime_mode"`
-	RuntimePosture string                 `json:"runtime_posture"`
-	ComponentState string                 `json:"component_state"`
-	Rollout        map[string]interface{} `json:"rollout"`
-	Gateway        map[string]interface{} `json:"gateway"`
-	Metrics        map[string]interface{} `json:"metrics"`
+	Service        string         `json:"service"`
+	Timestamp      int64          `json:"timestamp"`
+	DeploymentMode string         `json:"deployment_mode"`
+	RuntimeMode    string         `json:"runtime_mode"`
+	RuntimePosture string         `json:"runtime_posture"`
+	ComponentState string         `json:"component_state"`
+	Rollout        map[string]any `json:"rollout"`
+	Gateway        map[string]any `json:"gateway"`
+	Metrics        map[string]any `json:"metrics"`
 }
 
 func buildAPIGatewayRuntimeSummaryProvider(
 	instanceID string,
 	metrics core.MetricsCollector,
 	gateway *api.APIGatewayPlugin,
-) func(*http.Request) interface{} {
-	return func(r *http.Request) interface{} {
+) func(*http.Request) any {
+	return func(r *http.Request) any {
 		_ = r
 		return buildAPIGatewayRuntimeSummaryResponse(instanceID, metrics, gateway)
 	}
@@ -94,7 +94,7 @@ func buildAPIGatewayRuntimeSummaryResponse(
 		RuntimeMode:    runtimeMode,
 		RuntimePosture: runtimePosture,
 		ComponentState: componentState,
-		Rollout: map[string]interface{}{
+		Rollout: map[string]any{
 			"instance_id":          instanceID,
 			"advisory_status":      completeness.AdvisoryStatus,
 			"advisory_ready":       completeness.AdvisoryReady,
@@ -102,7 +102,7 @@ func buildAPIGatewayRuntimeSummaryResponse(
 			"missing_signals":      completeness.MissingSignals,
 			"rollout_posture_hint": completeness.PostureHint,
 		},
-		Gateway: map[string]interface{}{
+		Gateway: map[string]any{
 			"route_boundary":                  "gateway-entrypoint",
 			"gateway_posture":                 completeness.AdvisoryStatus,
 			"domain_bridge_enabled":           runtimeState.DomainBridgeEnabled,
@@ -225,8 +225,8 @@ func classifyAPIGatewaySecurityHint(authEnabled, rateLimitEnabled bool, bridgePo
 	}
 }
 
-func buildAPIGatewayMetricsSummary(metrics core.MetricsCollector) map[string]interface{} {
-	summary := map[string]interface{}{
+func buildAPIGatewayMetricsSummary(metrics core.MetricsCollector) map[string]any {
+	summary := map[string]any{
 		"collector_state":   "unavailable",
 		"counter_count":     0,
 		"gauge_count":       0,
@@ -238,9 +238,9 @@ func buildAPIGatewayMetricsSummary(metrics core.MetricsCollector) map[string]int
 	}
 
 	exported := metrics.GetMetrics()
-	counters, _ := exported["counters"].(map[string]interface{})
-	gauges, _ := exported["gauges"].(map[string]interface{})
-	histograms, _ := exported["histograms"].(map[string]interface{})
+	counters, _ := exported["counters"].(map[string]any)
+	gauges, _ := exported["gauges"].(map[string]any)
+	histograms, _ := exported["histograms"].(map[string]any)
 
 	summary["collector_state"] = "available"
 	summary["counter_count"] = len(counters)

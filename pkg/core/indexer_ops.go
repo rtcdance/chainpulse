@@ -79,11 +79,11 @@ func DefaultBackfillConfig() BackfillConfig {
 // It partitions a large block range into chunks and processes them
 // concurrently with retry support.
 type BackfillCoordinator struct {
-	mu          sync.RWMutex
-	config      BackfillConfig
-	jobs        map[string]*BackfillJob // job ID → job
-	sem         chan struct{}            // concurrency semaphore
-	jobCounter  int64                    // monotonic ID generator
+	mu         sync.RWMutex
+	config     BackfillConfig
+	jobs       map[string]*BackfillJob // job ID → job
+	sem        chan struct{}           // concurrency semaphore
+	jobCounter int64                   // monotonic ID generator
 }
 
 // NewBackfillCoordinator creates a new coordinator.
@@ -125,10 +125,10 @@ func (bc *BackfillCoordinator) CreateJob(chainID string, r BackfillRange) *Backf
 
 	bc.jobCounter++
 	job := &BackfillJob{
-		ID:      fmt.Sprintf("bf_%d", bc.jobCounter),
-		ChainID: chainID,
-		Range:   r,
-		Status:  BackfillPending,
+		ID:       fmt.Sprintf("bf_%d", bc.jobCounter),
+		ChainID:  chainID,
+		Range:    r,
+		Status:   BackfillPending,
 		Progress: r.FromBlock,
 	}
 	bc.jobs[job.ID] = job
@@ -320,10 +320,10 @@ func (h *HeadTracker) LastHead() uint64 {
 
 // CheckpointManager manages high-water mark tracking and auto-persist.
 type CheckpointManager struct {
-	mu       sync.RWMutex
-	store    CheckpointStore
+	mu         sync.RWMutex
+	store      CheckpointStore
 	watermarks map[string]uint64 // chainID → last persisted block
-	dirty    map[string]bool     // chainID → needs persist
+	dirty      map[string]bool   // chainID → needs persist
 }
 
 // NewCheckpointManager creates a new checkpoint manager.

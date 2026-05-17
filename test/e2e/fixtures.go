@@ -50,7 +50,7 @@ func getERC20ContractDefinition() ContractDefinition {
 			}
 		]`,
 		Bytecode: "0x60806040", // Simplified bytecode
-		Constructor: []interface{}{
+		Constructor: []any{
 			"Test Token",
 			"TEST",
 			big.NewInt(1000000),
@@ -85,7 +85,7 @@ func getERC721ContractDefinition() ContractDefinition {
 			}
 		]`,
 		Bytecode: "0x60806040", // Simplified bytecode
-		Constructor: []interface{}{
+		Constructor: []any{
 			"Test NFT",
 			"TNFT",
 		},
@@ -124,8 +124,8 @@ func getTestAccounts() []TestAccount {
 }
 
 // CreateERC20TransferEvent creates a mock ERC20 Transfer event
-func CreateERC20TransferEvent(from, to string, amount *big.Int) map[string]interface{} {
-	return map[string]interface{}{
+func CreateERC20TransferEvent(from, to string, amount *big.Int) map[string]any {
+	return map[string]any{
 		"from":  from,
 		"to":    to,
 		"value": amount,
@@ -133,8 +133,8 @@ func CreateERC20TransferEvent(from, to string, amount *big.Int) map[string]inter
 }
 
 // CreateERC721TransferEvent creates a mock ERC721 Transfer event
-func CreateERC721TransferEvent(from, to string, tokenID *big.Int) map[string]interface{} {
-	return map[string]interface{}{
+func CreateERC721TransferEvent(from, to string, tokenID *big.Int) map[string]any {
+	return map[string]any{
 		"from":    from,
 		"to":      to,
 		"tokenId": tokenID,
@@ -142,8 +142,8 @@ func CreateERC721TransferEvent(from, to string, tokenID *big.Int) map[string]int
 }
 
 // CreateERC20ApprovalEvent creates a mock ERC20 Approval event
-func CreateERC20ApprovalEvent(owner, spender string, amount *big.Int) map[string]interface{} {
-	return map[string]interface{}{
+func CreateERC20ApprovalEvent(owner, spender string, amount *big.Int) map[string]any {
+	return map[string]any{
 		"owner":   owner,
 		"spender": spender,
 		"value":   amount,
@@ -151,8 +151,8 @@ func CreateERC20ApprovalEvent(owner, spender string, amount *big.Int) map[string
 }
 
 // CreateERC721ApprovalEvent creates a mock ERC721 Approval event
-func CreateERC721ApprovalEvent(owner, approved string, tokenID *big.Int) map[string]interface{} {
-	return map[string]interface{}{
+func CreateERC721ApprovalEvent(owner, approved string, tokenID *big.Int) map[string]any {
+	return map[string]any{
 		"owner":    owner,
 		"approved": approved,
 		"tokenId":  tokenID,
@@ -242,7 +242,7 @@ func (ah *AssertionHelpers) AssertEventParameter(event *IndexedEvent, paramName 
 }
 
 // AssertEventParameterValue checks if an event parameter has a specific value
-func (ah *AssertionHelpers) AssertEventParameterValue(event *IndexedEvent, paramName string, expectedValue interface{}) bool {
+func (ah *AssertionHelpers) AssertEventParameterValue(event *IndexedEvent, paramName string, expectedValue any) bool {
 	if event == nil || event.DecodedData == nil {
 		return false
 	}

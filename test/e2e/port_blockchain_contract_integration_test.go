@@ -67,7 +67,7 @@ func TestPortBlockchainContractIntegration(t *testing.T) {
 	}
 
 	// Test 7: Update metadata
-	err = registry.UpdateMetadata(ctx, contract.Address, map[string]interface{}{
+	err = registry.UpdateMetadata(ctx, contract.Address, map[string]any{
 		"version": "1.0",
 		"owner":   "0xowner",
 	})

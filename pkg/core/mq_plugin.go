@@ -175,7 +175,7 @@ func (p *BaseMQPlugin) Health() *HealthStatus {
 	return &HealthStatus{
 		Status:    status,
 		Timestamp: time.Now().UTC(),
-		Details: map[string]interface{}{
+		Details: map[string]any{
 			"name":                   p.name,
 			"version":                p.version,
 			"is_running":             p.isRunning,
@@ -503,17 +503,17 @@ func (p *BaseMQPlugin) RecordMetric(name string, value int64, tags map[string]st
 }
 
 // LogInfo logs an info message
-func (p *BaseMQPlugin) LogInfo(message string, fields ...interface{}) {
+func (p *BaseMQPlugin) LogInfo(message string, fields ...any) {
 	p.logger.Info(message, fields...)
 }
 
 // LogError logs an error message
-func (p *BaseMQPlugin) LogError(message string, fields ...interface{}) {
+func (p *BaseMQPlugin) LogError(message string, fields ...any) {
 	p.logger.Error(message, fields...)
 }
 
 // LogWarn logs a warning message
-func (p *BaseMQPlugin) LogWarn(message string, fields ...interface{}) {
+func (p *BaseMQPlugin) LogWarn(message string, fields ...any) {
 	p.logger.Warn(message, fields...)
 }
 

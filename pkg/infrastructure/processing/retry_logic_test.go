@@ -13,6 +13,7 @@ import (
 
 // TestNewRetryPolicy tests retry policy creation
 func TestNewRetryPolicy(t *testing.T) {
+	t.Parallel()
 	policy := NewRetryPolicy(3)
 
 	assert.Equal(t, 3, policy.MaxRetries)
@@ -23,6 +24,7 @@ func TestNewRetryPolicy(t *testing.T) {
 
 // TestNewCircuitBreaker tests circuit breaker creation
 func TestNewCircuitBreaker(t *testing.T) {
+	t.Parallel()
 	cb := NewCircuitBreaker(5, 30*time.Second)
 
 	assert.NotNil(t, cb)
@@ -33,6 +35,7 @@ func TestNewCircuitBreaker(t *testing.T) {
 
 // TestCircuitBreakerSuccessfulCall tests successful operation
 func TestCircuitBreakerSuccessfulCall(t *testing.T) {
+	t.Parallel()
 	cb := NewCircuitBreaker(5, 30*time.Second)
 
 	err := cb.Call(func() error {
@@ -45,6 +48,7 @@ func TestCircuitBreakerSuccessfulCall(t *testing.T) {
 
 // TestCircuitBreakerFailedCall tests failed operation
 func TestCircuitBreakerFailedCall(t *testing.T) {
+	t.Parallel()
 	cb := NewCircuitBreaker(5, 30*time.Second)
 
 	err := cb.Call(func() error {
@@ -57,6 +61,7 @@ func TestCircuitBreakerFailedCall(t *testing.T) {
 
 // TestCircuitBreakerTransitionToOpen tests transition to open state
 func TestCircuitBreakerTransitionToOpen(t *testing.T) {
+	t.Parallel()
 	cb := NewCircuitBreaker(3, 30*time.Second)
 
 	// Trigger 3 failures to open circuit
@@ -71,6 +76,7 @@ func TestCircuitBreakerTransitionToOpen(t *testing.T) {
 
 // TestCircuitBreakerRejectedWhenOpen tests rejection when open
 func TestCircuitBreakerRejectedWhenOpen(t *testing.T) {
+	t.Parallel()
 	cb := NewCircuitBreaker(1, 30*time.Second)
 
 	// Trigger failure to open circuit
@@ -89,6 +95,7 @@ func TestCircuitBreakerRejectedWhenOpen(t *testing.T) {
 
 // TestCircuitBreakerHalfOpenTransition tests half-open transition
 func TestCircuitBreakerHalfOpenTransition(t *testing.T) {
+	t.Parallel()
 	cb := NewCircuitBreaker(1, 100*time.Millisecond)
 
 	// Open the circuit
@@ -111,6 +118,7 @@ func TestCircuitBreakerHalfOpenTransition(t *testing.T) {
 
 // TestCircuitBreakerMetrics tests metrics collection
 func TestCircuitBreakerMetrics(t *testing.T) {
+	t.Parallel()
 	cb := NewCircuitBreaker(5, 30*time.Second)
 
 	// Record some operations
@@ -126,6 +134,7 @@ func TestCircuitBreakerMetrics(t *testing.T) {
 
 // TestNewDeadLetterQueue tests DLQ creation
 func TestNewDeadLetterQueue(t *testing.T) {
+	t.Parallel()
 	dlq := NewDeadLetterQueue(1000)
 
 	assert.NotNil(t, dlq)
@@ -134,6 +143,7 @@ func TestNewDeadLetterQueue(t *testing.T) {
 
 // TestDeadLetterQueueEnqueue tests enqueueing events
 func TestDeadLetterQueueEnqueue(t *testing.T) {
+	t.Parallel()
 	dlq := NewDeadLetterQueue(1000)
 
 	event := &Event{
@@ -152,6 +162,7 @@ func TestDeadLetterQueueEnqueue(t *testing.T) {
 
 // TestDeadLetterQueueDuplicateEvent tests duplicate event handling
 func TestDeadLetterQueueDuplicateEvent(t *testing.T) {
+	t.Parallel()
 	dlq := NewDeadLetterQueue(1000)
 
 	event := &Event{
@@ -172,6 +183,7 @@ func TestDeadLetterQueueDuplicateEvent(t *testing.T) {
 
 // TestDeadLetterQueueMaxSize tests max size enforcement
 func TestDeadLetterQueueMaxSize(t *testing.T) {
+	t.Parallel()
 	dlq := NewDeadLetterQueue(3)
 
 	for i := 0; i < 5; i++ {
@@ -191,6 +203,7 @@ func TestDeadLetterQueueMaxSize(t *testing.T) {
 
 // TestDeadLetterQueueMetrics tests DLQ metrics
 func TestDeadLetterQueueMetrics(t *testing.T) {
+	t.Parallel()
 	dlq := NewDeadLetterQueue(1000)
 
 	event := &Event{
@@ -212,6 +225,7 @@ func TestDeadLetterQueueMetrics(t *testing.T) {
 
 // TestNewRetryManager tests retry manager creation
 func TestNewRetryManager(t *testing.T) {
+	t.Parallel()
 	policy := NewRetryPolicy(3)
 	rm := NewRetryManager(policy)
 
@@ -222,6 +236,7 @@ func TestNewRetryManager(t *testing.T) {
 
 // TestRetryManagerExecuteSuccess tests successful execution
 func TestRetryManagerExecuteSuccess(t *testing.T) {
+	t.Parallel()
 	policy := NewRetryPolicy(3)
 	rm := NewRetryManager(policy)
 	ctx := context.Background()
@@ -235,6 +250,7 @@ func TestRetryManagerExecuteSuccess(t *testing.T) {
 
 // TestRetryManagerExecuteWithRetry tests retry on failure
 func TestRetryManagerExecuteWithRetry(t *testing.T) {
+	t.Parallel()
 	policy := NewRetryPolicy(3)
 	rm := NewRetryManager(policy)
 	ctx := context.Background()
@@ -254,6 +270,7 @@ func TestRetryManagerExecuteWithRetry(t *testing.T) {
 
 // TestRetryManagerExhaustedRetries tests exhausted retries
 func TestRetryManagerExhaustedRetries(t *testing.T) {
+	t.Parallel()
 	policy := NewRetryPolicy(2)
 	rm := NewRetryManager(policy)
 	ctx := context.Background()
@@ -270,6 +287,7 @@ func TestRetryManagerExhaustedRetries(t *testing.T) {
 
 // TestRetryManagerContextCancellation tests context cancellation
 func TestRetryManagerContextCancellation(t *testing.T) {
+	t.Parallel()
 	policy := NewRetryPolicy(10)
 	rm := NewRetryManager(policy)
 
@@ -285,6 +303,7 @@ func TestRetryManagerContextCancellation(t *testing.T) {
 
 // TestRetryManagerMetrics tests metrics collection
 func TestRetryManagerMetrics(t *testing.T) {
+	t.Parallel()
 	policy := NewRetryPolicy(3)
 	rm := NewRetryManager(policy)
 	ctx := context.Background()
@@ -302,6 +321,7 @@ func TestRetryManagerMetrics(t *testing.T) {
 
 // TestCalculateBackoff tests backoff calculation
 func TestCalculateBackoff(t *testing.T) {
+	t.Parallel()
 	initial := 100 * time.Millisecond
 	max := 10 * time.Second
 	multiplier := 2.0
@@ -317,6 +337,7 @@ func TestCalculateBackoff(t *testing.T) {
 
 // TestCalculateBackoffCap tests backoff cap
 func TestCalculateBackoffCap(t *testing.T) {
+	t.Parallel()
 	initial := 100 * time.Millisecond
 	max := 1 * time.Second
 	multiplier := 2.0
@@ -328,6 +349,7 @@ func TestCalculateBackoffCap(t *testing.T) {
 
 // TestConcurrentCircuitBreakerCalls tests concurrent calls
 func TestConcurrentCircuitBreakerCalls(t *testing.T) {
+	t.Parallel()
 	cb := NewCircuitBreaker(100, 30*time.Second)
 
 	var wg sync.WaitGroup
@@ -353,6 +375,7 @@ func TestConcurrentCircuitBreakerCalls(t *testing.T) {
 
 // TestConcurrentDeadLetterQueueOperations tests concurrent DLQ operations
 func TestConcurrentDeadLetterQueueOperations(t *testing.T) {
+	t.Parallel()
 	dlq := NewDeadLetterQueue(10000)
 
 	var wg sync.WaitGroup
@@ -381,6 +404,7 @@ func TestConcurrentDeadLetterQueueOperations(t *testing.T) {
 
 // TestRetryPolicyBackoffMultiplier tests backoff multiplier
 func TestRetryPolicyBackoffMultiplier(t *testing.T) {
+	t.Parallel()
 	policy := NewRetryPolicy(5)
 
 	assert.Equal(t, 2.0, policy.BackoffMultiplier)
@@ -388,6 +412,7 @@ func TestRetryPolicyBackoffMultiplier(t *testing.T) {
 
 // TestCircuitBreakerStateTransitions tests state transitions
 func TestCircuitBreakerStateTransitions(t *testing.T) {
+	t.Parallel()
 	cb := NewCircuitBreaker(2, 100*time.Millisecond)
 
 	// Start in closed state
@@ -410,6 +435,7 @@ func TestCircuitBreakerStateTransitions(t *testing.T) {
 
 // TestDeadLetterQueueNilEvent tests nil event handling
 func TestDeadLetterQueueNilEvent(t *testing.T) {
+	t.Parallel()
 	dlq := NewDeadLetterQueue(1000)
 
 	err := dlq.Enqueue(nil, "failed")
@@ -419,6 +445,7 @@ func TestDeadLetterQueueNilEvent(t *testing.T) {
 
 // TestRetryManagerBackoffProgression tests backoff progression
 func TestRetryManagerBackoffProgression(t *testing.T) {
+	t.Parallel()
 	policy := NewRetryPolicy(3)
 	rm := NewRetryManager(policy)
 	ctx := context.Background()
@@ -442,6 +469,7 @@ func TestRetryManagerBackoffProgression(t *testing.T) {
 
 // TestCircuitBreakerMetricsStateChanges tests state change tracking
 func TestCircuitBreakerMetricsStateChanges(t *testing.T) {
+	t.Parallel()
 	cb := NewCircuitBreaker(1, 100*time.Millisecond)
 
 	// Trigger state changes
@@ -454,6 +482,7 @@ func TestCircuitBreakerMetricsStateChanges(t *testing.T) {
 
 // TestRetryManagerMultipleOperations tests multiple operations
 func TestRetryManagerMultipleOperations(t *testing.T) {
+	t.Parallel()
 	policy := NewRetryPolicy(2)
 	rm := NewRetryManager(policy)
 	ctx := context.Background()
@@ -472,6 +501,7 @@ func TestRetryManagerMultipleOperations(t *testing.T) {
 
 // TestDeadLetterQueueEventStatus tests event status tracking
 func TestDeadLetterQueueEventStatus(t *testing.T) {
+	t.Parallel()
 	dlq := NewDeadLetterQueue(1000)
 
 	event := &Event{
@@ -490,6 +520,7 @@ func TestDeadLetterQueueEventStatus(t *testing.T) {
 
 // TestCircuitBreakerConcurrentStateAccess tests concurrent state access
 func TestCircuitBreakerConcurrentStateAccess(t *testing.T) {
+	t.Parallel()
 	cb := NewCircuitBreaker(100, 30*time.Second)
 
 	var wg sync.WaitGroup
@@ -511,6 +542,7 @@ func TestCircuitBreakerConcurrentStateAccess(t *testing.T) {
 
 // TestRetryPolicyDefaults tests default retry policy values
 func TestRetryPolicyDefaults(t *testing.T) {
+	t.Parallel()
 	policy := NewRetryPolicy(5)
 
 	assert.Equal(t, 5, policy.MaxRetries)

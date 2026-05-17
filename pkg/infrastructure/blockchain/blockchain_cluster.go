@@ -13,8 +13,8 @@ import (
 
 // DistributedCache defines the interface for distributed caching
 type DistributedCache interface {
-	Set(ctx context.Context, key string, value interface{}, ttl time.Duration) error
-	Get(ctx context.Context, key string) (interface{}, error)
+	Set(ctx context.Context, key string, value any, ttl time.Duration) error
+	Get(ctx context.Context, key string) (any, error)
 	Delete(ctx context.Context, key string) error
 }
 
@@ -348,7 +348,7 @@ func (mcm *MultiBlockchainClusterManager) GetAllClusters() []*BlockchainCluster 
 }
 
 // GetMetrics returns aggregated metrics
-func (mcm *MultiBlockchainClusterManager) GetMetrics() map[string]interface{} {
+func (mcm *MultiBlockchainClusterManager) GetMetrics() map[string]any {
 	mcm.mu.RLock()
 	defer mcm.mu.RUnlock()
 
@@ -366,7 +366,7 @@ func (mcm *MultiBlockchainClusterManager) GetMetrics() map[string]interface{} {
 		totalEventsFailed += clusterMetrics.EventsFailed
 	}
 
-	return map[string]interface{}{
+	return map[string]any{
 		"total_clusters":         len(mcm.clusters),
 		"total_instances":        totalInstances,
 		"total_events_processed": totalEventsProcessed,

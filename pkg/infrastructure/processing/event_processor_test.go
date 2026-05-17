@@ -12,6 +12,7 @@ import (
 
 // TestNewEventProcessor tests EventProcessor creation
 func TestNewEventProcessor(t *testing.T) {
+	t.Parallel()
 	ep := NewEventProcessor("processor-1", "ethereum", 100)
 
 	assert.NotNil(t, ep)
@@ -24,6 +25,7 @@ func TestNewEventProcessor(t *testing.T) {
 
 // TestProcessEventSuccess tests successful event processing
 func TestProcessEventSuccess(t *testing.T) {
+	t.Parallel()
 	ep := NewEventProcessor("processor-1", "ethereum", 100)
 
 	event := &Event{
@@ -33,7 +35,7 @@ func TestProcessEventSuccess(t *testing.T) {
 		LogIndex:        0,
 		ContractAddress: "0xdef456",
 		EventName:       "Transfer",
-		EventData:       map[string]interface{}{"from": "0x123", "to": "0x456"},
+		EventData:       map[string]any{"from": "0x123", "to": "0x456"},
 		ChainID:         "ethereum",
 		Timestamp:       time.Now(),
 	}
@@ -50,6 +52,7 @@ func TestProcessEventSuccess(t *testing.T) {
 
 // TestProcessEventNilEvent tests processing nil event
 func TestProcessEventNilEvent(t *testing.T) {
+	t.Parallel()
 	ep := NewEventProcessor("processor-1", "ethereum", 100)
 
 	ctx := context.Background()
@@ -61,6 +64,7 @@ func TestProcessEventNilEvent(t *testing.T) {
 
 // TestProcessEventMissingID tests processing event with missing ID
 func TestProcessEventMissingID(t *testing.T) {
+	t.Parallel()
 	ep := NewEventProcessor("processor-1", "ethereum", 100)
 
 	event := &Event{
@@ -70,7 +74,7 @@ func TestProcessEventMissingID(t *testing.T) {
 		LogIndex:        0,
 		ContractAddress: "0xdef456",
 		EventName:       "Transfer",
-		EventData:       map[string]interface{}{},
+		EventData:       map[string]any{},
 		ChainID:         "ethereum",
 	}
 
@@ -83,6 +87,7 @@ func TestProcessEventMissingID(t *testing.T) {
 
 // TestProcessEventMissingChainID tests processing event with missing chain ID
 func TestProcessEventMissingChainID(t *testing.T) {
+	t.Parallel()
 	ep := NewEventProcessor("processor-1", "ethereum", 100)
 
 	event := &Event{
@@ -92,7 +97,7 @@ func TestProcessEventMissingChainID(t *testing.T) {
 		LogIndex:        0,
 		ContractAddress: "0xdef456",
 		EventName:       "Transfer",
-		EventData:       map[string]interface{}{},
+		EventData:       map[string]any{},
 		ChainID:         "",
 	}
 
@@ -105,6 +110,7 @@ func TestProcessEventMissingChainID(t *testing.T) {
 
 // TestProcessEventMissingContractAddress tests processing event with missing contract address
 func TestProcessEventMissingContractAddress(t *testing.T) {
+	t.Parallel()
 	ep := NewEventProcessor("processor-1", "ethereum", 100)
 
 	event := &Event{
@@ -114,7 +120,7 @@ func TestProcessEventMissingContractAddress(t *testing.T) {
 		LogIndex:        0,
 		ContractAddress: "",
 		EventName:       "Transfer",
-		EventData:       map[string]interface{}{},
+		EventData:       map[string]any{},
 		ChainID:         "ethereum",
 	}
 
@@ -127,6 +133,7 @@ func TestProcessEventMissingContractAddress(t *testing.T) {
 
 // TestProcessEventMissingEventName tests processing event with missing event name
 func TestProcessEventMissingEventName(t *testing.T) {
+	t.Parallel()
 	ep := NewEventProcessor("processor-1", "ethereum", 100)
 
 	event := &Event{
@@ -136,7 +143,7 @@ func TestProcessEventMissingEventName(t *testing.T) {
 		LogIndex:        0,
 		ContractAddress: "0xdef456",
 		EventName:       "",
-		EventData:       map[string]interface{}{},
+		EventData:       map[string]any{},
 		ChainID:         "ethereum",
 	}
 
@@ -149,6 +156,7 @@ func TestProcessEventMissingEventName(t *testing.T) {
 
 // TestProcessEventMissingTransactionHash tests processing event with missing transaction hash
 func TestProcessEventMissingTransactionHash(t *testing.T) {
+	t.Parallel()
 	ep := NewEventProcessor("processor-1", "ethereum", 100)
 
 	event := &Event{
@@ -158,7 +166,7 @@ func TestProcessEventMissingTransactionHash(t *testing.T) {
 		LogIndex:        0,
 		ContractAddress: "0xdef456",
 		EventName:       "Transfer",
-		EventData:       map[string]interface{}{},
+		EventData:       map[string]any{},
 		ChainID:         "ethereum",
 	}
 
@@ -171,6 +179,7 @@ func TestProcessEventMissingTransactionHash(t *testing.T) {
 
 // TestProcessEventNilEventData tests processing event with nil event data
 func TestProcessEventNilEventData(t *testing.T) {
+	t.Parallel()
 	ep := NewEventProcessor("processor-1", "ethereum", 100)
 
 	event := &Event{
@@ -193,6 +202,7 @@ func TestProcessEventNilEventData(t *testing.T) {
 
 // TestProcessEventNormalization tests event normalization
 func TestProcessEventNormalization(t *testing.T) {
+	t.Parallel()
 	ep := NewEventProcessor("processor-1", "ethereum", 100)
 
 	event := &Event{
@@ -202,7 +212,7 @@ func TestProcessEventNormalization(t *testing.T) {
 		LogIndex:        0,
 		ContractAddress: "0xdef456",
 		EventName:       "Transfer",
-		EventData:       map[string]interface{}{},
+		EventData:       map[string]any{},
 		ChainID:         "ethereum",
 		Timestamp:       time.Time{}, // Zero timestamp
 	}
@@ -216,6 +226,7 @@ func TestProcessEventNormalization(t *testing.T) {
 
 // TestProcessBatchSuccess tests successful batch processing
 func TestProcessBatchSuccess(t *testing.T) {
+	t.Parallel()
 	ep := NewEventProcessor("processor-1", "ethereum", 100)
 
 	events := make([]*Event, 5)
@@ -227,7 +238,7 @@ func TestProcessBatchSuccess(t *testing.T) {
 			LogIndex:        uint64(i),
 			ContractAddress: "0xdef456",
 			EventName:       "Transfer",
-			EventData:       map[string]interface{}{},
+			EventData:       map[string]any{},
 			ChainID:         "ethereum",
 		}
 	}
@@ -246,6 +257,7 @@ func TestProcessBatchSuccess(t *testing.T) {
 
 // TestProcessBatchEmpty tests processing empty batch
 func TestProcessBatchEmpty(t *testing.T) {
+	t.Parallel()
 	ep := NewEventProcessor("processor-1", "ethereum", 100)
 
 	ctx := context.Background()
@@ -257,6 +269,7 @@ func TestProcessBatchEmpty(t *testing.T) {
 
 // TestProcessBatchWithErrors tests batch processing with errors
 func TestProcessBatchWithErrors(t *testing.T) {
+	t.Parallel()
 	ep := NewEventProcessor("processor-1", "ethereum", 100)
 
 	events := make([]*Event, 3)
@@ -267,7 +280,7 @@ func TestProcessBatchWithErrors(t *testing.T) {
 		LogIndex:        0,
 		ContractAddress: "0xdef456",
 		EventName:       "Transfer",
-		EventData:       map[string]interface{}{},
+		EventData:       map[string]any{},
 		ChainID:         "ethereum",
 	}
 	events[1] = &Event{
@@ -277,7 +290,7 @@ func TestProcessBatchWithErrors(t *testing.T) {
 		LogIndex:        1,
 		ContractAddress: "0xdef456",
 		EventName:       "Transfer",
-		EventData:       map[string]interface{}{},
+		EventData:       map[string]any{},
 		ChainID:         "ethereum",
 	}
 	events[2] = &Event{
@@ -287,7 +300,7 @@ func TestProcessBatchWithErrors(t *testing.T) {
 		LogIndex:        2,
 		ContractAddress: "0xdef456",
 		EventName:       "Transfer",
-		EventData:       map[string]interface{}{},
+		EventData:       map[string]any{},
 		ChainID:         "ethereum",
 	}
 
@@ -302,6 +315,7 @@ func TestProcessBatchWithErrors(t *testing.T) {
 
 // TestGenerateEventHash tests event hash generation
 func TestGenerateEventHash(t *testing.T) {
+	t.Parallel()
 	ep := NewEventProcessor("processor-1", "ethereum", 100)
 
 	event := &Event{
@@ -311,7 +325,7 @@ func TestGenerateEventHash(t *testing.T) {
 		LogIndex:        0,
 		ContractAddress: "0xdef456",
 		EventName:       "Transfer",
-		EventData:       map[string]interface{}{},
+		EventData:       map[string]any{},
 		ChainID:         "ethereum",
 	}
 
@@ -329,6 +343,7 @@ func TestGenerateEventHash(t *testing.T) {
 // EventName, ContractAddress) should produce the SAME hash since they share
 // the same on-chain identity.
 func TestGenerateEventHashDifferent(t *testing.T) {
+	t.Parallel()
 	ep := NewEventProcessor("processor-1", "ethereum", 100)
 
 	// Same natural key, different ID → same hash (same on-chain event)
@@ -339,7 +354,7 @@ func TestGenerateEventHashDifferent(t *testing.T) {
 		LogIndex:        0,
 		ContractAddress: "0xdef456",
 		EventName:       "Transfer",
-		EventData:       map[string]interface{}{},
+		EventData:       map[string]any{},
 		ChainID:         "ethereum",
 	}
 
@@ -350,7 +365,7 @@ func TestGenerateEventHashDifferent(t *testing.T) {
 		LogIndex:        0,
 		ContractAddress: "0xdef456",
 		EventName:       "Transfer",
-		EventData:       map[string]interface{}{},
+		EventData:       map[string]any{},
 		ChainID:         "ethereum",
 	}
 
@@ -366,7 +381,7 @@ func TestGenerateEventHashDifferent(t *testing.T) {
 		LogIndex:        0,
 		ContractAddress: "0xdef456",
 		EventName:       "Transfer",
-		EventData:       map[string]interface{}{},
+		EventData:       map[string]any{},
 		ChainID:         "ethereum",
 	}
 	hash3 := ep.generateEventHash(event3)
@@ -375,6 +390,7 @@ func TestGenerateEventHashDifferent(t *testing.T) {
 
 // TestNormalizeAddress tests address normalization
 func TestNormalizeAddress(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		input    string
 		expected string
@@ -395,6 +411,7 @@ func TestNormalizeAddress(t *testing.T) {
 
 // TestNormalizeHash tests hash normalization
 func TestNormalizeHash(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		input    string
 		expected string
@@ -415,6 +432,7 @@ func TestNormalizeHash(t *testing.T) {
 
 // TestGetMetrics tests metrics retrieval
 func TestGetMetrics(t *testing.T) {
+	t.Parallel()
 	ep := NewEventProcessor("processor-1", "ethereum", 100)
 
 	event := &Event{
@@ -424,7 +442,7 @@ func TestGetMetrics(t *testing.T) {
 		LogIndex:        0,
 		ContractAddress: "0xdef456",
 		EventName:       "Transfer",
-		EventData:       map[string]interface{}{},
+		EventData:       map[string]any{},
 		ChainID:         "ethereum",
 	}
 
@@ -441,6 +459,7 @@ func TestGetMetrics(t *testing.T) {
 
 // TestHealth tests health status
 func TestHealth(t *testing.T) {
+	t.Parallel()
 	ep := NewEventProcessor("processor-1", "ethereum", 100)
 
 	health := ep.Health()
@@ -453,6 +472,7 @@ func TestHealth(t *testing.T) {
 
 // TestHealthDegraded tests degraded health status
 func TestHealthDegraded(t *testing.T) {
+	t.Parallel()
 	ep := NewEventProcessor("processor-1", "ethereum", 100)
 
 	// Manually set high failure rate
@@ -468,6 +488,7 @@ func TestHealthDegraded(t *testing.T) {
 
 // TestConcurrentProcessing tests concurrent event processing
 func TestConcurrentProcessing(t *testing.T) {
+	t.Parallel()
 	ep := NewEventProcessor("processor-1", "ethereum", 100)
 
 	var wg sync.WaitGroup
@@ -488,7 +509,7 @@ func TestConcurrentProcessing(t *testing.T) {
 					LogIndex:        uint64(i),
 					ContractAddress: "0xdef456",
 					EventName:       "Transfer",
-					EventData:       map[string]interface{}{},
+					EventData:       map[string]any{},
 					ChainID:         "ethereum",
 				}
 
@@ -506,6 +527,7 @@ func TestConcurrentProcessing(t *testing.T) {
 
 // TestProcessEventWithContext tests event processing with context
 func TestProcessEventWithContext(t *testing.T) {
+	t.Parallel()
 	ep := NewEventProcessor("processor-1", "ethereum", 100)
 
 	event := &Event{
@@ -515,7 +537,7 @@ func TestProcessEventWithContext(t *testing.T) {
 		LogIndex:        0,
 		ContractAddress: "0xdef456",
 		EventName:       "Transfer",
-		EventData:       map[string]interface{}{},
+		EventData:       map[string]any{},
 		ChainID:         "ethereum",
 	}
 
@@ -530,6 +552,7 @@ func TestProcessEventWithContext(t *testing.T) {
 
 // TestProcessEventLatencyRecording tests latency recording
 func TestProcessEventLatencyRecording(t *testing.T) {
+	t.Parallel()
 	ep := NewEventProcessor("processor-1", "ethereum", 100)
 
 	event := &Event{
@@ -539,7 +562,7 @@ func TestProcessEventLatencyRecording(t *testing.T) {
 		LogIndex:        0,
 		ContractAddress: "0xdef456",
 		EventName:       "Transfer",
-		EventData:       map[string]interface{}{},
+		EventData:       map[string]any{},
 		ChainID:         "ethereum",
 	}
 
@@ -555,6 +578,7 @@ func TestProcessEventLatencyRecording(t *testing.T) {
 
 // TestProcessBatchLatencyRecording tests batch latency recording
 func TestProcessBatchLatencyRecording(t *testing.T) {
+	t.Parallel()
 	ep := NewEventProcessor("processor-1", "ethereum", 100)
 
 	events := make([]*Event, 5)
@@ -566,7 +590,7 @@ func TestProcessBatchLatencyRecording(t *testing.T) {
 			LogIndex:        uint64(i),
 			ContractAddress: "0xdef456",
 			EventName:       "Transfer",
-			EventData:       map[string]interface{}{},
+			EventData:       map[string]any{},
 			ChainID:         "ethereum",
 		}
 	}
@@ -583,18 +607,21 @@ func TestProcessBatchLatencyRecording(t *testing.T) {
 
 // TestGetID tests ID retrieval
 func TestGetID(t *testing.T) {
+	t.Parallel()
 	ep := NewEventProcessor("processor-1", "ethereum", 100)
 	assert.Equal(t, "processor-1", ep.GetID())
 }
 
 // TestGetChainID tests chain ID retrieval
 func TestGetChainID(t *testing.T) {
+	t.Parallel()
 	ep := NewEventProcessor("processor-1", "ethereum", 100)
 	assert.Equal(t, "ethereum", ep.GetChainID())
 }
 
 // TestGetProcessedCount tests processed count retrieval
 func TestGetProcessedCount(t *testing.T) {
+	t.Parallel()
 	ep := NewEventProcessor("processor-1", "ethereum", 100)
 
 	event := &Event{
@@ -604,7 +631,7 @@ func TestGetProcessedCount(t *testing.T) {
 		LogIndex:        0,
 		ContractAddress: "0xdef456",
 		EventName:       "Transfer",
-		EventData:       map[string]interface{}{},
+		EventData:       map[string]any{},
 		ChainID:         "ethereum",
 	}
 
@@ -617,6 +644,7 @@ func TestGetProcessedCount(t *testing.T) {
 
 // TestGetFailedCount tests failed count retrieval
 func TestGetFailedCount(t *testing.T) {
+	t.Parallel()
 	ep := NewEventProcessor("processor-1", "ethereum", 100)
 
 	// Create a batch with one invalid event to trigger failure
@@ -628,7 +656,7 @@ func TestGetFailedCount(t *testing.T) {
 		LogIndex:        0,
 		ContractAddress: "0xdef456",
 		EventName:       "Transfer",
-		EventData:       map[string]interface{}{},
+		EventData:       map[string]any{},
 		ChainID:         "ethereum",
 	}
 	events[1] = &Event{
@@ -638,7 +666,7 @@ func TestGetFailedCount(t *testing.T) {
 		LogIndex:        1,
 		ContractAddress: "0xdef456",
 		EventName:       "Transfer",
-		EventData:       map[string]interface{}{},
+		EventData:       map[string]any{},
 		ChainID:         "ethereum",
 	}
 

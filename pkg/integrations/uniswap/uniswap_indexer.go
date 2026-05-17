@@ -18,7 +18,7 @@ type SwapEvent struct {
 	TransactionHash common.Hash
 	BlockNumber     uint64
 	BlockTimestamp  int64
-	LogIndex uint64
+	LogIndex        uint64
 	Pool            common.Address
 	Sender          common.Address
 	Recipient       common.Address
@@ -32,7 +32,7 @@ type SwapEvent struct {
 	Token0          common.Address
 	Token1          common.Address
 	Fee             uint32
-	DecodedData     map[string]interface{}
+	DecodedData     map[string]any
 }
 
 // SwapHistory represents historical swap data
@@ -98,18 +98,15 @@ func (ui *UniswapIndexer) IndexSwapEvents(
 		return nil
 	}
 
-	ui.logger.Debug("indexing swap events", map[string]interface{}{
-		"count": len(events),
-	})
+	ui.logger.Debug("indexing swap events", core.LogKeyCount, len(events))
 
 	for _, event := range events {
 		if err := ui.indexSwapEvent(ctx, event); err != nil {
-			ui.logger.Error("failed to index swap event", map[string]interface{}{
-				"error":    err.Error(),
-				"event_id": event.ID,
-				"block":    event.BlockNumber,
-				"tx_hash":  event.TransactionHash.Hex(),
-			})
+			ui.logger.Error("failed to index swap event",
+				core.LogKeyError, err.Error(),
+				core.LogKeyEventID, event.ID,
+				core.LogKeyBlockNumber, event.BlockNumber,
+				"tx_hash", event.TransactionHash.Hex())
 			continue
 		}
 	}
@@ -146,13 +143,12 @@ func (ui *UniswapIndexer) indexSwapEvent(
 	// Update pool metadata
 	ui.updatePoolMetadata(swapEvent)
 
-	ui.logger.Debug("indexed swap event", map[string]interface{}{
-		"pool":       swapEvent.Pool.Hex(),
-		"sender":     swapEvent.Sender.Hex(),
-		"recipient":  swapEvent.Recipient.Hex(),
-		"amount0_in": swapEvent.Amount0In.String(),
-		"amount1_in": swapEvent.Amount1In.String(),
-	})
+	ui.logger.Debug("indexed swap event",
+		core.LogKeyPool, swapEvent.Pool.Hex(),
+		core.LogKeySender, swapEvent.Sender.Hex(),
+		core.LogKeyRecipient, swapEvent.Recipient.Hex(),
+		core.LogKeySwapAmount0In, swapEvent.Amount0In.String(),
+		core.LogKeySwapAmount1In, swapEvent.Amount1In.String())
 
 	return nil
 }
@@ -284,11 +280,10 @@ func (ui *UniswapIndexer) GetSwapHistory(
 		return nil, fmt.Errorf("from_block must be <= to_block")
 	}
 
-	ui.logger.Debug("getting swap history", map[string]interface{}{
-		"pool":       pool.Hex(),
-		"from_block": fromBlock,
-		"to_block":   toBlock,
-	})
+	ui.logger.Debug("getting swap history",
+		core.LogKeyPool, pool.Hex(),
+		core.LogKeyFromBlock, fromBlock,
+		core.LogKeyToBlock, toBlock)
 
 	// Create filter for swap events
 	filter := &core.EventFilter{
@@ -302,10 +297,9 @@ func (ui *UniswapIndexer) GetSwapHistory(
 	// Query events from database
 	events, err := ui.database.QueryEvents(ctx, filter)
 	if err != nil {
-		ui.logger.Error("failed to query swap events", map[string]interface{}{
-			"error": err.Error(),
-			"pool":  pool.Hex(),
-		})
+		ui.logger.Error("failed to query swap events",
+			core.LogKeyError, err.Error(),
+			core.LogKeyPool, pool.Hex())
 		return nil, err
 	}
 
@@ -318,18 +312,15 @@ func (ui *UniswapIndexer) GetSwapHistory(
 	for i, eventInterface := range events {
 		event, ok := eventInterface.(*core.BlockchainEvent)
 		if !ok {
-			ui.logger.Warn("failed to cast event to BlockchainEvent", map[string]interface{}{
-				"index": i,
-			})
+			ui.logger.Warn("failed to cast event to BlockchainEvent", "index", i)
 			continue
 		}
 
 		swapEvent, err := ui.decodeSwapEvent(event)
 		if err != nil {
-			ui.logger.Warn("failed to decode swap event", map[string]interface{}{
-				"error": err.Error(),
-				"event": event.ID,
-			})
+			ui.logger.Warn("failed to decode swap event",
+				core.LogKeyError, err.Error(),
+				core.LogKeyEventID, event.ID)
 			continue
 		}
 
@@ -368,12 +359,11 @@ func (ui *UniswapIndexer) GetSwapHistory(
 		LastSwapTime:  lastSwapTime,
 	}
 
-	ui.logger.Debug("retrieved swap history", map[string]interface{}{
-		"pool":       pool.Hex(),
-		"swap_count": len(swaps),
-		"volume0":    totalVolume0.String(),
-		"volume1":    totalVolume1.String(),
-	})
+	ui.logger.Debug("retrieved swap history",
+		core.LogKeyPool, pool.Hex(),
+		"swap_count", len(swaps),
+		"volume0", totalVolume0.String(),
+		"volume1", totalVolume1.String())
 
 	return history, nil
 }
@@ -408,11 +398,11 @@ func (ui *UniswapIndexer) ClearCache() {
 }
 
 // GetCacheStats returns cache statistics
-func (ui *UniswapIndexer) GetCacheStats() map[string]interface{} {
+func (ui *UniswapIndexer) GetCacheStats() map[string]any {
 	ui.mu.RLock()
 	defer ui.mu.RUnlock()
 
-	return map[string]interface{}{
+	return map[string]any{
 		"cached_swaps": len(ui.swapEventCache),
 		"pools":        len(ui.poolMetadata),
 	}

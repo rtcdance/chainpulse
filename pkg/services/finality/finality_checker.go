@@ -16,8 +16,8 @@ import (
 // FinalityResult contains the result of a finality check, including whether
 // the result is based on a degraded (unreliable) data source.
 type FinalityResult struct {
-	IsFinalized bool  // true if the block is at or below the finalized block
-	Degraded    bool  // true if the finalized block number came from a "latest" fallback
+	IsFinalized bool // true if the block is at or below the finalized block
+	Degraded    bool // true if the finalized block number came from a "latest" fallback
 }
 
 // FinalityChecker determines whether a block is finalized on a given chain.
@@ -40,13 +40,13 @@ type FinalityChecker interface {
 
 // rpcFinalityChecker implements FinalityChecker using Ethereum JSON-RPC.
 type rpcFinalityChecker struct {
-	clients        map[string]*http.Client // chainID -> HTTP client
-	nodeURLs       map[string]string       // chainID -> RPC URL
-	cache          map[string]cachedFinality
-	cacheMu        sync.RWMutex
-	cacheTTL       time.Duration
+	clients          map[string]*http.Client // chainID -> HTTP client
+	nodeURLs         map[string]string       // chainID -> RPC URL
+	cache            map[string]cachedFinality
+	cacheMu          sync.RWMutex
+	cacheTTL         time.Duration
 	degradedCacheTTL time.Duration // shorter TTL for degraded (unreliable) values
-	logger         core.Logger
+	logger           core.Logger
 }
 
 type cachedFinality struct {
@@ -61,8 +61,8 @@ func NewRPCFinalityChecker(logger core.Logger) *rpcFinalityChecker {
 		clients:          make(map[string]*http.Client),
 		nodeURLs:         make(map[string]string),
 		cache:            make(map[string]cachedFinality),
-		cacheTTL:         12 * time.Second,  // Slot time is 12s; finality advances every epoch (32 slots ≈ 6.4min). Cache refreshes per slot.
-		degradedCacheTTL: 2 * time.Second,   // Degraded values are unreliable; refresh more aggressively.
+		cacheTTL:         12 * time.Second, // Slot time is 12s; finality advances every epoch (32 slots ≈ 6.4min). Cache refreshes per slot.
+		degradedCacheTTL: 2 * time.Second,  // Degraded values are unreliable; refresh more aggressively.
 		logger:           logger,
 	}
 }
@@ -220,10 +220,10 @@ func (f *rpcFinalityChecker) getCached(chainID string) (uint64, bool) {
 // getBlockByTag calls eth_getBlockByNumber with a block tag ("finalized", "safe", "latest")
 // and returns the block number.
 func (f *rpcFinalityChecker) getBlockByTag(ctx context.Context, client *http.Client, nodeURL, tag string) (uint64, error) {
-	reqBody := map[string]interface{}{
+	reqBody := map[string]any{
 		"jsonrpc": "2.0",
 		"method":  "eth_getBlockByNumber",
-		"params":  []interface{}{tag, false},
+		"params":  []any{tag, false},
 		"id":      1,
 	}
 

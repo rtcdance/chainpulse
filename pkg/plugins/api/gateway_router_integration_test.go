@@ -14,6 +14,7 @@ import (
 )
 
 func TestNormalizeGatewayAPIV1Request(t *testing.T) {
+	t.Parallel()
 	t.Run("strips prefix for nested route", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/api/v1/events?limit=5", nil)
 		got := normalizeGatewayAPIV1Request(req)
@@ -36,6 +37,7 @@ func TestNormalizeGatewayAPIV1Request(t *testing.T) {
 
 // Test Gateway Router Integration Initialization
 func TestGatewayRouterIntegrationInitialization(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 
@@ -63,6 +65,7 @@ func TestGatewayRouterIntegrationInitialization(t *testing.T) {
 
 // Test Route Registration
 func TestGatewayRouterIntegrationRouteRegistration(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 
@@ -115,6 +118,7 @@ func TestGatewayRouterIntegrationRouteRegistration(t *testing.T) {
 
 // Test Request Handling
 func TestGatewayRouterIntegrationRequestHandling(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 
@@ -140,6 +144,7 @@ func TestGatewayRouterIntegrationRequestHandling(t *testing.T) {
 
 // Test Route Matching
 func TestGatewayRouterIntegrationRouteMatching(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 
@@ -191,6 +196,7 @@ func TestGatewayRouterIntegrationRouteMatching(t *testing.T) {
 
 // Test 404 Handling
 func TestGatewayRouterIntegration404Handling(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 
@@ -213,6 +219,7 @@ func TestGatewayRouterIntegration404Handling(t *testing.T) {
 
 // Test Metrics Collection
 func TestGatewayRouterIntegrationMetrics(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 
@@ -235,6 +242,7 @@ func TestGatewayRouterIntegrationMetrics(t *testing.T) {
 }
 
 func TestGatewayRouterIntegrationRuntimeSummaryRoute(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 
@@ -248,9 +256,9 @@ func TestGatewayRouterIntegrationRuntimeSummaryRoute(t *testing.T) {
 		queryHandler,
 		subscriptionHandler,
 		healthHandler,
-		func(r *http.Request) interface{} {
+		func(r *http.Request) any {
 			_ = r
-			return map[string]interface{}{
+			return map[string]any{
 				"service":         "api-service",
 				"runtime_mode":    "runtime-wired",
 				"component_state": "healthy",
@@ -274,6 +282,7 @@ func TestGatewayRouterIntegrationRuntimeSummaryRoute(t *testing.T) {
 }
 
 func TestGatewayRouterIntegrationRejectsWrongMethodForRuntimeSummary(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 
@@ -287,9 +296,9 @@ func TestGatewayRouterIntegrationRejectsWrongMethodForRuntimeSummary(t *testing.
 		queryHandler,
 		subscriptionHandler,
 		healthHandler,
-		func(r *http.Request) interface{} {
+		func(r *http.Request) any {
 			_ = r
-			return map[string]interface{}{"service": "monolithic"}
+			return map[string]any{"service": "monolithic"}
 		},
 	)
 	_ = integration.Initialize(context.Background())
@@ -307,6 +316,7 @@ func TestGatewayRouterIntegrationRejectsWrongMethodForRuntimeSummary(t *testing.
 }
 
 func TestGatewayRouterIntegrationRejectsWrongMethodForEventQuery(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 
@@ -330,6 +340,7 @@ func TestGatewayRouterIntegrationRejectsWrongMethodForEventQuery(t *testing.T) {
 }
 
 func TestGatewayRouterIntegrationRuntimeRouteInventory(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 
@@ -343,13 +354,13 @@ func TestGatewayRouterIntegrationRuntimeRouteInventory(t *testing.T) {
 		queryHandler,
 		subscriptionHandler,
 		healthHandler,
-		func(r *http.Request) interface{} {
+		func(r *http.Request) any {
 			_ = r
-			return map[string]interface{}{"service": "monolithic"}
+			return map[string]any{"service": "monolithic"}
 		},
-		func(r *http.Request) interface{} {
+		func(r *http.Request) any {
 			_ = r
-			return map[string]interface{}{"counters": map[string]interface{}{}}
+			return map[string]any{"counters": map[string]any{}}
 		},
 		func(w http.ResponseWriter, r *http.Request) {
 			_, _ = w.Write([]byte("ok"))
@@ -376,6 +387,7 @@ func TestGatewayRouterIntegrationRuntimeRouteInventory(t *testing.T) {
 }
 
 func TestGatewayRouterIntegrationRuntimeReplayRoute(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 
@@ -409,6 +421,7 @@ func TestGatewayRouterIntegrationRuntimeReplayRoute(t *testing.T) {
 }
 
 func TestGatewayRouterIntegrationSkipsBusinessRoutesWithoutHandlers(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	healthHandler := NewHealthCheckHandler(nil, logger, metrics)
@@ -431,6 +444,7 @@ func TestGatewayRouterIntegrationSkipsBusinessRoutesWithoutHandlers(t *testing.T
 }
 
 func TestGatewayRouterIntegrationForwardsEventQueryToUpstream(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 
@@ -474,6 +488,7 @@ func TestGatewayRouterIntegrationForwardsEventQueryToUpstream(t *testing.T) {
 }
 
 func TestGatewayRouterIntegrationReturnsStructuredBridgeErrorWhenUpstreamFails(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 
@@ -503,14 +518,14 @@ func TestGatewayRouterIntegrationReturnsStructuredBridgeErrorWhenUpstreamFails(t
 		t.Fatalf("expected content-type application/json, got %q", got)
 	}
 
-	var payload map[string]interface{}
+	var payload map[string]any
 	if err := json.Unmarshal(w.Body.Bytes(), &payload); err != nil {
 		t.Fatalf("decode bridge error payload: %v", err)
 	}
 	if got := payload["error"]; got != "query_upstream_unavailable" {
 		t.Fatalf("expected query_upstream_unavailable, got %v", got)
 	}
-	meta, ok := payload["meta"].(map[string]interface{})
+	meta, ok := payload["meta"].(map[string]any)
 	if !ok {
 		t.Fatalf("expected meta object, got %#v", payload["meta"])
 	}
@@ -520,6 +535,7 @@ func TestGatewayRouterIntegrationReturnsStructuredBridgeErrorWhenUpstreamFails(t
 }
 
 func TestGatewayRouterIntegrationRefreshesUpstreamQueryHealth(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 
@@ -561,6 +577,7 @@ func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) {
 
 // Test Response Writer
 func TestResponseWriter(t *testing.T) {
+	t.Parallel()
 	w := httptest.NewRecorder()
 	rw := NewResponseWriter(w)
 
@@ -580,6 +597,7 @@ func TestResponseWriter(t *testing.T) {
 
 // Test Request Logger
 func TestRequestLogger(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	rl := NewRequestLogger(logger)
 
@@ -599,6 +617,7 @@ func TestRequestLogger(t *testing.T) {
 
 // Test Request Router Middleware
 func TestRequestRouterMiddleware(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 
@@ -646,6 +665,7 @@ func TestRequestRouterMiddleware(t *testing.T) {
 
 // Test Close
 func TestGatewayRouterIntegrationClose(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 
@@ -670,6 +690,7 @@ func TestGatewayRouterIntegrationClose(t *testing.T) {
 
 // Test Concurrent Requests
 func TestGatewayRouterIntegrationConcurrentRequests(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip("skipping concurrent integration test in short mode")
 	}
@@ -706,6 +727,7 @@ func TestGatewayRouterIntegrationConcurrentRequests(t *testing.T) {
 
 // Test Route Not Found
 func TestGatewayRouterIntegrationRouteNotFound(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 
@@ -730,6 +752,7 @@ func TestGatewayRouterIntegrationRouteNotFound(t *testing.T) {
 
 // Test Uninitialized Gateway
 func TestGatewayRouterIntegrationUninitialized(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 

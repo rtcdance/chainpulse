@@ -32,7 +32,7 @@ func TestComputeEventHash_DifferentEventsDifferentHashes(t *testing.T) {
 	}
 
 	cases := []struct {
-		name  string
+		name   string
 		modify func(*BlockchainEvent)
 	}{
 		{"different chain", func(e *BlockchainEvent) { e.ChainID = "137" }},

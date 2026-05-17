@@ -1,3 +1,8 @@
+// Package processing contains infrastructure-level event processing types.
+//
+// Deprecated: The canonical idempotency implementation has moved to
+// pkg/services/processor/idempotency.go. This file is retained for backward
+// compatibility. New code should use pkg/services/processor.
 package processing
 
 import (
@@ -168,11 +173,11 @@ func (is *IdempotencyService) InvalidateRange(fromBlock, toBlock uint64) int {
 }
 
 // GetMetrics returns idempotency metrics
-func (is *IdempotencyService) GetMetrics() map[string]interface{} {
+func (is *IdempotencyService) GetMetrics() map[string]any {
 	is.mu.RLock()
 	defer is.mu.RUnlock()
 
-	return map[string]interface{}{
+	return map[string]any{
 		"processed_count": int64(len(is.processedEvents)),
 		"duplicate_count": is.duplicateCount,
 		"check_count":     is.checkCount,

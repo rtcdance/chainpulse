@@ -1,16 +1,17 @@
 package api
 
 import (
-	"os"
-	"strconv"
 	"time"
+
+	"chainpulse/pkg/core"
+	"chainpulse/pkg/env"
 )
 
 // DistributedCacheConfig holds configuration for distributed caching in the API layer
 type DistributedCacheConfig struct {
 	// Redis configuration
 	RedisAddr           string
-	RedisPassword       string
+	RedisPassword       core.SecretString
 	RedisDB             int
 	PoolSize            int
 	MinIdleConns        int
@@ -28,20 +29,20 @@ type DistributedCacheConfig struct {
 // NewDistributedCacheConfig creates a new distributed cache configuration for the API layer
 func NewDistributedCacheConfig() *DistributedCacheConfig {
 	return &DistributedCacheConfig{
-		RedisAddr:           getEnv("REDIS_ADDR", "localhost:6379"),
-		RedisPassword:       getEnv("REDIS_PASSWORD", ""),
-		RedisDB:             getEnvInt("REDIS_DB", 0),
-		PoolSize:            getEnvInt("REDIS_POOL_SIZE", 10),
-		MinIdleConns:        getEnvInt("REDIS_MIN_IDLE_CONNS", 5),
-		MaxRetries:          getEnvInt("REDIS_MAX_RETRIES", 3),
-		DialTimeout:         time.Duration(getEnvInt("REDIS_DIAL_TIMEOUT_MS", 5000)) * time.Millisecond,
-		ReadTimeout:         time.Duration(getEnvInt("REDIS_READ_TIMEOUT_MS", 3000)) * time.Millisecond,
-		WriteTimeout:        time.Duration(getEnvInt("REDIS_WRITE_TIMEOUT_MS", 3000)) * time.Millisecond,
-		HealthCheckInterval: time.Duration(getEnvInt("REDIS_HEALTH_CHECK_INTERVAL_S", 60)) * time.Second,
-		MaxLocalCacheSize:   getEnvInt("MAX_LOCAL_CACHE_SIZE", 10000),
-		DefaultTTL:          time.Duration(getEnvInt("DEFAULT_CACHE_TTL_S", 3600)) * time.Second,
-		FallbackEnabled:     getEnvBool("CACHE_FALLBACK_ENABLED", true),
-		CacheKeyPrefix:      getEnv("CACHE_KEY_PREFIX", "api:"),
+		RedisAddr:           env.Get("REDIS_ADDR", "localhost:6379"),
+		RedisPassword:       core.SecretString(env.Get("REDIS_PASSWORD", "")),
+		RedisDB:             env.GetInt("REDIS_DB", 0),
+		PoolSize:            env.GetInt("REDIS_POOL_SIZE", 10),
+		MinIdleConns:        env.GetInt("REDIS_MIN_IDLE_CONNS", 5),
+		MaxRetries:          env.GetInt("REDIS_MAX_RETRIES", 3),
+		DialTimeout:         time.Duration(env.GetInt("REDIS_DIAL_TIMEOUT_MS", 5000)) * time.Millisecond,
+		ReadTimeout:         time.Duration(env.GetInt("REDIS_READ_TIMEOUT_MS", 3000)) * time.Millisecond,
+		WriteTimeout:        time.Duration(env.GetInt("REDIS_WRITE_TIMEOUT_MS", 3000)) * time.Millisecond,
+		HealthCheckInterval: time.Duration(env.GetInt("REDIS_HEALTH_CHECK_INTERVAL_S", 60)) * time.Second,
+		MaxLocalCacheSize:   env.GetInt("MAX_LOCAL_CACHE_SIZE", 10000),
+		DefaultTTL:          time.Duration(env.GetInt("DEFAULT_CACHE_TTL_S", 3600)) * time.Second,
+		FallbackEnabled:     env.GetBool("CACHE_FALLBACK_ENABLED", true),
+		CacheKeyPrefix:      env.Get("CACHE_KEY_PREFIX", "api:"),
 	}
 }
 
@@ -60,29 +61,4 @@ func (dcc *DistributedCacheConfig) Validate() error {
 	}
 
 	return nil
-}
-
-// Helper functions
-
-func getEnv(key, defaultValue string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
-	}
-	return defaultValue
-}
-
-func getEnvInt(key string, defaultValue int) int {
-	if value := os.Getenv(key); value != "" {
-		if intVal, err := strconv.Atoi(value); err == nil {
-			return intVal
-		}
-	}
-	return defaultValue
-}
-
-func getEnvBool(key string, defaultValue bool) bool {
-	if value := os.Getenv(key); value != "" {
-		return value == "true" || value == "1" || value == "yes"
-	}
-	return defaultValue
 }

@@ -19,12 +19,12 @@ var EIP7002PredeployAddress = common.HexToAddress("0x00000961Ef480Eb55e80D19ad83
 // the EIP-7002 predeploy contract. These are processed by the beacon chain
 // after being queued on the execution layer.
 type WithdrawalRequest struct {
-	SourceAddress common.Address `json:"source_address"` // msg.sender who triggered the request
-	ValidatorPub  [48]byte      `json:"validator_pubkey"` // 48-byte BLS12-381 public key
-	Amount        *big.Int      `json:"amount"`           // in Gwei (0 = full exit)
-	BlockNumber   uint64        `json:"block_number"`
-	TxHash        common.Hash   `json:"tx_hash"`
-	Index         uint64        `json:"request_index"` // monotonically increasing
+	SourceAddress common.Address `json:"source_address"`   // msg.sender who triggered the request
+	ValidatorPub  [48]byte       `json:"validator_pubkey"` // 48-byte BLS12-381 public key
+	Amount        *big.Int       `json:"amount"`           // in Gwei (0 = full exit)
+	BlockNumber   uint64         `json:"block_number"`
+	TxHash        common.Hash    `json:"tx_hash"`
+	Index         uint64         `json:"request_index"` // monotonically increasing
 }
 
 // IsFullExit returns true if the withdrawal request is for a full validator exit.
@@ -49,13 +49,13 @@ var EIP6110DepositContractAddress = common.HexToAddress("0x00000000219ab540356cB
 // layer per EIP-6110. The deposit contract emits events that are consumed
 // by the beacon chain to activate new validators.
 type ValidatorDeposit struct {
-	Pubkey                [48]byte      `json:"pubkey"`                  // BLS12-381 public key
-	WithdrawalCredentials [32]byte      `json:"withdrawal_credentials"`  // withdrawal address or data
-	Amount                *big.Int      `json:"amount"`                  // in Gwei (must be 32 ETH = 32000000000)
-	Signature             [96]byte      `json:"signature"`               // BLS12-381 signature
-	Index                 uint64        `json:"deposit_index"`           // monotonically increasing
-	BlockNumber           uint64        `json:"block_number"`
-	TxHash                common.Hash   `json:"tx_hash"`
+	Pubkey                [48]byte    `json:"pubkey"`                 // BLS12-381 public key
+	WithdrawalCredentials [32]byte    `json:"withdrawal_credentials"` // withdrawal address or data
+	Amount                *big.Int    `json:"amount"`                 // in Gwei (must be 32 ETH = 32000000000)
+	Signature             [96]byte    `json:"signature"`              // BLS12-381 signature
+	Index                 uint64      `json:"deposit_index"`          // monotonically increasing
+	BlockNumber           uint64      `json:"block_number"`
+	TxHash                common.Hash `json:"tx_hash"`
 }
 
 // IsValidDepositAmount checks if the deposit amount equals the minimum

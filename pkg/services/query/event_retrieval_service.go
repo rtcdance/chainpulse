@@ -130,24 +130,10 @@ func (s *EventRetrievalService) GetEventsByChainWithMetadata(
 		return []*EventWithMetadata{}, nil
 	}
 
-	// Get metadata for all events
-	result := make([]*EventWithMetadata, 0, len(events))
-	for _, event := range events {
-		metadata, err := s.metadataStore.GetMetadata(ctx, event.ID)
-		if err != nil {
-			s.logger.Warn("Failed to get metadata for event", "eventId", event.ID, "error", err)
-			// Continue with nil metadata if retrieval fails
-			result = append(result, &EventWithMetadata{
-				Event:    event,
-				Metadata: nil,
-			})
-			continue
-		}
-
-		result = append(result, &EventWithMetadata{
-			Event:    event,
-			Metadata: metadata,
-		})
+	result, err := s.attachMetadata(ctx, events)
+	if err != nil {
+		s.logger.Error("Failed to attach metadata", "error", err)
+		return nil, fmt.Errorf("failed to attach metadata: %w", err)
 	}
 
 	s.metrics.RecordCounter("event_retrieval_get_by_chain_with_metadata_success", int64(len(result)), nil)
@@ -187,24 +173,10 @@ func (s *EventRetrievalService) GetEventsByContractWithMetadata(
 		return []*EventWithMetadata{}, nil
 	}
 
-	// Get metadata for all events
-	result := make([]*EventWithMetadata, 0, len(events))
-	for _, event := range events {
-		metadata, err := s.metadataStore.GetMetadata(ctx, event.ID)
-		if err != nil {
-			s.logger.Warn("Failed to get metadata for event", "eventId", event.ID, "error", err)
-			// Continue with nil metadata if retrieval fails
-			result = append(result, &EventWithMetadata{
-				Event:    event,
-				Metadata: nil,
-			})
-			continue
-		}
-
-		result = append(result, &EventWithMetadata{
-			Event:    event,
-			Metadata: metadata,
-		})
+	result, err := s.attachMetadata(ctx, events)
+	if err != nil {
+		s.logger.Error("Failed to attach metadata", "error", err)
+		return nil, fmt.Errorf("failed to attach metadata: %w", err)
 	}
 
 	s.metrics.RecordCounter("event_retrieval_get_by_contract_with_metadata_success", int64(len(result)), nil)
@@ -244,24 +216,10 @@ func (s *EventRetrievalService) GetEventsByEventNameWithMetadata(
 		return []*EventWithMetadata{}, nil
 	}
 
-	// Get metadata for all events
-	result := make([]*EventWithMetadata, 0, len(events))
-	for _, event := range events {
-		metadata, err := s.metadataStore.GetMetadata(ctx, event.ID)
-		if err != nil {
-			s.logger.Warn("Failed to get metadata for event", "eventId", event.ID, "error", err)
-			// Continue with nil metadata if retrieval fails
-			result = append(result, &EventWithMetadata{
-				Event:    event,
-				Metadata: nil,
-			})
-			continue
-		}
-
-		result = append(result, &EventWithMetadata{
-			Event:    event,
-			Metadata: metadata,
-		})
+	result, err := s.attachMetadata(ctx, events)
+	if err != nil {
+		s.logger.Error("Failed to attach metadata", "error", err)
+		return nil, fmt.Errorf("failed to attach metadata: %w", err)
 	}
 
 	s.metrics.RecordCounter("event_retrieval_get_by_name_with_metadata_success", int64(len(result)), nil)
@@ -301,4 +259,32 @@ func (s *EventRetrievalService) Close(ctx context.Context) error {
 
 	s.initialized = false
 	return nil
+}
+
+// attachMetadata fetches metadata for all events in a single batch query and
+// joins them into EventWithMetadata results.
+func (s *EventRetrievalService) attachMetadata(ctx context.Context, events []*core.BlockchainEvent) ([]*EventWithMetadata, error) {
+	if len(events) == 0 {
+		return []*EventWithMetadata{}, nil
+	}
+
+	eventIDs := make([]string, len(events))
+	for i, event := range events {
+		eventIDs[i] = event.ID
+	}
+
+	metadataMap, err := s.metadataStore.GetMetadataBatch(ctx, eventIDs)
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]*EventWithMetadata, 0, len(events))
+	for _, event := range events {
+		result = append(result, &EventWithMetadata{
+			Event:    event,
+			Metadata: metadataMap[event.ID],
+		})
+	}
+
+	return result, nil
 }

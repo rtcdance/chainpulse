@@ -10,7 +10,7 @@ import (
 )
 
 // PluginFactory is a function that creates a plugin instance.
-type PluginFactory func(ctx context.Context) (interface{}, error)
+type PluginFactory func(ctx context.Context) (any, error)
 
 // AdapterFactory creates plugins based on deployment mode.
 // Plugins register themselves via RegisterFactory, eliminating
@@ -75,7 +75,7 @@ func (f *AdapterFactory) CreateCachePlugin(ctx context.Context) (core.CachePlugi
 func (f *AdapterFactory) CreateDatabasePlugin(ctx context.Context) (core.DatabasePlugin, error) {
 	dbType := os.Getenv("CHAINPULSE_DATABASE_TYPE")
 	if dbType == "" {
-		dbType = "mock"
+		dbType = "postgres"
 	}
 	plugin, err := f.createPlugin(ctx, "database", dbType)
 	if err != nil {
@@ -88,7 +88,7 @@ func (f *AdapterFactory) CreateDatabasePlugin(ctx context.Context) (core.Databas
 	return db, nil
 }
 
-func (f *AdapterFactory) createPlugin(ctx context.Context, category, subtype string) (interface{}, error) {
+func (f *AdapterFactory) createPlugin(ctx context.Context, category, subtype string) (any, error) {
 	key := category + ":" + subtype
 	f.mu.RLock()
 	factory, ok := f.registry[key]

@@ -12,6 +12,7 @@ import (
 )
 
 func TestWrapHTTPHandlerCreatesSpanAndPropagatesContext(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	tracer := NewDefaultTracer(logger, metrics)

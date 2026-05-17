@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	appindexing "chainpulse/pkg/application/indexing"
 	"chainpulse/pkg/core"
 )
 
@@ -42,7 +41,7 @@ func NewLegacyRuntimeSink(
 
 // Persist stores payload-backed blockchain events and mirrors legacy cache
 // writes when a cache plugin is configured.
-func (s *LegacyRuntimeSink) Persist(ctx context.Context, events []appindexing.EventEnvelope) error {
+func (s *LegacyRuntimeSink) Persist(ctx context.Context, events []core.EventEnvelope) error {
 	for _, envelope := range events {
 		event, err := eventFromEnvelope(envelope)
 		if err != nil {
@@ -73,7 +72,7 @@ func (s *LegacyRuntimeSink) Persist(ctx context.Context, events []appindexing.Ev
 	return nil
 }
 
-func eventFromEnvelope(envelope appindexing.EventEnvelope) (*core.BlockchainEvent, error) {
+func eventFromEnvelope(envelope core.EventEnvelope) (*core.BlockchainEvent, error) {
 	event, ok := envelope.Payload.(*core.BlockchainEvent)
 	if !ok || event == nil {
 		return nil, fmt.Errorf("event payload must be *core.BlockchainEvent")

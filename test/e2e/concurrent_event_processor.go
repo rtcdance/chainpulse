@@ -118,7 +118,7 @@ func (p *DefaultConcurrentEventProcessor) GenerateEventsAsync(ctx context.Contex
 					errChan <- fmt.Errorf("worker %d: %w", workerID, err)
 					return
 				}
-				params := map[string]interface{}{
+				params := map[string]any{
 					"blockNumber":      blockNumber,
 					"transactionIndex": blockNumber,
 				}
@@ -168,7 +168,7 @@ func (p *DefaultConcurrentEventProcessor) GenerateEventsWithDelay(ctx context.Co
 					errChan <- fmt.Errorf("worker %d: %w", workerID, err)
 					return
 				}
-				params := map[string]interface{}{
+				params := map[string]any{
 					"blockNumber":      blockNumber,
 					"transactionIndex": blockNumber,
 				}

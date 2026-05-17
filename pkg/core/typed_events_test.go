@@ -372,8 +372,8 @@ func TestDecodeERC1155URIWithData(t *testing.T) {
 
 func TestDecodeUniswapV3Swap(t *testing.T) {
 	sender := common.HexToAddress("0x7777777777777777777777777777777777777777")
-	amount0 := big.NewInt(-1000)          // negative (int256)
-	amount1 := big.NewInt(500)            // positive (int256)
+	amount0 := big.NewInt(-1000) // negative (int256)
+	amount1 := big.NewInt(500)   // positive (int256)
 	sqrtPriceX96, _ := new(big.Int).SetString("79228162514264337593543950336", 10)
 	liquidity := big.NewInt(1000000000)
 	tick := big.NewInt(-100)
@@ -446,7 +446,7 @@ func TestDecodeTypedEvent_AddressTruncation(t *testing.T) {
 
 	// Construct topic with non-zero high bytes (should be ignored)
 	var topic1, topic2 common.Hash
-	topic1[31] = 0x01   // last byte = 1, rest zero → address 0x...0001
+	topic1[31] = 0x01        // last byte = 1, rest zero → address 0x...0001
 	copy(topic2[12:], to[:]) // proper padding
 
 	topics := []common.Hash{
@@ -558,10 +558,10 @@ func TestDecodeTypedEvent_AllEventTypes(t *testing.T) {
 	sender := common.HexToAddress("0x4444444444444444444444444444444444444444")
 
 	tests := []struct {
-		name      string
-		topics    []common.Hash
-		data      []byte
-		wantType  string
+		name     string
+		topics   []common.Hash
+		data     []byte
+		wantType string
 	}{
 		{
 			"Transfer",

@@ -6,6 +6,7 @@ import (
 )
 
 func TestLatencyRing_PushAndLen(t *testing.T) {
+	t.Parallel()
 	r := newLatencyRing(5)
 
 	if r.Len() != 0 {
@@ -21,6 +22,7 @@ func TestLatencyRing_PushAndLen(t *testing.T) {
 }
 
 func TestLatencyRing_Overwrite(t *testing.T) {
+	t.Parallel()
 	r := newLatencyRing(3)
 
 	r.Push(10 * time.Millisecond)
@@ -44,6 +46,7 @@ func TestLatencyRing_Overwrite(t *testing.T) {
 }
 
 func TestLatencyRing_Avg(t *testing.T) {
+	t.Parallel()
 	r := newLatencyRing(100)
 
 	if avg := r.Avg(); avg != 0 {
@@ -61,6 +64,7 @@ func TestLatencyRing_Avg(t *testing.T) {
 }
 
 func TestLatencyRing_Max(t *testing.T) {
+	t.Parallel()
 	r := newLatencyRing(100)
 
 	if max := r.Max(); max != 0 {
@@ -77,6 +81,7 @@ func TestLatencyRing_Max(t *testing.T) {
 }
 
 func TestLatencyRing_Min(t *testing.T) {
+	t.Parallel()
 	r := newLatencyRing(100)
 
 	r.Push(10 * time.Millisecond)
@@ -89,6 +94,7 @@ func TestLatencyRing_Min(t *testing.T) {
 }
 
 func TestLatencyRing_Percentile(t *testing.T) {
+	t.Parallel()
 	r := newLatencyRing(100)
 
 	if p := r.Percentile(0.5); p != 0 {
@@ -105,9 +111,9 @@ func TestLatencyRing_Percentile(t *testing.T) {
 		want time.Duration
 	}{
 		{0.0, 10 * time.Millisecond},
-		{0.5, 55 * time.Millisecond},   // index 4.5: interpolated between 50ms and 60ms
+		{0.5, 55 * time.Millisecond}, // index 4.5: interpolated between 50ms and 60ms
 		{1.0, 100 * time.Millisecond},
-		{0.9, 91 * time.Millisecond},   // index 8.1: interpolated between 90ms and 100ms
+		{0.9, 91 * time.Millisecond}, // index 8.1: interpolated between 90ms and 100ms
 	}
 
 	for _, tt := range tests {
@@ -119,6 +125,7 @@ func TestLatencyRing_Percentile(t *testing.T) {
 }
 
 func TestLatencyRing_PercentileClamp(t *testing.T) {
+	t.Parallel()
 	r := newLatencyRing(5)
 	r.Push(10 * time.Millisecond)
 
@@ -132,6 +139,7 @@ func TestLatencyRing_PercentileClamp(t *testing.T) {
 }
 
 func TestLatencyRing_Reset(t *testing.T) {
+	t.Parallel()
 	r := newLatencyRing(5)
 	r.Push(10 * time.Millisecond)
 	r.Push(20 * time.Millisecond)
@@ -147,6 +155,7 @@ func TestLatencyRing_Reset(t *testing.T) {
 }
 
 func TestLatencyRing_All(t *testing.T) {
+	t.Parallel()
 	r := newLatencyRing(5)
 	r.Push(10 * time.Millisecond)
 	r.Push(20 * time.Millisecond)
@@ -161,6 +170,7 @@ func TestLatencyRing_All(t *testing.T) {
 }
 
 func TestLatencyRing_ZeroCapacity(t *testing.T) {
+	t.Parallel()
 	// Should default to capacity 1
 	r := newLatencyRing(0)
 	r.Push(10 * time.Millisecond)

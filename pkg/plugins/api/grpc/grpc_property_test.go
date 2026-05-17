@@ -27,6 +27,7 @@ const (
 // For any gRPC request, converting it to Request abstraction
 // SHALL preserve all properties.
 func TestProperty_GRPCRequestAbstractionConsistency(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name    string
 		method  string
@@ -91,6 +92,7 @@ func TestProperty_GRPCRequestAbstractionConsistency(t *testing.T) {
 // For any gRPC response, converting it to Response abstraction
 // SHALL preserve all properties.
 func TestProperty_GRPCResponseAbstractionConsistency(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name    string
 		status  int
@@ -149,6 +151,7 @@ func TestProperty_GRPCResponseAbstractionConsistency(t *testing.T) {
 // Property 3: gRPC Request Context Preservation
 // For any gRPC request with context, the context SHALL be preserved.
 func TestProperty_GRPCRequestContextPreservation(t *testing.T) {
+	t.Parallel()
 	ctx := context.WithValue(context.Background(), userIDKey, "user-123")
 	req := NewGRPCRequest("POST", "/api.Service/Method", nil, []byte("{}"), ctx)
 
@@ -162,6 +165,7 @@ func TestProperty_GRPCRequestContextPreservation(t *testing.T) {
 // For any gRPC response, serializing to JSON and deserializing
 // SHALL produce an equivalent response.
 func TestProperty_GRPCResponseJSONRoundTrip(t *testing.T) {
+	t.Parallel()
 	original := NewGRPCResponse()
 	original.SetStatus(201)
 	original.SetHeader("X-Message-ID", "msg-123")
@@ -202,6 +206,7 @@ func TestProperty_GRPCResponseJSONRoundTrip(t *testing.T) {
 // Property 5: gRPC Response Body Accumulation
 // For any gRPC response, multiple Write() calls SHALL accumulate in the body.
 func TestProperty_GRPCResponseBodyAccumulation(t *testing.T) {
+	t.Parallel()
 	resp := NewGRPCResponse()
 
 	// Write multiple times
@@ -217,6 +222,7 @@ func TestProperty_GRPCResponseBodyAccumulation(t *testing.T) {
 // Property 6: gRPC Response Header Immutability After Send
 // For any gRPC response, headers SHALL NOT be modifiable after send.
 func TestProperty_GRPCResponseHeaderImmutabilityAfterSend(t *testing.T) {
+	t.Parallel()
 	resp := NewGRPCResponse()
 
 	resp.SetStatus(200)
@@ -241,6 +247,7 @@ func TestProperty_GRPCResponseHeaderImmutabilityAfterSend(t *testing.T) {
 // Property 7: gRPC Plugin Lifecycle Management
 // For any gRPC plugin, start/stop operations SHALL be idempotent and thread-safe.
 func TestProperty_GRPCPluginLifecycleManagement(t *testing.T) {
+	t.Parallel()
 	skipGRPCPropertyLifecycleTestsInShortMode(t)
 
 	apiLayer := core.NewAPILayer()
@@ -287,6 +294,7 @@ func TestProperty_GRPCPluginLifecycleManagement(t *testing.T) {
 // Property 8: gRPC Response JSON Envelope Structure
 // For any gRPC response, the JSON envelope SHALL contain status, headers, and body.
 func TestProperty_GRPCResponseJSONEnvelopeStructure(t *testing.T) {
+	t.Parallel()
 	resp := NewGRPCResponse()
 
 	resp.SetStatus(200)
@@ -300,7 +308,7 @@ func TestProperty_GRPCResponseJSONEnvelopeStructure(t *testing.T) {
 	}
 
 	// Verify envelope structure
-	var envelope map[string]interface{}
+	var envelope map[string]any
 	err = json.Unmarshal(data, &envelope)
 	if err != nil {
 		t.Errorf("unexpected error unmarshaling envelope: %v", err)

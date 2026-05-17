@@ -31,15 +31,17 @@ func (p *multiChainPullerTestPlugin) SubscribeToEvents(ctx context.Context, hand
 	return nil
 }
 
-func (p *multiChainPullerTestPlugin) GetStats() map[string]interface{} {
-	return map[string]interface{}{}
+func (p *multiChainPullerTestPlugin) GetStats() map[string]any {
+	return map[string]any{}
 }
+func (p *multiChainPullerTestPlugin) ChainID() string            { return p.name }
 func (p *multiChainPullerTestPlugin) GetLastBlockNumber() uint64 { return p.lastBlock }
 func (p *multiChainPullerTestPlugin) SetLastBlockNumber(block uint64) {
 	p.lastBlock = block
 }
 
 func TestMultiChainDataPullerGetHighestLatestBlock(t *testing.T) {
+	t.Parallel()
 	puller := NewMultiChainDataPuller(nil)
 	if err := puller.RegisterPuller("eth", &multiChainPullerTestPlugin{name: "eth", latestBlock: 120}); err != nil {
 		t.Fatalf("register eth puller: %v", err)
@@ -58,6 +60,7 @@ func TestMultiChainDataPullerGetHighestLatestBlock(t *testing.T) {
 }
 
 func TestMultiChainDataPullerGetHighestProcessedBlock(t *testing.T) {
+	t.Parallel()
 	puller := NewMultiChainDataPuller(nil)
 	if err := puller.RegisterPuller("eth", &multiChainPullerTestPlugin{name: "eth", lastBlock: 118}); err != nil {
 		t.Fatalf("register eth puller: %v", err)
@@ -73,6 +76,7 @@ func TestMultiChainDataPullerGetHighestProcessedBlock(t *testing.T) {
 }
 
 func TestMultiChainDataPullerRegisteredChainsAndSetLastProcessedBlock(t *testing.T) {
+	t.Parallel()
 	puller := NewMultiChainDataPuller(nil)
 	eth := &multiChainPullerTestPlugin{name: "eth", lastBlock: 118}
 	polygon := &multiChainPullerTestPlugin{name: "polygon", lastBlock: 144}

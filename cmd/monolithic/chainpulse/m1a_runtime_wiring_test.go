@@ -12,7 +12,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 
-	appindexingadapter "chainpulse/pkg/adapters/indexing"
+	appindexingadapter "chainpulse/pkg/application/bootstrap"
 )
 
 func TestParseNodeURLs(t *testing.T) {
@@ -241,8 +241,8 @@ func (s *stubMonolithicPollingPuller) Poll(ctx context.Context) error {
 	return s.poll(ctx)
 }
 func (s *stubMonolithicPollingPuller) GetConfig() core.Config { return s.config }
-func (s *stubMonolithicPollingPuller) GetStats() map[string]interface{} {
-	return map[string]interface{}{
+func (s *stubMonolithicPollingPuller) GetStats() map[string]any {
+	return map[string]any{
 		"is_running":      true,
 		"request_count":   int64(0),
 		"error_count":     int64(0),
@@ -268,8 +268,8 @@ func (r *recordingChainIndexer) GetChainID() string {
 	return r.chainID
 }
 
-func (r *recordingChainIndexer) GetStatus() map[string]interface{} {
-	return map[string]interface{}{"chain_id": r.chainID}
+func (r *recordingChainIndexer) GetStatus() map[string]any {
+	return map[string]any{"chain_id": r.chainID}
 }
 
 func (r *recordingChainIndexer) Close() error {

@@ -33,11 +33,11 @@ func (m *MockConfigManager) Validate(config core.Config) error {
 	return nil
 }
 
-func (m *MockConfigManager) Get(key string) (interface{}, error) {
+func (m *MockConfigManager) Get(key string) (any, error) {
 	return nil, fmt.Errorf("key not found: %s", key)
 }
 
-func (m *MockConfigManager) Set(key string, value interface{}) error {
+func (m *MockConfigManager) Set(key string, value any) error {
 	return nil
 }
 

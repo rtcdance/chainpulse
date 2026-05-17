@@ -5,7 +5,9 @@ import (
 	"strings"
 	"testing"
 
+	"chainpulse/pkg/application/bootstrap"
 	"chainpulse/pkg/core"
+	"chainpulse/pkg/plugins/api"
 )
 
 func TestLoadAPIServiceConfigDefaultsToSecurityDisabled(t *testing.T) {
@@ -20,8 +22,8 @@ func TestLoadAPIServiceConfigDefaultsToSecurityDisabled(t *testing.T) {
 	if cfg.AuthEnabled {
 		t.Fatal("expected auth to be disabled by default")
 	}
-	if cfg.RateLimitEnabled {
-		t.Fatal("expected rate limiting to be disabled by default")
+	if !cfg.RateLimitEnabled {
+		t.Fatal("expected rate limiting to be enabled by default (secure-by-default)")
 	}
 	if len(cfg.AuthAPIKeys) != 0 {
 		t.Fatalf("expected no auth api keys by default, got %d", len(cfg.AuthAPIKeys))
@@ -87,4 +89,16 @@ func TestBuildAPIServiceMetricsProviderDefaultsToPrometheus(t *testing.T) {
 	if !strings.Contains(payload, `chainpulse_api_service_test_counter{chain_id="global"} 2`) {
 		t.Fatalf("expected prometheus payload to contain counter, got:\n%s", payload)
 	}
+}
+
+func buildAPIServiceSecurityControls(cfg APIServiceConfig, logger core.Logger, metrics core.MetricsCollector) (*api.AuthMiddleware, *api.RateLimitMiddleware, error) {
+	return bootstrap.BuildSecurityControls(bootstrap.SecurityControlsConfig{
+		AuthEnabled:        cfg.AuthEnabled,
+		AuthJWTSecret:      cfg.AuthJWTSecret,
+		AuthAPIKeys:        cfg.AuthAPIKeys,
+		RateLimitEnabled:   cfg.RateLimitEnabled,
+		RateLimitPerMinute: cfg.RateLimitPerMinute,
+		ServiceName:        "api-service",
+		EnvPrefix:          "API_SERVICE",
+	}, logger, metrics)
 }

@@ -8,10 +8,10 @@ import (
 // SlogLogger implements the Logger interface using Go's standard log/slog.
 // This provides type-safe structured logging with slog.String(), slog.Int(), etc.
 type SlogLogger struct {
-	logger  *slog.Logger
-	level   LogLevel
-	corrID  string
-	fields  map[string]interface{}
+	logger *slog.Logger
+	level  LogLevel
+	corrID string
+	fields map[string]any
 }
 
 // NewSlogLogger creates a new Logger backed by log/slog.
@@ -32,7 +32,7 @@ func NewSlogLogger(level LogLevel, format string) *SlogLogger {
 	return &SlogLogger{
 		logger: slog.New(handler),
 		level:  level,
-		fields: make(map[string]interface{}),
+		fields: make(map[string]any),
 	}
 }
 
@@ -41,7 +41,7 @@ func NewSlogLoggerWithHandler(handler slog.Handler, level LogLevel) *SlogLogger 
 	return &SlogLogger{
 		logger: slog.New(handler),
 		level:  level,
-		fields: make(map[string]interface{}),
+		fields: make(map[string]any),
 	}
 }
 
@@ -63,7 +63,7 @@ func slogLevelFromCore(level LogLevel) slog.Level {
 }
 
 // Debug logs a debug message
-func (l *SlogLogger) Debug(msg string, fields ...interface{}) {
+func (l *SlogLogger) Debug(msg string, fields ...any) {
 	if l.level > LogLevelDebug {
 		return
 	}
@@ -71,7 +71,7 @@ func (l *SlogLogger) Debug(msg string, fields ...interface{}) {
 }
 
 // Info logs an info message
-func (l *SlogLogger) Info(msg string, fields ...interface{}) {
+func (l *SlogLogger) Info(msg string, fields ...any) {
 	if l.level > LogLevelInfo {
 		return
 	}
@@ -79,7 +79,7 @@ func (l *SlogLogger) Info(msg string, fields ...interface{}) {
 }
 
 // Warn logs a warning message
-func (l *SlogLogger) Warn(msg string, fields ...interface{}) {
+func (l *SlogLogger) Warn(msg string, fields ...any) {
 	if l.level > LogLevelWarn {
 		return
 	}
@@ -87,7 +87,7 @@ func (l *SlogLogger) Warn(msg string, fields ...interface{}) {
 }
 
 // Error logs an error message
-func (l *SlogLogger) Error(msg string, fields ...interface{}) {
+func (l *SlogLogger) Error(msg string, fields ...any) {
 	if l.level > LogLevelError {
 		return
 	}
@@ -95,14 +95,14 @@ func (l *SlogLogger) Error(msg string, fields ...interface{}) {
 }
 
 // Fatal logs a fatal message and exits
-func (l *SlogLogger) Fatal(msg string, fields ...interface{}) {
+func (l *SlogLogger) Fatal(msg string, fields ...any) {
 	l.logger.Error(msg, l.toSlogArgs(fields...)...)
 	os.Exit(1)
 }
 
 // WithCorrelationID returns a new logger with correlation ID
 func (l *SlogLogger) WithCorrelationID(id string) Logger {
-	newFields := make(map[string]interface{}, len(l.fields)+1)
+	newFields := make(map[string]any, len(l.fields)+1)
 	for k, v := range l.fields {
 		newFields[k] = v
 	}
@@ -117,8 +117,8 @@ func (l *SlogLogger) WithCorrelationID(id string) Logger {
 }
 
 // WithField adds a persistent field to the logger, returning a new instance.
-func (l *SlogLogger) WithField(key string, value interface{}) *SlogLogger {
-	newFields := make(map[string]interface{}, len(l.fields)+1)
+func (l *SlogLogger) WithField(key string, value any) *SlogLogger {
+	newFields := make(map[string]any, len(l.fields)+1)
 	for k, v := range l.fields {
 		newFields[k] = v
 	}
@@ -132,8 +132,8 @@ func (l *SlogLogger) WithField(key string, value interface{}) *SlogLogger {
 }
 
 // WithFields adds multiple persistent fields to the logger, returning a new instance.
-func (l *SlogLogger) WithFields(fields map[string]interface{}) *SlogLogger {
-	newFields := make(map[string]interface{}, len(l.fields)+len(fields))
+func (l *SlogLogger) WithFields(fields map[string]any) *SlogLogger {
+	newFields := make(map[string]any, len(l.fields)+len(fields))
 	for k, v := range l.fields {
 		newFields[k] = v
 	}
@@ -164,7 +164,7 @@ func (l *SlogLogger) GetLevel() LogLevel {
 
 // toSlogArgs converts variadic interface{} pairs to slog.Attr slices.
 // Handles odd-length inputs gracefully by ignoring the last unpaired value.
-func (l *SlogLogger) toSlogArgs(fields ...interface{}) []any {
+func (l *SlogLogger) toSlogArgs(fields ...any) []any {
 	args := make([]any, 0, len(l.fields)*2+len(fields))
 
 	// Prepend any persistent fields

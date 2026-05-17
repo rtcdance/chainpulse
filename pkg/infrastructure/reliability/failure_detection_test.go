@@ -13,6 +13,7 @@ import (
 
 // TestNewFailureDetector tests detector creation
 func TestNewFailureDetector(t *testing.T) {
+	t.Parallel()
 	detector := NewFailureDetector("detector-1")
 
 	assert.NotNil(t, detector)
@@ -25,6 +26,7 @@ func TestNewFailureDetector(t *testing.T) {
 
 // TestRegisterServiceFailureDetector tests service registration
 func TestRegisterServiceFailureDetector(t *testing.T) {
+	t.Parallel()
 	detector := NewFailureDetector("detector-1")
 
 	detector.RegisterService("service-1")
@@ -37,6 +39,7 @@ func TestRegisterServiceFailureDetector(t *testing.T) {
 
 // TestReportHealthCheckSuccess tests successful health check
 func TestReportHealthCheckSuccess(t *testing.T) {
+	t.Parallel()
 	detector := NewFailureDetector("detector-1")
 	detector.RegisterService("service-1")
 
@@ -47,6 +50,7 @@ func TestReportHealthCheckSuccess(t *testing.T) {
 
 // TestReportHealthCheckFailure tests failed health check
 func TestReportHealthCheckFailure(t *testing.T) {
+	t.Parallel()
 	detector := NewFailureDetector("detector-1")
 	detector.RegisterService("service-1")
 
@@ -57,6 +61,7 @@ func TestReportHealthCheckFailure(t *testing.T) {
 
 // TestReportHealthCheckUnregisteredService tests unregistered service
 func TestReportHealthCheckUnregisteredService(t *testing.T) {
+	t.Parallel()
 	detector := NewFailureDetector("detector-1")
 
 	err := detector.ReportHealthCheck("service-1", true, 100*time.Millisecond, 0.0)
@@ -67,6 +72,7 @@ func TestReportHealthCheckUnregisteredService(t *testing.T) {
 
 // TestServiceStatusDegraded tests degraded status
 func TestServiceStatusDegraded(t *testing.T) {
+	t.Parallel()
 	detector := NewFailureDetector("detector-1")
 	detector.RegisterService("service-1")
 
@@ -80,6 +86,7 @@ func TestServiceStatusDegraded(t *testing.T) {
 
 // TestServiceStatusFailed tests failed status
 func TestServiceStatusFailed(t *testing.T) {
+	t.Parallel()
 	detector := NewFailureDetector("detector-1")
 	detector.RegisterService("service-1")
 
@@ -95,6 +102,7 @@ func TestServiceStatusFailed(t *testing.T) {
 
 // TestServiceRecovery tests service recovery
 func TestServiceRecovery(t *testing.T) {
+	t.Parallel()
 	detector := NewFailureDetector("detector-1")
 	detector.RegisterService("service-1")
 
@@ -113,6 +121,7 @@ func TestServiceRecovery(t *testing.T) {
 
 // TestDetectFailures tests failure detection
 func TestDetectFailures(t *testing.T) {
+	t.Parallel()
 	detector := NewFailureDetector("detector-1")
 	detector.RegisterService("service-1")
 	detector.RegisterService("service-2")
@@ -131,6 +140,7 @@ func TestDetectFailures(t *testing.T) {
 
 // TestGetFailedServices tests getting failed services
 func TestGetFailedServices(t *testing.T) {
+	t.Parallel()
 	detector := NewFailureDetector("detector-1")
 	detector.RegisterService("service-1")
 	detector.RegisterService("service-2")
@@ -147,6 +157,7 @@ func TestGetFailedServices(t *testing.T) {
 
 // TestGetMetricsFailureDetector tests metrics retrieval
 func TestGetMetricsFailureDetector(t *testing.T) {
+	t.Parallel()
 	detector := NewFailureDetector("detector-1")
 	detector.RegisterService("service-1")
 
@@ -163,6 +174,7 @@ func TestGetMetricsFailureDetector(t *testing.T) {
 
 // TestFailureHistory tests failure history tracking
 func TestFailureHistory(t *testing.T) {
+	t.Parallel()
 	detector := NewFailureDetector("detector-1")
 	detector.RegisterService("service-1")
 
@@ -180,6 +192,7 @@ func TestFailureHistory(t *testing.T) {
 
 // TestResponseTimeTracking tests response time tracking
 func TestResponseTimeTracking(t *testing.T) {
+	t.Parallel()
 	detector := NewFailureDetector("detector-1")
 	detector.RegisterService("service-1")
 
@@ -195,6 +208,7 @@ func TestResponseTimeTracking(t *testing.T) {
 
 // TestErrorRateTracking tests error rate tracking
 func TestErrorRateTracking(t *testing.T) {
+	t.Parallel()
 	detector := NewFailureDetector("detector-1")
 	detector.RegisterService("service-1")
 
@@ -210,6 +224,7 @@ func TestErrorRateTracking(t *testing.T) {
 
 // TestConsecutiveFailures tests consecutive failure tracking
 func TestConsecutiveFailures(t *testing.T) {
+	t.Parallel()
 	detector := NewFailureDetector("detector-1")
 	detector.RegisterService("service-1")
 
@@ -226,6 +241,7 @@ func TestConsecutiveFailures(t *testing.T) {
 
 // TestConsecutiveSuccesses tests consecutive success tracking
 func TestConsecutiveSuccesses(t *testing.T) {
+	t.Parallel()
 	detector := NewFailureDetector("detector-1")
 	detector.RegisterService("service-1")
 
@@ -242,6 +258,7 @@ func TestConsecutiveSuccesses(t *testing.T) {
 
 // TestPredictiveDetection tests predictive failure detection
 func TestPredictiveDetection(t *testing.T) {
+	t.Parallel()
 	detector := NewFailureDetector("detector-1")
 	detector.RegisterService("service-1")
 
@@ -256,6 +273,7 @@ func TestPredictiveDetection(t *testing.T) {
 
 // TestNewAutomaticFailover tests failover creation
 func TestNewAutomaticFailover(t *testing.T) {
+	t.Parallel()
 	detector := NewFailureDetector("detector-1")
 	failover := NewAutomaticFailover("failover-1", detector)
 
@@ -266,6 +284,7 @@ func TestNewAutomaticFailover(t *testing.T) {
 
 // TestFailoverMetrics tests failover metrics
 func TestFailoverMetrics(t *testing.T) {
+	t.Parallel()
 	detector := NewFailureDetector("detector-1")
 	failover := NewAutomaticFailover("failover-1", detector)
 
@@ -278,6 +297,7 @@ func TestFailoverMetrics(t *testing.T) {
 
 // TestFailoverCooldown tests failover cooldown
 func TestFailoverCooldown(t *testing.T) {
+	t.Parallel()
 	detector := NewFailureDetector("detector-1")
 	failover := NewAutomaticFailover("failover-1", detector)
 
@@ -286,6 +306,7 @@ func TestFailoverCooldown(t *testing.T) {
 
 // TestConcurrentHealthChecks tests concurrent health checks
 func TestConcurrentHealthChecks(t *testing.T) {
+	t.Parallel()
 	detector := NewFailureDetector("detector-1")
 	detector.RegisterService("service-1")
 
@@ -311,6 +332,7 @@ func TestConcurrentHealthChecks(t *testing.T) {
 
 // TestMultipleServiceMonitoring tests monitoring multiple services
 func TestMultipleServiceMonitoring(t *testing.T) {
+	t.Parallel()
 	detector := NewFailureDetector("detector-1")
 
 	for i := 0; i < 5; i++ {
@@ -326,6 +348,7 @@ func TestMultipleServiceMonitoring(t *testing.T) {
 
 // TestFailureHistoryLimit tests failure history size limit
 func TestFailureHistoryLimit(t *testing.T) {
+	t.Parallel()
 	detector := NewFailureDetector("detector-1")
 	detector.RegisterService("service-1")
 
@@ -344,6 +367,7 @@ func TestFailureHistoryLimit(t *testing.T) {
 
 // TestServiceHealthInfoFields tests service health info fields
 func TestServiceHealthInfoFields(t *testing.T) {
+	t.Parallel()
 	info := &ServiceHealthInfo{
 		ServiceID:            "service-1",
 		Status:               "healthy",
@@ -361,6 +385,7 @@ func TestServiceHealthInfoFields(t *testing.T) {
 
 // TestFailureMetricsFields tests failure metrics fields
 func TestFailureMetricsFields(t *testing.T) {
+	t.Parallel()
 	metrics := &FailureMetrics{
 		FailuresDetected:  10,
 		FalsePositives:    2,
@@ -376,6 +401,7 @@ func TestFailureMetricsFields(t *testing.T) {
 
 // TestDetectorID tests detector ID
 func TestDetectorID(t *testing.T) {
+	t.Parallel()
 	detector := NewFailureDetector("my-detector")
 
 	assert.Equal(t, "my-detector", detector.id)
@@ -383,6 +409,7 @@ func TestDetectorID(t *testing.T) {
 
 // TestHealthCheckInterval tests health check interval
 func TestHealthCheckInterval(t *testing.T) {
+	t.Parallel()
 	detector := NewFailureDetector("detector-1")
 
 	assert.Equal(t, 10*time.Second, detector.healthCheckInterval)
@@ -390,6 +417,7 @@ func TestHealthCheckInterval(t *testing.T) {
 
 // TestFailureThreshold tests failure threshold
 func TestFailureThreshold(t *testing.T) {
+	t.Parallel()
 	detector := NewFailureDetector("detector-1")
 
 	assert.Equal(t, 3, detector.failureThreshold)
@@ -397,6 +425,7 @@ func TestFailureThreshold(t *testing.T) {
 
 // TestRecoveryThreshold tests recovery threshold
 func TestRecoveryThreshold(t *testing.T) {
+	t.Parallel()
 	detector := NewFailureDetector("detector-1")
 
 	assert.Equal(t, 2, detector.recoveryThreshold)
@@ -404,6 +433,7 @@ func TestRecoveryThreshold(t *testing.T) {
 
 // TestDetectFailuresMultipleServices tests detecting failures across multiple services
 func TestDetectFailuresMultipleServices(t *testing.T) {
+	t.Parallel()
 	detector := NewFailureDetector("detector-1")
 	detector.RegisterService("service-1")
 	detector.RegisterService("service-2")
@@ -424,6 +454,7 @@ func TestDetectFailuresMultipleServices(t *testing.T) {
 
 // TestLastHealthCheckTime tests last health check time tracking
 func TestLastHealthCheckTime(t *testing.T) {
+	t.Parallel()
 	detector := NewFailureDetector("detector-1")
 	detector.RegisterService("service-1")
 
@@ -441,6 +472,7 @@ func TestLastHealthCheckTime(t *testing.T) {
 
 // TestPredictionScore tests prediction score calculation
 func TestPredictionScore(t *testing.T) {
+	t.Parallel()
 	detector := NewFailureDetector("detector-1")
 	detector.RegisterService("service-1")
 
@@ -461,6 +493,7 @@ func TestPredictionScore(t *testing.T) {
 
 // TestConcurrentDetectFailures tests concurrent failure detection
 func TestConcurrentDetectFailures(t *testing.T) {
+	t.Parallel()
 	detector := NewFailureDetector("detector-1")
 	detector.RegisterService("service-1")
 	ctx := context.Background()
@@ -486,6 +519,7 @@ func TestConcurrentDetectFailures(t *testing.T) {
 
 // TestFailoverStrategyRegistration tests registering failover strategies
 func TestFailoverStrategyRegistration(t *testing.T) {
+	t.Parallel()
 	detector := NewFailureDetector("detector-1")
 	failover := NewAutomaticFailover("failover-1", detector)
 
@@ -510,6 +544,7 @@ func (m *MockFailoverStrategy) Rollback(ctx context.Context, failedService strin
 
 // TestFailoverRollback tests failover rollback
 func TestFailoverRollback(t *testing.T) {
+	t.Parallel()
 	detector := NewFailureDetector("detector-1")
 	failover := NewAutomaticFailover("failover-1", detector)
 	ctx := context.Background()
@@ -524,6 +559,7 @@ func TestFailoverRollback(t *testing.T) {
 
 // TestFailoverRollbackNotFound tests rollback of non-existent strategy
 func TestFailoverRollbackNotFound(t *testing.T) {
+	t.Parallel()
 	detector := NewFailureDetector("detector-1")
 	failover := NewAutomaticFailover("failover-1", detector)
 	ctx := context.Background()

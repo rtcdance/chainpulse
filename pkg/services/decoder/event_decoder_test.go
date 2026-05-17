@@ -13,6 +13,7 @@ import (
 )
 
 func TestNewEventDecoder(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	contractManager := NewContractManager(logger)
 	decoder := NewEventDecoder(contractManager, logger)
@@ -22,6 +23,7 @@ func TestNewEventDecoder(t *testing.T) {
 }
 
 func TestDecodeEventNil(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	contractManager := NewContractManager(logger)
 	decoder := NewEventDecoder(contractManager, logger)
@@ -36,6 +38,7 @@ func TestDecodeEventNil(t *testing.T) {
 }
 
 func TestDecodeEventNoTopics(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	contractManager := NewContractManager(logger)
 	decoder := NewEventDecoder(contractManager, logger)
@@ -54,6 +57,7 @@ func TestDecodeEventNoTopics(t *testing.T) {
 }
 
 func TestDecodeEventSignatureNotFound(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	contractManager := NewContractManager(logger)
 	decoder := NewEventDecoder(contractManager, logger)
@@ -80,6 +84,7 @@ func TestDecodeEventSignatureNotFound(t *testing.T) {
 }
 
 func TestDecodeEventBatch(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	contractManager := NewContractManager(logger)
 	decoder := NewEventDecoder(contractManager, logger)
@@ -97,6 +102,7 @@ func TestDecodeEventBatch(t *testing.T) {
 }
 
 func TestDecodeEventBatchEmpty(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	contractManager := NewContractManager(logger)
 	decoder := NewEventDecoder(contractManager, logger)
@@ -112,6 +118,7 @@ func TestDecodeEventBatchEmpty(t *testing.T) {
 }
 
 func TestDecodeEventWithABI(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	contractManager := NewContractManager(logger)
 	decoder := NewEventDecoder(contractManager, logger)
@@ -141,6 +148,7 @@ func TestDecodeEventWithABI(t *testing.T) {
 }
 
 func TestDecodeEventWithABINotFound(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	contractManager := NewContractManager(logger)
 	decoder := NewEventDecoder(contractManager, logger)
@@ -155,6 +163,7 @@ func TestDecodeEventWithABINotFound(t *testing.T) {
 }
 
 func TestDecodeEventBatchWithABI(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	contractManager := NewContractManager(logger)
 	decoder := NewEventDecoder(contractManager, logger)
@@ -178,6 +187,7 @@ func TestDecodeEventBatchWithABI(t *testing.T) {
 }
 
 func TestEventDecoderGetEventSignature(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	contractManager := NewContractManager(logger)
 	decoder := NewEventDecoder(contractManager, logger)
@@ -200,6 +210,7 @@ func TestEventDecoderGetEventSignature(t *testing.T) {
 }
 
 func TestEventDecoderGetEventSignatureNotFound(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	contractManager := NewContractManager(logger)
 	decoder := NewEventDecoder(contractManager, logger)
@@ -219,6 +230,7 @@ func TestEventDecoderGetEventSignatureNotFound(t *testing.T) {
 }
 
 func TestEventDecoderGetEventSignatures(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	contractManager := NewContractManager(logger)
 	decoder := NewEventDecoder(contractManager, logger)
@@ -247,11 +259,12 @@ func TestEventDecoderGetEventSignatures(t *testing.T) {
 }
 
 func TestDecodedEventStructure(t *testing.T) {
+	t.Parallel()
 	decoded := &DecodedEvent{
 		EventName:  "Transfer",
-		Parameters: make(map[string]interface{}),
-		Indexed:    make(map[string]interface{}),
-		NonIndexed: make(map[string]interface{}),
+		Parameters: make(map[string]any),
+		Indexed:    make(map[string]any),
+		NonIndexed: make(map[string]any),
 	}
 
 	decoded.Parameters["from"] = common.HexToAddress("0x1111")
@@ -263,6 +276,7 @@ func TestDecodedEventStructure(t *testing.T) {
 }
 
 func TestDecodeEventWithIndexedParameters(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	contractManager := NewContractManager(logger)
 	decoder := NewEventDecoder(contractManager, logger)
@@ -301,6 +315,7 @@ func TestDecodeEventWithIndexedParameters(t *testing.T) {
 }
 
 func TestEventDecoderConcurrency(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	contractManager := NewContractManager(logger)
 	decoder := NewEventDecoder(contractManager, logger)
@@ -329,6 +344,7 @@ func TestEventDecoderConcurrency(t *testing.T) {
 }
 
 func TestDecodeEventWithNonIndexedData(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	contractManager := NewContractManager(logger)
 	decoder := NewEventDecoder(contractManager, logger)

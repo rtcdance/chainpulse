@@ -19,7 +19,7 @@ type eventProcessorKafkaHealthProvider interface {
 }
 
 type eventProcessorKafkaConsumerGroupStatusProvider interface {
-	GetConsumerGroupStatus() map[string]interface{}
+	GetConsumerGroupStatus() map[string]any
 }
 
 type eventProcessorKafkaConsumerGroupMetricsProvider interface {
@@ -62,7 +62,7 @@ func buildEventProcessorRuntimeRolloutHealthHandler(
 		state := buildEventProcessorRuntimeRolloutState(ctx, dbManager, eventStore, metadataStore, kafkaHealth, processorRuntime, consumeRuntime)
 		return buildEventProcessorRuntimeComponentStatus(state, time.Now())
 	})
-	healthHandler.SetReadinessDetailsProvider(func(ctx context.Context) map[string]interface{} {
+	healthHandler.SetReadinessDetailsProvider(func(ctx context.Context) map[string]any {
 		state := buildEventProcessorRuntimeRolloutState(ctx, dbManager, eventStore, metadataStore, kafkaHealth, processorRuntime, consumeRuntime)
 		return buildEventProcessorRuntimeReadinessDetails(state)
 	})
@@ -179,11 +179,11 @@ func buildEventProcessorRuntimeComponentStatus(runtimeState eventProcessorRollou
 	}
 }
 
-func buildEventProcessorRuntimeReadinessDetails(runtimeState eventProcessorRolloutRuntimeState) map[string]interface{} {
+func buildEventProcessorRuntimeReadinessDetails(runtimeState eventProcessorRolloutRuntimeState) map[string]any {
 	//nolint:funlen // Readiness details builder has many field assignments.
 	completeness := classifyEventProcessorRolloutWiringCompleteness(runtimeState)
 
-	details := map[string]interface{}{
+	details := map[string]any{
 		"runtime_mode":              completeness.Mode,
 		"rollout_ready":             completeness.AdvisoryReady,
 		"rollout_status":            completeness.AdvisoryStatus,
@@ -275,12 +275,12 @@ func buildEventProcessorRuntimeSummary(
 	}
 }
 
-func buildEventProcessorSecurityRuntimeSection(authEnabled, rateLimitEnabled bool) map[string]interface{} {
+func buildEventProcessorSecurityRuntimeSection(authEnabled, rateLimitEnabled bool) map[string]any {
 	authPosture := classifyEventProcessorAuthPosture(authEnabled)
 	rateLimitPosture := classifyEventProcessorRateLimitPosture(rateLimitEnabled)
 	securityPosture := classifyEventProcessorSecurityPosture(authEnabled, rateLimitEnabled)
 
-	return map[string]interface{}{
+	return map[string]any{
 		"route_boundary":     "runtime-entrypoint",
 		"auth_enabled":       authEnabled,
 		"rate_limit_enabled": rateLimitEnabled,
@@ -332,8 +332,8 @@ func classifyEventProcessorSecurityHint(authEnabled, rateLimitEnabled bool) stri
 	}
 }
 
-func buildEventProcessorProcessorSummary(runtimeState eventProcessorRolloutRuntimeState) map[string]interface{} {
-	summary := map[string]interface{}{
+func buildEventProcessorProcessorSummary(runtimeState eventProcessorRolloutRuntimeState) map[string]any {
+	summary := map[string]any{
 		"runtime_ready":                 runtimeState.ProcessorRuntimeReady,
 		"health_status":                 runtimeState.ProcessorHealthStatus,
 		"health_message":                runtimeState.ProcessorHealthMessage,
@@ -389,8 +389,8 @@ func buildEventProcessorProcessorSummary(runtimeState eventProcessorRolloutRunti
 	return summary
 }
 
-func buildEventProcessorMetricsSummary(metrics core.MetricsCollector) map[string]interface{} {
-	summary := map[string]interface{}{
+func buildEventProcessorMetricsSummary(metrics core.MetricsCollector) map[string]any {
+	summary := map[string]any{
 		"counter_count":   0,
 		"gauge_count":     0,
 		"histogram_count": 0,
@@ -415,11 +415,11 @@ func buildEventProcessorMetricsSummary(metrics core.MetricsCollector) map[string
 	return summary
 }
 
-func eventProcessorMetricsSectionCount(exported map[string]interface{}, section string) int {
+func eventProcessorMetricsSectionCount(exported map[string]any, section string) int {
 	if exported == nil {
 		return 0
 	}
-	values, ok := exported[section].(map[string]interface{})
+	values, ok := exported[section].(map[string]any)
 	if !ok {
 		return 0
 	}
@@ -449,7 +449,7 @@ func classifyEventProcessorKafkaActivityState(messageCount, errorCount int64) st
 	return "stalled"
 }
 
-func eventProcessorInt64Detail(details map[string]interface{}, key string) int64 {
+func eventProcessorInt64Detail(details map[string]any, key string) int64 {
 	if details == nil {
 		return 0
 	}
@@ -466,7 +466,7 @@ func eventProcessorInt64Detail(details map[string]interface{}, key string) int64
 	}
 }
 
-func eventProcessorInt64FromInterface(details map[string]interface{}, key string) int64 {
+func eventProcessorInt64FromInterface(details map[string]any, key string) int64 {
 	return eventProcessorInt64Detail(details, key)
 }
 

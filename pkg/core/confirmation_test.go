@@ -5,6 +5,7 @@ import (
 )
 
 func TestConfirmationConfig_Defaults(t *testing.T) {
+	t.Parallel()
 	cfg := DefaultConfirmationConfig()
 	if cfg.ConfirmBlocks != 12 {
 		t.Errorf("ConfirmBlocks = %d, want 12", cfg.ConfirmBlocks)
@@ -18,6 +19,7 @@ func TestConfirmationConfig_Defaults(t *testing.T) {
 }
 
 func TestConfirmationTracker_PendingToConfirmed(t *testing.T) {
+	t.Parallel()
 	cfg := ConfirmationConfig{
 		ConfirmBlocks:  3,
 		FinalizeEpochs: 2,
@@ -55,6 +57,7 @@ func TestConfirmationTracker_PendingToConfirmed(t *testing.T) {
 }
 
 func TestConfirmationTracker_ConfirmedToFinalized(t *testing.T) {
+	t.Parallel()
 	cfg := ConfirmationConfig{
 		ConfirmBlocks:  3,
 		FinalizeEpochs: 2,
@@ -84,6 +87,7 @@ func TestConfirmationTracker_ConfirmedToFinalized(t *testing.T) {
 }
 
 func TestConfirmationTracker_Callbacks(t *testing.T) {
+	t.Parallel()
 	cfg := ConfirmationConfig{
 		ConfirmBlocks:  2,
 		FinalizeEpochs: 1,
@@ -111,6 +115,7 @@ func TestConfirmationTracker_Callbacks(t *testing.T) {
 }
 
 func TestConfirmationTracker_Counts(t *testing.T) {
+	t.Parallel()
 	cfg := ConfirmationConfig{
 		ConfirmBlocks:  5,
 		FinalizeEpochs: 2,
@@ -140,6 +145,7 @@ func TestConfirmationTracker_Counts(t *testing.T) {
 }
 
 func TestConfirmationTracker_RemoveFinalized(t *testing.T) {
+	t.Parallel()
 	cfg := ConfirmationConfig{
 		ConfirmBlocks:  2,
 		FinalizeEpochs: 1,
@@ -167,6 +173,7 @@ func TestConfirmationTracker_RemoveFinalized(t *testing.T) {
 }
 
 func TestConfirmationTracker_MarkReorged(t *testing.T) {
+	t.Parallel()
 	cfg := ConfirmationConfig{
 		ConfirmBlocks:  5,
 		FinalizeEpochs: 2,
@@ -191,6 +198,7 @@ func TestConfirmationTracker_MarkReorged(t *testing.T) {
 }
 
 func TestConfirmationTracker_BlocksUntilConfirmed(t *testing.T) {
+	t.Parallel()
 	cfg := ConfirmationConfig{
 		ConfirmBlocks:  12,
 		FinalizeEpochs: 2,
@@ -228,6 +236,7 @@ func TestConfirmationTracker_BlocksUntilConfirmed(t *testing.T) {
 }
 
 func TestConfirmationTracker_DuplicateTrack(t *testing.T) {
+	t.Parallel()
 	cfg := ConfirmationConfig{ConfirmBlocks: 5, FinalizeEpochs: 2, SlotsPerEpoch: 32}
 	tracker := NewConfirmationTracker(cfg, "ethereum")
 
@@ -240,6 +249,7 @@ func TestConfirmationTracker_DuplicateTrack(t *testing.T) {
 }
 
 func TestConfirmationTracker_GetStatus_Untracked(t *testing.T) {
+	t.Parallel()
 	cfg := ConfirmationConfig{ConfirmBlocks: 5, FinalizeEpochs: 2, SlotsPerEpoch: 32}
 	tracker := NewConfirmationTracker(cfg, "ethereum")
 
@@ -249,6 +259,7 @@ func TestConfirmationTracker_GetStatus_Untracked(t *testing.T) {
 }
 
 func TestBlockchainEvent_IsFinalized(t *testing.T) {
+	t.Parallel()
 	ev := &BlockchainEvent{Status: EventStatusFinalized}
 	if !ev.IsFinalized() {
 		t.Error("expected IsFinalized = true")
@@ -261,6 +272,7 @@ func TestBlockchainEvent_IsFinalized(t *testing.T) {
 }
 
 func TestConfirmationTracker_Uint64UnderflowOnReorg(t *testing.T) {
+	t.Parallel()
 	// If the chain head moves backward (reorg), blockNumber < pe.BlockNumber.
 	// Without the underflow guard, subtraction wraps to ~2^64 and instantly
 	// satisfies the confirmation threshold, promoting events to Finalized.
@@ -285,6 +297,7 @@ func TestConfirmationTracker_Uint64UnderflowOnReorg(t *testing.T) {
 }
 
 func TestConfirmationTracker_BlocksUntilConfirmed_UnderflowOnReorg(t *testing.T) {
+	t.Parallel()
 	// After reorg, currentBlock < event.BlockNumber.
 	// BlocksUntilConfirmed must not underflow and must return ConfirmBlocks
 	// (full wait still needed, not 0).

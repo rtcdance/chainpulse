@@ -12,6 +12,7 @@ import (
 )
 
 func TestEncodeType(t *testing.T) {
+	t.Parallel()
 	types := apitypes.Types{
 		"EIP712Domain": {},
 		"Mail": {
@@ -33,6 +34,7 @@ func TestEncodeType(t *testing.T) {
 }
 
 func TestTypeHash(t *testing.T) {
+	t.Parallel()
 	types := apitypes.Types{
 		"Mail": {
 			{Name: "from", Type: "Person"},
@@ -51,6 +53,7 @@ func TestTypeHash(t *testing.T) {
 }
 
 func TestEncodeTypeCircularReference(t *testing.T) {
+	t.Parallel()
 	types := apitypes.Types{
 		"A": {
 			{Name: "b", Type: "B"},
@@ -65,6 +68,7 @@ func TestEncodeTypeCircularReference(t *testing.T) {
 }
 
 func TestEncodeTypeUnknownType(t *testing.T) {
+	t.Parallel()
 	types := apitypes.Types{
 		"Mail": {
 			{Name: "from", Type: "NonExistent"},
@@ -78,13 +82,14 @@ func TestEncodeTypeUnknownType(t *testing.T) {
 	assert.Contains(t, encoded, "NonExistent")
 
 	// HashStruct should fail because "NonExistent" is not a known type or primitive
-	_, err = HashStruct("Mail", types, map[string]interface{}{
+	_, err = HashStruct("Mail", types, map[string]any{
 		"from": "some_value",
 	})
 	assert.Error(t, err)
 }
 
 func TestHashStructPrimitiveTypes(t *testing.T) {
+	t.Parallel()
 	types := apitypes.Types{
 		"TestStruct": {
 			{Name: "intValue", Type: "uint256"},
@@ -93,7 +98,7 @@ func TestHashStructPrimitiveTypes(t *testing.T) {
 		},
 	}
 
-	data := map[string]interface{}{
+	data := map[string]any{
 		"intValue":  big.NewInt(42),
 		"boolValue": true,
 		"addrValue": common.HexToAddress("0x1234567890123456789012345678901234567890"),
@@ -105,6 +110,7 @@ func TestHashStructPrimitiveTypes(t *testing.T) {
 }
 
 func TestHashDomainSeparator(t *testing.T) {
+	t.Parallel()
 	domain := EIP712Domain{
 		Name:              "Ether Mail",
 		Version:           "1",
@@ -118,6 +124,7 @@ func TestHashDomainSeparator(t *testing.T) {
 }
 
 func TestHashDomainSeparatorMissingChainID(t *testing.T) {
+	t.Parallel()
 	domain := EIP712Domain{
 		Name:    "Test",
 		Version: "1",
@@ -129,6 +136,7 @@ func TestHashDomainSeparatorMissingChainID(t *testing.T) {
 }
 
 func TestHashTypedData(t *testing.T) {
+	t.Parallel()
 	types := apitypes.Types{
 		"EIP712Domain": {
 			{Name: "name", Type: "string"},
@@ -156,12 +164,12 @@ func TestHashTypedData(t *testing.T) {
 			ChainID:           big.NewInt(1),
 			VerifyingContract: common.HexToAddress("0xCcCCccccCCCCcCCCCCCcCcCccCcCCCcCcccccccC"),
 		},
-		Message: map[string]interface{}{
-			"from": map[string]interface{}{
+		Message: map[string]any{
+			"from": map[string]any{
 				"name":   "Cow",
 				"wallet": common.HexToAddress("0xCD2a3d9F938E13CD947Ec05AbC7FE734Df8DD826"),
 			},
-			"to": map[string]interface{}{
+			"to": map[string]any{
 				"name":   "Bob",
 				"wallet": common.HexToAddress("0xbBbBBBBbbBBBbbbBbbBbbbbBBbBbbbbBbBbbBBbB"),
 			},
@@ -175,6 +183,7 @@ func TestHashTypedData(t *testing.T) {
 }
 
 func TestHashTypedDataNilMessage(t *testing.T) {
+	t.Parallel()
 	td := TypedData{
 		Types:       apitypes.Types{},
 		PrimaryType: "Test",
@@ -186,6 +195,7 @@ func TestHashTypedDataNilMessage(t *testing.T) {
 }
 
 func TestVerifyTypedDataRoundTrip(t *testing.T) {
+	t.Parallel()
 	types := apitypes.Types{
 		"EIP712Domain": {
 			{Name: "name", Type: "string"},
@@ -212,7 +222,7 @@ func TestVerifyTypedDataRoundTrip(t *testing.T) {
 			ChainID:           big.NewInt(1),
 			VerifyingContract: common.HexToAddress("0x0000000000000000000000000000000000000001"),
 		},
-		Message: map[string]interface{}{
+		Message: map[string]any{
 			"message": "hello world",
 			"value":   big.NewInt(100),
 		},
@@ -241,6 +251,7 @@ func TestVerifyTypedDataRoundTrip(t *testing.T) {
 }
 
 func TestVerifyTypedDataInvalidSignatureLength(t *testing.T) {
+	t.Parallel()
 	td := TypedData{
 		Types:       apitypes.Types{},
 		PrimaryType: "Test",
@@ -249,7 +260,7 @@ func TestVerifyTypedDataInvalidSignatureLength(t *testing.T) {
 			Version: "1",
 			ChainID: big.NewInt(1),
 		},
-		Message: map[string]interface{}{"foo": "bar"},
+		Message: map[string]any{"foo": "bar"},
 	}
 
 	_, err := VerifyTypedData(td, []byte{1, 2, 3}, common.Address{})
@@ -257,6 +268,7 @@ func TestVerifyTypedDataInvalidSignatureLength(t *testing.T) {
 }
 
 func TestEncodeValueStringAndBytes(t *testing.T) {
+	t.Parallel()
 	types := apitypes.Types{
 		"Test": {
 			{Name: "str", Type: "string"},
@@ -264,7 +276,7 @@ func TestEncodeValueStringAndBytes(t *testing.T) {
 		},
 	}
 
-	data := map[string]interface{}{
+	data := map[string]any{
 		"str": "hello",
 		"bts": []byte("world"),
 	}
@@ -275,13 +287,14 @@ func TestEncodeValueStringAndBytes(t *testing.T) {
 }
 
 func TestEncodeValueIntFromString(t *testing.T) {
+	t.Parallel()
 	types := apitypes.Types{
 		"Test": {
 			{Name: "amount", Type: "uint256"},
 		},
 	}
 
-	data := map[string]interface{}{
+	data := map[string]any{
 		"amount": "1000000000000000000",
 	}
 
@@ -291,6 +304,7 @@ func TestEncodeValueIntFromString(t *testing.T) {
 }
 
 func TestEncodeValueBool(t *testing.T) {
+	t.Parallel()
 	types := apitypes.Types{
 		"Test": {
 			{Name: "flag", Type: "bool"},
@@ -298,14 +312,14 @@ func TestEncodeValueBool(t *testing.T) {
 	}
 
 	t.Run("true", func(t *testing.T) {
-		data := map[string]interface{}{"flag": true}
+		data := map[string]any{"flag": true}
 		hash, err := HashStruct("Test", types, data)
 		require.NoError(t, err)
 		assert.NotEqual(t, [32]byte{}, hash)
 	})
 
 	t.Run("false", func(t *testing.T) {
-		data := map[string]interface{}{"flag": false}
+		data := map[string]any{"flag": false}
 		hash, err := HashStruct("Test", types, data)
 		require.NoError(t, err)
 		// False encodes as all zeros, but the hash includes the type hash so it's non-zero

@@ -16,6 +16,7 @@ import (
 
 // TestNewRequestRouter tests request router initialization
 func TestNewRequestRouter(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 
@@ -29,6 +30,7 @@ func TestNewRequestRouter(t *testing.T) {
 
 // TestInitialize tests router initialization
 func TestInitialize(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	router := NewRequestRouter(logger, metrics)
@@ -41,6 +43,7 @@ func TestInitialize(t *testing.T) {
 
 // TestInitializeWithoutLogger tests initialization without logger
 func TestInitializeWithoutLogger(t *testing.T) {
+	t.Parallel()
 	metrics := NewMockMetricsCollector()
 	router := &RequestRouter{
 		routes:          make(map[string]*Route),
@@ -58,6 +61,7 @@ func TestInitializeWithoutLogger(t *testing.T) {
 
 // TestInitializeWithoutMetrics tests initialization without metrics
 func TestInitializeWithoutMetrics(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	router := &RequestRouter{
 		routes:          make(map[string]*Route),
@@ -75,6 +79,7 @@ func TestInitializeWithoutMetrics(t *testing.T) {
 
 // TestRegisterRoute tests route registration
 func TestRegisterRoute(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	router := NewRequestRouter(logger, metrics)
@@ -93,6 +98,7 @@ func TestRegisterRoute(t *testing.T) {
 
 // TestRegisterRouteNil tests registering nil route
 func TestRegisterRouteNil(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	router := NewRequestRouter(logger, metrics)
@@ -105,6 +111,7 @@ func TestRegisterRouteNil(t *testing.T) {
 
 // TestRegisterRouteNoID tests registering route without ID
 func TestRegisterRouteNoID(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	router := NewRequestRouter(logger, metrics)
@@ -122,6 +129,7 @@ func TestRegisterRouteNoID(t *testing.T) {
 
 // TestRegisterRouteNoPattern tests registering route without pattern
 func TestRegisterRouteNoPattern(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	router := NewRequestRouter(logger, metrics)
@@ -139,6 +147,7 @@ func TestRegisterRouteNoPattern(t *testing.T) {
 
 // TestRegisterRouteDuplicate tests registering duplicate route
 func TestRegisterRouteDuplicate(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	router := NewRequestRouter(logger, metrics)
@@ -159,6 +168,7 @@ func TestRegisterRouteDuplicate(t *testing.T) {
 
 // TestUnregisterRoute tests route unregistration
 func TestUnregisterRoute(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	router := NewRequestRouter(logger, metrics)
@@ -179,6 +189,7 @@ func TestUnregisterRoute(t *testing.T) {
 
 // TestUnregisterRouteNotFound tests unregistering nonexistent route
 func TestUnregisterRouteNotFound(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	router := NewRequestRouter(logger, metrics)
@@ -191,6 +202,7 @@ func TestUnregisterRouteNotFound(t *testing.T) {
 
 // TestGetRoute tests getting a route
 func TestGetRoute(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	router := NewRequestRouter(logger, metrics)
@@ -211,6 +223,7 @@ func TestGetRoute(t *testing.T) {
 
 // TestGetRouteNotFound tests getting nonexistent route
 func TestGetRouteNotFound(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	router := NewRequestRouter(logger, metrics)
@@ -223,6 +236,7 @@ func TestGetRouteNotFound(t *testing.T) {
 
 // TestGetRoutes tests getting all routes
 func TestGetRoutes(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	router := NewRequestRouter(logger, metrics)
@@ -242,6 +256,7 @@ func TestGetRoutes(t *testing.T) {
 
 // TestRequestRouterGetMetrics tests getting router metrics
 func TestRequestRouterGetMetrics(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	router := NewRequestRouter(logger, metrics)
@@ -258,6 +273,7 @@ func TestRequestRouterGetMetrics(t *testing.T) {
 
 // TestNewCircuitBreaker tests circuit breaker initialization
 func TestNewCircuitBreaker(t *testing.T) {
+	t.Parallel()
 	cb := NewCircuitBreaker(5, 30*time.Second)
 
 	require.NotNil(t, cb)
@@ -268,6 +284,7 @@ func TestNewCircuitBreaker(t *testing.T) {
 
 // TestCircuitBreakerRecordSuccess tests recording success
 func TestCircuitBreakerRecordSuccess(t *testing.T) {
+	t.Parallel()
 	cb := NewCircuitBreaker(5, 30*time.Second)
 
 	cb.RecordSuccess()
@@ -277,6 +294,7 @@ func TestCircuitBreakerRecordSuccess(t *testing.T) {
 
 // TestCircuitBreakerRecordFailure tests recording failure
 func TestCircuitBreakerRecordFailure(t *testing.T) {
+	t.Parallel()
 	cb := NewCircuitBreaker(3, 30*time.Second)
 
 	cb.RecordFailure()
@@ -288,6 +306,7 @@ func TestCircuitBreakerRecordFailure(t *testing.T) {
 
 // TestCircuitBreakerIsOpen tests checking if circuit breaker is open
 func TestCircuitBreakerIsOpen(t *testing.T) {
+	t.Parallel()
 	cb := NewCircuitBreaker(2, 30*time.Second)
 
 	assert.False(t, cb.IsOpen())
@@ -300,6 +319,7 @@ func TestCircuitBreakerIsOpen(t *testing.T) {
 
 // TestCircuitBreakerTimeout tests circuit breaker timeout
 func TestCircuitBreakerTimeout(t *testing.T) {
+	t.Parallel()
 	cb := NewCircuitBreaker(1, 100*time.Millisecond)
 
 	cb.RecordFailure()
@@ -315,6 +335,7 @@ func TestCircuitBreakerTimeout(t *testing.T) {
 
 // TestCircuitBreakerHalfOpenSuccess tests half-open to closed transition
 func TestCircuitBreakerHalfOpenSuccess(t *testing.T) {
+	t.Parallel()
 	cb := NewCircuitBreaker(1, 100*time.Millisecond)
 
 	cb.RecordFailure()
@@ -331,6 +352,7 @@ func TestCircuitBreakerHalfOpenSuccess(t *testing.T) {
 
 // TestCircuitBreakerGetState tests getting circuit breaker state
 func TestCircuitBreakerGetState(t *testing.T) {
+	t.Parallel()
 	cb := NewCircuitBreaker(5, 30*time.Second)
 
 	assert.Equal(t, "closed", cb.GetState())
@@ -346,6 +368,7 @@ func TestCircuitBreakerGetState(t *testing.T) {
 
 // TestConcurrentRouteRegistration tests concurrent route registration
 func TestConcurrentRouteRegistration(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	router := NewRequestRouter(logger, metrics)
@@ -373,6 +396,7 @@ func TestConcurrentRouteRegistration(t *testing.T) {
 
 // TestConcurrentRouteUnregistration tests concurrent route unregistration
 func TestConcurrentRouteUnregistration(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	router := NewRequestRouter(logger, metrics)
@@ -404,6 +428,7 @@ func TestConcurrentRouteUnregistration(t *testing.T) {
 
 // TestForwardRequestNilRoute tests forwarding with nil route
 func TestForwardRequestNilRoute(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	router := NewRequestRouter(logger, metrics)
@@ -421,6 +446,7 @@ func TestForwardRequestNilRoute(t *testing.T) {
 
 // TestForwardRequestNilRequest tests forwarding with nil request
 func TestForwardRequestNilRequest(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	router := NewRequestRouter(logger, metrics)
@@ -434,6 +460,7 @@ func TestForwardRequestNilRequest(t *testing.T) {
 }
 
 func TestForwardRequestInjectsTraceContext(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	router := NewRequestRouter(logger, metrics)
@@ -475,6 +502,7 @@ func TestForwardRequestInjectsTraceContext(t *testing.T) {
 
 // TestMultipleRoutes tests managing multiple routes
 func TestMultipleRoutes(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	router := NewRequestRouter(logger, metrics)
@@ -499,6 +527,7 @@ func TestMultipleRoutes(t *testing.T) {
 
 // TestRouterMetricsRecording tests metrics recording
 func TestRouterMetricsRecording(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	router := NewRequestRouter(logger, metrics)
@@ -515,6 +544,7 @@ func TestRouterMetricsRecording(t *testing.T) {
 
 // TestCircuitBreakerConcurrency tests circuit breaker thread safety
 func TestCircuitBreakerConcurrency(t *testing.T) {
+	t.Parallel()
 	cb := NewCircuitBreaker(100, 30*time.Second)
 
 	var wg sync.WaitGroup
@@ -542,6 +572,7 @@ func TestCircuitBreakerConcurrency(t *testing.T) {
 
 // TestRouterInitializeIdempotent tests that initialize is idempotent
 func TestRouterInitializeIdempotent(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	router := NewRequestRouter(logger, metrics)
@@ -556,6 +587,7 @@ func TestRouterInitializeIdempotent(t *testing.T) {
 
 // TestRouteRegistrationWithLoadBalancer tests load balancer creation on route registration
 func TestRouteRegistrationWithLoadBalancer(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	router := NewRequestRouter(logger, metrics)
@@ -571,6 +603,7 @@ func TestRouteRegistrationWithLoadBalancer(t *testing.T) {
 
 // TestRouteRegistrationWithCircuitBreaker tests circuit breaker creation on route registration
 func TestRouteRegistrationWithCircuitBreaker(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	router := NewRequestRouter(logger, metrics)
@@ -586,6 +619,7 @@ func TestRouteRegistrationWithCircuitBreaker(t *testing.T) {
 
 // TestRouteUnregistrationCleansUp tests cleanup on route unregistration
 func TestRouteUnregistrationCleansUp(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	router := NewRequestRouter(logger, metrics)
@@ -605,6 +639,7 @@ func TestRouteUnregistrationCleansUp(t *testing.T) {
 
 // TestCircuitBreakerFailureThreshold tests failure threshold
 func TestCircuitBreakerFailureThreshold(t *testing.T) {
+	t.Parallel()
 	cb := NewCircuitBreaker(3, 30*time.Second)
 
 	assert.False(t, cb.IsOpen())
@@ -621,6 +656,7 @@ func TestCircuitBreakerFailureThreshold(t *testing.T) {
 
 // TestForwardedRequestStructure tests ForwardedRequest structure
 func TestForwardedRequestStructure(t *testing.T) {
+	t.Parallel()
 	req := &ForwardedRequest{
 		Method:  "POST",
 		Path:    "/api/users",
@@ -637,6 +673,7 @@ func TestForwardedRequestStructure(t *testing.T) {
 
 // TestAggregatedResponseStructure tests AggregatedResponse structure
 func TestAggregatedResponseStructure(t *testing.T) {
+	t.Parallel()
 	resp := &AggregatedResponse{
 		Status:  200,
 		Headers: map[string]string{"Content-Type": "application/json"},
@@ -649,6 +686,7 @@ func TestAggregatedResponseStructure(t *testing.T) {
 
 // TestRouterDefaultTimeout tests default timeout setting
 func TestRouterDefaultTimeout(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	router := NewRequestRouter(logger, metrics)

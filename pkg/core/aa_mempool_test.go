@@ -11,6 +11,7 @@ import (
 // --- AAMempool tests ---
 
 func TestAAMempoolAddAndRemove(t *testing.T) {
+	t.Parallel()
 	pool := NewAAMempool(100, 5*time.Minute)
 
 	op := &UserOperation{
@@ -23,13 +24,13 @@ func TestAAMempoolAddAndRemove(t *testing.T) {
 	}
 
 	entry := &AAMempoolEntry{
-		UserOp:      op,
+		UserOp:         op,
 		EntryPointAddr: EntryPointAddresses[EntryPointV06],
-		SubmittedAt: time.Now(),
-		PriorityFee: big.NewInt(1e9),
-		Sender:      op.Sender,
-		Hash:        "test-hash-1",
-		PreValidation: &PreValidationResult{Success: true},
+		SubmittedAt:    time.Now(),
+		PriorityFee:    big.NewInt(1e9),
+		Sender:         op.Sender,
+		Hash:           "test-hash-1",
+		PreValidation:  &PreValidationResult{Success: true},
 	}
 
 	if !pool.AddEntry(entry) {
@@ -61,6 +62,7 @@ func TestAAMempoolAddAndRemove(t *testing.T) {
 }
 
 func TestAAMempoolPriorityOrdering(t *testing.T) {
+	t.Parallel()
 	pool := NewAAMempool(100, 5*time.Minute)
 
 	for i := 0; i < 5; i++ {
@@ -69,9 +71,9 @@ func TestAAMempoolPriorityOrdering(t *testing.T) {
 				Sender:               common.HexToAddress("0x1234"),
 				MaxPriorityFeePerGas: big.NewInt(int64((i + 1) * 1e9)),
 			},
-			SubmittedAt: time.Now(),
-			PriorityFee: big.NewInt(int64((i + 1) * 1e9)),
-			Hash:        string(rune('a' + i)),
+			SubmittedAt:   time.Now(),
+			PriorityFee:   big.NewInt(int64((i + 1) * 1e9)),
+			Hash:          string(rune('a' + i)),
 			PreValidation: &PreValidationResult{Success: true},
 		}
 		pool.AddEntry(entry)
@@ -92,6 +94,7 @@ func TestAAMempoolPriorityOrdering(t *testing.T) {
 }
 
 func TestAAMempoolCapacityEviction(t *testing.T) {
+	t.Parallel()
 	pool := NewAAMempool(3, 5*time.Minute)
 
 	for i := 0; i < 5; i++ {
@@ -100,9 +103,9 @@ func TestAAMempoolCapacityEviction(t *testing.T) {
 				Sender:               common.HexToAddress("0x1234"),
 				MaxPriorityFeePerGas: big.NewInt(int64((i + 1) * 1e9)),
 			},
-			SubmittedAt: time.Now(),
-			PriorityFee: big.NewInt(int64((i + 1) * 1e9)),
-			Hash:        string(rune('a' + i)),
+			SubmittedAt:   time.Now(),
+			PriorityFee:   big.NewInt(int64((i + 1) * 1e9)),
+			Hash:          string(rune('a' + i)),
 			PreValidation: &PreValidationResult{Success: true},
 		}
 		pool.AddEntry(entry)
@@ -115,6 +118,7 @@ func TestAAMempoolCapacityEviction(t *testing.T) {
 }
 
 func TestAAMempoolNilEntry(t *testing.T) {
+	t.Parallel()
 	pool := NewAAMempool(100, 5*time.Minute)
 	if pool.AddEntry(nil) {
 		t.Error("nil entry should not be added")
@@ -122,13 +126,14 @@ func TestAAMempoolNilEntry(t *testing.T) {
 }
 
 func TestAAMempoolExpiredEntry(t *testing.T) {
+	t.Parallel()
 	pool := NewAAMempool(100, 100*time.Millisecond)
 
 	entry := &AAMempoolEntry{
-		UserOp: &UserOperation{Sender: common.HexToAddress("0x1234")},
-		SubmittedAt: time.Now().Add(-200 * time.Millisecond), // already expired
-		PriorityFee: big.NewInt(1e9),
-		Hash:        "expired",
+		UserOp:        &UserOperation{Sender: common.HexToAddress("0x1234")},
+		SubmittedAt:   time.Now().Add(-200 * time.Millisecond), // already expired
+		PriorityFee:   big.NewInt(1e9),
+		Hash:          "expired",
 		PreValidation: &PreValidationResult{Success: true},
 	}
 	pool.AddEntry(entry)
@@ -143,6 +148,7 @@ func TestAAMempoolExpiredEntry(t *testing.T) {
 // --- AA Stake tests ---
 
 func TestIsStakeSufficient(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		info     *StakeInfo
@@ -213,6 +219,7 @@ func TestIsStakeSufficient(t *testing.T) {
 }
 
 func TestStakeInfoWithdrawInProgress(t *testing.T) {
+	t.Parallel()
 	info := &StakeInfo{
 		WithdrawTime: time.Now().Add(1 * time.Hour),
 	}
@@ -229,6 +236,7 @@ func TestStakeInfoWithdrawInProgress(t *testing.T) {
 // --- EntryPoint Versioning tests ---
 
 func TestEntryPointVersionForAddress(t *testing.T) {
+	t.Parallel()
 	v06 := EntryPointVersionForAddress(EntryPointAddresses[EntryPointV06])
 	if v06 != EntryPointV06 {
 		t.Errorf("expected v0.6, got %s", v06)
@@ -246,6 +254,7 @@ func TestEntryPointVersionForAddress(t *testing.T) {
 }
 
 func TestUserOperationV07DecodeGasLimits(t *testing.T) {
+	t.Parallel()
 	op := &UserOperationV07{
 		AccountGasLimits: make([]byte, 32),
 	}
@@ -268,6 +277,7 @@ func TestUserOperationV07DecodeGasLimits(t *testing.T) {
 }
 
 func TestUserOperationV07DecodeFeePerGas(t *testing.T) {
+	t.Parallel()
 	op := &UserOperationV07{
 		MaxFeePerGas: make([]byte, 32),
 	}
@@ -288,6 +298,7 @@ func TestUserOperationV07DecodeFeePerGas(t *testing.T) {
 }
 
 func TestUserOperationV07ToUserOperation(t *testing.T) {
+	t.Parallel()
 	op := &UserOperationV07{
 		Sender:             common.HexToAddress("0x1234"),
 		Nonce:              big.NewInt(1),

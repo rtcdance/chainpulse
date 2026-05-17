@@ -11,6 +11,7 @@ func noopMiddleware(next core.Handler) core.Handler {
 }
 
 func TestMiddlewareRegistryRuntimeMetricsUnconfigured(t *testing.T) {
+	t.Parallel()
 	registry := NewMiddlewareRegistry()
 	registry.security = nil
 	registry.observability = nil
@@ -26,6 +27,7 @@ func TestMiddlewareRegistryRuntimeMetricsUnconfigured(t *testing.T) {
 }
 
 func TestMiddlewareRegistryRuntimeMetricsPartial(t *testing.T) {
+	t.Parallel()
 	registry := NewMiddlewareRegistry()
 	registry.GetSecurityGroup().SetAuthMiddleware(noopMiddleware)
 	registry.GetObservabilityGroup().SetHealthMiddleware(noopMiddleware)
@@ -40,6 +42,7 @@ func TestMiddlewareRegistryRuntimeMetricsPartial(t *testing.T) {
 }
 
 func TestMiddlewareRegistryRuntimeMetricsReady(t *testing.T) {
+	t.Parallel()
 	registry := NewMiddlewareRegistry()
 	registry.GetSecurityGroup().SetAuthMiddleware(noopMiddleware)
 	registry.GetSecurityGroup().SetTLSMiddleware(noopMiddleware)

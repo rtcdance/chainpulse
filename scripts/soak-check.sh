@@ -19,6 +19,11 @@ RUN_PRECHECK="${RUN_PRECHECK:-0}"
 RUN_POSTCHECK="${RUN_POSTCHECK:-0}"
 SOAK_LABEL="${SOAK_LABEL:-production}"
 
+PROMETHEUS_URL="${PROMETHEUS_URL:-http://localhost:9090}"
+SAMPLE_PROMETHEUS="${SAMPLE_PROMETHEUS:-1}"
+PROMETHEUS_MIN_EPS="${PROMETHEUS_MIN_EPS:-0}"
+PROMETHEUS_MAX_ERROR_RATE="${PROMETHEUS_MAX_ERROR_RATE:-}"
+
 usage() {
   cat <<'EOF'
 Usage: scripts/soak-check.sh
@@ -31,6 +36,10 @@ Environment variables:
   RUN_PRECHECK          set to 1 to run scripts/verify-production.sh before soak
   RUN_POSTCHECK         set to 1 to run scripts/verify-production.sh after soak
   SOAK_LABEL            environment label for reporting (default: production)
+  PROMETHEUS_URL        Prometheus API base URL (default: http://localhost:9090)
+  SAMPLE_PROMETHEUS     set to 1 to sample Prometheus metrics each cycle (default: 1)
+  PROMETHEUS_MIN_EPS    minimum acceptable events per second (default: 0)
+  PROMETHEUS_MAX_ERROR_RATE  maximum acceptable error rate (default: unset)
   API_GATEWAY_URL       default: http://localhost:8080
   API_SERVICE_URL       default: http://localhost:8081
   EVENT_PROCESSOR_URL   default: http://localhost:8082
@@ -102,6 +111,42 @@ run_verify_production() {
   )
 }
 
+sample_prometheus_metrics() {
+  local label="${1:-sample}"
+
+  local query_url="${PROMETHEUS_URL}/api/v1/query"
+
+  local eps
+  eps="$(curl -fsS --data-urlencode 'query=rate(chainpulse_events_processed_total[1m])' "${query_url}" 2>/dev/null || true)"
+
+  local errors
+  errors="$(curl -fsS --data-urlencode 'query=rate(chainpulse_errors_total[1m])' "${query_url}" 2>/dev/null || true)"
+
+  local latency_p95
+  latency_p95="$(curl -fsS --data-urlencode 'query=histogram_quantile(0.95, rate(chainpulse_api_request_duration_seconds_bucket[1m]))' "${query_url}" 2>/dev/null || true)"
+
+  log "Prometheus metrics [${label}]"
+  log "  events/sec: ${eps}"
+  log "  errors/sec: ${errors}"
+  log "  api p95 latency: ${latency_p95}"
+
+  if [[ -n "${PROMETHEUS_MIN_EPS}" && "${PROMETHEUS_MIN_EPS}" != "0" ]]; then
+    local eps_val
+    eps_val="$(echo "${eps}" | grep -o '"value":\[[^,]*,"[^"]*"\]' | grep -o '"[^"]*"\]' | tr -d '"]' || true)"
+    if [[ -n "${eps_val}" ]] && (( $(echo "${eps_val} < ${PROMETHEUS_MIN_EPS}" | bc -l 2>/dev/null || echo 0) )); then
+      fail "events/sec ${eps_val} below minimum ${PROMETHEUS_MIN_EPS}"
+    fi
+  fi
+
+  if [[ -n "${PROMETHEUS_MAX_ERROR_RATE}" ]]; then
+    local error_val
+    error_val="$(echo "${errors}" | grep -o '"value":\[[^,]*,"[^"]*"\]' | grep -o '"[^"]*"\]' | tr -d '"]' || true)"
+    if [[ -n "${error_val}" ]] && (( $(echo "${error_val} > ${PROMETHEUS_MAX_ERROR_RATE}" | bc -l 2>/dev/null || echo 0) )); then
+      fail "error rate ${error_val} exceeds maximum ${PROMETHEUS_MAX_ERROR_RATE}"
+    fi
+  fi
+}
+
 sample_service() {
   local base_url="$1"
   local health_path="$2"
@@ -142,6 +187,7 @@ assert_positive_integer "DURATION_SECONDS" "${DURATION_SECONDS}"
 assert_positive_integer "INTERVAL_SECONDS" "${INTERVAL_SECONDS}"
 assert_toggle "RUN_PRECHECK" "${RUN_PRECHECK}"
 assert_toggle "RUN_POSTCHECK" "${RUN_POSTCHECK}"
+assert_toggle "SAMPLE_PROMETHEUS" "${SAMPLE_PROMETHEUS}"
 
 if [[ "${INTERVAL_SECONDS}" -gt "${DURATION_SECONDS}" ]]; then
   fail "INTERVAL_SECONDS must be less than or equal to DURATION_SECONDS"
@@ -163,6 +209,9 @@ fi
 for ((sample=1; sample<=samples; sample++)); do
   log "Running sample ${sample}/${samples}"
   sample_window
+  if [[ "${SAMPLE_PROMETHEUS}" == "1" ]]; then
+    sample_prometheus_metrics "${sample}/${samples}"
+  fi
   if [[ "${sample}" -lt "${samples}" ]]; then
     sleep "${INTERVAL_SECONDS}"
   fi

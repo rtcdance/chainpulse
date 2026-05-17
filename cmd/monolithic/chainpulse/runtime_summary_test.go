@@ -8,31 +8,29 @@ import (
 
 	"chainpulse/pkg/core"
 	"chainpulse/pkg/plugins/api"
-
-	appindexing "chainpulse/pkg/application/indexing"
 )
 
 type monolithicRuntimeSummarySharedRuntimeStub struct {
-	status appindexing.RuntimeStatus
+	status core.RuntimeStatus
 }
 
-func (s monolithicRuntimeSummarySharedRuntimeStub) Status() appindexing.RuntimeStatus {
+func (s monolithicRuntimeSummarySharedRuntimeStub) Status() core.RuntimeStatus {
 	return s.status
 }
 
 type monolithicRuntimeSummaryIndexerStub struct {
-	status map[string]map[string]interface{}
+	status map[string]map[string]any
 }
 
-func (s monolithicRuntimeSummaryIndexerStub) GetStatus() map[string]map[string]interface{} {
+func (s monolithicRuntimeSummaryIndexerStub) GetStatus() map[string]map[string]any {
 	return s.status
 }
 
 type monolithicRuntimeSummaryQuerySurfaceStub struct {
-	data map[string]interface{}
+	data map[string]any
 }
 
-func (s monolithicRuntimeSummaryQuerySurfaceStub) summary() map[string]interface{} {
+func (s monolithicRuntimeSummaryQuerySurfaceStub) summary() map[string]any {
 	return s.data
 }
 
@@ -53,10 +51,10 @@ func (s monolithicRuntimeSummaryPullerStub) PullerStatus() monolithicPullerSumma
 }
 
 type monolithicRuntimeSummaryDeploymentStub struct {
-	data map[string]interface{}
+	data map[string]any
 }
 
-func (s monolithicRuntimeSummaryDeploymentStub) deploymentSummary() map[string]interface{} {
+func (s monolithicRuntimeSummaryDeploymentStub) deploymentSummary() map[string]any {
 	return s.data
 }
 
@@ -72,7 +70,7 @@ func TestMonolithicRuntimeSummaryRoute(t *testing.T) {
 	gateway.SetHealthCheckHandler(healthHandler)
 
 	sharedRuntime := monolithicRuntimeSummarySharedRuntimeStub{
-		status: appindexing.RuntimeStatus{
+		status: core.RuntimeStatus{
 			State:                   "running",
 			Initialized:             true,
 			Started:                 true,
@@ -95,7 +93,7 @@ func TestMonolithicRuntimeSummaryRoute(t *testing.T) {
 		},
 	}
 	indexer := monolithicRuntimeSummaryIndexerStub{
-		status: map[string]map[string]interface{}{
+		status: map[string]map[string]any{
 			"ethereum": {
 				"shadow_owned_events": int64(4),
 				"legacy_owned_events": int64(1),
@@ -108,7 +106,7 @@ func TestMonolithicRuntimeSummaryRoute(t *testing.T) {
 	}
 
 	querySurface := monolithicRuntimeSummaryQuerySurfaceStub{
-		data: map[string]interface{}{
+		data: map[string]any{
 			"query_alignment_posture": "monolithic-query-indexing-aligned",
 			"query_reliability_hint":  "query reads are aligned to indexing-backed storage",
 		},
@@ -150,7 +148,7 @@ func TestMonolithicRuntimeSummaryRoute(t *testing.T) {
 		},
 	}
 	deploymentMode := monolithicRuntimeSummaryDeploymentStub{
-		data: map[string]interface{}{
+		data: map[string]any{
 			"deployment_mode":            deploymentModeMonolithic,
 			"deployment_posture":         "deployment-mode-monolithic",
 			"adapter_profile":            "monolithic-runtime-profile",
@@ -186,7 +184,7 @@ func TestMonolithicRuntimeSummaryRoute(t *testing.T) {
 		t.Fatalf("expected status 200, got %d, body=%s", rr.Code, rr.Body.String())
 	}
 
-	var payload map[string]interface{}
+	var payload map[string]any
 	if err := json.Unmarshal(rr.Body.Bytes(), &payload); err != nil {
 		t.Fatalf("unmarshal response: %v", err)
 	}
@@ -210,7 +208,7 @@ func TestMonolithicRuntimeSummaryRoute(t *testing.T) {
 		t.Fatalf("expected component_state healthy, got %v", got)
 	}
 
-	indexing, ok := payload["indexing"].(map[string]interface{})
+	indexing, ok := payload["indexing"].(map[string]any)
 	if !ok {
 		t.Fatalf("expected indexing object, got %T", payload["indexing"])
 	}
@@ -254,7 +252,7 @@ func TestMonolithicRuntimeSummaryRoute(t *testing.T) {
 		t.Fatalf("expected reorg_posture monolithic-reorg-armed, got %v", got)
 	}
 
-	querySummary, ok := payload["query"].(map[string]interface{})
+	querySummary, ok := payload["query"].(map[string]any)
 	if !ok {
 		t.Fatalf("expected query object, got %T", payload["query"])
 	}
@@ -262,7 +260,7 @@ func TestMonolithicRuntimeSummaryRoute(t *testing.T) {
 		t.Fatalf("expected query_alignment_posture monolithic-query-indexing-aligned, got %v", got)
 	}
 
-	pullerSummary, ok := payload["puller"].(map[string]interface{})
+	pullerSummary, ok := payload["puller"].(map[string]any)
 	if !ok {
 		t.Fatalf("expected puller object, got %T", payload["puller"])
 	}
@@ -279,7 +277,7 @@ func TestMonolithicRuntimeSummaryRoute(t *testing.T) {
 		t.Fatalf("expected control_target polling-loop, got %v", got)
 	}
 
-	gatewaySummary, ok := payload["gateway"].(map[string]interface{})
+	gatewaySummary, ok := payload["gateway"].(map[string]any)
 	if !ok {
 		t.Fatalf("expected gateway object, got %T", payload["gateway"])
 	}
@@ -317,7 +315,7 @@ func TestMonolithicRuntimeSummaryRoute(t *testing.T) {
 		t.Fatalf("expected gateway_posture monolithic-gateway-ready, got %v", got)
 	}
 
-	metricsSummary, ok := payload["metrics"].(map[string]interface{})
+	metricsSummary, ok := payload["metrics"].(map[string]any)
 	if !ok {
 		t.Fatalf("expected metrics object, got %T", payload["metrics"])
 	}
@@ -325,7 +323,7 @@ func TestMonolithicRuntimeSummaryRoute(t *testing.T) {
 		t.Fatalf("expected collector_state available, got %v", got)
 	}
 
-	deploymentSummary, ok := payload["deployment"].(map[string]interface{})
+	deploymentSummary, ok := payload["deployment"].(map[string]any)
 	if !ok {
 		t.Fatalf("expected deployment object, got %T", payload["deployment"])
 	}
@@ -352,7 +350,7 @@ func TestMonolithicRuntimeSummaryRouteReflectsRecoveringRuntime(t *testing.T) {
 	gateway.SetHealthCheckHandler(healthHandler)
 
 	sharedRuntime := monolithicRuntimeSummarySharedRuntimeStub{
-		status: appindexing.RuntimeStatus{
+		status: core.RuntimeStatus{
 			State:                   "running",
 			Initialized:             true,
 			Started:                 true,
@@ -372,12 +370,12 @@ func TestMonolithicRuntimeSummaryRouteReflectsRecoveringRuntime(t *testing.T) {
 		},
 	}
 	indexer := monolithicRuntimeSummaryIndexerStub{
-		status: map[string]map[string]interface{}{
+		status: map[string]map[string]any{
 			"ethereum": {"shadow_owned_events": int64(4)},
 		},
 	}
 	querySurface := monolithicRuntimeSummaryQuerySurfaceStub{
-		data: map[string]interface{}{
+		data: map[string]any{
 			"query_alignment_posture": "monolithic-query-indexing-aligned",
 			"query_reliability_hint":  "query reads are aligned to indexing-backed storage",
 		},
@@ -413,7 +411,7 @@ func TestMonolithicRuntimeSummaryRouteReflectsRecoveringRuntime(t *testing.T) {
 		},
 	}
 	deploymentMode := monolithicRuntimeSummaryDeploymentStub{
-		data: map[string]interface{}{
+		data: map[string]any{
 			"deployment_mode":            deploymentModeMonolithic,
 			"deployment_posture":         "deployment-mode-monolithic",
 			"adapter_profile":            "monolithic-runtime-profile",
@@ -437,7 +435,7 @@ func TestMonolithicRuntimeSummaryRouteReflectsRecoveringRuntime(t *testing.T) {
 	rr := httptest.NewRecorder()
 	gateway.HTTPHandler().ServeHTTP(rr, req)
 
-	var payload map[string]interface{}
+	var payload map[string]any
 	if err := json.Unmarshal(rr.Body.Bytes(), &payload); err != nil {
 		t.Fatalf("unmarshal response: %v", err)
 	}
@@ -466,7 +464,7 @@ func TestMonolithicRuntimeSummaryRouteReflectsReadyRuntimeSurfaceInventory(t *te
 	gateway.SetHealthCheckHandler(healthHandler)
 
 	sharedRuntime := monolithicRuntimeSummarySharedRuntimeStub{
-		status: appindexing.RuntimeStatus{
+		status: core.RuntimeStatus{
 			State:       "running",
 			Initialized: true,
 			Started:     true,
@@ -474,12 +472,12 @@ func TestMonolithicRuntimeSummaryRouteReflectsReadyRuntimeSurfaceInventory(t *te
 		},
 	}
 	indexer := monolithicRuntimeSummaryIndexerStub{
-		status: map[string]map[string]interface{}{
+		status: map[string]map[string]any{
 			"ethereum": {"shadow_owned_events": int64(1)},
 		},
 	}
 	querySurface := monolithicRuntimeSummaryQuerySurfaceStub{
-		data: map[string]interface{}{
+		data: map[string]any{
 			"query_alignment_posture": "monolithic-query-managed-runtime",
 			"query_runtime_adapter":   "managed-db-runtime-wiring",
 			"query_selection_posture": "query-surface-managed-runtime",
@@ -511,7 +509,7 @@ func TestMonolithicRuntimeSummaryRouteReflectsReadyRuntimeSurfaceInventory(t *te
 		},
 	}
 	deploymentMode := monolithicRuntimeSummaryDeploymentStub{
-		data: map[string]interface{}{
+		data: map[string]any{
 			"deployment_mode":            deploymentModeMicroservice,
 			"deployment_posture":         "deployment-mode-microservice-intent",
 			"adapter_profile":            "microservice-target-profile",
@@ -539,12 +537,12 @@ func TestMonolithicRuntimeSummaryRouteReflectsReadyRuntimeSurfaceInventory(t *te
 	rr := httptest.NewRecorder()
 	gateway.HTTPHandler().ServeHTTP(rr, req)
 
-	var payload map[string]interface{}
+	var payload map[string]any
 	if err := json.Unmarshal(rr.Body.Bytes(), &payload); err != nil {
 		t.Fatalf("unmarshal response: %v", err)
 	}
 
-	gatewaySummary, ok := payload["gateway"].(map[string]interface{})
+	gatewaySummary, ok := payload["gateway"].(map[string]any)
 	if !ok {
 		t.Fatalf("expected gateway object, got %T", payload["gateway"])
 	}
@@ -590,7 +588,7 @@ func TestMonolithicRuntimeSummaryRouteReflectsReadyRuntimeSurfaceInventory(t *te
 	if got := payload["deployment_mode"]; got != deploymentModeMicroservice {
 		t.Fatalf("expected deployment_mode microservice, got %v", got)
 	}
-	deploymentSummary, ok := payload["deployment"].(map[string]interface{})
+	deploymentSummary, ok := payload["deployment"].(map[string]any)
 	if !ok {
 		t.Fatalf("expected deployment object, got %T", payload["deployment"])
 	}
@@ -618,13 +616,13 @@ func TestBuildMonolithicRuntimeSummaryResponseMicroserviceBridgeTransportPosture
 	healthHandler := api.NewHealthCheckHandler(nil, logger, metrics)
 	gateway.SetHealthCheckHandler(healthHandler)
 	gateway.SetUpstreamQueryEndpoints([]string{"http://upstream-1:8081", "http://upstream-2:8081"})
-	gateway.SetRuntimeSummaryProvider(func(r *http.Request) interface{} { return map[string]interface{}{"ok": true} })
+	gateway.SetRuntimeSummaryProvider(func(r *http.Request) any { return map[string]any{"ok": true} })
 	if err := gateway.Initialize(core.Config{}); err != nil {
 		t.Fatalf("initialize gateway: %v", err)
 	}
 
 	deploymentMode := monolithicRuntimeSummaryDeploymentStub{
-		data: map[string]interface{}{
+		data: map[string]any{
 			"deployment_mode":            deploymentModeMicroservice,
 			"deployment_posture":         "deployment-mode-microservice-intent",
 			"adapter_profile":            "microservice-target-profile",

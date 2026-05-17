@@ -21,6 +21,7 @@ const (
 // including source, category, correlation ID, and timestamp
 
 func TestProperty18ErrorLoggingWithContext(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metricsCollector := core.NewDefaultMetricsCollector()
 	handler := NewErrorHandler(logger, metricsCollector)

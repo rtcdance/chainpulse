@@ -32,12 +32,12 @@ type ErrorClassifier interface {
 
 // ErrorLogger logs errors with context
 type ErrorLogger interface {
-	LogError(ctx context.Context, err error, category ErrorCategory, context map[string]interface{})
+	LogError(ctx context.Context, err error, category ErrorCategory, context map[string]any)
 }
 
 // ContextProvider provides context for error logging
 type ContextProvider interface {
-	GetContext(ctx context.Context) map[string]interface{}
+	GetContext(ctx context.Context) map[string]any
 }
 
 // ErrorCategory represents the category of an error
@@ -128,7 +128,7 @@ func NewDefaultErrorLogger(logger core.Logger) *DefaultErrorLogger {
 }
 
 // LogError logs an error with context
-func (l *DefaultErrorLogger) LogError(ctx context.Context, err error, category ErrorCategory, errContext map[string]interface{}) {
+func (l *DefaultErrorLogger) LogError(ctx context.Context, err error, category ErrorCategory, errContext map[string]any) {
 	if err == nil {
 		return
 	}
@@ -174,8 +174,8 @@ func NewDefaultContextProvider(correlationID, requestID, userID string) *Default
 }
 
 // GetContext returns context information
-func (p *DefaultContextProvider) GetContext(ctx context.Context) map[string]interface{} {
-	return map[string]interface{}{
+func (p *DefaultContextProvider) GetContext(ctx context.Context) map[string]any {
+	return map[string]any{
 		"correlationID": p.correlationID,
 		"requestID":     p.requestID,
 		"userID":        p.userID,
@@ -238,7 +238,7 @@ func (h *ErrorHandler) HandleError(ctx context.Context, err error, source string
 	})
 
 	// Collect context
-	errorContext := make(map[string]interface{})
+	errorContext := make(map[string]any)
 	errorContext["source"] = source
 	errorContext["category"] = category
 

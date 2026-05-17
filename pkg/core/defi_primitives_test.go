@@ -8,6 +8,7 @@ import (
 // ─── Constant Product AMM Tests ──────────────────────────────────────────────
 
 func TestConstantProductAMMK(t *testing.T) {
+	t.Parallel()
 	amm := NewConstantProductAMM(big.NewInt(1000), big.NewInt(2000), 30)
 	k := amm.K()
 	expected := big.NewInt(2000000)
@@ -17,6 +18,7 @@ func TestConstantProductAMMK(t *testing.T) {
 }
 
 func TestConstantProductAMMSpotPrice(t *testing.T) {
+	t.Parallel()
 	amm := NewConstantProductAMM(big.NewInt(1000), big.NewInt(2000), 30)
 	price := amm.SpotPrice()
 	// 2000/1000 = 2.0
@@ -26,6 +28,7 @@ func TestConstantProductAMMSpotPrice(t *testing.T) {
 }
 
 func TestConstantProductAMMSpotPriceZeroReserve(t *testing.T) {
+	t.Parallel()
 	amm := NewConstantProductAMM(big.NewInt(0), big.NewInt(2000), 30)
 	price := amm.SpotPrice()
 	if price.Cmp(big.NewFloat(0)) != 0 {
@@ -34,6 +37,7 @@ func TestConstantProductAMMSpotPriceZeroReserve(t *testing.T) {
 }
 
 func TestConstantProductAMMAmountOut(t *testing.T) {
+	t.Parallel()
 	// Classic Uniswap v2 0.3% fee
 	amm := NewConstantProductAMM(big.NewInt(1000000), big.NewInt(1000000), 30)
 
@@ -54,6 +58,7 @@ func TestConstantProductAMMAmountOut(t *testing.T) {
 }
 
 func TestConstantProductAMMAmountOutZero(t *testing.T) {
+	t.Parallel()
 	amm := NewConstantProductAMM(big.NewInt(1000), big.NewInt(2000), 30)
 
 	tests := []struct {
@@ -79,6 +84,7 @@ func TestConstantProductAMMAmountOutZero(t *testing.T) {
 }
 
 func TestConstantProductAMMPriceImpact(t *testing.T) {
+	t.Parallel()
 	amm := NewConstantProductAMM(big.NewInt(1000000), big.NewInt(1000000), 30)
 
 	// Small swap should have small impact
@@ -95,6 +101,7 @@ func TestConstantProductAMMPriceImpact(t *testing.T) {
 }
 
 func TestImpermanentLoss(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name        string
 		priceRatio  float64
@@ -130,6 +137,7 @@ func TestImpermanentLoss(t *testing.T) {
 // ─── Concentrated Liquidity Tests ────────────────────────────────────────────
 
 func TestTickToPriceRoundTrip(t *testing.T) {
+	t.Parallel()
 	// Test that PriceToTick(TickToPrice(tick)) ≈ tick for small ticks
 	for _, tick := range []int{0, 100, -100, 1000, -1000} {
 		price := TickToPrice(tick)
@@ -145,6 +153,7 @@ func TestTickToPriceRoundTrip(t *testing.T) {
 }
 
 func TestTickToPriceZero(t *testing.T) {
+	t.Parallel()
 	price := TickToPrice(0)
 	if price != 1.0 {
 		t.Errorf("TickToPrice(0) = %f, want 1.0", price)
@@ -152,6 +161,7 @@ func TestTickToPriceZero(t *testing.T) {
 }
 
 func TestTickRange(t *testing.T) {
+	t.Parallel()
 	tr := TickRange{LowerTick: -1000, UpperTick: 1000}
 
 	if !tr.IsInRange(0) {
@@ -171,10 +181,11 @@ func TestTickRange(t *testing.T) {
 // ─── Lending Position (Health Factor) Tests ──────────────────────────────────
 
 func TestLendingPositionCalculate(t *testing.T) {
+	t.Parallel()
 	lp := LendingPosition{
 		TotalCollateralValue: big.NewFloat(10000), // $10k collateral
 		TotalDebtValue:       big.NewFloat(5000),  // $5k debt
-		LiquidationThreshold: 0.8,                  // 80% threshold
+		LiquidationThreshold: 0.8,                 // 80% threshold
 	}
 
 	hf := lp.Calculate()
@@ -186,6 +197,7 @@ func TestLendingPositionCalculate(t *testing.T) {
 }
 
 func TestLendingPositionNoDebt(t *testing.T) {
+	t.Parallel()
 	lp := LendingPosition{
 		TotalCollateralValue: big.NewFloat(10000),
 		TotalDebtValue:       big.NewFloat(0),
@@ -200,6 +212,7 @@ func TestLendingPositionNoDebt(t *testing.T) {
 }
 
 func TestLendingPositionIsLiquidatable(t *testing.T) {
+	t.Parallel()
 	safe := LendingPosition{
 		TotalCollateralValue: big.NewFloat(10000),
 		TotalDebtValue:       big.NewFloat(5000),
@@ -221,6 +234,7 @@ func TestLendingPositionIsLiquidatable(t *testing.T) {
 }
 
 func TestLendingPositionMaxBorrow(t *testing.T) {
+	t.Parallel()
 	lp := LendingPosition{
 		TotalCollateralValue: big.NewFloat(10000),
 		TotalDebtValue:       big.NewFloat(3000),
@@ -237,6 +251,7 @@ func TestLendingPositionMaxBorrow(t *testing.T) {
 }
 
 func TestLendingPositionMaxBorrowAtLimit(t *testing.T) {
+	t.Parallel()
 	lp := LendingPosition{
 		TotalCollateralValue: big.NewFloat(10000),
 		TotalDebtValue:       big.NewFloat(9000),
@@ -253,6 +268,7 @@ func TestLendingPositionMaxBorrowAtLimit(t *testing.T) {
 // ─── Liquidation Bonus Tests ────────────────────────────────────────────────
 
 func TestLiquidationBonus(t *testing.T) {
+	t.Parallel()
 	lb := LiquidationBonus{
 		IncentivePercent: 0.05, // 5% bonus
 		CloseFactor:      0.5,  // can close 50% of debt

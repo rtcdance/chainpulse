@@ -43,25 +43,25 @@ func (ckg *CacheKeyGenerator) GenerateEventsByTopicKey(topic string, offset, lim
 }
 
 // GenerateEventCountKey generates a cache key for event count
-func (ckg *CacheKeyGenerator) GenerateEventCountKey(filters map[string]interface{}) string {
+func (ckg *CacheKeyGenerator) GenerateEventCountKey(filters map[string]any) string {
 	hash := ckg.hashFilters(filters)
 	return fmt.Sprintf("%s:event:count:%s", ckg.prefix, hash)
 }
 
 // GenerateAggregationKey generates a cache key for aggregation results
-func (ckg *CacheKeyGenerator) GenerateAggregationKey(aggregationType string, timeWindow string, filters map[string]interface{}) string {
+func (ckg *CacheKeyGenerator) GenerateAggregationKey(aggregationType string, timeWindow string, filters map[string]any) string {
 	hash := ckg.hashFilters(filters)
 	return fmt.Sprintf("%s:aggregation:%s:%s:%s", ckg.prefix, aggregationType, timeWindow, hash)
 }
 
 // GenerateQueryKey generates a cache key for a query result
-func (ckg *CacheKeyGenerator) GenerateQueryKey(queryType string, params map[string]interface{}) string {
+func (ckg *CacheKeyGenerator) GenerateQueryKey(queryType string, params map[string]any) string {
 	hash := ckg.hashFilters(params)
 	return fmt.Sprintf("%s:query:%s:%s", ckg.prefix, queryType, hash)
 }
 
 // GenerateGraphQLKey generates a cache key for a GraphQL query
-func (ckg *CacheKeyGenerator) GenerateGraphQLKey(query string, variables map[string]interface{}) string {
+func (ckg *CacheKeyGenerator) GenerateGraphQLKey(query string, variables map[string]any) string {
 	queryHash := ckg.hashString(query)
 	varsHash := ckg.hashFilters(variables)
 	return fmt.Sprintf("%s:graphql:%s:%s", ckg.prefix, queryHash, varsHash)
@@ -160,7 +160,7 @@ func (ckg *CacheKeyGenerator) GenerateEventDependenciesKey(eventID string) strin
 
 // Private helper methods
 
-func (ckg *CacheKeyGenerator) hashFilters(filters map[string]interface{}) string {
+func (ckg *CacheKeyGenerator) hashFilters(filters map[string]any) string {
 	if len(filters) == 0 {
 		return "empty"
 	}

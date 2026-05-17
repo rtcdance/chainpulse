@@ -22,6 +22,7 @@ func (h *testProtocolHandler) RegisterRoute(path string, handler Handler) error 
 func (h *testProtocolHandler) Use(middleware ...Middleware) error               { return nil }
 
 func TestProtocolRegistryRuntimeMetricsUnobserved(t *testing.T) {
+	t.Parallel()
 	registry := NewProtocolRegistry()
 
 	metrics := registry.GetRuntimeMetrics()
@@ -34,6 +35,7 @@ func TestProtocolRegistryRuntimeMetricsUnobserved(t *testing.T) {
 }
 
 func TestProtocolRegistryRuntimeMetricsWatch(t *testing.T) {
+	t.Parallel()
 	registry := NewProtocolRegistry()
 	if err := registry.Register("http", &testProtocolHandler{name: "http"}); err != nil {
 		t.Fatalf("register handler failed: %v", err)
@@ -49,6 +51,7 @@ func TestProtocolRegistryRuntimeMetricsWatch(t *testing.T) {
 }
 
 func TestProtocolRegistryRuntimeMetricsReady(t *testing.T) {
+	t.Parallel()
 	registry := NewProtocolRegistry()
 	if err := registry.Register("http", &testProtocolHandler{name: "http", running: true}); err != nil {
 		t.Fatalf("register handler failed: %v", err)
@@ -67,6 +70,7 @@ func TestProtocolRegistryRuntimeMetricsReady(t *testing.T) {
 }
 
 func TestDefaultRequestProcessorRuntimeMetricsUnobserved(t *testing.T) {
+	t.Parallel()
 	processor := NewDefaultRequestProcessor(nil)
 
 	metrics := processor.GetRuntimeMetrics()
@@ -79,6 +83,7 @@ func TestDefaultRequestProcessorRuntimeMetricsUnobserved(t *testing.T) {
 }
 
 func TestDefaultRequestProcessorRuntimeMetricsWatch(t *testing.T) {
+	t.Parallel()
 	layer := NewAPILayer()
 	layer.RegisterHandlerFunc("/health", func(req Request) (Response, error) {
 		resp := NewBaseResponse(nil)
@@ -98,6 +103,7 @@ func TestDefaultRequestProcessorRuntimeMetricsWatch(t *testing.T) {
 }
 
 func TestDefaultRequestProcessorRuntimeMetricsReady(t *testing.T) {
+	t.Parallel()
 	layer := NewAPILayer()
 	layer.Use(func(next Handler) Handler { return next })
 	layer.RegisterHandlerFunc("/health", func(req Request) (Response, error) {
@@ -117,6 +123,7 @@ func TestDefaultRequestProcessorRuntimeMetricsReady(t *testing.T) {
 }
 
 func TestBaseProtocolHandlerRuntimeMetricsUnobserved(t *testing.T) {
+	t.Parallel()
 	handler := NewBaseProtocolHandler("http", nil)
 	handler.router = NewAPIRouter()
 
@@ -130,6 +137,7 @@ func TestBaseProtocolHandlerRuntimeMetricsUnobserved(t *testing.T) {
 }
 
 func TestBaseProtocolHandlerRuntimeMetricsIdle(t *testing.T) {
+	t.Parallel()
 	handler := NewBaseProtocolHandler("http", NewDefaultRequestProcessor(NewAPILayer()))
 	if err := handler.RegisterRoute("/health", HandlerFunc(func(req Request) (Response, error) {
 		resp := NewBaseResponse(nil)
@@ -149,6 +157,7 @@ func TestBaseProtocolHandlerRuntimeMetricsIdle(t *testing.T) {
 }
 
 func TestBaseProtocolHandlerRuntimeMetricsReady(t *testing.T) {
+	t.Parallel()
 	handler := NewBaseProtocolHandler("http", NewDefaultRequestProcessor(NewAPILayer()))
 	if err := handler.Use(func(next Handler) Handler { return next }); err != nil {
 		t.Fatalf("use middleware failed: %v", err)

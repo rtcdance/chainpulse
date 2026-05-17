@@ -7,6 +7,7 @@ import (
 )
 
 func TestNewBaseResponse(t *testing.T) {
+	t.Parallel()
 	buf := &bytes.Buffer{}
 	resp := NewBaseResponse(buf)
 
@@ -24,6 +25,7 @@ func TestNewBaseResponse(t *testing.T) {
 }
 
 func TestNewBaseResponseWithNilWriter(t *testing.T) {
+	t.Parallel()
 	resp := NewBaseResponse(nil)
 
 	if resp == nil {
@@ -35,6 +37,7 @@ func TestNewBaseResponseWithNilWriter(t *testing.T) {
 }
 
 func TestBaseResponseStatus(t *testing.T) {
+	t.Parallel()
 	resp := NewBaseResponse(nil)
 
 	resp.SetStatus(201)
@@ -49,6 +52,7 @@ func TestBaseResponseStatus(t *testing.T) {
 }
 
 func TestBaseResponseHeaders(t *testing.T) {
+	t.Parallel()
 	resp := NewBaseResponse(nil)
 
 	resp.SetHeader("Content-Type", "application/json")
@@ -69,6 +73,7 @@ func TestBaseResponseHeaders(t *testing.T) {
 }
 
 func TestBaseResponseBody(t *testing.T) {
+	t.Parallel()
 	resp := NewBaseResponse(nil)
 
 	body := []byte(`{"status":"ok"}`)
@@ -80,6 +85,7 @@ func TestBaseResponseBody(t *testing.T) {
 }
 
 func TestBaseResponseWrite(t *testing.T) {
+	t.Parallel()
 	resp := NewBaseResponse(nil)
 
 	n, err := resp.Write([]byte("hello"))
@@ -106,6 +112,7 @@ func TestBaseResponseWrite(t *testing.T) {
 }
 
 func TestBaseResponseSend(t *testing.T) {
+	t.Parallel()
 	buf := &bytes.Buffer{}
 	resp := NewBaseResponse(buf)
 
@@ -125,6 +132,7 @@ func TestBaseResponseSend(t *testing.T) {
 }
 
 func TestBaseResponseHeadersAfterSend(t *testing.T) {
+	t.Parallel()
 	resp := NewBaseResponse(nil)
 
 	resp.SetStatus(200)
@@ -145,6 +153,7 @@ func TestBaseResponseHeadersAfterSend(t *testing.T) {
 }
 
 func TestBaseResponseRuntimeMetricsStaged(t *testing.T) {
+	t.Parallel()
 	resp := NewBaseResponse(nil)
 
 	metrics := resp.GetRuntimeMetrics()
@@ -157,6 +166,7 @@ func TestBaseResponseRuntimeMetricsStaged(t *testing.T) {
 }
 
 func TestBaseResponseRuntimeMetricsReady(t *testing.T) {
+	t.Parallel()
 	resp := NewBaseResponse(nil)
 	resp.SetHeader("Content-Type", "application/json")
 	resp.SetBody([]byte(`{"ok":true}`))
@@ -171,6 +181,7 @@ func TestBaseResponseRuntimeMetricsReady(t *testing.T) {
 }
 
 func TestBaseResponseRuntimeMetricsSent(t *testing.T) {
+	t.Parallel()
 	resp := NewBaseResponse(nil)
 	resp.SetBody([]byte("done"))
 	if err := resp.Send(); err != nil {
@@ -184,6 +195,7 @@ func TestBaseResponseRuntimeMetricsSent(t *testing.T) {
 }
 
 func TestBaseResponseImplementsInterface(t *testing.T) {
+	t.Parallel()
 	resp := NewBaseResponse(nil)
 
 	// Verify it implements Response interface
@@ -191,6 +203,7 @@ func TestBaseResponseImplementsInterface(t *testing.T) {
 }
 
 func TestBaseResponseWithCustomWriter(t *testing.T) {
+	t.Parallel()
 	buf := &bytes.Buffer{}
 	resp := NewBaseResponse(buf)
 
@@ -209,6 +222,7 @@ func TestBaseResponseWithCustomWriter(t *testing.T) {
 }
 
 func TestBaseResponseWriteError(t *testing.T) {
+	t.Parallel()
 	// Create a writer that returns an error
 	failingWriter := &failingWriter{}
 	resp := NewBaseResponse(failingWriter)

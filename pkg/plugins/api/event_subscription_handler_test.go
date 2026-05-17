@@ -10,6 +10,7 @@ import (
 )
 
 func TestEventSubscriptionHandlerRateLimitsHandshakeWithoutContext(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelError)
 	metrics := core.NewDefaultMetricsCollector()
 
@@ -46,6 +47,7 @@ func TestEventSubscriptionHandlerRateLimitsHandshakeWithoutContext(t *testing.T)
 }
 
 func TestEventSubscriptionHandlerSkipsDirectRateLimitWhenContextAlreadyLimited(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelError)
 	metrics := core.NewDefaultMetricsCollector()
 

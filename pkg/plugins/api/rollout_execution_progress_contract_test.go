@@ -3,6 +3,7 @@ package api
 import "testing"
 
 func TestBuildRolloutExecutionProgress(t *testing.T) {
+	t.Parallel()
 	progress := BuildRolloutExecutionProgress(RolloutExecutionProgressInput{
 		Poll: RolloutPollProgressSnapshot{
 			PollCount:                2,
@@ -54,6 +55,7 @@ func TestBuildRolloutExecutionProgress(t *testing.T) {
 }
 
 func TestBuildRolloutExecutionProgressOmitsEmptySnapshots(t *testing.T) {
+	t.Parallel()
 	progress := BuildRolloutExecutionProgress(RolloutExecutionProgressInput{})
 
 	if progress.Poll != nil {
@@ -65,6 +67,7 @@ func TestBuildRolloutExecutionProgressOmitsEmptySnapshots(t *testing.T) {
 }
 
 func TestBuildRolloutExecutionProgressPosture(t *testing.T) {
+	t.Parallel()
 	posture := BuildRolloutExecutionProgressPosture(BuildRolloutExecutionProgress(RolloutExecutionProgressInput{
 		Poll: RolloutPollProgressSnapshot{
 			PollCount:                2,

@@ -30,8 +30,8 @@ func TestAPIServiceRolloutReportRouteParityMetadataAndBodyBoundaries(t *testing.
 				RuntimeRoutesEnabled:     true,
 			}
 		},
-		func() map[string]interface{} {
-			return map[string]interface{}{
+		func() map[string]any {
+			return map[string]any{
 				"ownership_mode":                  "shadow",
 				"rollout_ready_for_runtime_owned": false,
 				"rollout_status":                  "shadow-observe",

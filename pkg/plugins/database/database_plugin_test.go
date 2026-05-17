@@ -12,6 +12,7 @@ import (
 )
 
 func TestDatabasePluginInitialize(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	db := NewDefaultInMemoryDatabasePlugin(logger, metrics)
@@ -35,6 +36,7 @@ func TestDatabasePluginInitialize(t *testing.T) {
 }
 
 func TestDatabasePluginLifecycle(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	db := NewDefaultInMemoryDatabasePlugin(logger, metrics)
@@ -71,6 +73,7 @@ func TestDatabasePluginLifecycle(t *testing.T) {
 }
 
 func TestDatabasePluginWriteEvent(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	db := NewDefaultInMemoryDatabasePlugin(logger, metrics)
@@ -115,6 +118,7 @@ func TestDatabasePluginWriteEvent(t *testing.T) {
 }
 
 func TestDatabasePluginWriteEvents(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	db := NewDefaultInMemoryDatabasePlugin(logger, metrics)
@@ -162,6 +166,7 @@ func TestDatabasePluginWriteEvents(t *testing.T) {
 }
 
 func TestDatabasePluginQueryEvents(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	db := NewDefaultInMemoryDatabasePlugin(logger, metrics)
@@ -220,6 +225,7 @@ func TestDatabasePluginQueryEvents(t *testing.T) {
 }
 
 func TestDatabasePluginQueryEventsWithFilter(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	db := NewDefaultInMemoryDatabasePlugin(logger, metrics)
@@ -291,6 +297,7 @@ func TestDatabasePluginQueryEventsWithFilter(t *testing.T) {
 }
 
 func TestDatabasePluginGetEventByHash(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	db := NewDefaultInMemoryDatabasePlugin(logger, metrics)
@@ -344,6 +351,7 @@ func TestDatabasePluginGetEventByHash(t *testing.T) {
 }
 
 func TestDatabasePluginDeleteEvent(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	db := NewDefaultInMemoryDatabasePlugin(logger, metrics)
@@ -400,6 +408,7 @@ func TestDatabasePluginDeleteEvent(t *testing.T) {
 }
 
 func TestDatabasePluginStats(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	db := NewDefaultInMemoryDatabasePlugin(logger, metrics)
@@ -469,6 +478,7 @@ func TestDatabasePluginStats(t *testing.T) {
 }
 
 func TestDatabasePluginConcurrentOperations(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	db := NewDefaultInMemoryDatabasePlugin(logger, metrics)
@@ -536,6 +546,7 @@ func TestDatabasePluginConcurrentOperations(t *testing.T) {
 }
 
 func TestDatabasePluginErrorHandling(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	db := NewDefaultInMemoryDatabasePlugin(logger, metrics)
@@ -592,6 +603,7 @@ func TestDatabasePluginErrorHandling(t *testing.T) {
 }
 
 func TestDatabasePluginQueryWithPagination(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	db := NewDefaultInMemoryDatabasePlugin(logger, metrics)

@@ -11,6 +11,7 @@ import (
 )
 
 func TestNewIndexerHealth(t *testing.T) {
+	t.Parallel()
 	metrics := NewIndexerMetrics()
 	health := NewIndexerHealth(metrics, 100, 5.0, 80.0, 200*time.Millisecond)
 
@@ -22,6 +23,7 @@ func TestNewIndexerHealth(t *testing.T) {
 }
 
 func TestCheckHealthHealthy(t *testing.T) {
+	t.Parallel()
 	metrics := NewIndexerMetrics()
 	health := NewIndexerHealth(metrics, 100, 5.0, 80.0, 200*time.Millisecond)
 
@@ -53,6 +55,7 @@ func TestCheckHealthHealthy(t *testing.T) {
 }
 
 func TestCheckHealthDegradedHighLag(t *testing.T) {
+	t.Parallel()
 	metrics := NewIndexerMetrics()
 	health := NewIndexerHealth(metrics, 100, 5.0, 80.0, 200*time.Millisecond)
 
@@ -68,6 +71,7 @@ func TestCheckHealthDegradedHighLag(t *testing.T) {
 }
 
 func TestCheckHealthDegradedHighErrorRate(t *testing.T) {
+	t.Parallel()
 	metrics := NewIndexerMetrics()
 	health := NewIndexerHealth(metrics, 100, 5.0, 80.0, 200*time.Millisecond)
 
@@ -88,6 +92,7 @@ func TestCheckHealthDegradedHighErrorRate(t *testing.T) {
 }
 
 func TestCheckHealthUnhealthyDatabaseDown(t *testing.T) {
+	t.Parallel()
 	metrics := NewIndexerMetrics()
 	health := NewIndexerHealth(metrics, 100, 5.0, 80.0, 200*time.Millisecond)
 
@@ -105,6 +110,7 @@ func TestCheckHealthUnhealthyDatabaseDown(t *testing.T) {
 }
 
 func TestCheckHealthUnhealthyCacheDown(t *testing.T) {
+	t.Parallel()
 	metrics := NewIndexerMetrics()
 	health := NewIndexerHealth(metrics, 100, 5.0, 80.0, 200*time.Millisecond)
 
@@ -122,6 +128,7 @@ func TestCheckHealthUnhealthyCacheDown(t *testing.T) {
 }
 
 func TestGetLastHealthCheck(t *testing.T) {
+	t.Parallel()
 	metrics := NewIndexerMetrics()
 	health := NewIndexerHealth(metrics, 100, 5.0, 80.0, 200*time.Millisecond)
 
@@ -136,6 +143,7 @@ func TestGetLastHealthCheck(t *testing.T) {
 }
 
 func TestIsHealthy(t *testing.T) {
+	t.Parallel()
 	metrics := NewIndexerMetrics()
 	health := NewIndexerHealth(metrics, 100, 5.0, 80.0, 200*time.Millisecond)
 
@@ -148,6 +156,7 @@ func TestIsHealthy(t *testing.T) {
 }
 
 func TestIsDegraded(t *testing.T) {
+	t.Parallel()
 	metrics := NewIndexerMetrics()
 	health := NewIndexerHealth(metrics, 100, 5.0, 80.0, 200*time.Millisecond)
 
@@ -160,6 +169,7 @@ func TestIsDegraded(t *testing.T) {
 }
 
 func TestIsUnhealthy(t *testing.T) {
+	t.Parallel()
 	metrics := NewIndexerMetrics()
 	health := NewIndexerHealth(metrics, 100, 5.0, 80.0, 200*time.Millisecond)
 
@@ -175,6 +185,7 @@ func TestIsUnhealthy(t *testing.T) {
 }
 
 func TestGetHealthSummary(t *testing.T) {
+	t.Parallel()
 	metrics := NewIndexerMetrics()
 	health := NewIndexerHealth(metrics, 100, 5.0, 80.0, 200*time.Millisecond)
 
@@ -191,6 +202,7 @@ func TestGetHealthSummary(t *testing.T) {
 }
 
 func TestGetHealthSummaryNoCheck(t *testing.T) {
+	t.Parallel()
 	metrics := NewIndexerMetrics()
 	health := NewIndexerHealth(metrics, 100, 5.0, 80.0, 200*time.Millisecond)
 
@@ -201,6 +213,7 @@ func TestGetHealthSummaryNoCheck(t *testing.T) {
 }
 
 func TestDetectLag(t *testing.T) {
+	t.Parallel()
 	metrics := NewIndexerMetrics()
 	health := NewIndexerHealth(metrics, 100, 5.0, 80.0, 200*time.Millisecond)
 
@@ -213,6 +226,7 @@ func TestDetectLag(t *testing.T) {
 }
 
 func TestDetectLagWithinThreshold(t *testing.T) {
+	t.Parallel()
 	metrics := NewIndexerMetrics()
 	health := NewIndexerHealth(metrics, 100, 5.0, 80.0, 200*time.Millisecond)
 
@@ -225,6 +239,7 @@ func TestDetectLagWithinThreshold(t *testing.T) {
 }
 
 func TestGetLagPercentage(t *testing.T) {
+	t.Parallel()
 	metrics := NewIndexerMetrics()
 	health := NewIndexerHealth(metrics, 100, 5.0, 80.0, 200*time.Millisecond)
 
@@ -236,6 +251,7 @@ func TestGetLagPercentage(t *testing.T) {
 }
 
 func TestGetLagPercentageAtMax(t *testing.T) {
+	t.Parallel()
 	metrics := NewIndexerMetrics()
 	health := NewIndexerHealth(metrics, 100, 5.0, 80.0, 200*time.Millisecond)
 
@@ -247,6 +263,7 @@ func TestGetLagPercentageAtMax(t *testing.T) {
 }
 
 func TestGetLagPercentageExceedsMax(t *testing.T) {
+	t.Parallel()
 	metrics := NewIndexerMetrics()
 	health := NewIndexerHealth(metrics, 100, 5.0, 80.0, 200*time.Millisecond)
 
@@ -260,6 +277,7 @@ func TestGetLagPercentageExceedsMax(t *testing.T) {
 // Property-based tests
 
 func TestPropertyHealthCheckConsistency(t *testing.T) {
+	t.Parallel()
 	metrics := NewIndexerMetrics()
 	health := NewIndexerHealth(metrics, 100, 5.0, 80.0, 200*time.Millisecond)
 
@@ -280,6 +298,7 @@ func TestPropertyHealthCheckConsistency(t *testing.T) {
 }
 
 func TestPropertyHealthCheckAccuracy(t *testing.T) {
+	t.Parallel()
 	metrics := NewIndexerMetrics()
 	health := NewIndexerHealth(metrics, 100, 5.0, 80.0, 200*time.Millisecond)
 
@@ -301,6 +320,7 @@ func TestPropertyHealthCheckAccuracy(t *testing.T) {
 }
 
 func TestPropertyHealthCheckBoundaries(t *testing.T) {
+	t.Parallel()
 	metrics := NewIndexerMetrics()
 	health := NewIndexerHealth(metrics, 100, 5.0, 80.0, 200*time.Millisecond)
 
@@ -325,6 +345,7 @@ func TestPropertyHealthCheckBoundaries(t *testing.T) {
 }
 
 func TestPropertyLagPercentageMonotonicity(t *testing.T) {
+	t.Parallel()
 	metrics := NewIndexerMetrics()
 	health := NewIndexerHealth(metrics, 100, 5.0, 80.0, 200*time.Millisecond)
 

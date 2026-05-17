@@ -5,9 +5,10 @@ import (
 )
 
 func TestResponseCompressorNoCompression(t *testing.T) {
+	t.Parallel()
 	compressor := NewResponseCompressor(CompressionNone)
 
-	data := map[string]interface{}{
+	data := map[string]any{
 		"id":   "123",
 		"name": "test",
 	}
@@ -23,10 +24,11 @@ func TestResponseCompressorNoCompression(t *testing.T) {
 }
 
 func TestResponseCompressorGzipCompression(t *testing.T) {
+	t.Parallel()
 	compressor := NewResponseCompressor(CompressionDefault)
 
 	// Create a large payload to ensure compression
-	data := make(map[string]interface{})
+	data := make(map[string]any)
 	for i := 0; i < 100; i++ {
 		data[string(rune(i))] = "this is a test value that should be compressed"
 	}
@@ -42,9 +44,10 @@ func TestResponseCompressorGzipCompression(t *testing.T) {
 }
 
 func TestResponseCompressorDecompress(t *testing.T) {
+	t.Parallel()
 	compressor := NewResponseCompressor(CompressionDefault)
 
-	data := map[string]interface{}{
+	data := map[string]any{
 		"id":   "123",
 		"name": "test",
 	}
@@ -65,9 +68,10 @@ func TestResponseCompressorDecompress(t *testing.T) {
 }
 
 func TestResponseCompressorSmallPayload(t *testing.T) {
+	t.Parallel()
 	compressor := NewResponseCompressor(CompressionDefault)
 
-	data := map[string]interface{}{
+	data := map[string]any{
 		"id": "123",
 	}
 
@@ -82,9 +86,10 @@ func TestResponseCompressorSmallPayload(t *testing.T) {
 }
 
 func TestResponseCompressorMetrics(t *testing.T) {
+	t.Parallel()
 	compressor := NewResponseCompressor(CompressionDefault)
 
-	data := make(map[string]interface{})
+	data := make(map[string]any)
 	for i := 0; i < 50; i++ {
 		data[string(rune(i))] = "test value"
 	}
@@ -107,10 +112,11 @@ func TestResponseCompressorMetrics(t *testing.T) {
 }
 
 func TestResponseCompressorCompressionRatio(t *testing.T) {
+	t.Parallel()
 	compressor := NewResponseCompressor(CompressionDefault)
 
 	// Create a large payload with repetitive data
-	data := make(map[string]interface{})
+	data := make(map[string]any)
 	for i := 0; i < 100; i++ {
 		data[string(rune(i))] = "this is a test value that should compress well"
 	}
@@ -127,6 +133,7 @@ func TestResponseCompressorCompressionRatio(t *testing.T) {
 }
 
 func TestResponseCompressorCompressionLevels(t *testing.T) {
+	t.Parallel()
 	levels := []CompressionLevel{
 		CompressionNone,
 		CompressionFast,
@@ -134,7 +141,7 @@ func TestResponseCompressorCompressionLevels(t *testing.T) {
 		CompressionBest,
 	}
 
-	data := make(map[string]interface{})
+	data := make(map[string]any)
 	for i := 0; i < 50; i++ {
 		data[string(rune(i))] = "test value"
 	}
@@ -149,6 +156,7 @@ func TestResponseCompressorCompressionLevels(t *testing.T) {
 }
 
 func TestResponseCompressorDecompressUncompressed(t *testing.T) {
+	t.Parallel()
 	compressor := NewResponseCompressor(CompressionDefault)
 
 	// Try to decompress uncompressed data
@@ -164,6 +172,7 @@ func TestResponseCompressorDecompressUncompressed(t *testing.T) {
 }
 
 func TestResponseCompressorRuntimeMetricsUnobserved(t *testing.T) {
+	t.Parallel()
 	compressor := NewResponseCompressor(CompressionDefault)
 
 	metrics := compressor.GetRuntimeMetrics()
@@ -176,9 +185,10 @@ func TestResponseCompressorRuntimeMetricsUnobserved(t *testing.T) {
 }
 
 func TestResponseCompressorMetricsIncludesPostureFields(t *testing.T) {
+	t.Parallel()
 	compressor := NewResponseCompressor(CompressionDefault)
 
-	data := make(map[string]interface{})
+	data := make(map[string]any)
 	for i := 0; i < 120; i++ {
 		data[string(rune(i))] = "this is a repeated test value that should compress well"
 	}
@@ -201,9 +211,10 @@ func TestResponseCompressorMetricsIncludesPostureFields(t *testing.T) {
 }
 
 func TestResponseCompressorRuntimeMetricsBypassed(t *testing.T) {
+	t.Parallel()
 	compressor := NewResponseCompressor(CompressionDefault)
 
-	_, err := compressor.Compress(map[string]interface{}{"id": "123"})
+	_, err := compressor.Compress(map[string]any{"id": "123"})
 	if err != nil {
 		t.Fatalf("failed to compress small payload: %v", err)
 	}
@@ -218,9 +229,10 @@ func TestResponseCompressorRuntimeMetricsBypassed(t *testing.T) {
 }
 
 func TestResponseCompressorRuntimeMetricsEfficient(t *testing.T) {
+	t.Parallel()
 	compressor := NewResponseCompressor(CompressionDefault)
 
-	data := make(map[string]interface{})
+	data := make(map[string]any)
 	for i := 0; i < 120; i++ {
 		data[string(rune(i))] = "this is a repeated test value that should compress well"
 	}

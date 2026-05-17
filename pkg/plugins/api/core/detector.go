@@ -183,7 +183,7 @@ func (pd *ProtocolDetector) GetSupportedProtocolCount() int {
 }
 
 // GetMetrics returns protocol detection metrics
-func (pd *ProtocolDetector) GetMetrics() map[string]interface{} {
+func (pd *ProtocolDetector) GetMetrics() map[string]any {
 	pd.mu.RLock()
 	protocols := make([]string, 0, len(pd.handlers))
 	for protocol := range pd.handlers {
@@ -199,7 +199,7 @@ func (pd *ProtocolDetector) GetMetrics() map[string]interface{} {
 	coveragePosture := classifyDetectorCoveragePosture(protocolCount, httpSupported, websocketSupported, grpcSupported, graphqlSupported)
 	runtimePosture := classifyDetectorRuntimePosture(protocolCount, httpSupported, websocketSupported, grpcSupported, graphqlSupported)
 
-	return map[string]interface{}{
+	return map[string]any{
 		"supported_protocols": protocols,
 		"protocol_count":      protocolCount,
 		"coverage_posture":    coveragePosture,
@@ -210,13 +210,13 @@ func (pd *ProtocolDetector) GetMetrics() map[string]interface{} {
 
 // GetRuntimeMetrics returns a compact runtime surface for protocol coverage and
 // detector readiness on top of the raw supported-protocol metrics.
-func (pd *ProtocolDetector) GetRuntimeMetrics() map[string]interface{} {
+func (pd *ProtocolDetector) GetRuntimeMetrics() map[string]any {
 	metrics := pd.GetMetrics()
 
 	supportedProtocols, _ := metrics["supported_protocols"].([]string)
 	protocolCount, _ := metrics["protocol_count"].(int)
 
-	return map[string]interface{}{
+	return map[string]any{
 		"supported_protocols": supportedProtocols,
 		"protocol_count":      protocolCount,
 		"coverage_posture":    metrics["coverage_posture"],

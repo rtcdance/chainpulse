@@ -56,7 +56,7 @@ func FuzzHashStruct(f *testing.F) {
 			},
 		}
 
-		data := map[string]interface{}{
+		data := map[string]any{
 			"value": val,
 		}
 

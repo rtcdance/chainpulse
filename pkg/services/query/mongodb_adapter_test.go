@@ -10,6 +10,7 @@ import (
 
 // TestMongoDBAdapterInitialization tests adapter initialization
 func TestMongoDBAdapterInitialization(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelDebug)
 	metrics := core.NewDefaultMetricsCollector()
 
@@ -32,6 +33,7 @@ func TestMongoDBAdapterInitialization(t *testing.T) {
 
 // TestMongoDBAdapterQueryWithNilRequest tests query with nil request
 func TestMongoDBAdapterQueryWithNilRequest(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelDebug)
 	metrics := core.NewDefaultMetricsCollector()
 	mockDBManager := &mockDatabaseManager{}
@@ -54,6 +56,7 @@ func TestMongoDBAdapterQueryWithNilRequest(t *testing.T) {
 
 // TestMongoDBAdapterQueryWithoutCollection tests query without collection name
 func TestMongoDBAdapterQueryWithoutCollection(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelDebug)
 	metrics := core.NewDefaultMetricsCollector()
 	mockDBManager := &mockDatabaseManager{}
@@ -70,7 +73,7 @@ func TestMongoDBAdapterQueryWithoutCollection(t *testing.T) {
 
 	req := &QueryRequest{
 		Collection: "",
-		Filter:     map[string]interface{}{},
+		Filter:     map[string]any{},
 	}
 
 	_, err := adapter.Query(ctx, req)
@@ -81,6 +84,7 @@ func TestMongoDBAdapterQueryWithoutCollection(t *testing.T) {
 
 // TestMongoDBAdapterNotInitialized tests operations on uninitialized adapter
 func TestMongoDBAdapterNotInitialized(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelDebug)
 	metrics := core.NewDefaultMetricsCollector()
 	mockDBManager := &mockDatabaseManager{}
@@ -97,7 +101,7 @@ func TestMongoDBAdapterNotInitialized(t *testing.T) {
 
 	req := &QueryRequest{
 		Collection: "events",
-		Filter:     map[string]interface{}{},
+		Filter:     map[string]any{},
 	}
 
 	_, err := adapter.Query(ctx, req)
@@ -113,6 +117,7 @@ func TestMongoDBAdapterNotInitialized(t *testing.T) {
 
 // TestMongoDBAdapterQueryByHashWithEmptyHash tests query by hash with empty hash
 func TestMongoDBAdapterQueryByHashWithEmptyHash(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelDebug)
 	metrics := core.NewDefaultMetricsCollector()
 	mockDBManager := &mockDatabaseManager{}
@@ -135,6 +140,7 @@ func TestMongoDBAdapterQueryByHashWithEmptyHash(t *testing.T) {
 
 // TestMongoDBAdapterHealthNotInitialized tests health check when not initialized
 func TestMongoDBAdapterHealthNotInitialized(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelDebug)
 	metrics := core.NewDefaultMetricsCollector()
 	mockDBManager := &mockDatabaseManager{}
@@ -157,6 +163,7 @@ func TestMongoDBAdapterHealthNotInitialized(t *testing.T) {
 
 // TestMongoDBAdapterDoubleInitialization tests double initialization
 func TestMongoDBAdapterDoubleInitialization(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelDebug)
 	metrics := core.NewDefaultMetricsCollector()
 	mockDBManager := &mockDatabaseManager{}

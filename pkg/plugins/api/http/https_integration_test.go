@@ -88,6 +88,7 @@ func generateTestCertificate(t *testing.T, certFile, keyFile string) {
 }
 
 func TestHTTPSConnection(t *testing.T) {
+	t.Parallel()
 	skipHTTPIntegrationUnlessEnabled(t)
 
 	certFile := "test_https_cert.pem"
@@ -157,6 +158,7 @@ func TestHTTPSConnection(t *testing.T) {
 }
 
 func TestHTTPAndHTTPSConcurrent(t *testing.T) {
+	t.Parallel()
 	skipHTTPIntegrationUnlessEnabled(t)
 
 	certFile := "test_concurrent_cert.pem"
@@ -232,6 +234,7 @@ func TestHTTPAndHTTPSConcurrent(t *testing.T) {
 }
 
 func TestHTTPSPortConfiguration(t *testing.T) {
+	t.Parallel()
 	skipHTTPIntegrationUnlessEnabled(t)
 
 	certFile := "test_port_cert.pem"
@@ -258,6 +261,7 @@ func TestHTTPSPortConfiguration(t *testing.T) {
 }
 
 func TestTLSMetricsCollection(t *testing.T) {
+	t.Parallel()
 	skipHTTPIntegrationUnlessEnabled(t)
 
 	certFile := "test_metrics_cert.pem"
@@ -289,6 +293,7 @@ func TestTLSMetricsCollection(t *testing.T) {
 }
 
 func TestHTTPPluginWithoutTLS(t *testing.T) {
+	t.Parallel()
 	skipHTTPIntegrationUnlessEnabled(t)
 
 	apiLayer := core.NewAPILayer()

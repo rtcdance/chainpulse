@@ -6,6 +6,7 @@ import (
 )
 
 func TestAuthenticationRuntimeMetricsUnconfigured(t *testing.T) {
+	t.Parallel()
 	auth := NewAuthentication()
 
 	metrics := auth.GetRuntimeMetrics()
@@ -18,6 +19,7 @@ func TestAuthenticationRuntimeMetricsUnconfigured(t *testing.T) {
 }
 
 func TestAuthenticationMetricsIncludesPostureFields(t *testing.T) {
+	t.Parallel()
 	auth := NewAuthentication()
 	err := auth.RegisterToken("token-1", "user-1", time.Now().Add(time.Hour), []string{"read"})
 	if err != nil {
@@ -37,6 +39,7 @@ func TestAuthenticationMetricsIncludesPostureFields(t *testing.T) {
 }
 
 func TestAuthenticationRuntimeMetricsReady(t *testing.T) {
+	t.Parallel()
 	auth := NewAuthentication()
 	err := auth.RegisterToken("token-1", "user-1", time.Now().Add(time.Hour), []string{"read"})
 	if err != nil {
@@ -53,6 +56,7 @@ func TestAuthenticationRuntimeMetricsReady(t *testing.T) {
 }
 
 func TestAuthenticationRuntimeMetricsDegraded(t *testing.T) {
+	t.Parallel()
 	auth := NewAuthentication()
 	err := auth.RegisterToken("token-1", "user-1", time.Now().Add(-time.Hour), []string{"read"})
 	if err != nil {

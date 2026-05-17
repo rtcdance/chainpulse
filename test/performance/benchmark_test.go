@@ -120,7 +120,7 @@ func BenchmarkMockDB_BatchStore(b *testing.B) {
 	defer func() { _ = db.Stop() }()
 
 	ctx := context.Background()
-	events := make([]interface{}, 100)
+	events := make([]any, 100)
 	for i := 0; i < 100; i++ {
 		events[i] = &core.BlockchainEvent{
 			ID:          "event-" + string(rune(i)),

@@ -30,7 +30,7 @@ type UserBackend interface {
 	Update(ctx context.Context, user *User) (*User, error)
 	Delete(ctx context.Context, id string) error
 	List(ctx context.Context, limit, offset int) ([]*User, error)
-	Query(ctx context.Context, filter map[string]interface{}, limit, offset int) ([]*User, error)
+	Query(ctx context.Context, filter map[string]any, limit, offset int) ([]*User, error)
 	GetByEmail(ctx context.Context, email string) (*User, error)
 }
 
@@ -112,7 +112,7 @@ func (s *UserService) ListUsers(ctx context.Context, limit, offset int) ([]*User
 }
 
 // QueryUsers queries users with filtering
-func (s *UserService) QueryUsers(ctx context.Context, filter map[string]interface{}, limit, offset int) ([]*User, error) {
+func (s *UserService) QueryUsers(ctx context.Context, filter map[string]any, limit, offset int) ([]*User, error) {
 	entities, err := s.Query(ctx, filter, limit, offset)
 	if err != nil {
 		return nil, err
@@ -201,7 +201,7 @@ func (a *userServiceAdapter) List(ctx context.Context, limit, offset int) ([]Ent
 	return entities, nil
 }
 
-func (a *userServiceAdapter) Query(ctx context.Context, filter map[string]interface{}, limit, offset int) ([]Entity, error) {
+func (a *userServiceAdapter) Query(ctx context.Context, filter map[string]any, limit, offset int) ([]Entity, error) {
 	users, err := a.backend.Query(ctx, filter, limit, offset)
 	if err != nil {
 		return nil, err

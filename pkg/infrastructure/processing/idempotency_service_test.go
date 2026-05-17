@@ -13,6 +13,7 @@ import (
 
 // TestNewIdempotencyService tests service creation
 func TestNewIdempotencyService(t *testing.T) {
+	t.Parallel()
 	service := NewIdempotencyService()
 
 	assert.NotNil(t, service)
@@ -23,6 +24,7 @@ func TestNewIdempotencyService(t *testing.T) {
 
 // TestIsDuplicateNotProcessed tests checking non-processed event
 func TestIsDuplicateNotProcessed(t *testing.T) {
+	t.Parallel()
 	service := NewIdempotencyService()
 	ctx := context.Background()
 
@@ -34,6 +36,7 @@ func TestIsDuplicateNotProcessed(t *testing.T) {
 
 // TestIsDuplicateEmptyHash tests checking with empty hash
 func TestIsDuplicateEmptyHash(t *testing.T) {
+	t.Parallel()
 	service := NewIdempotencyService()
 	ctx := context.Background()
 
@@ -44,6 +47,7 @@ func TestIsDuplicateEmptyHash(t *testing.T) {
 
 // TestMarkProcessed tests marking event as processed
 func TestMarkProcessed(t *testing.T) {
+	t.Parallel()
 	service := NewIdempotencyService()
 	ctx := context.Background()
 
@@ -55,6 +59,7 @@ func TestMarkProcessed(t *testing.T) {
 
 // TestMarkProcessedEmptyHash tests marking with empty hash
 func TestMarkProcessedEmptyHash(t *testing.T) {
+	t.Parallel()
 	service := NewIdempotencyService()
 	ctx := context.Background()
 
@@ -65,6 +70,7 @@ func TestMarkProcessedEmptyHash(t *testing.T) {
 
 // TestMarkProcessedDefaultStatus tests marking with default status
 func TestMarkProcessedDefaultStatus(t *testing.T) {
+	t.Parallel()
 	service := NewIdempotencyService()
 	ctx := context.Background()
 
@@ -79,6 +85,7 @@ func TestMarkProcessedDefaultStatus(t *testing.T) {
 
 // TestIsDuplicateAfterMarkProcessed tests duplicate detection after marking
 func TestIsDuplicateAfterMarkProcessed(t *testing.T) {
+	t.Parallel()
 	service := NewIdempotencyService()
 	ctx := context.Background()
 
@@ -92,6 +99,7 @@ func TestIsDuplicateAfterMarkProcessed(t *testing.T) {
 
 // TestGetProcessedRecord tests retrieving processed record
 func TestGetProcessedRecord(t *testing.T) {
+	t.Parallel()
 	service := NewIdempotencyService()
 	ctx := context.Background()
 
@@ -109,6 +117,7 @@ func TestGetProcessedRecord(t *testing.T) {
 
 // TestGetProcessedRecordEmptyHash tests retrieving with empty hash
 func TestGetProcessedRecordEmptyHash(t *testing.T) {
+	t.Parallel()
 	service := NewIdempotencyService()
 	ctx := context.Background()
 
@@ -119,6 +128,7 @@ func TestGetProcessedRecordEmptyHash(t *testing.T) {
 
 // TestGetProcessedRecordNotFound tests retrieving non-existent record
 func TestGetProcessedRecordNotFound(t *testing.T) {
+	t.Parallel()
 	service := NewIdempotencyService()
 	ctx := context.Background()
 
@@ -129,6 +139,7 @@ func TestGetProcessedRecordNotFound(t *testing.T) {
 
 // TestGetProcessedRecordExpired tests that records never expire (blockchain events are permanent)
 func TestGetProcessedRecordNeverExpires(t *testing.T) {
+	t.Parallel()
 	service := NewIdempotencyService()
 	ctx := context.Background()
 
@@ -144,6 +155,7 @@ func TestGetProcessedRecordNeverExpires(t *testing.T) {
 
 // TestGetDuplicateCount tests getting duplicate count
 func TestGetDuplicateCount(t *testing.T) {
+	t.Parallel()
 	service := NewIdempotencyService()
 	ctx := context.Background()
 
@@ -160,6 +172,7 @@ func TestGetDuplicateCount(t *testing.T) {
 
 // TestGetCheckCount tests getting check count
 func TestGetCheckCount(t *testing.T) {
+	t.Parallel()
 	service := NewIdempotencyService()
 	ctx := context.Background()
 
@@ -176,6 +189,7 @@ func TestGetCheckCount(t *testing.T) {
 
 // TestGetProcessedCountIdempotency tests getting processed count
 func TestGetProcessedCountIdempotency(t *testing.T) {
+	t.Parallel()
 	service := NewIdempotencyService()
 	ctx := context.Background()
 
@@ -190,6 +204,7 @@ func TestGetProcessedCountIdempotency(t *testing.T) {
 
 // TestGetDuplicateRate tests getting duplicate rate
 func TestGetDuplicateRate(t *testing.T) {
+	t.Parallel()
 	service := NewIdempotencyService()
 	ctx := context.Background()
 
@@ -213,6 +228,7 @@ func TestGetDuplicateRate(t *testing.T) {
 
 // TestReset tests resetting service
 func TestReset(t *testing.T) {
+	t.Parallel()
 	service := NewIdempotencyService()
 	ctx := context.Background()
 
@@ -233,6 +249,7 @@ func TestReset(t *testing.T) {
 
 // TestGetMetricsIdempotency tests getting metrics
 func TestGetMetricsIdempotency(t *testing.T) {
+	t.Parallel()
 	service := NewIdempotencyService()
 	ctx := context.Background()
 
@@ -250,6 +267,7 @@ func TestGetMetricsIdempotency(t *testing.T) {
 
 // TestValidateIdempotencyNilEvent tests validation with nil event
 func TestValidateIdempotencyNilEvent(t *testing.T) {
+	t.Parallel()
 	service := NewIdempotencyService()
 	ctx := context.Background()
 
@@ -260,6 +278,7 @@ func TestValidateIdempotencyNilEvent(t *testing.T) {
 
 // TestValidateIdempotencyEmptyHash tests validation with empty hash
 func TestValidateIdempotencyEmptyHash(t *testing.T) {
+	t.Parallel()
 	service := NewIdempotencyService()
 	ctx := context.Background()
 
@@ -272,6 +291,7 @@ func TestValidateIdempotencyEmptyHash(t *testing.T) {
 
 // TestValidateIdempotencyNewEvent tests validation with new event
 func TestValidateIdempotencyNewEvent(t *testing.T) {
+	t.Parallel()
 	service := NewIdempotencyService()
 	ctx := context.Background()
 
@@ -284,6 +304,7 @@ func TestValidateIdempotencyNewEvent(t *testing.T) {
 
 // TestValidateIdempotencyDuplicateEvent tests validation with duplicate event
 func TestValidateIdempotencyDuplicateEvent(t *testing.T) {
+	t.Parallel()
 	service := NewIdempotencyService()
 	ctx := context.Background()
 
@@ -299,6 +320,7 @@ func TestValidateIdempotencyDuplicateEvent(t *testing.T) {
 
 // TestBatchValidateIdempotencyEmpty tests batch validation with empty list
 func TestBatchValidateIdempotencyEmpty(t *testing.T) {
+	t.Parallel()
 	service := NewIdempotencyService()
 	ctx := context.Background()
 
@@ -310,6 +332,7 @@ func TestBatchValidateIdempotencyEmpty(t *testing.T) {
 
 // TestBatchValidateIdempotencyNewEvents tests batch validation with new events
 func TestBatchValidateIdempotencyNewEvents(t *testing.T) {
+	t.Parallel()
 	service := NewIdempotencyService()
 	ctx := context.Background()
 
@@ -330,6 +353,7 @@ func TestBatchValidateIdempotencyNewEvents(t *testing.T) {
 
 // TestBatchValidateIdempotencyMixedEvents tests batch validation with mixed events
 func TestBatchValidateIdempotencyMixedEvents(t *testing.T) {
+	t.Parallel()
 	service := NewIdempotencyService()
 	ctx := context.Background()
 
@@ -353,6 +377,7 @@ func TestBatchValidateIdempotencyMixedEvents(t *testing.T) {
 
 // TestBatchValidateIdempotencyNilEvents tests batch validation with nil events
 func TestBatchValidateIdempotencyNilEvents(t *testing.T) {
+	t.Parallel()
 	service := NewIdempotencyService()
 	ctx := context.Background()
 
@@ -373,6 +398,7 @@ func TestBatchValidateIdempotencyNilEvents(t *testing.T) {
 
 // TestMultipleProcessedRecords tests handling multiple processed records
 func TestMultipleProcessedRecords(t *testing.T) {
+	t.Parallel()
 	service := NewIdempotencyService()
 	ctx := context.Background()
 
@@ -393,6 +419,7 @@ func TestMultipleProcessedRecords(t *testing.T) {
 
 // TestConcurrentMarkProcessed tests concurrent marking
 func TestConcurrentMarkProcessed(t *testing.T) {
+	t.Parallel()
 	service := NewIdempotencyService()
 	ctx := context.Background()
 
@@ -416,6 +443,7 @@ func TestConcurrentMarkProcessed(t *testing.T) {
 
 // TestConcurrentIsDuplicate tests concurrent duplicate checking
 func TestConcurrentIsDuplicate(t *testing.T) {
+	t.Parallel()
 	service := NewIdempotencyService()
 	ctx := context.Background()
 
@@ -442,6 +470,7 @@ func TestConcurrentIsDuplicate(t *testing.T) {
 
 // TestRecordPersistence tests that records persist indefinitely (no TTL expiry)
 func TestRecordPersistence(t *testing.T) {
+	t.Parallel()
 	service := NewIdempotencyService()
 	ctx := context.Background()
 
@@ -462,6 +491,7 @@ func TestRecordPersistence(t *testing.T) {
 
 // TestProcessedRecordFields tests processed record fields
 func TestProcessedRecordFields(t *testing.T) {
+	t.Parallel()
 	service := NewIdempotencyService()
 	ctx := context.Background()
 
@@ -483,6 +513,7 @@ func TestProcessedRecordFields(t *testing.T) {
 
 // TestDifferentStatuses tests different event statuses
 func TestDifferentStatuses(t *testing.T) {
+	t.Parallel()
 	service := NewIdempotencyService()
 	ctx := context.Background()
 
@@ -503,6 +534,7 @@ func TestDifferentStatuses(t *testing.T) {
 
 // TestDuplicateRateCalculation tests duplicate rate calculation
 func TestDuplicateRateCalculation(t *testing.T) {
+	t.Parallel()
 	service := NewIdempotencyService()
 	ctx := context.Background()
 
@@ -528,6 +560,7 @@ func TestDuplicateRateCalculation(t *testing.T) {
 
 // TestProcessedRecordTimestamps tests processed record timestamps
 func TestProcessedRecordTimestamps(t *testing.T) {
+	t.Parallel()
 	service := NewIdempotencyService()
 	ctx := context.Background()
 
@@ -544,6 +577,7 @@ func TestProcessedRecordTimestamps(t *testing.T) {
 
 // TestBatchValidateIdempotencyPersists tests batch validation — records never expire
 func TestBatchValidateIdempotencyPersists(t *testing.T) {
+	t.Parallel()
 	service := NewIdempotencyService()
 	ctx := context.Background()
 

@@ -3,6 +3,7 @@ package gateway
 import (
 	"context"
 	"fmt"
+	"log"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -203,7 +204,15 @@ func (edm *EventDeliveryManager) DeliverEvent(ctx context.Context, event *core.B
 // This guards against the race where UnregisterDeliveryChannel removes the channel
 // from the map but DeliverEvent already holds a stale reference.
 func safeSend(ch chan *core.BlockchainEvent, event *core.BlockchainEvent, ctx context.Context) (sent bool) { //nolint:revive // ctx cannot be first; chan and event are primary params
-	defer func() { _ = recover() }()
+	defer func() {
+		if r := recover(); r != nil {
+			// Expected: send on closed channel (channel removed from map while DeliverEvent held stale ref).
+			// Unexpected: log to stderr so the panic is not silently swallowed.
+			if r != "send on closed channel" {
+				log.Printf("safeSend: unexpected panic recovered: %v", r)
+			}
+		}
+	}()
 	select {
 	case ch <- event:
 		return true
@@ -230,11 +239,9 @@ func (edm *EventDeliveryManager) GetDroppedCount() int64 {
 // ConnectionPoolManager manages WebSocket connections
 type ConnectionPoolManager struct {
 	connections map[string]*WebSocketConnection
-	//nolint:unused
-	_clientConns map[string][]string // clientID -> connectionIDs
-	mutex        sync.RWMutex
-	maxConns     int
-	nextConnID   atomic.Int64
+	mutex       sync.RWMutex
+	maxConns    int
+	nextConnID  atomic.Int64
 }
 
 // WebSocketConnection represents a WebSocket connection

@@ -10,6 +10,7 @@ import (
 )
 
 func TestNewCacheInvalidator(t *testing.T) {
+	t.Parallel()
 	config := DefaultCacheConfig()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
@@ -23,6 +24,7 @@ func TestNewCacheInvalidator(t *testing.T) {
 }
 
 func TestDefaultRetryPolicy(t *testing.T) {
+	t.Parallel()
 	policy := DefaultRetryPolicy()
 
 	assert.NotNil(t, policy)
@@ -33,6 +35,7 @@ func TestDefaultRetryPolicy(t *testing.T) {
 }
 
 func TestInvalidateKey(t *testing.T) {
+	t.Parallel()
 	config := DefaultCacheConfig()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
@@ -45,6 +48,7 @@ func TestInvalidateKey(t *testing.T) {
 }
 
 func TestInvalidatePattern(t *testing.T) {
+	t.Parallel()
 	config := DefaultCacheConfig()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
@@ -57,6 +61,7 @@ func TestInvalidatePattern(t *testing.T) {
 }
 
 func TestInvalidateRelated(t *testing.T) {
+	t.Parallel()
 	config := DefaultCacheConfig()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
@@ -70,6 +75,7 @@ func TestInvalidateRelated(t *testing.T) {
 }
 
 func TestInvalidateRelatedEmpty(t *testing.T) {
+	t.Parallel()
 	config := DefaultCacheConfig()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
@@ -82,6 +88,7 @@ func TestInvalidateRelatedEmpty(t *testing.T) {
 }
 
 func TestGetBackoffDuration(t *testing.T) {
+	t.Parallel()
 	policy := DefaultRetryPolicy()
 
 	duration0 := policy.GetBackoffDuration(0)
@@ -95,6 +102,7 @@ func TestGetBackoffDuration(t *testing.T) {
 }
 
 func TestGetBackoffDurationMaxBackoff(t *testing.T) {
+	t.Parallel()
 	policy := DefaultRetryPolicy()
 
 	// With high retry count, should hit max backoff
@@ -103,6 +111,7 @@ func TestGetBackoffDurationMaxBackoff(t *testing.T) {
 }
 
 func TestShouldRetry(t *testing.T) {
+	t.Parallel()
 	policy := DefaultRetryPolicy()
 
 	assert.True(t, policy.ShouldRetry(0))
@@ -113,6 +122,7 @@ func TestShouldRetry(t *testing.T) {
 }
 
 func TestCacheInvalidatorGetStats(t *testing.T) {
+	t.Parallel()
 	config := DefaultCacheConfig()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
@@ -129,6 +139,7 @@ func TestCacheInvalidatorGetStats(t *testing.T) {
 }
 
 func TestClose(t *testing.T) {
+	t.Parallel()
 	config := DefaultCacheConfig()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
@@ -141,6 +152,7 @@ func TestClose(t *testing.T) {
 }
 
 func TestInvalidationQueueFull(t *testing.T) {
+	t.Parallel()
 	config := DefaultCacheConfig()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
@@ -160,6 +172,7 @@ func TestInvalidationQueueFull(t *testing.T) {
 }
 
 func TestInvalidationRequestStructure(t *testing.T) {
+	t.Parallel()
 	req := InvalidationRequest{
 		Key:       "test_key",
 		Pattern:   "test:*",
@@ -175,6 +188,7 @@ func TestInvalidationRequestStructure(t *testing.T) {
 }
 
 func TestRetryPolicyStructure(t *testing.T) {
+	t.Parallel()
 	policy := &RetryPolicy{
 		MaxRetries:     5,
 		InitialBackoff: 50 * time.Millisecond,
@@ -189,6 +203,7 @@ func TestRetryPolicyStructure(t *testing.T) {
 }
 
 func TestInvalidationStatsStructure(t *testing.T) {
+	t.Parallel()
 	stats := InvalidationStats{
 		TotalInvalidations: 100,
 		SuccessfulCount:    95,
@@ -203,6 +218,7 @@ func TestInvalidationStatsStructure(t *testing.T) {
 }
 
 func TestConcurrentInvalidation(t *testing.T) {
+	t.Parallel()
 	config := DefaultCacheConfig()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
@@ -225,6 +241,7 @@ func TestConcurrentInvalidation(t *testing.T) {
 }
 
 func TestInvalidateKeyWithContext(t *testing.T) {
+	t.Parallel()
 	config := DefaultCacheConfig()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
@@ -249,6 +266,7 @@ func TestInvalidateKeyWithContext(t *testing.T) {
 }
 
 func TestInvalidatePatternMultipleKeys(t *testing.T) {
+	t.Parallel()
 	config := DefaultCacheConfig()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
@@ -280,6 +298,7 @@ func TestInvalidatePatternMultipleKeys(t *testing.T) {
 }
 
 func TestBackoffCalculation(t *testing.T) {
+	t.Parallel()
 	policy := &RetryPolicy{
 		MaxRetries:     5,
 		InitialBackoff: 100 * time.Millisecond,

@@ -142,11 +142,11 @@ func (hc *HealthChecker) IsHealthy() bool {
 }
 
 // GetStatus returns the health status
-func (hc *HealthChecker) GetStatus() map[string]interface{} {
+func (hc *HealthChecker) GetStatus() map[string]any {
 	hc.mu.RLock()
 	defer hc.mu.RUnlock()
 
-	return map[string]interface{}{
+	return map[string]any{
 		"is_healthy":             hc.isHealthy,
 		"last_health_check":      hc.lastHealthCheck,
 		"consecutive_errors":     hc.consecutiveErrors,

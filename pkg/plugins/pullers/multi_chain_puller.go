@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"chainpulse/pkg/core"
+	"golang.org/x/sync/errgroup"
 )
 
 type dataPullerLastProcessedBlockProvider interface {
@@ -138,6 +139,7 @@ func (m *MultiChainDataPuller) PullEventsFromChain(
 }
 
 // PullEventsFromAllChains pulls events from all registered blockchains in parallel
+// using errgroup for consistent concurrency handling across the codebase.
 func (m *MultiChainDataPuller) PullEventsFromAllChains(
 	ctx context.Context,
 	fromBlock, toBlock uint64,
@@ -151,38 +153,31 @@ func (m *MultiChainDataPuller) PullEventsFromAllChains(
 
 	results := make(map[string][]core.BlockchainEvent)
 	resultsMu := sync.Mutex{}
-	errChan := make(chan error, len(chains))
 
-	// Pull from all chains in parallel
-	var wg sync.WaitGroup
+	g, gCtx := errgroup.WithContext(ctx)
+
 	for _, chainID := range chains {
-		wg.Add(1)
-		go func(cid string) {
-			defer wg.Done()
-
-			events, err := m.PullEventsFromChain(ctx, cid, fromBlock, toBlock)
+		cid := chainID
+		g.Go(func() error {
+			events, err := m.PullEventsFromChain(gCtx, cid, fromBlock, toBlock)
 			if err != nil {
-				errChan <- fmt.Errorf("chain %s: %w", cid, err)
-				return
+				return fmt.Errorf("chain %s: %w", cid, err)
 			}
 
 			resultsMu.Lock()
 			results[cid] = events
 			resultsMu.Unlock()
-		}(chainID)
+			return nil
+		})
 	}
 
-	wg.Wait()
-	close(errChan)
-
-	// Collect errors
-	var errs []error
-	for err := range errChan {
-		errs = append(errs, err)
-	}
-
-	if len(errs) > 0 && m.logger != nil {
-		m.logger.Warn("some chains failed to pull events", "error_count", len(errs))
+	// Wait for all chains; returns first error encountered
+	if err := g.Wait(); err != nil {
+		if m.logger != nil {
+			m.logger.Warn("some chains failed to pull events", "error", err.Error())
+		}
+		// Return partial results along with the first error
+		return results, err
 	}
 
 	return results, nil
@@ -210,6 +205,7 @@ func (m *MultiChainDataPuller) GetLatestBlockFromChain(
 }
 
 // GetLatestBlocksFromAllChains gets the latest block from all blockchains in parallel
+// using errgroup for consistent concurrency handling across the codebase.
 func (m *MultiChainDataPuller) GetLatestBlocksFromAllChains(
 	ctx context.Context,
 ) (map[string]uint64, error) {
@@ -223,28 +219,33 @@ func (m *MultiChainDataPuller) GetLatestBlocksFromAllChains(
 	results := make(map[string]uint64)
 	resultsMu := sync.Mutex{}
 
-	// Get latest blocks from all chains in parallel
-	var wg sync.WaitGroup
-	for _, chainID := range chains {
-		wg.Add(1)
-		go func(cid string) {
-			defer wg.Done()
+	g, gCtx := errgroup.WithContext(ctx)
 
-			block, err := m.GetLatestBlockFromChain(ctx, cid)
+	for _, chainID := range chains {
+		cid := chainID
+		g.Go(func() error {
+			block, err := m.GetLatestBlockFromChain(gCtx, cid)
 			if err != nil {
 				if m.logger != nil {
 					m.logger.Error("failed to get latest block", "chain_id", cid, "error", err.Error())
 				}
-				return
+				return fmt.Errorf("chain %s: %w", cid, err)
 			}
 
 			resultsMu.Lock()
 			results[cid] = block
 			resultsMu.Unlock()
-		}(chainID)
+			return nil
+		})
 	}
 
-	wg.Wait()
+	if err := g.Wait(); err != nil {
+		if m.logger != nil {
+			m.logger.Warn("some chains failed to get latest block", "error", err.Error())
+		}
+		return results, err
+	}
+
 	return results, nil
 }
 
@@ -306,11 +307,11 @@ func (m *MultiChainDataPuller) GetProcessedBlocksFromAllChains() map[string]uint
 }
 
 // GetStats returns statistics for all pullers
-func (m *MultiChainDataPuller) GetStats() map[string]map[string]interface{} {
+func (m *MultiChainDataPuller) GetStats() map[string]map[string]any {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	stats := make(map[string]map[string]interface{})
+	stats := make(map[string]map[string]any)
 	for chainID, puller := range m.pullers {
 		stats[chainID] = puller.GetStats()
 	}

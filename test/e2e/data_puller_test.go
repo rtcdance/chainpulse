@@ -86,7 +86,7 @@ func TestDataPullerEventCollection(t *testing.T) {
 		to := fixtures.TestAccounts[1].Address
 		amount := big.NewInt(int64(100 * (i + 1)))
 
-		event, err := blockchainMgr.EmitEvent(ctx, contract.Address, "Transfer", map[string]interface{}{
+		event, err := blockchainMgr.EmitEvent(ctx, contract.Address, "Transfer", map[string]any{
 			"from":  from,
 			"to":    to,
 			"value": amount,
@@ -239,7 +239,7 @@ func TestDataPullerReorgHandling(t *testing.T) {
 		to := fixtures.TestAccounts[1].Address
 		amount := big.NewInt(int64(100 * (i + 1)))
 
-		_, err := blockchainMgr.EmitEvent(ctx, contract.Address, "Transfer", map[string]interface{}{
+		_, err := blockchainMgr.EmitEvent(ctx, contract.Address, "Transfer", map[string]any{
 			"from":  from,
 			"to":    to,
 			"value": amount,

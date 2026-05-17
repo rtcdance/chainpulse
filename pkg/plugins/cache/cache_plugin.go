@@ -109,7 +109,7 @@ func (p *BaseCachePlugin) Start() error {
 	p.lastHealthCheck = &core.HealthStatus{
 		Status:    "healthy",
 		Message:   "Cache plugin started",
-		Details:   make(map[string]interface{}),
+		Details:   make(map[string]any),
 		Timestamp: time.Now(),
 	}
 
@@ -133,7 +133,7 @@ func (p *BaseCachePlugin) Stop() error {
 	p.lastHealthCheck = &core.HealthStatus{
 		Status:    "healthy",
 		Message:   "Cache plugin stopped",
-		Details:   make(map[string]interface{}),
+		Details:   make(map[string]any),
 		Timestamp: time.Now(),
 	}
 
@@ -153,7 +153,7 @@ func (p *BaseCachePlugin) Health() *core.HealthStatus {
 		return &core.HealthStatus{
 			Status:    "unhealthy",
 			Message:   "Cache plugin not initialized",
-			Details:   make(map[string]interface{}),
+			Details:   make(map[string]any),
 			Timestamp: time.Now(),
 		}
 	}
@@ -162,7 +162,7 @@ func (p *BaseCachePlugin) Health() *core.HealthStatus {
 		return &core.HealthStatus{
 			Status:    "unhealthy",
 			Message:   "Cache plugin not running",
-			Details:   make(map[string]interface{}),
+			Details:   make(map[string]any),
 			Timestamp: time.Now(),
 		}
 	}
@@ -170,7 +170,7 @@ func (p *BaseCachePlugin) Health() *core.HealthStatus {
 	return &core.HealthStatus{
 		Status:    "healthy",
 		Message:   "Cache plugin healthy",
-		Details:   make(map[string]interface{}),
+		Details:   make(map[string]any),
 		Timestamp: time.Now(),
 	}
 }

@@ -6,25 +6,19 @@ import (
 	"context"
 	"time"
 
-	"chainpulse/pkg/application/indexing"
+	"chainpulse/pkg/core"
 )
 
-// EventEnvelope is an alias for the application-layer EventEnvelope,
-// allowing lower-level packages to depend on domain instead of application.
-type EventEnvelope = indexing.EventEnvelope
+// EventEnvelope is an alias for the core EventEnvelope.
+// Defined here so domain-layer interfaces (BatchProcessor, SharedBatchRuntime)
+// can reference it without depending on the application layer.
+type EventEnvelope = core.EventEnvelope
 
-// Checkpoint is an alias for the application-layer Checkpoint.
-type Checkpoint = indexing.Checkpoint
+// Checkpoint is an alias for the core Checkpoint.
+type Checkpoint = core.Checkpoint
 
-// ProcessingFailure is an alias for the application-layer ProcessingFailure.
-type ProcessingFailure = indexing.ProcessingFailure
-
-// Ensure these type aliases are valid by referencing the original types.
-var (
-	_ = indexing.EventEnvelope{}
-	_ = indexing.Checkpoint{}
-	_ = func() indexing.ProcessingFailure { return indexing.ProcessingFailure{} }
-)
+// ProcessingFailure is an alias for the core ProcessingFailure.
+type ProcessingFailure = core.ProcessingFailure
 
 // BatchProcessor processes a batch of event envelopes.
 // This interface allows services to depend on the domain layer
@@ -39,7 +33,7 @@ type SharedBatchRuntime interface {
 }
 
 // NewEventEnvelope creates an EventEnvelope from core types.
-func NewEventEnvelope(eventKey, chainID, txHash string, blockNumber uint64, logIndex uint64, payload interface{}) EventEnvelope {
+func NewEventEnvelope(eventKey, chainID, txHash string, blockNumber uint64, logIndex uint64, payload any) EventEnvelope {
 	return EventEnvelope{
 		EventKey:        eventKey,
 		ChainID:         chainID,

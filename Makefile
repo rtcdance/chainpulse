@@ -1,5 +1,5 @@
 # Development and Build Tooling
-.PHONY: all build test lint fmt clean help repo-hygiene k8s-verify k8s-acceptance k8s-acceptance-strict k8s-up k8s-down k8s-status k8s-oneclick deploy-event-acceptance multichain-e2e-acceptance multichain-e2e-acceptance-strict multichain-e2e-fork-acceptance multichain-e2e-fork-acceptance-strict deployed-real-event-acceptance check-policy-contract check-migration-manifest export-migration-kpi compare-migration-kpi compare-ticket-registry-health smoke-baseline-governance-scope compare-baseline-scope-smoke preflight-migration-baseline-update test-baseline-update-resolver compare-baseline-resolver-test check-migration-baseline update-migration-baseline check-migration-changelog-quality export-migration-owner-drift check test-short
+.PHONY: all build test lint fmt clean help repo-hygiene k8s-verify k8s-acceptance k8s-acceptance-strict k8s-up k8s-down k8s-status k8s-oneclick deploy-event-acceptance multichain-e2e-acceptance multichain-e2e-acceptance-strict multichain-e2e-fork-acceptance multichain-e2e-fork-acceptance-strict deployed-real-event-acceptance check-policy-contract check-migration-manifest export-migration-kpi compare-migration-kpi compare-ticket-registry-health smoke-baseline-governance-scope compare-baseline-scope-smoke preflight-migration-baseline-update test-baseline-update-resolver compare-baseline-resolver-test check-migration-baseline update-migration-baseline check-migration-changelog-quality export-migration-owner-drift check test-short test-anvil learn benchmark-baseline benchmark-regression
 
 # Force-clear stale GOROOT (homebrew Go self-detects; stale value breaks builds)
 unexport GOROOT
@@ -24,7 +24,7 @@ LDFLAGS := -ldflags "-X main.Version=$(VERSION) -X main.Commit=$(COMMIT) -X main
 # Go 命令
 GO := go
 GOFLAGS := -v
-TESTFLAGS := -v -race
+TESTFLAGS := -v -race -timeout 5m
 LINT_BASE_REF ?=
 LINT_CHANGED_FILES := $(shell if [ -n "$(LINT_BASE_REF)" ]; then git diff --name-only --diff-filter=ACMRTUXB "$(LINT_BASE_REF)"...HEAD -- '*.go' 2>/dev/null; else { git diff --name-only --diff-filter=ACMRTUXB -- '*.go' 2>/dev/null; git ls-files --others --exclude-standard -- '*.go' 2>/dev/null; }; fi | sort -u)
 LINT_DIRS := $(shell if [ -n "$(LINT_CHANGED_FILES)" ]; then printf '%s\n' $(LINT_CHANGED_FILES) | xargs -n1 dirname | sort -u; fi)
@@ -64,11 +64,22 @@ test-unit:
 
 test-integration:
 	@echo "Running integration tests..."
-	$(GO) test $(TESTFLAGS) -tags=integration ./test/integration/...
+	$(GO) test $(TESTFLAGS) ./test/integration/...
 
 test-e2e:
 	@echo "Running e2e tests..."
-	$(GO) test $(TESTFLAGS) -tags=e2e ./test/e2e/...
+	$(GO) test $(TESTFLAGS) ./test/e2e/...
+
+test-anvil: ## Run Anvil-based integration tests (requires foundryup)
+	@echo "Running Anvil integration tests..."
+	@which anvil > /dev/null 2>&1 || { echo "Installing Foundry..."; curl -L https://foundry.paradigm.xyz | bash 2>/dev/null && $(GOPATH_BIN)/foundryup; }
+	$(GO) test $(TESTFLAGS) -tags=e2e -run TestAnvil ./test/e2e/...
+
+learn: ## Start Anvil + deploy EventEmitter + emit 9 test events
+	bash scripts/learn-chainpulse.sh up
+
+learn-debug: ## learn + launch delve with learning breakpoints
+	bash scripts/learn-chainpulse.sh debug
 
 test-coverage:
 	@echo "Running tests with coverage..."
@@ -172,6 +183,9 @@ deps-vendor:
 
 generate:
 	@echo "Running code generation..."
+	# Note: mockgen requires Go toolchain matching the project (go1.25+).
+	# Install: go install go.uber.org/mock/mockgen@latest
+	# Then remove manual mocks from test files before running.
 	$(GO) generate ./...
 
 proto:
@@ -192,6 +206,73 @@ security:
 	@GOROOT= $(GO) install github.com/securego/gosec/v2/cmd/gosec@latest 2>/dev/null; true
 	gosec -fmt sarif -out $(BUILD_DIR)/gosec.sarif ./...
 	gosec ./...
+
+govulncheck:
+	@echo "Running Go vulnerability scan..."
+	@GOROOT= $(GO) install golang.org/x/vuln/cmd/govulncheck@latest 2>/dev/null; true
+	govulncheck ./...
+
+bench:
+	@echo "Running benchmarks..."
+	$(GO) test -bench=. -benchmem -benchtime=1x -count=1 ./pkg/...
+
+benchstat:
+	@echo "Running benchmarks with benchstat..."
+	@GOROOT= $(GO) install golang.org/x/perf/cmd/benchstat@latest 2>/dev/null; true
+	$(GO) test -bench=. -benchmem -benchtime=1x -count=5 -timeout 300s ./pkg/core/... 2>&1 | tee /tmp/bench-output.txt
+	benchstat /tmp/bench-output.txt
+
+BENCHMARK_DIR := $(BUILD_DIR)/benchmark
+BENCHMARK_BASELINE := $(BENCHMARK_DIR)/baseline.txt
+
+benchmark-baseline:
+	@echo "Saving benchmark baseline..."
+	@mkdir -p $(BENCHMARK_DIR)
+	$(GO) test -bench=. -benchmem -benchtime=1x -count=5 -timeout 300s ./pkg/core/... 2>&1 | tee $(BENCHMARK_BASELINE)
+	@echo "Baseline saved to $(BENCHMARK_BASELINE)"
+
+benchmark-regression:
+	@echo "Running benchmark regression check..."
+	@if [ ! -f "$(BENCHMARK_BASELINE)" ]; then \
+		echo "No baseline found. Run 'make benchmark-baseline' first to create one."; \
+		exit 1; \
+	fi
+	@GOROOT= $(GO) install golang.org/x/perf/cmd/benchstat@latest 2>/dev/null; true
+	@mkdir -p $(BENCHMARK_DIR)
+	$(GO) test -bench=. -benchmem -benchtime=1x -count=5 -timeout 300s ./pkg/core/... 2>&1 | tee /tmp/bench-current.txt
+	@echo ""
+	@echo "=== Benchmark Comparison (baseline vs current) ==="
+	@-benchstat $(BENCHMARK_BASELINE) /tmp/bench-current.txt 2>/dev/null | tee /tmp/bench-delta.txt
+	@echo ""
+	@regression=0; \
+	while IFS= read -r line; do \
+		if echo "$$line" | grep -qE '[0-9]+\\.[0-9]+%'; then \
+			pct=$$(echo "$$line" | grep -oE '[0-9]+\\.[0-9]+%' | head -1 | tr -d '%'); \
+			if [ -n "$$pct" ] && (( $$(echo "$$pct > 15" | bc -l 2>/dev/null || echo 0) )); then \
+				plus=$$(echo "$$line" | grep -oE '\+[0-9]+' | head -1); \
+				if [ -n "$$plus" ]; then \
+					echo "REGRESSION DETECTED: $$line"; \
+					regression=1; \
+				fi; \
+			fi; \
+		fi; \
+	done < /tmp/bench-delta.txt; \
+	if [ "$$regression" -eq 1 ]; then \
+		echo "Benchmark regression check FAILED - performance degradation detected."; \
+		exit 1; \
+	else \
+		echo "Benchmark regression check PASSED - no significant degradation detected."; \
+	fi
+
+pprof-cpu:
+	@echo "Collecting 30s CPU profile from http://localhost:8080..."
+	curl -s -o /tmp/cpu.prof "http://localhost:8080/debug/pprof/profile?seconds=30"
+	@echo "Saved to /tmp/cpu.prof. View with: go tool pprof /tmp/cpu.prof"
+
+pprof-heap:
+	@echo "Collecting heap profile from http://localhost:8080..."
+	curl -s -o /tmp/heap.prof "http://localhost:8080/debug/pprof/heap"
+	@echo "Saved to /tmp/heap.prof. View with: go tool pprof /tmp/heap.prof"
 
 # ========== 本地开发 ==========
 
@@ -215,6 +296,17 @@ dev-setup:
 	$(GO) install honnef.co/go/tools/cmd/staticcheck@latest
 	$(GO) install mvdan.cc/gofumpt@latest
 	$(GO) install github.com/securego/gosec/v2/cmd/gosec@latest
+
+# ========== Claude CLI 工具 ==========
+
+claude-profile:
+	@echo "应用 Claude CLI 插件 Profile..."
+	@PROFILE=$${PROFILE:-go-backend}; \
+	./scripts/claude-plugin-profile.sh apply $$PROFILE
+
+claude-audit:
+	@echo "Claude CLI Token 审计..."
+	@PROFILE=$${PROFILE:-go-backend} ./scripts/claude-plugin-stats.sh
 
 docker-up:
 	@echo "Starting Docker services..."
@@ -395,6 +487,7 @@ help:
 	@echo "  test-short           - Run short tests (no integration/e2e)"
 	@echo "  test-integration     - Run integration tests"
 	@echo "  test-e2e             - Run end-to-end tests"
+	@echo "  test-anvil           - Run Anvil integration tests (requires foundryup)"
 	@echo "  test-coverage        - Run tests with coverage report"
 	@echo "  test-race            - Run tests with race detector"
 	@echo "  test-bench           - Run benchmarks"
@@ -436,10 +529,16 @@ help:
 	@echo "  k8s-status           - Show K8s pods/services/deployments"
 	@echo "  k8s-oneclick         - Run K8s up + acceptance + status"
 	@echo "  deploy-event-acceptance - Deploy, inject a real event, then run API/H5 acceptance"
+	@echo ""
+	@echo "Claude CLI:"
+	@echo "  claude-profile       - Apply Claude CLI plugin Profile (PROFILE=go-backend)"
+	@echo "  claude-audit         - Show Claude CLI plugin token audit"
 	@echo "  multichain-e2e-acceptance - Run multi-chain E2E acceptance (multi-EVM + optional Solana)"
 	@echo "  multichain-e2e-acceptance-strict - Run strict multi-chain E2E acceptance (require Solana)"
 	@echo "  multichain-e2e-fork-acceptance - Run multi-chain E2E with EVM fork mode"
 	@echo "  multichain-e2e-fork-acceptance-strict - Run strict multi-chain E2E with EVM fork mode"
 	@echo "  deployed-real-event-acceptance - Inject a real chain event and verify deployed visibility"
 	@echo "  clean                - Clean build artifacts"
+	@echo "  learn                - Start Anvil + deploy contract + emit events"
+	@echo "  learn-debug          - learn + launch delve with learning breakpoints"
 	@echo "  help                 - Show this help"

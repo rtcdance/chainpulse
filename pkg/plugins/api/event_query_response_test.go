@@ -3,8 +3,9 @@ package api
 import "testing"
 
 func TestBuildSingleEventQueryResponse(t *testing.T) {
+	t.Parallel()
 	meta := &QueryMeta{Source: "domain-query", QueryPath: "domain-first"}
-	response := buildSingleEventQueryResponse(map[string]interface{}{"id": "evt-1"}, meta)
+	response := buildSingleEventQueryResponse(map[string]any{"id": "evt-1"}, meta)
 	if response == nil {
 		t.Fatal("expected response")
 	}
@@ -20,8 +21,9 @@ func TestBuildSingleEventQueryResponse(t *testing.T) {
 }
 
 func TestBuildPaginatedEventQueryResponse(t *testing.T) {
+	t.Parallel()
 	meta := &QueryMeta{Source: "event-retrieval", QueryPath: "retrieval-list"}
-	data := []interface{}{"a", "b"}
+	data := []any{"a", "b"}
 	response := buildPaginatedEventQueryResponse(data, 20, 5, 42, meta)
 	if response == nil {
 		t.Fatal("expected response")

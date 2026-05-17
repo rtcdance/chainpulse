@@ -73,7 +73,7 @@ func (m *MockUserBackend) List(ctx context.Context, limit, offset int) ([]*User,
 	return users, nil
 }
 
-func (m *MockUserBackend) Query(ctx context.Context, filter map[string]interface{}, limit, offset int) ([]*User, error) {
+func (m *MockUserBackend) Query(ctx context.Context, filter map[string]any, limit, offset int) ([]*User, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	users := make([]*User, 0)
@@ -96,17 +96,17 @@ func (m *MockUserBackend) GetByEmail(ctx context.Context, email string) (*User, 
 
 // MockServiceCache implements ServiceCache for testing
 type MockServiceCache struct {
-	cache map[string]interface{}
+	cache map[string]any
 	mu    sync.RWMutex
 }
 
 func NewMockServiceCache() *MockServiceCache {
 	return &MockServiceCache{
-		cache: make(map[string]interface{}),
+		cache: make(map[string]any),
 	}
 }
 
-func (m *MockServiceCache) Get(ctx context.Context, key string) (interface{}, error) {
+func (m *MockServiceCache) Get(ctx context.Context, key string) (any, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	val, ok := m.cache[key]
@@ -116,7 +116,7 @@ func (m *MockServiceCache) Get(ctx context.Context, key string) (interface{}, er
 	return val, nil
 }
 
-func (m *MockServiceCache) Set(ctx context.Context, key string, value interface{}, ttl time.Duration) error {
+func (m *MockServiceCache) Set(ctx context.Context, key string, value any, ttl time.Duration) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.cache[key] = value
@@ -131,6 +131,7 @@ func (m *MockServiceCache) Delete(ctx context.Context, key string) error {
 }
 
 func TestUserServiceCreate(t *testing.T) {
+	t.Parallel()
 	backend := NewMockUserBackend()
 	cache := NewMockServiceCache()
 	service := NewUserService(backend, cache)
@@ -157,6 +158,7 @@ func TestUserServiceCreate(t *testing.T) {
 }
 
 func TestUserServiceRead(t *testing.T) {
+	t.Parallel()
 	backend := NewMockUserBackend()
 	cache := NewMockServiceCache()
 	service := NewUserService(backend, cache)
@@ -184,6 +186,7 @@ func TestUserServiceRead(t *testing.T) {
 }
 
 func TestUserServiceUpdate(t *testing.T) {
+	t.Parallel()
 	backend := NewMockUserBackend()
 	cache := NewMockServiceCache()
 	service := NewUserService(backend, cache)
@@ -212,6 +215,7 @@ func TestUserServiceUpdate(t *testing.T) {
 }
 
 func TestUserServiceDelete(t *testing.T) {
+	t.Parallel()
 	backend := NewMockUserBackend()
 	cache := NewMockServiceCache()
 	service := NewUserService(backend, cache)
@@ -240,6 +244,7 @@ func TestUserServiceDelete(t *testing.T) {
 }
 
 func TestUserServiceGetByEmail(t *testing.T) {
+	t.Parallel()
 	backend := NewMockUserBackend()
 	cache := NewMockServiceCache()
 	service := NewUserService(backend, cache)
@@ -267,6 +272,7 @@ func TestUserServiceGetByEmail(t *testing.T) {
 }
 
 func TestUserServiceMetrics(t *testing.T) {
+	t.Parallel()
 	backend := NewMockUserBackend()
 	cache := NewMockServiceCache()
 	service := NewUserService(backend, cache)

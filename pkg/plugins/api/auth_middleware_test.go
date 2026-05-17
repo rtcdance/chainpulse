@@ -116,6 +116,7 @@ func (mrc *MockRBACChecker) CheckEndpointAccess(endpoint string, roles, permissi
 }
 
 func TestNewAuthMiddleware(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	tokenValidator := NewTokenValidator("test-secret", logger, metrics)
@@ -129,6 +130,7 @@ func TestNewAuthMiddleware(t *testing.T) {
 }
 
 func TestWithRequiredRoles(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	tokenValidator := NewTokenValidator("test-secret", logger, metrics)
@@ -144,6 +146,7 @@ func TestWithRequiredRoles(t *testing.T) {
 }
 
 func TestWithRequiredPermissions(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	tokenValidator := NewTokenValidator("test-secret", logger, metrics)
@@ -159,6 +162,7 @@ func TestWithRequiredPermissions(t *testing.T) {
 }
 
 func TestWithoutAuth(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	tokenValidator := NewTokenValidator("test-secret", logger, metrics)
@@ -173,6 +177,7 @@ func TestWithoutAuth(t *testing.T) {
 }
 
 func TestHandlerWithoutAuth(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	tokenValidator := NewTokenValidator("test-secret", logger, metrics)
@@ -197,6 +202,7 @@ func TestHandlerWithoutAuth(t *testing.T) {
 }
 
 func TestHandlerMissingAuthHeader(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	tokenValidator := NewTokenValidator("test-secret", logger, metrics)
@@ -220,6 +226,7 @@ func TestHandlerMissingAuthHeader(t *testing.T) {
 }
 
 func TestHandlerValidToken(t *testing.T) {
+	t.Parallel()
 	// Create a real TokenValidator with test secret
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
@@ -260,6 +267,7 @@ func TestHandlerValidToken(t *testing.T) {
 }
 
 func TestHandlerInvalidToken(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	tokenValidator := NewTokenValidator("test-secret", logger, metrics)
@@ -284,6 +292,7 @@ func TestHandlerInvalidToken(t *testing.T) {
 }
 
 func TestHandlerAPIKey(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	tokenValidator := NewTokenValidator("test-secret", logger, metrics)
@@ -313,6 +322,7 @@ func TestHandlerAPIKey(t *testing.T) {
 }
 
 func TestGetClientID(t *testing.T) {
+	t.Parallel()
 	req := httptest.NewRequest("GET", "/api/test", nil)
 	ctx := context.WithValue(req.Context(), ContextKeyClientID, "client1")
 	req = req.WithContext(ctx)
@@ -323,6 +333,7 @@ func TestGetClientID(t *testing.T) {
 }
 
 func TestGetUserID(t *testing.T) {
+	t.Parallel()
 	req := httptest.NewRequest("GET", "/api/test", nil)
 	ctx := context.WithValue(req.Context(), ContextKeyUserID, "user1")
 	req = req.WithContext(ctx)
@@ -333,6 +344,7 @@ func TestGetUserID(t *testing.T) {
 }
 
 func TestGetRoles(t *testing.T) {
+	t.Parallel()
 	req := httptest.NewRequest("GET", "/api/test", nil)
 	roles := []string{"admin", "user"}
 	ctx := context.WithValue(req.Context(), ContextKeyRoles, roles)
@@ -344,6 +356,7 @@ func TestGetRoles(t *testing.T) {
 }
 
 func TestGetPermissions(t *testing.T) {
+	t.Parallel()
 	req := httptest.NewRequest("GET", "/api/test", nil)
 	perms := []string{"read", "write"}
 	ctx := context.WithValue(req.Context(), ContextKeyPermissions, perms)
@@ -355,6 +368,7 @@ func TestGetPermissions(t *testing.T) {
 }
 
 func TestGetClientIDEmpty(t *testing.T) {
+	t.Parallel()
 	req := httptest.NewRequest("GET", "/api/test", nil)
 
 	clientID := GetClientID(req)
@@ -363,12 +377,14 @@ func TestGetClientIDEmpty(t *testing.T) {
 }
 
 func TestHandlerForbidden(t *testing.T) {
+	t.Parallel()
 	// Skip this test - RBAC checking requires proper RBACChecker implementation
 	// which is tested separately in rbac_test.go
 	t.Skip("RBAC checking tested separately in rbac_test.go")
 }
 
 func TestHandlerFunc(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	tokenValidator := NewTokenValidator("test-secret", logger, metrics)
@@ -397,6 +413,7 @@ func TestHandlerFunc(t *testing.T) {
 }
 
 func TestNewTokenRefreshHandler(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	tokenValidator := NewTokenValidator("test-secret", logger, metrics)
@@ -408,6 +425,7 @@ func TestNewTokenRefreshHandler(t *testing.T) {
 }
 
 func TestTokenRefreshHandlerInvalidMethod(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	tokenValidator := NewTokenValidator("test-secret", logger, metrics)
@@ -424,6 +442,7 @@ func TestTokenRefreshHandlerInvalidMethod(t *testing.T) {
 }
 
 func TestTokenRefreshHandlerMissingToken(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	tokenValidator := NewTokenValidator("test-secret", logger, metrics)
@@ -440,6 +459,7 @@ func TestTokenRefreshHandlerMissingToken(t *testing.T) {
 }
 
 func TestTokenRefreshHandlerValidToken(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	tokenValidator := NewTokenValidator("test-secret", logger, metrics)
@@ -460,6 +480,7 @@ func TestTokenRefreshHandlerValidToken(t *testing.T) {
 }
 
 func TestTokenRefreshHandlerInvalidToken(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	tokenValidator := NewTokenValidator("test-secret", logger, metrics)
@@ -477,6 +498,7 @@ func TestTokenRefreshHandlerInvalidToken(t *testing.T) {
 }
 
 func TestConcurrentAuthRequests(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	tokenValidator := NewTokenValidator("test-secret", logger, metrics)

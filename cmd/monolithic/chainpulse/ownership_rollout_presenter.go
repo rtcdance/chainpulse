@@ -15,7 +15,7 @@ type ownershipRolloutPresenterLine struct {
 
 type ownershipRolloutLogDescriptor struct {
 	message string
-	fields  func(string, ownershipRolloutSummarySnapshot) []interface{}
+	fields  func(string, ownershipRolloutSummarySnapshot) []any
 }
 
 type ownershipRolloutValueAccessor func(ownershipRolloutSummarySnapshot) string
@@ -358,8 +358,8 @@ func ownershipRolloutOwnershipLogDescriptors() []ownershipRolloutLogDescriptor {
 	return []ownershipRolloutLogDescriptor{
 		{
 			message: "Ownership rollout cutover candidate evaluated",
-			fields: func(phase string, summary ownershipRolloutSummarySnapshot) []interface{} {
-				return []interface{}{
+			fields: func(phase string, summary ownershipRolloutSummarySnapshot) []any {
+				return []any{
 					"service", "monolithic",
 					"phase", phase,
 					"cutover_candidate", summary.CutoverCandidate.Eligible,
@@ -377,8 +377,8 @@ func ownershipRolloutApprovalLogDescriptors() []ownershipRolloutLogDescriptor {
 	return []ownershipRolloutLogDescriptor{
 		{
 			message: "Ownership rollout manual approval checkpoint evaluated",
-			fields: func(phase string, summary ownershipRolloutSummarySnapshot) []interface{} {
-				return []interface{}{
+			fields: func(phase string, summary ownershipRolloutSummarySnapshot) []any {
+				return []any{
 					"service", "monolithic",
 					"phase", phase,
 					"manual_approval_checkpoint_state", summary.ManualApprovalCheckpoint.State,
@@ -389,8 +389,8 @@ func ownershipRolloutApprovalLogDescriptors() []ownershipRolloutLogDescriptor {
 		},
 		{
 			message: "Ownership rollout operator handoff evaluated",
-			fields: func(phase string, summary ownershipRolloutSummarySnapshot) []interface{} {
-				return []interface{}{
+			fields: func(phase string, summary ownershipRolloutSummarySnapshot) []any {
+				return []any{
 					"service", "monolithic",
 					"phase", phase,
 					"operator_handoff_state", summary.OperatorHandoff.State,
@@ -400,8 +400,8 @@ func ownershipRolloutApprovalLogDescriptors() []ownershipRolloutLogDescriptor {
 		},
 		{
 			message: "Ownership rollout approval work item evaluated",
-			fields: func(phase string, summary ownershipRolloutSummarySnapshot) []interface{} {
-				return []interface{}{
+			fields: func(phase string, summary ownershipRolloutSummarySnapshot) []any {
+				return []any{
 					"service", "monolithic",
 					"phase", phase,
 					"approval_work_item_status", summary.ApprovalWorkItem.Status,
@@ -413,8 +413,8 @@ func ownershipRolloutApprovalLogDescriptors() []ownershipRolloutLogDescriptor {
 		},
 		{
 			message: "Ownership rollout approval checklist evaluated",
-			fields: func(phase string, summary ownershipRolloutSummarySnapshot) []interface{} {
-				return []interface{}{
+			fields: func(phase string, summary ownershipRolloutSummarySnapshot) []any {
+				return []any{
 					"service", "monolithic",
 					"phase", phase,
 					"approval_checklist_state", summary.ApprovalChecklist.State,
@@ -429,8 +429,8 @@ func ownershipRolloutGuardedCutoverLogDescriptors() []ownershipRolloutLogDescrip
 	return []ownershipRolloutLogDescriptor{
 		{
 			message: "Ownership rollout guarded cutover hook evaluated",
-			fields: func(phase string, summary ownershipRolloutSummarySnapshot) []interface{} {
-				return []interface{}{
+			fields: func(phase string, summary ownershipRolloutSummarySnapshot) []any {
+				return []any{
 					"service", "monolithic",
 					"phase", phase,
 					"guarded_cutover_hook_action", summary.GuardedCutoverHook.Action,
@@ -442,8 +442,8 @@ func ownershipRolloutGuardedCutoverLogDescriptors() []ownershipRolloutLogDescrip
 		},
 		{
 			message: "Ownership rollout guarded cutover would-enforce evaluated",
-			fields: func(phase string, summary ownershipRolloutSummarySnapshot) []interface{} {
-				return []interface{}{
+			fields: func(phase string, summary ownershipRolloutSummarySnapshot) []any {
+				return []any{
 					"service", "monolithic",
 					"phase", phase,
 					"guarded_cutover_would_enforce_action", summary.GuardedCutoverWouldEnforce.Action,
@@ -453,8 +453,8 @@ func ownershipRolloutGuardedCutoverLogDescriptors() []ownershipRolloutLogDescrip
 		},
 		{
 			message: "Ownership rollout guarded cutover enforce hint evaluated",
-			fields: func(phase string, summary ownershipRolloutSummarySnapshot) []interface{} {
-				return []interface{}{
+			fields: func(phase string, summary ownershipRolloutSummarySnapshot) []any {
+				return []any{
 					"service", "monolithic",
 					"phase", phase,
 					"guarded_cutover_enforce_hint_state", summary.GuardedCutoverEnforceHint.State,
@@ -464,8 +464,8 @@ func ownershipRolloutGuardedCutoverLogDescriptors() []ownershipRolloutLogDescrip
 		},
 		{
 			message: "Ownership rollout guarded cutover overview evaluated",
-			fields: func(phase string, summary ownershipRolloutSummarySnapshot) []interface{} {
-				return []interface{}{
+			fields: func(phase string, summary ownershipRolloutSummarySnapshot) []any {
+				return []any{
 					"service", "monolithic",
 					"phase", phase,
 					"guarded_cutover_overview_state", summary.GuardedCutoverOverview.State,

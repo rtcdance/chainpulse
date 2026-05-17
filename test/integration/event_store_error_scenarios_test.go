@@ -243,10 +243,7 @@ func TestErrorLogging(t *testing.T) {
 	logger := &MockLogger{}
 
 	// Log an error
-	logger.Error("Test error", map[string]interface{}{
-		"component": "test",
-		"error":     "test error message",
-	})
+	logger.Error("Test error", "component", "test", "error", "test error message")
 
 	// Verify logging occurred
 }

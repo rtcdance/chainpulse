@@ -246,13 +246,13 @@ func (gsm *GracefulShutdownManager) UpdatePendingRequests(serviceID string, coun
 }
 
 // GetShutdownStatus returns the shutdown status
-func (gsm *GracefulShutdownManager) GetShutdownStatus() map[string]interface{} {
+func (gsm *GracefulShutdownManager) GetShutdownStatus() map[string]any {
 	gsm.mu.RLock()
 	defer gsm.mu.RUnlock()
 
-	status := make(map[string]interface{})
+	status := make(map[string]any)
 	for serviceID, info := range gsm.services {
-		status[serviceID] = map[string]interface{}{
+		status[serviceID] = map[string]any{
 			"status":              info.Status,
 			"active_connections":  info.ActiveConnections,
 			"pending_requests":    info.PendingRequests,
@@ -265,11 +265,11 @@ func (gsm *GracefulShutdownManager) GetShutdownStatus() map[string]interface{} {
 }
 
 // GetMetrics returns shutdown metrics
-func (gsm *GracefulShutdownManager) GetMetrics() map[string]interface{} {
+func (gsm *GracefulShutdownManager) GetMetrics() map[string]any {
 	gsm.metrics.mu.RLock()
 	defer gsm.metrics.mu.RUnlock()
 
-	return map[string]interface{}{
+	return map[string]any{
 		"shutdowns_initiated":   gsm.metrics.ShutdownsInitiated,
 		"shutdowns_completed":   gsm.metrics.ShutdownsCompleted,
 		"shutdowns_failed":      gsm.metrics.ShutdownsFailed,

@@ -2,9 +2,9 @@ package database
 
 import (
 	"fmt"
-	"os"
-	"strconv"
 	"time"
+
+	"chainpulse/pkg/env"
 )
 
 // Config represents database configuration
@@ -24,16 +24,16 @@ type Config struct {
 // LoadConfig loads database configuration from environment variables
 func LoadConfig() (*Config, error) {
 	config := &Config{
-		MongoDBURI:      getEnv("MONGODB_URI", "mongodb://localhost:27017"),
-		PostgresURL:     getEnv("DATABASE_URL", "postgres://localhost:5432/chainpulse"),
-		PostgresSSLMode: getEnv("DATABASE_SSLMODE", "disable"),
-		PoolSize:        getEnvInt("DB_POOL_SIZE", 10),
-		TimeoutMS:       getEnvInt("DB_TIMEOUT_MS", 5000),
-		RetryAttempts:   getEnvInt("DB_RETRY_ATTEMPTS", 3),
-		RetryDelayMS:    getEnvInt("DB_RETRY_DELAY_MS", 100),
-		CacheTTLSeconds: getEnvInt("CACHE_TTL_SECONDS", 3600),
-		EventTTLDays:    getEnvInt("EVENT_TTL_DAYS", 30),
-		EventBatchSize:  getEnvInt("EVENT_BATCH_SIZE", 100),
+		MongoDBURI:      env.Get("MONGODB_URI", "mongodb://localhost:27017"),
+		PostgresURL:     env.Get("DATABASE_URL", "postgres://localhost:5432/chainpulse"),
+		PostgresSSLMode: env.Get("DATABASE_SSLMODE", "require"),
+		PoolSize:        env.GetInt("DB_POOL_SIZE", 10),
+		TimeoutMS:       env.GetInt("DB_TIMEOUT_MS", 5000),
+		RetryAttempts:   env.GetInt("DB_RETRY_ATTEMPTS", 3),
+		RetryDelayMS:    env.GetInt("DB_RETRY_DELAY_MS", 100),
+		CacheTTLSeconds: env.GetInt("CACHE_TTL_SECONDS", 3600),
+		EventTTLDays:    env.GetInt("EVENT_TTL_DAYS", 30),
+		EventBatchSize:  env.GetInt("EVENT_BATCH_SIZE", 100),
 	}
 
 	// Validate configuration
@@ -103,22 +103,4 @@ func (c *Config) GetCacheTTL() time.Duration {
 // GetEventTTL returns the event TTL as a time.Duration
 func (c *Config) GetEventTTL() time.Duration {
 	return time.Duration(c.EventTTLDays) * 24 * time.Hour
-}
-
-// getEnv gets an environment variable with a default value
-func getEnv(key, defaultValue string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
-	}
-	return defaultValue
-}
-
-// getEnvInt gets an environment variable as integer with a default value
-func getEnvInt(key string, defaultValue int) int {
-	if value := os.Getenv(key); value != "" {
-		if intVal, err := strconv.Atoi(value); err == nil {
-			return intVal
-		}
-	}
-	return defaultValue
 }

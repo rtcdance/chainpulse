@@ -154,7 +154,7 @@ func (r *GRPCResponse) IsHeadersSent() bool {
 
 // ToJSON converts response to JSON for gRPC transport
 func (r *GRPCResponse) ToJSON() ([]byte, error) {
-	envelope := map[string]interface{}{
+	envelope := map[string]any{
 		"status":  r.status,
 		"headers": r.headers,
 		"body":    string(r.body),
@@ -164,7 +164,7 @@ func (r *GRPCResponse) ToJSON() ([]byte, error) {
 
 // FromJSON creates response from JSON
 func (r *GRPCResponse) FromJSON(data []byte) error {
-	var envelope map[string]interface{}
+	var envelope map[string]any
 	if err := json.Unmarshal(data, &envelope); err != nil {
 		return err
 	}
@@ -173,7 +173,7 @@ func (r *GRPCResponse) FromJSON(data []byte) error {
 		r.status = int(status)
 	}
 
-	if headers, ok := envelope["headers"].(map[string]interface{}); ok {
+	if headers, ok := envelope["headers"].(map[string]any); ok {
 		for key, value := range headers {
 			if strVal, ok := value.(string); ok {
 				r.headers[key] = strVal

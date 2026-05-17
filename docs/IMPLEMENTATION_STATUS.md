@@ -1,6 +1,6 @@
 # ChainPulse 实现状态地图
 
-> 生成时间: 2026-04-05
+> 生成时间: 2026-04-05 (最后更新: 2026-05-17)
 > 基准架构: docs/archive/ARCHITECTURE_v1.md
 > 用途: 让 AI 快速了解什么已实现、什么缺失，避免重复工作或跑偏
 
@@ -110,9 +110,9 @@
 | KafkaConfig | `config/kafka_config.go` | — | ✅ | Kafka 配置 |
 | RedisConfig | `config/redis_config.go` | — | ✅ | Redis 配置 |
 | ConsulConfig | `deployment/consul_config.go` | 55 | ✅ | Consul 服务发现 |
-| EventProcessor | `processing/event_processor.go` | — | ✅ | 事件处理 |
-| IdempotencyService | `processing/idempotency_service.go` | — | ✅ | 幂等服务 |
-| RetryLogic | `processing/retry_logic.go` | — | ✅ | 重试逻辑 |
+| EventProcessor | `processing/event_processor.go` | — | ⚠️ 已标记 Deprecated | 规范实现在 `pkg/services/processor/` |
+| IdempotencyService | `processing/idempotency_service.go` | — | ⚠️ 已标记 Deprecated | 规范实现在 `pkg/services/processor/idempotency.go` |
+| RetryLogic | `processing/retry_logic.go` | — | ⚠️ 已标记 Deprecated | 规范实现在 `pkg/services/resilience/retry_logic.go` |
 | FailureDetection | `reliability/failure_detection.go` | — | ✅ | 故障检测 |
 | HorizontalScaling | `reliability/horizontal_scaling.go` | — | ✅ | 水平扩缩容 |
 | GracefulShutdown | `reliability/graceful_shutdown.go` | — | ✅ | 优雅关闭 |
@@ -187,13 +187,13 @@
 
 以下包不是"空壳"，而是迁移过程中创建的中间层。**不要向它们添加新功能**，但已有代码暂时保留。
 
-| 包 | 代码量 | 真实角色 | 最终目标 |
-|---|---|---|---|
-| `pkg/domain/query/` | 53 LOC | Query 领域接口（Request, Result, Service） | 接口移到 `pkg/core/` |
-| `pkg/application/indexing/` | 427 LOC | Indexing 运行时接口（EventEnvelope, SharedRuntime） | 接口移到 `pkg/core/` |
-| `pkg/application/bootstrap/` | 574 LOC | 单体 wiring 逻辑（composition root 辅助） | 移到 `cmd/` |
-| `pkg/application/query/` | 77 LOC | Query 遗留 facade | 删除 |
-| `pkg/adapters/` | 250 LOC | 遗留兼容层 | 删除 |
+| 包 | 代码量 | 真实角色 | 最终目标 | 状态 |
+|---|---|---|---|---|
+| `pkg/domain/query/` | ~400 LOC | Query 领域接口（Request, Result, Service） | 类型别名已指向 `pkg/core/` | 🟡 已迁移: Request/Result/Service → core.QueryRequest/QueryResult/QueryService |
+| `pkg/application/indexing/` | ~668 LOC | Indexing 运行时接口（EventEnvelope, SharedRuntime） | 类型别名已移至 `pkg/core/`，RuntimeStatus 已迁移 | 🟡 部分迁移: EventEnvelope/Checkpoint/ProcessingFailure/RuntimeStatus → core |
+| `pkg/application/bootstrap/` | ~2,841 LOC | 单体 wiring + 内存适配器（adapter 已内迁） | 不需迁移（composition root） | ✅ adapter/indexing 已合并 |
+| `pkg/application/query/` | ~~77 LOC~~ | Query 遗留 facade | 删除 | ✅ 已内联至 bootstrap |
+| `pkg/adapters/` | ~~~1,135 LOC~~ | 遗留兼容层 | ~~删除~~ | ✅ 已全部清理 — query/ 已删除, indexing/ 已合并至 bootstrap |
 
 **规则**: 新代码不要向这些包添加功能。接口定义在 `pkg/core/`，wiring 逻辑在 `cmd/`。
 
@@ -218,4 +218,4 @@
 
 ### 已知依赖违反（不要修复，除非任务明确要求）
 
-详见 `docs/DEPENDENCY_GRAPH.md`。12 处违反是已知技术债，混入功能开发中修复会导致测试失败和编译错误。
+详见 `docs/DEPENDENCY_GRAPH.md`。9 处违反（已修复 7 处）是已知技术债，混入功能开发中修复会导致测试失败和编译错误。

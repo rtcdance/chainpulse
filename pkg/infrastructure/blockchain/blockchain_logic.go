@@ -250,11 +250,11 @@ func (bl *BlockchainLogic) ProcessEvent(ctx context.Context, event *core.Blockch
 }
 
 // GetMetrics returns blockchain logic metrics
-func (bl *BlockchainLogic) GetMetrics() map[string]interface{} {
+func (bl *BlockchainLogic) GetMetrics() map[string]any {
 	bl.metrics.mu.RLock()
 	defer bl.metrics.mu.RUnlock()
 
-	return map[string]interface{}{
+	return map[string]any{
 		"events_validated":        bl.metrics.EventsValidated,
 		"events_transformed":      bl.metrics.EventsTransformed,
 		"events_filtered":         bl.metrics.EventsFiltered,

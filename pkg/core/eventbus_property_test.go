@@ -54,7 +54,7 @@ func TestPropertyEventPublishingConsistency(t *testing.T) {
 
 			// Subscribe handlers
 			for i := 0; i < tt.subscriberCount; i++ {
-				handler := func(event interface{}) {
+				handler := func(event any) {
 					mu.Lock()
 					count++
 					mu.Unlock()
@@ -86,7 +86,7 @@ func TestPropertyEventPublishingConsistency(t *testing.T) {
 // TestPropertySubscriberCountConsistency verifies subscriber count consistency
 func TestPropertySubscriberCountConsistency(t *testing.T) {
 	eb := NewEventBus(nil)
-	handler := func(event interface{}) {}
+	handler := func(event any) {}
 
 	// For any sequence of subscriptions, the subscriber count should match
 	for i := 0; i < 10; i++ {
@@ -107,7 +107,7 @@ func TestPropertyEventDataPreservation(t *testing.T) {
 	// For any event data, it should be preserved when published
 	testCases := []struct {
 		name  string
-		event interface{}
+		event any
 	}{
 		{"string-event", "string-event"},
 		{"int-event", 123},
@@ -117,8 +117,8 @@ func TestPropertyEventDataPreservation(t *testing.T) {
 
 	for _, tt := range testCases {
 		t.Run(tt.name, func(t *testing.T) {
-			var receivedEvent interface{}
-			handler := func(event interface{}) {
+			var receivedEvent any
+			handler := func(event any) {
 				receivedEvent = event
 			}
 
@@ -156,13 +156,13 @@ func TestPropertyTopicIsolation(t *testing.T) {
 	topic2Count := 0
 	mu := sync.Mutex{}
 
-	handler1 := func(event interface{}) {
+	handler1 := func(event any) {
 		mu.Lock()
 		topic1Count++
 		mu.Unlock()
 	}
 
-	handler2 := func(event interface{}) {
+	handler2 := func(event any) {
 		mu.Lock()
 		topic2Count++
 		mu.Unlock()
@@ -210,9 +210,9 @@ func TestPropertyTopicIsolation(t *testing.T) {
 // TestPropertySyncVsAsyncConsistency verifies sync and async publishing consistency
 func TestPropertySyncVsAsyncConsistency(t *testing.T) {
 	// For any event, sync and async publishing should both deliver the event
-	testEvents := []interface{}{
+	testEvents := []any{
 		"event-1",
-		map[string]interface{}{"id": "event-2"},
+		map[string]any{"id": "event-2"},
 		[]int{1, 2, 3},
 	}
 
@@ -221,7 +221,7 @@ func TestPropertySyncVsAsyncConsistency(t *testing.T) {
 		eb1 := NewEventBus(nil)
 		asyncReceived := false
 		mu1 := sync.Mutex{}
-		handler1 := func(event interface{}) {
+		handler1 := func(event any) {
 			mu1.Lock()
 			asyncReceived = true
 			mu1.Unlock()
@@ -238,7 +238,7 @@ func TestPropertySyncVsAsyncConsistency(t *testing.T) {
 		eb2 := NewEventBus(nil)
 		syncReceived := false
 		mu2 := sync.Mutex{}
-		handler2 := func(event interface{}) {
+		handler2 := func(event any) {
 			mu2.Lock()
 			syncReceived = true
 			mu2.Unlock()
@@ -271,7 +271,7 @@ func TestPropertySyncVsAsyncConsistency(t *testing.T) {
 // TestPropertyClearConsistency verifies clear removes all subscribers
 func TestPropertyClearConsistency(t *testing.T) {
 	eb := NewEventBus(nil)
-	handler := func(event interface{}) {}
+	handler := func(event any) {}
 
 	// For any set of subscribers, clear should remove all of them
 	for i := 0; i < 5; i++ {
@@ -293,7 +293,7 @@ func TestPropertyClearConsistency(t *testing.T) {
 	// Verify no events are delivered after clear
 	count := 0
 	mu := sync.Mutex{}
-	handler2 := func(event interface{}) {
+	handler2 := func(event any) {
 		mu.Lock()
 		count++
 		mu.Unlock()
@@ -318,7 +318,7 @@ func TestPropertyClearConsistency(t *testing.T) {
 // TestPropertyConcurrentOperationsConsistency verifies concurrent operations are consistent
 func TestPropertyConcurrentOperationsConsistency(t *testing.T) {
 	eb := NewEventBus(nil)
-	handler := func(event interface{}) {}
+	handler := func(event any) {}
 
 	// For concurrent subscriptions and publications, the system should remain consistent
 	done := make(chan bool, 20)
@@ -363,11 +363,11 @@ func TestPropertyHandlerPanicRecovery(t *testing.T) {
 	eb := NewEventBus(nil)
 
 	// For any handler that panics, the event bus should recover
-	panicHandler := func(event interface{}) {
+	panicHandler := func(event any) {
 		panic("test panic")
 	}
 
-	normalHandler := func(event interface{}) {
+	normalHandler := func(event any) {
 		// This should still be called
 	}
 

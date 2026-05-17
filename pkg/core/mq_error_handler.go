@@ -22,7 +22,7 @@ const ErrorTypeUnknown = "unknown"
 
 // MQErrorHandler handles errors and recovery for MQ operations
 type MQErrorHandler struct {
-	mu                   sync.Mutex
+	mu                   sync.RWMutex
 	logger               Logger
 	metricsCollector     MetricsCollector
 	maxRetries           int
@@ -296,20 +296,24 @@ func (eh *MQErrorHandler) CalculateBackoffDelay(attempt int) time.Duration {
 
 // RegisterPermanentError registers an error code as permanent
 func (eh *MQErrorHandler) RegisterPermanentError(errorCode string) {
+	eh.mu.Lock()
+	defer eh.mu.Unlock()
 	eh.permanentErrorCodes[errorCode] = true
 	eh.logger.Info("registered permanent error code", "error_code", errorCode)
 }
 
 // RegisterTransientError registers an error code as transient
 func (eh *MQErrorHandler) RegisterTransientError(errorCode string) {
+	eh.mu.Lock()
+	defer eh.mu.Unlock()
 	eh.transientErrorCodes[errorCode] = true
 	eh.logger.Info("registered transient error code", "error_code", errorCode)
 }
 
 // IsInDegradedMode returns whether the handler is in degraded mode
 func (eh *MQErrorHandler) IsInDegradedMode() bool {
-	eh.mu.Lock()
-	defer eh.mu.Unlock()
+	eh.mu.RLock()
+	defer eh.mu.RUnlock()
 	return eh.degradedMode
 }
 
@@ -329,8 +333,8 @@ func (eh *MQErrorHandler) SetDegradedMode(degraded bool) {
 
 // GetConsecutiveErrorCount returns the number of consecutive errors
 func (eh *MQErrorHandler) GetConsecutiveErrorCount() int64 {
-	eh.mu.Lock()
-	defer eh.mu.Unlock()
+	eh.mu.RLock()
+	defer eh.mu.RUnlock()
 	return eh.consecutiveErrors
 }
 
@@ -342,10 +346,10 @@ func (eh *MQErrorHandler) ResetConsecutiveErrorCount() {
 }
 
 // GetRecoveryStats returns recovery statistics
-func (eh *MQErrorHandler) GetRecoveryStats() map[string]interface{} {
-	eh.mu.Lock()
-	defer eh.mu.Unlock()
-	return map[string]interface{}{
+func (eh *MQErrorHandler) GetRecoveryStats() map[string]any {
+	eh.mu.RLock()
+	defer eh.mu.RUnlock()
+	return map[string]any{
 		"recovery_attempts":     eh.recoveryAttempts,
 		"successful_recoveries": eh.successfulRecoveries,
 		"consecutive_errors":    eh.consecutiveErrors,
@@ -360,23 +364,31 @@ func (eh *MQErrorHandler) GetRecoveryStats() map[string]interface{} {
 
 // SetTimeoutDuration sets the timeout duration for operations
 func (eh *MQErrorHandler) SetTimeoutDuration(duration time.Duration) {
+	eh.mu.Lock()
+	defer eh.mu.Unlock()
 	eh.timeoutDuration = duration
 	eh.logger.Info("timeout duration set", "duration_ms", duration.Milliseconds())
 }
 
 // GetTimeoutDuration returns the timeout duration
 func (eh *MQErrorHandler) GetTimeoutDuration() time.Duration {
+	eh.mu.RLock()
+	defer eh.mu.RUnlock()
 	return eh.timeoutDuration
 }
 
 // SetMaxRetries sets the maximum number of retries
 func (eh *MQErrorHandler) SetMaxRetries(maxRetries int) {
+	eh.mu.Lock()
+	defer eh.mu.Unlock()
 	eh.maxRetries = maxRetries
 	eh.logger.Info("max retries set", "max_retries", maxRetries)
 }
 
 // SetMaxRetryDelay sets the maximum retry delay
 func (eh *MQErrorHandler) SetMaxRetryDelay(delay time.Duration) {
+	eh.mu.Lock()
+	defer eh.mu.Unlock()
 	eh.maxRetryDelay = delay
 	eh.logger.Info("max retry delay set", "delay_ms", delay.Milliseconds())
 }

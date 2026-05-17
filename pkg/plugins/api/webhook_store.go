@@ -37,11 +37,11 @@ type WebhookRecord struct {
 
 // WebhookDelivery represents a single delivery attempt
 type WebhookDelivery struct {
-	WebhookID  string                 `json:"webhookId"`
-	Event      string                 `json:"event"`
-	Payload    map[string]interface{} `json:"payload"`
-	Attempt    int                    `json:"attempt"`
-	MaxRetries int                    `json:"maxRetries"`
+	WebhookID  string         `json:"webhookId"`
+	Event      string         `json:"event"`
+	Payload    map[string]any `json:"payload"`
+	Attempt    int            `json:"attempt"`
+	MaxRetries int            `json:"maxRetries"`
 }
 
 // WebhookStore manages persistent webhook storage and delivery
@@ -127,6 +127,9 @@ func (s *WebhookStore) GetWebhooksByEvent(ctx context.Context, eventType string)
 		_ = json.Unmarshal([]byte(eventsJSON), &w.Events)
 		webhooks = append(webhooks, &w)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 	return webhooks, nil
 }
 
@@ -170,6 +173,9 @@ func (s *WebhookStore) ListWebhooks(ctx context.Context, clientID string, limit,
 		r.LastDeliveryStatus = lastDeliveryStatus
 		records = append(records, &r)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, err
+	}
 	return records, total, nil
 }
 
@@ -187,8 +193,8 @@ func (s *WebhookStore) DeleteWebhook(ctx context.Context, id string) error {
 }
 
 // Deliver sends a webhook payload with HMAC signature and retry logic
-func (s *WebhookStore) Deliver(ctx context.Context, webhook *WebhookRecord, eventType string, payload map[string]interface{}) error {
-	body, err := json.Marshal(map[string]interface{}{
+func (s *WebhookStore) Deliver(ctx context.Context, webhook *WebhookRecord, eventType string, payload map[string]any) error {
+	body, err := json.Marshal(map[string]any{
 		"event":     eventType,
 		"timestamp": time.Now().Unix(),
 		"data":      payload,
@@ -219,7 +225,11 @@ func (s *WebhookStore) Deliver(ctx context.Context, webhook *WebhookRecord, even
 			lastErr = err
 			s.metrics.RecordCounter("webhook.delivery_error", 1, nil)
 			if attempt < s.maxRetries {
-				time.Sleep(s.retryDelay)
+				select {
+				case <-ctx.Done():
+					return ctx.Err()
+				case <-time.After(s.retryDelay):
+				}
 			}
 			continue
 		}
@@ -235,7 +245,11 @@ func (s *WebhookStore) Deliver(ctx context.Context, webhook *WebhookRecord, even
 		lastErr = fmt.Errorf("webhook returned status %d: %s", resp.StatusCode, string(respBody))
 		s.metrics.RecordCounter("webhook.delivery_http_error", 1, nil)
 		if attempt < s.maxRetries {
-			time.Sleep(s.retryDelay)
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(s.retryDelay):
+			}
 		}
 	}
 
@@ -245,7 +259,7 @@ func (s *WebhookStore) Deliver(ctx context.Context, webhook *WebhookRecord, even
 }
 
 // NotifyEvent delivers webhook notifications to all webhooks subscribed to an event type
-func (s *WebhookStore) NotifyEvent(ctx context.Context, eventType string, payload map[string]interface{}) {
+func (s *WebhookStore) NotifyEvent(ctx context.Context, eventType string, payload map[string]any) {
 	if s.db == nil {
 		return
 	}
@@ -272,13 +286,16 @@ func (s *WebhookStore) NotifyEvent(ctx context.Context, eventType string, payloa
 }
 
 func (s *WebhookStore) recordDelivery(ctx context.Context, webhookID, status string) {
-	_, _ = s.db.ExecContext(ctx,
+	if _, err := s.db.ExecContext(ctx,
 		`UPDATE webhooks SET last_delivery_at = NOW(), last_delivery_status = $1,
 		 failure_count = CASE WHEN $1 = 'failed' THEN failure_count + 1 ELSE 0 END,
 		 updated_at = NOW()
 		 WHERE id = $2`,
 		status, webhookID,
-	)
+	); err != nil {
+		s.logger.Error("failed to record webhook delivery",
+			"webhookId", webhookID, "status", status, "error", err)
+	}
 }
 
 // EnsureWebhookTables ensures the webhooks table exists
@@ -353,7 +370,7 @@ func (h *AdminWebhookHandler) HandleCreateWebhook(w http.ResponseWriter, r *http
 	}
 
 	// Return the secret only on creation
-	writeJSONResponse(w, http.StatusCreated, map[string]interface{}{
+	writeJSONResponse(w, http.StatusCreated, map[string]any{
 		"secret": req.Secret,
 		"record": record,
 	})
@@ -388,7 +405,7 @@ func (h *AdminWebhookHandler) HandleListWebhooks(w http.ResponseWriter, r *http.
 		return
 	}
 
-	writeJSONResponse(w, http.StatusOK, map[string]interface{}{
+	writeJSONResponse(w, http.StatusOK, map[string]any{
 		"data":      records,
 		"total":     total,
 		"limit":     limit,
@@ -429,7 +446,7 @@ func (h *AdminWebhookHandler) HandleDeleteWebhook(w http.ResponseWriter, r *http
 		return
 	}
 
-	writeJSONResponse(w, http.StatusOK, map[string]interface{}{
+	writeJSONResponse(w, http.StatusOK, map[string]any{
 		"message":   "webhook deleted",
 		"timestamp": time.Now().UTC().Format(time.RFC3339),
 	})

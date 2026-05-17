@@ -10,6 +10,7 @@ import (
 )
 
 func TestShutdownHandlerCreation(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metricsCollector := core.NewDefaultMetricsCollector()
 
@@ -29,6 +30,7 @@ func TestShutdownHandlerCreation(t *testing.T) {
 }
 
 func TestShutdownHandlerSetTimeout(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metricsCollector := core.NewDefaultMetricsCollector()
 	handler := NewShutdownHandler(logger, metricsCollector)
@@ -42,6 +44,7 @@ func TestShutdownHandlerSetTimeout(t *testing.T) {
 }
 
 func TestShutdownHandlerRegisterCallback(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metricsCollector := core.NewDefaultMetricsCollector()
 	handler := NewShutdownHandler(logger, metricsCollector)
@@ -61,6 +64,7 @@ func TestShutdownHandlerRegisterCallback(t *testing.T) {
 }
 
 func TestShutdownHandlerRegisterResourceCleanup(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metricsCollector := core.NewDefaultMetricsCollector()
 	handler := NewShutdownHandler(logger, metricsCollector)
@@ -80,6 +84,7 @@ func TestShutdownHandlerRegisterResourceCleanup(t *testing.T) {
 }
 
 func TestShutdownHandlerInFlightRequests(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metricsCollector := core.NewDefaultMetricsCollector()
 	handler := NewShutdownHandler(logger, metricsCollector)
@@ -112,6 +117,7 @@ func TestShutdownHandlerInFlightRequests(t *testing.T) {
 }
 
 func TestShutdownHandlerShutdown(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metricsCollector := core.NewDefaultMetricsCollector()
 	handler := NewShutdownHandler(logger, metricsCollector)
@@ -128,6 +134,7 @@ func TestShutdownHandlerShutdown(t *testing.T) {
 }
 
 func TestShutdownHandlerMultipleShutdowns(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metricsCollector := core.NewDefaultMetricsCollector()
 	handler := NewShutdownHandler(logger, metricsCollector)
@@ -154,6 +161,7 @@ func TestShutdownHandlerMultipleShutdowns(t *testing.T) {
 }
 
 func TestShutdownHandlerCallbackError(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metricsCollector := core.NewDefaultMetricsCollector()
 	handler := NewShutdownHandler(logger, metricsCollector)
@@ -171,6 +179,7 @@ func TestShutdownHandlerCallbackError(t *testing.T) {
 }
 
 func TestShutdownHandlerResourceCleanupError(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metricsCollector := core.NewDefaultMetricsCollector()
 	handler := NewShutdownHandler(logger, metricsCollector)
@@ -188,6 +197,7 @@ func TestShutdownHandlerResourceCleanupError(t *testing.T) {
 }
 
 func TestShutdownHandlerWaitForInFlightRequests(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metricsCollector := core.NewDefaultMetricsCollector()
 	handler := NewShutdownHandler(logger, metricsCollector)
@@ -215,6 +225,7 @@ func TestShutdownHandlerWaitForInFlightRequests(t *testing.T) {
 }
 
 func TestShutdownHandlerTimeout(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metricsCollector := core.NewDefaultMetricsCollector()
 	handler := NewShutdownHandler(logger, metricsCollector)
@@ -234,6 +245,7 @@ func TestShutdownHandlerTimeout(t *testing.T) {
 }
 
 func TestShutdownHandlerGetShutdownChan(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metricsCollector := core.NewDefaultMetricsCollector()
 	handler := NewShutdownHandler(logger, metricsCollector)
@@ -255,6 +267,7 @@ func TestShutdownHandlerGetShutdownChan(t *testing.T) {
 }
 
 func TestShutdownHandlerWaitForShutdown(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metricsCollector := core.NewDefaultMetricsCollector()
 	handler := NewShutdownHandler(logger, metricsCollector)
@@ -274,6 +287,7 @@ func TestShutdownHandlerWaitForShutdown(t *testing.T) {
 }
 
 func TestShutdownManager(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metricsCollector := core.NewDefaultMetricsCollector()
 
@@ -303,6 +317,7 @@ func TestShutdownManager(t *testing.T) {
 }
 
 func TestShutdownManagerUnregister(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metricsCollector := core.NewDefaultMetricsCollector()
 
@@ -323,6 +338,7 @@ func TestShutdownManagerUnregister(t *testing.T) {
 }
 
 func TestGracefulShutdownContext(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metricsCollector := core.NewDefaultMetricsCollector()
 	handler := NewShutdownHandler(logger, metricsCollector)
@@ -352,6 +368,7 @@ func TestGracefulShutdownContext(t *testing.T) {
 }
 
 func TestShutdownHandlerMultipleCallbacks(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metricsCollector := core.NewDefaultMetricsCollector()
 	handler := NewShutdownHandler(logger, metricsCollector)
@@ -388,6 +405,7 @@ func TestShutdownHandlerMultipleCallbacks(t *testing.T) {
 }
 
 func TestShutdownHandlerMultipleCleanups(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metricsCollector := core.NewDefaultMetricsCollector()
 	handler := NewShutdownHandler(logger, metricsCollector)
@@ -424,6 +442,7 @@ func TestShutdownHandlerMultipleCleanups(t *testing.T) {
 }
 
 func TestShutdownHandlerConcurrentRequests(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metricsCollector := core.NewDefaultMetricsCollector()
 	handler := NewShutdownHandler(logger, metricsCollector)
@@ -453,6 +472,7 @@ func TestShutdownHandlerConcurrentRequests(t *testing.T) {
 }
 
 func TestStopSignalListenerCleansUpGoroutine(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metricsCollector := core.NewDefaultMetricsCollector()
 	handler := NewShutdownHandler(logger, metricsCollector)

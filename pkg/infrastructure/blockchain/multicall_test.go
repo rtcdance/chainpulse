@@ -13,6 +13,7 @@ import (
 )
 
 func TestAggregate3_EmptyCalls(t *testing.T) {
+	t.Parallel()
 	client := NewMulticall3Client("http://localhost:8545", nil)
 	results, err := client.Aggregate3(context.Background(), nil)
 	if err != nil {
@@ -24,6 +25,7 @@ func TestAggregate3_EmptyCalls(t *testing.T) {
 }
 
 func TestAggregate3_SingleCall(t *testing.T) {
+	t.Parallel()
 	// Simulate: Aggregate3 returns [(true, 0x000...01)]
 	// ABI encode: offset(32) + length(1) + success(1) + returnDataOffset + returnData
 	returnHex := encodeTestAggregate3Result([]testCallResult{
@@ -40,9 +42,9 @@ func TestAggregate3_SingleCall(t *testing.T) {
 
 	calls := []Multicall3Call{
 		{
-			Target:      common.HexToAddress("0x1234567890abcdef1234567890abcdef12345678"),
+			Target:       common.HexToAddress("0x1234567890abcdef1234567890abcdef12345678"),
 			AllowFailure: true,
-			CallData:    erc20DecimalsSelector,
+			CallData:     erc20DecimalsSelector,
 		},
 	}
 
@@ -59,6 +61,7 @@ func TestAggregate3_SingleCall(t *testing.T) {
 }
 
 func TestAggregate3_RPCError(t *testing.T) {
+	t.Parallel()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte(`{"jsonrpc":"2.0","id":1,"error":{"code":-32000,"message":"contract error"}}`))
@@ -80,6 +83,7 @@ func TestAggregate3_RPCError(t *testing.T) {
 }
 
 func TestBatchERC20Metadata(t *testing.T) {
+	t.Parallel()
 	token1 := common.HexToAddress("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48") // USDC
 	token2 := common.HexToAddress("0x6B175474E89094C44Da98b954EedeAC495271d0F") // DAI
 
@@ -136,6 +140,7 @@ func TestBatchERC20Metadata(t *testing.T) {
 }
 
 func TestBatchERC20Metadata_CacheHit(t *testing.T) {
+	t.Parallel()
 	token := common.HexToAddress("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48")
 	callCount := 0
 
@@ -173,6 +178,7 @@ func TestBatchERC20Metadata_CacheHit(t *testing.T) {
 }
 
 func TestBatchERC20Metadata_EmptyInput(t *testing.T) {
+	t.Parallel()
 	client := NewMulticall3Client("http://localhost:8545", nil)
 	result, err := client.BatchERC20Metadata(context.Background(), nil)
 	if err != nil {
@@ -184,11 +190,12 @@ func TestBatchERC20Metadata_EmptyInput(t *testing.T) {
 }
 
 func TestEncodeAggregate3(t *testing.T) {
+	t.Parallel()
 	calls := []Multicall3Call{
 		{
-			Target:      common.HexToAddress("0x1234567890abcdef1234567890abcdef12345678"),
+			Target:       common.HexToAddress("0x1234567890abcdef1234567890abcdef12345678"),
 			AllowFailure: true,
-			CallData:    []byte{0x06, 0xfd, 0xde, 0x03},
+			CallData:     []byte{0x06, 0xfd, 0xde, 0x03},
 		},
 	}
 
@@ -204,6 +211,7 @@ func TestEncodeAggregate3(t *testing.T) {
 }
 
 func TestDecodeString(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name string
 		data []byte
@@ -225,6 +233,7 @@ func TestDecodeString(t *testing.T) {
 }
 
 func TestDecodeUint8(t *testing.T) {
+	t.Parallel()
 	data := encodeTestUint8(18)
 	got := decodeUint8(data)
 	if got != 18 {
@@ -233,6 +242,7 @@ func TestDecodeUint8(t *testing.T) {
 }
 
 func TestNewMulticall3Client_DefaultClient(t *testing.T) {
+	t.Parallel()
 	client := NewMulticall3Client("http://localhost:8545", nil)
 	if client.client == nil {
 		t.Error("NewMulticall3Client with nil client should use http.DefaultClient")

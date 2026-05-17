@@ -12,12 +12,12 @@ import (
 // that store data or validate UserOperations, ensuring they have economic
 // skin in the game.
 type StakeInfo struct {
-	Address        common.Address `json:"address"`
-	StakedAmount   *big.Int       `json:"staked_amount"` // in wei
-	UnstakeDelay   uint64         `json:"unstake_delay"` // seconds before withdrawal
-	WithdrawTime   time.Time      `json:"withdraw_time"` // when funds become withdrawable
-	IsStaked       bool           `json:"is_staked"`
-	DepositEntity  string         `json:"deposit_entity"` // "factory", "paymaster", or "aggregator"
+	Address       common.Address `json:"address"`
+	StakedAmount  *big.Int       `json:"staked_amount"` // in wei
+	UnstakeDelay  uint64         `json:"unstake_delay"` // seconds before withdrawal
+	WithdrawTime  time.Time      `json:"withdraw_time"` // when funds become withdrawable
+	IsStaked      bool           `json:"is_staked"`
+	DepositEntity string         `json:"deposit_entity"` // "factory", "paymaster", or "aggregator"
 }
 
 // MinimumStakeThreshold is the minimum stake required by the EntryPoint
@@ -69,9 +69,9 @@ type StakeUnlockedEvent struct {
 
 // StakeWithdrawnEvent is emitted when an entity withdraws their staked ETH.
 type StakeWithdrawnEvent struct {
-	Address      common.Address `json:"address"`
-	Amount       *big.Int       `json:"amount"`
-	WithdrawTo   common.Address `json:"withdraw_to"`
-	BlockNumber  uint64         `json:"block_number"`
-	TxHash       common.Hash    `json:"tx_hash"`
+	Address     common.Address `json:"address"`
+	Amount      *big.Int       `json:"amount"`
+	WithdrawTo  common.Address `json:"withdraw_to"`
+	BlockNumber uint64         `json:"block_number"`
+	TxHash      common.Hash    `json:"tx_hash"`
 }

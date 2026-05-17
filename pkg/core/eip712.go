@@ -25,10 +25,10 @@ type EIP712Domain struct {
 
 // TypedData represents the full EIP-712 typed data structure for signing.
 type TypedData struct {
-	Types       apitypes.Types         `json:"types"`
-	PrimaryType string                 `json:"primaryType"`
-	Domain      EIP712Domain           `json:"domain"`
-	Message     map[string]interface{} `json:"message"`
+	Types       apitypes.Types `json:"types"`
+	PrimaryType string         `json:"primaryType"`
+	Domain      EIP712Domain   `json:"domain"`
+	Message     map[string]any `json:"message"`
 }
 
 // Errors
@@ -113,7 +113,7 @@ func TypeHash(typeName string, types apitypes.Types) ([32]byte, error) {
 
 // HashStruct computes the keccak256 hash of a struct per EIP-712:
 // hashStruct(s) = keccak256(typeHash ‖ encodeData(s))
-func HashStruct(typeName string, types apitypes.Types, data map[string]interface{}) ([32]byte, error) {
+func HashStruct(typeName string, types apitypes.Types, data map[string]any) ([32]byte, error) {
 	typeHash, err := TypeHash(typeName, types)
 	if err != nil {
 		return [32]byte{}, err
@@ -133,7 +133,7 @@ func HashStruct(typeName string, types apitypes.Types, data map[string]interface
 }
 
 // encodeData encodes the data values according to the type definition.
-func encodeData(typeName string, types apitypes.Types, data map[string]interface{}, seen map[string]bool) ([]byte, error) {
+func encodeData(typeName string, types apitypes.Types, data map[string]any, seen map[string]bool) ([]byte, error) {
 	if seen[typeName] {
 		return nil, fmt.Errorf("%w: type %q has circular reference", ErrCircularTypeReference, typeName)
 	}
@@ -163,7 +163,7 @@ func encodeData(typeName string, types apitypes.Types, data map[string]interface
 }
 
 // encodeValue encodes a single value according to its ABI type.
-func encodeValue(typeStr string, types apitypes.Types, value interface{}, seen map[string]bool) ([]byte, error) {
+func encodeValue(typeStr string, types apitypes.Types, value any, seen map[string]bool) ([]byte, error) {
 	// Handle array types
 	if strings.HasSuffix(typeStr, "[]") {
 		// Dynamic arrays not fully supported — return hash of empty bytes32
@@ -220,7 +220,7 @@ func encodeValue(typeStr string, types apitypes.Types, value interface{}, seen m
 
 	// Struct types
 	if _, isStruct := types[typeStr]; isStruct {
-		data, ok := value.(map[string]interface{})
+		data, ok := value.(map[string]any)
 		if !ok {
 			return nil, fmt.Errorf("expected map for struct type %q, got %T", typeStr, value)
 		}
@@ -234,7 +234,7 @@ func encodeValue(typeStr string, types apitypes.Types, value interface{}, seen m
 	return nil, fmt.Errorf("%w: %q", ErrUnknownType, typeStr)
 }
 
-func encodeIntValue(value interface{}) ([]byte, error) {
+func encodeIntValue(value any) ([]byte, error) {
 	result := make([]byte, 32)
 
 	switch v := value.(type) {
@@ -263,7 +263,7 @@ func encodeIntValue(value interface{}) ([]byte, error) {
 	return result, nil
 }
 
-func encodeFixedBytesValue(value interface{}) ([]byte, error) {
+func encodeFixedBytesValue(value any) ([]byte, error) {
 	result := make([]byte, 32)
 
 	switch v := value.(type) {
@@ -286,7 +286,7 @@ func HashDomainSeparator(domain EIP712Domain) ([32]byte, error) {
 		{Name: "chainId", Type: "uint256"},
 	}
 
-	domainData := map[string]interface{}{
+	domainData := map[string]any{
 		"name":    domain.Name,
 		"version": domain.Version,
 	}

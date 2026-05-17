@@ -6,6 +6,7 @@ import (
 )
 
 func TestAppendRolloutPollProgressReason(t *testing.T) {
+	t.Parallel()
 	parts := []string{}
 
 	AppendRolloutPollProgressReason(&parts, RolloutPollProgressSnapshot{
@@ -45,6 +46,7 @@ func TestAppendRolloutPollProgressReason(t *testing.T) {
 }
 
 func TestAppendRolloutConsumerProgressReason(t *testing.T) {
+	t.Parallel()
 	parts := []string{}
 
 	AppendRolloutConsumerProgressReason(&parts, RolloutConsumerProgressSnapshot{
@@ -66,6 +68,7 @@ func TestAppendRolloutConsumerProgressReason(t *testing.T) {
 }
 
 func TestAppendRolloutExecutionProgressReason(t *testing.T) {
+	t.Parallel()
 	parts := []string{}
 
 	AppendRolloutExecutionProgressReason(&parts, RolloutExecutionProgress{
@@ -117,6 +120,7 @@ func TestAppendRolloutExecutionProgressReason(t *testing.T) {
 }
 
 func TestAppendRolloutExecutionProgressPostureReason(t *testing.T) {
+	t.Parallel()
 	parts := []string{}
 
 	AppendRolloutExecutionProgressPostureReason(&parts, RolloutExecutionProgress{
@@ -144,6 +148,7 @@ func TestAppendRolloutExecutionProgressPostureReason(t *testing.T) {
 }
 
 func TestAppendRolloutExecutionOperatorHintReason(t *testing.T) {
+	t.Parallel()
 	parts := []string{}
 
 	AppendRolloutExecutionOperatorHintReason(&parts, RolloutExecutionOperatorHint{

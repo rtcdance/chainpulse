@@ -12,6 +12,7 @@ import (
 
 // TestRedisMQPluginCreation tests Redis MQ plugin creation
 func TestRedisMQPluginCreation(t *testing.T) {
+	t.Parallel()
 	config := &core.Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -38,6 +39,7 @@ func TestRedisMQPluginCreation(t *testing.T) {
 
 // TestRedisMQPluginInitialization tests Redis plugin initialization
 func TestRedisMQPluginInitialization(t *testing.T) {
+	t.Parallel()
 	config := &core.Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -68,6 +70,7 @@ func TestRedisMQPluginInitialization(t *testing.T) {
 
 // TestRedisMQPluginLifecycle tests Redis plugin lifecycle
 func TestRedisMQPluginLifecycle(t *testing.T) {
+	t.Parallel()
 	config := &core.Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -104,6 +107,7 @@ func TestRedisMQPluginLifecycle(t *testing.T) {
 
 // TestRedisMQPluginPublishMessage tests publishing a message
 func TestRedisMQPluginPublishMessage(t *testing.T) {
+	t.Parallel()
 	config := &core.Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -147,6 +151,7 @@ func TestRedisMQPluginPublishMessage(t *testing.T) {
 
 // TestRedisMQPluginAcknowledgeMessage tests acknowledging a message
 func TestRedisMQPluginAcknowledgeMessage(t *testing.T) {
+	t.Parallel()
 	config := &core.Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -185,6 +190,7 @@ func TestRedisMQPluginAcknowledgeMessage(t *testing.T) {
 
 // TestRedisMQPluginDeadLetterQueue tests dead letter queue handling
 func TestRedisMQPluginDeadLetterQueue(t *testing.T) {
+	t.Parallel()
 	config := &core.Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -228,6 +234,7 @@ func TestRedisMQPluginDeadLetterQueue(t *testing.T) {
 
 // TestRedisMQPluginRetryMessage tests message retry
 func TestRedisMQPluginRetryMessage(t *testing.T) {
+	t.Parallel()
 	config := &core.Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -273,6 +280,7 @@ func TestRedisMQPluginRetryMessage(t *testing.T) {
 
 // TestRedisMQPluginGetStats tests statistics retrieval
 func TestRedisMQPluginGetStats(t *testing.T) {
+	t.Parallel()
 	config := &core.Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -303,6 +311,7 @@ func TestRedisMQPluginGetStats(t *testing.T) {
 
 // TestRedisMQPluginSetBatchSize tests setting batch size
 func TestRedisMQPluginSetBatchSize(t *testing.T) {
+	t.Parallel()
 	config := &core.Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -324,6 +333,7 @@ func TestRedisMQPluginSetBatchSize(t *testing.T) {
 
 // TestRedisMQPluginSetMaxRetries tests setting max retries
 func TestRedisMQPluginSetMaxRetries(t *testing.T) {
+	t.Parallel()
 	config := &core.Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -345,6 +355,7 @@ func TestRedisMQPluginSetMaxRetries(t *testing.T) {
 
 // TestRedisMQPluginSetRetryDelay tests setting retry delay
 func TestRedisMQPluginSetRetryDelay(t *testing.T) {
+	t.Parallel()
 	config := &core.Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -366,6 +377,7 @@ func TestRedisMQPluginSetRetryDelay(t *testing.T) {
 
 // TestRedisMQPluginConcurrentOperations tests concurrent operations
 func TestRedisMQPluginConcurrentOperations(t *testing.T) {
+	t.Parallel()
 	config := &core.Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -421,6 +433,7 @@ func TestRedisMQPluginConcurrentOperations(t *testing.T) {
 
 // TestRedisMQPluginHealth tests health check
 func TestRedisMQPluginHealth(t *testing.T) {
+	t.Parallel()
 	config := &core.Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -451,6 +464,7 @@ func TestRedisMQPluginHealth(t *testing.T) {
 
 // TestRedisMQPluginConnectionURL tests connection URL configuration
 func TestRedisMQPluginConnectionURL(t *testing.T) {
+	t.Parallel()
 	config := &core.Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -469,6 +483,7 @@ func TestRedisMQPluginConnectionURL(t *testing.T) {
 
 // TestRedisMQPluginMultipleTopics tests handling multiple topics
 func TestRedisMQPluginMultipleTopics(t *testing.T) {
+	t.Parallel()
 	config := &core.Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -511,6 +526,7 @@ func TestRedisMQPluginMultipleTopics(t *testing.T) {
 
 // TestRedisMQPluginFlushQueue tests flushing a queue
 func TestRedisMQPluginFlushQueue(t *testing.T) {
+	t.Parallel()
 	config := &core.Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -544,6 +560,7 @@ func TestRedisMQPluginFlushQueue(t *testing.T) {
 
 // TestRedisMQPluginGetQueueDepth tests getting queue depth
 func TestRedisMQPluginGetQueueDepth(t *testing.T) {
+	t.Parallel()
 	config := &core.Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,

@@ -3,6 +3,7 @@ package api
 import "testing"
 
 func TestValidateRolloutExecutionProgressReasonCoverage(t *testing.T) {
+	t.Parallel()
 	progress := BuildRolloutExecutionProgress(RolloutExecutionProgressInput{
 		Poll: RolloutPollProgressSnapshot{
 			PollCount:                2,
@@ -35,6 +36,7 @@ func TestValidateRolloutExecutionProgressReasonCoverage(t *testing.T) {
 }
 
 func TestValidateRolloutExecutionProgressPostureReasonCoverage(t *testing.T) {
+	t.Parallel()
 	reason := "poll_progress_posture: poll-catchup; consumer_progress_posture: consumer-backlog"
 	progress := BuildRolloutExecutionProgress(RolloutExecutionProgressInput{
 		Poll: RolloutPollProgressSnapshot{
@@ -57,6 +59,7 @@ func TestValidateRolloutExecutionProgressPostureReasonCoverage(t *testing.T) {
 }
 
 func TestValidateRolloutExecutionOperatorHintReasonCoverage(t *testing.T) {
+	t.Parallel()
 	reason := "poll_operator_hint: continue observing checkpoint catch-up; consumer_operator_hint: prioritize backlog drain"
 	hint := RolloutExecutionOperatorHint{
 		Poll:     "continue observing checkpoint catch-up",
@@ -69,6 +72,7 @@ func TestValidateRolloutExecutionOperatorHintReasonCoverage(t *testing.T) {
 }
 
 func TestValidateRolloutExecutionProgressReasonCoverageFailsWhenMissingPart(t *testing.T) {
+	t.Parallel()
 	progress := BuildRolloutExecutionProgress(RolloutExecutionProgressInput{
 		Consumer: RolloutConsumerProgressSnapshot{
 			ActiveConsumers: 3,

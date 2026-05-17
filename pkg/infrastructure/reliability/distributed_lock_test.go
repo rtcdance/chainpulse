@@ -12,6 +12,7 @@ import (
 
 // TestNewDistributedLock tests DistributedLock creation
 func TestNewDistributedLock(t *testing.T) {
+	t.Parallel()
 	timeout := 5 * time.Second
 	dl := NewDistributedLock(timeout)
 
@@ -24,6 +25,7 @@ func TestNewDistributedLock(t *testing.T) {
 
 // TestAcquireLockSuccess tests successful lock acquisition
 func TestAcquireLockSuccess(t *testing.T) {
+	t.Parallel()
 	dl := NewDistributedLock(5 * time.Second)
 	ctx := context.Background()
 
@@ -38,6 +40,7 @@ func TestAcquireLockSuccess(t *testing.T) {
 
 // TestAcquireLockAlreadyHeld tests acquiring already held lock
 func TestAcquireLockAlreadyHeld(t *testing.T) {
+	t.Parallel()
 	dl := NewDistributedLock(5 * time.Second)
 	ctx := context.Background()
 
@@ -57,6 +60,7 @@ func TestAcquireLockAlreadyHeld(t *testing.T) {
 
 // TestAcquireLockRenewal tests lock renewal by same owner
 func TestAcquireLockRenewal(t *testing.T) {
+	t.Parallel()
 	dl := NewDistributedLock(5 * time.Second)
 	ctx := context.Background()
 
@@ -83,6 +87,7 @@ func TestAcquireLockRenewal(t *testing.T) {
 
 // TestAcquireLockExpired tests acquiring expired lock
 func TestAcquireLockExpired(t *testing.T) {
+	t.Parallel()
 	dl := NewDistributedLock(100 * time.Millisecond)
 	ctx := context.Background()
 
@@ -106,6 +111,7 @@ func TestAcquireLockExpired(t *testing.T) {
 
 // TestReleaseLockSuccess tests successful lock release
 func TestReleaseLockSuccess(t *testing.T) {
+	t.Parallel()
 	dl := NewDistributedLock(5 * time.Second)
 	ctx := context.Background()
 
@@ -126,6 +132,7 @@ func TestReleaseLockSuccess(t *testing.T) {
 
 // TestReleaseLockNotFound tests releasing non-existent lock
 func TestReleaseLockNotFound(t *testing.T) {
+	t.Parallel()
 	dl := NewDistributedLock(5 * time.Second)
 	ctx := context.Background()
 
@@ -137,6 +144,7 @@ func TestReleaseLockNotFound(t *testing.T) {
 
 // TestReleaseLockWrongOwner tests releasing lock by wrong owner
 func TestReleaseLockWrongOwner(t *testing.T) {
+	t.Parallel()
 	dl := NewDistributedLock(5 * time.Second)
 	ctx := context.Background()
 
@@ -154,6 +162,7 @@ func TestReleaseLockWrongOwner(t *testing.T) {
 
 // TestIsLockedTrue tests IsLocked returns true for held lock
 func TestIsLockedTrue(t *testing.T) {
+	t.Parallel()
 	dl := NewDistributedLock(5 * time.Second)
 	ctx := context.Background()
 
@@ -165,6 +174,7 @@ func TestIsLockedTrue(t *testing.T) {
 
 // TestIsLockedFalse tests IsLocked returns false for non-existent lock
 func TestIsLockedFalse(t *testing.T) {
+	t.Parallel()
 	dl := NewDistributedLock(5 * time.Second)
 
 	assert.False(t, dl.IsLocked("nonexistent-lock"))
@@ -172,6 +182,7 @@ func TestIsLockedFalse(t *testing.T) {
 
 // TestIsLockedExpired tests IsLocked returns false for expired lock
 func TestIsLockedExpired(t *testing.T) {
+	t.Parallel()
 	dl := NewDistributedLock(100 * time.Millisecond)
 	ctx := context.Background()
 
@@ -186,6 +197,7 @@ func TestIsLockedExpired(t *testing.T) {
 
 // TestGetLockInfo tests retrieving lock information
 func TestGetLockInfo(t *testing.T) {
+	t.Parallel()
 	dl := NewDistributedLock(5 * time.Second)
 	ctx := context.Background()
 
@@ -204,6 +216,7 @@ func TestGetLockInfo(t *testing.T) {
 
 // TestGetLockInfoNotFound tests retrieving non-existent lock info
 func TestGetLockInfoNotFound(t *testing.T) {
+	t.Parallel()
 	dl := NewDistributedLock(5 * time.Second)
 
 	_, err := dl.GetLockInfo("nonexistent-lock")
@@ -214,6 +227,7 @@ func TestGetLockInfoNotFound(t *testing.T) {
 
 // TestCleanupExpiredLocks tests cleanup of expired locks
 func TestCleanupExpiredLocks(t *testing.T) {
+	t.Parallel()
 	dl := NewDistributedLock(100 * time.Millisecond)
 	ctx := context.Background()
 
@@ -238,6 +252,7 @@ func TestCleanupExpiredLocks(t *testing.T) {
 
 // TestGetMetrics tests metrics retrieval
 func TestGetMetrics(t *testing.T) {
+	t.Parallel()
 	dl := NewDistributedLock(5 * time.Second)
 	ctx := context.Background()
 
@@ -257,6 +272,7 @@ func TestGetMetrics(t *testing.T) {
 
 // TestNewLockManager tests LockManager creation
 func TestNewLockManager(t *testing.T) {
+	t.Parallel()
 	timeout := 5 * time.Second
 	lm := NewLockManager(timeout)
 
@@ -269,6 +285,7 @@ func TestNewLockManager(t *testing.T) {
 
 // TestAcquireLockWithWaitSuccess tests successful lock acquisition with wait
 func TestAcquireLockWithWaitSuccess(t *testing.T) {
+	t.Parallel()
 	lm := NewLockManager(5 * time.Second)
 	ctx := context.Background()
 
@@ -280,6 +297,7 @@ func TestAcquireLockWithWaitSuccess(t *testing.T) {
 
 // TestAcquireLockWithWaitTimeout tests lock acquisition timeout
 func TestAcquireLockWithWaitTimeout(t *testing.T) {
+	t.Parallel()
 	lm := NewLockManager(5 * time.Second)
 	ctx := context.Background()
 
@@ -296,6 +314,7 @@ func TestAcquireLockWithWaitTimeout(t *testing.T) {
 
 // TestAcquireLockWithWaitContextCancellation tests context cancellation
 func TestAcquireLockWithWaitContextCancellation(t *testing.T) {
+	t.Parallel()
 	lm := NewLockManager(5 * time.Second)
 
 	// Acquire lock with owner-1
@@ -314,6 +333,7 @@ func TestAcquireLockWithWaitContextCancellation(t *testing.T) {
 
 // TestReleaseLockViaManager tests lock release via manager
 func TestReleaseLockViaManager(t *testing.T) {
+	t.Parallel()
 	lm := NewLockManager(5 * time.Second)
 	ctx := context.Background()
 
@@ -327,6 +347,7 @@ func TestReleaseLockViaManager(t *testing.T) {
 
 // TestDetectDeadlocksNoCycle tests deadlock detection with no cycle
 func TestDetectDeadlocksNoCycle(t *testing.T) {
+	t.Parallel()
 	dd := NewDeadlockDetector()
 
 	// Linear chain: owner1 -> lock1 -> owner2 -> lock2 (no cycle)
@@ -346,6 +367,7 @@ func TestDetectDeadlocksNoCycle(t *testing.T) {
 
 // TestDetectDeadlocksCycle tests deadlock detection with cycle
 func TestDetectDeadlocksCycle(t *testing.T) {
+	t.Parallel()
 	dd := NewDeadlockDetector()
 
 	// Create a cycle: owner1 -> lock1 -> owner2 -> lock2 -> owner1
@@ -361,6 +383,7 @@ func TestDetectDeadlocksCycle(t *testing.T) {
 
 // TestAddWaitEdge tests adding wait edge
 func TestAddWaitEdge(t *testing.T) {
+	t.Parallel()
 	dd := NewDeadlockDetector()
 
 	dd.AddWaitEdge("owner1", "lock1")
@@ -371,6 +394,7 @@ func TestAddWaitEdge(t *testing.T) {
 
 // TestRemoveWaitEdge tests removing wait edge
 func TestRemoveWaitEdge(t *testing.T) {
+	t.Parallel()
 	dd := NewDeadlockDetector()
 
 	dd.AddWaitEdge("owner1", "lock1")
@@ -382,6 +406,7 @@ func TestRemoveWaitEdge(t *testing.T) {
 
 // TestConcurrentLockAcquisition tests concurrent lock acquisition
 func TestConcurrentLockAcquisition(t *testing.T) {
+	t.Parallel()
 	dl := NewDistributedLock(5 * time.Second)
 	ctx := context.Background()
 
@@ -417,6 +442,7 @@ func TestConcurrentLockAcquisition(t *testing.T) {
 
 // TestConcurrentLockRelease tests concurrent lock release
 func TestConcurrentLockRelease(t *testing.T) {
+	t.Parallel()
 	dl := NewDistributedLock(5 * time.Second)
 	ctx := context.Background()
 
@@ -451,6 +477,7 @@ func TestConcurrentLockRelease(t *testing.T) {
 
 // TestLockTimeout tests lock timeout behavior
 func TestLockTimeout(t *testing.T) {
+	t.Parallel()
 	timeout := 200 * time.Millisecond
 	dl := NewDistributedLock(timeout)
 	ctx := context.Background()
@@ -470,6 +497,7 @@ func TestLockTimeout(t *testing.T) {
 
 // TestMultipleLocks tests managing multiple locks
 func TestMultipleLocks(t *testing.T) {
+	t.Parallel()
 	dl := NewDistributedLock(5 * time.Second)
 	ctx := context.Background()
 
@@ -504,6 +532,7 @@ func TestMultipleLocks(t *testing.T) {
 
 // TestLockMetricsAccuracy tests metrics accuracy
 func TestLockMetricsAccuracy(t *testing.T) {
+	t.Parallel()
 	dl := NewDistributedLock(5 * time.Second)
 	ctx := context.Background()
 
@@ -526,6 +555,7 @@ func TestLockMetricsAccuracy(t *testing.T) {
 
 // TestDeadlockDetectorComplexCycle tests complex cycle detection
 func TestDeadlockDetectorComplexCycle(t *testing.T) {
+	t.Parallel()
 	dd := NewDeadlockDetector()
 
 	// Create a complex cycle: A -> B -> C -> A

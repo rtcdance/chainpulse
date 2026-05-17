@@ -28,22 +28,26 @@ func (m *MockConfigManager) Validate(config core.Config) error {
 	return nil
 }
 
-func (m *MockConfigManager) Get(key string) (interface{}, error) {
+func (m *MockConfigManager) Get(key string) (any, error) {
 	return nil, nil
 }
 
-func (m *MockConfigManager) Set(key string, value interface{}) error {
+func (m *MockConfigManager) Set(key string, value any) error {
 	return nil
 }
 
 // MockEventBus for testing
 type MockEventBus struct{}
 
-func (m *MockEventBus) Publish(ctx context.Context, topic string, event interface{}) error {
+func (m *MockEventBus) Publish(ctx context.Context, topic string, event any) error {
 	return nil
 }
 
-func (m *MockEventBus) Subscribe(ctx context.Context, topic string, handler func(interface{})) (uint64, error) {
+func (m *MockEventBus) Subscribe(ctx context.Context, topic string, handler func(any)) (uint64, error) {
+	return 0, nil
+}
+
+func (m *MockEventBus) SubscribeNamed(ctx context.Context, topic, name string, handler func(any)) (uint64, error) {
 	return 0, nil
 }
 
@@ -54,11 +58,11 @@ func (m *MockEventBus) Unsubscribe(subscriptionID uint64) error {
 // MockLogger for testing
 type MockLogger struct{}
 
-func (m *MockLogger) Debug(msg string, fields ...interface{}) {}
-func (m *MockLogger) Info(msg string, fields ...interface{})  {}
-func (m *MockLogger) Warn(msg string, fields ...interface{})  {}
-func (m *MockLogger) Error(msg string, fields ...interface{}) {}
-func (m *MockLogger) Fatal(msg string, fields ...interface{}) {}
+func (m *MockLogger) Debug(msg string, fields ...any) {}
+func (m *MockLogger) Info(msg string, fields ...any)  {}
+func (m *MockLogger) Warn(msg string, fields ...any)  {}
+func (m *MockLogger) Error(msg string, fields ...any) {}
+func (m *MockLogger) Fatal(msg string, fields ...any) {}
 func (m *MockLogger) WithCorrelationID(id string) core.Logger {
 	return m
 }
@@ -72,8 +76,8 @@ func (m *MockMetricsCollector) RecordGauge(name string, value float64, tags map[
 
 func (m *MockMetricsCollector) RecordHistogram(name string, value float64, tags map[string]string) {}
 
-func (m *MockMetricsCollector) GetMetrics() map[string]interface{} {
-	return make(map[string]interface{})
+func (m *MockMetricsCollector) GetMetrics() map[string]any {
+	return make(map[string]any)
 }
 
 // MockHealthChecker for testing
@@ -154,6 +158,7 @@ func (m *MockPluginRegistry) Stop() error {
 
 // TestNewMicroserviceDeployment tests deployment creation
 func TestNewMicroserviceDeployment(t *testing.T) {
+	t.Parallel()
 	config := core.Config{ServiceName: "test-service"}
 	registry := &MockPluginRegistry{}
 	configManager := &MockConfigManager{}
@@ -173,6 +178,7 @@ func TestNewMicroserviceDeployment(t *testing.T) {
 
 // TestRegisterService tests service registration
 func TestRegisterService(t *testing.T) {
+	t.Parallel()
 	md := NewMicroserviceDeployment(
 		core.Config{ServiceName: "test"},
 		&MockPluginRegistry{},
@@ -195,6 +201,7 @@ func TestRegisterService(t *testing.T) {
 
 // TestRegisterServiceNilFunctions tests registration with nil functions
 func TestRegisterServiceNilFunctions(t *testing.T) {
+	t.Parallel()
 	md := NewMicroserviceDeployment(
 		core.Config{ServiceName: "test"},
 		&MockPluginRegistry{},
@@ -213,6 +220,7 @@ func TestRegisterServiceNilFunctions(t *testing.T) {
 
 // TestInitialize tests microservice initialization
 func TestInitialize(t *testing.T) {
+	t.Parallel()
 	md := NewMicroserviceDeployment(
 		core.Config{ServiceName: "test"},
 		&MockPluginRegistry{},
@@ -237,6 +245,7 @@ func TestInitialize(t *testing.T) {
 
 // TestInitializeWithoutRegistration tests initialization without service registration
 func TestInitializeWithoutRegistration(t *testing.T) {
+	t.Parallel()
 	md := NewMicroserviceDeployment(
 		core.Config{ServiceName: "test"},
 		&MockPluginRegistry{},
@@ -255,6 +264,7 @@ func TestInitializeWithoutRegistration(t *testing.T) {
 
 // TestIsRunning tests running status
 func TestIsRunning(t *testing.T) {
+	t.Parallel()
 	md := NewMicroserviceDeployment(
 		core.Config{ServiceName: "test"},
 		&MockPluginRegistry{},
@@ -271,6 +281,7 @@ func TestIsRunning(t *testing.T) {
 
 // TestGetInstanceID tests instance ID retrieval
 func TestGetInstanceID(t *testing.T) {
+	t.Parallel()
 	md := NewMicroserviceDeployment(
 		core.Config{ServiceName: "test"},
 		&MockPluginRegistry{},
@@ -289,6 +300,7 @@ func TestGetInstanceID(t *testing.T) {
 
 // TestGetServiceName tests service name retrieval
 func TestGetServiceName(t *testing.T) {
+	t.Parallel()
 	md := NewMicroserviceDeployment(
 		core.Config{ServiceName: "test-service"},
 		&MockPluginRegistry{},
@@ -307,6 +319,7 @@ func TestGetServiceName(t *testing.T) {
 
 // TestGetHealth tests health status
 func TestGetHealth(t *testing.T) {
+	t.Parallel()
 	md := NewMicroserviceDeployment(
 		core.Config{ServiceName: "test"},
 		&MockPluginRegistry{},
@@ -326,6 +339,7 @@ func TestGetHealth(t *testing.T) {
 
 // TestGetMetrics tests metrics retrieval
 func TestGetMetrics(t *testing.T) {
+	t.Parallel()
 	md := NewMicroserviceDeployment(
 		core.Config{ServiceName: "test"},
 		&MockPluginRegistry{},
@@ -346,6 +360,7 @@ func TestGetMetrics(t *testing.T) {
 
 // TestSetHeartbeatInterval tests setting heartbeat interval
 func TestSetHeartbeatInterval(t *testing.T) {
+	t.Parallel()
 	md := NewMicroserviceDeployment(
 		core.Config{ServiceName: "test"},
 		&MockPluginRegistry{},
@@ -365,6 +380,7 @@ func TestSetHeartbeatInterval(t *testing.T) {
 
 // TestSetHeartbeatIntervalInvalid tests setting invalid heartbeat interval
 func TestSetHeartbeatIntervalInvalid(t *testing.T) {
+	t.Parallel()
 	md := NewMicroserviceDeployment(
 		core.Config{ServiceName: "test"},
 		&MockPluginRegistry{},
@@ -383,6 +399,7 @@ func TestSetHeartbeatIntervalInvalid(t *testing.T) {
 
 // TestGetHeartbeatInterval tests getting heartbeat interval
 func TestGetHeartbeatInterval(t *testing.T) {
+	t.Parallel()
 	md := NewMicroserviceDeployment(
 		core.Config{ServiceName: "test"},
 		&MockPluginRegistry{},
@@ -401,6 +418,7 @@ func TestGetHeartbeatInterval(t *testing.T) {
 
 // TestConcurrentOperations tests concurrent operations
 func TestConcurrentOperations(t *testing.T) {
+	t.Parallel()
 	md := NewMicroserviceDeployment(
 		core.Config{ServiceName: "test"},
 		&MockPluginRegistry{},
@@ -433,6 +451,7 @@ func TestConcurrentOperations(t *testing.T) {
 
 // TestMultipleInstances tests creating multiple instances
 func TestMultipleInstances(t *testing.T) {
+	t.Parallel()
 	instances := make([]*MicroserviceDeployment, 5)
 
 	for i := 0; i < 5; i++ {
@@ -461,6 +480,7 @@ func TestMultipleInstances(t *testing.T) {
 
 // TestShutdownNotRunning tests shutdown when not running
 func TestShutdownNotRunning(t *testing.T) {
+	t.Parallel()
 	md := NewMicroserviceDeployment(
 		core.Config{ServiceName: "test"},
 		&MockPluginRegistry{},
@@ -479,6 +499,7 @@ func TestShutdownNotRunning(t *testing.T) {
 
 // TestStopNotRunning tests stop when not running
 func TestStopNotRunning(t *testing.T) {
+	t.Parallel()
 	md := NewMicroserviceDeployment(
 		core.Config{ServiceName: "test"},
 		&MockPluginRegistry{},
@@ -497,6 +518,7 @@ func TestStopNotRunning(t *testing.T) {
 
 // TestInitializeAlreadyRunning tests initialization when already running
 func TestInitializeAlreadyRunning(t *testing.T) {
+	t.Parallel()
 	md := NewMicroserviceDeployment(
 		core.Config{ServiceName: "test"},
 		&MockPluginRegistry{},
@@ -519,6 +541,7 @@ func TestInitializeAlreadyRunning(t *testing.T) {
 
 // TestGetHealthRunning tests health status when running
 func TestGetHealthRunning(t *testing.T) {
+	t.Parallel()
 	md := NewMicroserviceDeployment(
 		core.Config{ServiceName: "test"},
 		&MockPluginRegistry{},
@@ -543,6 +566,7 @@ func TestGetHealthRunning(t *testing.T) {
 
 // TestGetHealthDegraded tests health status when degraded
 func TestGetHealthDegraded(t *testing.T) {
+	t.Parallel()
 	md := NewMicroserviceDeployment(
 		core.Config{ServiceName: "test"},
 		&MockPluginRegistry{},
@@ -567,6 +591,7 @@ func TestGetHealthDegraded(t *testing.T) {
 
 // TestGenerateInstanceID tests instance ID generation
 func TestGenerateInstanceID(t *testing.T) {
+	t.Parallel()
 	id1 := generateInstanceID()
 	time.Sleep(1 * time.Millisecond)
 	id2 := generateInstanceID()

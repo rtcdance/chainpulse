@@ -10,6 +10,7 @@ import (
 )
 
 func TestErrorClassifierTransient(t *testing.T) {
+	t.Parallel()
 	classifier := NewDefaultErrorClassifier()
 
 	transientErrors := []error{
@@ -42,6 +43,7 @@ func TestErrorClassifierTransient(t *testing.T) {
 }
 
 func TestErrorClassifierPermanent(t *testing.T) {
+	t.Parallel()
 	classifier := NewDefaultErrorClassifier()
 
 	permanentErrors := []error{
@@ -74,6 +76,7 @@ func TestErrorClassifierPermanent(t *testing.T) {
 }
 
 func TestErrorClassifierCritical(t *testing.T) {
+	t.Parallel()
 	classifier := NewDefaultErrorClassifier()
 
 	criticalErrors := []error{
@@ -103,6 +106,7 @@ func TestErrorClassifierCritical(t *testing.T) {
 }
 
 func TestErrorClassifierNil(t *testing.T) {
+	t.Parallel()
 	classifier := NewDefaultErrorClassifier()
 
 	category := classifier.Classify(nil)
@@ -124,12 +128,13 @@ func TestErrorClassifierNil(t *testing.T) {
 }
 
 func TestDefaultErrorLogger(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	errorLogger := NewDefaultErrorLogger(logger)
 
 	ctx := context.Background()
 	err := errors.New("test error")
-	context := map[string]interface{}{
+	context := map[string]any{
 		"key1": "value1",
 		"key2": 42,
 	}
@@ -142,6 +147,7 @@ func TestDefaultErrorLogger(t *testing.T) {
 }
 
 func TestDefaultContextProvider(t *testing.T) {
+	t.Parallel()
 	provider := NewDefaultContextProvider("corr-123", "req-456", "user-789")
 
 	ctx := context.Background()
@@ -165,6 +171,7 @@ func TestDefaultContextProvider(t *testing.T) {
 }
 
 func TestErrorHandlerRegistration(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metricsCollector := core.NewDefaultMetricsCollector()
 	handler := NewErrorHandler(logger, metricsCollector)
@@ -209,6 +216,7 @@ func TestErrorHandlerRegistration(t *testing.T) {
 }
 
 func TestErrorHandlerHandleError(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metricsCollector := core.NewDefaultMetricsCollector()
 	handler := NewErrorHandler(logger, metricsCollector)
@@ -245,6 +253,7 @@ func TestErrorHandlerHandleError(t *testing.T) {
 }
 
 func TestErrorHandlerClassify(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metricsCollector := core.NewDefaultMetricsCollector()
 	handler := NewErrorHandler(logger, metricsCollector)
@@ -269,6 +278,7 @@ func TestErrorHandlerClassify(t *testing.T) {
 }
 
 func TestErrorHandlerConcurrentHandling(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metricsCollector := core.NewDefaultMetricsCollector()
 	handler := NewErrorHandler(logger, metricsCollector)
@@ -292,6 +302,7 @@ func TestErrorHandlerConcurrentHandling(t *testing.T) {
 }
 
 func TestErrorHandlerWithContextProviders(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metricsCollector := core.NewDefaultMetricsCollector()
 	handler := NewErrorHandler(logger, metricsCollector)
@@ -308,6 +319,7 @@ func TestErrorHandlerWithContextProviders(t *testing.T) {
 }
 
 func TestErrorHandlerMetricsRecording(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metricsCollector := core.NewDefaultMetricsCollector()
 	handler := NewErrorHandler(logger, metricsCollector)
@@ -334,6 +346,7 @@ func TestErrorHandlerMetricsRecording(t *testing.T) {
 }
 
 func TestErrorHandlerMultipleLoggers(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metricsCollector := core.NewDefaultMetricsCollector()
 	handler := NewErrorHandler(logger, metricsCollector)
@@ -360,6 +373,7 @@ func TestErrorHandlerMultipleLoggers(t *testing.T) {
 }
 
 func TestErrorHandlerErrorClassification(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metricsCollector := core.NewDefaultMetricsCollector()
 	handler := NewErrorHandler(logger, metricsCollector)

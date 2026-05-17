@@ -49,10 +49,12 @@ func EffectiveGasPrice(baseFee, gasPrice, maxFeePerGas, maxPriorityFeePerGas *bi
 // using the EIP-1559 base fee formula.
 //
 // If parentGasUsed < gasTarget (gasLimit/2): baseFee decreases
-//   baseFee_next = baseFee * (1 - (gasTarget - gasUsed) / gasTarget / 8)
+//
+//	baseFee_next = baseFee * (1 - (gasTarget - gasUsed) / gasTarget / 8)
 //
 // If parentGasUsed > gasTarget: baseFee increases
-//   baseFee_next = baseFee * (1 + (gasUsed - gasTarget) / gasTarget / 8)
+//
+//	baseFee_next = baseFee * (1 + (gasUsed - gasTarget) / gasTarget / 8)
 //
 // Maximum change per block: ~12.5% (1/8 = 0.125)
 func PredictNextBaseFee(parentBaseFee *big.Int, gasUsed, gasLimit uint64) *big.Int {
@@ -205,10 +207,10 @@ func IsEIP1559Tx(tx *Transaction) bool {
 
 // EstimateBlockCongestion provides a congestion assessment for a block.
 type BlockCongestion struct {
-	Level        float64 // gasUsed / gasLimit
-	Band         string  // human-readable band
+	Level        float64  // gasUsed / gasLimit
+	Band         string   // human-readable band
 	NextBaseFee  *big.Int // predicted base fee for the next block
-	GasTargetPct float64 // gasUsed / gasTarget as percentage
+	GasTargetPct float64  // gasUsed / gasTarget as percentage
 }
 
 // AssessBlockCongestion computes a full congestion assessment for a block.
@@ -372,8 +374,8 @@ const (
 
 // AccessListEntry represents a single entry in an EIP-2930 access list.
 type AccessListEntry struct {
-	Address     common.Address   `json:"address"`
-	StorageKeys []common.Hash    `json:"storageKeys"`
+	Address     common.Address `json:"address"`
+	StorageKeys []common.Hash  `json:"storageKeys"`
 }
 
 // AccessListGasCost computes the total gas cost for a transaction with an access list.

@@ -20,7 +20,7 @@ func TestTransactionIsolation(t *testing.T) {
 		PostgresHost:     "localhost",
 		PostgresPort:     "5432",
 		PostgresUser:     "chainpulse",
-		PostgresPassword: "chainpulse",
+		PostgresPassword: core.SecretString("chainpulse"),
 		PostgresDB:       "chainpulse",
 	}
 
@@ -97,7 +97,7 @@ func TestRollbackOnError(t *testing.T) {
 		PostgresHost:     "localhost",
 		PostgresPort:     "5432",
 		PostgresUser:     "chainpulse",
-		PostgresPassword: "chainpulse",
+		PostgresPassword: core.SecretString("chainpulse"),
 		PostgresDB:       "chainpulse",
 	}
 
@@ -167,7 +167,7 @@ func TestConcurrentTransactions(t *testing.T) {
 		PostgresHost:     "localhost",
 		PostgresPort:     "5432",
 		PostgresUser:     "chainpulse",
-		PostgresPassword: "chainpulse",
+		PostgresPassword: core.SecretString("chainpulse"),
 		PostgresDB:       "chainpulse",
 	}
 
@@ -226,7 +226,7 @@ func TestTransactionConsistency(t *testing.T) {
 		PostgresHost:     "localhost",
 		PostgresPort:     "5432",
 		PostgresUser:     "chainpulse",
-		PostgresPassword: "chainpulse",
+		PostgresPassword: core.SecretString("chainpulse"),
 		PostgresDB:       "chainpulse",
 	}
 

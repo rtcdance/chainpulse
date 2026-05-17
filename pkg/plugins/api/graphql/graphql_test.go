@@ -120,23 +120,23 @@ func NewMockLogger() *MockLogger {
 	}
 }
 
-func (m *MockLogger) Info(msg string, args ...interface{}) {
+func (m *MockLogger) Info(msg string, args ...any) {
 	m.messages = append(m.messages, msg)
 }
 
-func (m *MockLogger) Error(msg string, args ...interface{}) {
+func (m *MockLogger) Error(msg string, args ...any) {
 	m.messages = append(m.messages, msg)
 }
 
-func (m *MockLogger) Warn(msg string, args ...interface{}) {
+func (m *MockLogger) Warn(msg string, args ...any) {
 	m.messages = append(m.messages, msg)
 }
 
-func (m *MockLogger) Debug(msg string, args ...interface{}) {
+func (m *MockLogger) Debug(msg string, args ...any) {
 	m.messages = append(m.messages, msg)
 }
 
-func (m *MockLogger) Fatal(msg string, args ...interface{}) {
+func (m *MockLogger) Fatal(msg string, args ...any) {
 	m.messages = append(m.messages, msg)
 }
 
@@ -171,8 +171,8 @@ func (m *MockMetrics) RecordHistogram(name string, value float64, tags map[strin
 	m.metrics[name] += value
 }
 
-func (m *MockMetrics) GetMetrics() map[string]interface{} {
-	result := make(map[string]interface{})
+func (m *MockMetrics) GetMetrics() map[string]any {
+	result := make(map[string]any)
 	for k, v := range m.metrics {
 		result[k] = v
 	}
@@ -181,12 +181,12 @@ func (m *MockMetrics) GetMetrics() map[string]interface{} {
 
 // MockCache implements core.Cache for testing
 type MockCache struct {
-	data map[string]interface{}
+	data map[string]any
 }
 
 func NewMockCache() *MockCache {
 	return &MockCache{
-		data: make(map[string]interface{}),
+		data: make(map[string]any),
 	}
 }
 
@@ -251,6 +251,7 @@ func (m *MockCache) Stop() error {
 
 // Test Schema Builder
 func TestSchemaBuilder_BuildSchema(t *testing.T) {
+	t.Parallel()
 	logger := NewMockLogger()
 	metrics := NewMockMetrics()
 	eventStore := NewMockEventStore()
@@ -272,10 +273,11 @@ func TestSchemaBuilder_BuildSchema(t *testing.T) {
 }
 
 func TestSchemaBuilderResolveEventIncludesCacheQuerySourcePosture(t *testing.T) {
+	t.Parallel()
 	logger := NewMockLogger()
 	metrics := NewMockMetrics()
 	cache := NewMockCache()
-	payload, err := json.Marshal(map[string]interface{}{
+	payload, err := json.Marshal(map[string]any{
 		"id":                 "evt-schema-cache",
 		"querySourcePosture": "graphql-event-store",
 	})
@@ -286,14 +288,14 @@ func TestSchemaBuilderResolveEventIncludesCacheQuerySourcePosture(t *testing.T) 
 
 	builder := NewSchemaBuilder(NewMockEventStore(), logger, metrics, cache, NewAuthMiddleware(logger, metrics))
 
-	result, err := builder.resolveEvent(mockResolveParams(map[string]interface{}{
+	result, err := builder.resolveEvent(mockResolveParams(map[string]any{
 		"id": "evt-schema-cache",
 	}))
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
 
-	item, ok := result.(map[string]interface{})
+	item, ok := result.(map[string]any)
 	if !ok {
 		t.Fatalf("expected map result, got %#v", result)
 	}
@@ -303,6 +305,7 @@ func TestSchemaBuilderResolveEventIncludesCacheQuerySourcePosture(t *testing.T) 
 }
 
 func TestSchemaBuilderResolveEventsByNameIncludesLiveQuerySourcePosture(t *testing.T) {
+	t.Parallel()
 	logger := NewMockLogger()
 	metrics := NewMockMetrics()
 	eventStore := NewMockEventStore()
@@ -321,7 +324,7 @@ func TestSchemaBuilderResolveEventsByNameIncludesLiveQuerySourcePosture(t *testi
 
 	builder := NewSchemaBuilder(eventStore, logger, metrics, nil, NewAuthMiddleware(logger, metrics))
 
-	result, err := builder.resolveEventsByName(mockResolveParams(map[string]interface{}{
+	result, err := builder.resolveEventsByName(mockResolveParams(map[string]any{
 		"eventName": "Transfer",
 		"limit":     1,
 	}))
@@ -329,11 +332,11 @@ func TestSchemaBuilderResolveEventsByNameIncludesLiveQuerySourcePosture(t *testi
 		t.Fatalf("Unexpected error: %v", err)
 	}
 
-	items, ok := result.([]interface{})
+	items, ok := result.([]any)
 	if !ok || len(items) != 1 {
 		t.Fatalf("expected one result item, got %#v", result)
 	}
-	first, ok := items[0].(map[string]interface{})
+	first, ok := items[0].(map[string]any)
 	if !ok {
 		t.Fatalf("expected map result item, got %#v", items[0])
 	}
@@ -343,20 +346,21 @@ func TestSchemaBuilderResolveEventsByNameIncludesLiveQuerySourcePosture(t *testi
 }
 
 func TestSchemaBuilderResolveEventsIncludesCacheQuerySourcePosture(t *testing.T) {
+	t.Parallel()
 	logger := NewMockLogger()
 	metrics := NewMockMetrics()
 	cache := NewMockCache()
-	payload, err := json.Marshal(map[string]interface{}{
-		"edges": []interface{}{
-			map[string]interface{}{
+	payload, err := json.Marshal(map[string]any{
+		"edges": []any{
+			map[string]any{
 				"cursor": "cursor_0",
-				"node": map[string]interface{}{
+				"node": map[string]any{
 					"id":                 "evt-schema-root-cache",
 					"querySourcePosture": "graphql-event-store",
 				},
 			},
 		},
-		"pageInfo": map[string]interface{}{
+		"pageInfo": map[string]any{
 			"hasNextPage": false,
 			"totalCount":  1,
 		},
@@ -368,26 +372,26 @@ func TestSchemaBuilderResolveEventsIncludesCacheQuerySourcePosture(t *testing.T)
 
 	builder := NewSchemaBuilder(NewMockEventStore(), logger, metrics, cache, NewAuthMiddleware(logger, metrics))
 
-	result, err := builder.resolveEvents(mockResolveParams(map[string]interface{}{
+	result, err := builder.resolveEvents(mockResolveParams(map[string]any{
 		"first": 1,
 	}))
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
 
-	connection, ok := result.(map[string]interface{})
+	connection, ok := result.(map[string]any)
 	if !ok {
 		t.Fatalf("expected connection result, got %#v", result)
 	}
-	edges, ok := connection["edges"].([]interface{})
+	edges, ok := connection["edges"].([]any)
 	if !ok || len(edges) != 1 {
 		t.Fatalf("expected one edge, got %#v", connection["edges"])
 	}
-	edge, ok := edges[0].(map[string]interface{})
+	edge, ok := edges[0].(map[string]any)
 	if !ok {
 		t.Fatalf("expected edge map, got %#v", edges[0])
 	}
-	node, ok := edge["node"].(map[string]interface{})
+	node, ok := edge["node"].(map[string]any)
 	if !ok {
 		t.Fatalf("expected node map, got %#v", edge["node"])
 	}
@@ -398,6 +402,7 @@ func TestSchemaBuilderResolveEventsIncludesCacheQuerySourcePosture(t *testing.T)
 
 // Test Event Resolver
 func TestEventResolver_ResolveEvent(t *testing.T) {
+	t.Parallel()
 	logger := NewMockLogger()
 	metrics := NewMockMetrics()
 	eventStore := NewMockEventStore()
@@ -417,7 +422,7 @@ func TestEventResolver_ResolveEvent(t *testing.T) {
 	resolver := NewEventResolver(ctx)
 
 	// Test with missing event
-	result, err := resolver.ResolveEvent(mockResolveParams(map[string]interface{}{
+	result, err := resolver.ResolveEvent(mockResolveParams(map[string]any{
 		"id": "nonexistent",
 	}))
 	if err != nil {
@@ -430,6 +435,7 @@ func TestEventResolver_ResolveEvent(t *testing.T) {
 }
 
 func TestEventResolverResolveEventIncludesLiveQuerySourcePosture(t *testing.T) {
+	t.Parallel()
 	logger := NewMockLogger()
 	metrics := NewMockMetrics()
 	eventStore := NewMockEventStore()
@@ -452,14 +458,14 @@ func TestEventResolverResolveEventIncludesLiveQuerySourcePosture(t *testing.T) {
 		},
 	})
 
-	result, err := resolver.ResolveEvent(mockResolveParams(map[string]interface{}{
+	result, err := resolver.ResolveEvent(mockResolveParams(map[string]any{
 		"id": "evt-live",
 	}))
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
 
-	item, ok := result.(map[string]interface{})
+	item, ok := result.(map[string]any)
 	if !ok {
 		t.Fatalf("expected map result, got %#v", result)
 	}
@@ -469,10 +475,11 @@ func TestEventResolverResolveEventIncludesLiveQuerySourcePosture(t *testing.T) {
 }
 
 func TestEventResolverResolveEventIncludesCacheQuerySourcePosture(t *testing.T) {
+	t.Parallel()
 	logger := NewMockLogger()
 	metrics := NewMockMetrics()
 	cache := NewMockCache()
-	payload, err := json.Marshal(map[string]interface{}{
+	payload, err := json.Marshal(map[string]any{
 		"id":                 "evt-cache",
 		"querySourcePosture": "graphql-event-store",
 	})
@@ -492,14 +499,14 @@ func TestEventResolverResolveEventIncludesCacheQuerySourcePosture(t *testing.T) 
 		},
 	})
 
-	result, err := resolver.ResolveEvent(mockResolveParams(map[string]interface{}{
+	result, err := resolver.ResolveEvent(mockResolveParams(map[string]any{
 		"id": "evt-cache",
 	}))
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
 
-	item, ok := result.(map[string]interface{})
+	item, ok := result.(map[string]any)
 	if !ok {
 		t.Fatalf("expected map result, got %#v", result)
 	}
@@ -509,6 +516,7 @@ func TestEventResolverResolveEventIncludesCacheQuerySourcePosture(t *testing.T) 
 }
 
 func TestEventResolverResolveEventsIncludesLiveQuerySourcePosture(t *testing.T) {
+	t.Parallel()
 	logger := NewMockLogger()
 	metrics := NewMockMetrics()
 	eventStore := NewMockEventStore()
@@ -536,26 +544,26 @@ func TestEventResolverResolveEventsIncludesLiveQuerySourcePosture(t *testing.T) 
 		},
 	})
 
-	result, err := resolver.ResolveEvents(mockResolveParams(map[string]interface{}{
+	result, err := resolver.ResolveEvents(mockResolveParams(map[string]any{
 		"first": 1,
 	}))
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
 
-	connection, ok := result.(map[string]interface{})
+	connection, ok := result.(map[string]any)
 	if !ok {
 		t.Fatalf("expected connection result, got %#v", result)
 	}
-	edges, ok := connection["edges"].([]interface{})
+	edges, ok := connection["edges"].([]any)
 	if !ok || len(edges) != 1 {
 		t.Fatalf("expected one edge, got %#v", connection["edges"])
 	}
-	edge, ok := edges[0].(map[string]interface{})
+	edge, ok := edges[0].(map[string]any)
 	if !ok {
 		t.Fatalf("expected edge map, got %#v", edges[0])
 	}
-	node, ok := edge["node"].(map[string]interface{})
+	node, ok := edge["node"].(map[string]any)
 	if !ok {
 		t.Fatalf("expected node map, got %#v", edge["node"])
 	}
@@ -565,20 +573,21 @@ func TestEventResolverResolveEventsIncludesLiveQuerySourcePosture(t *testing.T) 
 }
 
 func TestEventResolverResolveEventsIncludesCacheQuerySourcePosture(t *testing.T) {
+	t.Parallel()
 	logger := NewMockLogger()
 	metrics := NewMockMetrics()
 	cache := NewMockCache()
-	payload, err := json.Marshal(map[string]interface{}{
-		"edges": []interface{}{
-			map[string]interface{}{
+	payload, err := json.Marshal(map[string]any{
+		"edges": []any{
+			map[string]any{
 				"cursor": "cursor_0",
-				"node": map[string]interface{}{
+				"node": map[string]any{
 					"id":                 "evt-root-cache",
 					"querySourcePosture": "graphql-event-store",
 				},
 			},
 		},
-		"pageInfo": map[string]interface{}{
+		"pageInfo": map[string]any{
 			"hasNextPage": false,
 			"totalCount":  1,
 		},
@@ -599,26 +608,26 @@ func TestEventResolverResolveEventsIncludesCacheQuerySourcePosture(t *testing.T)
 		},
 	})
 
-	result, err := resolver.ResolveEvents(mockResolveParams(map[string]interface{}{
+	result, err := resolver.ResolveEvents(mockResolveParams(map[string]any{
 		"first": 1,
 	}))
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
 
-	connection, ok := result.(map[string]interface{})
+	connection, ok := result.(map[string]any)
 	if !ok {
 		t.Fatalf("expected connection result, got %#v", result)
 	}
-	edges, ok := connection["edges"].([]interface{})
+	edges, ok := connection["edges"].([]any)
 	if !ok || len(edges) != 1 {
 		t.Fatalf("expected one edge, got %#v", connection["edges"])
 	}
-	edge, ok := edges[0].(map[string]interface{})
+	edge, ok := edges[0].(map[string]any)
 	if !ok {
 		t.Fatalf("expected edge map, got %#v", edges[0])
 	}
-	node, ok := edge["node"].(map[string]interface{})
+	node, ok := edge["node"].(map[string]any)
 	if !ok {
 		t.Fatalf("expected node map, got %#v", edge["node"])
 	}
@@ -629,12 +638,13 @@ func TestEventResolverResolveEventsIncludesCacheQuerySourcePosture(t *testing.T)
 
 // Test Cache Resolver
 func TestCacheResolver_ResolveInvalidateCache(t *testing.T) {
+	t.Parallel()
 	logger := NewMockLogger()
 	metrics := NewMockMetrics()
 	cache := NewMockCache()
 
 	// Set a cache entry
-	data, _ := json.Marshal(map[string]interface{}{"id": "test-id"})
+	data, _ := json.Marshal(map[string]any{"id": "test-id"})
 	if err := cache.Set(context.Background(), "graphql:event:test-id", data, 300); err != nil {
 		t.Fatalf("failed to set cache: %v", err)
 	}
@@ -651,7 +661,7 @@ func TestCacheResolver_ResolveInvalidateCache(t *testing.T) {
 
 	resolver := NewCacheResolver(ctx)
 
-	result, err := resolver.ResolveInvalidateCache(mockResolveParams(map[string]interface{}{
+	result, err := resolver.ResolveInvalidateCache(mockResolveParams(map[string]any{
 		"eventId": "test-id",
 	}))
 	if err != nil {
@@ -670,6 +680,7 @@ func TestCacheResolver_ResolveInvalidateCache(t *testing.T) {
 
 // Test Subscription Manager
 func TestSubscriptionManager_Subscribe(t *testing.T) {
+	t.Parallel()
 	logger := NewMockLogger()
 	metrics := NewMockMetrics()
 
@@ -696,6 +707,7 @@ func TestSubscriptionManager_Subscribe(t *testing.T) {
 
 // Test Subscription Manager Publish
 func TestSubscriptionManager_Publish(t *testing.T) {
+	t.Parallel()
 	logger := NewMockLogger()
 	metrics := NewMockMetrics()
 
@@ -704,7 +716,7 @@ func TestSubscriptionManager_Publish(t *testing.T) {
 	subscription, _ := manager.Subscribe("test:topic")
 
 	// Publish message
-	err := manager.Publish("test:topic", map[string]interface{}{"message": "test"})
+	err := manager.Publish("test:topic", map[string]any{"message": "test"})
 	if err != nil {
 		t.Fatalf("Failed to publish: %v", err)
 	}
@@ -722,6 +734,7 @@ func TestSubscriptionManager_Publish(t *testing.T) {
 
 // Test Subscription Manager Unsubscribe
 func TestSubscriptionManager_Unsubscribe(t *testing.T) {
+	t.Parallel()
 	logger := NewMockLogger()
 	metrics := NewMockMetrics()
 
@@ -747,6 +760,7 @@ func TestSubscriptionManager_Unsubscribe(t *testing.T) {
 
 // Test Auth Middleware
 func TestAuthMiddleware_Authenticate(t *testing.T) {
+	t.Parallel()
 	logger := NewMockLogger()
 	metrics := NewMockMetrics()
 
@@ -771,6 +785,7 @@ func TestAuthMiddleware_Authenticate(t *testing.T) {
 
 // Test Complexity Middleware
 func TestComplexityMiddleware_AnalyzeQuery(t *testing.T) {
+	t.Parallel()
 	logger := NewMockLogger()
 	metrics := NewMockMetrics()
 
@@ -788,6 +803,7 @@ func TestComplexityMiddleware_AnalyzeQuery(t *testing.T) {
 
 // Test Complexity Middleware Exceeded
 func TestComplexityMiddleware_ExceededLimit(t *testing.T) {
+	t.Parallel()
 	logger := NewMockLogger()
 	metrics := NewMockMetrics()
 
@@ -801,6 +817,7 @@ func TestComplexityMiddleware_ExceededLimit(t *testing.T) {
 
 // Test Rate Limit Middleware
 func TestRateLimitMiddleware_CheckLimit(t *testing.T) {
+	t.Parallel()
 	logger := NewMockLogger()
 	metrics := NewMockMetrics()
 
@@ -827,6 +844,7 @@ func TestRateLimitMiddleware_CheckLimit(t *testing.T) {
 
 // Test Caching Middleware
 func TestCachingMiddleware_GetCached(t *testing.T) {
+	t.Parallel()
 	logger := NewMockLogger()
 	metrics := NewMockMetrics()
 	cache := NewMockCache()
@@ -834,7 +852,7 @@ func TestCachingMiddleware_GetCached(t *testing.T) {
 	middleware := NewCachingMiddleware(cache, 5*time.Minute, logger, metrics)
 
 	query := "{ event(id: \"1\") { id } }"
-	result := map[string]interface{}{"id": "1"}
+	result := map[string]any{"id": "1"}
 
 	// Set cache
 	err := middleware.SetCached(query, result)
@@ -855,6 +873,7 @@ func TestCachingMiddleware_GetCached(t *testing.T) {
 
 // Test Validation Middleware
 func TestValidationMiddleware_ValidateQuery(t *testing.T) {
+	t.Parallel()
 	logger := NewMockLogger()
 	metrics := NewMockMetrics()
 
@@ -885,6 +904,7 @@ func TestValidationMiddleware_ValidateQuery(t *testing.T) {
 
 // Test Logging Middleware
 func TestLoggingMiddleware_LogQuery(t *testing.T) {
+	t.Parallel()
 	logger := NewMockLogger()
 	middleware := NewLoggingMiddleware(logger)
 
@@ -897,6 +917,7 @@ func TestLoggingMiddleware_LogQuery(t *testing.T) {
 
 // Test Mutation Builder
 func TestMutationBuilder_BuildMutations(t *testing.T) {
+	t.Parallel()
 	logger := NewMockLogger()
 	metrics := NewMockMetrics()
 	cache := NewMockCache()
@@ -916,6 +937,7 @@ func TestMutationBuilder_BuildMutations(t *testing.T) {
 
 // Test Subscription Handler
 func TestSubscriptionHandler_OnEventCreated(t *testing.T) {
+	t.Parallel()
 	logger := NewMockLogger()
 	metrics := NewMockMetrics()
 	manager := NewSubscriptionManager(logger, metrics, nil)
@@ -948,7 +970,7 @@ func TestSubscriptionHandler_OnEventCreated(t *testing.T) {
 }
 
 // Helper function to create mock resolve params
-func mockResolveParams(args map[string]interface{}) graphql.ResolveParams {
+func mockResolveParams(args map[string]any) graphql.ResolveParams {
 	return graphql.ResolveParams{
 		Args:    args,
 		Context: context.Background(),
@@ -957,6 +979,7 @@ func mockResolveParams(args map[string]interface{}) graphql.ResolveParams {
 
 // Test Query Complexity Analyzer
 func TestQueryComplexityAnalyzer_AnalyzeComplexity(t *testing.T) {
+	t.Parallel()
 	analyzer := NewQueryComplexityAnalyzer(100)
 
 	complexity, err := analyzer.AnalyzeComplexity("{ event(id: \"1\") { id } }")
@@ -971,6 +994,7 @@ func TestQueryComplexityAnalyzer_AnalyzeComplexity(t *testing.T) {
 
 // Test Query Complexity Analyzer Exceeded
 func TestQueryComplexityAnalyzer_ExceededLimit(t *testing.T) {
+	t.Parallel()
 	analyzer := NewQueryComplexityAnalyzer(5)
 
 	// Create a query that will have complexity > 5
@@ -984,6 +1008,7 @@ func TestQueryComplexityAnalyzer_ExceededLimit(t *testing.T) {
 
 // Test Auth Context Expiration
 func TestAuthContext_IsExpired(t *testing.T) {
+	t.Parallel()
 	// Expired context
 	expiredCtx := &AuthContext{
 		UserID:    "user-1",
@@ -1007,6 +1032,7 @@ func TestAuthContext_IsExpired(t *testing.T) {
 
 // Test Subscription Stats
 func TestSubscriptionManager_GetStats(t *testing.T) {
+	t.Parallel()
 	logger := NewMockLogger()
 	metrics := NewMockMetrics()
 
@@ -1036,6 +1062,7 @@ func TestSubscriptionManager_GetStats(t *testing.T) {
 
 // Test Event To GraphQL Conversion
 func TestEventToGraphQL(t *testing.T) {
+	t.Parallel()
 	event := &core.BlockchainEvent{
 		ID:     "test-id",
 		Status: core.EventStatusConfirmed,
@@ -1057,6 +1084,7 @@ func TestEventToGraphQL(t *testing.T) {
 }
 
 func TestEventResolverResolveEventsByNameIncludesLiveQuerySourcePosture(t *testing.T) {
+	t.Parallel()
 	logger := NewMockLogger()
 	metrics := NewMockMetrics()
 	eventStore := NewMockEventStore()
@@ -1084,7 +1112,7 @@ func TestEventResolverResolveEventsByNameIncludesLiveQuerySourcePosture(t *testi
 		},
 	})
 
-	result, err := resolver.ResolveEventsByName(mockResolveParams(map[string]interface{}{
+	result, err := resolver.ResolveEventsByName(mockResolveParams(map[string]any{
 		"eventName": "Transfer",
 		"limit":     1,
 	}))
@@ -1092,11 +1120,11 @@ func TestEventResolverResolveEventsByNameIncludesLiveQuerySourcePosture(t *testi
 		t.Fatalf("Unexpected error: %v", err)
 	}
 
-	items, ok := result.([]interface{})
+	items, ok := result.([]any)
 	if !ok || len(items) != 1 {
 		t.Fatalf("expected one result item, got %#v", result)
 	}
-	first, ok := items[0].(map[string]interface{})
+	first, ok := items[0].(map[string]any)
 	if !ok {
 		t.Fatalf("expected map result item, got %#v", items[0])
 	}
@@ -1106,10 +1134,11 @@ func TestEventResolverResolveEventsByNameIncludesLiveQuerySourcePosture(t *testi
 }
 
 func TestEventResolverResolveEventsByNameIncludesCacheQuerySourcePosture(t *testing.T) {
+	t.Parallel()
 	logger := NewMockLogger()
 	metrics := NewMockMetrics()
 	cache := NewMockCache()
-	payload, err := json.Marshal([]map[string]interface{}{
+	payload, err := json.Marshal([]map[string]any{
 		{
 			"id":                 "evt-cache",
 			"eventName":          "Transfer",
@@ -1132,7 +1161,7 @@ func TestEventResolverResolveEventsByNameIncludesCacheQuerySourcePosture(t *test
 		},
 	})
 
-	result, err := resolver.ResolveEventsByName(mockResolveParams(map[string]interface{}{
+	result, err := resolver.ResolveEventsByName(mockResolveParams(map[string]any{
 		"eventName": "Transfer",
 		"limit":     1,
 	}))
@@ -1140,11 +1169,11 @@ func TestEventResolverResolveEventsByNameIncludesCacheQuerySourcePosture(t *test
 		t.Fatalf("Unexpected error: %v", err)
 	}
 
-	items, ok := result.([]interface{})
+	items, ok := result.([]any)
 	if !ok || len(items) != 1 {
 		t.Fatalf("expected one result item, got %#v", result)
 	}
-	first, ok := items[0].(map[string]interface{})
+	first, ok := items[0].(map[string]any)
 	if !ok {
 		t.Fatalf("expected map result item, got %#v", items[0])
 	}
@@ -1154,6 +1183,7 @@ func TestEventResolverResolveEventsByNameIncludesCacheQuerySourcePosture(t *test
 }
 
 func TestEventResolverResolveEventsByAddressIncludesLiveQuerySourcePosture(t *testing.T) {
+	t.Parallel()
 	logger := NewMockLogger()
 	metrics := NewMockMetrics()
 	eventStore := NewMockEventStore()
@@ -1181,7 +1211,7 @@ func TestEventResolverResolveEventsByAddressIncludesLiveQuerySourcePosture(t *te
 		},
 	})
 
-	result, err := resolver.ResolveEventsByAddress(mockResolveParams(map[string]interface{}{
+	result, err := resolver.ResolveEventsByAddress(mockResolveParams(map[string]any{
 		"address": "0xabc",
 		"limit":   1,
 	}))
@@ -1189,11 +1219,11 @@ func TestEventResolverResolveEventsByAddressIncludesLiveQuerySourcePosture(t *te
 		t.Fatalf("Unexpected error: %v", err)
 	}
 
-	items, ok := result.([]interface{})
+	items, ok := result.([]any)
 	if !ok || len(items) != 1 {
 		t.Fatalf("expected one result item, got %#v", result)
 	}
-	first, ok := items[0].(map[string]interface{})
+	first, ok := items[0].(map[string]any)
 	if !ok {
 		t.Fatalf("expected map result item, got %#v", items[0])
 	}
@@ -1203,10 +1233,11 @@ func TestEventResolverResolveEventsByAddressIncludesLiveQuerySourcePosture(t *te
 }
 
 func TestEventResolverResolveEventsByAddressIncludesCacheQuerySourcePosture(t *testing.T) {
+	t.Parallel()
 	logger := NewMockLogger()
 	metrics := NewMockMetrics()
 	cache := NewMockCache()
-	payload, err := json.Marshal([]map[string]interface{}{
+	payload, err := json.Marshal([]map[string]any{
 		{
 			"id":                 "evt-address-cache",
 			"contractAddress":    "0xabc",
@@ -1229,7 +1260,7 @@ func TestEventResolverResolveEventsByAddressIncludesCacheQuerySourcePosture(t *t
 		},
 	})
 
-	result, err := resolver.ResolveEventsByAddress(mockResolveParams(map[string]interface{}{
+	result, err := resolver.ResolveEventsByAddress(mockResolveParams(map[string]any{
 		"address": "0xabc",
 		"limit":   1,
 	}))
@@ -1237,11 +1268,11 @@ func TestEventResolverResolveEventsByAddressIncludesCacheQuerySourcePosture(t *t
 		t.Fatalf("Unexpected error: %v", err)
 	}
 
-	items, ok := result.([]interface{})
+	items, ok := result.([]any)
 	if !ok || len(items) != 1 {
 		t.Fatalf("expected one result item, got %#v", result)
 	}
-	first, ok := items[0].(map[string]interface{})
+	first, ok := items[0].(map[string]any)
 	if !ok {
 		t.Fatalf("expected map result item, got %#v", items[0])
 	}
@@ -1251,6 +1282,7 @@ func TestEventResolverResolveEventsByAddressIncludesCacheQuerySourcePosture(t *t
 }
 
 func TestRequireMutationAuth_NoAuthMiddleware(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelError)
 	metrics := core.NewDefaultMetricsCollector()
 	store := &MockEventStore{}
@@ -1265,6 +1297,7 @@ func TestRequireMutationAuth_NoAuthMiddleware(t *testing.T) {
 }
 
 func TestRequireMutationAuth_MissingToken(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelError)
 	metrics := core.NewDefaultMetricsCollector()
 	store := &MockEventStore{}
@@ -1284,6 +1317,7 @@ func TestRequireMutationAuth_MissingToken(t *testing.T) {
 }
 
 func TestRequireMutationAuth_InvalidToken(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelError)
 	metrics := core.NewDefaultMetricsCollector()
 	store := &MockEventStore{}
@@ -1304,6 +1338,7 @@ func TestRequireMutationAuth_InvalidToken(t *testing.T) {
 }
 
 func TestRequireMutationAuth_InsufficientScope(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelError)
 	metrics := core.NewDefaultMetricsCollector()
 	store := &MockEventStore{}
@@ -1327,6 +1362,7 @@ func TestRequireMutationAuth_InsufficientScope(t *testing.T) {
 }
 
 func TestEventResolverResolveEventsByBlockIncludesLiveQuerySourcePosture(t *testing.T) {
+	t.Parallel()
 	logger := NewMockLogger()
 	metrics := NewMockMetrics()
 	eventStore := NewMockEventStore()
@@ -1354,18 +1390,18 @@ func TestEventResolverResolveEventsByBlockIncludesLiveQuerySourcePosture(t *test
 		},
 	})
 
-	result, err := resolver.ResolveEventsByBlock(mockResolveParams(map[string]interface{}{
+	result, err := resolver.ResolveEventsByBlock(mockResolveParams(map[string]any{
 		"blockNumber": 42,
 	}))
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
 
-	items, ok := result.([]interface{})
+	items, ok := result.([]any)
 	if !ok || len(items) != 1 {
 		t.Fatalf("expected one result item, got %#v", result)
 	}
-	first, ok := items[0].(map[string]interface{})
+	first, ok := items[0].(map[string]any)
 	if !ok {
 		t.Fatalf("expected map result item, got %#v", items[0])
 	}

@@ -11,10 +11,10 @@ import (
 type MicroserviceInitializer struct {
 	mu               sync.RWMutex
 	config           *DeploymentConfig
-	serviceRegistry  interface{}
-	messageQueue     interface{}
-	distributedCache interface{}
-	services         map[string]interface{}
+	serviceRegistry  any
+	messageQueue     any
+	distributedCache any
+	services         map[string]any
 	metrics          *MicroserviceMetrics
 }
 
@@ -34,7 +34,7 @@ type MicroserviceMetrics struct {
 func NewMicroserviceInitializer(config *DeploymentConfig) *MicroserviceInitializer {
 	return &MicroserviceInitializer{
 		config:   config,
-		services: make(map[string]interface{}),
+		services: make(map[string]any),
 		metrics: &MicroserviceMetrics{
 			LastHealthCheckTime: time.Now(),
 		},
@@ -203,11 +203,11 @@ func (mi *MicroserviceInitializer) HealthCheck(ctx context.Context) error {
 }
 
 // GetMetrics returns microservice metrics
-func (mi *MicroserviceInitializer) GetMetrics() map[string]interface{} {
+func (mi *MicroserviceInitializer) GetMetrics() map[string]any {
 	mi.metrics.mu.RLock()
 	defer mi.metrics.mu.RUnlock()
 
-	return map[string]interface{}{
+	return map[string]any{
 		"initialization_time":  mi.metrics.InitializationTime.String(),
 		"services_registered":  mi.metrics.ServicesRegistered,
 		"services_failed":      mi.metrics.ServicesFailed,
@@ -219,11 +219,11 @@ func (mi *MicroserviceInitializer) GetMetrics() map[string]interface{} {
 }
 
 // GetRegisteredServices returns all registered services
-func (mi *MicroserviceInitializer) GetRegisteredServices() map[string]interface{} {
+func (mi *MicroserviceInitializer) GetRegisteredServices() map[string]any {
 	mi.mu.RLock()
 	defer mi.mu.RUnlock()
 
-	services := make(map[string]interface{})
+	services := make(map[string]any)
 	for k, v := range mi.services {
 		services[k] = v
 	}

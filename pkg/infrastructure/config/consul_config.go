@@ -7,6 +7,8 @@ import (
 	"sync"
 	"time"
 
+	"chainpulse/pkg/core"
+
 	"github.com/hashicorp/consul/api"
 )
 
@@ -15,7 +17,7 @@ type ConsulConfig struct {
 	Address string
 	Port    int
 	Scheme  string
-	Token   string
+	Token   core.SecretString
 }
 
 // ConsulClient wraps Consul API client
@@ -38,8 +40,9 @@ func NewConsulClient(cfg *ConsulConfig) (*ConsulClient, error) {
 	consulConfig := api.DefaultConfig()
 	consulConfig.Address = fmt.Sprintf("%s:%d", cfg.Address, cfg.Port)
 	consulConfig.Scheme = cfg.Scheme
-	if cfg.Token != "" {
-		consulConfig.Token = cfg.Token
+	tokenValue := cfg.Token.Value()
+	if tokenValue != "" {
+		consulConfig.Token = tokenValue
 	}
 
 	client, err := api.NewClient(consulConfig)
@@ -169,7 +172,7 @@ func (c *ConsulClient) Close() error {
 }
 
 // WaitForConsul waits for Consul to be available
-func WaitForConsul(cfg *ConsulConfig, timeout time.Duration) error {
+func WaitForConsul(ctx context.Context, cfg *ConsulConfig, timeout time.Duration) error {
 	client, err := NewConsulClient(cfg)
 	if err != nil {
 		return err
@@ -187,14 +190,18 @@ func WaitForConsul(cfg *ConsulConfig, timeout time.Duration) error {
 			return fmt.Errorf("timeout waiting for Consul")
 		}
 
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		err := client.Health(ctx)
+		healthCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		err := client.Health(healthCtx)
 		cancel()
 
 		if err == nil {
 			return nil
 		}
 
-		time.Sleep(1 * time.Second)
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(1 * time.Second):
+		}
 	}
 }

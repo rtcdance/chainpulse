@@ -88,7 +88,7 @@ func (am *APIManager) GetRequest(ctx context.Context, path string) ([]byte, int,
 }
 
 // PostRequest performs a POST request
-func (am *APIManager) PostRequest(ctx context.Context, path string, payload interface{}) ([]byte, int, error) {
+func (am *APIManager) PostRequest(ctx context.Context, path string, payload any) ([]byte, int, error) {
 	if !am.initialized {
 		return nil, 0, fmt.Errorf("API manager not initialized")
 	}
@@ -128,7 +128,7 @@ func (am *APIManager) PostRequest(ctx context.Context, path string, payload inte
 }
 
 // PutRequest performs a PUT request
-func (am *APIManager) PutRequest(ctx context.Context, path string, payload interface{}) ([]byte, int, error) {
+func (am *APIManager) PutRequest(ctx context.Context, path string, payload any) ([]byte, int, error) {
 	if !am.initialized {
 		return nil, 0, fmt.Errorf("API manager not initialized")
 	}
@@ -198,7 +198,7 @@ func (am *APIManager) DeleteRequest(ctx context.Context, path string) ([]byte, i
 }
 
 // ParseJSONResponse parses a JSON response
-func (am *APIManager) ParseJSONResponse(data []byte, v interface{}) error {
+func (am *APIManager) ParseJSONResponse(data []byte, v any) error {
 	err := json.Unmarshal(data, v)
 	if err != nil {
 		return fmt.Errorf("failed to parse JSON response: %w", err)

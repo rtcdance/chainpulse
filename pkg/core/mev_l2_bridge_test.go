@@ -195,6 +195,7 @@ func TestPayloadAttributesFields(t *testing.T) {
 		t.Error("expected nil ParentBeaconBlockRoot pre-Dencun")
 	}
 }
+
 // ─── L2 Bridge Tests ────────────────────────────────────────────────────────
 
 func TestDepositProofVerification(t *testing.T) {

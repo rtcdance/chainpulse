@@ -7,6 +7,7 @@ import (
 
 // TestNewCacheKeyGenerator tests creating a new cache key generator
 func TestNewCacheKeyGenerator(t *testing.T) {
+	t.Parallel()
 	prefix := "test"
 	ckg := NewCacheKeyGenerator(prefix)
 
@@ -21,6 +22,7 @@ func TestNewCacheKeyGenerator(t *testing.T) {
 
 // TestGenerateEventKey tests generating event cache keys
 func TestGenerateEventKey(t *testing.T) {
+	t.Parallel()
 	ckg := NewCacheKeyGenerator("test")
 	eventID := "event123"
 
@@ -41,6 +43,7 @@ func TestGenerateEventKey(t *testing.T) {
 
 // TestGenerateEventsByAddressKey tests generating events by address cache keys
 func TestGenerateEventsByAddressKey(t *testing.T) {
+	t.Parallel()
 	ckg := NewCacheKeyGenerator("test")
 	address := "0x123abc"
 	offset := 0
@@ -67,6 +70,7 @@ func TestGenerateEventsByAddressKey(t *testing.T) {
 
 // TestGenerateEventsByBlockKey tests generating events by block cache keys
 func TestGenerateEventsByBlockKey(t *testing.T) {
+	t.Parallel()
 	ckg := NewCacheKeyGenerator("test")
 	blockNumber := int64(12345)
 	offset := 0
@@ -85,6 +89,7 @@ func TestGenerateEventsByBlockKey(t *testing.T) {
 
 // TestGenerateEventsByTopicKey tests generating events by topic cache keys
 func TestGenerateEventsByTopicKey(t *testing.T) {
+	t.Parallel()
 	ckg := NewCacheKeyGenerator("test")
 	topic := "Transfer"
 	offset := 0
@@ -103,8 +108,9 @@ func TestGenerateEventsByTopicKey(t *testing.T) {
 
 // TestGenerateEventCountKey tests generating event count cache keys
 func TestGenerateEventCountKey(t *testing.T) {
+	t.Parallel()
 	ckg := NewCacheKeyGenerator("test")
-	filters := map[string]interface{}{
+	filters := map[string]any{
 		"address": "0x123abc",
 		"status":  "confirmed",
 	}
@@ -124,10 +130,11 @@ func TestGenerateEventCountKey(t *testing.T) {
 
 // TestGenerateAggregationKey tests generating aggregation cache keys
 func TestGenerateAggregationKey(t *testing.T) {
+	t.Parallel()
 	ckg := NewCacheKeyGenerator("test")
 	aggregationType := "sum"
 	timeWindow := "1h"
-	filters := map[string]interface{}{
+	filters := map[string]any{
 		"address": "0x123abc",
 	}
 
@@ -148,9 +155,10 @@ func TestGenerateAggregationKey(t *testing.T) {
 
 // TestGenerateQueryKey tests generating query cache keys
 func TestGenerateQueryKey(t *testing.T) {
+	t.Parallel()
 	ckg := NewCacheKeyGenerator("test")
 	queryType := "events"
-	params := map[string]interface{}{
+	params := map[string]any{
 		"limit":  10,
 		"offset": 0,
 	}
@@ -168,9 +176,10 @@ func TestGenerateQueryKey(t *testing.T) {
 
 // TestGenerateGraphQLKey tests generating GraphQL cache keys
 func TestGenerateGraphQLKey(t *testing.T) {
+	t.Parallel()
 	ckg := NewCacheKeyGenerator("test")
 	query := "{ events { id name } }"
-	variables := map[string]interface{}{
+	variables := map[string]any{
 		"limit": 10,
 	}
 
@@ -183,6 +192,7 @@ func TestGenerateGraphQLKey(t *testing.T) {
 
 // TestGenerateSubscriptionKey tests generating subscription cache keys
 func TestGenerateSubscriptionKey(t *testing.T) {
+	t.Parallel()
 	ckg := NewCacheKeyGenerator("test")
 	subscriptionID := "sub123"
 
@@ -199,6 +209,7 @@ func TestGenerateSubscriptionKey(t *testing.T) {
 
 // TestGenerateMetadataKey tests generating metadata cache keys
 func TestGenerateMetadataKey(t *testing.T) {
+	t.Parallel()
 	ckg := NewCacheKeyGenerator("test")
 	metadataType := "contract"
 	id := "0x123abc"
@@ -220,6 +231,7 @@ func TestGenerateMetadataKey(t *testing.T) {
 
 // TestGenerateIndexKey tests generating index cache keys
 func TestGenerateIndexKey(t *testing.T) {
+	t.Parallel()
 	ckg := NewCacheKeyGenerator("test")
 	indexName := "events_address_idx"
 
@@ -236,6 +248,7 @@ func TestGenerateIndexKey(t *testing.T) {
 
 // TestGenerateStatsKey tests generating stats cache keys
 func TestGenerateStatsKey(t *testing.T) {
+	t.Parallel()
 	ckg := NewCacheKeyGenerator("test")
 	statsType := "daily"
 
@@ -252,6 +265,7 @@ func TestGenerateStatsKey(t *testing.T) {
 
 // TestGenerateHealthKey tests generating health cache keys
 func TestGenerateHealthKey(t *testing.T) {
+	t.Parallel()
 	ckg := NewCacheKeyGenerator("test")
 
 	key := ckg.GenerateHealthKey()
@@ -263,6 +277,7 @@ func TestGenerateHealthKey(t *testing.T) {
 
 // TestGenerateConfigKey tests generating config cache keys
 func TestGenerateConfigKey(t *testing.T) {
+	t.Parallel()
 	ckg := NewCacheKeyGenerator("test")
 	configType := "api"
 
@@ -279,6 +294,7 @@ func TestGenerateConfigKey(t *testing.T) {
 
 // TestGenerateSessionKey tests generating session cache keys
 func TestGenerateSessionKey(t *testing.T) {
+	t.Parallel()
 	ckg := NewCacheKeyGenerator("test")
 	sessionID := "sess123"
 
@@ -295,6 +311,7 @@ func TestGenerateSessionKey(t *testing.T) {
 
 // TestGenerateUserKey tests generating user cache keys
 func TestGenerateUserKey(t *testing.T) {
+	t.Parallel()
 	ckg := NewCacheKeyGenerator("test")
 	userID := "user123"
 
@@ -311,6 +328,7 @@ func TestGenerateUserKey(t *testing.T) {
 
 // TestGeneratePermissionKey tests generating permission cache keys
 func TestGeneratePermissionKey(t *testing.T) {
+	t.Parallel()
 	ckg := NewCacheKeyGenerator("test")
 	userID := "user123"
 	resource := "events"
@@ -332,6 +350,7 @@ func TestGeneratePermissionKey(t *testing.T) {
 
 // TestGenerateRateLimitKey tests generating rate limit cache keys
 func TestGenerateRateLimitKey(t *testing.T) {
+	t.Parallel()
 	ckg := NewCacheKeyGenerator("test")
 	clientID := "client123"
 
@@ -348,6 +367,7 @@ func TestGenerateRateLimitKey(t *testing.T) {
 
 // TestGenerateEventsByTimeRangeKey tests generating events by time range cache keys
 func TestGenerateEventsByTimeRangeKey(t *testing.T) {
+	t.Parallel()
 	ckg := NewCacheKeyGenerator("test")
 	startTime := int64(1000000)
 	endTime := int64(2000000)
@@ -371,6 +391,7 @@ func TestGenerateEventsByTimeRangeKey(t *testing.T) {
 
 // TestGenerateEventsByTypeKey tests generating events by type cache keys
 func TestGenerateEventsByTypeKey(t *testing.T) {
+	t.Parallel()
 	ckg := NewCacheKeyGenerator("test")
 	eventType := "Transfer"
 	offset := 0
@@ -389,6 +410,7 @@ func TestGenerateEventsByTypeKey(t *testing.T) {
 
 // TestGenerateEventsByStatusKey tests generating events by status cache keys
 func TestGenerateEventsByStatusKey(t *testing.T) {
+	t.Parallel()
 	ckg := NewCacheKeyGenerator("test")
 	status := "confirmed"
 	offset := 0
@@ -407,6 +429,7 @@ func TestGenerateEventsByStatusKey(t *testing.T) {
 
 // TestGenerateEventSearchKey tests generating event search cache keys
 func TestGenerateEventSearchKey(t *testing.T) {
+	t.Parallel()
 	ckg := NewCacheKeyGenerator("test")
 	searchQuery := "Transfer from 0x123"
 	offset := 0
@@ -421,6 +444,7 @@ func TestGenerateEventSearchKey(t *testing.T) {
 
 // TestGenerateRelatedEventsKey tests generating related events cache keys
 func TestGenerateRelatedEventsKey(t *testing.T) {
+	t.Parallel()
 	ckg := NewCacheKeyGenerator("test")
 	eventID := "event123"
 
@@ -437,6 +461,7 @@ func TestGenerateRelatedEventsKey(t *testing.T) {
 
 // TestGenerateEventChainKey tests generating event chain cache keys
 func TestGenerateEventChainKey(t *testing.T) {
+	t.Parallel()
 	ckg := NewCacheKeyGenerator("test")
 	eventID := "event123"
 
@@ -453,6 +478,7 @@ func TestGenerateEventChainKey(t *testing.T) {
 
 // TestGenerateEventHistoryKey tests generating event history cache keys
 func TestGenerateEventHistoryKey(t *testing.T) {
+	t.Parallel()
 	ckg := NewCacheKeyGenerator("test")
 	eventID := "event123"
 
@@ -469,6 +495,7 @@ func TestGenerateEventHistoryKey(t *testing.T) {
 
 // TestGenerateEventDependenciesKey tests generating event dependencies cache keys
 func TestGenerateEventDependenciesKey(t *testing.T) {
+	t.Parallel()
 	ckg := NewCacheKeyGenerator("test")
 	eventID := "event123"
 
@@ -485,9 +512,10 @@ func TestGenerateEventDependenciesKey(t *testing.T) {
 
 // TestConsistentHashing tests that hashing is consistent
 func TestConsistentHashing(t *testing.T) {
+	t.Parallel()
 	ckg := NewCacheKeyGenerator("test")
 
-	filters := map[string]interface{}{
+	filters := map[string]any{
 		"address": "0x123abc",
 		"status":  "confirmed",
 	}
@@ -502,9 +530,10 @@ func TestConsistentHashing(t *testing.T) {
 
 // TestEmptyFiltersHashing tests hashing with empty filters
 func TestEmptyFiltersHashing(t *testing.T) {
+	t.Parallel()
 	ckg := NewCacheKeyGenerator("test")
 
-	filters := make(map[string]interface{})
+	filters := make(map[string]any)
 
 	key := ckg.GenerateEventCountKey(filters)
 

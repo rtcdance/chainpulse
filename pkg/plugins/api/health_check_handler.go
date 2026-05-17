@@ -27,7 +27,7 @@ type HealthCheckHandler struct {
 	lastHealthCheckStatus    *HealthCheckResponse
 	healthCheckInterval      time.Duration
 	runtimeComponentProvider func(context.Context) *ComponentStatus
-	readinessDetailsProvider func(context.Context) map[string]interface{}
+	readinessDetailsProvider func(context.Context) map[string]any
 	rolloutReportProducer    RolloutReportProducer
 }
 
@@ -41,21 +41,21 @@ type HealthCheckResponse struct {
 
 // ComponentStatus represents the status of a component
 type ComponentStatus struct {
-	Name         string                 `json:"name"`
-	Status       string                 `json:"status"`
-	Error        string                 `json:"error,omitempty"`
-	Timestamp    int64                  `json:"timestamp"`
-	ResponseTime int64                  `json:"responseTime"`
-	Details      map[string]interface{} `json:"details,omitempty"`
+	Name         string         `json:"name"`
+	Status       string         `json:"status"`
+	Error        string         `json:"error,omitempty"`
+	Timestamp    int64          `json:"timestamp"`
+	ResponseTime int64          `json:"responseTime"`
+	Details      map[string]any `json:"details,omitempty"`
 }
 
 // ReadinessResponse represents a readiness probe response
 type ReadinessResponse struct {
-	Status    string                 `json:"status"`
-	Timestamp int64                  `json:"timestamp"`
-	Ready     bool                   `json:"ready"`
-	Message   string                 `json:"message"`
-	Details   map[string]interface{} `json:"details,omitempty"`
+	Status    string         `json:"status"`
+	Timestamp int64          `json:"timestamp"`
+	Ready     bool           `json:"ready"`
+	Message   string         `json:"message"`
+	Details   map[string]any `json:"details,omitempty"`
 }
 
 // LivenessResponse represents a liveness probe response
@@ -69,7 +69,7 @@ type LivenessResponse struct {
 // NewHealthCheckHandler creates a new health check handler
 func NewHealthCheckHandler(
 	dbManager database.DatabaseManager,
-	args ...interface{},
+	args ...any,
 ) *HealthCheckHandler {
 	var (
 		cachePlugin core.CachePlugin
@@ -143,7 +143,7 @@ func (h *HealthCheckHandler) SetRuntimeComponentProvider(provider func(context.C
 
 // SetReadinessDetailsProvider registers an optional provider that enriches
 // readiness responses with rollout or service-specific details.
-func (h *HealthCheckHandler) SetReadinessDetailsProvider(provider func(context.Context) map[string]interface{}) {
+func (h *HealthCheckHandler) SetReadinessDetailsProvider(provider func(context.Context) map[string]any) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
@@ -404,7 +404,7 @@ func (h *HealthCheckHandler) checkReadiness(ctx context.Context) bool {
 	return mongoStatus.Status == "healthy" && postgresStatus.Status == "healthy"
 }
 
-func (h *HealthCheckHandler) readinessDetails(ctx context.Context) map[string]interface{} {
+func (h *HealthCheckHandler) readinessDetails(ctx context.Context) map[string]any {
 	h.mu.RLock()
 	provider := h.readinessDetailsProvider
 	h.mu.RUnlock()
@@ -517,7 +517,7 @@ func (h *HealthCheckHandler) checkRedisHealth(ctx context.Context) *ComponentSta
 
 	if h.cachePlugin == nil {
 		status.Status = "healthy"
-		status.Details = map[string]interface{}{
+		status.Details = map[string]any{
 			"posture": "cache-plugin-not-wired",
 		}
 		status.ResponseTime = time.Since(start).Milliseconds()
@@ -556,7 +556,7 @@ func (h *HealthCheckHandler) checkKafkaHealth(ctx context.Context) *ComponentSta
 }
 
 // respondJSON responds with JSON data
-func (h *HealthCheckHandler) respondJSON(w http.ResponseWriter, statusCode int, data interface{}) {
+func (h *HealthCheckHandler) respondJSON(w http.ResponseWriter, statusCode int, data any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
 

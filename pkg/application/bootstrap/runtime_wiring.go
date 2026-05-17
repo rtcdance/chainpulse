@@ -10,8 +10,6 @@ import (
 	"chainpulse/pkg/plugins/api"
 	"chainpulse/pkg/services/query"
 
-	adapterquery "chainpulse/pkg/adapters/query"
-
 	domainquery "chainpulse/pkg/domain/query"
 )
 
@@ -85,8 +83,8 @@ func defaultRuntimeWiringDeps() runtimeWiringDeps {
 			mongoAdapter := query.NewMongoDBAdapter(db, logger, metrics)
 			postgresAdapter := query.NewPostgreSQLAdapter(db, logger, metrics)
 			cacheService := query.NewCacheService(logger, metrics)
-			queryService := query.NewQueryService(db, mongoAdapter, postgresAdapter, cacheService, logger, metrics)
-			domainService := adapterquery.NewDomainServiceFromLegacy(queryService)
+			queryService := query.NewQueryService(mongoAdapter, postgresAdapter, cacheService, logger, metrics)
+			domainService := newDomainServiceAdapter(queryService)
 
 			initCtx, cancel := context.WithTimeout(ctx, cfg.GetTimeout())
 			if err := queryService.Initialize(initCtx); err != nil {
@@ -253,4 +251,68 @@ func (w *RuntimeWiring) Close(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+// domainServiceAdapter adapts query.QueryService to domainquery.Service.
+// Replaces the removed pkg/adapters/query and pkg/application/query packages.
+type domainServiceAdapter struct {
+	legacy query.QueryService
+}
+
+var _ domainquery.Service = (*domainServiceAdapter)(nil)
+
+func newDomainServiceAdapter(legacy query.QueryService) *domainServiceAdapter {
+	return &domainServiceAdapter{legacy: legacy}
+}
+
+func (a *domainServiceAdapter) Query(ctx context.Context, req *domainquery.Request) (*domainquery.Result, error) {
+	if req == nil {
+		legacyResult, err := a.legacy.Query(ctx, nil)
+		if err != nil || legacyResult == nil {
+			return nil, err
+		}
+		return &domainquery.Result{
+			Events:       legacyResult.Events,
+			Total:        legacyResult.Total,
+			CacheHit:     legacyResult.CacheHit,
+			ResponseTime: legacyResult.ResponseTime,
+			Source:       legacyResult.Source,
+		}, nil
+	}
+
+	legacyReq := &query.QueryRequest{
+		QueryType:  req.QueryType,
+		Collection: req.Collection,
+		Filter:     req.Filter,
+		Limit:      req.Limit,
+		Offset:     req.Offset,
+		CacheKey:   req.CacheKey,
+		CacheTTL:   req.CacheTTL,
+		Sort:       req.Sort,
+	}
+
+	legacyResult, err := a.legacy.Query(ctx, legacyReq)
+	if err != nil || legacyResult == nil {
+		return nil, err
+	}
+
+	return &domainquery.Result{
+		Events:       legacyResult.Events,
+		Total:        legacyResult.Total,
+		CacheHit:     legacyResult.CacheHit,
+		ResponseTime: legacyResult.ResponseTime,
+		Source:       legacyResult.Source,
+	}, nil
+}
+
+func (a *domainServiceAdapter) QueryByHash(ctx context.Context, hash string) (*core.BlockchainEvent, error) {
+	return a.legacy.QueryByHash(ctx, hash)
+}
+
+func (a *domainServiceAdapter) InvalidateCache(ctx context.Context, key string) error {
+	return a.legacy.InvalidateCache(ctx, key)
+}
+
+func (a *domainServiceAdapter) Health(ctx context.Context) *core.HealthStatus {
+	return a.legacy.Health(ctx)
 }

@@ -21,7 +21,7 @@ type MongoDBDatabase struct {
 	maxConnections   int
 	queryTimeout     time.Duration
 	mu               sync.RWMutex
-	client           *mongo.Client // MongoDB client for real connection management
+	client           *mongo.Client                    // MongoDB client for real connection management
 	events           map[string]*core.BlockchainEvent // in-memory cache for testing
 	eventsMu         sync.RWMutex
 }
@@ -48,16 +48,16 @@ func (m *MongoDBDatabase) Initialize(config *core.Config) error {
 	defer m.mu.Unlock()
 
 	// Extract MongoDB connection string from config
-	connStr := config.GetString("MONGODB_CONNECTION_STRING", "")
+	connStr := core.ConfigString(config, "MONGODB_CONNECTION_STRING", "")
 	if connStr == "" {
 		// Build connection string from individual components
-		host := config.GetString("MONGODB_HOST", "localhost")
-		port := config.GetString("MONGODB_PORT", "27017")
-		user := config.GetString("MONGODB_USER", "")
-		password := config.GetString("MONGODB_PASSWORD", "")
+		host := core.ConfigString(config, "MONGODB_HOST", "localhost")
+		port := core.ConfigString(config, "MONGODB_PORT", "27017")
+		user := core.ConfigString(config, "MONGODB_USER", "")
+		password := core.SecretString(core.ConfigString(config, "MONGODB_PASSWORD", ""))
 
 		if user != "" && password != "" {
-			connStr = fmt.Sprintf("mongodb://%s:%s@%s:%s", user, password, host, port)
+			connStr = fmt.Sprintf("mongodb://%s:%s@%s:%s", user, password.Value(), host, port)
 		} else {
 			connStr = fmt.Sprintf("mongodb://%s:%s", host, port)
 		}
@@ -66,8 +66,8 @@ func (m *MongoDBDatabase) Initialize(config *core.Config) error {
 	m.connectionString = connStr
 
 	// Extract database and collection names
-	m.databaseName = config.GetString("MONGODB_DATABASE", "chainpulse")
-	m.collectionName = config.GetString("MONGODB_COLLECTION", "events")
+	m.databaseName = core.ConfigString(config, "MONGODB_DATABASE", "chainpulse")
+	m.collectionName = core.ConfigString(config, "MONGODB_COLLECTION", "events")
 
 	// Connect to MongoDB
 	ctx, cancel := context.WithTimeout(context.Background(), m.queryTimeout)
@@ -79,24 +79,20 @@ func (m *MongoDBDatabase) Initialize(config *core.Config) error {
 	client, err := mongo.Connect(ctx, clientOpts)
 	if err != nil {
 		m.RecordError()
-		m.logger.Error("Failed to connect to MongoDB", map[string]interface{}{"error": err.Error()})
+		m.logger.Error("Failed to connect to MongoDB", core.LogKeyError, err)
 		return fmt.Errorf("failed to connect to MongoDB: %w", err)
 	}
 
 	// Verify connection
 	if err := client.Ping(ctx, nil); err != nil {
 		m.RecordError()
-		m.logger.Error("Failed to ping MongoDB", map[string]interface{}{"error": err.Error()})
+		m.logger.Error("Failed to ping MongoDB", core.LogKeyError, err)
 		return fmt.Errorf("failed to ping MongoDB: %w", err)
 	}
 
 	m.client = client
 
-	m.logger.Info("MongoDB database initialized", map[string]interface{}{
-		"component":  "mongodb_database",
-		"database":   m.databaseName,
-		"collection": m.collectionName,
-	})
+	m.logger.Info("MongoDB database initialized", core.LogKeyComponent, "mongodb_database", "database", m.databaseName, "collection", m.collectionName)
 
 	return nil
 }
@@ -111,9 +107,7 @@ func (m *MongoDBDatabase) Start() error {
 	defer m.mu.Unlock()
 
 	// In a real implementation, we would establish connection pool here
-	m.logger.Info("MongoDB database started", map[string]interface{}{
-		"component": "mongodb_database",
-	})
+	m.logger.Info("MongoDB database started", core.LogKeyComponent, "mongodb_database")
 
 	return nil
 }
@@ -132,14 +126,12 @@ func (m *MongoDBDatabase) Stop() error {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		if err := m.client.Disconnect(ctx); err != nil {
-			m.logger.Error("Failed to disconnect MongoDB client", map[string]interface{}{"error": err.Error()})
+			m.logger.Error("Failed to disconnect MongoDB client", core.LogKeyError, err)
 		}
 		m.client = nil
 	}
 
-	m.logger.Info("MongoDB database stopped", map[string]interface{}{
-		"component": "mongodb_database",
-	})
+	m.logger.Info("MongoDB database stopped", core.LogKeyComponent, "mongodb_database")
 
 	return nil
 }

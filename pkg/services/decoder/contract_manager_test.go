@@ -12,16 +12,17 @@ import (
 // MockLogger implements core.Logger for testing
 type MockLogger struct{}
 
-func (ml *MockLogger) Debug(msg string, args ...interface{}) {}
-func (ml *MockLogger) Info(msg string, args ...interface{})  {}
-func (ml *MockLogger) Warn(msg string, args ...interface{})  {}
-func (ml *MockLogger) Error(msg string, args ...interface{}) {}
-func (ml *MockLogger) Fatal(msg string, args ...interface{}) {}
+func (ml *MockLogger) Debug(msg string, args ...any) {}
+func (ml *MockLogger) Info(msg string, args ...any)  {}
+func (ml *MockLogger) Warn(msg string, args ...any)  {}
+func (ml *MockLogger) Error(msg string, args ...any) {}
+func (ml *MockLogger) Fatal(msg string, args ...any) {}
 func (ml *MockLogger) WithCorrelationID(id string) core.Logger {
 	return ml
 }
 
 func TestNewContractManager(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	cm := NewContractManager(logger)
 
@@ -30,6 +31,7 @@ func TestNewContractManager(t *testing.T) {
 }
 
 func TestLoadContractABI(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	cm := NewContractManager(logger)
 
@@ -54,6 +56,7 @@ func TestLoadContractABI(t *testing.T) {
 }
 
 func TestLoadContractABIFromString(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	cm := NewContractManager(logger)
 
@@ -76,6 +79,7 @@ func TestLoadContractABIFromString(t *testing.T) {
 }
 
 func TestLoadContractABIEmptyName(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	cm := NewContractManager(logger)
 
@@ -87,6 +91,7 @@ func TestLoadContractABIEmptyName(t *testing.T) {
 }
 
 func TestLoadContractABIEmptyJSON(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	cm := NewContractManager(logger)
 
@@ -96,6 +101,7 @@ func TestLoadContractABIEmptyJSON(t *testing.T) {
 }
 
 func TestLoadContractABIInvalidJSON(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	cm := NewContractManager(logger)
 
@@ -105,6 +111,7 @@ func TestLoadContractABIInvalidJSON(t *testing.T) {
 }
 
 func TestGetABI(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	cm := NewContractManager(logger)
 
@@ -130,6 +137,7 @@ func TestGetABI(t *testing.T) {
 }
 
 func TestGetABINotFound(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	cm := NewContractManager(logger)
 
@@ -139,6 +147,7 @@ func TestGetABINotFound(t *testing.T) {
 }
 
 func TestGetEventSignature(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	cm := NewContractManager(logger)
 
@@ -164,6 +173,7 @@ func TestGetEventSignature(t *testing.T) {
 }
 
 func TestGetEventSignatureNotFound(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	cm := NewContractManager(logger)
 
@@ -183,6 +193,7 @@ func TestGetEventSignatureNotFound(t *testing.T) {
 }
 
 func TestGetEventSignatures(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	cm := NewContractManager(logger)
 
@@ -210,6 +221,7 @@ func TestGetEventSignatures(t *testing.T) {
 }
 
 func TestGetEvent(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	cm := NewContractManager(logger)
 
@@ -235,6 +247,7 @@ func TestGetEvent(t *testing.T) {
 }
 
 func TestGetEventNotFound(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	cm := NewContractManager(logger)
 
@@ -254,6 +267,7 @@ func TestGetEventNotFound(t *testing.T) {
 }
 
 func TestGetMethod(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	cm := NewContractManager(logger)
 
@@ -281,6 +295,7 @@ func TestGetMethod(t *testing.T) {
 }
 
 func TestHasContract(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	cm := NewContractManager(logger)
 
@@ -293,6 +308,7 @@ func TestHasContract(t *testing.T) {
 }
 
 func TestListContracts(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	cm := NewContractManager(logger)
 
@@ -309,6 +325,7 @@ func TestListContracts(t *testing.T) {
 }
 
 func TestRemoveContract(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	cm := NewContractManager(logger)
 
@@ -325,6 +342,7 @@ func TestRemoveContract(t *testing.T) {
 }
 
 func TestRemoveContractNotFound(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	cm := NewContractManager(logger)
 
@@ -334,6 +352,7 @@ func TestRemoveContractNotFound(t *testing.T) {
 }
 
 func TestClearContracts(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	cm := NewContractManager(logger)
 
@@ -350,6 +369,7 @@ func TestClearContracts(t *testing.T) {
 }
 
 func TestGetContractCount(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	cm := NewContractManager(logger)
 
@@ -365,6 +385,7 @@ func TestGetContractCount(t *testing.T) {
 }
 
 func TestMultipleContractABIs(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	cm := NewContractManager(logger)
 
@@ -400,6 +421,7 @@ func TestMultipleContractABIs(t *testing.T) {
 }
 
 func TestContractManagerConcurrency(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	cm := NewContractManager(logger)
 
@@ -422,6 +444,7 @@ func TestContractManagerConcurrency(t *testing.T) {
 }
 
 func TestLoadContractABIWithMethods(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	cm := NewContractManager(logger)
 

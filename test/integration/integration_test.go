@@ -133,8 +133,8 @@ func TestPhase1EventBusFlow(t *testing.T) {
 	logger := NewDefaultLogger(LogLevelInfo)
 
 	// Subscribe to events
-	receivedEvents := make([]interface{}, 0)
-	handler := func(event interface{}) {
+	receivedEvents := make([]any, 0)
+	handler := func(event any) {
 		receivedEvents = append(receivedEvents, event)
 	}
 
@@ -145,7 +145,7 @@ func TestPhase1EventBusFlow(t *testing.T) {
 	logger.Info("subscribed to topic", "topic", "test-topic")
 
 	// Publish event
-	testEvent := map[string]interface{}{"message": "test"}
+	testEvent := map[string]any{"message": "test"}
 	if err := eventBus.Publish(context.Background(), "test-topic", testEvent); err != nil {
 		t.Fatalf("failed to publish event: %v", err)
 	}
@@ -207,7 +207,7 @@ func TestPhase1MetricsFlow(t *testing.T) {
 	counterValue := allMetrics["counters"].(map[string]int64)["requests"]
 	gaugeValue := allMetrics["gauges"].(map[string]float64)["memory"]
 	histogramValues := allMetrics["histograms"].(map[string][]float64)["latency"]
-	histStats := map[string]interface{}{
+	histStats := map[string]any{
 		"count": len(histogramValues),
 	}
 
@@ -279,7 +279,7 @@ func TestPhase1HealthCheckFlow(t *testing.T) {
 
 	// Get health summary
 	healthStatus, _ := healthChecker.Check(context.Background())
-	summary := map[string]interface{}{
+	summary := map[string]any{
 		"status": healthStatus.Status,
 	}
 	if summary["status"] != "healthy" {
@@ -319,13 +319,13 @@ func TestPhase1EndToEndFlow(t *testing.T) {
 
 	// Subscribe to plugin events
 	eventCount := 0
-	_, _ = eventBus.Subscribe(context.Background(), "plugin-events", func(event interface{}) {
+	_, _ = eventBus.Subscribe(context.Background(), "plugin-events", func(event any) {
 		eventCount++
 	})
 	logger.WithCorrelationID("flow-1").Info("subscribed to plugin events")
 
 	// Publish plugin event
-	_ = eventBus.Publish(context.Background(), "plugin-events", map[string]interface{}{
+	_ = eventBus.Publish(context.Background(), "plugin-events", map[string]any{
 		"plugin": plugin.Name(),
 		"event":  "started",
 	})
@@ -391,7 +391,7 @@ func TestPhase1ConcurrentOperations(t *testing.T) {
 		wg.Add(1)
 		go func(id int) {
 			defer wg.Done()
-			_ = eventBus.Publish(context.Background(), "test-topic", map[string]interface{}{"id": id})
+			_ = eventBus.Publish(context.Background(), "test-topic", map[string]any{"id": id})
 		}(i)
 	}
 
@@ -472,7 +472,7 @@ func TestPhase1ComponentInteraction(t *testing.T) {
 
 	// 3. Publish events
 	for _, plugin := range registry.List() {
-		_ = eventBus.Publish(context.Background(), "plugin-lifecycle", map[string]interface{}{
+		_ = eventBus.Publish(context.Background(), "plugin-lifecycle", map[string]any{
 			"plugin": plugin.Name(),
 			"event":  "initialized",
 		})

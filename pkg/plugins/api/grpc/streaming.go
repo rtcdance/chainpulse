@@ -142,7 +142,7 @@ func (s *StreamingService) ClientStreamEvents(ctx context.Context, events <-chan
 }
 
 // GetMetrics returns streaming metrics
-func (s *StreamingService) GetMetrics() map[string]interface{} {
+func (s *StreamingService) GetMetrics() map[string]any {
 	s.metrics.mu.RLock()
 	defer s.metrics.mu.RUnlock()
 
@@ -151,7 +151,7 @@ func (s *StreamingService) GetMetrics() map[string]interface{} {
 		avgDuration = s.metrics.totalDuration / time.Duration(s.metrics.totalStreams)
 	}
 
-	return map[string]interface{}{
+	return map[string]any{
 		"total_streams":         s.metrics.totalStreams,
 		"active_streams":        s.metrics.activeStreams,
 		"items_streamed":        s.metrics.itemsStreamed,

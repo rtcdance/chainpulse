@@ -15,39 +15,39 @@ import (
 type ScreeningResult struct {
 	Address      common.Address `json:"address"`
 	IsSanctioned bool           `json:"is_sanctioned"`
-	RiskScore    float64        `json:"risk_score"` // 0.0 (safe) to 1.0 (high risk)
-	MatchSource  string         `json:"match_source,omitempty"` // "sdn", "entity", "fuzzy"
+	RiskScore    float64        `json:"risk_score"`              // 0.0 (safe) to 1.0 (high risk)
+	MatchSource  string         `json:"match_source,omitempty"`  // "sdn", "entity", "fuzzy"
 	MatchedEntry string         `json:"matched_entry,omitempty"` // the matched list entry
 	ScreenedAt   time.Time      `json:"screened_at"`
 }
 
 // SanctionListEntry represents an entry on the OFAC SDN (Specially Designated Nationals) list.
 type SanctionListEntry struct {
-	Address     common.Address `json:"address"`
-	EntityName  string         `json:"entity_name"`
-	Program     string         `json:"program"`     // e.g., "SDGT", "IRAN", "DPRK"
-	ListedDate  time.Time      `json:"listed_date"`
-	Aliases     []string       `json:"aliases,omitempty"`
+	Address    common.Address `json:"address"`
+	EntityName string         `json:"entity_name"`
+	Program    string         `json:"program"` // e.g., "SDGT", "IRAN", "DPRK"
+	ListedDate time.Time      `json:"listed_date"`
+	Aliases    []string       `json:"aliases,omitempty"`
 }
 
 // ComplianceScreeningPolicy defines the policy for compliance screening.
 type ComplianceScreeningPolicy struct {
-	BlockSanctioned    bool    `json:"block_sanctioned"`     // block transactions involving sanctioned addresses
-	RiskThreshold      float64 `json:"risk_threshold"`       // risk score threshold for flagging (0.0-1.0)
-	EnableFuzzyMatch   bool    `json:"enable_fuzzy_match"`   // enable fuzzy matching on entity names
-	FuzzyMatchDistance  int     `json:"fuzzy_match_distance"` // Levenshtein distance for fuzzy match
-	RequireScreening   bool    `json:"require_screening"`    // require screening before transaction processing
-	RescreenInterval   time.Duration `json:"rescreen_interval"` // how often to re-screen addresses
+	BlockSanctioned    bool          `json:"block_sanctioned"`     // block transactions involving sanctioned addresses
+	RiskThreshold      float64       `json:"risk_threshold"`       // risk score threshold for flagging (0.0-1.0)
+	EnableFuzzyMatch   bool          `json:"enable_fuzzy_match"`   // enable fuzzy matching on entity names
+	FuzzyMatchDistance int           `json:"fuzzy_match_distance"` // Levenshtein distance for fuzzy match
+	RequireScreening   bool          `json:"require_screening"`    // require screening before transaction processing
+	RescreenInterval   time.Duration `json:"rescreen_interval"`    // how often to re-screen addresses
 }
 
 // DefaultCompliancePolicy returns a sensible default policy.
 func DefaultCompliancePolicy() ComplianceScreeningPolicy {
 	return ComplianceScreeningPolicy{
-		BlockSanctioned:   true,
-		RiskThreshold:     0.7,
-		EnableFuzzyMatch:  false,
-		RequireScreening:  true,
-		RescreenInterval:  24 * time.Hour,
+		BlockSanctioned:  true,
+		RiskThreshold:    0.7,
+		EnableFuzzyMatch: false,
+		RequireScreening: true,
+		RescreenInterval: 24 * time.Hour,
 	}
 }
 
@@ -335,8 +335,8 @@ func levenshteinDistance(a, b string) int {
 				cost = 0
 			}
 			curr[i] = min(
-				prev[i]+1,     // deletion
-				curr[i-1]+1,   // insertion
+				prev[i]+1,      // deletion
+				curr[i-1]+1,    // insertion
 				prev[i-1]+cost, // substitution
 			)
 		}

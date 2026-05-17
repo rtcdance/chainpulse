@@ -12,6 +12,7 @@ import (
 // Validates: Requirements 3.2
 // Data found in advanced cache should be returned immediately
 func TestAdvancedCacheHitReturn(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	cache := NewAdvancedInMemoryCachePlugin(logger, metrics)
@@ -61,6 +62,7 @@ func TestAdvancedCacheHitReturn(t *testing.T) {
 
 // Property: Cache hits are recorded in advanced cache
 func TestAdvancedCacheHitRecording(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	cache := NewAdvancedInMemoryCachePlugin(logger, metrics)
@@ -98,6 +100,7 @@ func TestAdvancedCacheHitRecording(t *testing.T) {
 
 // Property: Cache misses are recorded in advanced cache
 func TestAdvancedCacheMissRecording(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	cache := NewAdvancedInMemoryCachePlugin(logger, metrics)
@@ -128,6 +131,7 @@ func TestAdvancedCacheMissRecording(t *testing.T) {
 // Validates: Requirements 3.4
 // Expired data in advanced cache should be evicted and not returned
 func TestAdvancedCacheExpirationConsistency(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	cache := NewAdvancedInMemoryCachePlugin(logger, metrics)
@@ -174,6 +178,7 @@ func TestAdvancedCacheExpirationConsistency(t *testing.T) {
 
 // Property: LRU eviction maintains cache size limits
 func TestAdvancedCacheLRUEvictionConsistency(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	cache := NewAdvancedInMemoryCachePlugin(logger, metrics)
@@ -214,6 +219,7 @@ func TestAdvancedCacheLRUEvictionConsistency(t *testing.T) {
 
 // Property: Size-based eviction maintains cache size limits
 func TestAdvancedCacheSizeEvictionConsistency(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	cache := NewAdvancedInMemoryCachePlugin(logger, metrics)
@@ -251,6 +257,7 @@ func TestAdvancedCacheSizeEvictionConsistency(t *testing.T) {
 
 // Property: Recently accessed entries are not evicted
 func TestAdvancedCacheRecentAccessPreservation(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	cache := NewAdvancedInMemoryCachePlugin(logger, metrics)
@@ -300,6 +307,7 @@ func TestAdvancedCacheRecentAccessPreservation(t *testing.T) {
 
 // Property: Delete operation removes entries
 func TestAdvancedCacheDeleteConsistency(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	cache := NewAdvancedInMemoryCachePlugin(logger, metrics)
@@ -343,6 +351,7 @@ func TestAdvancedCacheDeleteConsistency(t *testing.T) {
 
 // Property: Clear operation removes all entries
 func TestAdvancedCacheClearConsistency(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	cache := NewAdvancedInMemoryCachePlugin(logger, metrics)
@@ -387,6 +396,7 @@ func TestAdvancedCacheClearConsistency(t *testing.T) {
 
 // Property: Statistics are accurate
 func TestAdvancedCacheStatsAccuracy(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	cache := NewAdvancedInMemoryCachePlugin(logger, metrics)
@@ -439,6 +449,7 @@ func TestAdvancedCacheStatsAccuracy(t *testing.T) {
 
 // Property: Max size configuration is respected
 func TestAdvancedCacheMaxSizeConfiguration(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	cache := NewAdvancedInMemoryCachePlugin(logger, metrics)
@@ -465,6 +476,7 @@ func TestAdvancedCacheMaxSizeConfiguration(t *testing.T) {
 
 // Property: Max entries configuration is respected
 func TestAdvancedCacheMaxEntriesConfiguration(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	cache := NewAdvancedInMemoryCachePlugin(logger, metrics)
@@ -491,6 +503,7 @@ func TestAdvancedCacheMaxEntriesConfiguration(t *testing.T) {
 
 // Property: Eviction policy configuration is respected
 func TestAdvancedCacheEvictionPolicyConfiguration(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	cache := NewAdvancedInMemoryCachePlugin(logger, metrics)
@@ -517,6 +530,7 @@ func TestAdvancedCacheEvictionPolicyConfiguration(t *testing.T) {
 
 // Property: Concurrent operations maintain consistency
 func TestAdvancedCacheConcurrentConsistency(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	cache := NewAdvancedInMemoryCachePlugin(logger, metrics)
@@ -564,6 +578,7 @@ func TestAdvancedCacheConcurrentConsistency(t *testing.T) {
 
 // Property: Entry count accuracy
 func TestAdvancedCacheEntryCountAccuracy(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	cache := NewAdvancedInMemoryCachePlugin(logger, metrics)
@@ -607,6 +622,7 @@ func TestAdvancedCacheEntryCountAccuracy(t *testing.T) {
 
 // Property: Size tracking accuracy
 func TestAdvancedCacheSizeTrackingAccuracy(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	cache := NewAdvancedInMemoryCachePlugin(logger, metrics)
@@ -650,6 +666,7 @@ func TestAdvancedCacheSizeTrackingAccuracy(t *testing.T) {
 
 // Property: Eviction count increases when entries are evicted
 func TestAdvancedCacheEvictionTracking(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	cache := NewAdvancedInMemoryCachePlugin(logger, metrics)

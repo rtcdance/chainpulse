@@ -14,6 +14,7 @@ const (
 )
 
 func TestNewBaseRequest(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name    string
 		method  string
@@ -72,6 +73,7 @@ func TestNewBaseRequest(t *testing.T) {
 }
 
 func TestBaseRequestHeaders(t *testing.T) {
+	t.Parallel()
 	headers := map[string]string{
 		"Content-Type":  "application/json",
 		"Authorization": "Bearer token",
@@ -99,6 +101,7 @@ func TestBaseRequestHeaders(t *testing.T) {
 }
 
 func TestBaseRequestBody(t *testing.T) {
+	t.Parallel()
 	body := []byte(`{"name":"test"}`)
 	req := NewBaseRequest(context.Background(), "POST", "/api/users", nil, body)
 
@@ -108,6 +111,7 @@ func TestBaseRequestBody(t *testing.T) {
 }
 
 func TestBaseRequestQueryParams(t *testing.T) {
+	t.Parallel()
 	req := NewBaseRequest(context.Background(), "GET", "/api/users", nil, []byte(""))
 
 	// Set query params
@@ -130,6 +134,7 @@ func TestBaseRequestQueryParams(t *testing.T) {
 }
 
 func TestBaseRequestPathParams(t *testing.T) {
+	t.Parallel()
 	req := NewBaseRequest(context.Background(), "GET", "/api/users/:id", nil, []byte(""))
 
 	// Set path params
@@ -145,6 +150,7 @@ func TestBaseRequestPathParams(t *testing.T) {
 }
 
 func TestBaseRequestContext(t *testing.T) {
+	t.Parallel()
 	ctx := context.WithValue(context.Background(), testKey, "value")
 	req := NewBaseRequest(ctx, "GET", "/api/users", nil, []byte(""))
 
@@ -154,6 +160,7 @@ func TestBaseRequestContext(t *testing.T) {
 }
 
 func TestBaseRequestRuntimeMetricsStaged(t *testing.T) {
+	t.Parallel()
 	req := NewBaseRequest(context.Background(), "GET", "/health", nil, nil)
 
 	metrics := req.GetRuntimeMetrics()
@@ -166,6 +173,7 @@ func TestBaseRequestRuntimeMetricsStaged(t *testing.T) {
 }
 
 func TestBaseRequestRuntimeMetricsReady(t *testing.T) {
+	t.Parallel()
 	req := NewBaseRequest(context.Background(), "POST", "/api/users/123", map[string]string{
 		"Content-Type": "application/json",
 	}, []byte(`{"name":"alice"}`))
@@ -182,6 +190,7 @@ func TestBaseRequestRuntimeMetricsReady(t *testing.T) {
 }
 
 func TestBaseRequestRuntimeMetricsDegraded(t *testing.T) {
+	t.Parallel()
 	req := NewBaseRequest(context.Background(), "", "", nil, nil)
 
 	metrics := req.GetRuntimeMetrics()
@@ -191,6 +200,7 @@ func TestBaseRequestRuntimeMetricsDegraded(t *testing.T) {
 }
 
 func TestBaseRequestImplementsInterface(t *testing.T) {
+	t.Parallel()
 	req := NewBaseRequest(context.Background(), "GET", "/api/users", nil, []byte(""))
 
 	// Verify it implements Request interface

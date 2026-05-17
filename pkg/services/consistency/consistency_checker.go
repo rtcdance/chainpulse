@@ -122,7 +122,7 @@ func (cc *ConsistencyChecker) CheckConsistency(ctx context.Context) (*Consistenc
 
 	cc.logger.Info(
 		"Consistency check completed",
-		map[string]interface{}{
+		map[string]any{
 			"total_events":    report.TotalEvents,
 			"duplicates":      report.DuplicateEvents,
 			"sequence_issues": report.InvalidSequences,
@@ -291,7 +291,7 @@ func (cc *ConsistencyChecker) RepairInconsistencies(ctx context.Context) (*Consi
 			report.FailedRepairs++
 			cc.logger.Error(
 				"Failed to delete duplicate event",
-				map[string]interface{}{
+				map[string]any{
 					"event_id": duplicate.ID,
 					"error":    err.Error(),
 				},
@@ -328,7 +328,7 @@ func (cc *ConsistencyChecker) RepairInconsistencies(ctx context.Context) (*Consi
 
 	cc.logger.Info(
 		"Consistency repair completed",
-		map[string]interface{}{
+		map[string]any{
 			"repair_attempts":    report.RepairAttempts,
 			"successful_repairs": report.SuccessfulRepairs,
 			"failed_repairs":     report.FailedRepairs,

@@ -3,6 +3,8 @@ package core
 import (
 	"os"
 	"testing"
+
+	"chainpulse/pkg/env"
 )
 
 // TestNewConfigManager verifies config manager creation
@@ -269,12 +271,12 @@ func TestGetEnvWithDefault(t *testing.T) {
 	_ = os.Setenv("TEST_VAR", "test_value")
 	defer func() { _ = os.Unsetenv("TEST_VAR") }()
 
-	value := getEnv("TEST_VAR", "default")
+	value := env.Get("TEST_VAR", "default")
 	if value != "test_value" {
 		t.Errorf("expected 'test_value', got %s", value)
 	}
 
-	value = getEnv("NONEXISTENT_VAR", "default")
+	value = env.Get("NONEXISTENT_VAR", "default")
 	if value != "default" {
 		t.Errorf("expected 'default', got %s", value)
 	}

@@ -15,10 +15,10 @@ func TestRollingGasStatsRecordAndPercentiles(t *testing.T) {
 	// Record 10 blocks with increasing base fee
 	for i := 0; i < 10; i++ {
 		block := &Block{
-			Number:  uint64(i + 1),
-			Hash:    common.BigToHash(big.NewInt(int64(i))),
-			BaseFee: big.NewInt(int64((i + 1) * 1e9)), // 1-10 Gwei
-			GasUsed: uint64(15_000_000 + i*1_000_000),
+			Number:    uint64(i + 1),
+			Hash:      common.BigToHash(big.NewInt(int64(i))),
+			BaseFee:   big.NewInt(int64((i + 1) * 1e9)), // 1-10 Gwei
+			GasUsed:   uint64(15_000_000 + i*1_000_000),
 			GasLimit:  30_000_000,
 			Timestamp: int64(1606824023 + i*12),
 		}

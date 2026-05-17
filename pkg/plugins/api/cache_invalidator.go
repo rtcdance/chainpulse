@@ -16,6 +16,7 @@ type CacheInvalidator struct {
 	invalidationQueue chan InvalidationRequest
 	retryPolicy       *RetryPolicy
 	mu                sync.RWMutex
+	closeOnce         sync.Once
 }
 
 // InvalidationRequest represents a cache invalidation request
@@ -186,6 +187,8 @@ func (ci *CacheInvalidator) GetStats() InvalidationStats {
 
 // Close closes the invalidator
 func (ci *CacheInvalidator) Close() error {
-	close(ci.invalidationQueue)
+	ci.closeOnce.Do(func() {
+		close(ci.invalidationQueue)
+	})
 	return nil
 }

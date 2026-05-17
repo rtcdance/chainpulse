@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"time"
@@ -76,7 +77,7 @@ func (h *DLQHandler) HandleListDLQEvents(w http.ResponseWriter, r *http.Request)
 	defer cancel()
 
 	query := "SELECT id, chain_id, original_event_id, error_message, retry_count, status, created_at, updated_at FROM dlq_events"
-	args := []interface{}{}
+	args := []any{}
 
 	if status != "" && status != "all" {
 		query += " WHERE status = $1"
@@ -103,10 +104,15 @@ func (h *DLQHandler) HandleListDLQEvents(w http.ResponseWriter, r *http.Request)
 		}
 		events = append(events, evt)
 	}
+	if err := rows.Err(); err != nil {
+		h.logger.Error("Failed to iterate DLQ event rows", "error", err.Error())
+		writeJSONError(w, http.StatusInternalServerError, "failed to query DLQ")
+		return
+	}
 
 	// Get total count
 	countQuery := "SELECT COUNT(*) FROM dlq_events"
-	countArgs := []interface{}{}
+	countArgs := []any{}
 	if status != "" && status != "all" {
 		countQuery += " WHERE status = $1"
 		countArgs = append(countArgs, status)
@@ -118,7 +124,7 @@ func (h *DLQHandler) HandleListDLQEvents(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	writeJSONResponse(w, http.StatusOK, map[string]interface{}{
+	writeJSONResponse(w, http.StatusOK, map[string]any{
 		"data":      events,
 		"total":     total,
 		"limit":     limit,
@@ -150,7 +156,7 @@ func (h *DLQHandler) HandleReplayDLQEvents(w http.ResponseWriter, r *http.Reques
 
 	// Build query to get events to replay
 	query := "SELECT id, chain_id, original_event_id, error_message, retry_count, status, created_at, updated_at FROM dlq_events WHERE status = 'pending'"
-	args := []interface{}{}
+	args := []any{}
 
 	if !req.All && len(req.IDs) > 0 {
 		placeholders := ""
@@ -189,7 +195,7 @@ func (h *DLQHandler) HandleReplayDLQEvents(w http.ResponseWriter, r *http.Reques
 
 		// Re-publish to the input Kafka topic for reprocessing
 		if h.publisher != nil {
-			payload := map[string]interface{}{
+			payload := map[string]any{
 				"eventId":    evt.OriginalEventID,
 				"chainId":    evt.ChainID,
 				"dlqReplay":  true,
@@ -212,11 +218,16 @@ func (h *DLQHandler) HandleReplayDLQEvents(w http.ResponseWriter, r *http.Reques
 		}
 		replayed++
 	}
+	if err := rows.Err(); err != nil {
+		h.logger.Error("Failed to iterate DLQ replay rows", "error", err.Error())
+		writeJSONError(w, http.StatusInternalServerError, "failed to replay DLQ events")
+		return
+	}
 
 	h.metrics.RecordCounter("dlq_replay_events", 1, map[string]string{"count": strconv.Itoa(replayed)})
 	h.logger.Info("DLQ replay completed", "replayed", replayed, "failed", failed)
 
-	writeJSONResponse(w, http.StatusOK, map[string]interface{}{
+	writeJSONResponse(w, http.StatusOK, map[string]any{
 		"replayed":  replayed,
 		"failed":    failed,
 		"topic":     topic,
@@ -228,12 +239,10 @@ func writeJSONError(w http.ResponseWriter, status int, message string) {
 	(&APIError{Code: "DLQ_ERROR", Message: message, Status: status}).WriteHTTP(w)
 }
 
-func writeJSONResponse(w http.ResponseWriter, status int, data interface{}) {
+func writeJSONResponse(w http.ResponseWriter, status int, data any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	if err := json.NewEncoder(w).Encode(data); err != nil {
-		// Header already written; nothing we can do but log would go here if a
-		// logger were available.  The Write will have been partially flushed.
-		_ = err
+		slog.Warn("failed to encode JSON response", "status", status, "error", err)
 	}
 }

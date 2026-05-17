@@ -38,19 +38,34 @@ var (
 
 // Permanent errors — not retryable, indicate a client or logic error.
 var (
-	ErrUnauthorized      = NewSystemError(ErrorTypePermanent, ErrorCodeValidation, "unauthorized", nil)
-	ErrForbidden         = NewSystemError(ErrorTypePermanent, ErrorCodeValidation, "forbidden", nil)
-	ErrNotFound          = NewSystemError(ErrorTypePermanent, ErrorCodeNotFound, "not found", nil)
-	ErrBadRequest        = NewSystemError(ErrorTypePermanent, ErrorCodeValidation, "bad request", nil)
-	ErrInvalidState      = NewSystemError(ErrorTypePermanent, ErrorCodeValidation, "invalid state", nil)
-	ErrAuthFailed        = NewSystemError(ErrorTypePermanent, ErrorCodeValidation, "authentication failed", nil)
+	ErrUnauthorized = NewSystemError(ErrorTypePermanent, ErrorCodeValidation, "unauthorized", nil)
+	ErrForbidden    = NewSystemError(ErrorTypePermanent, ErrorCodeValidation, "forbidden", nil)
+	ErrNotFound     = NewSystemError(ErrorTypePermanent, ErrorCodeNotFound, "not found", nil)
+	ErrBadRequest   = NewSystemError(ErrorTypePermanent, ErrorCodeValidation, "bad request", nil)
+	ErrInvalidState = NewSystemError(ErrorTypePermanent, ErrorCodeValidation, "invalid state", nil)
+	ErrAuthFailed   = NewSystemError(ErrorTypePermanent, ErrorCodeValidation, "authentication failed", nil)
 )
 
 // Critical errors — require immediate attention, indicate data corruption or system failure.
 var (
-	ErrDataCorruption   = NewSystemError(ErrorTypeCritical, ErrorCodeInternalError, "data corruption", nil)
-	ErrCriticalFailure  = NewSystemError(ErrorTypeCritical, ErrorCodeInternalError, "critical failure", nil)
-	ErrFatalError       = NewSystemError(ErrorTypeCritical, ErrorCodeInternalError, "fatal error", nil)
+	ErrDataCorruption  = NewSystemError(ErrorTypeCritical, ErrorCodeInternalError, "data corruption", nil)
+	ErrCriticalFailure = NewSystemError(ErrorTypeCritical, ErrorCodeInternalError, "critical failure", nil)
+	ErrFatalError      = NewSystemError(ErrorTypeCritical, ErrorCodeInternalError, "fatal error", nil)
+)
+
+// Web3-specific sentinel errors
+var (
+	ErrBlockNotFound     = NewSystemError(ErrorTypePermanent, ErrorCodeBlockNotFound, "block not found", nil)
+	ErrEventNotFound     = NewSystemError(ErrorTypePermanent, ErrorCodeEventNotFound, "event not found", nil)
+	ErrChainNotFound     = NewSystemError(ErrorTypePermanent, ErrorCodeChainNotFound, "chain not found", nil)
+	ErrChainNotSupported = NewSystemError(ErrorTypePermanent, ErrorCodeChainNotSupported, "chain not supported", nil)
+	ErrTxNotFound        = NewSystemError(ErrorTypePermanent, ErrorCodeTxNotFound, "transaction not found", nil)
+	ErrContractNotFound  = NewSystemError(ErrorTypePermanent, ErrorCodeContractNotFound, "contract not found", nil)
+	ErrRPCError          = NewSystemError(ErrorTypeTransient, ErrorCodeRPCError, "RPC call failed", nil)
+	ErrRPCRateLimited    = NewSystemError(ErrorTypeTransient, ErrorCodeRPCRateLimited, "RPC rate limit exceeded", nil)
+	ErrEventDecodeFailed = NewSystemError(ErrorTypePermanent, ErrorCodeEventDecodeFailed, "event decode failed", nil)
+	ErrABINotFound       = NewSystemError(ErrorTypePermanent, ErrorCodeABINotFound, "ABI not found for contract", nil)
+	ErrFinalityNotReady  = NewSystemError(ErrorTypeTransient, ErrorCodeFinalityNotReady, "block not yet finalized", nil)
 )
 
 // Constants for configuration
@@ -75,6 +90,21 @@ const (
 	ErrorCodeTimeout       = "TIMEOUT"
 	ErrorCodeInternalError = "INTERNAL_ERROR"
 	ErrorCodeConfigError   = "CONFIG_ERROR"
+
+	// Web3-specific error codes
+	ErrorCodeBlockNotFound     = "BLOCK_NOT_FOUND"
+	ErrorCodeEventNotFound     = "EVENT_NOT_FOUND"
+	ErrorCodeChainNotFound     = "CHAIN_NOT_FOUND"
+	ErrorCodeChainNotSupported = "CHAIN_NOT_SUPPORTED"
+	ErrorCodeTxNotFound        = "TRANSACTION_NOT_FOUND"
+	ErrorCodeContractNotFound  = "CONTRACT_NOT_FOUND"
+	ErrorCodeRPCError          = "RPC_ERROR"
+	ErrorCodeRPCRateLimited    = "RPC_RATE_LIMITED"
+	ErrorCodeEventDecodeFailed = "EVENT_DECODE_FAILED"
+	ErrorCodeABINotFound       = "ABI_NOT_FOUND"
+	ErrorCodeFinalityNotReady  = "FINALITY_NOT_READY"
+	ErrorCodeReorgDetected     = "REORG_DETECTED"
+	ErrorCodeInvalidEventData  = "INVALID_EVENT_DATA"
 )
 
 // NewSystemError creates a new system error
@@ -84,7 +114,7 @@ func NewSystemError(errorType ErrorType, code, message string, err error) *Syste
 		Code:    code,
 		Message: message,
 		Err:     err,
-		Details: make(map[string]interface{}),
+		Details: make(map[string]any),
 	}
 }
 
@@ -101,7 +131,7 @@ func (e *SystemError) Error() string {
 func (e *SystemError) Unwrap() error { return e.Err }
 
 // WithDetail adds a detail to the error
-func (e *SystemError) WithDetail(key string, value interface{}) *SystemError {
+func (e *SystemError) WithDetail(key string, value any) *SystemError {
 	e.Details[key] = value
 	return e
 }
@@ -165,7 +195,10 @@ func ClassifyError(err error) ErrorType {
 	return ErrorTypePermanent
 }
 
-// RetryConfig represents retry configuration
+// DEPRECATED: Use chainpulse/pkg/services/resilience.RetryConfig instead.
+// RetryConfig represents retry configuration retained for legacy callers.
+// New code should import the resilience package which provides richer retry
+// with jitter, configurable backoff multipliers, and context-aware execution.
 type RetryConfig struct {
 	MaxRetries   int
 	InitialDelay time.Duration
@@ -173,7 +206,7 @@ type RetryConfig struct {
 	Multiplier   float64
 }
 
-// DefaultRetryConfig returns default retry configuration
+// DEPRECATED: Use chainpulse/pkg/services/resilience.DefaultRetryConfig instead.
 func DefaultRetryConfig() RetryConfig {
 	return RetryConfig{
 		MaxRetries:   3,
@@ -183,7 +216,9 @@ func DefaultRetryConfig() RetryConfig {
 	}
 }
 
-// RetryWithBackoff retries an operation with exponential backoff
+// DEPRECATED: Use chainpulse/pkg/services/resilience instead.
+// RetryWithBackoff retries an operation with exponential backoff.
+// Prefer using services/resilience.RetryExecutor for new code.
 func RetryWithBackoff(ctx context.Context, config RetryConfig, operation func() error) error {
 	var lastErr error
 	delay := config.InitialDelay
@@ -232,6 +267,38 @@ func RetryWithBackoff(ctx context.Context, config RetryConfig, operation func() 
 // IsContextError checks if error is a context error
 func IsContextError(err error) bool {
 	return errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
+}
+
+// ClassifyErrorCode returns a stable error code string suitable for metrics tagging.
+// Falls back to "UNKNOWN" if the error is not a SystemError or a known sentinel.
+func ClassifyErrorCode(err error) string {
+	if err == nil {
+		return "OK"
+	}
+
+	var sysErr *SystemError
+	if errors.As(err, &sysErr) {
+		return sysErr.Code
+	}
+
+	switch {
+	case errors.Is(err, ErrTimeout):
+		return ErrorCodeTimeout
+	case errors.Is(err, ErrConnectionRefused):
+		return ErrorCodeNetworkError
+	case errors.Is(err, ErrNotFound) || errors.Is(err, ErrBlockNotFound) ||
+		errors.Is(err, ErrEventNotFound) || errors.Is(err, ErrTxNotFound) ||
+		errors.Is(err, ErrContractNotFound):
+		return ErrorCodeNotFound
+	case errors.Is(err, ErrUnauthorized):
+		return ErrorCodeValidation
+	case errors.Is(err, context.DeadlineExceeded):
+		return ErrorCodeTimeout
+	case errors.Is(err, context.Canceled):
+		return ErrorCodeTimeout
+	}
+
+	return "UNKNOWN"
 }
 
 // WrapError wraps an error with additional context

@@ -9,6 +9,7 @@ import (
 )
 
 func TestFailoverRPCClientBasicRequest(t *testing.T) {
+	t.Parallel()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"jsonrpc":"2.0","result":"0x1","id":1}`))
@@ -37,6 +38,7 @@ func TestFailoverRPCClientBasicRequest(t *testing.T) {
 }
 
 func TestFailoverRPCClientFailover(t *testing.T) {
+	t.Parallel()
 	var primaryCalls, fallbackCalls int32
 
 	primary := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -83,6 +85,7 @@ func TestFailoverRPCClientFailover(t *testing.T) {
 }
 
 func TestFailoverRPCClient429Handling(t *testing.T) {
+	t.Parallel()
 	var callCount int32
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -120,6 +123,7 @@ func TestFailoverRPCClient429Handling(t *testing.T) {
 }
 
 func TestFailoverRPCClientCircuitBreaker(t *testing.T) {
+	t.Parallel()
 	var calls int32
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -154,6 +158,7 @@ func TestFailoverRPCClientCircuitBreaker(t *testing.T) {
 }
 
 func TestFailoverRPCClientRateLimiting(t *testing.T) {
+	t.Parallel()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))

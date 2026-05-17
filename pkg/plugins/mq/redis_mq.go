@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"chainpulse/pkg/core"
-	"github.com/go-redis/redis/v8"
+	"github.com/redis/go-redis/v9"
 )
 
 // RedisMQPlugin represents the Redis message queue plugin
@@ -169,7 +169,7 @@ func (p *RedisMQPlugin) Health() *core.HealthStatus {
 	return &core.HealthStatus{
 		Status:    status,
 		Timestamp: time.Now().UTC(),
-		Details: map[string]interface{}{
+		Details: map[string]any{
 			"name":                   p.name,
 			"version":                p.version,
 			"is_running":             p.isRunning,
@@ -455,17 +455,17 @@ func (p *RedisMQPlugin) RecordCounter(name string, value int64, tags map[string]
 }
 
 // LogInfo logs an info message
-func (p *RedisMQPlugin) LogInfo(message string, fields ...interface{}) {
+func (p *RedisMQPlugin) LogInfo(message string, fields ...any) {
 	p.logger.Info(message, fields...)
 }
 
 // LogError logs an error message
-func (p *RedisMQPlugin) LogError(message string, fields ...interface{}) {
+func (p *RedisMQPlugin) LogError(message string, fields ...any) {
 	p.logger.Error(message, fields...)
 }
 
 // LogWarn logs a warning message
-func (p *RedisMQPlugin) LogWarn(message string, fields ...interface{}) {
+func (p *RedisMQPlugin) LogWarn(message string, fields ...any) {
 	p.logger.Warn(message, fields...)
 }
 

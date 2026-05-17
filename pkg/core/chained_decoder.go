@@ -2,8 +2,8 @@ package core
 
 import (
 	"encoding/hex"
-	"math/big"
 	"fmt"
+	"math/big"
 	"sync"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
@@ -15,7 +15,7 @@ import (
 type EventDecoder interface {
 	// Decode attempts to decode event data, returning a map of parameter name -> value.
 	// When decoding fails, it returns a map with raw hex values instead of nil.
-	Decode(eventName string, topics []common.Hash, data []byte) map[string]interface{}
+	Decode(eventName string, topics []common.Hash, data []byte) map[string]any
 
 	// RegisterABI registers a runtime ABI for a contract, enabling dynamic decoding.
 	RegisterABI(contractName string, parsedABI *abi.ABI) error
@@ -41,7 +41,7 @@ func NewChainedDecoder() *ChainedDecoder {
 }
 
 // Decode attempts to decode event data through the chain of strategies.
-func (d *ChainedDecoder) Decode(eventName string, topics []common.Hash, data []byte) map[string]interface{} {
+func (d *ChainedDecoder) Decode(eventName string, topics []common.Hash, data []byte) map[string]any {
 	// Strategy 1: Try runtime-registered ABIs
 	if result := d.decodeFromRegistered(eventName, topics, data); result != nil {
 		return result
@@ -58,7 +58,7 @@ func (d *ChainedDecoder) Decode(eventName string, topics []common.Hash, data []b
 
 // DecodeWithTypedEvent decodes event data and also attempts typed decoding.
 // Returns the map-style decoded data (always non-nil) and a TypedEvent if available.
-func (d *ChainedDecoder) DecodeWithTypedEvent(eventName string, topics []common.Hash, data []byte) (map[string]interface{}, TypedEvent) {
+func (d *ChainedDecoder) DecodeWithTypedEvent(eventName string, topics []common.Hash, data []byte) (map[string]any, TypedEvent) {
 	mapResult := d.Decode(eventName, topics, data)
 
 	var typed TypedEvent
@@ -105,7 +105,7 @@ func (d *ChainedDecoder) ResolveEventName(topic0 common.Hash) (string, bool) {
 }
 
 // decodeFromRegistered tries to decode using runtime-registered contract ABIs.
-func (d *ChainedDecoder) decodeFromRegistered(eventName string, topics []common.Hash, data []byte) map[string]interface{} {
+func (d *ChainedDecoder) decodeFromRegistered(eventName string, topics []common.Hash, data []byte) map[string]any {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 
@@ -121,10 +121,10 @@ func (d *ChainedDecoder) decodeFromRegistered(eventName string, topics []common.
 
 // rawHexFallback preserves event data as hex strings when no ABI is available.
 // This ensures no data is silently lost — clients can decode client-side.
-func (d *ChainedDecoder) rawHexFallback(eventName string, topics []common.Hash, data []byte) map[string]interface{} {
+func (d *ChainedDecoder) rawHexFallback(eventName string, topics []common.Hash, data []byte) map[string]any {
 	unknownEventSignatures.Add(1)
 
-	result := make(map[string]interface{})
+	result := make(map[string]any)
 
 	// If event name is empty or unknown, label it with topic0
 	if len(topics) > 0 && (eventName == "" || eventName == "Unknown") {
@@ -151,8 +151,8 @@ func (d *ChainedDecoder) rawHexFallback(eventName string, topics []common.Hash, 
 
 // decodeWithABI decodes event data using a specific ABI event definition.
 // This is a copy of the core decode logic that works with an explicit abi.Event.
-func decodeWithABI(eventABI abi.Event, topics []common.Hash, data []byte) map[string]interface{} {
-	result := make(map[string]interface{})
+func decodeWithABI(eventABI abi.Event, topics []common.Hash, data []byte) map[string]any {
+	result := make(map[string]any)
 
 	// Decode indexed parameters from topics with type-aware decoding
 	topicIndex := 1 // topic0 is the event signature hash
@@ -193,7 +193,7 @@ func decodeWithABI(eventABI abi.Event, topics []common.Hash, data []byte) map[st
 			i := 0
 			for _, input := range eventABI.Inputs {
 				if !input.Indexed && i < len(values) {
-					result[input.Name] = formatDecodedValue(values[i])
+					result[input.Name] = FormatDecodedValue(values[i])
 					i++
 				}
 			}
@@ -207,11 +207,11 @@ func decodeWithABI(eventABI abi.Event, topics []common.Hash, data []byte) map[st
 var DefaultDecoder = NewChainedDecoder()
 
 // DecodeEvent is a convenience function that uses the global default decoder.
-func DecodeEvent(eventName string, topics []common.Hash, data []byte) map[string]interface{} {
+func DecodeEvent(eventName string, topics []common.Hash, data []byte) map[string]any {
 	return DefaultDecoder.Decode(eventName, topics, data)
 }
 
 // DecodeEventWithTyped decodes using the global default decoder and also returns a TypedEvent if available.
-func DecodeEventWithTyped(eventName string, topics []common.Hash, data []byte) (map[string]interface{}, TypedEvent) {
+func DecodeEventWithTyped(eventName string, topics []common.Hash, data []byte) (map[string]any, TypedEvent) {
 	return DefaultDecoder.DecodeWithTypedEvent(eventName, topics, data)
 }

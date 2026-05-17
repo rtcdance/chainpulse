@@ -12,8 +12,8 @@ import (
 // mockDatabaseManager is a mock implementation of DatabaseManager for testing
 type mockDatabaseManager struct {
 	mu          sync.RWMutex
-	mongoClient interface{}
-	postgresDB  interface{}
+	mongoClient any
+	postgresDB  any
 	mongoDb     *mongo.Database
 }
 
@@ -25,13 +25,13 @@ func (m *mockDatabaseManager) Close(ctx context.Context) error {
 	return nil
 }
 
-func (m *mockDatabaseManager) GetMongoClient(ctx context.Context) (interface{}, error) {
+func (m *mockDatabaseManager) GetMongoClient(ctx context.Context) (any, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.mongoClient, nil
 }
 
-func (m *mockDatabaseManager) GetPostgresDB(ctx context.Context) (interface{}, error) {
+func (m *mockDatabaseManager) GetPostgresDB(ctx context.Context) (any, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.postgresDB, nil
@@ -51,8 +51,8 @@ func (m *mockDatabaseManager) CheckPostgresHealth(ctx context.Context) error {
 	return nil
 }
 
-func (m *mockDatabaseManager) Health(ctx context.Context) interface{} {
-	return map[string]interface{}{"status": "healthy"}
+func (m *mockDatabaseManager) Health(ctx context.Context) any {
+	return map[string]any{"status": "healthy"}
 }
 
 // MockMongoDBAdapter is a mock implementation of MongoDB adapter for testing

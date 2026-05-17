@@ -132,24 +132,28 @@ var parsedEventABIs map[string]*abi.ABI
 // topic0Registry maps keccak256 event signature hashes to event names.
 var topic0Registry map[string]string
 
-func init() {
-	parsedEventABIs = make(map[string]*abi.ABI, len(knownEventABIs))
-	topic0Registry = make(map[string]string, len(knownEventABIs))
-	for name, jsonStr := range knownEventABIs {
-		parsed, err := abi.JSON(strings.NewReader(jsonStr))
-		if err == nil {
-			parsedEventABIs[name] = &parsed
-			// Build topic0 reverse lookup: event.ID is keccak256 of the event signature
-			if event, ok := parsed.Events[name]; ok {
-				topic0Registry[event.ID.Hex()] = name
+var initEventABIsOnce sync.Once
+
+func ensureEventABIsInitialized() {
+	initEventABIsOnce.Do(func() {
+		parsedEventABIs = make(map[string]*abi.ABI, len(knownEventABIs))
+		topic0Registry = make(map[string]string, len(knownEventABIs))
+		for name, jsonStr := range knownEventABIs {
+			parsed, err := abi.JSON(strings.NewReader(jsonStr))
+			if err == nil {
+				parsedEventABIs[name] = &parsed
+				if event, ok := parsed.Events[name]; ok {
+					topic0Registry[event.ID.Hex()] = name
+				}
 			}
 		}
-	}
+	})
 }
 
 // ResolveEventNameByTopic0 looks up an event name by its topic0 hash.
 // Returns the event name and true if found, or empty string and false otherwise.
 func ResolveEventNameByTopic0(topic0Hex string) (string, bool) {
+	ensureEventABIsInitialized()
 	name, ok := topic0Registry[topic0Hex]
 	return name, ok
 }
@@ -159,6 +163,7 @@ func ResolveEventNameByTopic0(topic0Hex string) (string, bool) {
 var topic0Mu sync.RWMutex
 
 func RegisterTopic0Mapping(topic0Hex, eventName string) {
+	ensureEventABIsInitialized()
 	topic0Mu.Lock()
 	defer topic0Mu.Unlock()
 	topic0Registry[topic0Hex] = eventName
@@ -166,6 +171,7 @@ func RegisterTopic0Mapping(topic0Hex, eventName string) {
 
 // GetABIForEventName returns the pre-parsed ABI for a known event name, or nil.
 func GetABIForEventName(name string) *abi.ABI {
+	ensureEventABIsInitialized()
 	return parsedEventABIs[name]
 }
 
@@ -173,6 +179,7 @@ func GetABIForEventName(name string) *abi.ABI {
 // This is used to build the topics filter for eth_getLogs when EventSignatures
 // is not explicitly configured but all known events should be filtered.
 func GetAllTopic0Hashes() []string {
+	ensureEventABIsInitialized()
 	topic0Mu.RLock()
 	defer topic0Mu.RUnlock()
 

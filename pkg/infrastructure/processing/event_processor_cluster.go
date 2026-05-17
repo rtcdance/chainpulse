@@ -448,6 +448,6 @@ func (epcd *EventProcessorClusterDeployment) GetDeadLetterQueueSize() int {
 }
 
 // GetIdempotencyMetrics returns idempotency metrics
-func (epcd *EventProcessorClusterDeployment) GetIdempotencyMetrics() map[string]interface{} {
+func (epcd *EventProcessorClusterDeployment) GetIdempotencyMetrics() map[string]any {
 	return epcd.idempotencyService.GetMetrics()
 }

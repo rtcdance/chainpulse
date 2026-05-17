@@ -23,31 +23,31 @@ type EventBusTestLogger struct {
 	mu       sync.Mutex
 }
 
-func (ml *EventBusTestLogger) Debug(msg string, fields ...interface{}) {
+func (ml *EventBusTestLogger) Debug(msg string, fields ...any) {
 	ml.mu.Lock()
 	defer ml.mu.Unlock()
 	ml.messages = append(ml.messages, msg)
 }
 
-func (ml *EventBusTestLogger) Info(msg string, fields ...interface{}) {
+func (ml *EventBusTestLogger) Info(msg string, fields ...any) {
 	ml.mu.Lock()
 	defer ml.mu.Unlock()
 	ml.messages = append(ml.messages, msg)
 }
 
-func (ml *EventBusTestLogger) Warn(msg string, fields ...interface{}) {
+func (ml *EventBusTestLogger) Warn(msg string, fields ...any) {
 	ml.mu.Lock()
 	defer ml.mu.Unlock()
 	ml.messages = append(ml.messages, msg)
 }
 
-func (ml *EventBusTestLogger) Error(msg string, fields ...interface{}) {
+func (ml *EventBusTestLogger) Error(msg string, fields ...any) {
 	ml.mu.Lock()
 	defer ml.mu.Unlock()
 	ml.messages = append(ml.messages, msg)
 }
 
-func (ml *EventBusTestLogger) Fatal(msg string, fields ...interface{}) {
+func (ml *EventBusTestLogger) Fatal(msg string, fields ...any) {
 	ml.mu.Lock()
 	defer ml.mu.Unlock()
 	ml.messages = append(ml.messages, msg)
@@ -59,6 +59,7 @@ func (ml *EventBusTestLogger) WithCorrelationID(id string) Logger {
 
 // TestNewEventBus tests event bus creation
 func TestNewEventBus(t *testing.T) {
+	t.Parallel()
 	logger := &EventBusTestLogger{}
 	eb := NewEventBus(logger)
 
@@ -70,6 +71,7 @@ func TestNewEventBus(t *testing.T) {
 
 // TestNewEventBusWithNilLogger tests event bus creation with nil logger
 func TestNewEventBusWithNilLogger(t *testing.T) {
+	t.Parallel()
 	eb := NewEventBus(nil)
 
 	assert.NotNil(t, eb)
@@ -79,11 +81,12 @@ func TestNewEventBusWithNilLogger(t *testing.T) {
 
 // TestSubscribe tests basic subscription returns a subscription ID
 func TestSubscribe(t *testing.T) {
+	t.Parallel()
 	logger := &EventBusTestLogger{}
 	eb := NewEventBus(logger)
 	ctx := context.Background()
 
-	handler := func(event interface{}) {}
+	handler := func(event any) {}
 	subID, err := eb.Subscribe(ctx, "test-topic", handler)
 
 	assert.NoError(t, err)
@@ -93,11 +96,12 @@ func TestSubscribe(t *testing.T) {
 
 // TestSubscribeReturnsIncrementingIDs tests that subscription IDs are unique and incrementing
 func TestSubscribeReturnsIncrementingIDs(t *testing.T) {
+	t.Parallel()
 	logger := &EventBusTestLogger{}
 	eb := NewEventBus(logger)
 	ctx := context.Background()
 
-	handler := func(event interface{}) {}
+	handler := func(event any) {}
 	subID1, _ := eb.Subscribe(ctx, "test-topic", handler)
 	subID2, _ := eb.Subscribe(ctx, "test-topic", handler)
 	subID3, _ := eb.Subscribe(ctx, "other-topic", handler)
@@ -109,13 +113,14 @@ func TestSubscribeReturnsIncrementingIDs(t *testing.T) {
 
 // TestMultipleSubscribers tests multiple subscribers to same topic
 func TestMultipleSubscribers(t *testing.T) {
+	t.Parallel()
 	logger := &EventBusTestLogger{}
 	eb := NewEventBus(logger)
 	ctx := context.Background()
 
-	handler1 := func(event interface{}) {}
-	handler2 := func(event interface{}) {}
-	handler3 := func(event interface{}) {}
+	handler1 := func(event any) {}
+	handler2 := func(event any) {}
+	handler3 := func(event any) {}
 
 	_, _ = eb.Subscribe(ctx, "test-topic", handler1)
 	_, _ = eb.Subscribe(ctx, "test-topic", handler2)
@@ -126,11 +131,12 @@ func TestMultipleSubscribers(t *testing.T) {
 
 // TestSubscribeEmptyTopic tests subscription with empty topic
 func TestSubscribeEmptyTopic(t *testing.T) {
+	t.Parallel()
 	logger := &EventBusTestLogger{}
 	eb := NewEventBus(logger)
 	ctx := context.Background()
 
-	handler := func(event interface{}) {}
+	handler := func(event any) {}
 	_, err := eb.Subscribe(ctx, "", handler)
 
 	assert.Error(t, err)
@@ -141,6 +147,7 @@ func TestSubscribeEmptyTopic(t *testing.T) {
 
 // TestSubscribeNilHandler tests subscription with nil handler
 func TestSubscribeNilHandler(t *testing.T) {
+	t.Parallel()
 	logger := &EventBusTestLogger{}
 	eb := NewEventBus(logger)
 	ctx := context.Background()
@@ -155,6 +162,7 @@ func TestSubscribeNilHandler(t *testing.T) {
 
 // TestPublish tests basic event publishing
 func TestPublish(t *testing.T) {
+	t.Parallel()
 	skipEventBusStressTestsInShortMode(t)
 
 	logger := &EventBusTestLogger{}
@@ -162,7 +170,7 @@ func TestPublish(t *testing.T) {
 	ctx := context.Background()
 
 	var eventReceived atomic.Bool
-	handler := func(event interface{}) {
+	handler := func(event any) {
 		eventReceived.Store(true)
 	}
 
@@ -177,6 +185,7 @@ func TestPublish(t *testing.T) {
 
 // TestPublishEmptyTopic tests publishing to empty topic
 func TestPublishEmptyTopic(t *testing.T) {
+	t.Parallel()
 	logger := &EventBusTestLogger{}
 	eb := NewEventBus(logger)
 	ctx := context.Background()
@@ -191,6 +200,7 @@ func TestPublishEmptyTopic(t *testing.T) {
 
 // TestPublishNilEvent tests publishing nil event
 func TestPublishNilEvent(t *testing.T) {
+	t.Parallel()
 	logger := &EventBusTestLogger{}
 	eb := NewEventBus(logger)
 	ctx := context.Background()
@@ -205,6 +215,7 @@ func TestPublishNilEvent(t *testing.T) {
 
 // TestPublishNoSubscribers tests publishing with no subscribers
 func TestPublishNoSubscribers(t *testing.T) {
+	t.Parallel()
 	logger := &EventBusTestLogger{}
 	eb := NewEventBus(logger)
 	ctx := context.Background()
@@ -216,6 +227,7 @@ func TestPublishNoSubscribers(t *testing.T) {
 
 // TestPublishMultipleSubscribers tests publishing to multiple subscribers
 func TestPublishMultipleSubscribers(t *testing.T) {
+	t.Parallel()
 	skipEventBusStressTestsInShortMode(t)
 
 	logger := &EventBusTestLogger{}
@@ -223,13 +235,13 @@ func TestPublishMultipleSubscribers(t *testing.T) {
 	ctx := context.Background()
 
 	var counter int32
-	handler1 := func(event interface{}) {
+	handler1 := func(event any) {
 		atomic.AddInt32(&counter, 1)
 	}
-	handler2 := func(event interface{}) {
+	handler2 := func(event any) {
 		atomic.AddInt32(&counter, 1)
 	}
-	handler3 := func(event interface{}) {
+	handler3 := func(event any) {
 		atomic.AddInt32(&counter, 1)
 	}
 
@@ -246,13 +258,14 @@ func TestPublishMultipleSubscribers(t *testing.T) {
 
 // TestPublishContextCanceled tests publishing with canceled context
 func TestPublishContextCanceled(t *testing.T) {
+	t.Parallel()
 	skipEventBusStressTestsInShortMode(t)
 
 	logger := &EventBusTestLogger{}
 	eb := NewEventBus(logger)
 
 	eventReceived := false
-	handler := func(event interface{}) {
+	handler := func(event any) {
 		eventReceived = true
 	}
 
@@ -272,17 +285,18 @@ func TestPublishContextCanceled(t *testing.T) {
 
 // TestPublishHandlerPanic tests publishing with handler that panics
 func TestPublishHandlerPanic(t *testing.T) {
+	t.Parallel()
 	skipEventBusStressTestsInShortMode(t)
 
 	logger := &EventBusTestLogger{}
 	eb := NewEventBus(logger)
 	ctx := context.Background()
 
-	panicHandler := func(event interface{}) {
+	panicHandler := func(event any) {
 		panic("test panic")
 	}
 
-	normalHandler := func(event interface{}) {
+	normalHandler := func(event any) {
 		// This should still be called
 	}
 
@@ -298,11 +312,12 @@ func TestPublishHandlerPanic(t *testing.T) {
 
 // TestUnsubscribe tests unsubscribing by subscription ID
 func TestUnsubscribe(t *testing.T) {
+	t.Parallel()
 	logger := &EventBusTestLogger{}
 	eb := NewEventBus(logger)
 	ctx := context.Background()
 
-	handler := func(event interface{}) {}
+	handler := func(event any) {}
 	subID, _ := eb.Subscribe(ctx, "test-topic", handler)
 	assert.Equal(t, 1, eb.GetSubscriberCount("test-topic"))
 
@@ -314,6 +329,7 @@ func TestUnsubscribe(t *testing.T) {
 
 // TestUnsubscribeRemovesCorrectHandler tests that Unsubscribe removes only the targeted handler
 func TestUnsubscribeRemovesCorrectHandler(t *testing.T) {
+	t.Parallel()
 	skipEventBusStressTestsInShortMode(t)
 
 	logger := &EventBusTestLogger{}
@@ -323,17 +339,17 @@ func TestUnsubscribeRemovesCorrectHandler(t *testing.T) {
 	var callLog []string
 	var mu sync.Mutex
 
-	handler1 := func(event interface{}) {
+	handler1 := func(event any) {
 		mu.Lock()
 		callLog = append(callLog, "handler1")
 		mu.Unlock()
 	}
-	handler2 := func(event interface{}) {
+	handler2 := func(event any) {
 		mu.Lock()
 		callLog = append(callLog, "handler2")
 		mu.Unlock()
 	}
-	handler3 := func(event interface{}) {
+	handler3 := func(event any) {
 		mu.Lock()
 		callLog = append(callLog, "handler3")
 		mu.Unlock()
@@ -362,6 +378,7 @@ func TestUnsubscribeRemovesCorrectHandler(t *testing.T) {
 
 // TestUnsubscribeNonexistentID tests unsubscribing with a non-existent subscription ID
 func TestUnsubscribeNonexistentID(t *testing.T) {
+	t.Parallel()
 	logger := &EventBusTestLogger{}
 	eb := NewEventBus(logger)
 
@@ -375,11 +392,12 @@ func TestUnsubscribeNonexistentID(t *testing.T) {
 
 // TestUnsubscribeTwice tests that double unsubscribe returns an error
 func TestUnsubscribeTwice(t *testing.T) {
+	t.Parallel()
 	logger := &EventBusTestLogger{}
 	eb := NewEventBus(logger)
 	ctx := context.Background()
 
-	handler := func(event interface{}) {}
+	handler := func(event any) {}
 	subID, _ := eb.Subscribe(ctx, "test-topic", handler)
 
 	err := eb.Unsubscribe(subID)
@@ -395,14 +413,15 @@ func TestUnsubscribeTwice(t *testing.T) {
 
 // TestGetSubscriberCount tests getting subscriber count
 func TestGetSubscriberCount(t *testing.T) {
+	t.Parallel()
 	logger := &EventBusTestLogger{}
 	eb := NewEventBus(logger)
 	ctx := context.Background()
 
 	assert.Equal(t, 0, eb.GetSubscriberCount("test-topic"))
 
-	handler1 := func(event interface{}) {}
-	handler2 := func(event interface{}) {}
+	handler1 := func(event any) {}
+	handler2 := func(event any) {}
 
 	_, _ = eb.Subscribe(ctx, "test-topic", handler1)
 	assert.Equal(t, 1, eb.GetSubscriberCount("test-topic"))
@@ -413,6 +432,7 @@ func TestGetSubscriberCount(t *testing.T) {
 
 // TestGetSubscriberCountNonexistentTopic tests getting count for non-existent topic
 func TestGetSubscriberCountNonexistentTopic(t *testing.T) {
+	t.Parallel()
 	logger := &EventBusTestLogger{}
 	eb := NewEventBus(logger)
 
@@ -421,11 +441,12 @@ func TestGetSubscriberCountNonexistentTopic(t *testing.T) {
 
 // TestGetTopics tests getting all topics
 func TestGetTopics(t *testing.T) {
+	t.Parallel()
 	logger := &EventBusTestLogger{}
 	eb := NewEventBus(logger)
 	ctx := context.Background()
 
-	handler := func(event interface{}) {}
+	handler := func(event any) {}
 
 	_, _ = eb.Subscribe(ctx, "topic1", handler)
 	_, _ = eb.Subscribe(ctx, "topic2", handler)
@@ -441,6 +462,7 @@ func TestGetTopics(t *testing.T) {
 
 // TestGetTopicsEmpty tests getting topics when none exist
 func TestGetTopicsEmpty(t *testing.T) {
+	t.Parallel()
 	logger := &EventBusTestLogger{}
 	eb := NewEventBus(logger)
 
@@ -451,11 +473,12 @@ func TestGetTopicsEmpty(t *testing.T) {
 
 // TestClearEventBus tests clearing all subscribers
 func TestClearEventBus(t *testing.T) {
+	t.Parallel()
 	logger := &EventBusTestLogger{}
 	eb := NewEventBus(logger)
 	ctx := context.Background()
 
-	handler := func(event interface{}) {}
+	handler := func(event any) {}
 
 	_, _ = eb.Subscribe(ctx, "topic1", handler)
 	_, _ = eb.Subscribe(ctx, "topic2", handler)
@@ -471,12 +494,13 @@ func TestClearEventBus(t *testing.T) {
 
 // TestPublishSync tests synchronous publishing
 func TestPublishSync(t *testing.T) {
+	t.Parallel()
 	logger := &EventBusTestLogger{}
 	eb := NewEventBus(logger)
 	ctx := context.Background()
 
 	eventReceived := false
-	handler := func(event interface{}) {
+	handler := func(event any) {
 		eventReceived = true
 	}
 
@@ -490,6 +514,7 @@ func TestPublishSync(t *testing.T) {
 
 // TestPublishSyncEmptyTopic tests synchronous publishing with empty topic
 func TestPublishSyncEmptyTopic(t *testing.T) {
+	t.Parallel()
 	logger := &EventBusTestLogger{}
 	eb := NewEventBus(logger)
 	ctx := context.Background()
@@ -504,6 +529,7 @@ func TestPublishSyncEmptyTopic(t *testing.T) {
 
 // TestPublishSyncNilEvent tests synchronous publishing with nil event
 func TestPublishSyncNilEvent(t *testing.T) {
+	t.Parallel()
 	logger := &EventBusTestLogger{}
 	eb := NewEventBus(logger)
 	ctx := context.Background()
@@ -518,11 +544,12 @@ func TestPublishSyncNilEvent(t *testing.T) {
 
 // TestPublishSyncContextCanceled tests synchronous publishing with canceled context
 func TestPublishSyncContextCanceled(t *testing.T) {
+	t.Parallel()
 	logger := &EventBusTestLogger{}
 	eb := NewEventBus(logger)
 
 	eventReceived := false
-	handler := func(event interface{}) {
+	handler := func(event any) {
 		eventReceived = true
 	}
 
@@ -540,18 +567,19 @@ func TestPublishSyncContextCanceled(t *testing.T) {
 
 // TestPublishSyncMultipleSubscribers tests synchronous publishing to multiple subscribers
 func TestPublishSyncMultipleSubscribers(t *testing.T) {
+	t.Parallel()
 	logger := &EventBusTestLogger{}
 	eb := NewEventBus(logger)
 	ctx := context.Background()
 
 	var counter int32
-	handler1 := func(event interface{}) {
+	handler1 := func(event any) {
 		atomic.AddInt32(&counter, 1)
 	}
-	handler2 := func(event interface{}) {
+	handler2 := func(event any) {
 		atomic.AddInt32(&counter, 1)
 	}
-	handler3 := func(event interface{}) {
+	handler3 := func(event any) {
 		atomic.AddInt32(&counter, 1)
 	}
 
@@ -567,11 +595,12 @@ func TestPublishSyncMultipleSubscribers(t *testing.T) {
 
 // TestPublishSyncHandlerPanic tests synchronous publishing with handler that panics
 func TestPublishSyncHandlerPanic(t *testing.T) {
+	t.Parallel()
 	logger := &EventBusTestLogger{}
 	eb := NewEventBus(logger)
 	ctx := context.Background()
 
-	panicHandler := func(event interface{}) {
+	panicHandler := func(event any) {
 		panic("test panic")
 	}
 
@@ -584,6 +613,7 @@ func TestPublishSyncHandlerPanic(t *testing.T) {
 }
 
 func TestPublishSyncPanicDoesNotSkipSubsequentHandlers(t *testing.T) {
+	t.Parallel()
 	logger := &EventBusTestLogger{}
 	eb := NewEventBus(logger)
 	ctx := context.Background()
@@ -591,10 +621,10 @@ func TestPublishSyncPanicDoesNotSkipSubsequentHandlers(t *testing.T) {
 	var handler2Called bool
 
 	// Handler 1 panics, handler 2 should still execute
-	panicHandler := func(event interface{}) {
+	panicHandler := func(event any) {
 		panic("handler1 panic")
 	}
-	normalHandler := func(event interface{}) {
+	normalHandler := func(event any) {
 		handler2Called = true
 	}
 
@@ -611,6 +641,7 @@ func TestPublishSyncPanicDoesNotSkipSubsequentHandlers(t *testing.T) {
 
 // TestConcurrentSubscribePublish tests concurrent subscribe and publish operations
 func TestConcurrentSubscribePublish(t *testing.T) {
+	t.Parallel()
 	skipEventBusStressTestsInShortMode(t)
 
 	logger := &EventBusTestLogger{}
@@ -625,7 +656,7 @@ func TestConcurrentSubscribePublish(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			handler := func(event interface{}) {
+			handler := func(event any) {
 				atomic.AddInt32(&counter, 1)
 			}
 			_, _ = eb.Subscribe(ctx, "test-topic", handler)
@@ -652,6 +683,7 @@ func TestConcurrentSubscribePublish(t *testing.T) {
 
 // TestEventDataTypes tests publishing different event data types
 func TestEventDataTypes(t *testing.T) {
+	t.Parallel()
 	skipEventBusStressTestsInShortMode(t)
 
 	logger := &EventBusTestLogger{}
@@ -660,21 +692,21 @@ func TestEventDataTypes(t *testing.T) {
 
 	tests := []struct {
 		name  string
-		event interface{}
+		event any
 	}{
 		{"String", "test-string"},
 		{"Integer", 42},
 		{"Float", 3.14},
 		{"Boolean", true},
 		{"Struct", struct{ Name string }{Name: "test"}},
-		{"Map", map[string]interface{}{"key": "value"}},
+		{"Map", map[string]any{"key": "value"}},
 		{"Slice", []string{"a", "b", "c"}},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var receivedEvent atomic.Pointer[interface{}]
-			handler := func(event interface{}) {
+			var receivedEvent atomic.Pointer[any]
+			handler := func(event any) {
 				receivedEvent.Store(&event)
 			}
 
@@ -697,19 +729,20 @@ func TestEventDataTypes(t *testing.T) {
 
 // TestMultipleTopics tests publishing to multiple topics
 func TestMultipleTopics(t *testing.T) {
+	t.Parallel()
 	logger := &EventBusTestLogger{}
 	eb := NewEventBus(logger)
 	ctx := context.Background()
 
 	var counter1, counter2, counter3 int32
 
-	handler1 := func(event interface{}) {
+	handler1 := func(event any) {
 		atomic.AddInt32(&counter1, 1)
 	}
-	handler2 := func(event interface{}) {
+	handler2 := func(event any) {
 		atomic.AddInt32(&counter2, 1)
 	}
-	handler3 := func(event interface{}) {
+	handler3 := func(event any) {
 		atomic.AddInt32(&counter3, 1)
 	}
 
@@ -730,11 +763,12 @@ func TestMultipleTopics(t *testing.T) {
 
 // TestSubscriberConsistency tests that subscriber count remains consistent
 func TestSubscriberConsistency(t *testing.T) {
+	t.Parallel()
 	logger := &EventBusTestLogger{}
 	eb := NewEventBus(logger)
 	ctx := context.Background()
 
-	handler := func(event interface{}) {}
+	handler := func(event any) {}
 
 	// Add subscribers
 	for i := 0; i < 100; i++ {
@@ -752,13 +786,14 @@ func TestSubscriberConsistency(t *testing.T) {
 
 // TestEventBusStop tests that Stop prevents new publications and waits for in-flight handlers
 func TestEventBusStop(t *testing.T) {
+	t.Parallel()
 	logger := &EventBusTestLogger{}
 	eb := NewEventBus(logger)
 	ctx := context.Background()
 
 	// Publish an event with a slow handler to verify Wait behavior
 	var handlerCalled atomic.Bool
-	handler := func(event interface{}) {
+	handler := func(event any) {
 		time.Sleep(50 * time.Millisecond)
 		handlerCalled.Store(true)
 	}
@@ -786,6 +821,7 @@ func TestEventBusStop(t *testing.T) {
 // This is a regression test for the map-reference-leak bug where Publish
 // held a reference to the subscribers map after releasing RLock.
 func TestPublishConcurrentSubscribeNoRace(t *testing.T) {
+	t.Parallel()
 	skipEventBusStressTestsInShortMode(t)
 
 	eb := NewEventBus(nil)
@@ -796,7 +832,7 @@ func TestPublishConcurrentSubscribeNoRace(t *testing.T) {
 
 	// Pre-subscribe one handler so Publish has work to do
 	var received atomic.Int32
-	_, _ = eb.Subscribe(ctx, topic, func(_ interface{}) {
+	_, _ = eb.Subscribe(ctx, topic, func(_ any) {
 		received.Add(1)
 	})
 
@@ -820,7 +856,7 @@ func TestPublishConcurrentSubscribeNoRace(t *testing.T) {
 		go func(id int) {
 			defer wg.Done()
 			for j := 0; j < iterations; j++ {
-				subID, _ := eb.Subscribe(ctx, topic, func(_ interface{}) {})
+				subID, _ := eb.Subscribe(ctx, topic, func(_ any) {})
 				if subID > 0 {
 					_ = eb.Unsubscribe(subID)
 				}
@@ -839,6 +875,7 @@ func TestPublishConcurrentSubscribeNoRace(t *testing.T) {
 }
 
 func TestSubscribeTyped(t *testing.T) {
+	t.Parallel()
 	logger := &EventBusTestLogger{}
 	eb := NewEventBus(logger)
 	defer eb.Stop()

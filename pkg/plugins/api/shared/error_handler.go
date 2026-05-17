@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net"
 	"strings"
 	"sync"
@@ -246,8 +247,9 @@ func (eh *ErrorHandler) ShouldRetry(err error, attempt int) bool {
 	return classification == ErrorTransient || classification == ErrorUnknown
 }
 
-// Handle handles an error with retry and circuit breaker logic
-func (eh *ErrorHandler) Handle(err error, operation func() error) error {
+// Handle handles an error with retry and circuit breaker logic.
+// The context parameter enables cancellation during backoff waits for graceful shutdown.
+func (eh *ErrorHandler) Handle(ctx context.Context, err error, operation func() error) error {
 	if !eh.circuitBreaker.CanExecute() {
 		return fmt.Errorf("circuit breaker open: %w", err)
 	}
@@ -255,7 +257,11 @@ func (eh *ErrorHandler) Handle(err error, operation func() error) error {
 	for attempt := 0; attempt < eh.retryPolicy.maxRetries; attempt++ {
 		if attempt > 0 {
 			backoff := eh.retryPolicy.GetBackoffDuration(attempt)
-			time.Sleep(backoff)
+			select {
+			case <-time.After(backoff):
+			case <-ctx.Done():
+				return fmt.Errorf("retry cancelled: %w", ctx.Err())
+			}
 		}
 
 		result := operation()
@@ -280,7 +286,7 @@ func (eh *ErrorHandler) Handle(err error, operation func() error) error {
 }
 
 // GetMetrics returns error handler metrics
-func (eh *ErrorHandler) GetMetrics() map[string]interface{} {
+func (eh *ErrorHandler) GetMetrics() map[string]any {
 	eh.mu.RLock()
 	cb := eh.circuitBreaker
 	maxRetries := eh.retryPolicy.maxRetries
@@ -304,7 +310,7 @@ func (eh *ErrorHandler) GetMetrics() map[string]interface{} {
 	circuitPosture := classifyCircuitBreakerPosture(stateStr, failureCount, successCount)
 	retryPosture := classifyRetryPosture(maxRetries, failureCount)
 
-	return map[string]interface{}{
+	return map[string]any{
 		"circuit_breaker_state": stateStr,
 		"failure_count":         failureCount,
 		"success_count":         successCount,
@@ -319,14 +325,14 @@ func (eh *ErrorHandler) GetMetrics() map[string]interface{} {
 
 // GetRuntimeMetrics returns a compact runtime surface for circuit-breaker
 // posture and retry readiness on top of the raw error-handler metrics.
-func (eh *ErrorHandler) GetRuntimeMetrics() map[string]interface{} {
+func (eh *ErrorHandler) GetRuntimeMetrics() map[string]any {
 	metrics := eh.GetMetrics()
 
-	failureCount, _ := metrics["failure_count"].(int)
-	successCount, _ := metrics["success_count"].(int)
-	maxRetries, _ := metrics["max_retries"].(int)
+	failureCount := getIntMetric(metrics, "failure_count")
+	successCount := getIntMetric(metrics, "success_count")
+	maxRetries := getIntMetric(metrics, "max_retries")
 
-	return map[string]interface{}{
+	return map[string]any{
 		"circuit_breaker_state": metrics["circuit_breaker_state"],
 		"failure_count":         failureCount,
 		"success_count":         successCount,
@@ -383,4 +389,12 @@ func buildErrorHandlerReliabilityHint(circuitPosture string, retryPosture string
 	default:
 		return "error handler runtime has not observed meaningful execution yet"
 	}
+}
+
+func getIntMetric(metrics map[string]any, key string) int {
+	v, ok := metrics[key].(int)
+	if !ok {
+		slog.Warn("error handler: unexpected metric type", "key", key)
+	}
+	return v
 }

@@ -21,6 +21,7 @@ func (m *MockHandler) Handle(req Request) (Response, error) {
 
 // TestNewProtocolDetector tests creating a new protocol detector
 func TestNewProtocolDetector(t *testing.T) {
+	t.Parallel()
 	pd := NewProtocolDetector()
 	if pd == nil {
 		t.Fatal("expected non-nil protocol detector")
@@ -32,6 +33,7 @@ func TestNewProtocolDetector(t *testing.T) {
 
 // TestRegisterHandler tests registering a handler
 func TestRegisterHandler(t *testing.T) {
+	t.Parallel()
 	pd := NewProtocolDetector()
 	handler := &MockHandler{}
 
@@ -47,6 +49,7 @@ func TestRegisterHandler(t *testing.T) {
 
 // TestRegisterHandlerNil tests registering a nil handler
 func TestRegisterHandlerNil(t *testing.T) {
+	t.Parallel()
 	pd := NewProtocolDetector()
 
 	err := pd.RegisterHandler(ProtocolHTTP, nil)
@@ -57,6 +60,7 @@ func TestRegisterHandlerNil(t *testing.T) {
 
 // TestRegisterMultipleHandlers tests registering multiple handlers
 func TestRegisterMultipleHandlers(t *testing.T) {
+	t.Parallel()
 	pd := NewProtocolDetector()
 	handlers := map[ProtocolType]*MockHandler{
 		ProtocolHTTP:      {},
@@ -79,6 +83,7 @@ func TestRegisterMultipleHandlers(t *testing.T) {
 
 // TestDetectProtocolHTTP tests detecting HTTP protocol
 func TestDetectProtocolHTTP(t *testing.T) {
+	t.Parallel()
 	pd := NewProtocolDetector()
 	req := NewBaseRequest(context.Background(), "GET", "/api/users", map[string]string{
 		"Content-Type": "application/json",
@@ -92,6 +97,7 @@ func TestDetectProtocolHTTP(t *testing.T) {
 
 // TestDetectProtocolWebSocket tests detecting WebSocket protocol
 func TestDetectProtocolWebSocket(t *testing.T) {
+	t.Parallel()
 	pd := NewProtocolDetector()
 	req := NewBaseRequest(context.Background(), "GET", "/ws", map[string]string{
 		"Upgrade":      "websocket",
@@ -107,6 +113,7 @@ func TestDetectProtocolWebSocket(t *testing.T) {
 
 // TestDetectProtocolWebSocketPath tests detecting WebSocket by path
 func TestDetectProtocolWebSocketPath(t *testing.T) {
+	t.Parallel()
 	pd := NewProtocolDetector()
 	req := NewBaseRequest(context.Background(), "GET", "/websocket", map[string]string{}, nil)
 
@@ -118,6 +125,7 @@ func TestDetectProtocolWebSocketPath(t *testing.T) {
 
 // TestDetectProtocolGRPC tests detecting gRPC protocol
 func TestDetectProtocolGRPC(t *testing.T) {
+	t.Parallel()
 	pd := NewProtocolDetector()
 	req := NewBaseRequest(context.Background(), "POST", "/api.Service/Method", map[string]string{
 		"Content-Type":  "application/grpc",
@@ -132,6 +140,7 @@ func TestDetectProtocolGRPC(t *testing.T) {
 
 // TestDetectProtocolGRPCEncoding tests detecting gRPC by encoding header
 func TestDetectProtocolGRPCEncoding(t *testing.T) {
+	t.Parallel()
 	pd := NewProtocolDetector()
 	req := NewBaseRequest(context.Background(), "POST", "/api.Service/Method", map[string]string{
 		"grpc-encoding": "gzip",
@@ -145,6 +154,7 @@ func TestDetectProtocolGRPCEncoding(t *testing.T) {
 
 // TestDetectProtocolGraphQL tests detecting GraphQL protocol
 func TestDetectProtocolGraphQL(t *testing.T) {
+	t.Parallel()
 	pd := NewProtocolDetector()
 	req := NewBaseRequest(context.Background(), "POST", "/graphql", map[string]string{
 		"Content-Type": "application/json",
@@ -158,6 +168,7 @@ func TestDetectProtocolGraphQL(t *testing.T) {
 
 // TestDetectProtocolGraphQLMutation tests detecting GraphQL mutation
 func TestDetectProtocolGraphQLMutation(t *testing.T) {
+	t.Parallel()
 	pd := NewProtocolDetector()
 	req := NewBaseRequest(context.Background(), "POST", "/api", map[string]string{
 		"Content-Type": "application/json",
@@ -171,6 +182,7 @@ func TestDetectProtocolGraphQLMutation(t *testing.T) {
 
 // TestDetectProtocolNilRequest tests detecting protocol with nil request
 func TestDetectProtocolNilRequest(t *testing.T) {
+	t.Parallel()
 	pd := NewProtocolDetector()
 	protocol := pd.DetectProtocol(nil)
 	if protocol != ProtocolUnknown {
@@ -180,6 +192,7 @@ func TestDetectProtocolNilRequest(t *testing.T) {
 
 // TestRoute tests routing a request to a handler
 func TestRoute(t *testing.T) {
+	t.Parallel()
 	pd := NewProtocolDetector()
 	handler := &MockHandler{
 		resp: NewBaseResponse(nil),
@@ -205,6 +218,7 @@ func TestRoute(t *testing.T) {
 
 // TestRouteNilRequest tests routing with nil request
 func TestRouteNilRequest(t *testing.T) {
+	t.Parallel()
 	pd := NewProtocolDetector()
 	_, err := pd.Route(nil)
 	if err == nil {
@@ -214,6 +228,7 @@ func TestRouteNilRequest(t *testing.T) {
 
 // TestRouteNoHandler tests routing when no handler is registered
 func TestRouteNoHandler(t *testing.T) {
+	t.Parallel()
 	pd := NewProtocolDetector()
 	req := NewBaseRequest(context.Background(), "GET", "/api/users", map[string]string{}, nil)
 
@@ -225,6 +240,7 @@ func TestRouteNoHandler(t *testing.T) {
 
 // TestGetProtocolName tests getting protocol names
 func TestGetProtocolName(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		protocol ProtocolType
 		expected string
@@ -246,6 +262,7 @@ func TestGetProtocolName(t *testing.T) {
 
 // TestGetRegisteredProtocols tests getting registered protocols
 func TestGetRegisteredProtocols(t *testing.T) {
+	t.Parallel()
 	pd := NewProtocolDetector()
 	protocols := []ProtocolType{ProtocolHTTP, ProtocolWebSocket, ProtocolGRPC}
 
@@ -261,6 +278,7 @@ func TestGetRegisteredProtocols(t *testing.T) {
 
 // TestIsProtocolSupported tests checking if protocol is supported
 func TestIsProtocolSupported(t *testing.T) {
+	t.Parallel()
 	pd := NewProtocolDetector()
 	if err := pd.RegisterHandler(ProtocolHTTP, &MockHandler{}); err != nil {
 		t.Fatalf("Failed to register handler: %v", err)
@@ -276,6 +294,7 @@ func TestIsProtocolSupported(t *testing.T) {
 
 // TestGetSupportedProtocolCount tests getting supported protocol count
 func TestGetSupportedProtocolCount(t *testing.T) {
+	t.Parallel()
 	pd := NewProtocolDetector()
 	if pd.GetSupportedProtocolCount() != 0 {
 		t.Errorf("expected 0 protocols, got %d", pd.GetSupportedProtocolCount())
@@ -298,6 +317,7 @@ func TestGetSupportedProtocolCount(t *testing.T) {
 
 // TestGetMetrics tests getting metrics
 func TestGetMetrics(t *testing.T) {
+	t.Parallel()
 	pd := NewProtocolDetector()
 	if err := pd.RegisterHandler(ProtocolHTTP, &MockHandler{}); err != nil {
 		t.Fatalf("failed to register HTTP handler: %v", err)
@@ -329,6 +349,7 @@ func TestGetMetrics(t *testing.T) {
 }
 
 func TestProtocolDetectorMetricsIncludesPostureFields(t *testing.T) {
+	t.Parallel()
 	pd := NewProtocolDetector()
 	if err := pd.RegisterHandler(ProtocolHTTP, &MockHandler{}); err != nil {
 		t.Fatalf("failed to register HTTP handler: %v", err)
@@ -348,6 +369,7 @@ func TestProtocolDetectorMetricsIncludesPostureFields(t *testing.T) {
 
 // TestDetectProtocolPriority tests protocol detection priority
 func TestDetectProtocolPriority(t *testing.T) {
+	t.Parallel()
 	// GraphQL should be detected before WebSocket
 	pd := NewProtocolDetector()
 	req := NewBaseRequest(context.Background(), "POST", "/graphql", map[string]string{
@@ -364,6 +386,7 @@ func TestDetectProtocolPriority(t *testing.T) {
 
 // TestDetectProtocolCaseInsensitive tests case-insensitive protocol detection
 func TestDetectProtocolCaseInsensitive(t *testing.T) {
+	t.Parallel()
 	pd := NewProtocolDetector()
 	req := NewBaseRequest(context.Background(), "GET", "/ws", map[string]string{
 		"Upgrade":    "WebSocket",
@@ -378,6 +401,7 @@ func TestDetectProtocolCaseInsensitive(t *testing.T) {
 
 // TestConcurrentRegistration tests concurrent handler registration
 func TestConcurrentRegistration(t *testing.T) {
+	t.Parallel()
 	pd := NewProtocolDetector()
 	done := make(chan bool, 4)
 
@@ -401,6 +425,7 @@ func TestConcurrentRegistration(t *testing.T) {
 
 // TestConcurrentDetection tests concurrent protocol detection
 func TestConcurrentDetection(t *testing.T) {
+	t.Parallel()
 	pd := NewProtocolDetector()
 	if err := pd.RegisterHandler(ProtocolHTTP, &MockHandler{}); err != nil {
 		t.Fatalf("failed to register handler: %v", err)
@@ -424,6 +449,7 @@ func TestConcurrentDetection(t *testing.T) {
 }
 
 func TestProtocolDetectorRuntimeMetricsUnobserved(t *testing.T) {
+	t.Parallel()
 	pd := NewProtocolDetector()
 
 	metrics := pd.GetRuntimeMetrics()
@@ -436,6 +462,7 @@ func TestProtocolDetectorRuntimeMetricsUnobserved(t *testing.T) {
 }
 
 func TestProtocolDetectorRuntimeMetricsWatch(t *testing.T) {
+	t.Parallel()
 	pd := NewProtocolDetector()
 	if err := pd.RegisterHandler(ProtocolHTTP, &MockHandler{}); err != nil {
 		t.Fatalf("failed to register HTTP handler: %v", err)
@@ -451,6 +478,7 @@ func TestProtocolDetectorRuntimeMetricsWatch(t *testing.T) {
 }
 
 func TestProtocolDetectorRuntimeMetricsReady(t *testing.T) {
+	t.Parallel()
 	pd := NewProtocolDetector()
 	if err := pd.RegisterHandler(ProtocolHTTP, &MockHandler{}); err != nil {
 		t.Fatalf("failed to register HTTP handler: %v", err)

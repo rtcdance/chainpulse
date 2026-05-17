@@ -10,6 +10,7 @@ import (
 
 // TestCacheServiceInitialization tests cache service initialization
 func TestCacheServiceInitialization(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelDebug)
 	metrics := core.NewDefaultMetricsCollector()
 
@@ -32,6 +33,7 @@ func TestCacheServiceInitialization(t *testing.T) {
 
 // TestCacheServiceStartStop tests cache service start and stop
 func TestCacheServiceStartStop(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelDebug)
 	metrics := core.NewDefaultMetricsCollector()
 
@@ -48,6 +50,7 @@ func TestCacheServiceStartStop(t *testing.T) {
 
 // TestCacheServiceSetAndGet tests setting and getting cache values
 func TestCacheServiceSetAndGet(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelDebug)
 	metrics := core.NewDefaultMetricsCollector()
 
@@ -104,6 +107,7 @@ func TestCacheServiceSetAndGet(t *testing.T) {
 
 // TestCacheServiceSetAndGetSingle tests setting and getting single cache values
 func TestCacheServiceSetAndGetSingle(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelDebug)
 	metrics := core.NewDefaultMetricsCollector()
 
@@ -153,6 +157,7 @@ func TestCacheServiceSetAndGetSingle(t *testing.T) {
 
 // TestCacheServiceDelete tests cache deletion
 func TestCacheServiceDelete(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelDebug)
 	metrics := core.NewDefaultMetricsCollector()
 
@@ -192,6 +197,7 @@ func TestCacheServiceDelete(t *testing.T) {
 
 // TestCacheServiceExpiration tests cache expiration
 func TestCacheServiceExpiration(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelDebug)
 	metrics := core.NewDefaultMetricsCollector()
 
@@ -235,6 +241,7 @@ func TestCacheServiceExpiration(t *testing.T) {
 
 // TestCacheServiceMiss tests cache miss
 func TestCacheServiceMiss(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelDebug)
 	metrics := core.NewDefaultMetricsCollector()
 
@@ -263,6 +270,7 @@ func TestCacheServiceMiss(t *testing.T) {
 
 // TestCacheServiceNotRunning tests operations when not running
 func TestCacheServiceNotRunning(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelDebug)
 	metrics := core.NewDefaultMetricsCollector()
 
@@ -290,6 +298,7 @@ func TestCacheServiceNotRunning(t *testing.T) {
 
 // TestCacheServiceHealth tests health check
 func TestCacheServiceHealth(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelDebug)
 	metrics := core.NewDefaultMetricsCollector()
 
@@ -332,6 +341,7 @@ func TestCacheServiceHealth(t *testing.T) {
 
 // TestCacheServiceEmptyKey tests operations with empty key
 func TestCacheServiceEmptyKey(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelDebug)
 	metrics := core.NewDefaultMetricsCollector()
 
@@ -373,6 +383,7 @@ func TestCacheServiceEmptyKey(t *testing.T) {
 
 // TestCacheServiceNilValue tests operations with nil value
 func TestCacheServiceNilValue(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelDebug)
 	metrics := core.NewDefaultMetricsCollector()
 

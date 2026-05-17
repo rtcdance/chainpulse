@@ -12,6 +12,7 @@ import (
 
 // TestKafkaMQPluginCreation tests Kafka MQ plugin creation
 func TestKafkaMQPluginCreation(t *testing.T) {
+	t.Parallel()
 	config := &core.Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -39,6 +40,7 @@ func TestKafkaMQPluginCreation(t *testing.T) {
 
 // TestKafkaMQPluginInitialization tests Kafka plugin initialization
 func TestKafkaMQPluginInitialization(t *testing.T) {
+	t.Parallel()
 	config := &core.Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -67,6 +69,7 @@ func TestKafkaMQPluginInitialization(t *testing.T) {
 
 // TestKafkaMQPluginLifecycle tests Kafka plugin lifecycle
 func TestKafkaMQPluginLifecycle(t *testing.T) {
+	t.Parallel()
 	config := &core.Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -102,6 +105,7 @@ func TestKafkaMQPluginLifecycle(t *testing.T) {
 
 // TestKafkaMQPluginPublishMessage tests publishing a message
 func TestKafkaMQPluginPublishMessage(t *testing.T) {
+	t.Parallel()
 	config := &core.Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -142,6 +146,7 @@ func TestKafkaMQPluginPublishMessage(t *testing.T) {
 
 // TestKafkaMQPluginAcknowledgeMessage tests acknowledging a message
 func TestKafkaMQPluginAcknowledgeMessage(t *testing.T) {
+	t.Parallel()
 	config := &core.Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -179,6 +184,7 @@ func TestKafkaMQPluginAcknowledgeMessage(t *testing.T) {
 
 // TestKafkaMQPluginDeadLetterQueue tests dead letter queue handling
 func TestKafkaMQPluginDeadLetterQueue(t *testing.T) {
+	t.Parallel()
 	config := &core.Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -223,6 +229,7 @@ func TestKafkaMQPluginDeadLetterQueue(t *testing.T) {
 
 // TestKafkaMQPluginRetryMessage tests message retry
 func TestKafkaMQPluginRetryMessage(t *testing.T) {
+	t.Parallel()
 	config := &core.Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -267,6 +274,7 @@ func TestKafkaMQPluginRetryMessage(t *testing.T) {
 
 // TestKafkaMQPluginGetStats tests statistics retrieval
 func TestKafkaMQPluginGetStats(t *testing.T) {
+	t.Parallel()
 	config := &core.Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -296,6 +304,7 @@ func TestKafkaMQPluginGetStats(t *testing.T) {
 
 // TestKafkaMQPluginSetBatchSize tests setting batch size
 func TestKafkaMQPluginSetBatchSize(t *testing.T) {
+	t.Parallel()
 	config := &core.Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -318,6 +327,7 @@ func TestKafkaMQPluginSetBatchSize(t *testing.T) {
 
 // TestKafkaMQPluginSetMaxRetries tests setting max retries
 func TestKafkaMQPluginSetMaxRetries(t *testing.T) {
+	t.Parallel()
 	config := &core.Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -340,6 +350,7 @@ func TestKafkaMQPluginSetMaxRetries(t *testing.T) {
 
 // TestKafkaMQPluginSetRetryDelay tests setting retry delay
 func TestKafkaMQPluginSetRetryDelay(t *testing.T) {
+	t.Parallel()
 	config := &core.Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -362,6 +373,7 @@ func TestKafkaMQPluginSetRetryDelay(t *testing.T) {
 
 // TestKafkaMQPluginConcurrentOperations tests concurrent operations
 func TestKafkaMQPluginConcurrentOperations(t *testing.T) {
+	t.Parallel()
 	config := &core.Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -416,6 +428,7 @@ func TestKafkaMQPluginConcurrentOperations(t *testing.T) {
 
 // TestKafkaMQPluginHealth tests health check
 func TestKafkaMQPluginHealth(t *testing.T) {
+	t.Parallel()
 	config := &core.Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -459,6 +472,7 @@ func TestKafkaMQPluginHealth(t *testing.T) {
 
 // TestKafkaMQPluginOffsetTracking tests offset tracking
 func TestKafkaMQPluginOffsetTracking(t *testing.T) {
+	t.Parallel()
 	config := &core.Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -484,6 +498,7 @@ func TestKafkaMQPluginOffsetTracking(t *testing.T) {
 
 // TestKafkaMQPluginMultipleTopics tests handling multiple topics
 func TestKafkaMQPluginMultipleTopics(t *testing.T) {
+	t.Parallel()
 	config := &core.Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -520,6 +535,7 @@ func TestKafkaMQPluginMultipleTopics(t *testing.T) {
 
 // TestKafkaMQPluginBrokerConfiguration tests broker configuration
 func TestKafkaMQPluginBrokerConfiguration(t *testing.T) {
+	t.Parallel()
 	config := &core.Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -545,6 +561,7 @@ func TestKafkaMQPluginBrokerConfiguration(t *testing.T) {
 
 // TestKafkaMQPluginConsumerGroupConfiguration tests consumer group configuration
 func TestKafkaMQPluginConsumerGroupConfiguration(t *testing.T) {
+	t.Parallel()
 	config := &core.Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -564,6 +581,7 @@ func TestKafkaMQPluginConsumerGroupConfiguration(t *testing.T) {
 
 // TestKafkaMQPluginErrorHandling tests error handling
 func TestKafkaMQPluginErrorHandling(t *testing.T) {
+	t.Parallel()
 	config := &core.Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -600,6 +618,7 @@ func TestKafkaMQPluginErrorHandling(t *testing.T) {
 
 // TestKafkaMQPluginNotRunningError tests operations when plugin is not running
 func TestKafkaMQPluginNotRunningError(t *testing.T) {
+	t.Parallel()
 	config := &core.Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -643,6 +662,7 @@ func TestKafkaMQPluginNotRunningError(t *testing.T) {
 
 // TestKafkaMQPluginNotInitializedError tests operations when plugin is not initialized
 func TestKafkaMQPluginNotInitializedError(t *testing.T) {
+	t.Parallel()
 	config := &core.Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -664,6 +684,7 @@ func TestKafkaMQPluginNotInitializedError(t *testing.T) {
 
 // TestKafkaMQPluginDoubleStart tests starting plugin twice
 func TestKafkaMQPluginDoubleStart(t *testing.T) {
+	t.Parallel()
 	config := &core.Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -693,6 +714,7 @@ func TestKafkaMQPluginDoubleStart(t *testing.T) {
 
 // TestKafkaMQPluginStopWithoutStart tests stopping without starting
 func TestKafkaMQPluginStopWithoutStart(t *testing.T) {
+	t.Parallel()
 	config := &core.Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -718,6 +740,7 @@ func TestKafkaMQPluginStopWithoutStart(t *testing.T) {
 
 // TestKafkaMQPluginMaxRetriesExceeded tests max retries exceeded
 func TestKafkaMQPluginMaxRetriesExceeded(t *testing.T) {
+	t.Parallel()
 	config := &core.Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -759,6 +782,7 @@ func TestKafkaMQPluginMaxRetriesExceeded(t *testing.T) {
 
 // TestKafkaMQPluginGetLastBlockNumber tests getting last block number
 func TestKafkaMQPluginGetLastBlockNumber(t *testing.T) {
+	t.Parallel()
 	config := &core.Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -779,6 +803,7 @@ func TestKafkaMQPluginGetLastBlockNumber(t *testing.T) {
 
 // TestKafkaMQPluginSetLastBlockNumber tests setting last block number
 func TestKafkaMQPluginSetLastBlockNumber(t *testing.T) {
+	t.Parallel()
 	config := &core.Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -800,6 +825,7 @@ func TestKafkaMQPluginSetLastBlockNumber(t *testing.T) {
 
 // TestKafkaMQPluginHealthDegraded tests health status when errors occur
 func TestKafkaMQPluginHealthDegraded(t *testing.T) {
+	t.Parallel()
 	config := &core.Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -828,6 +854,7 @@ func TestKafkaMQPluginHealthDegraded(t *testing.T) {
 
 // TestKafkaMQPluginMessageQueueMessageFields tests message fields
 func TestKafkaMQPluginMessageQueueMessageFields(t *testing.T) {
+	t.Parallel()
 	message := core.MessageQueueMessage{
 		ID:           "msg-123",
 		Topic:        "events",
@@ -861,6 +888,7 @@ func TestKafkaMQPluginMessageQueueMessageFields(t *testing.T) {
 
 // TestKafkaMQPluginStatsStructure tests stats structure
 func TestKafkaMQPluginStatsStructure(t *testing.T) {
+	t.Parallel()
 	config := &core.Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -898,6 +926,7 @@ func TestKafkaMQPluginStatsStructure(t *testing.T) {
 
 // TestKafkaMQPluginLogMethods tests logging methods
 func TestKafkaMQPluginLogMethods(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 
 	// These should not panic
@@ -908,6 +937,7 @@ func TestKafkaMQPluginLogMethods(t *testing.T) {
 
 // TestKafkaMQPluginRecordMetric tests metric recording
 func TestKafkaMQPluginRecordMetric(t *testing.T) {
+	t.Parallel()
 	metrics := core.NewDefaultMetricsCollector()
 
 	// This should not panic

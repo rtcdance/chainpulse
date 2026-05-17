@@ -60,14 +60,14 @@ func CanTransition(current, next ValidatorState) bool {
 
 // ValidatorInfo holds metadata and state for a single beacon chain validator.
 type ValidatorInfo struct {
-	Index          uint64         `json:"index"`
-	PublicKey      string         `json:"public_key"`
-	State          ValidatorState `json:"state"`
-	ActivationEpoch  uint64       `json:"activation_epoch"`
-	ExitEpoch       uint64        `json:"exit_epoch"`
-	WithdrawableEpoch uint64      `json:"withdrawable_epoch"`
-	EffectiveBalance uint64       `json:"effective_balance"` // in Gwei (max 32 ETH = 32_000_000_000)
-	Slashed        bool           `json:"slashed"`
+	Index             uint64         `json:"index"`
+	PublicKey         string         `json:"public_key"`
+	State             ValidatorState `json:"state"`
+	ActivationEpoch   uint64         `json:"activation_epoch"`
+	ExitEpoch         uint64         `json:"exit_epoch"`
+	WithdrawableEpoch uint64         `json:"withdrawable_epoch"`
+	EffectiveBalance  uint64         `json:"effective_balance"` // in Gwei (max 32 ETH = 32_000_000_000)
+	Slashed           bool           `json:"slashed"`
 }
 
 // IsEligibleForActivation returns true if the validator is pending and has reached its activation epoch.
@@ -218,23 +218,23 @@ type AttestationStats struct {
 	mu sync.RWMutex
 
 	// Per-epoch attestation participation
-	TotalSlots      uint64 `json:"total_slots"`
-	AttestedSlots   uint64 `json:"attested_slots"`
-	MissedSlots     uint64 `json:"missed_slots"`
+	TotalSlots    uint64 `json:"total_slots"`
+	AttestedSlots uint64 `json:"attested_slots"`
+	MissedSlots   uint64 `json:"missed_slots"`
 
 	// Inclusion distance tracking
 	// An attestation's inclusion distance is the number of slots between the
 	// attested slot and the slot where the attestation is included on-chain.
 	// Optimal = 1 (next slot), max meaningful = SLOTS_PER_EPOCH (32).
-	totalDistance  uint64
+	totalDistance uint64
 	distanceCount uint64
-	maxDistance    uint64
-	minDistance    uint64
+	maxDistance   uint64
+	minDistance   uint64
 
 	// Source/Target/Head correctness (simplified)
-	SourceCorrect uint64 `json:"source_correct"`
-	TargetCorrect uint64 `json:"target_correct"`
-	HeadCorrect   uint64 `json:"head_correct"`
+	SourceCorrect     uint64 `json:"source_correct"`
+	TargetCorrect     uint64 `json:"target_correct"`
+	HeadCorrect       uint64 `json:"head_correct"`
 	TotalAttestations uint64 `json:"total_attestations"`
 }
 
@@ -385,11 +385,11 @@ const (
 
 // SyncCommitteeInfo holds metadata about the current sync committee.
 type SyncCommitteeInfo struct {
-	PeriodStartEpoch uint64   `json:"period_start_epoch"`
-	PeriodEndEpoch   uint64   `json:"period_end_epoch"`
-	Validators       []uint64 `json:"validators"`       // validator indices
-	Subcommittees    [4][]uint64 `json:"subcommittees"` // 4 subcommittees of 128 each
-	AggregateBitfield []byte  `json:"aggregate_bitfield"` // participation bitfield
+	PeriodStartEpoch  uint64      `json:"period_start_epoch"`
+	PeriodEndEpoch    uint64      `json:"period_end_epoch"`
+	Validators        []uint64    `json:"validators"`         // validator indices
+	Subcommittees     [4][]uint64 `json:"subcommittees"`      // 4 subcommittees of 128 each
+	AggregateBitfield []byte      `json:"aggregate_bitfield"` // participation bitfield
 }
 
 // SyncCommitteePeriodForEpoch returns the sync committee period for a given epoch.

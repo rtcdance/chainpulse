@@ -104,7 +104,7 @@ func (cca *CrossChainAPI) Query(ctx context.Context, query *CrossChainQuery) (*C
 
 	// Query each blockchain cluster in parallel
 	var wg sync.WaitGroup
-	resultsChan := make(chan map[string]interface{}, len(query.Blockchains))
+	resultsChan := make(chan map[string]any, len(query.Blockchains))
 	errorsChan := make(chan error, len(query.Blockchains))
 
 	for _, blockchain := range query.Blockchains {
@@ -120,7 +120,7 @@ func (cca *CrossChainAPI) Query(ctx context.Context, query *CrossChainQuery) (*C
 
 			// Query cluster (simplified - would query actual data store)
 			events := make([]core.BlockchainEvent, 0)
-			result := map[string]interface{}{
+			result := map[string]any{
 				"blockchain": bc,
 				"events":     events,
 			}
@@ -252,11 +252,11 @@ func (cca *CrossChainAPI) PaginateResults(results []core.BlockchainEvent, limit,
 }
 
 // GetMetrics returns cross-chain API metrics
-func (cca *CrossChainAPI) GetMetrics() map[string]interface{} {
+func (cca *CrossChainAPI) GetMetrics() map[string]any {
 	cca.metrics.mu.RLock()
 	defer cca.metrics.mu.RUnlock()
 
-	return map[string]interface{}{
+	return map[string]any{
 		"total_queries":      cca.metrics.TotalQueries,
 		"successful_queries": cca.metrics.SuccessfulQueries,
 		"failed_queries":     cca.metrics.FailedQueries,

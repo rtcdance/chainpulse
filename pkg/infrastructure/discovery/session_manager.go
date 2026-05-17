@@ -15,7 +15,7 @@ type Session struct {
 	UserID    string
 	CreatedAt time.Time
 	ExpiresAt time.Time
-	Data      map[string]interface{}
+	Data      map[string]any
 }
 
 // SessionManager manages distributed sessions
@@ -45,7 +45,7 @@ func (sm *SessionManager) CreateSession(ctx context.Context, userID string) (*Se
 		UserID:    userID,
 		CreatedAt: time.Now(),
 		ExpiresAt: time.Now().Add(sm.ttl),
-		Data:      make(map[string]interface{}),
+		Data:      make(map[string]any),
 	}
 
 	// Store in local map
@@ -77,7 +77,7 @@ func (sm *SessionManager) GetSession(ctx context.Context, sessionID string) (*Se
 }
 
 // UpdateSession updates session data
-func (sm *SessionManager) UpdateSession(ctx context.Context, sessionID string, data map[string]interface{}) error {
+func (sm *SessionManager) UpdateSession(ctx context.Context, sessionID string, data map[string]any) error {
 	sm.mutex.Lock()
 	session, exists := sm.sessions[sessionID]
 	if !exists {
@@ -123,7 +123,7 @@ func generateSessionID() (string, error) {
 
 // SessionCache provides session caching interface
 type SessionCache interface {
-	Set(ctx context.Context, key string, value interface{}, ttl time.Duration) error
-	Get(ctx context.Context, key string) (interface{}, error)
+	Set(ctx context.Context, key string, value any, ttl time.Duration) error
+	Get(ctx context.Context, key string) (any, error)
 	Delete(ctx context.Context, key string) error
 }

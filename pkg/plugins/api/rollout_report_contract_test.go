@@ -6,6 +6,7 @@ import (
 )
 
 func TestNewRolloutReportDetailsFromMetadata(t *testing.T) {
+	t.Parallel()
 	details := NewRolloutReportDetailsFromMetadata(RolloutReportMetadata{
 		ReportID:       "monolithic-ownership-rollout-runtime",
 		SchemaFamily:   OwnershipRolloutSchemaFamily,
@@ -51,6 +52,7 @@ func TestNewRolloutReportDetailsFromMetadata(t *testing.T) {
 }
 
 func TestNewOwnershipRolloutReportMetadata(t *testing.T) {
+	t.Parallel()
 	metadata := NewOwnershipRolloutReportMetadata(
 		"api-service",
 		"api-service-ownership-rollout-runtime",
@@ -77,6 +79,7 @@ func TestNewOwnershipRolloutReportMetadata(t *testing.T) {
 }
 
 func TestRolloutReportProducerFunc(t *testing.T) {
+	t.Parallel()
 	producer := RolloutReportProducerFunc(func(ctx context.Context) *RolloutReportDetails {
 		return &RolloutReportDetails{ReportID: "producer-id"}
 	})
@@ -91,6 +94,7 @@ func TestRolloutReportProducerFunc(t *testing.T) {
 }
 
 func TestApplyRolloutReportSurfaceSection(t *testing.T) {
+	t.Parallel()
 	details := &RolloutReportDetails{}
 	section := RolloutReportSurfaceSection{
 		Summary: RolloutReportSummary{
@@ -152,6 +156,7 @@ func TestApplyRolloutReportSurfaceSection(t *testing.T) {
 }
 
 func TestBuildRolloutReportSurfaceSection(t *testing.T) {
+	t.Parallel()
 	section := BuildRolloutReportSurfaceSection(RolloutReportSurfaceInput{
 		Summary: RolloutReportSummary{
 			ShadowOwnedEvents: 8,
@@ -210,6 +215,7 @@ func TestBuildRolloutReportSurfaceSection(t *testing.T) {
 }
 
 func TestBuildRolloutReportSurfaceInput(t *testing.T) {
+	t.Parallel()
 	input := BuildRolloutReportSurfaceInput(
 		RolloutReportSurfaceCoreInput{
 			Summary: RolloutReportSummary{
@@ -269,6 +275,7 @@ func TestBuildRolloutReportSurfaceInput(t *testing.T) {
 }
 
 func TestApplyRolloutReportApprovalSection(t *testing.T) {
+	t.Parallel()
 	details := &RolloutReportDetails{}
 	section := RolloutReportApproval{
 		ManualApprovalCheckpoint: RolloutReportStateReason{
@@ -308,6 +315,7 @@ func TestApplyRolloutReportApprovalSection(t *testing.T) {
 }
 
 func TestBuildRolloutReportApprovalSection(t *testing.T) {
+	t.Parallel()
 	section := BuildRolloutReportApprovalSection(RolloutReportApprovalInput{
 		ManualApprovalCheckpoint: RolloutReportStateReason{
 			State:  "inactive",
@@ -344,6 +352,7 @@ func TestBuildRolloutReportApprovalSection(t *testing.T) {
 }
 
 func TestBuildRolloutReportApprovalInput(t *testing.T) {
+	t.Parallel()
 	input := BuildRolloutReportApprovalInput(
 		RolloutReportApprovalFlowInput{
 			ManualApprovalCheckpoint: RolloutReportStateReason{
@@ -384,6 +393,7 @@ func TestBuildRolloutReportApprovalInput(t *testing.T) {
 }
 
 func TestApplyRolloutReportGuardedSection(t *testing.T) {
+	t.Parallel()
 	details := &RolloutReportDetails{}
 	section := RolloutReportGuarded{
 		Hook: RolloutReportAction{
@@ -429,6 +439,7 @@ func TestApplyRolloutReportGuardedSection(t *testing.T) {
 }
 
 func TestBuildRolloutReportGuardedSection(t *testing.T) {
+	t.Parallel()
 	section := BuildRolloutReportGuardedSection(RolloutReportGuardedInput{
 		Hook: RolloutReportAction{
 			Action: "noop-hold",
@@ -471,6 +482,7 @@ func TestBuildRolloutReportGuardedSection(t *testing.T) {
 }
 
 func TestBuildRolloutReportGuardedInput(t *testing.T) {
+	t.Parallel()
 	input := BuildRolloutReportGuardedInput(
 		RolloutReportGuardedHookInput{
 			Hook: RolloutReportAction{
@@ -517,6 +529,7 @@ func TestBuildRolloutReportGuardedInput(t *testing.T) {
 }
 
 func TestBuildRolloutReportSections(t *testing.T) {
+	t.Parallel()
 	sections := BuildRolloutReportSections(RolloutReportSectionsInput{
 		Surface: RolloutReportSurfaceInput{
 			Summary: RolloutReportSummary{

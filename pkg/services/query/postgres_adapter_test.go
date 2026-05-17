@@ -10,6 +10,7 @@ import (
 
 // TestPostgreSQLAdapterInitialization tests adapter initialization
 func TestPostgreSQLAdapterInitialization(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelDebug)
 	metrics := core.NewDefaultMetricsCollector()
 	mockDBManager := &mockDatabaseManager{}
@@ -28,6 +29,7 @@ func TestPostgreSQLAdapterInitialization(t *testing.T) {
 
 // TestPostgreSQLAdapterQueryWithNilRequest tests query with nil request
 func TestPostgreSQLAdapterQueryWithNilRequest(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelDebug)
 	metrics := core.NewDefaultMetricsCollector()
 	mockDBManager := &mockDatabaseManager{}
@@ -50,6 +52,7 @@ func TestPostgreSQLAdapterQueryWithNilRequest(t *testing.T) {
 
 // TestPostgreSQLAdapterQueryWithoutTable tests query without table name
 func TestPostgreSQLAdapterQueryWithoutTable(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelDebug)
 	metrics := core.NewDefaultMetricsCollector()
 	mockDBManager := &mockDatabaseManager{}
@@ -66,7 +69,7 @@ func TestPostgreSQLAdapterQueryWithoutTable(t *testing.T) {
 
 	req := &QueryRequest{
 		Collection: "",
-		Filter:     map[string]interface{}{},
+		Filter:     map[string]any{},
 	}
 
 	_, err := adapter.Query(ctx, req)
@@ -77,6 +80,7 @@ func TestPostgreSQLAdapterQueryWithoutTable(t *testing.T) {
 
 // TestPostgreSQLAdapterNotInitialized tests operations on uninitialized adapter
 func TestPostgreSQLAdapterNotInitialized(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelDebug)
 	metrics := core.NewDefaultMetricsCollector()
 	mockDBManager := &mockDatabaseManager{}
@@ -93,7 +97,7 @@ func TestPostgreSQLAdapterNotInitialized(t *testing.T) {
 
 	req := &QueryRequest{
 		Collection: "events",
-		Filter:     map[string]interface{}{},
+		Filter:     map[string]any{},
 	}
 
 	_, err := adapter.Query(ctx, req)
@@ -109,6 +113,7 @@ func TestPostgreSQLAdapterNotInitialized(t *testing.T) {
 
 // TestPostgreSQLAdapterQueryByHashWithEmptyHash tests query by hash with empty hash
 func TestPostgreSQLAdapterQueryByHashWithEmptyHash(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelDebug)
 	metrics := core.NewDefaultMetricsCollector()
 	mockDBManager := &mockDatabaseManager{}
@@ -131,6 +136,7 @@ func TestPostgreSQLAdapterQueryByHashWithEmptyHash(t *testing.T) {
 
 // TestPostgreSQLAdapterHealthNotInitialized tests health check when not initialized
 func TestPostgreSQLAdapterHealthNotInitialized(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelDebug)
 	metrics := core.NewDefaultMetricsCollector()
 	mockDBManager := &mockDatabaseManager{}
@@ -153,6 +159,7 @@ func TestPostgreSQLAdapterHealthNotInitialized(t *testing.T) {
 
 // TestPostgreSQLAdapterDoubleInitialization tests double initialization
 func TestPostgreSQLAdapterDoubleInitialization(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelDebug)
 	metrics := core.NewDefaultMetricsCollector()
 	mockDBManager := &mockDatabaseManager{}
@@ -175,6 +182,7 @@ func TestPostgreSQLAdapterDoubleInitialization(t *testing.T) {
 
 // TestPostgreSQLAdapterQueryBuildsCorrectSQL tests SQL query building
 func TestPostgreSQLAdapterQueryBuildsCorrectSQL(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelDebug)
 	metrics := core.NewDefaultMetricsCollector()
 	mockDBManager := &mockDatabaseManager{}
@@ -192,7 +200,7 @@ func TestPostgreSQLAdapterQueryBuildsCorrectSQL(t *testing.T) {
 
 	req := &QueryRequest{
 		Collection: "events",
-		Filter: map[string]interface{}{
+		Filter: map[string]any{
 			"chain_id": 1,
 		},
 		Limit:  10,

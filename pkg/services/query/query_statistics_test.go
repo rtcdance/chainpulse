@@ -6,6 +6,7 @@ import (
 )
 
 func TestNewQueryStatisticsCollector(t *testing.T) {
+	t.Parallel()
 	qsc := NewQueryStatisticsCollector(1 * time.Minute)
 	if qsc == nil {
 		t.Fatal("expected non-nil QueryStatisticsCollector")
@@ -13,6 +14,7 @@ func TestNewQueryStatisticsCollector(t *testing.T) {
 }
 
 func TestRecordExecution(t *testing.T) {
+	t.Parallel()
 	qsc := NewQueryStatisticsCollector(1 * time.Minute)
 
 	record := ExecutionRecord{
@@ -55,6 +57,7 @@ func TestRecordExecution(t *testing.T) {
 }
 
 func TestRecordExecutionWithError(t *testing.T) {
+	t.Parallel()
 	qsc := NewQueryStatisticsCollector(1 * time.Minute)
 
 	record := ExecutionRecord{
@@ -81,6 +84,7 @@ func TestRecordExecutionWithError(t *testing.T) {
 }
 
 func TestRecordExecutionWithCacheHit(t *testing.T) {
+	t.Parallel()
 	qsc := NewQueryStatisticsCollector(1 * time.Minute)
 
 	record := ExecutionRecord{
@@ -107,6 +111,7 @@ func TestRecordExecutionWithCacheHit(t *testing.T) {
 }
 
 func TestGetAllQueryMetrics(t *testing.T) {
+	t.Parallel()
 	qsc := NewQueryStatisticsCollector(1 * time.Minute)
 
 	for i := 0; i < 5; i++ {
@@ -130,6 +135,7 @@ func TestGetAllQueryMetrics(t *testing.T) {
 }
 
 func TestAggregateMetrics(t *testing.T) {
+	t.Parallel()
 	qsc := NewQueryStatisticsCollector(1 * time.Millisecond)
 
 	for i := 0; i < 3; i++ {
@@ -169,6 +175,7 @@ func TestAggregateMetrics(t *testing.T) {
 }
 
 func TestAggregateMetricsWithErrors(t *testing.T) {
+	t.Parallel()
 	qsc := NewQueryStatisticsCollector(1 * time.Millisecond)
 
 	// Record 2 successful executions
@@ -216,6 +223,7 @@ func TestAggregateMetricsWithErrors(t *testing.T) {
 }
 
 func TestGetAggregatedMetrics(t *testing.T) {
+	t.Parallel()
 	qsc := NewQueryStatisticsCollector(1 * time.Millisecond)
 
 	record := ExecutionRecord{
@@ -239,6 +247,7 @@ func TestGetAggregatedMetrics(t *testing.T) {
 }
 
 func TestResetStatistics(t *testing.T) {
+	t.Parallel()
 	qsc := NewQueryStatisticsCollector(1 * time.Minute)
 
 	record := ExecutionRecord{
@@ -262,6 +271,7 @@ func TestResetStatistics(t *testing.T) {
 }
 
 func TestGetQueryCount(t *testing.T) {
+	t.Parallel()
 	qsc := NewQueryStatisticsCollector(1 * time.Minute)
 
 	for i := 0; i < 5; i++ {
@@ -285,6 +295,7 @@ func TestGetQueryCount(t *testing.T) {
 }
 
 func TestCalculatePercentiles(t *testing.T) {
+	t.Parallel()
 	qsc := NewQueryStatisticsCollector(1 * time.Minute)
 
 	record := ExecutionRecord{
@@ -318,6 +329,7 @@ func TestCalculatePercentiles(t *testing.T) {
 }
 
 func TestGetCacheHitRate(t *testing.T) {
+	t.Parallel()
 	qsc := NewQueryStatisticsCollector(1 * time.Minute)
 
 	// Record 3 cache hits and 1 cache miss
@@ -355,6 +367,7 @@ func TestGetCacheHitRate(t *testing.T) {
 }
 
 func TestGetErrorRate(t *testing.T) {
+	t.Parallel()
 	qsc := NewQueryStatisticsCollector(1 * time.Minute)
 
 	// Record 2 successful executions
@@ -393,6 +406,7 @@ func TestGetErrorRate(t *testing.T) {
 }
 
 func TestMultipleQueries(t *testing.T) {
+	t.Parallel()
 	qsc := NewQueryStatisticsCollector(1 * time.Minute)
 
 	// Record executions for multiple queries
@@ -428,6 +442,7 @@ func TestMultipleQueries(t *testing.T) {
 }
 
 func TestConcurrentRecording(t *testing.T) {
+	t.Parallel()
 	qsc := NewQueryStatisticsCollector(1 * time.Minute)
 
 	done := make(chan bool, 10)
@@ -467,6 +482,7 @@ func TestConcurrentRecording(t *testing.T) {
 }
 
 func TestAverageCalculations(t *testing.T) {
+	t.Parallel()
 	qsc := NewQueryStatisticsCollector(1 * time.Minute)
 
 	durations := []time.Duration{
@@ -505,6 +521,7 @@ func TestAverageCalculations(t *testing.T) {
 }
 
 func TestTopQueriesSorting(t *testing.T) {
+	t.Parallel()
 	qsc := NewQueryStatisticsCollector(1 * time.Millisecond)
 
 	// Record different execution counts for different queries

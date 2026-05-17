@@ -22,12 +22,13 @@ type RedisCacheManager struct {
 	fallbackMutex   sync.RWMutex
 	healthCheckTick *time.Ticker
 	done            chan struct{}
+	closeOnce       sync.Once
 }
 
 // CacheEntry represents a cached value with metadata
 type CacheEntry struct {
 	Key        string
-	Value      interface{}
+	Value      any
 	ExpiresAt  time.Time
 	CreatedAt  time.Time
 	AccessedAt time.Time
@@ -65,7 +66,7 @@ func (rcm *RedisCacheManager) Initialize(ctx context.Context) error {
 	// Create Redis client with connection pooling
 	rcm.client = redis.NewClient(&redis.Options{
 		Addr:         rcm.config.RedisAddr,
-		Password:     rcm.config.RedisPassword,
+		Password:     rcm.config.RedisPassword.Value(),
 		DB:           rcm.config.RedisDB,
 		PoolSize:     rcm.config.PoolSize,
 		MinIdleConns: rcm.config.MinIdleConns,
@@ -94,7 +95,7 @@ func (rcm *RedisCacheManager) Initialize(ctx context.Context) error {
 }
 
 // Get retrieves a value from cache
-func (rcm *RedisCacheManager) Get(ctx context.Context, key string) (interface{}, error) {
+func (rcm *RedisCacheManager) Get(ctx context.Context, key string) (any, error) {
 	rcm.statsMutex.Lock()
 	defer rcm.statsMutex.Unlock()
 
@@ -122,7 +123,7 @@ func (rcm *RedisCacheManager) Get(ctx context.Context, key string) (interface{},
 }
 
 // Set stores a value in cache with TTL
-func (rcm *RedisCacheManager) Set(ctx context.Context, key string, value interface{}, ttl time.Duration) error {
+func (rcm *RedisCacheManager) Set(ctx context.Context, key string, value any, ttl time.Duration) error {
 	rcm.statsMutex.Lock()
 	rcm.stats.Sets++
 	rcm.statsMutex.Unlock()
@@ -278,7 +279,9 @@ func (rcm *RedisCacheManager) GetHitRate() float64 {
 
 // Close closes the Redis connection
 func (rcm *RedisCacheManager) Close(_ context.Context) error {
-	close(rcm.done)
+	rcm.closeOnce.Do(func() {
+		close(rcm.done)
+	})
 
 	if rcm.healthCheckTick != nil {
 		rcm.healthCheckTick.Stop()
@@ -293,7 +296,7 @@ func (rcm *RedisCacheManager) Close(_ context.Context) error {
 
 // Private helper methods
 
-func (rcm *RedisCacheManager) getFromRedis(ctx context.Context, key string) (interface{}, error) {
+func (rcm *RedisCacheManager) getFromRedis(ctx context.Context, key string) (any, error) {
 	if rcm.client == nil {
 		return nil, fmt.Errorf("redis client not initialized")
 	}
@@ -303,7 +306,7 @@ func (rcm *RedisCacheManager) getFromRedis(ctx context.Context, key string) (int
 		return nil, err
 	}
 
-	var result interface{}
+	var result any
 	if err := json.Unmarshal([]byte(val), &result); err != nil {
 		return nil, err
 	}
@@ -311,7 +314,7 @@ func (rcm *RedisCacheManager) getFromRedis(ctx context.Context, key string) (int
 	return result, nil
 }
 
-func (rcm *RedisCacheManager) getFromLocalCache(key string) (interface{}, error) {
+func (rcm *RedisCacheManager) getFromLocalCache(key string) (any, error) {
 	rcm.localCacheMutex.RLock()
 	defer rcm.localCacheMutex.RUnlock()
 
@@ -331,7 +334,7 @@ func (rcm *RedisCacheManager) getFromLocalCache(key string) (interface{}, error)
 	return entry.Value, nil
 }
 
-func (rcm *RedisCacheManager) setInLocalCache(key string, value interface{}, ttl time.Duration) {
+func (rcm *RedisCacheManager) setInLocalCache(key string, value any, ttl time.Duration) {
 	rcm.localCacheMutex.Lock()
 	defer rcm.localCacheMutex.Unlock()
 

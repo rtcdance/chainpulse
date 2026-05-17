@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log/slog"
 	"sync"
 	"time"
 )
@@ -44,7 +45,7 @@ func (pam *PostgresAdvancedManager) SetupReplication(ctx context.Context, config
 	}
 	defer func() {
 		if err := primaryDB.Close(); err != nil {
-			_ = err // Log but continue
+			slog.Warn("primary DB close error", "error", err)
 		}
 	}()
 
@@ -73,7 +74,8 @@ func (pam *PostgresAdvancedManager) SetupReplication(ctx context.Context, config
 	for i := range config.ReplicaAddresses {
 		slotName := fmt.Sprintf("replica_%d", i)
 		if _, err := primaryDB.ExecContext(ctx, "SELECT * FROM pg_create_physical_replication_slot($1)", slotName); err != nil {
-			_ = err // Slot might already exist, ignore error
+			slog.Warn("replication slot creation failed, may already exist",
+				"slot_name", slotName, "error", err)
 		}
 	}
 
@@ -91,7 +93,7 @@ func (pam *PostgresAdvancedManager) VerifyReplication(ctx context.Context, confi
 	}
 	defer func() {
 		if err := primaryDB.Close(); err != nil {
-			_ = err // Log but continue
+			slog.Warn("primary DB close error in replication verification", "error", err)
 		}
 	}()
 
@@ -117,6 +119,9 @@ func (pam *PostgresAdvancedManager) VerifyReplication(ctx context.Context, confi
 			activeSlots++
 		}
 	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("failed to iterate replication slots: %w", err)
+	}
 
 	if activeSlots < len(config.ReplicaAddresses) {
 		return fmt.Errorf("not all replicas are connected: %d/%d", activeSlots, len(config.ReplicaAddresses))
@@ -130,9 +135,8 @@ func (pam *PostgresAdvancedManager) ConfigureFailover(ctx context.Context, confi
 	pam.mutex.Lock()
 	defer pam.mutex.Unlock()
 
-	// This would typically involve setting up a tool like pg_auto_failover or Patroni
-	// For now, this is a placeholder for the configuration logic
-	return nil
+	slog.Warn("ConfigureFailover: placeholder — pg_auto_failover / Patroni integration not yet implemented")
+	return fmt.Errorf("ConfigureFailover: not yet implemented")
 }
 
 // SetupBackupStrategy sets up backup strategy
@@ -167,13 +171,12 @@ func (pam *PostgresAdvancedManager) CreateBackup(ctx context.Context, _ string) 
 	defer pam.mutex.Unlock()
 
 	// Initiate base backup
-	query := fmt.Sprintf("SELECT pg_start_backup('backup_%d')", time.Now().Unix())
-	if _, err := pam.cluster.DB.ExecContext(ctx, query); err != nil {
+	if _, err := pam.cluster.DB.ExecContext(ctx, "SELECT pg_start_backup($1)",
+		fmt.Sprintf("backup_%d", time.Now().Unix())); err != nil {
 		return fmt.Errorf("failed to start backup: %w", err)
 	}
 
-	// In production, copy data files to backup location
-	// This is a placeholder for the actual backup logic
+	slog.Warn("CreateBackup: placeholder — data file copy not yet implemented, only pg_start_backup/pg_stop_backup executed")
 
 	// Stop backup
 	if _, err := pam.cluster.DB.ExecContext(ctx, "SELECT pg_stop_backup()"); err != nil {
@@ -188,9 +191,8 @@ func (pam *PostgresAdvancedManager) RestoreBackup(ctx context.Context, backupPat
 	pam.mutex.Lock()
 	defer pam.mutex.Unlock()
 
-	// This would involve stopping the database, restoring files, and restarting
-	// This is a placeholder for the actual restore logic
-	return nil
+	slog.Warn("RestoreBackup: placeholder — database restore (stop, restore files, restart) not yet implemented")
+	return fmt.Errorf("RestoreBackup: not yet implemented")
 }
 
 // GetReplicationStatus retrieves replication status
@@ -227,6 +229,9 @@ func (pam *PostgresAdvancedManager) GetReplicationStatus(ctx context.Context) (R
 		if active {
 			status.ConnectedReplicas++
 		}
+	}
+	if err := rows.Err(); err != nil {
+		return status, fmt.Errorf("failed to iterate replication slots: %w", err)
 	}
 
 	return status, nil

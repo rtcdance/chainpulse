@@ -12,6 +12,7 @@ import (
 )
 
 func TestBuildMonolithicIndexingRuntimeRequiresLogger(t *testing.T) {
+	t.Parallel()
 	runtime, err := buildMonolithicIndexingRuntimeWithDeps(nil, &runtimeTestDatabasePlugin{}, &runtimeTestCachePlugin{}, []string{"ethereum"}, InMemoryIndexingRuntimeOptions{}, defaultMonolithicIndexingRuntimeDeps())
 	if err == nil {
 		t.Fatal("expected logger validation error")
@@ -22,6 +23,7 @@ func TestBuildMonolithicIndexingRuntimeRequiresLogger(t *testing.T) {
 }
 
 func TestBuildMonolithicIndexingRuntimeRequiresChains(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 
 	runtime, err := buildMonolithicIndexingRuntimeWithDeps(logger, &runtimeTestDatabasePlugin{}, &runtimeTestCachePlugin{}, []string{" ", ""}, InMemoryIndexingRuntimeOptions{}, defaultMonolithicIndexingRuntimeDeps())
@@ -34,6 +36,7 @@ func TestBuildMonolithicIndexingRuntimeRequiresChains(t *testing.T) {
 }
 
 func TestBuildMonolithicIndexingRuntimePropagatesConstructorFailure(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	expectedErr := errors.New("constructor boom")
 
@@ -54,6 +57,7 @@ func TestBuildMonolithicIndexingRuntimePropagatesConstructorFailure(t *testing.T
 }
 
 func TestBuildMonolithicIndexingRuntimeRequiresDatabase(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 
 	runtime, err := buildMonolithicIndexingRuntimeWithDeps(logger, nil, &runtimeTestCachePlugin{}, []string{"ethereum"}, InMemoryIndexingRuntimeOptions{}, defaultMonolithicIndexingRuntimeDeps())
@@ -66,6 +70,7 @@ func TestBuildMonolithicIndexingRuntimeRequiresDatabase(t *testing.T) {
 }
 
 func TestBuildMonolithicIndexingRuntimePropagatesSinkFailure(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	expectedErr := errors.New("sink boom")
 
@@ -84,6 +89,7 @@ func TestBuildMonolithicIndexingRuntimePropagatesSinkFailure(t *testing.T) {
 }
 
 func TestBuildMonolithicIndexingRuntimeSuccess(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	db := &runtimeTestDatabasePlugin{}
 	cache := &runtimeTestCachePlugin{}
@@ -129,6 +135,7 @@ func TestBuildMonolithicIndexingRuntimeSuccess(t *testing.T) {
 }
 
 func TestBuildInMemoryIndexingRuntimeSuccess(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 
 	runtime, err := BuildInMemoryIndexingRuntime(logger, capturingSink{}, []string{"ethereum"})
@@ -149,6 +156,7 @@ func TestBuildInMemoryIndexingRuntimeSuccess(t *testing.T) {
 }
 
 func TestBuildMonolithicIndexingRuntimeRoutesFailuresIntoReplayJournal(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	db := &runtimeTestDatabasePlugin{}
 	cache := &runtimeTestCachePlugin{}
@@ -200,6 +208,7 @@ func TestBuildMonolithicIndexingRuntimeRoutesFailuresIntoReplayJournal(t *testin
 }
 
 func TestBuildMonolithicIndexingRuntimeManualReplayAcknowledgesJournalEntries(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	sink := &failThenSucceedRuntimeSink{failures: 1}
 
@@ -261,6 +270,7 @@ func TestBuildMonolithicIndexingRuntimeManualReplayAcknowledgesJournalEntries(t 
 }
 
 func TestMonolithicMemoryFailureJournalReplayRangeHonorsUpperBound(t *testing.T) {
+	t.Parallel()
 	journal := newMonolithicMemoryFailureJournal(0)
 
 	for _, event := range []appindexing.EventEnvelope{
@@ -300,6 +310,7 @@ func TestMonolithicMemoryFailureJournalReplayRangeHonorsUpperBound(t *testing.T)
 }
 
 func TestMonolithicMemoryFailureJournalExpiresRecordsBeforeReplay(t *testing.T) {
+	t.Parallel()
 	journal := newMonolithicMemoryFailureJournal(time.Hour)
 	now := time.Now().UTC()
 
@@ -327,6 +338,7 @@ func TestMonolithicMemoryFailureJournalExpiresRecordsBeforeReplay(t *testing.T) 
 }
 
 func TestBuildMonolithicIndexingRuntimeWithOptionsAppliesDLQRetention(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	var observed time.Duration
 
@@ -403,7 +415,7 @@ func (d *runtimeTestDatabasePlugin) Initialize(config core.Config) error { retur
 func (d *runtimeTestDatabasePlugin) Start() error                        { return nil }
 func (d *runtimeTestDatabasePlugin) Stop() error                         { return nil }
 func (d *runtimeTestDatabasePlugin) Health() error                       { return nil }
-func (d *runtimeTestDatabasePlugin) StoreEvent(ctx context.Context, event interface{}) error {
+func (d *runtimeTestDatabasePlugin) StoreEvent(ctx context.Context, event any) error {
 	return nil
 }
 
@@ -411,11 +423,11 @@ func (d *runtimeTestDatabasePlugin) GetEvent(ctx context.Context, id string) (*c
 	return nil, nil
 }
 
-func (d *runtimeTestDatabasePlugin) QueryEvents(ctx context.Context, filter interface{}) ([]interface{}, error) {
+func (d *runtimeTestDatabasePlugin) QueryEvents(ctx context.Context, filter any) ([]any, error) {
 	return nil, nil
 }
 
-func (d *runtimeTestDatabasePlugin) BatchStoreEvents(ctx context.Context, events []interface{}) error {
+func (d *runtimeTestDatabasePlugin) BatchStoreEvents(ctx context.Context, events []any) error {
 	return nil
 }
 

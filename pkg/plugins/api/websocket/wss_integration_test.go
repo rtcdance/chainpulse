@@ -71,6 +71,7 @@ func generateTestCertificate(t *testing.T, certFile, keyFile string) {
 }
 
 func TestWSSConnection(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}
@@ -139,6 +140,7 @@ func TestWSSConnection(t *testing.T) {
 }
 
 func TestWSAndWSSConcurrent(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}
@@ -236,6 +238,7 @@ func TestWSAndWSSConcurrent(t *testing.T) {
 }
 
 func TestWSSPortConfiguration(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}
@@ -264,6 +267,7 @@ func TestWSSPortConfiguration(t *testing.T) {
 }
 
 func TestWSSMetricsCollection(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}
@@ -297,6 +301,7 @@ func TestWSSMetricsCollection(t *testing.T) {
 }
 
 func TestWebSocketPluginWithoutTLS(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}
@@ -347,6 +352,7 @@ func TestWebSocketPluginWithoutTLS(t *testing.T) {
 }
 
 func TestWSSClientCount(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}

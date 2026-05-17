@@ -24,13 +24,13 @@ const (
 // - BSC: shorter block times mean more frequent but typically shallow reorgs
 // - L2s: some have no reorgs (Arbitrum), others have limited reorgs (Optimism)
 type ChainReorgProfile struct {
-	ChainID         uint64 `json:"chain_id"`
-	Name            string `json:"name"`
-	MaxExpectedDepth uint64 `json:"max_expected_depth"` // deepest reorg considered normal
-	ShallowThreshold uint64 `json:"shallow_threshold"`  // <= this: shallow
-	DeepThreshold    uint64 `json:"deep_threshold"`      // <= this: deep, >: critical
-	IsL2            bool   `json:"is_l2"`
-	L2SequencerFinality bool `json:"l2_sequencer_finality"` // true if L2 has no reorgs under normal operation
+	ChainID             uint64 `json:"chain_id"`
+	Name                string `json:"name"`
+	MaxExpectedDepth    uint64 `json:"max_expected_depth"` // deepest reorg considered normal
+	ShallowThreshold    uint64 `json:"shallow_threshold"`  // <= this: shallow
+	DeepThreshold       uint64 `json:"deep_threshold"`     // <= this: deep, >: critical
+	IsL2                bool   `json:"is_l2"`
+	L2SequencerFinality bool   `json:"l2_sequencer_finality"` // true if L2 has no reorgs under normal operation
 }
 
 // Predefined reorg profiles for major chains.
@@ -63,13 +63,13 @@ var PolygonReorgProfile = ChainReorgProfile{
 }
 
 var ArbitrumReorgProfile = ChainReorgProfile{
-	ChainID:              42161,
-	Name:                 "Arbitrum One",
-	MaxExpectedDepth:     0, // sequencer finality: no reorgs under normal operation
-	ShallowThreshold:     0,
-	DeepThreshold:        0,
-	IsL2:                 true,
-	L2SequencerFinality:  true,
+	ChainID:             42161,
+	Name:                "Arbitrum One",
+	MaxExpectedDepth:    0, // sequencer finality: no reorgs under normal operation
+	ShallowThreshold:    0,
+	DeepThreshold:       0,
+	IsL2:                true,
+	L2SequencerFinality: true,
 }
 
 var OptimismReorgProfile = ChainReorgProfile{

@@ -15,6 +15,7 @@ import (
 
 // TestNewRateLimiter tests rate limiter initialization
 func TestNewRateLimiter(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	config := &RateLimitConfig{
@@ -32,6 +33,7 @@ func TestNewRateLimiter(t *testing.T) {
 
 // TestNewRateLimiterWithNilConfig tests rate limiter with nil config
 func TestNewRateLimiterWithNilConfig(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 
@@ -44,6 +46,7 @@ func TestNewRateLimiterWithNilConfig(t *testing.T) {
 
 // TestNewTokenBucket tests token bucket initialization
 func TestNewTokenBucket(t *testing.T) {
+	t.Parallel()
 	tb := NewTokenBucket(10.0, 5.0)
 
 	require.NotNil(t, tb)
@@ -56,6 +59,7 @@ func TestNewTokenBucket(t *testing.T) {
 
 // TestTokenBucketAllow tests token bucket allow
 func TestTokenBucketAllow(t *testing.T) {
+	t.Parallel()
 	tb := NewTokenBucket(10.0, 5.0)
 
 	// Should allow first 5 requests
@@ -72,6 +76,7 @@ func TestTokenBucketAllow(t *testing.T) {
 
 // TestTokenBucketRefill tests token bucket refill
 func TestTokenBucketRefill(t *testing.T) {
+	t.Parallel()
 	tb := NewTokenBucket(10.0, 5.0)
 
 	// Use all tokens
@@ -88,6 +93,7 @@ func TestTokenBucketRefill(t *testing.T) {
 
 // TestTokenBucketGetAvailableTokens tests getting available tokens
 func TestTokenBucketGetAvailableTokens(t *testing.T) {
+	t.Parallel()
 	tb := NewTokenBucket(10.0, 5.0)
 
 	available := tb.GetAvailableTokens()
@@ -100,6 +106,7 @@ func TestTokenBucketGetAvailableTokens(t *testing.T) {
 
 // TestTokenBucketGetStats tests token bucket statistics
 func TestTokenBucketGetStats(t *testing.T) {
+	t.Parallel()
 	tb := NewTokenBucket(10.0, 5.0)
 
 	tb.Allow()
@@ -119,6 +126,7 @@ func TestTokenBucketGetStats(t *testing.T) {
 
 // TestAllowRequest tests allow request
 func TestAllowRequest(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	config := &RateLimitConfig{
@@ -138,6 +146,7 @@ func TestAllowRequest(t *testing.T) {
 
 // TestAllowRequestExceeded tests rate limit exceeded
 func TestAllowRequestExceeded(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	config := &RateLimitConfig{
@@ -162,6 +171,7 @@ func TestAllowRequestExceeded(t *testing.T) {
 
 // TestSetEndpointLimit tests setting endpoint limit
 func TestSetEndpointLimit(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	limiter := NewRateLimiter(logger, metrics, nil)
@@ -173,6 +183,7 @@ func TestSetEndpointLimit(t *testing.T) {
 
 // TestSetClientLimit tests setting client limit
 func TestSetClientLimit(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	limiter := NewRateLimiter(logger, metrics, nil)
@@ -184,6 +195,7 @@ func TestSetClientLimit(t *testing.T) {
 
 // TestSetIPLimit tests setting IP limit
 func TestSetIPLimit(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	limiter := NewRateLimiter(logger, metrics, nil)
@@ -195,6 +207,7 @@ func TestSetIPLimit(t *testing.T) {
 
 // TestRateLimiterGetStats tests getting rate limiter statistics
 func TestRateLimiterGetStats(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	limiter := NewRateLimiter(logger, metrics, nil)
@@ -212,6 +225,7 @@ func TestRateLimiterGetStats(t *testing.T) {
 
 // TestGetClientIP tests extracting client IP
 func TestGetClientIP(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		headers  map[string]string
@@ -256,6 +270,7 @@ func TestGetClientIP(t *testing.T) {
 
 // TestExtractClientID tests extracting client ID
 func TestExtractClientID(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		headers  map[string]string
@@ -294,6 +309,7 @@ func TestExtractClientID(t *testing.T) {
 
 // TestConcurrentRequests tests concurrent requests
 func TestConcurrentRequests(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	config := &RateLimitConfig{
@@ -334,6 +350,7 @@ func TestConcurrentRequests(t *testing.T) {
 
 // TestEndpointSpecificLimit tests endpoint-specific rate limiting
 func TestEndpointSpecificLimit(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	config := &RateLimitConfig{
@@ -366,6 +383,7 @@ func TestEndpointSpecificLimit(t *testing.T) {
 
 // TestClientSpecificLimit tests client-specific rate limiting
 func TestClientSpecificLimit(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	config := &RateLimitConfig{
@@ -391,6 +409,7 @@ func TestClientSpecificLimit(t *testing.T) {
 
 // TestRateLimitContext tests rate limit context
 func TestRateLimitContext(t *testing.T) {
+	t.Parallel()
 	info := &RateLimitInfo{
 		Allowed:           true,
 		RequestsRemaining: 100,
@@ -405,6 +424,7 @@ func TestRateLimitContext(t *testing.T) {
 }
 
 func TestRateLimitMiddlewareInjectsContext(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	limiter := NewRateLimiter(logger, metrics, &RateLimitConfig{
@@ -433,6 +453,7 @@ func TestRateLimitMiddlewareInjectsContext(t *testing.T) {
 
 // TestRateLimitHeaders tests rate limit headers in response
 func TestRateLimitHeaders(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	config := &RateLimitConfig{
@@ -458,6 +479,7 @@ func TestRateLimitHeaders(t *testing.T) {
 
 // TestRateLimitExceededResponse tests rate limit exceeded response
 func TestRateLimitExceededResponse(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	config := &RateLimitConfig{
@@ -488,6 +510,7 @@ func TestRateLimitExceededResponse(t *testing.T) {
 
 // TestCleanup tests cleanup of stale limiters
 func TestCleanup(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	config := &RateLimitConfig{
@@ -515,6 +538,7 @@ func TestCleanup(t *testing.T) {
 
 // TestTokenBucketConcurrency tests token bucket thread safety
 func TestTokenBucketConcurrency(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip("skipping concurrency stress test in short mode")
 	}
@@ -551,6 +575,7 @@ func TestTokenBucketConcurrency(t *testing.T) {
 
 // TestRateLimiterConcurrency tests rate limiter thread safety
 func TestRateLimiterConcurrency(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	config := &RateLimitConfig{
@@ -591,6 +616,7 @@ func TestRateLimiterConcurrency(t *testing.T) {
 
 // TestMultipleEndpointLimits tests multiple endpoint limits
 func TestMultipleEndpointLimits(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	config := &RateLimitConfig{
@@ -610,6 +636,7 @@ func TestMultipleEndpointLimits(t *testing.T) {
 
 // TestDynamicLimitAdjustment tests dynamic limit adjustment
 func TestDynamicLimitAdjustment(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	limiter := NewRateLimiter(logger, metrics, nil)
@@ -621,20 +648,22 @@ func TestDynamicLimitAdjustment(t *testing.T) {
 	limiter.SetClientLimit("client1", 50.0, 10)
 
 	stats := limiter.GetStats()
-	clientStats := stats["client_limiters"].(map[string]interface{})
-	client1Stats := clientStats["client1"].(map[string]interface{})
+	clientStats := stats["client_limiters"].(map[string]any)
+	client1Stats := clientStats["client1"].(map[string]any)
 
 	assert.Equal(t, 50.0, client1Stats["refill_rate"])
 	assert.Equal(t, 10.0, client1Stats["max_tokens"])
 }
 
 func TestRequestsPerMinuteToPerSecond(t *testing.T) {
+	t.Parallel()
 	assert.Equal(t, 0.0, RequestsPerMinuteToPerSecond(0))
 	assert.InDelta(t, 2.0, RequestsPerMinuteToPerSecond(120), 0.0001)
 	assert.InDelta(t, 1000.0/60.0, RequestsPerMinuteToPerSecond(1000), 0.0001)
 }
 
 func TestBurstSizeFromRequestsPerMinute(t *testing.T) {
+	t.Parallel()
 	assert.Equal(t, 10, BurstSizeFromRequestsPerMinute(1))
 	assert.Equal(t, 10, BurstSizeFromRequestsPerMinute(42))
 	assert.Equal(t, 20, BurstSizeFromRequestsPerMinute(120))

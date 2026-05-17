@@ -24,7 +24,6 @@ import (
 const (
 	defaultRPCURL      = "http://127.0.0.1:8545"
 	defaultAPIURL      = "http://127.0.0.1:8080"
-	defaultPrivateKey  = "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
 	defaultEmitValue   = int64(42)
 	defaultTimeoutSecs = 60
 	eventEmitterABI    = `[{"type":"function","name":"emitPing","inputs":[{"name":"value","type":"uint256","internalType":"uint256"}],"outputs":[],"stateMutability":"nonpayable"},{"type":"event","name":"Ping","inputs":[{"name":"sender","type":"address","indexed":true,"internalType":"address"},{"name":"value","type":"uint256","indexed":false,"internalType":"uint256"}],"anonymous":false}]`
@@ -65,7 +64,7 @@ func loadConfig() config {
 	return config{
 		RPCURL:       envString("RPC_URL", defaultRPCURL),
 		APIURL:       strings.TrimRight(envString("API_URL", defaultAPIURL), "/"),
-		PrivateKey:   envString("PRIVATE_KEY", defaultPrivateKey),
+		PrivateKey:   os.Getenv("PRIVATE_KEY"),
 		EmitValue:    int64(envInt("EMIT_VALUE", int(defaultEmitValue))),
 		ExpectAPI:    envBool("EXPECT_API", true),
 		Timeout:      time.Duration(timeoutSecs) * time.Second,

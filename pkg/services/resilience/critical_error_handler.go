@@ -29,7 +29,7 @@ type CriticalError struct {
 	Message     string
 	Timestamp   time.Time
 	Component   string
-	Details     map[string]interface{}
+	Details     map[string]any
 	StackTrace  string
 	Recoverable bool
 	Err         error // underlying error, if any
@@ -276,7 +276,7 @@ func (ceh *DefaultCriticalErrorHandler) Health(ctx context.Context) core.HealthS
 	status := core.HealthStatus{
 		Status:    "healthy",
 		Timestamp: time.Now(),
-		Details:   make(map[string]interface{}),
+		Details:   make(map[string]any),
 	}
 
 	// Check if in safe mode
@@ -342,13 +342,13 @@ func (ceh *DefaultCriticalErrorHandler) determineAction(errorType CriticalErrorT
 // DataCorruptionDetector detects data corruption
 type DataCorruptionDetector interface {
 	// DetectCorruption detects data corruption
-	DetectCorruption(ctx context.Context, data interface{}) error
+	DetectCorruption(ctx context.Context, data any) error
 
 	// VerifyIntegrity verifies data integrity
-	VerifyIntegrity(ctx context.Context, data interface{}) bool
+	VerifyIntegrity(ctx context.Context, data any) bool
 
 	// GetCorruptionStats returns corruption statistics
-	GetCorruptionStats(ctx context.Context) map[string]interface{}
+	GetCorruptionStats(ctx context.Context) map[string]any
 }
 
 // DefaultDataCorruptionDetector implements DataCorruptionDetector
@@ -368,7 +368,7 @@ func NewDefaultDataCorruptionDetector() *DefaultDataCorruptionDetector {
 }
 
 // DetectCorruption detects data corruption
-func (dcd *DefaultDataCorruptionDetector) DetectCorruption(ctx context.Context, data interface{}) error {
+func (dcd *DefaultDataCorruptionDetector) DetectCorruption(ctx context.Context, data any) error {
 	dcd.mu.Lock()
 	defer dcd.mu.Unlock()
 
@@ -382,7 +382,7 @@ func (dcd *DefaultDataCorruptionDetector) DetectCorruption(ctx context.Context, 
 }
 
 // VerifyIntegrity verifies data integrity
-func (dcd *DefaultDataCorruptionDetector) VerifyIntegrity(ctx context.Context, data interface{}) bool {
+func (dcd *DefaultDataCorruptionDetector) VerifyIntegrity(ctx context.Context, data any) bool {
 	dcd.mu.Lock()
 	defer dcd.mu.Unlock()
 
@@ -398,11 +398,11 @@ func (dcd *DefaultDataCorruptionDetector) VerifyIntegrity(ctx context.Context, d
 }
 
 // GetCorruptionStats returns corruption statistics
-func (dcd *DefaultDataCorruptionDetector) GetCorruptionStats(ctx context.Context) map[string]interface{} {
+func (dcd *DefaultDataCorruptionDetector) GetCorruptionStats(ctx context.Context) map[string]any {
 	dcd.mu.RLock()
 	defer dcd.mu.RUnlock()
 
-	stats := map[string]interface{}{
+	stats := map[string]any{
 		"corruption_detected_count": atomic.LoadInt64(&dcd.corruptionDetectedCount),
 		"integrity_check_count":     atomic.LoadInt64(&dcd.integrityCheckCount),
 		"failed_integrity_checks":   atomic.LoadInt64(&dcd.failedIntegrityChecks),
@@ -420,7 +420,7 @@ type CriticalErrorAlerter interface {
 	GetAlertHistory(ctx context.Context) ([]CriticalErrorAlert, error)
 
 	// GetAlertStats returns alert statistics
-	GetAlertStats(ctx context.Context) map[string]interface{}
+	GetAlertStats(ctx context.Context) map[string]any
 }
 
 // DefaultCriticalErrorAlerter implements CriticalErrorAlerter
@@ -484,11 +484,11 @@ func (cea *DefaultCriticalErrorAlerter) GetAlertHistory(ctx context.Context) ([]
 }
 
 // GetAlertStats returns alert statistics
-func (cea *DefaultCriticalErrorAlerter) GetAlertStats(ctx context.Context) map[string]interface{} {
+func (cea *DefaultCriticalErrorAlerter) GetAlertStats(ctx context.Context) map[string]any {
 	cea.mu.RLock()
 	defer cea.mu.RUnlock()
 
-	stats := map[string]interface{}{
+	stats := map[string]any{
 		"alerts_sent":     atomic.LoadInt64(&cea.alertsSent),
 		"alerts_failed":   atomic.LoadInt64(&cea.alertsFailed),
 		"last_alert_time": cea.lastAlertTime,

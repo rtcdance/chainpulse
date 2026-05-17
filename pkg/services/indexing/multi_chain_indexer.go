@@ -22,7 +22,7 @@ type MultiChainIndexer struct {
 type ChainIndexer interface {
 	IndexEvents(ctx context.Context, events []*core.BlockchainEvent) error
 	GetChainID() string
-	GetStatus() map[string]interface{}
+	GetStatus() map[string]any
 	Close() error
 }
 
@@ -164,11 +164,11 @@ func (mci *MultiChainIndexer) GetRegisteredChains() []string {
 }
 
 // GetStatus returns status of all chain indexers
-func (mci *MultiChainIndexer) GetStatus() map[string]map[string]interface{} {
+func (mci *MultiChainIndexer) GetStatus() map[string]map[string]any {
 	mci.mu.RLock()
 	defer mci.mu.RUnlock()
 
-	status := make(map[string]map[string]interface{})
+	status := make(map[string]map[string]any)
 	for chainID, indexer := range mci.indexers {
 		status[chainID] = indexer.GetStatus()
 	}

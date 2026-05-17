@@ -13,6 +13,7 @@ import (
 
 // TestNewHorizontalScaler tests scaler creation
 func TestNewHorizontalScaler(t *testing.T) {
+	t.Parallel()
 	scaler := NewHorizontalScaler("scaler-1", 1, 10)
 
 	assert.NotNil(t, scaler)
@@ -24,6 +25,7 @@ func TestNewHorizontalScaler(t *testing.T) {
 
 // TestScalingPolicyDefaults tests default scaling policy
 func TestScalingPolicyDefaults(t *testing.T) {
+	t.Parallel()
 	scaler := NewHorizontalScaler("scaler-1", 1, 10)
 
 	assert.Equal(t, 80.0, scaler.scalingPolicy.CPUThresholdUp)
@@ -35,6 +37,7 @@ func TestScalingPolicyDefaults(t *testing.T) {
 
 // TestUpdateInstanceMetrics tests updating instance metrics
 func TestUpdateInstanceMetrics(t *testing.T) {
+	t.Parallel()
 	scaler := NewHorizontalScaler("scaler-1", 1, 10)
 	ctx := context.Background()
 
@@ -52,6 +55,7 @@ func TestUpdateInstanceMetrics(t *testing.T) {
 
 // TestUpdateInstanceMetricsNotFound tests updating non-existent instance
 func TestUpdateInstanceMetricsNotFound(t *testing.T) {
+	t.Parallel()
 	scaler := NewHorizontalScaler("scaler-1", 1, 10)
 
 	err := scaler.UpdateInstanceMetrics("nonexistent", 50.0, 60.0, 500)
@@ -62,6 +66,7 @@ func TestUpdateInstanceMetricsNotFound(t *testing.T) {
 
 // TestGetInstances tests getting instances
 func TestGetInstances(t *testing.T) {
+	t.Parallel()
 	scaler := NewHorizontalScaler("scaler-1", 1, 10)
 
 	instances := scaler.GetInstances()
@@ -71,6 +76,7 @@ func TestGetInstances(t *testing.T) {
 
 // TestGetMetricsHorizontalScaler tests metrics retrieval
 func TestGetMetricsHorizontalScaler(t *testing.T) {
+	t.Parallel()
 	scaler := NewHorizontalScaler("scaler-1", 1, 10)
 
 	metrics := scaler.GetMetrics()
@@ -83,6 +89,7 @@ func TestGetMetricsHorizontalScaler(t *testing.T) {
 
 // TestGetCurrentInstanceCount tests instance count
 func TestGetCurrentInstanceCount(t *testing.T) {
+	t.Parallel()
 	scaler := NewHorizontalScaler("scaler-1", 1, 10)
 
 	count := scaler.GetCurrentInstanceCount()
@@ -92,6 +99,7 @@ func TestGetCurrentInstanceCount(t *testing.T) {
 
 // TestSetScalingPolicy tests setting scaling policy
 func TestSetScalingPolicy(t *testing.T) {
+	t.Parallel()
 	scaler := NewHorizontalScaler("scaler-1", 1, 10)
 
 	newPolicy := &ScalingPolicy{
@@ -113,6 +121,7 @@ func TestSetScalingPolicy(t *testing.T) {
 
 // TestEvaluateScalingNoCooldown tests evaluation without cooldown
 func TestEvaluateScalingNoCooldown(t *testing.T) {
+	t.Parallel()
 	scaler := NewHorizontalScaler("scaler-1", 1, 10)
 	scaler.scalingCooldown = 0 // Disable cooldown for testing
 	ctx := context.Background()
@@ -124,6 +133,7 @@ func TestEvaluateScalingNoCooldown(t *testing.T) {
 
 // TestEvaluateScalingWithCooldown tests evaluation with cooldown
 func TestEvaluateScalingWithCooldown(t *testing.T) {
+	t.Parallel()
 	scaler := NewHorizontalScaler("scaler-1", 1, 10)
 	scaler.scalingCooldown = 1 * time.Hour // Long cooldown
 	ctx := context.Background()
@@ -139,6 +149,7 @@ func TestEvaluateScalingWithCooldown(t *testing.T) {
 
 // TestScalingMetrics tests scaling metrics
 func TestScalingMetrics(t *testing.T) {
+	t.Parallel()
 	scaler := NewHorizontalScaler("scaler-1", 1, 10)
 
 	metrics := scaler.GetMetrics()
@@ -149,6 +160,7 @@ func TestScalingMetrics(t *testing.T) {
 
 // TestServiceInstanceCreation tests service instance creation
 func TestServiceInstanceCreation(t *testing.T) {
+	t.Parallel()
 	instance := &ServiceInstance{
 		ID:     "instance-1",
 		Status: "running",
@@ -160,6 +172,7 @@ func TestServiceInstanceCreation(t *testing.T) {
 
 // TestServiceInstanceMetrics tests instance metrics
 func TestServiceInstanceMetrics(t *testing.T) {
+	t.Parallel()
 	instance := &ServiceInstance{
 		ID:           "instance-1",
 		Status:       "running",
@@ -177,6 +190,7 @@ func TestServiceInstanceMetrics(t *testing.T) {
 
 // TestGracefulShutdown tests graceful shutdown
 func TestGracefulShutdown(t *testing.T) {
+	t.Parallel()
 	scaler := NewHorizontalScaler("scaler-1", 1, 10)
 	ctx, cancel := context.WithTimeout(context.Background(), 35*time.Second)
 	defer cancel()
@@ -197,6 +211,7 @@ func TestGracefulShutdown(t *testing.T) {
 
 // TestGracefulShutdownNotFound tests graceful shutdown of non-existent instance
 func TestGracefulShutdownNotFound(t *testing.T) {
+	t.Parallel()
 	scaler := NewHorizontalScaler("scaler-1", 1, 10)
 	ctx := context.Background()
 
@@ -208,6 +223,7 @@ func TestGracefulShutdownNotFound(t *testing.T) {
 
 // TestGracefulShutdownContextCancellation tests shutdown with context cancellation
 func TestGracefulShutdownContextCancellation(t *testing.T) {
+	t.Parallel()
 	scaler := NewHorizontalScaler("scaler-1", 1, 10)
 
 	instance := &ServiceInstance{
@@ -228,6 +244,7 @@ func TestGracefulShutdownContextCancellation(t *testing.T) {
 
 // TestConcurrentMetricsUpdate tests concurrent metrics updates
 func TestConcurrentMetricsUpdate(t *testing.T) {
+	t.Parallel()
 	scaler := NewHorizontalScaler("scaler-1", 1, 10)
 
 	// Create an instance
@@ -260,6 +277,7 @@ func TestConcurrentMetricsUpdate(t *testing.T) {
 
 // TestScalingPolicyCPUThresholds tests CPU threshold scaling
 func TestScalingPolicyCPUThresholds(t *testing.T) {
+	t.Parallel()
 	scaler := NewHorizontalScaler("scaler-1", 1, 5)
 
 	policy := &ScalingPolicy{
@@ -280,6 +298,7 @@ func TestScalingPolicyCPUThresholds(t *testing.T) {
 
 // TestScalingPolicyMemoryThresholds tests memory threshold scaling
 func TestScalingPolicyMemoryThresholds(t *testing.T) {
+	t.Parallel()
 	scaler := NewHorizontalScaler("scaler-1", 1, 5)
 
 	policy := &ScalingPolicy{
@@ -300,6 +319,7 @@ func TestScalingPolicyMemoryThresholds(t *testing.T) {
 
 // TestScalingPolicyRequestThreshold tests request threshold scaling
 func TestScalingPolicyRequestThreshold(t *testing.T) {
+	t.Parallel()
 	scaler := NewHorizontalScaler("scaler-1", 1, 5)
 
 	policy := &ScalingPolicy{
@@ -320,6 +340,7 @@ func TestScalingPolicyRequestThreshold(t *testing.T) {
 
 // TestInstanceStatusTransitions tests instance status transitions
 func TestInstanceStatusTransitions(t *testing.T) {
+	t.Parallel()
 	instance := &ServiceInstance{
 		ID:     "instance-1",
 		Status: "starting",
@@ -339,6 +360,7 @@ func TestInstanceStatusTransitions(t *testing.T) {
 
 // TestInstanceTimestamps tests instance timestamps
 func TestInstanceTimestamps(t *testing.T) {
+	t.Parallel()
 	now := time.Now()
 	instance := &ServiceInstance{
 		ID:        "instance-1",
@@ -352,6 +374,7 @@ func TestInstanceTimestamps(t *testing.T) {
 
 // TestScalerMinMaxBounds tests min/max instance bounds
 func TestScalerMinMaxBounds(t *testing.T) {
+	t.Parallel()
 	scaler := NewHorizontalScaler("scaler-1", 2, 8)
 
 	assert.Equal(t, 2, scaler.minInstances)
@@ -361,6 +384,7 @@ func TestScalerMinMaxBounds(t *testing.T) {
 
 // TestScalingCooldown tests scaling cooldown period
 func TestScalingCooldown(t *testing.T) {
+	t.Parallel()
 	scaler := NewHorizontalScaler("scaler-1", 1, 10)
 
 	assert.Equal(t, 5*time.Minute, scaler.scalingCooldown)
@@ -368,6 +392,7 @@ func TestScalingCooldown(t *testing.T) {
 
 // TestMetricsAggregation tests metrics aggregation
 func TestMetricsAggregation(t *testing.T) {
+	t.Parallel()
 	scaler := NewHorizontalScaler("scaler-1", 1, 10)
 
 	// Create multiple instances
@@ -392,6 +417,7 @@ func TestMetricsAggregation(t *testing.T) {
 
 // TestScalerID tests scaler ID
 func TestScalerID(t *testing.T) {
+	t.Parallel()
 	scaler := NewHorizontalScaler("my-scaler", 1, 10)
 
 	assert.Equal(t, "my-scaler", scaler.id)
@@ -399,6 +425,7 @@ func TestScalerID(t *testing.T) {
 
 // TestInstanceHealthCheck tests instance health check tracking
 func TestInstanceHealthCheck(t *testing.T) {
+	t.Parallel()
 	instance := &ServiceInstance{
 		ID:              "instance-1",
 		Status:          "running",
@@ -410,6 +437,7 @@ func TestInstanceHealthCheck(t *testing.T) {
 
 // TestConcurrentInstanceAccess tests concurrent instance access
 func TestConcurrentInstanceAccess(t *testing.T) {
+	t.Parallel()
 	scaler := NewHorizontalScaler("scaler-1", 1, 10)
 
 	var wg sync.WaitGroup
@@ -431,6 +459,7 @@ func TestConcurrentInstanceAccess(t *testing.T) {
 
 // TestScalingMetricsTracking tests scaling metrics tracking
 func TestScalingMetricsTracking(t *testing.T) {
+	t.Parallel()
 	scaler := NewHorizontalScaler("scaler-1", 1, 10)
 
 	metrics := scaler.GetMetrics()

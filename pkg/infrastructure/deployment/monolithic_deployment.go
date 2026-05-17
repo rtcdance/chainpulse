@@ -339,7 +339,7 @@ func (md *MonolithicDeployment) GetHealth(ctx context.Context) (core.HealthStatu
 		return core.HealthStatus{
 			Status:    "unhealthy",
 			Timestamp: time.Now(),
-			Details: map[string]interface{}{
+			Details: map[string]any{
 				"reason": "deployment not running",
 			},
 		}, nil
@@ -350,7 +350,7 @@ func (md *MonolithicDeployment) GetHealth(ctx context.Context) (core.HealthStatu
 		return core.HealthStatus{
 			Status:    "healthy",
 			Timestamp: time.Now(),
-			Details: map[string]interface{}{
+			Details: map[string]any{
 				"service_count": md.GetServiceCount(),
 			},
 		}, nil
@@ -376,7 +376,7 @@ func (md *MonolithicDeployment) GetHealth(ctx context.Context) (core.HealthStatu
 	return core.HealthStatus{
 		Status:    status,
 		Timestamp: time.Now(),
-		Details: map[string]interface{}{
+		Details: map[string]any{
 			"service_count":      md.GetServiceCount(),
 			"healthy_count":      healthyCount,
 			"unhealthy_services": unhealthyServices,
@@ -385,11 +385,11 @@ func (md *MonolithicDeployment) GetHealth(ctx context.Context) (core.HealthStatu
 }
 
 // GetMetrics returns metrics for the deployment
-func (md *MonolithicDeployment) GetMetrics() map[string]interface{} {
+func (md *MonolithicDeployment) GetMetrics() map[string]any {
 	md.mu.RLock()
 	defer md.mu.RUnlock()
 
-	metrics := make(map[string]interface{})
+	metrics := make(map[string]any)
 	metrics["is_running"] = md.isRunning
 	metrics["service_count"] = len(md.serviceInitializers)
 	metrics["deployment_mode"] = "monolithic"

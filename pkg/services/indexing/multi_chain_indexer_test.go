@@ -13,6 +13,7 @@ import (
 )
 
 func TestNewMultiChainIndexer(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	config := &MockConfigManager{}
 
@@ -24,6 +25,7 @@ func TestNewMultiChainIndexer(t *testing.T) {
 }
 
 func TestRegisterChainIndexer(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	config := &MockConfigManager{}
 	indexer := NewMultiChainIndexer(logger, config)
@@ -41,6 +43,7 @@ func TestRegisterChainIndexer(t *testing.T) {
 }
 
 func TestRegisterChainIndexerEmptyChainID(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	config := &MockConfigManager{}
 	indexer := NewMultiChainIndexer(logger, config)
@@ -56,6 +59,7 @@ func TestRegisterChainIndexerEmptyChainID(t *testing.T) {
 }
 
 func TestRegisterChainIndexerNil(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	config := &MockConfigManager{}
 	indexer := NewMultiChainIndexer(logger, config)
@@ -66,6 +70,7 @@ func TestRegisterChainIndexerNil(t *testing.T) {
 }
 
 func TestRegisterChainIndexerDuplicate(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	config := &MockConfigManager{}
 	indexer := NewMultiChainIndexer(logger, config)
@@ -83,6 +88,7 @@ func TestRegisterChainIndexerDuplicate(t *testing.T) {
 }
 
 func TestIndexEventsFromChain(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	config := &MockConfigManager{}
 	indexer := NewMultiChainIndexer(logger, config)
@@ -109,6 +115,7 @@ func TestIndexEventsFromChain(t *testing.T) {
 }
 
 func TestIndexEventsFromChainNotRegistered(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	config := &MockConfigManager{}
 	indexer := NewMultiChainIndexer(logger, config)
@@ -126,6 +133,7 @@ func TestIndexEventsFromChainNotRegistered(t *testing.T) {
 }
 
 func TestIndexEventsFromChainEmptyChainID(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	config := &MockConfigManager{}
 	indexer := NewMultiChainIndexer(logger, config)
@@ -142,6 +150,7 @@ func TestIndexEventsFromChainEmptyChainID(t *testing.T) {
 }
 
 func TestIndexEventsFromAllChains(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	config := &MockConfigManager{}
 	indexer := NewMultiChainIndexer(logger, config)
@@ -185,6 +194,7 @@ func TestIndexEventsFromAllChains(t *testing.T) {
 }
 
 func TestIndexEventsFromAllChainsUnregisteredChain(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	config := &MockConfigManager{}
 	indexer := NewMultiChainIndexer(logger, config)
@@ -211,6 +221,7 @@ func TestIndexEventsFromAllChainsUnregisteredChain(t *testing.T) {
 }
 
 func TestGetChainIndexer(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	config := &MockConfigManager{}
 	indexer := NewMultiChainIndexer(logger, config)
@@ -230,6 +241,7 @@ func TestGetChainIndexer(t *testing.T) {
 }
 
 func TestGetChainIndexerNotFound(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	config := &MockConfigManager{}
 	indexer := NewMultiChainIndexer(logger, config)
@@ -240,6 +252,7 @@ func TestGetChainIndexerNotFound(t *testing.T) {
 }
 
 func TestGetRegisteredChains(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	config := &MockConfigManager{}
 	indexer := NewMultiChainIndexer(logger, config)
@@ -265,6 +278,7 @@ func TestGetRegisteredChains(t *testing.T) {
 }
 
 func TestMultiChainGetStatus(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	config := &MockConfigManager{}
 	indexer := NewMultiChainIndexer(logger, config)
@@ -284,6 +298,7 @@ func TestMultiChainGetStatus(t *testing.T) {
 }
 
 func TestMultiChainClose(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	config := &MockConfigManager{}
 	indexer := NewMultiChainIndexer(logger, config)
@@ -300,6 +315,7 @@ func TestMultiChainClose(t *testing.T) {
 }
 
 func TestIsMultiChain(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	config := &MockConfigManager{}
 	indexer := NewMultiChainIndexer(logger, config)
@@ -324,6 +340,7 @@ func TestIsMultiChain(t *testing.T) {
 }
 
 func TestGetIndexerCount(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	config := &MockConfigManager{}
 	indexer := NewMultiChainIndexer(logger, config)
@@ -340,6 +357,7 @@ func TestGetIndexerCount(t *testing.T) {
 }
 
 func TestMultipleChainIndexing(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	config := &MockConfigManager{}
 	indexer := NewMultiChainIndexer(logger, config)
@@ -396,19 +414,19 @@ func (mcm *MockConfigManager) Validate(config core.Config) error {
 	return nil
 }
 
-func (mcm *MockConfigManager) Get(key string) (interface{}, error) {
+func (mcm *MockConfigManager) Get(key string) (any, error) {
 	return nil, nil
 }
 
-func (mcm *MockConfigManager) Set(key string, value interface{}) error {
+func (mcm *MockConfigManager) Set(key string, value any) error {
 	return nil
 }
 
-func (mcm *MockConfigManager) GetConfig(key string) (interface{}, error) {
+func (mcm *MockConfigManager) GetConfig(key string) (any, error) {
 	return nil, nil
 }
 
-func (mcm *MockConfigManager) SetConfig(key string, value interface{}) error {
+func (mcm *MockConfigManager) SetConfig(key string, value any) error {
 	return nil
 }
 

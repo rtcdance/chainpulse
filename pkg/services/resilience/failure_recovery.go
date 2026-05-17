@@ -19,9 +19,9 @@ type RecoveryState struct {
 	LastProcessedTimestamp   int64                  `json:"last_processed_timestamp"`
 	ProcessedEventHashes     map[string]bool        `json:"processed_event_hashes"`
 	PendingEvents            []core.BlockchainEvent `json:"pending_events"`
-	CacheState               map[string]interface{} `json:"cache_state"`
-	QueueState               map[string]interface{} `json:"queue_state"`
-	DatabaseState            map[string]interface{} `json:"database_state"`
+	CacheState               map[string]any         `json:"cache_state"`
+	QueueState               map[string]any         `json:"queue_state"`
+	DatabaseState            map[string]any         `json:"database_state"`
 	Timestamp                int64                  `json:"timestamp"`
 	Version                  int                    `json:"version"`
 }
@@ -227,7 +227,7 @@ func (rm *DefaultRecoveryManager) Health(ctx context.Context) core.HealthStatus 
 	status := core.HealthStatus{
 		Status:    "healthy",
 		Timestamp: time.Now(),
-		Details:   make(map[string]interface{}),
+		Details:   make(map[string]any),
 	}
 
 	// Check if checkpoint is available
@@ -315,7 +315,7 @@ type RecoveryExecutor interface {
 	VerifyDataConsistency(ctx context.Context) error
 
 	// GetRecoveryStats returns recovery statistics
-	GetRecoveryStats(ctx context.Context) map[string]interface{}
+	GetRecoveryStats(ctx context.Context) map[string]any
 }
 
 // DefaultRecoveryExecutor implements RecoveryExecutor
@@ -438,11 +438,11 @@ func (re *DefaultRecoveryExecutor) verifyDataConsistencyUnlocked(ctx context.Con
 }
 
 // GetRecoveryStats returns recovery statistics
-func (re *DefaultRecoveryExecutor) GetRecoveryStats(ctx context.Context) map[string]interface{} {
+func (re *DefaultRecoveryExecutor) GetRecoveryStats(ctx context.Context) map[string]any {
 	re.mu.RLock()
 	defer re.mu.RUnlock()
 
-	stats := map[string]interface{}{
+	stats := map[string]any{
 		"recovery_attempts":       atomic.LoadInt64(&re.recoveryAttempts),
 		"successful_recoveries":   atomic.LoadInt64(&re.successfulRecoveries),
 		"failed_recoveries":       atomic.LoadInt64(&re.failedRecoveries),

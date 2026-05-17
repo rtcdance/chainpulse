@@ -54,6 +54,7 @@ func (m *MockStreamingBackend) ClientStreamSourcePosture() string {
 }
 
 func TestServerStreamEvents(t *testing.T) {
+	t.Parallel()
 	backend := NewMockStreamingBackend()
 	backend.events = []*core.BlockchainEvent{
 		{ID: "1", EventName: "Event1"},
@@ -84,6 +85,7 @@ func TestServerStreamEvents(t *testing.T) {
 }
 
 func TestClientStreamEvents(t *testing.T) {
+	t.Parallel()
 	backend := NewMockStreamingBackend()
 	service := NewStreamingService(backend)
 	ctx := context.Background()
@@ -108,6 +110,7 @@ func TestClientStreamEvents(t *testing.T) {
 }
 
 func TestStreamingContextCancellation(t *testing.T) {
+	t.Parallel()
 	backend := NewMockStreamingBackend()
 	backend.events = []*core.BlockchainEvent{
 		{ID: "1"},
@@ -137,6 +140,7 @@ func TestStreamingContextCancellation(t *testing.T) {
 }
 
 func TestStreamingMetrics(t *testing.T) {
+	t.Parallel()
 	backend := NewMockStreamingBackend()
 	backend.events = []*core.BlockchainEvent{
 		{ID: "1"},
@@ -184,6 +188,7 @@ func TestStreamingMetrics(t *testing.T) {
 }
 
 func TestStreamingErrorHandling(t *testing.T) {
+	t.Parallel()
 	backend := NewMockStreamingBackend()
 	backend.events = []*core.BlockchainEvent{
 		{ID: "1"},
@@ -222,6 +227,7 @@ func TestStreamingErrorHandling(t *testing.T) {
 }
 
 func TestStreamingTimeout(t *testing.T) {
+	t.Parallel()
 	backend := NewMockStreamingBackend()
 	backend.events = []*core.BlockchainEvent{
 		{ID: "1"},
@@ -246,6 +252,7 @@ func TestStreamingTimeout(t *testing.T) {
 }
 
 func TestMultipleStreamsMetrics(t *testing.T) {
+	t.Parallel()
 	backend := NewMockStreamingBackend()
 	backend.events = []*core.BlockchainEvent{{ID: "1"}}
 	backend.serverSourcePosture = "grpc-live-stream"
@@ -275,6 +282,7 @@ func TestMultipleStreamsMetrics(t *testing.T) {
 }
 
 func TestClientStreamMetricsIncludeSourcePosture(t *testing.T) {
+	t.Parallel()
 	backend := NewMockStreamingBackend()
 	backend.clientSourcePosture = "grpc-client-batch"
 

@@ -12,6 +12,7 @@ import (
 )
 
 func TestBlockchainEventValidate(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name    string
 		event   *BlockchainEvent
@@ -82,6 +83,7 @@ func TestBlockchainEventValidate(t *testing.T) {
 }
 
 func TestBlockchainEventStatus(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name        string
 		status      EventStatus
@@ -136,6 +138,7 @@ func TestBlockchainEventStatus(t *testing.T) {
 }
 
 func TestTransactionValidate(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name    string
 		tx      *Transaction
@@ -192,6 +195,7 @@ func TestTransactionValidate(t *testing.T) {
 }
 
 func TestTransactionStatus(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name         string
 		status       uint64
@@ -222,6 +226,7 @@ func TestTransactionStatus(t *testing.T) {
 }
 
 func TestBlockValidate(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name    string
 		block   *Block
@@ -278,6 +283,7 @@ func TestBlockValidate(t *testing.T) {
 }
 
 func TestBlockGetTimestamp(t *testing.T) {
+	t.Parallel()
 	now := time.Now()
 	block := &Block{
 		Number:    1000,
@@ -289,6 +295,7 @@ func TestBlockGetTimestamp(t *testing.T) {
 }
 
 func TestTransactionReceiptStatus(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name         string
 		status       uint64
@@ -319,12 +326,13 @@ func TestTransactionReceiptStatus(t *testing.T) {
 }
 
 func TestBlockchainEventWithDecodedData(t *testing.T) {
+	t.Parallel()
 	event := &BlockchainEvent{
 		BlockNumber:     1000,
 		TransactionHash: common.HexToHash("0x1234"),
 		ContractAddress: common.HexToAddress("0x5678"),
 		EventName:       "Transfer",
-		DecodedData: map[string]interface{}{
+		DecodedData: map[string]any{
 			"from":  common.HexToAddress("0xaaaa"),
 			"to":    common.HexToAddress("0xbbbb"),
 			"value": big.NewInt(1000),
@@ -338,6 +346,7 @@ func TestBlockchainEventWithDecodedData(t *testing.T) {
 }
 
 func TestTransactionWithLogs(t *testing.T) {
+	t.Parallel()
 	tx := &Transaction{
 		Hash:        common.HexToHash("0x1234"),
 		From:        common.HexToAddress("0x5678"),
@@ -351,6 +360,7 @@ func TestTransactionWithLogs(t *testing.T) {
 }
 
 func TestTransactionTypeClassification(t *testing.T) {
+	t.Parallel()
 	baseTx := Transaction{
 		Hash:        common.HexToHash("0x1234"),
 		From:        common.HexToAddress("0x5678"),
@@ -358,12 +368,12 @@ func TestTransactionTypeClassification(t *testing.T) {
 	}
 
 	tests := []struct {
-		name           string
-		txType         uint8
-		isLegacy       bool
-		isAccessList   bool
-		isEIP1559      bool
-		isBlob         bool
+		name         string
+		txType       uint8
+		isLegacy     bool
+		isAccessList bool
+		isEIP1559    bool
+		isBlob       bool
 	}{
 		{"legacy", TxLegacy, true, false, false, false},
 		{"access_list", TxAccessList, false, true, false, false},
@@ -384,14 +394,15 @@ func TestTransactionTypeClassification(t *testing.T) {
 }
 
 func TestTransactionEIP1559Fields(t *testing.T) {
+	t.Parallel()
 	tx := &Transaction{
-		Hash:                  common.HexToHash("0xabc"),
-		From:                  common.HexToAddress("0x123"),
-		BlockNumber:           18000000,
-		Type:                  TxEIP1559,
-		MaxFeePerGas:          big.NewInt(50000000000),    // 50 Gwei
-		MaxPriorityFeePerGas:  big.NewInt(2000000000),     // 2 Gwei
-		GasPrice:              nil, // Not required for EIP-1559
+		Hash:                 common.HexToHash("0xabc"),
+		From:                 common.HexToAddress("0x123"),
+		BlockNumber:          18000000,
+		Type:                 TxEIP1559,
+		MaxFeePerGas:         big.NewInt(50000000000), // 50 Gwei
+		MaxPriorityFeePerGas: big.NewInt(2000000000),  // 2 Gwei
+		GasPrice:             nil,                     // Not required for EIP-1559
 	}
 
 	assert.True(t, tx.IsEIP1559())
@@ -402,6 +413,7 @@ func TestTransactionEIP1559Fields(t *testing.T) {
 }
 
 func TestTransactionBlobFields(t *testing.T) {
+	t.Parallel()
 	blobHash := common.HexToHash("0x01" + "00000000000000000000000000000000000000000000000000000000000000")
 
 	tx := &Transaction{
@@ -422,6 +434,7 @@ func TestTransactionBlobFields(t *testing.T) {
 }
 
 func TestTransactionAccessListFields(t *testing.T) {
+	t.Parallel()
 	tx := &Transaction{
 		Hash:        common.HexToHash("0x789"),
 		From:        common.HexToAddress("0x789"),
@@ -441,6 +454,7 @@ func TestTransactionAccessListFields(t *testing.T) {
 }
 
 func TestBlockEIP1559Fields(t *testing.T) {
+	t.Parallel()
 	block := &Block{
 		Number:  18000000,
 		Hash:    common.HexToHash("0xabc"),
@@ -452,6 +466,7 @@ func TestBlockEIP1559Fields(t *testing.T) {
 }
 
 func TestBlockWithdrawals(t *testing.T) {
+	t.Parallel()
 	addr := common.HexToAddress("0xvalidator")
 	block := &Block{
 		Number: 19000000,
@@ -472,11 +487,12 @@ func TestBlockWithdrawals(t *testing.T) {
 }
 
 func TestBlockUncles(t *testing.T) {
+	t.Parallel()
 	uncleHash := common.HexToHash("0xuncle1")
 	block := &Block{
-		Number:         15000000,
-		Hash:           common.HexToHash("0xb1"),
-		Uncles:         []common.Hash{uncleHash},
+		Number:          15000000,
+		Hash:            common.HexToHash("0xb1"),
+		Uncles:          []common.Hash{uncleHash},
 		TotalDifficulty: big.NewInt(1000000),
 	}
 
@@ -486,6 +502,7 @@ func TestBlockUncles(t *testing.T) {
 }
 
 func TestTransactionReceiptEIP1559Fields(t *testing.T) {
+	t.Parallel()
 	receipt := &TransactionReceipt{
 		TransactionHash:   common.HexToHash("0xtx"),
 		BlockNumber:       18000000,
@@ -499,6 +516,7 @@ func TestTransactionReceiptEIP1559Fields(t *testing.T) {
 }
 
 func TestTransactionReceiptBlobFields(t *testing.T) {
+	t.Parallel()
 	receipt := &TransactionReceipt{
 		TransactionHash: common.HexToHash("0xblob"),
 		BlockNumber:     19000000,
@@ -514,6 +532,7 @@ func TestTransactionReceiptBlobFields(t *testing.T) {
 }
 
 func TestBlobSidecarVerifyBlobProof(t *testing.T) {
+	t.Parallel()
 	// Use SizeOnlyKZGVerifier for structural tests — zeroed bytes won't pass real crypto.
 	origVerifier := defaultKZGVerifier
 	SetKZGVerifier(&SizeOnlyKZGVerifier{})
@@ -564,15 +583,16 @@ func TestBlobSidecarVerifyBlobProof(t *testing.T) {
 }
 
 func TestTransactionBlobSidecarField(t *testing.T) {
+	t.Parallel()
 	origVerifier := defaultKZGVerifier
 	SetKZGVerifier(&SizeOnlyKZGVerifier{})
 	defer SetKZGVerifier(origVerifier)
 
 	tx := &Transaction{
-		Hash:              common.HexToHash("0xblobtx"),
-		Type:              TxBlob,
+		Hash:                common.HexToHash("0xblobtx"),
+		Type:                TxBlob,
 		BlobVersionedHashes: []common.Hash{common.HexToHash("0x01"), common.HexToHash("0x02")},
-		MaxFeePerBlobGas:  big.NewInt(1000000000),
+		MaxFeePerBlobGas:    big.NewInt(1000000000),
 		BlobSidecar: &BlobSidecar{
 			Blobs:          make([]Blob, 2),
 			KZGCommitments: make([]KZGCommitment, 2),
@@ -587,6 +607,7 @@ func TestTransactionBlobSidecarField(t *testing.T) {
 }
 
 func TestTransactionNilBlobSidecar(t *testing.T) {
+	t.Parallel()
 	tx := &Transaction{
 		Hash: common.HexToHash("0xlegacy"),
 		Type: TxLegacy,

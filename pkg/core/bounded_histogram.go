@@ -7,11 +7,11 @@ import "slices"
 // current window. When the buffer is full, new recordings overwrite the
 // oldest entries (FIFO eviction), preventing unbounded memory growth.
 type boundedHistogram struct {
-	buf    []float64
-	head   int // next write position
-	count  int // number of entries recorded (capped at cap)
+	buf      []float64
+	head     int // next write position
+	count    int // number of entries recorded (capped at cap)
 	capacity int // capacity (exported name avoided)
-	sumVal float64
+	sumVal   float64
 }
 
 // newBoundedHistogram creates a histogram with the given capacity.
@@ -20,7 +20,7 @@ func newBoundedHistogram(capacity int) *boundedHistogram {
 		capacity = 1024
 	}
 	return &boundedHistogram{
-		buf:  make([]float64, capacity),
+		buf:      make([]float64, capacity),
 		capacity: capacity,
 	}
 }

@@ -7,8 +7,6 @@ import (
 
 	"chainpulse/pkg/core"
 
-	indexingadapter "chainpulse/pkg/adapters/indexing"
-
 	plugindatabase "chainpulse/pkg/plugins/database"
 )
 
@@ -21,7 +19,7 @@ func defaultMonolithicIndexingStorageDeps() monolithicIndexingStorageDeps {
 	return monolithicIndexingStorageDeps{
 		newDatabase: newMonolithicIndexingDatabaseForMode,
 		newCache: func() core.CachePlugin {
-			return indexingadapter.NewMonolithicMemoryCache()
+			return NewMonolithicMemoryCache()
 		},
 	}
 }
@@ -79,7 +77,7 @@ func newMonolithicIndexingDatabaseForMode(logger core.Logger, config core.Config
 	if config.DeploymentMode == "microservice" {
 		return newSnapshotCompatibleDatabase(plugindatabase.NewMockDB())
 	}
-	return indexingadapter.NewMonolithicMemoryDatabase(logger)
+	return NewMonolithicMemoryDatabase(logger)
 }
 
 // BuildMonolithicIndexingStorage creates started in-memory storage adapters for

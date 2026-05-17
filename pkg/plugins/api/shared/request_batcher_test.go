@@ -28,6 +28,7 @@ func (m *MockBatchProcessor) Process(ctx context.Context, requests []*BatchReque
 }
 
 func TestRequestBatcherSubmit(t *testing.T) {
+	t.Parallel()
 	processor := &MockBatchProcessor{}
 	batcher := NewRequestBatcher("test", processor, 5, 100*time.Millisecond)
 	defer func() {
@@ -47,6 +48,7 @@ func TestRequestBatcherSubmit(t *testing.T) {
 }
 
 func TestRequestBatcherBatchSize(t *testing.T) {
+	t.Parallel()
 	processor := &MockBatchProcessor{}
 	batcher := NewRequestBatcher("test", processor, 3, 1*time.Second)
 	defer func() {
@@ -74,6 +76,7 @@ func TestRequestBatcherBatchSize(t *testing.T) {
 }
 
 func TestRequestBatcherTimeout(t *testing.T) {
+	t.Parallel()
 	processor := &MockBatchProcessor{}
 	batcher := NewRequestBatcher("test", processor, 10, 100*time.Millisecond)
 	defer func() {
@@ -97,6 +100,7 @@ func TestRequestBatcherTimeout(t *testing.T) {
 }
 
 func TestRequestBatcherConcurrent(t *testing.T) {
+	t.Parallel()
 	processor := &MockBatchProcessor{}
 	batcher := NewRequestBatcher("test", processor, 5, 100*time.Millisecond)
 	defer func() {
@@ -126,6 +130,7 @@ func TestRequestBatcherConcurrent(t *testing.T) {
 }
 
 func TestRequestBatcherMetrics(t *testing.T) {
+	t.Parallel()
 	processor := &MockBatchProcessor{}
 	batcher := NewRequestBatcher("test", processor, 5, 100*time.Millisecond)
 	defer func() {
@@ -155,6 +160,7 @@ func TestRequestBatcherMetrics(t *testing.T) {
 }
 
 func TestRequestBatcherClose(t *testing.T) {
+	t.Parallel()
 	processor := &MockBatchProcessor{}
 	batcher := NewRequestBatcher("test", processor, 5, 100*time.Millisecond)
 
@@ -170,6 +176,7 @@ func TestRequestBatcherClose(t *testing.T) {
 }
 
 func TestRequestBatcherContextCancellation(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip("skipping in short mode")
 	}
@@ -191,6 +198,7 @@ func TestRequestBatcherContextCancellation(t *testing.T) {
 }
 
 func TestRequestBatcherRuntimeMetricsHealthy(t *testing.T) {
+	t.Parallel()
 	processor := &MockBatchProcessor{}
 	batcher := NewRequestBatcher("test", processor, 5, 100*time.Millisecond)
 	defer func() {
@@ -218,6 +226,7 @@ func TestRequestBatcherRuntimeMetricsHealthy(t *testing.T) {
 }
 
 func TestRequestBatcherMetricsIncludesPostureFields(t *testing.T) {
+	t.Parallel()
 	processor := &MockBatchProcessor{}
 	batcher := NewRequestBatcher("test", processor, 5, 100*time.Millisecond)
 	defer func() {
@@ -248,6 +257,7 @@ func TestRequestBatcherMetricsIncludesPostureFields(t *testing.T) {
 }
 
 func TestRequestBatcherRuntimeMetricsUnobserved(t *testing.T) {
+	t.Parallel()
 	processor := &MockBatchProcessor{}
 	batcher := NewRequestBatcher("test", processor, 5, 100*time.Millisecond)
 	defer func() {
@@ -266,6 +276,7 @@ func TestRequestBatcherRuntimeMetricsUnobserved(t *testing.T) {
 }
 
 func TestRequestBatcherRuntimeMetricsDegraded(t *testing.T) {
+	t.Parallel()
 	processor := &MockBatchProcessor{}
 	batcher := NewRequestBatcher("test", processor, 5, 100*time.Millisecond)
 	defer func() {

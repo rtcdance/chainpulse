@@ -3,7 +3,7 @@ package api
 import "time"
 
 // buildSingleEventQueryResponse assembles a stable single-event response shape.
-func buildSingleEventQueryResponse(data interface{}, meta *QueryMeta) *QueryResponse {
+func buildSingleEventQueryResponse(data any, meta *QueryMeta) *QueryResponse {
 	return &QueryResponse{
 		Data:      data,
 		Events:    data,
@@ -13,7 +13,7 @@ func buildSingleEventQueryResponse(data interface{}, meta *QueryMeta) *QueryResp
 }
 
 // buildPaginatedEventQueryResponse assembles a stable paginated event response shape.
-func buildPaginatedEventQueryResponse(data interface{}, limit, offset, total int, meta *QueryMeta) *QueryResponse {
+func buildPaginatedEventQueryResponse(data any, limit, offset, total int, meta *QueryMeta) *QueryResponse {
 	return &QueryResponse{
 		Data:   data,
 		Events: data,

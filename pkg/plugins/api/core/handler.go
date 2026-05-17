@@ -90,14 +90,14 @@ func (r *APIRouter) MiddlewareCount() int {
 
 // GetRuntimeMetrics returns a compact runtime surface for route coverage and
 // router readiness on top of the registered routes and middleware stack.
-func (r *APIRouter) GetRuntimeMetrics() map[string]interface{} {
+func (r *APIRouter) GetRuntimeMetrics() map[string]any {
 	routeCount := r.RouteCount()
 	middlewareCount := r.MiddlewareCount()
 
 	coveragePosture := classifyRouterCoveragePosture(routeCount, middlewareCount)
 	runtimePosture := classifyRouterRuntimePosture(routeCount, middlewareCount)
 
-	return map[string]interface{}{
+	return map[string]any{
 		"route_count":      routeCount,
 		"middleware_count": middlewareCount,
 		"coverage_posture": coveragePosture,
@@ -204,7 +204,7 @@ func (a *APILayer) SetErrorMapper(mapper ErrorMapper) {
 
 // GetRuntimeMetrics returns a compact runtime surface for API-layer route
 // readiness and error-mapper wiring on top of router/runtime state.
-func (a *APILayer) GetRuntimeMetrics() map[string]interface{} {
+func (a *APILayer) GetRuntimeMetrics() map[string]any {
 	a.mu.RLock()
 	router := a.router
 	errorMapper := a.errorMapper
@@ -218,7 +218,7 @@ func (a *APILayer) GetRuntimeMetrics() map[string]interface{} {
 	coveragePosture := classifyAPILayerCoveragePosture(routeCount, middlewareCount, errorMapperConfigured)
 	runtimePosture := classifyAPILayerRuntimePosture(routeCount, middlewareCount, errorMapperConfigured)
 
-	return map[string]interface{}{
+	return map[string]any{
 		"route_count":             routeCount,
 		"middleware_count":        middlewareCount,
 		"error_mapper_configured": errorMapperConfigured,

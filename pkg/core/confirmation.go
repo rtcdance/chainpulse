@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"sync"
 	"time"
 )
@@ -60,11 +61,11 @@ func (c ConfirmationConfig) TimeToFinalize() time.Duration {
 
 // pendingEvent tracks a single event awaiting confirmation depth.
 type pendingEvent struct {
-	EventHash    string
-	BlockNumber  uint64
-	BlockHash    string
-	Status       EventStatus
-	QueuedAt     time.Time
+	EventHash   string
+	BlockNumber uint64
+	BlockHash   string
+	Status      EventStatus
+	QueuedAt    time.Time
 }
 
 // FinalityChecker is an optional dependency that queries the chain for
@@ -82,11 +83,11 @@ type FinalityChecker interface {
 // ConfirmationTracker tracks events through the Pending → Confirmed → Finalized
 // lifecycle, using block depth as the gate for state transitions.
 type ConfirmationTracker struct {
-	mu     sync.RWMutex
-	config ConfirmationConfig
-	pending map[string]*pendingEvent // eventHash → pending info
+	mu           sync.RWMutex
+	config       ConfirmationConfig
+	pending      map[string]*pendingEvent // eventHash → pending info
 	currentBlock uint64
-	chainID string // chain identifier for on-chain finality queries
+	chainID      string // chain identifier for on-chain finality queries
 
 	// Optional on-chain finality checker
 	finalityChecker   FinalityChecker
@@ -94,8 +95,8 @@ type ConfirmationTracker struct {
 	blocksSinceCheck  uint64 // counter since last on-chain check
 
 	// Goroutine lifecycle
-	wg   sync.WaitGroup
-	done chan struct{}
+	wg       sync.WaitGroup
+	done     chan struct{}
 	stopOnce sync.Once
 
 	// Callbacks for state transitions
@@ -173,7 +174,8 @@ func (t *ConfirmationTracker) AdvanceBlock(blockNumber uint64) []EventStatus {
 			default:
 				if _, err := t.ReconcileFinality(); err != nil {
 					// Log but don't fail — local depth gates still work
-					_ = err
+					slog.Warn("on-chain finality reconciliation failed, local depth gates still apply",
+						"chain_id", t.chainID, "error", err)
 				}
 			}
 		}()
@@ -248,11 +250,11 @@ func (t *ConfirmationTracker) ReconcileFinality() (uint64, error) {
 
 // pendingEventJSON is the JSON representation of a pendingEvent for persistence.
 type pendingEventJSON struct {
-	EventHash   string     `json:"event_hash"`
-	BlockNumber uint64     `json:"block_number"`
-	BlockHash   string     `json:"block_hash"`
+	EventHash   string      `json:"event_hash"`
+	BlockNumber uint64      `json:"block_number"`
+	BlockHash   string      `json:"block_hash"`
 	Status      EventStatus `json:"status"`
-	QueuedAt    time.Time  `json:"queued_at"`
+	QueuedAt    time.Time   `json:"queued_at"`
 }
 
 // Persist serializes the tracker's pending events to JSON bytes.

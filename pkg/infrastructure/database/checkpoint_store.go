@@ -26,8 +26,8 @@ func (s *PostgresCheckpointStore) GetLastIndexedBlock(ctx context.Context, chain
 	}
 
 	sqlDB, ok := db.(interface {
-		QueryRowContext(context.Context, string, ...interface{}) interface {
-			Scan(...interface{}) error
+		QueryRowContext(context.Context, string, ...any) interface {
+			Scan(...any) error
 		}
 	})
 	if !ok {
@@ -54,7 +54,7 @@ func (s *PostgresCheckpointStore) SaveLastIndexedBlock(ctx context.Context, chai
 	}
 
 	sqlDB, ok := db.(interface {
-		ExecContext(context.Context, string, ...interface{}) (interface{}, error)
+		ExecContext(context.Context, string, ...any) (any, error)
 	})
 	if !ok {
 		return fmt.Errorf("unexpected postgres db type")
@@ -80,8 +80,8 @@ func (s *PostgresCheckpointStore) GetBlockHash(ctx context.Context, chainID stri
 	}
 
 	sqlDB, ok := db.(interface {
-		QueryRowContext(context.Context, string, ...interface{}) interface {
-			Scan(...interface{}) error
+		QueryRowContext(context.Context, string, ...any) interface {
+			Scan(...any) error
 		}
 	})
 	if !ok {

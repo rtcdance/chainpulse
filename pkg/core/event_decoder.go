@@ -27,7 +27,7 @@ func ResetUnknownEventSignatureCount() {
 // topics: raw log topics (topic0 = event signature hash, topic1+ = indexed params)
 // data: raw log data bytes (non-indexed params)
 // Returns a map of parameter name -> decoded value, or nil if decoding is not possible.
-func DecodeEventData(eventName string, topics []common.Hash, data []byte) map[string]interface{} {
+func DecodeEventData(eventName string, topics []common.Hash, data []byte) map[string]any {
 	parsedABI := GetABIForEventName(eventName)
 
 	// If eventName is unknown, try topic0 reverse lookup
@@ -50,18 +50,13 @@ func DecodeEventData(eventName string, topics []common.Hash, data []byte) map[st
 		return nil
 	}
 
-	result := make(map[string]interface{})
+	result := make(map[string]any)
 
 	// Decode indexed parameters from topics
 	topicIndex := 1 // topic0 is the event signature hash
 	for _, input := range eventABI.Inputs {
 		if input.Indexed && topicIndex < len(topics) {
-			val := topics[topicIndex]
-			if input.Type.String() == "address" {
-				result[input.Name] = common.BytesToAddress(val[12:]).Hex()
-			} else {
-				result[input.Name] = val.Hex()
-			}
+			result[input.Name] = FormatIndexedTopicValue(input.Type.String(), topics[topicIndex])
 			topicIndex++
 		}
 	}
@@ -84,7 +79,7 @@ func DecodeEventData(eventName string, topics []common.Hash, data []byte) map[st
 			i := 0
 			for _, input := range eventABI.Inputs {
 				if !input.Indexed && i < len(values) {
-					result[input.Name] = formatDecodedValue(values[i])
+					result[input.Name] = FormatDecodedValue(values[i])
 					i++
 				}
 			}
@@ -95,7 +90,27 @@ func DecodeEventData(eventName string, topics []common.Hash, data []byte) map[st
 }
 
 // formatDecodedValue converts Go values to JSON-friendly types.
-func formatDecodedValue(v interface{}) interface{} {
+
+// FormatIndexedTopicValue converts an indexed event topic value to a JSON-friendly type.
+func FormatIndexedTopicValue(solidityType string, topic common.Hash) any {
+	switch {
+	case solidityType == "address":
+		return common.BytesToAddress(topic[12:]).Hex()
+	case solidityType == "bool":
+		return topic[len(topic)-1] == 1
+	case len(solidityType) >= 4 && solidityType[:4] == "uint":
+		return new(big.Int).SetBytes(topic[:]).String()
+	case len(solidityType) >= 3 && solidityType[:3] == "int":
+		v := new(big.Int).SetBytes(topic[:])
+		if v.BitLen() == 256 && v.Bit(255) == 1 {
+			v.Sub(v, new(big.Int).Lsh(big.NewInt(1), 256))
+		}
+		return v.String()
+	default:
+		return topic.Hex()
+	}
+}
+func FormatDecodedValue(v any) any {
 	switch val := v.(type) {
 	case *big.Int:
 		return val.String()

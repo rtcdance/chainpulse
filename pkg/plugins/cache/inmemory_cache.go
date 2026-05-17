@@ -9,13 +9,14 @@ import (
 )
 
 type InMemoryCache struct {
-	name    string
-	version string
-	data    map[string]*cacheItem
-	mu      sync.RWMutex
-	started bool
-	stats   core.CacheStats
-	done    chan struct{}
+	name      string
+	version   string
+	data      map[string]*cacheItem
+	mu        sync.RWMutex
+	started   bool
+	stats     core.CacheStats
+	done      chan struct{}
+	closeOnce sync.Once
 }
 
 type cacheItem struct {
@@ -49,9 +50,15 @@ func (c *InMemoryCache) Start() error {
 
 func (c *InMemoryCache) Stop() error {
 	c.mu.Lock()
+	if !c.started {
+		c.mu.Unlock()
+		return nil
+	}
 	c.started = false
 	c.mu.Unlock()
-	close(c.done) // Signal cleanup goroutine to exit
+	c.closeOnce.Do(func() {
+		close(c.done)
+	})
 	c.mu.Lock()
 	c.data = make(map[string]*cacheItem)
 	c.mu.Unlock()

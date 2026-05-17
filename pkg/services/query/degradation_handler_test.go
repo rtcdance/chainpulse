@@ -101,6 +101,10 @@ func (m *mockMetadataStoreDegradation) GetMetadataByChain(ctx context.Context, c
 	return nil, nil
 }
 
+func (m *mockMetadataStoreDegradation) GetMetadataBatch(ctx context.Context, eventIDs []string) (map[string]*EventMetadata, error) {
+	return nil, nil
+}
+
 func (m *mockMetadataStoreDegradation) UpdateMetadata(ctx context.Context, metadata *EventMetadata) error {
 	return nil
 }
@@ -141,12 +145,20 @@ func (m *MockCacheService) GetSingle(ctx context.Context, key string) (*core.Blo
 	return nil, nil
 }
 
-func (m *MockCacheService) Set(ctx context.Context, key string, value []core.BlockchainEvent, ttl interface{}) error {
+func (m *MockCacheService) Set(ctx context.Context, key string, value []core.BlockchainEvent, ttl time.Duration) error {
 	return nil
 }
 
-func (m *MockCacheService) SetSingle(ctx context.Context, key string, value *core.BlockchainEvent, ttl interface{}) error {
+func (m *MockCacheService) SetSingle(ctx context.Context, key string, value *core.BlockchainEvent, ttl time.Duration) error {
 	return nil
+}
+
+func (m *MockCacheService) SetQueryResult(ctx context.Context, key string, events []core.BlockchainEvent, total int64, ttl time.Duration) error {
+	return nil
+}
+
+func (m *MockCacheService) GetQueryResult(ctx context.Context, key string) ([]core.BlockchainEvent, int64, error) {
+	return nil, 0, nil
 }
 
 func (m *MockCacheService) Delete(ctx context.Context, key string) error {
@@ -163,11 +175,11 @@ func (m *MockCacheService) Health(ctx context.Context) *core.HealthStatus {
 // MockLogger for testing
 type MockLogger struct{}
 
-func (m *MockLogger) Debug(msg string, fields ...interface{}) {}
-func (m *MockLogger) Info(msg string, fields ...interface{})  {}
-func (m *MockLogger) Warn(msg string, fields ...interface{})  {}
-func (m *MockLogger) Error(msg string, fields ...interface{}) {}
-func (m *MockLogger) Fatal(msg string, fields ...interface{}) {}
+func (m *MockLogger) Debug(msg string, fields ...any) {}
+func (m *MockLogger) Info(msg string, fields ...any)  {}
+func (m *MockLogger) Warn(msg string, fields ...any)  {}
+func (m *MockLogger) Error(msg string, fields ...any) {}
+func (m *MockLogger) Fatal(msg string, fields ...any) {}
 func (m *MockLogger) WithCorrelationID(id string) core.Logger {
 	return m
 }
@@ -195,8 +207,8 @@ func (m *MockMetricsCollector) RecordHistogram(name string, value float64, tags 
 	m.metrics[name] = value
 }
 
-func (m *MockMetricsCollector) GetMetrics() map[string]interface{} {
-	result := make(map[string]interface{})
+func (m *MockMetricsCollector) GetMetrics() map[string]any {
+	result := make(map[string]any)
 	for k, v := range m.metrics {
 		result[k] = v
 	}
@@ -210,6 +222,7 @@ func (m *MockMetricsCollector) GetMetric(name string) float64 {
 // Tests
 
 func TestDegradationHandlerInitialization(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	eventStore := &mockEventStoreDegradation{healthy: true}
 	metadataStore := &mockMetadataStoreDegradation{healthy: true}
@@ -232,6 +245,7 @@ func TestDegradationHandlerInitialization(t *testing.T) {
 }
 
 func TestDegradationHandlerNilStores(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
@@ -245,6 +259,7 @@ func TestDegradationHandlerNilStores(t *testing.T) {
 }
 
 func TestDegradationModeNormal(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	eventStore := &mockEventStoreDegradation{healthy: true}
 	metadataStore := &mockMetadataStoreDegradation{healthy: true}
@@ -264,6 +279,7 @@ func TestDegradationModeNormal(t *testing.T) {
 }
 
 func TestDegradationModeMongoDBAnavailable(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	eventStore := &mockEventStoreDegradation{healthy: false}
 	metadataStore := &mockMetadataStoreDegradation{healthy: true}
@@ -283,6 +299,7 @@ func TestDegradationModeMongoDBAnavailable(t *testing.T) {
 }
 
 func TestDegradationModePostgreSQLUnavailable(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	eventStore := &mockEventStoreDegradation{healthy: true}
 	metadataStore := &mockMetadataStoreDegradation{healthy: false}
@@ -302,6 +319,7 @@ func TestDegradationModePostgreSQLUnavailable(t *testing.T) {
 }
 
 func TestDegradationModeCacheUnavailable(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	eventStore := &mockEventStoreDegradation{healthy: true}
 	metadataStore := &mockMetadataStoreDegradation{healthy: true}
@@ -319,6 +337,7 @@ func TestDegradationModeCacheUnavailable(t *testing.T) {
 }
 
 func TestDegradationModeMultipleUnavailable(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	eventStore := &mockEventStoreDegradation{healthy: false}
 	metadataStore := &mockMetadataStoreDegradation{healthy: false}
@@ -336,6 +355,7 @@ func TestDegradationModeMultipleUnavailable(t *testing.T) {
 }
 
 func TestDegradationHandlerMetrics(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	eventStore := &mockEventStoreDegradation{healthy: true}
 	metadataStore := &mockMetadataStoreDegradation{healthy: true}
@@ -356,6 +376,7 @@ func TestDegradationHandlerMetrics(t *testing.T) {
 }
 
 func TestDegradationHandlerTimeout(t *testing.T) {
+	t.Parallel()
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Millisecond)
 	defer cancel()
 

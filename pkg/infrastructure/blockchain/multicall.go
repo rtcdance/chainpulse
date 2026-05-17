@@ -17,14 +17,14 @@ import (
 
 // Multicall3Call represents a single call in a Multicall3 Aggregate3 batch.
 type Multicall3Call struct {
-	Target   common.Address `json:"target"`
-	AllowFailure bool       `json:"allowFailure"`
-	CallData []byte         `json:"callData"`
+	Target       common.Address `json:"target"`
+	AllowFailure bool           `json:"allowFailure"`
+	CallData     []byte         `json:"callData"`
 }
 
 // Multicall3Result represents the result of a single call from Aggregate3.
 type Multicall3Result struct {
-	Success  bool   `json:"success"`
+	Success    bool   `json:"success"`
 	ReturnData []byte `json:"returnData"`
 }
 
@@ -47,10 +47,10 @@ var (
 
 // Multicall3Client batches multiple eth_call requests via the Multicall3 contract.
 type Multicall3Client struct {
-	client *http.Client
-	rpcURL string
-	cache  map[common.Address]*ERC20Metadata
-	cacheMu sync.RWMutex
+	client   *http.Client
+	rpcURL   string
+	cache    map[common.Address]*ERC20Metadata
+	cacheMu  sync.RWMutex
 	maxCache int
 }
 
@@ -194,11 +194,11 @@ func (m *Multicall3Client) ethCall(ctx context.Context, to common.Address, callD
 		"data": "0x" + hex.EncodeToString(callData),
 	}
 
-	reqBody := map[string]interface{}{
+	reqBody := map[string]any{
 		"jsonrpc": "2.0",
 		"id":      1,
 		"method":  "eth_call",
-		"params":  []interface{}{txObj, blockNumber},
+		"params":  []any{txObj, blockNumber},
 	}
 
 	body, err := json.Marshal(reqBody)

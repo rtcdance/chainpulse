@@ -58,35 +58,35 @@ func NewTestLoggerWithCapture() *TestLogger {
 }
 
 // Debug logs a debug message
-func (l *TestLogger) Debug(msg string, _ ...interface{}) {
+func (l *TestLogger) Debug(msg string, _ ...any) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.messages = append(l.messages, msg)
 }
 
 // Info logs an info message
-func (l *TestLogger) Info(msg string, _ ...interface{}) {
+func (l *TestLogger) Info(msg string, _ ...any) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.messages = append(l.messages, msg)
 }
 
 // Warn logs a warning message
-func (l *TestLogger) Warn(msg string, _ ...interface{}) {
+func (l *TestLogger) Warn(msg string, _ ...any) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.messages = append(l.messages, msg)
 }
 
 // Error logs an error message
-func (l *TestLogger) Error(msg string, fields ...interface{}) {
+func (l *TestLogger) Error(msg string, fields ...any) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.messages = append(l.messages, msg)
 }
 
 // Fatal logs a fatal message
-func (l *TestLogger) Fatal(msg string, fields ...interface{}) {
+func (l *TestLogger) Fatal(msg string, fields ...any) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.messages = append(l.messages, msg)
@@ -98,7 +98,7 @@ func (l *TestLogger) WithCorrelationID(_ string) Logger {
 }
 
 // WithField adds a field to the logger
-func (l *TestLogger) WithField(_ string, _ interface{}) Logger {
+func (l *TestLogger) WithField(_ string, _ any) Logger {
 	return l
 }
 
@@ -112,27 +112,27 @@ func (l *TestLogger) GetMessages() []string {
 }
 
 // LogDebug logs a debug message with fields
-func (l *TestLogger) LogDebug(msg string, fields ...interface{}) {
+func (l *TestLogger) LogDebug(msg string, fields ...any) {
 	l.Debug(msg, fields...)
 }
 
 // LogInfo logs an info message with fields
-func (l *TestLogger) LogInfo(msg string, fields ...interface{}) {
+func (l *TestLogger) LogInfo(msg string, fields ...any) {
 	l.Info(msg, fields...)
 }
 
 // LogWarn logs a warning message with fields
-func (l *TestLogger) LogWarn(msg string, fields ...interface{}) {
+func (l *TestLogger) LogWarn(msg string, fields ...any) {
 	l.Warn(msg, fields...)
 }
 
 // LogError logs an error message with fields
-func (l *TestLogger) LogError(msg string, fields ...interface{}) {
+func (l *TestLogger) LogError(msg string, fields ...any) {
 	l.Error(msg, fields...)
 }
 
 // LogFatal logs a fatal message with fields
-func (l *TestLogger) LogFatal(msg string, fields ...interface{}) {
+func (l *TestLogger) LogFatal(msg string, fields ...any) {
 	l.Fatal(msg, fields...)
 }
 
@@ -175,11 +175,11 @@ func (m *TestMetricsCollector) RecordHistogram(name string, value float64, _ map
 }
 
 // GetMetrics returns all collected metrics
-func (m *TestMetricsCollector) GetMetrics() map[string]interface{} {
+func (m *TestMetricsCollector) GetMetrics() map[string]any {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	result := make(map[string]interface{})
+	result := make(map[string]any)
 	result["counters"] = m.counters
 	result["gauges"] = m.gauges
 	result["histograms"] = m.histograms
@@ -254,7 +254,7 @@ func (m *TestMetricsCollector) GetHistogramStats(name string) HistogramStats {
 }
 
 // GetAllMetrics returns all metrics as a map
-func (m *TestMetricsCollector) GetAllMetrics() map[string]interface{} {
+func (m *TestMetricsCollector) GetAllMetrics() map[string]any {
 	return m.GetMetrics()
 }
 
@@ -360,20 +360,20 @@ func (mc *MockCache) GetCallCount(method string) int {
 // MockEventBus is a mock implementation of an event bus for testing
 type MockEventBus struct {
 	mu        sync.RWMutex
-	listeners map[string][]func(interface{})
-	events    []interface{}
+	listeners map[string][]func(any)
+	events    []any
 }
 
 // NewMockEventBus creates a new mock event bus
 func NewMockEventBus() *MockEventBus {
 	return &MockEventBus{
-		listeners: make(map[string][]func(interface{})),
-		events:    make([]interface{}, 0),
+		listeners: make(map[string][]func(any)),
+		events:    make([]any, 0),
 	}
 }
 
 // Subscribe subscribes to an event
-func (meb *MockEventBus) Subscribe(eventType string, handler func(interface{})) {
+func (meb *MockEventBus) Subscribe(eventType string, handler func(any)) {
 	meb.mu.Lock()
 	defer meb.mu.Unlock()
 
@@ -381,7 +381,7 @@ func (meb *MockEventBus) Subscribe(eventType string, handler func(interface{})) 
 }
 
 // Publish publishes an event
-func (meb *MockEventBus) Publish(eventType string, event interface{}) {
+func (meb *MockEventBus) Publish(eventType string, event any) {
 	meb.mu.Lock()
 	handlers := meb.listeners[eventType]
 	meb.events = append(meb.events, event)
@@ -393,11 +393,11 @@ func (meb *MockEventBus) Publish(eventType string, event interface{}) {
 }
 
 // GetPublishedEvents returns all published events
-func (meb *MockEventBus) GetPublishedEvents() []interface{} {
+func (meb *MockEventBus) GetPublishedEvents() []any {
 	meb.mu.RLock()
 	defer meb.mu.RUnlock()
 
-	events := make([]interface{}, len(meb.events))
+	events := make([]any, len(meb.events))
 	copy(events, meb.events)
 	return events
 }
@@ -412,20 +412,20 @@ func (meb *MockEventBus) GetPublishedEventCount() int {
 // MockRegistry is a mock implementation of a registry for testing
 type MockRegistry struct {
 	mu        sync.RWMutex
-	plugins   map[string]interface{}
-	factories map[string]func() interface{}
+	plugins   map[string]any
+	factories map[string]func() any
 }
 
 // NewMockRegistry creates a new mock registry
 func NewMockRegistry() *MockRegistry {
 	return &MockRegistry{
-		plugins:   make(map[string]interface{}),
-		factories: make(map[string]func() interface{}),
+		plugins:   make(map[string]any),
+		factories: make(map[string]func() any),
 	}
 }
 
 // Register registers a plugin
-func (mr *MockRegistry) Register(name string, plugin interface{}) error {
+func (mr *MockRegistry) Register(name string, plugin any) error {
 	mr.mu.Lock()
 	defer mr.mu.Unlock()
 
@@ -434,7 +434,7 @@ func (mr *MockRegistry) Register(name string, plugin interface{}) error {
 }
 
 // Get retrieves a registered plugin
-func (mr *MockRegistry) Get(name string) (interface{}, error) {
+func (mr *MockRegistry) Get(name string) (any, error) {
 	mr.mu.RLock()
 	defer mr.mu.RUnlock()
 
@@ -447,7 +447,7 @@ func (mr *MockRegistry) Get(name string) (interface{}, error) {
 }
 
 // RegisterFactory registers a plugin factory
-func (mr *MockRegistry) RegisterFactory(name string, factory func() interface{}) error {
+func (mr *MockRegistry) RegisterFactory(name string, factory func() any) error {
 	mr.mu.Lock()
 	defer mr.mu.Unlock()
 
@@ -456,7 +456,7 @@ func (mr *MockRegistry) RegisterFactory(name string, factory func() interface{})
 }
 
 // GetFactory retrieves a registered factory
-func (mr *MockRegistry) GetFactory(name string) (func() interface{}, error) {
+func (mr *MockRegistry) GetFactory(name string) (func() any, error) {
 	mr.mu.RLock()
 	defer mr.mu.RUnlock()
 
@@ -471,7 +471,7 @@ func (mr *MockRegistry) GetFactory(name string) (func() interface{}, error) {
 // TestContextBuilder builds test contexts with specific configurations
 type TestContextBuilder struct {
 	timeout    time.Duration
-	values     map[interface{}]interface{}
+	values     map[any]any
 	cancelFunc context.CancelFunc
 	ctx        context.Context
 }
@@ -480,7 +480,7 @@ type TestContextBuilder struct {
 func NewTestContextBuilder() *TestContextBuilder {
 	return &TestContextBuilder{
 		timeout: 30 * time.Second,
-		values:  make(map[interface{}]interface{}),
+		values:  make(map[any]any),
 	}
 }
 
@@ -491,7 +491,7 @@ func (tcb *TestContextBuilder) WithTimeout(timeout time.Duration) *TestContextBu
 }
 
 // WithValue adds a value to the context
-func (tcb *TestContextBuilder) WithValue(key, value interface{}) *TestContextBuilder {
+func (tcb *TestContextBuilder) WithValue(key, value any) *TestContextBuilder {
 	tcb.values[key] = value
 	return tcb
 }
@@ -578,7 +578,7 @@ func NewNilPointerDetector() *NilPointerDetector {
 }
 
 // Check checks if a value is nil and records it
-func (npd *NilPointerDetector) Check(name string, value interface{}) bool {
+func (npd *NilPointerDetector) Check(name string, value any) bool {
 	if value == nil {
 		npd.mu.Lock()
 		defer npd.mu.Unlock()

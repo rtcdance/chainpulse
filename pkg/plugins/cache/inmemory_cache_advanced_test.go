@@ -9,6 +9,7 @@ import (
 )
 
 func TestAdvancedCacheInitialize(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	cache := NewAdvancedInMemoryCachePlugin(logger, metrics)
@@ -40,6 +41,7 @@ func TestAdvancedCacheInitialize(t *testing.T) {
 }
 
 func TestAdvancedCacheLifecycle(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	cache := NewAdvancedInMemoryCachePlugin(logger, metrics)
@@ -78,6 +80,7 @@ func TestAdvancedCacheLifecycle(t *testing.T) {
 }
 
 func TestAdvancedCacheSetAndGet(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	cache := NewAdvancedInMemoryCachePlugin(logger, metrics)
@@ -121,6 +124,7 @@ func TestAdvancedCacheSetAndGet(t *testing.T) {
 }
 
 func TestAdvancedCacheMaxSizeEviction(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	cache := NewAdvancedInMemoryCachePlugin(logger, metrics)
@@ -156,6 +160,7 @@ func TestAdvancedCacheMaxSizeEviction(t *testing.T) {
 }
 
 func TestAdvancedCacheMaxEntriesEviction(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	cache := NewAdvancedInMemoryCachePlugin(logger, metrics)
@@ -193,6 +198,7 @@ func TestAdvancedCacheMaxEntriesEviction(t *testing.T) {
 }
 
 func TestAdvancedCacheLRUEviction(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	cache := NewAdvancedInMemoryCachePlugin(logger, metrics)
@@ -250,6 +256,7 @@ func TestAdvancedCacheLRUEviction(t *testing.T) {
 }
 
 func TestAdvancedCacheExpiration(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	cache := NewAdvancedInMemoryCachePlugin(logger, metrics)
@@ -297,6 +304,7 @@ func TestAdvancedCacheExpiration(t *testing.T) {
 }
 
 func TestAdvancedCacheDelete(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	cache := NewAdvancedInMemoryCachePlugin(logger, metrics)
@@ -344,6 +352,7 @@ func TestAdvancedCacheDelete(t *testing.T) {
 }
 
 func TestAdvancedCacheClear(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	cache := NewAdvancedInMemoryCachePlugin(logger, metrics)
@@ -390,6 +399,7 @@ func TestAdvancedCacheClear(t *testing.T) {
 }
 
 func TestAdvancedCacheStats(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	cache := NewAdvancedInMemoryCachePlugin(logger, metrics)
@@ -446,6 +456,7 @@ func TestAdvancedCacheStats(t *testing.T) {
 }
 
 func TestAdvancedCacheSetMaxSize(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	cache := NewAdvancedInMemoryCachePlugin(logger, metrics)
@@ -480,6 +491,7 @@ func TestAdvancedCacheSetMaxSize(t *testing.T) {
 }
 
 func TestAdvancedCacheSetMaxEntries(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	cache := NewAdvancedInMemoryCachePlugin(logger, metrics)
@@ -514,6 +526,7 @@ func TestAdvancedCacheSetMaxEntries(t *testing.T) {
 }
 
 func TestAdvancedCacheEvictionPolicy(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	cache := NewAdvancedInMemoryCachePlugin(logger, metrics)
@@ -552,6 +565,7 @@ func TestAdvancedCacheEvictionPolicy(t *testing.T) {
 }
 
 func TestAdvancedCacheConcurrentOperations(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	cache := NewAdvancedInMemoryCachePlugin(logger, metrics)
@@ -604,6 +618,7 @@ func TestAdvancedCacheConcurrentOperations(t *testing.T) {
 }
 
 func TestAdvancedCacheCurrentSize(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	cache := NewAdvancedInMemoryCachePlugin(logger, metrics)
@@ -645,6 +660,7 @@ func TestAdvancedCacheCurrentSize(t *testing.T) {
 }
 
 func TestAdvancedCacheCurrentEntries(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	cache := NewAdvancedInMemoryCachePlugin(logger, metrics)

@@ -46,7 +46,7 @@ func NewResponseCompressor(level CompressionLevel) *ResponseCompressor {
 }
 
 // Compress compresses a response
-func (c *ResponseCompressor) Compress(data interface{}) ([]byte, error) {
+func (c *ResponseCompressor) Compress(data any) ([]byte, error) {
 	start := time.Now()
 	defer func() {
 		c.recordMetric(time.Since(start))
@@ -118,7 +118,7 @@ func (c *ResponseCompressor) Decompress(data []byte) ([]byte, error) {
 }
 
 // GetMetrics returns compression metrics
-func (c *ResponseCompressor) GetMetrics() map[string]interface{} {
+func (c *ResponseCompressor) GetMetrics() map[string]any {
 	c.metrics.mu.RLock()
 	totalResponses := c.metrics.totalResponses
 	compressedCount := c.metrics.compressedCount
@@ -140,7 +140,7 @@ func (c *ResponseCompressor) GetMetrics() map[string]interface{} {
 	coveragePosture := classifyCompressionCoveragePosture(totalResponses, compressedCount)
 	efficiencyPosture := classifyCompressionEfficiencyPosture(totalResponses, compressedCount, compressionRatio, avgDuration.Milliseconds())
 
-	return map[string]interface{}{
+	return map[string]any{
 		"total_responses":    totalResponses,
 		"compressed_count":   compressedCount,
 		"original_size":      originalSize,
@@ -156,7 +156,7 @@ func (c *ResponseCompressor) GetMetrics() map[string]interface{} {
 
 // GetRuntimeMetrics returns a compact runtime surface for compression coverage
 // and delivery efficiency on top of the raw compression metrics.
-func (c *ResponseCompressor) GetRuntimeMetrics() map[string]interface{} {
+func (c *ResponseCompressor) GetRuntimeMetrics() map[string]any {
 	metrics := c.GetMetrics()
 
 	totalResponses, _ := metrics["total_responses"].(int64)
@@ -164,7 +164,7 @@ func (c *ResponseCompressor) GetRuntimeMetrics() map[string]interface{} {
 	compressionRatio, _ := metrics["compression_ratio"].(float64)
 	avgDurationMS, _ := metrics["avg_duration_ms"].(int64)
 
-	return map[string]interface{}{
+	return map[string]any{
 		"total_responses":    totalResponses,
 		"compressed_count":   compressedCount,
 		"original_size":      metrics["original_size"],

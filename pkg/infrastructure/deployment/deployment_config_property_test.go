@@ -321,7 +321,7 @@ func TestPropertyConfigurationEnvironmentVariableParsing(t *testing.T) {
 		envVar   string
 		envValue string
 		key      string
-		expected interface{}
+		expected any
 	}{
 		{"API_PORT", "8080", "api_port", 8080},
 		{"API_PORT", "50051", "api_port", 50051},

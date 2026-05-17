@@ -13,6 +13,7 @@ import (
 // Validates that the system can recover from failures without data loss
 
 func TestProperty_FailureRecovery_CheckpointConsistency(t *testing.T) {
+	t.Parallel()
 	// Property: Saved checkpoints must be retrievable with identical state
 	rm := NewDefaultRecoveryManager(10, 5*time.Second)
 	ctx := context.Background()
@@ -27,9 +28,9 @@ func TestProperty_FailureRecovery_CheckpointConsistency(t *testing.T) {
 			LastProcessedTimestamp:   time.Now().Unix(),
 			ProcessedEventHashes:     make(map[string]bool),
 			PendingEvents:            make([]core.BlockchainEvent, 0),
-			CacheState:               make(map[string]interface{}),
-			QueueState:               make(map[string]interface{}),
-			DatabaseState:            make(map[string]interface{}),
+			CacheState:               make(map[string]any),
+			QueueState:               make(map[string]any),
+			DatabaseState:            make(map[string]any),
 		}
 
 		err := rm.SaveCheckpoint(ctx, state)
@@ -55,6 +56,7 @@ func TestProperty_FailureRecovery_CheckpointConsistency(t *testing.T) {
 }
 
 func TestProperty_FailureRecovery_StateValidation(t *testing.T) {
+	t.Parallel()
 	// Property: Invalid states must be rejected
 	rm := NewDefaultRecoveryManager(10, 5*time.Second)
 	ctx := context.Background()
@@ -64,25 +66,25 @@ func TestProperty_FailureRecovery_StateValidation(t *testing.T) {
 			LastProcessedBlockNumber: -1,
 			ProcessedEventHashes:     make(map[string]bool),
 			PendingEvents:            make([]core.BlockchainEvent, 0),
-			CacheState:               make(map[string]interface{}),
-			QueueState:               make(map[string]interface{}),
-			DatabaseState:            make(map[string]interface{}),
+			CacheState:               make(map[string]any),
+			QueueState:               make(map[string]any),
+			DatabaseState:            make(map[string]any),
 		},
 		{
 			LastProcessedBlockNumber: 100,
 			ProcessedEventHashes:     nil,
 			PendingEvents:            make([]core.BlockchainEvent, 0),
-			CacheState:               make(map[string]interface{}),
-			QueueState:               make(map[string]interface{}),
-			DatabaseState:            make(map[string]interface{}),
+			CacheState:               make(map[string]any),
+			QueueState:               make(map[string]any),
+			DatabaseState:            make(map[string]any),
 		},
 		{
 			LastProcessedBlockNumber: 100,
 			ProcessedEventHashes:     make(map[string]bool),
 			PendingEvents:            nil,
-			CacheState:               make(map[string]interface{}),
-			QueueState:               make(map[string]interface{}),
-			DatabaseState:            make(map[string]interface{}),
+			CacheState:               make(map[string]any),
+			QueueState:               make(map[string]any),
+			DatabaseState:            make(map[string]any),
 		},
 	}
 
@@ -95,6 +97,7 @@ func TestProperty_FailureRecovery_StateValidation(t *testing.T) {
 }
 
 func TestProperty_FailureRecovery_CheckpointHistory(t *testing.T) {
+	t.Parallel()
 	// Property: Checkpoint history must maintain insertion order and respect size limit
 	rm := NewDefaultRecoveryManager(5, 5*time.Second)
 	ctx := context.Background()
@@ -104,9 +107,9 @@ func TestProperty_FailureRecovery_CheckpointHistory(t *testing.T) {
 			LastProcessedBlockNumber: int64(i),
 			ProcessedEventHashes:     make(map[string]bool),
 			PendingEvents:            make([]core.BlockchainEvent, 0),
-			CacheState:               make(map[string]interface{}),
-			QueueState:               make(map[string]interface{}),
-			DatabaseState:            make(map[string]interface{}),
+			CacheState:               make(map[string]any),
+			QueueState:               make(map[string]any),
+			DatabaseState:            make(map[string]any),
 		}
 
 		err := rm.SaveCheckpoint(ctx, state)
@@ -135,6 +138,7 @@ func TestProperty_FailureRecovery_CheckpointHistory(t *testing.T) {
 }
 
 func TestProperty_FailureRecovery_RecoveryAttempts(t *testing.T) {
+	t.Parallel()
 	// Property: Recovery attempts must be tracked accurately
 	rm := NewDefaultRecoveryManager(10, 5*time.Second)
 	re := NewDefaultRecoveryExecutor(rm)
@@ -147,9 +151,9 @@ func TestProperty_FailureRecovery_RecoveryAttempts(t *testing.T) {
 			LastProcessedBlockNumber: int64(trial),
 			ProcessedEventHashes:     make(map[string]bool),
 			PendingEvents:            make([]core.BlockchainEvent, 0),
-			CacheState:               make(map[string]interface{}),
-			QueueState:               make(map[string]interface{}),
-			DatabaseState:            make(map[string]interface{}),
+			CacheState:               make(map[string]any),
+			QueueState:               make(map[string]any),
+			DatabaseState:            make(map[string]any),
 		}
 
 		err := rm.SaveCheckpoint(ctx, state)
@@ -172,6 +176,7 @@ func TestProperty_FailureRecovery_RecoveryAttempts(t *testing.T) {
 }
 
 func TestProperty_FailureRecovery_DataConsistency(t *testing.T) {
+	t.Parallel()
 	// Property: Recovered data must be consistent (no duplicate events)
 	rm := NewDefaultRecoveryManager(10, 5*time.Second)
 	re := NewDefaultRecoveryExecutor(rm)
@@ -187,9 +192,9 @@ func TestProperty_FailureRecovery_DataConsistency(t *testing.T) {
 			LastProcessedBlockNumber: int64(trial),
 			ProcessedEventHashes:     processedHashes,
 			PendingEvents:            make([]core.BlockchainEvent, 0),
-			CacheState:               make(map[string]interface{}),
-			QueueState:               make(map[string]interface{}),
-			DatabaseState:            make(map[string]interface{}),
+			CacheState:               make(map[string]any),
+			QueueState:               make(map[string]any),
+			DatabaseState:            make(map[string]any),
 		}
 
 		err := rm.SaveCheckpoint(ctx, state)
@@ -206,6 +211,7 @@ func TestProperty_FailureRecovery_DataConsistency(t *testing.T) {
 }
 
 func TestProperty_FailureRecovery_SafeStateTransitions(t *testing.T) {
+	t.Parallel()
 	// Property: Safe state transitions must be valid
 	ssm := NewDefaultSafeStateManager()
 	ctx := context.Background()
@@ -239,6 +245,7 @@ func TestProperty_FailureRecovery_SafeStateTransitions(t *testing.T) {
 }
 
 func TestProperty_FailureRecovery_CheckpointVerification(t *testing.T) {
+	t.Parallel()
 	// Property: All saved checkpoints must pass verification
 	rm := NewDefaultRecoveryManager(10, 5*time.Second)
 	ctx := context.Background()
@@ -248,9 +255,9 @@ func TestProperty_FailureRecovery_CheckpointVerification(t *testing.T) {
 			LastProcessedBlockNumber: int64(trial),
 			ProcessedEventHashes:     make(map[string]bool),
 			PendingEvents:            make([]core.BlockchainEvent, 0),
-			CacheState:               make(map[string]interface{}),
-			QueueState:               make(map[string]interface{}),
-			DatabaseState:            make(map[string]interface{}),
+			CacheState:               make(map[string]any),
+			QueueState:               make(map[string]any),
+			DatabaseState:            make(map[string]any),
 		}
 
 		err := rm.SaveCheckpoint(ctx, state)
@@ -267,6 +274,7 @@ func TestProperty_FailureRecovery_CheckpointVerification(t *testing.T) {
 }
 
 func TestProperty_FailureRecovery_HealthStatus(t *testing.T) {
+	t.Parallel()
 	// Property: Health status must reflect checkpoint availability
 	rm := NewDefaultRecoveryManager(10, 5*time.Second)
 	ctx := context.Background()
@@ -282,9 +290,9 @@ func TestProperty_FailureRecovery_HealthStatus(t *testing.T) {
 		LastProcessedBlockNumber: 100,
 		ProcessedEventHashes:     make(map[string]bool),
 		PendingEvents:            make([]core.BlockchainEvent, 0),
-		CacheState:               make(map[string]interface{}),
-		QueueState:               make(map[string]interface{}),
-		DatabaseState:            make(map[string]interface{}),
+		CacheState:               make(map[string]any),
+		QueueState:               make(map[string]any),
+		DatabaseState:            make(map[string]any),
 	}
 
 	err := rm.SaveCheckpoint(ctx, state)
@@ -299,6 +307,7 @@ func TestProperty_FailureRecovery_HealthStatus(t *testing.T) {
 }
 
 func TestProperty_FailureRecovery_ConcurrentCheckpoints(t *testing.T) {
+	t.Parallel()
 	// Property: Concurrent checkpoint operations must be safe
 	rm := NewDefaultRecoveryManager(10, 5*time.Second)
 	ctx := context.Background()
@@ -308,9 +317,9 @@ func TestProperty_FailureRecovery_ConcurrentCheckpoints(t *testing.T) {
 		LastProcessedBlockNumber: 100,
 		ProcessedEventHashes:     make(map[string]bool),
 		PendingEvents:            make([]core.BlockchainEvent, 0),
-		CacheState:               make(map[string]interface{}),
-		QueueState:               make(map[string]interface{}),
-		DatabaseState:            make(map[string]interface{}),
+		CacheState:               make(map[string]any),
+		QueueState:               make(map[string]any),
+		DatabaseState:            make(map[string]any),
 	}
 
 	err := rm.SaveCheckpoint(ctx, state)
@@ -356,6 +365,7 @@ func TestProperty_FailureRecovery_ConcurrentCheckpoints(t *testing.T) {
 }
 
 func TestProperty_FailureRecovery_RecoveryStats(t *testing.T) {
+	t.Parallel()
 	// Property: Recovery statistics must be accurate
 	rm := NewDefaultRecoveryManager(10, 5*time.Second)
 	re := NewDefaultRecoveryExecutor(rm)
@@ -366,9 +376,9 @@ func TestProperty_FailureRecovery_RecoveryStats(t *testing.T) {
 		LastProcessedBlockNumber: 100,
 		ProcessedEventHashes:     make(map[string]bool),
 		PendingEvents:            make([]core.BlockchainEvent, 0),
-		CacheState:               make(map[string]interface{}),
-		QueueState:               make(map[string]interface{}),
-		DatabaseState:            make(map[string]interface{}),
+		CacheState:               make(map[string]any),
+		QueueState:               make(map[string]any),
+		DatabaseState:            make(map[string]any),
 	}
 
 	err := rm.SaveCheckpoint(ctx, state)
@@ -395,6 +405,7 @@ func TestProperty_FailureRecovery_RecoveryStats(t *testing.T) {
 }
 
 func TestProperty_FailureRecovery_CheckpointTimestamp(t *testing.T) {
+	t.Parallel()
 	// Property: Checkpoint timestamps must be reasonable
 	rm := NewDefaultRecoveryManager(10, 5*time.Second)
 	ctx := context.Background()
@@ -404,9 +415,9 @@ func TestProperty_FailureRecovery_CheckpointTimestamp(t *testing.T) {
 			LastProcessedBlockNumber: int64(trial),
 			ProcessedEventHashes:     make(map[string]bool),
 			PendingEvents:            make([]core.BlockchainEvent, 0),
-			CacheState:               make(map[string]interface{}),
-			QueueState:               make(map[string]interface{}),
-			DatabaseState:            make(map[string]interface{}),
+			CacheState:               make(map[string]any),
+			QueueState:               make(map[string]any),
+			DatabaseState:            make(map[string]any),
 		}
 
 		err := rm.SaveCheckpoint(ctx, state)
@@ -429,6 +440,7 @@ func TestProperty_FailureRecovery_CheckpointTimestamp(t *testing.T) {
 }
 
 func TestProperty_FailureRecovery_DeleteCheckpointIdempotency(t *testing.T) {
+	t.Parallel()
 	// Property: Deleting a non-existent checkpoint should fail consistently
 	rm := NewDefaultRecoveryManager(10, 5*time.Second)
 	ctx := context.Background()
@@ -442,6 +454,7 @@ func TestProperty_FailureRecovery_DeleteCheckpointIdempotency(t *testing.T) {
 }
 
 func TestProperty_FailureRecovery_SafeStateReason(t *testing.T) {
+	t.Parallel()
 	// Property: Safe state reason must be preserved correctly
 	ssm := NewDefaultSafeStateManager()
 	ctx := context.Background()

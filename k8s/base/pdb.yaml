@@ -1,13 +1,24 @@
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
-  name: chainpulse-pdb
+  name: chainpulse-monolithic-pdb
   namespace: chainpulse
 spec:
-  minAvailable: 2
+  maxUnavailable: 1
   selector:
     matchLabels:
-      app: chainpulse
+      app: chainpulse-monolithic
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: chainpulse-microservice-pdb
+  namespace: chainpulse
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: chainpulse-microservice
 ---
 apiVersion: policy/v1
 kind: PodDisruptionBudget
@@ -30,3 +41,36 @@ spec:
   selector:
     matchLabels:
       app: redis
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: kafka-pdb
+  namespace: chainpulse
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: kafka
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: zookeeper-pdb
+  namespace: chainpulse
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: zookeeper
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: mongodb-pdb
+  namespace: chainpulse
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: mongodb

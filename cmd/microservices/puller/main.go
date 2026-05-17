@@ -7,16 +7,14 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"os/signal"
-	"strconv"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 
+	"chainpulse/pkg/application/bootstrap"
 	"chainpulse/pkg/core"
+	"chainpulse/pkg/env"
 	"chainpulse/pkg/infrastructure/database"
-	"chainpulse/pkg/plugins/api"
 	"chainpulse/pkg/plugins/mq"
 	"chainpulse/pkg/plugins/pullers"
 )
@@ -31,6 +29,17 @@ func main() {
 
 	// Load configuration from environment
 	config := loadPullerConfig()
+
+	if err := validatePullerConfig(config); err != nil {
+		fmt.Printf("config validation failed: %v\n", err)
+		os.Exit(1)
+	}
+
+	runtimeProfile := bootstrap.RuntimeProfileFromEnv()
+	if err := validatePullerProductionSecurity(config, runtimeProfile); err != nil {
+		fmt.Printf("production security validation failed: %v\n", err)
+		os.Exit(1)
+	}
 
 	// Print configuration
 	fmt.Println("Configuration Loaded:")
@@ -118,7 +127,15 @@ func main() {
 	checkpointSource := newPullerRuntimeCheckpointSource()
 	loopController := newPullerLoopController()
 	executionRuntime := newPullerExecutionRuntime(logger, metrics, kafkaMQ, config.OutputTopics)
-	authMiddleware, rateLimitMiddleware, err := buildPullerSecurityControls(config, logger, metrics)
+	authMiddleware, rateLimitMiddleware, err := bootstrap.BuildSecurityControls(bootstrap.SecurityControlsConfig{
+		AuthEnabled:        config.AuthEnabled,
+		AuthJWTSecret:      config.AuthJWTSecret,
+		AuthAPIKeys:        config.AuthAPIKeys,
+		RateLimitEnabled:   config.RateLimitEnabled,
+		RateLimitPerMinute: config.RateLimitPerMinute,
+		ServiceName:        "puller",
+		EnvPrefix:          "PULLER",
+	}, logger, metrics)
 	if err != nil {
 		logger.Error("Failed to build puller security controls", "error", err.Error())
 		os.Exit(1)
@@ -144,7 +161,6 @@ func main() {
 		logger.Error("Failed to initialize rollout health handler", "error", err.Error())
 		os.Exit(1)
 	}
-	_ = rolloutHealthHandler
 	runtimeHTTPServer := newPullerRuntimeHTTPServer(
 		config.Port,
 		rolloutHealthHandler,
@@ -244,14 +260,7 @@ func main() {
 	fmt.Println()
 
 	// Setup signal handling
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
-
-	// Wait for shutdown signal
-	sig := <-sigChan
-	fmt.Println()
-	fmt.Printf("Received signal: %v\n", sig)
-	fmt.Println()
+	_ = bootstrap.WaitForSignal()
 
 	// Graceful shutdown
 	fmt.Println("Shutting Down Services:")
@@ -279,21 +288,7 @@ func main() {
 	}
 	fmt.Println("  [3/3] Database manager closed")
 
-	// Wait for all goroutines to finish
-	done := make(chan struct{})
-	go func() {
-		wg.Wait()
-		close(done)
-	}()
-
-	select {
-	case <-done:
-		fmt.Println()
-		fmt.Println("✓ All services stopped successfully")
-	case <-shutdownCtx.Done():
-		fmt.Println()
-		fmt.Println("⚠ Shutdown timeout exceeded")
-	}
+	bootstrap.ShutdownWithTimeout(&wg, 30*time.Second)
 
 	fmt.Println()
 	fmt.Println("Status: Shutdown complete")
@@ -318,7 +313,7 @@ type PullerConfig struct {
 	WorkerThreads       int
 	LogLevel            string
 	AuthEnabled         bool
-	AuthJWTSecret       string
+	AuthJWTSecret       core.SecretString
 	AuthAPIKeys         []string
 	RateLimitEnabled    bool
 	RateLimitPerMinute  int
@@ -326,139 +321,83 @@ type PullerConfig struct {
 
 // loadPullerConfig loads configuration from environment variables
 func loadPullerConfig() PullerConfig {
-	instanceID := getEnv("HOSTNAME", "puller-1")
-	if id := getEnv("INSTANCE_ID", ""); id != "" {
+	instanceID := env.Get("HOSTNAME", "puller-1")
+	if id := env.Get("INSTANCE_ID", ""); id != "" {
 		instanceID = id
 	}
 
 	return PullerConfig{
-		Port:                getEnvInt("PULLER_PORT", 8083),
+		Port:                env.GetInt("PULLER_PORT", 8083),
 		InstanceID:          instanceID,
-		KafkaBrokers:        parseStringList(getEnv("KAFKA_BROKERS", "kafka-1:9092,kafka-2:9092,kafka-3:9092")),
-		ProducerGroup:       getEnv("KAFKA_PRODUCER_GROUP", "data-puller-producers"),
-		OutputTopics:        parseStringList(getEnv("KAFKA_OUTPUT_TOPICS", "raw-events,blockchain-events")),
-		BlockchainRPCs:      parseStringList(getEnv("BLOCKCHAIN_RPCS", "http://ethereum-rpc:8545,http://polygon-rpc:8545")),
-		PollInterval:        getEnvInt("POLL_INTERVAL", 12),
-		BlockConfirmation:   getEnvInt("BLOCK_CONFIRMATION", 12),
-		StateBackend:        getEnv("STATE_BACKEND", "redis"),
-		CheckpointInterval:  getEnvInt("STATE_CHECKPOINT_INTERVAL", 100),
-		ReorgDetectionDepth: getEnvInt("REORG_DETECTION_DEPTH", 256),
-		BatchSize:           getEnvInt("BATCH_SIZE", 100),
-		MaxRetries:          getEnvInt("MAX_RETRIES", 3),
-		WorkerThreads:       getEnvInt("WORKER_THREADS", 4),
-		LogLevel:            getEnv("LOG_LEVEL", "info"),
-		AuthEnabled:         parseBoolEnv("PULLER_AUTH_ENABLED", false),
-		AuthJWTSecret:       getEnv("PULLER_AUTH_JWT_SECRET", ""),
-		AuthAPIKeys:         parseStringList(getEnv("PULLER_AUTH_API_KEYS", "")),
-		RateLimitEnabled:    parseBoolEnv("PULLER_RATE_LIMIT_ENABLED", false),
-		RateLimitPerMinute:  getEnvInt("PULLER_RATE_LIMIT", 100),
+		KafkaBrokers:        env.GetCSV("KAFKA_BROKERS", []string{"kafka-1:9092", "kafka-2:9092", "kafka-3:9092"}),
+		ProducerGroup:       env.Get("KAFKA_PRODUCER_GROUP", "data-puller-producers"),
+		OutputTopics:        env.GetCSV("KAFKA_OUTPUT_TOPICS", []string{"raw-events", "blockchain-events"}),
+		BlockchainRPCs:      env.GetCSV("BLOCKCHAIN_RPCS", []string{"http://ethereum-rpc:8545", "http://polygon-rpc:8545"}),
+		PollInterval:        env.GetInt("POLL_INTERVAL", 12),
+		BlockConfirmation:   env.GetInt("BLOCK_CONFIRMATION", 12),
+		StateBackend:        env.Get("STATE_BACKEND", "redis"),
+		CheckpointInterval:  env.GetInt("STATE_CHECKPOINT_INTERVAL", 100),
+		ReorgDetectionDepth: env.GetInt("REORG_DETECTION_DEPTH", 256),
+		BatchSize:           env.GetInt("BATCH_SIZE", 100),
+		MaxRetries:          env.GetInt("MAX_RETRIES", 3),
+		WorkerThreads:       env.GetInt("WORKER_THREADS", 4),
+		LogLevel:            env.Get("LOG_LEVEL", "info"),
+		AuthEnabled:         env.GetBool("PULLER_AUTH_ENABLED", false),
+		AuthJWTSecret:       core.SecretString(env.Get("PULLER_AUTH_JWT_SECRET", "")),
+		AuthAPIKeys:         env.GetCSV("PULLER_AUTH_API_KEYS", nil),
+		RateLimitEnabled:    env.GetBool("PULLER_RATE_LIMIT_ENABLED", true),
+		RateLimitPerMinute:  env.GetInt("PULLER_RATE_LIMIT", 100),
 	}
 }
 
-// getEnv gets an environment variable with a default value
-func getEnv(key, defaultValue string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
+func validatePullerConfig(c PullerConfig) error {
+	if c.PollInterval < 1 {
+		return fmt.Errorf("POLL_INTERVAL must be >= 1 second, got %d", c.PollInterval)
 	}
-	return defaultValue
+	if c.WorkerThreads < 1 {
+		return fmt.Errorf("WORKER_THREADS must be >= 1, got %d", c.WorkerThreads)
+	}
+	if c.BatchSize < 1 {
+		return fmt.Errorf("BATCH_SIZE must be >= 1, got %d", c.BatchSize)
+	}
+	if c.MaxRetries < 1 {
+		return fmt.Errorf("MAX_RETRIES must be >= 1, got %d", c.MaxRetries)
+	}
+	if c.BlockConfirmation < 1 {
+		return fmt.Errorf("BLOCK_CONFIRMATION must be >= 1, got %d", c.BlockConfirmation)
+	}
+	if c.CheckpointInterval < 1 {
+		return fmt.Errorf("STATE_CHECKPOINT_INTERVAL must be >= 1, got %d", c.CheckpointInterval)
+	}
+	if c.ReorgDetectionDepth < 1 {
+		return fmt.Errorf("REORG_DETECTION_DEPTH must be >= 1, got %d", c.ReorgDetectionDepth)
+	}
+	if len(c.BlockchainRPCs) == 0 {
+		return fmt.Errorf("BLOCKCHAIN_RPCS must not be empty")
+	}
+	if c.AuthEnabled && strings.TrimSpace(c.AuthJWTSecret.Value()) == "" {
+		return fmt.Errorf("PULLER_AUTH_JWT_SECRET must not be empty when PULLER_AUTH_ENABLED is true")
+	}
+	return nil
 }
 
-// getEnvInt gets an environment variable as integer with a default value
-func getEnvInt(key string, defaultValue int) int {
-	if value := os.Getenv(key); value != "" {
-		if intVal, err := strconv.Atoi(value); err == nil {
-			return intVal
-		}
+func validatePullerProductionSecurity(c PullerConfig, runtimeProfile string) error {
+	if runtimeProfile != "production" {
+		return nil
 	}
-	return defaultValue
-}
-
-// parseStringList parses a comma-separated string into a slice
-//
-//nolint:wsl,nlreturn // Command config parsing is intentionally dense.
-func parseStringList(s string) []string {
-	var result []string
-	for _, item := range strings.Split(s, ",") {
-		if trimmed := strings.TrimSpace(item); trimmed != "" {
-			result = append(result, trimmed)
-		}
+	if !c.AuthEnabled {
+		return fmt.Errorf("production puller requires PULLER_AUTH_ENABLED=true")
 	}
-	return result
-}
-
-//nolint:wsl,nlreturn // Small env parser stays centralized in the command entrypoint.
-func parseBoolEnv(key string, defaultValue bool) bool {
-	value := strings.TrimSpace(strings.ToLower(os.Getenv(key)))
-	if value == "" {
-		return defaultValue
+	if strings.TrimSpace(c.AuthJWTSecret.Value()) == "" {
+		return fmt.Errorf("production puller requires non-empty PULLER_AUTH_JWT_SECRET")
 	}
-	switch value {
-	case "1", "true", "yes", "on":
-		return true
-	case "0", "false", "no", "off":
-		return false
-	default:
-		return defaultValue
+	if !c.RateLimitEnabled {
+		return fmt.Errorf("production puller requires PULLER_RATE_LIMIT_ENABLED=true")
 	}
-}
-
-//nolint:wsl,nlreturn // Command config parsing stays centralized here.
-func parseKeyValuePair(entry string) (string, string, bool) {
-	for _, separator := range []string{"=", ":"} {
-		if idx := strings.Index(entry, separator); idx > 0 && idx < len(entry)-1 {
-			key := strings.TrimSpace(entry[:idx])
-			clientID := strings.TrimSpace(entry[idx+1:])
-			if key != "" && clientID != "" {
-				return key, clientID, true
-			}
-		}
+	if c.RateLimitPerMinute <= 0 {
+		return fmt.Errorf("production puller requires PULLER_RATE_LIMIT > 0")
 	}
-	return "", "", false
-}
-
-//nolint:wsl,nlreturn // Security wiring stays centralized in the command entrypoint.
-//nolint:wsl,nlreturn // Security wiring stays centralized in the command entrypoint.
-func buildPullerSecurityControls(config PullerConfig, logger core.Logger, metrics core.MetricsCollector) (*api.AuthMiddleware, *api.RateLimitMiddleware, error) {
-	if !config.AuthEnabled && !config.RateLimitEnabled {
-		return nil, nil, nil
-	}
-
-	var authMiddleware *api.AuthMiddleware
-	if config.AuthEnabled {
-		if strings.TrimSpace(config.AuthJWTSecret) == "" {
-			return nil, nil, fmt.Errorf("puller auth is enabled but PULLER_AUTH_JWT_SECRET is empty")
-		}
-
-		tokenValidator := api.NewTokenValidator(config.AuthJWTSecret, logger, metrics)
-		for _, entry := range config.AuthAPIKeys {
-			apiKey, clientID, ok := parseKeyValuePair(entry)
-			if !ok {
-				return nil, nil, fmt.Errorf("invalid PULLER_AUTH_API_KEYS entry %q; expected key=clientID or key:clientID", entry)
-			}
-			if err := tokenValidator.RegisterAPIKey(apiKey, clientID, "operator"); err != nil {
-				return nil, nil, err
-			}
-		}
-
-		rbacChecker := api.NewRBACChecker(logger, metrics)
-		if err := rbacChecker.RegisterDefaultRoles(); err != nil {
-			return nil, nil, fmt.Errorf("failed to register default RBAC roles: %w", err)
-		}
-		auditLogger := api.NewAuditLogger(logger, metrics)
-		authMiddleware = api.NewAuthMiddleware(tokenValidator, rbacChecker, auditLogger, logger, metrics)
-	}
-
-	var rateLimitMiddleware *api.RateLimitMiddleware
-	if config.RateLimitEnabled {
-		rateLimiter := api.NewRateLimiter(logger, metrics, &api.RateLimitConfig{
-			DefaultRequestsPerSecond: api.RequestsPerMinuteToPerSecond(config.RateLimitPerMinute),
-			DefaultBurstSize:         api.BurstSizeFromRequestsPerMinute(config.RateLimitPerMinute),
-			CleanupInterval:          5 * time.Minute,
-		})
-		rateLimitMiddleware = api.NewRateLimitMiddleware(rateLimiter, logger)
-	}
-
-	return authMiddleware, rateLimitMiddleware, nil
+	return nil
 }
 
 // runPullerLoop runs the main polling loop for the data puller

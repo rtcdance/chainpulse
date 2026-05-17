@@ -11,7 +11,7 @@ import (
 	"chainpulse/pkg/plugins/api"
 	"chainpulse/pkg/services/indexing"
 
-	appindexingadapter "chainpulse/pkg/adapters/indexing"
+	appindexingadapter "chainpulse/pkg/application/bootstrap"
 )
 
 func TestMonolithicRuntimeControlRoute(t *testing.T) {
@@ -37,8 +37,8 @@ func TestMonolithicRuntimeControlRoute(t *testing.T) {
 	healthHandler := api.NewHealthCheckHandler(nil, logger, metrics)
 	healthHandler.InitializedForTests()
 	gateway.SetHealthCheckHandler(healthHandler)
-	gateway.SetRuntimeSummaryProvider(func(r *http.Request) interface{} {
-		return map[string]interface{}{"service": "monolithic"}
+	gateway.SetRuntimeSummaryProvider(func(r *http.Request) any {
+		return map[string]any{"service": "monolithic"}
 	})
 	gateway.SetRuntimeControlProvider(runtime.HandleRuntimeControl)
 

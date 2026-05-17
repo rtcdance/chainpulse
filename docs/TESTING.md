@@ -20,6 +20,10 @@ ChainPulse 测试体系包含三层：单元测试、集成测试、E2E 测试�
 /--------\  - Mock 外部依赖
 ```
 
+> **注意**: 当前集成测试使用 `docker-compose` 管理外部依赖。
+> `testcontainers-go` 已提出依赖审批（见 `docs/project/DEPENDENCY_APPROVAL.md`），
+> 审批通过后将迁移到原生 Go 容器管理，消除 `docker-compose` 的预启动需求。
+
 ## 目录结构
 
 ```

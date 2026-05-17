@@ -15,27 +15,25 @@ import (
 // GRPCPuller implements gRPC protocol for pulling blockchain events
 type GRPCPuller struct {
 	*BaseDataPullerPlugin
-	mu             sync.RWMutex
-	conn           *grpc.ClientConn
-	nodeURL        string
-	currentBlock   uint64
-	stopChan       chan bool
-	eventHandlers  []func(core.BlockchainEvent)
-	timestampCache map[uint64]int64 // blockNumber -> unix timestamp
-	requestCounter int64
-	errorCounter   int64
-	lastError      error
-	lastErrorTime  time.Time
-	pollInterval   time.Duration
-	connectionPool int
-	maxRetries     int
+	mu                     sync.RWMutex
+	conn                   *grpc.ClientConn
+	nodeURL                string
+	currentBlock           uint64
+	stopChan               chan bool
+	eventHandlers          []func(core.BlockchainEvent)
+	timestampCache         map[uint64]int64 // blockNumber -> unix timestamp
+	blockTimestampProvider func(context.Context, uint64) (int64, error)
+	requestCounter         int64
+	pollInterval           time.Duration
+	connectionPool         int
+	maxRetries             int
 }
 
 // GRPCBlockchainService represents a gRPC blockchain service client
 type GRPCBlockchainService interface {
 	GetLatestBlock(ctx context.Context) (uint64, error)
 	GetLogs(ctx context.Context, fromBlock, toBlock uint64) ([]Log, error)
-	Subscribe(ctx context.Context, filter map[string]interface{}) (string, error)
+	Subscribe(ctx context.Context, filter map[string]any) (string, error)
 	Unsubscribe(ctx context.Context, subscriptionID string) error
 }
 
@@ -73,6 +71,7 @@ func (p *GRPCPuller) Start() error {
 	}
 
 	p.LogInfo("gRPC puller started", "node_url", p.nodeURL)
+	p.LogWarn("gRPC puller is a placeholder implementation — not suitable for production critical path", "node_url", p.nodeURL)
 	return nil
 }
 
@@ -101,19 +100,17 @@ func (p *GRPCPuller) PullEvents(ctx context.Context, fromBlock, toBlock uint64) 
 		return nil, fmt.Errorf("gRPC connection not established")
 	}
 
-	events := make([]core.BlockchainEvent, 0)
-
 	// Simulate gRPC call to get logs
 	// In a real implementation, this would use a generated gRPC client
 	logs, err := p.getLogs(ctx, fromBlock, toBlock)
 	if err != nil {
-		p.errorCounter++
-		p.lastError = err
-		p.lastErrorTime = time.Now()
+		p.RecordError(err)
 		p.RecordMetric("pull_errors", int64(1), nil)
 		p.LogError("failed to get logs", "error", err.Error(), "from_block", fromBlock, "to_block", toBlock)
 		return nil, err
 	}
+
+	events := make([]core.BlockchainEvent, 0, len(logs))
 
 	// Convert logs to blockchain events
 	for _, log := range logs {
@@ -155,9 +152,7 @@ func (p *GRPCPuller) GetLatestBlock(ctx context.Context) (uint64, error) {
 		return err
 	})
 	if err != nil {
-		p.errorCounter++
-		p.lastError = err
-		p.lastErrorTime = time.Now()
+		p.RecordError(err)
 		p.RecordMetric("latest_block_errors", int64(1), nil)
 		p.LogError("failed to get latest block", "error", err.Error())
 		return 0, err
@@ -231,21 +226,16 @@ func (p *GRPCPuller) Poll(ctx context.Context) error {
 }
 
 // GetStats returns statistics about the puller
-func (p *GRPCPuller) GetStats() map[string]interface{} {
+func (p *GRPCPuller) GetStats() map[string]any {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
-	isConnected := p.conn != nil
-	return map[string]interface{}{
-		"node_url":        p.nodeURL,
-		"current_block":   p.currentBlock,
-		"request_count":   p.requestCounter,
-		"error_count":     p.errorCounter,
-		"last_error":      p.lastError,
-		"last_error_time": p.lastErrorTime,
-		"is_running":      p.IsRunning(),
-		"is_connected":    isConnected,
-	}
+	stats := p.BaseStats()
+	stats["node_url"] = p.nodeURL
+	stats["current_block"] = p.currentBlock
+	stats["request_count"] = p.requestCounter
+	stats["is_connected"] = p.conn != nil
+	return stats
 }
 
 // SetPollInterval sets the polling interval
@@ -267,6 +257,16 @@ func (p *GRPCPuller) SetMaxRetries(maxRetries int) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.maxRetries = maxRetries
+}
+
+// SetBlockTimestampProvider injects a custom block timestamp resolver.
+// When set, getBlockTimestampCached calls this provider on cache miss instead of
+// falling back to time.Now(). For production deployments, wire this to a gRPC
+// GetBlockTimestamp service method that queries the canonical chain.
+func (p *GRPCPuller) SetBlockTimestampProvider(provider func(context.Context, uint64) (int64, error)) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.blockTimestampProvider = provider
 }
 
 // connect establishes a gRPC connection
@@ -349,32 +349,16 @@ func (p *GRPCPuller) logToEvent(log Log) (core.BlockchainEvent, error) {
 
 	txHash := common.HexToHash(log.TxHash)
 	contractAddr := common.HexToAddress(log.Address)
-
-	// Decode hex data string to binary bytes for ABI decoding and storage
 	eventDataBytes := common.FromHex(log.Data)
-
-	// Get block timestamp from cache or fallback
 	blockTimestamp := p.getBlockTimestampCached(blockNumber)
 
-	event := core.BlockchainEvent{
-		ID:              fmt.Sprintf("%s-%s-%d", p.ChainID(), log.TxHash, logIndex),
-		BlockNumber:     blockNumber,
-		TransactionHash: txHash,
-		LogIndex:        logIndex,
-		ContractAddress: contractAddr,
-		EventName:       eventName,
-		EventSignature:  eventSig,
-		EventData:       eventDataBytes,
-		DecodedData:     core.DecodeEvent(eventName, eventTopics, eventDataBytes),
-		ChainID:         p.ChainID(),
-		Network:         p.Network(),
-		BlockTimestamp:  blockTimestamp,
-		Status:          core.EventStatusPending,
-	}
-
-	event.EventHash = p.GenerateEventHash(event)
-
-	return event, nil
+	return p.BuildBlockchainEvent(
+		p.ChainID(), p.Network(),
+		txHash, blockNumber, logIndex,
+		contractAddr, eventDataBytes,
+		eventTopics, eventName, eventSig,
+		blockTimestamp, false,
+	), nil
 }
 
 // getBlockTimestampCached returns block timestamp from cache, falling back to current time
@@ -382,14 +366,22 @@ func (p *GRPCPuller) logToEvent(log Log) (core.BlockchainEvent, error) {
 func (p *GRPCPuller) getBlockTimestampCached(blockNumber uint64) int64 {
 	p.mu.RLock()
 	ts, ok := p.timestampCache[blockNumber]
+	provider := p.blockTimestampProvider
 	p.mu.RUnlock()
 
 	if ok {
 		return ts
 	}
 
-	// Cache miss — no gRPC method available yet, use current time as fallback
-	// and cache it to avoid repeated time.Now() calls for the same block
+	if provider != nil {
+		if resolved, err := provider(context.Background(), blockNumber); err == nil {
+			p.mu.Lock()
+			p.timestampCache[blockNumber] = resolved
+			p.mu.Unlock()
+			return resolved
+		}
+	}
+
 	ts = time.Now().Unix()
 	p.mu.Lock()
 	p.timestampCache[blockNumber] = ts

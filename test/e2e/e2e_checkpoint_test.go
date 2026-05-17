@@ -119,18 +119,18 @@ func TestCheckpointScenarioFramework(t *testing.T) {
 // SimpleLogger is a simple logger implementation for testing
 type SimpleLogger struct{}
 
-func (sl *SimpleLogger) Infof(format string, args ...interface{}) {
+func (sl *SimpleLogger) Infof(format string, args ...any) {
 	// No-op for testing
 }
 
-func (sl *SimpleLogger) Warnf(format string, args ...interface{}) {
+func (sl *SimpleLogger) Warnf(format string, args ...any) {
 	// No-op for testing
 }
 
-func (sl *SimpleLogger) Errorf(format string, args ...interface{}) {
+func (sl *SimpleLogger) Errorf(format string, args ...any) {
 	// No-op for testing
 }
 
-func (sl *SimpleLogger) Debugf(format string, args ...interface{}) {
+func (sl *SimpleLogger) Debugf(format string, args ...any) {
 	// No-op for testing
 }

@@ -107,7 +107,7 @@ func TestHealthStatus(t *testing.T) {
 	status := HealthStatus{
 		Status:  "healthy",
 		Message: "System is running normally",
-		Details: map[string]interface{}{
+		Details: map[string]any{
 			"uptime": 3600,
 			"cpu":    45.5,
 		},

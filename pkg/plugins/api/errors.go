@@ -12,10 +12,11 @@ import (
 // APIError represents a structured API error with consistent JSON output.
 // All API handlers should use this type for error responses.
 type APIError struct {
-	Code    string `json:"error"`
-	Message string `json:"message"`
-	Status  int    `json:"statusCode"`
-	Err     error  `json:"-"` // underlying error, not exposed in JSON
+	Code    string         `json:"error"`
+	Message string         `json:"message"`
+	Status  int            `json:"statusCode"`
+	Details map[string]any `json:"details,omitempty"` // optional structured context
+	Err     error          `json:"-"`                 // underlying error, not exposed in JSON
 }
 
 // Error implements the error interface
@@ -125,6 +126,61 @@ func mapSystemError(se *core.SystemError) *APIError {
 		status = 500
 		code = "INTERNAL_SERVER_ERROR"
 		message = "configuration error"
+
+	// Web3-specific error codes
+	case core.ErrorCodeBlockNotFound:
+		status = 404
+		code = "BLOCK_NOT_FOUND"
+		message = se.Message
+	case core.ErrorCodeEventNotFound:
+		status = 404
+		code = "EVENT_NOT_FOUND"
+		message = se.Message
+	case core.ErrorCodeChainNotFound:
+		status = 404
+		code = "CHAIN_NOT_FOUND"
+		message = se.Message
+	case core.ErrorCodeChainNotSupported:
+		status = 400
+		code = "CHAIN_NOT_SUPPORTED"
+		message = se.Message
+	case core.ErrorCodeTxNotFound:
+		status = 404
+		code = "TRANSACTION_NOT_FOUND"
+		message = se.Message
+	case core.ErrorCodeContractNotFound:
+		status = 404
+		code = "CONTRACT_NOT_FOUND"
+		message = se.Message
+	case core.ErrorCodeRPCError:
+		status = 502
+		code = "RPC_ERROR"
+		message = se.Message
+	case core.ErrorCodeRPCRateLimited:
+		status = 429
+		code = "RPC_RATE_LIMITED"
+		message = se.Message
+	case core.ErrorCodeEventDecodeFailed:
+		status = 422
+		code = "EVENT_DECODE_FAILED"
+		message = se.Message
+	case core.ErrorCodeABINotFound:
+		status = 404
+		code = "ABI_NOT_FOUND"
+		message = se.Message
+	case core.ErrorCodeFinalityNotReady:
+		status = 409
+		code = "FINALITY_NOT_READY"
+		message = se.Message
+	case core.ErrorCodeReorgDetected:
+		status = 409
+		code = "REORG_DETECTED"
+		message = se.Message
+	case core.ErrorCodeInvalidEventData:
+		status = 422
+		code = "INVALID_EVENT_DATA"
+		message = se.Message
+
 	default:
 		// Fallback by type
 		if se.IsTransient() {

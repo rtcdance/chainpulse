@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math/bits"
+	"strconv"
 	"sync"
 	"time"
 
@@ -119,9 +120,7 @@ func (p *DefaultEventProcessor) Initialize(config *core.Config) error {
 	p.config = config
 	p.initialized = true
 
-	p.logger.Info("Event processor initialized", map[string]interface{}{
-		"component": "event_processor",
-	})
+	p.logger.Info("Event processor initialized", core.LogKeyComponent, "event_processor")
 
 	return nil
 }
@@ -145,9 +144,7 @@ func (p *DefaultEventProcessor) Start() error {
 		Message: "Event processor started",
 	}
 
-	p.logger.Info("Event processor started", map[string]interface{}{
-		"component": "event_processor",
-	})
+	p.logger.Info("Event processor started", core.LogKeyComponent, "event_processor")
 
 	return nil
 }
@@ -167,9 +164,7 @@ func (p *DefaultEventProcessor) Stop() error {
 		Message: "Event processor stopped",
 	}
 
-	p.logger.Info("Event processor stopped", map[string]interface{}{
-		"component": "event_processor",
-	})
+	p.logger.Info("Event processor stopped", core.LogKeyComponent, "event_processor")
 
 	return nil
 }
@@ -226,6 +221,7 @@ func (p *DefaultEventProcessor) ProcessEvent(ctx context.Context, event *core.Bl
 	p.mu.RLock()
 	if !p.running {
 		p.mu.RUnlock()
+		p.logger.Warn("ProcessEvent rejected: processor not running", core.LogKeyEventID, event.ID)
 		return fmt.Errorf("event processor not running")
 	}
 	p.mu.RUnlock()
@@ -240,10 +236,7 @@ func (p *DefaultEventProcessor) ProcessEvent(ctx context.Context, event *core.Bl
 			"network": event.Network,
 		})
 
-		p.logger.Error("Event validation failed", map[string]interface{}{
-			"error":   err.Error(),
-			"network": event.Network,
-		})
+		p.logger.Error("Event validation failed", core.LogKeyError, err, core.LogKeyNetwork, event.Network)
 
 		return err
 	}
@@ -258,6 +251,8 @@ func (p *DefaultEventProcessor) ProcessEvent(ctx context.Context, event *core.Bl
 		p.metricsCollector.RecordCounter("event_processor_hash_generation_failed", 1, map[string]string{
 			"network": event.Network,
 		})
+
+		p.logger.Error("Hash generation failed", core.LogKeyError, err, core.LogKeyNetwork, event.Network, core.LogKeyEventID, event.ID)
 
 		return err
 	}
@@ -281,10 +276,7 @@ func (p *DefaultEventProcessor) ProcessEvent(ctx context.Context, event *core.Bl
 			"network": event.Network,
 		})
 
-		p.logger.Info("Duplicate event detected", map[string]interface{}{
-			"hash":    hash,
-			"network": event.Network,
-		})
+		p.logger.Info("Duplicate event detected", core.LogKeyHash, hash, core.LogKeyNetwork, event.Network)
 
 		return nil
 	}
@@ -300,26 +292,32 @@ func (p *DefaultEventProcessor) ProcessEvent(ctx context.Context, event *core.Bl
 			"network": event.Network,
 		})
 
-		p.logger.Error("Event storage failed", map[string]interface{}{
-			"error":   err.Error(),
-			"network": event.Network,
-		})
+		p.logger.Error("Event storage failed", core.LogKeyError, err, core.LogKeyNetwork, event.Network)
 
 		return err
 	}
 
-	// Mark as processed
+	// Mark as processed with retry
 	err = p.idempotencyService.MarkProcessed(ctx, hash)
+	for attempt := 0; attempt < p.maxRetries && err != nil; attempt++ {
+		if ctx.Err() != nil {
+			break
+		}
+		select {
+		case <-ctx.Done():
+			break
+		case <-time.After(p.retryDelay):
+		}
+		err = p.idempotencyService.MarkProcessed(ctx, hash)
+	}
 	if err != nil {
-		p.logger.Error("Failed to mark event as processed", map[string]interface{}{
-			"error": err.Error(),
-		})
+		p.logger.Error("Failed to mark event as processed after retries",
+			core.LogKeyError, err, "attempts", p.maxRetries)
 	}
 
 	// Update cache
 	if p.cachePlugin != nil {
-		cacheKey := fmt.Sprintf("event:%s:%d:%s", event.Network, event.BlockNumber, event.TransactionHash.Hex())
-		// Serialize event to bytes (simplified - in production use proper serialization)
+		cacheKey := "event:" + event.Network + ":" + strconv.FormatUint(event.BlockNumber, 10) + ":" + event.TransactionHash.Hex()
 		eventBytes := []byte(fmt.Sprintf("%v", event))
 		cacheEntry := &core.CacheEntry{
 			Key:   cacheKey,
@@ -329,9 +327,7 @@ func (p *DefaultEventProcessor) ProcessEvent(ctx context.Context, event *core.Bl
 
 		err = p.cachePlugin.Set(cacheEntry)
 		if err != nil {
-			p.logger.Error("Failed to update cache", map[string]interface{}{
-				"error": err.Error(),
-			})
+			p.logger.Error("Failed to update cache", core.LogKeyError, err)
 		}
 	}
 
@@ -343,10 +339,7 @@ func (p *DefaultEventProcessor) ProcessEvent(ctx context.Context, event *core.Bl
 		"network": event.Network,
 	})
 
-	p.logger.Info("Event processed successfully", map[string]interface{}{
-		"network":     event.Network,
-		"blockNumber": event.BlockNumber,
-	})
+	p.logger.Info("Event processed successfully", core.LogKeyNetwork, event.Network, core.LogKeyBlockNumber, event.BlockNumber)
 
 	return nil
 }
@@ -370,6 +363,7 @@ func (p *DefaultEventProcessor) ProcessBatch(ctx context.Context, events []*core
 	for _, event := range events {
 		// Check context cancellation between events in the batch
 		if err := ctx.Err(); err != nil {
+			p.logger.Warn("Batch cancelled", core.LogKeyError, err, core.LogKeyBatchSize, len(events), core.LogKeyProcessed, successCount+failureCount)
 			return fmt.Errorf("batch processing cancelled: %w", err)
 		}
 
@@ -442,6 +436,7 @@ func (p *DefaultEventProcessor) validateEvent(event *core.BlockchainEvent) error
 // Uses context-aware backoff instead of time.Sleep for graceful shutdown support.
 func (p *DefaultEventProcessor) storeEventWithRetry(ctx context.Context, event *core.BlockchainEvent) error {
 	if p.databasePlugin == nil {
+		p.logger.Error("database plugin is required for event storage", core.LogKeyEventID, event.ID)
 		return fmt.Errorf("database plugin is required")
 	}
 
@@ -469,10 +464,7 @@ func (p *DefaultEventProcessor) storeEventWithRetry(ctx context.Context, event *
 
 		lastErr = err
 
-		p.logger.Warn("Event storage attempt failed", map[string]interface{}{
-			"attempt": attempt + 1,
-			"error":   err.Error(),
-		})
+		p.logger.Warn("Event storage attempt failed", core.LogKeyAttempt, attempt+1, core.LogKeyError, err)
 	}
 
 	return lastErr

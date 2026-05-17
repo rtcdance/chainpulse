@@ -12,6 +12,7 @@ import (
 
 // TestNewMicroserviceInitializer tests initializer creation
 func TestNewMicroserviceInitializer(t *testing.T) {
+	t.Parallel()
 	config := &DeploymentConfig{
 		Mode:                    MicroserviceMode,
 		ServiceName:             "test-service",
@@ -27,6 +28,7 @@ func TestNewMicroserviceInitializer(t *testing.T) {
 
 // TestInitialize tests microservice initialization
 func TestMicroserviceInitializerInitialize(t *testing.T) {
+	t.Parallel()
 	config := &DeploymentConfig{
 		Mode:                    MicroserviceMode,
 		ServiceName:             "test-service",
@@ -43,6 +45,7 @@ func TestMicroserviceInitializerInitialize(t *testing.T) {
 
 // TestInitializeWithTimeout tests initialization with timeout
 func TestInitializeWithTimeout(t *testing.T) {
+	t.Parallel()
 	config := &DeploymentConfig{
 		Mode:                    MicroserviceMode,
 		ServiceName:             "test-service",
@@ -61,6 +64,7 @@ func TestInitializeWithTimeout(t *testing.T) {
 
 // TestInitializeWithCancelledContext tests initialization with cancelled context
 func TestInitializeWithCancelledContext(t *testing.T) {
+	t.Parallel()
 	config := &DeploymentConfig{
 		Mode:                    MicroserviceMode,
 		ServiceName:             "test-service",
@@ -79,6 +83,7 @@ func TestInitializeWithCancelledContext(t *testing.T) {
 
 // TestHealthCheck tests health check
 func TestMicroserviceInitializerHealthCheck(t *testing.T) {
+	t.Parallel()
 	config := &DeploymentConfig{
 		Mode:                    MicroserviceMode,
 		ServiceName:             "test-service",
@@ -96,6 +101,7 @@ func TestMicroserviceInitializerHealthCheck(t *testing.T) {
 
 // TestHealthCheckNotInitialized tests health check without initialization
 func TestHealthCheckNotInitialized(t *testing.T) {
+	t.Parallel()
 	config := &DeploymentConfig{
 		Mode:                    MicroserviceMode,
 		ServiceName:             "test-service",
@@ -112,6 +118,7 @@ func TestHealthCheckNotInitialized(t *testing.T) {
 
 // TestGetMetrics tests metrics retrieval
 func TestMicroserviceInitializerGetMetrics(t *testing.T) {
+	t.Parallel()
 	config := &DeploymentConfig{
 		Mode:                    MicroserviceMode,
 		ServiceName:             "test-service",
@@ -129,6 +136,7 @@ func TestMicroserviceInitializerGetMetrics(t *testing.T) {
 
 // TestGetRegisteredServices tests getting registered services
 func TestMicroserviceInitializerGetRegisteredServices(t *testing.T) {
+	t.Parallel()
 	config := &DeploymentConfig{
 		Mode:                    MicroserviceMode,
 		ServiceName:             "test-service",
@@ -145,6 +153,7 @@ func TestMicroserviceInitializerGetRegisteredServices(t *testing.T) {
 
 // TestShutdown tests graceful shutdown
 func TestMicroserviceInitializerShutdown(t *testing.T) {
+	t.Parallel()
 	config := &DeploymentConfig{
 		Mode:                    MicroserviceMode,
 		ServiceName:             "test-service",
@@ -162,6 +171,7 @@ func TestMicroserviceInitializerShutdown(t *testing.T) {
 
 // TestShutdownWithTimeout tests shutdown with timeout
 func TestShutdownWithTimeout(t *testing.T) {
+	t.Parallel()
 	config := &DeploymentConfig{
 		Mode:                    MicroserviceMode,
 		ServiceName:             "test-service",
@@ -181,6 +191,7 @@ func TestShutdownWithTimeout(t *testing.T) {
 
 // TestMultipleHealthChecks tests multiple health checks
 func TestMultipleHealthChecks(t *testing.T) {
+	t.Parallel()
 	config := &DeploymentConfig{
 		Mode:                    MicroserviceMode,
 		ServiceName:             "test-service",
@@ -199,6 +210,7 @@ func TestMultipleHealthChecks(t *testing.T) {
 
 // TestConcurrentHealthChecks tests concurrent health checks
 func TestConcurrentHealthChecks(t *testing.T) {
+	t.Parallel()
 	config := &DeploymentConfig{
 		Mode:                    MicroserviceMode,
 		ServiceName:             "test-service",
@@ -228,6 +240,7 @@ func TestConcurrentHealthChecks(t *testing.T) {
 
 // TestInitializationMetrics tests initialization metrics
 func TestInitializationMetrics(t *testing.T) {
+	t.Parallel()
 	config := &DeploymentConfig{
 		Mode:                    MicroserviceMode,
 		ServiceName:             "test-service",
@@ -244,6 +257,7 @@ func TestInitializationMetrics(t *testing.T) {
 
 // TestServiceRegistry tests service registry initialization
 func TestServiceRegistry(t *testing.T) {
+	t.Parallel()
 	config := &DeploymentConfig{
 		Mode:                    MicroserviceMode,
 		ServiceName:             "test-service",
@@ -258,6 +272,7 @@ func TestServiceRegistry(t *testing.T) {
 
 // TestMessageQueue tests message queue initialization
 func TestMessageQueue(t *testing.T) {
+	t.Parallel()
 	config := &DeploymentConfig{
 		Mode:                    MicroserviceMode,
 		ServiceName:             "test-service",
@@ -272,6 +287,7 @@ func TestMessageQueue(t *testing.T) {
 
 // TestDistributedCache tests distributed cache initialization
 func TestDistributedCache(t *testing.T) {
+	t.Parallel()
 	config := &DeploymentConfig{
 		Mode:                    MicroserviceMode,
 		ServiceName:             "test-service",
@@ -286,6 +302,7 @@ func TestDistributedCache(t *testing.T) {
 
 // TestShutdownClearsServices tests that shutdown clears services
 func TestShutdownClearsServices(t *testing.T) {
+	t.Parallel()
 	config := &DeploymentConfig{
 		Mode:                    MicroserviceMode,
 		ServiceName:             "test-service",
@@ -305,6 +322,7 @@ func TestShutdownClearsServices(t *testing.T) {
 
 // TestShutdownClearsInfrastructure tests that shutdown clears infrastructure
 func TestShutdownClearsInfrastructure(t *testing.T) {
+	t.Parallel()
 	config := &DeploymentConfig{
 		Mode:                    MicroserviceMode,
 		ServiceName:             "test-service",
@@ -327,6 +345,7 @@ func TestShutdownClearsInfrastructure(t *testing.T) {
 
 // TestMetricsLastHealthCheckTime tests last health check time tracking
 func TestMetricsLastHealthCheckTime(t *testing.T) {
+	t.Parallel()
 	config := &DeploymentConfig{
 		Mode:                    MicroserviceMode,
 		ServiceName:             "test-service",
@@ -346,6 +365,7 @@ func TestMetricsLastHealthCheckTime(t *testing.T) {
 
 // TestGetMetricsContent tests metrics content
 func TestGetMetricsContent(t *testing.T) {
+	t.Parallel()
 	config := &DeploymentConfig{
 		Mode:                    MicroserviceMode,
 		ServiceName:             "test-service",
@@ -368,6 +388,7 @@ func TestGetMetricsContent(t *testing.T) {
 
 // TestInitializeServices tests that all expected services are registered
 func TestInitializeServices(t *testing.T) {
+	t.Parallel()
 	config := &DeploymentConfig{
 		Mode:                    MicroserviceMode,
 		ServiceName:             "test-service",

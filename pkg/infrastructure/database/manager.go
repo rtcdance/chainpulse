@@ -21,18 +21,18 @@ type DatabaseManager interface {
 	Initialize(ctx context.Context) error
 
 	// MongoDB operations
-	GetMongoClient(ctx context.Context) (interface{}, error)
+	GetMongoClient(ctx context.Context) (any, error)
 	GetMongoDatabase(name string) *mongo.Database
 
 	// PostgreSQL operations
-	GetPostgresDB(ctx context.Context) (interface{}, error)
+	GetPostgresDB(ctx context.Context) (any, error)
 
 	// Health checks
 	CheckMongoHealth(ctx context.Context) error
 	CheckPostgresHealth(ctx context.Context) error
 
 	// Health returns the health status
-	Health(ctx context.Context) interface{}
+	Health(ctx context.Context) any
 
 	// Lifecycle
 	Close(ctx context.Context) error
@@ -179,7 +179,7 @@ func (m *DefaultDatabaseManager) initPostgres(ctx context.Context) error {
 }
 
 // GetMongoClient returns the MongoDB client
-func (m *DefaultDatabaseManager) GetMongoClient(ctx context.Context) (interface{}, error) {
+func (m *DefaultDatabaseManager) GetMongoClient(ctx context.Context) (any, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -207,7 +207,7 @@ func (m *DefaultDatabaseManager) GetMongoDatabase(name string) *mongo.Database {
 }
 
 // GetPostgresDB returns the PostgreSQL database connection
-func (m *DefaultDatabaseManager) GetPostgresDB(ctx context.Context) (interface{}, error) {
+func (m *DefaultDatabaseManager) GetPostgresDB(ctx context.Context) (any, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -253,12 +253,12 @@ func (m *DefaultDatabaseManager) CheckPostgresHealth(ctx context.Context) error 
 }
 
 // Health returns the health status
-func (m *DefaultDatabaseManager) Health(ctx context.Context) interface{} {
+func (m *DefaultDatabaseManager) Health(ctx context.Context) any {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
 	if !m.initialized {
-		return map[string]interface{}{
+		return map[string]any{
 			"status": "unhealthy",
 			"reason": "not initialized",
 		}
@@ -268,13 +268,13 @@ func (m *DefaultDatabaseManager) Health(ctx context.Context) interface{} {
 	postgresHealthy := m.postgresClient != nil
 
 	if !mongoHealthy && !postgresHealthy {
-		return map[string]interface{}{
+		return map[string]any{
 			"status": "unhealthy",
 			"reason": "both databases unavailable",
 		}
 	}
 
-	return map[string]interface{}{
+	return map[string]any{
 		"status":   "healthy",
 		"mongodb":  mongoHealthy,
 		"postgres": postgresHealthy,

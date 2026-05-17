@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"sync"
+	"time"
 
 	corelib "chainpulse/pkg/core"
 	domainquery "chainpulse/pkg/domain/query"
@@ -28,8 +29,8 @@ type APIGatewayPlugin struct {
 	upstreamQueryHTTPClient       *http.Client
 	upstreamQueryHealthHTTPClient *http.Client
 	upstreamQueryHealthHeaders    map[string]string
-	runtimeMetricsProvider        func(*http.Request) interface{}
-	runtimeSummaryProvider        func(*http.Request) interface{}
+	runtimeMetricsProvider        func(*http.Request) any
+	runtimeSummaryProvider        func(*http.Request) any
 	runtimeControlProvider        func(http.ResponseWriter, *http.Request)
 	runtimeReplayProvider         func(http.ResponseWriter, *http.Request)
 	authMiddleware                *AuthMiddleware
@@ -154,14 +155,14 @@ func (g *APIGatewayPlugin) SetUpstreamQueryHealthHeaders(headers map[string]stri
 }
 
 // SetRuntimeSummaryProvider sets an optional read-only runtime summary provider.
-func (g *APIGatewayPlugin) SetRuntimeSummaryProvider(provider func(*http.Request) interface{}) {
+func (g *APIGatewayPlugin) SetRuntimeSummaryProvider(provider func(*http.Request) any) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	g.runtimeSummaryProvider = provider
 }
 
 // SetRuntimeMetricsProvider sets an optional read-only runtime metrics provider.
-func (g *APIGatewayPlugin) SetRuntimeMetricsProvider(provider func(*http.Request) interface{}) {
+func (g *APIGatewayPlugin) SetRuntimeMetricsProvider(provider func(*http.Request) any) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	g.runtimeMetricsProvider = provider
@@ -397,12 +398,7 @@ func (g *APIGatewayPlugin) Initialize(config corelib.Config) error {
 
 	g.initialized = true
 
-	g.logger.Info("API gateway initialized", map[string]interface{}{
-		"component":               "api_gateway",
-		"domain_bridge_enabled":   g.domainBridgeEnabled,
-		"event_query_handler_set": g.eventQueryEnabled,
-		"runtime_routes_enabled":  g.runtimeRoutesEnabled,
-	})
+	g.logger.Info("API gateway initialized", corelib.LogKeyComponent, "api_gateway", "domain_bridge_enabled", g.domainBridgeEnabled, "event_query_handler_set", g.eventQueryEnabled, "runtime_routes_enabled", g.runtimeRoutesEnabled)
 
 	return nil
 }
@@ -452,13 +448,7 @@ func (g *APIGatewayPlugin) Start() error {
 
 	g.running = true
 
-	g.logger.Info("API gateway started", map[string]interface{}{
-		"component":               "api_gateway",
-		"port":                    8080,
-		"domain_bridge_enabled":   g.domainBridgeEnabled,
-		"event_query_handler_set": g.eventQueryEnabled,
-		"runtime_routes_enabled":  g.runtimeRoutesEnabled,
-	})
+	g.logger.Info("API gateway started", corelib.LogKeyComponent, "api_gateway", corelib.LogKeyPort, 8080, "domain_bridge_enabled", g.domainBridgeEnabled, "event_query_handler_set", g.eventQueryEnabled, "runtime_routes_enabled", g.runtimeRoutesEnabled)
 
 	return nil
 }
@@ -484,9 +474,7 @@ func (g *APIGatewayPlugin) ShutdownWithContext(ctx context.Context) error {
 
 	g.running = false
 
-	g.logger.Info("API gateway stopped", map[string]interface{}{
-		"component": "api_gateway",
-	})
+	g.logger.Info("API gateway stopped", corelib.LogKeyComponent, "api_gateway")
 
 	return nil
 }

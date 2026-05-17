@@ -158,7 +158,7 @@ func (am *APIMetrics) RecordLatency(latency time.Duration) {
 }
 
 // GetMetrics returns current metrics
-func (am *APIMetrics) GetMetrics() map[string]interface{} {
+func (am *APIMetrics) GetMetrics() map[string]any {
 	am.mutex.RLock()
 	defer am.mutex.RUnlock()
 
@@ -167,7 +167,7 @@ func (am *APIMetrics) GetMetrics() map[string]interface{} {
 		avgLatency = am.totalLatency / am.totalRequests
 	}
 
-	return map[string]interface{}{
+	return map[string]any{
 		"total_requests": am.totalRequests,
 		"total_errors":   am.totalErrors,
 		"avg_latency_ms": avgLatency,
@@ -240,7 +240,7 @@ func (agc *APIGatewayCluster) ListGateways() []*APIGateway {
 }
 
 // GetClusterMetrics gets metrics from all gateways
-func (agc *APIGatewayCluster) GetClusterMetrics() map[string]interface{} {
+func (agc *APIGatewayCluster) GetClusterMetrics() map[string]any {
 	agc.mutex.RLock()
 	defer agc.mutex.RUnlock()
 
@@ -257,7 +257,7 @@ func (agc *APIGatewayCluster) GetClusterMetrics() map[string]interface{} {
 		}
 	}
 
-	return map[string]interface{}{
+	return map[string]any{
 		"total_requests": totalRequests,
 		"total_errors":   totalErrors,
 		"gateway_count":  len(agc.gateways),

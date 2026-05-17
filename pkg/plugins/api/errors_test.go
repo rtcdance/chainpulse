@@ -6,6 +6,7 @@ import (
 )
 
 func TestAPIError_Unwrap(t *testing.T) {
+	t.Parallel()
 	inner := errors.New("database connection lost")
 	ae := &APIError{
 		Code:    "SERVICE_UNAVAILABLE",
@@ -26,6 +27,7 @@ func TestAPIError_Unwrap(t *testing.T) {
 }
 
 func TestAPIError_UnwrapNil(t *testing.T) {
+	t.Parallel()
 	ae := ErrNotFound("block")
 	if err := ae.(*APIError).Unwrap(); err != nil {
 		t.Errorf("Unwrap() should return nil when no inner error, got %v", err)
@@ -33,6 +35,7 @@ func TestAPIError_UnwrapNil(t *testing.T) {
 }
 
 func TestAPIError_ErrorWithWrap(t *testing.T) {
+	t.Parallel()
 	inner := errors.New("connection refused")
 	ae := &APIError{
 		Code:    "BAD_GATEWAY",
@@ -47,6 +50,7 @@ func TestAPIError_ErrorWithWrap(t *testing.T) {
 }
 
 func TestAPIError_ErrorWithoutWrap(t *testing.T) {
+	t.Parallel()
 	ae := ErrInvalidRequest("missing field")
 	msg := ae.Error()
 	if msg == "" {
@@ -55,6 +59,7 @@ func TestAPIError_ErrorWithoutWrap(t *testing.T) {
 }
 
 func TestAPIError_ErrorsIsChain(t *testing.T) {
+	t.Parallel()
 	inner := errors.New("timeout")
 	wrapped := &APIError{
 		Code:    "GATEWAY_TIMEOUT",
@@ -76,6 +81,7 @@ func TestAPIError_ErrorsIsChain(t *testing.T) {
 }
 
 func TestAPIError_ToJSONWithoutErr(t *testing.T) {
+	t.Parallel()
 	ae := &APIError{
 		Code:    "NOT_FOUND",
 		Message: "resource not found",

@@ -52,8 +52,10 @@ func (p *pullerExecutionTestPlugin) SubscribeToEvents(ctx context.Context, handl
 	return nil
 }
 
-func (p *pullerExecutionTestPlugin) GetStats() map[string]interface{} {
-	return map[string]interface{}{}
+func (p *pullerExecutionTestPlugin) ChainID() string { return p.name }
+
+func (p *pullerExecutionTestPlugin) GetStats() map[string]any {
+	return map[string]any{}
 }
 func (p *pullerExecutionTestPlugin) GetLastBlockNumber() uint64      { return p.lastBlock }
 func (p *pullerExecutionTestPlugin) SetLastBlockNumber(block uint64) { p.lastBlock = block }

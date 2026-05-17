@@ -26,10 +26,10 @@ type DecodedContractEvent struct {
 	BlockNumber      uint64
 	BlockTimestamp   int64
 	TransactionHash  common.Hash
-	LogIndex uint64
-	Parameters       map[string]interface{}
-	IndexedParams    map[string]interface{}
-	NonIndexedParams map[string]interface{}
+	LogIndex         uint64
+	Parameters       map[string]any
+	IndexedParams    map[string]any
+	NonIndexedParams map[string]any
 	RawEvent         *core.BlockchainEvent
 }
 
@@ -222,9 +222,9 @@ func (gci *GenericContractIndexer) decodeEvent(
 		BlockTimestamp:   event.BlockTimestamp,
 		TransactionHash:  event.TransactionHash,
 		LogIndex:         event.LogIndex,
-		Parameters:       make(map[string]interface{}),
-		IndexedParams:    make(map[string]interface{}),
-		NonIndexedParams: make(map[string]interface{}),
+		Parameters:       make(map[string]any),
+		IndexedParams:    make(map[string]any),
+		NonIndexedParams: make(map[string]any),
 		RawEvent:         event,
 	}
 
@@ -325,11 +325,11 @@ func (gci *GenericContractIndexer) SetContractMetadata(metadata *ContractMetadat
 }
 
 // GetCacheStats returns cache statistics
-func (gci *GenericContractIndexer) GetCacheStats() map[string]interface{} {
+func (gci *GenericContractIndexer) GetCacheStats() map[string]any {
 	gci.mu.RLock()
 	defer gci.mu.RUnlock()
 
-	return map[string]interface{}{
+	return map[string]any{
 		"cached_events":     len(gci.eventCache),
 		"registered_abis":   len(gci.contractABIs),
 		"event_handlers":    len(gci.eventHandlers),

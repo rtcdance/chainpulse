@@ -273,7 +273,7 @@ func (s *RetryStats) RecordExhausted() {
 }
 
 // GetStats returns retry statistics
-func (s *RetryStats) GetStats() map[string]interface{} {
+func (s *RetryStats) GetStats() map[string]any {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -282,7 +282,7 @@ func (s *RetryStats) GetStats() map[string]interface{} {
 		successRate = float64(s.SuccessfulRetries) / float64(s.TotalAttempts) * 100
 	}
 
-	return map[string]interface{}{
+	return map[string]any{
 		"total_attempts":     s.TotalAttempts,
 		"successful_retries": s.SuccessfulRetries,
 		"failed_retries":     s.FailedRetries,

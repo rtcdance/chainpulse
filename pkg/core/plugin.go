@@ -67,14 +67,15 @@ type PluginRegistry interface {
 type ConfigManager interface {
 	Load() (Config, error)
 	Validate(config Config) error
-	Get(key string) (interface{}, error)
-	Set(key string, value interface{}) error
+	Get(key string) (any, error)
+	Set(key string, value any) error
 }
 
 // EventBus provides pub-sub communication
 type EventBus interface {
-	Publish(ctx context.Context, topic string, event interface{}) error
-	Subscribe(ctx context.Context, topic string, handler func(interface{})) (uint64, error)
+	Publish(ctx context.Context, topic string, event any) error
+	Subscribe(ctx context.Context, topic string, handler func(any)) (uint64, error)
+	SubscribeNamed(ctx context.Context, topic, name string, handler func(any)) (uint64, error)
 	Unsubscribe(subscriptionID uint64) error
 }
 
@@ -86,13 +87,22 @@ type IdempotencyInvalidator interface {
 	InvalidateRange(fromBlock, toBlock uint64) int
 }
 
-// Logger provides structured logging
+// LeveledLogger provides basic leveled logging.
+// Separated from Logger to allow consumers to depend on only the leveled methods
+// they need, following the Interface Segregation Principle.
+type LeveledLogger interface {
+	Debug(msg string, fields ...any)
+	Info(msg string, fields ...any)
+	Warn(msg string, fields ...any)
+	Error(msg string, fields ...any)
+	Fatal(msg string, fields ...any)
+}
+
+// Logger provides structured logging with correlation ID support.
+// It composes LeveledLogger for the basic leveled methods and adds
+// WithCorrelationID for distributed tracing correlation.
 type Logger interface {
-	Debug(msg string, fields ...interface{})
-	Info(msg string, fields ...interface{})
-	Warn(msg string, fields ...interface{})
-	Error(msg string, fields ...interface{})
-	Fatal(msg string, fields ...interface{})
+	LeveledLogger
 	WithCorrelationID(id string) Logger
 }
 
@@ -101,7 +111,7 @@ type MetricsCollector interface {
 	RecordCounter(name string, value int64, tags map[string]string)
 	RecordGauge(name string, value float64, tags map[string]string)
 	RecordHistogram(name string, value float64, tags map[string]string)
-	GetMetrics() map[string]interface{}
+	GetMetrics() map[string]any
 }
 
 // HealthChecker checks system health
@@ -118,10 +128,10 @@ type CheckpointStore interface {
 
 // HealthStatus represents system health
 type HealthStatus struct {
-	Status    string                 `json:"status"`
-	Message   string                 `json:"message"`
-	Details   map[string]interface{} `json:"details"`
-	Timestamp time.Time              `json:"timestamp"`
+	Status    string         `json:"status"`
+	Message   string         `json:"message"`
+	Details   map[string]any `json:"details"`
+	Timestamp time.Time      `json:"timestamp"`
 }
 
 // Config represents system configuration
@@ -130,9 +140,9 @@ type Config struct {
 	DataPullerType    string   `json:"data_puller_type"`
 	BlockchainNodeURL string   `json:"blockchain_node_url"`
 	StartBlock        uint64   `json:"start_block"`
-	ContractAddresses []string `json:"contract_addresses"`  // optional address filter for eth_getLogs
-	EventSignatures    []string `json:"event_signatures"`     // optional topic0 hashes for eth_getLogs topics filter
-	BlockChunkSize    int      `json:"block_chunk_size"`    // blocks per eth_getLogs request (default 1000)
+	ContractAddresses []string `json:"contract_addresses"` // optional address filter for eth_getLogs
+	EventSignatures   []string `json:"event_signatures"`   // optional topic0 hashes for eth_getLogs topics filter
+	BlockChunkSize    int      `json:"block_chunk_size"`   // blocks per eth_getLogs request (default 1000)
 
 	// Message Queue Configuration
 	MQType          string `json:"mq_type"`
@@ -148,11 +158,11 @@ type Config struct {
 	DatabaseURL  string `json:"database_url"`
 
 	// PostgreSQL Configuration
-	PostgresHost     string `json:"postgres_host"`
-	PostgresPort     string `json:"postgres_port"`
-	PostgresUser     string `json:"postgres_user"`
-	PostgresPassword string `json:"postgres_password"`
-	PostgresDB       string `json:"postgres_db"`
+	PostgresHost     string       `json:"postgres_host"`
+	PostgresPort     string       `json:"postgres_port"`
+	PostgresUser     string       `json:"postgres_user"`
+	PostgresPassword SecretString `json:"postgres_password"`
+	PostgresDB       string       `json:"postgres_db"`
 
 	// API Configuration
 	APIType string `json:"api_type"`
@@ -181,13 +191,16 @@ type Config struct {
 	FeatureFlags map[string]bool `json:"feature_flags"`
 
 	// Multi-blockchain Configuration
-	Blockchains      map[string]BlockchainConfig `json:"blockchains"`
-	ActiveChains     []string                    `json:"active_chains"`
-	SkipRemovedLogs  bool                        `json:"skip_removed_logs"` // skip log.Removed=true events from reorgs (default: false, publish with flag)
+	Blockchains     map[string]BlockchainConfig `json:"blockchains"`
+	ActiveChains    []string                    `json:"active_chains"`
+	SkipRemovedLogs bool                        `json:"skip_removed_logs"` // skip log.Removed=true events from reorgs (default: false, publish with flag)
 }
 
-// GetString retrieves a string configuration value
-func (c *Config) GetString(key, defaultValue string) string {
+// ConfigString retrieves a configuration value by key from Config.
+// This is a standalone helper (not a method on Config) to preserve
+// Config's role as a pure data value object — configuration behavior
+// belongs to ConfigManager, not the data struct itself.
+func ConfigString(c *Config, key, defaultValue string) string {
 	switch key {
 	case "POSTGRES_HOST":
 		if c.PostgresHost != "" {
@@ -203,7 +216,7 @@ func (c *Config) GetString(key, defaultValue string) string {
 		}
 	case "POSTGRES_PASSWORD":
 		if c.PostgresPassword != "" {
-			return c.PostgresPassword
+			return c.PostgresPassword.Value()
 		}
 	case "POSTGRES_DB":
 		if c.PostgresDB != "" {
@@ -217,13 +230,15 @@ func (c *Config) GetString(key, defaultValue string) string {
 	return defaultValue
 }
 
-// DataPullerPlugin pulls events from blockchain sources
+// DataPullerPlugin pulls events from blockchain sources.
+// Each puller is bound to a single chain identified by ChainID().
 type DataPullerPlugin interface {
 	Plugin
+	ChainID() string
 	PullEvents(ctx context.Context, fromBlock, toBlock uint64) ([]BlockchainEvent, error)
 	GetLatestBlock(ctx context.Context) (uint64, error)
 	SubscribeToEvents(ctx context.Context, handler func(BlockchainEvent)) error
-	GetStats() map[string]interface{}
+	GetStats() map[string]any
 }
 
 // MQPlugin manages message queue operations
@@ -258,15 +273,15 @@ type CacheStats struct {
 // rather than the full DatabasePlugin, following the Interface Segregation Principle.
 type EventReader interface {
 	GetEvent(ctx context.Context, id string) (*BlockchainEvent, error)
-	QueryEvents(ctx context.Context, filter interface{}) ([]interface{}, error)
+	QueryEvents(ctx context.Context, filter any) ([]any, error)
 	GetAllEvents(ctx context.Context) ([]*BlockchainEvent, error)
 	GetEventsByBlockRange(ctx context.Context, fromBlock, toBlock uint64) ([]*BlockchainEvent, error)
 }
 
 // EventWriter provides write access to blockchain events.
 type EventWriter interface {
-	StoreEvent(ctx context.Context, event interface{}) error
-	BatchStoreEvents(ctx context.Context, events []interface{}) error
+	StoreEvent(ctx context.Context, event any) error
+	BatchStoreEvents(ctx context.Context, events []any) error
 	DeleteEvent(ctx context.Context, eventID string) error
 	DeleteEventsByBlockRange(ctx context.Context, fromBlock, toBlock uint64) (int64, error)
 	MarkEventsAsReorged(ctx context.Context, fromBlock, toBlock uint64) (int64, error)
@@ -309,7 +324,7 @@ type DatabasePlugin interface {
 // APIPlugin serves data to clients
 type APIPlugin interface {
 	Plugin
-	RegisterHandler(path string, handler interface{}) error
+	RegisterHandler(path string, handler any) error
 	StartServer(port int) error
 	StopServer() error
 }
@@ -317,5 +332,5 @@ type APIPlugin interface {
 // ProcessingPlugin handles event processing
 type ProcessingPlugin interface {
 	Plugin
-	Process(ctx context.Context, event interface{}) error
+	Process(ctx context.Context, event any) error
 }

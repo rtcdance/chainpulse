@@ -3,6 +3,7 @@ package api
 import "testing"
 
 func TestValidateMicroserviceRolloutMetadataParity(t *testing.T) {
+	t.Parallel()
 	report := NewRolloutReportDetailsFromMetadata(NewOwnershipRolloutReportMetadata(
 		"api-service",
 		"api-service-ownership-rollout-runtime",
@@ -22,6 +23,7 @@ func TestValidateMicroserviceRolloutMetadataParity(t *testing.T) {
 }
 
 func TestValidateMicroserviceRuntimeDerivedRolloutParity(t *testing.T) {
+	t.Parallel()
 	report := &RolloutReportDetails{
 		Summary: RolloutReportSummary{
 			ShadowOwnedEvents: 0,
@@ -67,6 +69,7 @@ func TestValidateMicroserviceRuntimeDerivedRolloutParity(t *testing.T) {
 }
 
 func TestValidateMicroserviceOwnershipParityMarker(t *testing.T) {
+	t.Parallel()
 	report := &RolloutReportDetails{
 		Advisory: RolloutReportAdvisory{
 			Reason: "enabled: runtime_routes_enabled; ownership_parity_hint: api-service runtime wiring is present, but ownership runtime parity with monolith is still pending",
@@ -85,6 +88,7 @@ func TestValidateMicroserviceOwnershipParityMarker(t *testing.T) {
 }
 
 func TestValidateRouteMonolithOwnershipParityReason(t *testing.T) {
+	t.Parallel()
 	report := &RolloutReportDetails{
 		Advisory: RolloutReportAdvisory{
 			Reason: "enabled: runtime_routes_enabled; monolith_parity_posture: monolith-shadow-observe; monolith_parity_hint: monolith ownership rollout is still in shadow observe posture; do not treat route parity as complete yet; monolith_parity_target_decision: target-shadow; monolith_parity_action_guidance: keep route parity in observe mode until the monolith exits shadow posture",
@@ -103,6 +107,7 @@ func TestValidateRouteMonolithOwnershipParityReason(t *testing.T) {
 }
 
 func TestValidateRouteMonolithOwnershipParityRecommendationBundle(t *testing.T) {
+	t.Parallel()
 	report := &RolloutReportDetails{
 		Advisory: RolloutReportAdvisory{
 			Reason: "enabled: runtime_routes_enabled; monolith_parity_posture: monolith-shadow-observe; monolith_parity_hint: monolith ownership rollout is still in shadow observe posture; do not treat route parity as complete yet; monolith_parity_target_decision: target-shadow; monolith_parity_action_guidance: keep route parity in observe mode until the monolith exits shadow posture",

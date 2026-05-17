@@ -250,7 +250,7 @@ func TestApplyMonolithicGatewaySurfaceRuntimeOnly(t *testing.T) {
 }
 
 func TestAggregateIndexerOwnership(t *testing.T) {
-	summary := aggregateIndexerOwnership(map[string]map[string]interface{}{
+	summary := aggregateIndexerOwnership(map[string]map[string]any{
 		"ethereum": {
 			"shadow_owned_events": int64(3),
 			"legacy_owned_events": int64(7),
@@ -461,7 +461,7 @@ func TestOwnershipGuardedCutoverSummaryHelper(t *testing.T) {
 		t.Fatalf("expected overview observe, got %s", summary.Overview.State)
 	}
 
-	details := map[string]interface{}{}
+	details := map[string]any{}
 	summary.applyReadinessDetails(details)
 	if got := details["rollout_guarded_cutover_overview_state"]; got != "observe" {
 		t.Fatalf("expected overview state observe in details, got %v", got)
@@ -494,7 +494,7 @@ func TestOwnershipApprovalSummaryHelper(t *testing.T) {
 		t.Fatalf("expected approval checklist ready, got %s", summary.ApprovalChecklist.State)
 	}
 
-	details := map[string]interface{}{}
+	details := map[string]any{}
 	summary.applyReadinessDetails(details)
 	if got := details["rollout_approval_checklist_state"]; got != "ready" {
 		t.Fatalf("expected approval checklist ready in details, got %v", got)
@@ -523,7 +523,7 @@ func TestOwnershipRolloutSurfaceHelper(t *testing.T) {
 		CutoverCandidate: ownershipCutoverCandidate{Eligible: false, Reason: "cutover candidate requires recorded operator acknowledgment"},
 	}
 
-	details := map[string]interface{}{}
+	details := map[string]any{}
 	surface.applyReadinessDetails(details)
 	if got := details["rollout_policy_mode"]; got != "manual-gate" {
 		t.Fatalf("expected rollout policy mode manual-gate, got %v", got)
@@ -570,7 +570,7 @@ func TestBuildOwnershipRolloutSummary(t *testing.T) {
 	t.Setenv("CHAINPULSE_OWNERSHIP_ROLLOUT_ACKNOWLEDGED", "true")
 	t.Setenv("CHAINPULSE_OWNERSHIP_GUARDED_CUTOVER_HOOK_POLICY_MODE", "enforce-ready")
 
-	snapshot := buildOwnershipRolloutSummary(map[string]map[string]interface{}{
+	snapshot := buildOwnershipRolloutSummary(map[string]map[string]any{
 		"ethereum": {
 			"shadow_owned_events": int64(5),
 			"legacy_owned_events": int64(0),
@@ -627,7 +627,7 @@ func TestBuildOwnershipRolloutSummary(t *testing.T) {
 func TestBuildOwnershipHealthComponent(t *testing.T) {
 	now := time.Unix(1700000000, 0)
 
-	component := buildOwnershipHealthComponent(map[string]map[string]interface{}{
+	component := buildOwnershipHealthComponent(map[string]map[string]any{
 		"ethereum": {
 			"shadow_owned_events": int64(4),
 			"legacy_owned_events": int64(6),
@@ -668,7 +668,7 @@ func TestBuildOwnershipHealthComponent(t *testing.T) {
 }
 
 func TestBuildOwnershipHealthComponentUnknownModeIsDegraded(t *testing.T) {
-	component := buildOwnershipHealthComponent(map[string]map[string]interface{}{
+	component := buildOwnershipHealthComponent(map[string]map[string]any{
 		"ethereum": {
 			"shadow_owned_events": "bad",
 			"legacy_owned_events": int64(0),
@@ -688,7 +688,7 @@ func TestBuildOwnershipHealthComponentMatchesAPIComponentContract(t *testing.T) 
 }
 
 func TestBuildOwnershipReadinessDetailsShadow(t *testing.T) {
-	details := buildOwnershipReadinessDetails(map[string]map[string]interface{}{
+	details := buildOwnershipReadinessDetails(map[string]map[string]any{
 		"ethereum": {
 			"shadow_owned_events": int64(3),
 			"legacy_owned_events": int64(4),
@@ -752,7 +752,7 @@ func TestBuildOwnershipReadinessDetailsShadow(t *testing.T) {
 }
 
 func TestBuildOwnershipReadinessDetailsRuntimeOwned(t *testing.T) {
-	details := buildOwnershipReadinessDetails(map[string]map[string]interface{}{
+	details := buildOwnershipReadinessDetails(map[string]map[string]any{
 		"ethereum": {
 			"shadow_owned_events": int64(5),
 			"legacy_owned_events": int64(0),

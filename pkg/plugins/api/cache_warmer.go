@@ -197,11 +197,11 @@ func (cw *CacheWarmer) IsRunning() bool {
 }
 
 // GetStats returns cache warmer statistics
-func (cw *CacheWarmer) GetStats() map[string]interface{} {
+func (cw *CacheWarmer) GetStats() map[string]any {
 	cw.mu.RLock()
 	defer cw.mu.RUnlock()
 
-	return map[string]interface{}{
+	return map[string]any{
 		"is_running":           cw.isRunning,
 		"warming_count":        cw.warmingCount,
 		"failed_warming_count": cw.failedWarmingCount,

@@ -75,7 +75,7 @@ type Span struct {
 	Status     SpanStatus
 	StatusCode int
 	StatusMsg  string
-	Attributes map[string]interface{}
+	Attributes map[string]any
 	Events     []SpanEvent
 	Links      []SpanLink
 	Duration   time.Duration
@@ -85,14 +85,14 @@ type Span struct {
 type SpanEvent struct {
 	Name       string
 	Timestamp  time.Time
-	Attributes map[string]interface{}
+	Attributes map[string]any
 }
 
 // SpanLink represents a link to another span
 type SpanLink struct {
 	TraceID    string
 	SpanID     string
-	Attributes map[string]interface{}
+	Attributes map[string]any
 }
 
 // Tracer creates and manages spans
@@ -104,13 +104,13 @@ type Tracer interface {
 	EndSpan(span Span)
 
 	// AddEvent adds an event to a span
-	AddEvent(span *Span, name string, attributes map[string]interface{})
+	AddEvent(span *Span, name string, attributes map[string]any)
 
 	// AddLink adds a link to a span
-	AddLink(span *Span, traceID, spanID string, attributes map[string]interface{})
+	AddLink(span *Span, traceID, spanID string, attributes map[string]any)
 
 	// SetAttribute sets an attribute on a span
-	SetAttribute(span *Span, key string, value interface{})
+	SetAttribute(span *Span, key string, value any)
 
 	// SetStatus sets the status of a span
 	SetStatus(span *Span, status SpanStatus, code int, msg string)
@@ -139,7 +139,13 @@ type DefaultTracer struct {
 	otelTracer       oteltrace.Tracer
 }
 
-// NewDefaultTracer creates a new tracer
+// NewDefaultTracer creates a new tracer.
+//
+// Deprecated: Use NewDefaultTracerWithProvider instead to avoid creating
+// duplicate TracerProvider instances. Each call to NewDefaultTracer creates a
+// new TracerProvider and calls otel.SetTracerProvider, which overwrites the
+// global state and breaks trace correlation between components.
+// Will be removed in a future release.
 func NewDefaultTracer(logger core.Logger, metrics core.MetricsCollector) *DefaultTracer {
 	res := sdkresource.NewWithAttributes(
 		"",
@@ -180,7 +186,15 @@ func NewDefaultTracer(logger core.Logger, metrics core.MetricsCollector) *Defaul
 		)
 	}
 
-	otel.SetTracerProvider(provider)
+	// NOTE: We intentionally do NOT call otel.SetTracerProvider() here.
+	// The global TracerProvider should only be set once by ObservabilityProvider
+	// at application startup. Setting it here would overwrite the shared provider
+	// and break trace correlation between components.
+	// This is one of the reasons NewDefaultTracer is deprecated.
+
+	// Set the global text map propagator if not already set, so that
+	// ExtractContext/InjectContext work correctly for trace propagation.
+	// This is idempotent — calling it multiple times with the same propagator is safe.
 	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(
 		propagation.TraceContext{},
 		propagation.Baggage{},
@@ -244,7 +258,7 @@ func (t *DefaultTracer) StartSpan(ctx context.Context, name string, kind SpanKin
 		Kind:       kind,
 		StartTime:  time.Now().UTC(),
 		Status:     SpanStatusUnset,
-		Attributes: make(map[string]interface{}),
+		Attributes: make(map[string]any),
 		Events:     make([]SpanEvent, 0),
 		Links:      make([]SpanLink, 0),
 	}
@@ -338,7 +352,7 @@ func (t *DefaultTracer) EndSpan(span *Span) {
 }
 
 // AddEvent adds an event to a span
-func (t *DefaultTracer) AddEvent(span *Span, name string, attributes map[string]interface{}) {
+func (t *DefaultTracer) AddEvent(span *Span, name string, attributes map[string]any) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
@@ -365,7 +379,7 @@ func (t *DefaultTracer) AddEvent(span *Span, name string, attributes map[string]
 }
 
 // AddLink adds a link to a span
-func (t *DefaultTracer) AddLink(span *Span, traceID, spanID string, attributes map[string]interface{}) {
+func (t *DefaultTracer) AddLink(span *Span, traceID, spanID string, attributes map[string]any) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
@@ -397,7 +411,7 @@ func (t *DefaultTracer) AddLink(span *Span, traceID, spanID string, attributes m
 }
 
 // SetAttribute sets an attribute on a span
-func (t *DefaultTracer) SetAttribute(span *Span, key string, value interface{}) {
+func (t *DefaultTracer) SetAttribute(span *Span, key string, value any) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
@@ -504,30 +518,6 @@ func (t *DefaultTracer) generateTraceID() string {
 func (t *DefaultTracer) generateSpanID() string {
 	t.spanIDCounter++
 	return fmt.Sprintf("%016x", t.spanIDCounter)
-}
-
-// parseTraceParent parses W3C Trace Context traceparent header
-//
-//nolint:unused
-func parseTraceParent(traceparent string) []string {
-	// Format: version-traceID-parentID-flags
-	// Example: 00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01
-	parts := make([]string, 0)
-	var current string
-	for _, ch := range traceparent {
-		if ch == '-' {
-			if current != "" {
-				parts = append(parts, current)
-				current = ""
-			}
-		} else {
-			current += string(ch)
-		}
-	}
-	if current != "" {
-		parts = append(parts, current)
-	}
-	return parts
 }
 
 // TracingContext represents the context for tracing operations

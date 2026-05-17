@@ -12,13 +12,16 @@ import (
 	"time"
 
 	"chainpulse/pkg/core"
-	"chainpulse/pkg/infrastructure/database"
 )
+
+type postgresConnectionProvider interface {
+	GetPostgresDB(ctx context.Context) (any, error)
+}
 
 // DefaultPostgreSQLAdapter provides PostgreSQL query operations
 type DefaultPostgreSQLAdapter struct {
 	mu               sync.RWMutex
-	dbManager        database.DatabaseManager
+	dbManager        postgresConnectionProvider
 	db               *sql.DB
 	logger           core.Logger
 	metricsCollector core.MetricsCollector
@@ -29,7 +32,7 @@ var postgresIdentifierPattern = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_]*$`)
 
 // NewPostgreSQLAdapter creates a new PostgreSQL adapter
 func NewPostgreSQLAdapter(
-	dbManager database.DatabaseManager,
+	dbManager postgresConnectionProvider,
 	logger core.Logger,
 	metricsCollector core.MetricsCollector,
 ) PostgreSQLAdapter {
@@ -66,9 +69,7 @@ func (pa *DefaultPostgreSQLAdapter) Initialize(ctx context.Context) error {
 	pa.db = sqlDB
 	pa.initialized = true
 
-	pa.logger.Info("PostgreSQL adapter initialized", map[string]interface{}{
-		"component": "postgres-adapter",
-	})
+	pa.logger.Info("PostgreSQL adapter initialized", core.LogKeyComponent, "postgres-adapter")
 
 	return nil
 }
@@ -101,7 +102,7 @@ func (pa *DefaultPostgreSQLAdapter) Query(ctx context.Context, req *QueryRequest
 
 	// Build WHERE clause from filter
 	whereClause := ""
-	args := []interface{}{}
+	args := []any{}
 	argIndex := 1
 
 	if req.Filter != nil {
@@ -156,11 +157,7 @@ func (pa *DefaultPostgreSQLAdapter) Query(ctx context.Context, req *QueryRequest
 	if err != nil {
 		duration := time.Since(start).Milliseconds()
 		pa.metricsCollector.RecordCounter("postgres_query_error", 1, map[string]string{})
-		pa.logger.Error("PostgreSQL query failed", map[string]interface{}{
-			"table":    req.Collection,
-			"error":    err.Error(),
-			"duration": duration,
-		})
+		pa.logger.Error("PostgreSQL query failed", "table", req.Collection, core.LogKeyError, err, core.LogKeyDuration, duration)
 		return nil, fmt.Errorf("PostgreSQL query failed: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
@@ -181,9 +178,7 @@ func (pa *DefaultPostgreSQLAdapter) Query(ctx context.Context, req *QueryRequest
 			&event.BlockTimestamp,
 			&event.ChainID,
 		); err != nil {
-			pa.logger.Error("Failed to scan PostgreSQL row", map[string]interface{}{
-				"error": err.Error(),
-			})
+			pa.logger.Error("Failed to scan PostgreSQL row", core.LogKeyError, err)
 			continue
 		}
 		events = append(events, event)
@@ -192,11 +187,7 @@ func (pa *DefaultPostgreSQLAdapter) Query(ctx context.Context, req *QueryRequest
 	if err := rows.Err(); err != nil {
 		duration := time.Since(start).Milliseconds()
 		pa.metricsCollector.RecordCounter("postgres_scan_error", 1, map[string]string{})
-		pa.logger.Error("PostgreSQL scan error", map[string]interface{}{
-			"table":    req.Collection,
-			"error":    err.Error(),
-			"duration": duration,
-		})
+		pa.logger.Error("PostgreSQL scan error", "table", req.Collection, core.LogKeyError, err, core.LogKeyDuration, duration)
 		return nil, fmt.Errorf("PostgreSQL scan failed: %w", err)
 	}
 
@@ -208,10 +199,7 @@ func (pa *DefaultPostgreSQLAdapter) Query(ctx context.Context, req *QueryRequest
 
 	var total int64
 	if err := pa.db.QueryRowContext(ctx, countQuery, args...).Scan(&total); err != nil {
-		pa.logger.Error("Failed to count PostgreSQL rows", map[string]interface{}{
-			"table": req.Collection,
-			"error": err.Error(),
-		})
+		pa.logger.Error("Failed to count PostgreSQL rows", "table", req.Collection, core.LogKeyError, err)
 		total = int64(len(events))
 	}
 
@@ -219,12 +207,7 @@ func (pa *DefaultPostgreSQLAdapter) Query(ctx context.Context, req *QueryRequest
 	pa.metricsCollector.RecordHistogram("postgres_query_time_ms", float64(duration), map[string]string{})
 	pa.metricsCollector.RecordCounter("postgres_query_success", 1, map[string]string{})
 
-	pa.logger.Info("PostgreSQL query successful", map[string]interface{}{
-		"table":    req.Collection,
-		"count":    len(events),
-		"total":    total,
-		"duration": duration,
-	})
+	pa.logger.Info("PostgreSQL query successful", "table", req.Collection, core.LogKeyCount, len(events), "total", total, core.LogKeyDuration, duration)
 
 	return &QueryResult{
 		Events:       events,
@@ -276,20 +259,13 @@ func (pa *DefaultPostgreSQLAdapter) QueryByHash(ctx context.Context, hash string
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			duration := time.Since(start).Milliseconds()
-			pa.logger.Debug("Event not found in PostgreSQL", map[string]interface{}{
-				"hash":     hash,
-				"duration": duration,
-			})
+			pa.logger.Debug("Event not found in PostgreSQL", core.LogKeyHash, hash, core.LogKeyDuration, duration)
 			return nil, nil
 		}
 
 		duration := time.Since(start).Milliseconds()
 		pa.metricsCollector.RecordCounter("postgres_query_by_hash_error", 1, map[string]string{})
-		pa.logger.Error("PostgreSQL query by hash failed", map[string]interface{}{
-			"hash":     hash,
-			"error":    err.Error(),
-			"duration": duration,
-		})
+		pa.logger.Error("PostgreSQL query by hash failed", core.LogKeyHash, hash, core.LogKeyError, err, core.LogKeyDuration, duration)
 		return nil, fmt.Errorf("PostgreSQL query failed: %w", err)
 	}
 
@@ -297,10 +273,7 @@ func (pa *DefaultPostgreSQLAdapter) QueryByHash(ctx context.Context, hash string
 	pa.metricsCollector.RecordHistogram("postgres_query_by_hash_time_ms", float64(duration), map[string]string{})
 	pa.metricsCollector.RecordCounter("postgres_query_by_hash_success", 1, map[string]string{})
 
-	pa.logger.Info("PostgreSQL query by hash successful", map[string]interface{}{
-		"hash":     hash,
-		"duration": duration,
-	})
+	pa.logger.Info("PostgreSQL query by hash successful", core.LogKeyHash, hash, core.LogKeyDuration, duration)
 
 	return &event, nil
 }

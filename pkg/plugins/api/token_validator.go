@@ -191,7 +191,7 @@ func (tv *TokenValidator) ValidateJWT(token string) ValidationResult {
 	// Periodically clean up expired revocations
 	tv.cleanupRevoked()
 
-	parsedToken, err := jwt.Parse(token, func(t *jwt.Token) (interface{}, error) {
+	parsedToken, err := jwt.Parse(token, func(t *jwt.Token) (any, error) {
 		// Enforce HS256 algorithm — reject alg:none or algorithm confusion attacks
 		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
@@ -236,7 +236,7 @@ func (tv *TokenValidator) ValidateJWT(token string) ValidationResult {
 	tokenType, _ := claims["token_type"].(string)
 
 	var roles []string
-	if r, ok := claims["roles"].([]interface{}); ok {
+	if r, ok := claims["roles"].([]any); ok {
 		for _, v := range r {
 			if s, ok := v.(string); ok {
 				roles = append(roles, s)
@@ -245,7 +245,7 @@ func (tv *TokenValidator) ValidateJWT(token string) ValidationResult {
 	}
 
 	var permissions []string
-	if p, ok := claims["permissions"].([]interface{}); ok {
+	if p, ok := claims["permissions"].([]any); ok {
 		for _, v := range p {
 			if s, ok := v.(string); ok {
 				permissions = append(permissions, s)

@@ -10,6 +10,7 @@ import (
 )
 
 func TestNewObservabilityProviderNoEndpoint(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	provider, err := NewObservabilityProvider(ObservabilityConfig{
 		ServiceName: "test-service",
@@ -27,6 +28,7 @@ func TestNewObservabilityProviderNoEndpoint(t *testing.T) {
 }
 
 func TestObservabilityProviderShutdownIdempotent(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	provider, err := NewObservabilityProvider(ObservabilityConfig{
 		ServiceName: "test-service",
@@ -41,6 +43,7 @@ func TestObservabilityProviderShutdownIdempotent(t *testing.T) {
 }
 
 func TestNewDefaultTracerWithProvider(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 
@@ -55,6 +58,7 @@ func TestNewDefaultTracerWithProvider(t *testing.T) {
 }
 
 func TestNewDefaultTracerWithNilProvider(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 
@@ -64,6 +68,7 @@ func TestNewDefaultTracerWithNilProvider(t *testing.T) {
 }
 
 func TestObservabilityProviderDefaultServiceName(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	provider, err := NewObservabilityProvider(ObservabilityConfig{}, logger)
 	require.NoError(t, err)

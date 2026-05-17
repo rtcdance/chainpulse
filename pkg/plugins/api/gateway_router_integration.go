@@ -31,10 +31,11 @@ type GatewayRouterIntegration struct {
 	upstreamQueryHTTPClient       *http.Client
 	upstreamQueryHealthHTTPClient *http.Client
 	upstreamQueryHealthHeaders    map[string]string
-	runtimeMetricsProvider        func(*http.Request) interface{}
-	runtimeSummaryProvider        func(*http.Request) interface{}
+	runtimeMetricsProvider        func(*http.Request) any
+	runtimeSummaryProvider        func(*http.Request) any
 	runtimeControlProvider        func(http.ResponseWriter, *http.Request)
 	runtimeReplayProvider         func(http.ResponseWriter, *http.Request)
+	routeHandlers                 map[string]gatewayRouteHandler
 	mu                            sync.RWMutex
 	initialized                   bool
 }
@@ -59,22 +60,22 @@ func NewGatewayRouterIntegration(
 	eventQueryHandler *EventQueryHandler,
 	subscriptionHandler *EventSubscriptionHandler,
 	healthCheckHandler *HealthCheckHandler,
-	runtimeProviders ...interface{},
+	runtimeProviders ...any,
 ) *GatewayRouterIntegration {
 	var (
-		summaryProvider func(*http.Request) interface{}
-		metricsProvider func(*http.Request) interface{}
+		summaryProvider func(*http.Request) any
+		metricsProvider func(*http.Request) any
 		controlProvider func(http.ResponseWriter, *http.Request)
 		replayProvider  func(http.ResponseWriter, *http.Request)
 	)
 
 	if len(runtimeProviders) > 0 {
-		if provider, ok := runtimeProviders[0].(func(*http.Request) interface{}); ok {
+		if provider, ok := runtimeProviders[0].(func(*http.Request) any); ok {
 			summaryProvider = provider
 		}
 	}
 	if len(runtimeProviders) > 1 {
-		if provider, ok := runtimeProviders[1].(func(*http.Request) interface{}); ok {
+		if provider, ok := runtimeProviders[1].(func(*http.Request) any); ok {
 			metricsProvider = provider
 		}
 	}
@@ -101,7 +102,32 @@ func NewGatewayRouterIntegration(
 		runtimeSummaryProvider: summaryProvider,
 		runtimeControlProvider: controlProvider,
 		runtimeReplayProvider:  replayProvider,
-		initialized:            false,
+		routeHandlers: map[string]gatewayRouteHandler{
+			"event-query":         gatewayHandleEventQuery,
+			"event-by-id":         gatewayHandleEventByID,
+			"event-by-chain":      gatewayHandleEventByChain,
+			"event-by-contract":   gatewayHandleEventByContract,
+			"event-by-name":       gatewayHandleEventByName,
+			"websocket-subscribe": gatewayHandleSubscribeAll,
+			"subscribe":           gatewayHandleSubscribeAll,
+			"subscribe-chain":     gatewayHandleSubscribeChain,
+			"subscribe-contract":  gatewayHandleSubscribeContract,
+			"subscribe-name":      gatewayHandleSubscribeName,
+			"health":              gatewayHandleHealth,
+			"ready":               gatewayHandleReady,
+			"live":                gatewayHandleLive,
+			"components":          gatewayHandleComponents,
+			"rollout":             gatewayHandleRollout,
+			"runtime-summary":     gatewayHandleRuntimeSummary,
+			"runtime-metrics":     gatewayHandleRuntimeMetrics,
+			"runtime-control":     gatewayHandleRuntimeControl,
+			"runtime-replay":      gatewayHandleRuntimeReplay,
+			"models":              gatewayHandleModels,
+			"graphql":             gatewayHandleGraphQL,
+			"dlq-events":          gatewayHandleDLQEvents,
+			"dlq-replay":          gatewayHandleDLQReplay,
+		},
+		initialized: false,
 	}
 }
 
@@ -401,32 +427,6 @@ type gatewayRouteHandler func(
 	map[string]string,
 )
 
-var gatewayRouteHandlers = map[string]gatewayRouteHandler{
-	"event-query":         gatewayHandleEventQuery,
-	"event-by-id":         gatewayHandleEventByID,
-	"event-by-chain":      gatewayHandleEventByChain,
-	"event-by-contract":   gatewayHandleEventByContract,
-	"event-by-name":       gatewayHandleEventByName,
-	"websocket-subscribe": gatewayHandleSubscribeAll,
-	"subscribe":           gatewayHandleSubscribeAll,
-	"subscribe-chain":     gatewayHandleSubscribeChain,
-	"subscribe-contract":  gatewayHandleSubscribeContract,
-	"subscribe-name":      gatewayHandleSubscribeName,
-	"health":              gatewayHandleHealth,
-	"ready":               gatewayHandleReady,
-	"live":                gatewayHandleLive,
-	"components":          gatewayHandleComponents,
-	"rollout":             gatewayHandleRollout,
-	"runtime-summary":     gatewayHandleRuntimeSummary,
-	"runtime-metrics":     gatewayHandleRuntimeMetrics,
-	"runtime-control":     gatewayHandleRuntimeControl,
-	"runtime-replay":      gatewayHandleRuntimeReplay,
-	"models":              gatewayHandleModels,
-	"graphql":             gatewayHandleGraphQL,
-	"dlq-events":          gatewayHandleDLQEvents,
-	"dlq-replay":          gatewayHandleDLQReplay,
-}
-
 // HandleRequest handles an incoming HTTP request
 func (gri *GatewayRouterIntegration) HandleRequest(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
@@ -478,7 +478,7 @@ func (gri *GatewayRouterIntegration) HandleRequest(w http.ResponseWriter, r *htt
 		if !matched {
 			gri.logger.Warn("Method mismatch", "route_method", route.Method, "request_method", normalizedReq.Method, "path", normalizedReq.URL.Path)
 			w.Header().Set("Allow", route.Method)
-		(&APIError{Code: "METHOD_NOT_ALLOWED", Message: "Method Not Allowed", Status: 405}).WriteHTTP(w)
+			(&APIError{Code: "METHOD_NOT_ALLOWED", Message: "Method Not Allowed", Status: 405}).WriteHTTP(w)
 			gri.metrics.RecordCounter("gateway_method_not_allowed", 1, map[string]string{
 				"route_id": route.ID,
 				"method":   normalizedReq.Method,
@@ -487,7 +487,7 @@ func (gri *GatewayRouterIntegration) HandleRequest(w http.ResponseWriter, r *htt
 		}
 	}
 
-	handler, ok := gatewayRouteHandlers[route.ID]
+	handler, ok := gri.routeHandlers[route.ID]
 	if !ok {
 		gri.logger.Warn("Unknown route", "routeId", route.ID)
 		(&APIError{Code: "NOT_FOUND", Message: "Not Found", Status: 404}).WriteHTTP(w)
@@ -746,12 +746,12 @@ func (gri *GatewayRouterIntegration) tryForwardQueryRequest(w http.ResponseWrite
 }
 
 func respondGatewayQueryBridgeError(w http.ResponseWriter, statusCode int, routeID string) {
-	payload := map[string]interface{}{
+	payload := map[string]any{
 		"error":      "query_upstream_unavailable",
 		"message":    "api-gateway could not reach an upstream api-service for this query request",
 		"statusCode": statusCode,
 		"timestamp":  time.Now().Unix(),
-		"meta": map[string]interface{}{
+		"meta": map[string]any{
 			"routeId":          routeID,
 			"bridgePosture":    "query-bridge-unavailable",
 			"reliabilityHint":  "gateway query bridge is currently unavailable; verify api-service health and upstream bridge status",
@@ -937,7 +937,7 @@ func (gri *GatewayRouterIntegration) RefreshUpstreamQueryBridgeHealth() {
 }
 
 // GetMetrics returns gateway metrics
-func (gri *GatewayRouterIntegration) GetMetrics() map[string]interface{} {
+func (gri *GatewayRouterIntegration) GetMetrics() map[string]any {
 	gri.mu.RLock()
 	defer gri.mu.RUnlock()
 
@@ -1022,19 +1022,13 @@ func (rw *ResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 
 type HijackableResponseWriter struct {
 	http.ResponseWriter
-	conn *net.Conn
 }
 
 func (hw *HijackableResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	if hijacker, ok := hw.ResponseWriter.(http.Hijacker); ok {
 		return hijacker.Hijack()
 	}
-	if hw.conn != nil {
-		return *hw.conn, bufio.NewReadWriter(bufio.NewReader(*hw.conn), bufio.NewWriter(*hw.conn)), nil
-	}
-	r, w := net.Pipe()
-	hw.conn = &w
-	return r, bufio.NewReadWriter(bufio.NewReader(r), bufio.NewWriter(w)), nil
+	return nil, nil, fmt.Errorf("underlying ResponseWriter does not implement http.Hijacker")
 }
 
 // WriteHeader captures the status code

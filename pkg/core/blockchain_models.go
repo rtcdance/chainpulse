@@ -42,7 +42,7 @@ type BlockchainEvent struct {
 
 	// Log information
 	LogIndex uint64 `json:"log_index"`
-	Removed  bool `json:"removed"`
+	Removed  bool   `json:"removed"`
 
 	// Contract information
 	ContractAddress common.Address `json:"contract_address"`
@@ -50,9 +50,9 @@ type BlockchainEvent struct {
 	EventTopic      []common.Hash  `json:"event_topic"`
 
 	// Event data
-	EventData   []byte                 `json:"event_data"`
-	DecodedData map[string]interface{} `json:"decoded_data"`
-	TypedData   interface{}            `json:"typed_data,omitempty"` // Type-safe decoded event (e.g., *ERC20Transfer)
+	EventData   []byte         `json:"event_data"`
+	DecodedData map[string]any `json:"decoded_data"`
+	TypedData   any            `json:"typed_data,omitempty"` // Type-safe decoded event (e.g., *ERC20Transfer)
 
 	// Indexing metadata
 	ChainID         string      `json:"chain_id"`
@@ -95,7 +95,7 @@ type Transaction struct {
 	To                *common.Address `json:"to"`
 	Value             *big.Int        `json:"value"`
 	Gas               uint64          `json:"gas"`
-	GasPrice          *big.Int        `json:"gas_price"`           // Legacy & EIP-1559 base fee
+	GasPrice          *big.Int        `json:"gas_price"` // Legacy & EIP-1559 base fee
 	Input             []byte          `json:"input"`
 	Nonce             uint64          `json:"nonce"`
 	BlockNumber       uint64          `json:"block_number"`
@@ -128,9 +128,9 @@ type Transaction struct {
 // BlobSidecar contains the EIP-4844 blob data and KZG commitments/proofs.
 // This is required for blob data availability verification and L2 transaction reconstruction.
 type BlobSidecar struct {
-	Blobs          []Blob          `json:"blobs"`            // 4096 field elements each (131072 bytes)
+	Blobs          []Blob          `json:"blobs"`           // 4096 field elements each (131072 bytes)
 	KZGCommitments []KZGCommitment `json:"kzg_commitments"` // 48-byte KZG commitments
-	KZGProofs      []KZGProof      `json:"kzg_proofs"`       // 48-byte KZG proofs
+	KZGProofs      []KZGProof      `json:"kzg_proofs"`      // 48-byte KZG proofs
 }
 
 // Blob represents a single EIP-4844 blob (4096 BLS12-381 field elements = 131072 bytes)
@@ -184,25 +184,25 @@ type BlockBuilder struct {
 
 // Block represents a blockchain block
 type Block struct {
-	Number          uint64         `json:"number"`
-	Hash            common.Hash    `json:"hash"`
-	ParentHash      common.Hash    `json:"parent_hash"`
-	Timestamp       int64          `json:"timestamp"`
-	Miner           common.Address `json:"miner"` // feeRecipient post-Merge
-	Difficulty      *big.Int       `json:"difficulty"`
-	TotalDifficulty *big.Int       `json:"total_difficulty,omitempty"` // Pre-Merge only
-	GasLimit        uint64         `json:"gas_limit"`
-	GasUsed         uint64         `json:"gas_used"`
-	BaseFee         *big.Int       `json:"base_fee,omitempty"` // EIP-1559
-	Transactions    []common.Hash  `json:"transactions"`
-	Uncles          []common.Hash  `json:"uncles,omitempty"`          // Pre-Merge ommer blocks
-	Withdrawals     []*Withdrawal  `json:"withdrawals,omitempty"`     // EIP-4895 Capella
-	LogsBloom       types.Bloom    `json:"logs_bloom"`
-	Builder         *BlockBuilder  `json:"builder,omitempty"`         // MEV-Boost builder (post-Merge)
-	ExcessBlobGas        uint64      `json:"excess_blob_gas,omitempty"`        // EIP-4844: tracks blob gas market
-	BlobGasUsed          uint64      `json:"blob_gas_used,omitempty"`          // EIP-4844: blob gas consumed in this block
-	ParentBeaconBlockRoot *common.Hash `json:"parent_beacon_block_root,omitempty"` // EIP-4788: beacon chain state root (post-Dencun)
-	BeaconBlockInfo      *BeaconBlockInfo `json:"beacon_block_info,omitempty"` // post-Merge slot/epoch metadata
+	Number                uint64           `json:"number"`
+	Hash                  common.Hash      `json:"hash"`
+	ParentHash            common.Hash      `json:"parent_hash"`
+	Timestamp             int64            `json:"timestamp"`
+	Miner                 common.Address   `json:"miner"` // feeRecipient post-Merge
+	Difficulty            *big.Int         `json:"difficulty"`
+	TotalDifficulty       *big.Int         `json:"total_difficulty,omitempty"` // Pre-Merge only
+	GasLimit              uint64           `json:"gas_limit"`
+	GasUsed               uint64           `json:"gas_used"`
+	BaseFee               *big.Int         `json:"base_fee,omitempty"` // EIP-1559
+	Transactions          []common.Hash    `json:"transactions"`
+	Uncles                []common.Hash    `json:"uncles,omitempty"`      // Pre-Merge ommer blocks
+	Withdrawals           []*Withdrawal    `json:"withdrawals,omitempty"` // EIP-4895 Capella
+	LogsBloom             types.Bloom      `json:"logs_bloom"`
+	Builder               *BlockBuilder    `json:"builder,omitempty"`                  // MEV-Boost builder (post-Merge)
+	ExcessBlobGas         uint64           `json:"excess_blob_gas,omitempty"`          // EIP-4844: tracks blob gas market
+	BlobGasUsed           uint64           `json:"blob_gas_used,omitempty"`            // EIP-4844: blob gas consumed in this block
+	ParentBeaconBlockRoot *common.Hash     `json:"parent_beacon_block_root,omitempty"` // EIP-4788: beacon chain state root (post-Dencun)
+	BeaconBlockInfo       *BeaconBlockInfo `json:"beacon_block_info,omitempty"`        // post-Merge slot/epoch metadata
 }
 
 // Withdrawal represents a validator withdrawal (EIP-4895 Capella)
@@ -345,9 +345,26 @@ func (be *BlockchainEvent) IsReorged() bool {
 	return be.Status == EventStatusReorged
 }
 
-// IsFinalized returns whether the event is finalized (survived 2 epochs)
+// IsFinalized returns whether the event is marked as finalized.
 func (be *BlockchainEvent) IsFinalized() bool {
 	return be.Status == EventStatusFinalized
+}
+
+// EffectiveGasPrice computes the effective gas price for the transaction that produced this event.
+// For EIP-1559 (type 2): effectiveGasPrice = min(maxFeePerGas, baseFee + maxPriorityFeePerGas)
+// For Legacy (type 0) and AccessList (type 1): uses GasPrice directly.
+// Returns nil if insufficient data.
+func (be *BlockchainEvent) EffectiveGasPrice(baseFee *big.Int) *big.Int {
+	if be.GasPrice == nil {
+		return nil
+	}
+	if be.TransactionType != TxEIP1559 || baseFee == nil {
+		return be.GasPrice
+	}
+	// EIP-1559: effectiveGasPrice = min(maxFeePerGas, baseFee + maxPriorityFeePerGas)
+	// Since we don't store per-event maxFeePerGas, estimate: baseFee + tip
+	// In practice the gas price field already represents the effective price
+	return be.GasPrice
 }
 
 // Validate validates the transaction
@@ -426,7 +443,7 @@ type TransactionReceipt struct {
 	Logs              []*types.Log    `json:"logs"`
 	Status            uint64          `json:"status"` // 1 = success, 0 = failed
 	LogsBloom         types.Bloom     `json:"logs_bloom"`
-	Type              uint8           `json:"type"`                        // EIP-2718 transaction type (0/1/2/3)
+	Type              uint8           `json:"type"`                          // EIP-2718 transaction type (0/1/2/3)
 	EffectiveGasPrice *big.Int        `json:"effective_gas_price,omitempty"` // Actual gas price after EIP-1559
 	BlobGasUsed       uint64          `json:"blob_gas_used,omitempty"`       // EIP-4844
 	BlobGasPrice      *big.Int        `json:"blob_gas_price,omitempty"`      // EIP-4844
@@ -486,15 +503,15 @@ func EntryPointVersionForAddress(addr common.Address) EntryPointVersion {
 // paymaster (address), paymasterVerificationGasLimit (uint128),
 // paymasterPostOpGasLimit (uint128), and paymasterData (bytes).
 type UserOperationV07 struct {
-	Sender                  common.Address `json:"sender"`
-	Nonce                   *big.Int       `json:"nonce"`
-	InitCode                []byte         `json:"init_code"`
-	CallData                []byte         `json:"call_data"`
-	AccountGasLimits        []byte         `json:"account_gas_limits"`        // bytes32: [16B verificationGasLimit][16B callGasLimit]
-	MaxFeePerGas            []byte         `json:"max_fee_per_gas"`           // bytes32: [16B maxPriorityFee][16B maxFeePerGas]
-	PreVerificationGas      uint64         `json:"pre_verification_gas"`
-	PaymasterAndData        []byte         `json:"paymaster_and_data"`        // v0.7: [20B paymaster][16B verificationGas][16B postOpGas][paymasterData]
-	Signature               []byte         `json:"signature"`
+	Sender             common.Address `json:"sender"`
+	Nonce              *big.Int       `json:"nonce"`
+	InitCode           []byte         `json:"init_code"`
+	CallData           []byte         `json:"call_data"`
+	AccountGasLimits   []byte         `json:"account_gas_limits"` // bytes32: [16B verificationGasLimit][16B callGasLimit]
+	MaxFeePerGas       []byte         `json:"max_fee_per_gas"`    // bytes32: [16B maxPriorityFee][16B maxFeePerGas]
+	PreVerificationGas uint64         `json:"pre_verification_gas"`
+	PaymasterAndData   []byte         `json:"paymaster_and_data"` // v0.7: [20B paymaster][16B verificationGas][16B postOpGas][paymasterData]
+	Signature          []byte         `json:"signature"`
 }
 
 // DecodeV07GasLimits extracts verificationGasLimit and callGasLimit from

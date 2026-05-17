@@ -309,11 +309,11 @@ func (tb *TokenBucket) refill() {
 }
 
 // GetStats returns statistics for the token bucket
-func (tb *TokenBucket) GetStats() map[string]interface{} {
+func (tb *TokenBucket) GetStats() map[string]any {
 	tb.mu.RLock()
 	defer tb.mu.RUnlock()
 
-	return map[string]interface{}{
+	return map[string]any{
 		"available_tokens": tb.tokens,
 		"max_tokens":       tb.maxTokens,
 		"refill_rate":      tb.refillRate,
@@ -390,26 +390,26 @@ func (rl *RateLimiter) SetIPLimit(ip string, requestsPerSecond float64, burstSiz
 }
 
 // GetStats returns rate limiter statistics
-func (rl *RateLimiter) GetStats() map[string]interface{} {
+func (rl *RateLimiter) GetStats() map[string]any {
 	rl.mu.RLock()
 	defer rl.mu.RUnlock()
 
-	endpointStats := make(map[string]interface{})
+	endpointStats := make(map[string]any)
 	for path, limiter := range rl.endpointLimiters {
 		endpointStats[path] = limiter.GetStats()
 	}
 
-	clientStats := make(map[string]interface{})
+	clientStats := make(map[string]any)
 	for clientID, limiter := range rl.clientLimiters {
 		clientStats[clientID] = limiter.GetStats()
 	}
 
-	ipStats := make(map[string]interface{})
+	ipStats := make(map[string]any)
 	for ip, limiter := range rl.ipLimiters {
 		ipStats[ip] = limiter.GetStats()
 	}
 
-	return map[string]interface{}{
+	return map[string]any{
 		"endpoint_limiters": endpointStats,
 		"client_limiters":   clientStats,
 		"ip_limiters":       ipStats,
@@ -421,8 +421,8 @@ func (rl *RateLimiter) GetStats() map[string]interface{} {
 
 // RateLimitMiddleware wraps an HTTP handler with rate limiting
 type RateLimitMiddleware struct {
-	limiter       *RateLimiter
-	logger        core.Logger
+	limiter        *RateLimiter
+	logger         core.Logger
 	trustedProxies map[string]bool // IPs of trusted reverse proxies
 }
 

@@ -23,14 +23,14 @@ func NewRPCBlockHashProvider(puller *HTTPSJSONRPCPuller) *RPCBlockHashProvider {
 
 // GetBlockHash fetches the block hash for the given block number from the RPC node.
 func (p *RPCBlockHashProvider) GetBlockHash(ctx context.Context, blockNumber uint64) (common.Hash, error) {
-	header, err := p.puller.getBlockHeader(ctx, blockNumber)
+	header, err := p.puller.GetBlockHeader(ctx, blockNumber)
 	if err != nil {
-		return common.Hash{}, fmt.Errorf("RPC getBlockHeader(%d): %w", blockNumber, err)
+		return common.Hash{}, fmt.Errorf("RPC GetBlockHeader(%d): %w", blockNumber, err)
 	}
 	if header == nil {
 		return common.Hash{}, nil
 	}
-	return common.HexToHash(header.Hash), nil
+	return header.Hash(), nil
 }
 
 // Compile-time check

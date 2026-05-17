@@ -1,14 +1,11 @@
 package main
 
-//nolint:funlen // Main function is inherently complex bootstrap; refactor would go beyond minimal fix.
-
 import (
 	"context"
 	"fmt"
 	"math"
 	"os"
 	"os/signal"
-	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -16,14 +13,14 @@ import (
 
 	"chainpulse/pkg/application/bootstrap"
 	"chainpulse/pkg/core"
+	"chainpulse/pkg/env"
+	sharedhttp "chainpulse/pkg/infrastructure/http"
 	"chainpulse/pkg/observability"
 	"chainpulse/pkg/plugins/api"
-	sharedhttp "chainpulse/pkg/infrastructure/http"
 	"chainpulse/pkg/services/indexing"
 )
 
-//nolint:gocyclo // Monolithic entrypoint orchestrates many subsystems; keep linear startup/shutdown flow for ops visibility.
-func main() {
+func run() error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -62,7 +59,7 @@ func main() {
 		logLevel = core.LogLevelDebug
 	}
 
-	logFormat := getEnv("LOG_FORMAT", "slog")
+	logFormat := env.Get("LOG_FORMAT", "slog")
 	var logger core.Logger
 	if logFormat == "legacy" {
 		logger = core.NewDefaultLogger(logLevel)
@@ -91,8 +88,7 @@ func main() {
 	fmt.Println("Building Runtime Wiring:")
 	runtimeWiring, err := bootstrap.BuildRuntimeWiring(ctx, logger, metrics)
 	if err != nil {
-		logger.Error("Failed to build runtime wiring", "error", err.Error())
-		os.Exit(1)
+		return fmt.Errorf("failed to build runtime wiring: %w", err)
 	}
 	fmt.Printf("  MongoDB URI:        %s\n", runtimeWiring.DBConfig.MongoDBURI)
 	fmt.Printf("  PostgreSQL URL:     %s\n", runtimeWiring.DBConfig.PostgresURL)
@@ -105,21 +101,22 @@ func main() {
 	fmt.Println()
 
 	// Convert configuration to core.Config
+	blockchainNodeURL := strings.Split(config.BlockchainNodeURLs, ",")[0]
 	coreCfg := bootstrap.NewMonolithicCoreConfig(
 		config.LogLevel,
 		config.DatabaseType,
 		config.DatabaseURL,
 		config.CacheType,
+		config.DataPullerType,
+		blockchainNodeURL,
 	)
 	envOverrides, err := bootstrap.ParseCoreConfigOverridesFromEnv()
 	if err != nil {
-		logger.Error("Failed to parse core config overrides", "error", err.Error())
-		os.Exit(1)
+		return fmt.Errorf("failed to parse core config overrides: %w", err)
 	}
 	cliOverrides, err := bootstrap.ParseCoreConfigOverridesFromCLI(os.Args[1:])
 	if err != nil {
-		logger.Error("Failed to parse CLI core config overrides", "error", err.Error())
-		os.Exit(1)
+		return fmt.Errorf("failed to parse CLI core config overrides: %w", err)
 	}
 	coreOverrides := bootstrap.MergeCoreConfigOverrides(envOverrides, cliOverrides)
 	runtimeProfile := bootstrap.RuntimeProfileFromEnv()
@@ -134,7 +131,7 @@ func main() {
 			"policy_code", bootstrap.PolicyErrorCode(err),
 			"error", err.Error(),
 		)
-		os.Exit(1)
+		return fmt.Errorf("core config overrides rejected by policy: %w", err)
 	}
 	if policyEval.Violation {
 		logger.Warn(
@@ -145,6 +142,11 @@ func main() {
 		)
 	}
 	coreCfg = bootstrap.ApplyCoreConfigOverrides(coreCfg, coreOverrides)
+
+	if err := validateMonolithicProductionSecurity(config, runtimeProfile); err != nil {
+		logger.Error("Monolithic production security gate rejected startup", "profile", runtimeProfile, "error", err.Error())
+		return fmt.Errorf("production security validation failed: %w", err)
+	}
 	logger.Info("Core config overrides applied", "overrides", bootstrap.SummarizeCoreConfigOverrides(coreOverrides))
 	metricSchemaMode := bootstrap.ResolvePolicyMetricSchemaModeFromEnv()
 	bootstrap.EmitPolicyOverrideMetrics(
@@ -159,25 +161,54 @@ func main() {
 	)
 	coreConfig := &coreCfg
 
+	// Read contract address filter from env if configured
+	if contractAddrs := os.Getenv("CONTRACT_ADDRESSES"); contractAddrs != "" {
+		coreConfig.ContractAddresses = strings.Split(contractAddrs, ",")
+	}
+	// Read event signature filter from env if configured
+	if eventSigs := os.Getenv("EVENT_SIGNATURES"); eventSigs != "" {
+		coreConfig.EventSignatures = strings.Split(eventSigs, ",")
+	}
+
+	// Log resolved config snapshot for debugging (mask credentials)
+	maskedDBURL := coreConfig.DatabaseURL
+	if idx := strings.Index(coreConfig.DatabaseURL, "://"); idx >= 0 {
+		rest := coreConfig.DatabaseURL[idx+3:]
+		if atIdx := strings.Index(rest, "@"); atIdx >= 0 {
+			maskedDBURL = coreConfig.DatabaseURL[:idx+3] + "***" + rest[atIdx:]
+		}
+	}
+	logger.Info("Core config resolved",
+		"deployment_mode", coreConfig.DeploymentMode,
+		"data_puller_type", coreConfig.DataPullerType,
+		"blockchain_node_url", coreConfig.BlockchainNodeURL,
+		"chain_id", coreConfig.ChainID,
+		"block_chunk_size", coreConfig.BlockChunkSize,
+		"database_type", coreConfig.DatabaseType,
+		"database_url", maskedDBURL,
+		"cache_type", coreConfig.CacheType,
+		"worker_pool_size", coreConfig.WorkerPoolSize,
+		"batch_size", coreConfig.BatchSize,
+		"log_level", coreConfig.LogLevel,
+		"skip_removed_logs", coreConfig.SkipRemovedLogs,
+	)
+
 	// Validate the resolved core configuration
 	configManager := core.NewConfigManager(logger)
 	if err := configManager.Validate(*coreConfig); err != nil {
-		logger.Error("Core configuration validation failed", "error", err.Error())
-		os.Exit(1)
+		return fmt.Errorf("core configuration validation failed: %w", err)
 	}
 
 	chains, err := parseChains(config.Chains)
 	if err != nil {
-		logger.Error("Failed to parse chain configuration", "error", err.Error())
-		os.Exit(1)
+		return fmt.Errorf("failed to parse chain configuration: %w", err)
 	}
 
 	// Build monolithic indexing storage
 	fmt.Println("Initializing Indexing Storage:")
 	indexingDatabase, indexingCache, err := bootstrap.BuildMonolithicIndexingStorage(logger, *coreConfig)
 	if err != nil {
-		logger.Error("Failed to build monolithic indexing storage", "error", err.Error())
-		os.Exit(1)
+		return fmt.Errorf("failed to build monolithic indexing storage: %w", err)
 	}
 	logger.Info(
 		"Monolithic indexing storage started",
@@ -193,8 +224,7 @@ func main() {
 	fmt.Println("Initializing Monolithic Query Surface:")
 	monolithicQuerySurface, err := resolveMonolithicQuerySurface(ctx, config, runtimeWiring, indexingDatabase, logger, metrics)
 	if err != nil {
-		logger.Error("Failed to build monolithic query surface", "error", err.Error())
-		os.Exit(1)
+		return fmt.Errorf("failed to build monolithic query surface: %w", err)
 	}
 	if monolithicQuerySurface.domainQuery != nil {
 		runtimeWiring.DomainQueryService = monolithicQuerySurface.domainQuery
@@ -221,8 +251,7 @@ func main() {
 
 	dlqRetention, err := parseMonolithicDLQRetention(config.DLQRetention)
 	if err != nil {
-		logger.Error("Failed to parse monolithic DLQ retention", "error", err.Error())
-		os.Exit(1)
+		return fmt.Errorf("failed to parse monolithic DLQ retention: %w", err)
 	}
 
 	sharedIndexingRuntime, err := bootstrap.BuildMonolithicIndexingRuntimeWithOptions(
@@ -233,16 +262,13 @@ func main() {
 		bootstrap.InMemoryIndexingRuntimeOptions{DLQRetention: dlqRetention},
 	)
 	if err != nil {
-		logger.Error("Failed to build shared indexing runtime", "error", err.Error())
-		os.Exit(1)
+		return fmt.Errorf("failed to build shared indexing runtime: %w", err)
 	}
 	if err := sharedIndexingRuntime.Initialize(ctx); err != nil {
-		logger.Error("Failed to initialize shared indexing runtime", "error", err.Error())
-		os.Exit(1)
+		return fmt.Errorf("failed to initialize shared indexing runtime: %w", err)
 	}
 	if err := sharedIndexingRuntime.Start(ctx); err != nil {
-		logger.Error("Failed to start shared indexing runtime", "error", err.Error())
-		os.Exit(1)
+		return fmt.Errorf("failed to start shared indexing runtime: %w", err)
 	}
 	for _, chainID := range chains {
 		if err := sharedIndexingRuntime.RecoverChain(ctx, chainID); err != nil {
@@ -285,8 +311,7 @@ func main() {
 		)
 		chainIndexer.SetSharedRuntime(sharedIndexingRuntime, metrics)
 		if err := multiChainIndexer.RegisterChainIndexer(chainID, chainIndexer); err != nil {
-			logger.Error("Failed to register chain indexer", "chain_id", chainID, "error", err.Error())
-			os.Exit(1)
+			return fmt.Errorf("failed to register chain indexer %s: %w", chainID, err)
 		}
 		fmt.Printf("  ✓ Chain indexer registered: %s\n", chainID)
 	}
@@ -294,7 +319,7 @@ func main() {
 		_ = ctx
 		return buildOwnershipHealthComponent(multiChainIndexer.GetStatus(), time.Now())
 	})
-	runtimeWiring.HealthCheckHandler.SetReadinessDetailsProvider(func(ctx context.Context) map[string]interface{} {
+	runtimeWiring.HealthCheckHandler.SetReadinessDetailsProvider(func(ctx context.Context) map[string]any {
 		_ = ctx
 		return buildOwnershipReadinessDetails(multiChainIndexer.GetStatus())
 	})
@@ -309,8 +334,7 @@ func main() {
 
 	monolithicPullerRuntime, err := newMonolithicPullerRuntime(ctx, *coreConfig, config.BlockchainNodeURLs, chains, logger, metrics, indexingDatabase, multiChainIndexer)
 	if err != nil {
-		logger.Error("Failed to initialize monolithic puller runtime", "error", err.Error())
-		os.Exit(1)
+		return fmt.Errorf("failed to initialize monolithic puller runtime: %w", err)
 	}
 
 	fmt.Printf("  ✓ Event bus initialized (%d subscribers)\n", monolithicPullerRuntime.SubscriberCount())
@@ -346,8 +370,7 @@ func main() {
 		logger.Info("Rate limit middleware enabled", "requests_per_minute", config.RateLimitPerMinute)
 	}
 	if err := gateway.Initialize(*coreConfig); err != nil {
-		logger.Error("Failed to initialize API Gateway", "error", err.Error())
-		os.Exit(1)
+		return fmt.Errorf("failed to initialize API Gateway: %w", err)
 	}
 	fmt.Println("  ✓ API Gateway initialized")
 	fmt.Printf("  ✓ Gateway Surface Mode: %s\n", gatewaySurface.SurfaceMode)
@@ -367,7 +390,7 @@ func main() {
 	}
 
 	if config.JWTSecret != "" {
-		if len(config.JWTSecret) < 32 {
+		if len(config.JWTSecret.Value()) < 32 {
 			logger.Warn("JWT secret too short, minimum 32 characters recommended")
 		}
 		fmt.Println("  ✓ JWT authentication configured")
@@ -377,7 +400,7 @@ func main() {
 
 	// Build and inject auth middleware if authentication is enabled
 	if config.AuthEnabled && config.JWTSecret != "" {
-		tokenValidator := api.NewTokenValidator(config.JWTSecret, logger, metrics)
+		tokenValidator := api.NewTokenValidator(config.JWTSecret.Value(), logger, metrics)
 		for _, entry := range config.AuthAPIKeys {
 			apiKey, clientID, ok := parseMonolithicKeyPair(entry)
 			if !ok {
@@ -407,8 +430,7 @@ func main() {
 	// Register plugins with registry
 	fmt.Println("Registering Plugins:")
 	if err := registry.Register(gateway); err != nil {
-		logger.Error("Failed to register API Gateway", "error", err.Error())
-		os.Exit(1)
+		return fmt.Errorf("failed to register API Gateway: %w", err)
 	}
 	fmt.Println("  [1/1] API Gateway registered")
 	fmt.Println()
@@ -441,9 +463,8 @@ func main() {
 	fmt.Println("  [2/2] API Gateway started")
 
 	if err := monolithicPullerRuntime.Start(pullerCtx, &wg); err != nil {
-		logger.Error("Failed to start monolithic puller runtime", "error", err.Error())
 		stopPullers()
-		os.Exit(1)
+		return fmt.Errorf("failed to start monolithic puller runtime: %w", err)
 	}
 
 	fmt.Printf("  [3/%d] Monolithic pullers started\n", monolithicPullerRuntime.PullerCount()+2)
@@ -567,6 +588,15 @@ func main() {
 	fmt.Println()
 	fmt.Println("Status: Shutdown complete")
 	fmt.Println()
+
+	return nil
+}
+
+func main() {
+	if err := run(); err != nil {
+		fmt.Fprintf(os.Stderr, "chainpulse: %v\n", err)
+		os.Exit(1)
+	}
 }
 
 // Configuration represents the application configuration
@@ -602,7 +632,7 @@ type Configuration struct {
 	TLSEnabled               bool
 	TLSCertPath              string
 	TLSKeyPath               string
-	JWTSecret                string
+	JWTSecret                core.SecretString
 	AuthEnabled              bool
 	AuthAPIKeys              []string
 }
@@ -610,7 +640,7 @@ type Configuration struct {
 // loadConfiguration loads configuration from environment variables
 func loadConfiguration() Configuration {
 	modeProfile := resolveDeploymentModeProfile(os.Getenv("DEPLOYMENT_MODE"))
-	upstreamQueryServices := getEnvCSV("MONOLITHIC_UPSTREAM_QUERY_SERVICES", []string{"http://localhost:8081"})
+	upstreamQueryServices := env.GetCSV("MONOLITHIC_UPSTREAM_QUERY_SERVICES", []string{"http://localhost:8081"})
 	adapterProfile := resolveMonolithicAdapterProfile(modeProfile.Mode, upstreamQueryServices)
 
 	return Configuration{
@@ -624,76 +654,50 @@ func loadConfiguration() Configuration {
 		QueryRuntimeAdapter:      adapterProfile.QueryRuntimeAdapter,
 		TransportAdapterBoundary: adapterProfile.TransportAdapterBoundary,
 		UpstreamQueryServices:    upstreamQueryServices,
-		Chains:                   getEnv("CHAINS", "ethereum,polygon"),
-		DataPullerType:           getEnv("DATA_PULLER_TYPE", "https-jsonrpc"),
-		BlockchainNodeURLs:       getEnv("BLOCKCHAIN_NODE_URLS", "http://localhost:8545,http://localhost:8546"),
-		MQType:                   getEnv("MQ_TYPE", "kafka"),
-		MQConnectionURL:          getEnv("MQ_CONNECTION_URL", "localhost:9092"),
-		CacheType:                getEnv("CACHE_TYPE", "redis"),
-		CacheConnectionURL:       getEnv("CACHE_CONNECTION_URL", "localhost:6379"),
-		DatabaseType:             getEnv("DATABASE_TYPE", "postgres"),
-		DatabaseURL:              getEnv("DATABASE_URL", "postgres://localhost/chainpulse"),
-		DatabaseSSLMode:          getEnv("DATABASE_SSLMODE", "prefer"),
-		APIType:                  getEnv("API_TYPE", "graphql"),
-		APIPort:                  getEnv("API_PORT", "8080"),
-		WorkerPoolSize:           getEnv("WORKER_POOL_SIZE", "8"),
-		BatchSize:                getEnv("BATCH_SIZE", "100"),
-		LogLevel:                 getEnv("LOG_LEVEL", "info"),
-		DLQRetention:             getEnv("MONOLITHIC_DLQ_RETENTION", "168h"),
-		RateLimitEnabled:         getEnvBool("GATEWAY_RATE_LIMIT_ENABLED", false),
-		RateLimitPerMinute:       getEnvInt("GATEWAY_RATE_LIMIT_PER_MINUTE", 60),
-		TLSEnabled:               getEnvBool("GATEWAY_TLS_ENABLED", false),
-		TLSCertPath:              getEnv("GATEWAY_TLS_CERT", ""),
-		TLSKeyPath:               getEnv("GATEWAY_TLS_KEY", ""),
-		JWTSecret:                getEnv("API_JWT_SECRET", ""),
-		AuthEnabled:              getEnvBool("CHAINPULSE_AUTH_ENABLED", false),
-		AuthAPIKeys:              getEnvCSV("CHAINPULSE_AUTH_API_KEYS", nil),
+		Chains:                   env.Get("CHAINS", "ethereum,polygon"),
+		DataPullerType:           env.Get("DATA_PULLER_TYPE", "https-jsonrpc"),
+		BlockchainNodeURLs:       env.Get("BLOCKCHAIN_NODE_URLS", "http://localhost:8545,http://localhost:8546"),
+		MQType:                   env.Get("MQ_TYPE", "kafka"),
+		MQConnectionURL:          env.Get("MQ_CONNECTION_URL", "localhost:9092"),
+		CacheType:                env.Get("CACHE_TYPE", "redis"),
+		CacheConnectionURL:       env.Get("CACHE_CONNECTION_URL", "localhost:6379"),
+		DatabaseType:             env.Get("DATABASE_TYPE", "postgres"),
+		DatabaseURL:              env.Get("DATABASE_URL", "postgres://localhost/chainpulse"),
+		DatabaseSSLMode:          env.Get("DATABASE_SSLMODE", "prefer"),
+		APIType:                  env.Get("API_TYPE", "graphql"),
+		APIPort:                  env.Get("API_PORT", "8080"),
+		WorkerPoolSize:           env.Get("WORKER_POOL_SIZE", "8"),
+		BatchSize:                env.Get("BATCH_SIZE", "100"),
+		LogLevel:                 env.Get("LOG_LEVEL", "info"),
+		DLQRetention:             env.Get("MONOLITHIC_DLQ_RETENTION", "168h"),
+		RateLimitEnabled:         env.GetBool("GATEWAY_RATE_LIMIT_ENABLED", false),
+		RateLimitPerMinute:       env.GetInt("GATEWAY_RATE_LIMIT_PER_MINUTE", 60),
+		TLSEnabled:               env.GetBool("GATEWAY_TLS_ENABLED", false),
+		TLSCertPath:              env.Get("GATEWAY_TLS_CERT", ""),
+		TLSKeyPath:               env.Get("GATEWAY_TLS_KEY", ""),
+		JWTSecret:                core.SecretString(env.Get("API_JWT_SECRET", "")),
+		AuthEnabled:              env.GetBool("CHAINPULSE_AUTH_ENABLED", false),
+		AuthAPIKeys:              env.GetCSV("CHAINPULSE_AUTH_API_KEYS", nil),
 	}
 }
 
-// getEnv gets an environment variable with a default value
-func getEnv(key, defaultValue string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
+func validateMonolithicProductionSecurity(c Configuration, runtimeProfile string) error {
+	if runtimeProfile != "production" {
+		return nil
 	}
-	return defaultValue
-}
-
-func getEnvBool(key string, defaultValue bool) bool {
-	if value := os.Getenv(key); value != "" {
-		return value == "true" || value == "1" || value == "yes"
+	if !c.AuthEnabled {
+		return fmt.Errorf("production monolithic requires CHAINPULSE_AUTH_ENABLED=true")
 	}
-	return defaultValue
-}
-
-func getEnvInt(key string, defaultValue int) int {
-	if value := os.Getenv(key); value != "" {
-		if intVal, err := strconv.Atoi(value); err == nil {
-			return intVal
-		}
+	if strings.TrimSpace(c.JWTSecret.Value()) == "" {
+		return fmt.Errorf("production monolithic requires non-empty API_JWT_SECRET")
 	}
-	return defaultValue
-}
-
-func getEnvCSV(key string, defaultValues []string) []string {
-	raw := strings.TrimSpace(os.Getenv(key))
-	if raw == "" {
-		if defaultValues == nil {
-			return nil
-		}
-		values := make([]string, len(defaultValues))
-		copy(values, defaultValues)
-		return values
+	if !c.RateLimitEnabled {
+		return fmt.Errorf("production monolithic requires GATEWAY_RATE_LIMIT_ENABLED=true")
 	}
-
-	values := make([]string, 0)
-	for _, part := range strings.Split(raw, ",") {
-		trimmed := strings.TrimSpace(part)
-		if trimmed != "" {
-			values = append(values, trimmed)
-		}
+	if c.RateLimitPerMinute <= 0 {
+		return fmt.Errorf("production monolithic requires GATEWAY_RATE_LIMIT_PER_MINUTE > 0")
 	}
-	return values
+	return nil
 }
 
 func parseChains(raw string) ([]string, error) {
@@ -735,7 +739,7 @@ type ownershipSummary struct {
 	Chains            int
 }
 
-func aggregateIndexerOwnership(status map[string]map[string]interface{}) ownershipSummary {
+func aggregateIndexerOwnership(status map[string]map[string]any) ownershipSummary {
 	summary := ownershipSummary{}
 	for _, chainStatus := range status {
 		summary.Chains++
@@ -775,7 +779,7 @@ func ownershipModeCode(mode string) float64 {
 	}
 }
 
-func buildOwnershipHealthComponent(status map[string]map[string]interface{}, now time.Time) *api.ComponentStatus {
+func buildOwnershipHealthComponent(status map[string]map[string]any, now time.Time) *api.ComponentStatus {
 	summary := aggregateIndexerOwnership(status)
 	mode := classifyOwnershipMode(summary)
 	componentStatus := "healthy"
@@ -787,7 +791,7 @@ func buildOwnershipHealthComponent(status map[string]map[string]interface{}, now
 		Name:      "Indexing Runtime",
 		Status:    componentStatus,
 		Timestamp: now.Unix(),
-		Details: map[string]interface{}{
+		Details: map[string]any{
 			"service":             "monolithic",
 			"ownership_mode":      mode,
 			"shadow_owned_events": summary.ShadowOwnedEvents,
@@ -797,11 +801,11 @@ func buildOwnershipHealthComponent(status map[string]map[string]interface{}, now
 	}
 }
 
-func buildOwnershipReadinessDetails(status map[string]map[string]interface{}) map[string]interface{} {
+func buildOwnershipReadinessDetails(status map[string]map[string]any) map[string]any {
 	return buildOwnershipRolloutSummary(status).readinessDetails()
 }
 
-func int64Value(value interface{}) int64 {
+func int64Value(value any) int64 {
 	switch typed := value.(type) {
 	case int64:
 		return typed

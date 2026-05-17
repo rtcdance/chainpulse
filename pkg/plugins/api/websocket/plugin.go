@@ -111,6 +111,10 @@ func (p *Plugin) Start() error {
 		return fmt.Errorf("WebSocket plugin already running")
 	}
 
+	if len(p.allowedOrigins) == 0 {
+		slog.Warn("WebSocket plugin: no origin restrictions configured — accepting all origins (development mode only)")
+	}
+
 	// Create HTTP server
 	mux := http.NewServeMux()
 	mux.HandleFunc("/ws", p.handleWebSocket)
@@ -136,7 +140,7 @@ func (p *Plugin) Start() error {
 	// Start WSS server if TLS manager is configured
 	if p.tlsManager != nil {
 		if err := p.startWSS(mux); err != nil {
-			return err
+			return fmt.Errorf("failed to start WSS server: %w", err)
 		}
 	}
 
@@ -186,7 +190,7 @@ func (p *Plugin) Stop() error {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		if err := p.server.Shutdown(ctx); err != nil {
-			return err
+			return fmt.Errorf("failed to shutdown WebSocket server: %w", err)
 		}
 	}
 
@@ -194,7 +198,7 @@ func (p *Plugin) Stop() error {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		if err := p.wssServer.Shutdown(ctx); err != nil {
-			return err
+			return fmt.Errorf("failed to shutdown WSS server: %w", err)
 		}
 	}
 
@@ -347,7 +351,7 @@ func (p *Plugin) GetWSSPort() int {
 }
 
 // GetTLSMetrics returns TLS metrics
-func (p *Plugin) GetTLSMetrics() map[string]interface{} {
+func (p *Plugin) GetTLSMetrics() map[string]any {
 	if p.tlsManager == nil {
 		return nil
 	}
@@ -356,13 +360,13 @@ func (p *Plugin) GetTLSMetrics() map[string]interface{} {
 
 // GetConnectionMetrics returns compact runtime connection metrics for the
 // websocket transport surface.
-func (p *Plugin) GetConnectionMetrics() map[string]interface{} {
+func (p *Plugin) GetConnectionMetrics() map[string]any {
 	running := p.IsRunning()
 	clientCount := p.GetClientCount()
 	transportPosture := classifyWebSocketTransportPosture(p.tlsManager != nil)
 	connectionPosture := classifyWebSocketConnectionPosture(running, clientCount)
 
-	return map[string]interface{}{
+	return map[string]any{
 		"running":            running,
 		"client_count":       clientCount,
 		"transport_posture":  transportPosture,

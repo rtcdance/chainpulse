@@ -58,7 +58,7 @@ func NewSharedHTTPClient(opts ...HTTPClientOption) *SharedHTTPClient {
 		MaxIdleConnsPerHost:   20,
 		MaxConnsPerHost:       50,
 		IdleConnTimeout:       90 * time.Second,
-		TLSHandshakeTimeout:  10 * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
 		ExpectContinueTimeout: 1 * time.Second,
 		ForceAttemptHTTP2:     true,
 	}

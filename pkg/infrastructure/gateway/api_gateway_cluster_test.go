@@ -10,6 +10,7 @@ import (
 
 // TestNewAPIGatewayClusterDeployment tests creating a new cluster deployment
 func TestNewAPIGatewayClusterDeployment(t *testing.T) {
+	t.Parallel()
 	config := APIGatewayClusterConfig{
 		Instances:      3,
 		Port:           8080,
@@ -28,6 +29,7 @@ func TestNewAPIGatewayClusterDeployment(t *testing.T) {
 
 // TestAPIGatewayClusterConfigStructure tests cluster config structure
 func TestAPIGatewayClusterConfigStructure(t *testing.T) {
+	t.Parallel()
 	config := APIGatewayClusterConfig{
 		Instances:       5,
 		Port:            9000,
@@ -47,6 +49,7 @@ func TestAPIGatewayClusterConfigStructure(t *testing.T) {
 
 // TestAPIGatewayClusterGetInstance tests getting a cluster instance
 func TestAPIGatewayClusterGetInstance(t *testing.T) {
+	t.Parallel()
 	config := APIGatewayClusterConfig{
 		Instances: 1,
 		Port:      8080,
@@ -66,6 +69,7 @@ func TestAPIGatewayClusterGetInstance(t *testing.T) {
 
 // TestAPIGatewayClusterGetInstanceNotFound tests getting non-existent instance
 func TestAPIGatewayClusterGetInstanceNotFound(t *testing.T) {
+	t.Parallel()
 	config := APIGatewayClusterConfig{
 		Instances: 1,
 		Port:      8080,
@@ -82,6 +86,7 @@ func TestAPIGatewayClusterGetInstanceNotFound(t *testing.T) {
 
 // TestAPIGatewayClusterListInstances tests listing instances
 func TestAPIGatewayClusterListInstances(t *testing.T) {
+	t.Parallel()
 	config := APIGatewayClusterConfig{
 		Instances: 3,
 		Port:      8080,
@@ -102,6 +107,7 @@ func TestAPIGatewayClusterListInstances(t *testing.T) {
 
 // TestAPIGatewayClusterListInstancesEmpty tests listing instances when empty
 func TestAPIGatewayClusterListInstancesEmpty(t *testing.T) {
+	t.Parallel()
 	config := APIGatewayClusterConfig{
 		Instances: 0,
 		Port:      8080,
@@ -117,6 +123,7 @@ func TestAPIGatewayClusterListInstancesEmpty(t *testing.T) {
 
 // TestAPIGatewayClusterGetClusterHealthNotDeployed tests health check when not deployed
 func TestAPIGatewayClusterGetClusterHealthNotDeployed(t *testing.T) {
+	t.Parallel()
 	config := APIGatewayClusterConfig{
 		Instances: 1,
 		Port:      8080,
@@ -134,6 +141,7 @@ func TestAPIGatewayClusterGetClusterHealthNotDeployed(t *testing.T) {
 
 // TestAPIGatewayClusterGetClusterHealthDeployed tests health check when deployed
 func TestAPIGatewayClusterGetClusterHealthDeployed(t *testing.T) {
+	t.Parallel()
 	config := APIGatewayClusterConfig{
 		Instances: 2,
 		Port:      8080,
@@ -159,6 +167,7 @@ func TestAPIGatewayClusterGetClusterHealthDeployed(t *testing.T) {
 
 // TestAPIGatewayClusterGetMetrics tests getting cluster metrics
 func TestAPIGatewayClusterGetMetrics(t *testing.T) {
+	t.Parallel()
 	config := APIGatewayClusterConfig{
 		Instances: 1,
 		Port:      8080,
@@ -183,6 +192,7 @@ func TestAPIGatewayClusterGetMetrics(t *testing.T) {
 
 // TestAPIGatewayClusterDeployNotDeployed tests deploying when not already deployed
 func TestAPIGatewayClusterDeployNotDeployed(t *testing.T) {
+	t.Parallel()
 	config := APIGatewayClusterConfig{
 		Instances: 0,
 		Port:      8080,
@@ -196,6 +206,7 @@ func TestAPIGatewayClusterDeployNotDeployed(t *testing.T) {
 
 // TestAPIGatewayClusterUndeployNotDeployed tests undeploying when not deployed
 func TestAPIGatewayClusterUndeployNotDeployed(t *testing.T) {
+	t.Parallel()
 	config := APIGatewayClusterConfig{
 		Instances: 1,
 		Port:      8080,
@@ -213,6 +224,7 @@ func TestAPIGatewayClusterUndeployNotDeployed(t *testing.T) {
 
 // TestAPIGatewayClusterScaleUpZero tests scaling up by zero
 func TestAPIGatewayClusterScaleUpZero(t *testing.T) {
+	t.Parallel()
 	config := APIGatewayClusterConfig{
 		Instances: 1,
 		Port:      8080,
@@ -230,6 +242,7 @@ func TestAPIGatewayClusterScaleUpZero(t *testing.T) {
 
 // TestAPIGatewayClusterScaleDownMoreThanAvailable tests scaling down more than available
 func TestAPIGatewayClusterScaleDownMoreThanAvailable(t *testing.T) {
+	t.Parallel()
 	config := APIGatewayClusterConfig{
 		Instances: 1,
 		Port:      8080,
@@ -247,6 +260,7 @@ func TestAPIGatewayClusterScaleDownMoreThanAvailable(t *testing.T) {
 
 // TestAPIGatewayClusterConcurrentAccess tests concurrent access to cluster
 func TestAPIGatewayClusterConcurrentAccess(t *testing.T) {
+	t.Parallel()
 	config := APIGatewayClusterConfig{
 		Instances: 1,
 		Port:      8080,
@@ -272,6 +286,7 @@ func TestAPIGatewayClusterConcurrentAccess(t *testing.T) {
 
 // TestAPIGatewayClusterMultipleProtocols tests cluster with multiple protocols
 func TestAPIGatewayClusterMultipleProtocols(t *testing.T) {
+	t.Parallel()
 	config := APIGatewayClusterConfig{
 		Instances: 1,
 		Port:      8080,
@@ -289,6 +304,7 @@ func TestAPIGatewayClusterMultipleProtocols(t *testing.T) {
 
 // TestAPIGatewayClusterPortConfiguration tests cluster port configuration
 func TestAPIGatewayClusterPortConfiguration(t *testing.T) {
+	t.Parallel()
 	ports := []int{8080, 8081, 9000, 3000}
 
 	for _, port := range ports {
@@ -306,6 +322,7 @@ func TestAPIGatewayClusterPortConfiguration(t *testing.T) {
 
 // TestAPIGatewayClusterInstanceCount tests various instance counts
 func TestAPIGatewayClusterInstanceCount(t *testing.T) {
+	t.Parallel()
 	counts := []int{1, 3, 5, 10}
 
 	for _, count := range counts {
@@ -323,6 +340,7 @@ func TestAPIGatewayClusterInstanceCount(t *testing.T) {
 
 // TestAPIGatewayClusterHealthCheckURL tests health check URL configuration
 func TestAPIGatewayClusterHealthCheckURL(t *testing.T) {
+	t.Parallel()
 	urls := []string{"/health", "/api/health", "/status", "/ping"}
 
 	for _, url := range urls {
@@ -341,6 +359,7 @@ func TestAPIGatewayClusterHealthCheckURL(t *testing.T) {
 
 // TestAPIGatewayClusterHealthCheckTTL tests health check TTL configuration
 func TestAPIGatewayClusterHealthCheckTTL(t *testing.T) {
+	t.Parallel()
 	ttls := []time.Duration{10 * time.Second, 30 * time.Second, 60 * time.Second}
 
 	for _, ttl := range ttls {

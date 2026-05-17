@@ -61,14 +61,15 @@ func (m *MockPlugin) GetStatus() PluginStatus {
 	return m.status
 }
 
-func (m *MockPlugin) GetMetrics() map[string]interface{} {
-	return map[string]interface{}{
+func (m *MockPlugin) GetMetrics() map[string]any {
+	return map[string]any{
 		"initialized": m.initialized,
 		"started":     m.started,
 	}
 }
 
 func TestPluginRegistryRegister(t *testing.T) {
+	t.Parallel()
 	registry := NewPluginRegistry()
 	plugin := NewMockPlugin("test-plugin")
 
@@ -92,6 +93,7 @@ func TestPluginRegistryRegister(t *testing.T) {
 }
 
 func TestPluginRegistryRegisterDuplicate(t *testing.T) {
+	t.Parallel()
 	registry := NewPluginRegistry()
 	plugin1 := NewMockPlugin("test-plugin")
 	plugin2 := NewMockPlugin("test-plugin")
@@ -108,6 +110,7 @@ func TestPluginRegistryRegisterDuplicate(t *testing.T) {
 }
 
 func TestPluginRegistryRegisterNil(t *testing.T) {
+	t.Parallel()
 	registry := NewPluginRegistry()
 
 	err := registry.Register(nil)
@@ -117,6 +120,7 @@ func TestPluginRegistryRegisterNil(t *testing.T) {
 }
 
 func TestPluginRegistryUnregister(t *testing.T) {
+	t.Parallel()
 	registry := NewPluginRegistry()
 	plugin := NewMockPlugin("test-plugin")
 
@@ -135,6 +139,7 @@ func TestPluginRegistryUnregister(t *testing.T) {
 }
 
 func TestPluginRegistryStart(t *testing.T) {
+	t.Parallel()
 	registry := NewPluginRegistry()
 	plugin := NewMockPlugin("test-plugin")
 
@@ -155,6 +160,7 @@ func TestPluginRegistryStart(t *testing.T) {
 }
 
 func TestPluginRegistryStop(t *testing.T) {
+	t.Parallel()
 	registry := NewPluginRegistry()
 	plugin := NewMockPlugin("test-plugin")
 
@@ -176,6 +182,7 @@ func TestPluginRegistryStop(t *testing.T) {
 }
 
 func TestPluginRegistryStartAll(t *testing.T) {
+	t.Parallel()
 	registry := NewPluginRegistry()
 	plugin1 := NewMockPlugin("plugin1")
 	plugin2 := NewMockPlugin("plugin2")
@@ -196,6 +203,7 @@ func TestPluginRegistryStartAll(t *testing.T) {
 }
 
 func TestPluginRegistryStopAll(t *testing.T) {
+	t.Parallel()
 	registry := NewPluginRegistry()
 	plugin1 := NewMockPlugin("plugin1")
 	plugin2 := NewMockPlugin("plugin2")
@@ -215,6 +223,7 @@ func TestPluginRegistryStopAll(t *testing.T) {
 }
 
 func TestPluginRegistryList(t *testing.T) {
+	t.Parallel()
 	registry := NewPluginRegistry()
 	plugin1 := NewMockPlugin("plugin1")
 	plugin2 := NewMockPlugin("plugin2")
@@ -229,6 +238,7 @@ func TestPluginRegistryList(t *testing.T) {
 }
 
 func TestPluginRegistryGetMetadata(t *testing.T) {
+	t.Parallel()
 	registry := NewPluginRegistry()
 	plugin := NewMockPlugin("test-plugin")
 
@@ -251,6 +261,7 @@ func TestPluginRegistryGetMetadata(t *testing.T) {
 }
 
 func TestPluginRegistryMetrics(t *testing.T) {
+	t.Parallel()
 	registry := NewPluginRegistry()
 	plugin1 := NewMockPlugin("plugin1")
 	plugin2 := NewMockPlugin("plugin2")
@@ -276,6 +287,7 @@ func TestPluginRegistryMetrics(t *testing.T) {
 }
 
 func TestPluginRegistryMetricsIncludesPostureFields(t *testing.T) {
+	t.Parallel()
 	registry := NewPluginRegistry()
 	plugin := NewMockPlugin("plugin-ready")
 
@@ -299,6 +311,7 @@ func TestPluginRegistryMetricsIncludesPostureFields(t *testing.T) {
 }
 
 func TestPluginRegistryRuntimeMetricsUnobserved(t *testing.T) {
+	t.Parallel()
 	registry := NewPluginRegistry()
 
 	metrics := registry.GetRuntimeMetrics()
@@ -311,6 +324,7 @@ func TestPluginRegistryRuntimeMetricsUnobserved(t *testing.T) {
 }
 
 func TestPluginRegistryRuntimeMetricsReady(t *testing.T) {
+	t.Parallel()
 	registry := NewPluginRegistry()
 	plugin := NewMockPlugin("plugin-ready")
 
@@ -331,6 +345,7 @@ func TestPluginRegistryRuntimeMetricsReady(t *testing.T) {
 }
 
 func TestPluginRegistryRuntimeMetricsDegraded(t *testing.T) {
+	t.Parallel()
 	registry := NewPluginRegistry()
 	plugin := NewMockPlugin("plugin-error")
 
@@ -350,6 +365,7 @@ func TestPluginRegistryRuntimeMetricsDegraded(t *testing.T) {
 }
 
 func TestPluginRegistryGetNonexistent(t *testing.T) {
+	t.Parallel()
 	registry := NewPluginRegistry()
 
 	_, err := registry.Get("nonexistent")
@@ -359,6 +375,7 @@ func TestPluginRegistryGetNonexistent(t *testing.T) {
 }
 
 func TestPluginRegistryStartNonexistent(t *testing.T) {
+	t.Parallel()
 	registry := NewPluginRegistry()
 
 	err := registry.Start("nonexistent")
@@ -368,6 +385,7 @@ func TestPluginRegistryStartNonexistent(t *testing.T) {
 }
 
 func TestPluginRegistryStopNonexistent(t *testing.T) {
+	t.Parallel()
 	registry := NewPluginRegistry()
 
 	err := registry.Stop("nonexistent")
@@ -377,6 +395,7 @@ func TestPluginRegistryStopNonexistent(t *testing.T) {
 }
 
 func TestPluginRegistryUnregisterNonexistent(t *testing.T) {
+	t.Parallel()
 	registry := NewPluginRegistry()
 
 	err := registry.Unregister("nonexistent")
@@ -386,6 +405,7 @@ func TestPluginRegistryUnregisterNonexistent(t *testing.T) {
 }
 
 func TestPluginRegistryMultipleOperations(t *testing.T) {
+	t.Parallel()
 	registry := NewPluginRegistry()
 	plugin := NewMockPlugin("test-plugin")
 
@@ -421,6 +441,7 @@ func TestPluginRegistryMultipleOperations(t *testing.T) {
 }
 
 func TestPluginRegistryConcurrentOperations(t *testing.T) {
+	t.Parallel()
 	registry := NewPluginRegistry()
 
 	// Register plugins concurrently

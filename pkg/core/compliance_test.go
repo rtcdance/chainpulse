@@ -11,6 +11,7 @@ import (
 // ─── OFAC Screening Tests ───────────────────────────────────────────────────
 
 func TestOFACScreenAddress(t *testing.T) {
+	t.Parallel()
 	policy := DefaultCompliancePolicy()
 	svc := NewOFACScreeningService(policy)
 
@@ -47,6 +48,7 @@ func TestOFACScreenAddress(t *testing.T) {
 }
 
 func TestOFACScreenTransaction(t *testing.T) {
+	t.Parallel()
 	policy := DefaultCompliancePolicy()
 	svc := NewOFACScreeningService(policy)
 
@@ -71,6 +73,7 @@ func TestOFACScreenTransaction(t *testing.T) {
 }
 
 func TestOFACScreeningCache(t *testing.T) {
+	t.Parallel()
 	policy := ComplianceScreeningPolicy{
 		BlockSanctioned:  true,
 		RescreenInterval: 1 * time.Hour,
@@ -96,6 +99,7 @@ func TestOFACScreeningCache(t *testing.T) {
 }
 
 func TestOFACRemoveEntry(t *testing.T) {
+	t.Parallel()
 	policy := DefaultCompliancePolicy()
 	svc := NewOFACScreeningService(policy)
 
@@ -116,6 +120,7 @@ func TestOFACRemoveEntry(t *testing.T) {
 }
 
 func TestOFACEntryCount(t *testing.T) {
+	t.Parallel()
 	policy := DefaultCompliancePolicy()
 	svc := NewOFACScreeningService(policy)
 
@@ -136,6 +141,7 @@ func TestOFACEntryCount(t *testing.T) {
 // ─── Transaction Monitor Tests ──────────────────────────────────────────────
 
 func TestTransactionMonitorUnusualVolume(t *testing.T) {
+	t.Parallel()
 	policy := DefaultCompliancePolicy()
 	tm := NewTransactionMonitor(policy)
 
@@ -154,6 +160,7 @@ func TestTransactionMonitorUnusualVolume(t *testing.T) {
 }
 
 func TestTransactionMonitorAlerts(t *testing.T) {
+	t.Parallel()
 	policy := DefaultCompliancePolicy()
 	tm := NewTransactionMonitor(policy)
 
@@ -182,6 +189,7 @@ func TestTransactionMonitorAlerts(t *testing.T) {
 }
 
 func TestCompliancePolicy(t *testing.T) {
+	t.Parallel()
 	policy := DefaultCompliancePolicy()
 
 	if !policy.BlockSanctioned {
@@ -199,6 +207,7 @@ func TestCompliancePolicy(t *testing.T) {
 }
 
 func TestLevenshteinDistance(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		a, b     string
 		expected int
@@ -219,13 +228,14 @@ func TestLevenshteinDistance(t *testing.T) {
 }
 
 func TestOFACFuzzyMatchHit(t *testing.T) {
+	t.Parallel()
 	policy := ComplianceScreeningPolicy{
-		BlockSanctioned:   true,
-		RiskThreshold:     0.7,
-		EnableFuzzyMatch:  true,
+		BlockSanctioned:    true,
+		RiskThreshold:      0.7,
+		EnableFuzzyMatch:   true,
 		FuzzyMatchDistance: 3,
-		RequireScreening:  true,
-		RescreenInterval:  24 * time.Hour,
+		RequireScreening:   true,
+		RescreenInterval:   24 * time.Hour,
 	}
 	svc := NewOFACScreeningService(policy)
 
@@ -252,13 +262,14 @@ func TestOFACFuzzyMatchHit(t *testing.T) {
 }
 
 func TestOFACFuzzyMatchDisabled(t *testing.T) {
+	t.Parallel()
 	policy := ComplianceScreeningPolicy{
-		BlockSanctioned:   true,
-		RiskThreshold:     0.7,
-		EnableFuzzyMatch:  false, // disabled
+		BlockSanctioned:    true,
+		RiskThreshold:      0.7,
+		EnableFuzzyMatch:   false, // disabled
 		FuzzyMatchDistance: 3,
-		RequireScreening:  true,
-		RescreenInterval:  24 * time.Hour,
+		RequireScreening:   true,
+		RescreenInterval:   24 * time.Hour,
 	}
 	svc := NewOFACScreeningService(policy)
 

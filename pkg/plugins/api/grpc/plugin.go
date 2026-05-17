@@ -138,7 +138,7 @@ func (p *GRPCPlugin) IsRunning() bool {
 }
 
 // RegisterService registers a gRPC service
-func (p *GRPCPlugin) RegisterService(desc *grpc.ServiceDesc, impl interface{}) {
+func (p *GRPCPlugin) RegisterService(desc *grpc.ServiceDesc, impl any) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 

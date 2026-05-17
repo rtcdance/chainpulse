@@ -15,11 +15,11 @@ import (
 // MockLogger implements core.Logger for testing
 type MockLogger struct{}
 
-func (ml *MockLogger) Debug(msg string, args ...interface{}) {}
-func (ml *MockLogger) Info(msg string, args ...interface{})  {}
-func (ml *MockLogger) Warn(msg string, args ...interface{})  {}
-func (ml *MockLogger) Error(msg string, args ...interface{}) {}
-func (ml *MockLogger) Fatal(msg string, args ...interface{}) {}
+func (ml *MockLogger) Debug(msg string, args ...any) {}
+func (ml *MockLogger) Info(msg string, args ...any)  {}
+func (ml *MockLogger) Warn(msg string, args ...any)  {}
+func (ml *MockLogger) Error(msg string, args ...any) {}
+func (ml *MockLogger) Fatal(msg string, args ...any) {}
 func (ml *MockLogger) WithCorrelationID(id string) core.Logger {
 	return ml
 }
@@ -30,7 +30,7 @@ type MockDatabasePlugin struct {
 	blocks []*core.Block
 }
 
-func (mdp *MockDatabasePlugin) StoreEvent(ctx context.Context, event interface{}) error {
+func (mdp *MockDatabasePlugin) StoreEvent(ctx context.Context, event any) error {
 	if e, ok := event.(*core.BlockchainEvent); ok {
 		mdp.events = append(mdp.events, e)
 	}
@@ -60,7 +60,7 @@ func (mdp *MockDatabasePlugin) GetEventsByBlockRange(ctx context.Context, from, 
 	return result, nil
 }
 
-func (mdp *MockDatabasePlugin) QueryEvents(ctx context.Context, filter interface{}) ([]interface{}, error) {
+func (mdp *MockDatabasePlugin) QueryEvents(ctx context.Context, filter any) ([]any, error) {
 	return nil, nil
 }
 
@@ -92,7 +92,7 @@ func (mdp *MockDatabasePlugin) StoreBlock(ctx context.Context, block *core.Block
 	return nil
 }
 
-func (mdp *MockDatabasePlugin) BatchStoreEvents(ctx context.Context, events []interface{}) error {
+func (mdp *MockDatabasePlugin) BatchStoreEvents(ctx context.Context, events []any) error {
 	for _, event := range events {
 		if e, ok := event.(*core.BlockchainEvent); ok {
 			mdp.events = append(mdp.events, e)
@@ -144,6 +144,7 @@ func (mdp *MockDatabasePlugin) Stop() error {
 func (mdp *MockDatabasePlugin) Close() error { return nil }
 
 func TestNewConsistencyChecker(t *testing.T) {
+	t.Parallel()
 	db := &MockDatabasePlugin{}
 	logger := &MockLogger{}
 
@@ -155,6 +156,7 @@ func TestNewConsistencyChecker(t *testing.T) {
 }
 
 func TestCheckConsistencyHealthy(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip("Skipping consistency check test in short mode")
 	}
@@ -195,6 +197,7 @@ func TestCheckConsistencyHealthy(t *testing.T) {
 }
 
 func TestCheckConsistencyWithDuplicates(t *testing.T) {
+	t.Parallel()
 	db := &MockDatabasePlugin{}
 	logger := &MockLogger{}
 	cc := NewConsistencyChecker(db, logger)
@@ -230,6 +233,7 @@ func TestCheckConsistencyWithDuplicates(t *testing.T) {
 }
 
 func TestVerifyEventSequence(t *testing.T) {
+	t.Parallel()
 	db := &MockDatabasePlugin{}
 	logger := &MockLogger{}
 	cc := NewConsistencyChecker(db, logger)
@@ -263,6 +267,7 @@ func TestVerifyEventSequence(t *testing.T) {
 }
 
 func TestVerifyBlockSequence(t *testing.T) {
+	t.Parallel()
 	db := &MockDatabasePlugin{}
 	logger := &MockLogger{}
 	cc := NewConsistencyChecker(db, logger)
@@ -292,6 +297,7 @@ func TestVerifyBlockSequence(t *testing.T) {
 }
 
 func TestRepairInconsistencies(t *testing.T) {
+	t.Parallel()
 	db := &MockDatabasePlugin{}
 	logger := &MockLogger{}
 	cc := NewConsistencyChecker(db, logger)
@@ -327,6 +333,7 @@ func TestRepairInconsistencies(t *testing.T) {
 }
 
 func TestGetEventConsistency(t *testing.T) {
+	t.Parallel()
 	db := &MockDatabasePlugin{}
 	logger := &MockLogger{}
 	cc := NewConsistencyChecker(db, logger)
@@ -360,6 +367,7 @@ func TestGetEventConsistency(t *testing.T) {
 }
 
 func TestGetEventConsistencyNotFound(t *testing.T) {
+	t.Parallel()
 	db := &MockDatabasePlugin{}
 	logger := &MockLogger{}
 	cc := NewConsistencyChecker(db, logger)
@@ -376,6 +384,7 @@ func TestGetEventConsistencyNotFound(t *testing.T) {
 }
 
 func TestGetBlockConsistency(t *testing.T) {
+	t.Parallel()
 	db := &MockDatabasePlugin{}
 	logger := &MockLogger{}
 	cc := NewConsistencyChecker(db, logger)
@@ -400,6 +409,7 @@ func TestGetBlockConsistency(t *testing.T) {
 }
 
 func TestGetBlockConsistencyNotFound(t *testing.T) {
+	t.Parallel()
 	db := &MockDatabasePlugin{}
 	logger := &MockLogger{}
 	cc := NewConsistencyChecker(db, logger)
@@ -415,6 +425,7 @@ func TestGetBlockConsistencyNotFound(t *testing.T) {
 }
 
 func TestGetBlockConsistencyParentMismatch(t *testing.T) {
+	t.Parallel()
 	db := &MockDatabasePlugin{}
 	logger := &MockLogger{}
 	cc := NewConsistencyChecker(db, logger)
@@ -445,6 +456,7 @@ func TestGetBlockConsistencyParentMismatch(t *testing.T) {
 }
 
 func TestConsistencyReportStructure(t *testing.T) {
+	t.Parallel()
 	db := &MockDatabasePlugin{}
 	logger := &MockLogger{}
 	cc := NewConsistencyChecker(db, logger)
@@ -463,6 +475,7 @@ func TestConsistencyReportStructure(t *testing.T) {
 }
 
 func TestEventConsistencyStructure(t *testing.T) {
+	t.Parallel()
 	db := &MockDatabasePlugin{}
 	logger := &MockLogger{}
 	cc := NewConsistencyChecker(db, logger)
@@ -489,6 +502,7 @@ func TestEventConsistencyStructure(t *testing.T) {
 }
 
 func TestBlockConsistencyStructure(t *testing.T) {
+	t.Parallel()
 	db := &MockDatabasePlugin{}
 	logger := &MockLogger{}
 	cc := NewConsistencyChecker(db, logger)

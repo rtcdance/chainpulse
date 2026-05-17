@@ -621,7 +621,7 @@ func TestRedisCachePingConsistency(t *testing.T) {
 	_ = cache.Start()
 
 	// Property: Ping succeeds when running
-	err := cache.Ping(context.TODO())
+	err := cache.Ping(context.Background())
 	if err != nil {
 		t.Fatalf("Ping failed: %v", err)
 	}
@@ -629,7 +629,9 @@ func TestRedisCachePingConsistency(t *testing.T) {
 	_ = cache.Stop()
 
 	// Property: Ping fails when not running
-	err = cache.Ping(context.TODO())
+	pingCtx, pingCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer pingCancel()
+	err = cache.Ping(pingCtx)
 	if err == nil {
 		t.Fatal("Expected Ping to fail when not running")
 	}
@@ -661,7 +663,7 @@ func TestRedisCacheFlushDBConsistency(t *testing.T) {
 		_ = cache.Set(entry)
 	}
 
-	_ = cache.FlushDB(context.TODO())
+	_ = cache.FlushDB(context.Background())
 
 	if cache.GetKeyCount() != 0 {
 		t.Fatalf("Expected 0 keys after FlushDB, got %d", cache.GetKeyCount())

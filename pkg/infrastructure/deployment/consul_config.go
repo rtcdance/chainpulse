@@ -1,11 +1,13 @@
 package deployment
 
+import "chainpulse/pkg/core"
+
 // ConsulConfig holds Consul configuration
 type ConsulConfig struct {
 	Host               string
 	Port               int
 	Datacenter         string
-	Token              string
+	Token              core.SecretString
 	Scheme             string
 	TLS                bool
 	InsecureSkipVerify bool

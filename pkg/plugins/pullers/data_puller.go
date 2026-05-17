@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -27,8 +28,12 @@ type BaseDataPullerPlugin struct {
 	maxRetries        int
 	retryBackoff      time.Duration
 	connectionTimeout time.Duration
-	inFlight          sync.WaitGroup // tracks in-flight operations
-	shutdownTimeout   time.Duration  // max wait for in-flight ops on Stop()
+	inFlight          sync.WaitGroup  // tracks in-flight operations
+	shutdownTimeout   time.Duration   // max wait for in-flight ops on Stop()
+	lifecycleCtx      context.Context // context for async operations like checkpoint persistence
+	errorCounter      int64
+	lastError         error
+	lastErrorTime     time.Time
 }
 
 // NewBaseDataPullerPlugin creates a new base data puller plugin
@@ -168,6 +173,28 @@ func (p *BaseDataPullerPlugin) IsRunning() bool {
 	return p.isRunning
 }
 
+// RecordError records an error for stats and logging
+func (p *BaseDataPullerPlugin) RecordError(err error) {
+	p.mu.Lock()
+	p.errorCounter++
+	p.lastError = err
+	p.lastErrorTime = time.Now()
+	p.mu.Unlock()
+}
+
+// BaseStats returns common puller statistics
+func (p *BaseDataPullerPlugin) BaseStats() map[string]any {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	return map[string]any{
+		"request_count":   p.errorCounter,
+		"error_count":     p.errorCounter,
+		"last_error":      p.lastError,
+		"last_error_time": p.lastErrorTime,
+		"is_running":      p.isRunning,
+	}
+}
+
 // GetLastBlockNumber returns the last processed block number
 func (p *BaseDataPullerPlugin) GetLastBlockNumber() uint64 {
 	p.mu.RLock()
@@ -196,9 +223,14 @@ func (p *BaseDataPullerPlugin) SetLastBlockNumber(blockNumber uint64) {
 		p.inFlight.Add(1)
 		go func() {
 			defer p.inFlight.Done()
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			// Use lifecycle context if available, otherwise use a minimal context with timeout only
+			ctx := p.lifecycleCtx
+			if ctx == nil {
+				ctx = context.Background()
+			}
+			persistCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 			defer cancel()
-			if err := store.SaveLastIndexedBlock(ctx, chainID, blockNumber, ""); err != nil {
+			if err := store.SaveLastIndexedBlock(persistCtx, chainID, blockNumber, ""); err != nil {
 				if p.logger != nil {
 					p.logger.Warn("failed to persist checkpoint", "error", err.Error(), "block", blockNumber)
 				}
@@ -212,6 +244,14 @@ func (p *BaseDataPullerPlugin) SetCheckpointStore(store core.CheckpointStore) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.checkpointStore = store
+}
+
+// SetLifecycleContext sets the lifecycle context for async operations like
+// checkpoint persistence. Call this from the concrete puller's Start() method.
+func (p *BaseDataPullerPlugin) SetLifecycleContext(ctx context.Context) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.lifecycleCtx = ctx
 }
 
 // LoadCheckpoint loads the last indexed block from the checkpoint store.
@@ -253,7 +293,7 @@ func (p *BaseDataPullerPlugin) PublishEvent(ctx context.Context, event core.Bloc
 	event.ProcessedAt = time.Now().UTC()
 	event.Status = "published"
 
-	if err := p.eventBus.Publish(ctx, "blockchain-events", event); err != nil {
+	if err := p.eventBus.Publish(ctx, core.TopicBlockchainEvents, event); err != nil {
 		if p.logger != nil {
 			p.logger.Error("failed to publish event", "error", err.Error(), "block", event.BlockNumber)
 		}
@@ -278,7 +318,7 @@ func (p *BaseDataPullerPlugin) PublishEvents(ctx context.Context, events []core.
 }
 
 // RecordMetric records a metric
-func (p *BaseDataPullerPlugin) RecordMetric(name string, value interface{}, tags map[string]string) {
+func (p *BaseDataPullerPlugin) RecordMetric(name string, value any, tags map[string]string) {
 	if p.metricsCollector == nil {
 		return
 	}
@@ -297,21 +337,21 @@ func (p *BaseDataPullerPlugin) RecordMetric(name string, value interface{}, tags
 }
 
 // LogInfo logs an info message
-func (p *BaseDataPullerPlugin) LogInfo(msg string, fields ...interface{}) {
+func (p *BaseDataPullerPlugin) LogInfo(msg string, fields ...any) {
 	if p.logger != nil {
 		p.logger.Info(msg, fields...)
 	}
 }
 
 // LogError logs an error message
-func (p *BaseDataPullerPlugin) LogError(msg string, fields ...interface{}) {
+func (p *BaseDataPullerPlugin) LogError(msg string, fields ...any) {
 	if p.logger != nil {
 		p.logger.Error(msg, fields...)
 	}
 }
 
 // LogWarn logs a warning message
-func (p *BaseDataPullerPlugin) LogWarn(msg string, fields ...interface{}) {
+func (p *BaseDataPullerPlugin) LogWarn(msg string, fields ...any) {
 	if p.logger != nil {
 		p.logger.Warn(msg, fields...)
 	}
@@ -456,4 +496,40 @@ func (p *BaseDataPullerPlugin) ValidateEvent(event core.BlockchainEvent) error {
 // canonical ComputeEventHash function from pkg/core.
 func (p *BaseDataPullerPlugin) GenerateEventHash(event core.BlockchainEvent) string {
 	return core.ComputeEventHash(&event)
+}
+
+// BuildBlockchainEvent constructs a core.BlockchainEvent from parsed log fields.
+// Both grpc and websocket pullers use this after converting their hex-encoded
+// Log struct fields into native Go types.
+func (p *BaseDataPullerPlugin) BuildBlockchainEvent(
+	chainID, network string,
+	txHash common.Hash,
+	blockNumber uint64,
+	logIndex uint64,
+	contractAddr common.Address,
+	eventData []byte,
+	eventTopics []common.Hash,
+	eventName string,
+	eventSig common.Hash,
+	blockTimestamp int64,
+	removed bool,
+) core.BlockchainEvent {
+	event := core.BlockchainEvent{
+		ID:              chainID + "-" + txHash.Hex() + "-" + strconv.FormatUint(logIndex, 10),
+		BlockNumber:     blockNumber,
+		TransactionHash: txHash,
+		LogIndex:        logIndex,
+		ContractAddress: contractAddr,
+		EventName:       eventName,
+		EventSignature:  eventSig,
+		EventData:       eventData,
+		DecodedData:     core.DecodeEvent(eventName, eventTopics, eventData),
+		ChainID:         chainID,
+		Network:         network,
+		BlockTimestamp:  blockTimestamp,
+		Status:          core.EventStatusPending,
+		Removed:         removed,
+	}
+	event.EventHash = p.GenerateEventHash(event)
+	return event
 }

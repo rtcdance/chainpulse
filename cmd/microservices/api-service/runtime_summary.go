@@ -12,16 +12,16 @@ import (
 )
 
 type apiServiceRuntimeSummaryResponse struct {
-	Service        string                 `json:"service"`
-	Timestamp      int64                  `json:"timestamp"`
-	DeploymentMode string                 `json:"deployment_mode"`
-	RuntimeMode    string                 `json:"runtime_mode"`
-	RuntimePosture string                 `json:"runtime_posture"`
-	ComponentState string                 `json:"component_state"`
-	Rollout        map[string]interface{} `json:"rollout"`
-	Query          map[string]interface{} `json:"query"`
-	Security       map[string]interface{} `json:"security"`
-	Metrics        map[string]interface{} `json:"metrics"`
+	Service        string         `json:"service"`
+	Timestamp      int64          `json:"timestamp"`
+	DeploymentMode string         `json:"deployment_mode"`
+	RuntimeMode    string         `json:"runtime_mode"`
+	RuntimePosture string         `json:"runtime_posture"`
+	ComponentState string         `json:"component_state"`
+	Rollout        map[string]any `json:"rollout"`
+	Query          map[string]any `json:"query"`
+	Security       map[string]any `json:"security"`
+	Metrics        map[string]any `json:"metrics"`
 }
 
 type apiServiceQueryRuntimeSummarizer interface {
@@ -33,8 +33,8 @@ func buildAPIServiceRuntimeSummaryProvider(
 	metrics core.MetricsCollector,
 	service *api.APIGatewayPlugin,
 	queryService query.QueryService,
-) func(*http.Request) interface{} {
-	return func(r *http.Request) interface{} {
+) func(*http.Request) any {
+	return func(r *http.Request) any {
 		_ = r
 		return buildAPIServiceRuntimeSummaryResponse(instanceID, metrics, service, queryService)
 	}
@@ -92,7 +92,7 @@ func buildAPIServiceRuntimeSummaryResponse(
 		RuntimeMode:    runtimeMode,
 		RuntimePosture: runtimePosture,
 		ComponentState: componentState,
-		Rollout: map[string]interface{}{
+		Rollout: map[string]any{
 			"instance_id":          instanceID,
 			"advisory_status":      completeness.AdvisoryStatus,
 			"advisory_ready":       completeness.AdvisoryReady,
@@ -109,8 +109,8 @@ func buildAPIServiceRuntimeSummaryResponse(
 func buildAPIServiceQueryRuntimeSection(
 	queryService query.QueryService,
 	queryHealthStatus, queryHealthMessage string,
-) map[string]interface{} {
-	section := map[string]interface{}{
+) map[string]any {
+	section := map[string]any{
 		"status":           queryHealthStatus,
 		"message":          queryHealthMessage,
 		"health_hint":      classifyAPIServiceQueryHealthHint(queryHealthStatus),
@@ -135,8 +135,8 @@ func buildAPIServiceQueryRuntimeSection(
 	return section
 }
 
-func buildAPIServiceMetricsSummary(metrics core.MetricsCollector) map[string]interface{} {
-	summary := map[string]interface{}{
+func buildAPIServiceMetricsSummary(metrics core.MetricsCollector) map[string]any {
+	summary := map[string]any{
 		"collector_state":   "unavailable",
 		"counter_count":     0,
 		"gauge_count":       0,
@@ -148,9 +148,9 @@ func buildAPIServiceMetricsSummary(metrics core.MetricsCollector) map[string]int
 	}
 
 	exported := metrics.GetMetrics()
-	counters, _ := exported["counters"].(map[string]interface{})
-	gauges, _ := exported["gauges"].(map[string]interface{})
-	histograms, _ := exported["histograms"].(map[string]interface{})
+	counters, _ := exported["counters"].(map[string]any)
+	gauges, _ := exported["gauges"].(map[string]any)
+	histograms, _ := exported["histograms"].(map[string]any)
 
 	summary["collector_state"] = "available"
 	summary["counter_count"] = len(counters)
@@ -163,7 +163,7 @@ func buildAPIServiceMetricsSummary(metrics core.MetricsCollector) map[string]int
 }
 
 //nolint:wsl,nlreturn // Security/runtime summary is intentionally compact.
-func buildAPIServiceSecurityRuntimeSection(service *api.APIGatewayPlugin) map[string]interface{} {
+func buildAPIServiceSecurityRuntimeSection(service *api.APIGatewayPlugin) map[string]any {
 	authEnabled := false
 	rateLimitEnabled := false
 	if service != nil {
@@ -175,7 +175,7 @@ func buildAPIServiceSecurityRuntimeSection(service *api.APIGatewayPlugin) map[st
 	rateLimitPosture := classifyAPIServiceRateLimitPosture(rateLimitEnabled)
 	securityPosture := classifyAPIServiceSecurityPosture(authEnabled, rateLimitEnabled)
 
-	return map[string]interface{}{
+	return map[string]any{
 		"route_boundary":     "service-entrypoint",
 		"auth_enabled":       authEnabled,
 		"rate_limit_enabled": rateLimitEnabled,

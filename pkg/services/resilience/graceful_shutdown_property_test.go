@@ -16,6 +16,7 @@ import (
 // execute shutdown callbacks, and clean up resources before terminating
 
 func TestProperty19GracefulShutdown(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metricsCollector := core.NewDefaultMetricsCollector()
 

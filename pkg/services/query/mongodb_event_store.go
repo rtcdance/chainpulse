@@ -16,13 +16,12 @@ import (
 
 	"chainpulse/pkg/core"
 	domainquery "chainpulse/pkg/domain/query"
-	"chainpulse/pkg/infrastructure/database"
 	"chainpulse/pkg/observability"
 )
 
 // MongoDBEventStore implements EventStore for MongoDB
 type MongoDBEventStore struct {
-	dbManager   database.DatabaseManager
+	dbManager   mongoClientProvider
 	logger      core.Logger
 	metrics     core.MetricsCollector
 	config      *EventStoreConfig
@@ -33,7 +32,7 @@ type MongoDBEventStore struct {
 
 // NewMongoDBEventStore creates a new MongoDB event store
 func NewMongoDBEventStore(
-	dbManager database.DatabaseManager,
+	dbManager mongoClientProvider,
 	logger core.Logger,
 	metrics core.MetricsCollector,
 	config *EventStoreConfig,
@@ -166,10 +165,10 @@ func (s *MongoDBEventStore) InsertEvent(ctx context.Context, event *core.Blockch
 		"id":              event.ID,
 		"eventHash":       event.EventHash,
 		"chainId":         normalizeChainIDForStorage(event.ChainID),
-		"blockNumber":     event.BlockNumber,
+		"blockNumber":     int64(event.BlockNumber),
 		"blockTimestamp":  event.BlockTimestamp,
 		"transactionHash": event.TransactionHash.Hex(),
-		"logIndex":        event.LogIndex,
+		"logIndex":        int64(event.LogIndex),
 		"contractAddress": event.ContractAddress.Hex(),
 		"eventName":       event.EventName,
 		"eventSignature":  event.EventSignature.Hex(),
@@ -218,7 +217,7 @@ func (s *MongoDBEventStore) InsertEventBatch(ctx context.Context, events []*core
 	}()
 
 	// Prepare documents
-	docs := make([]interface{}, len(events))
+	docs := make([]any, len(events))
 	for i, event := range events {
 		if event == nil {
 			continue
@@ -228,10 +227,10 @@ func (s *MongoDBEventStore) InsertEventBatch(ctx context.Context, events []*core
 			"id":              event.ID,
 			"eventHash":       event.EventHash,
 			"chainId":         normalizeChainIDForStorage(event.ChainID),
-			"blockNumber":     event.BlockNumber,
+			"blockNumber":     int64(event.BlockNumber),
 			"blockTimestamp":  event.BlockTimestamp,
 			"transactionHash": event.TransactionHash.Hex(),
-			"logIndex":        event.LogIndex,
+			"logIndex":        int64(event.LogIndex),
 			"contractAddress": event.ContractAddress.Hex(),
 			"eventName":       event.EventName,
 			"eventSignature":  event.EventSignature.Hex(),
@@ -314,7 +313,7 @@ func (s *MongoDBEventStore) GetEvent(ctx context.Context, eventID string) (*core
 	return event, nil
 }
 
-func bsonNumericToUint64(value interface{}) (uint64, error) {
+func bsonNumericToUint64(value any) (uint64, error) {
 	switch typed := value.(type) {
 	case int32:
 		if typed < 0 {
@@ -330,6 +329,14 @@ func bsonNumericToUint64(value interface{}) (uint64, error) {
 		return uint64(typed), nil
 	case uint64:
 		return typed, nil
+	case float64:
+		if typed < 0 {
+			return 0, fmt.Errorf("negative value %f", typed)
+		}
+		if typed > 1<<53 {
+			return 0, fmt.Errorf("float64 precision loss: value %f exceeds 2^53", typed)
+		}
+		return uint64(typed), nil
 	default:
 		return 0, fmt.Errorf("unsupported type %T", value)
 	}
@@ -375,7 +382,7 @@ func (s *MongoDBEventStore) GetEventsByChain(ctx context.Context, chainID int, l
 	return events, nil
 }
 
-func normalizeChainIDForStorage(chainID string) interface{} {
+func normalizeChainIDForStorage(chainID string) any {
 	trimmed := strings.TrimSpace(chainID)
 	if trimmed == "" {
 		return ""
@@ -390,7 +397,7 @@ func buildChainLookupFilter(chainID int) bson.M {
 
 	// Build string-only $in filter — chainId is always stored as string
 	// after the ChainID string migration.
-	values := []interface{}{strconv.Itoa(chainID)}
+	values := []any{strconv.Itoa(chainID)}
 	if name := core.ResolveChainName(chainID); name != strconv.Itoa(chainID) {
 		values = append(values, name)
 	}
@@ -654,11 +661,7 @@ func (s *MongoDBEventStore) DeleteEventsByBlockRange(ctx context.Context, fromBl
 		return 0, fmt.Errorf("failed to delete events by block range: %w", err)
 	}
 
-	s.logger.Info("Deleted events by block range", map[string]interface{}{
-		"from_block": fromBlock,
-		"to_block":   toBlock,
-		"count":      result.DeletedCount,
-	})
+	s.logger.Info("Deleted events by block range", core.LogKeyFromBlock, fromBlock, core.LogKeyToBlock, toBlock, core.LogKeyCount, result.DeletedCount)
 
 	return result.DeletedCount, nil
 }
@@ -878,7 +881,7 @@ func decodeMongoEventDocument(doc bson.M) *core.BlockchainEvent {
 	}
 }
 
-func bsonString(value interface{}) string {
+func bsonString(value any) string {
 	switch typed := value.(type) {
 	case string:
 		return typed
@@ -889,7 +892,7 @@ func bsonString(value interface{}) string {
 	}
 }
 
-func bsonUint64(value interface{}) uint64 {
+func bsonUint64(value any) uint64 {
 	switch typed := value.(type) {
 	case int32:
 		return uint64(typed)
@@ -900,6 +903,12 @@ func bsonUint64(value interface{}) uint64 {
 	case uint64:
 		return typed
 	case float64:
+		if typed < 0 {
+			return 0
+		}
+		if typed > 1<<53 {
+			return 0
+		}
 		return uint64(typed)
 	case primitive.DateTime:
 		return uint64(typed.Time().Unix())
@@ -908,7 +917,7 @@ func bsonUint64(value interface{}) uint64 {
 	}
 }
 
-func bsonInt64(value interface{}) int64 {
+func bsonInt64(value any) int64 {
 	switch typed := value.(type) {
 	case int32:
 		return int64(typed)
@@ -927,7 +936,7 @@ func bsonInt64(value interface{}) int64 {
 	}
 }
 
-func bsonBytes(value interface{}) []byte {
+func bsonBytes(value any) []byte {
 	switch typed := value.(type) {
 	case []byte:
 		return typed
@@ -938,18 +947,18 @@ func bsonBytes(value interface{}) []byte {
 	}
 }
 
-func bsonMap(value interface{}) map[string]interface{} {
+func bsonMap(value any) map[string]any {
 	switch typed := value.(type) {
-	case map[string]interface{}:
+	case map[string]any:
 		return typed
 	case bson.M:
-		return map[string]interface{}(typed)
+		return map[string]any(typed)
 	default:
 		return nil
 	}
 }
 
-func bsonTime(value interface{}) time.Time {
+func bsonTime(value any) time.Time {
 	switch typed := value.(type) {
 	case time.Time:
 		return typed

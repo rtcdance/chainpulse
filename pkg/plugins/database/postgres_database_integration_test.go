@@ -16,7 +16,7 @@ func TestPostgreSQLRealConnection(t *testing.T) {
 		PostgresHost:     "localhost",
 		PostgresPort:     "5432",
 		PostgresUser:     "chainpulse",
-		PostgresPassword: "chainpulse",
+		PostgresPassword: core.SecretString("chainpulse"),
 		PostgresDB:       "chainpulse",
 	}
 

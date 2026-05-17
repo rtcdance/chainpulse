@@ -6,6 +6,7 @@ import (
 )
 
 func TestErrorHandlerRuntimeMetricsReady(t *testing.T) {
+	t.Parallel()
 	handler := NewErrorHandler()
 
 	metrics := handler.GetRuntimeMetrics()
@@ -21,6 +22,7 @@ func TestErrorHandlerRuntimeMetricsReady(t *testing.T) {
 }
 
 func TestErrorHandlerMetricsIncludesPostureFields(t *testing.T) {
+	t.Parallel()
 	handler := NewErrorHandler()
 
 	metrics := handler.GetMetrics()
@@ -39,6 +41,7 @@ func TestErrorHandlerMetricsIncludesPostureFields(t *testing.T) {
 }
 
 func TestErrorHandlerRuntimeMetricsOpenCircuit(t *testing.T) {
+	t.Parallel()
 	handler := NewErrorHandler()
 
 	for i := 0; i < 5; i++ {
@@ -58,6 +61,7 @@ func TestErrorHandlerRuntimeMetricsOpenCircuit(t *testing.T) {
 }
 
 func TestErrorHandlerRuntimeMetricsProbing(t *testing.T) {
+	t.Parallel()
 	handler := NewErrorHandler()
 	handler.circuitBreaker.state = StateHalfOpen
 	handler.circuitBreaker.lastFailureTime = time.Now()

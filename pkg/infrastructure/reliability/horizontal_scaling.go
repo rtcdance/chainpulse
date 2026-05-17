@@ -12,6 +12,7 @@ type HorizontalScaler struct {
 	mu               sync.RWMutex
 	wg               sync.WaitGroup
 	done             chan struct{}
+	closeOnce        sync.Once
 	id               string
 	minInstances     int
 	maxInstances     int
@@ -309,14 +310,14 @@ func (hs *HorizontalScaler) GetInstances() []*ServiceInstance {
 }
 
 // GetMetrics returns scaling metrics
-func (hs *HorizontalScaler) GetMetrics() map[string]interface{} {
+func (hs *HorizontalScaler) GetMetrics() map[string]any {
 	hs.mu.RLock()
 	defer hs.mu.RUnlock()
 
 	hs.metrics.mu.RLock()
 	defer hs.metrics.mu.RUnlock()
 
-	return map[string]interface{}{
+	return map[string]any{
 		"current_instances":    hs.currentInstances,
 		"target_instances":     hs.targetInstances,
 		"min_instances":        hs.minInstances,
@@ -373,7 +374,9 @@ func (hs *HorizontalScaler) GetCurrentInstanceCount() int {
 
 // Stop signals all background goroutines to exit and waits for them to finish.
 func (hs *HorizontalScaler) Stop() {
-	close(hs.done)
+	hs.closeOnce.Do(func() {
+		close(hs.done)
+	})
 	hs.wg.Wait()
 }
 

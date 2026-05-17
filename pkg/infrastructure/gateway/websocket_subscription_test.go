@@ -14,6 +14,7 @@ import (
 
 // TestNewSubscriptionManager tests subscription manager creation
 func TestNewSubscriptionManager(t *testing.T) {
+	t.Parallel()
 	manager := NewSubscriptionManager()
 
 	assert.NotNil(t, manager)
@@ -24,6 +25,7 @@ func TestNewSubscriptionManager(t *testing.T) {
 
 // TestSubscribe tests creating a subscription
 func TestSubscribe(t *testing.T) {
+	t.Parallel()
 	manager := NewSubscriptionManager()
 	ctx := context.Background()
 
@@ -39,6 +41,7 @@ func TestSubscribe(t *testing.T) {
 
 // TestUnsubscribe tests removing a subscription
 func TestUnsubscribe(t *testing.T) {
+	t.Parallel()
 	manager := NewSubscriptionManager()
 	ctx := context.Background()
 
@@ -50,6 +53,7 @@ func TestUnsubscribe(t *testing.T) {
 
 // TestUnsubscribeNotFound tests unsubscribing non-existent subscription
 func TestUnsubscribeNotFound(t *testing.T) {
+	t.Parallel()
 	manager := NewSubscriptionManager()
 	ctx := context.Background()
 
@@ -61,6 +65,7 @@ func TestUnsubscribeNotFound(t *testing.T) {
 
 // TestGetSubscription tests getting a subscription
 func TestGetSubscription(t *testing.T) {
+	t.Parallel()
 	manager := NewSubscriptionManager()
 	ctx := context.Background()
 
@@ -73,6 +78,7 @@ func TestGetSubscription(t *testing.T) {
 
 // TestGetSubscriptionNotFound tests getting non-existent subscription
 func TestGetSubscriptionNotFound(t *testing.T) {
+	t.Parallel()
 	manager := NewSubscriptionManager()
 	ctx := context.Background()
 
@@ -84,6 +90,7 @@ func TestGetSubscriptionNotFound(t *testing.T) {
 
 // TestGetClientSubscriptions tests getting client subscriptions
 func TestGetClientSubscriptions(t *testing.T) {
+	t.Parallel()
 	manager := NewSubscriptionManager()
 	ctx := context.Background()
 
@@ -98,6 +105,7 @@ func TestGetClientSubscriptions(t *testing.T) {
 
 // TestGetClientSubscriptionsEmpty tests getting subscriptions for client with none
 func TestGetClientSubscriptionsEmpty(t *testing.T) {
+	t.Parallel()
 	manager := NewSubscriptionManager()
 	ctx := context.Background()
 
@@ -109,6 +117,7 @@ func TestGetClientSubscriptionsEmpty(t *testing.T) {
 
 // TestGetChainSubscriptions tests getting chain subscriptions
 func TestGetChainSubscriptions(t *testing.T) {
+	t.Parallel()
 	manager := NewSubscriptionManager()
 	ctx := context.Background()
 
@@ -124,6 +133,7 @@ func TestGetChainSubscriptions(t *testing.T) {
 
 // TestGetChainSubscriptionsEmpty tests getting subscriptions for chain with none
 func TestGetChainSubscriptionsEmpty(t *testing.T) {
+	t.Parallel()
 	manager := NewSubscriptionManager()
 	ctx := context.Background()
 
@@ -135,6 +145,7 @@ func TestGetChainSubscriptionsEmpty(t *testing.T) {
 
 // TestSubscriptionFields tests subscription fields
 func TestSubscriptionFields(t *testing.T) {
+	t.Parallel()
 	manager := NewSubscriptionManager()
 	ctx := context.Background()
 
@@ -150,6 +161,7 @@ func TestSubscriptionFields(t *testing.T) {
 
 // TestNewEventDeliveryManager tests event delivery manager creation
 func TestNewEventDeliveryManager(t *testing.T) {
+	t.Parallel()
 	subMgr := NewSubscriptionManager()
 	deliveryMgr := NewEventDeliveryManager(subMgr)
 
@@ -160,6 +172,7 @@ func TestNewEventDeliveryManager(t *testing.T) {
 
 // TestRegisterDeliveryChannel tests registering delivery channel
 func TestRegisterDeliveryChannel(t *testing.T) {
+	t.Parallel()
 	subMgr := NewSubscriptionManager()
 	deliveryMgr := NewEventDeliveryManager(subMgr)
 	ctx := context.Background()
@@ -174,6 +187,7 @@ func TestRegisterDeliveryChannel(t *testing.T) {
 
 // TestRegisterDeliveryChannelDuplicate tests registering duplicate channel
 func TestRegisterDeliveryChannelDuplicate(t *testing.T) {
+	t.Parallel()
 	subMgr := NewSubscriptionManager()
 	deliveryMgr := NewEventDeliveryManager(subMgr)
 	ctx := context.Background()
@@ -191,6 +205,7 @@ func TestRegisterDeliveryChannelDuplicate(t *testing.T) {
 
 // TestUnregisterDeliveryChannel tests unregistering delivery channel
 func TestUnregisterDeliveryChannel(t *testing.T) {
+	t.Parallel()
 	subMgr := NewSubscriptionManager()
 	deliveryMgr := NewEventDeliveryManager(subMgr)
 	ctx := context.Background()
@@ -206,6 +221,7 @@ func TestUnregisterDeliveryChannel(t *testing.T) {
 
 // TestDeliverEvent tests delivering an event
 func TestDeliverEvent(t *testing.T) {
+	t.Parallel()
 	subMgr := NewSubscriptionManager()
 	deliveryMgr := NewEventDeliveryManager(subMgr)
 	ctx := context.Background()
@@ -225,6 +241,7 @@ func TestDeliverEvent(t *testing.T) {
 
 // TestDeliverEventMultipleSubscribers tests delivering to multiple subscribers
 func TestDeliverEventMultipleSubscribers(t *testing.T) {
+	t.Parallel()
 	subMgr := NewSubscriptionManager()
 	deliveryMgr := NewEventDeliveryManager(subMgr)
 	ctx := context.Background()
@@ -249,6 +266,7 @@ func TestDeliverEventMultipleSubscribers(t *testing.T) {
 
 // TestNewConnectionPoolManager tests connection pool manager creation
 func TestNewConnectionPoolManager(t *testing.T) {
+	t.Parallel()
 	manager := NewConnectionPoolManager(100)
 
 	assert.NotNil(t, manager)
@@ -258,6 +276,7 @@ func TestNewConnectionPoolManager(t *testing.T) {
 
 // TestAddConnection tests adding a connection
 func TestAddConnection(t *testing.T) {
+	t.Parallel()
 	manager := NewConnectionPoolManager(100)
 	ctx := context.Background()
 
@@ -271,6 +290,7 @@ func TestAddConnection(t *testing.T) {
 
 // TestAddConnectionMaxReached tests adding connection when max reached
 func TestAddConnectionMaxReached(t *testing.T) {
+	t.Parallel()
 	manager := NewConnectionPoolManager(1)
 	ctx := context.Background()
 
@@ -283,6 +303,7 @@ func TestAddConnectionMaxReached(t *testing.T) {
 
 // TestRemoveConnection tests removing a connection
 func TestRemoveConnection(t *testing.T) {
+	t.Parallel()
 	manager := NewConnectionPoolManager(100)
 	ctx := context.Background()
 
@@ -294,6 +315,7 @@ func TestRemoveConnection(t *testing.T) {
 
 // TestRemoveConnectionNotFound tests removing non-existent connection
 func TestRemoveConnectionNotFound(t *testing.T) {
+	t.Parallel()
 	manager := NewConnectionPoolManager(100)
 	ctx := context.Background()
 
@@ -305,6 +327,7 @@ func TestRemoveConnectionNotFound(t *testing.T) {
 
 // TestGetConnection tests getting a connection
 func TestGetConnection(t *testing.T) {
+	t.Parallel()
 	manager := NewConnectionPoolManager(100)
 	ctx := context.Background()
 
@@ -317,6 +340,7 @@ func TestGetConnection(t *testing.T) {
 
 // TestGetConnectionNotFound tests getting non-existent connection
 func TestGetConnectionNotFound(t *testing.T) {
+	t.Parallel()
 	manager := NewConnectionPoolManager(100)
 	ctx := context.Background()
 
@@ -328,6 +352,7 @@ func TestGetConnectionNotFound(t *testing.T) {
 
 // TestGetClientConnections tests getting client connections
 func TestGetClientConnections(t *testing.T) {
+	t.Parallel()
 	manager := NewConnectionPoolManager(100)
 	ctx := context.Background()
 
@@ -342,6 +367,7 @@ func TestGetClientConnections(t *testing.T) {
 
 // TestGetClientConnectionsEmpty tests getting connections for client with none
 func TestGetClientConnectionsEmpty(t *testing.T) {
+	t.Parallel()
 	manager := NewConnectionPoolManager(100)
 	ctx := context.Background()
 
@@ -353,6 +379,7 @@ func TestGetClientConnectionsEmpty(t *testing.T) {
 
 // TestGetConnectionCount tests getting connection count
 func TestGetConnectionCount(t *testing.T) {
+	t.Parallel()
 	manager := NewConnectionPoolManager(100)
 	ctx := context.Background()
 
@@ -366,6 +393,7 @@ func TestGetConnectionCount(t *testing.T) {
 
 // TestConnectionFields tests connection fields
 func TestConnectionFields(t *testing.T) {
+	t.Parallel()
 	manager := NewConnectionPoolManager(100)
 	ctx := context.Background()
 
@@ -379,6 +407,7 @@ func TestConnectionFields(t *testing.T) {
 
 // TestConcurrentSubscriptions tests concurrent subscriptions
 func TestConcurrentSubscriptions(t *testing.T) {
+	t.Parallel()
 	manager := NewSubscriptionManager()
 	ctx := context.Background()
 
@@ -403,6 +432,7 @@ func TestConcurrentSubscriptions(t *testing.T) {
 
 // TestConcurrentConnections tests concurrent connections
 func TestConcurrentConnections(t *testing.T) {
+	t.Parallel()
 	manager := NewConnectionPoolManager(100)
 	ctx := context.Background()
 
@@ -427,6 +457,7 @@ func TestConcurrentConnections(t *testing.T) {
 
 // TestSubscriptionLifecycle tests subscription lifecycle
 func TestSubscriptionLifecycle(t *testing.T) {
+	t.Parallel()
 	manager := NewSubscriptionManager()
 	ctx := context.Background()
 
@@ -448,6 +479,7 @@ func TestSubscriptionLifecycle(t *testing.T) {
 
 // TestConnectionLifecycle tests connection lifecycle
 func TestConnectionLifecycle(t *testing.T) {
+	t.Parallel()
 	manager := NewConnectionPoolManager(100)
 	ctx := context.Background()
 
@@ -469,6 +501,7 @@ func TestConnectionLifecycle(t *testing.T) {
 
 // TestMultipleChainSubscriptions tests subscriptions across multiple chains
 func TestMultipleChainSubscriptions(t *testing.T) {
+	t.Parallel()
 	manager := NewSubscriptionManager()
 	ctx := context.Background()
 
@@ -487,6 +520,7 @@ func TestMultipleChainSubscriptions(t *testing.T) {
 
 // TestEventDeliveryChannelFull tests event delivery with full channel
 func TestEventDeliveryChannelFull(t *testing.T) {
+	t.Parallel()
 	subMgr := NewSubscriptionManager()
 	deliveryMgr := NewEventDeliveryManager(subMgr)
 	ctx := context.Background()
@@ -509,6 +543,7 @@ func TestEventDeliveryChannelFull(t *testing.T) {
 
 // TestConnectionPoolMaxConnections tests connection pool max connections
 func TestConnectionPoolMaxConnections(t *testing.T) {
+	t.Parallel()
 	manager := NewConnectionPoolManager(5)
 	ctx := context.Background()
 
@@ -524,6 +559,7 @@ func TestConnectionPoolMaxConnections(t *testing.T) {
 
 // TestSubscriptionTimestamp tests subscription timestamp
 func TestSubscriptionTimestamp(t *testing.T) {
+	t.Parallel()
 	manager := NewSubscriptionManager()
 	ctx := context.Background()
 
@@ -537,6 +573,7 @@ func TestSubscriptionTimestamp(t *testing.T) {
 
 // TestConnectionTimestamp tests connection timestamp
 func TestConnectionTimestamp(t *testing.T) {
+	t.Parallel()
 	manager := NewConnectionPoolManager(100)
 	ctx := context.Background()
 
@@ -550,6 +587,7 @@ func TestConnectionTimestamp(t *testing.T) {
 
 // TestSubscriptionIDUniqueness tests subscription ID uniqueness
 func TestSubscriptionIDUniqueness(t *testing.T) {
+	t.Parallel()
 	manager := NewSubscriptionManager()
 	ctx := context.Background()
 
@@ -561,6 +599,7 @@ func TestSubscriptionIDUniqueness(t *testing.T) {
 
 // TestConnectionIDUniqueness tests connection ID uniqueness
 func TestConnectionIDUniqueness(t *testing.T) {
+	t.Parallel()
 	manager := NewConnectionPoolManager(100)
 	ctx := context.Background()
 
@@ -571,6 +610,7 @@ func TestConnectionIDUniqueness(t *testing.T) {
 }
 
 func TestConcurrentUnregisterAndDeliverNoPanic(t *testing.T) {
+	t.Parallel()
 	// Regression test: UnregisterDeliveryChannel used to close the channel,
 	// which could cause DeliverEvent to panic on send-to-closed-channel.
 	subMgr := NewSubscriptionManager()
