@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/graphql-go/graphql"
 	"github.com/rtcdance/chainpulse/pkg/core"
 	domainquery "github.com/rtcdance/chainpulse/pkg/domain/query"
-	"github.com/graphql-go/graphql"
 )
 
 // MutationBuilder builds GraphQL mutations

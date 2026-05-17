@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rtcdance/chainpulse/pkg/core"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 type eventProcessorTestMessageConsumer struct {

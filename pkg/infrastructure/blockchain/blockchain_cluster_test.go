@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/rtcdance/chainpulse/pkg/core"
 	"github.com/rtcdance/chainpulse/pkg/infrastructure/processing"
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/assert"
 )
 

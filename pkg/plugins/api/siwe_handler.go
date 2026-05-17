@@ -7,8 +7,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/rtcdance/chainpulse/pkg/core"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 // SIWEHandler manages EIP-4361 Sign-In with Ethereum authentication.

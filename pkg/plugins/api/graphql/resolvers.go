@@ -6,12 +6,12 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/rtcdance/chainpulse/pkg/core"
-	domainquery "github.com/rtcdance/chainpulse/pkg/domain/query"
 	"github.com/graphql-go/graphql"
 	"github.com/graphql-go/graphql/language/ast"
 	"github.com/graphql-go/graphql/language/parser"
 	"github.com/graphql-go/graphql/language/source"
+	"github.com/rtcdance/chainpulse/pkg/core"
+	domainquery "github.com/rtcdance/chainpulse/pkg/domain/query"
 )
 
 // ResolverContext holds context for resolvers

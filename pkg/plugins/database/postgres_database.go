@@ -8,8 +8,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/rtcdance/chainpulse/pkg/core"
 	_ "github.com/lib/pq" // PostgreSQL driver for database/sql
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 // PostgreSQLDatabase implements DatabasePlugin for PostgreSQL

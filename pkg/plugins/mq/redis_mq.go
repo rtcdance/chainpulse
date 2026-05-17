@@ -6,8 +6,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/rtcdance/chainpulse/pkg/core"
 	"github.com/redis/go-redis/v9"
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 // RedisMQPlugin represents the Redis message queue plugin

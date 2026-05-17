@@ -8,9 +8,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/rtcdance/chainpulse/pkg/core"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/gorilla/websocket"
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 // WebSocketJSONRPCPuller implements WebSocket-JSONRPC protocol for pulling blockchain events

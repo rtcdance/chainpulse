@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/rtcdance/chainpulse/pkg/core"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 // mockBenchStorage is a no-op storage for benchmarking processor logic.

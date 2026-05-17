@@ -10,9 +10,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/rtcdance/chainpulse/pkg/plugins/api/core"
 	"github.com/gorilla/websocket"
 	"github.com/graphql-go/graphql"
+	"github.com/rtcdance/chainpulse/pkg/plugins/api/core"
 )
 
 // GraphQLPlugin implements the GraphQL protocol handler

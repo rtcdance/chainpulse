@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rtcdance/chainpulse/pkg/core"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/graphql-go/graphql"
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 // MockEventStore implements core.EventStore for testing

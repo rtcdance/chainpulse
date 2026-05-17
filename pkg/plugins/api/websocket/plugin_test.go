@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gorilla/websocket"
 	"github.com/rtcdance/chainpulse/pkg/plugins/api/core"
 	"github.com/rtcdance/chainpulse/pkg/plugins/api/shared"
-	"github.com/gorilla/websocket"
 )
 
 func TestNewWebSocketPlugin(t *testing.T) {

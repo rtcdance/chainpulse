@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gorilla/websocket"
 	"github.com/rtcdance/chainpulse/pkg/core"
 	"github.com/rtcdance/chainpulse/pkg/plugins/api"
-	"github.com/gorilla/websocket"
 )
 
 func TestBuildAPIGatewayRuntimeRolloutComponents(t *testing.T) {

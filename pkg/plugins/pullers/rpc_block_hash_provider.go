@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/rtcdance/chainpulse/pkg/core"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 // RPCBlockHashProvider fetches canonical chain block hashes via eth_getBlockByNumber.

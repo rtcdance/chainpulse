@@ -3,9 +3,9 @@ package pullers
 import (
 	"testing"
 
-	"github.com/rtcdance/chainpulse/pkg/core"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 // BenchmarkEthLogToEvent measures the performance of converting a types.Log

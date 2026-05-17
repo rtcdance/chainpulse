@@ -12,11 +12,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rtcdance/chainpulse/pkg/core"
-	"github.com/rtcdance/chainpulse/pkg/plugins/pullers"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/plugins/pullers"
 )
 
 // startAnvil launches a local Anvil instance on a random available port.

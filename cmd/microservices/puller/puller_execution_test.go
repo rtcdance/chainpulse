@@ -5,9 +5,9 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/rtcdance/chainpulse/pkg/core"
 	"github.com/rtcdance/chainpulse/pkg/plugins/pullers"
-	"github.com/ethereum/go-ethereum/common"
 )
 
 type pullerExecutionTestPublisher struct {

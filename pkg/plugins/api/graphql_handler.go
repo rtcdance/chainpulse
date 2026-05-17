@@ -7,10 +7,10 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/rtcdance/chainpulse/pkg/core"
-	domainquery "github.com/rtcdance/chainpulse/pkg/domain/query"
 	"github.com/graphql-go/graphql"
 	"github.com/graphql-go/graphql/language/ast"
+	"github.com/rtcdance/chainpulse/pkg/core"
+	domainquery "github.com/rtcdance/chainpulse/pkg/domain/query"
 )
 
 // jsonScalar is a custom GraphQL scalar that passes through arbitrary JSON values

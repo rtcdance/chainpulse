@@ -5,9 +5,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/rtcdance/chainpulse/pkg/core"
 	"github.com/rtcdance/chainpulse/pkg/infrastructure/rpc"
-	"github.com/ethereum/go-ethereum/ethclient"
 )
 
 // MultiRPCPuller extends HTTPSJSONRPCPuller with automatic RPC failover.

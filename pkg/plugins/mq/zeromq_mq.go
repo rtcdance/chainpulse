@@ -6,8 +6,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/rtcdance/chainpulse/pkg/core"
 	"github.com/go-zeromq/zmq4"
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 // ZeroMQProducer represents a ZeroMQ message producer
