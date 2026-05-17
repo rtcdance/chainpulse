@@ -11,8 +11,6 @@ jobs:
   build:
     name: Build & Test
     runs-on: ubuntu-latest
-    env:
-      GOWORK: off
 
     steps:
       - name: Checkout
@@ -25,7 +23,9 @@ jobs:
           cache: true
 
       - name: Vet
-        run: go vet ./...
+        run: |
+          rm -f go.work go.work.sum
+          go vet ./...
 
       - name: Format check
         run: |
