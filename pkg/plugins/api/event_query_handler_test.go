@@ -127,6 +127,10 @@ func (m *mockMetadataStore) GetMetadataByChain(ctx context.Context, chainID int,
 	return nil, nil
 }
 
+func (m *mockMetadataStore) GetMetadataBatch(ctx context.Context, eventIDs []string) (map[string]*query.EventMetadata, error) {
+	return nil, nil
+}
+
 func (m *mockMetadataStore) UpdateMetadata(ctx context.Context, metadata *query.EventMetadata) error {
 	return nil
 }

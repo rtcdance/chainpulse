@@ -302,6 +302,10 @@ func (s *MonolithicIndexingMetadataStore) GetMetadataByChain(ctx context.Context
 	return metadata[offset:end], nil
 }
 
+func (s *MonolithicIndexingMetadataStore) GetMetadataBatch(ctx context.Context, eventIDs []string) (map[string]*query.EventMetadata, error) {
+	return nil, nil
+}
+
 func (s *MonolithicIndexingMetadataStore) UpdateMetadata(ctx context.Context, metadata *query.EventMetadata) error {
 	_ = ctx
 	_ = metadata

@@ -95,6 +95,10 @@ func (s *persistentStorageMetadataStoreStub) GetMetadataByChain(ctx context.Cont
 	return nil, nil
 }
 
+func (s *persistentStorageMetadataStoreStub) GetMetadataBatch(ctx context.Context, eventIDs []string) (map[string]*query.EventMetadata, error) {
+	return nil, nil
+}
+
 func (s *persistentStorageMetadataStoreStub) UpdateMetadata(ctx context.Context, metadata *query.EventMetadata) error {
 	return nil
 }
