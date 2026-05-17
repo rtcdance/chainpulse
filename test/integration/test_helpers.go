@@ -40,27 +40,38 @@ type BlockchainEvent struct {
 
 // MockLogger is a mock implementation of core.Logger for testing
 type MockLogger struct {
+	mu       sync.Mutex
 	messages []string
 }
 
 func (m *MockLogger) Info(msg string, _ ...any) {
+	m.mu.Lock()
 	m.messages = append(m.messages, msg)
+	m.mu.Unlock()
 }
 
 func (m *MockLogger) Debug(msg string, _ ...any) {
+	m.mu.Lock()
 	m.messages = append(m.messages, msg)
+	m.mu.Unlock()
 }
 
 func (m *MockLogger) Warn(msg string, _ ...any) {
+	m.mu.Lock()
 	m.messages = append(m.messages, msg)
+	m.mu.Unlock()
 }
 
 func (m *MockLogger) Error(msg string, _ ...any) {
+	m.mu.Lock()
 	m.messages = append(m.messages, msg)
+	m.mu.Unlock()
 }
 
 func (m *MockLogger) Fatal(msg string, _ ...any) {
+	m.mu.Lock()
 	m.messages = append(m.messages, msg)
+	m.mu.Unlock()
 }
 
 func (m *MockLogger) WithCorrelationID(_ string) core.Logger {
