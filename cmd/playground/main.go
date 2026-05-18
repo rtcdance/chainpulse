@@ -375,11 +375,11 @@ func (p *playground) handleReplayCheck(w http.ResponseWriter, r *http.Request) {
 	extractedChainID := core.ExtractChainIDFromV(v)
 
 	result := map[string]any{
-		"v_value":          v,
-		"signer_type":      signerType.String(),
-		"is_vulnerable":    isVulnerable,
-		"extracted_chain":  extractedChainID,
-		"explanation":      explainEIP155(v, isVulnerable, extractedChainID, signerType),
+		"v_value":         v,
+		"signer_type":     signerType.String(),
+		"is_vulnerable":   isVulnerable,
+		"extracted_chain": extractedChainID,
+		"explanation":     explainEIP155(v, isVulnerable, extractedChainID, signerType),
 	}
 	writeJSON(w, result)
 }
@@ -491,7 +491,7 @@ func printBanner(port string) {
 	fmt.Printf("║   curl http://localhost:%s/publish   — pub event ║\n", port)
 	fmt.Printf("║   curl http://localhost:%s/tutorial — 10-step Go guide║\n", port)
 	fmt.Printf("║   curl http://localhost:%s/concepts — Go↔Web3 map   ║\n", port)
-		fmt.Printf("║   curl http://localhost:%s/pool     — sync.Pool demo║\n", port)
+	fmt.Printf("║   curl http://localhost:%s/pool     — sync.Pool demo║\n", port)
 	fmt.Printf("║   curl http://localhost:%s/replay-check — EIP-155 replay║\n", port)
 	fmt.Printf("║   open http://localhost:%s          — Web UI        ║\n", port)
 	fmt.Printf("╚══════════════════════════════════════════════════╝\n")
