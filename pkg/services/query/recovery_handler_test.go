@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rtcdance/chainpulse/pkg/core"
+	"chainpulse/pkg/core"
 )
 
 // MockEventStoreForRecovery for testing

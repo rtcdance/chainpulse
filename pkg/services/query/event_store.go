@@ -6,8 +6,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/rtcdance/chainpulse/pkg/core"
-	domainquery "github.com/rtcdance/chainpulse/pkg/domain/query"
+	"chainpulse/pkg/core"
+	domainquery "chainpulse/pkg/domain/query"
 )
 
 // EventStore is an alias for the canonical domain-layer EventStore interface.

@@ -97,8 +97,12 @@ type playground struct {
 }
 
 func newPlayground(logger core.Logger) *playground {
+	db := bootstrap.NewMonolithicMemoryDatabase(logger)
+	_ = db.Initialize(core.Config{})
+	_ = db.Start()
+
 	pg := &playground{
-		db:       bootstrap.NewMonolithicMemoryDatabase(logger),
+		db:       db,
 		puller:   newMockPuller(),
 		eventBus: core.NewChannelEventBus(),
 	}

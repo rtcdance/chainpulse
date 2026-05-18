@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/rtcdance/chainpulse/pkg/core"
+	"chainpulse/pkg/core"
 )
 
 // mockEventStore is a mock implementation of EventStore for testing

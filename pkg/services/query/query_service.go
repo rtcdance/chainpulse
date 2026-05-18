@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/rtcdance/chainpulse/pkg/core"
+	"chainpulse/pkg/core"
 )
 
 // QueryService defines the interface for query execution with cache-first pattern

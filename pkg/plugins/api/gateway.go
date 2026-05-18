@@ -7,10 +7,10 @@ import (
 	"sync"
 	"time"
 
-	corelib "github.com/rtcdance/chainpulse/pkg/core"
-	domainquery "github.com/rtcdance/chainpulse/pkg/domain/query"
-	apicore "github.com/rtcdance/chainpulse/pkg/plugins/api/core"
-	httpapi "github.com/rtcdance/chainpulse/pkg/plugins/api/http"
+	corelib "chainpulse/pkg/core"
+	domainquery "chainpulse/pkg/domain/query"
+	apicore "chainpulse/pkg/plugins/api/core"
+	httpapi "chainpulse/pkg/plugins/api/http"
 )
 
 // APIGatewayPlugin is the main API gateway that routes requests to appropriate handlers

@@ -13,7 +13,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/rtcdance/chainpulse/pkg/core"
+	"chainpulse/pkg/core"
 )
 
 // GatewayRouterIntegration integrates the RequestRouter with the API Gateway
@@ -127,7 +127,7 @@ func NewGatewayRouterIntegration(
 			"dlq-events":          gatewayHandleDLQEvents,
 			"dlq-replay":          gatewayHandleDLQReplay,
 		},
-		initialized: false,
+		initialized:            false,
 	}
 }
 

@@ -13,10 +13,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rtcdance/chainpulse/pkg/core"
-	domainquery "github.com/rtcdance/chainpulse/pkg/domain/query"
-	"github.com/rtcdance/chainpulse/pkg/observability"
-	"github.com/rtcdance/chainpulse/pkg/services/query"
+	"chainpulse/pkg/core"
+	domainquery "chainpulse/pkg/domain/query"
+	"chainpulse/pkg/observability"
+	"chainpulse/pkg/services/query"
 )
 
 // EventQueryHandler handles event query requests

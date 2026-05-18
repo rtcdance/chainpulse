@@ -17,7 +17,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/rtcdance/chainpulse/pkg/core"
+	"chainpulse/pkg/core"
 	"golang.org/x/sync/errgroup"
 )
 

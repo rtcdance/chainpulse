@@ -450,8 +450,8 @@ func TestEventQueryHandlerGetByChainIncludesQueryMeta(t *testing.T) {
 	if got := meta["metadataCompleteness"]; got != "none" {
 		t.Fatalf("expected metadataCompleteness none, got %v", got)
 	}
-	if got := meta["metadataCoveragePosture"]; got != "coverage-partial" {
-		t.Fatalf("expected metadataCoveragePosture coverage-partial, got %v", got)
+	if got := meta["metadataCoveragePosture"]; got != "coverage-missing" {
+		t.Fatalf("expected metadataCoveragePosture coverage-missing, got %v", got)
 	}
 	if got := meta["consistencyPosture"]; got != "retrieval-partial" {
 		t.Fatalf("expected consistencyPosture retrieval-partial, got %v", got)
@@ -707,8 +707,8 @@ func TestEventQueryHandlerGetAllEventsDomainListMeta(t *testing.T) {
 	if got := meta["queryReliabilityHint"]; got != "served from query-service cache; verify freshness expectations before treating as latest" {
 		t.Fatalf("expected queryReliabilityHint for cache-hit query-service-direct, got %v", got)
 	}
-	if got := meta["queryExecutionSummary"]; got != "domain-list:cache:coverage-missing" {
-		t.Fatalf("expected queryExecutionSummary domain-list:cache:coverage-missing, got %v", got)
+	if got := meta["queryExecutionSummary"]; got != "domain-all:cache:coverage-missing" {
+		t.Fatalf("expected queryExecutionSummary domain-all:cache:coverage-missing, got %v", got)
 	}
 }
 

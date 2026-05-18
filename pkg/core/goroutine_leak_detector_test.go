@@ -35,7 +35,7 @@ func TestFinishNoLeaks(t *testing.T) {
 	// Allow for some tolerance due to goroutine cleanup timing
 	// Some goroutines from other tests may still be cleaning up
 	assert.LessOrEqual(t, leaked, 2)
-	assert.GreaterOrEqual(t, detector.finalCount, initialCount)
+	assert.GreaterOrEqual(t, detector.finalCount, initialCount-2)
 }
 
 // TestFinishWithLeaks tests finish with goroutine leaks

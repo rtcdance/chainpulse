@@ -53,9 +53,9 @@ func (w *Worker) cleanup() {
 
 // Indexer 模拟区块链索引器
 type Indexer struct {
-	name       string
+	name     string
 	checkpoint uint64
-	done       chan struct{}
+	done     chan struct{}
 }
 
 func NewIndexer(name string) *Indexer {
@@ -89,7 +89,7 @@ func (idx *Indexer) Wait() {
 
 func main() {
 	fmt.Println("=== Graceful Shutdown Demo ===")
-	fmt.Println("Press Ctrl+C to trigger graceful shutdown")
+	fmt.Println("Press Ctrl+C to trigger graceful shutdown\n")
 
 	ctx, cancel := context.WithCancel(context.Background())
 

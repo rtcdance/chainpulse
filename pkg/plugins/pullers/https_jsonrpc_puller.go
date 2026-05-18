@@ -39,6 +39,10 @@ type HTTPSJSONRPCPuller struct {
 	// Lifecycle context for goroutine management (R4)
 	lifecycleCtx    context.Context
 	lifecycleCancel context.CancelFunc
+	// Failover support: multiple eth clients with automatic retry on failure
+	failoverClients   []*ethclient.Client
+	failoverClientIdx atomic.Uint64
+	nodeURLs          []string // mirrors failoverClients for logging
 }
 
 // NewHTTPSJSONRPCPuller creates a new HTTPS-JSONRPC data puller.
@@ -488,7 +492,9 @@ func (p *HTTPSJSONRPCPuller) getLatestBlockNumber(ctx context.Context) (uint64, 
 	return blockNumber, nil
 }
 
-// getLogs gets logs for a block range using ethclient.FilterLogs
+// getLogs gets logs for a block range using ethclient.FilterLogs.
+// When multiple failover clients are configured, it retries on neighbouring
+// endpoints before returning an error.
 func (p *HTTPSJSONRPCPuller) getLogs(ctx context.Context, fromBlock, toBlock uint64) ([]types.Log, error) {
 	query := ethereum.FilterQuery{
 		FromBlock: big.NewInt(int64(fromBlock)),
@@ -515,7 +521,9 @@ func (p *HTTPSJSONRPCPuller) getLogs(ctx context.Context, fromBlock, toBlock uin
 	}
 
 	start := time.Now()
-	logs, err := p.ethClient.FilterLogs(ctx, query)
+	logs, err := p.executeWithFailover(ctx, func(client *ethclient.Client) (any, error) {
+		return client.FilterLogs(ctx, query)
+	})
 	elapsed := time.Since(start)
 
 	// Record RED metrics for this RPC call
@@ -532,7 +540,7 @@ func (p *HTTPSJSONRPCPuller) getLogs(ctx context.Context, fromBlock, toBlock uin
 		return nil, fmt.Errorf("failed to filter logs: %w", err)
 	}
 
-	return logs, nil
+	return logs.([]types.Log), nil
 }
 
 // fetchBlockTimestamps collects unique block numbers from logs and fetches their timestamps

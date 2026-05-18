@@ -46,12 +46,6 @@ func newEventProcessorProcessingRuntimeWithStorage(
 		ServiceName:  "event-processor",
 		LogLevel:     config.LogLevel,
 	}
-	if err := idempotency.Initialize(processorConfig); err != nil {
-		return nil, fmt.Errorf("initialize idempotency service: %w", err)
-	}
-	if err := idempotency.Start(); err != nil {
-		return nil, fmt.Errorf("start idempotency service: %w", err)
-	}
 
 	var inMemoryDatabase *database.DefaultInMemoryDatabasePlugin
 	activeStorage := storage

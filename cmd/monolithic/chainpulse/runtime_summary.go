@@ -5,8 +5,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/rtcdance/chainpulse/pkg/core"
-	"github.com/rtcdance/chainpulse/pkg/plugins/api"
+	"chainpulse/pkg/core"
+	"chainpulse/pkg/plugins/api"
 )
 
 type monolithicRuntimeSummaryResponse struct {

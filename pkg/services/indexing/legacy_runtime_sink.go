@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/rtcdance/chainpulse/pkg/core"
+	"chainpulse/pkg/core"
 )
 
 const eventCacheTTLSeconds = 24 * 3600

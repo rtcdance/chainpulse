@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rtcdance/chainpulse/pkg/core"
-	"github.com/rtcdance/chainpulse/pkg/services/query"
+	"chainpulse/pkg/core"
+	"chainpulse/pkg/services/query"
 )
 
 // ServiceInitializer provides helpers for initializing services in integration tests

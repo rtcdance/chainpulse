@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/rtcdance/chainpulse/pkg/core"
+	"chainpulse/pkg/core"
 )
 
 // EventEnvelope, Checkpoint, ProcessingFailure, and RuntimeStatus are type aliases

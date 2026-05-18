@@ -4,12 +4,12 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/rtcdance/chainpulse/pkg/application/bootstrap"
-	"github.com/rtcdance/chainpulse/pkg/core"
-	"github.com/rtcdance/chainpulse/pkg/plugins/api"
-	"github.com/rtcdance/chainpulse/pkg/services/query"
+	"chainpulse/pkg/application/bootstrap"
+	"chainpulse/pkg/core"
+	"chainpulse/pkg/plugins/api"
+	"chainpulse/pkg/services/query"
 
-	domainquery "github.com/rtcdance/chainpulse/pkg/domain/query"
+	domainquery "chainpulse/pkg/domain/query"
 )
 
 type monolithicQuerySurface struct {

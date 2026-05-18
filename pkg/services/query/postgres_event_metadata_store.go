@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rtcdance/chainpulse/pkg/core"
+	"chainpulse/pkg/core"
 )
 
 // PostgreSQLEventMetadataStore implements EventMetadataStore for PostgreSQL

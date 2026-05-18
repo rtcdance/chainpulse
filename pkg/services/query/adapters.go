@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/rtcdance/chainpulse/pkg/core"
+	"chainpulse/pkg/core"
 )
 
 // MongoDBAdapter defines the interface for MongoDB query operations

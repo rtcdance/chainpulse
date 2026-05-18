@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/rtcdance/chainpulse/pkg/core"
+	"chainpulse/pkg/core"
 )
 
 // DefaultCacheService provides cache operations with Redis backend
