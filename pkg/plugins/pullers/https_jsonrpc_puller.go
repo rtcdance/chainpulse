@@ -482,14 +482,68 @@ func (p *HTTPSJSONRPCPuller) SetPollInterval(interval time.Duration) {
 
 // getLatestBlockNumber gets the latest block number from the node using ethclient
 func (p *HTTPSJSONRPCPuller) getLatestBlockNumber(ctx context.Context) (uint64, error) {
-	blockNumber, err := p.ethClient.BlockNumber(ctx)
+	result, err := p.executeWithFailover(ctx, func(client *ethclient.Client) (any, error) {
+		blockNumber, err := client.BlockNumber(ctx)
+		if err != nil {
+			return uint64(0), err
+		}
+		return blockNumber, nil
+	})
 	if err != nil {
 		p.LogError("getLatestBlockNumber: ethclient.BlockNumber failed", "error", err.Error())
 		return 0, err
 	}
 
+	blockNumber := result.(uint64)
 	p.LogInfo("getLatestBlockNumber: success", "block", blockNumber)
 	return blockNumber, nil
+}
+
+// SetFailoverClients registers multiple eth clients for automatic RPC failover.
+func (p *HTTPSJSONRPCPuller) SetFailoverClients(clients []*ethclient.Client, urls []string) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.failoverClients = clients
+	p.nodeURLs = urls
+	if len(clients) > 0 {
+		p.ethClient = clients[0]
+	}
+}
+
+// executeWithFailover executes an RPC operation across failover clients.
+// When the primary client fails, it sequentially tries backup endpoints
+// and logs each switch for observability.
+func (p *HTTPSJSONRPCPuller) executeWithFailover(ctx context.Context, fn func(client *ethclient.Client) (any, error)) (any, error) {
+	clients := p.failoverClients
+	if len(clients) <= 1 {
+		return fn(p.ethClient)
+	}
+
+	startIdx := int(p.failoverClientIdx.Load())
+	var lastErr error
+	for i := 0; i < len(clients); i++ {
+		idx := (startIdx + i) % len(clients)
+		client := clients[idx]
+		result, err := fn(client)
+		if err == nil {
+			if idx != startIdx {
+				p.failoverClientIdx.Store(uint64(idx))
+				p.LogInfo("RPC failover: switched to new endpoint",
+					"from", p.nodeURLs[startIdx],
+					"to", p.nodeURLs[idx],
+				)
+			}
+			return result, nil
+		}
+		lastErr = err
+		p.LogWarn("RPC endpoint failed, trying next",
+			"url", p.nodeURLs[idx],
+			"attempt", i+1,
+			"total_endpoints", len(clients),
+			"error", err.Error(),
+		)
+	}
+	return nil, fmt.Errorf("all %d RPC endpoints exhausted, last error: %w", len(clients), lastErr)
 }
 
 // getLogs gets logs for a block range using ethclient.FilterLogs.
@@ -544,7 +598,7 @@ func (p *HTTPSJSONRPCPuller) getLogs(ctx context.Context, fromBlock, toBlock uin
 }
 
 // fetchBlockTimestamps collects unique block numbers from logs and fetches their timestamps
-// using ethclient.HeaderByNumber.
+// using ethclient.HeaderByNumber with failover support.
 func (p *HTTPSJSONRPCPuller) fetchBlockTimestamps(ctx context.Context, logs []types.Log) map[uint64]int64 {
 	timestamps := make(map[uint64]int64)
 	seen := make(map[uint64]bool)
@@ -552,13 +606,16 @@ func (p *HTTPSJSONRPCPuller) fetchBlockTimestamps(ctx context.Context, logs []ty
 	for _, log := range logs {
 		if !seen[log.BlockNumber] {
 			seen[log.BlockNumber] = true
-			header, err := p.ethClient.HeaderByNumber(ctx, big.NewInt(int64(log.BlockNumber)))
+			result, err := p.executeWithFailover(ctx, func(client *ethclient.Client) (any, error) {
+				header, hErr := client.HeaderByNumber(ctx, big.NewInt(int64(log.BlockNumber)))
+				return header, hErr
+			})
 			if err != nil {
 				p.LogWarn("failed to get block timestamp, using current time", "block", log.BlockNumber, "error", err.Error())
 				timestamps[log.BlockNumber] = time.Now().Unix()
 				continue
 			}
-			timestamps[log.BlockNumber] = int64(header.Time)
+			timestamps[log.BlockNumber] = int64(result.(*types.Header).Time)
 		}
 	}
 

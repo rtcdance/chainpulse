@@ -10,7 +10,7 @@
 package query
 
 import (
-	core "chainpulse/pkg/core"
+	core "github.com/rtcdance/chainpulse/pkg/core"
 	context "context"
 	reflect "reflect"
 

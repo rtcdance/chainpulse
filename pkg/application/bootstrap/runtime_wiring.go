@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"time"
 
-	"chainpulse/pkg/core"
-	"chainpulse/pkg/infrastructure/database"
-	"chainpulse/pkg/plugins/api"
-	"chainpulse/pkg/services/query"
+	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/infrastructure/database"
+	"github.com/rtcdance/chainpulse/pkg/plugins/api"
+	"github.com/rtcdance/chainpulse/pkg/services/query"
 
-	domainquery "chainpulse/pkg/domain/query"
+	domainquery "github.com/rtcdance/chainpulse/pkg/domain/query"
 )
 
 // QueryRuntimeService is the managed query runtime contract used by startup wiring.

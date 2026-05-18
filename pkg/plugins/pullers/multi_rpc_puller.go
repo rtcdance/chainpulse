@@ -60,21 +60,41 @@ func NewMultiRPCPuller(
 	return puller
 }
 
-// Start dials the first available RPC endpoint.
+// Start dials every configured RPC endpoint and registers all healthy
+// connections as failover targets. At least one endpoint must succeed.
 func (m *MultiRPCPuller) Start() error {
-	var lastErr error
+	clients := make([]*ethclient.Client, 0, len(m.nodeURLs))
+	succeededURLs := make([]string, 0, len(m.nodeURLs))
+
 	for _, url := range m.nodeURLs {
 		client, err := ethclient.Dial(url)
 		if err != nil {
-			lastErr = fmt.Errorf("dial RPC %s: %w", url, err)
-			m.HTTPSJSONRPCPuller.LogWarn("RPC endpoint unreachable, trying next", "url", url, "error", err.Error())
+			m.HTTPSJSONRPCPuller.LogWarn("RPC endpoint unreachable, skipping for failover pool",
+				"url", url, "error", err.Error())
 			continue
 		}
-		m.SetEthClient(client)
-		m.HTTPSJSONRPCPuller.LogInfo("connected to RPC endpoint", "url", url)
-		return m.HTTPSJSONRPCPuller.Start()
+		clients = append(clients, client)
+		succeededURLs = append(succeededURLs, url)
+		m.HTTPSJSONRPCPuller.LogInfo("RPC endpoint registered for failover", "url", url)
 	}
-	return fmt.Errorf("all RPC endpoints unreachable, last error: %w", lastErr)
+
+	if len(clients) == 0 {
+		return fmt.Errorf("all %d RPC endpoints unreachable", len(m.nodeURLs))
+	}
+
+	m.SetEthClient(clients[0])
+	m.SetFailoverClients(clients, succeededURLs)
+
+	if m.failover != nil {
+		m.failover.OnEndpointSwitch(func(from, to string) {
+			m.HTTPSJSONRPCPuller.LogInfo("RPC failover switch", "from", from, "to", to)
+		})
+		m.failover.OnCircuitOpen(func(url string) {
+			m.HTTPSJSONRPCPuller.LogWarn("RPC circuit opened", "url", url)
+		})
+	}
+
+	return m.HTTPSJSONRPCPuller.Start()
 }
 
 // parseNodeURLs splits a comma-separated URL string, trimming whitespace.

@@ -13,7 +13,7 @@ import (
 	"sync"
 	"time"
 
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 // GatewayRouterIntegration integrates the RequestRouter with the API Gateway

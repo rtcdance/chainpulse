@@ -22,6 +22,9 @@ type ChannelEventBus struct {
 	mu            sync.RWMutex
 	subscriptions map[string]map[uint64]chan any
 	nextID        atomic.Uint64
+	droppedCount  atomic.Uint64
+	logger        Logger
+	metrics       MetricsCollector
 }
 
 func NewChannelEventBus() *ChannelEventBus {
@@ -33,22 +36,39 @@ func NewChannelEventBus() *ChannelEventBus {
 func (b *ChannelEventBus) Publish(ctx context.Context, topic string, event any) error {
 	b.mu.RLock()
 	subs := b.subscriptions[topic]
-	// Copy to avoid holding lock during send
 	channels := make([]chan any, 0, len(subs))
 	for _, ch := range subs {
 		channels = append(channels, ch)
 	}
 	b.mu.RUnlock()
 
+	var dropped int
 	for _, ch := range channels {
 		select {
 		case ch <- event:
 		case <-ctx.Done():
 			return ctx.Err()
 		default:
-			// Non-blocking send — skip slow subscribers
+			dropped++
 		}
 	}
+
+	if dropped > 0 {
+		b.droppedCount.Add(uint64(dropped))
+		if b.logger != nil {
+			b.logger.Warn("ChannelEventBus: events dropped due to full subscriber buffer",
+				"topic", topic,
+				"dropped", dropped,
+				"total_dropped", b.droppedCount.Load(),
+			)
+		}
+		if b.metrics != nil {
+			b.metrics.RecordCounter("eventbus_dropped_events", int64(dropped), map[string]string{
+				"topic": topic,
+			})
+		}
+	}
+
 	return nil
 }
 
@@ -106,4 +126,16 @@ func (b *ChannelEventBus) SubscriberCount(topic string) int {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
 	return len(b.subscriptions[topic])
+}
+
+func (b *ChannelEventBus) SetLogger(logger Logger) {
+	b.logger = logger
+}
+
+func (b *ChannelEventBus) SetMetrics(metrics MetricsCollector) {
+	b.metrics = metrics
+}
+
+func (b *ChannelEventBus) DroppedEvents() uint64 {
+	return b.droppedCount.Load()
 }
