@@ -89,7 +89,7 @@ func (idx *Indexer) Wait() {
 
 func main() {
 	fmt.Println("=== Graceful Shutdown Demo ===")
-	fmt.Println("Press Ctrl+C to trigger graceful shutdown\n")
+	fmt.Print("Press Ctrl+C to trigger graceful shutdown\n")
 
 	ctx, cancel := context.WithCancel(context.Background())
 

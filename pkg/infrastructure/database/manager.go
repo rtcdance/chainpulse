@@ -129,14 +129,34 @@ func (m *DefaultDatabaseManager) initMongo(ctx context.Context) error {
 	return nil
 }
 
+const (
+	defaultMinPoolSize     = 4
+	defaultMaxPoolSize     = 25
+	defaultMinMongoPool    = 2
+	defaultMaxMongoPool    = 100
+)
+
 func sanitizeMongoPoolSize(size int) uint64 {
 	if size <= 0 {
-		return 0
+		return defaultMaxMongoPool
 	}
 	if size > math.MaxInt32 {
 		return math.MaxInt32
 	}
+	if size < defaultMinMongoPool {
+		return defaultMinMongoPool
+	}
 	return uint64(size)
+}
+
+func sanitizePostgresPoolSize(size int) int {
+	if size <= 0 {
+		return defaultMaxPoolSize
+	}
+	if size < defaultMinPoolSize {
+		return defaultMinPoolSize
+	}
+	return size
 }
 
 // initPostgres initializes PostgreSQL connection
@@ -159,9 +179,14 @@ func (m *DefaultDatabaseManager) initPostgres(ctx context.Context) error {
 		return fmt.Errorf("failed to open PostgreSQL connection: %w", err)
 	}
 
-	// Configure connection pool
-	db.SetMaxOpenConns(m.poolSize)
-	db.SetMaxIdleConns(m.poolSize / 2)
+	// Configure connection pool with safe minimums
+	maxOpen := sanitizePostgresPoolSize(m.poolSize)
+	maxIdle := maxOpen / 2
+	if maxIdle < 2 {
+		maxIdle = 2
+	}
+	db.SetMaxOpenConns(maxOpen)
+	db.SetMaxIdleConns(maxIdle)
 	db.SetConnMaxLifetime(time.Hour)
 	db.SetConnMaxIdleTime(30 * time.Minute)
 

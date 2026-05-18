@@ -3,11 +3,14 @@ package core
 import (
 	"fmt"
 	"math/big"
+	"regexp"
 	"strings"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 )
+
+var safeIdentifierRE = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
 
 // EventFilter provides advanced filtering capabilities for blockchain events
 type EventFilter struct {
@@ -39,10 +42,20 @@ type EventFilter struct {
 	Offset int
 }
 
-// Validate validates the filter parameters
+// Validate validates the filter parameters and rejects potentially dangerous inputs.
 func (ef *EventFilter) Validate() error {
 	if ef.Network == "" {
 		return fmt.Errorf("network is required")
+	}
+
+	if !safeIdentifierRE.MatchString(ef.Network) {
+		return fmt.Errorf("network contains invalid characters: %q", ef.Network)
+	}
+
+	for _, status := range ef.Status {
+		if !safeIdentifierRE.MatchString(status) {
+			return fmt.Errorf("status contains invalid characters: %q", status)
+		}
 	}
 
 	if ef.FromBlock > ef.ToBlock && ef.ToBlock != 0 {

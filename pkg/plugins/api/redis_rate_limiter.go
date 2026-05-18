@@ -11,6 +11,8 @@ import (
 	redisv9 "github.com/redis/go-redis/v9"
 )
 
+var errRedisUnavailable = fmt.Errorf("redis unavailable")
+
 // RedisRateLimiter implements distributed rate limiting backed by Redis.
 // It uses a sliding-window counter algorithm executed atomically via a Lua
 // script, making it safe for multi-pod deployments behind a shared Redis.
@@ -104,6 +106,8 @@ return new_count + estimated
 `)
 
 // AllowRequest checks if a request is allowed based on distributed rate limits.
+// When Redis is unavailable, it gracefully degrades to the in-memory token-bucket
+// limiter instead of allowing all traffic through (fail-open).
 func (rl *RedisRateLimiter) AllowRequest(r *http.Request, clientID string) (bool, *RateLimitInfo) {
 	if rl.client == nil {
 		return rl.fallback.AllowRequest(r, clientID)
@@ -122,36 +126,49 @@ func (rl *RedisRateLimiter) AllowRequest(r *http.Request, clientID string) (bool
 	clientIP := getClientIP(r)
 
 	// Check endpoint limit
-	if allowed, remaining := rl.checkSlidingWindow(ctx, "endpoint", endpoint, rl.defaultRequestsPerSecond); !allowed {
+	allowed, remaining, err := rl.checkSlidingWindow(ctx, "endpoint", endpoint, rl.defaultRequestsPerSecond)
+	if err != nil {
+		return rl.fallback.AllowRequest(r, clientID)
+	}
+	if !allowed {
 		info.Allowed = false
 		info.RetryAfter = rl.windowSize
 		rl.metrics.RecordCounter("rate_limit_exceeded_endpoint", 1, nil)
 		rl.logger.Warn("Rate limit exceeded for endpoint", "path", endpoint, "clientID", clientID)
 		return false, info
-	} else {
-		info.RequestsRemaining = remaining
 	}
+	info.RequestsRemaining = remaining
 
 	// Check IP limit
-	if allowed, remaining := rl.checkSlidingWindow(ctx, "ip", clientIP, rl.defaultRequestsPerSecond); !allowed {
+	allowed, remaining, err = rl.checkSlidingWindow(ctx, "ip", clientIP, rl.defaultRequestsPerSecond)
+	if err != nil {
+		return rl.fallback.AllowRequest(r, clientID)
+	}
+	if !allowed {
 		info.Allowed = false
 		info.RetryAfter = rl.windowSize
 		rl.metrics.RecordCounter("rate_limit_exceeded_ip", 1, nil)
 		rl.logger.Warn("Rate limit exceeded for IP", "ip", clientIP, "clientID", clientID)
 		return false, info
-	} else if remaining < info.RequestsRemaining {
+	}
+	if remaining < info.RequestsRemaining {
 		info.RequestsRemaining = remaining
 	}
 
 	// Check client limit
 	if clientID != "" {
-		if allowed, remaining := rl.checkSlidingWindow(ctx, "client", clientID, rl.defaultRequestsPerSecond); !allowed {
+		allowed, remaining, err = rl.checkSlidingWindow(ctx, "client", clientID, rl.defaultRequestsPerSecond)
+		if err != nil {
+			return rl.fallback.AllowRequest(r, clientID)
+		}
+		if !allowed {
 			info.Allowed = false
 			info.RetryAfter = rl.windowSize
 			rl.metrics.RecordCounter("rate_limit_exceeded_client", 1, nil)
 			rl.logger.Warn("Rate limit exceeded for client", "clientID", clientID)
 			return false, info
-		} else if remaining < info.RequestsRemaining {
+		}
+		if remaining < info.RequestsRemaining {
 			info.RequestsRemaining = remaining
 		}
 	}
@@ -161,8 +178,9 @@ func (rl *RedisRateLimiter) AllowRequest(r *http.Request, clientID string) (bool
 }
 
 // checkSlidingWindow runs the Lua sliding-window script for a given key.
-// Returns (allowed, remaining).
-func (rl *RedisRateLimiter) checkSlidingWindow(ctx context.Context, namespace, key string, rps float64) (bool, int) {
+// Returns (allowed, remaining, error). When error is errRedisUnavailable,
+// the caller should fall back to the in-memory rate limiter.
+func (rl *RedisRateLimiter) checkSlidingWindow(ctx context.Context, namespace, key string, rps float64) (bool, int, error) {
 	now := time.Now()
 	nowMs := now.UnixMilli()
 	windowMs := rl.windowSize.Milliseconds()
@@ -183,10 +201,9 @@ func (rl *RedisRateLimiter) checkSlidingWindow(ctx context.Context, namespace, k
 	).Int64()
 
 	if err != nil {
-		// Redis unavailable — fall back to in-memory
 		rl.metrics.RecordCounter("rate_limit_redis_error", 1, nil)
-		rl.logger.Warn("Redis rate limit check failed, using fallback", "error", err.Error())
-		return true, rl.defaultBurstSize // allow on Redis failure (fail-open)
+		rl.logger.Warn("Redis rate limit check failed, falling back to in-memory limiter", "error", err.Error())
+		return false, 0, errRedisUnavailable
 	}
 
 	remaining := int(maxRequests - result)
@@ -194,7 +211,7 @@ func (rl *RedisRateLimiter) checkSlidingWindow(ctx context.Context, namespace, k
 		remaining = 0
 	}
 
-	return result <= maxRequests, remaining
+	return result <= maxRequests, remaining, nil
 }
 
 // SetEndpointLimit configures a per-endpoint rate limit.
