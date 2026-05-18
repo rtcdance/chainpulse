@@ -52,7 +52,7 @@ func (h *ModelsHandler) HandleModels(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	defer func() {
 		duration := time.Since(start).Milliseconds()
-		h.metrics.RecordGauge("models_list_time_ms", float64(duration), nil)
+		h.metrics.RecordHistogram("models_list_time_ms", float64(duration), nil)
 	}()
 
 	if !h.initialized {

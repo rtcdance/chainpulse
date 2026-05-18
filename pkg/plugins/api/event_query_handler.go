@@ -132,7 +132,7 @@ func (h *EventQueryHandler) executeListQuery(w http.ResponseWriter, r *http.Requ
 	start := time.Now()
 	defer func() {
 		duration := time.Since(start).Milliseconds()
-		h.metrics.RecordGauge("event_query_"+spec.metricsPrefix+"_time_ms", float64(duration), nil)
+		h.metrics.RecordHistogram("event_query_"+spec.metricsPrefix+"_time_ms", float64(duration), nil)
 	}()
 
 	if !h.initialized {
@@ -231,7 +231,7 @@ func (h *EventQueryHandler) HandleGetEventByID(w http.ResponseWriter, r *http.Re
 	start := time.Now()
 	defer func() {
 		duration := time.Since(start).Milliseconds()
-		h.metrics.RecordGauge("event_query_get_by_id_time_ms", float64(duration), nil)
+		h.metrics.RecordHistogram("event_query_get_by_id_time_ms", float64(duration), nil)
 	}()
 
 	if !h.initialized {

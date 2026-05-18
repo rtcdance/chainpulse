@@ -432,7 +432,7 @@ func (gri *GatewayRouterIntegration) HandleRequest(w http.ResponseWriter, r *htt
 	start := time.Now()
 	defer func() {
 		duration := time.Since(start).Milliseconds()
-		gri.metrics.RecordGauge("gateway_request_time_ms", float64(duration), nil)
+		gri.metrics.RecordHistogram("gateway_request_time_ms", float64(duration), nil)
 	}()
 
 	gri.mu.RLock()

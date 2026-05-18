@@ -232,7 +232,7 @@ func (rr *RequestRouter) ForwardRequest(ctx context.Context, route *Route, req *
 	start := time.Now()
 	defer func() {
 		duration := time.Since(start).Milliseconds()
-		rr.metrics.RecordGauge("router_forward_request_time_ms", float64(duration), nil)
+		rr.metrics.RecordHistogram("router_forward_request_time_ms", float64(duration), nil)
 	}()
 
 	// Get load balancer for this route
@@ -305,7 +305,7 @@ func (rr *RequestRouter) forwardToHandler(ctx context.Context, handler *RequestH
 
 	client := rr.httpClient
 	if client == nil {
-		client = &http.Client{Timeout: rr.defaultTimeout}
+		client = sharedHTTPClient
 	}
 
 	resp, err := client.Do(httpReq)

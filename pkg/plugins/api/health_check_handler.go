@@ -177,7 +177,7 @@ func (h *HealthCheckHandler) HandleHealth(w http.ResponseWriter, r *http.Request
 	start := time.Now()
 	defer func() {
 		duration := time.Since(start).Milliseconds()
-		h.metrics.RecordGauge("health_check_overall_time_ms", float64(duration), nil)
+		h.metrics.RecordHistogram("health_check_overall_time_ms", float64(duration), nil)
 	}()
 
 	if !h.initialized {
@@ -203,7 +203,7 @@ func (h *HealthCheckHandler) HandleReady(w http.ResponseWriter, r *http.Request)
 	start := time.Now()
 	defer func() {
 		duration := time.Since(start).Milliseconds()
-		h.metrics.RecordGauge("health_check_ready_time_ms", float64(duration), nil)
+		h.metrics.RecordHistogram("health_check_ready_time_ms", float64(duration), nil)
 	}()
 
 	if !h.initialized {
@@ -245,7 +245,7 @@ func (h *HealthCheckHandler) HandleRollout(w http.ResponseWriter, r *http.Reques
 	start := time.Now()
 	defer func() {
 		duration := time.Since(start).Milliseconds()
-		h.metrics.RecordGauge("health_check_rollout_time_ms", float64(duration), nil)
+		h.metrics.RecordHistogram("health_check_rollout_time_ms", float64(duration), nil)
 	}()
 
 	if !h.initialized {
@@ -282,7 +282,7 @@ func (h *HealthCheckHandler) HandleLive(w http.ResponseWriter, r *http.Request) 
 	start := time.Now()
 	defer func() {
 		duration := time.Since(start).Milliseconds()
-		h.metrics.RecordGauge("health_check_live_time_ms", float64(duration), nil)
+		h.metrics.RecordHistogram("health_check_live_time_ms", float64(duration), nil)
 	}()
 
 	if !h.initialized {
@@ -321,7 +321,7 @@ func (h *HealthCheckHandler) HandleComponents(w http.ResponseWriter, r *http.Req
 	start := time.Now()
 	defer func() {
 		duration := time.Since(start).Milliseconds()
-		h.metrics.RecordGauge("health_check_components_time_ms", float64(duration), nil)
+		h.metrics.RecordHistogram("health_check_components_time_ms", float64(duration), nil)
 	}()
 
 	if !h.initialized {

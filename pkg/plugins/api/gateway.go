@@ -35,6 +35,7 @@ type APIGatewayPlugin struct {
 	runtimeReplayProvider         func(http.ResponseWriter, *http.Request)
 	authMiddleware                *AuthMiddleware
 	rateLimitMiddleware           *RateLimitMiddleware
+	corsMiddleware                *CORSMiddleware
 	routerIntegration             *GatewayRouterIntegration
 	domainBridgeEnabled           bool
 	eventQueryEnabled             bool
@@ -218,6 +219,15 @@ func (g *APIGatewayPlugin) IsRateLimitMiddlewareEnabled() bool {
 	defer g.mu.RUnlock()
 
 	return g.rateLimitMiddleware != nil
+}
+
+// SetCORSMiddleware wires an optional CORS middleware that handles preflight
+// requests and sets cross-origin headers. CORS middleware is applied outermost
+// so OPTIONS preflight requests bypass auth and rate limiting.
+func (g *APIGatewayPlugin) SetCORSMiddleware(middleware *CORSMiddleware) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.corsMiddleware = middleware
 }
 
 // SetGraphQLHandler wires an optional GraphQL handler.
@@ -415,6 +425,11 @@ func (g *APIGatewayPlugin) shouldInitializeRuntimeIntegration() bool {
 
 //nolint:wsl,nlreturn // Security middleware stacking is intentionally explicit here.
 func (g *APIGatewayPlugin) wrapGatewayHandler(handler http.HandlerFunc, authMiddleware *AuthMiddleware, rateLimitMiddleware *RateLimitMiddleware) http.HandlerFunc {
+	var corsMw *CORSMiddleware
+	g.mu.RLock()
+	corsMw = g.corsMiddleware
+	g.mu.RUnlock()
+
 	wrapped := http.Handler(http.HandlerFunc(handler))
 
 	if rateLimitMiddleware != nil {
@@ -422,6 +437,9 @@ func (g *APIGatewayPlugin) wrapGatewayHandler(handler http.HandlerFunc, authMidd
 	}
 	if authMiddleware != nil {
 		wrapped = authMiddleware.Handler(wrapped)
+	}
+	if corsMw != nil {
+		wrapped = corsMw.Handler(wrapped)
 	}
 
 	return func(w http.ResponseWriter, r *http.Request) {

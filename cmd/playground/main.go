@@ -151,7 +151,7 @@ func (p *playground) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (p *playground) handleGenerate(w http.ResponseWriter, r *http.Request) {
 	events := p.puller.generate(5)
 	for _, ev := range events {
-		_ = p.db.StoreEvent(context.Background(), ev)
+		_ = p.db.StoreEvent(context.Background(), &ev)
 		_ = p.eventBus.Publish(context.Background(), "events", ev)
 	}
 	writeJSON(w, map[string]any{
@@ -270,7 +270,7 @@ func (p *mockPuller) generateAA() core.BlockchainEvent {
 
 func (p *playground) handleGenerateSwap(w http.ResponseWriter, r *http.Request) {
 	ev := p.puller.generateSwap()
-	_ = p.db.StoreEvent(context.Background(), ev)
+	_ = p.db.StoreEvent(context.Background(), &ev)
 	_ = p.eventBus.Publish(context.Background(), "events", ev)
 	writeJSON(w, map[string]any{
 		"generated": 1,
@@ -281,7 +281,7 @@ func (p *playground) handleGenerateSwap(w http.ResponseWriter, r *http.Request) 
 
 func (p *playground) handleGenerateAA(w http.ResponseWriter, r *http.Request) {
 	ev := p.puller.generateAA()
-	_ = p.db.StoreEvent(context.Background(), ev)
+	_ = p.db.StoreEvent(context.Background(), &ev)
 	_ = p.eventBus.Publish(context.Background(), "events", ev)
 	writeJSON(w, map[string]any{
 		"generated": 1,
