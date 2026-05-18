@@ -21,8 +21,8 @@ import (
 	"syscall"
 	"time"
 
-	"chainpulse/pkg/application/bootstrap"
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/application/bootstrap"
+	"github.com/rtcdance/chainpulse/pkg/core"
 
 	"github.com/ethereum/go-ethereum/common"
 )
