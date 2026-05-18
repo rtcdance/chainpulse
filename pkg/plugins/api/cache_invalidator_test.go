@@ -17,6 +17,7 @@ func TestNewCacheInvalidator(t *testing.T) {
 
 	cm := NewCacheMiddleware(config, logger, metrics)
 	ci := NewCacheInvalidator(cm, logger, metrics)
+	defer ci.Close()
 
 	assert.NotNil(t, ci)
 	assert.NotNil(t, ci.invalidationQueue)
@@ -42,6 +43,7 @@ func TestInvalidateKey(t *testing.T) {
 
 	cm := NewCacheMiddleware(config, logger, metrics)
 	ci := NewCacheInvalidator(cm, logger, metrics)
+	defer ci.Close()
 
 	err := ci.InvalidateKey("key1", "test reason")
 	require.NoError(t, err)
@@ -55,6 +57,7 @@ func TestInvalidatePattern(t *testing.T) {
 
 	cm := NewCacheMiddleware(config, logger, metrics)
 	ci := NewCacheInvalidator(cm, logger, metrics)
+	defer ci.Close()
 
 	err := ci.InvalidatePattern("user:*", "test reason")
 	require.NoError(t, err)
@@ -68,6 +71,7 @@ func TestInvalidateRelated(t *testing.T) {
 
 	cm := NewCacheMiddleware(config, logger, metrics)
 	ci := NewCacheInvalidator(cm, logger, metrics)
+	defer ci.Close()
 
 	keys := []string{"key1", "key2", "key3"}
 	err := ci.InvalidateRelated(keys, "test reason")
@@ -82,6 +86,7 @@ func TestInvalidateRelatedEmpty(t *testing.T) {
 
 	cm := NewCacheMiddleware(config, logger, metrics)
 	ci := NewCacheInvalidator(cm, logger, metrics)
+	defer ci.Close()
 
 	err := ci.InvalidateRelated([]string{}, "test reason")
 	require.NoError(t, err)
@@ -129,6 +134,7 @@ func TestCacheInvalidatorGetStats(t *testing.T) {
 
 	cm := NewCacheMiddleware(config, logger, metrics)
 	ci := NewCacheInvalidator(cm, logger, metrics)
+	defer ci.Close()
 
 	stats := ci.GetStats()
 
@@ -159,6 +165,7 @@ func TestInvalidationQueueFull(t *testing.T) {
 
 	cm := NewCacheMiddleware(config, logger, metrics)
 	ci := NewCacheInvalidator(cm, logger, metrics)
+	defer ci.Close()
 
 	// Fill the queue
 	for i := 0; i < 1000; i++ {
@@ -225,6 +232,7 @@ func TestConcurrentInvalidation(t *testing.T) {
 
 	cm := NewCacheMiddleware(config, logger, metrics)
 	ci := NewCacheInvalidator(cm, logger, metrics)
+	defer ci.Close()
 
 	done := make(chan struct{})
 	for i := 0; i < 10; i++ {
@@ -248,6 +256,7 @@ func TestInvalidateKeyWithContext(t *testing.T) {
 
 	cm := NewCacheMiddleware(config, logger, metrics)
 	ci := NewCacheInvalidator(cm, logger, metrics)
+	defer ci.Close()
 
 	// Set a value first
 	headers := http.Header{}
@@ -273,6 +282,7 @@ func TestInvalidatePatternMultipleKeys(t *testing.T) {
 
 	cm := NewCacheMiddleware(config, logger, metrics)
 	ci := NewCacheInvalidator(cm, logger, metrics)
+	defer ci.Close()
 
 	// Set multiple keys
 	headers := http.Header{}

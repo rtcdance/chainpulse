@@ -251,6 +251,14 @@ func (cm *CacheMiddleware) Clear() {
 	cm.metrics.Reset()
 }
 
+// Close closes the cache middleware and its invalidator
+func (cm *CacheMiddleware) Close() error {
+	if cm.invalidator != nil {
+		return cm.invalidator.Close()
+	}
+	return nil
+}
+
 // Middleware wraps an HTTP handler with caching
 func (cm *CacheMiddleware) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

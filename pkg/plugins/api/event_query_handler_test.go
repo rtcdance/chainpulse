@@ -128,7 +128,15 @@ func (m *mockMetadataStore) GetMetadataByChain(ctx context.Context, chainID int,
 }
 
 func (m *mockMetadataStore) GetMetadataBatch(ctx context.Context, eventIDs []string) (map[string]*query.EventMetadata, error) {
-	return nil, nil
+	result := make(map[string]*query.EventMetadata, len(eventIDs))
+	for _, id := range eventIDs {
+		if meta, err := m.GetMetadata(ctx, id); err != nil {
+			return nil, err
+		} else if meta != nil {
+			result[id] = meta
+		}
+	}
+	return result, nil
 }
 
 func (m *mockMetadataStore) UpdateMetadata(ctx context.Context, metadata *query.EventMetadata) error {
@@ -447,14 +455,14 @@ func TestEventQueryHandlerGetByChainIncludesQueryMeta(t *testing.T) {
 	if got := meta["queryPath"]; got != "retrieval-chain" {
 		t.Fatalf("expected queryPath retrieval-list, got %v", got)
 	}
-	if got := meta["metadataCompleteness"]; got != "none" {
-		t.Fatalf("expected metadataCompleteness none, got %v", got)
+	if got := meta["metadataCompleteness"]; got != "partial" {
+		t.Fatalf("expected metadataCompleteness partial, got %v", got)
 	}
-	if got := meta["metadataCoveragePosture"]; got != "coverage-missing" {
-		t.Fatalf("expected metadataCoveragePosture coverage-missing, got %v", got)
+	if got := meta["metadataCoveragePosture"]; got != "coverage-partial" {
+		t.Fatalf("expected metadataCoveragePosture coverage-partial, got %v", got)
 	}
-	if got := meta["consistencyPosture"]; got != "retrieval-metadata-missing" {
-		t.Fatalf("expected consistencyPosture retrieval-metadata-missing, got %v", got)
+	if got := meta["consistencyPosture"]; got != "retrieval-partial" {
+		t.Fatalf("expected consistencyPosture retrieval-partial, got %v", got)
 	}
 	if got := meta["queryReliabilityHint"]; got != "served with partial metadata coverage; verify metadata completeness before relying on full event context" {
 		t.Fatalf("expected queryReliabilityHint for retrieval partial, got %v", got)

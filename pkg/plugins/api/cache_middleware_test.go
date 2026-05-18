@@ -17,6 +17,7 @@ func TestNewCacheMiddleware(t *testing.T) {
 	metrics := NewMockMetricsCollector()
 
 	cm := NewCacheMiddleware(config, logger, metrics)
+	defer cm.Close()
 
 	assert.NotNil(t, cm)
 	assert.NotNil(t, cm.metrics)
@@ -48,6 +49,7 @@ func TestCacheGet(t *testing.T) {
 	metrics := NewMockMetricsCollector()
 
 	cm := NewCacheMiddleware(config, logger, metrics)
+	defer cm.Close()
 
 	// Set a value
 	headers := http.Header{}
@@ -70,6 +72,7 @@ func TestCacheGetNotFound(t *testing.T) {
 	metrics := NewMockMetricsCollector()
 
 	cm := NewCacheMiddleware(config, logger, metrics)
+	defer cm.Close()
 
 	value, _, _, found := cm.Get("nonexistent")
 
@@ -85,6 +88,7 @@ func TestCacheGetExpired(t *testing.T) {
 	metrics := NewMockMetricsCollector()
 
 	cm := NewCacheMiddleware(config, logger, metrics)
+	defer cm.Close()
 
 	headers := http.Header{}
 	cm.Set("key1", []byte("value1"), headers, http.StatusOK)
@@ -103,6 +107,7 @@ func TestCacheSet(t *testing.T) {
 	metrics := NewMockMetricsCollector()
 
 	cm := NewCacheMiddleware(config, logger, metrics)
+	defer cm.Close()
 
 	headers := http.Header{}
 	headers.Set("Content-Type", "application/json")
@@ -119,6 +124,7 @@ func TestCacheInvalidate(t *testing.T) {
 	metrics := NewMockMetricsCollector()
 
 	cm := NewCacheMiddleware(config, logger, metrics)
+	defer cm.Close()
 
 	headers := http.Header{}
 	cm.Set("key1", []byte("value1"), headers, http.StatusOK)
@@ -137,6 +143,7 @@ func TestCacheInvalidatePattern(t *testing.T) {
 	metrics := NewMockMetricsCollector()
 
 	cm := NewCacheMiddleware(config, logger, metrics)
+	defer cm.Close()
 
 	headers := http.Header{}
 	cm.Set("user:1:profile", []byte("data1"), headers, http.StatusOK)
@@ -157,6 +164,7 @@ func TestCacheClear(t *testing.T) {
 	metrics := NewMockMetricsCollector()
 
 	cm := NewCacheMiddleware(config, logger, metrics)
+	defer cm.Close()
 
 	headers := http.Header{}
 	cm.Set("key1", []byte("value1"), headers, http.StatusOK)
@@ -176,6 +184,7 @@ func TestCacheGetStats(t *testing.T) {
 	metrics := NewMockMetricsCollector()
 
 	cm := NewCacheMiddleware(config, logger, metrics)
+	defer cm.Close()
 
 	headers := http.Header{}
 	cm.Set("key1", []byte("value1"), headers, http.StatusOK)
@@ -197,6 +206,7 @@ func TestLRUEvictionStrategy(t *testing.T) {
 	metrics := NewMockMetricsCollector()
 
 	cm := NewCacheMiddleware(config, logger, metrics)
+	defer cm.Close()
 
 	headers := http.Header{}
 	cm.Set("key1", []byte("value1"), headers, http.StatusOK)
@@ -227,6 +237,7 @@ func TestLFUEvictionStrategy(t *testing.T) {
 	metrics := NewMockMetricsCollector()
 
 	cm := NewCacheMiddleware(config, logger, metrics)
+	defer cm.Close()
 
 	headers := http.Header{}
 	cm.Set("key1", []byte("value1"), headers, http.StatusOK)
@@ -258,6 +269,7 @@ func TestFIFOEvictionStrategy(t *testing.T) {
 	metrics := NewMockMetricsCollector()
 
 	cm := NewCacheMiddleware(config, logger, metrics)
+	defer cm.Close()
 
 	headers := http.Header{}
 	cm.Set("key1", []byte("value1"), headers, http.StatusOK)
@@ -283,6 +295,7 @@ func TestMiddlewareGetRequest(t *testing.T) {
 	metrics := NewMockMetricsCollector()
 
 	cm := NewCacheMiddleware(config, logger, metrics)
+	defer cm.Close()
 
 	// Create a test handler
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -318,6 +331,7 @@ func TestMiddlewarePostRequest(t *testing.T) {
 	metrics := NewMockMetricsCollector()
 
 	cm := NewCacheMiddleware(config, logger, metrics)
+	defer cm.Close()
 
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -373,6 +387,7 @@ func TestCacheMetricsRecording(t *testing.T) {
 	metrics := NewMockMetricsCollector()
 
 	cm := NewCacheMiddleware(config, logger, metrics)
+	defer cm.Close()
 
 	headers := http.Header{}
 	cm.Set("key1", []byte("value1"), headers, http.StatusOK)
@@ -394,6 +409,7 @@ func TestConcurrentCacheAccess(t *testing.T) {
 	metrics := NewMockMetricsCollector()
 
 	cm := NewCacheMiddleware(config, logger, metrics)
+	defer cm.Close()
 
 	done := make(chan struct{})
 	for i := 0; i < 10; i++ {
@@ -437,6 +453,7 @@ func TestCacheMaxSizeEnforcement(t *testing.T) {
 	metrics := NewMockMetricsCollector()
 
 	cm := NewCacheMiddleware(config, logger, metrics)
+	defer cm.Close()
 
 	headers := http.Header{}
 	for i := 0; i < 5; i++ {
