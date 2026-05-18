@@ -3,6 +3,7 @@ package config
 import (
 	"context"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
@@ -72,7 +73,7 @@ func WaitForRedis(ctx context.Context, cfg *RedisConfig, timeout time.Duration) 
 	}
 	defer func() {
 		if err := cluster.Close(); err != nil {
-			_ = err // Log but continue
+			log.Printf("WARN: failed to close Redis health-check connection: %v", err)
 		}
 	}()
 

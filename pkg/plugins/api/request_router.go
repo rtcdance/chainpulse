@@ -14,6 +14,17 @@ import (
 	"github.com/rtcdance/chainpulse/pkg/observability"
 )
 
+var sharedHTTPClient = &http.Client{
+	Timeout: 30 * time.Second,
+	Transport: &http.Transport{
+		MaxIdleConns:        100,
+		MaxIdleConnsPerHost: 20,
+		MaxConnsPerHost:     50,
+		IdleConnTimeout:     90 * time.Second,
+		DisableKeepAlives:   false,
+	},
+}
+
 // RequestRouter manages route registration and request forwarding
 type RequestRouter struct {
 	routes          map[string]*Route
@@ -62,7 +73,7 @@ func NewRequestRouter(logger core.Logger, metrics core.MetricsCollector) *Reques
 		loadBalancers:   make(map[string]*LoadBalancer),
 		logger:          logger,
 		metrics:         metrics,
-		httpClient:      &http.Client{Timeout: 30 * time.Second},
+		httpClient:      sharedHTTPClient,
 		initialized:     false,
 		defaultTimeout:  30 * time.Second,
 		circuitBreakers: make(map[string]*CircuitBreaker),
@@ -74,7 +85,7 @@ func (rr *RequestRouter) SetHTTPClient(client *http.Client) {
 	rr.mu.Lock()
 	defer rr.mu.Unlock()
 	if client == nil {
-		rr.httpClient = &http.Client{Timeout: rr.defaultTimeout}
+		rr.httpClient = sharedHTTPClient
 		return
 	}
 	rr.httpClient = client

@@ -53,9 +53,9 @@ func (w *Worker) cleanup() {
 
 // Indexer 模拟区块链索引器
 type Indexer struct {
-	name     string
+	name       string
 	checkpoint uint64
-	done     chan struct{}
+	done       chan struct{}
 }
 
 func NewIndexer(name string) *Indexer {

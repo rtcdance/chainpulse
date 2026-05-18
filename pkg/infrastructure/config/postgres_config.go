@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
@@ -78,7 +79,7 @@ func WaitForPostgres(ctx context.Context, cfg *PostgresConfig, timeout time.Dura
 	}
 	defer func() {
 		if err := cluster.Close(); err != nil {
-			_ = err // Log but continue
+			log.Printf("WARN: failed to close Postgres health-check connection: %v", err)
 		}
 	}()
 

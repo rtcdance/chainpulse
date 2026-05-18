@@ -9,12 +9,19 @@ import (
 	"time"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
-	"github.com/rtcdance/chainpulse/pkg/infrastructure/database"
 )
+
+// DatabaseHealthChecker provides health-check access to database backends.
+// This interface follows the Interface Segregation Principle: handlers only
+// depend on the methods they actually use, not the full DatabaseManager.
+type DatabaseHealthChecker interface {
+	CheckMongoHealth(ctx context.Context) error
+	CheckPostgresHealth(ctx context.Context) error
+}
 
 // HealthCheckHandler handles health check requests
 type HealthCheckHandler struct {
-	dbManager   database.DatabaseManager
+	dbManager   DatabaseHealthChecker
 	cachePlugin core.CachePlugin
 	mqPlugin    core.MQPlugin
 	logger      core.Logger
@@ -68,7 +75,7 @@ type LivenessResponse struct {
 
 // NewHealthCheckHandler creates a new health check handler
 func NewHealthCheckHandler(
-	dbManager database.DatabaseManager,
+	dbManager DatabaseHealthChecker,
 	args ...any,
 ) *HealthCheckHandler {
 	var (

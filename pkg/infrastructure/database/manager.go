@@ -130,10 +130,10 @@ func (m *DefaultDatabaseManager) initMongo(ctx context.Context) error {
 }
 
 const (
-	defaultMinPoolSize     = 4
-	defaultMaxPoolSize     = 25
-	defaultMinMongoPool    = 2
-	defaultMaxMongoPool    = 100
+	defaultMinPoolSize  = 4
+	defaultMaxPoolSize  = 25
+	defaultMinMongoPool = 2
+	defaultMaxMongoPool = 100
 )
 
 func sanitizeMongoPoolSize(size int) uint64 {

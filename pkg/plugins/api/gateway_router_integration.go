@@ -127,7 +127,7 @@ func NewGatewayRouterIntegration(
 			"dlq-events":          gatewayHandleDLQEvents,
 			"dlq-replay":          gatewayHandleDLQReplay,
 		},
-		initialized:            false,
+		initialized: false,
 	}
 }
 
