@@ -74,7 +74,7 @@ func TestNewCacheWarmer(t *testing.T) {
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	cache := NewCacheMiddleware(DefaultCacheConfig(), logger, metrics)
-	defer cm.Close()
+	defer cache.Close()
 	config := &CacheConfig{
 		WarmingEnabled:   true,
 		WarmingInterval:  1 * time.Second,
@@ -95,7 +95,7 @@ func TestSetDataProvider(t *testing.T) {
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	cache := NewCacheMiddleware(DefaultCacheConfig(), logger, metrics)
-	defer cm.Close()
+	defer cache.Close()
 	config := &CacheConfig{
 		WarmingEnabled:   true,
 		WarmingInterval:  1 * time.Second,
@@ -116,7 +116,7 @@ func TestStartWithoutProvider(t *testing.T) {
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	cache := NewCacheMiddleware(DefaultCacheConfig(), logger, metrics)
-	defer cm.Close()
+	defer cache.Close()
 	config := &CacheConfig{
 		WarmingEnabled:   true,
 		WarmingInterval:  1 * time.Second,
@@ -139,7 +139,7 @@ func TestStartWithDisabledWarming(t *testing.T) {
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	cache := NewCacheMiddleware(DefaultCacheConfig(), logger, metrics)
-	defer cm.Close()
+	defer cache.Close()
 	config := &CacheConfig{
 		WarmingEnabled:   false,
 		WarmingInterval:  1 * time.Second,
@@ -166,7 +166,7 @@ func TestStartSuccess(t *testing.T) {
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	cache := NewCacheMiddleware(DefaultCacheConfig(), logger, metrics)
-	defer cm.Close()
+	defer cache.Close()
 	config := &CacheConfig{
 		WarmingEnabled:   true,
 		WarmingInterval:  100 * time.Millisecond,
@@ -201,7 +201,7 @@ func TestStartAlreadyRunning(t *testing.T) {
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	cache := NewCacheMiddleware(DefaultCacheConfig(), logger, metrics)
-	defer cm.Close()
+	defer cache.Close()
 	config := &CacheConfig{
 		WarmingEnabled:   true,
 		WarmingInterval:  1 * time.Second,
@@ -235,7 +235,7 @@ func TestStopSuccess(t *testing.T) {
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	cache := NewCacheMiddleware(DefaultCacheConfig(), logger, metrics)
-	defer cm.Close()
+	defer cache.Close()
 	config := &CacheConfig{
 		WarmingEnabled:   true,
 		WarmingInterval:  1 * time.Second,
@@ -266,7 +266,7 @@ func TestStopNotRunning(t *testing.T) {
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	cache := NewCacheMiddleware(DefaultCacheConfig(), logger, metrics)
-	defer cm.Close()
+	defer cache.Close()
 	config := &CacheConfig{
 		WarmingEnabled:   true,
 		WarmingInterval:  1 * time.Second,
@@ -289,7 +289,7 @@ func TestWarmingData(t *testing.T) {
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	cache := NewCacheMiddleware(DefaultCacheConfig(), logger, metrics)
-	defer cm.Close()
+	defer cache.Close()
 	config := &CacheConfig{
 		WarmingEnabled:   true,
 		WarmingInterval:  100 * time.Millisecond,
@@ -330,7 +330,7 @@ func TestWarmingWithError(t *testing.T) {
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	cache := NewCacheMiddleware(DefaultCacheConfig(), logger, metrics)
-	defer cm.Close()
+	defer cache.Close()
 	config := &CacheConfig{
 		WarmingEnabled:   true,
 		WarmingInterval:  100 * time.Millisecond,
@@ -362,7 +362,7 @@ func TestCacheWarmerGetStats(t *testing.T) {
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	cache := NewCacheMiddleware(DefaultCacheConfig(), logger, metrics)
-	defer cm.Close()
+	defer cache.Close()
 	config := &CacheConfig{
 		WarmingEnabled:   true,
 		WarmingInterval:  100 * time.Millisecond,
@@ -401,7 +401,7 @@ func TestIsRunning(t *testing.T) {
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	cache := NewCacheMiddleware(DefaultCacheConfig(), logger, metrics)
-	defer cm.Close()
+	defer cache.Close()
 	config := &CacheConfig{
 		WarmingEnabled:   true,
 		WarmingInterval:  1 * time.Second,
@@ -435,7 +435,7 @@ func TestConcurrentWarmingOperations(t *testing.T) {
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	cache := NewCacheMiddleware(DefaultCacheConfig(), logger, metrics)
-	defer cm.Close()
+	defer cache.Close()
 	config := &CacheConfig{
 		WarmingEnabled:   true,
 		WarmingInterval:  50 * time.Millisecond,
@@ -478,7 +478,7 @@ func TestWarmingWithBatchSize(t *testing.T) {
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	cache := NewCacheMiddleware(DefaultCacheConfig(), logger, metrics)
-	defer cm.Close()
+	defer cache.Close()
 	config := &CacheConfig{
 		WarmingEnabled:   true,
 		WarmingInterval:  100 * time.Millisecond,
@@ -521,7 +521,7 @@ func TestWarmingMetricsRecording(t *testing.T) {
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	cache := NewCacheMiddleware(DefaultCacheConfig(), logger, metrics)
-	defer cm.Close()
+	defer cache.Close()
 	config := &CacheConfig{
 		WarmingEnabled:   true,
 		WarmingInterval:  100 * time.Millisecond,
@@ -555,7 +555,7 @@ func TestWarmingFailureMetrics(t *testing.T) {
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	cache := NewCacheMiddleware(DefaultCacheConfig(), logger, metrics)
-	defer cm.Close()
+	defer cache.Close()
 	config := &CacheConfig{
 		WarmingEnabled:   true,
 		WarmingInterval:  100 * time.Millisecond,
@@ -587,7 +587,7 @@ func TestContextCancellation(t *testing.T) {
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	cache := NewCacheMiddleware(DefaultCacheConfig(), logger, metrics)
-	defer cm.Close()
+	defer cache.Close()
 	config := &CacheConfig{
 		WarmingEnabled:   true,
 		WarmingInterval:  100 * time.Millisecond,
@@ -622,7 +622,7 @@ func TestLastWarmingTime(t *testing.T) {
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	cache := NewCacheMiddleware(DefaultCacheConfig(), logger, metrics)
-	defer cm.Close()
+	defer cache.Close()
 	config := &CacheConfig{
 		WarmingEnabled:   true,
 		WarmingInterval:  100 * time.Millisecond,
@@ -659,7 +659,7 @@ func TestMultipleWarmingCycles(t *testing.T) {
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	cache := NewCacheMiddleware(DefaultCacheConfig(), logger, metrics)
-	defer cm.Close()
+	defer cache.Close()
 	config := &CacheConfig{
 		WarmingEnabled:   true,
 		WarmingInterval:  50 * time.Millisecond,
@@ -696,7 +696,7 @@ func TestWarmingDataWithDifferentStatusCodes(t *testing.T) {
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	cache := NewCacheMiddleware(DefaultCacheConfig(), logger, metrics)
-	defer cm.Close()
+	defer cache.Close()
 	config := &CacheConfig{
 		WarmingEnabled:   true,
 		WarmingInterval:  100 * time.Millisecond,
@@ -737,7 +737,7 @@ func TestWarmingDataWithDifferentTTLs(t *testing.T) {
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	cache := NewCacheMiddleware(DefaultCacheConfig(), logger, metrics)
-	defer cm.Close()
+	defer cache.Close()
 	config := &CacheConfig{
 		WarmingEnabled:   true,
 		WarmingInterval:  100 * time.Millisecond,
