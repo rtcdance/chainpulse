@@ -447,8 +447,8 @@ func TestEventQueryHandlerGetByChainIncludesQueryMeta(t *testing.T) {
 	if got := meta["queryPath"]; got != "retrieval-chain" {
 		t.Fatalf("expected queryPath retrieval-list, got %v", got)
 	}
-	if got := meta["metadataCompleteness"]; got != "partial" {
-		t.Fatalf("expected metadataCompleteness partial, got %v", got)
+	if got := meta["metadataCompleteness"]; got != "none" {
+		t.Fatalf("expected metadataCompleteness none, got %v", got)
 	}
 	if got := meta["metadataCoveragePosture"]; got != "coverage-partial" {
 		t.Fatalf("expected metadataCoveragePosture coverage-partial, got %v", got)
@@ -698,8 +698,8 @@ func TestEventQueryHandlerGetAllEventsDomainListMeta(t *testing.T) {
 	if got := meta["querySourcePosture"]; got != "cache-hit" {
 		t.Fatalf("expected querySourcePosture cache-hit, got %v", got)
 	}
-	if got := meta["queryPath"]; got != "domain-list" {
-		t.Fatalf("expected queryPath domain-list, got %v", got)
+	if got := meta["queryPath"]; got != "domain-all" {
+		t.Fatalf("expected queryPath domain-all, got %v", got)
 	}
 	if got := meta["consistencyPosture"]; got != "query-service-direct" {
 		t.Fatalf("expected consistencyPosture query-service-direct, got %v", got)

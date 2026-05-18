@@ -138,6 +138,15 @@ func (p *DefaultEventProcessor) Start() error {
 		return fmt.Errorf("event processor already running")
 	}
 
+	if p.idempotencyService != nil {
+		if err := p.idempotencyService.Initialize(p.config); err != nil {
+			return err
+		}
+		if err := p.idempotencyService.Start(); err != nil {
+			return err
+		}
+	}
+
 	p.running = true
 	p.lastHealthCheck = &core.HealthStatus{
 		Status:  "healthy",

@@ -95,7 +95,7 @@ func TestPostgresConfigStructure(t *testing.T) {
 	assert.Equal(t, "db.example.com", config.Host)
 	assert.Equal(t, 5432, config.Port)
 	assert.Equal(t, "admin", config.User)
-	assert.Equal(t, "secret", config.Password)
+	assert.Equal(t, "secret", config.Password.Value())
 	assert.Equal(t, "mydb", config.Database)
 	assert.Equal(t, "require", config.SSLMode)
 }
@@ -207,7 +207,7 @@ func TestPostgresConfigWithEmptyPassword(t *testing.T) {
 	config := getTestPostgresConfig()
 	config.Password = ""
 
-	assert.Equal(t, "", config.Password)
+	assert.Equal(t, "", config.Password.Value())
 }
 
 // TestPostgresConfigWithSpecialCharacters tests PostgreSQL config with special characters
@@ -217,7 +217,7 @@ func TestPostgresConfigWithSpecialCharacters(t *testing.T) {
 	config.Password = "p@ssw0rd!#$%"
 	config.Database = "test_db_2024"
 
-	assert.Equal(t, "p@ssw0rd!#$%", config.Password)
+	assert.Equal(t, "p@ssw0rd!#$%", config.Password.Value())
 	assert.Equal(t, "test_db_2024", config.Database)
 }
 

@@ -3,6 +3,7 @@ package integration
 import (
 	"context"
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -281,15 +282,21 @@ const (
 )
 
 type MockEventStoreWithFailure struct {
+	mu             sync.Mutex
 	failureMode    FailureMode
 	failureCount   int
 	currentAttempt int
 }
 
 func (m *MockEventStoreWithFailure) StoreEvent(ctx context.Context, event *core.BlockchainEvent) error {
+	m.mu.Lock()
 	m.currentAttempt++
-	if m.currentAttempt <= m.failureCount {
-		switch m.failureMode {
+	currentAttempt := m.currentAttempt
+	failureCount := m.failureCount
+	failureMode := m.failureMode
+	m.mu.Unlock()
+	if currentAttempt <= failureCount {
+		switch failureMode {
 		case FailureConnectionRefused:
 			return fmt.Errorf("connection refused")
 		case FailureTimeout:

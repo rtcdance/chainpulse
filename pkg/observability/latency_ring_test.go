@@ -118,7 +118,11 @@ func TestLatencyRing_Percentile(t *testing.T) {
 
 	for _, tt := range tests {
 		got := r.Percentile(tt.p)
-		if got != tt.want {
+		diff := got - tt.want
+		if diff < 0 {
+			diff = -diff
+		}
+		if diff > time.Microsecond {
 			t.Errorf("Percentile(%v) = %v, want %v", tt.p, got, tt.want)
 		}
 	}

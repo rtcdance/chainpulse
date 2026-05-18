@@ -638,7 +638,13 @@ func (p *HTTPSJSONRPCPuller) verifyParentHashChain(ctx context.Context, fromBloc
 // GetBlockHeader fetches a block header by number via ethclient.
 // Exported for RPCBlockHashProvider.
 func (p *HTTPSJSONRPCPuller) GetBlockHeader(ctx context.Context, blockNumber uint64) (*types.Header, error) {
-	header, err := p.ethClient.HeaderByNumber(ctx, big.NewInt(int64(blockNumber)))
+	p.mu.RLock()
+	client := p.ethClient
+	p.mu.RUnlock()
+	if client == nil {
+		return nil, fmt.Errorf("ethclient not connected")
+	}
+	header, err := client.HeaderByNumber(ctx, big.NewInt(int64(blockNumber)))
 	if err != nil {
 		return nil, fmt.Errorf("RPC request failed: %w", err)
 	}

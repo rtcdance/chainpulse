@@ -55,7 +55,7 @@ func TestRedisConfigStructure(t *testing.T) {
 
 	assert.Equal(t, "redis.example.com", config.Host)
 	assert.Equal(t, 6379, config.Port)
-	assert.Equal(t, "secret", config.Password)
+	assert.Equal(t, "secret", config.Password.Value())
 	assert.Equal(t, 1, config.DB)
 }
 
@@ -135,7 +135,7 @@ func TestRedisConfigWithPassword(t *testing.T) {
 		DB:       0,
 	}
 
-	assert.Equal(t, "mypassword", config.Password)
+	assert.Equal(t, "mypassword", config.Password.Value())
 }
 
 // TestRedisConfigWithEmptyPassword tests Redis config with empty password
@@ -148,7 +148,7 @@ func TestRedisConfigWithEmptyPassword(t *testing.T) {
 		DB:       0,
 	}
 
-	assert.Equal(t, "", config.Password)
+	assert.Equal(t, "", config.Password.Value())
 }
 
 // TestRedisConfigWithDifferentHosts tests Redis config with different hosts
@@ -192,7 +192,7 @@ func TestRedisConfigWithSpecialCharacters(t *testing.T) {
 		DB:       0,
 	}
 
-	assert.Equal(t, "p@ssw0rd!#$%", config.Password)
+	assert.Equal(t, "p@ssw0rd!#$%", config.Password.Value())
 }
 
 // TestRedisHealthContext tests health check with context

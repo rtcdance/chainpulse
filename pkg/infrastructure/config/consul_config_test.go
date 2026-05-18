@@ -56,7 +56,7 @@ func TestConsulConfigStructure(t *testing.T) {
 	assert.Equal(t, "consul.example.com", config.Address)
 	assert.Equal(t, 8500, config.Port)
 	assert.Equal(t, "https", config.Scheme)
-	assert.Equal(t, "mytoken", config.Token)
+	assert.Equal(t, "mytoken", config.Token.Value())
 }
 
 // TestConsulClientClose tests closing Consul client
@@ -117,7 +117,7 @@ func TestConsulConfigWithToken(t *testing.T) {
 		Token:   "mytoken123",
 	}
 
-	assert.Equal(t, "mytoken123", config.Token)
+	assert.Equal(t, "mytoken123", config.Token.Value())
 }
 
 // TestConsulConfigWithEmptyToken tests Consul config with empty token
@@ -130,7 +130,7 @@ func TestConsulConfigWithEmptyToken(t *testing.T) {
 		Token:   "",
 	}
 
-	assert.Equal(t, "", config.Token)
+	assert.Equal(t, "", config.Token.Value())
 }
 
 // TestConsulConfigWithDifferentAddresses tests Consul config with different addresses
@@ -172,7 +172,7 @@ func TestConsulConfigWithSpecialCharacters(t *testing.T) {
 		Token:   "token!@#$%^&*()",
 	}
 
-	assert.Equal(t, "token!@#$%^&*()", config.Token)
+	assert.Equal(t, "token!@#$%^&*()", config.Token.Value())
 }
 
 // TestConsulHealthContext tests health check with context

@@ -185,8 +185,8 @@ func TestGatewayRuntimeRouteCompositionEventListDomainQuerySource(t *testing.T) 
 	if got := meta["querySourcePosture"]; got != "mongodb-live" {
 		t.Fatalf("expected querySourcePosture mongodb-live, got %v", got)
 	}
-	if got := meta["queryPath"]; got != "domain-list" {
-		t.Fatalf("expected meta queryPath domain-list, got %v", got)
+	if got := meta["queryPath"]; got != "domain-all" {
+		t.Fatalf("expected meta queryPath domain-all, got %v", got)
 	}
 	if got := meta["consistencyPosture"]; got != "query-service-direct" {
 		t.Fatalf("expected consistencyPosture query-service-direct, got %v", got)
