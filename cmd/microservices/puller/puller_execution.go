@@ -325,10 +325,10 @@ func (r *pullerExecutionRuntime) runtimeForChain(chainID string) (*appindexing.S
 	if err != nil {
 		return nil, err
 	}
-	if err := runtime.Initialize(context.Background()); err != nil {
+	if err := runtime.Initialize(ctx); err != nil {
 		return nil, err
 	}
-	if err := runtime.Start(context.Background()); err != nil {
+	if err := runtime.Start(ctx); err != nil {
 		return nil, err
 	}
 
@@ -454,6 +454,17 @@ func registerConfiguredPullers(
 				RetryBackoff:      1000,
 				LogLevel:          config.LogLevel,
 			}, logger, metrics)
+		} else if isCosmosChain(chainID) {
+			puller = pullers.NewCosmosPuller(core.Config{
+				DataPullerType:    "cosmos",
+				BlockchainNodeURL: rpcURL,
+				ChainID:           chainID,
+				StartBlock:        0,
+				BatchSize:         config.BatchSize,
+				MaxRetries:        config.MaxRetries,
+				RetryBackoff:      1000,
+				LogLevel:          config.LogLevel,
+			}, logger, metrics)
 		} else {
 			puller = pullers.NewHTTPSJSONRPCPuller(core.Config{
 				DataPullerType:    "https-jsonrpc",
@@ -479,6 +490,11 @@ func registerConfiguredPullers(
 // isSolanaChain checks if the chain ID refers to a Solana chain
 func isSolanaChain(chainID string) bool {
 	return chainID == "solana" || chainID == "101" || chainID == "mainnet-beta"
+}
+
+// isCosmosChain checks if the chain ID refers to a Cosmos chain
+func isCosmosChain(chainID string) bool {
+	return chainID == "cosmos" || chainID == "118" || chainID == "cosmoshub"
 }
 
 func parsePullerRPCEntry(entry string, index int) (string, string, error) {

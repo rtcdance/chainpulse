@@ -95,7 +95,7 @@ func (p *eventProcessorShadowRuntimeProcessor) ProcessEvent(ctx context.Context,
 		CheckpointCursor: fmt.Sprintf("%s:%d:%d", chainID, event.BlockNumber, event.LogIndex),
 	}
 
-	if err := runtime.ProcessBatch(context.Background(), chainID, []appindexing.EventEnvelope{envelope}); err != nil {
+	if err := runtime.ProcessBatch(ctx, chainID, []appindexing.EventEnvelope{envelope}); err != nil {
 		p.recordShadowError(fmt.Errorf("process shared runtime shadow for %s event %s: %w", chainID, event.ID, err))
 		if p.metrics != nil {
 			p.metrics.RecordCounter("event_processor_shared_runtime_shadow_errors_total", 1, map[string]string{

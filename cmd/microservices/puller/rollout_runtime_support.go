@@ -38,11 +38,11 @@ func buildPullerRuntimeRolloutHealthHandler(
 	}
 
 	healthHandler.SetRuntimeComponentProvider(func(ctx context.Context) *api.ComponentStatus {
-		runtimeState := buildPullerRuntimeRolloutState(context.Background(), dbManager, kafkaHealth, config, checkpointSource, progress, execution)
+		runtimeState := buildPullerRuntimeRolloutState(ctx, dbManager, kafkaHealth, config, checkpointSource, progress, execution)
 		return buildPullerRuntimeComponentStatus(runtimeState, time.Now())
 	})
 	healthHandler.SetReadinessDetailsProvider(func(ctx context.Context) map[string]any {
-		runtimeState := buildPullerRuntimeRolloutState(context.Background(), dbManager, kafkaHealth, config, checkpointSource, progress, execution)
+		runtimeState := buildPullerRuntimeRolloutState(ctx, dbManager, kafkaHealth, config, checkpointSource, progress, execution)
 		return buildPullerRuntimeReadinessDetails(runtimeState)
 	})
 	healthHandler.SetRolloutReportProducer(newPullerRolloutReportProducer(instanceID, func() pullerRolloutRuntimeState {

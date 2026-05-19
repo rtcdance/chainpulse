@@ -39,8 +39,8 @@ type monolithicBlockSnapshotStore interface {
 }
 
 type monolithicPollingPuller interface {
-	Start() error
-	Stop() error
+	Start(ctx context.Context) error
+	Stop(ctx context.Context) error
 	Poll(ctx context.Context) error
 	GetConfig() core.Config
 	GetStats() map[string]any
@@ -93,7 +93,7 @@ func newMonolithicPullerRuntime(
 	}
 
 	eventBus := core.NewEventBus(logger)
-	if err := subscribeMonolithicIndexer(context.Background(), eventBus, multiChainIndexer, logger); err != nil {
+	if err := subscribeMonolithicIndexer(ctx, eventBus, multiChainIndexer, logger); err != nil {
 		return nil, err
 	}
 
@@ -164,7 +164,7 @@ func (m *monolithicPullerRuntime) Start(ctx context.Context, wg *sync.WaitGroup)
 	m.stateMu.Unlock()
 
 	for _, puller := range m.pullers {
-		if err := puller.Start(); err != nil {
+		if err := puller.Start(ctx); err != nil {
 			_ = m.Stop()
 
 			return fmt.Errorf("failed to start puller: %w", err)
@@ -220,7 +220,7 @@ func (m *monolithicPullerRuntime) Stop() error {
 	var errs []string
 
 	for _, puller := range m.pullers {
-		if err := puller.Stop(); err != nil && !strings.Contains(err.Error(), "plugin not running") {
+		if err := puller.Stop(context.Background()); err != nil && !strings.Contains(err.Error(), "plugin not running") {
 			errs = append(errs, err.Error())
 		}
 	}
@@ -615,18 +615,20 @@ func subscribeMonolithicIndexer(
 	multiChainIndexer *indexing.MultiChainIndexer,
 	logger core.Logger,
 ) error {
-	_, err := eventBus.SubscribeNamed(ctx, monolithicEventTopic, "monolithic-indexer", func(payload any) {
+	_, err := eventBus.SubscribeNamed(ctx, monolithicEventTopic, "monolithic-indexer", func(_ context.Context, payload any) error {
 		event, ok := payload.(core.BlockchainEvent)
 		if !ok {
 			logger.Warn("ignored unexpected monolithic event payload", "topic", monolithicEventTopic)
 
-			return
+			return nil
 		}
 
-		eventCopy := event
-		if err := multiChainIndexer.IndexEventsFromChain(ctx, eventCopy.ChainID, []*core.BlockchainEvent{&eventCopy}); err != nil {
-			logger.Error("failed to route monolithic event to indexer", "chain_id", eventCopy.ChainID, "error", err.Error())
+		logger.Info("monolithic event received", "event_name", event.EventName, "block", event.BlockNumber)
+		err := multiChainIndexer.ProcessEvent(ctx, &event)
+		if err != nil {
+			logger.Error("failed to process monolithic event", "error", err)
 		}
+		return nil
 	})
 	return err
 }
