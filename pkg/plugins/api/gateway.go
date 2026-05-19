@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -18,6 +19,7 @@ type APIGatewayPlugin struct {
 	logger                        corelib.Logger
 	metrics                       corelib.MetricsCollector
 	httpPlugin                    *httpapi.HTTPPlugin
+	port                          int
 	handlers                      map[string]Handler
 	domainQueryService            domainquery.Service
 	eventQueryHandler             *EventQueryHandler
@@ -25,6 +27,11 @@ type APIGatewayPlugin struct {
 	healthCheckHandler            *HealthCheckHandler
 	graphqlHandler                *GraphQLHandler
 	dlqHandler                    *DLQHandler
+	exportHandler                 *ExportHandler
+	statsHandler                  *StatsHandler
+	adminKeyHandler               *AdminKeyHandler
+	adminAPIKeyHandler            *AdminAPIKeyHandler
+	siweHandler                   *SIWEHandler
 	upstreamQueryEndpoints        []string
 	upstreamQueryHTTPClient       *http.Client
 	upstreamQueryHealthHTTPClient *http.Client
@@ -246,6 +253,46 @@ func (g *APIGatewayPlugin) SetDLQHandler(handler *DLQHandler) {
 	g.dlqHandler = handler
 }
 
+// SetExportHandler wires an optional export handler.
+func (g *APIGatewayPlugin) SetExportHandler(handler *ExportHandler) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	g.exportHandler = handler
+}
+
+// SetStatsHandler wires an optional stats handler.
+func (g *APIGatewayPlugin) SetStatsHandler(handler *StatsHandler) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	g.statsHandler = handler
+}
+
+// SetAdminKeyHandler wires an optional admin key handler (legacy).
+func (g *APIGatewayPlugin) SetAdminKeyHandler(handler *AdminKeyHandler) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	g.adminKeyHandler = handler
+}
+
+// SetAdminAPIKeyHandler wires an optional store-backed admin API key handler.
+func (g *APIGatewayPlugin) SetAdminAPIKeyHandler(handler *AdminAPIKeyHandler) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	g.adminAPIKeyHandler = handler
+}
+
+// SetSIWEHandler wires an optional SIWE authentication handler.
+func (g *APIGatewayPlugin) SetSIWEHandler(handler *SIWEHandler) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	g.siweHandler = handler
+}
+
 // IsHealthCheckHandlerEnabled returns whether runtime health handler is configured.
 func (g *APIGatewayPlugin) IsHealthCheckHandlerEnabled() bool {
 	g.mu.RLock()
@@ -366,6 +413,7 @@ func (g *APIGatewayPlugin) Initialize(config corelib.Config) error {
 	if port == 0 {
 		port = 8080
 	}
+	g.port = port
 	g.httpPlugin = httpapi.NewHTTPPlugin("api-gateway", port, apiLayer)
 
 	if g.shouldInitializeRuntimeIntegration() {
@@ -396,6 +444,21 @@ func (g *APIGatewayPlugin) Initialize(config corelib.Config) error {
 		}
 		if g.dlqHandler != nil {
 			integration.SetDLQHandler(g.dlqHandler)
+		}
+		if g.exportHandler != nil {
+			integration.SetExportHandler(g.exportHandler)
+		}
+		if g.statsHandler != nil {
+			integration.SetStatsHandler(g.statsHandler)
+		}
+		if g.adminKeyHandler != nil {
+			integration.SetAdminKeyHandler(g.adminKeyHandler)
+		}
+		if g.adminAPIKeyHandler != nil {
+			integration.SetAdminAPIKeyHandler(g.adminAPIKeyHandler)
+		}
+		if g.siweHandler != nil {
+			integration.SetSIWEHandler(g.siweHandler)
 		}
 		if err := integration.Initialize(context.Background()); err != nil {
 			return fmt.Errorf("failed to initialize gateway router integration: %w", err)
@@ -437,9 +500,36 @@ func (g *APIGatewayPlugin) wrapGatewayHandler(handler http.HandlerFunc, authMidd
 		wrapped = corsMiddleware.Handler(wrapped)
 	}
 
+	wrapped = recoveryMiddleware(wrapped, g.logger)
+	wrapped = pprofGuardMiddleware(wrapped)
+
 	return func(w http.ResponseWriter, r *http.Request) {
 		wrapped.ServeHTTP(w, r)
 	}
+}
+
+// pprofGuardMiddleware blocks /debug/pprof/ endpoints unless the deployment
+// explicitly enables them via CHAINPULSE_PPROF_ENABLED=true.
+func pprofGuardMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/debug/pprof/") {
+			http.Error(w, `{"error":"not found"}`, http.StatusNotFound)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+func recoveryMiddleware(next http.Handler, logger corelib.Logger) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer func() {
+			if rec := recover(); rec != nil {
+				logger.Error("panic recovered in HTTP handler", "panic", rec)
+				http.Error(w, `{"error":"internal server error"}`, http.StatusInternalServerError)
+			}
+		}()
+		next.ServeHTTP(w, r)
+	})
 }
 
 // Start starts the API gateway
@@ -461,7 +551,7 @@ func (g *APIGatewayPlugin) Start() error {
 
 	g.running = true
 
-	g.logger.Info("API gateway started", corelib.LogKeyComponent, "api_gateway", corelib.LogKeyPort, 8080, "domain_bridge_enabled", g.domainBridgeEnabled, "event_query_handler_set", g.eventQueryEnabled, "runtime_routes_enabled", g.runtimeRoutesEnabled)
+	g.logger.Info("API gateway started", corelib.LogKeyComponent, "api_gateway", corelib.LogKeyPort, g.port, "domain_bridge_enabled", g.domainBridgeEnabled, "event_query_handler_set", g.eventQueryEnabled, "runtime_routes_enabled", g.runtimeRoutesEnabled)
 
 	return nil
 }

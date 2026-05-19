@@ -27,6 +27,11 @@ type GatewayRouterIntegration struct {
 	modelsHandler                 *ModelsHandler
 	graphqlHandler                *GraphQLHandler
 	dlqHandler                    *DLQHandler
+	exportHandler                 *ExportHandler
+	statsHandler                  *StatsHandler
+	adminKeyHandler               *AdminKeyHandler
+	adminAPIKeyHandler            *AdminAPIKeyHandler
+	siweHandler                   *SIWEHandler
 	upstreamQueryEndpoints        []string
 	upstreamQueryHTTPClient       *http.Client
 	upstreamQueryHealthHTTPClient *http.Client
@@ -126,6 +131,19 @@ func NewGatewayRouterIntegration(
 			"graphql":             gatewayHandleGraphQL,
 			"dlq-events":          gatewayHandleDLQEvents,
 			"dlq-replay":          gatewayHandleDLQReplay,
+			"export":              gatewayHandleExport,
+			"stats":               gatewayHandleStats,
+			"admin-keys-list":     gatewayHandleAdminKeyList,
+			"admin-keys-create":   gatewayHandleAdminKeyCreate,
+			"admin-keys-by-id":    gatewayHandleAdminKeyByID,
+			"admin-keys-revoke":   gatewayHandleAdminKeyRevoke,
+			"admin-keys-toggle":   gatewayHandleAdminKeyToggle,
+			"admin-api-keys-list":   gatewayHandleAdminAPIKeyList,
+			"admin-api-keys-create":  gatewayHandleAdminAPIKeyCreate,
+			"admin-api-keys-delete":  gatewayHandleAdminAPIKeyDelete,
+			"admin-api-keys-toggle":  gatewayHandleAdminAPIKeyToggle,
+			"siwe-challenge":      gatewayHandleSIWEChallenge,
+			"siwe-verify":         gatewayHandleSIWEVerify,
 		},
 		initialized: false,
 	}
@@ -216,6 +234,46 @@ func (gri *GatewayRouterIntegration) SetDLQHandler(handler *DLQHandler) {
 	gri.dlqHandler = handler
 }
 
+// SetExportHandler wires the export handler for route registration.
+func (gri *GatewayRouterIntegration) SetExportHandler(handler *ExportHandler) {
+	gri.mu.Lock()
+	defer gri.mu.Unlock()
+
+	gri.exportHandler = handler
+}
+
+// SetStatsHandler wires the stats handler for route registration.
+func (gri *GatewayRouterIntegration) SetStatsHandler(handler *StatsHandler) {
+	gri.mu.Lock()
+	defer gri.mu.Unlock()
+
+	gri.statsHandler = handler
+}
+
+// SetAdminKeyHandler wires the admin key handler for route registration.
+func (gri *GatewayRouterIntegration) SetAdminKeyHandler(handler *AdminKeyHandler) {
+	gri.mu.Lock()
+	defer gri.mu.Unlock()
+
+	gri.adminKeyHandler = handler
+}
+
+// SetAdminAPIKeyHandler wires the store-backed admin API key handler for route registration.
+func (gri *GatewayRouterIntegration) SetAdminAPIKeyHandler(handler *AdminAPIKeyHandler) {
+	gri.mu.Lock()
+	defer gri.mu.Unlock()
+
+	gri.adminAPIKeyHandler = handler
+}
+
+// SetSIWEHandler wires the SIWE handler for route registration.
+func (gri *GatewayRouterIntegration) SetSIWEHandler(handler *SIWEHandler) {
+	gri.mu.Lock()
+	defer gri.mu.Unlock()
+
+	gri.siweHandler = handler
+}
+
 // registerRoutes registers all API routes.
 func (gri *GatewayRouterIntegration) registerRoutes() error {
 	if err := gri.registerSubscriptionRoutes(); err != nil {
@@ -237,6 +295,21 @@ func (gri *GatewayRouterIntegration) registerRoutes() error {
 		return err
 	}
 	if err := gri.registerDLQRoutes(); err != nil {
+		return err
+	}
+	if err := gri.registerExportRoutes(); err != nil {
+		return err
+	}
+	if err := gri.registerStatsRoutes(); err != nil {
+		return err
+	}
+	if err := gri.registerAdminKeyRoutes(); err != nil {
+		return err
+	}
+	if err := gri.registerAdminAPIKeyRoutes(); err != nil {
+		return err
+	}
+	if err := gri.registerSIWERoutes(); err != nil {
 		return err
 	}
 	if err := gri.attachUpstreamQueryHandlers(); err != nil {
@@ -372,6 +445,65 @@ func (gri *GatewayRouterIntegration) registerDLQRoutes() error {
 		return err
 	}
 	return gri.registerRoute("dlq-replay", "/dlq/replay", "POST", 0)
+}
+
+func (gri *GatewayRouterIntegration) registerExportRoutes() error {
+	if gri.exportHandler == nil {
+		return nil
+	}
+	return gri.registerRoute("export", "/events/export", "GET", 0)
+}
+
+func (gri *GatewayRouterIntegration) registerStatsRoutes() error {
+	if gri.statsHandler == nil {
+		return nil
+	}
+	return gri.registerRoute("stats", "/events/stats", "GET", 0)
+}
+
+func (gri *GatewayRouterIntegration) registerAdminKeyRoutes() error {
+	if gri.adminKeyHandler == nil {
+		return nil
+	}
+	if err := gri.registerRoute("admin-keys-list", "/admin/keys", "GET", 0); err != nil {
+		return err
+	}
+	if err := gri.registerRoute("admin-keys-create", "/admin/keys", "POST", 0); err != nil {
+		return err
+	}
+	if err := gri.registerRoute("admin-keys-by-id", "/admin/keys/:id", "GET", 0); err != nil {
+		return err
+	}
+	if err := gri.registerRoute("admin-keys-revoke", "/admin/keys/:id", "DELETE", 0); err != nil {
+		return err
+	}
+	return gri.registerRoute("admin-keys-toggle", "/admin/keys/:id/toggle", "POST", 0)
+}
+
+func (gri *GatewayRouterIntegration) registerAdminAPIKeyRoutes() error {
+	if gri.adminAPIKeyHandler == nil {
+		return nil
+	}
+	if err := gri.registerRoute("admin-api-keys-list", "/admin/api-keys", "GET", 0); err != nil {
+		return err
+	}
+	if err := gri.registerRoute("admin-api-keys-create", "/admin/api-keys", "POST", 0); err != nil {
+		return err
+	}
+	if err := gri.registerRoute("admin-api-keys-delete", "/admin/api-keys/:id", "DELETE", 0); err != nil {
+		return err
+	}
+	return gri.registerRoute("admin-api-keys-toggle", "/admin/api-keys/:id/toggle", "POST", 0)
+}
+
+func (gri *GatewayRouterIntegration) registerSIWERoutes() error {
+	if gri.siweHandler == nil {
+		return nil
+	}
+	if err := gri.registerRoute("siwe-challenge", "/auth/siwe/challenge", "POST", 0); err != nil {
+		return err
+	}
+	return gri.registerRoute("siwe-verify", "/auth/siwe/verify", "POST", 0)
 }
 
 func (gri *GatewayRouterIntegration) shouldRegisterEventQueryRoutes() bool {
@@ -657,6 +789,93 @@ func gatewayHandleDLQReplay(gri *GatewayRouterIntegration, w http.ResponseWriter
 		return
 	}
 	gri.dlqHandler.HandleReplayDLQEvents(w, r)
+}
+
+func gatewayHandleExport(gri *GatewayRouterIntegration, w http.ResponseWriter, _ http.ResponseWriter, r *http.Request, _ *Route, _ map[string]string) {
+	if gri.exportHandler == nil {
+		(&APIError{Code: "NOT_FOUND", Message: "Export handler not configured", Status: 404}).WriteHTTP(w)
+		return
+	}
+	gri.exportHandler.HandleExport(w, r)
+}
+
+func gatewayHandleStats(gri *GatewayRouterIntegration, w http.ResponseWriter, _ http.ResponseWriter, r *http.Request, _ *Route, _ map[string]string) {
+	if gri.statsHandler == nil {
+		(&APIError{Code: "NOT_FOUND", Message: "Stats handler not configured", Status: 404}).WriteHTTP(w)
+		return
+	}
+	gri.statsHandler.HandleGetStats(w, r)
+}
+
+func gatewayHandleAdminKeyList(gri *GatewayRouterIntegration, w http.ResponseWriter, _ http.ResponseWriter, r *http.Request, _ *Route, _ map[string]string) {
+	gri.adminKeyHandler.HandleListKeys(w, r)
+}
+
+func gatewayHandleAdminKeyCreate(gri *GatewayRouterIntegration, w http.ResponseWriter, _ http.ResponseWriter, r *http.Request, _ *Route, _ map[string]string) {
+	gri.adminKeyHandler.HandleCreateKey(w, r)
+}
+
+func gatewayHandleAdminKeyByID(gri *GatewayRouterIntegration, w http.ResponseWriter, _ http.ResponseWriter, r *http.Request, _ *Route, _ map[string]string) {
+	gri.adminKeyHandler.HandleGetKeyByID(w, r)
+}
+
+func gatewayHandleAdminKeyRevoke(gri *GatewayRouterIntegration, w http.ResponseWriter, _ http.ResponseWriter, r *http.Request, _ *Route, _ map[string]string) {
+	gri.adminKeyHandler.HandleRevokeKey(w, r)
+}
+
+func gatewayHandleAdminKeyToggle(gri *GatewayRouterIntegration, w http.ResponseWriter, _ http.ResponseWriter, r *http.Request, _ *Route, _ map[string]string) {
+	gri.adminKeyHandler.HandleToggleKey(w, r)
+}
+
+func gatewayHandleAdminAPIKeyList(gri *GatewayRouterIntegration, w http.ResponseWriter, _ http.ResponseWriter, r *http.Request, _ *Route, _ map[string]string) {
+	if gri.adminAPIKeyHandler == nil {
+		(&APIError{Code: "NOT_FOUND", Message: "Admin API key handler not configured", Status: 404}).WriteHTTP(w)
+		return
+	}
+	gri.adminAPIKeyHandler.HandleListAPIKeys(w, r)
+}
+
+func gatewayHandleAdminAPIKeyCreate(gri *GatewayRouterIntegration, w http.ResponseWriter, _ http.ResponseWriter, r *http.Request, _ *Route, _ map[string]string) {
+	if gri.adminAPIKeyHandler == nil {
+		(&APIError{Code: "NOT_FOUND", Message: "Admin API key handler not configured", Status: 404}).WriteHTTP(w)
+		return
+	}
+	gri.adminAPIKeyHandler.HandleCreateAPIKey(w, r)
+}
+
+func gatewayHandleAdminAPIKeyDelete(gri *GatewayRouterIntegration, w http.ResponseWriter, _ http.ResponseWriter, r *http.Request, _ *Route, params map[string]string) {
+	if gri.adminAPIKeyHandler == nil {
+		(&APIError{Code: "NOT_FOUND", Message: "Admin API key handler not configured", Status: 404}).WriteHTTP(w)
+		return
+	}
+	// Pass id via query param since AdminAPIKeyHandler.HandleDeleteAPIKey expects it
+	r.URL.RawQuery = "id=" + params["id"]
+	gri.adminAPIKeyHandler.HandleDeleteAPIKey(w, r)
+}
+
+func gatewayHandleAdminAPIKeyToggle(gri *GatewayRouterIntegration, w http.ResponseWriter, _ http.ResponseWriter, r *http.Request, _ *Route, params map[string]string) {
+	if gri.adminAPIKeyHandler == nil {
+		(&APIError{Code: "NOT_FOUND", Message: "Admin API key handler not configured", Status: 404}).WriteHTTP(w)
+		return
+	}
+	r.URL.RawQuery = "id=" + params["id"]
+	gri.adminAPIKeyHandler.HandleToggleAPIKey(w, r)
+}
+
+func gatewayHandleSIWEChallenge(gri *GatewayRouterIntegration, w http.ResponseWriter, _ http.ResponseWriter, r *http.Request, _ *Route, _ map[string]string) {
+	if gri.siweHandler == nil {
+		(&APIError{Code: "NOT_FOUND", Message: "SIWE handler not configured", Status: 404}).WriteHTTP(w)
+		return
+	}
+	gri.siweHandler.HandleChallenge(w, r)
+}
+
+func gatewayHandleSIWEVerify(gri *GatewayRouterIntegration, w http.ResponseWriter, _ http.ResponseWriter, r *http.Request, _ *Route, _ map[string]string) {
+	if gri.siweHandler == nil {
+		(&APIError{Code: "NOT_FOUND", Message: "SIWE handler not configured", Status: 404}).WriteHTTP(w)
+		return
+	}
+	gri.siweHandler.HandleVerify(w, r)
 }
 
 func normalizeGatewayAPIV1Request(r *http.Request) *http.Request {

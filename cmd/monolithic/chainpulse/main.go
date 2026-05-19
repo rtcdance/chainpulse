@@ -242,6 +242,11 @@ func run() error {
 		if pgRaw, pgErr := runtimeWiring.DBManager.GetPostgresDB(ctx); pgErr == nil {
 			if sqlDB, ok := pgRaw.(*sql.DB); ok {
 				monolithicQuerySurface.adminKeyHandler = api.NewAdminKeyHandler(sqlDB, logger)
+				// Also wire the store-backed AdminAPIKeyHandler for CRUD at /admin/api-keys
+				keyStore := api.NewAPIKeyStore(sqlDB, logger, metrics)
+				adminAPIKeyHandler := api.NewAdminAPIKeyHandler(keyStore, logger)
+				gateway.SetAdminAPIKeyHandler(adminAPIKeyHandler)
+				logger.Info("Store-backed AdminAPIKeyHandler wired", "endpoint", "/admin/api-keys")
 			}
 		}
 	}
