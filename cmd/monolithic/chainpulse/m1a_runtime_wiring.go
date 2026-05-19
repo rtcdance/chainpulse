@@ -114,9 +114,18 @@ func newMonolithicPullerRuntime(
 		pullerConfig.ServiceName = chainID
 		pullerConfig.BlockchainNodeURL = nodeURLs[idx]
 		logger.Debug("creating puller", "chain", chainID, "nodeURL", nodeURLs[idx])
-		puller := pullers.NewHTTPSJSONRPCPuller(pullerConfig, logger, metrics, eventBus)
-		if err := puller.SubscribeToEvents(ctx, runtime.observeEvent); err != nil {
-			return nil, err
+		var puller monolithicPollingPuller
+		if core.IsCosmosChain(chainID) {
+			puller = pullers.NewCosmosPuller(pullerConfig, logger, metrics)
+		} else if core.IsSolanaChain(chainID) {
+			puller = pullers.NewSolanaPuller(pullerConfig, logger, metrics)
+		} else {
+			puller = pullers.NewHTTPSJSONRPCPuller(pullerConfig, logger, metrics, eventBus)
+		}
+		if dataPuller, ok := any(puller).(core.DataPullerPlugin); ok {
+			if err := dataPuller.SubscribeToEvents(ctx, runtime.observeEvent); err != nil {
+				return nil, err
+			}
 		}
 		runtime.pullers = append(runtime.pullers, puller)
 		reorgThreshold := reorgThresholdForChain(chainID)
@@ -131,8 +140,11 @@ func newMonolithicPullerRuntime(
 		}
 		// Inject RPC-backed block hash provider so reorg detection
 		// compares local hashes against the live canonical chain.
-		rpcProvider := pullers.NewRPCBlockHashProvider(puller)
-		runtime.reorgChains[chainID].handler.SetBlockHashProvider(rpcProvider)
+		// Only supports EVM pullers that expose block hash RPC methods.
+		if evmPuller, ok := puller.(*pullers.HTTPSJSONRPCPuller); ok {
+			rpcProvider := pullers.NewRPCBlockHashProvider(evmPuller)
+			runtime.reorgChains[chainID].handler.SetBlockHashProvider(rpcProvider)
+		}
 		// Note: SetIdempotencyInvalidator should be called here if an
 		// IdempotencyService is available in the runtime, so that re-indexed
 		// events after a reorg are not rejected as duplicates.
@@ -226,6 +238,11 @@ func (m *monolithicPullerRuntime) PullerCount() int {
 
 func (m *monolithicPullerRuntime) SubscriberCount() int {
 	return m.eventBus.GetSubscriberCount(monolithicEventTopic)
+}
+
+// EventBus returns the shared event bus for wiring push-based subscriptions.
+func (m *monolithicPullerRuntime) EventBus() core.EventBus {
+	return m.eventBus
 }
 
 func (m *monolithicPullerRuntime) recordLoopError(err error) {

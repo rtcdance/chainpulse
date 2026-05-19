@@ -54,8 +54,18 @@ func NewBaseDatabasePlugin(logger core.Logger, metricsCollector core.MetricsColl
 	}
 }
 
+// Name returns the plugin name
+func (p *BaseDatabasePlugin) Name() string {
+	return "database"
+}
+
+// Version returns the plugin version
+func (p *BaseDatabasePlugin) Version() string {
+	return "1.0.0"
+}
+
 // Initialize initializes the database plugin
-func (p *BaseDatabasePlugin) Initialize(config *core.Config) error {
+func (p *BaseDatabasePlugin) Initialize(_ context.Context, config core.Config) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -63,11 +73,7 @@ func (p *BaseDatabasePlugin) Initialize(config *core.Config) error {
 		return fmt.Errorf("database plugin already initialized")
 	}
 
-	if config == nil {
-		return fmt.Errorf("config is required")
-	}
-
-	p.config = config
+	p.config = &config
 	p.initialized = true
 
 	p.logger.Info("Database plugin initialized", core.LogKeyComponent, "database")
@@ -76,7 +82,7 @@ func (p *BaseDatabasePlugin) Initialize(config *core.Config) error {
 }
 
 // Start starts the database plugin
-func (p *BaseDatabasePlugin) Start() error {
+func (p *BaseDatabasePlugin) Start(_ context.Context) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -100,7 +106,7 @@ func (p *BaseDatabasePlugin) Start() error {
 }
 
 // Stop stops the database plugin
-func (p *BaseDatabasePlugin) Stop() error {
+func (p *BaseDatabasePlugin) Stop(_ context.Context) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -120,28 +126,19 @@ func (p *BaseDatabasePlugin) Stop() error {
 }
 
 // Health returns the health status of the plugin
-func (p *BaseDatabasePlugin) Health() *core.HealthStatus {
+func (p *BaseDatabasePlugin) Health(_ context.Context) error {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
 	if !p.initialized {
-		return &core.HealthStatus{
-			Status:  "unhealthy",
-			Message: "Database plugin not initialized",
-		}
+		return fmt.Errorf("database plugin not initialized")
 	}
 
 	if !p.running {
-		return &core.HealthStatus{
-			Status:  "unhealthy",
-			Message: "Database plugin not running",
-		}
+		return fmt.Errorf("database plugin not running")
 	}
 
-	return &core.HealthStatus{
-		Status:  "healthy",
-		Message: "Database plugin healthy",
-	}
+	return nil
 }
 
 // RecordWrite records a database write operation
@@ -342,6 +339,39 @@ func (p *DefaultInMemoryDatabasePlugin) WriteEvents(ctx context.Context, events 
 			return fmt.Errorf("event hash is required for event %d", i)
 		}
 		p.events[events[i].EventHash] = &events[i]
+	}
+
+	duration := time.Since(start).Milliseconds()
+	p.recordWriteUnlocked(duration)
+	p.updateEventCountUnlocked(int64(len(p.events)))
+
+	return nil
+}
+
+// WriteBatch writes multiple blockchain events atomically (in-memory batch).
+func (p *DefaultInMemoryDatabasePlugin) WriteBatch(ctx context.Context, events []*core.BlockchainEvent) error {
+	if len(events) == 0 {
+		return nil
+	}
+
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	if !p.running {
+		return fmt.Errorf("database plugin not running")
+	}
+
+	start := time.Now()
+
+	for _, event := range events {
+		if event == nil {
+			continue
+		}
+		if event.EventHash == "" {
+			p.errorCount++
+			return fmt.Errorf("event hash is required")
+		}
+		p.events[event.EventHash] = event
 	}
 
 	duration := time.Since(start).Milliseconds()

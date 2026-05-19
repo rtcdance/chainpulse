@@ -12,13 +12,14 @@ import (
 
 // BlockchainConfig represents configuration for a single blockchain
 type BlockchainConfig struct {
-	ChainID          string
-	NodeURL          string
-	FallbackNodeURLs []string // backup RPC endpoints for failover
-	StartBlock       uint64
-	ChainName        string
-	Network          string
-	EventSignatures  []string // topic0 hashes for eth_getLogs topics filter
+	ChainID            string
+	NodeURL            string
+	FallbackNodeURLs   []string // backup RPC endpoints for failover
+	StartBlock         uint64
+	ChainName          string
+	Network            string
+	EventSignatures    []string // topic0 hashes for eth_getLogs topics filter
+	ConfirmationBlocks uint64   // blocks to wait before considering finalized
 }
 
 // DefaultConfigManager is the default implementation of ConfigManager
@@ -112,6 +113,7 @@ func (cm *DefaultConfigManager) Load() (Config, error) {
 			chainID := env.Get(fmt.Sprintf("CHAINPULSE_%s_CHAIN_ID", strings.ToUpper(chain)), "")
 			startBlockStr := env.Get(fmt.Sprintf("CHAINPULSE_%s_START_BLOCK", strings.ToUpper(chain)), "0")
 			network := env.Get(fmt.Sprintf("CHAINPULSE_%s_NETWORK", strings.ToUpper(chain)), "mainnet")
+			confBlocksStr := env.Get(fmt.Sprintf("CHAINPULSE_%s_CONFIRMATION_BLOCKS", strings.ToUpper(chain)), "")
 
 			startBlock := uint64(0)
 			if startBlockStr != "" {
@@ -120,13 +122,21 @@ func (cm *DefaultConfigManager) Load() (Config, error) {
 				}
 			}
 
+			confBlocks := uint64(0)
+			if confBlocksStr != "" {
+				if blocks, err := strconv.ParseUint(confBlocksStr, 10, 64); err == nil {
+					confBlocks = blocks
+				}
+			}
+
 			if nodeURL != "" && chainID != "" {
 				config.Blockchains[chain] = BlockchainConfig{
-					ChainID:    chainID,
-					NodeURL:    nodeURL,
-					StartBlock: startBlock,
-					ChainName:  chain,
-					Network:    network,
+					ChainID:            chainID,
+					NodeURL:            nodeURL,
+					StartBlock:         startBlock,
+					ChainName:          chain,
+					Network:            network,
+					ConfirmationBlocks: confBlocks,
 				}
 				config.ActiveChains = append(config.ActiveChains, chain)
 			}
@@ -155,6 +165,39 @@ func (cm *DefaultConfigManager) Load() (Config, error) {
 	}
 
 	return config, nil
+}
+
+// Validate checks the loaded configuration for minimum correctness.
+func (cm *DefaultConfigManager) Validate() error {
+	cm.mu.RLock()
+	config := cm.config
+	cm.mu.RUnlock()
+
+	var errs []string
+
+	if config.DatabaseURL == "" {
+		errs = append(errs, "DATABASE_URL is required")
+	}
+	if config.BlockchainNodeURL == "" && len(config.Blockchains) == 0 {
+		errs = append(errs, "at least one of BLOCKCHAIN_NODE_URL or CHAINPULSE_CHAINS is required")
+	}
+	if config.APIPort <= 0 || config.APIPort > 65535 {
+		errs = append(errs, fmt.Sprintf("API_PORT must be 1-65535, got %d", config.APIPort))
+	}
+	if config.WorkerPoolSize <= 0 {
+		errs = append(errs, fmt.Sprintf("WORKER_POOL_SIZE must be > 0, got %d", config.WorkerPoolSize))
+	}
+	if config.BatchSize <= 0 {
+		errs = append(errs, fmt.Sprintf("BATCH_SIZE must be > 0, got %d", config.BatchSize))
+	}
+	if config.MaxRetries < 0 {
+		errs = append(errs, fmt.Sprintf("MAX_RETRIES must be >= 0, got %d", config.MaxRetries))
+	}
+
+	if len(errs) > 0 {
+		return fmt.Errorf("config validation failed: %s", strings.Join(errs, "; "))
+	}
+	return nil
 }
 
 // Get retrieves a configuration value by key.

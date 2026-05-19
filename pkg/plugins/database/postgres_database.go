@@ -12,6 +12,12 @@ import (
 	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
+const (
+	defaultPostgresMaxConnections  = 25
+	defaultPostgresQueryTimeout    = 30 * time.Second
+	defaultPostgresConnMaxLifetime = time.Hour
+)
+
 // PostgreSQLDatabase implements DatabasePlugin for PostgreSQL
 type PostgreSQLDatabase struct {
 	*BaseDatabasePlugin
@@ -28,15 +34,15 @@ type PostgreSQLDatabase struct {
 func NewPostgreSQLDatabase(logger core.Logger, metricsCollector core.MetricsCollector) *PostgreSQLDatabase {
 	return &PostgreSQLDatabase{
 		BaseDatabasePlugin: NewBaseDatabasePlugin(logger, metricsCollector),
-		maxConnections:     25,
-		queryTimeout:       30 * time.Second,
+		maxConnections:     defaultPostgresMaxConnections,
+		queryTimeout:       defaultPostgresQueryTimeout,
 		events:             make(map[string]*core.BlockchainEvent),
 	}
 }
 
 // Initialize initializes the PostgreSQL database plugin
-func (p *PostgreSQLDatabase) Initialize(config *core.Config) error {
-	if err := p.BaseDatabasePlugin.Initialize(config); err != nil {
+func (p *PostgreSQLDatabase) Initialize(ctx context.Context, config core.Config) error {
+	if err := p.BaseDatabasePlugin.Initialize(ctx, config); err != nil {
 		return err
 	}
 
@@ -44,15 +50,15 @@ func (p *PostgreSQLDatabase) Initialize(config *core.Config) error {
 	defer p.mu.Unlock()
 
 	// Extract PostgreSQL connection string from config
-	connStr := core.ConfigString(config, "POSTGRES_CONNECTION_STRING", "")
+	connStr := core.ConfigString(&config, "POSTGRES_CONNECTION_STRING", "")
 	if connStr == "" {
 		// Build connection string from individual components
-		host := core.ConfigString(config, "POSTGRES_HOST", "localhost")
-		port := core.ConfigString(config, "POSTGRES_PORT", "5432")
-		user := core.ConfigString(config, "POSTGRES_USER", "postgres")
-		password := core.SecretString(core.ConfigString(config, "POSTGRES_PASSWORD", ""))
-		dbname := core.ConfigString(config, "POSTGRES_DB", "chainpulse")
-		sslmode := core.ConfigString(config, "DATABASE_SSLMODE", "require")
+		host := core.ConfigString(&config, "POSTGRES_HOST", "localhost")
+		port := core.ConfigString(&config, "POSTGRES_PORT", "5432")
+		user := core.ConfigString(&config, "POSTGRES_USER", "postgres")
+		password := core.SecretString(core.ConfigString(&config, "POSTGRES_PASSWORD", ""))
+		dbname := core.ConfigString(&config, "POSTGRES_DB", "chainpulse")
+		sslmode := core.ConfigString(&config, "DATABASE_SSLMODE", "require")
 
 		connStr = fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
 			host, port, user, password.Value(), dbname, sslmode)
@@ -69,7 +75,7 @@ func (p *PostgreSQLDatabase) Initialize(config *core.Config) error {
 	// Configure connection pool
 	db.SetMaxOpenConns(p.maxConnections)
 	db.SetMaxIdleConns(p.maxConnections / 2)
-	db.SetConnMaxLifetime(time.Hour)
+	db.SetConnMaxLifetime(defaultPostgresConnMaxLifetime)
 
 	// Test connection
 	ctx, cancel := NewContextWithTimeout(context.Background(), p.queryTimeout)
@@ -134,8 +140,8 @@ func (p *PostgreSQLDatabase) createTables() error {
 }
 
 // Start starts the PostgreSQL database plugin
-func (p *PostgreSQLDatabase) Start() error {
-	if err := p.BaseDatabasePlugin.Start(); err != nil {
+func (p *PostgreSQLDatabase) Start(ctx context.Context) error {
+	if err := p.BaseDatabasePlugin.Start(ctx); err != nil {
 		return err
 	}
 
@@ -157,8 +163,8 @@ func (p *PostgreSQLDatabase) Start() error {
 }
 
 // Stop stops the PostgreSQL database plugin
-func (p *PostgreSQLDatabase) Stop() error {
-	if err := p.BaseDatabasePlugin.Stop(); err != nil {
+func (p *PostgreSQLDatabase) Stop(ctx context.Context) error {
+	if err := p.BaseDatabasePlugin.Stop(ctx); err != nil {
 		return err
 	}
 
@@ -321,6 +327,94 @@ func (p *PostgreSQLDatabase) WriteEvents(ctx context.Context, events []core.Bloc
 	p.RecordWrite(duration)
 
 	// Update event count
+	p.updateEventCount()
+
+	return nil
+}
+
+// WriteBatch writes multiple blockchain events atomically using a single DB transaction.
+func (p *PostgreSQLDatabase) WriteBatch(ctx context.Context, events []*core.BlockchainEvent) error {
+	if len(events) == 0 {
+		return nil
+	}
+
+	start := time.Now()
+
+	p.mu.RLock()
+	db := p.db
+	p.mu.RUnlock()
+
+	if db == nil {
+		p.RecordError()
+		return fmt.Errorf("database not initialized")
+	}
+
+	ctx, cancel := NewContextWithTimeout(ctx, p.queryTimeout)
+	defer cancel()
+
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		p.RecordError()
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+
+	insertSQL := `
+	INSERT INTO blockchain_events (event_hash, chain_id, block_number, transaction_hash, log_index, contract_address, event_name, event_data, timestamp)
+	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+	ON CONFLICT (chain_id, block_number, transaction_hash, log_index) DO NOTHING
+	`
+
+	stmt, err := tx.PrepareContext(ctx, insertSQL)
+	if err != nil {
+		if rbErr := tx.Rollback(); rbErr != nil {
+			p.logger.Error("failed to rollback transaction", core.LogKeyError, rbErr)
+		}
+		p.RecordError()
+		return fmt.Errorf("failed to prepare statement: %w", err)
+	}
+	defer func() {
+		if closeErr := stmt.Close(); closeErr != nil {
+			p.logger.Error("failed to close statement", core.LogKeyError, closeErr)
+		}
+	}()
+
+	for _, event := range events {
+		if event == nil {
+			continue
+		}
+		_, err := stmt.ExecContext(
+			ctx,
+			event.EventHash,
+			event.ChainID,
+			event.BlockNumber,
+			event.TransactionHash,
+			event.LogIndex,
+			event.ContractAddress,
+			event.EventName,
+			event.EventData,
+			event.BlockTimestamp,
+		)
+		if err != nil {
+			if rbErr := tx.Rollback(); rbErr != nil {
+				p.logger.Error("failed to rollback transaction", core.LogKeyError, rbErr)
+			}
+			p.RecordError()
+			p.logger.Error("Failed to write event in batch", core.LogKeyError, err, core.LogKeyHash, event.EventHash)
+			return fmt.Errorf("failed to write event in batch: %w", err)
+		}
+
+		p.eventsMu.Lock()
+		p.events[event.EventHash] = event
+		p.eventsMu.Unlock()
+	}
+
+	if err := tx.Commit(); err != nil {
+		p.RecordError()
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	duration := time.Since(start).Milliseconds()
+	p.RecordWrite(duration)
 	p.updateEventCount()
 
 	return nil

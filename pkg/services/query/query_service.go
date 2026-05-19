@@ -10,20 +10,15 @@ import (
 	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
-// QueryService defines the interface for query execution with cache-first pattern
-type QueryService interface {
-	// Query executes a query with cache-first pattern
-	Query(ctx context.Context, req *QueryRequest) (*QueryResult, error)
+// QueryService defines the interface for query execution with cache-first pattern.
+// This is a type alias for core.QueryService — both are the same type.
+type QueryService = core.QueryService
 
-	// QueryByHash retrieves a single item by hash
-	QueryByHash(ctx context.Context, hash string) (*core.BlockchainEvent, error)
+// QueryRequest is a type alias for core.QueryRequest.
+type QueryRequest = core.QueryRequest
 
-	// InvalidateCache invalidates cache for a key
-	InvalidateCache(ctx context.Context, key string) error
-
-	// Health returns the health status
-	Health(ctx context.Context) *core.HealthStatus
-}
+// QueryResult is a type alias for core.QueryResult.
+type QueryResult = core.QueryResult
 
 // RuntimeSummarizer provides a compact runtime summary for operator-facing
 // query service surfaces.
@@ -40,49 +35,6 @@ type RuntimeSummary struct {
 	CircuitBreakerPosture string
 	ConsistencyPosture    string
 	ReliabilityHint       string
-}
-
-// QueryRequest represents a query request
-type QueryRequest struct {
-	// Query type: "mongodb" or "postgresql"
-	QueryType string
-
-	// Collection or table name
-	Collection string
-
-	// Filter criteria
-	Filter map[string]any
-
-	// Pagination
-	Limit  int64
-	Offset int64
-
-	// Cache key
-	CacheKey string
-
-	// Cache TTL
-	CacheTTL time.Duration
-
-	// Sort order
-	Sort map[string]int
-}
-
-// QueryResult represents a query result
-type QueryResult struct {
-	// Events returned
-	Events []core.BlockchainEvent
-
-	// Total count
-	Total int64
-
-	// Whether result came from cache
-	CacheHit bool
-
-	// Response time in milliseconds
-	ResponseTime int64
-
-	// Source: "cache", "mongodb", or "postgresql"
-	Source string
 }
 
 // DefaultQueryService provides default implementation of QueryService

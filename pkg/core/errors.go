@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net"
 	"syscall"
-	"time"
 )
 
 // Error variables for validation
@@ -66,6 +65,9 @@ var (
 	ErrEventDecodeFailed = NewSystemError(ErrorTypePermanent, ErrorCodeEventDecodeFailed, "event decode failed", nil)
 	ErrABINotFound       = NewSystemError(ErrorTypePermanent, ErrorCodeABINotFound, "ABI not found for contract", nil)
 	ErrFinalityNotReady  = NewSystemError(ErrorTypeTransient, ErrorCodeFinalityNotReady, "block not yet finalized", nil)
+	ErrRPCUnreachable    = NewSystemError(ErrorTypeTransient, ErrorCodeRPCUnreachable, "RPC endpoint unreachable", nil)
+	ErrStaleBlock        = NewSystemError(ErrorTypePermanent, ErrorCodeStaleBlock, "block is too old, past safe reorg depth", nil)
+	ErrReorgDetected     = NewSystemError(ErrorTypeTransient, ErrorCodeReorgDetected, "blockchain reorganization detected", nil)
 )
 
 // Constants for configuration
@@ -104,6 +106,8 @@ const (
 	ErrorCodeABINotFound       = "ABI_NOT_FOUND"
 	ErrorCodeFinalityNotReady  = "FINALITY_NOT_READY"
 	ErrorCodeReorgDetected     = "REORG_DETECTED"
+	ErrorCodeRPCUnreachable    = "RPC_UNREACHABLE"
+	ErrorCodeStaleBlock        = "STALE_BLOCK"
 	ErrorCodeInvalidEventData  = "INVALID_EVENT_DATA"
 )
 
@@ -193,75 +197,6 @@ func ClassifyError(err error) ErrorType {
 
 	// Default to permanent
 	return ErrorTypePermanent
-}
-
-// DEPRECATED: Use github.com/rtcdance/chainpulse/pkg/services/resilience.RetryConfig instead.
-// RetryConfig represents retry configuration retained for legacy callers.
-// New code should import the resilience package which provides richer retry
-// with jitter, configurable backoff multipliers, and context-aware execution.
-type RetryConfig struct {
-	MaxRetries   int
-	InitialDelay time.Duration
-	MaxDelay     time.Duration
-	Multiplier   float64
-}
-
-// DEPRECATED: Use chainpulse/pkg/services/resilience.DefaultRetryConfig instead.
-func DefaultRetryConfig() RetryConfig {
-	return RetryConfig{
-		MaxRetries:   3,
-		InitialDelay: 100 * time.Millisecond,
-		MaxDelay:     10 * time.Second,
-		Multiplier:   2.0,
-	}
-}
-
-// DEPRECATED: Use github.com/rtcdance/chainpulse/pkg/services/resilience instead.
-// RetryWithBackoff retries an operation with exponential backoff.
-// Prefer using services/resilience.RetryExecutor for new code.
-func RetryWithBackoff(ctx context.Context, config RetryConfig, operation func() error) error {
-	var lastErr error
-	delay := config.InitialDelay
-
-	// MaxRetries represents the total number of attempts allowed
-	for attempt := 1; attempt <= config.MaxRetries; attempt++ {
-		err := operation()
-		if err == nil {
-			return nil
-		}
-
-		lastErr = err
-
-		// Check if error is transient
-		if ClassifyError(err) != ErrorTypeTransient {
-			return err
-		}
-
-		// Check if this is the last attempt
-		if attempt == config.MaxRetries {
-			break
-		}
-
-		// Wait before retrying
-		select {
-		case <-time.After(delay):
-			// Calculate next delay with exponential backoff
-			nextDelay := time.Duration(float64(delay) * config.Multiplier)
-			if nextDelay > config.MaxDelay {
-				nextDelay = config.MaxDelay
-			}
-			delay = nextDelay
-		case <-ctx.Done():
-			return ctx.Err()
-		}
-	}
-
-	return NewSystemError(
-		ErrorTypeTransient,
-		ErrorCodeNetworkError,
-		"max retries exceeded",
-		lastErr,
-	)
 }
 
 // IsContextError checks if error is a context error

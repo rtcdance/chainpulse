@@ -4,11 +4,14 @@ import (
 	"context"
 	"fmt"
 	"math/bits"
+	"runtime"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
 	"github.com/rtcdance/chainpulse/pkg/observability"
@@ -16,8 +19,15 @@ import (
 
 // EventStorage persists processed events.
 // Deprecated: Use domain/query.EventStore for full event storage capabilities.
+// EventStorage provides write access to blockchain events for the processor.
 type EventStorage interface {
 	WriteEvent(ctx context.Context, event *core.BlockchainEvent) error
+	// WriteBatch writes multiple events atomically if the underlying
+	// storage supports transactions. If not, it falls back to individual
+	// writes. Implementations should wrap all writes in a single DB
+	// transaction when possible.
+	WriteBatch(ctx context.Context, events []*core.BlockchainEvent) error
+	DeleteEvent(ctx context.Context, eventID string) error
 }
 
 // CacheWriter is the minimal cache interface needed by the event processor.
@@ -320,8 +330,18 @@ func (p *DefaultEventProcessor) ProcessEvent(ctx context.Context, event *core.Bl
 		err = p.idempotencyService.MarkProcessed(ctx, hash)
 	}
 	if err != nil {
-		p.logger.Error("Failed to mark event as processed after retries",
+		// MarkProcessed failed after retries: the event is in the database but
+		// not marked as processed. On next replay, it would be re-processed.
+		// To maintain consistency, attempt to delete the stored event so it
+		// can be re-processed cleanly from scratch next time.
+		p.logger.Error("Failed to mark event as processed after retries, attempting rollback",
 			core.LogKeyError, err, "attempts", p.maxRetries)
+		if delErr := p.deleteEvent(ctx, event); delErr != nil {
+			p.logger.Error("Failed to rollback stored event after MarkProcessed failure",
+				core.LogKeyError, delErr, "hash", hash)
+		} else {
+			p.logger.Info("Rolled back event after MarkProcessed failure", "hash", hash)
+		}
 	}
 
 	// Update cache
@@ -348,12 +368,24 @@ func (p *DefaultEventProcessor) ProcessEvent(ctx context.Context, event *core.Bl
 		"network": event.Network,
 	})
 
+	// Publish to event bus for push-based subscriptions (WebSocket, GraphQL)
+	if p.eventBus != nil {
+		if pubErr := p.eventBus.Publish(ctx, "event:created", event); pubErr != nil {
+			p.logger.Error("Failed to publish event to event bus", core.LogKeyError, pubErr)
+		}
+	}
+
 	p.logger.Info("Event processed successfully", core.LogKeyNetwork, event.Network, core.LogKeyBlockNumber, event.BlockNumber)
 
 	return nil
 }
 
-// ProcessBatch processes a batch of events
+// ProcessBatch processes a batch of events with bounded concurrency.
+// When the underlying database supports it, events are written atomically
+// via WriteBatch before idempotency marking, then each event's post-write
+// steps (idempotency mark, cache update) proceed in parallel.
+// If WriteBatch is not available or fails, falls back to per-event processing.
+// Returns the first error encountered if any failures occur.
 func (p *DefaultEventProcessor) ProcessBatch(ctx context.Context, events []*core.BlockchainEvent) error {
 	if len(events) == 0 {
 		return nil
@@ -366,34 +398,138 @@ func (p *DefaultEventProcessor) ProcessBatch(ctx context.Context, events []*core
 	}
 	p.mu.RUnlock()
 
-	successCount := 0
-	failureCount := 0
-
-	for _, event := range events {
-		// Check context cancellation between events in the batch
-		if err := ctx.Err(); err != nil {
-			p.logger.Warn("Batch cancelled", core.LogKeyError, err, core.LogKeyBatchSize, len(events), core.LogKeyProcessed, successCount+failureCount)
-			return fmt.Errorf("batch processing cancelled: %w", err)
+	// Attempt atomic batch write first
+	if p.databasePlugin != nil {
+		batchErr := p.databasePlugin.WriteBatch(ctx, events)
+		if batchErr == nil {
+			// Batch write succeeded. Now mark all as processed in parallel.
+			return p.markBatchProcessed(ctx, events)
 		}
-
-		err := p.ProcessEvent(ctx, event)
-		if err != nil {
-			failureCount++
-		} else {
-			successCount++
-		}
+		// Batch write failed; log and fall through to per-event processing
+		p.logger.Warn("WriteBatch failed, falling back to per-event processing",
+			"batch_size", len(events),
+			"error", batchErr.Error(),
+		)
 	}
 
+	// Fallback: per-event processing via errgroup
+	var successCount, failureCount atomic.Int64
+	var firstErr atomic.Value
+
+	g, gCtx := errgroup.WithContext(ctx)
+	g.SetLimit(runtime.NumCPU())
+
+	for _, event := range events {
+		event := event
+		g.Go(func() error {
+			if err := p.ProcessEvent(gCtx, event); err != nil {
+				failureCount.Add(1)
+				firstErr.CompareAndSwap(nil, err)
+				return err
+			}
+			successCount.Add(1)
+			return nil
+		})
+	}
+
+	batchErr := g.Wait()
+
 	p.metricsCollector.RecordCounter("event_processor_batch_processed", 1, map[string]string{
-		"success": fmt.Sprintf("%d", successCount),
-		"failure": fmt.Sprintf("%d", failureCount),
+		"success": fmt.Sprintf("%d", successCount.Load()),
+		"failure": fmt.Sprintf("%d", failureCount.Load()),
 	})
 
-	if failureCount > 0 {
-		return fmt.Errorf("batch processing completed with %d failures", failureCount)
+	failure := failureCount.Load()
+	if failure > 0 {
+		if errVal := firstErr.Load(); errVal != nil {
+			p.logger.Error("batch processing completed with failures",
+				"total", len(events),
+				"success", successCount.Load(),
+				"failure", failure,
+				"first_error", errVal.(error).Error(),
+			)
+		}
+		if batchErr != nil {
+			return fmt.Errorf("batch processing completed with %d/%d failures: %w", failure, len(events), batchErr)
+		}
+		return fmt.Errorf("batch processing completed with %d/%d failures", failure, len(events))
 	}
 
 	return nil
+}
+
+// markBatchProcessed marks all events in a batch as processed in the idempotency
+// store after a successful atomic database write. This runs in parallel.
+func (p *DefaultEventProcessor) markBatchProcessed(ctx context.Context, events []*core.BlockchainEvent) error {
+	var failureCount atomic.Int64
+	var firstErr atomic.Value
+
+	g, gCtx := errgroup.WithContext(ctx)
+	g.SetLimit(runtime.NumCPU())
+
+	for _, event := range events {
+		event := event
+		g.Go(func() error {
+			hash, err := p.idempotencyService.GenerateHash(event)
+			if err != nil {
+				failureCount.Add(1)
+				firstErr.CompareAndSwap(nil, err)
+				return err
+			}
+
+			if err := p.idempotencyService.MarkProcessed(gCtx, hash); err != nil {
+				failureCount.Add(1)
+				firstErr.CompareAndSwap(nil, err)
+				return err
+			}
+
+			// Update cache
+			if p.cachePlugin != nil {
+				cacheKey := "event:" + event.Network + ":" + strconv.FormatUint(event.BlockNumber, 10) + ":" + event.TransactionHash.Hex()
+				eventBytes := []byte(fmt.Sprintf("%v", event))
+				cacheEntry := &core.CacheEntry{
+					Key:   cacheKey,
+					Value: eventBytes,
+					TTL:   3600,
+				}
+				if err := p.cachePlugin.Set(cacheEntry); err != nil {
+					p.logger.Error("Failed to update cache after batch write", core.LogKeyError, err)
+				}
+			}
+
+			return nil
+		})
+	}
+
+	err := g.Wait()
+	if err != nil {
+		p.logger.Error("batch idempotency marking completed with failures",
+			"batch_size", len(events),
+			"failures", failureCount.Load(),
+		)
+		return err
+	}
+
+	p.mu.Lock()
+	p.processedCount += int64(len(events))
+	p.mu.Unlock()
+
+	p.metricsCollector.RecordCounter("event_processor_batch_atomic", 1, map[string]string{
+		"size": fmt.Sprintf("%d", len(events)),
+	})
+
+	return nil
+}
+
+// deleteEvent removes a stored event from the database when MarkProcessed fails.
+// This prevents duplicate processing on replay. It uses the event's hash as the
+// deletion key, falling back to network+tx_hash if the database supports it.
+func (p *DefaultEventProcessor) deleteEvent(ctx context.Context, event *core.BlockchainEvent) error {
+	if p.databasePlugin == nil {
+		return fmt.Errorf("database not configured for event rollback")
+	}
+	eventID := fmt.Sprintf("%s:%d:%s", event.Network, event.BlockNumber, event.TransactionHash.Hex())
+	return p.databasePlugin.DeleteEvent(ctx, eventID)
 }
 
 // GetProcessedCount returns the count of processed events

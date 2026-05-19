@@ -12,6 +12,12 @@ import (
 	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
+const (
+	defaultMongoMaxConnections    = 100
+	defaultMongoQueryTimeout      = 30 * time.Second
+	defaultMongoDisconnectTimeout = 10 * time.Second
+)
+
 // MongoDBDatabase implements DatabasePlugin for MongoDB
 type MongoDBDatabase struct {
 	*BaseDatabasePlugin
@@ -32,15 +38,15 @@ func NewMongoDBDatabase(logger core.Logger, metricsCollector core.MetricsCollect
 		BaseDatabasePlugin: NewBaseDatabasePlugin(logger, metricsCollector),
 		databaseName:       "chainpulse",
 		collectionName:     "events",
-		maxConnections:     100,
-		queryTimeout:       30 * time.Second,
+		maxConnections:     defaultMongoMaxConnections,
+		queryTimeout:       defaultMongoQueryTimeout,
 		events:             make(map[string]*core.BlockchainEvent),
 	}
 }
 
 // Initialize initializes the MongoDB database plugin
-func (m *MongoDBDatabase) Initialize(config *core.Config) error {
-	if err := m.BaseDatabasePlugin.Initialize(config); err != nil {
+func (m *MongoDBDatabase) Initialize(ctx context.Context, config core.Config) error {
+	if err := m.BaseDatabasePlugin.Initialize(ctx, config); err != nil {
 		return err
 	}
 
@@ -48,13 +54,13 @@ func (m *MongoDBDatabase) Initialize(config *core.Config) error {
 	defer m.mu.Unlock()
 
 	// Extract MongoDB connection string from config
-	connStr := core.ConfigString(config, "MONGODB_CONNECTION_STRING", "")
+	connStr := core.ConfigString(&config, "MONGODB_CONNECTION_STRING", "")
 	if connStr == "" {
 		// Build connection string from individual components
-		host := core.ConfigString(config, "MONGODB_HOST", "localhost")
-		port := core.ConfigString(config, "MONGODB_PORT", "27017")
-		user := core.ConfigString(config, "MONGODB_USER", "")
-		password := core.SecretString(core.ConfigString(config, "MONGODB_PASSWORD", ""))
+		host := core.ConfigString(&config, "MONGODB_HOST", "localhost")
+		port := core.ConfigString(&config, "MONGODB_PORT", "27017")
+		user := core.ConfigString(&config, "MONGODB_USER", "")
+		password := core.SecretString(core.ConfigString(&config, "MONGODB_PASSWORD", ""))
 
 		if user != "" && password != "" {
 			connStr = fmt.Sprintf("mongodb://%s:%s@%s:%s", user, password.Value(), host, port)
@@ -66,11 +72,11 @@ func (m *MongoDBDatabase) Initialize(config *core.Config) error {
 	m.connectionString = connStr
 
 	// Extract database and collection names
-	m.databaseName = core.ConfigString(config, "MONGODB_DATABASE", "chainpulse")
-	m.collectionName = core.ConfigString(config, "MONGODB_COLLECTION", "events")
+	m.databaseName = core.ConfigString(&config, "MONGODB_DATABASE", "chainpulse")
+	m.collectionName = core.ConfigString(&config, "MONGODB_COLLECTION", "events")
 
 	// Connect to MongoDB
-	ctx, cancel := context.WithTimeout(context.Background(), m.queryTimeout)
+	ctx, cancel := context.WithTimeout(ctx, m.queryTimeout)
 	defer cancel()
 
 	clientOpts := options.Client().ApplyURI(m.connectionString).
@@ -98,8 +104,8 @@ func (m *MongoDBDatabase) Initialize(config *core.Config) error {
 }
 
 // Start starts the MongoDB database plugin
-func (m *MongoDBDatabase) Start() error {
-	if err := m.BaseDatabasePlugin.Start(); err != nil {
+func (m *MongoDBDatabase) Start(ctx context.Context) error {
+	if err := m.BaseDatabasePlugin.Start(ctx); err != nil {
 		return err
 	}
 
@@ -113,8 +119,8 @@ func (m *MongoDBDatabase) Start() error {
 }
 
 // Stop stops the MongoDB database plugin
-func (m *MongoDBDatabase) Stop() error {
-	if err := m.BaseDatabasePlugin.Stop(); err != nil {
+func (m *MongoDBDatabase) Stop(ctx context.Context) error {
+	if err := m.BaseDatabasePlugin.Stop(ctx); err != nil {
 		return err
 	}
 
@@ -123,7 +129,7 @@ func (m *MongoDBDatabase) Stop() error {
 
 	// Disconnect MongoDB client
 	if m.client != nil {
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), defaultMongoDisconnectTimeout)
 		defer cancel()
 		if err := m.client.Disconnect(ctx); err != nil {
 			m.logger.Error("Failed to disconnect MongoDB client", core.LogKeyError, err)
@@ -201,6 +207,42 @@ func (m *MongoDBDatabase) WriteEvents(ctx context.Context, events []core.Blockch
 	m.RecordWrite(duration)
 
 	// Update event count
+	m.updateEventCount()
+
+	return nil
+}
+
+// WriteBatch writes multiple blockchain events to the database (batch).
+// This is a stub implementation that falls back to per-event in-memory cache.
+func (m *MongoDBDatabase) WriteBatch(ctx context.Context, events []*core.BlockchainEvent) error {
+	if len(events) == 0 {
+		return nil
+	}
+
+	start := time.Now()
+
+	m.mu.RLock()
+	connStr := m.connectionString
+	m.mu.RUnlock()
+
+	if connStr == "" {
+		m.RecordError()
+		return fmt.Errorf("database not initialized")
+	}
+
+	// In a real implementation, we would use MongoDB bulk write here.
+	// For now, update in-memory cache.
+	m.eventsMu.Lock()
+	for _, event := range events {
+		if event == nil || event.EventHash == "" {
+			continue
+		}
+		m.events[event.EventHash] = event
+	}
+	m.eventsMu.Unlock()
+
+	duration := time.Since(start).Milliseconds()
+	m.RecordWrite(duration)
 	m.updateEventCount()
 
 	return nil

@@ -4,9 +4,14 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
 )
+
+// defaultMaxIdempotencySize is the safety limit for in-memory dedup entries.
+// At ~40 bytes per entry this is ~40MB for 1M entries.
+const defaultMaxIdempotencySize = 1_000_000
 
 // IdempotencyService provides duplicate detection for events
 type IdempotencyService interface {
@@ -33,7 +38,7 @@ type IdempotencyService interface {
 
 	// WarmUp pre-populates the dedup store from persisted state to
 	// minimize duplicate-key errors after a restart.
-	WarmUp(ctx context.Context, hashes []string) error
+	WarmUp(_ context.Context, hashes []string) error
 
 	// GetProcessedCount returns the count of processed events
 	GetProcessedCount() int64
@@ -46,13 +51,15 @@ type IdempotencyService interface {
 }
 
 // DefaultIdempotencyService provides default idempotency implementation.
-// The in-memory store acts as a fast path that never evicts records —
-// blockchain events are permanently unique, so the natural key
-// (chain_id, block_number, tx_hash, log_index) will never be seen again.
+// The in-memory store acts as a fast path with TTL-based eviction.
+// Config provides:
+//   - IdempotencyRecordTTL: how long a hash is kept in memory (default 24h)
+//   - IdempotencyCleanupInterval: how often expired entries are purged (default 10m)
+// A hard cap (defaultMaxIdempotencySize) prevents unbounded memory growth.
 // Database-level unique constraints provide the ultimate dedup guarantee.
 type DefaultIdempotencyService struct {
 	mu               sync.RWMutex
-	processedHashes  map[string]bool // hash → true (no TTL, no timestamps)
+	processedHashes  map[string]time.Time // hash → timestamp when marked
 	processedCount   int64
 	duplicateCount   int64
 	initialized      bool
@@ -61,14 +68,17 @@ type DefaultIdempotencyService struct {
 	config           *core.Config
 	logger           core.Logger
 	metricsCollector core.MetricsCollector
+	stopCh           chan struct{}
+	maxSize          int
 }
 
 // NewDefaultIdempotencyService creates a new idempotency service
 func NewDefaultIdempotencyService(logger core.Logger, metricsCollector core.MetricsCollector) *DefaultIdempotencyService {
 	return &DefaultIdempotencyService{
-		processedHashes:  make(map[string]bool),
+		processedHashes:  make(map[string]time.Time),
 		logger:           logger,
 		metricsCollector: metricsCollector,
+		maxSize:          defaultMaxIdempotencySize,
 	}
 }
 
@@ -86,14 +96,33 @@ func (s *DefaultIdempotencyService) Initialize(config *core.Config) error {
 	}
 
 	s.config = config
-	s.initialized = true
 
-	s.logger.Info("Idempotency service initialized", core.LogKeyComponent, "idempotency")
+	// Use config values if set, otherwise keep defaults
+	if s.config.IdempotencyRecordTTL > 0 {
+		// TTL is used by the cleanup goroutine
+	}
+	if s.config.IdempotencyCleanupInterval > 0 {
+		// cleanup interval used by the cleanup goroutine
+	}
+	if s.config.IdempotencyRecordTTL <= 0 {
+		s.config.IdempotencyRecordTTL = 86400 // 24h default
+	}
+	if s.config.IdempotencyCleanupInterval <= 0 {
+		s.config.IdempotencyCleanupInterval = 600 // 10m default
+	}
+
+	s.initialized = true
+	s.logger.Info("Idempotency service initialized",
+		core.LogKeyComponent, "idempotency",
+		"record_ttl_seconds", s.config.IdempotencyRecordTTL,
+		"cleanup_interval_seconds", s.config.IdempotencyCleanupInterval,
+		"max_size", s.maxSize,
+	)
 
 	return nil
 }
 
-// Start starts the idempotency service
+// Start starts the idempotency service and launches the background cleanup goroutine.
 func (s *DefaultIdempotencyService) Start() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -107,10 +136,21 @@ func (s *DefaultIdempotencyService) Start() error {
 	}
 
 	s.running = true
+	s.stopCh = make(chan struct{})
 
 	s.lastHealthCheck = &core.HealthStatus{
 		Status:  "healthy",
 		Message: "Idempotency service started",
+	}
+
+	// Start background cleanup goroutine
+	if s.config != nil && s.config.IdempotencyCleanupInterval > 0 {
+		cleanupInterval := time.Duration(s.config.IdempotencyCleanupInterval) * time.Second
+		go s.cleanupLoop(cleanupInterval)
+		s.logger.Info("Idempotency cleanup goroutine started",
+			"cleanup_interval", cleanupInterval.String(),
+			"record_ttl", time.Duration(s.config.IdempotencyRecordTTL)*time.Second,
+		)
 	}
 
 	s.logger.Info("Idempotency service started", core.LogKeyComponent, "idempotency")
@@ -118,7 +158,7 @@ func (s *DefaultIdempotencyService) Start() error {
 	return nil
 }
 
-// Stop stops the idempotency service
+// Stop stops the idempotency service and the background cleanup goroutine.
 func (s *DefaultIdempotencyService) Stop() error {
 	s.mu.Lock()
 
@@ -128,11 +168,59 @@ func (s *DefaultIdempotencyService) Stop() error {
 	}
 
 	s.running = false
+	if s.stopCh != nil {
+		close(s.stopCh)
+	}
 	s.mu.Unlock()
 
-	s.logger.Info("Idempotency service stopped", core.LogKeyComponent, "idempotency")
-
+	s.logger.Info("Idempotency service stopped",
+		core.LogKeyComponent, "idempotency",
+		"total_stored", len(s.processedHashes),
+	)
 	return nil
+}
+
+// cleanupLoop periodically evicts expired entries from the in-memory map.
+func (s *DefaultIdempotencyService) cleanupLoop(interval time.Duration) {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			s.evictExpired()
+		case <-s.stopCh:
+			return
+		}
+	}
+}
+
+// evictExpired removes entries that have exceeded the TTL.
+// Must NOT be called with the lock held.
+func (s *DefaultIdempotencyService) evictExpired() {
+	ttl := time.Duration(s.config.IdempotencyRecordTTL) * time.Second
+	cutoff := time.Now().Add(-ttl)
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	before := len(s.processedHashes)
+	for hash, addedAt := range s.processedHashes {
+		if addedAt.Before(cutoff) {
+			delete(s.processedHashes, hash)
+		}
+	}
+
+	evicted := before - len(s.processedHashes)
+	if evicted > 0 {
+		s.logger.Debug("idempotency expired entries evicted",
+			"evicted", evicted,
+			"remaining", len(s.processedHashes),
+			"ttl_seconds", s.config.IdempotencyRecordTTL,
+		)
+		s.metricsCollector.RecordGauge("idempotency_evicted_count", float64(evicted), nil)
+		s.metricsCollector.RecordGauge("idempotency_stored_count", float64(len(s.processedHashes)), nil)
+	}
 }
 
 // Health returns the health status of the service
@@ -189,7 +277,7 @@ func (s *DefaultIdempotencyService) IsDuplicate(ctx context.Context, hash string
 		return false, fmt.Errorf("idempotency service not running")
 	}
 
-	exists := s.processedHashes[hash]
+	_, exists := s.processedHashes[hash]
 	if !exists {
 		return false, nil
 	}
@@ -199,7 +287,8 @@ func (s *DefaultIdempotencyService) IsDuplicate(ctx context.Context, hash string
 	return true, nil
 }
 
-// MarkProcessed marks an event as processed
+// MarkProcessed marks an event as processed. If the in-memory map has reached
+// the maxSize limit, the oldest entry is evicted to make room (approximate LRU).
 func (s *DefaultIdempotencyService) MarkProcessed(ctx context.Context, hash string) error {
 	if hash == "" {
 		return fmt.Errorf("hash is required")
@@ -213,13 +302,29 @@ func (s *DefaultIdempotencyService) MarkProcessed(ctx context.Context, hash stri
 	}
 
 	// Check if already processed
-	if s.processedHashes[hash] {
+	if _, exists := s.processedHashes[hash]; exists {
 		s.duplicateCount++
 		s.metricsCollector.RecordCounter("idempotency_duplicate_marked", 1, map[string]string{})
 		return nil
 	}
 
-	s.processedHashes[hash] = true
+	// Evict oldest entry if at capacity (safety limit)
+	if len(s.processedHashes) >= s.maxSize {
+		var oldestHash string
+		var oldestTime time.Time
+		first := true
+		for h, t := range s.processedHashes {
+			if first || t.Before(oldestTime) {
+				oldestHash = h
+				oldestTime = t
+				first = false
+			}
+		}
+		delete(s.processedHashes, oldestHash)
+		s.metricsCollector.RecordCounter("idempotency_max_size_eviction", 1, map[string]string{})
+	}
+
+	s.processedHashes[hash] = time.Now()
 	s.processedCount++
 
 	s.metricsCollector.RecordCounter("idempotency_event_marked", 1, map[string]string{})
@@ -244,12 +349,13 @@ func (s *DefaultIdempotencyService) WarmUp(_ context.Context, hashes []string) e
 	}
 
 	added := 0
+	now := time.Now()
 	for _, hash := range hashes {
 		if hash == "" {
 			continue
 		}
-		if !s.processedHashes[hash] {
-			s.processedHashes[hash] = true
+		if _, exists := s.processedHashes[hash]; !exists {
+			s.processedHashes[hash] = now
 			added++
 		}
 	}
@@ -290,7 +396,7 @@ func (s *DefaultIdempotencyService) Clear() error {
 		return fmt.Errorf("idempotency service not running")
 	}
 
-	s.processedHashes = make(map[string]bool)
+	s.processedHashes = make(map[string]time.Time)
 	s.processedCount = 0
 	s.duplicateCount = 0
 
