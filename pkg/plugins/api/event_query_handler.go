@@ -375,6 +375,41 @@ func (h *EventQueryHandler) HandleGetEventsByName(w http.ResponseWriter, r *http
 	})
 }
 
+// HandleGetCorrelatedEvents returns events across all chains that share a correlation ID.
+// GET /events/correlated/:correlationId
+// Query params: limit (default 50), offset (default 0)
+func (h *EventQueryHandler) HandleGetCorrelatedEvents(w http.ResponseWriter, r *http.Request, correlationID string) {
+	if correlationID == "" {
+		h.respondError(w, http.StatusBadRequest, "INVALID_PARAM", "correlationId is required")
+		return
+	}
+
+	limit := h.parseIntParam(r, "limit", 50)
+	offset := h.parseIntParam(r, "offset", 0)
+
+	if h.retrievalService == nil {
+		h.respondError(w, http.StatusInternalServerError, "SERVICE_UNAVAILABLE", "event retrieval service not available")
+		return
+	}
+
+	events, err := h.retrievalService.GetEventsByCorrelationID(r.Context(), correlationID, limit, offset)
+	if err != nil {
+		h.logger.Error("Failed to query correlated events", "correlationId", correlationID, "error", err)
+		h.respondError(w, http.StatusInternalServerError, "QUERY_ERROR", "failed to query correlated events")
+		return
+	}
+
+	h.respondJSON(w, http.StatusOK, map[string]any{
+		"events": h.convertEventsToResponse(events),
+		"meta": buildEventQueryMeta(
+			"retrieval_service",
+			fmt.Sprintf("/events/correlated/%s", correlationID),
+			false,
+			events,
+		),
+	})
+}
+
 // Helper methods
 
 // convertEventToResponse converts an event with metadata to response format
@@ -501,6 +536,7 @@ type filterParams struct {
 	Chain           string
 	EventName       string
 	Status          string
+	Search          string
 	Limit           int
 	Offset          int
 }
@@ -517,6 +553,7 @@ func (h *EventQueryHandler) parseFilterParams(r *http.Request) *filterParams {
 		Chain:           strings.TrimSpace(r.URL.Query().Get("chain")),
 		EventName:       strings.TrimSpace(r.URL.Query().Get("event_name")),
 		Status:          strings.TrimSpace(r.URL.Query().Get("status")),
+		Search:          strings.TrimSpace(r.URL.Query().Get("search")),
 		Limit:           h.parseIntParam(r, "limit", 20),
 		Offset:          h.parseIntParam(r, "offset", 0),
 	}
@@ -690,6 +727,36 @@ func (h *EventQueryHandler) buildMongoFilter(fp *filterParams, baseFilter map[st
 
 	if fp.Status != "" {
 		filter["status"] = fp.Status
+	}
+
+	if fp.Search != "" {
+		escaped := strings.ReplaceAll(fp.Search, ".", "\\.")
+		escaped = strings.ReplaceAll(escaped, "*", "\\*")
+		escaped = strings.ReplaceAll(escaped, "+", "\\+")
+		escaped = strings.ReplaceAll(escaped, "?", "\\?")
+		escaped = strings.ReplaceAll(escaped, "^", "\\^")
+		escaped = strings.ReplaceAll(escaped, "$", "\\$")
+		escaped = strings.ReplaceAll(escaped, "|", "\\|")
+		escaped = strings.ReplaceAll(escaped, "(", "\\(")
+		escaped = strings.ReplaceAll(escaped, ")", "\\)")
+		escaped = strings.ReplaceAll(escaped, "[", "\\[")
+		escaped = strings.ReplaceAll(escaped, "]", "\\]")
+		escaped = strings.ReplaceAll(escaped, "{", "\\{")
+		escaped = strings.ReplaceAll(escaped, "}", "\\}")
+
+		searchOr := []any{
+			map[string]any{"eventName": map[string]any{"$regex": escaped, "$options": "i"}},
+			map[string]any{"contractAddress": map[string]any{"$regex": escaped, "$options": "i"}},
+			map[string]any{"chainId": map[string]any{"$regex": escaped, "$options": "i"}},
+			map[string]any{"transactionHash": map[string]any{"$regex": escaped, "$options": "i"}},
+		}
+
+		if existing, ok := filter["$or"]; ok {
+			if existingSlice, ok2 := existing.([]any); ok2 {
+				searchOr = append(existingSlice, searchOr...)
+			}
+		}
+		filter["$or"] = searchOr
 	}
 
 	return filter

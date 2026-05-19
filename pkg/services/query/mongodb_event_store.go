@@ -496,6 +496,48 @@ func (s *MongoDBEventStore) GetEventsByEventName(ctx context.Context, eventName 
 	return events, nil
 }
 
+// GetEventsByCorrelationID retrieves events across all chains that share a correlation ID.
+func (s *MongoDBEventStore) GetEventsByCorrelationID(ctx context.Context, correlationID string, limit int, offset int) ([]*core.BlockchainEvent, error) {
+	if !s.initialized {
+		return nil, fmt.Errorf("event store not initialized")
+	}
+	if s.collection == nil {
+		return nil, fmt.Errorf("MongoDB collection not initialized")
+	}
+	if correlationID == "" {
+		return nil, fmt.Errorf("correlation ID is required")
+	}
+
+	start := time.Now()
+	defer func() {
+		duration := time.Since(start).Milliseconds()
+		s.metrics.RecordHistogram("mongodb_event_query_correlation_id_time_ms", float64(duration), map[string]string{})
+	}()
+
+	filter := bson.M{"correlationid": correlationID}
+	opts := options.Find().
+		SetSkip(int64(offset)).
+		SetLimit(int64(limit)).
+		SetSort(bson.M{"timestamp": -1})
+
+	cursor, err := s.collection.Find(ctx, filter, opts)
+	if err != nil {
+		s.logger.Error("Failed to query events by correlation ID", "correlationId", correlationID, "error", err)
+		s.metrics.RecordCounter("mongodb_event_query_correlation_id_error", 1, map[string]string{})
+		return nil, fmt.Errorf("failed to query events by correlation ID: %w", err)
+	}
+	defer cursor.Close(ctx)
+
+	events := make([]*core.BlockchainEvent, 0, limit)
+	if err := cursor.All(ctx, &events); err != nil {
+		s.logger.Error("Failed to decode correlated events", "error", err)
+		return nil, fmt.Errorf("failed to decode correlated events: %w", err)
+	}
+
+	s.metrics.RecordCounter("mongodb_event_query_correlation_id_success", int64(len(events)), map[string]string{})
+	return events, nil
+}
+
 // DeleteExpiredEvents deletes events that have exceeded their TTL
 func (s *MongoDBEventStore) DeleteExpiredEvents(ctx context.Context) (int64, error) {
 	if !s.initialized {

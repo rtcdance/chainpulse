@@ -46,6 +46,7 @@ type BlockchainEvent struct {
 
 	// Contract information
 	ContractAddress common.Address `json:"contract_address"`
+	NativeAddress   string         `json:"native_address"` // Non-EVM native address (solana base58, cosmos bech32, etc.)
 	EventName       string         `json:"event_name"`
 	EventTopic      []common.Hash  `json:"event_topic"`
 
@@ -59,6 +60,12 @@ type BlockchainEvent struct {
 	Network         string      `json:"network"`
 	Status          EventStatus `json:"status"`
 	TransactionType uint8       `json:"transaction_type"` // TxLegacy(0), TxAccessList(1), TxEIP1559(2), TxBlob(3)
+
+	// Cross-chain correlation: events on different chains that represent the
+	// same logical operation (e.g. a bridge transfer) share the same ID.
+	// Populated by the application layer — the indexer passes it through.
+	// Events without a correlation are not linked across chains.
+	CorrelationID string `json:"correlation_id,omitempty"`
 
 	// Timestamps
 	CreatedAt   time.Time `json:"created_at"`

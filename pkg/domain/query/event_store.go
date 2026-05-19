@@ -28,6 +28,10 @@ type EventReader interface {
 	GetEventsByAddress(ctx context.Context, address string, limit int) ([]*core.BlockchainEvent, error)
 	GetEventsByName(ctx context.Context, eventName string, limit int) ([]*core.BlockchainEvent, error)
 	GetEventsPaginated(ctx context.Context, cursor string, limit int) ([]*core.BlockchainEvent, bool, error)
+	// GetEventsByCorrelationID returns events across all chains that share a
+	// correlation ID, enabling cross-chain event correlation for bridge
+	// transfers, multi-chain contract interactions, and other linked events.
+	GetEventsByCorrelationID(ctx context.Context, correlationID string, limit int, offset int) ([]*core.BlockchainEvent, error)
 	CountEvents(ctx context.Context) (int64, error)
 	Health(ctx context.Context) *core.HealthStatus
 }

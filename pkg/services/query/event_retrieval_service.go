@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
+	domainquery "github.com/rtcdance/chainpulse/pkg/domain/query"
 )
 
 // EventRetrievalService provides unified event retrieval from MongoDB and PostgreSQL
@@ -31,6 +32,11 @@ func NewEventRetrievalService(
 		metrics:       metrics,
 		initialized:   false,
 	}
+}
+
+// GetEventReader exposes the underlying event store as a domain EventReader.
+func (s *EventRetrievalService) GetEventReader() domainquery.EventReader {
+	return s.eventStore
 }
 
 // Initialize initializes the event retrieval service
@@ -223,6 +229,49 @@ func (s *EventRetrievalService) GetEventsByEventNameWithMetadata(
 	}
 
 	s.metrics.RecordCounter("event_retrieval_get_by_name_with_metadata_success", int64(len(result)), nil)
+	return result, nil
+}
+
+// GetEventsByCorrelationID retrieves events across all chains that share a
+// correlation ID. This enables cross-chain event correlation for bridge
+// transfers, multi-chain contract interactions, and other linked events.
+func (s *EventRetrievalService) GetEventsByCorrelationID(
+	ctx context.Context,
+	correlationID string,
+	limit int,
+	offset int,
+) ([]*EventWithMetadata, error) {
+	if !s.initialized {
+		return nil, fmt.Errorf("event retrieval service not initialized")
+	}
+	if correlationID == "" {
+		return nil, fmt.Errorf("correlation ID is required")
+	}
+
+	start := time.Now()
+	defer func() {
+		duration := time.Since(start).Milliseconds()
+		s.metrics.RecordGauge("event_retrieval_get_by_correlation_id_time_ms", float64(duration), nil)
+	}()
+
+	events, err := s.eventStore.GetEventsByCorrelationID(ctx, correlationID, limit, offset)
+	if err != nil {
+		s.logger.Error("Failed to get events by correlation ID", "correlationId", correlationID, "error", err)
+		s.metrics.RecordCounter("event_retrieval_get_by_correlation_id_error", 1, nil)
+		return nil, fmt.Errorf("failed to get events by correlation ID: %w", err)
+	}
+
+	if len(events) == 0 {
+		return []*EventWithMetadata{}, nil
+	}
+
+	result, err := s.attachMetadata(ctx, events)
+	if err != nil {
+		s.logger.Error("Failed to attach metadata for correlated events", "error", err)
+		return nil, fmt.Errorf("failed to attach metadata: %w", err)
+	}
+
+	s.metrics.RecordCounter("event_retrieval_get_by_correlation_id_success", int64(len(result)), nil)
 	return result, nil
 }
 
