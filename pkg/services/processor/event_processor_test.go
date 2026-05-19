@@ -24,6 +24,13 @@ func (m *mockStorage) WriteEvent(_ context.Context, event *core.BlockchainEvent)
 	return m.writeErr
 }
 
+func (m *mockStorage) WriteBatch(_ context.Context, events []*core.BlockchainEvent) error {
+	return nil
+}
+func (m *mockStorage) DeleteEvent(_ context.Context, eventID string) error {
+	return nil
+}
+
 type mockCacheWriter struct {
 	setErr  error
 	mu      sync.Mutex

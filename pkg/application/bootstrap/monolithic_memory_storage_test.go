@@ -15,8 +15,8 @@ func TestMonolithicMemoryDatabaseLifecycleAndStore(t *testing.T) {
 	t.Parallel()
 	db := NewMonolithicMemoryDatabase(core.NewDefaultLogger(core.LogLevelInfo))
 
-	require.NoError(t, db.Initialize(core.Config{}))
-	require.NoError(t, db.Start())
+	require.NoError(t, db.Initialize(context.Background(), core.Config{}))
+	require.NoError(t, db.Start(context.Background()))
 
 	event := &core.BlockchainEvent{
 		ID:              "event1",
@@ -40,8 +40,8 @@ func TestMonolithicMemoryDatabaseStoreBlockSnapshot(t *testing.T) {
 	t.Parallel()
 	db := NewMonolithicMemoryDatabase(core.NewDefaultLogger(core.LogLevelInfo))
 
-	require.NoError(t, db.Initialize(core.Config{}))
-	require.NoError(t, db.Start())
+	require.NoError(t, db.Initialize(context.Background(), core.Config{}))
+	require.NoError(t, db.Start(context.Background()))
 
 	block := &core.Block{
 		Number: 88,
@@ -63,8 +63,8 @@ func TestMonolithicMemoryCacheLifecycleAndSetGet(t *testing.T) {
 	t.Parallel()
 	cache := NewMonolithicMemoryCache()
 
-	require.NoError(t, cache.Initialize(core.Config{}))
-	require.NoError(t, cache.Start())
+	require.NoError(t, cache.Initialize(context.Background(), core.Config{}))
+	require.NoError(t, cache.Start(context.Background()))
 	require.NoError(t, cache.Set(context.Background(), "event:key", []byte("value"), 60))
 
 	value, err := cache.Get(context.Background(), "event:key")

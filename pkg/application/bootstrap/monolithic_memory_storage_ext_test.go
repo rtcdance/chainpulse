@@ -31,16 +31,16 @@ func TestMonolithicMemoryDatabase_Lifecycle(t *testing.T) {
 		t.Errorf("Version() = %q", db.Version())
 	}
 
-	if err := db.Initialize(core.Config{}); err != nil {
+	if err := db.Initialize(context.Background(), core.Config{}); err != nil {
 		t.Fatalf("Initialize() error: %v", err)
 	}
-	if err := db.Start(); err != nil {
+	if err := db.Start(context.Background()); err != nil {
 		t.Fatalf("Start() error: %v", err)
 	}
 	if err := db.Health(); err != nil {
 		t.Fatalf("Health() error: %v", err)
 	}
-	if err := db.Stop(); err != nil {
+	if err := db.Stop(context.Background()); err != nil {
 		t.Fatalf("Stop() error: %v", err)
 	}
 }
@@ -57,9 +57,9 @@ func TestMonolithicMemoryDatabase_StoreAndGetEvent(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	db := NewMonolithicMemoryDatabase(nil)
-	_ = db.Initialize(core.Config{})
-	_ = db.Start()
-	defer db.Stop()
+	_ = db.Initialize(context.Background(), core.Config{})
+	_ = db.Start(context.Background())
+	defer db.Stop(context.Background())
 
 	event := makeTestEvent("evt1", 100)
 	if err := db.StoreEvent(ctx, event); err != nil {
@@ -80,7 +80,7 @@ func TestMonolithicMemoryDatabase_StoreEventErrors(t *testing.T) {
 	ctx := context.Background()
 	db := NewMonolithicMemoryDatabase(nil)
 
-	_ = db.Initialize(core.Config{})
+	_ = db.Initialize(context.Background(), core.Config{})
 	if err := db.StoreEvent(ctx, "not-an-event"); err == nil {
 		t.Error("expected error for non-event type")
 	}
@@ -88,8 +88,8 @@ func TestMonolithicMemoryDatabase_StoreEventErrors(t *testing.T) {
 		t.Error("expected error for nil event")
 	}
 
-	_ = db.Start()
-	defer db.Stop()
+	_ = db.Start(context.Background())
+	defer db.Stop(context.Background())
 	if err := db.StoreEvent(ctx, nil); err == nil {
 		t.Error("expected error for nil event after start")
 	}
@@ -99,9 +99,9 @@ func TestMonolithicMemoryDatabase_BatchStoreEvents(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	db := NewMonolithicMemoryDatabase(nil)
-	_ = db.Initialize(core.Config{})
-	_ = db.Start()
-	defer db.Stop()
+	_ = db.Initialize(context.Background(), core.Config{})
+	_ = db.Start(context.Background())
+	defer db.Stop(context.Background())
 
 	events := []any{makeTestEvent("b1", 10), makeTestEvent("b2", 20)}
 	if err := db.BatchStoreEvents(ctx, events); err != nil {
@@ -116,9 +116,9 @@ func TestMonolithicMemoryDatabase_GetAllEvents(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	db := NewMonolithicMemoryDatabase(nil)
-	_ = db.Initialize(core.Config{})
-	_ = db.Start()
-	defer db.Stop()
+	_ = db.Initialize(context.Background(), core.Config{})
+	_ = db.Start(context.Background())
+	defer db.Stop(context.Background())
 
 	_ = db.StoreEvent(ctx, makeTestEvent("a1", 1))
 	_ = db.StoreEvent(ctx, makeTestEvent("a2", 2))
@@ -136,9 +136,9 @@ func TestMonolithicMemoryDatabase_GetEventsByBlockRange(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	db := NewMonolithicMemoryDatabase(nil)
-	_ = db.Initialize(core.Config{})
-	_ = db.Start()
-	defer db.Stop()
+	_ = db.Initialize(context.Background(), core.Config{})
+	_ = db.Start(context.Background())
+	defer db.Stop(context.Background())
 
 	_ = db.StoreEvent(ctx, makeTestEvent("r1", 5))
 	_ = db.StoreEvent(ctx, makeTestEvent("r2", 10))
@@ -157,9 +157,9 @@ func TestMonolithicMemoryDatabase_DeleteEvent(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	db := NewMonolithicMemoryDatabase(nil)
-	_ = db.Initialize(core.Config{})
-	_ = db.Start()
-	defer db.Stop()
+	_ = db.Initialize(context.Background(), core.Config{})
+	_ = db.Start(context.Background())
+	defer db.Stop(context.Background())
 
 	_ = db.StoreEvent(ctx, makeTestEvent("del1", 1))
 	if err := db.DeleteEvent(ctx, "del1"); err != nil {
@@ -175,9 +175,9 @@ func TestMonolithicMemoryDatabase_DeleteEventsByBlockRange(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	db := NewMonolithicMemoryDatabase(nil)
-	_ = db.Initialize(core.Config{})
-	_ = db.Start()
-	defer db.Stop()
+	_ = db.Initialize(context.Background(), core.Config{})
+	_ = db.Start(context.Background())
+	defer db.Stop(context.Background())
 
 	_ = db.StoreEvent(ctx, makeTestEvent("x1", 1))
 	_ = db.StoreEvent(ctx, makeTestEvent("x2", 5))
@@ -196,9 +196,9 @@ func TestMonolithicMemoryDatabase_MarkEventsAsReorged(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	db := NewMonolithicMemoryDatabase(nil)
-	_ = db.Initialize(core.Config{})
-	_ = db.Start()
-	defer db.Stop()
+	_ = db.Initialize(context.Background(), core.Config{})
+	_ = db.Start(context.Background())
+	defer db.Stop(context.Background())
 
 	_ = db.StoreEvent(ctx, makeTestEvent("re1", 10))
 	count, err := db.MarkEventsAsReorged(ctx, 5, 15)
@@ -218,9 +218,9 @@ func TestMonolithicMemoryDatabase_StoreAndGetBlock(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	db := NewMonolithicMemoryDatabase(nil)
-	_ = db.Initialize(core.Config{})
-	_ = db.Start()
-	defer db.Stop()
+	_ = db.Initialize(context.Background(), core.Config{})
+	_ = db.Start(context.Background())
+	defer db.Stop(context.Background())
 
 	block := &core.Block{Number: 42, Hash: common.HexToHash("0xbeef")}
 	if err := db.StoreBlockSnapshot(ctx, block); err != nil {
@@ -240,9 +240,9 @@ func TestMonolithicMemoryDatabase_StoreBlockNilError(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	db := NewMonolithicMemoryDatabase(nil)
-	_ = db.Initialize(core.Config{})
-	_ = db.Start()
-	defer db.Stop()
+	_ = db.Initialize(context.Background(), core.Config{})
+	_ = db.Start(context.Background())
+	defer db.Stop(context.Background())
 
 	if err := db.StoreBlockSnapshot(ctx, nil); err == nil {
 		t.Error("expected error for nil block")
@@ -253,9 +253,9 @@ func TestMonolithicMemoryDatabase_GetLatestBlock(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	db := NewMonolithicMemoryDatabase(nil)
-	_ = db.Initialize(core.Config{})
-	_ = db.Start()
-	defer db.Stop()
+	_ = db.Initialize(context.Background(), core.Config{})
+	_ = db.Start(context.Background())
+	defer db.Stop(context.Background())
 
 	_ = db.StoreBlockSnapshot(ctx, &core.Block{Number: 100})
 	_ = db.StoreBlockSnapshot(ctx, &core.Block{Number: 200})
@@ -274,9 +274,9 @@ func TestMonolithicMemoryDatabase_QueryEvents(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	db := NewMonolithicMemoryDatabase(nil)
-	_ = db.Initialize(core.Config{})
-	_ = db.Start()
-	defer db.Stop()
+	_ = db.Initialize(context.Background(), core.Config{})
+	_ = db.Start(context.Background())
+	defer db.Stop(context.Background())
 
 	_ = db.StoreEvent(ctx, makeTestEvent("q1", 1))
 	_ = db.StoreEvent(ctx, makeTestEvent("q2", 2))
@@ -294,7 +294,7 @@ func TestMonolithicMemoryDatabase_StoreEventNotStarted(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	db := NewMonolithicMemoryDatabase(nil)
-	_ = db.Initialize(core.Config{})
+	_ = db.Initialize(context.Background(), core.Config{})
 	if err := db.StoreEvent(ctx, makeTestEvent("ns", 1)); err == nil {
 		t.Error("expected error when storing before Start()")
 	}
@@ -311,8 +311,8 @@ func TestMonolithicMemoryCache_Lifecycle(t *testing.T) {
 		t.Errorf("Version() = %q", c.Version())
 	}
 
-	_ = c.Initialize(core.Config{})
-	if err := c.Start(); err != nil {
+	_ = c.Initialize(context.Background(), core.Config{})
+	if err := c.Start(context.Background()); err != nil {
 		t.Fatalf("Start() error: %v", err)
 	}
 	if err := c.Health(); err != nil {
@@ -321,7 +321,7 @@ func TestMonolithicMemoryCache_Lifecycle(t *testing.T) {
 	if err := c.HealthCheck(context.Background()); err != nil {
 		t.Fatalf("HealthCheck() error: %v", err)
 	}
-	if err := c.Stop(); err != nil {
+	if err := c.Stop(context.Background()); err != nil {
 		t.Fatalf("Stop() error: %v", err)
 	}
 }
@@ -330,9 +330,9 @@ func TestMonolithicMemoryCache_SetGetDelete(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	c := NewMonolithicMemoryCache()
-	_ = c.Initialize(core.Config{})
-	_ = c.Start()
-	defer c.Stop()
+	_ = c.Initialize(context.Background(), core.Config{})
+	_ = c.Start(context.Background())
+	defer c.Stop(context.Background())
 
 	if err := c.Set(ctx, "k1", []byte("v1"), 60); err != nil {
 		t.Fatalf("Set() error: %v", err)
@@ -388,9 +388,9 @@ func TestMonolithicMemoryDatabase_GetAllBlocks(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	db := NewMonolithicMemoryDatabase(nil)
-	_ = db.Initialize(core.Config{})
-	_ = db.Start()
-	defer db.Stop()
+	_ = db.Initialize(context.Background(), core.Config{})
+	_ = db.Start(context.Background())
+	defer db.Stop(context.Background())
 
 	_ = db.StoreBlockSnapshot(ctx, &core.Block{Number: 1})
 	_ = db.StoreBlockSnapshot(ctx, &core.Block{Number: 2})

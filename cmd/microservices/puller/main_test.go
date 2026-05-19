@@ -58,7 +58,7 @@ func TestBuildPullerSecurityControlsEnabled(t *testing.T) {
 	authMiddleware, rateLimitMiddleware, err := buildPullerSecurityControls(PullerConfig{
 		AuthEnabled:        true,
 		AuthJWTSecret:      "secret-123",
-		AuthAPIKeys:        []string{"svc-key=client-1"},
+		AuthAPIKeys:        []core.SecretString{"svc-key=client-1"},
 		RateLimitEnabled:   true,
 		RateLimitPerMinute: 120,
 	}, logger, metrics)

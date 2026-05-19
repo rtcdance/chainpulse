@@ -68,7 +68,7 @@ func TestBuildSecurityControls_InvalidAPIKeyFormat(t *testing.T) {
 	cfg := SecurityControlsConfig{
 		AuthEnabled:   true,
 		AuthJWTSecret: "secret123",
-		AuthAPIKeys:   []string{"invalid-format-no-separator"},
+		AuthAPIKeys:   []core.SecretString{"invalid-format-no-separator"},
 		ServiceName:   "test-svc",
 		EnvPrefix:     "TEST_SVC",
 	}
@@ -86,7 +86,7 @@ func TestBuildSecurityControls_AuthOnly(t *testing.T) {
 	cfg := SecurityControlsConfig{
 		AuthEnabled:      true,
 		AuthJWTSecret:    "test-secret-key-min-32-chars-long!",
-		AuthAPIKeys:      []string{"key-1=client-1"},
+		AuthAPIKeys:      []core.SecretString{"key-1=client-1"},
 		RateLimitEnabled: false,
 		ServiceName:      "test-svc",
 		EnvPrefix:        "TEST_SVC",
@@ -135,7 +135,7 @@ func TestBuildSecurityControls_BothEnabled(t *testing.T) {
 	cfg := SecurityControlsConfig{
 		AuthEnabled:        true,
 		AuthJWTSecret:      "test-secret-key-min-32-chars-long!",
-		AuthAPIKeys:        []string{"key-1=client-1", "key-2=client-2"},
+		AuthAPIKeys:        []core.SecretString{"key-1=client-1", "key-2=client-2"},
 		RateLimitEnabled:   true,
 		RateLimitPerMinute: 100,
 		ServiceName:        "test-svc",

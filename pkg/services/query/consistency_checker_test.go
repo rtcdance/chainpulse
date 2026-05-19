@@ -114,6 +114,10 @@ func (m *mockEventStore) Close(ctx context.Context) error {
 	return nil
 }
 
+func (m *mockEventStore) GetEventsByCorrelationID(ctx context.Context, correlationID string, limit int, offset int) ([]*core.BlockchainEvent, error) {
+	return nil, nil
+}
+
 // mockMetadataStore is a mock implementation of EventMetadataStore for testing
 type mockMetadataStore struct {
 	shouldFail bool

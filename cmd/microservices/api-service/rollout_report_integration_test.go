@@ -331,7 +331,7 @@ func TestAPIServiceSecuritySurfaceProtectsRuntimeSummaryWhenEnabled(t *testing.T
 	authMiddleware, rateLimitMiddleware, err := buildAPIServiceSecurityControls(APIServiceConfig{
 		AuthEnabled:   true,
 		AuthJWTSecret: "secret-123",
-		AuthAPIKeys:   []string{"svc-key=client-1"},
+		AuthAPIKeys:   []core.SecretString{"svc-key=client-1"},
 	}, logger, metrics)
 	if err != nil {
 		t.Fatalf("build security controls: %v", err)

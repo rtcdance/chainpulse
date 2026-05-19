@@ -76,6 +76,10 @@ func (m *mockEventStoreDegradation) Close(ctx context.Context) error {
 	return nil
 }
 
+func (m *mockEventStoreDegradation) GetEventsByCorrelationID(ctx context.Context, correlationID string, limit int, offset int) ([]*core.BlockchainEvent, error) {
+	return nil, nil
+}
+
 // MockEventMetadataStore for testing
 type mockMetadataStoreDegradation struct {
 	healthy bool
