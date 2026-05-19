@@ -13,27 +13,54 @@ import (
 	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
+const defaultPullerConnectionTimeout = 30 * time.Second
+
 // BaseDataPullerPlugin provides common functionality for data puller plugins
 type BaseDataPullerPlugin struct {
-	mu                sync.RWMutex
-	name              string
-	version           string
-	config            core.Config
-	logger            core.Logger
-	metricsCollector  core.MetricsCollector
-	eventBus          core.EventBus
-	checkpointStore   core.CheckpointStore
-	isRunning         bool
-	lastBlockNumber   uint64
-	maxRetries        int
-	retryBackoff      time.Duration
-	connectionTimeout time.Duration
-	inFlight          sync.WaitGroup  // tracks in-flight operations
-	shutdownTimeout   time.Duration   // max wait for in-flight ops on Stop()
-	lifecycleCtx      context.Context // context for async operations like checkpoint persistence
-	errorCounter      int64
-	lastError         error
-	lastErrorTime     time.Time
+	mu                 sync.RWMutex
+	name               string
+	version            string
+	config             core.Config
+	logger             core.Logger
+	metricsCollector   core.MetricsCollector
+	eventBus           core.EventBus
+	checkpointStore    core.CheckpointStore
+	isRunning          bool
+	lastBlockNumber    uint64
+	maxRetries         int
+	retryBackoff       time.Duration
+	connectionTimeout  time.Duration
+	inFlight           sync.WaitGroup  // tracks in-flight operations
+	shutdownTimeout    time.Duration   // max wait for in-flight ops on Stop()
+	lifecycleCtx       context.Context // context for async operations like checkpoint persistence
+	errorCounter       int64
+	lastError          error
+	lastErrorTime      time.Time
+	lastSuccessfulPull time.Time // zero = never pulled
+
+	// If set, Health() calls this to check RPC reachability.
+	// Pullers set this in Start() once a client connection is established.
+	rpcHealthCheck func(context.Context) error
+
+	// circuit breaker protects RPC calls from cascading failures.
+	// Created by NewBaseDataPullerPlugin if config.CircuitBreakerConfig is set.
+	circuitBreaker *CircuitBreaker
+}
+
+// SetRPCHealthCheck registers a function that Health() calls to verify RPC
+// node reachability. Pullers should call this in Start() after connecting.
+func (p *BaseDataPullerPlugin) SetRPCHealthCheck(fn func(context.Context) error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.rpcHealthCheck = fn
+}
+
+// CircuitBreaker returns the circuit breaker for RPC protection.
+// Pullers should call cb.Allow() before making RPC calls.
+func (p *BaseDataPullerPlugin) CircuitBreaker() *CircuitBreaker {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	return p.circuitBreaker
 }
 
 // NewBaseDataPullerPlugin creates a new base data puller plugin
@@ -56,7 +83,8 @@ func NewBaseDataPullerPlugin(
 		lastBlockNumber:   config.StartBlock,
 		maxRetries:        config.MaxRetries,
 		retryBackoff:      time.Duration(config.RetryBackoff) * time.Millisecond,
-		connectionTimeout: 30 * time.Second,
+		connectionTimeout: defaultPullerConnectionTimeout,
+		circuitBreaker:    NewCircuitBreaker(DefaultCircuitBreakerConfig),
 	}
 }
 
@@ -71,7 +99,7 @@ func (p *BaseDataPullerPlugin) Version() string {
 }
 
 // Initialize initializes the plugin
-func (p *BaseDataPullerPlugin) Initialize(config core.Config) error {
+func (p *BaseDataPullerPlugin) Initialize(_ context.Context, config core.Config) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -88,7 +116,7 @@ func (p *BaseDataPullerPlugin) Initialize(config core.Config) error {
 }
 
 // Start starts the plugin
-func (p *BaseDataPullerPlugin) Start() error {
+func (p *BaseDataPullerPlugin) Start(_ context.Context) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -115,7 +143,7 @@ func (p *BaseDataPullerPlugin) Start() error {
 }
 
 // Stop stops the plugin and waits for in-flight operations to complete
-func (p *BaseDataPullerPlugin) Stop() error {
+func (p *BaseDataPullerPlugin) Stop(ctx context.Context) error {
 	p.mu.Lock()
 	if !p.isRunning {
 		p.mu.Unlock()
@@ -124,7 +152,7 @@ func (p *BaseDataPullerPlugin) Stop() error {
 	p.isRunning = false
 	p.mu.Unlock()
 
-	// Wait for in-flight operations with timeout
+	// Wait for in-flight operations with context
 	done := make(chan struct{})
 	go func() {
 		p.inFlight.Wait()
@@ -145,6 +173,10 @@ func (p *BaseDataPullerPlugin) Stop() error {
 		if p.logger != nil {
 			p.logger.Warn("data puller plugin stop timed out waiting for in-flight operations", "name", p.name, "timeout", timeout)
 		}
+	case <-ctx.Done():
+		if p.logger != nil {
+			p.logger.Warn("data puller plugin stop cancelled by context", "name", p.name)
+		}
 	}
 
 	if p.metricsCollector != nil {
@@ -154,16 +186,75 @@ func (p *BaseDataPullerPlugin) Stop() error {
 	return nil
 }
 
-// Health checks the health of the plugin
-func (p *BaseDataPullerPlugin) Health() error {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
+// Health checks the health of the plugin.
+// Reports degraded if no successful pull within 5 minutes or a recent error exists.
+// If an RPC health check function is set (via SetRPCHealthCheck), calls it to verify
+// node reachability with the given context timeout.
+// Reports circuit breaker open/half-open state as degraded.
+func (p *BaseDataPullerPlugin) Health(ctx context.Context) error {
+	select {
+	case <-ctx.Done():
+		return fmt.Errorf("health check interrupted: %w", ctx.Err())
+	default:
+	}
 
-	if !p.isRunning {
+	p.mu.RLock()
+	running := p.isRunning
+	lastPull := p.lastSuccessfulPull
+	lastErr := p.lastError
+	lastErrTime := p.lastErrorTime
+	checkFn := p.rpcHealthCheck
+	cb := p.circuitBreaker
+	p.mu.RUnlock()
+
+	if !running {
 		return fmt.Errorf("plugin not running")
 	}
 
+	if cb != nil {
+		cbState := cb.State()
+		if cbState == CircuitBreakerOpen {
+			failures, threshold := cb.Counts()
+			return fmt.Errorf("RPC circuit breaker open (%d/%d failures): %w", failures, threshold, core.ErrRPCUnreachable)
+		}
+		if cbState == CircuitBreakerHalfOpen {
+			return fmt.Errorf("RPC circuit breaker half-open, recovery in progress: %w", core.ErrRPCUnreachable)
+		}
+	}
+
+	if !lastPull.IsZero() && time.Since(lastPull) > 5*time.Minute {
+		return fmt.Errorf("no successful pull in %v", time.Since(lastPull).Round(time.Second))
+	}
+
+	if lastErr != nil && time.Since(lastErrTime) < 10*time.Minute {
+		return fmt.Errorf("recent error: %w, at %v", lastErr, lastErrTime.Format(time.RFC3339))
+	}
+
+	if checkFn != nil {
+		probeCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		defer cancel()
+		if err := checkFn(probeCtx); err != nil {
+			return fmt.Errorf("RPC health check failed: %w", err)
+		}
+	}
+
 	return nil
+}
+
+// RecordSuccessfulPull records the time of a successful data pull.
+// Also resets the circuit breaker to closed state.
+func (p *BaseDataPullerPlugin) RecordSuccessfulPull() {
+	p.mu.Lock()
+	p.lastSuccessfulPull = time.Now()
+	p.lastError = nil
+	p.lastErrorTime = time.Time{}
+	p.errorCounter = 0
+	cb := p.circuitBreaker
+	p.mu.Unlock()
+
+	if cb != nil {
+		cb.Reset()
+	}
 }
 
 // IsRunning returns whether the plugin is running
@@ -173,13 +264,19 @@ func (p *BaseDataPullerPlugin) IsRunning() bool {
 	return p.isRunning
 }
 
-// RecordError records an error for stats and logging
+// RecordError records an error for stats and logging.
+// Also feeds the circuit breaker — N consecutive errors will trip it open.
 func (p *BaseDataPullerPlugin) RecordError(err error) {
 	p.mu.Lock()
 	p.errorCounter++
 	p.lastError = err
 	p.lastErrorTime = time.Now()
+	cb := p.circuitBreaker
 	p.mu.Unlock()
+
+	if cb != nil {
+		cb.Failure()
+	}
 }
 
 // BaseStats returns common puller statistics
@@ -202,8 +299,17 @@ func (p *BaseDataPullerPlugin) GetLastBlockNumber() uint64 {
 	return p.lastBlockNumber
 }
 
-// SetLastBlockNumber sets the last processed block number and persists it if checkpointStore is configured
+// SetLastBlockNumber sets the last processed block number and persists it if checkpointStore is configured.
+// The block hash is not persisted when using this method; use SetLastBlockNumberWithHash
+// for reorg-aware checkpointing.
 func (p *BaseDataPullerPlugin) SetLastBlockNumber(blockNumber uint64) {
+	p.SetLastBlockNumberWithHash(blockNumber, "")
+}
+
+// SetLastBlockNumberWithHash sets the last processed block number and block hash,
+// and persists both if checkpointStore is configured.
+// The stored hash enables reorg detection on startup by verifying chain continuity.
+func (p *BaseDataPullerPlugin) SetLastBlockNumberWithHash(blockNumber uint64, blockHash string) {
 	p.mu.Lock()
 	p.lastBlockNumber = blockNumber
 	store := p.checkpointStore
@@ -211,31 +317,36 @@ func (p *BaseDataPullerPlugin) SetLastBlockNumber(blockNumber uint64) {
 	if chainID == "" {
 		chainID = p.config.ServiceName
 	}
-	if chainID == "" {
-		if p.logger != nil {
-			p.logger.Warn("chainID is empty; checkpoint cannot be saved reliably", "block", blockNumber)
-		}
-	}
 	p.mu.Unlock()
 
-	// Persist checkpoint asynchronously
-	if store != nil {
-		p.inFlight.Add(1)
-		go func() {
-			defer p.inFlight.Done()
-			// Use lifecycle context if available, otherwise use a minimal context with timeout only
-			ctx := p.lifecycleCtx
-			if ctx == nil {
-				ctx = context.Background()
+	// Persist checkpoint synchronously to avoid the race between in-memory
+	// update and crash: if we used a goroutine, a crash after the in-memory
+	// set but before the DB write would cause duplicate processing on restart.
+	if store != nil && chainID != "" {
+		ctx := p.lifecycleCtx
+		if ctx == nil {
+			ctx = context.Background()
+		}
+
+		const maxRetries = 3
+		var lastErr error
+		for attempt := 0; attempt < maxRetries; attempt++ {
+			if attempt > 0 {
+				time.Sleep(time.Duration(100*(1<<attempt)) * time.Millisecond)
 			}
-			persistCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
-			defer cancel()
-			if err := store.SaveLastIndexedBlock(persistCtx, chainID, blockNumber, ""); err != nil {
-				if p.logger != nil {
-					p.logger.Warn("failed to persist checkpoint", "error", err.Error(), "block", blockNumber)
-				}
+			if err := store.SaveLastIndexedBlock(ctx, chainID, blockNumber, blockHash); err != nil {
+				lastErr = err
+				continue
 			}
-		}()
+			return // success
+		}
+		if p.logger != nil {
+			p.logger.Error("checkpoint persist failed after retries",
+				"chainID", chainID,
+				"block", blockNumber,
+				"error", lastErr,
+			)
+		}
 	}
 }
 
@@ -256,7 +367,16 @@ func (p *BaseDataPullerPlugin) SetLifecycleContext(ctx context.Context) {
 
 // LoadCheckpoint loads the last indexed block from the checkpoint store.
 // Returns the stored block number, or 0 if no checkpoint exists or loading fails.
+// The block hash is discarded; use LoadCheckpointWithHash for reorg-aware startup.
 func (p *BaseDataPullerPlugin) LoadCheckpoint(ctx context.Context) uint64 {
+	blockNum, _ := p.LoadCheckpointWithHash(ctx)
+	return blockNum
+}
+
+// LoadCheckpointWithHash loads the last indexed block number and its block hash.
+// Returns (0, "") if no checkpoint exists or loading fails.
+// The stored hash can be compared against the chain to detect reorgs on startup.
+func (p *BaseDataPullerPlugin) LoadCheckpointWithHash(ctx context.Context) (uint64, string) {
 	p.mu.RLock()
 	store := p.checkpointStore
 	chainID := p.config.ChainID
@@ -271,17 +391,17 @@ func (p *BaseDataPullerPlugin) LoadCheckpoint(ctx context.Context) uint64 {
 	p.mu.RUnlock()
 
 	if store == nil {
-		return 0
+		return 0, ""
 	}
 
-	blockNum, _, err := store.GetLastIndexedBlock(ctx, chainID)
+	blockNum, blockHash, err := store.GetLastIndexedBlock(ctx, chainID)
 	if err != nil {
 		if p.logger != nil {
 			p.logger.Warn("failed to load checkpoint", "error", err.Error())
 		}
-		return 0
+		return 0, ""
 	}
-	return blockNum
+	return blockNum, blockHash
 }
 
 // PublishEvent publishes an event to the event bus
@@ -357,7 +477,12 @@ func (p *BaseDataPullerPlugin) LogWarn(msg string, fields ...any) {
 	}
 }
 
-// RetryWithBackoff retries an operation with exponential backoff
+// RetryWithBackoff retries an operation with exponential backoff and error classification.
+// Different error types receive different retry strategies:
+//   - Rate limit (429): longer backoff, more retries
+//   - Timeout: moderate backoff, standard retries
+//   - Network/Connection: standard backoff, standard retries
+//   - Non-retryable (auth, invalid params): no retry, immediate return
 func (p *BaseDataPullerPlugin) RetryWithBackoff(ctx context.Context, operation func() error) error {
 	backoff := p.retryBackoff
 	var lastErr error
@@ -377,11 +502,25 @@ func (p *BaseDataPullerPlugin) RetryWithBackoff(ctx context.Context, operation f
 		}
 		lastErr = err
 
-		p.logger.Warn("retry attempt failed", "attempt", attempt+1, "maxRetries", p.maxRetries, "error", err)
+		// Classify error to determine retry strategy
+		errType := classifyError(err)
+		if !errType.retryable {
+			p.logger.Error("non-retryable error, aborting", "error", err.Error(), "type", errType.category)
+			return err
+		}
+
+		// Adjust backoff based on error type
+		effectiveBackoff := backoff
+		if errType.category == "rate_limit" {
+			// Rate limits: use longer backoff (at least 5s)
+			effectiveBackoff = max(backoff, 5*time.Second)
+		}
+
+		p.logger.Warn("retry attempt failed", "attempt", attempt+1, "maxRetries", p.maxRetries, "error", err, "error_type", errType.category)
 
 		if attempt < p.maxRetries-1 {
 			// Add jitter: randomize between 50%-100% of backoff to avoid thundering herd
-			jitteredBackoff := time.Duration(float64(backoff) * (0.5 + rand.Float64()*0.5))
+			jitteredBackoff := time.Duration(float64(effectiveBackoff) * (0.5 + rand.Float64()*0.5))
 			select {
 			case <-time.After(jitteredBackoff):
 				backoff *= 2
@@ -396,6 +535,59 @@ func (p *BaseDataPullerPlugin) RetryWithBackoff(ctx context.Context, operation f
 		return fmt.Errorf("max retries exceeded: last error: %w", lastErr)
 	}
 	return fmt.Errorf("max retries exceeded: unknown error")
+}
+
+// errorClassification describes retry characteristics of an error.
+type errorClassification struct {
+	retryable bool
+	category  string // "rate_limit", "timeout", "network", "non_retryable"
+}
+
+// classifyError examines an error and determines its retry strategy.
+func classifyError(err error) errorClassification {
+	if err == nil {
+		return errorClassification{retryable: true, category: "none"}
+	}
+
+	errStr := err.Error()
+
+	// Rate limit errors (HTTP 429, "rate limit", "too many requests")
+	if strings.Contains(errStr, "429") ||
+		strings.Contains(strings.ToLower(errStr), "rate limit") ||
+		strings.Contains(strings.ToLower(errStr), "too many requests") ||
+		strings.Contains(strings.ToLower(errStr), "throttl") {
+		return errorClassification{retryable: true, category: "rate_limit"}
+	}
+
+	// Timeout errors
+	if strings.Contains(errStr, "timeout") ||
+		strings.Contains(errStr, "context deadline exceeded") ||
+		strings.Contains(errStr, "i/o timeout") {
+		return errorClassification{retryable: true, category: "timeout"}
+	}
+
+	// Network/Connection errors
+	if strings.Contains(errStr, "connection refused") ||
+		strings.Contains(errStr, "no such host") ||
+		strings.Contains(errStr, "network is unreachable") ||
+		strings.Contains(errStr, "connection reset") ||
+		strings.Contains(errStr, "broken pipe") {
+		return errorClassification{retryable: true, category: "network"}
+	}
+
+	// Non-retryable errors
+	if strings.Contains(errStr, "401") ||
+		strings.Contains(errStr, "403") ||
+		strings.Contains(strings.ToLower(errStr), "unauthorized") ||
+		strings.Contains(strings.ToLower(errStr), "forbidden") ||
+		strings.Contains(strings.ToLower(errStr), "invalid api key") ||
+		strings.Contains(strings.ToLower(errStr), "invalid param") ||
+		strings.Contains(strings.ToLower(errStr), "unknown method") {
+		return errorClassification{retryable: false, category: "non_retryable"}
+	}
+
+	// Default: treat as retryable network-type error
+	return errorClassification{retryable: true, category: "unknown"}
 }
 
 // GetConfig returns the plugin configuration

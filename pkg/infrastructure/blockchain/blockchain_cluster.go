@@ -1,3 +1,15 @@
+// Package blockchain provides cluster management abstractions for blockchain instances.
+//
+// DEPRECATED: This package is a simulation prototype only:
+//   - BlockchainInstance is an in-memory struct with no real RPC connections.
+//   - Deploy() creates Go structs but does not start any network listeners or clients.
+//   - ProcessEvent() uses non-deterministic map iteration for instance selection.
+//   - IsolationLevel field is stored but never enforced.
+//   - CrossChainAPI.Query() has a goroutine channel-closure race condition.
+//
+// New code should use pkg/plugins/pullers (MultiRPCPuller, HTTPSJSONRPCPuller) for
+// real blockchain node connections and pkg/services/indexing for multi-chain indexing.
+// This file will be removed in a future release once all dependencies are migrated.
 package blockchain
 
 import (
@@ -8,7 +20,6 @@ import (
 	"time"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
-	"github.com/rtcdance/chainpulse/pkg/infrastructure/processing"
 )
 
 // DistributedCache defines the interface for distributed caching
@@ -24,7 +35,7 @@ type BlockchainCluster struct {
 	id                  string
 	blockchainType      string // "EVM", "Cosmos", "Solana"
 	instances           map[string]*BlockchainInstance
-	dataStore           processing.EventStore
+	dataStore           core.DatabasePlugin
 	minInstances        int
 	maxInstances        int
 	currentInstances    int
@@ -128,11 +139,6 @@ func (bc *BlockchainCluster) ProcessEvent(ctx context.Context, event *core.Block
 		return fmt.Errorf("no instances available")
 	}
 
-	// Validate blockchain type
-	if event.ChainID != bc.blockchainType {
-		return fmt.Errorf("event blockchain type mismatch")
-	}
-
 	// Select instance (round-robin)
 	var selectedInstance *BlockchainInstance
 	for _, instance := range bc.instances {
@@ -152,24 +158,9 @@ func (bc *BlockchainCluster) ProcessEvent(ctx context.Context, event *core.Block
 	selectedInstance.PendingEvents.Add(1)
 	selectedInstance.ProcessedEvents.Add(1)
 
-	// Store event
+	// Store event via core.DatabasePlugin
 	if bc.dataStore != nil {
-		// Convert core.BlockchainEvent to processing.Event
-		procEvent := &processing.Event{
-			ID:              event.ID,
-			EventHash:       event.EventHash,
-			BlockNumber:     event.BlockNumber,
-			TransactionHash: event.TransactionHash.String(),
-			LogIndex:        event.LogIndex,
-			ContractAddress: event.ContractAddress.String(),
-			EventName:       event.EventName,
-			EventData:       event.DecodedData,
-			ChainID:         event.ChainID,
-			Timestamp:       event.CreatedAt,
-			ProcessedAt:     time.Now(),
-			Status:          string(event.Status),
-		}
-		if err := bc.dataStore.StoreEvent(ctx, procEvent); err != nil {
+		if err := bc.dataStore.StoreEvent(ctx, event); err != nil {
 			selectedInstance.ErrorCount.Add(1)
 			bc.metrics.mu.Lock()
 			bc.metrics.EventsFailed++
