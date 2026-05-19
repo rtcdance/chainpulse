@@ -155,55 +155,6 @@ func (e *SystemError) IsCritical() bool {
 	return e.Type == ErrorTypeCritical
 }
 
-// ClassifyError classifies an error as transient, permanent, or critical
-func ClassifyError(err error) ErrorType {
-	if err == nil {
-		return ErrorTypePermanent
-	}
-
-	// 1. Check if it's a SystemError (covers all typed sentinel errors)
-	var sysErr *SystemError
-	if errors.As(err, &sysErr) {
-		return sysErr.Type
-	}
-
-	// 2. Check typed sentinels via errors.Is (handles wrapped errors)
-	if errors.Is(err, ErrTimeout) || errors.Is(err, ErrConnectionRefused) ||
-		errors.Is(err, ErrConnectionReset) || errors.Is(err, ErrUnavailable) ||
-		errors.Is(err, ErrDeadlineExceeded) || errors.Is(err, ErrTemporaryFailure) {
-		return ErrorTypeTransient
-	}
-	if errors.Is(err, ErrDataCorruption) || errors.Is(err, ErrCriticalFailure) ||
-		errors.Is(err, ErrFatalError) {
-		return ErrorTypeCritical
-	}
-
-	// 3. Check for net.Error interface (transient network errors)
-	var netErr net.Error
-	if errors.As(err, &netErr) {
-		return ErrorTypeTransient
-	}
-
-	// 4. Check for syscall errors (transient)
-	if errors.Is(err, syscall.ECONNREFUSED) || errors.Is(err, syscall.ECONNRESET) ||
-		errors.Is(err, syscall.ETIMEDOUT) {
-		return ErrorTypeTransient
-	}
-
-	// 5. Context deadline exceeded (transient)
-	if errors.Is(err, context.DeadlineExceeded) {
-		return ErrorTypeTransient
-	}
-
-	// Default to permanent
-	return ErrorTypePermanent
-}
-
-// IsContextError checks if error is a context error
-func IsContextError(err error) bool {
-	return errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
-}
-
 // ClassifyErrorCode returns a stable error code string suitable for metrics tagging.
 // Falls back to "UNKNOWN" if the error is not a SystemError or a known sentinel.
 func ClassifyErrorCode(err error) string {

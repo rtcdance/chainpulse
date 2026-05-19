@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/observability"
 )
 
 // GatewayRouterIntegration integrates the RequestRouter with the API Gateway
@@ -21,6 +22,7 @@ type GatewayRouterIntegration struct {
 	router                        *RequestRouter
 	logger                        core.Logger
 	metrics                       core.MetricsCollector
+	redRecorder                   *observability.REDRecorder
 	eventQueryHandler             *EventQueryHandler
 	subscriptionHandler           *EventSubscriptionHandler
 	healthCheckHandler            *HealthCheckHandler
@@ -272,6 +274,14 @@ func (gri *GatewayRouterIntegration) SetSIWEHandler(handler *SIWEHandler) {
 	defer gri.mu.Unlock()
 
 	gri.siweHandler = handler
+}
+
+// SetREDRecorder wires the RED metrics recorder for standardized Rate/Errors/Duration tracking.
+func (gri *GatewayRouterIntegration) SetREDRecorder(recorder *observability.REDRecorder) {
+	gri.mu.Lock()
+	defer gri.mu.Unlock()
+
+	gri.redRecorder = recorder
 }
 
 // registerRoutes registers all API routes.
@@ -562,15 +572,17 @@ type gatewayRouteHandler func(
 // HandleRequest handles an incoming HTTP request
 func (gri *GatewayRouterIntegration) HandleRequest(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
+	statusCode := http.StatusOK
 	defer func() {
-		duration := time.Since(start).Milliseconds()
-		gri.metrics.RecordHistogram("gateway_request_time_ms", float64(duration), nil)
+		duration := time.Since(start)
+		gri.recordREDMetrics(r.URL.Path, statusCode, duration)
 	}()
 
 	gri.mu.RLock()
 	if !gri.initialized {
 		gri.mu.RUnlock()
-		(&APIError{Code: "INTERNAL_SERVER_ERROR", Message: "Gateway not initialized", Status: 500}).WriteHTTP(w)
+		statusCode = http.StatusInternalServerError
+		(&APIError{Code: "INTERNAL_SERVER_ERROR", Message: "Gateway not initialized", Status: statusCode}).WriteHTTP(w)
 		return
 	}
 	gri.mu.RUnlock()
@@ -592,9 +604,8 @@ func (gri *GatewayRouterIntegration) HandleRequest(w http.ResponseWriter, r *htt
 	route, params, err := gri.router.MatchRoute(normalizedReq.URL.Path)
 	if err != nil {
 		gri.logger.Warn("No route matched", "path", normalizedReq.URL.Path)
-		gri.metrics.RecordCounter("gateway_route_not_found", 1, nil)
-		gri.logger.Warn("Route match failed", "path", normalizedReq.URL.Path, "methods_tried", normalizedReq.Method)
-		(&APIError{Code: "NOT_FOUND", Message: "Not Found", Status: 404}).WriteHTTP(w)
+		statusCode = http.StatusNotFound
+		(&APIError{Code: "NOT_FOUND", Message: "Not Found", Status: statusCode}).WriteHTTP(w)
 		return
 	}
 
@@ -610,11 +621,8 @@ func (gri *GatewayRouterIntegration) HandleRequest(w http.ResponseWriter, r *htt
 		if !matched {
 			gri.logger.Warn("Method mismatch", "route_method", route.Method, "request_method", normalizedReq.Method, "path", normalizedReq.URL.Path)
 			w.Header().Set("Allow", route.Method)
-			(&APIError{Code: "METHOD_NOT_ALLOWED", Message: "Method Not Allowed", Status: 405}).WriteHTTP(w)
-			gri.metrics.RecordCounter("gateway_method_not_allowed", 1, map[string]string{
-				"route_id": route.ID,
-				"method":   normalizedReq.Method,
-			})
+			statusCode = http.StatusMethodNotAllowed
+			(&APIError{Code: "METHOD_NOT_ALLOWED", Message: "Method Not Allowed", Status: statusCode}).WriteHTTP(w)
 			return
 		}
 	}
@@ -622,12 +630,27 @@ func (gri *GatewayRouterIntegration) HandleRequest(w http.ResponseWriter, r *htt
 	handler, ok := gri.routeHandlers[route.ID]
 	if !ok {
 		gri.logger.Warn("Unknown route", "routeId", route.ID)
-		(&APIError{Code: "NOT_FOUND", Message: "Not Found", Status: 404}).WriteHTTP(w)
+		statusCode = http.StatusNotFound
+		(&APIError{Code: "NOT_FOUND", Message: "Not Found", Status: statusCode}).WriteHTTP(w)
 	} else {
 		handler(gri, w, wrappedWriter, normalizedReq, route, params)
 	}
+}
 
-	gri.metrics.RecordCounter("gateway_request_success", 1, nil)
+// recordREDMetrics emits RED (Rate/Errors/Duration) metrics for the request.
+func (gri *GatewayRouterIntegration) recordREDMetrics(path string, statusCode int, duration time.Duration) {
+	if gri.redRecorder != nil {
+		gri.redRecorder.RecordAPIRequest(path, statusCode, duration)
+		return
+	}
+	// Fallback to ad-hoc metrics when REDRecorder is not configured
+	gri.metrics.RecordHistogram("gateway_request_time_ms", duration.Seconds()*1000, nil)
+	if statusCode >= 400 {
+		gri.metrics.RecordCounter("gateway_request_error", 1, map[string]string{
+			"path":   path,
+			"status": fmt.Sprintf("%d", statusCode),
+		})
+	}
 }
 
 func (gri *GatewayRouterIntegration) handleQueryRoute(w http.ResponseWriter, r *http.Request, route *Route, routeID string, handle func()) {

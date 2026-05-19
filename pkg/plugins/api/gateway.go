@@ -10,6 +10,7 @@ import (
 
 	corelib "github.com/rtcdance/chainpulse/pkg/core"
 	domainquery "github.com/rtcdance/chainpulse/pkg/domain/query"
+	"github.com/rtcdance/chainpulse/pkg/observability"
 	apicore "github.com/rtcdance/chainpulse/pkg/plugins/api/core"
 	httpapi "github.com/rtcdance/chainpulse/pkg/plugins/api/http"
 )
@@ -29,6 +30,7 @@ type APIGatewayPlugin struct {
 	dlqHandler                    *DLQHandler
 	exportHandler                 *ExportHandler
 	statsHandler                  *StatsHandler
+	redRecorder                   *observability.REDRecorder
 	adminKeyHandler               *AdminKeyHandler
 	adminAPIKeyHandler            *AdminAPIKeyHandler
 	siweHandler                   *SIWEHandler
@@ -269,6 +271,14 @@ func (g *APIGatewayPlugin) SetStatsHandler(handler *StatsHandler) {
 	g.statsHandler = handler
 }
 
+// SetREDRecorder wires a RED metrics recorder and propagates it to the integration.
+func (g *APIGatewayPlugin) SetREDRecorder(recorder *observability.REDRecorder) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	g.redRecorder = recorder
+}
+
 // SetAdminKeyHandler wires an optional admin key handler (legacy).
 func (g *APIGatewayPlugin) SetAdminKeyHandler(handler *AdminKeyHandler) {
 	g.mu.Lock()
@@ -450,6 +460,9 @@ func (g *APIGatewayPlugin) Initialize(config corelib.Config) error {
 		}
 		if g.statsHandler != nil {
 			integration.SetStatsHandler(g.statsHandler)
+		}
+		if g.redRecorder != nil {
+			integration.SetREDRecorder(g.redRecorder)
 		}
 		if g.adminKeyHandler != nil {
 			integration.SetAdminKeyHandler(g.adminKeyHandler)
