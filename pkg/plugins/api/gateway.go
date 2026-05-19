@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -521,13 +522,15 @@ func (g *APIGatewayPlugin) wrapGatewayHandler(handler http.HandlerFunc, authMidd
 	}
 }
 
-// pprofGuardMiddleware blocks /debug/pprof/ endpoints unless the deployment
-// explicitly enables them via CHAINPULSE_PPROF_ENABLED=true.
+// pprofGuardMiddleware blocks /debug/pprof/ endpoints in production
+// unless CHAINPULSE_PPROF_ENABLED=true is set.
 func pprofGuardMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasPrefix(r.URL.Path, "/debug/pprof/") {
-			http.Error(w, `{"error":"not found"}`, http.StatusNotFound)
-			return
+			if os.Getenv("CHAINPULSE_PPROF_ENABLED") != "true" {
+				http.Error(w, `{"error":"not found"}`, http.StatusNotFound)
+				return
+			}
 		}
 		next.ServeHTTP(w, r)
 	})

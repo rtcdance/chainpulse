@@ -70,9 +70,9 @@ test-e2e:
 	@echo "Running e2e tests..."
 	$(GO) test $(TESTFLAGS) ./test/e2e/...
 
-test-anvil: ## Run Anvil-based integration tests (requires foundryup)
+test-anvil: ## Run Anvil-based integration tests (requires foundryup, install manually)
 	@echo "Running Anvil integration tests..."
-	@which anvil > /dev/null 2>&1 || { echo "Installing Foundry..."; curl -L https://foundry.paradigm.xyz | bash 2>/dev/null && $(GOPATH_BIN)/foundryup; }
+	@which anvil > /dev/null 2>&1 || { echo "anvil not found. Install Foundry manually: curl -L https://foundry.paradigm.xyz | bash && foundryup"; exit 1; }
 	$(GO) test $(TESTFLAGS) -tags=e2e -run TestAnvil ./test/e2e/...
 
 learn: ## Start Anvil + deploy EventEmitter + emit 9 test events
@@ -113,10 +113,13 @@ lint:
 	else \
 		LINTER_BIN="$$(GOROOT= $(GO) env GOPATH)/bin/golangci-lint"; \
 	fi; \
-	GOROOT= $(GO) install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.64.8 2>/dev/null; true; \
 	if [ ! -x "$$LINTER_BIN" ]; then \
-		echo "golangci-lint v1.64.8 is not installed at $$LINTER_BIN"; \
-		exit 127; \
+		echo "Installing golangci-lint v1.64.8..."; \
+		GOROOT= $(GO) install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.64.8; \
+		if [ ! -x "$$LINTER_BIN" ]; then \
+			echo "golangci-lint v1.64.8 installation failed at $$LINTER_BIN"; \
+			exit 127; \
+		fi; \
 	fi; \
 	LINT_ARGS="--tests=false"; \
 	if [ -n "$(LINT_BASE_REF)" ]; then \
