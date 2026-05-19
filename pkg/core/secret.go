@@ -52,3 +52,15 @@ func (s *SecretString) UnmarshalJSON(data []byte) error {
 	*s = SecretString(raw)
 	return nil
 }
+
+// ToSecretStrings converts a []string to []SecretString for use in config structs.
+func ToSecretStrings(ss []string) []SecretString {
+	if ss == nil {
+		return nil
+	}
+	result := make([]SecretString, len(ss))
+	for i, s := range ss {
+		result[i] = SecretString(s)
+	}
+	return result
+}

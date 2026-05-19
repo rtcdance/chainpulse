@@ -308,7 +308,7 @@ type APIServiceConfig struct {
 	LogLevel           string
 	AuthEnabled        bool
 	AuthJWTSecret      core.SecretString
-	AuthAPIKeys        []string
+	AuthAPIKeys        []core.SecretString
 	RateLimitEnabled   bool
 	RateLimitPerMinute int
 }
@@ -331,7 +331,7 @@ func loadAPIServiceConfig() APIServiceConfig {
 		LogLevel:           env.Get("LOG_LEVEL", "info"),
 		AuthEnabled:        env.GetBool("API_SERVICE_AUTH_ENABLED", false),
 		AuthJWTSecret:      core.SecretString(env.Get("API_SERVICE_AUTH_JWT_SECRET", "")),
-		AuthAPIKeys:        env.GetCSV("API_SERVICE_AUTH_API_KEYS", nil),
+		AuthAPIKeys:        core.ToSecretStrings(env.GetCSV("API_SERVICE_AUTH_API_KEYS", nil)),
 		RateLimitEnabled:   env.GetBool("API_SERVICE_RATE_LIMIT_ENABLED", true),
 		RateLimitPerMinute: env.GetInt("API_SERVICE_RATE_LIMIT", 100),
 	}

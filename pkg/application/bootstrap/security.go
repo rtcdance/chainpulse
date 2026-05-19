@@ -15,7 +15,7 @@ import (
 type SecurityControlsConfig struct {
 	AuthEnabled        bool
 	AuthJWTSecret      core.SecretString
-	AuthAPIKeys        []string
+	AuthAPIKeys        []core.SecretString
 	RateLimitEnabled   bool
 	RateLimitPerMinute int
 	ServiceName        string
@@ -38,7 +38,7 @@ func BuildSecurityControls(cfg SecurityControlsConfig, logger core.Logger, metri
 
 		tokenValidator := api.NewTokenValidator(jwtSecret, logger, metrics)
 		for _, entry := range cfg.AuthAPIKeys {
-			apiKey, clientID, ok := env.ParseKeyValuePair(entry)
+			apiKey, clientID, ok := env.ParseKeyValuePair(entry.Value())
 			if !ok {
 				return nil, nil, fmt.Errorf("invalid %s_AUTH_API_KEYS entry %q; expected key=clientID or key:clientID", cfg.EnvPrefix, entry)
 			}

@@ -314,7 +314,7 @@ type PullerConfig struct {
 	LogLevel            string
 	AuthEnabled         bool
 	AuthJWTSecret       core.SecretString
-	AuthAPIKeys         []string
+	AuthAPIKeys         []core.SecretString
 	RateLimitEnabled    bool
 	RateLimitPerMinute  int
 }
@@ -344,7 +344,7 @@ func loadPullerConfig() PullerConfig {
 		LogLevel:            env.Get("LOG_LEVEL", "info"),
 		AuthEnabled:         env.GetBool("PULLER_AUTH_ENABLED", false),
 		AuthJWTSecret:       core.SecretString(env.Get("PULLER_AUTH_JWT_SECRET", "")),
-		AuthAPIKeys:         env.GetCSV("PULLER_AUTH_API_KEYS", nil),
+		AuthAPIKeys:         core.ToSecretStrings(env.GetCSV("PULLER_AUTH_API_KEYS", nil)),
 		RateLimitEnabled:    env.GetBool("PULLER_RATE_LIMIT_ENABLED", true),
 		RateLimitPerMinute:  env.GetInt("PULLER_RATE_LIMIT", 100),
 	}

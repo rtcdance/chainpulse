@@ -11,6 +11,21 @@ import (
 	"github.com/rtcdance/chainpulse/pkg/core"
 	"github.com/rtcdance/chainpulse/pkg/observability"
 	"github.com/segmentio/kafka-go"
+	"go.opentelemetry.io/otel"
+)
+
+const (
+	defaultKafkaBatchSize          = 100
+	defaultKafkaMaxRetries         = 3
+	defaultKafkaRetryDelay         = 1 * time.Second
+	defaultKafkaMaxBytes           = 10e6
+	defaultKafkaCommitInterval     = time.Second
+	defaultKafkaStopTimeout        = 10 * time.Second
+	defaultKafkaCommitTimeout      = 5 * time.Second
+	defaultKafkaDLQReadTimeout     = 2 * time.Second
+	kafkaRecreateReaderThreshold   = 10
+	kafkaHealthCheckMaxBytes       = 1024
+	defaultKafkaHealthCheckTimeout = 5 * time.Second
 )
 
 // KafkaProducer represents a Kafka message producer
@@ -63,7 +78,11 @@ type KafkaMQPlugin struct {
 	offsetPersistenceMap map[string]map[int32]int64 // topic -> partition -> offset
 	offsetPersistMutex   sync.RWMutex
 	tracer               *observability.DefaultTracer
-	inFlight             sync.WaitGroup // tracks in-flight publish/consume operations
+	inFlight             sync.WaitGroup
+	shutdownCh           chan struct{}
+	shutdownOnce         sync.Once
+	commitInterval       time.Duration
+	consumerMaxBytes     int64
 }
 
 // NewKafkaMQPlugin creates a new Kafka message queue plugin
@@ -89,9 +108,9 @@ func NewKafkaMQPlugin(
 		errorCount:           0,
 		deadLetterQueueSize:  0,
 		processingTime:       0,
-		batchSize:            100,
-		maxRetries:           3,
-		retryDelay:           1 * time.Second,
+		batchSize:            defaultKafkaBatchSize,
+		maxRetries:           defaultKafkaMaxRetries,
+		retryDelay:           defaultKafkaRetryDelay,
 		brokers:              brokers,
 		consumerGroup:        consumerGroup,
 		consumers:            make(map[string]*KafkaConsumer),
@@ -102,17 +121,20 @@ func NewKafkaMQPlugin(
 		consumerGroupMetrics: make(map[string]int64),
 		offsetPersistenceMap: make(map[string]map[int32]int64),
 		tracer:               observability.NewDefaultTracer(logger, metricsCollector),
+		shutdownCh:           make(chan struct{}),
 	}
 }
 
 // Initialize initializes the Kafka plugin
-func (p *KafkaMQPlugin) Initialize() error {
+func (p *KafkaMQPlugin) Initialize(ctx context.Context, config core.Config) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
 	if p.isInitialized {
 		return fmt.Errorf("plugin already initialized")
 	}
+
+	p.config = &config
 
 	// Create Kafka writer (producer)
 	writer := &kafka.Writer{
@@ -134,7 +156,7 @@ func (p *KafkaMQPlugin) Initialize() error {
 }
 
 // Start starts the Kafka plugin
-func (p *KafkaMQPlugin) Start() error {
+func (p *KafkaMQPlugin) Start(ctx context.Context) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -153,7 +175,7 @@ func (p *KafkaMQPlugin) Start() error {
 }
 
 // Stop stops the Kafka plugin
-func (p *KafkaMQPlugin) Stop() error {
+func (p *KafkaMQPlugin) Stop(ctx context.Context) error {
 	p.mu.Lock()
 	if !p.isRunning {
 		p.mu.Unlock()
@@ -161,6 +183,10 @@ func (p *KafkaMQPlugin) Stop() error {
 	}
 	p.isRunning = false
 	p.mu.Unlock()
+
+	p.shutdownOnce.Do(func() {
+		close(p.shutdownCh)
+	})
 
 	// Wait for in-flight operations with timeout
 	done := make(chan struct{})
@@ -172,7 +198,7 @@ func (p *KafkaMQPlugin) Stop() error {
 	select {
 	case <-done:
 		p.logger.Info("Kafka in-flight operations completed")
-	case <-time.After(10 * time.Second):
+	case <-time.After(defaultKafkaStopTimeout):
 		p.logger.Warn("Kafka stop timed out waiting for in-flight operations")
 	}
 
@@ -199,8 +225,21 @@ func (p *KafkaMQPlugin) Stop() error {
 	return nil
 }
 
-// Health returns the health status of the plugin
-func (p *KafkaMQPlugin) Health() *core.HealthStatus {
+// Health returns a simple error-based health check for the Plugin interface.
+func (p *KafkaMQPlugin) Health(_ context.Context) error {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+
+	if p.errorCount > 0 {
+		return fmt.Errorf("KafkaMQ degraded: %d errors, last error: %w", p.errorCount, p.lastError)
+	}
+	return nil
+}
+
+// DetailedHealth returns structured health data with operational metrics.
+// This supplements the simple error-based Health() for monitoring systems that
+// need consumer lag, offsets, and other production observability data.
+func (p *KafkaMQPlugin) DetailedHealth(ctx context.Context) core.HealthStatus {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
@@ -213,7 +252,7 @@ func (p *KafkaMQPlugin) Health() *core.HealthStatus {
 	consumerGroupLag := consumerGroupMetrics["lag"]
 	maxTrackedOffset := p.maxTrackedOffset()
 
-	return &core.HealthStatus{
+	return core.HealthStatus{
 		Status:    status,
 		Timestamp: time.Now().UTC(),
 		Details: map[string]any{
@@ -231,6 +270,68 @@ func (p *KafkaMQPlugin) Health() *core.HealthStatus {
 			"consumer_group_metrics": consumerGroupMetrics,
 		},
 	}
+}
+
+// SetConsumerConfig overrides default consumer commit interval and max bytes.
+func (p *KafkaMQPlugin) SetConsumerConfig(commitInterval time.Duration, maxBytes int64) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.commitInterval = commitInterval
+	p.consumerMaxBytes = maxBytes
+}
+
+func (p *KafkaMQPlugin) getCommitInterval() time.Duration {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	if p.commitInterval > 0 {
+		return p.commitInterval
+	}
+	return defaultKafkaCommitInterval
+}
+
+func (p *KafkaMQPlugin) getMaxBytes() int64 {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	if p.consumerMaxBytes > 0 {
+		return p.consumerMaxBytes
+	}
+	return defaultKafkaMaxBytes
+}
+
+// Subscribe subscribes to a Kafka topic and calls handler for each message
+func (p *KafkaMQPlugin) Subscribe(ctx context.Context, topic string, handler func([]byte)) error {
+	p.mu.Lock()
+	if _, exists := p.consumers[topic]; exists {
+		p.mu.Unlock()
+		return fmt.Errorf("already subscribed to topic: %s", topic)
+	}
+
+	reader := kafka.NewReader(kafka.ReaderConfig{
+		Brokers: p.brokers,
+		Topic:   topic,
+		GroupID: p.consumerGroup,
+	})
+	consumer := &KafkaConsumer{reader: reader, config: p.config, logger: p.logger}
+	p.consumers[topic] = consumer
+	p.mu.Unlock()
+
+	mqHandler := func(msg core.MessageQueueMessage) error {
+		handler(msg.Payload)
+		return nil
+	}
+	go p.ConsumeMessages(ctx, topic, mqHandler)
+	return nil
+}
+
+// GetQueueDepth returns the approximate queue depth for a topic
+func (p *KafkaMQPlugin) GetQueueDepth(ctx context.Context, topic string) (int64, error) {
+	p.offsetTrackingMutex.RLock()
+	offset, exists := p.offsetTracking[topic]
+	p.offsetTrackingMutex.RUnlock()
+	if !exists {
+		return 0, nil
+	}
+	return offset, nil
 }
 
 // Name returns the plugin name
@@ -287,6 +388,9 @@ func (p *KafkaMQPlugin) PublishMessage(ctx context.Context, message core.Message
 		return fmt.Errorf("producer not initialized")
 	}
 
+	p.inFlight.Add(1)
+	defer p.inFlight.Done()
+
 	// Generate message ID if not provided
 	if message.ID == "" {
 		message.ID = fmt.Sprintf("%s-%d", message.Topic, time.Now().UnixNano())
@@ -309,6 +413,10 @@ func (p *KafkaMQPlugin) PublishMessage(ctx context.Context, message core.Message
 			{Key: "partition_key", Value: []byte(message.PartitionKey)},
 		},
 	}
+
+	propagator := otel.GetTextMapPropagator()
+	carrier := kafkaHeaderCarrier{headers: &kafkaMsg.Headers}
+	propagator.Inject(ctx, carrier)
 
 	// Write message to Kafka
 	err := producer.writer.WriteMessages(ctx, kafkaMsg)
@@ -371,8 +479,8 @@ func (p *KafkaMQPlugin) ConsumeMessages(ctx context.Context, topic string, handl
 		Topic:          topic,
 		GroupID:        p.consumerGroup,
 		StartOffset:    kafka.LastOffset,
-		CommitInterval: time.Second,
-		MaxBytes:       10e6,
+		CommitInterval: 0, // manual commit after handler success (at-least-once)
+		MaxBytes:       int(p.getMaxBytes()),
 	})
 
 	// Register consumer for graceful shutdown
@@ -403,10 +511,7 @@ func (p *KafkaMQPlugin) ConsumeMessages(ctx context.Context, topic string, handl
 			// Wait for in-flight operations to complete
 			inFlightOps.Wait()
 
-			// Close reader
-			if err := reader.Close(); err != nil {
-				p.logger.Error("failed to close Kafka reader", "topic", topic, "error", err)
-			}
+			p.closeKafkaReader(reader, topic)
 
 			// Unregister consumer
 			p.mu.Lock()
@@ -419,7 +524,7 @@ func (p *KafkaMQPlugin) ConsumeMessages(ctx context.Context, topic string, handl
 
 		default:
 			// Read message with timeout
-			readCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+			readCtx, cancel := context.WithTimeout(ctx, defaultKafkaCommitTimeout)
 			msg, err := reader.ReadMessage(readCtx)
 			cancel()
 
@@ -453,20 +558,43 @@ func (p *KafkaMQPlugin) ConsumeMessages(ctx context.Context, topic string, handl
 				select {
 				case <-time.After(backoff):
 				case <-ctx.Done():
+					inFlightOps.Wait()
+					p.closeKafkaReader(reader, topic)
+					p.mu.Lock()
+					delete(p.consumers, topic)
+					p.mu.Unlock()
 					return ctx.Err()
+				case <-p.shutdownCh:
+					inFlightOps.Wait()
+					p.closeKafkaReader(reader, topic)
+					p.mu.Lock()
+					delete(p.consumers, topic)
+					p.mu.Unlock()
+					return fmt.Errorf("plugin stopped")
 				}
 
 				// Recreate reader after too many consecutive errors
-				if consecutiveErrors >= 10 {
+				if consecutiveErrors >= kafkaRecreateReaderThreshold {
 					p.logger.Warn("too many consecutive read errors, recreating reader", "topic", topic, "consecutive_errors", consecutiveErrors)
 					_ = reader.Close()
+
+					p.mu.RLock()
+					running := p.isRunning
+					p.mu.RUnlock()
+					if !running {
+						p.mu.Lock()
+						delete(p.consumers, topic)
+						p.mu.Unlock()
+						return fmt.Errorf("plugin stopped")
+					}
+
 					reader = kafka.NewReader(kafka.ReaderConfig{
 						Brokers:        p.brokers,
 						Topic:          topic,
 						GroupID:        p.consumerGroup,
 						StartOffset:    kafka.LastOffset,
-						CommitInterval: time.Second,
-						MaxBytes:       10e6,
+CommitInterval: 0, // manual commit after handler success (at-least-once)
+						MaxBytes:       int(p.getMaxBytes()),
 					})
 					p.mu.Lock()
 					p.consumers[topic] = &KafkaConsumer{
@@ -541,6 +669,14 @@ func (p *KafkaMQPlugin) ConsumeMessages(ctx context.Context, topic string, handl
 			p.offsetTracking[topic] = msg.Offset
 			p.offsetTrackingMutex.Unlock()
 
+			// Manually commit the offset so that a crash after successful
+			// processing doesn't cause re-delivery. This provides at-least-once
+			// semantics; duplicates are handled by the idempotency layer.
+			if commitErr := reader.CommitMessages(context.Background(), msg); commitErr != nil {
+				p.logger.Error("failed to commit Kafka offset",
+					"topic", topic, "offset", msg.Offset, "error", commitErr)
+			}
+
 			// Record successful consumption
 			p.mu.Lock()
 			p.messageCount++
@@ -553,6 +689,18 @@ func (p *KafkaMQPlugin) ConsumeMessages(ctx context.Context, topic string, handl
 			// Mark operation complete
 			inFlightOps.Done()
 		}
+	}
+}
+
+// closeKafkaReader commits pending offsets and closes the Kafka reader.
+func (p *KafkaMQPlugin) closeKafkaReader(reader *kafka.Reader, topic string) {
+	commitCtx, commitCancel := context.WithTimeout(context.Background(), defaultKafkaCommitTimeout)
+	defer commitCancel()
+	if err := reader.CommitMessages(commitCtx); err != nil {
+		p.logger.Warn("failed to commit offset before close", "topic", topic, "error", err)
+	}
+	if err := reader.Close(); err != nil {
+		p.logger.Error("failed to close Kafka reader", "topic", topic, "error", err)
 	}
 }
 
@@ -681,7 +829,7 @@ func (p *KafkaMQPlugin) GetDeadLetterQueueMessages(ctx context.Context, limit in
 		Topic:       dlqTopic,
 		GroupID:     p.consumerGroup + "-dlq",
 		StartOffset: kafka.LastOffset,
-		MaxBytes:    10e6,
+		MaxBytes:    defaultKafkaMaxBytes,
 	})
 	defer func() {
 		_ = reader.Close()
@@ -691,7 +839,7 @@ func (p *KafkaMQPlugin) GetDeadLetterQueueMessages(ctx context.Context, limit in
 
 	// Read up to limit messages from DLQ
 	for i := 0; i < limit; i++ {
-		readCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+		readCtx, cancel := context.WithTimeout(ctx, defaultKafkaDLQReadTimeout)
 		msg, err := reader.ReadMessage(readCtx)
 		cancel()
 
@@ -1097,14 +1245,14 @@ func (p *KafkaMQPlugin) testBrokerConnection(ctx context.Context) error {
 		Topic:       "__consumer_offsets", // System topic that always exists
 		GroupID:     p.consumerGroup + "-health-check",
 		StartOffset: kafka.LastOffset,
-		MaxBytes:    1024,
+		MaxBytes:    kafkaHealthCheckMaxBytes,
 	})
 	defer func() {
 		_ = reader.Close()
 	}()
 
 	// Try to read metadata with timeout
-	readCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	readCtx, cancel := context.WithTimeout(ctx, defaultKafkaHealthCheckTimeout)
 	defer cancel()
 
 	_, err := reader.ReadMessage(readCtx)
@@ -1210,4 +1358,29 @@ func (p *KafkaMQPlugin) GetOffsetPersistenceStats() map[string]any {
 		"topics_with_persisted_offsets": topicCount,
 		"total_persisted_offsets":       totalOffsets,
 	}
+}
+
+type kafkaHeaderCarrier struct {
+	headers *[]kafka.Header
+}
+
+func (c kafkaHeaderCarrier) Get(key string) string {
+	for _, h := range *c.headers {
+		if h.Key == key {
+			return string(h.Value)
+		}
+	}
+	return ""
+}
+
+func (c kafkaHeaderCarrier) Set(key string, value string) {
+	*c.headers = append(*c.headers, kafka.Header{Key: key, Value: []byte(value)})
+}
+
+func (c kafkaHeaderCarrier) Keys() []string {
+	keys := make([]string, 0, len(*c.headers))
+	for _, h := range *c.headers {
+		keys = append(keys, h.Key)
+	}
+	return keys
 }

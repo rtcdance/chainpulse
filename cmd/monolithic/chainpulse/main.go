@@ -353,7 +353,7 @@ func run() error {
 	if config.JWTSecret != "" {
 		tokenValidator = api.NewTokenValidator(config.JWTSecret.Value(), logger, metrics)
 		for _, entry := range config.AuthAPIKeys {
-			apiKey, clientID, ok := parseMonolithicKeyPair(entry)
+			apiKey, clientID, ok := parseMonolithicKeyPair(entry.Value())
 			if !ok {
 				logger.Warn("invalid CHAINPULSE_AUTH_API_KEYS entry; expected key=clientID or key:clientID", "entry", entry)
 				continue
@@ -593,7 +593,7 @@ type Configuration struct {
 	TLSKeyPath               string
 	JWTSecret                core.SecretString
 	AuthEnabled              bool
-	AuthAPIKeys              []string
+	AuthAPIKeys              []core.SecretString
 }
 
 // loadConfiguration loads configuration from environment variables.
@@ -630,7 +630,7 @@ func loadConfiguration() Configuration {
 		TLSKeyPath:               env.Get("GATEWAY_TLS_KEY", ""),
 		JWTSecret:                core.SecretString(env.Get("API_JWT_SECRET", "")),
 		AuthEnabled:              env.GetBool("CHAINPULSE_AUTH_ENABLED", false),
-		AuthAPIKeys:              env.GetCSV("CHAINPULSE_AUTH_API_KEYS", nil),
+		AuthAPIKeys:              core.ToSecretStrings(env.GetCSV("CHAINPULSE_AUTH_API_KEYS", nil)),
 	}
 }
 

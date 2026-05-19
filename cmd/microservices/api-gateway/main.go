@@ -177,7 +177,7 @@ type GatewayConfig struct {
 	RateLimitPerMinute int
 	AuthEnabled        bool
 	AuthJWTSecret      core.SecretString
-	AuthAPIKeys        []string
+	AuthAPIKeys        []core.SecretString
 	RateLimitEnabled   bool
 	UpstreamAuthAPIKey core.SecretString
 	LogLevel           string
@@ -200,7 +200,7 @@ func loadGatewayConfig() GatewayConfig {
 		RateLimitPerMinute: env.GetInt("GATEWAY_RATE_LIMIT", 1000),
 		AuthEnabled:        env.GetBool("GATEWAY_AUTH_ENABLED", false),
 		AuthJWTSecret:      core.SecretString(env.Get("GATEWAY_AUTH_JWT_SECRET", "")),
-		AuthAPIKeys:        env.GetCSV("GATEWAY_AUTH_API_KEYS", nil),
+		AuthAPIKeys:        toSecretStrings(env.GetCSV("GATEWAY_AUTH_API_KEYS", nil)),
 		RateLimitEnabled:   env.GetBool("GATEWAY_RATE_LIMIT_ENABLED", true),
 		UpstreamAuthAPIKey: core.SecretString(env.Get("GATEWAY_UPSTREAM_AUTH_API_KEY", "")),
 		LogLevel:           env.Get("LOG_LEVEL", "info"),

@@ -301,20 +301,12 @@ func main() {
 	dlqRetry.Start(consumeCtx, &wg)
 	fmt.Println("  [2.2/3] DLQ retry service started")
 
-	// Start reorg event consumer
-	// Note: uses database-backed block hash provider (default). For production,
-	// inject an RPC-backed provider via reorgHandler.SetBlockHashProvider()
-	// so reorg detection compares against the live canonical chain.
 	reorgHandler := reorg.NewReorgHandler(
 		newReorgEventProcessorDatabaseAdapter(eventStore, metadataStore, getDB(dbManager)),
 		logger,
 		12,  // reorg threshold
 		120, // max rollback
 	)
-	// Note: For production, inject an RPC-backed provider via
-	// reorgHandler.SetBlockHashProvider() and wire the idempotency
-	// service via reorgHandler.SetIdempotencyInvalidator() so that
-	// re-indexed events after a reorg are not rejected as duplicates.
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -429,7 +421,7 @@ type EventProcessorConfig struct {
 	LogLevel           string
 	AuthEnabled        bool
 	AuthJWTSecret      core.SecretString
-	AuthAPIKeys        []string
+	AuthAPIKeys        []core.SecretString
 	RateLimitEnabled   bool
 	RateLimitPerMinute int
 }
@@ -453,7 +445,7 @@ func loadEventProcessorConfig() EventProcessorConfig {
 		LogLevel:           env.Get("LOG_LEVEL", "info"),
 		AuthEnabled:        env.GetBool("EVENT_PROCESSOR_AUTH_ENABLED", false),
 		AuthJWTSecret:      core.SecretString(env.Get("EVENT_PROCESSOR_AUTH_JWT_SECRET", "")),
-		AuthAPIKeys:        env.GetCSV("EVENT_PROCESSOR_AUTH_API_KEYS", nil),
+		AuthAPIKeys:        core.ToSecretStrings(env.GetCSV("EVENT_PROCESSOR_AUTH_API_KEYS", nil)),
 		RateLimitEnabled:   env.GetBool("EVENT_PROCESSOR_RATE_LIMIT_ENABLED", true),
 		RateLimitPerMinute: env.GetInt("EVENT_PROCESSOR_RATE_LIMIT", 100),
 	}
