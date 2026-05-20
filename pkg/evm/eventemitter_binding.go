@@ -1,4 +1,4 @@
-package core
+package evm
 
 import (
 	"math/big"
@@ -6,6 +6,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 // EventEmitterABI is the parsed ABI for the EventEmitter contract.
@@ -52,7 +53,7 @@ func (e *EventEmitterTransferEvent) Topic0() common.Hash { return topic0ForName(
 // topics: [sig, from, to], data: [value]
 func DecodeEventEmitterTransfer(topics []common.Hash, data []byte) (*EventEmitterTransferEvent, error) {
 	if len(topics) < 3 {
-		return nil, ErrInvalidEventData
+		return nil, core.ErrInvalidEventData
 	}
 
 	evt := &EventEmitterTransferEvent{
@@ -84,7 +85,7 @@ func (e *EventEmitterCustomEvent) Topic0() common.Hash { return topic0ForName("C
 // Note: indexed bytes32 is stored directly in topics[1], non-indexed string requires ABI decoding.
 func DecodeEventEmitterCustomEvent(topics []common.Hash, data []byte) (*EventEmitterCustomEvent, error) {
 	if len(topics) < 2 {
-		return nil, ErrInvalidEventData
+		return nil, core.ErrInvalidEventData
 	}
 
 	evt := &EventEmitterCustomEvent{

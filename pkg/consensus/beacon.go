@@ -1,7 +1,9 @@
-package core
+package consensus
 
 import (
 	"time"
+
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 )
 
 // Beacon chain constants for post-Merge Ethereum.
@@ -77,14 +79,14 @@ func ExpectedSlotNumber(blockTimestamp, genesisTime int64) uint64 {
 	return TimestampToSlot(blockTimestamp, genesisTime)
 }
 
-// NewBeaconBlockInfo creates BeaconBlockInfo from a block's timestamp and
+// NewBeaconBlockInfo creates a BeaconBlockInfo from a block's timestamp and
 // the parent's slot number. It computes the current slot, epoch, and
 // whether any slots were missed between the parent and current.
-func NewBeaconBlockInfo(blockTimestamp, genesisTime int64, parentSlot uint64) *BeaconBlockInfo {
+func NewBeaconBlockInfo(blockTimestamp, genesisTime int64, parentSlot uint64) *blockchain.BeaconBlockInfo {
 	currentSlot := TimestampToSlot(blockTimestamp, genesisTime)
 	missed := DetectMissedSlots(parentSlot, currentSlot)
 
-	return &BeaconBlockInfo{
+	return &blockchain.BeaconBlockInfo{
 		Slot:         currentSlot,
 		Epoch:        SlotToEpoch(currentSlot),
 		IsMissedSlot: len(missed) > 0,

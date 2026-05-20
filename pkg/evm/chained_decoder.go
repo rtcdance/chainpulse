@@ -1,4 +1,4 @@
-package core
+package evm
 
 import (
 	"encoding/hex"

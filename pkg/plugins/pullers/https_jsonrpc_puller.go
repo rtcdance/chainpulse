@@ -14,6 +14,7 @@ import (
 	"github.com/rtcdance/chainpulse/pkg/core"
 	"github.com/rtcdance/chainpulse/pkg/core/eventsig"
 	"github.com/rtcdance/chainpulse/pkg/core/topics"
+	"github.com/rtcdance/chainpulse/pkg/evm"
 	"github.com/rtcdance/chainpulse/pkg/observability"
 
 	"github.com/ethereum/go-ethereum"
@@ -887,7 +888,7 @@ func (p *HTTPSJSONRPCPuller) ethLogToEvent(log types.Log, blockTimestamps map[ui
 	eventDataBytes := log.Data
 
 	// Decode with both map-style (backward compatible) and typed event
-	decodedData, typedData := core.DecodeEventWithTyped(eventName, eventTopics, eventDataBytes)
+	decodedData, typedData := evm.DecodeEventWithTyped(eventName, eventTopics, eventDataBytes)
 
 	event := core.BlockchainEvent{
 		ID:              chainID + "-" + txHash.Hex() + "-" + strconv.FormatUint(uint64(logIndex), 10),

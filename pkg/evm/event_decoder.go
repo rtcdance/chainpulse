@@ -1,4 +1,4 @@
-package core
+package evm
 
 import (
 	"fmt"
@@ -8,17 +8,18 @@ import (
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 // unknownEventSignatures counts events whose signature could not be resolved.
 var (
 	eventDecoderOnce sync.Once
-	eventDecoderLog  Logger
+	eventDecoderLog  core.Logger
 )
 
-func getEventDecoderLogger() Logger {
+func getEventDecoderLogger() core.Logger {
 	eventDecoderOnce.Do(func() {
-		eventDecoderLog = NewProductionLogger()
+		eventDecoderLog = core.NewProductionLogger()
 	})
 	return eventDecoderLog
 }

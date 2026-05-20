@@ -672,7 +672,9 @@ func writePrometheusRuntimeMetrics(builder *strings.Builder) {
 	writePrometheusHeader(builder, "go_memstats_sys_bytes", "gauge")
 	writePrometheusSample(builder, "go_memstats_sys_bytes", nil, strconv.FormatUint(memStats.Sys, 10))
 	writePrometheusHeader(builder, "chainpulse_unknown_event_signatures_total", "counter")
-	writePrometheusSample(builder, "chainpulse_unknown_event_signatures_total", nil, strconv.FormatInt(GetUnknownEventSignatureCount(), 10))
+	writePrometheusSample(builder, "chainpulse_unknown_event_signatures_total", nil, "0")
+	// TODO: GetUnknownEventSignatureCount() was in pkg/evm which core cannot import.
+	// Wire this through an injected callback or move the counter into core.
 
 	// Database connection pool stats
 	if val := dbPoolStats.Load(); val != nil {

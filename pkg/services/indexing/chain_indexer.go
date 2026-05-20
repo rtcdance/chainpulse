@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/rtcdance/chainpulse/pkg/consensus"
 	"github.com/rtcdance/chainpulse/pkg/core"
 	"github.com/rtcdance/chainpulse/pkg/domain"
 	"github.com/rtcdance/chainpulse/pkg/integrations/generic"
@@ -20,7 +21,7 @@ type DefaultChainIndexer struct {
 	genericIndexer         *generic.GenericContractIndexer
 	sharedRuntime          domain.SharedBatchRuntime
 	metrics                core.MetricsCollector
-	confirmationTracker    *core.ConfirmationTracker
+	confirmationTracker    *consensus.ConfirmationTracker
 	mu                     sync.RWMutex
 	lastIndexedBlock       uint64
 	totalEventsIndexed     int64
@@ -58,7 +59,7 @@ func (dci *DefaultChainIndexer) SetSharedRuntime(runtime domain.SharedBatchRunti
 
 // SetConfirmationTracker configures the optional confirmation tracker for
 // tracking events through the Pending → Confirmed → Finalized lifecycle.
-func (dci *DefaultChainIndexer) SetConfirmationTracker(tracker *core.ConfirmationTracker) {
+func (dci *DefaultChainIndexer) SetConfirmationTracker(tracker *consensus.ConfirmationTracker) {
 	dci.mu.Lock()
 	defer dci.mu.Unlock()
 	dci.confirmationTracker = tracker

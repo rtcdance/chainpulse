@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/evm"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
@@ -107,7 +108,7 @@ func (ed *EventDecoder) DecodeEvent(
 
 			for i, input := range nonIndexedInputs {
 				if i < len(values) {
-					formatted := core.FormatDecodedValue(values[i])
+					formatted := evm.FormatDecodedValue(values[i])
 					decoded.NonIndexed[input.Name] = formatted
 					decoded.Parameters[input.Name] = formatted
 				}
@@ -243,7 +244,7 @@ func (ed *EventDecoder) GetEventSignatures(contractName string) (map[string]comm
 // decodeIndexedTopic performs type-aware decoding of an indexed topic
 // using the core decoder's type-aware conversion.
 func decodeIndexedTopic(abiType string, topic common.Hash) any {
-	return core.FormatIndexedTopicValue(abiType, topic)
+	return evm.FormatIndexedTopicValue(abiType, topic)
 }
 
 // hasDynamicType returns true if any of the ABI arguments have a dynamic type

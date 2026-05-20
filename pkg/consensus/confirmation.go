@@ -1,4 +1,4 @@
-package core
+package consensus
 
 import (
 	"context"
@@ -7,6 +7,8 @@ import (
 	"log/slog"
 	"sync"
 	"time"
+
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 // ─── Confirmation Depth Gates ────────────────────────────────────────────────
@@ -64,7 +66,7 @@ type pendingEvent struct {
 	EventHash   string
 	BlockNumber uint64
 	BlockHash   string
-	Status      EventStatus
+	Status      core.EventStatus
 	QueuedAt    time.Time
 }
 
@@ -136,7 +138,7 @@ func (t *ConfirmationTracker) Stop() {
 }
 
 // Track adds an event to the confirmation tracking system.
-// The event starts in EventStatusPending.
+// The event starts in core.EventStatusPending.
 func (t *ConfirmationTracker) Track(eventHash string, blockNumber uint64, blockHash string) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
@@ -149,7 +151,7 @@ func (t *ConfirmationTracker) Track(eventHash string, blockNumber uint64, blockH
 		EventHash:   eventHash,
 		BlockNumber: blockNumber,
 		BlockHash:   blockHash,
-		Status:      EventStatusPending,
+		Status:      core.EventStatusPending,
 		QueuedAt:    time.Now(),
 	}
 }
@@ -157,13 +159,13 @@ func (t *ConfirmationTracker) Track(eventHash string, blockNumber uint64, blockH
 // AdvanceBlock is called when a new block is imported. It checks all pending
 // events and promotes those that have reached the confirmation or finalization
 // depth threshold.
-func (t *ConfirmationTracker) AdvanceBlock(blockNumber uint64) []EventStatus {
+func (t *ConfirmationTracker) AdvanceBlock(blockNumber uint64) []core.EventStatus {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
 	t.currentBlock = blockNumber
 	t.blocksSinceCheck++
-	var transitions []EventStatus
+	var transitions []core.EventStatus
 
 	// Periodically reconcile with on-chain finality
 	if t.finalityChecker != nil && t.blocksSinceCheck >= t.reconcileInterval {
@@ -204,20 +206,20 @@ func (t *ConfirmationTracker) AdvanceBlock(blockNumber uint64) []EventStatus {
 		blocksSince := blockNumber - pe.BlockNumber
 
 		// Pending → Confirmed
-		if pe.Status == EventStatusPending && blocksSince >= t.config.ConfirmBlocks {
-			pe.Status = EventStatusConfirmed
-			transitions = append(transitions, EventStatusConfirmed)
+		if pe.Status == core.EventStatusPending && blocksSince >= t.config.ConfirmBlocks {
+			pe.Status = core.EventStatusConfirmed
+			transitions = append(transitions, core.EventStatusConfirmed)
 			if t.OnConfirmed != nil {
 				t.OnConfirmed(hash)
 			}
 		}
 
 		// Confirmed → Finalized (may happen in the same AdvanceBlock call)
-		if pe.Status == EventStatusConfirmed {
+		if pe.Status == core.EventStatusConfirmed {
 			blocksToFinalize := t.config.BlocksToFinalize()
 			if blocksSince >= blocksToFinalize {
-				pe.Status = EventStatusFinalized
-				transitions = append(transitions, EventStatusFinalized)
+				pe.Status = core.EventStatusFinalized
+				transitions = append(transitions, core.EventStatusFinalized)
 				if t.OnFinalized != nil {
 					t.OnFinalized(hash)
 				}
@@ -248,8 +250,8 @@ func (t *ConfirmationTracker) ReconcileFinality() (uint64, error) {
 	t.mu.Lock()
 	promoted := uint64(0)
 	for hash, pe := range t.pending {
-		if pe.BlockNumber <= finalizedBlock && pe.Status != EventStatusFinalized {
-			pe.Status = EventStatusFinalized
+		if pe.BlockNumber <= finalizedBlock && pe.Status != core.EventStatusFinalized {
+			pe.Status = core.EventStatusFinalized
 			promoted++
 			if t.OnFinalized != nil {
 				t.OnFinalized(hash)
@@ -266,7 +268,7 @@ type pendingEventJSON struct {
 	EventHash   string      `json:"event_hash"`
 	BlockNumber uint64      `json:"block_number"`
 	BlockHash   string      `json:"block_hash"`
-	Status      EventStatus `json:"status"`
+	Status      core.EventStatus `json:"status"`
 	QueuedAt    time.Time   `json:"queued_at"`
 }
 
@@ -319,14 +321,14 @@ func (t *ConfirmationTracker) Load(data []byte) error {
 }
 
 // GetStatus returns the current confirmation status of an event.
-// Returns EventStatusPending if the event is not being tracked.
-func (t *ConfirmationTracker) GetStatus(eventHash string) EventStatus {
+// Returns core.EventStatusPending if the event is not being tracked.
+func (t *ConfirmationTracker) GetStatus(eventHash string) core.EventStatus {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 
 	pe, exists := t.pending[eventHash]
 	if !exists {
-		return EventStatusPending
+		return core.EventStatusPending
 	}
 	return pe.Status
 }
@@ -338,7 +340,7 @@ func (t *ConfirmationTracker) PendingCount() int {
 
 	count := 0
 	for _, pe := range t.pending {
-		if pe.Status == EventStatusPending {
+		if pe.Status == core.EventStatusPending {
 			count++
 		}
 	}
@@ -352,7 +354,7 @@ func (t *ConfirmationTracker) ConfirmedCount() int {
 
 	count := 0
 	for _, pe := range t.pending {
-		if pe.Status == EventStatusConfirmed {
+		if pe.Status == core.EventStatusConfirmed {
 			count++
 		}
 	}
@@ -366,7 +368,7 @@ func (t *ConfirmationTracker) FinalizedCount() int {
 
 	count := 0
 	for _, pe := range t.pending {
-		if pe.Status == EventStatusFinalized {
+		if pe.Status == core.EventStatusFinalized {
 			count++
 		}
 	}
@@ -388,7 +390,7 @@ func (t *ConfirmationTracker) RemoveFinalized() int {
 
 	removed := 0
 	for hash, pe := range t.pending {
-		if pe.Status == EventStatusFinalized {
+		if pe.Status == core.EventStatusFinalized {
 			delete(t.pending, hash)
 			removed++
 		}
@@ -405,7 +407,7 @@ func (t *ConfirmationTracker) MarkReorged(blockHash string) int {
 	reorged := 0
 	for hash, pe := range t.pending {
 		if pe.BlockHash == blockHash {
-			pe.Status = EventStatusReorged
+			pe.Status = core.EventStatusReorged
 			delete(t.pending, hash)
 			reorged++
 		}
@@ -425,7 +427,7 @@ func (t *ConfirmationTracker) BlocksUntilConfirmed(eventHash string) (uint64, er
 		return 0, fmt.Errorf("event %s not tracked", eventHash)
 	}
 
-	if pe.Status != EventStatusPending {
+	if pe.Status != core.EventStatusPending {
 		return 0, nil
 	}
 

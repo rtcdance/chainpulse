@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/rtcdance/chainpulse/pkg/core"
 	"github.com/rtcdance/chainpulse/pkg/core/topics"
+	"github.com/rtcdance/chainpulse/pkg/evm"
 )
 
 const defaultPullerConnectionTimeout = 30 * time.Second
@@ -735,7 +736,7 @@ func (p *BaseDataPullerPlugin) BuildBlockchainEvent(
 		EventName:       eventName,
 		EventSignature:  eventSig,
 		EventData:       eventData,
-		DecodedData:     core.DecodeEvent(eventName, eventTopics, eventData),
+		DecodedData:     evm.DecodeEvent(eventName, eventTopics, eventData),
 		ChainID:         chainID,
 		Network:         network,
 		BlockTimestamp:  blockTimestamp,
