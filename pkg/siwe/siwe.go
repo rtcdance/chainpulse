@@ -10,7 +10,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 
-	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core/crypto"
 )
 
 // SIWEMessage represents an EIP-4361 Sign-In with Ethereum message.
@@ -186,7 +186,7 @@ func (m *SIWEMessage) VerifySIWE(signature []byte, nonceValidator func(string) b
 	}
 
 	messageBytes := []byte(m.BuildMessage())
-	recovered, err := core.RecoverAddress(messageBytes, signature)
+	recovered, err := crypto.RecoverAddress(messageBytes, signature)
 	if err != nil {
 		return fmt.Errorf("recover signer: %w", err)
 	}

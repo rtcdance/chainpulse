@@ -14,6 +14,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 
+	"github.com/rtcdance/chainpulse/pkg/chainid"
 	"github.com/rtcdance/chainpulse/pkg/core"
 	domainquery "github.com/rtcdance/chainpulse/pkg/domain/query"
 	"github.com/rtcdance/chainpulse/pkg/observability"
@@ -398,7 +399,7 @@ func buildChainLookupFilter(chainID int) bson.M {
 	// Build string-only $in filter — chainId is always stored as string
 	// after the ChainID string migration.
 	values := []any{strconv.Itoa(chainID)}
-	if name := core.ResolveChainName(chainID); name != strconv.Itoa(chainID) {
+	if name := chainid.ResolveChainName(chainID); name != strconv.Itoa(chainID) {
 		values = append(values, name)
 	}
 	return bson.M{

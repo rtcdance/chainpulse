@@ -9,6 +9,8 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core/batch"
+	
 	"github.com/rtcdance/chainpulse/pkg/services/decoder"
 )
 
@@ -131,7 +133,7 @@ func (gci *GenericContractIndexer) IndexEvents(
 		return fmt.Errorf("contract ABI not registered: %s", contractName)
 	}
 
-	return core.BatchIndex(ctx, events, func(ctx context.Context, event *core.BlockchainEvent) error {
+	return batch.Index(ctx, events, func(ctx context.Context, event *core.BlockchainEvent) error {
 		return gci.indexEvent(ctx, contractName, &contractABI, event)
 	})
 }

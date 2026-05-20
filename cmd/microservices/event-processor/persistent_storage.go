@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/rtcdance/chainpulse/pkg/chainid"
 	"github.com/rtcdance/chainpulse/pkg/core"
 	"github.com/rtcdance/chainpulse/pkg/services/query"
 )
@@ -61,7 +62,7 @@ func (s *persistentEventProcessorStorage) WriteEvent(ctx context.Context, event 
 
 	metadata := &query.EventMetadata{
 		EventID:          event.ID,
-		ChainID:          core.ResolveChainID(event.ChainID),
+		ChainID:          chainid.ResolveChainID(event.ChainID),
 		BlockNumber:      int64(event.BlockNumber),
 		TransactionHash:  event.TransactionHash.Hex(),
 		LogIndex:         int64(event.LogIndex),
@@ -121,7 +122,7 @@ func (s *persistentEventProcessorStorage) WriteBatch(ctx context.Context, events
 		}
 		metadata := &query.EventMetadata{
 			EventID:          event.ID,
-			ChainID:          core.ResolveChainID(event.ChainID),
+			ChainID:          chainid.ResolveChainID(event.ChainID),
 			BlockNumber:      int64(event.BlockNumber),
 			TransactionHash:  event.TransactionHash.Hex(),
 			LogIndex:         int64(event.LogIndex),

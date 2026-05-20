@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/chainid"
 	"github.com/rtcdance/chainpulse/pkg/core/topics"
 	pluginapi "github.com/rtcdance/chainpulse/pkg/plugins/api"
 	"github.com/rtcdance/chainpulse/pkg/plugins/pullers"
@@ -116,9 +117,9 @@ func newMonolithicPullerRuntime(
 		pullerConfig.BlockchainNodeURL = nodeURLs[idx]
 		logger.Debug("creating puller", "chain", chainID, "nodeURL", nodeURLs[idx])
 		var puller monolithicPollingPuller
-		if core.IsCosmosChain(chainID) {
+		if chainid.IsCosmosChain(chainID) {
 			puller = pullers.NewCosmosPuller(pullerConfig, logger, metrics)
-		} else if core.IsSolanaChain(chainID) {
+		} else if chainid.IsSolanaChain(chainID) {
 			puller = pullers.NewSolanaPuller(pullerConfig, logger, metrics)
 		} else {
 			puller = pullers.NewHTTPSJSONRPCPuller(pullerConfig, logger, metrics, eventBus)

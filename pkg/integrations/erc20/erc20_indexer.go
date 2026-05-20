@@ -10,6 +10,8 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core/batch"
+	
 	"github.com/rtcdance/chainpulse/pkg/services/decoder"
 )
 
@@ -100,7 +102,7 @@ func (ei *ERC20Indexer) IndexTransfers(
 
 	ei.logger.Debug("indexing transfer events", core.LogKeyCount, len(events))
 
-	return core.BatchIndex(ctx, events, ei.indexTransferEvent)
+	return batch.Index(ctx, events, ei.indexTransferEvent)
 }
 
 // indexTransferEvent indexes a single transfer event

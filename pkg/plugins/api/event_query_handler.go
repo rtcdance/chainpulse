@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/rtcdance/chainpulse/pkg/chainid"
+	"github.com/rtcdance/chainpulse/pkg/chainid"
 	"github.com/rtcdance/chainpulse/pkg/core"
 	"github.com/rtcdance/chainpulse/pkg/core/eventsig"
 	domainquery "github.com/rtcdance/chainpulse/pkg/domain/query"
@@ -321,7 +322,7 @@ func (h *EventQueryHandler) HandleGetEventsByChain(w http.ResponseWriter, r *htt
 			if stringChainPath {
 				return map[string]any{"chainId": chainIDStr}
 			}
-			chainName := core.ResolveChainName(chainID)
+			chainName := chainid.ResolveChainName(chainID)
 			return map[string]any{
 				"chainId": map[string]any{
 					"$in": []any{chainID, strconv.Itoa(chainID), chainName},
@@ -637,7 +638,7 @@ func (h *EventQueryHandler) applyFilterToResponses(fp *filterParams, responses [
 		// Chain filter
 		if fp.Chain != "" {
 			resolvedID := chainid.ResolveChainID(fp.Chain)
-			resolvedName := core.ResolveChainName(resolvedID)
+			resolvedName := chainid.ResolveChainName(resolvedID)
 			// Match against chainId string: could be "arbitrum", "42161", etc.
 			if e.ChainID != fp.Chain && strconv.Itoa(resolvedID) != e.ChainID && resolvedName != e.ChainID {
 				continue
@@ -716,7 +717,7 @@ func (h *EventQueryHandler) buildMongoFilter(fp *filterParams, baseFilter map[st
 			filter["chainId"] = fp.Chain
 		} else {
 			// Numeric chain ID — match integer, string form, and canonical name
-			chainName := core.ResolveChainName(chainID)
+			chainName := chainid.ResolveChainName(chainID)
 			filter["chainId"] = map[string]any{
 				"$in": []any{chainID, strconv.Itoa(chainID), chainName},
 			}

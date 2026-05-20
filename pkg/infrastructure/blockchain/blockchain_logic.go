@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/rtcdance/chainpulse/pkg/chainid"
 	"github.com/rtcdance/chainpulse/pkg/core"
 	"github.com/rtcdance/chainpulse/pkg/services/query"
 )
@@ -338,7 +339,7 @@ func NewEVMValidator() *EVMValidator {
 
 // Validate validates an EVM event
 func (ev *EVMValidator) Validate(ctx context.Context, event *core.BlockchainEvent) error {
-	if core.GetChainType(event.ChainID) != "EVM" {
+	if chainid.GetChainType(event.ChainID) != "EVM" {
 		return fmt.Errorf("invalid chain ID %q for EVM validator (expected EVM chain)", event.ChainID)
 	}
 
@@ -368,7 +369,7 @@ func NewCosmosValidator() *CosmosValidator {
 
 // Validate validates a Cosmos event
 func (cv *CosmosValidator) Validate(ctx context.Context, event *core.BlockchainEvent) error {
-	if core.GetChainType(event.ChainID) != "Cosmos" {
+	if chainid.GetChainType(event.ChainID) != "Cosmos" {
 		return fmt.Errorf("invalid chain ID %q for Cosmos validator", event.ChainID)
 	}
 
@@ -394,7 +395,7 @@ func NewSolanaValidator() *SolanaValidator {
 
 // Validate validates a Solana event
 func (sv *SolanaValidator) Validate(ctx context.Context, event *core.BlockchainEvent) error {
-	if core.GetChainType(event.ChainID) != "Solana" {
+	if chainid.GetChainType(event.ChainID) != "Solana" {
 		return fmt.Errorf("invalid chain ID %q for Solana validator (expected Solana chain)", event.ChainID)
 	}
 
