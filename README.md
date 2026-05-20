@@ -40,11 +40,18 @@ the Web3 → Go event flow without any infrastructure.
 cp docker/.env.example docker/.env
 # Edit docker/.env — set POSTGRES_PASSWORD, JWT_SECRET, etc.
 
-# 2. Launch the full stack
+# 2. Launch the full stack (backend + 7 blockchains)
 docker compose -f docker/docker-compose.yml up -d
 
 # 3. Verify it's running
 curl http://localhost:8080/health
+```
+
+### Launch with Dashboard UI
+
+```bash
+docker compose -f docker/docker-compose.yml -f docker/docker-compose.with-ui.yml up -d
+# Open http://localhost:3000 to see the ChainPulse dashboard
 ```
 
 ### Prerequisites
