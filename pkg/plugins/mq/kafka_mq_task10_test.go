@@ -297,8 +297,8 @@ func TestConsumerGroupStatus(t *testing.T) {
 	)
 
 	// Initialize and start plugin
-	_ = plugin.Initialize()
-	_ = plugin.Start()
+	_ = plugin.Initialize(context.Background(), core.Config{})
+	_ = plugin.Start(context.Background())
 
 	// Get status
 	status := plugin.GetConsumerGroupStatus()
@@ -367,8 +367,8 @@ func TestRebalanceConsumerGroup(t *testing.T) {
 	)
 
 	// Initialize and start plugin
-	_ = plugin.Initialize()
-	_ = plugin.Start()
+	_ = plugin.Initialize(context.Background(), core.Config{})
+	_ = plugin.Start(context.Background())
 
 	// Rebalance should succeed
 	err := plugin.RebalanceConsumerGroup(context.Background())
@@ -377,7 +377,7 @@ func TestRebalanceConsumerGroup(t *testing.T) {
 	}
 
 	// Rebalance when not running should fail
-	_ = plugin.Stop() // nolint:errcheck
+	_ = plugin.Stop(context.Background()) // nolint:errcheck
 	err = plugin.RebalanceConsumerGroup(context.Background())
 	if err == nil {
 		t.Errorf("expected error when rebalancing stopped plugin, got nil")
@@ -518,8 +518,8 @@ func TestKafkaSpecificFeaturesIntegration(t *testing.T) {
 	)
 
 	// Initialize and start
-	_ = plugin.Initialize()
-	_ = plugin.Start()
+	_ = plugin.Initialize(context.Background(), core.Config{})
+	_ = plugin.Start(context.Background())
 
 	// Simulate broker activity
 	plugin.RecordBrokerFailure()
@@ -552,5 +552,5 @@ func TestKafkaSpecificFeaturesIntegration(t *testing.T) {
 	}
 
 	// Cleanup
-	_ = plugin.Stop() // nolint:errcheck
+	_ = plugin.Stop(context.Background()) // nolint:errcheck
 }

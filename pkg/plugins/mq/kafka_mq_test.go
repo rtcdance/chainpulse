@@ -53,7 +53,7 @@ func TestKafkaMQPluginInitialization(t *testing.T) {
 
 	plugin := NewKafkaMQPlugin("kafka", "1.0.0", config, logger, metrics, eventBus, brokers, consumerGroup)
 
-	if err := plugin.Initialize(); err != nil {
+	if err := plugin.Initialize(context.Background(), *config); err != nil {
 		t.Fatalf("failed to initialize: %v", err)
 	}
 
@@ -62,7 +62,7 @@ func TestKafkaMQPluginInitialization(t *testing.T) {
 	}
 
 	// Try to initialize again (should fail)
-	if err := plugin.Initialize(); err == nil {
+	if err := plugin.Initialize(context.Background(), *config); err == nil {
 		t.Fatal("expected error when initializing twice")
 	}
 }
@@ -82,11 +82,11 @@ func TestKafkaMQPluginLifecycle(t *testing.T) {
 
 	plugin := NewKafkaMQPlugin("kafka", "1.0.0", config, logger, metrics, eventBus, brokers, consumerGroup)
 
-	if err := plugin.Initialize(); err != nil {
+	if err := plugin.Initialize(context.Background(), *config); err != nil {
 		t.Fatalf("failed to initialize: %v", err)
 	}
 
-	if err := plugin.Start(); err != nil {
+	if err := plugin.Start(context.Background()); err != nil {
 		t.Fatalf("failed to start: %v", err)
 	}
 
@@ -94,7 +94,7 @@ func TestKafkaMQPluginLifecycle(t *testing.T) {
 		t.Fatal("expected plugin to be running")
 	}
 
-	if err := plugin.Stop(); err != nil {
+	if err := plugin.Stop(context.Background()); err != nil {
 		t.Fatalf("failed to stop: %v", err)
 	}
 
@@ -118,11 +118,11 @@ func TestKafkaMQPluginPublishMessage(t *testing.T) {
 
 	plugin := NewKafkaMQPlugin("kafka", "1.0.0", config, logger, metrics, eventBus, brokers, consumerGroup)
 
-	if err := plugin.Initialize(); err != nil {
+	if err := plugin.Initialize(context.Background(), *config); err != nil {
 		t.Fatalf("failed to initialize: %v", err)
 	}
 
-	if err := plugin.Start(); err != nil {
+	if err := plugin.Start(context.Background()); err != nil {
 		t.Fatalf("failed to start: %v", err)
 	}
 
@@ -159,11 +159,11 @@ func TestKafkaMQPluginAcknowledgeMessage(t *testing.T) {
 
 	plugin := NewKafkaMQPlugin("kafka", "1.0.0", config, logger, metrics, eventBus, brokers, consumerGroup)
 
-	if err := plugin.Initialize(); err != nil {
+	if err := plugin.Initialize(context.Background(), *config); err != nil {
 		t.Fatalf("failed to initialize: %v", err)
 	}
 
-	if err := plugin.Start(); err != nil {
+	if err := plugin.Start(context.Background()); err != nil {
 		t.Fatalf("failed to start: %v", err)
 	}
 
@@ -197,11 +197,11 @@ func TestKafkaMQPluginDeadLetterQueue(t *testing.T) {
 
 	plugin := NewKafkaMQPlugin("kafka", "1.0.0", config, logger, metrics, eventBus, brokers, consumerGroup)
 
-	if err := plugin.Initialize(); err != nil {
+	if err := plugin.Initialize(context.Background(), *config); err != nil {
 		t.Fatalf("failed to initialize: %v", err)
 	}
 
-	if err := plugin.Start(); err != nil {
+	if err := plugin.Start(context.Background()); err != nil {
 		t.Fatalf("failed to start: %v", err)
 	}
 
@@ -242,11 +242,11 @@ func TestKafkaMQPluginRetryMessage(t *testing.T) {
 
 	plugin := NewKafkaMQPlugin("kafka", "1.0.0", config, logger, metrics, eventBus, brokers, consumerGroup)
 
-	if err := plugin.Initialize(); err != nil {
+	if err := plugin.Initialize(context.Background(), *config); err != nil {
 		t.Fatalf("failed to initialize: %v", err)
 	}
 
-	if err := plugin.Start(); err != nil {
+	if err := plugin.Start(context.Background()); err != nil {
 		t.Fatalf("failed to start: %v", err)
 	}
 
@@ -267,7 +267,7 @@ func TestKafkaMQPluginRetryMessage(t *testing.T) {
 
 	// RetryMessage increments internally, so we just verify no error was returned
 	// The actual retry count is managed internally by the plugin
-	if err := plugin.Stop(); err != nil {
+	if err := plugin.Stop(context.Background()); err != nil {
 		t.Fatalf("failed to stop: %v", err)
 	}
 }
@@ -287,7 +287,7 @@ func TestKafkaMQPluginGetStats(t *testing.T) {
 
 	plugin := NewKafkaMQPlugin("kafka", "1.0.0", config, logger, metrics, eventBus, brokers, consumerGroup)
 
-	if err := plugin.Initialize(); err != nil {
+	if err := plugin.Initialize(context.Background(), *config); err != nil {
 		t.Fatalf("failed to initialize: %v", err)
 	}
 
@@ -386,11 +386,11 @@ func TestKafkaMQPluginConcurrentOperations(t *testing.T) {
 
 	plugin := NewKafkaMQPlugin("kafka", "1.0.0", config, logger, metrics, eventBus, brokers, consumerGroup)
 
-	if err := plugin.Initialize(); err != nil {
+	if err := plugin.Initialize(context.Background(), *config); err != nil {
 		t.Fatalf("failed to initialize: %v", err)
 	}
 
-	if err := plugin.Start(); err != nil {
+	if err := plugin.Start(context.Background()); err != nil {
 		t.Fatalf("failed to start: %v", err)
 	}
 
@@ -441,32 +441,16 @@ func TestKafkaMQPluginHealth(t *testing.T) {
 
 	plugin := NewKafkaMQPlugin("kafka", "1.0.0", config, logger, metrics, eventBus, brokers, consumerGroup)
 
-	if err := plugin.Initialize(); err != nil {
+	if err := plugin.Initialize(context.Background(), *config); err != nil {
 		t.Fatalf("failed to initialize: %v", err)
 	}
 	plugin.UpdateConsumerGroupMetric("lag", 25)
 	plugin.SetLastOffset("raw-events", 144)
 
-	health := plugin.Health()
+	health := plugin.Health(context.Background())
 
-	if health == nil {
-		t.Fatal("expected health status")
-	}
-
-	if health.Status != "healthy" {
-		t.Errorf("expected healthy status, got %s", health.Status)
-	}
-	if health.Details["consumer_group"] != consumerGroup {
-		t.Errorf("expected consumer_group %s, got %v", consumerGroup, health.Details["consumer_group"])
-	}
-	if health.Details["active_consumers"] != 0 {
-		t.Errorf("expected active_consumers 0, got %v", health.Details["active_consumers"])
-	}
-	if health.Details["consumer_group_lag"] != int64(25) {
-		t.Errorf("expected consumer_group_lag 25, got %v", health.Details["consumer_group_lag"])
-	}
-	if health.Details["max_tracked_offset"] != int64(144) {
-		t.Errorf("expected max_tracked_offset 144, got %v", health.Details["max_tracked_offset"])
+	if health != nil {
+		t.Fatalf("expected healthy plugin, got error: %v", health)
 	}
 }
 
@@ -511,11 +495,11 @@ func TestKafkaMQPluginMultipleTopics(t *testing.T) {
 
 	plugin := NewKafkaMQPlugin("kafka", "1.0.0", config, logger, metrics, eventBus, brokers, consumerGroup)
 
-	if err := plugin.Initialize(); err != nil {
+	if err := plugin.Initialize(context.Background(), *config); err != nil {
 		t.Fatalf("failed to initialize: %v", err)
 	}
 
-	if err := plugin.Start(); err != nil {
+	if err := plugin.Start(context.Background()); err != nil {
 		t.Fatalf("failed to start: %v", err)
 	}
 
@@ -594,11 +578,11 @@ func TestKafkaMQPluginErrorHandling(t *testing.T) {
 
 	plugin := NewKafkaMQPlugin("kafka", "1.0.0", config, logger, metrics, eventBus, brokers, consumerGroup)
 
-	if err := plugin.Initialize(); err != nil {
+	if err := plugin.Initialize(context.Background(), *config); err != nil {
 		t.Fatalf("failed to initialize: %v", err)
 	}
 
-	if err := plugin.Start(); err != nil {
+	if err := plugin.Start(context.Background()); err != nil {
 		t.Fatalf("failed to start: %v", err)
 	}
 
@@ -676,7 +660,7 @@ func TestKafkaMQPluginNotInitializedError(t *testing.T) {
 	plugin := NewKafkaMQPlugin("kafka", "1.0.0", config, logger, metrics, eventBus, brokers, consumerGroup)
 
 	// Try to start without initializing
-	err := plugin.Start()
+	err := plugin.Start(context.Background())
 	if err == nil {
 		t.Fatal("expected error when starting without initializing")
 	}
@@ -697,16 +681,16 @@ func TestKafkaMQPluginDoubleStart(t *testing.T) {
 
 	plugin := NewKafkaMQPlugin("kafka", "1.0.0", config, logger, metrics, eventBus, brokers, consumerGroup)
 
-	if err := plugin.Initialize(); err != nil {
+	if err := plugin.Initialize(context.Background(), *config); err != nil {
 		t.Fatalf("failed to initialize: %v", err)
 	}
 
-	if err := plugin.Start(); err != nil {
+	if err := plugin.Start(context.Background()); err != nil {
 		t.Fatalf("failed to start: %v", err)
 	}
 
 	// Try to start again
-	err := plugin.Start()
+	err := plugin.Start(context.Background())
 	if err == nil {
 		t.Fatal("expected error when starting twice")
 	}
@@ -727,12 +711,12 @@ func TestKafkaMQPluginStopWithoutStart(t *testing.T) {
 
 	plugin := NewKafkaMQPlugin("kafka", "1.0.0", config, logger, metrics, eventBus, brokers, consumerGroup)
 
-	if err := plugin.Initialize(); err != nil {
+	if err := plugin.Initialize(context.Background(), *config); err != nil {
 		t.Fatalf("failed to initialize: %v", err)
 	}
 
 	// Stop without starting should not error
-	err := plugin.Stop()
+	err := plugin.Stop(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error when stopping without starting: %v", err)
 	}
@@ -753,11 +737,11 @@ func TestKafkaMQPluginMaxRetriesExceeded(t *testing.T) {
 
 	plugin := NewKafkaMQPlugin("kafka", "1.0.0", config, logger, metrics, eventBus, brokers, consumerGroup)
 
-	if err := plugin.Initialize(); err != nil {
+	if err := plugin.Initialize(context.Background(), *config); err != nil {
 		t.Fatalf("failed to initialize: %v", err)
 	}
 
-	if err := plugin.Start(); err != nil {
+	if err := plugin.Start(context.Background()); err != nil {
 		t.Fatalf("failed to start: %v", err)
 	}
 
@@ -838,17 +822,18 @@ func TestKafkaMQPluginHealthDegraded(t *testing.T) {
 
 	plugin := NewKafkaMQPlugin("kafka", "1.0.0", config, logger, metrics, eventBus, brokers, consumerGroup)
 
-	if err := plugin.Initialize(); err != nil {
+	if err := plugin.Initialize(context.Background(), *config); err != nil {
 		t.Fatalf("failed to initialize: %v", err)
 	}
 
 	// Record an error
 	plugin.RecordError(fmt.Errorf("test error"))
 
-	health := plugin.Health()
+	health := plugin.Health(context.Background())
 
-	if health.Status != "degraded" {
-		t.Errorf("expected degraded status, got %s", health.Status)
+	// Health() should return an error since errors were recorded
+	if health == nil {
+		t.Error("expected degraded health (non-nil error)")
 	}
 }
 
@@ -901,7 +886,7 @@ func TestKafkaMQPluginStatsStructure(t *testing.T) {
 
 	plugin := NewKafkaMQPlugin("kafka", "1.0.0", config, logger, metrics, eventBus, brokers, consumerGroup)
 
-	if err := plugin.Initialize(); err != nil {
+	if err := plugin.Initialize(context.Background(), *config); err != nil {
 		t.Fatalf("failed to initialize: %v", err)
 	}
 

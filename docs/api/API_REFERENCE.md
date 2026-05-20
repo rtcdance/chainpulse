@@ -35,7 +35,7 @@ Returns the health status of the service.
 ### Query Events
 
 ```http
-GET /api/v1/events?contract=0x...&fromBlock=1000&toBlock=2000&limit=100
+GET /events?contract=0x...&fromBlock=1000&toBlock=2000&limit=100
 ```
 
 **Query Parameters:**
@@ -72,7 +72,7 @@ GET /api/v1/events?contract=0x...&fromBlock=1000&toBlock=2000&limit=100
 ### Get Event by ID
 
 ```http
-GET /api/v1/events/{id}
+GET /events/{id}
 ```
 
 **Response:**

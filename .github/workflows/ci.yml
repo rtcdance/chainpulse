@@ -22,6 +22,13 @@ jobs:
           go-version: '1.25'
           cache: true
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
       - name: Format check
         run: |
           output=$(gofmt -l .)
@@ -59,6 +66,12 @@ jobs:
         run: |
           go install golang.org/x/vuln/cmd/govulncheck@latest
           govulncheck ./...
+
+      - name: Frontend build
+        run: |
+          cd frontend
+          npm ci
+          npm run build
 
       - name: Docker build (all targets)
         run: |

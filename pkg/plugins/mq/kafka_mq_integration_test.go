@@ -26,14 +26,14 @@ func TestKafkaIntegrationPublishAndConsume(t *testing.T) {
 
 	plugin := NewKafkaMQPlugin("kafka", "1.0.0", config, logger, metrics, eventBus, brokers, consumerGroup)
 
-	if err := plugin.Initialize(); err != nil {
+	if err := plugin.Initialize(context.Background(), *config); err != nil {
 		t.Fatalf("failed to initialize: %v", err)
 	}
 
-	if err := plugin.Start(); err != nil {
+	if err := plugin.Start(context.Background()); err != nil {
 		t.Fatalf("failed to start: %v", err)
 	}
-	defer func() { _ = plugin.Stop() }()
+	defer func() { _ = plugin.Stop(context.Background()) }()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -78,14 +78,14 @@ func TestKafkaIntegrationBatchPublish(t *testing.T) {
 
 	plugin := NewKafkaMQPlugin("kafka", "1.0.0", config, logger, metrics, eventBus, brokers, consumerGroup)
 
-	if err := plugin.Initialize(); err != nil {
+	if err := plugin.Initialize(context.Background(), *config); err != nil {
 		t.Fatalf("failed to initialize: %v", err)
 	}
 
-	if err := plugin.Start(); err != nil {
+	if err := plugin.Start(context.Background()); err != nil {
 		t.Fatalf("failed to start: %v", err)
 	}
-	defer func() { _ = plugin.Stop() }()
+	defer func() { _ = plugin.Stop(context.Background()) }()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -132,25 +132,25 @@ func TestKafkaIntegrationErrorHandling(t *testing.T) {
 
 	plugin := NewKafkaMQPlugin("kafka", "1.0.0", config, logger, metrics, eventBus, brokers, consumerGroup)
 
-	if err := plugin.Initialize(); err != nil {
+	if err := plugin.Initialize(context.Background(), *config); err != nil {
 		t.Fatalf("failed to initialize: %v", err)
 	}
 
-	if err := plugin.Start(); err != nil {
+	if err := plugin.Start(context.Background()); err != nil {
 		t.Fatalf("failed to start: %v", err)
 	}
-	defer func() { _ = plugin.Stop() }()
+	defer func() { _ = plugin.Stop(context.Background()) }()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	// Try to publish with invalid broker (should fail)
 	invalidPlugin := NewKafkaMQPlugin("kafka", "1.0.0", config, logger, metrics, eventBus, []string{"invalid:9999"}, consumerGroup)
-	if err := invalidPlugin.Initialize(); err != nil {
+	if err := invalidPlugin.Initialize(context.Background(), *config); err != nil {
 		t.Fatalf("failed to initialize: %v", err)
 	}
 
-	if err := invalidPlugin.Start(); err != nil {
+	if err := invalidPlugin.Start(context.Background()); err != nil {
 		t.Fatalf("failed to start: %v", err)
 	}
 
@@ -166,7 +166,7 @@ func TestKafkaIntegrationErrorHandling(t *testing.T) {
 		t.Log("expected error when publishing to invalid broker")
 	}
 
-	_ = invalidPlugin.Stop() // nolint:errcheck
+	_ = invalidPlugin.Stop(context.Background()) // nolint:errcheck
 }
 
 // TestKafkaIntegrationDeadLetterQueue tests dead letter queue
@@ -186,14 +186,14 @@ func TestKafkaIntegrationDeadLetterQueue(t *testing.T) {
 
 	plugin := NewKafkaMQPlugin("kafka", "1.0.0", config, logger, metrics, eventBus, brokers, consumerGroup)
 
-	if err := plugin.Initialize(); err != nil {
+	if err := plugin.Initialize(context.Background(), *config); err != nil {
 		t.Fatalf("failed to initialize: %v", err)
 	}
 
-	if err := plugin.Start(); err != nil {
+	if err := plugin.Start(context.Background()); err != nil {
 		t.Fatalf("failed to start: %v", err)
 	}
-	defer func() { _ = plugin.Stop() }()
+	defer func() { _ = plugin.Stop(context.Background()) }()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -236,14 +236,14 @@ func TestKafkaIntegrationMultipleConsumers(t *testing.T) {
 
 	plugin := NewKafkaMQPlugin("kafka", "1.0.0", config, logger, metrics, eventBus, brokers, consumerGroup)
 
-	if err := plugin.Initialize(); err != nil {
+	if err := plugin.Initialize(context.Background(), *config); err != nil {
 		t.Fatalf("failed to initialize: %v", err)
 	}
 
-	if err := plugin.Start(); err != nil {
+	if err := plugin.Start(context.Background()); err != nil {
 		t.Fatalf("failed to start: %v", err)
 	}
-	defer func() { _ = plugin.Stop() }()
+	defer func() { _ = plugin.Stop(context.Background()) }()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -284,7 +284,7 @@ func TestKafkaIntegrationOffsetTracking(t *testing.T) {
 
 	plugin := NewKafkaMQPlugin("kafka", "1.0.0", config, logger, metrics, eventBus, brokers, consumerGroup)
 
-	if err := plugin.Initialize(); err != nil {
+	if err := plugin.Initialize(context.Background(), *config); err != nil {
 		t.Fatalf("failed to initialize: %v", err)
 	}
 
@@ -320,22 +320,18 @@ func TestKafkaIntegrationHealthCheck(t *testing.T) {
 
 	plugin := NewKafkaMQPlugin("kafka", "1.0.0", config, logger, metrics, eventBus, brokers, consumerGroup)
 
-	if err := plugin.Initialize(); err != nil {
+	if err := plugin.Initialize(context.Background(), *config); err != nil {
 		t.Fatalf("failed to initialize: %v", err)
 	}
 
-	if err := plugin.Start(); err != nil {
+	if err := plugin.Start(context.Background()); err != nil {
 		t.Fatalf("failed to start: %v", err)
 	}
-	defer func() { _ = plugin.Stop() }()
+	defer func() { _ = plugin.Stop(context.Background()) }()
 
-	health := plugin.Health()
-	if health == nil {
-		t.Fatal("expected health status")
-	}
-
-	if health.Status != "healthy" {
-		t.Errorf("expected healthy status, got %s", health.Status)
+	health := plugin.Health(context.Background())
+	if health != nil {
+		t.Fatalf("expected healthy, got: %v", health)
 	}
 
 	t.Log("Kafka health check test passed")
@@ -358,14 +354,14 @@ func TestKafkaIntegrationPerformance(t *testing.T) {
 
 	plugin := NewKafkaMQPlugin("kafka", "1.0.0", config, logger, metrics, eventBus, brokers, consumerGroup)
 
-	if err := plugin.Initialize(); err != nil {
+	if err := plugin.Initialize(context.Background(), *config); err != nil {
 		t.Fatalf("failed to initialize: %v", err)
 	}
 
-	if err := plugin.Start(); err != nil {
+	if err := plugin.Start(context.Background()); err != nil {
 		t.Fatalf("failed to start: %v", err)
 	}
-	defer func() { _ = plugin.Stop() }()
+	defer func() { _ = plugin.Stop(context.Background()) }()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()

@@ -479,7 +479,7 @@ func (p *KafkaMQPlugin) ConsumeMessages(ctx context.Context, topic string, handl
 		Topic:          topic,
 		GroupID:        p.consumerGroup,
 		StartOffset:    kafka.LastOffset,
-		CommitInterval: 0, // manual commit after handler success (at-least-once)
+		CommitInterval: p.getCommitInterval(),
 		MaxBytes:       int(p.getMaxBytes()),
 	})
 
@@ -593,7 +593,7 @@ func (p *KafkaMQPlugin) ConsumeMessages(ctx context.Context, topic string, handl
 						Topic:          topic,
 						GroupID:        p.consumerGroup,
 						StartOffset:    kafka.LastOffset,
-CommitInterval: 0, // manual commit after handler success (at-least-once)
+						CommitInterval: p.getCommitInterval(),
 						MaxBytes:       int(p.getMaxBytes()),
 					})
 					p.mu.Lock()
@@ -668,14 +668,6 @@ CommitInterval: 0, // manual commit after handler success (at-least-once)
 			p.offsetTrackingMutex.Lock()
 			p.offsetTracking[topic] = msg.Offset
 			p.offsetTrackingMutex.Unlock()
-
-			// Manually commit the offset so that a crash after successful
-			// processing doesn't cause re-delivery. This provides at-least-once
-			// semantics; duplicates are handled by the idempotency layer.
-			if commitErr := reader.CommitMessages(context.Background(), msg); commitErr != nil {
-				p.logger.Error("failed to commit Kafka offset",
-					"topic", topic, "offset", msg.Offset, "error", commitErr)
-			}
 
 			// Record successful consumption
 			p.mu.Lock()

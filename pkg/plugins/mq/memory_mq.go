@@ -14,6 +14,7 @@ const subscriberTTL = 5 * time.Minute
 type subscriberInfo struct {
 	ch         chan []byte
 	lastActive atomic.Int64 // UnixNano timestamp, race-safe
+	closeOnce  sync.Once    // guards ch close
 }
 
 type MemoryMQ struct {
@@ -64,7 +65,9 @@ func (m *MemoryMQ) Stop() error {
 
 	for _, subscribers := range m.topics {
 		for _, sub := range subscribers {
-			close(sub.ch)
+			sub.closeOnce.Do(func() {
+				close(sub.ch)
+			})
 		}
 	}
 
@@ -123,6 +126,7 @@ func (m *MemoryMQ) Subscribe(ctx context.Context, topic string, handler func([]b
 	m.wg.Add(1)
 	go func() {
 		defer m.wg.Done()
+		defer m.removeSubscriber(topic, info)
 		for {
 			select {
 			case msg, ok := <-info.ch:
@@ -138,6 +142,29 @@ func (m *MemoryMQ) Subscribe(ctx context.Context, topic string, handler func([]b
 	}()
 
 	return nil
+}
+
+// removeSubscriber safely removes a subscriber from the topic list when its
+// goroutine exits. Channels are closed via sync.Once to prevent double-close
+// panics when Stop() also closes them.
+func (m *MemoryMQ) removeSubscriber(topic string, sub *subscriberInfo) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	sub.closeOnce.Do(func() {
+		close(sub.ch)
+	})
+
+	subs := m.topics[topic]
+	for i, s := range subs {
+		if s == sub {
+			m.topics[topic] = append(subs[:i], subs[i+1:]...)
+			break
+		}
+	}
+	if len(m.topics[topic]) == 0 {
+		delete(m.topics, topic)
+	}
 }
 
 // evictStaleSubscribers periodically removes subscribers that haven't been active
@@ -165,7 +192,9 @@ func (m *MemoryMQ) evictOnce() {
 		var alive []*subscriberInfo
 		for _, sub := range subscribers {
 			if now.Sub(time.Unix(0, sub.lastActive.Load())) > subscriberTTL {
-				close(sub.ch)
+				sub.closeOnce.Do(func() {
+					close(sub.ch)
+				})
 			} else {
 				alive = append(alive, sub)
 			}

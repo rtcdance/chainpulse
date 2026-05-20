@@ -24,14 +24,14 @@ func TestKafkaPropertyMessageIDUniqueness(t *testing.T) {
 
 	plugin := NewKafkaMQPlugin("kafka", "1.0.0", config, logger, metrics, eventBus, brokers, consumerGroup)
 
-	if err := plugin.Initialize(); err != nil {
+	if err := plugin.Initialize(context.Background(), *config); err != nil {
 		t.Fatalf("failed to initialize: %v", err)
 	}
 
-	if err := plugin.Start(); err != nil {
+	if err := plugin.Start(context.Background()); err != nil {
 		t.Fatalf("failed to start: %v", err)
 	}
-	defer func() { _ = plugin.Stop() }()
+	defer func() { _ = plugin.Stop(context.Background()) }()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -79,7 +79,7 @@ func TestKafkaPropertyOffsetMonotonicity(t *testing.T) {
 
 	plugin := NewKafkaMQPlugin("kafka", "1.0.0", config, logger, metrics, eventBus, brokers, consumerGroup)
 
-	if err := plugin.Initialize(); err != nil {
+	if err := plugin.Initialize(context.Background(), *config); err != nil {
 		t.Fatalf("failed to initialize: %v", err)
 	}
 
@@ -196,36 +196,33 @@ func TestKafkaPropertyHealthStatusConsistency(t *testing.T) {
 
 	plugin := NewKafkaMQPlugin("kafka", "1.0.0", config, logger, metrics, eventBus, brokers, consumerGroup)
 
-	if err := plugin.Initialize(); err != nil {
+	if err := plugin.Initialize(context.Background(), *config); err != nil {
 		t.Fatalf("failed to initialize: %v", err)
 	}
 
 	// Check health before starting
-	health := plugin.Health()
-	if health.Status != "healthy" {
-		t.Errorf("expected healthy status before start, got %s", health.Status)
+	health := plugin.Health(context.Background())
+	if health != nil {
+		t.Errorf("expected healthy before start, got: %v", health)
 	}
 
-	if err := plugin.Start(); err != nil {
+	if err := plugin.Start(context.Background()); err != nil {
 		t.Fatalf("failed to start: %v", err)
 	}
 
 	// Check health after starting
-	health = plugin.Health()
-	if health.Status != "healthy" {
-		t.Errorf("expected healthy status after start, got %s", health.Status)
+	health = plugin.Health(context.Background())
+	if health != nil {
+		t.Errorf("expected healthy after start, got: %v", health)
 	}
 
-	if err := plugin.Stop(); err != nil {
+	if err := plugin.Stop(context.Background()); err != nil {
 		t.Fatalf("failed to stop: %v", err)
 	}
 
 	// Check health after stopping
-	health = plugin.Health()
-	if health.Status == "healthy" && !plugin.IsRunning() {
-		// Health status should reflect running state
-		t.Logf("health status: %s, is_running: %v", health.Status, plugin.IsRunning())
-	}
+	health = plugin.Health(context.Background())
+	t.Logf("health after stop: %v, is_running: %v", health, plugin.IsRunning())
 }
 
 // TestKafkaPropertyStatsAccuracy tests stats accuracy
@@ -243,14 +240,14 @@ func TestKafkaPropertyStatsAccuracy(t *testing.T) {
 
 	plugin := NewKafkaMQPlugin("kafka", "1.0.0", config, logger, metrics, eventBus, brokers, consumerGroup)
 
-	if err := plugin.Initialize(); err != nil {
+	if err := plugin.Initialize(context.Background(), *config); err != nil {
 		t.Fatalf("failed to initialize: %v", err)
 	}
 
-	if err := plugin.Start(); err != nil {
+	if err := plugin.Start(context.Background()); err != nil {
 		t.Fatalf("failed to start: %v", err)
 	}
-	defer func() { _ = plugin.Stop() }()
+	defer func() { _ = plugin.Stop(context.Background()) }()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -371,12 +368,12 @@ func TestKafkaPropertyInitializationIdempotency(t *testing.T) {
 	plugin := NewKafkaMQPlugin("kafka", "1.0.0", config, logger, metrics, eventBus, brokers, consumerGroup)
 
 	// First initialization should succeed
-	if err := plugin.Initialize(); err != nil {
+	if err := plugin.Initialize(context.Background(), *config); err != nil {
 		t.Fatalf("first initialization failed: %v", err)
 	}
 
 	// Second initialization should fail
-	if err := plugin.Initialize(); err == nil {
+	if err := plugin.Initialize(context.Background(), *config); err == nil {
 		t.Fatal("expected error on second initialization")
 	}
 
@@ -400,13 +397,13 @@ func TestKafkaPropertyStartStopCycle(t *testing.T) {
 
 	plugin := NewKafkaMQPlugin("kafka", "1.0.0", config, logger, metrics, eventBus, brokers, consumerGroup)
 
-	if err := plugin.Initialize(); err != nil {
+	if err := plugin.Initialize(context.Background(), *config); err != nil {
 		t.Fatalf("failed to initialize: %v", err)
 	}
 
 	// Multiple start/stop cycles
 	for i := 0; i < 3; i++ {
-		if err := plugin.Start(); err != nil {
+		if err := plugin.Start(context.Background()); err != nil {
 			t.Fatalf("failed to start (cycle %d): %v", i, err)
 		}
 
@@ -414,7 +411,7 @@ func TestKafkaPropertyStartStopCycle(t *testing.T) {
 			t.Fatalf("expected plugin to be running (cycle %d)", i)
 		}
 
-		if err := plugin.Stop(); err != nil {
+		if err := plugin.Stop(context.Background()); err != nil {
 			t.Fatalf("failed to stop (cycle %d): %v", i, err)
 		}
 

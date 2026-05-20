@@ -52,7 +52,7 @@ func TestRedisMQPluginInitialization(t *testing.T) {
 	plugin := NewRedisMQPlugin("redis", "1.0.0", config, logger, metrics, eventBus, connectionURL)
 
 	// Note: This will fail if Redis is not running, but we test the logic
-	err := plugin.Initialize()
+	err := plugin.Initialize(context.Background(), core.Config{})
 	if err != nil {
 		// Expected if Redis is not running
 		t.Logf("initialization failed (expected if Redis not running): %v", err)
@@ -62,7 +62,7 @@ func TestRedisMQPluginInitialization(t *testing.T) {
 		}
 
 		// Try to initialize again (should fail)
-		if err := plugin.Initialize(); err == nil {
+		if err := plugin.Initialize(context.Background(), core.Config{}); err == nil {
 			t.Fatal("expected error when initializing twice")
 		}
 	}
@@ -82,13 +82,13 @@ func TestRedisMQPluginLifecycle(t *testing.T) {
 
 	plugin := NewRedisMQPlugin("redis", "1.0.0", config, logger, metrics, eventBus, connectionURL)
 
-	err := plugin.Initialize()
+	err := plugin.Initialize(context.Background(), core.Config{})
 	if err != nil {
 		t.Logf("initialization failed (expected if Redis not running): %v", err)
 		return
 	}
 
-	if err := plugin.Start(); err != nil {
+	if err := plugin.Start(context.Background()); err != nil {
 		t.Fatalf("failed to start: %v", err)
 	}
 
@@ -96,7 +96,7 @@ func TestRedisMQPluginLifecycle(t *testing.T) {
 		t.Fatal("expected plugin to be running")
 	}
 
-	if err := plugin.Stop(); err != nil {
+	if err := plugin.Stop(context.Background()); err != nil {
 		t.Fatalf("failed to stop: %v", err)
 	}
 
@@ -119,13 +119,13 @@ func TestRedisMQPluginPublishMessage(t *testing.T) {
 
 	plugin := NewRedisMQPlugin("redis", "1.0.0", config, logger, metrics, eventBus, connectionURL)
 
-	err := plugin.Initialize()
+	err := plugin.Initialize(context.Background(), core.Config{})
 	if err != nil {
 		t.Logf("initialization failed (expected if Redis not running): %v", err)
 		return
 	}
 
-	if err := plugin.Start(); err != nil {
+	if err := plugin.Start(context.Background()); err != nil {
 		t.Fatalf("failed to start: %v", err)
 	}
 
@@ -139,7 +139,7 @@ func TestRedisMQPluginPublishMessage(t *testing.T) {
 		Timestamp: time.Now().UTC(),
 	}
 
-	if err := plugin.PublishMessage(ctx, message); err != nil {
+	if err := plugin.Publish(ctx, message.Topic, message.Payload); err != nil {
 		t.Fatalf("failed to publish message: %v", err)
 	}
 
@@ -163,13 +163,13 @@ func TestRedisMQPluginAcknowledgeMessage(t *testing.T) {
 
 	plugin := NewRedisMQPlugin("redis", "1.0.0", config, logger, metrics, eventBus, connectionURL)
 
-	err := plugin.Initialize()
+	err := plugin.Initialize(context.Background(), core.Config{})
 	if err != nil {
 		t.Logf("initialization failed (expected if Redis not running): %v", err)
 		return
 	}
 
-	if err := plugin.Start(); err != nil {
+	if err := plugin.Start(context.Background()); err != nil {
 		t.Fatalf("failed to start: %v", err)
 	}
 
@@ -202,13 +202,13 @@ func TestRedisMQPluginDeadLetterQueue(t *testing.T) {
 
 	plugin := NewRedisMQPlugin("redis", "1.0.0", config, logger, metrics, eventBus, connectionURL)
 
-	err := plugin.Initialize()
+	err := plugin.Initialize(context.Background(), core.Config{})
 	if err != nil {
 		t.Logf("initialization failed (expected if Redis not running): %v", err)
 		return
 	}
 
-	if err := plugin.Start(); err != nil {
+	if err := plugin.Start(context.Background()); err != nil {
 		t.Fatalf("failed to start: %v", err)
 	}
 
@@ -246,13 +246,13 @@ func TestRedisMQPluginRetryMessage(t *testing.T) {
 
 	plugin := NewRedisMQPlugin("redis", "1.0.0", config, logger, metrics, eventBus, connectionURL)
 
-	err := plugin.Initialize()
+	err := plugin.Initialize(context.Background(), core.Config{})
 	if err != nil {
 		t.Logf("initialization failed (expected if Redis not running): %v", err)
 		return
 	}
 
-	if err := plugin.Start(); err != nil {
+	if err := plugin.Start(context.Background()); err != nil {
 		t.Fatalf("failed to start: %v", err)
 	}
 
@@ -273,7 +273,7 @@ func TestRedisMQPluginRetryMessage(t *testing.T) {
 
 	// RetryMessage increments internally, so we just verify no error was returned
 	// The actual retry count is managed internally by the plugin
-	if err := plugin.Stop(); err != nil {
+	if err := plugin.Stop(context.Background()); err != nil {
 		t.Fatalf("failed to stop: %v", err)
 	}
 }
@@ -292,7 +292,7 @@ func TestRedisMQPluginGetStats(t *testing.T) {
 
 	plugin := NewRedisMQPlugin("redis", "1.0.0", config, logger, metrics, eventBus, connectionURL)
 
-	err := plugin.Initialize()
+	err := plugin.Initialize(context.Background(), core.Config{})
 	if err != nil {
 		t.Logf("initialization failed (expected if Redis not running): %v", err)
 		return
@@ -389,13 +389,13 @@ func TestRedisMQPluginConcurrentOperations(t *testing.T) {
 
 	plugin := NewRedisMQPlugin("redis", "1.0.0", config, logger, metrics, eventBus, connectionURL)
 
-	err := plugin.Initialize()
+	err := plugin.Initialize(context.Background(), core.Config{})
 	if err != nil {
 		t.Logf("initialization failed (expected if Redis not running): %v", err)
 		return
 	}
 
-	if err := plugin.Start(); err != nil {
+	if err := plugin.Start(context.Background()); err != nil {
 		t.Fatalf("failed to start: %v", err)
 	}
 
@@ -445,13 +445,13 @@ func TestRedisMQPluginHealth(t *testing.T) {
 
 	plugin := NewRedisMQPlugin("redis", "1.0.0", config, logger, metrics, eventBus, connectionURL)
 
-	err := plugin.Initialize()
+	err := plugin.Initialize(context.Background(), core.Config{})
 	if err != nil {
 		t.Logf("initialization failed (expected if Redis not running): %v", err)
 		return
 	}
 
-	health := plugin.Health()
+	health := plugin.GetHealthStatus()
 
 	if health == nil {
 		t.Fatal("expected health status")
@@ -495,13 +495,13 @@ func TestRedisMQPluginMultipleTopics(t *testing.T) {
 
 	plugin := NewRedisMQPlugin("redis", "1.0.0", config, logger, metrics, eventBus, connectionURL)
 
-	err := plugin.Initialize()
+	err := plugin.Initialize(context.Background(), core.Config{})
 	if err != nil {
 		t.Logf("initialization failed (expected if Redis not running): %v", err)
 		return
 	}
 
-	if err := plugin.Start(); err != nil {
+	if err := plugin.Start(context.Background()); err != nil {
 		t.Fatalf("failed to start: %v", err)
 	}
 
@@ -518,7 +518,7 @@ func TestRedisMQPluginMultipleTopics(t *testing.T) {
 			Timestamp: time.Now().UTC(),
 		}
 
-		if err := plugin.PublishMessage(ctx, message); err != nil {
+		if err := plugin.Publish(ctx, message.Topic, message.Payload); err != nil {
 			t.Logf("failed to publish message to topic %s: %v", topic, err)
 		}
 	}
@@ -538,13 +538,13 @@ func TestRedisMQPluginFlushQueue(t *testing.T) {
 
 	plugin := NewRedisMQPlugin("redis", "1.0.0", config, logger, metrics, eventBus, connectionURL)
 
-	err := plugin.Initialize()
+	err := plugin.Initialize(context.Background(), core.Config{})
 	if err != nil {
 		t.Logf("initialization failed (expected if Redis not running): %v", err)
 		return
 	}
 
-	if err := plugin.Start(); err != nil {
+	if err := plugin.Start(context.Background()); err != nil {
 		t.Fatalf("failed to start: %v", err)
 	}
 
@@ -572,13 +572,13 @@ func TestRedisMQPluginGetQueueDepth(t *testing.T) {
 
 	plugin := NewRedisMQPlugin("redis", "1.0.0", config, logger, metrics, eventBus, connectionURL)
 
-	err := plugin.Initialize()
+	err := plugin.Initialize(context.Background(), core.Config{})
 	if err != nil {
 		t.Logf("initialization failed (expected if Redis not running): %v", err)
 		return
 	}
 
-	if err := plugin.Start(); err != nil {
+	if err := plugin.Start(context.Background()); err != nil {
 		t.Fatalf("failed to start: %v", err)
 	}
 
