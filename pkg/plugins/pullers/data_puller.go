@@ -11,6 +11,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core/topics"
 )
 
 const defaultPullerConnectionTimeout = 30 * time.Second
@@ -432,7 +433,7 @@ func (p *BaseDataPullerPlugin) PublishEvent(ctx context.Context, event core.Bloc
 	event.ProcessedAt = time.Now().UTC()
 	event.Status = "published"
 
-	if err := p.eventBus.Publish(ctx, core.TopicBlockchainEvents, event); err != nil {
+	if err := p.eventBus.Publish(ctx, topics.TopicBlockchainEvents, event); err != nil {
 		if p.logger != nil {
 			p.logger.Error("failed to publish event", "error", err.Error(), "block", event.BlockNumber)
 		}

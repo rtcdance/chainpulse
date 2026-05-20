@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core/topics"
 	pluginapi "github.com/rtcdance/chainpulse/pkg/plugins/api"
 	"github.com/rtcdance/chainpulse/pkg/plugins/pullers"
 	"github.com/rtcdance/chainpulse/pkg/services/indexing"
@@ -17,7 +18,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 )
 
-const monolithicEventTopic = core.TopicBlockchainEvents
+const monolithicEventTopic = topics.TopicBlockchainEvents
 
 type monolithicPullerRuntime struct {
 	logger      core.Logger

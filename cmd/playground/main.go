@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core/replay"
 	"github.com/rtcdance/chainpulse/pkg/defi"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -401,9 +402,9 @@ func (p *playground) handleReplayCheck(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	signerType := core.InferEIP155SignerType(big.NewInt(int64(v)))
-	isVulnerable := core.IsReplayVulnerable(v)
-	extractedChainID := core.ExtractChainIDFromV(v)
+	signerType := replay.InferEIP155SignerType(big.NewInt(int64(v)))
+	isVulnerable := replay.IsReplayVulnerable(v)
+	extractedChainID := replay.ExtractChainIDFromV(v)
 
 	result := map[string]any{
 		"v_value":         v,
@@ -415,7 +416,7 @@ func (p *playground) handleReplayCheck(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, result)
 }
 
-func explainEIP155(v uint64, vulnerable bool, chainID *big.Int, signerType core.SignerType) string {
+func explainEIP155(v uint64, vulnerable bool, chainID *big.Int, signerType replay.SignerType) string {
 	if vulnerable {
 		return fmt.Sprintf("V=%d 是 Homestead 签名（27 或 28），没有链 ID 保护，存在跨链重放攻击风险。", v)
 	}

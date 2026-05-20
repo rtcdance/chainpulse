@@ -8,6 +8,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core/eventsig"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials/insecure"
@@ -358,7 +359,7 @@ func (p *GRPCPuller) logToEvent(log Log) (core.BlockchainEvent, error) {
 		eventTopics[i] = common.HexToHash(t)
 	}
 	if len(log.Topics) > 0 {
-		eventName = core.ResolveEventNameFromTopic(log.Topics[0])
+		eventName = eventsig.ResolveEventNameFromTopic(log.Topics[0])
 		eventSig = eventTopics[0]
 	}
 

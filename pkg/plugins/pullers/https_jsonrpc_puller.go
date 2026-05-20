@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core/eventsig"
+	"github.com/rtcdance/chainpulse/pkg/core/topics"
 	"github.com/rtcdance/chainpulse/pkg/observability"
 
 	"github.com/ethereum/go-ethereum"
@@ -189,7 +191,7 @@ func (p *HTTPSJSONRPCPuller) Start(ctx context.Context) error {
 
 	// Subscribe to reorg rollback events for automatic re-indexing
 	if p.eventBus != nil {
-		if _, err := core.SubscribeTypedNamed[*core.ReorgRollbackEvent](p.eventBus, p.lifecycleCtx, core.TopicReorgRollback, "https-puller-reorg", func(reorgEvt *core.ReorgRollbackEvent) {
+		if _, err := core.SubscribeTypedNamed[*core.ReorgRollbackEvent](p.eventBus, p.lifecycleCtx, topics.TopicReorgRollback, "https-puller-reorg", func(reorgEvt *core.ReorgRollbackEvent) {
 			// Only handle events for our chain
 			if reorgEvt.ChainID != p.ChainID() {
 				return
@@ -872,7 +874,7 @@ func (p *HTTPSJSONRPCPuller) ethLogToEvent(log types.Log, blockTimestamps map[ui
 	eventTopics := make([]common.Hash, len(log.Topics))
 	copy(eventTopics, log.Topics)
 	if len(log.Topics) > 0 {
-		eventName = core.ResolveEventNameFromTopic(log.Topics[0].Hex())
+		eventName = eventsig.ResolveEventNameFromTopic(log.Topics[0].Hex())
 		eventSig = eventTopics[0]
 	}
 

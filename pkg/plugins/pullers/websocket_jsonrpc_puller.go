@@ -12,6 +12,8 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/gorilla/websocket"
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core/eventsig"
+	"github.com/rtcdance/chainpulse/pkg/core/topics"
 )
 
 // WebSocketJSONRPCPuller implements WebSocket-JSONRPC protocol for pulling blockchain events
@@ -132,7 +134,7 @@ func (p *WebSocketJSONRPCPuller) Start(ctx context.Context) error {
 
 	// Subscribe to reorg-rollback events on the EventBus (to reset cursor on reorg)
 	if p.eventBus != nil {
-		if _, err := core.SubscribeTypedNamed[*core.ReorgRollbackEvent](p.eventBus, p.lifecycleCtx, core.TopicReorgRollback, "ws-puller-reorg", func(reorgEvt *core.ReorgRollbackEvent) {
+		if _, err := core.SubscribeTypedNamed[*core.ReorgRollbackEvent](p.eventBus, p.lifecycleCtx, topics.TopicReorgRollback, "ws-puller-reorg", func(reorgEvt *core.ReorgRollbackEvent) {
 			if reorgEvt.ChainID != p.ChainID() {
 				return
 			}
@@ -429,7 +431,7 @@ func (p *WebSocketJSONRPCPuller) handleNewHeadsNotification(ctx context.Context,
 				ToBlock:    prevNumber,
 				DetectedAt: time.Now(),
 			}
-			if err := p.eventBus.Publish(ctx, core.TopicReorgRollback, reorgEvt); err != nil {
+			if err := p.eventBus.Publish(ctx, topics.TopicReorgRollback, reorgEvt); err != nil {
 				p.LogError("failed to publish reorg-rollback event", "error", err.Error())
 			}
 		}
@@ -752,7 +754,7 @@ func (p *WebSocketJSONRPCPuller) logToEvent(log Log) (core.BlockchainEvent, erro
 		eventTopics[i] = common.HexToHash(t)
 	}
 	if len(log.Topics) > 0 {
-		eventName = core.ResolveEventNameFromTopic(log.Topics[0])
+		eventName = eventsig.ResolveEventNameFromTopic(log.Topics[0])
 		eventSig = eventTopics[0]
 	}
 

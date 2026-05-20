@@ -15,6 +15,7 @@ import (
 
 	"github.com/rtcdance/chainpulse/pkg/chainid"
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core/eventsig"
 	domainquery "github.com/rtcdance/chainpulse/pkg/domain/query"
 	"github.com/rtcdance/chainpulse/pkg/observability"
 	"github.com/rtcdance/chainpulse/pkg/services/query"
@@ -616,7 +617,7 @@ func (h *EventQueryHandler) applyFilterToResponses(fp *filterParams, responses [
 		// Event signature filter (match by name or hex signature)
 		if fp.EventSignature != "" {
 			sig := fp.EventSignature
-			if resolved := core.ResolveTopicFromName(sig); resolved != "" {
+			if resolved := eventsig.ResolveTopicFromName(sig); resolved != "" {
 				sig = resolved
 			}
 			sigLower := strings.ToLower(sig)
@@ -690,7 +691,7 @@ func (h *EventQueryHandler) buildMongoFilter(fp *filterParams, baseFilter map[st
 	if fp.EventSignature != "" {
 		// If a known name like "Transfer" is provided, resolve it to the hex signature
 		sig := fp.EventSignature
-		if resolved := core.ResolveTopicFromName(sig); resolved != "" {
+		if resolved := eventsig.ResolveTopicFromName(sig); resolved != "" {
 			sig = resolved
 		}
 		// Try matching against eventName (resolved name) first, then eventSignature (hex)

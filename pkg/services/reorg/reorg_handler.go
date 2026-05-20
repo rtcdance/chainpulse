@@ -9,6 +9,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core/topics"
 )
 
 // ReorgHandler detects and recovers from blockchain reorganizations.
@@ -269,7 +270,7 @@ func (rh *ReorgHandler) HandleReorg(ctx context.Context, reorgBlock uint64) erro
 			BlocksAffected:   blocksToRollback,
 			EventsRolledBack: eventsRolledBack,
 		}
-		if err := eventBus.Publish(ctx, core.TopicReorgDetected, reorgEvt); err != nil {
+		if err := eventBus.Publish(ctx, topics.TopicReorgDetected, reorgEvt); err != nil {
 			rh.logger.Error("Failed to publish reorg event", core.LogKeyError, err)
 		}
 
@@ -279,7 +280,7 @@ func (rh *ReorgHandler) HandleReorg(ctx context.Context, reorgBlock uint64) erro
 			ToBlock:    currentBlock,
 			DetectedAt: time.Now(),
 		}
-		if err := eventBus.Publish(ctx, core.TopicReorgRollback, reindexEvt); err != nil {
+		if err := eventBus.Publish(ctx, topics.TopicReorgRollback, reindexEvt); err != nil {
 			rh.logger.Error("Failed to publish reorg rollback event", core.LogKeyError, err)
 		}
 	}
