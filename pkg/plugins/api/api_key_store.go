@@ -18,17 +18,18 @@ import (
 
 // APIKeyRecord represents a persisted API key
 type APIKeyRecord struct {
-	ID          string   `json:"id"`
-	ClientID    string   `json:"clientId"`
-	Name        string   `json:"name"`
-	KeyHash     string   `json:"-"`
-	KeyPrefix   string   `json:"keyPrefix"`
-	Permissions []string `json:"permissions"`
-	Enabled     bool     `json:"enabled"`
-	CreatedAt   string   `json:"createdAt"`
-	UpdatedAt   string   `json:"updatedAt"`
-	ExpiresAt   *string  `json:"expiresAt,omitempty"`
-	LastUsedAt  *string  `json:"lastUsedAt,omitempty"`
+	ID           string   `json:"id"`
+	ClientID     string   `json:"clientId"`
+	Name         string   `json:"name"`
+	KeyHash      string   `json:"-"`
+	KeyPrefix    string   `json:"keyPrefix"`
+	Permissions  []string `json:"permissions"`
+	Enabled      bool     `json:"enabled"`
+	CreatedAt    string   `json:"createdAt"`
+	UpdatedAt    string   `json:"updatedAt"`
+	ExpiresAt    *string  `json:"expiresAt,omitempty"`
+	LastUsedAt   *string  `json:"lastUsedAt,omitempty"`
+	RequestCount int64    `json:"requestCount"`
 }
 
 // APIKeyStore manages persistent API key storage
@@ -41,7 +42,6 @@ type APIKeyStore struct {
 	stopOnce sync.Once
 }
 
-// NewAPIKeyStore creates a new API key store
 func NewAPIKeyStore(db *sql.DB, logger core.Logger, metrics core.MetricsCollector) *APIKeyStore {
 	return &APIKeyStore{
 		db:      db,
@@ -51,8 +51,6 @@ func NewAPIKeyStore(db *sql.DB, logger core.Logger, metrics core.MetricsCollecto
 	}
 }
 
-// Stop waits for in-flight async operations to complete.
-// Safe to call multiple times.
 func (s *APIKeyStore) Stop() {
 	s.stopOnce.Do(func() {
 		close(s.done)
@@ -60,9 +58,7 @@ func (s *APIKeyStore) Stop() {
 	s.wg.Wait()
 }
 
-// CreateAPIKey generates a new API key, persists its hash, and returns the plain-text key once
 func (s *APIKeyStore) CreateAPIKey(ctx context.Context, clientID, name string, permissions []string, expiresAt *time.Time) (*APIKeyRecord, string, error) {
-	// Generate a random API key: cp_<32 random hex chars>
 	raw := make([]byte, 32)
 	if _, err := rand.Read(raw); err != nil {
 		return nil, "", fmt.Errorf("failed to generate key: %w", err)
@@ -70,7 +66,6 @@ func (s *APIKeyStore) CreateAPIKey(ctx context.Context, clientID, name string, p
 	plainKey := "cp_" + hex.EncodeToString(raw)
 	prefix := plainKey[:8]
 
-	// Hash the key for storage
 	hash := sha256.Sum256([]byte(plainKey))
 	keyHash := hex.EncodeToString(hash[:])
 
@@ -105,7 +100,6 @@ func (s *APIKeyStore) CreateAPIKey(ctx context.Context, clientID, name string, p
 	return record, plainKey, nil
 }
 
-// ValidateAPIKey checks an API key against the database and returns the associated record
 func (s *APIKeyStore) ValidateAPIKey(ctx context.Context, plainKey string) (*APIKeyRecord, error) {
 	hash := sha256.Sum256([]byte(plainKey))
 	keyHash := hex.EncodeToString(hash[:])
@@ -145,19 +139,16 @@ func (s *APIKeyStore) ValidateAPIKey(ctx context.Context, plainKey string) (*API
 		return nil, fmt.Errorf("invalid permissions data: %w", err)
 	}
 
-	// Update last_used_at asynchronously with a detached context — the parent
-	// request context is cancelled when the HTTP handler returns, which would
-	// cause the DB update to fail silently.
 	s.wg.Add(1)
 	go func() {
 		defer s.wg.Done()
 		select {
 		case <-s.done:
-			return // shutting down
+			return
 		default:
 			updateCtx, updateCancel := context.WithTimeout(context.Background(), 5*time.Second)
 			_, err := s.db.ExecContext(updateCtx,
-				`UPDATE api_keys SET last_used_at = NOW() WHERE id = $1`, id)
+				`UPDATE api_keys SET last_used_at = NOW(), request_count = request_count + 1 WHERE id = $1`, id)
 			updateCancel()
 			if err != nil {
 				s.logger.Warn("failed to update last_used_at", "key_id", id, "error", err)
@@ -176,7 +167,6 @@ func (s *APIKeyStore) ValidateAPIKey(ctx context.Context, plainKey string) (*API
 	}, nil
 }
 
-// ListAPIKeys returns API keys for a client with pagination
 func (s *APIKeyStore) ListAPIKeys(ctx context.Context, clientID string, limit, offset int) ([]*APIKeyRecord, int, error) {
 	var total int
 	err := s.db.QueryRowContext(ctx,
@@ -187,14 +177,14 @@ func (s *APIKeyStore) ListAPIKeys(ctx context.Context, clientID string, limit, o
 	}
 
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT id, client_id, name, key_prefix, permissions, enabled, created_at, updated_at, expires_at, last_used_at
+		`SELECT id, client_id, name, key_prefix, permissions, enabled, created_at, updated_at, expires_at, last_used_at, request_count
 		 FROM api_keys WHERE client_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3`,
 		clientID, limit, offset,
 	)
 	if err != nil {
 		return nil, 0, err
 	}
-	defer rows.Close() //nolint:errcheck // defer close
+	defer rows.Close()
 
 	var records []*APIKeyRecord
 	for rows.Next() {
@@ -202,14 +192,18 @@ func (s *APIKeyStore) ListAPIKeys(ctx context.Context, clientID string, limit, o
 		var permsJSON string
 		var createdAt, updatedAt time.Time
 		var expiresAt, lastUsedAt *time.Time
+		var requestCount int64
 
-		if err := rows.Scan(&r.ID, &r.ClientID, &r.Name, &r.KeyPrefix, &permsJSON, &r.Enabled,
-			&createdAt, &updatedAt, &expiresAt, &lastUsedAt); err != nil {
+		if err := rows.Scan(
+			&r.ID, &r.ClientID, &r.Name, &r.KeyPrefix, &permsJSON, &r.Enabled,
+			&createdAt, &updatedAt, &expiresAt, &lastUsedAt, &requestCount,
+		); err != nil {
 			return nil, 0, err
 		}
+		r.RequestCount = requestCount
 		if err := json.Unmarshal([]byte(permsJSON), &r.Permissions); err != nil {
 			s.logger.Warn("failed to parse api key permissions", "key_id", r.ID, "error", err)
-			r.Permissions = []string{} // default to no permissions on parse error
+			r.Permissions = []string{}
 		}
 		r.CreatedAt = createdAt.UTC().Format(time.RFC3339)
 		r.UpdatedAt = updatedAt.UTC().Format(time.RFC3339)
@@ -226,11 +220,9 @@ func (s *APIKeyStore) ListAPIKeys(ctx context.Context, clientID string, limit, o
 	if err := rows.Err(); err != nil {
 		return nil, 0, err
 	}
-
 	return records, total, nil
 }
 
-// DeleteAPIKey removes an API key
 func (s *APIKeyStore) DeleteAPIKey(ctx context.Context, id string) error {
 	result, err := s.db.ExecContext(ctx, `DELETE FROM api_keys WHERE id = $1`, id)
 	if err != nil {
@@ -244,7 +236,6 @@ func (s *APIKeyStore) DeleteAPIKey(ctx context.Context, id string) error {
 	return nil
 }
 
-// ToggleAPIKey enables or disables an API key
 func (s *APIKeyStore) ToggleAPIKey(ctx context.Context, id string, enabled bool) error {
 	result, err := s.db.ExecContext(ctx,
 		`UPDATE api_keys SET enabled = $1, updated_at = NOW() WHERE id = $2`,
@@ -260,7 +251,6 @@ func (s *APIKeyStore) ToggleAPIKey(ctx context.Context, id string, enabled bool)
 	return nil
 }
 
-// RotateKey rotates an API key with an overlap window for zero-downtime transition.
 func (s *APIKeyStore) RotateKey(ctx context.Context, id string, overlapWindow time.Duration) (*APIKeyRecord, string, error) {
 	oldKey, err := s.getKeyByID(ctx, id)
 	if err != nil {
@@ -273,7 +263,6 @@ func (s *APIKeyStore) RotateKey(ctx context.Context, id string, overlapWindow ti
 	return s.CreateAPIKey(ctx, oldKey.ClientID, oldKey.Name, oldKey.Permissions, &extendedExpiry)
 }
 
-// ListExpiringKeys returns keys expiring before the given time.
 func (s *APIKeyStore) ListExpiringKeys(ctx context.Context, before time.Time) ([]*APIKeyRecord, error) {
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT id, client_id, name, key_prefix, enabled, expires_at
@@ -320,7 +309,6 @@ func (s *APIKeyStore) extendKeyExpiry(ctx context.Context, id string, newExpiry 
 	return err
 }
 
-// LoadAllKeys loads all enabled API keys into the in-memory whitelist for TokenValidator
 func (s *APIKeyStore) LoadAllKeys(ctx context.Context) (map[string]string, error) {
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT key_hash, client_id FROM api_keys WHERE enabled = true AND (expires_at IS NULL OR expires_at > NOW())`,
@@ -328,10 +316,8 @@ func (s *APIKeyStore) LoadAllKeys(ctx context.Context) (map[string]string, error
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close() //nolint:errcheck // defer close
+	defer rows.Close()
 
-	// We can't reconstruct plain keys from hashes, so this returns
-	// key_hash -> clientID for the validator to check against
 	whitelist := make(map[string]string)
 	for rows.Next() {
 		var keyHash, clientID string
@@ -343,11 +329,9 @@ func (s *APIKeyStore) LoadAllKeys(ctx context.Context) (map[string]string, error
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
-
 	return whitelist, nil
 }
 
-// KeyHash computes the SHA-256 hash of a plain API key
 func KeyHash(plainKey string) string {
 	if !strings.HasPrefix(plainKey, "cp_") {
 		return ""
