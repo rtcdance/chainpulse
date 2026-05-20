@@ -1,15 +1,19 @@
 package helpers
 
 import (
+	"bytes"
 	"context"
+	"database/sql"
+	"encoding/json"
 	"fmt"
-	"math"
+	"io"
+	"net/http"
 	"sync"
-	"testing"
 	"time"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/rtcdance/chainpulse/pkg/core"
-	"github.com/rtcdance/chainpulse/pkg/services/query"
+	"github.com/rtcdance/chainpulse/pkg/testhelpers"
 )
 
 // ServiceInitializer provides helpers for initializing services in integration tests
@@ -365,8 +369,8 @@ type TestServiceBuilder struct {
 // NewTestServiceBuilder creates a new test service builder
 func NewTestServiceBuilder() *TestServiceBuilder {
 	return &TestServiceBuilder{
-		logger:             core.NewTestLogger(),
-		metricsCollector:   core.NewTestMetricsCollector(),
+		logger:             testhelpers.NewTestLogger(),
+		metricsCollector:   testhelpers.NewTestMetricsCollector(),
 		additionalServices: make(map[string]any),
 	}
 }

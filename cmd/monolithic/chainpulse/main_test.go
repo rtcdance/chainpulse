@@ -1161,7 +1161,7 @@ func TestOwnershipRolloutLogDescriptors(t *testing.T) {
 		},
 	}
 
-	logger := core.NewTestLoggerWithCapture()
+	logger := testhelpers.NewTestLoggerWithCapture()
 	logOwnershipRolloutSummary(logger, "startup", snapshot)
 	messages := logger.GetMessages()
 	if len(messages) != len(descriptors) {
