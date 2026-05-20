@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
+t"github.com/rtcdance/chainpulse/pkg/testhelpers"
 	"github.com/rtcdance/chainpulse/pkg/services/indexing"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -49,7 +50,7 @@ func TestMonolithicPullerRuntimeRunLoopRestartsAfterFailure(t *testing.T) {
 	}
 
 	runtime := &monolithicPullerRuntime{
-		logger:      core.NewTestLogger(),
+		logger:      testhelpers.NewTestLogger(),
 		pullers:     []monolithicPollingPuller{puller},
 		loopChains:  map[string]*monolithicPullLoopRuntime{"ethereum": {chainID: "ethereum", state: "primed"}},
 		backoffBase: time.Millisecond,
@@ -81,7 +82,7 @@ func TestParseNodeURLsRequiresAtLeastOneValue(t *testing.T) {
 }
 
 func TestSubscribeMonolithicIndexerRoutesBlockchainEvents(t *testing.T) {
-	logger := core.NewTestLogger()
+	logger := testhelpers.NewTestLogger()
 	eventBus := core.NewEventBus(logger)
 	indexer := indexing.NewMultiChainIndexer(logger, nil)
 	chainIndexer := newRecordingChainIndexer("ethereum")
@@ -121,7 +122,7 @@ func TestSubscribeMonolithicIndexerRoutesBlockchainEvents(t *testing.T) {
 }
 
 func TestNewMonolithicPullerRuntimeRequiresAlignedChainsAndNodeURLs(t *testing.T) {
-	logger := core.NewTestLogger()
+	logger := testhelpers.NewTestLogger()
 	metrics := core.NewDefaultMetricsCollector()
 	indexer := indexing.NewMultiChainIndexer(logger, nil)
 	db := appindexingadapter.NewMonolithicMemoryDatabase(logger)
@@ -139,7 +140,7 @@ func TestNewMonolithicPullerRuntimeRequiresAlignedChainsAndNodeURLs(t *testing.T
 }
 
 func TestMonolithicPullerRuntimeObserveEventDetectsAndHandlesReorg(t *testing.T) {
-	logger := core.NewTestLogger()
+	logger := testhelpers.NewTestLogger()
 	metrics := core.NewDefaultMetricsCollector()
 	indexer := indexing.NewMultiChainIndexer(logger, nil)
 	db := appindexingadapter.NewMonolithicMemoryDatabase(logger)

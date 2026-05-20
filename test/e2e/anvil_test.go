@@ -16,6 +16,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/rtcdance/chainpulse/pkg/core"
+t"github.com/rtcdance/chainpulse/pkg/testhelpers"
 	"github.com/rtcdance/chainpulse/pkg/plugins/pullers"
 )
 
@@ -173,7 +174,7 @@ func TestAnvil_PullerIntegration(t *testing.T) {
 	cmd, rpcURL := startAnvil(t)
 	defer func() { _ = cmd.Process.Kill() }()
 
-	logger := core.NewTestLogger()
+	logger := testhelpers.NewTestLogger()
 	metrics := core.NewDefaultMetricsCollector()
 
 	puller := pullers.NewHTTPSJSONRPCPuller(core.Config{

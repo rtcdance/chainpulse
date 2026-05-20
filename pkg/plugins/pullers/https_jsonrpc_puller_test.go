@@ -7,6 +7,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
+t"github.com/rtcdance/chainpulse/pkg/testhelpers"
 )
 
 func TestHTTPSJSONRPCPullerLogToEventUsesConfiguredChainIDAndBlockHash(t *testing.T) {
@@ -15,7 +16,7 @@ func TestHTTPSJSONRPCPullerLogToEventUsesConfiguredChainIDAndBlockHash(t *testin
 		core.Config{
 			ServiceName: "polygon",
 		},
-		core.NewTestLogger(),
+		testhelpers.NewTestLogger(),
 		core.NewDefaultMetricsCollector(),
 		nil,
 	)
@@ -47,7 +48,7 @@ func TestHTTPSJSONRPCPullerLogToEventResolvesKnownEventName(t *testing.T) {
 		core.Config{
 			ServiceName: "ethereum",
 		},
-		core.NewTestLogger(),
+		testhelpers.NewTestLogger(),
 		core.NewDefaultMetricsCollector(),
 		nil,
 	)

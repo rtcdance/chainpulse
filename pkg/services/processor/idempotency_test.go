@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
+t"github.com/rtcdance/chainpulse/pkg/testhelpers"
 
 	"github.com/ethereum/go-ethereum/common"
 )
@@ -62,7 +63,7 @@ func makeTestEvent(id int, chainID int64) *core.BlockchainEvent {
 }
 
 func TestIdempotency_Initialize(t *testing.T) {
-	svc := NewDefaultIdempotencyService(core.NewTestLogger(), newTestMetricsCollector())
+	svc := NewDefaultIdempotencyService(testhelpers.NewTestLogger(), newTestMetricsCollector())
 
 	err := svc.Initialize(&core.Config{})
 	if err != nil {
@@ -76,7 +77,7 @@ func TestIdempotency_Initialize(t *testing.T) {
 }
 
 func TestIdempotency_InitializeNilConfig(t *testing.T) {
-	svc := NewDefaultIdempotencyService(core.NewTestLogger(), newTestMetricsCollector())
+	svc := NewDefaultIdempotencyService(testhelpers.NewTestLogger(), newTestMetricsCollector())
 
 	err := svc.Initialize(nil)
 	if err == nil {
@@ -85,7 +86,7 @@ func TestIdempotency_InitializeNilConfig(t *testing.T) {
 }
 
 func TestIdempotency_StartStop(t *testing.T) {
-	svc := NewDefaultIdempotencyService(core.NewTestLogger(), newTestMetricsCollector())
+	svc := NewDefaultIdempotencyService(testhelpers.NewTestLogger(), newTestMetricsCollector())
 	_ = svc.Initialize(&core.Config{})
 
 	err := svc.Start()
@@ -110,7 +111,7 @@ func TestIdempotency_StartStop(t *testing.T) {
 }
 
 func TestIdempotency_StartWithoutInit(t *testing.T) {
-	svc := NewDefaultIdempotencyService(core.NewTestLogger(), newTestMetricsCollector())
+	svc := NewDefaultIdempotencyService(testhelpers.NewTestLogger(), newTestMetricsCollector())
 
 	err := svc.Start()
 	if err == nil {
@@ -119,7 +120,7 @@ func TestIdempotency_StartWithoutInit(t *testing.T) {
 }
 
 func TestIdempotency_HealthStates(t *testing.T) {
-	svc := NewDefaultIdempotencyService(core.NewTestLogger(), newTestMetricsCollector())
+	svc := NewDefaultIdempotencyService(testhelpers.NewTestLogger(), newTestMetricsCollector())
 
 	status := svc.Health()
 	if status.Status != "unhealthy" {
@@ -149,7 +150,7 @@ func TestIdempotency_HealthStates(t *testing.T) {
 }
 
 func TestIdempotency_GenerateHash(t *testing.T) {
-	svc := NewDefaultIdempotencyService(core.NewTestLogger(), newTestMetricsCollector())
+	svc := NewDefaultIdempotencyService(testhelpers.NewTestLogger(), newTestMetricsCollector())
 	_ = svc.Initialize(&core.Config{})
 
 	event := makeTestEvent(1, 1)
@@ -168,7 +169,7 @@ func TestIdempotency_GenerateHash(t *testing.T) {
 }
 
 func TestIdempotency_GenerateHashDeterministic(t *testing.T) {
-	svc := NewDefaultIdempotencyService(core.NewTestLogger(), newTestMetricsCollector())
+	svc := NewDefaultIdempotencyService(testhelpers.NewTestLogger(), newTestMetricsCollector())
 
 	event := makeTestEvent(1, 1)
 	h1, _ := svc.GenerateHash(event)
@@ -180,7 +181,7 @@ func TestIdempotency_GenerateHashDeterministic(t *testing.T) {
 }
 
 func TestIdempotency_GenerateHashDifferentEvents(t *testing.T) {
-	svc := NewDefaultIdempotencyService(core.NewTestLogger(), newTestMetricsCollector())
+	svc := NewDefaultIdempotencyService(testhelpers.NewTestLogger(), newTestMetricsCollector())
 
 	e1 := makeTestEvent(1, 1)
 	e2 := makeTestEvent(2, 1)
@@ -194,7 +195,7 @@ func TestIdempotency_GenerateHashDifferentEvents(t *testing.T) {
 }
 
 func TestIdempotency_IsDuplicateAndMarkProcessed(t *testing.T) {
-	svc := NewDefaultIdempotencyService(core.NewTestLogger(), newTestMetricsCollector())
+	svc := NewDefaultIdempotencyService(testhelpers.NewTestLogger(), newTestMetricsCollector())
 	_ = svc.Initialize(&core.Config{})
 	_ = svc.Start()
 	defer svc.Stop()
@@ -226,7 +227,7 @@ func TestIdempotency_IsDuplicateAndMarkProcessed(t *testing.T) {
 }
 
 func TestIdempotency_IsDuplicateEmptyHash(t *testing.T) {
-	svc := NewDefaultIdempotencyService(core.NewTestLogger(), newTestMetricsCollector())
+	svc := NewDefaultIdempotencyService(testhelpers.NewTestLogger(), newTestMetricsCollector())
 	_ = svc.Initialize(&core.Config{})
 	_ = svc.Start()
 	defer svc.Stop()
@@ -238,7 +239,7 @@ func TestIdempotency_IsDuplicateEmptyHash(t *testing.T) {
 }
 
 func TestIdempotency_MarkProcessedEmptyHash(t *testing.T) {
-	svc := NewDefaultIdempotencyService(core.NewTestLogger(), newTestMetricsCollector())
+	svc := NewDefaultIdempotencyService(testhelpers.NewTestLogger(), newTestMetricsCollector())
 	_ = svc.Initialize(&core.Config{})
 	_ = svc.Start()
 	defer svc.Stop()
@@ -251,7 +252,7 @@ func TestIdempotency_MarkProcessedEmptyHash(t *testing.T) {
 
 func TestIdempotency_CounterTracking(t *testing.T) {
 	metrics := newTestMetricsCollector()
-	svc := NewDefaultIdempotencyService(core.NewTestLogger(), metrics)
+	svc := NewDefaultIdempotencyService(testhelpers.NewTestLogger(), metrics)
 	_ = svc.Initialize(&core.Config{})
 	_ = svc.Start()
 	defer svc.Stop()
@@ -278,7 +279,7 @@ func TestIdempotency_CounterTracking(t *testing.T) {
 }
 
 func TestIdempotency_Clear(t *testing.T) {
-	svc := NewDefaultIdempotencyService(core.NewTestLogger(), newTestMetricsCollector())
+	svc := NewDefaultIdempotencyService(testhelpers.NewTestLogger(), newTestMetricsCollector())
 	_ = svc.Initialize(&core.Config{})
 	_ = svc.Start()
 	defer svc.Stop()
@@ -317,7 +318,7 @@ func TestIdempotency_Clear(t *testing.T) {
 }
 
 func TestIdempotency_ClearNotRunning(t *testing.T) {
-	svc := NewDefaultIdempotencyService(core.NewTestLogger(), newTestMetricsCollector())
+	svc := NewDefaultIdempotencyService(testhelpers.NewTestLogger(), newTestMetricsCollector())
 	_ = svc.Initialize(&core.Config{})
 
 	err := svc.Clear()
@@ -327,7 +328,7 @@ func TestIdempotency_ClearNotRunning(t *testing.T) {
 }
 
 func TestIdempotency_OpsNotRunning(t *testing.T) {
-	svc := NewDefaultIdempotencyService(core.NewTestLogger(), newTestMetricsCollector())
+	svc := NewDefaultIdempotencyService(testhelpers.NewTestLogger(), newTestMetricsCollector())
 	_ = svc.Initialize(&core.Config{})
 
 	ctx := context.Background()
@@ -345,7 +346,7 @@ func TestIdempotency_OpsNotRunning(t *testing.T) {
 
 func TestIdempotency_MetricsRecording(t *testing.T) {
 	metrics := newTestMetricsCollector()
-	svc := NewDefaultIdempotencyService(core.NewTestLogger(), metrics)
+	svc := NewDefaultIdempotencyService(testhelpers.NewTestLogger(), metrics)
 	_ = svc.Initialize(&core.Config{})
 	_ = svc.Start()
 	defer svc.Stop()
@@ -371,7 +372,7 @@ func TestIdempotency_MetricsRecording(t *testing.T) {
 }
 
 func TestIdempotency_ConcurrentSafety(t *testing.T) {
-	svc := NewDefaultIdempotencyService(core.NewTestLogger(), newTestMetricsCollector())
+	svc := NewDefaultIdempotencyService(testhelpers.NewTestLogger(), newTestMetricsCollector())
 	_ = svc.Initialize(&core.Config{})
 	_ = svc.Start()
 	defer svc.Stop()
@@ -404,7 +405,7 @@ func TestIdempotency_ConcurrentSafety(t *testing.T) {
 }
 
 func TestIdempotency_ConcurrentClear(t *testing.T) {
-	svc := NewDefaultIdempotencyService(core.NewTestLogger(), newTestMetricsCollector())
+	svc := NewDefaultIdempotencyService(testhelpers.NewTestLogger(), newTestMetricsCollector())
 	_ = svc.Initialize(&core.Config{})
 	_ = svc.Start()
 	defer svc.Stop()
@@ -446,7 +447,7 @@ func TestIdempotency_ConcurrentClear(t *testing.T) {
 }
 
 func TestIdempotency_MultiChainIsolation(t *testing.T) {
-	svc := NewDefaultIdempotencyService(core.NewTestLogger(), newTestMetricsCollector())
+	svc := NewDefaultIdempotencyService(testhelpers.NewTestLogger(), newTestMetricsCollector())
 	_ = svc.Initialize(&core.Config{})
 	_ = svc.Start()
 	defer svc.Stop()

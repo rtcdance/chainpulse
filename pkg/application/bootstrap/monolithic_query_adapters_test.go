@@ -9,12 +9,13 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
+t"github.com/rtcdance/chainpulse/pkg/testhelpers"
 	domainquery "github.com/rtcdance/chainpulse/pkg/domain/query"
 )
 
 func TestMonolithicIndexingEventStoreFiltersByContractAndName(t *testing.T) {
 	t.Parallel()
-	db := NewMonolithicMemoryDatabase(core.NewTestLogger())
+	db := NewMonolithicMemoryDatabase(testhelpers.NewTestLogger())
 	require.NoError(t, db.Initialize(core.Config{}))
 	require.NoError(t, db.Start())
 
@@ -41,7 +42,7 @@ func TestMonolithicIndexingEventStoreFiltersByContractAndName(t *testing.T) {
 	require.NoError(t, db.StoreEvent(context.Background(), first))
 	require.NoError(t, db.StoreEvent(context.Background(), second))
 
-	store := NewMonolithicIndexingEventStore(db, core.NewTestLogger(), core.NewDefaultMetricsCollector())
+	store := NewMonolithicIndexingEventStore(db, testhelpers.NewTestLogger(), core.NewDefaultMetricsCollector())
 	require.NoError(t, store.Initialize(context.Background()))
 
 	contractEvents, err := store.GetEventsByContract(context.Background(), "0x0000000000000000000000000000000000000011", 10, 0)
@@ -57,7 +58,7 @@ func TestMonolithicIndexingEventStoreFiltersByContractAndName(t *testing.T) {
 
 func TestMonolithicIndexingDomainQueryServiceReadsFromIndexingDatabase(t *testing.T) {
 	t.Parallel()
-	db := NewMonolithicMemoryDatabase(core.NewTestLogger())
+	db := NewMonolithicMemoryDatabase(testhelpers.NewTestLogger())
 	require.NoError(t, db.Initialize(core.Config{}))
 	require.NoError(t, db.Start())
 
@@ -73,7 +74,7 @@ func TestMonolithicIndexingDomainQueryServiceReadsFromIndexingDatabase(t *testin
 	}
 	require.NoError(t, db.StoreEvent(context.Background(), event))
 
-	service := NewMonolithicIndexingDomainQueryService(db, core.NewTestLogger(), core.NewDefaultMetricsCollector())
+	service := NewMonolithicIndexingDomainQueryService(db, testhelpers.NewTestLogger(), core.NewDefaultMetricsCollector())
 	result, err := service.Query(context.Background(), &domainquery.Request{
 		Collection: "events",
 		Filter: map[string]any{

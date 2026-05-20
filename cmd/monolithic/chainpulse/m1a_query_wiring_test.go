@@ -10,6 +10,7 @@ import (
 
 	"github.com/rtcdance/chainpulse/pkg/application/bootstrap"
 	"github.com/rtcdance/chainpulse/pkg/core"
+t"github.com/rtcdance/chainpulse/pkg/testhelpers"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
@@ -18,7 +19,7 @@ import (
 )
 
 func TestMonolithicIndexingBackedQuerySurfaceServesEventsFromIndexingDatabase(t *testing.T) {
-	logger := core.NewTestLogger()
+	logger := testhelpers.NewTestLogger()
 	metrics := core.NewDefaultMetricsCollector()
 	indexingDatabase := indexingadapter.NewMonolithicMemoryDatabase(logger)
 	require.NoError(t, indexingDatabase.Initialize(core.Config{}))
@@ -60,7 +61,7 @@ func TestMonolithicIndexingBackedQuerySurfaceServesEventsFromIndexingDatabase(t 
 }
 
 func TestMonolithicIndexingBackedQuerySurfaceServesStringChainRouteFromIndexingDatabase(t *testing.T) {
-	logger := core.NewTestLogger()
+	logger := testhelpers.NewTestLogger()
 	metrics := core.NewDefaultMetricsCollector()
 	indexingDatabase := indexingadapter.NewMonolithicMemoryDatabase(logger)
 	require.NoError(t, indexingDatabase.Initialize(core.Config{}))
@@ -98,7 +99,7 @@ func TestMonolithicIndexingBackedQuerySurfaceServesStringChainRouteFromIndexingD
 }
 
 func TestResolveMonolithicQuerySurfaceKeepsManagedDBRuntimeForMicroserviceIntent(t *testing.T) {
-	logger := core.NewTestLogger()
+	logger := testhelpers.NewTestLogger()
 	metrics := core.NewDefaultMetricsCollector()
 
 	runtimeWiring := &bootstrap.RuntimeWiring{}
