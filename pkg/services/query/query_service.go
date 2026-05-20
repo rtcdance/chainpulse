@@ -391,8 +391,8 @@ func (qs *DefaultQueryService) RuntimeSummary(ctx context.Context) *RuntimeSumma
 
 	cachePosture := qs.classifyCachePosture(ctx)
 	queryPosture := classifyQueryRuntimePosture(health.Status)
-	circuitPosture := "circuit-not-wired"
-	consistencyPosture := "consistency-not-wired"
+	circuitPosture := "circuit-breaker-not-applicable"
+	consistencyPosture := "consistency-check-not-applicable"
 
 	return &RuntimeSummary{
 		Status:                health.Status,

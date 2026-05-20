@@ -12,6 +12,7 @@ import (
 
 	"github.com/gorilla/websocket"
 
+	"github.com/rtcdance/chainpulse/pkg/chainid"
 	"github.com/rtcdance/chainpulse/pkg/core"
 	"github.com/rtcdance/chainpulse/pkg/services/query"
 )
@@ -52,6 +53,7 @@ type SubscriptionConnection struct {
 	Subscriptions map[string]*Subscription
 	Done          chan struct{}
 	mu            sync.RWMutex
+	closeOnce     sync.Once
 }
 
 // Subscription represents a client subscription
@@ -104,11 +106,15 @@ func (h *EventSubscriptionHandler) SetRateLimiter(limiter *RateLimiter) {
 
 // SetTokenValidator sets the token validator for WebSocket authentication
 func (h *EventSubscriptionHandler) SetTokenValidator(validator *TokenValidator) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
 	h.tokenValidator = validator
 }
 
 // SetAllowedOrigins sets the allowed origins for WebSocket upgrades
 func (h *EventSubscriptionHandler) SetAllowedOrigins(origins []string) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
 	h.allowedOrigins = origins
 }
 
@@ -325,7 +331,7 @@ func (h *EventSubscriptionHandler) handleConnection(subConn *SubscriptionConnect
 
 	// Dedicated read goroutine sends results through a channel so the
 	// select loop can still service ping/idle tickers and the Done signal.
-	readCh := make(chan readResult, 1)
+	readCh := make(chan readResult, 2)
 	go func() {
 		for {
 			_, message, err := subConn.Conn.ReadMessage()
@@ -448,7 +454,7 @@ func (h *EventSubscriptionHandler) matchesSubscription(event *core.BlockchainEve
 			return false
 		}
 		// Parse event.ChainID string to int for comparison
-		return core.ResolveChainID(event.ChainID) == chainID
+		return chainid.ResolveChainID(event.ChainID) == chainID
 	case "contract":
 		return event.ContractAddress.Hex() == sub.FilterValue
 	case "name":
@@ -499,12 +505,13 @@ func (h *EventSubscriptionHandler) sendEventToSubscription(sub *Subscription, ev
 
 // closeConnection closes a WebSocket connection
 func (h *EventSubscriptionHandler) closeConnection(subConn *SubscriptionConnection) {
-	// Close WebSocket connection
 	subConn.mu.Lock()
 	if err := subConn.Conn.Close(); err != nil {
 		h.logger.Error("Failed to close WebSocket connection", "connectionId", subConn.ID, "error", err.Error())
 	}
-	close(subConn.Done)
+	subConn.closeOnce.Do(func() {
+		close(subConn.Done)
+	})
 	subConn.mu.Unlock()
 
 	// Unregister connection and subscriptions
@@ -583,17 +590,23 @@ func (h *EventSubscriptionHandler) Close(ctx context.Context) error {
 
 // validateWSAuth validates the auth header or API key on the WebSocket upgrade request
 func (h *EventSubscriptionHandler) validateWSAuth(r *http.Request) bool {
-	// 1. Check Authorization: Bearer header
+	h.mu.RLock()
+	validator := h.tokenValidator
+	h.mu.RUnlock()
+
+	if validator == nil {
+		return false
+	}
+
 	authHeader := r.Header.Get("Authorization")
 	if strings.HasPrefix(authHeader, "Bearer ") {
 		token := strings.TrimPrefix(authHeader, "Bearer ")
-		result := h.tokenValidator.ValidateJWT(token)
+		result := validator.ValidateJWT(token)
 		return result.Valid
 	}
 
-	// 2. Check X-API-Key header
 	if apiKey := r.Header.Get("X-API-Key"); apiKey != "" {
-		result := h.tokenValidator.ValidateAPIKey(r.Context(), apiKey)
+		result := validator.ValidateAPIKey(r.Context(), apiKey)
 		return result.Valid
 	}
 
@@ -602,7 +615,11 @@ func (h *EventSubscriptionHandler) validateWSAuth(r *http.Request) bool {
 
 // checkOrigin validates the Origin header against the allowed origins list
 func (h *EventSubscriptionHandler) checkOrigin(r *http.Request) bool {
-	if len(h.allowedOrigins) == 0 {
+	h.mu.RLock()
+	allowed := h.allowedOrigins
+	h.mu.RUnlock()
+
+	if len(allowed) == 0 {
 		return true
 	}
 
@@ -611,8 +628,8 @@ func (h *EventSubscriptionHandler) checkOrigin(r *http.Request) bool {
 		return true
 	}
 
-	for _, allowed := range h.allowedOrigins {
-		if strings.EqualFold(allowed, origin) {
+	for _, a := range allowed {
+		if strings.EqualFold(a, origin) {
 			return true
 		}
 	}

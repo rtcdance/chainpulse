@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
@@ -19,12 +20,12 @@ type mongoClientProvider interface {
 
 // DefaultMongoDBAdapter provides MongoDB query operations
 type DefaultMongoDBAdapter struct {
-	mu               sync.RWMutex
+	initMu           sync.Mutex
+	initialized      atomic.Bool
 	dbManager        mongoClientProvider
 	mongoClient      *mongo.Client
 	logger           core.Logger
 	metricsCollector core.MetricsCollector
-	initialized      bool
 }
 
 // NewMongoDBAdapter creates a new MongoDB adapter
@@ -42,10 +43,10 @@ func NewMongoDBAdapter(
 
 // Initialize initializes the MongoDB adapter
 func (ma *DefaultMongoDBAdapter) Initialize(ctx context.Context) error {
-	ma.mu.Lock()
-	defer ma.mu.Unlock()
+	ma.initMu.Lock()
+	defer ma.initMu.Unlock()
 
-	if ma.initialized {
+	if ma.initialized.Load() {
 		return fmt.Errorf("MongoDB adapter already initialized")
 	}
 
@@ -62,7 +63,7 @@ func (ma *DefaultMongoDBAdapter) Initialize(ctx context.Context) error {
 	}
 
 	ma.mongoClient = client
-	ma.initialized = true
+	ma.initialized.Store(true)
 
 	ma.logger.Info("MongoDB adapter initialized", core.LogKeyComponent, "mongodb-adapter")
 
@@ -71,10 +72,7 @@ func (ma *DefaultMongoDBAdapter) Initialize(ctx context.Context) error {
 
 // Query executes a query against MongoDB
 func (ma *DefaultMongoDBAdapter) Query(ctx context.Context, req *QueryRequest) (*QueryResult, error) {
-	ma.mu.RLock()
-	defer ma.mu.RUnlock()
-
-	if !ma.initialized {
+	if !ma.initialized.Load() {
 		return nil, fmt.Errorf("MongoDB adapter not initialized")
 	}
 
@@ -163,10 +161,8 @@ func (ma *DefaultMongoDBAdapter) Query(ctx context.Context, req *QueryRequest) (
 
 // QueryByHash retrieves a single item by hash
 func (ma *DefaultMongoDBAdapter) QueryByHash(ctx context.Context, hash string) (*core.BlockchainEvent, error) {
-	ma.mu.RLock()
-	defer ma.mu.RUnlock()
 
-	if !ma.initialized {
+	if !ma.initialized.Load() {
 		return nil, fmt.Errorf("MongoDB adapter not initialized")
 	}
 
@@ -209,10 +205,8 @@ func (ma *DefaultMongoDBAdapter) QueryByHash(ctx context.Context, hash string) (
 
 // Health returns the health status
 func (ma *DefaultMongoDBAdapter) Health(ctx context.Context) *core.HealthStatus {
-	ma.mu.RLock()
-	defer ma.mu.RUnlock()
 
-	if !ma.initialized {
+	if !ma.initialized.Load() {
 		return &core.HealthStatus{
 			Status:  "unhealthy",
 			Message: "MongoDB adapter not initialized",

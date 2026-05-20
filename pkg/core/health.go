@@ -156,15 +156,20 @@ func (h *DefaultHealthChecker) checkPlugins(ctx context.Context) map[string]any 
 	for _, plugin := range plugins {
 		pluginHealth := map[string]any{
 			"name":    plugin.Name(),
-			"version": plugin.Version(),
 			"healthy": true,
 		}
 
+		if vp, ok := any(plugin).(interface{ Version() string }); ok {
+			pluginHealth["version"] = vp.Version()
+		}
+
 		// Check plugin health
-		if err := plugin.Health(); err != nil {
-			pluginHealth["healthy"] = false
-			pluginHealth["error"] = err.Error()
-			result["healthy"] = false
+		if hp, ok := plugin.(HealthPlugin); ok {
+			if err := hp.Health(ctx); err != nil {
+				pluginHealth["healthy"] = false
+				pluginHealth["error"] = err.Error()
+				result["healthy"] = false
+			}
 		}
 
 		details = append(details, pluginHealth)

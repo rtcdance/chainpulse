@@ -100,18 +100,7 @@ func (ui *UniswapIndexer) IndexSwapEvents(
 
 	ui.logger.Debug("indexing swap events", core.LogKeyCount, len(events))
 
-	for _, event := range events {
-		if err := ui.indexSwapEvent(ctx, event); err != nil {
-			ui.logger.Error("failed to index swap event",
-				core.LogKeyError, err.Error(),
-				core.LogKeyEventID, event.ID,
-				core.LogKeyBlockNumber, event.BlockNumber,
-				"tx_hash", event.TransactionHash.Hex())
-			continue
-		}
-	}
-
-	return nil
+	return core.BatchIndex(ctx, events, ui.indexSwapEvent)
 }
 
 // indexSwapEvent indexes a single swap event

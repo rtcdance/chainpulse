@@ -1,6 +1,7 @@
 package database
 
 import (
+	"context"
 	"testing"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
@@ -15,22 +16,23 @@ func newBasePlugin() *BaseDatabasePlugin {
 func TestBaseDatabasePlugin_Lifecycle(t *testing.T) {
 	t.Parallel()
 	p := newBasePlugin()
+	ctx := context.Background()
 
-	if err := p.Initialize(&core.Config{ServiceName: "test"}); err != nil {
+	if err := p.Initialize(ctx, core.Config{ServiceName: "test"}); err != nil {
 		t.Fatalf("Initialize() error: %v", err)
 	}
-	if err := p.Initialize(&core.Config{}); err == nil {
+	if err := p.Initialize(ctx, core.Config{ServiceName: "test"}); err == nil {
 		t.Error("expected error for double Initialize")
 	}
 
-	if err := p.Start(); err != nil {
+	if err := p.Start(ctx); err != nil {
 		t.Fatalf("Start() error: %v", err)
 	}
-	if err := p.Start(); err == nil {
+	if err := p.Start(ctx); err == nil {
 		t.Error("expected error for double Start")
 	}
 
-	if err := p.Stop(); err != nil {
+	if err := p.Stop(ctx); err != nil {
 		t.Fatalf("Stop() error: %v", err)
 	}
 }
@@ -38,7 +40,8 @@ func TestBaseDatabasePlugin_Lifecycle(t *testing.T) {
 func TestBaseDatabasePlugin_InitializeNilConfig(t *testing.T) {
 	t.Parallel()
 	p := newBasePlugin()
-	if err := p.Initialize(nil); err == nil {
+	ctx := context.Background()
+	if err := p.Initialize(ctx, core.Config{}); err == nil {
 		t.Error("expected error for nil config")
 	}
 }
@@ -46,7 +49,8 @@ func TestBaseDatabasePlugin_InitializeNilConfig(t *testing.T) {
 func TestBaseDatabasePlugin_StopNotStarted(t *testing.T) {
 	t.Parallel()
 	p := newBasePlugin()
-	if err := p.Stop(); err == nil {
+	ctx := context.Background()
+	if err := p.Stop(ctx); err == nil {
 		t.Error("expected error when stopping not started")
 	}
 }
@@ -54,33 +58,32 @@ func TestBaseDatabasePlugin_StopNotStarted(t *testing.T) {
 func TestBaseDatabasePlugin_Health(t *testing.T) {
 	t.Parallel()
 	p := newBasePlugin()
-	_ = p.Initialize(&core.Config{ServiceName: "test"})
-	_ = p.Start()
-	defer p.Stop()
+	ctx := context.Background()
+	_ = p.Initialize(ctx, core.Config{ServiceName: "test"})
+	_ = p.Start(ctx)
+	defer func() { _ = p.Stop(ctx) }()
 
-	health := p.Health()
-	if health == nil {
-		t.Fatal("Health() returned nil")
-	}
-	if health.Status != "healthy" {
-		t.Errorf("Health().Status = %q", health.Status)
+	if err := p.Health(ctx); err != nil {
+		t.Errorf("Health() = %v, want nil", err)
 	}
 }
 
 func TestBaseDatabasePlugin_HealthBeforeInit(t *testing.T) {
 	t.Parallel()
 	p := newBasePlugin()
-	if h := p.Health(); h.Status != "unhealthy" {
-		t.Errorf("Health() before Init = %q, want unhealthy", h.Status)
+	ctx := context.Background()
+	if err := p.Health(ctx); err == nil {
+		t.Error("Health() before Init = nil, want error")
 	}
 }
 
 func TestBaseDatabasePlugin_HealthAfterInitNotStarted(t *testing.T) {
 	t.Parallel()
 	p := newBasePlugin()
-	_ = p.Initialize(&core.Config{})
-	if h := p.Health(); h.Status != "unhealthy" {
-		t.Errorf("Health() after Init = %q, want unhealthy", h.Status)
+	ctx := context.Background()
+	_ = p.Initialize(ctx, core.Config{})
+	if err := p.Health(ctx); err == nil {
+		t.Error("Health() after Init = nil, want error")
 	}
 }
 
@@ -143,9 +146,10 @@ func TestBaseDatabasePlugin_UpdateTotalSize(t *testing.T) {
 func TestBaseDatabasePlugin_GetterMethods(t *testing.T) {
 	t.Parallel()
 	p := newBasePlugin()
-	_ = p.Initialize(&core.Config{ServiceName: "test"})
-	_ = p.Start()
-	defer p.Stop()
+	ctx := context.Background()
+	_ = p.Initialize(ctx, core.Config{ServiceName: "test"})
+	_ = p.Start(ctx)
+	defer func() { _ = p.Stop(ctx) }()
 
 	p.RecordWrite(100)
 	p.RecordWrite(200)
@@ -179,7 +183,8 @@ func TestBaseDatabasePlugin_GetterMethods(t *testing.T) {
 func TestBaseDatabasePlugin_StartErrorHandling(t *testing.T) {
 	t.Parallel()
 	p := newBasePlugin()
-	if err := p.Start(); err == nil {
+	ctx := context.Background()
+	if err := p.Start(ctx); err == nil {
 		t.Error("expected error starting without init")
 	}
 }
@@ -187,8 +192,9 @@ func TestBaseDatabasePlugin_StartErrorHandling(t *testing.T) {
 func TestBaseDatabasePlugin_StopNotRunning(t *testing.T) {
 	t.Parallel()
 	p := newBasePlugin()
-	_ = p.Initialize(&core.Config{})
-	if err := p.Stop(); err == nil {
+	ctx := context.Background()
+	_ = p.Initialize(ctx, core.Config{})
+	if err := p.Stop(ctx); err == nil {
 		t.Error("expected error stopping without start")
 	}
 }

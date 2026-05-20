@@ -16,7 +16,7 @@ import (
 func TestTransactionIsolation(t *testing.T) {
 	requirePostgresIntegration(t)
 
-	config := &core.Config{
+	config := core.Config{
 		PostgresHost:     "localhost",
 		PostgresPort:     "5432",
 		PostgresUser:     "chainpulse",
@@ -28,16 +28,16 @@ func TestTransactionIsolation(t *testing.T) {
 	metrics := core.NewDefaultMetricsCollector()
 
 	db := NewPostgreSQLDatabase(logger, metrics)
-	err := db.Initialize(config)
+	err := db.Initialize(context.Background(), config)
 	if err != nil {
 		t.Fatalf("Failed to initialize: %v", err)
 	}
 
-	err = db.Start()
+	err = db.Start(context.Background())
 	if err != nil {
 		t.Fatalf("Failed to start: %v", err)
 	}
-	defer func() { _ = db.Stop() }()
+	defer func() { _ = db.Stop(context.Background()) }()
 
 	// Create test event
 	event := &core.BlockchainEvent{
@@ -93,7 +93,7 @@ func TestTransactionIsolation(t *testing.T) {
 func TestRollbackOnError(t *testing.T) {
 	requirePostgresIntegration(t)
 
-	config := &core.Config{
+	config := core.Config{
 		PostgresHost:     "localhost",
 		PostgresPort:     "5432",
 		PostgresUser:     "chainpulse",
@@ -105,16 +105,16 @@ func TestRollbackOnError(t *testing.T) {
 	metrics := core.NewDefaultMetricsCollector()
 
 	db := NewPostgreSQLDatabase(logger, metrics)
-	err := db.Initialize(config)
+	err := db.Initialize(context.Background(), config)
 	if err != nil {
 		t.Fatalf("Failed to initialize: %v", err)
 	}
 
-	err = db.Start()
+	err = db.Start(context.Background())
 	if err != nil {
 		t.Fatalf("Failed to start: %v", err)
 	}
-	defer func() { _ = db.Stop() }()
+	defer func() { _ = db.Stop(context.Background()) }()
 
 	// Create test events with duplicate hash
 	events := []core.BlockchainEvent{
@@ -163,7 +163,7 @@ func TestRollbackOnError(t *testing.T) {
 func TestConcurrentTransactions(t *testing.T) {
 	requirePostgresIntegration(t)
 
-	config := &core.Config{
+	config := core.Config{
 		PostgresHost:     "localhost",
 		PostgresPort:     "5432",
 		PostgresUser:     "chainpulse",
@@ -175,16 +175,16 @@ func TestConcurrentTransactions(t *testing.T) {
 	metrics := core.NewDefaultMetricsCollector()
 
 	db := NewPostgreSQLDatabase(logger, metrics)
-	err := db.Initialize(config)
+	err := db.Initialize(context.Background(), config)
 	if err != nil {
 		t.Fatalf("Failed to initialize: %v", err)
 	}
 
-	err = db.Start()
+	err = db.Start(context.Background())
 	if err != nil {
 		t.Fatalf("Failed to start: %v", err)
 	}
-	defer func() { _ = db.Stop() }()
+	defer func() { _ = db.Stop(context.Background()) }()
 
 	// Run concurrent transactions
 	done := make(chan bool, 5)
@@ -222,7 +222,7 @@ func TestConcurrentTransactions(t *testing.T) {
 func TestTransactionConsistency(t *testing.T) {
 	requirePostgresIntegration(t)
 
-	config := &core.Config{
+	config := core.Config{
 		PostgresHost:     "localhost",
 		PostgresPort:     "5432",
 		PostgresUser:     "chainpulse",
@@ -234,16 +234,16 @@ func TestTransactionConsistency(t *testing.T) {
 	metrics := core.NewDefaultMetricsCollector()
 
 	db := NewPostgreSQLDatabase(logger, metrics)
-	err := db.Initialize(config)
+	err := db.Initialize(context.Background(), config)
 	if err != nil {
 		t.Fatalf("Failed to initialize: %v", err)
 	}
 
-	err = db.Start()
+	err = db.Start(context.Background())
 	if err != nil {
 		t.Fatalf("Failed to start: %v", err)
 	}
-	defer func() { _ = db.Stop() }()
+	defer func() { _ = db.Stop(context.Background()) }()
 
 	// Write event
 	event := &core.BlockchainEvent{

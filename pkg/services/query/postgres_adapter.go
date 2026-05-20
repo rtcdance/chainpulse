@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
@@ -20,12 +21,12 @@ type postgresConnectionProvider interface {
 
 // DefaultPostgreSQLAdapter provides PostgreSQL query operations
 type DefaultPostgreSQLAdapter struct {
-	mu               sync.RWMutex
+	initMu           sync.Mutex
+initialized      atomic.Bool
 	dbManager        postgresConnectionProvider
 	db               *sql.DB
 	logger           core.Logger
 	metricsCollector core.MetricsCollector
-	initialized      bool
 }
 
 var postgresIdentifierPattern = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_]*$`)
@@ -45,10 +46,10 @@ func NewPostgreSQLAdapter(
 
 // Initialize initializes the PostgreSQL adapter
 func (pa *DefaultPostgreSQLAdapter) Initialize(ctx context.Context) error {
-	pa.mu.Lock()
-	defer pa.mu.Unlock()
+	pa.initMu.Lock()
+	defer pa.initMu.Unlock()
 
-	if pa.initialized {
+	if pa.initialized.Load() {
 		return fmt.Errorf("PostgreSQL adapter already initialized")
 	}
 
@@ -67,7 +68,7 @@ func (pa *DefaultPostgreSQLAdapter) Initialize(ctx context.Context) error {
 		return fmt.Errorf("expected *sql.DB, got %T", db)
 	}
 	pa.db = sqlDB
-	pa.initialized = true
+	pa.initialized.Store(true)
 
 	pa.logger.Info("PostgreSQL adapter initialized", core.LogKeyComponent, "postgres-adapter")
 
@@ -76,10 +77,8 @@ func (pa *DefaultPostgreSQLAdapter) Initialize(ctx context.Context) error {
 
 // Query executes a query against PostgreSQL
 func (pa *DefaultPostgreSQLAdapter) Query(ctx context.Context, req *QueryRequest) (*QueryResult, error) {
-	pa.mu.RLock()
-	defer pa.mu.RUnlock()
 
-	if !pa.initialized {
+	if !pa.initialized.Load() {
 		return nil, fmt.Errorf("PostgreSQL adapter not initialized")
 	}
 
@@ -223,10 +222,8 @@ func isSafePostgresIdentifier(identifier string) bool {
 
 // QueryByHash retrieves a single item by hash
 func (pa *DefaultPostgreSQLAdapter) QueryByHash(ctx context.Context, hash string) (*core.BlockchainEvent, error) {
-	pa.mu.RLock()
-	defer pa.mu.RUnlock()
 
-	if !pa.initialized {
+	if !pa.initialized.Load() {
 		return nil, fmt.Errorf("PostgreSQL adapter not initialized")
 	}
 
@@ -280,10 +277,8 @@ func (pa *DefaultPostgreSQLAdapter) QueryByHash(ctx context.Context, hash string
 
 // Health returns the health status
 func (pa *DefaultPostgreSQLAdapter) Health(ctx context.Context) *core.HealthStatus {
-	pa.mu.RLock()
-	defer pa.mu.RUnlock()
 
-	if !pa.initialized {
+	if !pa.initialized.Load() {
 		return &core.HealthStatus{
 			Status:  "unhealthy",
 			Message: "PostgreSQL adapter not initialized",

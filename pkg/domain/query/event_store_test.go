@@ -154,6 +154,24 @@ func (m *mockEventStoreDomain) GetEventsPaginated(ctx context.Context, cursor st
 	return result, hasMore, nil
 }
 
+func (m *mockEventStoreDomain) GetEventsByCorrelationID(ctx context.Context, correlationID string, limit int, offset int) ([]*core.BlockchainEvent, error) {
+	var result []*core.BlockchainEvent
+	for _, e := range m.events {
+		// Simple substring match since mock data has no structured correlation ID
+		if e.ID == correlationID || e.EventName == correlationID {
+			result = append(result, e)
+		}
+	}
+	if offset > len(result) {
+		return nil, nil
+	}
+	end := offset + limit
+	if end > len(result) {
+		end = len(result)
+	}
+	return result[offset:end], nil
+}
+
 func (m *mockEventStoreDomain) DeleteExpiredEvents(ctx context.Context) (int64, error) {
 	return 0, nil
 }

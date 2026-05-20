@@ -138,9 +138,11 @@ func (p *HTTPPlugin) startHTTPS(mux *http.ServeMux) error {
 	return nil
 }
 
-// Stop stops the HTTP server gracefully, draining in-flight requests.
+// Stop stops the HTTP server with a 30-second deadline for graceful connection draining.
 func (p *HTTPPlugin) Stop() error {
-	return p.ShutdownWithContext(context.Background())
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	return p.ShutdownWithContext(ctx)
 }
 
 // ShutdownWithContext stops the HTTP server with a context deadline,
@@ -208,6 +210,19 @@ func (p *HTTPPlugin) handleRequest(w http.ResponseWriter, r *http.Request) {
 }
 
 func (p *HTTPPlugin) handleRequestCore(w http.ResponseWriter, r *http.Request) {
+	// Recover from panics in any registered handler to avoid
+	// crashing the HTTP server goroutine.
+	defer func() {
+		if rec := recover(); rec != nil {
+			p.logger.Error("HTTP handler panicked, returning 500",
+				slog.String("method", r.Method),
+				slog.String("path", r.URL.Path),
+				slog.Any("panic", rec),
+			)
+			http.Error(w, `{"error":"internal server error"}`, http.StatusInternalServerError)
+		}
+	}()
+
 	p.mu.RLock()
 	nativeHandler := p.nativeHandler
 	p.mu.RUnlock()

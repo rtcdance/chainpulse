@@ -77,13 +77,6 @@ func ExpectedSlotNumber(blockTimestamp, genesisTime int64) uint64 {
 	return TimestampToSlot(blockTimestamp, genesisTime)
 }
 
-// BeaconBlockInfo holds beacon chain metadata for an execution block.
-type BeaconBlockInfo struct {
-	Slot         uint64 `json:"slot"`
-	Epoch        uint64 `json:"epoch"`
-	IsMissedSlot bool   `json:"is_missed_slot"`
-}
-
 // NewBeaconBlockInfo creates BeaconBlockInfo from a block's timestamp and
 // the parent's slot number. It computes the current slot, epoch, and
 // whether any slots were missed between the parent and current.

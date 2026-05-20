@@ -14,12 +14,16 @@ import (
 type DefaultCacheService struct {
 	mu               sync.RWMutex
 	cache            map[string]cacheEntry
+	maxEntries       int
 	logger           core.Logger
 	metricsCollector core.MetricsCollector
 	initialized      bool
 	running          bool
 	done             chan struct{}
+	stopOnce         sync.Once
 }
+
+const defaultMaxCacheEntries = 100000
 
 // cacheEntry represents a cached value with expiration
 type cacheEntry struct {
@@ -34,6 +38,7 @@ func NewCacheService(
 ) CacheService {
 	return &DefaultCacheService{
 		cache:            make(map[string]cacheEntry),
+		maxEntries:       defaultMaxCacheEntries,
 		logger:           logger,
 		metricsCollector: metricsCollector,
 		done:             make(chan struct{}),
@@ -89,13 +94,9 @@ func (cs *DefaultCacheService) Stop(ctx context.Context) error {
 
 	cs.running = false
 
-	// Signal the cleanup goroutine to stop
-	select {
-	case <-cs.done:
-		// Already closed
-	default:
+	cs.stopOnce.Do(func() {
 		close(cs.done)
-	}
+	})
 
 	cs.logger.Info("Cache service stopped", core.LogKeyComponent, "cache-service")
 
@@ -178,6 +179,20 @@ func (cs *DefaultCacheService) GetSingle(ctx context.Context, key string) (*core
 	return &event, nil
 }
 
+func (cs *DefaultCacheService) evictOldest() {
+	var oldestKey string
+	var oldestTime time.Time
+	for k, entry := range cs.cache {
+		if oldestKey == "" || entry.expiresAt.Before(oldestTime) {
+			oldestKey = k
+			oldestTime = entry.expiresAt
+		}
+	}
+	if oldestKey != "" {
+		delete(cs.cache, oldestKey)
+	}
+}
+
 // Set sets a cached value
 func (cs *DefaultCacheService) Set(ctx context.Context, key string, value []core.BlockchainEvent, ttl time.Duration) error {
 	cs.mu.Lock()
@@ -193,6 +208,10 @@ func (cs *DefaultCacheService) Set(ctx context.Context, key string, value []core
 
 	if value == nil {
 		return fmt.Errorf("cache value is required")
+	}
+
+	if len(cs.cache) >= cs.maxEntries {
+		cs.evictOldest()
 	}
 
 	duration := ttl

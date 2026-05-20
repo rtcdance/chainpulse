@@ -28,18 +28,18 @@ func NewMockDB() *MockDB {
 func (m *MockDB) Name() string    { return m.name }
 func (m *MockDB) Version() string { return m.version }
 
-func (m *MockDB) Initialize(config core.Config) error {
+func (m *MockDB) Initialize(_ context.Context, _ core.Config) error {
 	return nil
 }
 
-func (m *MockDB) Start() error {
+func (m *MockDB) Start(_ context.Context) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.started = true
 	return nil
 }
 
-func (m *MockDB) Stop() error {
+func (m *MockDB) Stop(_ context.Context) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.started = false
@@ -48,7 +48,7 @@ func (m *MockDB) Stop() error {
 	return nil
 }
 
-func (m *MockDB) Health() error {
+func (m *MockDB) Health(_ context.Context) error {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	if !m.started {

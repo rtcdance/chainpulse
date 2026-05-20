@@ -2,9 +2,9 @@ package core
 
 import "fmt"
 
-type configAccessor struct {
-	get func(*Config) (any, error)
-	set func(*Config, any) error
+type ConfigAccessor struct {
+	Get func(*Config) (any, error)
+	Set func(*Config, any) error
 }
 
 func errTypeError(key, want string) error {
@@ -19,10 +19,10 @@ func errTypeError(key, want string) error {
 // configFields maps config key names to get/set accessors.
 // Fields not registered here are not accessible via Get/Set but can still be
 // read/written directly on the Config struct.
-var configFields = map[string]configAccessor{
+var ConfigFields = map[string]ConfigAccessor{
 	"data_puller_type": {
-		get: func(c *Config) (any, error) { return c.DataPullerType, nil },
-		set: func(c *Config, v any) error {
+		Get: func(c *Config) (any, error) { return c.DataPullerType, nil },
+		Set: func(c *Config, v any) error {
 			s, ok := v.(string)
 			if !ok {
 				return errTypeError("data_puller_type", "string")
@@ -32,8 +32,8 @@ var configFields = map[string]configAccessor{
 		},
 	},
 	"blockchain_node_url": {
-		get: func(c *Config) (any, error) { return c.BlockchainNodeURL, nil },
-		set: func(c *Config, v any) error {
+		Get: func(c *Config) (any, error) { return c.BlockchainNodeURL, nil },
+		Set: func(c *Config, v any) error {
 			s, ok := v.(string)
 			if !ok {
 				return errTypeError("blockchain_node_url", "string")
@@ -43,8 +43,8 @@ var configFields = map[string]configAccessor{
 		},
 	},
 	"mq_type": {
-		get: func(c *Config) (any, error) { return c.MQType, nil },
-		set: func(c *Config, v any) error {
+		Get: func(c *Config) (any, error) { return c.MQType, nil },
+		Set: func(c *Config, v any) error {
 			s, ok := v.(string)
 			if !ok {
 				return errTypeError("mq_type", "string")
@@ -54,8 +54,8 @@ var configFields = map[string]configAccessor{
 		},
 	},
 	"cache_type": {
-		get: func(c *Config) (any, error) { return c.CacheType, nil },
-		set: func(c *Config, v any) error {
+		Get: func(c *Config) (any, error) { return c.CacheType, nil },
+		Set: func(c *Config, v any) error {
 			s, ok := v.(string)
 			if !ok {
 				return errTypeError("cache_type", "string")
@@ -65,8 +65,8 @@ var configFields = map[string]configAccessor{
 		},
 	},
 	"database_type": {
-		get: func(c *Config) (any, error) { return c.DatabaseType, nil },
-		set: func(c *Config, v any) error {
+		Get: func(c *Config) (any, error) { return c.DatabaseType, nil },
+		Set: func(c *Config, v any) error {
 			s, ok := v.(string)
 			if !ok {
 				return errTypeError("database_type", "string")
@@ -76,8 +76,8 @@ var configFields = map[string]configAccessor{
 		},
 	},
 	"api_type": {
-		get: func(c *Config) (any, error) { return c.APIType, nil },
-		set: func(c *Config, v any) error {
+		Get: func(c *Config) (any, error) { return c.APIType, nil },
+		Set: func(c *Config, v any) error {
 			s, ok := v.(string)
 			if !ok {
 				return errTypeError("api_type", "string")
@@ -87,8 +87,8 @@ var configFields = map[string]configAccessor{
 		},
 	},
 	"api_port": {
-		get: func(c *Config) (any, error) { return c.APIPort, nil },
-		set: func(c *Config, v any) error {
+		Get: func(c *Config) (any, error) { return c.APIPort, nil },
+		Set: func(c *Config, v any) error {
 			i, ok := v.(int)
 			if !ok {
 				return errTypeError("api_port", "int")
@@ -98,8 +98,8 @@ var configFields = map[string]configAccessor{
 		},
 	},
 	"worker_pool_size": {
-		get: func(c *Config) (any, error) { return c.WorkerPoolSize, nil },
-		set: func(c *Config, v any) error {
+		Get: func(c *Config) (any, error) { return c.WorkerPoolSize, nil },
+		Set: func(c *Config, v any) error {
 			i, ok := v.(int)
 			if !ok {
 				return errTypeError("worker_pool_size", "int")
@@ -109,8 +109,8 @@ var configFields = map[string]configAccessor{
 		},
 	},
 	"batch_size": {
-		get: func(c *Config) (any, error) { return c.BatchSize, nil },
-		set: func(c *Config, v any) error {
+		Get: func(c *Config) (any, error) { return c.BatchSize, nil },
+		Set: func(c *Config, v any) error {
 			i, ok := v.(int)
 			if !ok {
 				return errTypeError("batch_size", "int")
@@ -120,8 +120,8 @@ var configFields = map[string]configAccessor{
 		},
 	},
 	"max_retries": {
-		get: func(c *Config) (any, error) { return c.MaxRetries, nil },
-		set: func(c *Config, v any) error {
+		Get: func(c *Config) (any, error) { return c.MaxRetries, nil },
+		Set: func(c *Config, v any) error {
 			i, ok := v.(int)
 			if !ok {
 				return errTypeError("max_retries", "int")
@@ -131,8 +131,8 @@ var configFields = map[string]configAccessor{
 		},
 	},
 	"deployment_mode": {
-		get: func(c *Config) (any, error) { return c.DeploymentMode, nil },
-		set: func(c *Config, v any) error {
+		Get: func(c *Config) (any, error) { return c.DeploymentMode, nil },
+		Set: func(c *Config, v any) error {
 			s, ok := v.(string)
 			if !ok {
 				return errTypeError("deployment_mode", "string")
@@ -142,8 +142,8 @@ var configFields = map[string]configAccessor{
 		},
 	},
 	"log_level": {
-		get: func(c *Config) (any, error) { return c.LogLevel, nil },
-		set: func(c *Config, v any) error {
+		Get: func(c *Config) (any, error) { return c.LogLevel, nil },
+		Set: func(c *Config, v any) error {
 			s, ok := v.(string)
 			if !ok {
 				return errTypeError("log_level", "string")

@@ -112,7 +112,9 @@ func (hc *HealthChecker) attemptRecovery() {
 	}
 
 	// Reinitialize
-	err := hc.db.Initialize(hc.db.config)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	err := hc.db.Initialize(ctx, *hc.db.config)
 	if err != nil {
 		hc.db.logger.Error("Recovery failed", "error", err.Error(), "attempt", attempts)
 

@@ -43,11 +43,11 @@ func (m *MockEventBus) Publish(ctx context.Context, topic string, event any) err
 	return nil
 }
 
-func (m *MockEventBus) Subscribe(ctx context.Context, topic string, handler func(any)) (uint64, error) {
+func (m *MockEventBus) Subscribe(ctx context.Context, topic string, handler func(context.Context, any) error) (uint64, error) {
 	return 0, nil
 }
 
-func (m *MockEventBus) SubscribeNamed(ctx context.Context, topic, name string, handler func(any)) (uint64, error) {
+func (m *MockEventBus) SubscribeNamed(ctx context.Context, topic, name string, handler func(context.Context, any) error) (uint64, error) {
 	return 0, nil
 }
 
@@ -100,19 +100,23 @@ func (m *MockMQPlugin) Version() string {
 	return "1.0.0"
 }
 
-func (m *MockMQPlugin) Initialize(config core.Config) error {
+func (m *MockMQPlugin) Initialize(ctx context.Context, config core.Config) error {
+	_ = ctx
 	return nil
 }
 
-func (m *MockMQPlugin) Start() error {
+func (m *MockMQPlugin) Start(ctx context.Context) error {
+	_ = ctx
 	return nil
 }
 
-func (m *MockMQPlugin) Stop() error {
+func (m *MockMQPlugin) Stop(ctx context.Context) error {
+	_ = ctx
 	return nil
 }
 
-func (m *MockMQPlugin) Health() error {
+func (m *MockMQPlugin) Health(ctx context.Context) error {
+	_ = ctx
 	return nil
 }
 
@@ -148,11 +152,13 @@ func (m *MockPluginRegistry) List() []core.Plugin {
 	return []core.Plugin{}
 }
 
-func (m *MockPluginRegistry) Start() error {
+func (m *MockPluginRegistry) Start(ctx context.Context) error {
+	_ = ctx
 	return nil
 }
 
-func (m *MockPluginRegistry) Stop() error {
+func (m *MockPluginRegistry) Stop(ctx context.Context) error {
+	_ = ctx
 	return nil
 }
 

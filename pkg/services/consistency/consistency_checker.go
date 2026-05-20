@@ -3,6 +3,7 @@ package consistency
 import (
 	"context"
 	"fmt"
+	"sort"
 	"sync"
 	"time"
 
@@ -66,59 +67,50 @@ func NewConsistencyChecker(
 	}
 }
 
-// CheckConsistency performs a comprehensive consistency check
+// CheckConsistency performs a comprehensive consistency check.
+// Optimized to load data once and reuse across all checks.
 func (cc *ConsistencyChecker) CheckConsistency(ctx context.Context) (*ConsistencyReport, error) {
 	report := &ConsistencyReport{
 		CheckedAt: time.Now(),
 		Issues:    []string{},
 	}
 
-	// Get all events
+	// Load all events once
 	events, err := cc.database.GetAllEvents(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get all events: %w", err)
 	}
-
 	report.TotalEvents = int64(len(events))
 
-	// Check for duplicates
-	duplicates, err := cc.checkDuplicates(ctx, events)
-	if err != nil {
-		return nil, fmt.Errorf("failed to check duplicates: %w", err)
-	}
+	// Check for duplicates (single pass over events)
+	duplicates := findDuplicates(events)
 	report.DuplicateEvents = int64(len(duplicates))
 	if len(duplicates) > 0 {
 		report.Issues = append(report.Issues, fmt.Sprintf("found %d duplicate events", len(duplicates)))
 	}
 
-	// Check event sequence
-	sequenceIssues, err := cc.VerifyEventSequence(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to verify event sequence: %w", err)
-	}
+	// Build block map from events for sequence checks
+	eventBlockMap := buildBlockSetFromEvents(events)
+	sequenceIssues := findEventSequenceGaps(eventBlockMap)
 	report.InvalidSequences = int64(len(sequenceIssues))
 	if len(sequenceIssues) > 0 {
 		report.Issues = append(report.Issues, fmt.Sprintf("found %d sequence issues", len(sequenceIssues)))
 	}
 
-	// Check block sequence
-	blockIssues, err := cc.VerifyBlockSequence(ctx)
+	// Load all blocks once for block checks
+	blocks, err := cc.database.GetAllBlocks(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to verify block sequence: %w", err)
+		return nil, fmt.Errorf("failed to get all blocks: %w", err)
 	}
+
+	blockIssues := findBlockSequenceGaps(blocks)
 	report.InconsistentBlocks = int64(len(blockIssues))
 	if len(blockIssues) > 0 {
 		report.Issues = append(report.Issues, fmt.Sprintf("found %d block issues", len(blockIssues)))
 	}
 
 	// Determine status
-	if len(report.Issues) == 0 {
-		report.Status = "healthy"
-	} else if report.DuplicateEvents > 0 || report.InvalidSequences > 0 {
-		report.Status = "degraded"
-	} else {
-		report.Status = "unhealthy"
-	}
+	report.Status = computeStatus(report)
 
 	cc.logger.Info(
 		"Consistency check completed",
@@ -134,9 +126,9 @@ func (cc *ConsistencyChecker) CheckConsistency(ctx context.Context) (*Consistenc
 	return report, nil
 }
 
-// checkDuplicates finds duplicate events
-func (cc *ConsistencyChecker) checkDuplicates(ctx context.Context, events []*core.BlockchainEvent) ([]*core.BlockchainEvent, error) {
-	seen := make(map[string]bool)
+// findDuplicates finds duplicate events in O(n) using a map.
+func findDuplicates(events []*core.BlockchainEvent) []*core.BlockchainEvent {
+	seen := make(map[string]bool, len(events))
 	var duplicates []*core.BlockchainEvent
 
 	for _, event := range events {
@@ -147,145 +139,121 @@ func (cc *ConsistencyChecker) checkDuplicates(ctx context.Context, events []*cor
 		seen[key] = true
 	}
 
-	return duplicates, nil
+	return duplicates
 }
 
-// VerifyEventSequence verifies that events form a valid sequence
-func (cc *ConsistencyChecker) VerifyEventSequence(ctx context.Context) ([]string, error) {
-	cc.mu.RLock()
-	defer cc.mu.RUnlock()
-
-	var issues []string
-
-	// Get all events ordered by block and log index
-	events, err := cc.database.GetAllEvents(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get all events: %w", err)
-	}
-
-	// Check for gaps in block numbers
-	blockMap := make(map[uint64]int)
+// buildBlockSetFromEvents creates a set of block numbers from events.
+func buildBlockSetFromEvents(events []*core.BlockchainEvent) map[uint64]bool {
+	blockSet := make(map[uint64]bool, len(events))
 	for _, event := range events {
-		blockMap[event.BlockNumber]++
+		blockSet[event.BlockNumber] = true
 	}
-
-	if len(blockMap) > 0 {
-		minBlock := uint64(^uint64(0))
-		maxBlock := uint64(0)
-
-		for block := range blockMap {
-			if block < minBlock {
-				minBlock = block
-			}
-			if block > maxBlock {
-				maxBlock = block
-			}
-		}
-
-		// Check for gaps
-		for block := minBlock; block <= maxBlock; block++ {
-			if _, exists := blockMap[block]; !exists {
-				issues = append(issues, fmt.Sprintf("missing events for block %d", block))
-			}
-		}
-	}
-
-	// Check for duplicate events
-	seen := make(map[string]bool)
-	for _, event := range events {
-		key := fmt.Sprintf("%s-%d-%s", event.TransactionHash.Hex(), event.LogIndex, event.EventSignature.Hex())
-		if seen[key] {
-			issues = append(issues, fmt.Sprintf("duplicate event: %s", key))
-		}
-		seen[key] = true
-	}
-
-	return issues, nil
+	return blockSet
 }
 
-// VerifyBlockSequence verifies that blocks form a valid sequence
-func (cc *ConsistencyChecker) VerifyBlockSequence(ctx context.Context) ([]string, error) {
-	cc.mu.RLock()
-	defer cc.mu.RUnlock()
-
-	var issues []string
-
-	// Get all blocks
-	blocks, err := cc.database.GetAllBlocks(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get all blocks: %w", err)
+// findEventSequenceGaps finds gaps in event block coverage using set operations
+// instead of iterating from minBlock to maxBlock (which can be O(billions)).
+func findEventSequenceGaps(blockSet map[uint64]bool) []string {
+	if len(blockSet) == 0 {
+		return nil
 	}
 
+	blocks := make([]uint64, 0, len(blockSet))
+	for block := range blockSet {
+		blocks = append(blocks, block)
+	}
+	sort.Slice(blocks, func(i, j int) bool { return blocks[i] < blocks[j] })
+
+	var issues []string
+	for i := 1; i < len(blocks); i++ {
+		if blocks[i] != blocks[i-1]+1 {
+			gapStart := blocks[i-1] + 1
+			gapEnd := blocks[i] - 1
+			if gapStart == gapEnd {
+				issues = append(issues, fmt.Sprintf("missing events for block %d", gapStart))
+			} else {
+				issues = append(issues, fmt.Sprintf("missing events for blocks %d-%d (%d blocks)", gapStart, gapEnd, gapEnd-gapStart+1))
+			}
+		}
+	}
+
+	return issues
+}
+
+// findBlockSequenceGaps finds gaps and parent hash mismatches in blocks
+// using sorted block list instead of iterating the entire range.
+func findBlockSequenceGaps(blocks []*core.Block) []string {
 	if len(blocks) == 0 {
-		return issues, nil
+		return nil
 	}
 
 	// Sort blocks by number
-	blockMap := make(map[uint64]*core.Block)
-	minBlock := uint64(^uint64(0))
-	maxBlock := uint64(0)
+	sorted := make([]*core.Block, len(blocks))
+	copy(sorted, blocks)
+	sort.Slice(sorted, func(i, j int) bool { return sorted[i].Number < sorted[j].Number })
 
-	for _, block := range blocks {
+	blockMap := make(map[uint64]*core.Block, len(sorted))
+	for _, block := range sorted {
 		blockMap[block.Number] = block
-		if block.Number < minBlock {
-			minBlock = block.Number
-		}
-		if block.Number > maxBlock {
-			maxBlock = block.Number
+	}
+
+	var issues []string
+
+	// Find gaps between consecutive stored blocks
+	for i := 1; i < len(sorted); i++ {
+		if sorted[i].Number != sorted[i-1].Number+1 {
+			gapStart := sorted[i-1].Number + 1
+			gapEnd := sorted[i].Number - 1
+			if gapStart == gapEnd {
+				issues = append(issues, fmt.Sprintf("missing block %d", gapStart))
+			} else {
+				issues = append(issues, fmt.Sprintf("missing blocks %d-%d (%d blocks)", gapStart, gapEnd, gapEnd-gapStart+1))
+			}
 		}
 	}
 
-	// Check for gaps
-	for block := minBlock; block < maxBlock; block++ {
-		if _, exists := blockMap[block]; !exists {
-			issues = append(issues, fmt.Sprintf("missing block %d", block))
+	// Check parent-child relationships using sorted order (O(n))
+	for i := 1; i < len(sorted); i++ {
+		currentBlock := sorted[i]
+		parentBlock := sorted[i-1]
+
+		if currentBlock.Number == parentBlock.Number+1 {
+			if currentBlock.ParentHash != parentBlock.Hash {
+				issues = append(issues, fmt.Sprintf(
+					"block %d parent hash mismatch: expected %s, got %s",
+					currentBlock.Number,
+					parentBlock.Hash.Hex(),
+					currentBlock.ParentHash.Hex(),
+				))
+			}
 		}
 	}
 
-	// Check parent-child relationships
-	for block := minBlock + 1; block <= maxBlock; block++ {
-		currentBlock := blockMap[block]
-		parentBlock := blockMap[block-1]
-
-		if currentBlock == nil || parentBlock == nil {
-			continue
-		}
-
-		if currentBlock.ParentHash != parentBlock.Hash {
-			issues = append(issues, fmt.Sprintf(
-				"block %d parent hash mismatch: expected %s, got %s",
-				block,
-				parentBlock.Hash.Hex(),
-				currentBlock.ParentHash.Hex(),
-			))
-		}
-	}
-
-	return issues, nil
+	return issues
 }
 
 // RepairInconsistencies attempts to repair found inconsistencies
+// including duplicate deletion, sequence gap detection, orphaned event removal,
+// and block hash mismatches from reorgs.
 func (cc *ConsistencyChecker) RepairInconsistencies(ctx context.Context) (*ConsistencyReport, error) {
 	report := &ConsistencyReport{
 		CheckedAt: time.Now(),
 		Issues:    []string{},
 	}
 
-	// Get all events
+	// Get all events once
 	events, err := cc.database.GetAllEvents(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get all events: %w", err)
 	}
-
 	report.TotalEvents = int64(len(events))
 
-	// Repair duplicates
-	duplicates, err := cc.checkDuplicates(ctx, events)
-	if err != nil {
-		return nil, fmt.Errorf("failed to check duplicates: %w", err)
-	}
+	// Phase 1: Repair duplicate events
+	duplicates := findDuplicates(events)
+	report.DuplicateEvents = int64(len(duplicates))
 
 	for _, duplicate := range duplicates {
+		report.RepairAttempts++
 		err := cc.database.DeleteEvent(ctx, duplicate.ID)
 		if err != nil {
 			report.FailedRepairs++
@@ -298,37 +266,58 @@ func (cc *ConsistencyChecker) RepairInconsistencies(ctx context.Context) (*Consi
 			)
 		} else {
 			report.SuccessfulRepairs++
+			cc.logger.Info("Deleted duplicate event", "event_id", duplicate.ID)
 		}
+	}
+
+	// Phase 2: Remove orphaned events (events whose blocks don't exist)
+	orphaned, err := cc.findOrphanedEvents(ctx, events)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find orphaned events: %w", err)
+	}
+
+	for _, orphan := range orphaned {
 		report.RepairAttempts++
+		err := cc.database.DeleteEvent(ctx, orphan.ID)
+		if err != nil {
+			report.FailedRepairs++
+			cc.logger.Error("Failed to delete orphaned event", "event_id", orphan.ID, "error", err.Error())
+		} else {
+			report.SuccessfulRepairs++
+			cc.logger.Info("Deleted orphaned event", "event_id", orphan.ID, "block", orphan.BlockNumber)
+		}
 	}
 
-	report.DuplicateEvents = int64(len(duplicates))
-
-	// Verify sequences after repair
-	sequenceIssues, err := cc.VerifyEventSequence(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to verify event sequence: %w", err)
-	}
+	// Phase 3: Verify and report sequence gaps (cannot auto-fill without re-indexing)
+	eventBlockMap := buildBlockSetFromEvents(events)
+	sequenceIssues := findEventSequenceGaps(eventBlockMap)
 	report.InvalidSequences = int64(len(sequenceIssues))
+	report.MissingEvents = int64(len(sequenceIssues))
 
-	blockIssues, err := cc.VerifyBlockSequence(ctx)
+	// Check block sequence
+	blocks, err := cc.database.GetAllBlocks(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to verify block sequence: %w", err)
+		return nil, fmt.Errorf("failed to get all blocks: %w", err)
 	}
+	blockIssues := findBlockSequenceGaps(blocks)
 	report.InconsistentBlocks = int64(len(blockIssues))
 
-	// Determine status
-	if report.DuplicateEvents == 0 && report.InvalidSequences == 0 && report.InconsistentBlocks == 0 {
-		report.Status = "healthy"
-	} else if report.DuplicateEvents > 0 || report.InvalidSequences > 0 {
-		report.Status = "degraded"
-	} else {
-		report.Status = "unhealthy"
+	// Determine status based on remaining issues after repair
+	report.Status = computeStatus(report)
+
+	if len(sequenceIssues) > 0 {
+		report.Issues = append(report.Issues, fmt.Sprintf("sequence gaps detected (%d issues) — requires re-indexing", len(sequenceIssues)))
+	}
+	for _, issue := range blockIssues {
+		report.Issues = append(report.Issues, "block issue: "+issue)
 	}
 
 	cc.logger.Info(
 		"Consistency repair completed",
 		map[string]any{
+			"total_events":       report.TotalEvents,
+			"duplicates_removed": report.DuplicateEvents,
+			"orphaned_removed":   len(orphaned),
 			"repair_attempts":    report.RepairAttempts,
 			"successful_repairs": report.SuccessfulRepairs,
 			"failed_repairs":     report.FailedRepairs,
@@ -337,6 +326,42 @@ func (cc *ConsistencyChecker) RepairInconsistencies(ctx context.Context) (*Consi
 	)
 
 	return report, nil
+}
+
+// findOrphanedEvents returns events whose associated blocks don't exist in the database.
+func (cc *ConsistencyChecker) findOrphanedEvents(ctx context.Context, events []*core.BlockchainEvent) ([]*core.BlockchainEvent, error) {
+	seenBlocks := make(map[uint64]bool)
+	var orphaned []*core.BlockchainEvent
+
+	for _, event := range events {
+		if _, checked := seenBlocks[event.BlockNumber]; !checked {
+			block, err := cc.database.GetBlock(ctx, event.BlockNumber)
+			if err != nil {
+				cc.logger.Warn("Failed to check block for orphan detection", "block", event.BlockNumber, "error", err.Error())
+				continue
+			}
+			seenBlocks[event.BlockNumber] = block != nil
+		}
+
+		if !seenBlocks[event.BlockNumber] {
+			orphaned = append(orphaned, event)
+		}
+	}
+
+	return orphaned, nil
+}
+
+// computeStatus determines the health status from a report.
+// After repairs, the status should reflect remaining issues.
+func computeStatus(report *ConsistencyReport) string {
+	hasRemainingIssues := report.InvalidSequences > 0 || report.InconsistentBlocks > 0
+	if hasRemainingIssues {
+		if report.InvalidSequences > 0 {
+			return "degraded"
+		}
+		return "unhealthy"
+	}
+	return "healthy"
 }
 
 // GetEventConsistency checks consistency of a specific event

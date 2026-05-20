@@ -21,6 +21,7 @@ CREATE INDEX IF NOT EXISTS idx_events_block_number ON blockchain_events(block_nu
 CREATE INDEX IF NOT EXISTS idx_events_contract_address ON blockchain_events(contract_address);
 CREATE INDEX IF NOT EXISTS idx_events_event_name ON blockchain_events(event_name);
 CREATE INDEX IF NOT EXISTS idx_events_transaction_hash ON blockchain_events(transaction_hash);
+CREATE INDEX IF NOT EXISTS idx_events_event_data_gin ON blockchain_events USING GIN(event_data);
 
 -- Indexed blockchain blocks
 CREATE TABLE IF NOT EXISTS blocks (

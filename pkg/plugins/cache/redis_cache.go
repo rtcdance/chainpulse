@@ -22,7 +22,7 @@ type RedisCachePlugin struct {
 // NewRedisCachePlugin creates a new Redis cache plugin
 func NewRedisCachePlugin(logger core.Logger, metricsCollector core.MetricsCollector) *RedisCachePlugin {
 	return &RedisCachePlugin{
-		BaseCachePlugin: NewBaseCachePlugin(logger, metricsCollector),
+		BaseCachePlugin: NewBaseCachePlugin("redis-cache", "1.0.0", logger, metricsCollector),
 		data:            make(map[string]*CacheEntry),
 	}
 }
@@ -54,8 +54,8 @@ func (p *RedisCachePlugin) Initialize(config *core.Config) error {
 }
 
 // Start starts the Redis cache plugin
-func (p *RedisCachePlugin) Start() error {
-	if err := p.BaseCachePlugin.Start(); err != nil {
+func (p *RedisCachePlugin) Start(ctx context.Context) error {
+	if err := p.BaseCachePlugin.Start(ctx); err != nil {
 		return err
 	}
 
@@ -70,10 +70,10 @@ func (p *RedisCachePlugin) Start() error {
 	}
 	p.client = redis.NewClient(opts)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	pingCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
-	if err := p.client.Ping(ctx).Err(); err != nil {
+	if err := p.client.Ping(pingCtx).Err(); err != nil {
 		p.logger.Warn("Redis connection failed, using in-memory fallback", "error", err.Error())
 		p.client = nil
 		return nil
@@ -83,7 +83,8 @@ func (p *RedisCachePlugin) Start() error {
 	return nil
 }
 
-// Get retrieves a value from Redis cache
+// Get retrieves a value from Redis cache, falling back to in-memory cache if
+// Redis is unavailable.
 func (p *RedisCachePlugin) Get(key string) (*CacheEntry, error) {
 	if key == "" {
 		return nil, fmt.Errorf("key is required")
@@ -96,6 +97,37 @@ func (p *RedisCachePlugin) Get(key string) (*CacheEntry, error) {
 		return nil, fmt.Errorf("redis cache plugin not running")
 	}
 
+	p.mu.RUnlock()
+
+	// Try Redis first if client is available
+	if p.client != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+
+		val, err := p.client.Get(ctx, key).Result()
+		if err == nil {
+			// Found in Redis — deserialize
+			var entry CacheEntry
+			if jsonErr := json.Unmarshal([]byte(val), &entry); jsonErr == nil {
+				// Check if entry has expired
+				if entry.ExpiresAt.After(time.Now()) {
+					p.RecordHit()
+					if p.metricsCollector != nil {
+						p.metricsCollector.RecordCounter("redis_cache_hit", 1, map[string]string{})
+					}
+					return &entry, nil
+				}
+				// Expired — delete from Redis
+				_ = p.client.Del(ctx, key)
+			}
+		} else if err != redis.Nil {
+			// Redis error — log and fall through to in-memory
+			p.logger.Warn("Redis GET failed, falling back to memory", "error", err.Error(), "key", key)
+		}
+	}
+
+	// Fallback to in-memory
+	p.mu.RLock()
 	entry, exists := p.data[key]
 	if !exists {
 		p.mu.RUnlock()
@@ -128,7 +160,8 @@ func (p *RedisCachePlugin) Get(key string) (*CacheEntry, error) {
 	return entry, nil
 }
 
-// Set stores a value in Redis cache with TTL
+// Set stores a value in Redis cache with TTL, with in-memory fallback if
+// Redis is unavailable.
 func (p *RedisCachePlugin) Set(entry *CacheEntry) error {
 	if entry == nil {
 		return fmt.Errorf("entry is required")
@@ -152,7 +185,22 @@ func (p *RedisCachePlugin) Set(entry *CacheEntry) error {
 		entry.ExpiresAt = time.Now().Add(24 * time.Hour) // default 24 hours
 	}
 
+	// Always update in-memory cache as local fallback
 	p.data[entry.Key] = entry
+
+	// Try to write to Redis
+	if p.client != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+
+		data, err := json.Marshal(entry)
+		if err == nil {
+			ttl := time.Until(entry.ExpiresAt)
+			if err := p.client.Set(ctx, entry.Key, data, ttl).Err(); err != nil {
+				p.logger.Warn("Redis SET failed", "error", err.Error(), "key", entry.Key)
+			}
+		}
+	}
 
 	p.metricsCollector.RecordCounter("redis_cache_set", 1, map[string]string{})
 	p.metricsCollector.RecordGauge("redis_cache_size", float64(len(p.data)), map[string]string{})
@@ -162,7 +210,7 @@ func (p *RedisCachePlugin) Set(entry *CacheEntry) error {
 	return nil
 }
 
-// Delete removes a value from Redis cache
+// Delete removes a value from Redis cache and in-memory fallback.
 func (p *RedisCachePlugin) Delete(key string) error {
 	if key == "" {
 		return fmt.Errorf("key is required")
@@ -175,7 +223,17 @@ func (p *RedisCachePlugin) Delete(key string) error {
 		return fmt.Errorf("redis cache plugin not running")
 	}
 
+	// Delete from in-memory
 	delete(p.data, key)
+
+	// Try to delete from Redis
+	if p.client != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		if err := p.client.Del(ctx, key).Err(); err != nil {
+			p.logger.Warn("Redis DEL failed", "error", err.Error(), "key", key)
+		}
+	}
 
 	p.metricsCollector.RecordCounter("redis_cache_delete", 1, map[string]string{})
 	p.metricsCollector.RecordGauge("redis_cache_size", float64(len(p.data)), map[string]string{})
@@ -183,7 +241,7 @@ func (p *RedisCachePlugin) Delete(key string) error {
 	return nil
 }
 
-// Clear clears all cache entries
+// Clear clears all cache entries from Redis and in-memory fallback.
 func (p *RedisCachePlugin) Clear() error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -194,6 +252,30 @@ func (p *RedisCachePlugin) Clear() error {
 
 	p.data = make(map[string]*CacheEntry)
 
+	// Try to clear Redis using SCAN + DEL to avoid blocking KEYS *
+	if p.client != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		var cursor uint64
+		for {
+			keys, nextCursor, err := p.client.Scan(ctx, cursor, "*", 100).Result()
+			if err != nil {
+				p.logger.Warn("Redis SCAN failed during clear", "error", err.Error())
+				break
+			}
+			if len(keys) > 0 {
+				if err := p.client.Del(ctx, keys...).Err(); err != nil {
+					p.logger.Warn("Redis DEL failed during clear", "error", err.Error())
+				}
+			}
+			cursor = nextCursor
+			if cursor == 0 {
+				break
+			}
+		}
+	}
+
 	p.metricsCollector.RecordCounter("redis_cache_clear", 1, map[string]string{})
 	p.metricsCollector.RecordGauge("redis_cache_size", 0, map[string]string{})
 
@@ -201,7 +283,7 @@ func (p *RedisCachePlugin) Clear() error {
 }
 
 // GetStats returns cache statistics
-func (p *RedisCachePlugin) GetStats() *CacheStats {
+func (p *RedisCachePlugin) GetStats() core.CacheStats {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
@@ -215,7 +297,7 @@ func (p *RedisCachePlugin) GetStats() *CacheStats {
 		}
 	}
 
-	return &CacheStats{
+	return core.CacheStats{
 		HitCount:      p.hitCount,
 		MissCount:     p.missCount,
 		EvictionCount: p.evictionCount,
@@ -282,6 +364,32 @@ func (p *RedisCachePlugin) FlushDB(_ context.Context) error {
 	p.metricsCollector.RecordCounter("redis_cache_flushdb", 1, map[string]string{})
 
 	return nil
+}
+
+// InvalidateByPrefix evicts all cache entries matching the given prefix.
+// Useful for clearing stale data after reorgs or configuration changes.
+func (p *RedisCachePlugin) InvalidateByPrefix(prefix string) int64 {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	if !p.running {
+		return 0
+	}
+
+	evicted := int64(0)
+	for key := range p.data {
+		if len(key) >= len(prefix) && key[:len(prefix)] == prefix {
+			delete(p.data, key)
+			evicted++
+		}
+	}
+
+	if evicted > 0 && p.metricsCollector != nil {
+		p.metricsCollector.RecordCounter("redis_cache_invalidate_by_prefix", evicted,
+			map[string]string{"prefix": prefix})
+	}
+
+	return evicted
 }
 
 // GetKeyCount returns the number of keys in cache

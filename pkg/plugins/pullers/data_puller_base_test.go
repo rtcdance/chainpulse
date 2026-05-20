@@ -34,8 +34,9 @@ func TestBaseDataPullerPlugin_NameVersion(t *testing.T) {
 func TestBaseDataPullerPlugin_InitializeConfig(t *testing.T) {
 	t.Parallel()
 	p := newBasePuller()
+	ctx := context.Background()
 	cfg := core.Config{StartBlock: 200, MaxRetries: 5, RetryBackoff: 500}
-	if err := p.Initialize(cfg); err != nil {
+	if err := p.Initialize(ctx, cfg); err != nil {
 		t.Fatalf("Initialize() error: %v", err)
 	}
 }
@@ -43,16 +44,17 @@ func TestBaseDataPullerPlugin_InitializeConfig(t *testing.T) {
 func TestBaseDataPullerPlugin_StartStop(t *testing.T) {
 	t.Parallel()
 	p := newBasePuller()
-	if err := p.Start(); err != nil {
+	ctx := context.Background()
+	if err := p.Start(ctx); err != nil {
 		t.Fatalf("Start() error: %v", err)
 	}
 	if !p.IsRunning() {
 		t.Error("IsRunning() should be true after Start")
 	}
-	if err := p.Start(); err == nil {
+	if err := p.Start(ctx); err == nil {
 		t.Error("expected error for double Start")
 	}
-	if err := p.Stop(); err != nil {
+	if err := p.Stop(ctx); err != nil {
 		t.Fatalf("Stop() error: %v", err)
 	}
 	if p.IsRunning() {
@@ -63,7 +65,8 @@ func TestBaseDataPullerPlugin_StartStop(t *testing.T) {
 func TestBaseDataPullerPlugin_StopNotRunning(t *testing.T) {
 	t.Parallel()
 	p := newBasePuller()
-	if err := p.Stop(); err == nil {
+	ctx := context.Background()
+	if err := p.Stop(ctx); err == nil {
 		t.Error("expected error when stopping not running")
 	}
 }
@@ -71,10 +74,11 @@ func TestBaseDataPullerPlugin_StopNotRunning(t *testing.T) {
 func TestBaseDataPullerPlugin_Health(t *testing.T) {
 	t.Parallel()
 	p := newBasePuller()
-	_ = p.Start()
-	defer p.Stop()
+	ctx := context.Background()
+	_ = p.Start(ctx)
+	defer func() { _ = p.Stop(ctx) }()
 
-	if err := p.Health(); err != nil {
+	if err := p.Health(ctx); err != nil {
 		t.Fatalf("Health() error: %v", err)
 	}
 }
@@ -82,7 +86,8 @@ func TestBaseDataPullerPlugin_Health(t *testing.T) {
 func TestBaseDataPullerPlugin_HealthNotRunning(t *testing.T) {
 	t.Parallel()
 	p := newBasePuller()
-	if err := p.Health(); err == nil {
+	ctx := context.Background()
+	if err := p.Health(ctx); err == nil {
 		t.Error("expected error from Health() when not running")
 	}
 }

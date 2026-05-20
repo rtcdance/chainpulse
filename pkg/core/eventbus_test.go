@@ -86,7 +86,7 @@ func TestSubscribe(t *testing.T) {
 	eb := NewEventBus(logger)
 	ctx := context.Background()
 
-	handler := func(event any) {}
+	handler := func(_ context.Context, event any) error { return nil }
 	subID, err := eb.Subscribe(ctx, "test-topic", handler)
 
 	assert.NoError(t, err)
@@ -101,7 +101,7 @@ func TestSubscribeReturnsIncrementingIDs(t *testing.T) {
 	eb := NewEventBus(logger)
 	ctx := context.Background()
 
-	handler := func(event any) {}
+	handler := func(_ context.Context, event any) error { return nil }
 	subID1, _ := eb.Subscribe(ctx, "test-topic", handler)
 	subID2, _ := eb.Subscribe(ctx, "test-topic", handler)
 	subID3, _ := eb.Subscribe(ctx, "other-topic", handler)
@@ -118,9 +118,9 @@ func TestMultipleSubscribers(t *testing.T) {
 	eb := NewEventBus(logger)
 	ctx := context.Background()
 
-	handler1 := func(event any) {}
-	handler2 := func(event any) {}
-	handler3 := func(event any) {}
+	handler1 := func(_ context.Context, event any) error { return nil }
+	handler2 := func(_ context.Context, event any) error { return nil }
+	handler3 := func(_ context.Context, event any) error { return nil }
 
 	_, _ = eb.Subscribe(ctx, "test-topic", handler1)
 	_, _ = eb.Subscribe(ctx, "test-topic", handler2)
@@ -136,7 +136,7 @@ func TestSubscribeEmptyTopic(t *testing.T) {
 	eb := NewEventBus(logger)
 	ctx := context.Background()
 
-	handler := func(event any) {}
+	handler := func(_ context.Context, event any) error { return nil }
 	_, err := eb.Subscribe(ctx, "", handler)
 
 	assert.Error(t, err)
@@ -170,8 +170,9 @@ func TestPublish(t *testing.T) {
 	ctx := context.Background()
 
 	var eventReceived atomic.Bool
-	handler := func(event any) {
+	handler := func(_ context.Context, event any) error {
 		eventReceived.Store(true)
+		return nil
 	}
 
 	_, _ = eb.Subscribe(ctx, "test-topic", handler)
@@ -235,14 +236,17 @@ func TestPublishMultipleSubscribers(t *testing.T) {
 	ctx := context.Background()
 
 	var counter int32
-	handler1 := func(event any) {
+	handler1 := func(_ context.Context, event any) error {
 		atomic.AddInt32(&counter, 1)
+		return nil
 	}
-	handler2 := func(event any) {
+	handler2 := func(_ context.Context, event any) error {
 		atomic.AddInt32(&counter, 1)
+		return nil
 	}
-	handler3 := func(event any) {
+	handler3 := func(_ context.Context, event any) error {
 		atomic.AddInt32(&counter, 1)
+		return nil
 	}
 
 	_, _ = eb.Subscribe(ctx, "test-topic", handler1)
@@ -265,8 +269,9 @@ func TestPublishContextCanceled(t *testing.T) {
 	eb := NewEventBus(logger)
 
 	eventReceived := false
-	handler := func(event any) {
+	handler := func(_ context.Context, event any) error {
 		eventReceived = true
+		return nil
 	}
 
 	ctx := context.Background()
@@ -292,13 +297,11 @@ func TestPublishHandlerPanic(t *testing.T) {
 	eb := NewEventBus(logger)
 	ctx := context.Background()
 
-	panicHandler := func(event any) {
+	panicHandler := func(_ context.Context, event any) error {
 		panic("test panic")
 	}
 
-	normalHandler := func(event any) {
-		// This should still be called
-	}
+	normalHandler := func(_ context.Context, event any) error { return nil }
 
 	_, _ = eb.Subscribe(ctx, "test-topic", panicHandler)
 	_, _ = eb.Subscribe(ctx, "test-topic", normalHandler)
@@ -317,7 +320,7 @@ func TestUnsubscribe(t *testing.T) {
 	eb := NewEventBus(logger)
 	ctx := context.Background()
 
-	handler := func(event any) {}
+	handler := func(_ context.Context, event any) error { return nil }
 	subID, _ := eb.Subscribe(ctx, "test-topic", handler)
 	assert.Equal(t, 1, eb.GetSubscriberCount("test-topic"))
 
@@ -339,20 +342,23 @@ func TestUnsubscribeRemovesCorrectHandler(t *testing.T) {
 	var callLog []string
 	var mu sync.Mutex
 
-	handler1 := func(event any) {
+	handler1 := func(_ context.Context, event any) error {
 		mu.Lock()
 		callLog = append(callLog, "handler1")
 		mu.Unlock()
+		return nil
 	}
-	handler2 := func(event any) {
+	handler2 := func(_ context.Context, event any) error {
 		mu.Lock()
 		callLog = append(callLog, "handler2")
 		mu.Unlock()
+		return nil
 	}
-	handler3 := func(event any) {
+	handler3 := func(_ context.Context, event any) error {
 		mu.Lock()
 		callLog = append(callLog, "handler3")
 		mu.Unlock()
+		return nil
 	}
 
 	_, _ = eb.Subscribe(ctx, "test-topic", handler1)
@@ -397,7 +403,7 @@ func TestUnsubscribeTwice(t *testing.T) {
 	eb := NewEventBus(logger)
 	ctx := context.Background()
 
-	handler := func(event any) {}
+	handler := func(_ context.Context, event any) error { return nil }
 	subID, _ := eb.Subscribe(ctx, "test-topic", handler)
 
 	err := eb.Unsubscribe(subID)
@@ -420,8 +426,8 @@ func TestGetSubscriberCount(t *testing.T) {
 
 	assert.Equal(t, 0, eb.GetSubscriberCount("test-topic"))
 
-	handler1 := func(event any) {}
-	handler2 := func(event any) {}
+	handler1 := func(_ context.Context, event any) error { return nil }
+	handler2 := func(_ context.Context, event any) error { return nil }
 
 	_, _ = eb.Subscribe(ctx, "test-topic", handler1)
 	assert.Equal(t, 1, eb.GetSubscriberCount("test-topic"))
@@ -446,7 +452,7 @@ func TestGetTopics(t *testing.T) {
 	eb := NewEventBus(logger)
 	ctx := context.Background()
 
-	handler := func(event any) {}
+	handler := func(_ context.Context, event any) error { return nil }
 
 	_, _ = eb.Subscribe(ctx, "topic1", handler)
 	_, _ = eb.Subscribe(ctx, "topic2", handler)
@@ -478,7 +484,7 @@ func TestClearEventBus(t *testing.T) {
 	eb := NewEventBus(logger)
 	ctx := context.Background()
 
-	handler := func(event any) {}
+	handler := func(_ context.Context, event any) error { return nil }
 
 	_, _ = eb.Subscribe(ctx, "topic1", handler)
 	_, _ = eb.Subscribe(ctx, "topic2", handler)
@@ -500,8 +506,9 @@ func TestPublishSync(t *testing.T) {
 	ctx := context.Background()
 
 	eventReceived := false
-	handler := func(event any) {
+	handler := func(_ context.Context, event any) error {
 		eventReceived = true
+		return nil
 	}
 
 	_, _ = eb.Subscribe(ctx, "test-topic", handler)
@@ -549,8 +556,9 @@ func TestPublishSyncContextCanceled(t *testing.T) {
 	eb := NewEventBus(logger)
 
 	eventReceived := false
-	handler := func(event any) {
+	handler := func(_ context.Context, event any) error {
 		eventReceived = true
+		return nil
 	}
 
 	ctx := context.Background()
@@ -573,14 +581,17 @@ func TestPublishSyncMultipleSubscribers(t *testing.T) {
 	ctx := context.Background()
 
 	var counter int32
-	handler1 := func(event any) {
+	handler1 := func(_ context.Context, event any) error {
 		atomic.AddInt32(&counter, 1)
+		return nil
 	}
-	handler2 := func(event any) {
+	handler2 := func(_ context.Context, event any) error {
 		atomic.AddInt32(&counter, 1)
+		return nil
 	}
-	handler3 := func(event any) {
+	handler3 := func(_ context.Context, event any) error {
 		atomic.AddInt32(&counter, 1)
+		return nil
 	}
 
 	_, _ = eb.Subscribe(ctx, "test-topic", handler1)
@@ -600,7 +611,7 @@ func TestPublishSyncHandlerPanic(t *testing.T) {
 	eb := NewEventBus(logger)
 	ctx := context.Background()
 
-	panicHandler := func(event any) {
+	panicHandler := func(_ context.Context, event any) error {
 		panic("test panic")
 	}
 
@@ -621,11 +632,12 @@ func TestPublishSyncPanicDoesNotSkipSubsequentHandlers(t *testing.T) {
 	var handler2Called bool
 
 	// Handler 1 panics, handler 2 should still execute
-	panicHandler := func(event any) {
+	panicHandler := func(_ context.Context, event any) error {
 		panic("handler1 panic")
 	}
-	normalHandler := func(event any) {
+	normalHandler := func(_ context.Context, event any) error {
 		handler2Called = true
+		return nil
 	}
 
 	_, _ = eb.Subscribe(ctx, "test-topic", panicHandler)
@@ -656,8 +668,9 @@ func TestConcurrentSubscribePublish(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			handler := func(event any) {
+			handler := func(_ context.Context, event any) error {
 				atomic.AddInt32(&counter, 1)
+				return nil
 			}
 			_, _ = eb.Subscribe(ctx, "test-topic", handler)
 		}()
@@ -706,8 +719,9 @@ func TestEventDataTypes(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var receivedEvent atomic.Pointer[any]
-			handler := func(event any) {
+			handler := func(_ context.Context, event any) error {
 				receivedEvent.Store(&event)
+				return nil
 			}
 
 			_, _ = eb.Subscribe(ctx, "test-topic", handler)
@@ -736,14 +750,17 @@ func TestMultipleTopics(t *testing.T) {
 
 	var counter1, counter2, counter3 int32
 
-	handler1 := func(event any) {
+	handler1 := func(_ context.Context, event any) error {
 		atomic.AddInt32(&counter1, 1)
+		return nil
 	}
-	handler2 := func(event any) {
+	handler2 := func(_ context.Context, event any) error {
 		atomic.AddInt32(&counter2, 1)
+		return nil
 	}
-	handler3 := func(event any) {
+	handler3 := func(_ context.Context, event any) error {
 		atomic.AddInt32(&counter3, 1)
+		return nil
 	}
 
 	_, _ = eb.Subscribe(ctx, "topic1", handler1)
@@ -768,7 +785,7 @@ func TestSubscriberConsistency(t *testing.T) {
 	eb := NewEventBus(logger)
 	ctx := context.Background()
 
-	handler := func(event any) {}
+	handler := func(_ context.Context, event any) error { return nil }
 
 	// Add subscribers
 	for i := 0; i < 100; i++ {
@@ -793,9 +810,10 @@ func TestEventBusStop(t *testing.T) {
 
 	// Publish an event with a slow handler to verify Wait behavior
 	var handlerCalled atomic.Bool
-	handler := func(event any) {
+	handler := func(_ context.Context, event any) error {
 		time.Sleep(50 * time.Millisecond)
 		handlerCalled.Store(true)
+		return nil
 	}
 	_, _ = eb.Subscribe(ctx, "test-topic", handler)
 
@@ -832,8 +850,9 @@ func TestPublishConcurrentSubscribeNoRace(t *testing.T) {
 
 	// Pre-subscribe one handler so Publish has work to do
 	var received atomic.Int32
-	_, _ = eb.Subscribe(ctx, topic, func(_ any) {
+	_, _ = eb.Subscribe(ctx, topic, func(_ context.Context, _ any) error {
 		received.Add(1)
+		return nil
 	})
 
 	var wg sync.WaitGroup
@@ -856,7 +875,7 @@ func TestPublishConcurrentSubscribeNoRace(t *testing.T) {
 		go func(id int) {
 			defer wg.Done()
 			for j := 0; j < iterations; j++ {
-				subID, _ := eb.Subscribe(ctx, topic, func(_ any) {})
+				subID, _ := eb.Subscribe(ctx, topic, func(_ context.Context, _ any) error { return nil })
 				if subID > 0 {
 					_ = eb.Unsubscribe(subID)
 				}
@@ -878,23 +897,22 @@ func TestSubscribeTyped(t *testing.T) {
 	t.Parallel()
 	logger := &EventBusTestLogger{}
 	eb := NewEventBus(logger)
-	defer eb.Stop()
 
 	ctx := context.Background()
 
 	// Test 1: Type match — handler receives the correct concrete type
 	var received atomic.Pointer[BlockchainEvent]
-	subID, err := SubscribeTyped[BlockchainEvent](eb, ctx, "blockchain-events", func(evt BlockchainEvent) {
+	subID, err := SubscribeTyped[BlockchainEvent](eb, ctx, "blockchain-events", func(_ context.Context, evt BlockchainEvent) error {
 		received.Store(&evt)
+		return nil
 	})
 	assert.NoError(t, err)
 	assert.Greater(t, subID, uint64(0))
 
 	event := BlockchainEvent{BlockNumber: 42, ChainID: "1"}
-	err = eb.Publish(ctx, "blockchain-events", event)
+	err = eb.PublishSync(ctx, "blockchain-events", event)
 	assert.NoError(t, err)
 
-	eb.Wait()
 	stored := received.Load()
 	assert.NotNil(t, stored, "typed handler should have received the event")
 	if stored != nil {
@@ -902,35 +920,39 @@ func TestSubscribeTyped(t *testing.T) {
 		assert.Equal(t, "1", stored.ChainID)
 	}
 
+	eb.Clear()
+
 	// Test 2: Type mismatch — handler is silently skipped
 	var stringReceived atomic.Bool
-	_, err = SubscribeTyped[string](eb, ctx, "blockchain-events", func(s string) {
+	_, err = SubscribeTyped[string](eb, ctx, "blockchain-events", func(_ context.Context, s string) error {
 		stringReceived.Store(true)
+		return nil
 	})
 	assert.NoError(t, err)
 
-	err = eb.Publish(ctx, "blockchain-events", BlockchainEvent{BlockNumber: 99})
+	err = eb.PublishSync(ctx, "blockchain-events", BlockchainEvent{BlockNumber: 99})
 	assert.NoError(t, err)
 
-	eb.Wait()
 	assert.False(t, stringReceived.Load(), "string handler should NOT be called for BlockchainEvent")
 
 	// Test 3: Pointer type
 	var ptrReceived atomic.Pointer[ReorgRollbackEvent]
-	_, err = SubscribeTyped[*ReorgRollbackEvent](eb, ctx, "reorg-rollback", func(evt *ReorgRollbackEvent) {
+	_, err = SubscribeTyped[*ReorgRollbackEvent](eb, ctx, "reorg-rollback", func(_ context.Context, evt *ReorgRollbackEvent) error {
 		ptrReceived.Store(evt)
+		return nil
 	})
 	assert.NoError(t, err)
 
 	reorgEvt := &ReorgRollbackEvent{ChainID: "1", FromBlock: 100, ToBlock: 110}
-	err = eb.Publish(ctx, "reorg-rollback", reorgEvt)
+	err = eb.PublishSync(ctx, "reorg-rollback", reorgEvt)
 	assert.NoError(t, err)
 
-	eb.Wait()
 	ptrStored := ptrReceived.Load()
 	assert.NotNil(t, ptrStored, "typed handler should receive pointer event")
 	if ptrStored != nil {
 		assert.Equal(t, "1", ptrStored.ChainID)
 		assert.Equal(t, uint64(100), ptrStored.FromBlock)
 	}
+
+	eb.Stop()
 }

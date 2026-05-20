@@ -1,6 +1,7 @@
 package pullers
 
 import (
+	"context"
 	"testing"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
@@ -148,7 +149,7 @@ func TestBaseDataPullerPlugin_Initialize(t *testing.T) {
 	t.Parallel()
 	p := NewBaseDataPullerPlugin("p", "1.0", core.Config{}, nil, nil, nil)
 	cfg := core.Config{StartBlock: 200, MaxRetries: 5, RetryBackoff: 500}
-	if err := p.Initialize(cfg); err != nil {
+	if err := p.Initialize(context.Background(), cfg); err != nil {
 		t.Fatalf("Initialize() error: %v", err)
 	}
 }

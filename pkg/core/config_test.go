@@ -72,7 +72,7 @@ func TestValidateConfigurationValid(t *testing.T) {
 		DataPullerType:     "https-jsonrpc",
 		BlockchainNodeURL:  "http://localhost:8545",
 		MQType:             "kafka",
-		MQConnectionURL:    "localhost:9092",
+		MQConnectionURL:    "kafka://localhost:9092",
 		CacheType:          "redis",
 		CacheConnectionURL: "localhost:6379",
 		CacheTTL:           3600,
@@ -91,7 +91,7 @@ func TestValidateConfigurationValid(t *testing.T) {
 	}
 
 	cm := NewConfigManager(nil)
-	err := cm.Validate(config)
+	err := cm.ValidateConfig(config)
 	if err != nil {
 		t.Errorf("expected valid configuration to pass validation, got error %v", err)
 	}
@@ -103,7 +103,7 @@ func TestValidateConfigurationInvalidDataPullerType(t *testing.T) {
 		DataPullerType:     "invalid",
 		BlockchainNodeURL:  "http://localhost:8545",
 		MQType:             "kafka",
-		MQConnectionURL:    "localhost:9092",
+		MQConnectionURL:    "kafka://localhost:9092",
 		CacheType:          "redis",
 		CacheConnectionURL: "localhost:6379",
 		CacheTTL:           3600,
@@ -122,7 +122,7 @@ func TestValidateConfigurationInvalidDataPullerType(t *testing.T) {
 	}
 
 	cm := NewConfigManager(nil)
-	err := cm.Validate(config)
+	err := cm.ValidateConfig(config)
 
 	if err == nil {
 		t.Errorf("expected validation to fail for invalid DataPullerType")
@@ -135,7 +135,7 @@ func TestValidateConfigurationMissingBlockchainNodeURL(t *testing.T) {
 		DataPullerType:     "https-jsonrpc",
 		BlockchainNodeURL:  "",
 		MQType:             "kafka",
-		MQConnectionURL:    "localhost:9092",
+		MQConnectionURL:    "kafka://localhost:9092",
 		CacheType:          "redis",
 		CacheConnectionURL: "localhost:6379",
 		CacheTTL:           3600,
@@ -154,7 +154,7 @@ func TestValidateConfigurationMissingBlockchainNodeURL(t *testing.T) {
 	}
 
 	cm := NewConfigManager(nil)
-	err := cm.Validate(config)
+	err := cm.ValidateConfig(config)
 
 	if err == nil {
 		t.Errorf("expected validation to fail for missing BlockchainNodeURL")
@@ -167,7 +167,7 @@ func TestValidateConfigurationInvalidAPIPort(t *testing.T) {
 		DataPullerType:     "https-jsonrpc",
 		BlockchainNodeURL:  "http://localhost:8545",
 		MQType:             "kafka",
-		MQConnectionURL:    "localhost:9092",
+		MQConnectionURL:    "kafka://localhost:9092",
 		CacheType:          "redis",
 		CacheConnectionURL: "localhost:6379",
 		CacheTTL:           3600,
@@ -186,7 +186,7 @@ func TestValidateConfigurationInvalidAPIPort(t *testing.T) {
 	}
 
 	cm := NewConfigManager(nil)
-	err := cm.Validate(config)
+	err := cm.ValidateConfig(config)
 
 	if err == nil {
 		t.Errorf("expected validation to fail for invalid APIPort")
@@ -199,7 +199,7 @@ func TestGetConfigurationValue(t *testing.T) {
 		DataPullerType:     "https-jsonrpc",
 		BlockchainNodeURL:  "http://localhost:8545",
 		MQType:             "kafka",
-		MQConnectionURL:    "localhost:9092",
+		MQConnectionURL:    "kafka://localhost:9092",
 		CacheType:          "redis",
 		CacheConnectionURL: "localhost:6379",
 		CacheTTL:           3600,

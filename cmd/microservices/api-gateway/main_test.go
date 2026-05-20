@@ -68,7 +68,7 @@ func TestBuildAPIGatewaySecurityControlsEnabled(t *testing.T) {
 	authMiddleware, rateLimitMiddleware, err := buildAPIGatewaySecurityControls(GatewayConfig{
 		AuthEnabled:        true,
 		AuthJWTSecret:      "secret-123",
-		AuthAPIKeys:        []string{"svc-key=client-1"},
+		AuthAPIKeys: []core.SecretString{core.SecretString("svc-key=client-1")},
 		RateLimitEnabled:   true,
 		RateLimitPerMinute: 120,
 	}, logger, metrics)

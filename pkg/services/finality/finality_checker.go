@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/rtcdance/chainpulse/pkg/chainid"
 	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
@@ -92,18 +93,18 @@ func (f *rpcFinalityChecker) GetFinalizedBlockNumber(ctx context.Context, chainI
 
 	// Choose the block tag based on chain type and rollup mechanism
 	tag := "finalized"
-	numericID := core.ResolveChainID(chainID)
-	if core.IsL2Chain(numericID) {
+	numericID := chainid.ResolveChainID(chainID)
+	if chainid.IsL2Chain(numericID) {
 		// L2 nodes often don't support "finalized" tag; use "safe" as approximation
 		tag = "safe"
 
 		// Log rollup-specific finality characteristics
-		rollupType := core.GetRollupType(numericID)
+		rollupType := chainid.GetRollupType(numericID)
 		switch rollupType {
-		case core.RollupOptimistic:
+		case chainid.RollupOptimistic:
 			f.logger.Warn("using safe tag for optimistic rollup — true finality requires L1 batch confirmation",
 				"chain_id", chainID, "rollup_type", rollupType.String())
-		case core.RollupZK:
+		case chainid.RollupZK:
 			f.logger.Warn("using safe tag for ZK rollup — true finality requires L1 proof verification",
 				"chain_id", chainID, "rollup_type", rollupType.String())
 		}
@@ -132,8 +133,8 @@ func (f *rpcFinalityChecker) GetFinalizedBlockNumber(ctx context.Context, chainI
 	// L1 challenge/proof window. The "safe" tag only reflects the L2
 	// sequencer's view — true finality requires L1 confirmation.
 	safeBlock := blockNumber
-	if core.IsL2Chain(numericID) {
-		info := core.GetL2ChainInfo(numericID)
+	if chainid.IsL2Chain(numericID) {
+		info := chainid.GetL2ChainInfo(numericID)
 		if info != nil && info.FinalityBlocks > 0 {
 			margin := uint64(info.FinalityBlocks)
 			if blockNumber > margin {

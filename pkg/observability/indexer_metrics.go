@@ -48,6 +48,18 @@ type IndexerMetrics struct {
 	// Error tracking
 	ErrorCount map[string]int64
 
+	// RPC latency percentiles
+	RPCLatencyP50 time.Duration
+	RPCLatencyP95 time.Duration
+	RPCLatencyP99 time.Duration
+
+	// Queue depth tracking
+	EventQueueDepth int64
+	ProcessingDepth int64
+
+	// Block delay: difference between block timestamp and processing time
+	BlockDelayLatencies *latencyRing
+
 	// Timestamps
 	StartTime      time.Time
 	LastUpdateTime time.Time
@@ -181,6 +193,51 @@ func (im *IndexerMetrics) RecordReorgRecoveryTime(recoveryTimeMs int64) {
 	defer im.mu.Unlock()
 
 	im.ReorgRecoveryTimeMs = recoveryTimeMs
+	im.LastUpdateTime = time.Now()
+}
+
+// RecordRPCLatency records an RPC call latency and updates percentiles
+func (im *IndexerMetrics) RecordRPCLatency(latency time.Duration) {
+	im.mu.Lock()
+	defer im.mu.Unlock()
+
+	im.IndexingLatencies.Push(latency)
+
+	// Update percentiles from the ring buffer
+	im.RPCLatencyP50 = im.IndexingLatencies.Percentile(0.50)
+	im.RPCLatencyP95 = im.IndexingLatencies.Percentile(0.95)
+	im.RPCLatencyP99 = im.IndexingLatencies.Percentile(0.99)
+
+	im.LastUpdateTime = time.Now()
+}
+
+// RecordBlockDelay records the delay between block creation and processing
+func (im *IndexerMetrics) RecordBlockDelay(delay time.Duration) {
+	im.mu.Lock()
+	defer im.mu.Unlock()
+
+	if im.BlockDelayLatencies == nil {
+		im.BlockDelayLatencies = newLatencyRing(1000)
+	}
+	im.BlockDelayLatencies.Push(delay)
+	im.LastUpdateTime = time.Now()
+}
+
+// RecordEventQueueDepth records the current event queue depth
+func (im *IndexerMetrics) RecordEventQueueDepth(depth int64) {
+	im.mu.Lock()
+	defer im.mu.Unlock()
+
+	im.EventQueueDepth = depth
+	im.LastUpdateTime = time.Now()
+}
+
+// RecordProcessingDepth records the current processing depth
+func (im *IndexerMetrics) RecordProcessingDepth(depth int64) {
+	im.mu.Lock()
+	defer im.mu.Unlock()
+
+	im.ProcessingDepth = depth
 	im.LastUpdateTime = time.Now()
 }
 

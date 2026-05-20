@@ -13,11 +13,12 @@ func BenchmarkEventBusPublish(b *testing.B) {
 	eb := NewEventBus(logger)
 
 	received := make(chan struct{}, 1)
-	_, _ = eb.Subscribe(context.Background(), "test-topic", func(_ any) {
+	_, _ = eb.Subscribe(context.Background(), "test-topic", func(_ context.Context, _ any) error {
 		select {
 		case received <- struct{}{}:
 		default:
 		}
+		return nil
 	})
 
 	ctx := context.Background()
@@ -37,8 +38,9 @@ func BenchmarkEventBusPublishMultiSubscriber(b *testing.B) {
 
 	var wg sync.WaitGroup
 	for i := 0; i < 10; i++ {
-		_, _ = eb.Subscribe(context.Background(), "test-topic", func(_ any) {
+		_, _ = eb.Subscribe(context.Background(), "test-topic", func(_ context.Context, _ any) error {
 			wg.Done()
+			return nil
 		})
 	}
 
@@ -58,7 +60,7 @@ func BenchmarkEventBusPublishSync(b *testing.B) {
 	logger := &benchEventBusLogger{}
 	eb := NewEventBus(logger)
 
-	_, _ = eb.Subscribe(context.Background(), "test-topic", func(_ any) {})
+	_, _ = eb.Subscribe(context.Background(), "test-topic", func(_ context.Context, _ any) error { return nil })
 
 	ctx := context.Background()
 	b.ResetTimer()

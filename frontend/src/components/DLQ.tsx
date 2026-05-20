@@ -1,15 +1,16 @@
 import { useEffect, useState } from 'react'
-import { AlertTriangle, Loader2, RefreshCw, RotateCcw } from 'lucide-react'
-import { fetchDLQEvents, formatTimestamp, replayDLQEvents, type ControlResult, type DLQEventList } from '../lib/chainpulse'
+import { AlertTriangle, Download, Loader2, RefreshCw, RotateCcw } from 'lucide-react'
+import { fetchDLQEvents, exportToCSV, exportToJSON, formatTimestamp, replayDLQEvents, type DLQEventList } from '../lib/chainpulse'
+import { useToast } from '../lib/toast'
 
 export default function DLQ() {
   const [result, setResult] = useState<DLQEventList | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [replayResult, setReplayResult] = useState<ControlResult | null>(null)
   const [confirmReplayAll, setConfirmReplayAll] = useState(false)
   const [replaying, setReplaying] = useState(false)
   const [replayingIds, setReplayingIds] = useState<Set<string>>(new Set())
+  const { addToast } = useToast()
 
   async function loadDLQ(): Promise<void> {
     setLoading(true)
@@ -28,16 +29,14 @@ export default function DLQ() {
     setReplayingIds((prev) => new Set(prev).add(eventId))
     try {
       const res = await replayDLQEvents([eventId])
-      setReplayResult(res)
       if (res.success) {
+        addToast('success', `Event ${eventId} replayed — ${res.message}`)
         await loadDLQ()
+      } else {
+        addToast('error', `Replay failed — ${res.message}`)
       }
     } catch (err) {
-      setReplayResult({
-        success: false,
-        message: err instanceof Error ? err.message : 'replay failed',
-        evidence: { label: 'DLQ Replay', path: '/dlq/replay' },
-      })
+      addToast('error', err instanceof Error ? err.message : 'replay failed')
     } finally {
       setReplayingIds((prev) => {
         const next = new Set(prev)
@@ -52,16 +51,14 @@ export default function DLQ() {
     setConfirmReplayAll(false)
     try {
       const res = await replayDLQEvents()
-      setReplayResult(res)
       if (res.success) {
+        addToast('success', `All ${events.length} events replayed — ${res.message}`)
         await loadDLQ()
+      } else {
+        addToast('error', `Replay all failed — ${res.message}`)
       }
     } catch (err) {
-      setReplayResult({
-        success: false,
-        message: err instanceof Error ? err.message : 'replay failed',
-        evidence: { label: 'DLQ Replay', path: '/dlq/replay' },
-      })
+      addToast('error', err instanceof Error ? err.message : 'replay all failed')
     } finally {
       setReplaying(false)
     }
@@ -93,14 +90,35 @@ export default function DLQ() {
               Refresh
             </button>
             {events.length > 0 && (
-              <button
-                onClick={() => setConfirmReplayAll(true)}
-                disabled={replaying}
-                className="inline-flex items-center gap-2 rounded-full bg-glow px-4 py-2 text-sm font-medium text-ink transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                <RotateCcw className="h-4 w-4" />
-                Replay All
-              </button>
+              <>
+                <button
+                  onClick={() => setConfirmReplayAll(true)}
+                  disabled={replaying}
+                  className="inline-flex items-center gap-2 rounded-full bg-glow px-4 py-2 text-sm font-medium text-ink transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <RotateCcw className="h-4 w-4" />
+                  Replay All
+                </button>
+                <button
+                  onClick={() => exportToCSV(events as unknown as Record<string, unknown>[], [
+                    { key: 'eventName', label: 'Event' },
+                    { key: 'chainId', label: 'Chain' },
+                    { key: 'reason', label: 'Reason' },
+                    { key: 'retryCount', label: 'Retries' },
+                  ], `dlq-${new Date().toISOString().slice(0, 10)}.csv`)}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/10 px-4 py-2 text-sm text-white transition hover:bg-white/15"
+                >
+                  <Download className="h-4 w-4" />
+                  CSV
+                </button>
+                <button
+                  onClick={() => exportToJSON(events, `dlq-${new Date().toISOString().slice(0, 10)}.json`)}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/10 px-4 py-2 text-sm text-white transition hover:bg-white/15"
+                >
+                  <Download className="h-4 w-4" />
+                  JSON
+                </button>
+              </>
             )}
           </div>
         </div>
@@ -141,18 +159,6 @@ export default function DLQ() {
         </div>
       )}
 
-      {replayResult && (
-        <div className={`rounded-2xl border p-5 ${
-          replayResult.success
-            ? 'border-emerald-300/30 bg-emerald-300/10 text-emerald-100'
-            : 'border-rose-400/30 bg-rose-400/10 text-rose-100'
-        }`}>
-          <p className="text-sm font-medium text-white">{replayResult.success ? 'Replay succeeded' : 'Replay failed'}</p>
-          <p className="mt-1 text-sm">{replayResult.message}</p>
-          <p className="mt-2 font-mono text-xs text-sand/70">Endpoint: {replayResult.evidence.path}</p>
-        </div>
-      )}
-
       {loading ? (
         <div className="flex h-72 items-center justify-center rounded-[28px] border border-white/10 bg-white/5">
           <Loader2 className="h-9 w-9 animate-spin text-glow" />
@@ -179,25 +185,57 @@ export default function DLQ() {
               {events.map((event) => (
                 <div
                   key={event.id}
-                  className="grid w-full gap-2 bg-transparent px-4 py-4 text-left transition hover:bg-white/5 md:grid-cols-[1.2fr,0.7fr,0.6fr,0.8fr,1.3fr] md:gap-4"
+                  className="px-4 py-4 transition hover:bg-white/5"
                 >
-                  <div>
+                  <div className="md:hidden space-y-2">
                     <div className="font-medium text-white">{event.eventName}</div>
-                    <div className="mt-1 font-mono text-xs text-sand/55">{event.id}</div>
-                  </div>
-                  <div className="text-sm text-sand/75">{event.chainId}</div>
-                  <div className="text-sm text-sand/75">{event.retryCount}</div>
-                  <div className="text-sm text-sand/75">{formatTimestamp(event.timestamp)}</div>
-                  <div className="flex items-center gap-3">
-                    <span className="flex-1 truncate text-sm text-rose-200/80">{event.reason || 'unknown'}</span>
+                    <div className="font-mono text-xs text-sand/55">{event.id}</div>
+                    <div className="grid grid-cols-2 gap-2 text-sm">
+                      <div>
+                        <span className="text-xs text-mist">Chain</span>
+                        <p className="text-sand/75">{event.chainId}</p>
+                      </div>
+                      <div>
+                        <span className="text-xs text-mist">Retries</span>
+                        <p className="text-sand/75">{event.retryCount}</p>
+                      </div>
+                    </div>
+                    <div>
+                      <span className="text-xs text-mist">Timestamp</span>
+                      <p className="text-sm text-sand/75">{formatTimestamp(event.timestamp)}</p>
+                    </div>
+                    <div>
+                      <span className="text-xs text-mist">Reason</span>
+                      <p className="text-sm text-rose-200/80">{event.reason || 'unknown'}</p>
+                    </div>
                     <button
                       onClick={() => void replayOne(event.id)}
                       disabled={replayingIds.has(event.id)}
-                      className="shrink-0 inline-flex items-center gap-1 rounded-full border border-amber-300/30 bg-amber-300/10 px-3 py-1 text-xs text-amber-100 transition hover:bg-amber-300/20 disabled:cursor-not-allowed disabled:opacity-50"
+                      className="inline-flex items-center gap-1 rounded-full border border-amber-300/30 bg-amber-300/10 px-3 py-1 text-xs text-amber-100 transition hover:bg-amber-300/20 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       {replayingIds.has(event.id) ? <Loader2 className="h-3 w-3 animate-spin" /> : <RotateCcw className="h-3 w-3" />}
                       Replay
                     </button>
+                  </div>
+                  <div className="hidden md:grid md:grid-cols-[1.2fr,0.7fr,0.6fr,0.8fr,1.3fr] md:gap-4 md:items-center">
+                    <div>
+                      <div className="font-medium text-white">{event.eventName}</div>
+                      <div className="mt-1 font-mono text-xs text-sand/55">{event.id}</div>
+                    </div>
+                    <div className="text-sm text-sand/75">{event.chainId}</div>
+                    <div className="text-sm text-sand/75">{event.retryCount}</div>
+                    <div className="text-sm text-sand/75">{formatTimestamp(event.timestamp)}</div>
+                    <div className="flex items-center gap-3">
+                      <span className="flex-1 truncate text-sm text-rose-200/80">{event.reason || 'unknown'}</span>
+                      <button
+                        onClick={() => void replayOne(event.id)}
+                        disabled={replayingIds.has(event.id)}
+                        className="shrink-0 inline-flex items-center gap-1 rounded-full border border-amber-300/30 bg-amber-300/10 px-3 py-1 text-xs text-amber-100 transition hover:bg-amber-300/20 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {replayingIds.has(event.id) ? <Loader2 className="h-3 w-3 animate-spin" /> : <RotateCcw className="h-3 w-3" />}
+                        Replay
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))}

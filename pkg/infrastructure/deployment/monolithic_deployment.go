@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/ports"
 )
 
 // MonolithicDeployment represents a monolithic deployment mode where all services run in a single binary
@@ -361,10 +362,12 @@ func (md *MonolithicDeployment) GetHealth(ctx context.Context) (core.HealthStatu
 	unhealthyServices := make([]string, 0)
 
 	for _, plugin := range plugins {
-		if err := plugin.Health(); err == nil {
-			healthyCount++
-		} else {
-			unhealthyServices = append(unhealthyServices, plugin.Name())
+		if hp, ok := plugin.(ports.HealthPlugin); ok {
+			if err := hp.Health(context.Background()); err != nil {
+				unhealthyServices = append(unhealthyServices, plugin.Name())
+			} else {
+				healthyCount++
+			}
 		}
 	}
 

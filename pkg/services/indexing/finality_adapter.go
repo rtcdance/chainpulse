@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/chainid"
 	"github.com/rtcdance/chainpulse/pkg/services/finality"
 )
 
@@ -137,12 +137,12 @@ func (s *ProbabilisticFinalityStrategy) RecommendedConfirmations() uint64 { retu
 type L2RollupFinalityStrategy struct {
 	chainID      string
 	rpcFinality  finality.FinalityChecker
-	rollupType   core.RollupType
+	rollupType   chainid.RollupType
 	l1SafeBlocks uint64
 }
 
 // NewL2RollupFinalityStrategy creates an L2 rollup finality strategy.
-func NewL2RollupFinalityStrategy(chainID string, rpcFinality finality.FinalityChecker, rollupType core.RollupType) *L2RollupFinalityStrategy {
+func NewL2RollupFinalityStrategy(chainID string, rpcFinality finality.FinalityChecker, rollupType chainid.RollupType) *L2RollupFinalityStrategy {
 	return &L2RollupFinalityStrategy{
 		chainID:      chainID,
 		rpcFinality:  rpcFinality,
@@ -155,9 +155,9 @@ func (s *L2RollupFinalityStrategy) ChainID() string { return s.chainID }
 
 func (s *L2RollupFinalityStrategy) Description() string {
 	switch s.rollupType {
-	case core.RollupOptimistic:
+	case chainid.RollupOptimistic:
 		return "Optimistic rollup: sequencer-safe immediately, L1-finalized after challenge window (~7d)"
-	case core.RollupZK:
+	case chainid.RollupZK:
 		return "ZK rollup: sequencer-safe immediately, L1-finalized after proof verification (~hours)"
 	default:
 		return "L2 rollup: sequencer view is safe, L1 batch confirmation provides true finality"
@@ -269,7 +269,7 @@ func GetDefaultFinalityConfig(chainID uint64) *struct {
 }
 
 // Ensure type-level use of core package
-var _ = core.RollupOptimistic
+var _ = chainid.RollupOptimistic
 
 // Ensure finality strategies implement the interface
 var (

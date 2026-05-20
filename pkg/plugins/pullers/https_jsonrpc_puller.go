@@ -58,6 +58,13 @@ type HTTPSJSONRPCPuller struct {
 	failoverClientIdx atomic.Uint64
 	nodeURLs          []string // mirrors failoverClients for logging
 	endpointStats     []*endpointStats
+	rankedPool        sync.Pool
+}
+
+type rankedEndpoint struct {
+	idx    int
+	client *ethclient.Client
+	score  float64
 }
 
 // NewHTTPSJSONRPCPuller creates a new HTTPS-JSONRPC data puller.
@@ -82,6 +89,12 @@ func NewHTTPSJSONRPCPuller(
 		redRecorder:          observability.NewREDRecorder(metricsCollector),
 		reorgVerifyInterval:  100, // default: check every 100 blocks
 		reorgSamplingStep:    10,  // default: sample every 10th block
+		rankedPool: sync.Pool{
+			New: func() any {
+				s := make([]rankedEndpoint, 0, 8)
+				return &s
+			},
+		},
 	}
 }
 
@@ -645,12 +658,9 @@ func (p *HTTPSJSONRPCPuller) executeWithFailover(ctx context.Context, fn func(cl
 
 	// Build endpoint order: sort by EWMA latency (lower = better),
 	// with failure penalty (endpoints with recent failures are pushed to end).
-	type rankedEndpoint struct {
-		idx    int
-		client *ethclient.Client
-		score  float64 // lower = preferred
-	}
-	ranked := make([]rankedEndpoint, 0, len(clients))
+	rankedPtr := p.rankedPool.Get().(*[]rankedEndpoint)
+	ranked := (*rankedPtr)[:0]
+	defer p.rankedPool.Put(rankedPtr)
 	for i, client := range clients {
 		score := 0.0
 		if i < len(stats) && stats[i] != nil {

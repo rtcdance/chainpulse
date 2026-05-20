@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Loader2, Pause, Play, RefreshCw, ServerCog } from 'lucide-react'
-import { fetchCurrentSliceReport, fetchRuntimeSummary, postRuntimeControl, type ControlResult, type RuntimePayload, type ServiceAcceptanceReport } from '../lib/chainpulse'
+import { fetchCurrentSliceReport, fetchRuntimeSummary, postRuntimeControl, type RuntimePayload, type ServiceAcceptanceReport } from '../lib/chainpulse'
+import { useToast } from '../lib/toast'
 
 interface ActionDef {
   serviceId: 'puller' | 'event-processor'
@@ -22,9 +23,9 @@ export default function Runtime() {
   const [reports, setReports] = useState<ServiceAcceptanceReport[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [actionResult, setActionResult] = useState<ControlResult | null>(null)
   const [confirmAction, setConfirmAction] = useState<ActionDef | null>(null)
   const [actionLoading, setActionLoading] = useState(false)
+  const { addToast } = useToast()
 
   async function loadRuntime(): Promise<void> {
     setLoading(true)
@@ -45,19 +46,16 @@ export default function Runtime() {
 
   async function executeAction(action: ActionDef): Promise<void> {
     setActionLoading(true)
-    setActionResult(null)
     try {
       const result = await postRuntimeControl(action.serviceId, action.action)
-      setActionResult(result)
       if (result.success) {
+        addToast('success', `${action.label} succeeded — ${result.message}`)
         await loadRuntime()
+      } else {
+        addToast('error', `${action.label} failed — ${result.message}`)
       }
     } catch (err) {
-      setActionResult({
-        success: false,
-        message: err instanceof Error ? err.message : 'action failed',
-        evidence: { label: 'Runtime Control', path: `/runtime/control/${action.action}` },
-      })
+      addToast('error', err instanceof Error ? err.message : 'action failed')
     } finally {
       setActionLoading(false)
       setConfirmAction(null)
@@ -176,18 +174,6 @@ export default function Runtime() {
                     Cancel
                   </button>
                 </div>
-              </div>
-            )}
-
-            {actionResult && (
-              <div className={`mt-4 rounded-2xl border p-5 ${
-                actionResult.success
-                  ? 'border-emerald-300/30 bg-emerald-300/10 text-emerald-100'
-                  : 'border-rose-400/30 bg-rose-400/10 text-rose-100'
-              }`}>
-                <p className="text-sm font-medium text-white">{actionResult.success ? 'Action succeeded' : 'Action failed'}</p>
-                <p className="mt-1 text-sm">{actionResult.message}</p>
-                <p className="mt-2 font-mono text-xs text-sand/70">Endpoint: {actionResult.evidence.path}</p>
               </div>
             )}
           </section>

@@ -123,7 +123,7 @@ func (rl *RedisRateLimiter) AllowRequest(r *http.Request, clientID string) (bool
 	}
 
 	endpoint := r.URL.Path
-	clientIP := getClientIP(r)
+	clientIP := getClientIP(r, nil)
 
 	// Check endpoint limit
 	allowed, remaining, err := rl.checkSlidingWindow(ctx, "endpoint", endpoint, rl.defaultRequestsPerSecond)

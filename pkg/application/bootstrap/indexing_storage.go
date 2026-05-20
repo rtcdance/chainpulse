@@ -37,8 +37,7 @@ func newSnapshotCompatibleDatabase(db core.DatabasePlugin) *snapshotCompatibleDa
 	}
 }
 
-func (d *snapshotCompatibleDatabase) StoreBlockSnapshot(ctx context.Context, block *core.Block) error {
-	_ = ctx
+func (d *snapshotCompatibleDatabase) StoreBlockSnapshot(_ context.Context, block *core.Block) error {
 	if block == nil {
 		return fmt.Errorf("block is nil")
 	}
@@ -83,13 +82,15 @@ func newMonolithicIndexingDatabaseForMode(logger core.Logger, config core.Config
 // BuildMonolithicIndexingStorage creates started in-memory storage adapters for
 // the monolithic indexing path.
 func BuildMonolithicIndexingStorage(
+	ctx context.Context,
 	logger core.Logger,
 	config core.Config,
 ) (core.DatabasePlugin, core.CachePlugin, error) {
-	return buildMonolithicIndexingStorageWithDeps(logger, config, defaultMonolithicIndexingStorageDeps())
+	return buildMonolithicIndexingStorageWithDeps(ctx, logger, config, defaultMonolithicIndexingStorageDeps())
 }
 
 func buildMonolithicIndexingStorageWithDeps(
+	ctx context.Context,
 	logger core.Logger,
 	config core.Config,
 	deps monolithicIndexingStorageDeps,
@@ -101,18 +102,28 @@ func buildMonolithicIndexingStorageWithDeps(
 	database := deps.newDatabase(logger, config)
 	cache := deps.newCache()
 
-	if err := database.Initialize(config); err != nil {
-		return nil, nil, fmt.Errorf("initialize indexing database: %w", err)
+	if p, ok := database.(core.ConfigurablePlugin); ok {
+		if err := p.Initialize(ctx, config); err != nil {
+			return nil, nil, fmt.Errorf("initialize indexing database: %w", err)
+		}
 	}
-	if err := cache.Initialize(config); err != nil {
-		return nil, nil, fmt.Errorf("initialize indexing cache: %w", err)
+	if p, ok := cache.(core.ConfigurablePlugin); ok {
+		if err := p.Initialize(ctx, config); err != nil {
+			return nil, nil, fmt.Errorf("initialize indexing cache: %w", err)
+		}
 	}
-	if err := database.Start(); err != nil {
-		return nil, nil, fmt.Errorf("start indexing database: %w", err)
+	if p, ok := database.(core.LifecyclePlugin); ok {
+		if err := p.Start(ctx); err != nil {
+			return nil, nil, fmt.Errorf("start indexing database: %w", err)
+		}
 	}
-	if err := cache.Start(); err != nil {
-		_ = database.Stop()
-		return nil, nil, fmt.Errorf("start indexing cache: %w", err)
+	if p, ok := cache.(core.LifecyclePlugin); ok {
+		if err := p.Start(ctx); err != nil {
+			if p, ok := database.(core.LifecyclePlugin); ok {
+				_ = p.Stop(ctx)
+			}
+			return nil, nil, fmt.Errorf("start indexing cache: %w", err)
+		}
 	}
 
 	return database, cache, nil

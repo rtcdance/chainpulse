@@ -392,11 +392,11 @@ func startEventPushConsumer(
 		config.KafkaBrokers,
 		config.ConsumerGroup,
 	)
-	if err := kafkaMQ.Initialize(); err != nil {
+	if err := kafkaMQ.Initialize(context.Background(), core.Config{}); err != nil {
 		logger.Error("Failed to initialize WebSocket push Kafka consumer", "error", err.Error())
 		return
 	}
-	if err := kafkaMQ.Start(); err != nil {
+	if err := kafkaMQ.Start(context.Background()); err != nil {
 		logger.Error("Failed to start WebSocket push Kafka consumer", "error", err.Error())
 		return
 	}
@@ -404,7 +404,7 @@ func startEventPushConsumer(
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		defer kafkaMQ.Stop() //nolint:errcheck // deferred stop
+		defer kafkaMQ.Stop(context.Background()) //nolint:errcheck // deferred stop
 
 		topic := "processed-events"
 		err := kafkaMQ.ConsumeMessages(ctx, topic, func(message core.MessageQueueMessage) error {

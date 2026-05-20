@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/ports"
 )
 
 // Log level constants
@@ -536,7 +537,7 @@ func NewDefaultConfigManager() core.ConfigManager {
 // NewDefaultEventBus creates a default event bus for testing
 func NewDefaultEventBus() core.EventBus {
 	return &DefaultEventBus{
-		subscribers: make(map[string][]func(any)),
+		subscribers: make(map[string][]ports.EventHandler),
 	}
 }
 
@@ -600,24 +601,24 @@ func (m *DefaultConfigManager) Set(key string, value any) error {
 
 // DefaultEventBus is a default implementation of EventBus for testing
 type DefaultEventBus struct {
-	subscribers map[string][]func(any)
+	subscribers map[string][]ports.EventHandler
 	nextID      uint64
 }
 
-func (b *DefaultEventBus) Subscribe(ctx context.Context, topic string, handler func(any)) (uint64, error) {
+func (b *DefaultEventBus) Subscribe(ctx context.Context, topic string, handler ports.EventHandler) (uint64, error) {
 	b.subscribers[topic] = append(b.subscribers[topic], handler)
 	b.nextID++
 	return b.nextID, nil
 }
 
-func (b *DefaultEventBus) SubscribeNamed(ctx context.Context, topic, name string, handler func(any)) (uint64, error) {
+func (b *DefaultEventBus) SubscribeNamed(ctx context.Context, topic, name string, handler ports.EventHandler) (uint64, error) {
 	return b.Subscribe(ctx, topic, handler)
 }
 
 func (b *DefaultEventBus) Publish(ctx context.Context, topic string, event any) error {
 	if handlers, ok := b.subscribers[topic]; ok {
 		for _, handler := range handlers {
-			handler(event)
+			_ = handler(ctx, event)
 		}
 	}
 	return nil

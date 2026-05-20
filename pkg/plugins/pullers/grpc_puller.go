@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/rtcdance/chainpulse/pkg/core"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials/insecure"
 )
 
@@ -60,8 +61,8 @@ func NewGRPCPuller(
 }
 
 // Start starts the gRPC puller
-func (p *GRPCPuller) Start() error {
-	if err := p.BaseDataPullerPlugin.Start(); err != nil {
+func (p *GRPCPuller) Start(ctx context.Context) error {
+	if err := p.BaseDataPullerPlugin.Start(ctx); err != nil {
 		return err
 	}
 
@@ -70,14 +71,28 @@ func (p *GRPCPuller) Start() error {
 		return err
 	}
 
+	// Register connection health probe
+	p.SetRPCHealthCheck(func(ctx context.Context) error {
+		if p.conn == nil {
+			return fmt.Errorf("gRPC connection not established")
+		}
+		// gRPC provides built-in connectivity state; check it's not TRANSIENT_FAILURE or SHUTDOWN
+		state := p.conn.GetState()
+		switch state {
+		case connectivity.Shutdown, connectivity.TransientFailure:
+			return fmt.Errorf("gRPC connection in bad state: %s", state)
+		}
+		return nil
+	})
+
 	p.LogInfo("gRPC puller started", "node_url", p.nodeURL)
 	p.LogWarn("gRPC puller is a placeholder implementation — not suitable for production critical path", "node_url", p.nodeURL)
 	return nil
 }
 
 // Stop stops the gRPC puller
-func (p *GRPCPuller) Stop() error {
-	if err := p.BaseDataPullerPlugin.Stop(); err != nil {
+func (p *GRPCPuller) Stop(ctx context.Context) error {
+	if err := p.BaseDataPullerPlugin.Stop(ctx); err != nil {
 		return err
 	}
 
@@ -261,7 +276,7 @@ func (p *GRPCPuller) SetMaxRetries(maxRetries int) {
 
 // SetBlockTimestampProvider injects a custom block timestamp resolver.
 // When set, getBlockTimestampCached calls this provider on cache miss instead of
-// falling back to time.Now(). For production deployments, wire this to a gRPC
+// returning 0 (unknown). For production deployments, wire this to a gRPC
 // GetBlockTimestamp service method that queries the canonical chain.
 func (p *GRPCPuller) SetBlockTimestampProvider(provider func(context.Context, uint64) (int64, error)) {
 	p.mu.Lock()
@@ -361,8 +376,10 @@ func (p *GRPCPuller) logToEvent(log Log) (core.BlockchainEvent, error) {
 	), nil
 }
 
-// getBlockTimestampCached returns block timestamp from cache, falling back to current time
-// TODO: Implement gRPC GetBlockTimestamp service method for accurate timestamps
+// getBlockTimestampCached returns block timestamp from cache.
+// Falls back to timestampProvider callback, then returns 0 (unknown) rather than
+// substituting current time. Note: an accurate gRPC GetBlockTimestamp RPC on the
+// server side is the preferred long-term solution.
 func (p *GRPCPuller) getBlockTimestampCached(blockNumber uint64) int64 {
 	p.mu.RLock()
 	ts, ok := p.timestampCache[blockNumber]
@@ -382,10 +399,5 @@ func (p *GRPCPuller) getBlockTimestampCached(blockNumber uint64) int64 {
 		}
 	}
 
-	ts = time.Now().Unix()
-	p.mu.Lock()
-	p.timestampCache[blockNumber] = ts
-	p.mu.Unlock()
-
-	return ts
+	return 0
 }

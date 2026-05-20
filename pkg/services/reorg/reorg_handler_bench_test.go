@@ -19,11 +19,10 @@ func (m *benchMockDB) GetBlock(_ context.Context, blockNumber uint64) (*core.Blo
 // Stub out the remaining DatabasePlugin methods
 func (m *benchMockDB) Name() string                   { return "bench" }
 func (m *benchMockDB) Version() string                { return "1.0" }
-func (m *benchMockDB) Initialize(_ core.Config) error { return nil }
-func (m *benchMockDB) Start() error                   { return nil }
-func (m *benchMockDB) Stop() error                    { return nil }
-func (m *benchMockDB) IsRunning() bool                { return true }
-func (m *benchMockDB) Health() error                  { return nil }
+func (m *benchMockDB) Initialize(_ context.Context, _ core.Config) error { return nil }
+func (m *benchMockDB) Start(_ context.Context) error                   { return nil }
+func (m *benchMockDB) Stop(_ context.Context) error                    { return nil }
+func (m *benchMockDB) Health(_ context.Context) error                  { return nil }
 func (m *benchMockDB) GetEvent(_ context.Context, _ string) (*core.BlockchainEvent, error) {
 	return nil, nil
 }
@@ -81,7 +80,7 @@ func BenchmarkBinarySearchReorg(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		_, _ = rh.binarySearchReorg(ctx, 1, 1000)
+		_, _ = rh.binarySearchReorg(ctx, 1, 1000, rh.lastKnownBlocks, rh.blockHashProvider)
 	}
 }
 
@@ -108,6 +107,6 @@ func BenchmarkBinarySearchReorg_WithReorg(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		_, _ = rh.binarySearchReorg(ctx, 1, 1000)
+		_, _ = rh.binarySearchReorg(ctx, 1, 1000, rh.lastKnownBlocks, rh.blockHashProvider)
 	}
 }

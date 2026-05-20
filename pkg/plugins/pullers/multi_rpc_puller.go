@@ -1,6 +1,7 @@
 package pullers
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -62,7 +63,7 @@ func NewMultiRPCPuller(
 
 // Start dials every configured RPC endpoint and registers all healthy
 // connections as failover targets. At least one endpoint must succeed.
-func (m *MultiRPCPuller) Start() error {
+func (m *MultiRPCPuller) Start(ctx context.Context) error {
 	clients := make([]*ethclient.Client, 0, len(m.nodeURLs))
 	succeededURLs := make([]string, 0, len(m.nodeURLs))
 
@@ -94,7 +95,7 @@ func (m *MultiRPCPuller) Start() error {
 		})
 	}
 
-	return m.HTTPSJSONRPCPuller.Start()
+	return m.HTTPSJSONRPCPuller.Start(ctx)
 }
 
 // parseNodeURLs splits a comma-separated URL string, trimming whitespace.

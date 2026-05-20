@@ -88,7 +88,7 @@ func checkMinLength(val string, minLen int, name string) error {
 	return nil
 }
 
-func (cm *DefaultConfigManager) Validate(config Config) error {
+func (cm *DefaultConfigManager) ValidateConfig(config Config) error {
 	checks := []func() error{
 		// Data puller
 		func() error { return checkRequired(config.DataPullerType, "DataPullerType") },
@@ -153,24 +153,7 @@ func (cm *DefaultConfigManager) Validate(config Config) error {
 			return nil
 		},
 
-		// Cross-field: TLS cert+key pairs
-		func() error {
-			if config.TLSCertPath != "" || config.TLSKeyPath != "" {
-				if err := checkRequired(config.TLSCertPath, "TLSCertPath"); err != nil {
-					return err
-				}
-				if err := checkRequired(config.TLSKeyPath, "TLSKeyPath"); err != nil {
-					return err
-				}
-				if err := checkFileExists(config.TLSCertPath, "TLSCertPath"); err != nil {
-					return err
-				}
-				if err := checkFileExists(config.TLSKeyPath, "TLSKeyPath"); err != nil {
-					return err
-				}
-			}
-			return nil
-		},
+
 	}
 
 	for _, c := range checks {

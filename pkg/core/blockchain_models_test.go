@@ -72,7 +72,7 @@ func TestBlockchainEventValidate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := tt.event.Validate()
+			err := ValidateBlockchainEvent(tt.event)
 			if tt.wantErr {
 				require.Error(t, err)
 			} else {
@@ -184,7 +184,7 @@ func TestTransactionValidate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := tt.tx.Validate()
+			err := ValidateTransaction(tt.tx)
 			if tt.wantErr {
 				require.Error(t, err)
 			} else {
@@ -272,7 +272,7 @@ func TestBlockValidate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := tt.block.Validate()
+			err := ValidateBlock(tt.block)
 			if tt.wantErr {
 				require.Error(t, err)
 			} else {
@@ -339,7 +339,7 @@ func TestBlockchainEventWithDecodedData(t *testing.T) {
 		},
 	}
 
-	err := event.Validate()
+	err := ValidateBlockchainEvent(event)
 	require.NoError(t, err)
 	assert.NotNil(t, event.DecodedData)
 	assert.Equal(t, 3, len(event.DecodedData))
@@ -354,7 +354,7 @@ func TestTransactionWithLogs(t *testing.T) {
 		Logs:        make([]*types.Log, 0),
 	}
 
-	err := tx.Validate()
+	err := ValidateTransaction(tx)
 	require.NoError(t, err)
 	assert.NotNil(t, tx.Logs)
 }
@@ -533,10 +533,7 @@ func TestTransactionReceiptBlobFields(t *testing.T) {
 
 func TestBlobSidecarVerifyBlobProof(t *testing.T) {
 	t.Parallel()
-	// Use SizeOnlyKZGVerifier for structural tests — zeroed bytes won't pass real crypto.
-	origVerifier := defaultKZGVerifier
-	SetKZGVerifier(&SizeOnlyKZGVerifier{})
-	defer SetKZGVerifier(origVerifier)
+	verifier := &SizeOnlyKZGVerifier{}
 
 	t.Run("valid sidecar", func(t *testing.T) {
 		sidecar := &BlobSidecar{
@@ -544,13 +541,13 @@ func TestBlobSidecarVerifyBlobProof(t *testing.T) {
 			KZGCommitments: make([]KZGCommitment, 2),
 			KZGProofs:      make([]KZGProof, 2),
 		}
-		assert.NoError(t, sidecar.VerifyBlobProof(0))
-		assert.NoError(t, sidecar.VerifyBlobProof(1))
+		assert.NoError(t, VerifyBlobSidecarProof(sidecar, verifier, 0))
+		assert.NoError(t, VerifyBlobSidecarProof(sidecar, verifier, 1))
 	})
 
 	t.Run("nil sidecar", func(t *testing.T) {
 		var sidecar *BlobSidecar
-		assert.Error(t, sidecar.VerifyBlobProof(0))
+		assert.Error(t, VerifyBlobSidecarProof(sidecar, verifier, 0))
 	})
 
 	t.Run("index out of range", func(t *testing.T) {
@@ -559,8 +556,8 @@ func TestBlobSidecarVerifyBlobProof(t *testing.T) {
 			KZGCommitments: make([]KZGCommitment, 1),
 			KZGProofs:      make([]KZGProof, 1),
 		}
-		assert.Error(t, sidecar.VerifyBlobProof(-1))
-		assert.Error(t, sidecar.VerifyBlobProof(1))
+		assert.Error(t, VerifyBlobSidecarProof(sidecar, verifier, -1))
+		assert.Error(t, VerifyBlobSidecarProof(sidecar, verifier, 1))
 	})
 
 	t.Run("commitment count mismatch", func(t *testing.T) {
@@ -569,7 +566,7 @@ func TestBlobSidecarVerifyBlobProof(t *testing.T) {
 			KZGCommitments: make([]KZGCommitment, 1),
 			KZGProofs:      make([]KZGProof, 2),
 		}
-		assert.Error(t, sidecar.VerifyBlobProof(0))
+		assert.Error(t, VerifyBlobSidecarProof(sidecar, verifier, 0))
 	})
 
 	t.Run("proof count mismatch", func(t *testing.T) {
@@ -578,15 +575,13 @@ func TestBlobSidecarVerifyBlobProof(t *testing.T) {
 			KZGCommitments: make([]KZGCommitment, 2),
 			KZGProofs:      make([]KZGProof, 1),
 		}
-		assert.Error(t, sidecar.VerifyBlobProof(0))
+		assert.Error(t, VerifyBlobSidecarProof(sidecar, verifier, 0))
 	})
 }
 
 func TestTransactionBlobSidecarField(t *testing.T) {
 	t.Parallel()
-	origVerifier := defaultKZGVerifier
-	SetKZGVerifier(&SizeOnlyKZGVerifier{})
-	defer SetKZGVerifier(origVerifier)
+	verifier := &SizeOnlyKZGVerifier{}
 
 	tx := &Transaction{
 		Hash:                common.HexToHash("0xblobtx"),
@@ -603,7 +598,7 @@ func TestTransactionBlobSidecarField(t *testing.T) {
 	assert.True(t, tx.IsBlobTx())
 	assert.NotNil(t, tx.BlobSidecar)
 	assert.Len(t, tx.BlobVersionedHashes, 2)
-	assert.NoError(t, tx.BlobSidecar.VerifyBlobProof(0))
+	assert.NoError(t, VerifyBlobSidecarProof(tx.BlobSidecar, verifier, 0))
 }
 
 func TestTransactionNilBlobSidecar(t *testing.T) {

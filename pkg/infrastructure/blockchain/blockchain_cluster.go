@@ -1,15 +1,3 @@
-// Package blockchain provides cluster management abstractions for blockchain instances.
-//
-// DEPRECATED: This package is a simulation prototype only:
-//   - BlockchainInstance is an in-memory struct with no real RPC connections.
-//   - Deploy() creates Go structs but does not start any network listeners or clients.
-//   - ProcessEvent() uses non-deterministic map iteration for instance selection.
-//   - IsolationLevel field is stored but never enforced.
-//   - CrossChainAPI.Query() has a goroutine channel-closure race condition.
-//
-// New code should use pkg/plugins/pullers (MultiRPCPuller, HTTPSJSONRPCPuller) for
-// real blockchain node connections and pkg/services/indexing for multi-chain indexing.
-// This file will be removed in a future release once all dependencies are migrated.
 package blockchain
 
 import (
@@ -33,6 +21,7 @@ type DistributedCache interface {
 type BlockchainCluster struct {
 	mu                  sync.RWMutex
 	id                  string
+	chainID             string // "1" (Ethereum mainnet), "56" (BSC), "137" (Polygon)
 	blockchainType      string // "EVM", "Cosmos", "Solana"
 	instances           map[string]*BlockchainInstance
 	dataStore           core.DatabasePlugin
@@ -85,9 +74,10 @@ type BlockchainMetrics struct {
 }
 
 // NewBlockchainCluster creates a new blockchain cluster
-func NewBlockchainCluster(id, blockchainType string, minInstances, maxInstances int) *BlockchainCluster {
+func NewBlockchainCluster(id, chainID, blockchainType string, minInstances, maxInstances int) *BlockchainCluster {
 	return &BlockchainCluster{
 		id:                  id,
+		chainID:             chainID,
 		blockchainType:      blockchainType,
 		instances:           make(map[string]*BlockchainInstance),
 		minInstances:        minInstances,
@@ -281,16 +271,25 @@ func NewMultiBlockchainClusterManager() *MultiBlockchainClusterManager {
 	}
 }
 
-// RegisterCluster registers a blockchain cluster
+// ClusterManager is the minimal interface for managing blockchain clusters.
+type ClusterManager interface {
+	RegisterCluster(cluster *BlockchainCluster) error
+	ProcessEvent(ctx context.Context, event *core.BlockchainEvent) error
+	GetCluster(chainID string) (*BlockchainCluster, error)
+	GetAllClusters() []*BlockchainCluster
+	GetMetrics() map[string]any
+}
+
+// RegisterCluster registers a blockchain cluster keyed by chainID
 func (mcm *MultiBlockchainClusterManager) RegisterCluster(cluster *BlockchainCluster) error {
 	mcm.mu.Lock()
 	defer mcm.mu.Unlock()
 
-	if _, exists := mcm.clusters[cluster.blockchainType]; exists {
-		return fmt.Errorf("cluster for %s already registered", cluster.blockchainType)
+	if _, exists := mcm.clusters[cluster.chainID]; exists {
+		return fmt.Errorf("cluster for chain %s already registered", cluster.chainID)
 	}
 
-	mcm.clusters[cluster.blockchainType] = cluster
+	mcm.clusters[cluster.chainID] = cluster
 
 	mcm.metrics.mu.Lock()
 	mcm.metrics.TotalClusters = len(mcm.clusters)
@@ -312,14 +311,14 @@ func (mcm *MultiBlockchainClusterManager) ProcessEvent(ctx context.Context, even
 	return cluster.ProcessEvent(ctx, event)
 }
 
-// GetCluster returns a specific blockchain cluster
-func (mcm *MultiBlockchainClusterManager) GetCluster(blockchainType string) (*BlockchainCluster, error) {
+// GetCluster returns a specific blockchain cluster by chainID
+func (mcm *MultiBlockchainClusterManager) GetCluster(chainID string) (*BlockchainCluster, error) {
 	mcm.mu.RLock()
 	defer mcm.mu.RUnlock()
 
-	cluster, exists := mcm.clusters[blockchainType]
+	cluster, exists := mcm.clusters[chainID]
 	if !exists {
-		return nil, fmt.Errorf("cluster not found for %s", blockchainType)
+		return nil, fmt.Errorf("cluster not found for chain %s", chainID)
 	}
 
 	return cluster, nil

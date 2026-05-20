@@ -7,7 +7,10 @@ import (
 	"time"
 )
 
-// DistributedLock represents a distributed lock
+// DistributedLock provides in-process lock coordination. Note: despite the
+// name, this is NOT a true distributed lock — it stores state in a local map
+// and cannot coordinate across multiple processes. For multi-instance deployments,
+// use a Consul/etcd/Redis-backed lock instead.
 type DistributedLock struct {
 	mu          sync.RWMutex
 	locks       map[string]*LockInfo

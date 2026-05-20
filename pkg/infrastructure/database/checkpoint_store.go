@@ -2,6 +2,8 @@ package database
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 
@@ -41,7 +43,10 @@ func (s *PostgresCheckpointStore) GetLastIndexedBlock(ctx context.Context, chain
 		chainID,
 	)
 	if err := row.Scan(&blockNum, &blockHash); err != nil {
-		return 0, "", nil // no row found is not an error
+		if errors.Is(err, sql.ErrNoRows) {
+			return 0, "", nil
+		}
+		return 0, "", fmt.Errorf("failed to scan checkpoint: %w", err)
 	}
 	return blockNum, blockHash, nil
 }
@@ -94,7 +99,10 @@ func (s *PostgresCheckpointStore) GetBlockHash(ctx context.Context, chainID stri
 		chainID, blockNumber,
 	)
 	if err := row.Scan(&hash); err != nil {
-		return "", nil // not found is not an error
+		if errors.Is(err, sql.ErrNoRows) {
+			return "", nil
+		}
+		return "", fmt.Errorf("failed to scan block hash: %w", err)
 	}
 	return hash, nil
 }

@@ -11,6 +11,13 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/rtcdance/chainpulse/pkg/ports"
+)
+
+type (
+	MetricsCollector       = ports.MetricsCollector
+	PrometheusMetricsExporter = ports.PrometheusMetricsExporter
 )
 
 // DefaultMetricsCollector collects and aggregates metrics
@@ -42,12 +49,6 @@ type HistogramStats struct {
 	Percentile50 float64 `json:"percentile_50"`
 	Percentile95 float64 `json:"percentile_95"`
 	Percentile99 float64 `json:"percentile_99"`
-}
-
-// PrometheusMetricsExporter is an optional capability for collectors that can
-// render Prometheus exposition text directly.
-type PrometheusMetricsExporter interface {
-	ExportPrometheus() string
 }
 
 // NewDefaultMetricsCollector creates a new metrics collector

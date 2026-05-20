@@ -50,15 +50,15 @@ func (p *PostgreSQLDatabase) Initialize(ctx context.Context, config core.Config)
 	defer p.mu.Unlock()
 
 	// Extract PostgreSQL connection string from config
-	connStr := core.ConfigString(&config, "POSTGRES_CONNECTION_STRING", "")
+	connStr := config.DatabaseURL
 	if connStr == "" {
 		// Build connection string from individual components
-		host := core.ConfigString(&config, "POSTGRES_HOST", "localhost")
-		port := core.ConfigString(&config, "POSTGRES_PORT", "5432")
-		user := core.ConfigString(&config, "POSTGRES_USER", "postgres")
-		password := core.SecretString(core.ConfigString(&config, "POSTGRES_PASSWORD", ""))
-		dbname := core.ConfigString(&config, "POSTGRES_DB", "chainpulse")
-		sslmode := core.ConfigString(&config, "DATABASE_SSLMODE", "require")
+		host := orDefault(config.PostgresHost, "localhost")
+		port := orDefault(config.PostgresPort, "5432")
+		user := orDefault(config.PostgresUser, "postgres")
+		password := config.PostgresPassword
+		dbname := orDefault(config.PostgresDB, "chainpulse")
+		sslmode := orDefault(config.SslMode, "require")
 
 		connStr = fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
 			host, port, user, password.Value(), dbname, sslmode)
@@ -78,31 +78,17 @@ func (p *PostgreSQLDatabase) Initialize(ctx context.Context, config core.Config)
 	db.SetConnMaxLifetime(defaultPostgresConnMaxLifetime)
 
 	// Test connection
-	ctx, cancel := NewContextWithTimeout(context.Background(), p.queryTimeout)
+	pingCtx, cancel := NewContextWithTimeout(ctx, p.queryTimeout)
 	defer cancel()
 
-	if err := db.PingContext(ctx); err != nil {
-		p.RecordError()
-		p.logger.Error("Failed to ping PostgreSQL", core.LogKeyError, err)
-		return fmt.Errorf("failed to ping PostgreSQL: %w", err)
+	if err := db.PingContext(pingCtx); err != nil {
+		return fmt.Errorf("failed to ping database: %w", err)
 	}
-
-	p.db = db
-	p.connectionPool = db
-
-	// Create tables if they don't exist
-	if err := p.createTables(); err != nil {
-		p.RecordError()
-		return fmt.Errorf("failed to create tables: %w", err)
-	}
-
-	p.logger.Info("PostgreSQL database initialized", core.LogKeyComponent, "postgres_database")
 
 	return nil
 }
 
-// createTables creates the necessary database tables
-func (p *PostgreSQLDatabase) createTables() error {
+func (p *PostgreSQLDatabase) createTables(ctx context.Context) error {
 	createTableSQL := `
 	CREATE TABLE IF NOT EXISTS blockchain_events (
 		id SERIAL PRIMARY KEY,
@@ -128,10 +114,10 @@ func (p *PostgreSQLDatabase) createTables() error {
 	CREATE INDEX IF NOT EXISTS idx_chain_id ON blockchain_events(chain_id);
 	`
 
-	ctx, cancel := NewContextWithTimeout(context.Background(), p.queryTimeout)
+	execCtx, cancel := NewContextWithTimeout(ctx, p.queryTimeout)
 	defer cancel()
 
-	_, err := p.db.ExecContext(ctx, createTableSQL)
+	_, err := p.db.ExecContext(execCtx, createTableSQL)
 	if err != nil {
 		return fmt.Errorf("failed to create tables: %w", err)
 	}
@@ -149,10 +135,10 @@ func (p *PostgreSQLDatabase) Start(ctx context.Context) error {
 	defer p.mu.Unlock()
 
 	// Verify connection is still active
-	ctx, cancel := NewContextWithTimeout(context.Background(), p.queryTimeout)
+	pingCtx, cancel := NewContextWithTimeout(ctx, p.queryTimeout)
 	defer cancel()
 
-	if err := p.db.PingContext(ctx); err != nil {
+	if err := p.db.PingContext(pingCtx); err != nil {
 		p.RecordError()
 		return fmt.Errorf("failed to verify PostgreSQL connection: %w", err)
 	}
@@ -979,4 +965,12 @@ func (p *PostgreSQLDatabase) GetReorgStats(ctx context.Context) (*core.ReorgStat
 
 	p.RecordRead(0)
 	return stats, nil
+}
+
+// orDefault returns s if non-empty, otherwise def.
+func orDefault(s, def string) string {
+	if s != "" {
+		return s
+	}
+	return def
 }

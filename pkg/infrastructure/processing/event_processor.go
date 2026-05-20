@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"runtime"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -333,18 +334,20 @@ func (ep *EventProcessor) Health() core.HealthStatus {
 	return status
 }
 
-// normalizeAddress normalizes blockchain addresses
+// normalizeAddress normalizes blockchain addresses to lowercase with 0x prefix
 func normalizeAddress(addr string) string {
+	addr = strings.ToLower(strings.TrimSpace(addr))
 	if len(addr) > 2 && addr[:2] == "0x" {
-		return "0x" + addr[2:]
+		return addr
 	}
-	return addr
+	return "0x" + addr
 }
 
-// normalizeHash normalizes transaction hashes
+// normalizeHash normalizes transaction hashes to lowercase with 0x prefix
 func normalizeHash(hash string) string {
+	hash = strings.ToLower(strings.TrimSpace(hash))
 	if len(hash) > 2 && hash[:2] == "0x" {
-		return "0x" + hash[2:]
+		return hash
 	}
-	return hash
+	return "0x" + hash
 }

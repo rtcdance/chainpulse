@@ -99,6 +99,9 @@ type ConfirmationTracker struct {
 	done     chan struct{}
 	stopOnce sync.Once
 
+	// Rate limiting: at most one reconciliation RPC at a time
+	reconcileSem chan struct{}
+
 	// Callbacks for state transitions
 	OnConfirmed func(eventHash string)
 	OnFinalized func(eventHash string)
@@ -111,6 +114,7 @@ func NewConfirmationTracker(config ConfirmationConfig, chainID string) *Confirma
 		chainID:           chainID,
 		pending:           make(map[string]*pendingEvent),
 		reconcileInterval: 64, // check on-chain finality every 64 blocks
+		reconcileSem:      make(chan struct{}, 1),
 		done:              make(chan struct{}),
 	}
 }
@@ -164,10 +168,14 @@ func (t *ConfirmationTracker) AdvanceBlock(blockNumber uint64) []EventStatus {
 	// Periodically reconcile with on-chain finality
 	if t.finalityChecker != nil && t.blocksSinceCheck >= t.reconcileInterval {
 		t.blocksSinceCheck = 0
-		// Reconcile in background to avoid blocking AdvanceBlock
+		// Reconcile in background to avoid blocking AdvanceBlock.
+	// Rate-limited to at most one in-flight RPC by the reconcileSem channel.
+	select {
+	case t.reconcileSem <- struct{}{}:
 		t.wg.Add(1)
 		go func() {
 			defer t.wg.Done()
+			defer func() { <-t.reconcileSem }()
 			select {
 			case <-t.done:
 				return
@@ -179,6 +187,11 @@ func (t *ConfirmationTracker) AdvanceBlock(blockNumber uint64) []EventStatus {
 				}
 			}
 		}()
+	default:
+		// A reconciliation is already in-flight; skip this round.
+		// This prevents unbounded goroutine accumulation when blocks
+		// advance faster than the RPC round-trip time.
+	}
 	}
 
 	for hash, pe := range t.pending {

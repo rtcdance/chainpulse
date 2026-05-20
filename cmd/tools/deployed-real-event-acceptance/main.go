@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"log/slog"
 	"math/big"
 	"net/http"
 	"os"
@@ -138,10 +139,14 @@ func run(cfg config) error {
 		return err
 	}
 
-	log.Printf("chain event emitted: contract=%s tx=%s logs=%d", contractAddress.Hex(), tx.Hash().Hex(), len(receipt.Logs))
+	slog.Info("chain event emitted",
+		"contract", contractAddress.Hex(),
+		"tx", tx.Hash().Hex(),
+		"logs", len(receipt.Logs),
+	)
 
 	if !cfg.ExpectAPI {
-		log.Printf("chain-side validation passed; api validation skipped")
+		slog.Info("chain-side validation passed; api validation skipped")
 		return nil
 	}
 
@@ -149,7 +154,7 @@ func run(cfg config) error {
 		return err
 	}
 
-	log.Printf("api observed emitted event: tx=%s", tx.Hash().Hex())
+	slog.Info("api observed emitted event", "tx", tx.Hash().Hex())
 	return nil
 }
 

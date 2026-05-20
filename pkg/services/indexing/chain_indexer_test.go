@@ -152,7 +152,7 @@ func (m *MockDatabasePlugin) GetReorgStats(ctx context.Context) (*core.ReorgStat
 	return &core.ReorgStats{}, nil
 }
 
-func (m *MockDatabasePlugin) Health() error {
+func (m *MockDatabasePlugin) Health(ctx context.Context) error {
 	return nil
 }
 
@@ -164,15 +164,15 @@ func (m *MockDatabasePlugin) Version() string {
 	return "1.0.0"
 }
 
-func (m *MockDatabasePlugin) Initialize(config core.Config) error {
+func (m *MockDatabasePlugin) Initialize(ctx context.Context, config core.Config) error {
 	return nil
 }
 
-func (m *MockDatabasePlugin) Start() error {
+func (m *MockDatabasePlugin) Start(ctx context.Context) error {
 	return nil
 }
 
-func (m *MockDatabasePlugin) Stop() error {
+func (m *MockDatabasePlugin) Stop(ctx context.Context) error {
 	return nil
 }
 
@@ -302,19 +302,24 @@ func (mcp *MockCachePlugin) Version() string {
 	return "1.0.0"
 }
 
-func (mcp *MockCachePlugin) Initialize(config core.Config) error {
+func (mcp *MockCachePlugin) Initialize(ctx context.Context, config core.Config) error {
+	_ = ctx
+	_ = config
 	return nil
 }
 
-func (mcp *MockCachePlugin) Start() error {
+func (mcp *MockCachePlugin) Start(ctx context.Context) error {
+	_ = ctx
 	return nil
 }
 
-func (mcp *MockCachePlugin) Stop() error {
+func (mcp *MockCachePlugin) Stop(ctx context.Context) error {
+	_ = ctx
 	return nil
 }
 
-func (mcp *MockCachePlugin) Health() error {
+func (mcp *MockCachePlugin) Health(ctx context.Context) error {
+	_ = ctx
 	return nil
 }
 

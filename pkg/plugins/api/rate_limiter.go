@@ -6,6 +6,7 @@ import (
 	"math"
 	"net"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -26,21 +27,19 @@ const (
 
 // RateLimiter implements rate limiting for API requests
 type RateLimiter struct {
-	// Per-client rate limiters (keyed by client identifier)
-	clientLimiters map[string]*TokenBucket
-	// Per-endpoint rate limiters (keyed by endpoint path)
+	clientLimiters  map[string]*TokenBucket
 	endpointLimiters map[string]*TokenBucket
-	// Per-IP rate limiters (keyed by IP address)
-	ipLimiters map[string]*TokenBucket
+	ipLimiters      map[string]*TokenBucket
 
 	logger  core.Logger
 	metrics core.MetricsCollector
 
-	// Configuration
 	defaultRequestsPerSecond float64
 	defaultBurstSize         int
 	cleanupInterval          time.Duration
 	lastCleanup              time.Time
+
+	trustedProxies map[string]bool
 
 	mu sync.RWMutex
 }
@@ -159,6 +158,16 @@ func NewRateLimiter(logger core.Logger, metrics core.MetricsCollector, config *R
 	return rl
 }
 
+// SetTrustedProxies configures which proxy IPs are trusted to send X-Forwarded-For headers.
+func (rl *RateLimiter) SetTrustedProxies(proxies []string) {
+	rl.mu.Lock()
+	defer rl.mu.Unlock()
+	rl.trustedProxies = make(map[string]bool, len(proxies))
+	for _, p := range proxies {
+		rl.trustedProxies[p] = true
+	}
+}
+
 // NewTokenBucket creates a new token bucket
 func NewTokenBucket(refillRate float64, maxTokens float64) *TokenBucket {
 	now := time.Now()
@@ -203,10 +212,11 @@ func (rl *RateLimiter) AllowRequest(r *http.Request, clientID string) (bool, *Ra
 			return false, info
 		}
 		info.RequestsRemaining = int(endpointLimit.GetAvailableTokens())
+		info.Limit = endpointLimit.GetLimit()
 	}
 
 	// Check IP-based rate limit
-	clientIP := getClientIP(r)
+	clientIP := getClientIP(r, rl.trustedProxies)
 	if ipLimiter, ok := rl.ipLimiters[clientIP]; ok {
 		if !ipLimiter.Allow() {
 			info.Allowed = false
@@ -265,6 +275,7 @@ func (rl *RateLimiter) AllowRequest(r *http.Request, clientID string) (bool, *Ra
 type RateLimitInfo struct {
 	Allowed           bool
 	RequestsRemaining int
+	Limit             int
 	ResetTime         time.Time
 	RetryAfter        time.Duration
 }
@@ -294,6 +305,11 @@ func (tb *TokenBucket) GetAvailableTokens() float64 {
 
 	tb.refill()
 	return tb.tokens
+}
+
+// GetLimit returns the maximum tokens (burst size) for this bucket
+func (tb *TokenBucket) GetLimit() int {
+	return int(tb.maxTokens)
 }
 
 // refill adds tokens based on elapsed time
@@ -442,6 +458,9 @@ func (m *RateLimitMiddleware) SetTrustedProxies(proxies []string) {
 	for _, p := range proxies {
 		m.trustedProxies[p] = true
 	}
+	if m.limiter != nil {
+		m.limiter.SetTrustedProxies(proxies)
+	}
 }
 
 // Limiter returns the underlying rate limiter.
@@ -464,6 +483,7 @@ func (m *RateLimitMiddleware) Middleware(limiter *RateLimiter) func(http.Handler
 			allowed, info := limiter.AllowRequest(r, clientID)
 
 			// Set rate limit headers
+			w.Header().Set("X-RateLimit-Limit", fmt.Sprintf("%d", info.Limit))
 			w.Header().Set("X-RateLimit-Remaining", fmt.Sprintf("%d", info.RequestsRemaining))
 			w.Header().Set("X-RateLimit-Reset", fmt.Sprintf("%d", info.ResetTime.Unix()))
 
@@ -482,28 +502,24 @@ func (m *RateLimitMiddleware) Middleware(limiter *RateLimiter) func(http.Handler
 // getClientIP extracts the client IP address from the request safely.
 // X-Forwarded-For is only trusted if the request comes from a trusted proxy.
 // Otherwise, X-Real-IP is preferred, falling back to RemoteAddr.
-func getClientIP(r *http.Request) string {
+func getClientIP(r *http.Request, trustedProxies map[string]bool) string {
 	remoteIP, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
 		remoteIP = r.RemoteAddr
 	}
 
-	// Check if the request is from a trusted proxy
-	// Only then trust X-Forwarded-For
-	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-		// Only use X-Forwarded-For if we can verify the immediate source is trusted
-		// This is checked by the caller (RateLimitMiddleware) which has trustedProxies
-		// For the standalone getClientIP, we prefer X-Real-IP over X-Forwarded-For
-		_ = xff // Not used without trust verification
+	if trustedProxies[remoteIP] {
+		if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+			parts := strings.SplitN(xff, ",", 2)
+			clientIP := strings.TrimSpace(parts[0])
+			if net.ParseIP(clientIP) != nil {
+				return clientIP
+			}
+		}
 	}
 
-	// Prefer X-Real-IP (set by nginx/traefik) over X-Forwarded-For
-	// X-Real-IP is set by a single proxy, harder to spoof
 	if xri := r.Header.Get("X-Real-IP"); xri != "" {
-		// Validate it looks like an IP
-		if net.ParseIP(xri) != nil {
-			return xri
-		}
+		return xri
 	}
 
 	return remoteIP
@@ -511,21 +527,9 @@ func getClientIP(r *http.Request) string {
 
 // extractClientID extracts client ID from request context or headers
 func extractClientID(r *http.Request) string {
-	// Check context first
 	if clientID, ok := r.Context().Value("clientID").(string); ok {
 		return clientID
 	}
-
-	// Check Authorization header
-	if auth := r.Header.Get("Authorization"); auth != "" {
-		return auth
-	}
-
-	// Check API key header
-	if apiKey := r.Header.Get("X-API-Key"); apiKey != "" {
-		return apiKey
-	}
-
 	return ""
 }
 

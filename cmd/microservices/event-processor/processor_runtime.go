@@ -51,11 +51,11 @@ func newEventProcessorProcessingRuntimeWithStorage(
 	activeStorage := storage
 	if activeStorage == nil {
 		inMemoryDatabase = database.NewDefaultInMemoryDatabasePlugin(logger, metrics)
-		if err := inMemoryDatabase.Initialize(processorConfig); err != nil {
+		if err := inMemoryDatabase.Initialize(context.Background(), *processorConfig); err != nil {
 			_ = idempotency.Stop()
 			return nil, fmt.Errorf("initialize in-memory processor database: %w", err)
 		}
-		if err := inMemoryDatabase.Start(); err != nil {
+		if err := inMemoryDatabase.Start(context.Background()); err != nil {
 			_ = idempotency.Stop()
 			return nil, fmt.Errorf("start in-memory processor database: %w", err)
 		}
@@ -72,14 +72,14 @@ func newEventProcessorProcessingRuntimeWithStorage(
 	)
 	if err := eventProcessor.Initialize(processorConfig); err != nil {
 		if inMemoryDatabase != nil {
-			_ = inMemoryDatabase.Stop()
+			_ = inMemoryDatabase.Stop(context.Background())
 		}
 		_ = idempotency.Stop()
 		return nil, fmt.Errorf("initialize event processor runtime: %w", err)
 	}
 	if err := eventProcessor.Start(); err != nil {
 		if inMemoryDatabase != nil {
-			_ = inMemoryDatabase.Stop()
+			_ = inMemoryDatabase.Stop(context.Background())
 		}
 		_ = idempotency.Stop()
 		return nil, fmt.Errorf("start event processor runtime: %w", err)
@@ -130,7 +130,7 @@ func (r *eventProcessorProcessingRuntime) Stop() error {
 		}
 	}
 	if r.inMemoryDatabase != nil {
-		if err := r.inMemoryDatabase.Stop(); err != nil && stopErr == nil {
+		if err := r.inMemoryDatabase.Stop(context.Background()); err != nil && stopErr == nil {
 			stopErr = err
 		}
 	}

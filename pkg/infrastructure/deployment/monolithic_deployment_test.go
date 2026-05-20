@@ -30,11 +30,13 @@ func (m *MonoMockPluginRegistry) List() []core.Plugin {
 	return []core.Plugin{}
 }
 
-func (m *MonoMockPluginRegistry) Start() error {
+func (m *MonoMockPluginRegistry) Start(ctx context.Context) error {
+	_ = ctx
 	return nil
 }
 
-func (m *MonoMockPluginRegistry) Stop() error {
+func (m *MonoMockPluginRegistry) Stop(ctx context.Context) error {
+	_ = ctx
 	return nil
 }
 
@@ -64,11 +66,11 @@ func (m *MonoMockEventBus) Publish(ctx context.Context, topic string, event any)
 	return nil
 }
 
-func (m *MonoMockEventBus) Subscribe(ctx context.Context, topic string, handler func(any)) (uint64, error) {
+func (m *MonoMockEventBus) Subscribe(ctx context.Context, topic string, handler func(context.Context, any) error) (uint64, error) {
 	return 0, nil
 }
 
-func (m *MonoMockEventBus) SubscribeNamed(ctx context.Context, topic, name string, handler func(any)) (uint64, error) {
+func (m *MonoMockEventBus) SubscribeNamed(ctx context.Context, topic, name string, handler func(context.Context, any) error) (uint64, error) {
 	return 0, nil
 }
 

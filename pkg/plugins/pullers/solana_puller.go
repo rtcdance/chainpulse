@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"strconv"
 	"sync"
 	"time"
 
@@ -14,7 +13,70 @@ import (
 	sharedhttp "github.com/rtcdance/chainpulse/pkg/infrastructure/http"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
 )
+
+var knownProgramLabels = map[string]string{
+	core.TokenProgramID:                  "SPL Token",
+	core.Token2022ProgramID:              "SPL Token-2022",
+	core.AssociatedTokenProgramID:        "SPL Associated Token Account",
+	core.MetaplexTokenMetadataProgramID:  "Metaplex Token Metadata",
+	core.JupiterV6ProgramID:              "Jupiter V6 Aggregator",
+	core.RaydiumV4ProgramID:              "Raydium V4 AMM",
+	core.OrcaWhirlpoolProgramID:          "Orca Whirlpool",
+	"11111111111111111111111111111111":   "System Program",
+	"Vote111111111111111111111111111111111111": "Vote Program",
+	"Stake11111111111111111111111111111111111111": "Stake Program",
+	"BPFLoaderUpgradeab1e11111111111111111111111": "BPF Loader",
+	"ComputeBudget111111111111111111111111111111": "Compute Budget",
+	"AddressLookupTab1e1111111111111111111111111": "Address Lookup Table",
+}
+
+var splTokenProgramIDs = map[string]bool{
+	core.TokenProgramID:     true,
+	core.Token2022ProgramID: true,
+}
+
+type solPullerMetrics struct {
+	mu                    sync.RWMutex
+	programsSeen          map[string]int64
+	transactionsProcessed int64
+	splEvents             int64
+}
+
+func newSolPullerMetrics() *solPullerMetrics {
+	return &solPullerMetrics{
+		programsSeen: make(map[string]int64),
+	}
+}
+
+func (m *solPullerMetrics) recordProgram(programID string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.programsSeen[programID]++
+}
+
+func (m *solPullerMetrics) incTransactions(count int64) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.transactionsProcessed += count
+}
+
+func (m *solPullerMetrics) incSPLEvents(count int64) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.splEvents += count
+}
+
+func (m *solPullerMetrics) snapshot() map[string]any {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return map[string]any{
+		"transactions_processed": m.transactionsProcessed,
+		"spl_events":             m.splEvents,
+		"programs_seen":          m.programsSeen,
+	}
+}
 
 // SolanaPuller pulls events from Solana RPC nodes
 type SolanaPuller struct {
@@ -27,6 +89,7 @@ type SolanaPuller struct {
 	stopChan       chan bool
 	eventHandlers  []func(core.BlockchainEvent)
 	requestCounter int64
+	metrics        *solPullerMetrics
 }
 
 // NewSolanaPuller creates a new Solana puller
@@ -39,6 +102,7 @@ func NewSolanaPuller(config core.Config, logger core.Logger, metrics core.Metric
 		nodeURL:              config.BlockchainNodeURL,
 		pollInterval:         5 * time.Second,
 		stopChan:             make(chan bool, 1),
+		metrics:              newSolPullerMetrics(),
 	}
 }
 
@@ -99,20 +163,26 @@ func (p *SolanaPuller) GetStats() map[string]any {
 	stats["nodeURL"] = p.nodeURL
 	stats["currentSlot"] = p.currentSlot
 	stats["requestCounter"] = p.requestCounter
+	for k, v := range p.metrics.snapshot() {
+		stats[k] = v
+	}
 	return stats
 }
 
 // Poll runs the continuous polling loop
-func (p *SolanaPuller) Poll(ctx context.Context) {
+func (p *SolanaPuller) Poll(ctx context.Context) error {
+	if !p.IsRunning() {
+		return fmt.Errorf("solana puller not running")
+	}
 	ticker := time.NewTicker(p.pollInterval)
 	defer ticker.Stop()
 
 	for {
 		select {
 		case <-ctx.Done():
-			return
+			return ctx.Err()
 		case <-p.stopChan:
-			return
+			return nil
 		case <-ticker.C:
 			latestSlot, err := p.GetLatestBlock(ctx)
 			if err != nil {
@@ -153,6 +223,13 @@ func (p *SolanaPuller) Poll(ctx context.Context) {
 	}
 }
 
+// solanaInstruction represents a Solana instruction within a transaction message
+type solanaInstruction struct {
+	ProgramIDIndex uint16   `json:"programIdIndex"`
+	Accounts       []uint16 `json:"accounts"`
+	Data           string   `json:"data"`
+}
+
 // solanaBlock represents a simplified Solana block
 type solanaBlock struct {
 	Slot         uint64              `json:"slot"`
@@ -166,13 +243,117 @@ type solanaTransaction struct {
 	Transaction struct {
 		Signatures []string `json:"signatures"`
 		Message    struct {
-			AccountKeys []string `json:"accountKeys"`
+			AccountKeys  []string           `json:"accountKeys"`
+			Instructions []solanaInstruction `json:"instructions"`
 		} `json:"message"`
 	} `json:"transaction"`
 	Meta *struct {
-		Err         any      `json:"err"`
-		LogMessages []string `json:"logMessages"`
+		Err                  any      `json:"err"`
+		LogMessages          []string `json:"logMessages"`
+		Fee                  uint64   `json:"fee"`
+		ComputeUnitsConsumed uint64   `json:"computeUnitsConsumed"`
 	} `json:"meta"`
+}
+
+// solanaTxResponse is used for getTransaction RPC response
+type solanaTxResponse struct {
+	Slot        uint64            `json:"slot"`
+	BlockTime   int64             `json:"blockTime"`
+	Transaction solanaTransaction `json:"transaction"`
+	Meta        *struct {
+		Err                  any      `json:"err"`
+		LogMessages          []string `json:"logMessages"`
+		Fee                  uint64   `json:"fee"`
+		ComputeUnitsConsumed uint64   `json:"computeUnitsConsumed"`
+	} `json:"meta"`
+}
+
+func (p *SolanaPuller) getTransactions(ctx context.Context, signatures []string) ([]solanaTxResponse, error) {
+	params := []any{signatures, map[string]any{
+		"encoding":                       "json",
+		"maxSupportedTransactionVersion": 0,
+	}}
+	var results []solanaTxResponse
+	if err := p.sendRPCRequest(ctx, "getTransaction", params, &results); err != nil {
+		return nil, fmt.Errorf("getTransaction: %w", err)
+	}
+	return results, nil
+}
+
+func parseInstructionType(programID string) string {
+	if label, ok := knownProgramLabels[programID]; ok {
+		return label
+	}
+	return programID
+}
+
+func parseSPLEvents(accountKeys []string, instructions []solanaInstruction, logMessages []string) []core.BlockchainEvent {
+	var splEvents []core.BlockchainEvent
+
+	logData := core.ParseSolanaLogMessages(logMessages)
+
+	for instIdx, inst := range instructions {
+		programID := accountKeys[inst.ProgramIDIndex]
+		if !splTokenProgramIDs[programID] {
+			continue
+		}
+
+		if len(inst.Data) < 2 {
+			continue
+		}
+
+		discData := inst.Data
+
+		var eventKind string
+		switch {
+		case len(discData) >= 2 && discData[0] == '3' && discData[1] == '2' && len(discData) >= 12:
+			eventKind = core.SPLTransfer
+		case len(discData) >= 2 && discData[0] == '1' && discData[1] == '2' && len(discData) >= 12:
+			eventKind = core.SPLTransferChecked
+		case len(discData) >= 2 && discData[0] == '7' && discData[1] == '3' && len(discData) >= 12:
+			eventKind = core.SPLMintTo
+		case len(discData) >= 2 && discData[0] == '8' && discData[1] == '3' && len(discData) >= 12:
+			eventKind = core.SPLBurn
+		case len(discData) >= 2 && discData[0] == '0' && discData[1] == '3' && len(discData) >= 12:
+			eventKind = core.SPLInitializeMint
+		case len(discData) >= 2 && discData[0] == '1' && discData[1] == '3' && len(discData) >= 12:
+			eventKind = core.SPLInitializeAccount
+		case len(discData) >= 2 && discData[0] == '9' && discData[1] == '3' && len(discData) >= 12:
+			eventKind = core.SPLCloseAccount
+		default:
+			eventKind = "SPL:Unknown"
+		}
+
+		decodedData := make(map[string]any)
+		decodedData["event_kind"] = eventKind
+		decodedData["program_id"] = programID
+		decodedData["instruction_index"] = uint64(instIdx)
+
+		var accountKeyList []string
+		for _, accIdx := range inst.Accounts {
+			if int(accIdx) < len(accountKeys) {
+				accountKeyList = append(accountKeyList, accountKeys[accIdx])
+			}
+		}
+		decodedData["account_keys"] = accountKeyList
+
+		for k, v := range logData {
+			decodedData[k] = v
+		}
+
+		event := core.BlockchainEvent{
+			ChainID:     "solana",
+			Network:     "solana",
+			EventName:   eventKind,
+			DecodedData: decodedData,
+			Status:      core.EventStatusConfirmed,
+			CreatedAt:   time.Now(),
+			ProcessedAt: time.Now(),
+		}
+		splEvents = append(splEvents, event)
+	}
+
+	return splEvents
 }
 
 func (p *SolanaPuller) getEventsFromSlot(ctx context.Context, slot uint64) ([]core.BlockchainEvent, error) {
@@ -180,6 +361,7 @@ func (p *SolanaPuller) getEventsFromSlot(ctx context.Context, slot uint64) ([]co
 		"encoding":                       "json",
 		"maxSupportedTransactionVersion": 0,
 		"transactionDetails":             "full",
+		"rewards":                        false,
 	}}
 
 	var block solanaBlock
@@ -188,10 +370,11 @@ func (p *SolanaPuller) getEventsFromSlot(ctx context.Context, slot uint64) ([]co
 	}
 
 	var events []core.BlockchainEvent
+	p.metrics.incTransactions(int64(len(block.Transactions)))
 
 	for i, tx := range block.Transactions {
 		if tx.Meta != nil && tx.Meta.Err != nil {
-			continue // Skip failed transactions
+			continue
 		}
 
 		sig := ""
@@ -199,27 +382,66 @@ func (p *SolanaPuller) getEventsFromSlot(ctx context.Context, slot uint64) ([]co
 			sig = tx.Transaction.Signatures[0]
 		}
 
-		// Extract events from log messages
-		decodedData := make(map[string]any)
-		eventName := "Transaction"
-		if tx.Meta != nil {
-			for _, logMsg := range tx.Meta.LogMessages {
-				if len(logMsg) > 13 && logMsg[:13] == "Program data:" {
-					eventName = "ProgramData"
-					decodedData["data"] = logMsg[13:]
-					break
-				}
+		var programID string
+		instrTypes := make([]string, 0)
+
+		for _, inst := range tx.Transaction.Message.Instructions {
+			pid := ""
+			if int(inst.ProgramIDIndex) < len(tx.Transaction.Message.AccountKeys) {
+				pid = tx.Transaction.Message.AccountKeys[inst.ProgramIDIndex]
+			}
+			p.metrics.recordProgram(pid)
+			instrTypes = append(instrTypes, parseInstructionType(pid))
+		}
+
+		if len(tx.Transaction.Message.Instructions) > 0 {
+			firstInst := tx.Transaction.Message.Instructions[0]
+			if int(firstInst.ProgramIDIndex) < len(tx.Transaction.Message.AccountKeys) {
+				programID = tx.Transaction.Message.AccountKeys[firstInst.ProgramIDIndex]
 			}
 		}
 
-		if len(tx.Transaction.Message.AccountKeys) > 0 {
-			decodedData["programId"] = tx.Transaction.Message.AccountKeys[0]
-		}
-		if len(tx.Transaction.Message.AccountKeys) > 1 {
-			decodedData["signer"] = tx.Transaction.Message.AccountKeys[len(tx.Transaction.Message.AccountKeys)-1]
+		accountKeys := tx.Transaction.Message.AccountKeys
+
+		splEvents := parseSPLEvents(accountKeys, tx.Transaction.Message.Instructions,
+			func() []string {
+				if tx.Meta != nil {
+					return tx.Meta.LogMessages
+				}
+				return nil
+			}())
+		if len(splEvents) > 0 {
+			p.metrics.incSPLEvents(int64(len(splEvents)))
 		}
 
-		eventID := "sol-" + strconv.FormatUint(slot, 10) + "-" + sig
+		decodedData := make(map[string]any)
+		decodedData["slot"] = slot
+		decodedData["program_id"] = programID
+		decodedData["account_keys"] = accountKeys
+		decodedData["instruction_types"] = instrTypes
+		decodedData["is_spl_program"] = splTokenProgramIDs[programID]
+
+		if tx.Meta != nil {
+			decodedData["fee"] = tx.Meta.Fee
+			decodedData["compute_units_consumed"] = tx.Meta.ComputeUnitsConsumed
+			logData := core.ParseSolanaLogMessages(tx.Meta.LogMessages)
+			for k, v := range logData {
+				decodedData[k] = v
+			}
+		}
+
+		eventID := fmt.Sprintf("sol-%d-%d-0", slot, i)
+
+		var eventSig common.Hash
+		if sig != "" {
+			hash := crypto.Keccak256Hash([]byte(sig))
+			copy(eventSig[:], hash[:32])
+		}
+
+		eventName := parseInstructionType(programID)
+		if eventName == "" {
+			eventName = "Transaction"
+		}
 
 		event := core.BlockchainEvent{
 			ID:               eventID,
@@ -232,9 +454,10 @@ func (p *SolanaPuller) getEventsFromSlot(ctx context.Context, slot uint64) ([]co
 			TransactionHash:  common.HexToHash(sig),
 			TransactionIndex: uint64(i),
 			LogIndex:         uint64(i),
-			ContractAddress:  common.HexToAddress("0x0"),
+			ContractAddress:  instProgramIDToAddress(programID),
+			NativeAddress:    programID,
 			EventName:        eventName,
-			EventSignature:   common.Hash{},
+			EventSignature:   eventSig,
 			DecodedData:      decodedData,
 			Status:           core.EventStatusConfirmed,
 			CreatedAt:        time.Now(),
@@ -245,6 +468,16 @@ func (p *SolanaPuller) getEventsFromSlot(ctx context.Context, slot uint64) ([]co
 	}
 
 	return events, nil
+}
+
+func instProgramIDToAddress(programID string) common.Address {
+	if programID == "" {
+		return common.HexToAddress("0x0")
+	}
+	if len(programID) >= 40 {
+		return common.HexToAddress(programID[:40])
+	}
+	return common.HexToAddress("0x" + programID[:len(programID)])
 }
 
 // solanaRPCRequest represents a JSON-RPC request to Solana

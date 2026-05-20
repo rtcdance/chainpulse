@@ -33,9 +33,11 @@ func (f *MessageQueueFixture) Setup(ctx context.Context) error {
 		return fmt.Errorf("message queue plugin is nil")
 	}
 
-	// Verify MQ health
-	if err := f.mq.Health(); err != nil {
-		return fmt.Errorf("message queue health check failed: %w", err)
+	// Verify MQ health (optional capability)
+	if hp, ok := f.mq.(core.HealthPlugin); ok {
+		if err := hp.Health(ctx); err != nil {
+			return fmt.Errorf("message queue health check failed: %w", err)
+		}
 	}
 
 	// Clear any existing messages
@@ -63,7 +65,9 @@ func (f *MessageQueueFixture) Cleanup(ctx context.Context) error {
 // Close closes the message queue connection
 func (f *MessageQueueFixture) Close() error {
 	if f.mq != nil {
-		return f.mq.Stop()
+		if lp, ok := f.mq.(core.LifecyclePlugin); ok {
+			return lp.Stop(context.Background())
+		}
 	}
 	return nil
 }

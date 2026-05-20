@@ -33,9 +33,7 @@ func NewMonolithicIndexingEventStore(
 	}
 }
 
-func (s *MonolithicIndexingEventStore) Initialize(ctx context.Context) error {
-	_ = ctx
-
+func (s *MonolithicIndexingEventStore) Initialize(_ context.Context) error {
 	if s.database == nil {
 		return fmt.Errorf("database plugin is required")
 	}
@@ -144,6 +142,32 @@ func (s *MonolithicIndexingEventStore) GetEventsPaginated(ctx context.Context, c
 	return events, hasMore, nil
 }
 
+func (s *MonolithicIndexingEventStore) GetEventsByCorrelationID(ctx context.Context, correlationID string, limit int, offset int) ([]*core.BlockchainEvent, error) {
+	allEvents, err := s.loadAllEvents(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	var matched []*core.BlockchainEvent
+	for _, event := range allEvents {
+		if event.CorrelationID == correlationID {
+			matched = append(matched, event)
+		}
+	}
+
+	start := offset
+	if start > len(matched) {
+		return nil, nil
+	}
+
+	end := offset + limit
+	if end > len(matched) {
+		end = len(matched)
+	}
+
+	return matched[start:end], nil
+}
+
 func (s *MonolithicIndexingEventStore) CountEvents(ctx context.Context) (int64, error) {
 	allEvents, err := s.loadAllEvents(ctx)
 	if err != nil {
@@ -152,17 +176,18 @@ func (s *MonolithicIndexingEventStore) CountEvents(ctx context.Context) (int64, 
 	return int64(len(allEvents)), nil
 }
 
-func (s *MonolithicIndexingEventStore) DeleteExpiredEvents(ctx context.Context) (int64, error) {
-	_ = ctx
+func (s *MonolithicIndexingEventStore) DeleteExpiredEvents(_ context.Context) (int64, error) {
 	return 0, nil
 }
 
 func (s *MonolithicIndexingEventStore) Health(ctx context.Context) *core.HealthStatus {
-	if err := s.database.Health(); err != nil {
-		return &core.HealthStatus{
-			Status:    "unhealthy",
-			Message:   err.Error(),
-			Timestamp: time.Now(),
+	if hp, ok := s.database.(core.HealthPlugin); ok {
+		if err := hp.Health(ctx); err != nil {
+			return &core.HealthStatus{
+				Status:    "unhealthy",
+				Message:   err.Error(),
+				Timestamp: time.Now(),
+			}
 		}
 	}
 
@@ -173,8 +198,7 @@ func (s *MonolithicIndexingEventStore) Health(ctx context.Context) *core.HealthS
 	}
 }
 
-func (s *MonolithicIndexingEventStore) Close(ctx context.Context) error {
-	_ = ctx
+func (s *MonolithicIndexingEventStore) Close(_ context.Context) error {
 	return nil
 }
 
@@ -235,26 +259,24 @@ func NewMonolithicIndexingMetadataStore(database core.DatabasePlugin) *Monolithi
 	return &MonolithicIndexingMetadataStore{database: database}
 }
 
-func (s *MonolithicIndexingMetadataStore) Initialize(ctx context.Context) error {
-	_ = ctx
-
+func (s *MonolithicIndexingMetadataStore) Initialize(_ context.Context) error {
 	if s.database == nil {
 		return fmt.Errorf("database plugin is required")
+	}
+
+	if s.initialized {
+		return fmt.Errorf("metadata store already initialized")
 	}
 
 	s.initialized = true
 	return nil
 }
 
-func (s *MonolithicIndexingMetadataStore) InsertMetadata(ctx context.Context, metadata *query.EventMetadata) error {
-	_ = ctx
-	_ = metadata
+func (s *MonolithicIndexingMetadataStore) InsertMetadata(_ context.Context, _ *query.EventMetadata) error {
 	return nil
 }
 
-func (s *MonolithicIndexingMetadataStore) InsertMetadataBatch(ctx context.Context, metadataList []*query.EventMetadata) error {
-	_ = ctx
-	_ = metadataList
+func (s *MonolithicIndexingMetadataStore) InsertMetadataBatch(_ context.Context, _ []*query.EventMetadata) error {
 	return nil
 }
 
@@ -306,18 +328,18 @@ func (s *MonolithicIndexingMetadataStore) GetMetadataBatch(ctx context.Context, 
 	return nil, nil
 }
 
-func (s *MonolithicIndexingMetadataStore) UpdateMetadata(ctx context.Context, metadata *query.EventMetadata) error {
-	_ = ctx
-	_ = metadata
+func (s *MonolithicIndexingMetadataStore) UpdateMetadata(_ context.Context, _ *query.EventMetadata) error {
 	return nil
 }
 
 func (s *MonolithicIndexingMetadataStore) Health(ctx context.Context) *core.HealthStatus {
-	if err := s.database.Health(); err != nil {
-		return &core.HealthStatus{
-			Status:    "unhealthy",
-			Message:   err.Error(),
-			Timestamp: time.Now(),
+	if hp, ok := s.database.(core.HealthPlugin); ok {
+		if err := hp.Health(ctx); err != nil {
+			return &core.HealthStatus{
+				Status:    "unhealthy",
+				Message:   err.Error(),
+				Timestamp: time.Now(),
+			}
 		}
 	}
 
@@ -328,8 +350,7 @@ func (s *MonolithicIndexingMetadataStore) Health(ctx context.Context) *core.Heal
 	}
 }
 
-func (s *MonolithicIndexingMetadataStore) Close(ctx context.Context) error {
-	_ = ctx
+func (s *MonolithicIndexingMetadataStore) Close(_ context.Context) error {
 	return nil
 }
 
@@ -422,20 +443,18 @@ func (s *MonolithicIndexingDomainQueryService) QueryByHash(ctx context.Context, 
 	return nil, nil
 }
 
-func (s *MonolithicIndexingDomainQueryService) InvalidateCache(ctx context.Context, key string) error {
-	_ = ctx
-	_ = key
+func (s *MonolithicIndexingDomainQueryService) InvalidateCache(_ context.Context, _ string) error {
 	return nil
 }
 
 func (s *MonolithicIndexingDomainQueryService) Health(ctx context.Context) *core.HealthStatus {
-	_ = ctx
-
-	if err := s.database.Health(); err != nil {
-		return &core.HealthStatus{
-			Status:    "unhealthy",
-			Message:   err.Error(),
-			Timestamp: time.Now(),
+	if hp, ok := s.database.(core.HealthPlugin); ok {
+		if err := hp.Health(ctx); err != nil {
+			return &core.HealthStatus{
+				Status:    "unhealthy",
+				Message:   err.Error(),
+				Timestamp: time.Now(),
+			}
 		}
 	}
 

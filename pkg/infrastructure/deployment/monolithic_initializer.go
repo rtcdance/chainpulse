@@ -1,3 +1,7 @@
+// Simulation initializer for testing and playground — not for production use.
+// All component initializers are stubs that return ready state without actual
+// service initialization. Use the bootstrap package (pkg/application/bootstrap)
+// for production deployment.
 package deployment
 
 import (

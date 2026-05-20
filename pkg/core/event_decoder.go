@@ -2,8 +2,8 @@ package core
 
 import (
 	"fmt"
-	"log"
 	"math/big"
+	"sync"
 	"sync/atomic"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
@@ -11,6 +11,18 @@ import (
 )
 
 // unknownEventSignatures counts events whose signature could not be resolved.
+var (
+	eventDecoderOnce sync.Once
+	eventDecoderLog  Logger
+)
+
+func getEventDecoderLogger() Logger {
+	eventDecoderOnce.Do(func() {
+		eventDecoderLog = NewProductionLogger()
+	})
+	return eventDecoderLog
+}
+
 var unknownEventSignatures atomic.Int64
 
 // GetUnknownEventSignatureCount returns the total number of unresolved event signatures.
@@ -74,7 +86,11 @@ func DecodeEventData(eventName string, topics []common.Hash, data []byte) map[st
 		if err != nil {
 			// Log the decode failure — complex types (structs, nested arrays)
 			// may not decode correctly, but indexed params are still valid.
-			log.Printf("[WARN] ABI Unpack failed for event %s (data_len=%d): %v", eventName, len(data), err)
+			getEventDecoderLogger().Warn("ABI Unpack failed",
+				"event_name", eventName,
+				"data_len", len(data),
+				"error", err,
+			)
 		} else {
 			i := 0
 			for _, input := range eventABI.Inputs {

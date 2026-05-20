@@ -552,10 +552,22 @@ func (h *HealthCheckHandler) checkKafkaHealth(ctx context.Context) *ComponentSta
 		Timestamp: time.Now().Unix(),
 	}
 
-	if err := h.mqPlugin.Health(); err != nil {
-		status.Status = "unhealthy"
-		status.Error = "Kafka health check failed"
-		h.logger.Error("Kafka health check failed", "error", err.Error())
+	// HealthCheck via type assertion (MQPlugin interface doesn't require Health)
+	if hc, ok := h.mqPlugin.(interface{ Health(context.Context) error }); ok {
+		if err := hc.Health(ctx); err != nil {
+			status.Status = "unhealthy"
+			status.Error = "Kafka health check failed"
+			h.logger.Error("Kafka health check failed", "error", err.Error())
+		}
+	}
+
+	// Structured details via optional DetailedHealth method
+	if dh, ok := h.mqPlugin.(interface{ DetailedHealth(context.Context) core.HealthStatus }); ok {
+		detailed := dh.DetailedHealth(ctx)
+		status.Details = detailed.Details
+		if detailed.Status != "healthy" && status.Status == "healthy" {
+			status.Status = detailed.Status
+		}
 	}
 
 	status.ResponseTime = time.Since(start).Milliseconds()

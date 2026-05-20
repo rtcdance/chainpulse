@@ -15,10 +15,10 @@ type multiChainPullerTestPlugin struct {
 
 func (p *multiChainPullerTestPlugin) Name() string                        { return p.name }
 func (p *multiChainPullerTestPlugin) Version() string                     { return "test" }
-func (p *multiChainPullerTestPlugin) Initialize(config core.Config) error { return nil }
-func (p *multiChainPullerTestPlugin) Start() error                        { return nil }
-func (p *multiChainPullerTestPlugin) Stop() error                         { return nil }
-func (p *multiChainPullerTestPlugin) Health() error                       { return nil }
+func (p *multiChainPullerTestPlugin) Initialize(ctx context.Context, config core.Config) error { _ = ctx; return nil }
+func (p *multiChainPullerTestPlugin) Start(ctx context.Context) error                        { _ = ctx; return nil }
+func (p *multiChainPullerTestPlugin) Stop(ctx context.Context) error                         { _ = ctx; return nil }
+func (p *multiChainPullerTestPlugin) Health(ctx context.Context) error                       { _ = ctx; return nil }
 func (p *multiChainPullerTestPlugin) PullEvents(ctx context.Context, fromBlock, toBlock uint64) ([]core.BlockchainEvent, error) {
 	return nil, nil
 }

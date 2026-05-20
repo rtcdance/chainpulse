@@ -10,12 +10,46 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+// ReorgConfirmationChecker provides the minimal interface needed by MultiChainIndexer
+// to check whether a block has reached the configured confirmation depth.
+type ReorgConfirmationChecker interface {
+	IsConfirmed(blockNumber uint64) bool
+	UpdateChainHead(head uint64)
+}
+
 // MultiChainIndexer orchestrates indexing across multiple blockchains
 type MultiChainIndexer struct {
 	indexers map[string]ChainIndexer
 	mu       sync.RWMutex
 	logger   core.Logger
 	config   core.ConfigManager
+
+	reorgHandler ReorgConfirmationChecker
+	chainHeads   map[string]uint64
+}
+
+// SetReorgHandler configures an optional reorg handler for confirmation depth checks.
+func (mci *MultiChainIndexer) SetReorgHandler(handler ReorgConfirmationChecker) {
+	mci.mu.Lock()
+	mci.reorgHandler = handler
+	if mci.chainHeads == nil {
+		mci.chainHeads = make(map[string]uint64)
+	}
+	mci.mu.Unlock()
+}
+
+// UpdateChainHead records the latest known chain head for a chain,
+// enabling confirmation depth filtering.
+func (mci *MultiChainIndexer) UpdateChainHead(chainID string, head uint64) {
+	mci.mu.Lock()
+	defer mci.mu.Unlock()
+	if mci.chainHeads == nil {
+		mci.chainHeads = make(map[string]uint64)
+	}
+	mci.chainHeads[chainID] = head
+	if mci.reorgHandler != nil {
+		mci.reorgHandler.UpdateChainHead(head)
+	}
 }
 
 // ChainIndexer defines the interface for chain-specific indexing
@@ -58,7 +92,10 @@ func (mci *MultiChainIndexer) RegisterChainIndexer(chainID string, indexer Chain
 	return nil
 }
 
-// IndexEventsFromChain indexes events from a specific blockchain
+// IndexEventsFromChain indexes events from a specific blockchain.
+// If a reorg handler is configured, only events that have reached the
+// configured confirmation depth are indexed; unconfirmed events are logged
+// and skipped to prevent indexing data that might be reorged away.
 func (mci *MultiChainIndexer) IndexEventsFromChain(
 	ctx context.Context,
 	chainID string,
@@ -74,10 +111,33 @@ func (mci *MultiChainIndexer) IndexEventsFromChain(
 
 	mci.mu.RLock()
 	indexer, exists := mci.indexers[chainID]
+	rh := mci.reorgHandler
 	mci.mu.RUnlock()
 
 	if !exists {
 		return fmt.Errorf("no indexer registered for chain %s", chainID)
+	}
+
+	// Filter events by confirmation depth if reorg handler is configured
+	if rh != nil {
+		confirmed := make([]*core.BlockchainEvent, 0, len(events))
+		skipped := 0
+		for _, evt := range events {
+			if rh.IsConfirmed(evt.BlockNumber) {
+				confirmed = append(confirmed, evt)
+			} else {
+				skipped++
+			}
+		}
+		if skipped > 0 {
+			mci.logger.Debug("deferring unconfirmed events pending confirmation depth",
+				"chain_id", chainID, "skipped", skipped, "confirmed", len(confirmed))
+		}
+		events = confirmed
+	}
+
+	if len(events) == 0 {
+		return nil
 	}
 
 	mci.logger.Debug("indexing events from chain", "chain_id", chainID, "count", len(events))

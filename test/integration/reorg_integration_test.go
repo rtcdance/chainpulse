@@ -191,10 +191,11 @@ func TestReorgWithEventBusPublishing(t *testing.T) {
 	bus := core.NewEventBus(logger)
 
 	published := make(chan *reorg.ReorgEvent, 1)
-	bus.Subscribe(context.Background(), "reorg-detected", func(payload any) {
+	bus.Subscribe(context.Background(), "reorg-detected", func(_ context.Context, payload any) error {
 		if evt, ok := payload.(*reorg.ReorgEvent); ok {
 			published <- evt
 		}
+		return nil
 	})
 
 	handler := reorg.NewReorgHandler(db, logger, 12, 120).

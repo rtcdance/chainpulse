@@ -214,6 +214,9 @@ func TestClassifyErrorSentinel(t *testing.T) {
 		{"ErrEventDecodeFailed", ErrEventDecodeFailed, ErrorTypePermanent},
 		{"ErrABINotFound", ErrABINotFound, ErrorTypePermanent},
 		{"ErrFinalityNotReady", ErrFinalityNotReady, ErrorTypeTransient},
+		{"ErrRPCUnreachable", ErrRPCUnreachable, ErrorTypeTransient},
+		{"ErrStaleBlock", ErrStaleBlock, ErrorTypePermanent},
+		{"ErrReorgDetected", ErrReorgDetected, ErrorTypeTransient},
 	}
 
 	for _, tt := range tests {

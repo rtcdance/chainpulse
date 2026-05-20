@@ -117,7 +117,8 @@ func (mdp *MockDatabasePlugin) GetReorgStats(ctx context.Context) (*core.ReorgSt
 	return &core.ReorgStats{}, nil
 }
 
-func (mdp *MockDatabasePlugin) Health() error {
+func (mdp *MockDatabasePlugin) Health(ctx context.Context) error {
+	_ = ctx
 	return nil
 }
 
@@ -129,15 +130,19 @@ func (mdp *MockDatabasePlugin) Version() string {
 	return "1.0.0"
 }
 
-func (mdp *MockDatabasePlugin) Initialize(config core.Config) error {
+func (mdp *MockDatabasePlugin) Initialize(ctx context.Context, config core.Config) error {
+	_ = ctx
+	_ = config
 	return nil
 }
 
-func (mdp *MockDatabasePlugin) Start() error {
+func (mdp *MockDatabasePlugin) Start(ctx context.Context) error {
+	_ = ctx
 	return nil
 }
 
-func (mdp *MockDatabasePlugin) Stop() error {
+func (mdp *MockDatabasePlugin) Stop(ctx context.Context) error {
+	_ = ctx
 	return nil
 }
 
@@ -260,10 +265,10 @@ func TestVerifyEventSequence(t *testing.T) {
 	_ = db.StoreEvent(ctx, event1)
 	_ = db.StoreEvent(ctx, event2)
 
-	issues, err := cc.VerifyEventSequence(ctx)
+	report, err := cc.CheckConsistency(ctx)
 
 	require.NoError(t, err)
-	assert.Greater(t, len(issues), 0)
+	assert.Greater(t, len(report.Issues), 0)
 }
 
 func TestVerifyBlockSequence(t *testing.T) {
@@ -290,10 +295,10 @@ func TestVerifyBlockSequence(t *testing.T) {
 	_ = db.StoreBlock(ctx, block1)
 	_ = db.StoreBlock(ctx, block2)
 
-	issues, err := cc.VerifyBlockSequence(ctx)
+	report, err := cc.CheckConsistency(ctx)
 
 	require.NoError(t, err)
-	assert.Greater(t, len(issues), 0)
+	assert.Greater(t, len(report.Issues), 0)
 }
 
 func TestRepairInconsistencies(t *testing.T) {

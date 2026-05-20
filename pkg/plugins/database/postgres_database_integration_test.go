@@ -12,7 +12,7 @@ import (
 func TestPostgreSQLRealConnection(t *testing.T) {
 	requirePostgresIntegration(t)
 
-	config := &core.Config{
+	config := core.Config{
 		PostgresHost:     "localhost",
 		PostgresPort:     "5432",
 		PostgresUser:     "chainpulse",
@@ -26,17 +26,17 @@ func TestPostgreSQLRealConnection(t *testing.T) {
 	db := NewPostgreSQLDatabase(logger, metrics)
 
 	// Test initialization
-	err := db.Initialize(config)
+	err := db.Initialize(context.Background(), config)
 	if err != nil {
 		t.Fatalf("Failed to initialize: %v", err)
 	}
 
 	// Test start
-	err = db.Start()
+	err = db.Start(context.Background())
 	if err != nil {
 		t.Fatalf("Failed to start: %v", err)
 	}
-	defer func() { _ = db.Stop() }()
+	defer func() { _ = db.Stop(context.Background()) }()
 
 	// Test connection
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

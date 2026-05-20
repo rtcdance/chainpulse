@@ -29,18 +29,18 @@ func NewMonolithicMemoryDatabase(logger core.Logger) *MonolithicMemoryDatabase {
 
 func (db *MonolithicMemoryDatabase) Name() string    { return "monolithic-memory-database" }
 func (db *MonolithicMemoryDatabase) Version() string { return "1.0.0" }
-func (db *MonolithicMemoryDatabase) Initialize(config core.Config) error {
+func (db *MonolithicMemoryDatabase) Initialize(_ context.Context, _ core.Config) error {
 	return nil
 }
 
-func (db *MonolithicMemoryDatabase) Start() error {
+func (db *MonolithicMemoryDatabase) Start(_ context.Context) error {
 	db.mu.Lock()
 	defer db.mu.Unlock()
 	db.started = true
 	return nil
 }
 
-func (db *MonolithicMemoryDatabase) Stop() error {
+func (db *MonolithicMemoryDatabase) Stop(_ context.Context) error {
 	db.mu.Lock()
 	defer db.mu.Unlock()
 	db.started = false
@@ -49,7 +49,7 @@ func (db *MonolithicMemoryDatabase) Stop() error {
 	return nil
 }
 
-func (db *MonolithicMemoryDatabase) Health() error {
+func (db *MonolithicMemoryDatabase) Health(_ context.Context) error {
 	db.mu.RLock()
 	defer db.mu.RUnlock()
 	if !db.started {
@@ -235,25 +235,25 @@ func NewMonolithicMemoryCache() *MonolithicMemoryCache {
 
 func (c *MonolithicMemoryCache) Name() string    { return "monolithic-memory-cache" }
 func (c *MonolithicMemoryCache) Version() string { return "1.0.0" }
-func (c *MonolithicMemoryCache) Initialize(config core.Config) error {
+func (c *MonolithicMemoryCache) Initialize(_ context.Context, _ core.Config) error {
 	return nil
 }
 
-func (c *MonolithicMemoryCache) Start() error {
+func (c *MonolithicMemoryCache) Start(_ context.Context) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.started = true
 	return nil
 }
 
-func (c *MonolithicMemoryCache) Stop() error {
+func (c *MonolithicMemoryCache) Stop(_ context.Context) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.started = false
 	return nil
 }
 
-func (c *MonolithicMemoryCache) Health() error {
+func (c *MonolithicMemoryCache) Health(_ context.Context) error {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	if !c.started {
@@ -263,7 +263,7 @@ func (c *MonolithicMemoryCache) Health() error {
 }
 
 func (c *MonolithicMemoryCache) HealthCheck(ctx context.Context) error {
-	return c.Health()
+	return c.Health(ctx)
 }
 
 func (c *MonolithicMemoryCache) Get(ctx context.Context, key string) ([]byte, error) {

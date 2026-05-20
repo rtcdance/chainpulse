@@ -54,11 +54,12 @@ func TestPropertyEventPublishingConsistency(t *testing.T) {
 
 			// Subscribe handlers
 			for i := 0; i < tt.subscriberCount; i++ {
-				handler := func(event any) {
-					mu.Lock()
-					count++
-					mu.Unlock()
-				}
+		handler := func(_ context.Context, event any) error {
+			mu.Lock()
+			count++
+			mu.Unlock()
+			return nil
+		}
 				if _, err := eb.Subscribe(context.Background(), "test-topic", handler); err != nil {
 					t.Fatalf("failed to subscribe: %v", err)
 				}
@@ -86,7 +87,7 @@ func TestPropertyEventPublishingConsistency(t *testing.T) {
 // TestPropertySubscriberCountConsistency verifies subscriber count consistency
 func TestPropertySubscriberCountConsistency(t *testing.T) {
 	eb := NewEventBus(nil)
-	handler := func(event any) {}
+	handler := func(_ context.Context, event any) error { return nil }
 
 	// For any sequence of subscriptions, the subscriber count should match
 	for i := 0; i < 10; i++ {
@@ -118,9 +119,10 @@ func TestPropertyEventDataPreservation(t *testing.T) {
 	for _, tt := range testCases {
 		t.Run(tt.name, func(t *testing.T) {
 			var receivedEvent any
-			handler := func(event any) {
-				receivedEvent = event
-			}
+		handler := func(_ context.Context, event any) error {
+			receivedEvent = event
+			return nil
+		}
 
 			eb.Clear()
 			if _, err := eb.Subscribe(context.Background(), "test-topic", handler); err != nil {
@@ -156,16 +158,18 @@ func TestPropertyTopicIsolation(t *testing.T) {
 	topic2Count := 0
 	mu := sync.Mutex{}
 
-	handler1 := func(event any) {
+	handler1 := func(_ context.Context, event any) error {
 		mu.Lock()
 		topic1Count++
 		mu.Unlock()
+		return nil
 	}
 
-	handler2 := func(event any) {
+	handler2 := func(_ context.Context, event any) error {
 		mu.Lock()
 		topic2Count++
 		mu.Unlock()
+		return nil
 	}
 
 	// For any two topics, events published to one should not affect the other
@@ -221,10 +225,11 @@ func TestPropertySyncVsAsyncConsistency(t *testing.T) {
 		eb1 := NewEventBus(nil)
 		asyncReceived := false
 		mu1 := sync.Mutex{}
-		handler1 := func(event any) {
+		handler1 := func(_ context.Context, event any) error {
 			mu1.Lock()
 			asyncReceived = true
 			mu1.Unlock()
+			return nil
 		}
 		if _, err := eb1.Subscribe(context.Background(), "test-topic", handler1); err != nil {
 			t.Fatalf("failed to subscribe: %v", err)
@@ -238,10 +243,11 @@ func TestPropertySyncVsAsyncConsistency(t *testing.T) {
 		eb2 := NewEventBus(nil)
 		syncReceived := false
 		mu2 := sync.Mutex{}
-		handler2 := func(event any) {
+		handler2 := func(_ context.Context, event any) error {
 			mu2.Lock()
 			syncReceived = true
 			mu2.Unlock()
+			return nil
 		}
 		if _, err := eb2.Subscribe(context.Background(), "test-topic", handler2); err != nil {
 			t.Fatalf("failed to subscribe: %v", err)
@@ -271,7 +277,7 @@ func TestPropertySyncVsAsyncConsistency(t *testing.T) {
 // TestPropertyClearConsistency verifies clear removes all subscribers
 func TestPropertyClearConsistency(t *testing.T) {
 	eb := NewEventBus(nil)
-	handler := func(event any) {}
+	handler := func(_ context.Context, event any) error { return nil }
 
 	// For any set of subscribers, clear should remove all of them
 	for i := 0; i < 5; i++ {
@@ -293,10 +299,11 @@ func TestPropertyClearConsistency(t *testing.T) {
 	// Verify no events are delivered after clear
 	count := 0
 	mu := sync.Mutex{}
-	handler2 := func(event any) {
+	handler2 := func(_ context.Context, event any) error {
 		mu.Lock()
 		count++
 		mu.Unlock()
+		return nil
 	}
 
 	if _, err := eb.Subscribe(context.Background(), "test-topic", handler2); err != nil {
@@ -318,7 +325,7 @@ func TestPropertyClearConsistency(t *testing.T) {
 // TestPropertyConcurrentOperationsConsistency verifies concurrent operations are consistent
 func TestPropertyConcurrentOperationsConsistency(t *testing.T) {
 	eb := NewEventBus(nil)
-	handler := func(event any) {}
+	handler := func(_ context.Context, event any) error { return nil }
 
 	// For concurrent subscriptions and publications, the system should remain consistent
 	done := make(chan bool, 20)
@@ -363,13 +370,11 @@ func TestPropertyHandlerPanicRecovery(t *testing.T) {
 	eb := NewEventBus(nil)
 
 	// For any handler that panics, the event bus should recover
-	panicHandler := func(event any) {
+	panicHandler := func(_ context.Context, event any) error {
 		panic("test panic")
 	}
 
-	normalHandler := func(event any) {
-		// This should still be called
-	}
+	normalHandler := func(_ context.Context, event any) error { return nil }
 
 	_, err := eb.Subscribe(context.Background(), "test-topic", panicHandler)
 	if err != nil {

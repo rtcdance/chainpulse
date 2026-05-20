@@ -7,20 +7,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/rtcdance/chainpulse/pkg/configmodel"
 	"github.com/rtcdance/chainpulse/pkg/env"
 )
 
-// BlockchainConfig represents configuration for a single blockchain
-type BlockchainConfig struct {
-	ChainID            string
-	NodeURL            string
-	FallbackNodeURLs   []string // backup RPC endpoints for failover
-	StartBlock         uint64
-	ChainName          string
-	Network            string
-	EventSignatures    []string // topic0 hashes for eth_getLogs topics filter
-	ConfirmationBlocks uint64   // blocks to wait before considering finalized
-}
+// BlockchainConfig is defined in pkg/configmodel.
+type BlockchainConfig = configmodel.BlockchainConfig
 
 // DefaultConfigManager is the default implementation of ConfigManager
 type DefaultConfigManager struct {
@@ -83,6 +75,18 @@ func (cm *DefaultConfigManager) Load() (Config, error) {
 		DeploymentMode: env.Get("DEPLOYMENT_MODE", "monolithic"),
 		ServiceName:    env.Get("SERVICE_NAME", "chainpulse"),
 		ChainID:        env.Get("CHAIN_ID", ""),
+
+		// MongoDB Configuration
+		MongoDBConnectionString: configmodel.SecretString(env.Get("MONGODB_CONNECTION_STRING", "")),
+		MongoDBHost:             env.Get("MONGODB_HOST", "localhost"),
+		MongoDBPort:             env.Get("MONGODB_PORT", "27017"),
+		MongoDBUser:             env.Get("MONGODB_USER", ""),
+		MongoDBPassword:         configmodel.SecretString(env.Get("MONGODB_PASSWORD", "")),
+		MongoDBDatabase:         env.Get("MONGODB_DATABASE", "chainpulse"),
+		MongoDBCollection:       env.Get("MONGODB_COLLECTION", "events"),
+
+		// SSL/TLS Configuration
+		SslMode: env.Get("DATABASE_SSLMODE", "require"),
 
 		// Idempotency Configuration
 		IdempotencyRecordTTL:       env.GetInt("IDEMPOTENCY_RECORD_TTL", 86400),
@@ -205,7 +209,7 @@ func (cm *DefaultConfigManager) Get(key string) (any, error) {
 	cm.mu.RLock()
 	defer cm.mu.RUnlock()
 
-	acc, ok := configFields[key]
+	acc, ok := ConfigFields[key]
 	if !ok {
 		return nil, NewSystemError(
 			ErrorTypePermanent,
@@ -214,7 +218,7 @@ func (cm *DefaultConfigManager) Get(key string) (any, error) {
 			nil,
 		)
 	}
-	return acc.get(&cm.config)
+	return acc.Get(&cm.config)
 }
 
 // Set sets a configuration value by key.
@@ -222,7 +226,7 @@ func (cm *DefaultConfigManager) Set(key string, value any) error {
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
 
-	acc, ok := configFields[key]
+	acc, ok := ConfigFields[key]
 	if !ok {
 		return NewSystemError(
 			ErrorTypePermanent,
@@ -231,7 +235,7 @@ func (cm *DefaultConfigManager) Set(key string, value any) error {
 			nil,
 		)
 	}
-	return acc.set(&cm.config, value)
+	return acc.Set(&cm.config, value)
 }
 
 // GetConfig returns the current configuration

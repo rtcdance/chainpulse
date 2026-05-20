@@ -15,7 +15,7 @@ import (
 func BenchmarkBatchInsert(b *testing.B) {
 	requirePostgresIntegration(b)
 
-	config := &core.Config{
+	config := core.Config{
 		PostgresHost:     "localhost",
 		PostgresPort:     "5432",
 		PostgresUser:     "chainpulse",
@@ -27,17 +27,17 @@ func BenchmarkBatchInsert(b *testing.B) {
 	metrics := core.NewDefaultMetricsCollector()
 
 	db := NewPostgreSQLDatabase(logger, metrics)
-	err := db.Initialize(config)
+	err := db.Initialize(context.Background(), config)
 	if err != nil {
 		b.Fatalf("Failed to initialize: %v", err)
 	}
 
-	err = db.Start()
+	err = db.Start(context.Background())
 	if err != nil {
 		b.Fatalf("Failed to start: %v", err)
 	}
 	defer func() {
-		if err := db.Stop(); err != nil {
+		if err := db.Stop(context.Background()); err != nil {
 			b.Logf("Failed to stop: %v", err)
 		}
 	}()
@@ -72,7 +72,7 @@ func BenchmarkBatchInsert(b *testing.B) {
 func TestBatchInsertPerformance(t *testing.T) {
 	requirePostgresIntegration(t)
 
-	config := &core.Config{
+	config := core.Config{
 		PostgresHost:     "localhost",
 		PostgresPort:     "5432",
 		PostgresUser:     "chainpulse",
@@ -84,16 +84,16 @@ func TestBatchInsertPerformance(t *testing.T) {
 	metrics := core.NewDefaultMetricsCollector()
 
 	db := NewPostgreSQLDatabase(logger, metrics)
-	err := db.Initialize(config)
+	err := db.Initialize(context.Background(), config)
 	if err != nil {
 		t.Fatalf("Failed to initialize: %v", err)
 	}
 
-	err = db.Start()
+	err = db.Start(context.Background())
 	if err != nil {
 		t.Fatalf("Failed to start: %v", err)
 	}
-	defer func() { _ = db.Stop() }()
+	defer func() { _ = db.Stop(context.Background()) }()
 
 	// Create test events
 	batchSize := 1000
@@ -136,7 +136,7 @@ func TestBatchInsertPerformance(t *testing.T) {
 func TestBatchInsertVariousSizes(t *testing.T) {
 	requirePostgresIntegration(t)
 
-	config := &core.Config{
+	config := core.Config{
 		PostgresHost:     "localhost",
 		PostgresPort:     "5432",
 		PostgresUser:     "chainpulse",
@@ -148,16 +148,16 @@ func TestBatchInsertVariousSizes(t *testing.T) {
 	metrics := core.NewDefaultMetricsCollector()
 
 	db := NewPostgreSQLDatabase(logger, metrics)
-	err := db.Initialize(config)
+	err := db.Initialize(context.Background(), config)
 	if err != nil {
 		t.Fatalf("Failed to initialize: %v", err)
 	}
 
-	err = db.Start()
+	err = db.Start(context.Background())
 	if err != nil {
 		t.Fatalf("Failed to start: %v", err)
 	}
-	defer func() { _ = db.Stop() }()
+	defer func() { _ = db.Stop(context.Background()) }()
 
 	// Test different batch sizes
 	batchSizes := []int{100, 500, 1000, 5000}
@@ -194,7 +194,7 @@ func TestBatchInsertVariousSizes(t *testing.T) {
 func TestSingleEventPerformance(t *testing.T) {
 	requirePostgresIntegration(t)
 
-	config := &core.Config{
+	config := core.Config{
 		PostgresHost:     "localhost",
 		PostgresPort:     "5432",
 		PostgresUser:     "chainpulse",
@@ -206,16 +206,16 @@ func TestSingleEventPerformance(t *testing.T) {
 	metrics := core.NewDefaultMetricsCollector()
 
 	db := NewPostgreSQLDatabase(logger, metrics)
-	err := db.Initialize(config)
+	err := db.Initialize(context.Background(), config)
 	if err != nil {
 		t.Fatalf("Failed to initialize: %v", err)
 	}
 
-	err = db.Start()
+	err = db.Start(context.Background())
 	if err != nil {
 		t.Fatalf("Failed to start: %v", err)
 	}
-	defer func() { _ = db.Stop() }()
+	defer func() { _ = db.Stop(context.Background()) }()
 
 	// Write 100 single events and measure
 	numEvents := 100
@@ -249,7 +249,7 @@ func TestSingleEventPerformance(t *testing.T) {
 func TestQueryPerformance(t *testing.T) {
 	requirePostgresIntegration(t)
 
-	config := &core.Config{
+	config := core.Config{
 		PostgresHost:     "localhost",
 		PostgresPort:     "5432",
 		PostgresUser:     "chainpulse",
@@ -261,17 +261,17 @@ func TestQueryPerformance(t *testing.T) {
 	metrics := core.NewDefaultMetricsCollector()
 
 	db := NewPostgreSQLDatabase(logger, metrics)
-	err := db.Initialize(config)
+	err := db.Initialize(context.Background(), config)
 	if err != nil {
 		t.Fatalf("Failed to initialize: %v", err)
 	}
 
-	err = db.Start()
+	err = db.Start(context.Background())
 	if err != nil {
 		t.Fatalf("Failed to start: %v", err)
 	}
 	defer func() {
-		if err := db.Stop(); err != nil {
+		if err := db.Stop(context.Background()); err != nil {
 			t.Logf("Failed to stop: %v", err)
 		}
 	}()

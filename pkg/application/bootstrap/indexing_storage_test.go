@@ -20,19 +20,19 @@ type stubDatabasePlugin struct {
 
 func (s *stubDatabasePlugin) Name() string    { return "stub-db" }
 func (s *stubDatabasePlugin) Version() string { return "1.0.0" }
-func (s *stubDatabasePlugin) Initialize(config core.Config) error {
+func (s *stubDatabasePlugin) Initialize(_ context.Context, config core.Config) error {
 	s.initCalled = true
 	return s.initErr
 }
 
-func (s *stubDatabasePlugin) Start() error {
+func (s *stubDatabasePlugin) Start(_ context.Context) error {
 	if s.startErr == nil {
 		s.started = true
 	}
 	return s.startErr
 }
-func (s *stubDatabasePlugin) Stop() error   { s.stopped = true; return nil }
-func (s *stubDatabasePlugin) Health() error { return nil }
+func (s *stubDatabasePlugin) Stop(_ context.Context) error { s.stopped = true; return nil }
+func (s *stubDatabasePlugin) Health(_ context.Context) error { return nil }
 func (s *stubDatabasePlugin) StoreEvent(ctx context.Context, event any) error {
 	return nil
 }
@@ -85,19 +85,19 @@ type stubCachePlugin struct {
 
 func (s *stubCachePlugin) Name() string    { return "stub-cache" }
 func (s *stubCachePlugin) Version() string { return "1.0.0" }
-func (s *stubCachePlugin) Initialize(config core.Config) error {
+func (s *stubCachePlugin) Initialize(_ context.Context, config core.Config) error {
 	s.initCalled = true
 	return s.initErr
 }
 
-func (s *stubCachePlugin) Start() error {
+func (s *stubCachePlugin) Start(_ context.Context) error {
 	if s.startErr == nil {
 		s.started = true
 	}
 	return s.startErr
 }
-func (s *stubCachePlugin) Stop() error                                         { return nil }
-func (s *stubCachePlugin) Health() error                                       { return nil }
+func (s *stubCachePlugin) Stop(_ context.Context) error                                          { return nil }
+func (s *stubCachePlugin) Health(_ context.Context) error                                        { return nil }
 func (s *stubCachePlugin) HealthCheck(ctx context.Context) error               { return nil }
 func (s *stubCachePlugin) Get(ctx context.Context, key string) ([]byte, error) { return nil, nil }
 func (s *stubCachePlugin) Set(ctx context.Context, key string, value []byte, ttl int) error {
@@ -108,7 +108,7 @@ func (s *stubCachePlugin) GetStats() core.CacheStats                    { return
 
 func TestBuildMonolithicIndexingStorageRequiresLogger(t *testing.T) {
 	t.Parallel()
-	db, cache, err := buildMonolithicIndexingStorageWithDeps(nil, core.Config{}, defaultMonolithicIndexingStorageDeps())
+	db, cache, err := buildMonolithicIndexingStorageWithDeps(context.Background(), nil, core.Config{}, defaultMonolithicIndexingStorageDeps())
 	if err == nil {
 		t.Fatal("expected logger validation error")
 	}
@@ -121,7 +121,7 @@ func TestBuildMonolithicIndexingStorageSuccess(t *testing.T) {
 	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 
-	db, cache, err := BuildMonolithicIndexingStorage(logger, core.Config{})
+	db, cache, err := BuildMonolithicIndexingStorage(context.Background(), logger, core.Config{})
 	if err != nil {
 		t.Fatalf("expected success, got %v", err)
 	}
@@ -170,7 +170,7 @@ func TestBuildMonolithicIndexingStorageStopsDatabaseIfCacheStartFails(t *testing
 	db := &stubDatabasePlugin{}
 	cache := &stubCachePlugin{startErr: errors.New("cache start boom")}
 
-	_, _, err := buildMonolithicIndexingStorageWithDeps(logger, core.Config{}, monolithicIndexingStorageDeps{
+	_, _, err := buildMonolithicIndexingStorageWithDeps(context.Background(), logger, core.Config{}, monolithicIndexingStorageDeps{
 		newDatabase: func(logger core.Logger, config core.Config) core.DatabasePlugin { return db },
 		newCache:    func() core.CachePlugin { return cache },
 	})

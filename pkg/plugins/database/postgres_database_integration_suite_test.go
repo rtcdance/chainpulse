@@ -15,7 +15,7 @@ import (
 func TestDatabaseIntegrationSuite(t *testing.T) {
 	requirePostgresIntegration(t)
 
-	config := &core.Config{
+	config := core.Config{
 		PostgresHost:     "localhost",
 		PostgresPort:     "5432",
 		PostgresUser:     "chainpulse",
@@ -30,7 +30,7 @@ func TestDatabaseIntegrationSuite(t *testing.T) {
 
 	// Test 1: Initialize
 	t.Run("Initialize", func(t *testing.T) {
-		err := db.Initialize(config)
+		err := db.Initialize(context.Background(), config)
 		if err != nil {
 			t.Fatalf("Failed to initialize: %v", err)
 		}
@@ -38,13 +38,13 @@ func TestDatabaseIntegrationSuite(t *testing.T) {
 
 	// Test 2: Start
 	t.Run("Start", func(t *testing.T) {
-		err := db.Start()
+		err := db.Start(context.Background())
 		if err != nil {
 			t.Fatalf("Failed to start: %v", err)
 		}
 	})
 	defer func() {
-		if err := db.Stop(); err != nil {
+		if err := db.Stop(context.Background()); err != nil {
 			t.Logf("Failed to stop: %v", err)
 		}
 	}()
@@ -200,7 +200,7 @@ func TestDatabaseIntegrationSuite(t *testing.T) {
 func TestDatabaseIntegrationWithErrors(t *testing.T) {
 	requirePostgresIntegration(t)
 
-	config := &core.Config{
+	config := core.Config{
 		PostgresHost:     "localhost",
 		PostgresPort:     "5432",
 		PostgresUser:     "chainpulse",
@@ -212,16 +212,16 @@ func TestDatabaseIntegrationWithErrors(t *testing.T) {
 	metrics := core.NewDefaultMetricsCollector()
 
 	db := NewPostgreSQLDatabase(logger, metrics)
-	err := db.Initialize(config)
+	err := db.Initialize(context.Background(), config)
 	if err != nil {
 		t.Fatalf("Failed to initialize: %v", err)
 	}
 
-	err = db.Start()
+	err = db.Start(context.Background())
 	if err != nil {
 		t.Fatalf("Failed to start: %v", err)
 	}
-	defer func() { _ = db.Stop() }()
+	defer func() { _ = db.Stop(context.Background()) }()
 
 	// Test 1: Write nil event
 	t.Run("WriteNilEvent", func(t *testing.T) {
@@ -260,7 +260,7 @@ func TestDatabaseIntegrationWithErrors(t *testing.T) {
 func TestDatabaseIntegrationConcurrency(t *testing.T) {
 	requirePostgresIntegration(t)
 
-	config := &core.Config{
+	config := core.Config{
 		PostgresHost:     "localhost",
 		PostgresPort:     "5432",
 		PostgresUser:     "chainpulse",
@@ -272,16 +272,16 @@ func TestDatabaseIntegrationConcurrency(t *testing.T) {
 	metrics := core.NewDefaultMetricsCollector()
 
 	db := NewPostgreSQLDatabase(logger, metrics)
-	err := db.Initialize(config)
+	err := db.Initialize(context.Background(), config)
 	if err != nil {
 		t.Fatalf("Failed to initialize: %v", err)
 	}
 
-	err = db.Start()
+	err = db.Start(context.Background())
 	if err != nil {
 		t.Fatalf("Failed to start: %v", err)
 	}
-	defer func() { _ = db.Stop() }()
+	defer func() { _ = db.Stop(context.Background()) }()
 
 	// Run concurrent operations
 	done := make(chan bool, 10)

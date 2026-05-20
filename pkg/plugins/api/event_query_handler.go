@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/rtcdance/chainpulse/pkg/chainid"
 	"github.com/rtcdance/chainpulse/pkg/core"
 	domainquery "github.com/rtcdance/chainpulse/pkg/domain/query"
 	"github.com/rtcdance/chainpulse/pkg/observability"
@@ -428,7 +429,7 @@ func (h *EventQueryHandler) convertEventToResponse(eventWithMetadata *query.Even
 	// Internally ChainID may be stored as a name ("ethereum"),
 	// but consumers expect the canonical numeric ID ("1").
 	resolvedChainID := event.ChainID
-	if id := core.ResolveChainID(event.ChainID); id != 0 {
+	if id := chainid.ResolveChainID(event.ChainID); id != 0 {
 		resolvedChainID = strconv.Itoa(id)
 	}
 
@@ -634,7 +635,7 @@ func (h *EventQueryHandler) applyFilterToResponses(fp *filterParams, responses [
 
 		// Chain filter
 		if fp.Chain != "" {
-			resolvedID := core.ResolveChainID(fp.Chain)
+			resolvedID := chainid.ResolveChainID(fp.Chain)
 			resolvedName := core.ResolveChainName(resolvedID)
 			// Match against chainId string: could be "arbitrum", "42161", etc.
 			if e.ChainID != fp.Chain && strconv.Itoa(resolvedID) != e.ChainID && resolvedName != e.ChainID {

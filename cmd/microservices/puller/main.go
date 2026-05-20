@@ -103,23 +103,25 @@ func main() {
 
 	// Initialize Kafka Message Queue Plugin
 	fmt.Println("Initializing Message Queue:")
+	kafkaCfg := core.Config{
+		APIType:  "kafka",
+		LogLevel: config.LogLevel,
+	}
 	kafkaMQ := mq.NewKafkaMQPlugin(
 		"kafka-mq",
 		"1.0.0",
-		&core.Config{
-			APIType:  "kafka",
-			LogLevel: config.LogLevel,
-		},
+		&kafkaCfg,
 		logger,
 		metrics,
 		nil, // eventBus - can be nil for now
 		config.KafkaBrokers,
 		config.ProducerGroup,
 	)
-	if err := kafkaMQ.Initialize(); err != nil {
+	if err := kafkaMQ.Initialize(context.Background(), kafkaCfg); err != nil {
 		logger.Error("Failed to initialize Kafka MQ", "error", err.Error())
 		os.Exit(1)
 	}
+	kafkaHealth := &pullerKafkaHealthAdapter{plugin: kafkaMQ}
 	fmt.Println("  ✓ Kafka Message Queue initialized")
 	fmt.Println()
 
@@ -147,7 +149,7 @@ func main() {
 		logger,
 		metrics,
 		dbManager,
-		kafkaMQ,
+		kafkaHealth,
 		pullerRolloutRuntimeConfig{
 			BlockchainRPCs:     config.BlockchainRPCs,
 			PollInterval:       config.PollInterval,
@@ -169,7 +171,7 @@ func main() {
 			state := buildPullerRuntimeRolloutState(
 				r.Context(),
 				dbManager,
-				kafkaMQ,
+				kafkaHealth,
 				pullerRolloutRuntimeConfig{
 					BlockchainRPCs:     config.BlockchainRPCs,
 					PollInterval:       config.PollInterval,
@@ -211,7 +213,7 @@ func main() {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		if err := kafkaMQ.Start(); err != nil {
+		if err := kafkaMQ.Start(context.Background()); err != nil {
 			logger.Error("Kafka MQ error", "error", err.Error())
 		}
 	}()
@@ -277,7 +279,7 @@ func main() {
 	}
 	fmt.Println("  [1/3] Runtime HTTP health surface stopped")
 
-	if err := kafkaMQ.Stop(); err != nil {
+	if err := kafkaMQ.Stop(shutdownCtx); err != nil {
 		logger.Error("Error stopping Kafka MQ", "error", err.Error())
 	}
 	fmt.Println("  [2/3] Kafka Message Queue stopped")
@@ -426,4 +428,15 @@ func runPullerLoop(
 			executePullerPollTick(ctx, puller, config, logger, metrics, checkpointSource, progress, controller, execution)
 		}
 	}
+}
+
+type pullerKafkaHealthAdapter struct {
+	plugin *mq.KafkaMQPlugin
+}
+
+func (a *pullerKafkaHealthAdapter) Health() *core.HealthStatus {
+	if err := a.plugin.Health(context.Background()); err != nil {
+		return &core.HealthStatus{Status: "unhealthy", Message: err.Error()}
+	}
+	return &core.HealthStatus{Status: "healthy"}
 }

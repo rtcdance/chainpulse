@@ -240,11 +240,10 @@ func newMonolithicMemoryFailureJournal(retention time.Duration) *monolithicMemor
 }
 
 func (s *monolithicMemoryFailureJournal) Route(
-	ctx context.Context,
+	_ context.Context,
 	failure appindexing.ProcessingFailure,
 	event appindexing.EventEnvelope,
 ) error {
-	_ = ctx
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -272,12 +271,10 @@ func (s *monolithicMemoryFailureJournal) Route(
 }
 
 func (s *monolithicMemoryFailureJournal) Replay(
-	ctx context.Context,
+	_ context.Context,
 	chainID string,
 	from appindexing.Checkpoint,
 ) ([]appindexing.EventEnvelope, error) {
-	_ = ctx
-
 	s.mu.Lock()
 	s.cleanupExpiredLocked(time.Now().UTC())
 	records := append([]monolithicFailureRecord(nil), s.entries[chainID]...)
@@ -337,12 +334,10 @@ func (s *monolithicMemoryFailureJournal) ReplayRange(
 }
 
 func (s *monolithicMemoryFailureJournal) AcknowledgeReplay(
-	ctx context.Context,
+	_ context.Context,
 	chainID string,
 	events []appindexing.EventEnvelope,
 ) error {
-	_ = ctx
-
 	if len(events) == 0 {
 		return nil
 	}

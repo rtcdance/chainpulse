@@ -7,12 +7,9 @@ import (
 	"time"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/domain"
 	"github.com/rtcdance/chainpulse/pkg/integrations/generic"
 )
-
-type sharedBatchRuntime interface {
-	ProcessBatch(ctx context.Context, chainID string, events []core.EventEnvelope) error
-}
 
 // DefaultChainIndexer implements ChainIndexer for a specific blockchain
 type DefaultChainIndexer struct {
@@ -21,7 +18,7 @@ type DefaultChainIndexer struct {
 	cache                  core.CachePlugin
 	logger                 core.Logger
 	genericIndexer         *generic.GenericContractIndexer
-	sharedRuntime          sharedBatchRuntime
+	sharedRuntime          domain.SharedBatchRuntime
 	metrics                core.MetricsCollector
 	confirmationTracker    *core.ConfirmationTracker
 	mu                     sync.RWMutex
@@ -52,7 +49,7 @@ func NewDefaultChainIndexer(
 }
 
 // SetSharedRuntime configures additive shared runtime shadow batch forwarding.
-func (dci *DefaultChainIndexer) SetSharedRuntime(runtime sharedBatchRuntime, metrics core.MetricsCollector) {
+func (dci *DefaultChainIndexer) SetSharedRuntime(runtime domain.SharedBatchRuntime, metrics core.MetricsCollector) {
 	dci.mu.Lock()
 	defer dci.mu.Unlock()
 	dci.sharedRuntime = runtime

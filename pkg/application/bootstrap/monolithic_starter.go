@@ -25,23 +25,11 @@ type MonolithicStarter struct {
 	SharedRuntime    *appindexing.SharedRuntime
 	MultiChainIndexer *indexing.MultiChainIndexer
 
-	// Puller
-	PullerRuntime PullerRuntime
-
 	// API Gateway
 	Gateway *api.APIGatewayPlugin
 
 	// Chains
 	ChainIDs []string
-}
-
-// PullerRuntime defines the interface needed by the monolithic lifecycle.
-type PullerRuntime interface {
-	Start(ctx context.Context, wg interface{}) error
-	Stop() error
-	PullerCount() int
-	SubscriberCount() int
-	HandleRuntimeControl(ctx context.Context, req *api.RuntimeControlRequest) (*api.RuntimeControlResponse, error)
 }
 
 // BuildMonolithicStarter assembles the full monolithic runtime.

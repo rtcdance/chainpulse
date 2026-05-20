@@ -2,7 +2,6 @@ package core
 
 import (
 	"context"
-	"errors"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -12,6 +11,22 @@ import (
 func TestPluginInterface(t *testing.T) {
 	// This test verifies the interface exists and has the expected methods
 	var _ Plugin = (*mockPlugin)(nil)
+
+	// Verify all Plugin methods are callable
+	p := &mockPlugin{}
+	ctx := context.Background()
+	if err := p.Initialize(ctx, Config{}); err != nil {
+		t.Errorf("Initialize() error: %v", err)
+	}
+	if err := p.Start(ctx); err != nil {
+		t.Errorf("Start() error: %v", err)
+	}
+	if err := p.Health(ctx); err != nil {
+		t.Errorf("Health() error: %v", err)
+	}
+	if err := p.Stop(ctx); err != nil {
+		t.Errorf("Stop() error: %v", err)
+	}
 }
 
 // TestConfigInterface verifies that Config struct has required fields
@@ -187,114 +202,42 @@ func (m *mockPlugin) Version() string {
 	return m.version
 }
 
-func (m *mockPlugin) Initialize(config Config) error {
+func (m *mockPlugin) Initialize(ctx context.Context, config Config) error {
+	_ = ctx
 	return nil
 }
 
-func (m *mockPlugin) Start() error {
+func (m *mockPlugin) Start(ctx context.Context) error {
+	_ = ctx
 	return nil
 }
 
-func (m *mockPlugin) Stop() error {
+func (m *mockPlugin) Stop(ctx context.Context) error {
+	_ = ctx
 	return nil
 }
 
-func (m *mockPlugin) Health() error {
+func (m *mockPlugin) Health(ctx context.Context) error {
+	_ = ctx
 	return nil
 }
 
-// contextualMockPlugin implements both ContextualStarter and ContextualStopper
-type contextualMockPlugin struct {
-	mockPlugin
-	startCtx context.Context
-	stopCtx  context.Context
-	startErr error
-	stopErr  error
-}
-
-func (c *contextualMockPlugin) StartWithContext(ctx context.Context) error {
-	c.startCtx = ctx
-	return c.startErr
-}
-
-func (c *contextualMockPlugin) StopWithContext(ctx context.Context) error {
-	c.stopCtx = ctx
-	return c.stopErr
-}
-
-func TestStartPluginWithContext(t *testing.T) {
-	t.Run("uses StartWithContext when available", func(t *testing.T) {
-		p := &contextualMockPlugin{}
-		ctx := context.Background()
-		err := StartPlugin(ctx, p)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if p.startCtx != ctx {
-			t.Error("StartWithContext was not called with the provided context")
-		}
-	})
-
-	t.Run("falls back to Start when ContextualStarter not implemented", func(t *testing.T) {
-		p := &mockPlugin{}
-		err := StartPlugin(context.Background(), p)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-	})
-
-	t.Run("propagates StartWithContext error", func(t *testing.T) {
-		expectedErr := errors.New("start failed")
-		p := &contextualMockPlugin{startErr: expectedErr}
-		err := StartPlugin(context.Background(), p)
-		if !errors.Is(err, expectedErr) {
-			t.Fatalf("expected %v, got %v", expectedErr, err)
-		}
-	})
-}
-
-func TestStopPluginWithContext(t *testing.T) {
-	t.Run("uses StopWithContext when available", func(t *testing.T) {
-		p := &contextualMockPlugin{}
-		ctx := context.Background()
-		err := StopPlugin(ctx, p)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if p.stopCtx != ctx {
-			t.Error("StopWithContext was not called with the provided context")
-		}
-	})
-
-	t.Run("falls back to Stop when ContextualStopper not implemented", func(t *testing.T) {
-		p := &mockPlugin{}
-		err := StopPlugin(context.Background(), p)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-	})
-
-	t.Run("propagates StopWithContext error", func(t *testing.T) {
-		expectedErr := errors.New("stop failed")
-		p := &contextualMockPlugin{stopErr: expectedErr}
-		err := StopPlugin(context.Background(), p)
-		if !errors.Is(err, expectedErr) {
-			t.Fatalf("expected %v, got %v", expectedErr, err)
-		}
-	})
-}
-
-func TestContextualStarterRespectsCancellation(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-
-	p := &contextualMockPlugin{}
+func TestStartPluginPropagatesContext(t *testing.T) {
+	t.Parallel()
+	p := &mockPlugin{}
+	ctx := context.Background()
 	err := StartPlugin(ctx, p)
-	// StartWithContext receives the cancelled context; whether it returns
-	// an error depends on the implementation. The test verifies the context
-	// is properly passed through.
-	if p.startCtx != ctx {
-		t.Error("context not propagated to StartWithContext")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
 	}
-	_ = err
+}
+
+func TestStopPluginPropagatesContext(t *testing.T) {
+	t.Parallel()
+	p := &mockPlugin{}
+	ctx := context.Background()
+	err := StopPlugin(ctx, p)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 }

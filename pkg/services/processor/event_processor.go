@@ -89,6 +89,7 @@ type DefaultEventProcessor struct {
 	maxRetries         int
 	retryDelay         time.Duration
 	tracer             *observability.DefaultTracer
+	cacheEntryPool     sync.Pool
 }
 
 // NewDefaultEventProcessor creates a new event processor.
@@ -111,6 +112,11 @@ func NewDefaultEventProcessor(
 		maxRetries:         3,
 		retryDelay:         time.Second,
 		tracer:             observability.NewDefaultTracer(logger, metricsCollector),
+		cacheEntryPool: sync.Pool{
+			New: func() any {
+				return &core.CacheEntry{}
+			},
+		},
 	}
 }
 
@@ -348,13 +354,15 @@ func (p *DefaultEventProcessor) ProcessEvent(ctx context.Context, event *core.Bl
 	if p.cachePlugin != nil {
 		cacheKey := "event:" + event.Network + ":" + strconv.FormatUint(event.BlockNumber, 10) + ":" + event.TransactionHash.Hex()
 		eventBytes := []byte(fmt.Sprintf("%v", event))
-		cacheEntry := &core.CacheEntry{
-			Key:   cacheKey,
-			Value: eventBytes,
-			TTL:   3600, // 1 hour
-		}
+		cacheEntry := p.cacheEntryPool.Get().(*core.CacheEntry)
+		cacheEntry.Key = cacheKey
+		cacheEntry.Value = eventBytes
+		cacheEntry.TTL = 3600
 
 		err = p.cachePlugin.Set(cacheEntry)
+		cacheEntry.Key = ""
+		cacheEntry.Value = nil
+		p.cacheEntryPool.Put(cacheEntry)
 		if err != nil {
 			p.logger.Error("Failed to update cache", core.LogKeyError, err)
 		}
@@ -487,14 +495,16 @@ func (p *DefaultEventProcessor) markBatchProcessed(ctx context.Context, events [
 			if p.cachePlugin != nil {
 				cacheKey := "event:" + event.Network + ":" + strconv.FormatUint(event.BlockNumber, 10) + ":" + event.TransactionHash.Hex()
 				eventBytes := []byte(fmt.Sprintf("%v", event))
-				cacheEntry := &core.CacheEntry{
-					Key:   cacheKey,
-					Value: eventBytes,
-					TTL:   3600,
-				}
+				cacheEntry := p.cacheEntryPool.Get().(*core.CacheEntry)
+				cacheEntry.Key = cacheKey
+				cacheEntry.Value = eventBytes
+				cacheEntry.TTL = 3600
 				if err := p.cachePlugin.Set(cacheEntry); err != nil {
 					p.logger.Error("Failed to update cache after batch write", core.LogKeyError, err)
 				}
+				cacheEntry.Key = ""
+				cacheEntry.Value = nil
+				p.cacheEntryPool.Put(cacheEntry)
 			}
 
 			return nil

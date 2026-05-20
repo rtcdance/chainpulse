@@ -38,7 +38,8 @@ type RequestRouter struct {
 	circuitBreakers map[string]*CircuitBreaker
 }
 
-// CircuitBreaker implements circuit breaker pattern
+// CircuitBreaker implements the circuit breaker pattern for API route forwarding.
+// A separate implementation for RPC call gating exists in pkg/plugins/pullers/circuit_breaker.go.
 type CircuitBreaker struct {
 	state           string // "closed", "open", "half-open"
 	failureCount    int

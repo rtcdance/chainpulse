@@ -2,4 +2,12 @@ go 1.25.0
 
 use (
 	.
+	pkg/blockchain
+	pkg/chainid
+	pkg/configmodel
+	pkg/correlation
+	pkg/generics
+	pkg/histogram
+	pkg/logkeys
+	pkg/runtimetypes
 )

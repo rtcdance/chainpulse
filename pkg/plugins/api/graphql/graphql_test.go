@@ -59,6 +59,10 @@ func (m *MockEventStore) GetEventsByEventName(ctx context.Context, eventName str
 	return []*core.BlockchainEvent{}, nil
 }
 
+func (m *MockEventStore) GetEventsByCorrelationID(ctx context.Context, correlationID string, limit int, offset int) ([]*core.BlockchainEvent, error) {
+	return []*core.BlockchainEvent{}, nil
+}
+
 func (m *MockEventStore) GetEventsByBlock(ctx context.Context, blockNumber int64) ([]*core.BlockchainEvent, error) {
 	if m.getEventsByBlock != nil {
 		return m.getEventsByBlock(ctx, blockNumber)
@@ -220,7 +224,24 @@ func (m *MockCache) GetStats() core.CacheStats {
 	}
 }
 
-func (m *MockCache) Health() error {
+func (m *MockCache) Health(ctx context.Context) error {
+	_ = ctx
+	return nil
+}
+
+func (m *MockCache) Initialize(ctx context.Context, config core.Config) error {
+	_ = ctx
+	_ = config
+	return nil
+}
+
+func (m *MockCache) Start(ctx context.Context) error {
+	_ = ctx
+	return nil
+}
+
+func (m *MockCache) Stop(ctx context.Context) error {
+	_ = ctx
 	return nil
 }
 
@@ -235,18 +256,6 @@ func (m *MockCache) Name() string {
 
 func (m *MockCache) Version() string {
 	return "1.0.0"
-}
-
-func (m *MockCache) Initialize(config core.Config) error {
-	return nil
-}
-
-func (m *MockCache) Start() error {
-	return nil
-}
-
-func (m *MockCache) Stop() error {
-	return nil
 }
 
 // Test Schema Builder

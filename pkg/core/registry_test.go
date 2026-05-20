@@ -1,6 +1,7 @@
 package core
 
 import (
+	"context"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -66,21 +67,25 @@ func (mp *RegistryMockPlugin) Version() string {
 	return mp.version
 }
 
-func (mp *RegistryMockPlugin) Initialize(config Config) error {
+func (mp *RegistryMockPlugin) Initialize(ctx context.Context, config Config) error {
+	_ = ctx
 	return nil
 }
 
-func (mp *RegistryMockPlugin) Start() error {
+func (mp *RegistryMockPlugin) Start(ctx context.Context) error {
+	_ = ctx
 	atomic.AddInt32(&mp.startCalled, 1)
 	return mp.startErr
 }
 
-func (mp *RegistryMockPlugin) Stop() error {
+func (mp *RegistryMockPlugin) Stop(ctx context.Context) error {
+	_ = ctx
 	atomic.AddInt32(&mp.stopCalled, 1)
 	return mp.stopErr
 }
 
-func (mp *RegistryMockPlugin) Health() error {
+func (mp *RegistryMockPlugin) Health(ctx context.Context) error {
+	_ = ctx
 	return nil
 }
 
@@ -267,7 +272,9 @@ func TestGet(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, plugin, retrieved)
 	assert.Equal(t, "test-plugin", retrieved.Name())
-	assert.Equal(t, "1.0.0", retrieved.Version())
+	if vp, ok := any(retrieved).(interface{ Version() string }); ok {
+		assert.Equal(t, "1.0.0", vp.Version())
+	}
 }
 
 // TestGetEmptyName tests getting plugin with empty name
@@ -351,7 +358,7 @@ func TestStart(t *testing.T) {
 	_ = registry.Register(plugin1)
 	_ = registry.Register(plugin2)
 
-	err := registry.Start()
+	err := registry.Start(context.Background())
 
 	assert.NoError(t, err)
 	assert.Equal(t, int32(1), atomic.LoadInt32(&plugin1.startCalled))
@@ -378,7 +385,7 @@ func TestStartWithError(t *testing.T) {
 	_ = registry.Register(plugin1)
 	_ = registry.Register(plugin2)
 
-	err := registry.Start()
+	err := registry.Start(context.Background())
 
 	assert.Error(t, err)
 	assert.IsType(t, &SystemError{}, err)
@@ -390,7 +397,7 @@ func TestStartEmpty(t *testing.T) {
 	logger := &RegistryTestLogger{}
 	registry := NewPluginRegistry(logger)
 
-	err := registry.Start()
+	err := registry.Start(context.Background())
 
 	assert.NoError(t, err)
 }
@@ -414,7 +421,7 @@ func TestStop(t *testing.T) {
 	_ = registry.Register(plugin1)
 	_ = registry.Register(plugin2)
 
-	err := registry.Stop()
+	err := registry.Stop(context.Background())
 
 	assert.NoError(t, err)
 	assert.Equal(t, int32(1), atomic.LoadInt32(&plugin1.stopCalled))
@@ -440,7 +447,7 @@ func TestStopReverseOrder(t *testing.T) {
 	_ = registry.Register(plugin1)
 	_ = registry.Register(plugin2)
 
-	err := registry.Stop()
+	err := registry.Stop(context.Background())
 
 	assert.NoError(t, err)
 	assert.Equal(t, int32(1), atomic.LoadInt32(&plugin1.stopCalled))
@@ -468,7 +475,7 @@ func TestStopWithError(t *testing.T) {
 	_ = registry.Register(plugin2)
 
 	// Should not return error, continues stopping other plugins
-	err := registry.Stop()
+	err := registry.Stop(context.Background())
 
 	assert.NoError(t, err)
 	assert.Equal(t, int32(1), atomic.LoadInt32(&plugin1.stopCalled))
@@ -481,7 +488,7 @@ func TestStopEmpty(t *testing.T) {
 	logger := &RegistryTestLogger{}
 	registry := NewPluginRegistry(logger)
 
-	err := registry.Stop()
+	err := registry.Stop(context.Background())
 
 	assert.NoError(t, err)
 }
@@ -627,7 +634,9 @@ func TestPluginVersions(t *testing.T) {
 	// Collect versions from list
 	versionMap := make(map[string]bool)
 	for _, plugin := range list {
-		versionMap[plugin.Version()] = true
+		if vp, ok := any(plugin).(interface{ Version() string }); ok {
+			versionMap[vp.Version()] = true
+		}
 	}
 
 	// Verify all expected versions are present
@@ -672,10 +681,10 @@ func TestStartStopCycle(t *testing.T) {
 	_ = registry.Register(plugin)
 
 	for i := 0; i < 3; i++ {
-		err := registry.Start()
+		err := registry.Start(context.Background())
 		assert.NoError(t, err)
 
-		err = registry.Stop()
+		err = registry.Stop(context.Background())
 		assert.NoError(t, err)
 	}
 

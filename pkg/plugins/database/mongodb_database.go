@@ -54,13 +54,13 @@ func (m *MongoDBDatabase) Initialize(ctx context.Context, config core.Config) er
 	defer m.mu.Unlock()
 
 	// Extract MongoDB connection string from config
-	connStr := core.ConfigString(&config, "MONGODB_CONNECTION_STRING", "")
+	connStr := orDefault(config.MongoDBConnectionString.Value(), "")
 	if connStr == "" {
 		// Build connection string from individual components
-		host := core.ConfigString(&config, "MONGODB_HOST", "localhost")
-		port := core.ConfigString(&config, "MONGODB_PORT", "27017")
-		user := core.ConfigString(&config, "MONGODB_USER", "")
-		password := core.SecretString(core.ConfigString(&config, "MONGODB_PASSWORD", ""))
+		host := orDefault(config.MongoDBHost, "localhost")
+		port := orDefault(config.MongoDBPort, "27017")
+		user := orDefault(config.MongoDBUser, "")
+		password := config.MongoDBPassword
 
 		if user != "" && password != "" {
 			connStr = fmt.Sprintf("mongodb://%s:%s@%s:%s", user, password.Value(), host, port)
@@ -72,8 +72,8 @@ func (m *MongoDBDatabase) Initialize(ctx context.Context, config core.Config) er
 	m.connectionString = connStr
 
 	// Extract database and collection names
-	m.databaseName = core.ConfigString(&config, "MONGODB_DATABASE", "chainpulse")
-	m.collectionName = core.ConfigString(&config, "MONGODB_COLLECTION", "events")
+	m.databaseName = orDefault(config.MongoDBDatabase, "chainpulse")
+	m.collectionName = orDefault(config.MongoDBCollection, "events")
 
 	// Connect to MongoDB
 	ctx, cancel := context.WithTimeout(ctx, m.queryTimeout)
@@ -129,9 +129,9 @@ func (m *MongoDBDatabase) Stop(ctx context.Context) error {
 
 	// Disconnect MongoDB client
 	if m.client != nil {
-		ctx, cancel := context.WithTimeout(context.Background(), defaultMongoDisconnectTimeout)
+		disconnectCtx, cancel := context.WithTimeout(ctx, defaultMongoDisconnectTimeout)
 		defer cancel()
-		if err := m.client.Disconnect(ctx); err != nil {
+		if err := m.client.Disconnect(disconnectCtx); err != nil {
 			m.logger.Error("Failed to disconnect MongoDB client", core.LogKeyError, err)
 		}
 		m.client = nil
@@ -517,3 +517,5 @@ func (m *MongoDBDatabase) GetReorgStats(ctx context.Context) (*core.ReorgStats, 
 	m.RecordRead(0)
 	return &core.ReorgStats{}, nil
 }
+
+

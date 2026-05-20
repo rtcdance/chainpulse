@@ -13,11 +13,12 @@ func ExampleNewEventBus() {
 	eb := core.NewEventBus(logger)
 
 	// Subscribe to a topic
-	_, _ = eb.Subscribe(context.Background(), "greetings", func(payload any) {
+	_, _ = eb.Subscribe(context.Background(), "greetings", func(_ context.Context, payload any) error {
 		msg, ok := payload.(string)
 		if ok {
 			fmt.Println("received:", msg)
 		}
+		return nil
 	})
 
 	// PublishSync runs handlers synchronously — output is deterministic

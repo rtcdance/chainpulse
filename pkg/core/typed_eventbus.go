@@ -30,19 +30,21 @@ func (b *TypedEventBus[T]) Publish(ctx context.Context, topic string, event T) e
 	return b.bus.Publish(ctx, topic, event)
 }
 
-func (b *TypedEventBus[T]) Subscribe(ctx context.Context, topic string, handler func(T)) (uint64, error) {
-	return b.bus.SubscribeNamed(ctx, topic, "", func(event any) {
+func (b *TypedEventBus[T]) Subscribe(ctx context.Context, topic string, handler func(context.Context, T) error) (uint64, error) {
+	return b.bus.SubscribeNamed(ctx, topic, "", func(ctx context.Context, event any) error {
 		if typed, ok := event.(T); ok {
-			handler(typed)
+			return handler(ctx, typed)
 		}
+		return nil
 	})
 }
 
-func (b *TypedEventBus[T]) SubscribeNamed(ctx context.Context, topic, name string, handler func(T)) (uint64, error) {
-	return b.bus.SubscribeNamed(ctx, topic, name, func(event any) {
+func (b *TypedEventBus[T]) SubscribeNamed(ctx context.Context, topic, name string, handler func(context.Context, T) error) (uint64, error) {
+	return b.bus.SubscribeNamed(ctx, topic, name, func(ctx context.Context, event any) error {
 		if typed, ok := event.(T); ok {
-			handler(typed)
+			return handler(ctx, typed)
 		}
+		return nil
 	})
 }
 

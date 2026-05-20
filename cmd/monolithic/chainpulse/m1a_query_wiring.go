@@ -17,6 +17,9 @@ type monolithicQuerySurface struct {
 	eventRetrievalService    *query.EventRetrievalService
 	eventQueryHandler        *api.EventQueryHandler
 	eventSubscriptionHandler *api.EventSubscriptionHandler
+	exportHandler            *api.ExportHandler
+	statsHandler             *api.StatsHandler
+	adminKeyHandler          *api.AdminKeyHandler
 	summaryData              map[string]any
 }
 
@@ -53,11 +56,17 @@ func buildMonolithicIndexingBackedQuerySurface(
 		return nil, fmt.Errorf("initialize monolithic event subscription handler: %w", err)
 	}
 
+	eventReader := eventRetrievalService.GetEventReader()
+	exportHandler := api.NewExportHandler(logger, eventReader)
+	statsHandler := api.NewStatsHandler(logger, eventReader)
+
 	return &monolithicQuerySurface{
 		domainQuery:              domainService,
 		eventRetrievalService:    eventRetrievalService,
 		eventQueryHandler:        eventQueryHandler,
 		eventSubscriptionHandler: eventSubscriptionHandler,
+		exportHandler:            exportHandler,
+		statsHandler:             statsHandler,
 		summaryData: map[string]any{
 			"query_alignment_posture":    "monolithic-query-indexing-aligned",
 			"domain_query_source":        "monolithic-indexing",
@@ -74,6 +83,7 @@ func buildMonolithicIndexingBackedQuerySurface(
 
 func buildManagedDBRuntimeQuerySurface(runtimeWiring *bootstrap.RuntimeWiring) *monolithicQuerySurface {
 	if runtimeWiring == nil {
+		// Return with default summary data, export and stats handlers unconfigured
 		return &monolithicQuerySurface{
 			summaryData: map[string]any{
 				"query_alignment_posture": "monolithic-query-unaligned",

@@ -134,8 +134,9 @@ func TestPhase1EventBusFlow(t *testing.T) {
 
 	// Subscribe to events
 	receivedEvents := make([]any, 0)
-	handler := func(event any) {
+	handler := func(_ context.Context, event any) error {
 		receivedEvents = append(receivedEvents, event)
+		return nil
 	}
 
 	subID, err := eventBus.Subscribe(context.Background(), "test-topic", handler)
@@ -319,8 +320,9 @@ func TestPhase1EndToEndFlow(t *testing.T) {
 
 	// Subscribe to plugin events
 	eventCount := 0
-	_, _ = eventBus.Subscribe(context.Background(), "plugin-events", func(event any) {
+	_, _ = eventBus.Subscribe(context.Background(), "plugin-events", func(_ context.Context, event any) error {
 		eventCount++
+		return nil
 	})
 	logger.WithCorrelationID("flow-1").Info("subscribed to plugin events")
 

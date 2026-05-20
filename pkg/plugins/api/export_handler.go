@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/rtcdance/chainpulse/pkg/chainid"
 	"github.com/rtcdance/chainpulse/pkg/core"
 	domainquery "github.com/rtcdance/chainpulse/pkg/domain/query"
 )
@@ -159,7 +160,7 @@ func (h *ExportHandler) eventsToExportRecords(events []*core.BlockchainEvent) []
 
 func (h *ExportHandler) matchesExportFilter(event *core.BlockchainEvent, f exportFilter) bool {
 	if f.ChainID != "" {
-		resolvedID := core.ResolveChainID(f.ChainID)
+		resolvedID := chainid.ResolveChainID(f.ChainID)
 		resolvedName := core.ResolveChainName(resolvedID)
 		if event.ChainID != f.ChainID && strconv.Itoa(resolvedID) != event.ChainID && resolvedName != event.ChainID {
 			return false

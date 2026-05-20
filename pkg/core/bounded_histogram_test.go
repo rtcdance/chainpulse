@@ -157,13 +157,13 @@ func TestBoundedHistogram_Reset(t *testing.T) {
 
 func TestBoundedHistogram_DefaultCapacity(t *testing.T) {
 	h := newBoundedHistogram(0)
-	if h.capacity != 1024 {
-		t.Errorf("capacity with 0 = %d, want 1024", h.capacity)
+	if h.Cap() != 1024 {
+		t.Errorf("capacity with 0 = %d, want 1024", h.Cap())
 	}
 
 	h = newBoundedHistogram(-1)
-	if h.capacity != 1024 {
-		t.Errorf("capacity with -1 = %d, want 1024", h.capacity)
+	if h.Cap() != 1024 {
+		t.Errorf("capacity with -1 = %d, want 1024", h.Cap())
 	}
 }
 

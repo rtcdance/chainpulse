@@ -17,19 +17,19 @@ func TestDatabasePluginInitialize(t *testing.T) {
 	metrics := core.NewDefaultMetricsCollector()
 	db := NewDefaultInMemoryDatabasePlugin(logger, metrics)
 
-	config := &core.Config{
+	config := core.Config{
 		BlockchainNodeURL: "http://localhost:8545",
 		DataPullerType:    "https-jsonrpc",
 		APIPort:           8080,
 	}
 
-	err := db.Initialize(config)
+	err := db.Initialize(context.Background(), config)
 	if err != nil {
 		t.Fatalf("Initialize failed: %v", err)
 	}
 
 	// Test double initialization
-	err = db.Initialize(config)
+	err = db.Initialize(context.Background(), config)
 	if err == nil {
 		t.Fatal("Expected error on double initialization")
 	}
@@ -41,34 +41,32 @@ func TestDatabasePluginLifecycle(t *testing.T) {
 	metrics := core.NewDefaultMetricsCollector()
 	db := NewDefaultInMemoryDatabasePlugin(logger, metrics)
 
-	config := &core.Config{
+	config := core.Config{
 		BlockchainNodeURL: "http://localhost:8545",
 		DataPullerType:    "https-jsonrpc",
 		APIPort:           8080,
 	}
 
-	_ = db.Initialize(config)
+	_ = db.Initialize(context.Background(), config)
 
 	// Start
-	if err := db.Start(); err != nil {
+	if err := db.Start(context.Background()); err != nil {
 		t.Fatalf("Start failed: %v", err)
 	}
 
 	// Check health
-	health := db.Health()
-	if health.Status != "healthy" {
-		t.Fatalf("Expected healthy status, got %s", health.Status)
+	if err := db.Health(context.Background()); err != nil {
+		t.Fatalf("Expected healthy, got error: %v", err)
 	}
 
 	// Stop
-	if err := db.Stop(); err != nil {
+	if err := db.Stop(context.Background()); err != nil {
 		t.Fatalf("Stop failed: %v", err)
 	}
 
-	// Check health after stop
-	health = db.Health()
-	if health.Status != "unhealthy" {
-		t.Fatalf("Expected unhealthy status after stop, got %s", health.Status)
+	// Check health after stop — should return error
+	if err := db.Health(context.Background()); err == nil {
+		t.Fatal("Expected unhealthy status after stop, got nil error")
 	}
 }
 
@@ -78,16 +76,16 @@ func TestDatabasePluginWriteEvent(t *testing.T) {
 	metrics := core.NewDefaultMetricsCollector()
 	db := NewDefaultInMemoryDatabasePlugin(logger, metrics)
 
-	config := &core.Config{
+	config := core.Config{
 		BlockchainNodeURL: "http://localhost:8545",
 		DataPullerType:    "https-jsonrpc",
 		APIPort:           8080,
 	}
 
-	if err := db.Initialize(config); err != nil {
+	if err := db.Initialize(context.Background(), config); err != nil {
 		t.Fatalf("Initialize failed: %v", err)
 	}
-	if err := db.Start(); err != nil {
+	if err := db.Start(context.Background()); err != nil {
 		t.Fatalf("Start failed: %v", err)
 	}
 
@@ -112,7 +110,7 @@ func TestDatabasePluginWriteEvent(t *testing.T) {
 		t.Fatalf("Expected 1 event, got %d", db.GetEventCount())
 	}
 
-	if err := db.Stop(); err != nil {
+	if err := db.Stop(context.Background()); err != nil {
 		t.Fatalf("Stop failed: %v", err)
 	}
 }
@@ -123,16 +121,16 @@ func TestDatabasePluginWriteEvents(t *testing.T) {
 	metrics := core.NewDefaultMetricsCollector()
 	db := NewDefaultInMemoryDatabasePlugin(logger, metrics)
 
-	config := &core.Config{
+	config := core.Config{
 		BlockchainNodeURL: "http://localhost:8545",
 		DataPullerType:    "https-jsonrpc",
 		APIPort:           8080,
 	}
 
-	if err := db.Initialize(config); err != nil {
+	if err := db.Initialize(context.Background(), config); err != nil {
 		t.Fatalf("Initialize failed: %v", err)
 	}
-	if err := db.Start(); err != nil {
+	if err := db.Start(context.Background()); err != nil {
 		t.Fatalf("Start failed: %v", err)
 	}
 
@@ -160,7 +158,7 @@ func TestDatabasePluginWriteEvents(t *testing.T) {
 		t.Fatalf("Expected 5 events, got %d", db.GetEventCount())
 	}
 
-	if err := db.Stop(); err != nil {
+	if err := db.Stop(context.Background()); err != nil {
 		t.Fatalf("Stop failed: %v", err)
 	}
 }
@@ -171,16 +169,16 @@ func TestDatabasePluginQueryEvents(t *testing.T) {
 	metrics := core.NewDefaultMetricsCollector()
 	db := NewDefaultInMemoryDatabasePlugin(logger, metrics)
 
-	config := &core.Config{
+	config := core.Config{
 		BlockchainNodeURL: "http://localhost:8545",
 		DataPullerType:    "https-jsonrpc",
 		APIPort:           8080,
 	}
 
-	if err := db.Initialize(config); err != nil {
+	if err := db.Initialize(context.Background(), config); err != nil {
 		t.Fatalf("Initialize failed: %v", err)
 	}
-	if err := db.Start(); err != nil {
+	if err := db.Start(context.Background()); err != nil {
 		t.Fatalf("Start failed: %v", err)
 	}
 
@@ -219,7 +217,7 @@ func TestDatabasePluginQueryEvents(t *testing.T) {
 		t.Fatalf("Expected 10 events in result, got %d", len(result.Events))
 	}
 
-	if err := db.Stop(); err != nil {
+	if err := db.Stop(context.Background()); err != nil {
 		t.Fatalf("Stop failed: %v", err)
 	}
 }
@@ -230,16 +228,16 @@ func TestDatabasePluginQueryEventsWithFilter(t *testing.T) {
 	metrics := core.NewDefaultMetricsCollector()
 	db := NewDefaultInMemoryDatabasePlugin(logger, metrics)
 
-	config := &core.Config{
+	config := core.Config{
 		BlockchainNodeURL: "http://localhost:8545",
 		DataPullerType:    "https-jsonrpc",
 		APIPort:           8080,
 	}
 
-	if err := db.Initialize(config); err != nil {
+	if err := db.Initialize(context.Background(), config); err != nil {
 		t.Fatalf("Initialize failed: %v", err)
 	}
-	if err := db.Start(); err != nil {
+	if err := db.Start(context.Background()); err != nil {
 		t.Fatalf("Start failed: %v", err)
 	}
 
@@ -291,7 +289,7 @@ func TestDatabasePluginQueryEventsWithFilter(t *testing.T) {
 		t.Fatalf("Expected 5 events, got %d", result.Total)
 	}
 
-	if err := db.Stop(); err != nil {
+	if err := db.Stop(context.Background()); err != nil {
 		t.Fatalf("Stop failed: %v", err)
 	}
 }
@@ -302,16 +300,16 @@ func TestDatabasePluginGetEventByHash(t *testing.T) {
 	metrics := core.NewDefaultMetricsCollector()
 	db := NewDefaultInMemoryDatabasePlugin(logger, metrics)
 
-	config := &core.Config{
+	config := core.Config{
 		BlockchainNodeURL: "http://localhost:8545",
 		DataPullerType:    "https-jsonrpc",
 		APIPort:           8080,
 	}
 
-	if err := db.Initialize(config); err != nil {
+	if err := db.Initialize(context.Background(), config); err != nil {
 		t.Fatalf("Initialize failed: %v", err)
 	}
-	if err := db.Start(); err != nil {
+	if err := db.Start(context.Background()); err != nil {
 		t.Fatalf("Start failed: %v", err)
 	}
 
@@ -345,7 +343,7 @@ func TestDatabasePluginGetEventByHash(t *testing.T) {
 		t.Fatalf("Expected hash 0xabc123, got %s", retrieved.EventHash)
 	}
 
-	if err := db.Stop(); err != nil {
+	if err := db.Stop(context.Background()); err != nil {
 		t.Fatalf("Stop failed: %v", err)
 	}
 }
@@ -356,16 +354,16 @@ func TestDatabasePluginDeleteEvent(t *testing.T) {
 	metrics := core.NewDefaultMetricsCollector()
 	db := NewDefaultInMemoryDatabasePlugin(logger, metrics)
 
-	config := &core.Config{
+	config := core.Config{
 		BlockchainNodeURL: "http://localhost:8545",
 		DataPullerType:    "https-jsonrpc",
 		APIPort:           8080,
 	}
 
-	if err := db.Initialize(config); err != nil {
+	if err := db.Initialize(context.Background(), config); err != nil {
 		t.Fatalf("Initialize failed: %v", err)
 	}
-	if err := db.Start(); err != nil {
+	if err := db.Start(context.Background()); err != nil {
 		t.Fatalf("Start failed: %v", err)
 	}
 
@@ -402,7 +400,7 @@ func TestDatabasePluginDeleteEvent(t *testing.T) {
 		t.Fatal("Expected event to be deleted")
 	}
 
-	if err := db.Stop(); err != nil {
+	if err := db.Stop(context.Background()); err != nil {
 		t.Fatalf("Stop failed: %v", err)
 	}
 }
@@ -413,16 +411,16 @@ func TestDatabasePluginStats(t *testing.T) {
 	metrics := core.NewDefaultMetricsCollector()
 	db := NewDefaultInMemoryDatabasePlugin(logger, metrics)
 
-	config := &core.Config{
+	config := core.Config{
 		BlockchainNodeURL: "http://localhost:8545",
 		DataPullerType:    "https-jsonrpc",
 		APIPort:           8080,
 	}
 
-	if err := db.Initialize(config); err != nil {
+	if err := db.Initialize(context.Background(), config); err != nil {
 		t.Fatalf("Initialize failed: %v", err)
 	}
-	if err := db.Start(); err != nil {
+	if err := db.Start(context.Background()); err != nil {
 		t.Fatalf("Start failed: %v", err)
 	}
 
@@ -472,7 +470,7 @@ func TestDatabasePluginStats(t *testing.T) {
 		t.Fatalf("Expected 4 events, got %d", stats.EventCount)
 	}
 
-	if err := db.Stop(); err != nil {
+	if err := db.Stop(context.Background()); err != nil {
 		t.Fatalf("Stop failed: %v", err)
 	}
 }
@@ -483,16 +481,16 @@ func TestDatabasePluginConcurrentOperations(t *testing.T) {
 	metrics := core.NewDefaultMetricsCollector()
 	db := NewDefaultInMemoryDatabasePlugin(logger, metrics)
 
-	config := &core.Config{
+	config := core.Config{
 		BlockchainNodeURL: "http://localhost:8545",
 		DataPullerType:    "https-jsonrpc",
 		APIPort:           8080,
 	}
 
-	if err := db.Initialize(config); err != nil {
+	if err := db.Initialize(context.Background(), config); err != nil {
 		t.Fatalf("Initialize failed: %v", err)
 	}
-	if err := db.Start(); err != nil {
+	if err := db.Start(context.Background()); err != nil {
 		t.Fatalf("Start failed: %v", err)
 	}
 
@@ -540,7 +538,7 @@ func TestDatabasePluginConcurrentOperations(t *testing.T) {
 		t.Fatalf("Expected 100 events, got %d", db.GetEventCount())
 	}
 
-	if err := db.Stop(); err != nil {
+	if err := db.Stop(context.Background()); err != nil {
 		t.Fatalf("Stop failed: %v", err)
 	}
 }
@@ -551,16 +549,16 @@ func TestDatabasePluginErrorHandling(t *testing.T) {
 	metrics := core.NewDefaultMetricsCollector()
 	db := NewDefaultInMemoryDatabasePlugin(logger, metrics)
 
-	config := &core.Config{
+	config := core.Config{
 		BlockchainNodeURL: "http://localhost:8545",
 		DataPullerType:    "https-jsonrpc",
 		APIPort:           8080,
 	}
 
-	if err := db.Initialize(config); err != nil {
+	if err := db.Initialize(context.Background(), config); err != nil {
 		t.Fatalf("Initialize failed: %v", err)
 	}
-	if err := db.Start(); err != nil {
+	if err := db.Start(context.Background()); err != nil {
 		t.Fatalf("Start failed: %v", err)
 	}
 
@@ -597,7 +595,7 @@ func TestDatabasePluginErrorHandling(t *testing.T) {
 		t.Fatal("Expected error for empty hash")
 	}
 
-	if err := db.Stop(); err != nil {
+	if err := db.Stop(context.Background()); err != nil {
 		t.Fatalf("Stop failed: %v", err)
 	}
 }
@@ -608,16 +606,16 @@ func TestDatabasePluginQueryWithPagination(t *testing.T) {
 	metrics := core.NewDefaultMetricsCollector()
 	db := NewDefaultInMemoryDatabasePlugin(logger, metrics)
 
-	config := &core.Config{
+	config := core.Config{
 		BlockchainNodeURL: "http://localhost:8545",
 		DataPullerType:    "https-jsonrpc",
 		APIPort:           8080,
 	}
 
-	if err := db.Initialize(config); err != nil {
+	if err := db.Initialize(context.Background(), config); err != nil {
 		t.Fatalf("Initialize failed: %v", err)
 	}
-	if err := db.Start(); err != nil {
+	if err := db.Start(context.Background()); err != nil {
 		t.Fatalf("Start failed: %v", err)
 	}
 
@@ -656,7 +654,7 @@ func TestDatabasePluginQueryWithPagination(t *testing.T) {
 		t.Fatalf("Expected total 20, got %d", result.Total)
 	}
 
-	if err := db.Stop(); err != nil {
+	if err := db.Stop(context.Background()); err != nil {
 		t.Fatalf("Stop failed: %v", err)
 	}
 }

@@ -87,6 +87,14 @@ func (m *MockEventStore) GetEventsByName(ctx context.Context, eventName string, 
 	return args.Get(0).([]*core.BlockchainEvent), args.Error(1)
 }
 
+func (m *MockEventStore) GetEventsByCorrelationID(ctx context.Context, correlationID string, limit, offset int) ([]*core.BlockchainEvent, error) {
+	args := m.Called(ctx, correlationID, limit, offset)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*core.BlockchainEvent), args.Error(1)
+}
+
 func (m *MockEventStore) GetEventsPaginated(ctx context.Context, cursor string, limit int) ([]*core.BlockchainEvent, bool, error) {
 	args := m.Called(ctx, cursor, limit)
 	if args.Get(0) == nil {

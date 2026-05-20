@@ -106,7 +106,7 @@ func TestBlockchainEventValidateWithChecksum(t *testing.T) {
 			ContractAddress: common.HexToAddress("0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"),
 			EventName:       "Transfer",
 		}
-		assert.NoError(t, event.Validate())
+		assert.NoError(t, ValidateBlockchainEvent(event))
 	})
 
 	t.Run("zero contract address still fails", func(t *testing.T) {
@@ -116,6 +116,6 @@ func TestBlockchainEventValidateWithChecksum(t *testing.T) {
 			ContractAddress: common.Address{},
 			EventName:       "Transfer",
 		}
-		assert.ErrorIs(t, event.Validate(), ErrInvalidContractAddress)
+		assert.ErrorIs(t, ValidateBlockchainEvent(event), ErrInvalidContractAddress)
 	})
 }

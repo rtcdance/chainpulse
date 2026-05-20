@@ -131,14 +131,9 @@ func (gci *GenericContractIndexer) IndexEvents(
 		return fmt.Errorf("contract ABI not registered: %s", contractName)
 	}
 
-	for _, event := range events {
-		if err := gci.indexEvent(ctx, contractName, &contractABI, event); err != nil {
-			gci.logger.Error("failed to index event", "contract", contractName, "error", err.Error())
-			continue
-		}
-	}
-
-	return nil
+	return core.BatchIndex(ctx, events, func(ctx context.Context, event *core.BlockchainEvent) error {
+		return gci.indexEvent(ctx, contractName, &contractABI, event)
+	})
 }
 
 // indexEvent indexes a single event

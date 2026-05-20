@@ -100,18 +100,7 @@ func (ei *ERC20Indexer) IndexTransfers(
 
 	ei.logger.Debug("indexing transfer events", core.LogKeyCount, len(events))
 
-	for _, event := range events {
-		if err := ei.indexTransferEvent(ctx, event); err != nil {
-			ei.logger.Error("failed to index transfer event",
-				core.LogKeyError, err.Error(),
-				core.LogKeyEventID, event.ID,
-				core.LogKeyBlockNumber, event.BlockNumber,
-				"tx_hash", event.TransactionHash.Hex())
-			continue
-		}
-	}
-
-	return nil
+	return core.BatchIndex(ctx, events, ei.indexTransferEvent)
 }
 
 // indexTransferEvent indexes a single transfer event

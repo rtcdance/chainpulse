@@ -18,11 +18,14 @@ type Session struct {
 	Data      map[string]any
 }
 
-// SessionManager manages distributed sessions
+// SessionManager manages distributed sessions with periodic eviction
+// of expired sessions to prevent unbounded memory growth.
 type SessionManager struct {
-	sessions map[string]*Session
-	ttl      time.Duration
-	mutex    sync.RWMutex
+	sessions  map[string]*Session
+	ttl       time.Duration
+	mutex     sync.RWMutex
+	done      chan struct{}
+	closeOnce sync.Once
 }
 
 // NewSessionManager creates a new session manager
@@ -30,6 +33,42 @@ func NewSessionManager() *SessionManager {
 	return &SessionManager{
 		sessions: make(map[string]*Session),
 		ttl:      24 * time.Hour,
+		done:     make(chan struct{}),
+	}
+}
+
+// Start begins the periodic expired-session cleanup goroutine.
+func (sm *SessionManager) Start() {
+	go sm.evictLoop()
+}
+
+// Stop terminates the cleanup goroutine.
+func (sm *SessionManager) Stop() {
+	sm.closeOnce.Do(func() {
+		close(sm.done)
+	})
+}
+
+// evictLoop periodically removes expired sessions to prevent memory leaks
+// in long-running services.
+func (sm *SessionManager) evictLoop() {
+	ticker := time.NewTicker(5 * time.Minute)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-sm.done:
+			return
+		case <-ticker.C:
+			sm.mutex.Lock()
+			now := time.Now()
+			for id, s := range sm.sessions {
+				if now.After(s.ExpiresAt) {
+					delete(sm.sessions, id)
+				}
+			}
+			sm.mutex.Unlock()
+		}
 	}
 }
 

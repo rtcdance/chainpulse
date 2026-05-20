@@ -15,12 +15,13 @@ type MockPlugin struct {
 	err     error
 }
 
-func (m *MockPlugin) Name() string                   { return m.name }
-func (m *MockPlugin) Version() string                { return m.version }
-func (m *MockPlugin) Initialize(config Config) error { return nil }
-func (m *MockPlugin) Start() error                   { return nil }
-func (m *MockPlugin) Stop() error                    { return nil }
-func (m *MockPlugin) Health() error {
+func (m *MockPlugin) Name() string                              { return m.name }
+func (m *MockPlugin) Version() string                           { return m.version }
+func (m *MockPlugin) Initialize(ctx context.Context, config Config) error { _ = ctx; return nil }
+func (m *MockPlugin) Start(ctx context.Context) error            { _ = ctx; return nil }
+func (m *MockPlugin) Stop(ctx context.Context) error             { _ = ctx; return nil }
+func (m *MockPlugin) Health(ctx context.Context) error {
+	_ = ctx
 	if !m.healthy {
 		return m.err
 	}
@@ -63,8 +64,8 @@ func (m *MockPluginRegistry) List() []Plugin {
 	return plugins
 }
 
-func (m *MockPluginRegistry) Start() error { return nil }
-func (m *MockPluginRegistry) Stop() error  { return nil }
+func (m *MockPluginRegistry) Start(ctx context.Context) error { _ = ctx; return nil }
+func (m *MockPluginRegistry) Stop(ctx context.Context) error  { _ = ctx; return nil }
 
 // MockConfigManager is a mock config manager for testing
 type MockConfigManager struct {

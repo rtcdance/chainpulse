@@ -111,10 +111,10 @@ func (m *mockReorgDatabase) GetReorgStats(_ context.Context) (*core.ReorgStats, 
 // Plugin interface
 func (m *mockReorgDatabase) Name() string                   { return "mock-reorg-db" }
 func (m *mockReorgDatabase) Version() string                { return "test" }
-func (m *mockReorgDatabase) Initialize(_ core.Config) error { return nil }
-func (m *mockReorgDatabase) Start() error                   { return nil }
-func (m *mockReorgDatabase) Stop() error                    { return nil }
-func (m *mockReorgDatabase) Health() error                  { return nil }
+func (m *mockReorgDatabase) Initialize(_ context.Context, _ core.Config) error { return nil }
+func (m *mockReorgDatabase) Start(_ context.Context) error                   { return nil }
+func (m *mockReorgDatabase) Stop(_ context.Context) error                    { return nil }
+func (m *mockReorgDatabase) Health(_ context.Context) error                  { return nil }
 
 // --- Helpers ---
 
@@ -328,8 +328,9 @@ func TestHandleReorgPublishesEvent(t *testing.T) {
 
 	published := make(chan *ReorgEvent, 1)
 	bus := core.NewEventBus(core.NewDefaultLogger(core.LogLevelError))
-	_, _ = bus.Subscribe(context.Background(), "reorg-detected", func(payload any) {
+	_, _ = bus.Subscribe(context.Background(), "reorg-detected", func(_ context.Context, payload any) error {
 		published <- payload.(*ReorgEvent)
+		return nil
 	})
 
 	handler := NewReorgHandler(db, core.NewDefaultLogger(core.LogLevelError), 12, 120).

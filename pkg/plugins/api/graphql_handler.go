@@ -9,6 +9,7 @@ import (
 
 	"github.com/graphql-go/graphql"
 	"github.com/graphql-go/graphql/language/ast"
+	"github.com/rtcdance/chainpulse/pkg/chainid"
 	"github.com/rtcdance/chainpulse/pkg/core"
 	domainquery "github.com/rtcdance/chainpulse/pkg/domain/query"
 )
@@ -168,7 +169,7 @@ func (h *GraphQLHandler) buildSchema() (*graphql.Schema, error) {
 
 					chainID := 0 // 0 = all chains
 					if cid, ok := p.Args["chainId"].(string); ok && cid != "" {
-						chainID = core.ResolveChainID(cid)
+						chainID = chainid.ResolveChainID(cid)
 					}
 
 					if h.eventStore == nil {
@@ -394,6 +395,11 @@ func (h *GraphQLHandler) handlePost(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if h.schema != nil {
+		if err := validateQueryDepth(query, maxQueryDepth); err != nil {
+			h.writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+
 		params := graphql.Params{
 			Schema:         *h.schema,
 			RequestString:  query,
@@ -455,5 +461,29 @@ func (h *GraphQLHandler) Stop() error {
 
 	h.logger.Info("GraphQL handler stopped", core.LogKeyComponent, "graphql_handler")
 
+	return nil
+}
+
+const maxQueryDepth = 10
+
+// validateQueryDepth performs a basic check on query nesting depth to
+// prevent malicious deep queries that could overwhelm the server.
+func validateQueryDepth(query string, maxDepth int) error {
+	depth := 0
+	maxSeen := 0
+	for _, ch := range query {
+		if ch == '{' {
+			depth++
+			if depth > maxSeen {
+				maxSeen = depth
+			}
+		}
+		if ch == '}' {
+			depth--
+		}
+		if maxSeen > maxDepth {
+			return fmt.Errorf("query exceeds maximum depth of %d", maxDepth)
+		}
+	}
 	return nil
 }
