@@ -109,51 +109,6 @@ func run() error {
 		return fmt.Errorf("production security validation failed: %w", err)
 	}
 
-	logFormat := env.Get("LOG_FORMAT", "slog")
-	var logger core.Logger
-	if logFormat == "legacy" {
-		logger = core.NewDefaultLogger(logLevel)
-	} else {
-		logger = core.NewSlogLogger(logLevel, logFormat)
-	}
-	metrics := core.NewDefaultMetricsCollector()
-	registry := core.NewPluginRegistry(logger)
-
-	// Create shared observability provider (single TracerProvider)
-	obsProvider, err := observability.NewObservabilityProvider(
-		observability.ObservabilityConfig{ServiceName: "chainpulse-monolithic"},
-		logger,
-	)
-	if err != nil {
-		logger.Warn("Observability provider initialization failed, tracing disabled", "error", err.Error())
-	}
-
-	fmt.Println("  [1/4] Logger initialized")
-	fmt.Println("  [2/4] Metrics collector initialized")
-	fmt.Println("  [3/4] Plugin registry initialized")
-	fmt.Println("  [4/4] Observability provider initialized")
-	fmt.Println()
-
-	// Convert configuration to core.Config
-	blockchainNodeURL := strings.Split(config.BlockchainNodeURLs, ",")[0]
-	coreCfg := bootstrap.NewMonolithicCoreConfig(
-		config.LogLevel,
-		config.DatabaseType,
-		config.DatabaseURL,
-		config.CacheType,
-		config.DataPullerType,
-		blockchainNodeURL,
-	)
-	bootstrap.ApplyConfigOverrides(&coreCfg)
-
-	coreConfig := &coreCfg
-
-	// Production security gate: enforce auth + JWT + rate limit in production
-	if err := validateMonolithicProductionSecurity(config, bootstrap.RuntimeProfileFromEnv()); err != nil {
-		logger.Error("Monolithic production security gate rejected startup", "error", err.Error())
-		return fmt.Errorf("production security validation failed: %w", err)
-	}
-
 	// Read filters from env
 	if contractAddrs := os.Getenv("CONTRACT_ADDRESSES"); contractAddrs != "" {
 		coreConfig.ContractAddresses = strings.Split(contractAddrs, ",")
@@ -187,7 +142,8 @@ func run() error {
 
 	// Validate the resolved core configuration
 	configManager := core.NewConfigManager(logger)
-	if err := configManager.Validate(*coreConfig); err != nil {
+	configManager.Load()
+	if err := configManager.Validate(); err != nil {
 		return fmt.Errorf("core configuration validation failed: %w", err)
 	}
 
@@ -242,11 +198,6 @@ func run() error {
 		if pgRaw, pgErr := runtimeWiring.DBManager.GetPostgresDB(ctx); pgErr == nil {
 			if sqlDB, ok := pgRaw.(*sql.DB); ok {
 				monolithicQuerySurface.adminKeyHandler = api.NewAdminKeyHandler(sqlDB, logger)
-				// Also wire the store-backed AdminAPIKeyHandler for CRUD at /admin/api-keys
-				keyStore := api.NewAPIKeyStore(sqlDB, logger, metrics)
-				adminAPIKeyHandler := api.NewAdminAPIKeyHandler(keyStore, logger)
-				gateway.SetAdminAPIKeyHandler(adminAPIKeyHandler)
-				logger.Info("Store-backed AdminAPIKeyHandler wired", "endpoint", "/admin/api-keys")
 			}
 		}
 	}
@@ -264,21 +215,35 @@ func run() error {
 	fmt.Println()
 
 	// Bridge EventBus "event:created" → push-based subscription handlers
-	// This enables real-time WebSocket/GraphQL event push.
+	// This enables real-time WebSocket/GraphQL event push + webhook delivery.
 	if runtimeWiring.EventSubscriptionHandler != nil {
 		_, subErr := monolithicPullerRuntime.EventBus().SubscribeNamed(
 			ctx, "event:created", "monolithic-subscription-bridge",
-			func(payload any) {
+			func(_ context.Context, payload any) error {
 				if event, ok := payload.(*core.BlockchainEvent); ok && event != nil {
-					runtimeWiring.EventSubscriptionHandler.BroadcastEvent(event)
+					runtimeWiring.EventSubscriptionHandler.BroadcastEvent(ctx, event)
+					// Deliver webhooks for this event
+					if webhookStore != nil {
+						payloadMap := map[string]any{
+							"id":              event.ID,
+							"chainId":         event.ChainID,
+							"blockNumber":     event.BlockNumber,
+							"transactionHash": event.TransactionHash.Hex(),
+							"eventName":       event.EventName,
+							"contractAddress": event.ContractAddress.Hex(),
+							"timestamp":       event.BlockTimestamp,
+						}
+						webhookStore.NotifyEvent(ctx, "event:created", payloadMap)
+					}
 				}
+				return nil
 			},
 		)
 		if subErr != nil {
 			logger.Warn("Failed to wire push subscription bridge", "error", subErr.Error())
 		} else {
 			logger.Info("Push-based subscription bridge wired: EventBus → WebSocket")
-			fmt.Println("  ✓ Push-based subscription bridge: EventBus → WebSocket")
+			fmt.Println("  ✓ Push-based subscription bridge: EventBus → WebSocket + Webhooks")
 		}
 	}
 
@@ -308,6 +273,22 @@ func run() error {
 	}
 	if monolithicQuerySurface.adminKeyHandler != nil {
 		gateway.SetAdminKeyHandler(monolithicQuerySurface.adminKeyHandler)
+	}
+	// Wire store-backed AdminAPIKeyHandler for CRUD at /admin/api-keys (if postgres is available)
+	var webhookStore *api.WebhookStore
+	if runtimeWiring.DBManager != nil {
+		if pgRaw, pgErr := runtimeWiring.DBManager.GetPostgresDB(ctx); pgErr == nil {
+			if sqlDB, ok := pgRaw.(*sql.DB); ok {
+				keyStore := api.NewAPIKeyStore(sqlDB, logger, metrics)
+				adminAPIKeyHandler := api.NewAdminAPIKeyHandler(keyStore, logger)
+				gateway.SetAdminAPIKeyHandler(adminAPIKeyHandler)
+				logger.Info("Store-backed AdminAPIKeyHandler wired", "endpoint", "/admin/api-keys")
+
+				// Wire webhook store for event-driven notifications
+				webhookStore = api.NewWebhookStore(sqlDB, logger, metrics)
+				logger.Info("Webhook store wired for event-driven delivery")
+			}
+		}
 	}
 	if config.RateLimitEnabled {
 		rateLimiter := api.NewRateLimiter(logger, metrics, &api.RateLimitConfig{
@@ -494,11 +475,15 @@ func run() error {
 	logger.Info("Shared indexing runtime stopped", "service", "monolithic", "state", sharedIndexingRuntime.Status().State)
 	fmt.Println("  [3/7] Shared indexing runtime stopped")
 
-	if err := indexingCache.Stop(); err != nil {
-		logger.Error("Error stopping indexing cache", "error", err.Error())
+	if p, ok := indexingCache.(core.LifecyclePlugin); ok {
+		if err := p.Stop(shutdownCtx); err != nil {
+			logger.Error("Error stopping indexing cache", "error", err.Error())
+		}
 	}
-	if err := indexingDatabase.Stop(); err != nil {
-		logger.Error("Error stopping indexing database", "error", err.Error())
+	if p, ok := indexingDatabase.(core.LifecyclePlugin); ok {
+		if err := p.Stop(shutdownCtx); err != nil {
+			logger.Error("Error stopping indexing database", "error", err.Error())
+		}
 	}
 
 	fmt.Println("  [4/7] Indexing storage stopped")
