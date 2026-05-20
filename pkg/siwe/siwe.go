@@ -1,4 +1,4 @@
-package core
+package siwe
 
 import (
 	"crypto/rand"
@@ -9,10 +9,11 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
+
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 // SIWEMessage represents an EIP-4361 Sign-In with Ethereum message.
-// Reference: https://eips.ethereum.org/EIPS/eip-4361
 type SIWEMessage struct {
 	Domain         string         `json:"domain"`
 	Address        common.Address `json:"address"`
@@ -30,8 +31,6 @@ type SIWEMessage struct {
 
 const siweVersion = "1"
 
-// GenerateNonce generates a cryptographically random nonce for SIWE challenges.
-// Returns a hex-encoded string with the specified byte length.
 func GenerateNonce() (string, error) {
 	buf := make([]byte, 16)
 	if _, err := rand.Read(buf); err != nil {
@@ -40,28 +39,8 @@ func GenerateNonce() (string, error) {
 	return hex.EncodeToString(buf), nil
 }
 
-// BuildMessage constructs the EIP-4361 formatted message string for wallet signing.
-// The message follows the exact format specified by EIP-4361:
-//
-//	${domain} wants you to sign in with your Ethereum account:
-//	${address}
-//
-//	${statement}
-//
-//	URI: ${uri}
-//	Version: ${version}
-//	Chain ID: ${chainID}
-//	Nonce: ${nonce}
-//	Issued At: ${issuedAt}
-//	Expiration Time: ${expirationTime}
-//	Not Before: ${notBefore}
-//	Request ID: ${requestID}
-//	Resources:
-//	- ${resource1}
-//	- ${resource2}
 func (m *SIWEMessage) BuildMessage() string {
 	var b strings.Builder
-
 	b.WriteString(fmt.Sprintf("%s wants you to sign in with your Ethereum account:\n", m.Domain))
 	b.WriteString(m.Address.Hex())
 	b.WriteString("\n\n")
@@ -98,7 +77,6 @@ func (m *SIWEMessage) BuildMessage() string {
 	return strings.TrimRight(b.String(), "\n")
 }
 
-// ParseMessage parses an EIP-4361 formatted string back into a SIWEMessage.
 func ParseMessage(raw string) (*SIWEMessage, error) {
 	lines := strings.Split(raw, "\n")
 	if len(lines) < 3 {
@@ -190,11 +168,6 @@ func ParseMessage(raw string) (*SIWEMessage, error) {
 	return m, nil
 }
 
-// VerifySIWE checks all validations for a signed SIWE message:
-// 1. Recover signer from signature
-// 2. Compare recovered address with message address
-// 3. Check expiration (if set)
-// 4. Verify nonce freshness (custom validation function)
 func (m *SIWEMessage) VerifySIWE(signature []byte, nonceValidator func(string) bool) error {
 	if signature == nil {
 		return fmt.Errorf("signature is required")
@@ -213,7 +186,7 @@ func (m *SIWEMessage) VerifySIWE(signature []byte, nonceValidator func(string) b
 	}
 
 	messageBytes := []byte(m.BuildMessage())
-	recovered, err := RecoverAddress(messageBytes, signature)
+	recovered, err := core.RecoverAddress(messageBytes, signature)
 	if err != nil {
 		return fmt.Errorf("recover signer: %w", err)
 	}
@@ -223,8 +196,6 @@ func (m *SIWEMessage) VerifySIWE(signature []byte, nonceValidator func(string) b
 	return nil
 }
 
-// GenerateChallenge creates a new SIWE challenge for the given Ethereum address.
-// Returns the SIWE message ready for the wallet to sign, plus the nonce.
 func GenerateChallenge(domain, uri string, address common.Address, chainID *big.Int) (*SIWEMessage, error) {
 	nonce, err := GenerateNonce()
 	if err != nil {

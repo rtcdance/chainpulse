@@ -1,4 +1,4 @@
-package core
+package eip
 
 import (
 	"errors"
@@ -14,7 +14,7 @@ import (
 
 // EIP-712 typed data signing implementation per https://eips.ethereum.org/EIPS/eip-712
 
-// EIP712Domain represents the EIP-712 domain parameters that define the signing scope.
+// EIP712Domain represents the EIP-712 domain parameters.
 type EIP712Domain struct {
 	Name              string         `json:"name"`
 	Version           string         `json:"version"`
@@ -41,8 +41,6 @@ var (
 )
 
 // EncodeType encodes the type string for a given type name.
-// For example: EncodeType("Mail", {"Mail": [{"name":"from","type":"Person"},...]})
-// returns "Mail(Person from,Person to,string contents)Person(string name,address wallet)"
 func EncodeType(typeName string, types apitypes.Types) (string, error) {
 	seen := make(map[string]bool)
 	return encodeTypeRecursive(typeName, types, seen)
@@ -64,7 +62,6 @@ func encodeTypeRecursive(typeName string, types apitypes.Types, seen map[string]
 	b.WriteString(typeName)
 	b.WriteString("(")
 
-	// Collect referenced struct types for inclusion
 	referencedStructs := make(map[string]bool)
 
 	for i, field := range fields {
@@ -75,7 +72,6 @@ func encodeTypeRecursive(typeName string, types apitypes.Types, seen map[string]
 		b.WriteString(" ")
 		b.WriteString(field.Name)
 
-		// Check if field type is a referenced struct (not a primitive)
 		baseType := strings.TrimSuffix(field.Type, "[]")
 		if _, isStruct := types[baseType]; isStruct && !referencedStructs[baseType] {
 			referencedStructs[baseType] = true
@@ -84,7 +80,6 @@ func encodeTypeRecursive(typeName string, types apitypes.Types, seen map[string]
 
 	b.WriteString(")")
 
-	// Append referenced struct type definitions in alphabetical order for determinism
 	sortedRefs := make([]string, 0, len(referencedStructs))
 	for ref := range referencedStructs {
 		sortedRefs = append(sortedRefs, ref)
@@ -102,7 +97,6 @@ func encodeTypeRecursive(typeName string, types apitypes.Types, seen map[string]
 	return b.String(), nil
 }
 
-// TypeHash computes the keccak256 hash of the type string.
 func TypeHash(typeName string, types apitypes.Types) ([32]byte, error) {
 	encoded, err := EncodeType(typeName, types)
 	if err != nil {
@@ -111,8 +105,6 @@ func TypeHash(typeName string, types apitypes.Types) ([32]byte, error) {
 	return crypto.Keccak256Hash([]byte(encoded)), nil
 }
 
-// HashStruct computes the keccak256 hash of a struct per EIP-712:
-// hashStruct(s) = keccak256(typeHash ‖ encodeData(s))
 func HashStruct(typeName string, types apitypes.Types, data map[string]any) ([32]byte, error) {
 	typeHash, err := TypeHash(typeName, types)
 	if err != nil {
@@ -124,7 +116,6 @@ func HashStruct(typeName string, types apitypes.Types, data map[string]any) ([32
 		return [32]byte{}, err
 	}
 
-	// Concatenate typeHash + encoded data
 	combined := make([]byte, 32+len(encoded))
 	copy(combined[:32], typeHash[:])
 	copy(combined[32:], encoded)
@@ -132,7 +123,6 @@ func HashStruct(typeName string, types apitypes.Types, data map[string]any) ([32
 	return crypto.Keccak256Hash(combined), nil
 }
 
-// encodeData encodes the data values according to the type definition.
 func encodeData(typeName string, types apitypes.Types, data map[string]any, seen map[string]bool) ([]byte, error) {
 	if seen[typeName] {
 		return nil, fmt.Errorf("%w: type %q has circular reference", ErrCircularTypeReference, typeName)
@@ -162,15 +152,11 @@ func encodeData(typeName string, types apitypes.Types, data map[string]any, seen
 	return encoded, nil
 }
 
-// encodeValue encodes a single value according to its ABI type.
 func encodeValue(typeStr string, types apitypes.Types, value any, seen map[string]bool) ([]byte, error) {
-	// Handle array types
 	if strings.HasSuffix(typeStr, "[]") {
-		// Dynamic arrays not fully supported — return hash of empty bytes32
 		return make([]byte, 32), nil
 	}
 
-	// Atomic types
 	switch typeStr {
 	case "string":
 		s, ok := value.(string)
@@ -208,17 +194,14 @@ func encodeValue(typeStr string, types apitypes.Types, value any, seen map[strin
 		return result, nil
 	}
 
-	// Integer types (uint8..uint256, int8..int256)
 	if strings.HasPrefix(typeStr, "uint") || strings.HasPrefix(typeStr, "int") {
 		return encodeIntValue(value)
 	}
 
-	// Fixed-size bytes (bytes1..bytes32)
 	if strings.HasPrefix(typeStr, "bytes") && len(typeStr) > 5 {
 		return encodeFixedBytesValue(value)
 	}
 
-	// Struct types
 	if _, isStruct := types[typeStr]; isStruct {
 		data, ok := value.(map[string]any)
 		if !ok {
@@ -278,7 +261,6 @@ func encodeFixedBytesValue(value any) ([]byte, error) {
 	return result, nil
 }
 
-// HashDomainSeparator computes the EIP-712 domain separator hash.
 func HashDomainSeparator(domain EIP712Domain) ([32]byte, error) {
 	domainFields := []apitypes.Type{
 		{Name: "name", Type: "string"},
@@ -313,8 +295,6 @@ func HashDomainSeparator(domain EIP712Domain) ([32]byte, error) {
 	return HashStruct("EIP712Domain", domainType, domainData)
 }
 
-// HashTypedData computes the final EIP-712 hash for signing:
-// "\x19\x01" ‖ domainSeparator ‖ structHash
 func HashTypedData(td TypedData) ([32]byte, error) {
 	if td.Message == nil {
 		return [32]byte{}, ErrNilMessage
@@ -330,7 +310,6 @@ func HashTypedData(td TypedData) ([32]byte, error) {
 		return [32]byte{}, fmt.Errorf("struct hash: %w", err)
 	}
 
-	// "\x19\x01" ‖ domainSeparator ‖ structHash
 	data := make([]byte, 2+32+32)
 	data[0] = 0x19
 	data[1] = 0x01
@@ -340,8 +319,6 @@ func HashTypedData(td TypedData) ([32]byte, error) {
 	return crypto.Keccak256Hash(data), nil
 }
 
-// VerifyTypedData verifies an EIP-712 typed data signature against an address.
-// The signature should be 65 bytes: [R || S || V] where V is 27 or 28.
 func VerifyTypedData(td TypedData, sig []byte, expectedAddr common.Address) (bool, error) {
 	if len(sig) != 65 {
 		return false, fmt.Errorf("%w: got %d bytes, want 65", ErrInvalidSignature, len(sig))
@@ -352,8 +329,6 @@ func VerifyTypedData(td TypedData, sig []byte, expectedAddr common.Address) (boo
 		return false, err
 	}
 
-	// Convert [R || S || V] to [R || S] for recovery
-	// V is 27 or 28 for EIP-155 compatible signatures
 	v := sig[64]
 	sigCopy := make([]byte, 65)
 	copy(sigCopy, sig)

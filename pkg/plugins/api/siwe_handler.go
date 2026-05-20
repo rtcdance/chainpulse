@@ -9,6 +9,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/siwe"
 )
 
 // SIWEHandler manages EIP-4361 Sign-In with Ethereum authentication.
@@ -83,7 +84,7 @@ func (h *SIWEHandler) HandleChallenge(w http.ResponseWriter, r *http.Request) {
 	}
 
 	address := common.HexToAddress(req.Address)
-	msg, err := core.GenerateChallenge(h.domain, h.uri, address, h.chainID)
+	msg, err := siwe.GenerateChallenge(h.domain, h.uri, address, h.chainID)
 	if err != nil {
 		h.logger.Error("failed to generate SIWE challenge", "error", err.Error())
 		WriteErrorEnvelope(w, ErrInternalServer("failed to generate challenge"))
@@ -112,7 +113,7 @@ func (h *SIWEHandler) HandleVerify(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	msg, err := core.ParseMessage(req.Message)
+	msg, err := siwe.ParseMessage(req.Message)
 	if err != nil {
 		WriteErrorEnvelope(w, ErrInvalidRequest("invalid SIWE message: "+err.Error()))
 		return
