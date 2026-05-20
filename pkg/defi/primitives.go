@@ -1,4 +1,4 @@
-package core
+package defi
 
 import (
 	"math/big"
@@ -158,7 +158,6 @@ func PriceToTick(price float64) int {
 	if price <= 0 {
 		return 0
 	}
-	// tick = log(price) / log(1.0001)
 	tick := 0
 	current := 1.0
 	if price >= 1.0 {

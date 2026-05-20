@@ -125,7 +125,7 @@ func TestPlayground_GenerateSwap(t *testing.T) {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 	eventName := body["event"].(string)
-	if eventName != "Swap (via core.ConstantProductAMM)" {
+	if eventName != "Swap (via defi.ConstantProductAMM)" {
 		t.Fatalf("expected Swap, got %s", eventName)
 	}
 }

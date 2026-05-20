@@ -9,7 +9,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"math/big"
 	"net/http"
 	_ "net/http/pprof"
@@ -21,8 +21,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/rtcdance/chainpulse/pkg/application/bootstrap"
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/defi"
 
 	"github.com/ethereum/go-ethereum/common"
 )
@@ -30,7 +30,6 @@ import (
 // --- mock puller ---
 
 type mockPuller struct {
-	mu       sync.Mutex
 	events   []core.BlockchainEvent
 	nextID   atomic.Uint64
 	blockNum atomic.Uint64
@@ -44,9 +43,6 @@ func newMockPuller() *mockPuller {
 
 // generate creates count mock ERC-20 Transfer events.
 func (p *mockPuller) generate(count int) []core.BlockchainEvent {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
 	block := p.blockNum.Add(uint64(count))
 	now := time.Now()
 	generated := make([]core.BlockchainEvent, 0, count)
@@ -88,18 +84,44 @@ func mockTransferData(amount uint64) []byte {
 	return b
 }
 
+// --- in-memory database (self-contained, no bootstrap dependency) ---
+
+type memoryDB struct {
+	mu     sync.RWMutex
+	events map[string]*core.BlockchainEvent
+}
+
+func newMemoryDB() *memoryDB {
+	return &memoryDB{events: make(map[string]*core.BlockchainEvent)}
+}
+
+func (db *memoryDB) StoreEvent(ctx context.Context, event *core.BlockchainEvent) error {
+	db.mu.Lock()
+	defer db.mu.Unlock()
+	db.events[event.ID] = event
+	return nil
+}
+
+func (db *memoryDB) GetAllEvents(ctx context.Context) ([]*core.BlockchainEvent, error) {
+	db.mu.RLock()
+	defer db.mu.RUnlock()
+	result := make([]*core.BlockchainEvent, 0, len(db.events))
+	for _, ev := range db.events {
+		result = append(result, ev)
+	}
+	return result, nil
+}
+
 // --- playground ---
 
 type playground struct {
-	db       *bootstrap.MonolithicMemoryDatabase
+	db       *memoryDB
 	puller   *mockPuller
 	eventBus *core.ChannelEventBus
 }
 
 func newPlayground(logger core.Logger) *playground {
-	db := bootstrap.NewMonolithicMemoryDatabase(logger)
-	_ = db.Initialize(core.Config{})
-	_ = db.Start()
+	db := newMemoryDB()
 
 	pg := &playground{
 		db:       db,
@@ -107,10 +129,13 @@ func newPlayground(logger core.Logger) *playground {
 		eventBus: core.NewChannelEventBus(),
 	}
 
-	// Demonstrate ChannelEventBus: subscribe to events and print them
 	pg.eventBus.SubscribeNamed(context.Background(), "events", "printer", func(event any) {
 		if ev, ok := event.(core.BlockchainEvent); ok {
-			log.Printf("[eventbus] received: %s (block=%d, network=%s)", ev.EventName, ev.BlockNumber, ev.Network)
+			slog.Info("eventbus received",
+				"event", ev.EventName,
+				"block", ev.BlockNumber,
+				"network", ev.Network,
+			)
 		}
 	})
 
@@ -191,14 +216,14 @@ func (p *playground) handleStats(w http.ResponseWriter, r *http.Request) {
 }
 
 // generateSwap creates a mock Uniswap Swap event demonstrating AMM math
-// from core.ConstantProductAMM (defi_primitives.go).
+// from defi.ConstantProductAMM (defi_primitives.go).
 func (p *mockPuller) generateSwap() core.BlockchainEvent {
 	id := p.nextID.Add(1)
 	bn := p.blockNum.Add(1)
 	now := time.Now()
 
 	// Simulate a USDC/WETH swap with 0.3% fee
-	amm := core.NewConstantProductAMM(
+	amm := defi.NewConstantProductAMM(
 		big.NewInt(5_000_000_000_000),         // 5000 USDC reserve (6 decimals)
 		big.NewInt(1_000_000_000_000_000_000), // 1 WETH reserve (18 decimals)
 		30,                                    // 0.3% fee
@@ -275,7 +300,7 @@ func (p *playground) handleGenerateSwap(w http.ResponseWriter, r *http.Request) 
 	writeJSON(w, map[string]any{
 		"generated": 1,
 		"event_id":  ev.ID,
-		"event":     "Swap (via core.ConstantProductAMM)",
+		"event":     "Swap (via defi.ConstantProductAMM)",
 	})
 }
 
@@ -447,57 +472,28 @@ func main() {
 	// Start pprof debug server for performance analysis
 	pprofSrv := &http.Server{Addr: "localhost:6060", Handler: nil}
 	go func() {
-		log.Printf("[pprof] debug server on %s/debug/pprof/", pprofSrv.Addr)
+		slog.Info("pprof debug server", "addr", pprofSrv.Addr+"/debug/pprof/")
 		if err := pprofSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Printf("[pprof] server error: %v", err)
-		}
-	}()
-
-	go func() {
-		printBanner(port)
-		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Printf("[server] error: %v", err)
+			slog.Warn("pprof server error", "error", err)
 		}
 	}()
 
 	// Block until signal received
 	<-notifyCtx.Done()
-	log.Println("[shutdown] signal received, draining connections...")
+	slog.Info("shutdown signal received, draining connections...")
 
 	// Shutdown with deadline
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	if err := server.Shutdown(shutdownCtx); err != nil {
-		log.Printf("[shutdown] API server forced close: %v", err)
+		slog.Warn("shutdown API server forced close", "error", err)
 	}
 	if err := pprofSrv.Shutdown(shutdownCtx); err != nil {
-		log.Printf("[shutdown] pprof server forced close: %v", err)
+		slog.Warn("shutdown pprof server forced close", "error", err)
 	}
 
-	log.Println("[shutdown] all connections drained — goodbye")
+	slog.Info("shutdown all connections drained — goodbye")
 }
 
-func printBanner(port string) {
-	fmt.Printf("\n")
-	fmt.Printf("╔══════════════════════════════════════════════════╗\n")
-	fmt.Printf("║     ChainPulse Playground                        ║\n")
-	fmt.Printf("║     Zero-dependency in-memory mode               ║\n")
-	fmt.Printf("╠══════════════════════════════════════════════════╣\n")
-	fmt.Printf("║  API: http://localhost:%s                       ║\n", port)
-	fmt.Printf("║  pprof: http://localhost:6060/debug/pprof/      ║\n")
-	fmt.Printf("║                                                  ║\n")
-	fmt.Printf("║  Try:                                            ║\n")
-	fmt.Printf("║   curl http://localhost:%s/stats     — stats     ║\n", port)
-	fmt.Printf("║   curl http://localhost:%s/generate  — gen events║\n", port)
-	fmt.Printf("║   curl http://localhost:%s/events    — list all  ║\n", port)
-	fmt.Printf("║   curl http://localhost:%s/subscribe — SSE stream║\n", port)
-	fmt.Printf("║   curl http://localhost:%s/publish   — pub event ║\n", port)
-	fmt.Printf("║   curl http://localhost:%s/tutorial — 10-step Go guide║\n", port)
-	fmt.Printf("║   curl http://localhost:%s/concepts — Go↔Web3 map   ║\n", port)
-	fmt.Printf("║   curl http://localhost:%s/pool     — sync.Pool demo║\n", port)
-	fmt.Printf("║   curl http://localhost:%s/replay-check — EIP-155 replay║\n", port)
-	fmt.Printf("║   open http://localhost:%s          — Web UI        ║\n", port)
-	fmt.Printf("╚══════════════════════════════════════════════════╝\n")
-	fmt.Printf("\n")
-}
+

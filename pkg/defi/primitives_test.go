@@ -1,4 +1,4 @@
-package core
+package defi
 
 import (
 	"math/big"

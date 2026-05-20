@@ -1,8 +1,9 @@
-package core
+package defi
 
 import (
-	"github.com/ethereum/go-ethereum/common"
 	"math/big"
+
+	"github.com/ethereum/go-ethereum/common"
 )
 
 // LiquidationEvent represents a decoded Aave V3 LiquidationCall event.
@@ -24,8 +25,6 @@ func IsLiquidationTopic0(topic0 string) bool {
 }
 
 // DEXSwapEvent represents a generic DEX swap event decoded across protocols.
-// Different DEX protocols emit different swap events, but they all share
-// the concept of tokens flowing in and out.
 type DEXSwapEvent struct {
 	Protocol  string         `json:"protocol"` // "uniswap_v2", "uniswap_v3", "curve", "balancer"
 	Sender    common.Address `json:"sender"`
@@ -57,8 +56,6 @@ type LendingBorrowEvent struct {
 }
 
 // ReserveUpdateEvent represents an Aave V3 ReserveDataUpdated event.
-// This is emitted every time a reserve's interest rates change and is
-// critical for calculating health factors and liquidation thresholds.
 type ReserveUpdateEvent struct {
 	Reserve             common.Address `json:"reserve"`
 	LiquidityRate       *big.Int       `json:"liquidity_rate"`
@@ -86,32 +83,25 @@ type GovernanceVoteEvent struct {
 
 // HealthFactor calculates the health factor for a lending position.
 // HF = (collateral * liquidationThreshold) / totalDebt
-// HF > 1: safe, HF = 1: liquidation threshold, HF < 1: eligible for liquidation
 func HealthFactor(collateralValue, liquidationThreshold, totalDebt *big.Int) *big.Int {
 	if totalDebt == nil || totalDebt.Sign() == 0 {
-		// No debt = infinite health factor
 		return nil
 	}
 	if collateralValue == nil || liquidationThreshold == nil {
 		return big.NewInt(0)
 	}
 
-	// HF = (collateral * threshold) / debt
-	// Using big.Int for precision: multiply first, then divide
 	numerator := new(big.Int).Mul(collateralValue, liquidationThreshold)
-	// Scale by 1e18 for precision (like Aave does)
 	numerator.Mul(numerator, big.NewInt(1e18))
 	healthFactor := new(big.Int).Div(numerator, totalDebt)
-
 	return healthFactor
 }
 
 // IsLiquidatable checks if a health factor indicates a liquidatable position.
 func IsLiquidatable(healthFactor *big.Int) bool {
 	if healthFactor == nil {
-		return false // No debt = not liquidatable
+		return false
 	}
-	// Health factor < 1e18 (1.0 in ray) means liquidatable
 	return healthFactor.Cmp(big.NewInt(1e18)) < 0
 }
 
@@ -133,8 +123,7 @@ func ProtocolName(protocol string) string {
 
 // --- ERC-4337 Account Abstraction Events ---
 
-// UserOperationEvent represents a parsed ERC-4337 UserOperationEvent
-// emitted by the EntryPoint contract after a UserOperation is processed.
+// UserOperationEvent represents a parsed ERC-4337 UserOperationEvent.
 type UserOperationEvent struct {
 	Sender        common.Address `json:"sender"`
 	UserOpHash    common.Hash    `json:"user_op_hash"`
@@ -150,7 +139,6 @@ func (e *UserOperationEvent) IsSuccessful() bool {
 }
 
 // GasEfficiency computes the gas efficiency ratio (used/limit).
-// Returns 0 if actualGasUsed is 0.
 func (e *UserOperationEvent) GasEfficiency(gasLimit uint64) float64 {
 	if gasLimit == 0 || e.ActualGasUsed == 0 {
 		return 0
@@ -158,8 +146,7 @@ func (e *UserOperationEvent) GasEfficiency(gasLimit uint64) float64 {
 	return float64(e.ActualGasUsed) / float64(gasLimit)
 }
 
-// AccountDeployedEvent represents a parsed ERC-4337 AccountDeployed event
-// emitted when a smart account is first deployed via initCode.
+// AccountDeployedEvent represents a parsed ERC-4337 AccountDeployed event.
 type AccountDeployedEvent struct {
 	Sender     common.Address `json:"sender"`
 	UserOpHash common.Hash    `json:"user_op_hash"`
@@ -167,18 +154,17 @@ type AccountDeployedEvent struct {
 
 // --- Cross-Chain Bridge Events ---
 
-// BridgeTransferEvent represents a cross-chain bridge transfer, correlating
-// events from protocols like LayerZero, Wormhole, Optimism, and Arbitrum.
+// BridgeTransferEvent represents a cross-chain bridge transfer.
 type BridgeTransferEvent struct {
-	Protocol    string         `json:"protocol"`     // "layerzero", "wormhole", "optimism", "arbitrum"
-	SourceChain uint64         `json:"source_chain"` // EVM chain ID or LayerZero chain ID
+	Protocol    string         `json:"protocol"`
+	SourceChain uint64         `json:"source_chain"`
 	DestChain   uint64         `json:"dest_chain"`
 	Sender      common.Address `json:"sender"`
 	Receiver    common.Address `json:"receiver"`
 	Token       common.Address `json:"token,omitempty"`
 	Amount      *big.Int       `json:"amount,omitempty"`
 	MessageID   common.Hash    `json:"message_id"`
-	Status      string         `json:"status"` // "sent", "delivered", "relayed"
+	Status      string         `json:"status"`
 }
 
 // IsCrossChain checks if the transfer spans different chains.
@@ -198,11 +184,7 @@ var LayerZeroChainIDToEVM = map[uint64]uint64{
 
 // --- L2 Bridge Events (Optimism, Arbitrum) ---
 
-// OptimismSentMessageEvent represents an Optimism L2→L1 message sent via
-// the L2CrossDomainMessenger. This is emitted when a message is sent from L2
-// to L1 and must be relayed on L1 after the challenge window.
-//
-// Reference: https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L2/L2CrossDomainMessenger.sol
+// OptimismSentMessageEvent represents an Optimism L2→L1 message sent.
 type OptimismSentMessageEvent struct {
 	Target       common.Address `json:"target"`
 	Sender       common.Address `json:"sender"`
@@ -211,8 +193,7 @@ type OptimismSentMessageEvent struct {
 	GasLimit     *big.Int       `json:"gas_limit"`
 }
 
-// OptimismRelayedMessageEvent represents a message successfully relayed on L1
-// by the Optimism L1CrossDomainMessenger.
+// OptimismRelayedMessageEvent represents a message successfully relayed on L1.
 type OptimismRelayedMessageEvent struct {
 	MessageHash common.Hash `json:"msg_hash"`
 }
@@ -223,9 +204,6 @@ type OptimismFailedRelayedMessageEvent struct {
 }
 
 // ArbitrumL2ToL1TransactionEvent represents an Arbitrum L2→L1 transaction.
-// Emitted by the Arbitrum Outbox contract when a withdrawal is initiated on L2.
-//
-// Reference: https://github.com/OffchainLabs/arbitrum/blob/master/src/bridge/ArbSys.sol
 type ArbitrumL2ToL1TransactionEvent struct {
 	Caller      common.Address `json:"caller"`
 	Destination common.Address `json:"destination"`
@@ -236,7 +214,6 @@ type ArbitrumL2ToL1TransactionEvent struct {
 }
 
 // ArbitrumRetryableTicketEvent represents an Arbitrum retryable ticket creation.
-// Retryable tickets are the L1→L2 deposit mechanism for Arbitrum.
 type ArbitrumRetryableTicketEvent struct {
 	TicketID    common.Hash    `json:"ticket_id"`
 	Sender      common.Address `json:"sender"`
@@ -245,7 +222,6 @@ type ArbitrumRetryableTicketEvent struct {
 }
 
 // L1TransactionDepositedEvent represents an L1→L2 deposit on Optimism.
-// Emitted by the OptimismPortal contract when ETH or data is deposited to L2.
 type L1TransactionDepositedEvent struct {
 	From    common.Address `json:"from"`
 	To      common.Address `json:"to"`
@@ -272,9 +248,9 @@ type NFTTransferEvent struct {
 	Operator common.Address `json:"operator"`
 	From     common.Address `json:"from"`
 	To       common.Address `json:"to"`
-	TokenID  *big.Int       `json:"token_id,omitempty"`  // ERC-721 single
-	TokenIDs []*big.Int     `json:"token_ids,omitempty"` // ERC-1155 batch
-	Amounts  []*big.Int     `json:"amounts,omitempty"`   // ERC-1155 batch amounts
+	TokenID  *big.Int       `json:"token_id,omitempty"`
+	TokenIDs []*big.Int     `json:"token_ids,omitempty"`
+	Amounts  []*big.Int     `json:"amounts,omitempty"`
 	Contract common.Address `json:"contract"`
 }
 

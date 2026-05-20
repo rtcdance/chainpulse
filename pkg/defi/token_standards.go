@@ -1,4 +1,4 @@
-package core
+package defi
 
 import (
 	"fmt"
@@ -10,8 +10,6 @@ import (
 // ─── ERC-4626 Tokenized Vault Standard ───────────────────────────────────────
 
 // VaultShareMath implements the deposit/withdrawal math for ERC-4626 vaults.
-// The core invariant: shares = assets * totalSupply / totalAssets
-// (or the inverse for previewDeposit/previewRedeem).
 type VaultShareMath struct {
 	TotalAssets *big.Int `json:"total_assets"` // total managed assets
 	TotalSupply *big.Int `json:"total_supply"` // total vault shares
@@ -28,10 +26,8 @@ func NewVaultShareMath(totalAssets, totalSupply *big.Int, decimals uint8) *Vault
 }
 
 // PreviewDeposit returns the shares that would be minted for a given deposit.
-// Formula: shares = depositAssets * totalSupply / totalAssets
 func (v *VaultShareMath) PreviewDeposit(assets *big.Int) *big.Int {
 	if v.TotalAssets.Sign() == 0 || v.TotalSupply.Sign() == 0 {
-		// First deposit: 1:1 ratio
 		return new(big.Int).Set(assets)
 	}
 	return new(big.Int).Div(
@@ -41,7 +37,6 @@ func (v *VaultShareMath) PreviewDeposit(assets *big.Int) *big.Int {
 }
 
 // PreviewMint returns the assets needed to mint a given number of shares.
-// Formula: assets = shares * totalAssets / totalSupply
 func (v *VaultShareMath) PreviewMint(shares *big.Int) *big.Int {
 	if v.TotalSupply.Sign() == 0 {
 		return new(big.Int).Set(shares)
@@ -53,15 +48,12 @@ func (v *VaultShareMath) PreviewMint(shares *big.Int) *big.Int {
 }
 
 // PreviewWithdraw returns the shares that would be burned for a given withdrawal.
-// Formula: shares = withdrawalAssets * totalSupply / totalAssets (rounding up)
 func (v *VaultShareMath) PreviewWithdraw(assets *big.Int) *big.Int {
 	if v.TotalAssets.Sign() == 0 || v.TotalSupply.Sign() == 0 {
 		return new(big.Int).Set(assets)
 	}
-	// Round up to ensure vault is not drained
 	numerator := new(big.Int).Mul(assets, v.TotalSupply)
 	result := new(big.Int).Div(numerator, v.TotalAssets)
-	// If there's a remainder, add 1 (round up)
 	if new(big.Int).Rem(numerator, v.TotalAssets).Sign() > 0 {
 		result.Add(result, big.NewInt(1))
 	}
@@ -69,7 +61,6 @@ func (v *VaultShareMath) PreviewWithdraw(assets *big.Int) *big.Int {
 }
 
 // PreviewRedeem returns the assets that would be returned for burning shares.
-// Formula: assets = shares * totalAssets / totalSupply (rounding down)
 func (v *VaultShareMath) PreviewRedeem(shares *big.Int) *big.Int {
 	if v.TotalSupply.Sign() == 0 {
 		return new(big.Int).Set(shares)
@@ -82,10 +73,10 @@ func (v *VaultShareMath) PreviewRedeem(shares *big.Int) *big.Int {
 
 // VaultFeeConfig represents fee configuration for an ERC-4626 vault.
 type VaultFeeConfig struct {
-	ManagementFeeBP  uint64         `json:"management_fee_bp"`  // annual management fee in basis points
-	PerformanceFeeBP uint64         `json:"performance_fee_bp"` // performance fee in basis points
-	EntryFeeBP       uint64         `json:"entry_fee_bp"`       // deposit fee in basis points
-	ExitFeeBP        uint64         `json:"exit_fee_bp"`        // withdrawal fee in basis points
+	ManagementFeeBP  uint64         `json:"management_fee_bp"`
+	PerformanceFeeBP uint64         `json:"performance_fee_bp"`
+	EntryFeeBP       uint64         `json:"entry_fee_bp"`
+	ExitFeeBP        uint64         `json:"exit_fee_bp"`
 	FeeRecipient     common.Address `json:"fee_recipient"`
 }
 
@@ -115,7 +106,7 @@ func (f *VaultFeeConfig) CalculateExitFee(withdrawalAmount *big.Int) *big.Int {
 
 // RoyaltyInfo implements ERC-2981 royalty calculation.
 type RoyaltyInfo struct {
-	RoyaltyFraction  *big.Int       `json:"royalty_fraction"` // royalty in basis points (e.g., 250 = 2.5%)
+	RoyaltyFraction  *big.Int       `json:"royalty_fraction"`
 	RoyaltyRecipient common.Address `json:"royalty_recipient"`
 }
 
@@ -128,7 +119,6 @@ func NewRoyaltyInfo(recipient common.Address, basisPoints uint16) *RoyaltyInfo {
 }
 
 // CalculateRoyalty returns the royalty amount for a given sale price.
-// ERC-2981: royalty = salePrice * royaltyFraction / 10000
 func (r *RoyaltyInfo) CalculateRoyalty(salePrice *big.Int) *big.Int {
 	if salePrice.Sign() <= 0 || r.RoyaltyFraction.Sign() <= 0 {
 		return big.NewInt(0)
@@ -139,10 +129,10 @@ func (r *RoyaltyInfo) CalculateRoyalty(salePrice *big.Int) *big.Int {
 	)
 }
 
-// RoyaltyRecipientForToken returns the royalty recipient (per-token override support).
+// RoyaltyManager handles per-token royalty overrides.
 type RoyaltyManager struct {
 	defaultRoyalty *RoyaltyInfo
-	tokenRoyalties map[uint64]*RoyaltyInfo // tokenId → override
+	tokenRoyalties map[uint64]*RoyaltyInfo
 }
 
 // NewRoyaltyManager creates a new royalty manager.
@@ -210,7 +200,6 @@ func (bt *BatchTransfer) TotalValue() *big.Int {
 }
 
 // ERC721BatchMint represents a batch of ERC-721 mints.
-// Each recipient gets exactly one NFT with a unique token ID.
 type ERC721BatchMint struct {
 	Recipients []common.Address `json:"recipients"`
 	TokenIDs   []*big.Int       `json:"token_ids"`
