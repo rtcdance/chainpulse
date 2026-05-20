@@ -213,6 +213,7 @@ func buildGatewayUpstreamHTTPClient(config GatewayConfig) *http.Client {
 	}
 
 	return &http.Client{
+		Timeout: 30 * time.Second,
 		Transport: gatewayUpstreamAuthTransport{
 			apiKey: config.UpstreamAuthAPIKey.Value(),
 			base:   http.DefaultTransport,
@@ -268,6 +269,14 @@ func validateGatewayProductionSecurity(config GatewayConfig, runtimeProfile stri
 	}
 
 	return nil
+}
+
+func toSecretStrings(strs []string) []core.SecretString {
+	result := make([]core.SecretString, len(strs))
+	for i, s := range strs {
+		result[i] = core.SecretString(s)
+	}
+	return result
 }
 
 //nolint:wsl,nlreturn // Gateway TLS initialization stays centralized here.

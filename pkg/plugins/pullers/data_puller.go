@@ -72,6 +72,10 @@ func NewBaseDataPullerPlugin(
 	metricsCollector core.MetricsCollector,
 	eventBus core.EventBus,
 ) *BaseDataPullerPlugin {
+	shutdownTimeout := 10 * time.Second
+	if config.ShutdownTimeout > 0 {
+		shutdownTimeout = time.Duration(config.ShutdownTimeout) * time.Millisecond
+	}
 	return &BaseDataPullerPlugin{
 		name:              name,
 		version:           version,
@@ -84,6 +88,7 @@ func NewBaseDataPullerPlugin(
 		maxRetries:        config.MaxRetries,
 		retryBackoff:      time.Duration(config.RetryBackoff) * time.Millisecond,
 		connectionTimeout: defaultPullerConnectionTimeout,
+		shutdownTimeout:   shutdownTimeout,
 		circuitBreaker:    NewCircuitBreaker(DefaultCircuitBreakerConfig),
 	}
 }
@@ -155,6 +160,7 @@ func (p *BaseDataPullerPlugin) Stop(ctx context.Context) error {
 	// Wait for in-flight operations with context
 	done := make(chan struct{})
 	go func() {
+		defer handlePullerPanic(p.logger, "data_puller.Stop.inFlight")
 		p.inFlight.Wait()
 		close(done)
 	}()
@@ -297,6 +303,19 @@ func (p *BaseDataPullerPlugin) GetLastBlockNumber() uint64 {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 	return p.lastBlockNumber
+}
+
+// handlePullerPanic recovers from panics in puller goroutines to prevent
+// process-wide crashes. All puller goroutines should defer this.
+func handlePullerPanic(logger core.Logger, source string) {
+	if r := recover(); r != nil {
+		if logger != nil {
+			logger.Error("puller goroutine panicked",
+				"source", source,
+				"panic", fmt.Sprintf("%v", r),
+			)
+		}
+	}
 }
 
 // SetLastBlockNumber sets the last processed block number and persists it if checkpointStore is configured.

@@ -139,23 +139,25 @@ func main() {
 
 	// Initialize Kafka Message Queue Plugin
 	fmt.Println("Initializing Message Queue:")
+	kafkaCfg := core.Config{
+		APIType:  "kafka",
+		LogLevel: config.LogLevel,
+	}
 	kafkaMQ := mq.NewKafkaMQPlugin(
 		"kafka-mq",
 		"1.0.0",
-		&core.Config{
-			APIType:  "kafka",
-			LogLevel: config.LogLevel,
-		},
+		&kafkaCfg,
 		logger,
 		metrics,
 		nil, // eventBus - can be nil for now
 		config.KafkaBrokers,
 		config.ConsumerGroup,
 	)
-	if err := kafkaMQ.Initialize(); err != nil {
+	if err := kafkaMQ.Initialize(context.Background(), kafkaCfg); err != nil {
 		logger.Error("Failed to initialize Kafka MQ", "error", err.Error())
 		os.Exit(1)
 	}
+	kafkaHealth := &kafkaHealthAdapter{plugin: kafkaMQ}
 	fmt.Println("  ✓ Kafka Message Queue initialized")
 
 	processorRuntime, err := newEventProcessorProcessingRuntimeWithStorage(
@@ -250,7 +252,7 @@ func main() {
 		dbManager,
 		eventStore,
 		metadataStore,
-		kafkaMQ,
+		kafkaHealth,
 		processorRuntime.Processor(),
 		consumeRuntime,
 	)
@@ -267,9 +269,9 @@ func main() {
 				r.Context(),
 				dbManager,
 				eventStore,
-				metadataStore,
-				kafkaMQ,
-				processorRuntime.Processor(),
+		metadataStore,
+		kafkaHealth,
+		processorRuntime.Processor(),
 				consumeRuntime,
 			)
 			return buildEventProcessorRuntimeSummary(state, metrics, time.Now(), config.AuthEnabled, config.RateLimitEnabled)
@@ -288,13 +290,13 @@ func main() {
 	var wg sync.WaitGroup
 
 	// Start Kafka Message Queue
-	if err := kafkaMQ.Start(); err != nil {
+	if err := kafkaMQ.Start(context.Background()); err != nil {
 		logger.Error("Kafka MQ error", "error", err.Error())
 		os.Exit(1)
 	}
 	fmt.Println("  [1/3] Kafka Message Queue started")
 
-	consumeCtx, consumeCancel := context.WithCancel(context.Background())
+	consumeCtx, consumeCancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	consumeRuntime.Start(consumeCtx, &wg)
 	fmt.Println("  [2/3] Consume/process seam started")
 
@@ -370,7 +372,7 @@ func main() {
 	}
 	fmt.Println("  [1/5] Runtime HTTP health surface stopped")
 
-	if err := kafkaMQ.Stop(); err != nil {
+	if err := kafkaMQ.Stop(shutdownCtx); err != nil {
 		logger.Error("Error stopping Kafka MQ", "error", err.Error())
 	}
 	fmt.Println("  [2/5] Kafka Message Queue stopped")
@@ -578,6 +580,18 @@ func (a *reorgEventProcessorDatabaseAdapter) GetAllBlocks(_ context.Context) ([]
 // ReorgStatsProvider
 func (a *reorgEventProcessorDatabaseAdapter) GetReorgStats(_ context.Context) (*core.ReorgStats, error) {
 	return &core.ReorgStats{}, nil
+}
+
+// kafkaHealthAdapter wraps *mq.KafkaMQPlugin to implement eventProcessorKafkaHealthProvider.
+type kafkaHealthAdapter struct {
+	plugin *mq.KafkaMQPlugin
+}
+
+func (a *kafkaHealthAdapter) Health() *core.HealthStatus {
+	if err := a.plugin.Health(context.Background()); err != nil {
+		return &core.HealthStatus{Status: "unhealthy", Message: err.Error()}
+	}
+	return &core.HealthStatus{Status: "healthy"}
 }
 
 func getDB(dbManager database.DatabaseManager) *sql.DB {

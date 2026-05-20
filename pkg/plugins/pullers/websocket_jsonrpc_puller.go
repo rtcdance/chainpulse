@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math/rand/v2"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -30,7 +31,7 @@ type WebSocketJSONRPCPuller struct {
 	requestCounter    int64
 	reconnectDelay    time.Duration // initial reconnect delay
 	maxReconnects     int
-	reconnectCount    int
+	reconnectCount    atomic.Int32  // race-safe reconnect counter
 	readTimeout       time.Duration
 	writeTimeout      time.Duration
 	pingInterval      time.Duration // how often to send ping frames (default 30s)
@@ -87,7 +88,6 @@ func NewWebSocketJSONRPCPuller(
 		maxTimestampCache:    1000,
 		reconnectDelay:       5 * time.Second,
 		maxReconnects:        10,
-		reconnectCount:       0,
 		readTimeout:          30 * time.Second,
 		writeTimeout:         10 * time.Second,
 		pingInterval:         30 * time.Second,
@@ -97,8 +97,8 @@ func NewWebSocketJSONRPCPuller(
 }
 
 // Start starts the WebSocket-JSONRPC puller
-func (p *WebSocketJSONRPCPuller) Start() error {
-	if err := p.BaseDataPullerPlugin.Start(); err != nil {
+func (p *WebSocketJSONRPCPuller) Start(ctx context.Context) error {
+	if err := p.BaseDataPullerPlugin.Start(ctx); err != nil {
 		return fmt.Errorf("failed to start base puller: %w", err)
 	}
 
@@ -112,6 +112,18 @@ func (p *WebSocketJSONRPCPuller) Start() error {
 		p.LogError("failed to connect to WebSocket", "error", err.Error())
 		return fmt.Errorf("failed to connect to WebSocket: %w", err)
 	}
+
+	// Register connection health probe for Health() to verify WebSocket is alive
+	p.SetRPCHealthCheck(func(ctx context.Context) error {
+		p.mu.RLock()
+		conn := p.conn
+		p.mu.RUnlock()
+		if conn == nil {
+			return fmt.Errorf("WebSocket not connected")
+		}
+		// gorilla/websocket's WriteMessage with a ping frame verifies reachability
+		return conn.WriteMessage(websocket.PingMessage, nil)
+	})
 
 	// Subscribe to newHeads for reorg detection
 	if err := p.subscribeNewHeads(); err != nil {
@@ -141,8 +153,8 @@ func (p *WebSocketJSONRPCPuller) Start() error {
 }
 
 // Stop stops the WebSocket-JSONRPC puller
-func (p *WebSocketJSONRPCPuller) Stop() error {
-	if err := p.BaseDataPullerPlugin.Stop(); err != nil {
+func (p *WebSocketJSONRPCPuller) Stop(ctx context.Context) error {
+	if err := p.BaseDataPullerPlugin.Stop(ctx); err != nil {
 		return fmt.Errorf("failed to stop base puller: %w", err)
 	}
 
@@ -294,9 +306,9 @@ func (p *WebSocketJSONRPCPuller) Listen(ctx context.Context) error {
 				p.LogError("failed to read WebSocket message", "error", err.Error())
 
 				// Try to reconnect with exponential backoff
-				if p.reconnectCount < p.maxReconnects {
+				if int(p.reconnectCount.Load()) < p.maxReconnects {
 					backoff := p.computeBackoff()
-					p.LogInfo("attempting to reconnect", "attempt", p.reconnectCount+1, "backoff_ms", backoff.Milliseconds())
+					p.LogInfo("attempting to reconnect", "attempt", p.reconnectCount.Load()+1, "backoff_ms", backoff.Milliseconds())
 
 					select {
 					case <-time.After(backoff):
@@ -311,7 +323,7 @@ func (p *WebSocketJSONRPCPuller) Listen(ctx context.Context) error {
 						p.LogError("failed to reconnect", "error", err.Error())
 						continue
 					}
-					p.reconnectCount = 0
+					p.reconnectCount.Store(0)
 				} else {
 					return fmt.Errorf("max reconnect attempts exceeded")
 				}
@@ -442,7 +454,7 @@ func (p *WebSocketJSONRPCPuller) GetStats() map[string]any {
 	stats["request_count"] = p.requestCounter
 	stats["is_connected"] = p.conn != nil
 	stats["subscriptions"] = len(p.subscriptions)
-	stats["reconnect_count"] = p.reconnectCount
+	stats["reconnect_count"] = p.reconnectCount.Load()
 	return stats
 }
 
@@ -467,7 +479,7 @@ func (p *WebSocketJSONRPCPuller) computeBackoff() time.Duration {
 	p.mu.RLock()
 	initialDelay := p.reconnectDelay
 	maxBackoff := p.maxBackoff
-	attempt := p.reconnectCount
+	attempt := int(p.reconnectCount.Load())
 	p.mu.RUnlock()
 
 	// Exponential: initialDelay * 2^attempt, capped at maxBackoff
@@ -510,7 +522,7 @@ func (p *WebSocketJSONRPCPuller) connect() error {
 	defer func() { _ = resp.Body.Close() }()
 
 	p.conn = conn
-	p.reconnectCount = 0
+	p.reconnectCount.Store(0)
 
 	// Set pong handler: reset read deadline on pong to keep connection alive
 	conn.SetPongHandler(func(appData string) error {
@@ -521,7 +533,10 @@ func (p *WebSocketJSONRPCPuller) connect() error {
 	})
 
 	// Start ping goroutine for keep-alive
-	go p.pingLoop()
+	go func() {
+		defer handlePullerPanic(p.logger, "websocket_jsonrpc_puller.pingLoop")
+		p.pingLoop()
+	}()
 
 	p.LogInfo("WebSocket connected", "node_url", p.nodeURL)
 
@@ -579,7 +594,7 @@ func (p *WebSocketJSONRPCPuller) disconnect() {
 // reconnect reconnects to the WebSocket and re-subscribes to all saved filters
 func (p *WebSocketJSONRPCPuller) reconnect() error {
 	p.disconnect()
-	p.reconnectCount++
+	p.reconnectCount.Add(1)
 	if err := p.connect(); err != nil {
 		return err
 	}
