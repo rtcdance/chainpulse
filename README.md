@@ -20,7 +20,20 @@ Current operational posture: `staging-ready / rehearsal-ready`, not yet fully `p
 
 ## 🚀 Quick Start
 
-### 3-Step Launch (Docker)
+### 🎮 Playground (Zero Setup, 10 Seconds)
+
+No Docker, no database, no config needed:
+
+```bash
+go run cmd/playground/main.go
+# → http://localhost:PORT/events — see mock blockchain events instantly
+# → http://localhost:PORT/generate — create new events
+```
+
+The playground runs entirely in-memory with mock data. Perfect for learning
+the Web3 → Go event flow without any infrastructure.
+
+### 3-Step Docker Launch
 
 ```bash
 # 1. Configure environment
@@ -37,130 +50,30 @@ curl http://localhost:8080/health
 ### Prerequisites
 
 - Go 1.24+
-- Docker & Docker Compose
-- (Optional) PostgreSQL, Redis, Kafka for full stack
+- Docker & Docker Compose (for full stack)
+- PostgreSQL, Redis, Kafka (optional — playground mode needs none)
 
-### Local Development (without Docker)
+### Local Development
 
 ```bash
-# Start infrastructure only (PostgreSQL, Redis, Kafka)
+# Start infrastructure only
 docker compose -f docker/docker-compose.dev.yml up -d
 
-# Run the monolithic app
+# Run monolithic mode
 go run cmd/monolithic/chainpulse/main.go
 ```
 
-### Advanced Scripts
+### Most Used Commands
 
 ```bash
-# Start the current minimal runnable app
-bash scripts/run-local-runnable-app.sh
-
-# Verify it
-bash scripts/verify-local-runnable-app.sh --profile minimal
+make test              # Run unit + integration tests
+make lint              # Code quality check
+make build             # Build all binaries
+go run cmd/playground/ # In-memory playground (fastest feedback)
 ```
 
-For the broader current four-service slice:
-
-```bash
-bash scripts/run-local-runnable-app.sh --profile full
-bash scripts/verify-local-runnable-app.sh --profile full
-```
-
-For independent microservice entrypoint verification:
-
-```bash
-bash scripts/verify-microservice-entrypoints.sh --service all
-```
-
-For a focused four-service deployment smoke:
-
-```bash
-bash scripts/verify-microservice-deployment-smoke.sh
-```
-
-For a focused four-service observability baseline:
-
-```bash
-bash scripts/verify-microservice-observability-baseline.sh
-```
-
-For a live Prometheus scrape/query smoke:
-
-```bash
-bash scripts/verify-prometheus-live-smoke.sh --prom-url http://localhost:9090
-```
-
-For a focused four-service alert-readiness baseline:
-
-```bash
-bash scripts/verify-microservice-alert-readiness.sh
-```
-
-For the current minimum production-readiness rehearsal:
-
-```bash
-bash scripts/run-production-readiness-rehearsal.sh
-```
-
-This rehearsal now includes the repository-local chaos baseline in addition to
-deployment, observability, and alert-readiness checks.
-
-For the current repository-local chaos baseline:
-
-```bash
-bash scripts/chaos-test.sh
-```
-
-For a lightweight docker-compose stack verification:
-
-```bash
-bash scripts/verify-docker-compose-stack.sh
-```
-
-For a real compose-based microservice readiness smoke:
-
-```bash
-bash scripts/verify-docker-compose-microservices-readiness.sh
-```
-
-This readiness smoke also includes the live Prometheus targets/query check.
-
-For one-click Docker startup and acceptance:
-
-```bash
-bash scripts/run-docker-acceptance.sh all
-```
-
-For a single deploy -> real Event -> API/H5 acceptance chain:
-
-```bash
-make deploy-event-acceptance
-
-# Kubernetes variant
-PROVIDER=k8s make deploy-event-acceptance
-
-# Skip Playwright H5 acceptance when only API/runtime gates are needed
-RUN_H5_ACCEPTANCE=0 make deploy-event-acceptance
-```
-
-Useful day-to-day subcommands:
-
-```bash
-bash scripts/run-docker-acceptance.sh up
-bash scripts/run-docker-acceptance.sh accept
-bash scripts/run-docker-acceptance.sh ps
-bash scripts/run-docker-acceptance.sh down
-```
-
-If Docker runtime is unavailable on the current machine:
-
-```bash
-cat docs/DOCKER_RUNTIME_RECOVERY.md
-```
-
-For the full repository-root runbook, see
-[`RUNNABLE_APP.md`](/Users/mingo/Applications/workspace/web3/project/chainpulse/docs/project/RUNNABLE_APP.md).
+> See [scripts/README.md](scripts/README.md) for the full list of 50+
+> automation and verification scripts.
 
 ## 📚 Documentation
 
@@ -380,7 +293,7 @@ See [API Documentation](docs/guides/API_DOCUMENTATION.md) for complete API refer
 ### REST API
 
 ```bash
-curl http://localhost:8080/api/v1/events?contract=0x...&limit=10
+curl http://localhost:8080/events?contract=0x...&limit=10
 curl http://localhost:8080/health
 ```
 
@@ -409,12 +322,6 @@ curl -X POST http://localhost:8080/runtime/indexing/dlq/replay \
 
 The DLQ replay route currently applies to the running monolithic process where
 the shared-runtime DLQ journal is held in memory.
-
-### gRPC API
-
-```bash
-grpcurl -plaintext localhost:50051 list
-```
 
 ### WebSocket API
 
