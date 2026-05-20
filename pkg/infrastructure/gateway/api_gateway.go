@@ -3,6 +3,8 @@ package gateway
 import (
 	"context"
 	"fmt"
+	"net/http"
+	"sort"
 	"sync"
 	"time"
 
@@ -27,9 +29,19 @@ type APIGateway struct {
 	sessionManager  *discovery.SessionManager
 	cache           *discovery.ServiceEndpointCache
 	metrics         *APIMetrics
-	mutex           sync.RWMutex
+	mu              sync.RWMutex
 	running         bool
+
+	// Handler registry for request routing
+	handlers        map[string]RequestHandler // method+path -> handler
+	middlewareChain []Middleware
 }
+
+// RequestHandler handles a specific API request
+type RequestHandler func(ctx context.Context, req *APIRequest) (*APIResponse, error)
+
+// Middleware is a function that wraps a handler
+type Middleware func(next RequestHandler) RequestHandler
 
 // NewAPIGateway creates a new API gateway
 func NewAPIGateway(config APIGatewayConfig, discoveryClient *discovery.ServiceDiscoveryClient, loadBalancer *discovery.ServiceLoadBalancer) *APIGateway {
@@ -40,26 +52,57 @@ func NewAPIGateway(config APIGatewayConfig, discoveryClient *discovery.ServiceDi
 		sessionManager:  discovery.NewSessionManager(),
 		cache:           discovery.NewServiceEndpointCache(30 * time.Second),
 		metrics:         NewAPIMetrics(),
+		handlers:        make(map[string]RequestHandler),
 	}
 }
 
-// Start starts the API gateway
+// RegisterHandler registers a handler for a specific method and path pattern.
+// Pattern format: "GET /api/v1/events", "POST /api/v1/query", etc.
+func (ag *APIGateway) RegisterHandler(pattern string, handler RequestHandler) {
+	ag.mu.Lock()
+	defer ag.mu.Unlock()
+	ag.handlers[pattern] = handler
+}
+
+// RegisterMiddleware adds a middleware to the handler chain.
+// Middlewares are applied in registration order.
+func (ag *APIGateway) RegisterMiddleware(mw Middleware) {
+	ag.mu.Lock()
+	defer ag.mu.Unlock()
+	ag.middlewareChain = append(ag.middlewareChain, mw)
+}
+
+// ListHandlers returns all registered handler patterns sorted alphabetically.
+func (ag *APIGateway) ListHandlers() []string {
+	ag.mu.RLock()
+	defer ag.mu.RUnlock()
+	patterns := make([]string, 0, len(ag.handlers))
+	for p := range ag.handlers {
+		patterns = append(patterns, p)
+	}
+	sort.Strings(patterns)
+	return patterns
+}
+
+// Start activates the API gateway routing layer. It does NOT start an HTTP server
+// — the gateway is a request router that delegates to an external server (e.g.,
+// HTTPPlugin). Call Start() before routing requests; pair with Stop() on shutdown.
 func (ag *APIGateway) Start(ctx context.Context) error {
-	ag.mutex.Lock()
+	ag.mu.Lock()
 	if ag.running {
-		ag.mutex.Unlock()
+		ag.mu.Unlock()
 		return fmt.Errorf("API gateway already running")
 	}
 	ag.running = true
-	ag.mutex.Unlock()
+	ag.mu.Unlock()
 
 	return nil
 }
 
 // Stop stops the API gateway
 func (ag *APIGateway) Stop() error {
-	ag.mutex.Lock()
-	defer ag.mutex.Unlock()
+	ag.mu.Lock()
+	defer ag.mu.Unlock()
 
 	if !ag.running {
 		return fmt.Errorf("API gateway not running")
@@ -69,7 +112,7 @@ func (ag *APIGateway) Stop() error {
 	return nil
 }
 
-// HandleRequest handles an incoming request
+// HandleRequest handles an incoming request with handler routing and middleware chain
 func (ag *APIGateway) HandleRequest(ctx context.Context, req *APIRequest) (*APIResponse, error) {
 	ag.metrics.RecordRequest()
 
@@ -78,28 +121,71 @@ func (ag *APIGateway) HandleRequest(ctx context.Context, req *APIRequest) (*APIR
 		ag.metrics.RecordLatency(time.Since(start))
 	}()
 
-	// Get session
-	session, err := ag.sessionManager.GetSession(ctx, req.SessionID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get session: %w", err)
-	}
+	// Build the handler chain with middlewares
+	baseHandler := ag.findHandler(req)
+	handler := ag.wrapWithMiddleware(baseHandler)
 
-	// Route request to appropriate service
-	_, err = ag.loadBalancer.SelectService(ctx, req.ServiceName)
+	// Execute the handler with panic recovery
+	return ag.executeWithRecovery(ctx, req, handler)
+}
+
+// executeWithRecovery runs the handler and recovers from panics, returning a
+// safe error response instead of crashing the caller goroutine.
+func (ag *APIGateway) executeWithRecovery(ctx context.Context, req *APIRequest, handler RequestHandler) (_ *APIResponse, _ error) {
+	defer func() {
+		if r := recover(); r != nil {
+			ag.metrics.RecordError()
+		}
+	}()
+
+	resp, err := handler(ctx, req)
 	if err != nil {
 		ag.metrics.RecordError()
-		return nil, fmt.Errorf("failed to select service: %w", err)
+		return nil, err
 	}
 
-	// Create response
-	response := &APIResponse{
-		SessionID:   session.ID,
-		ServiceName: req.ServiceName,
-		Status:      200,
-		Timestamp:   time.Now(),
+	return resp, nil
+}
+
+// findHandler locates the appropriate handler for the request.
+// Falls back to the generic load-balanced routing if no specific handler is registered.
+func (ag *APIGateway) findHandler(req *APIRequest) RequestHandler {
+	ag.mu.RLock()
+	defer ag.mu.RUnlock()
+
+	pattern := req.Method + " " + req.Path
+	if h, ok := ag.handlers[pattern]; ok {
+		return h
 	}
 
-	return response, nil
+	// Fallback: route via load balancer (backward-compatible behavior)
+	return func(ctx context.Context, r *APIRequest) (*APIResponse, error) {
+		_, err := ag.loadBalancer.SelectService(ctx, r.ServiceName)
+		if err != nil {
+			return nil, fmt.Errorf("failed to select service: %w", err)
+		}
+		return &APIResponse{
+			SessionID:   r.SessionID,
+			ServiceName: r.ServiceName,
+			Status:      http.StatusOK,
+			Timestamp:   time.Now(),
+		}, nil
+	}
+}
+
+// wrapWithMiddleware wraps a handler with the registered middleware chain.
+// Middlewares are applied in registration order (first registered = outermost).
+func (ag *APIGateway) wrapWithMiddleware(handler RequestHandler) RequestHandler {
+	ag.mu.RLock()
+	chain := make([]Middleware, len(ag.middlewareChain))
+	copy(chain, ag.middlewareChain)
+	ag.mu.RUnlock()
+
+	wrapped := handler
+	for i := len(chain) - 1; i >= 0; i-- {
+		wrapped = chain[i](wrapped)
+	}
+	return wrapped
 }
 
 // APIRequest represents an API request

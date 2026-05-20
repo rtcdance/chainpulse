@@ -129,7 +129,7 @@ func newPlayground(logger core.Logger) *playground {
 		eventBus: core.NewChannelEventBus(),
 	}
 
-	pg.eventBus.SubscribeNamed(context.Background(), "events", "printer", func(event any) {
+	pg.eventBus.SubscribeNamed(context.Background(), "events", "printer", func(_ context.Context, event any) error {
 		if ev, ok := event.(core.BlockchainEvent); ok {
 			slog.Info("eventbus received",
 				"event", ev.EventName,
@@ -137,6 +137,7 @@ func newPlayground(logger core.Logger) *playground {
 				"network", ev.Network,
 			)
 		}
+		return nil
 	})
 
 	return pg
@@ -335,10 +336,11 @@ func (p *playground) handleSubscribe(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Connection", "keep-alive")
 
 	ctx := r.Context()
-	_, err := p.eventBus.SubscribeNamed(ctx, topic, "", func(event any) {
+	_, err := p.eventBus.SubscribeNamed(ctx, topic, "", func(_ context.Context, event any) error {
 		data, _ := json.Marshal(event)
 		fmt.Fprintf(w, "data: %s\n\n", data)
 		flusher.Flush()
+		return nil
 	})
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)

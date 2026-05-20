@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sync"
 	"sync/atomic"
+	"time"
 )
 
 // Default worker pool size for event bus
@@ -21,24 +22,26 @@ type eventBusJob struct {
 
 // DefaultEventBus is the default implementation of EventBus
 type DefaultEventBus struct {
-	subscribers     map[string]map[uint64]EventHandler // topic -> subID -> handler
-	subIndex        map[uint64]string                  // subID -> topic (reverse lookup for Unsubscribe)
-	subscriberNames map[uint64]string                  // subID -> human-readable name (for debugging)
+	subscribers     map[string]map[uint64]EventHandler
+	subIndex        map[uint64]string
+	subscriberNames map[uint64]string
 	nextSubID       atomic.Uint64
 	mu              sync.RWMutex
 	logger          Logger
 
-	// Worker pool for backpressure
-	workerPool chan struct{}
-	wg         sync.WaitGroup
+	jobCh     chan eventBusJob
+	workersWg sync.WaitGroup
 
-	// Graceful shutdown
 	stopped atomic.Bool
 	done    chan struct{}
+
+	// droppedJobs counts how many jobs were dropped due to channel saturation.
+	// This happens when all workers are busy and the context deadline is exceeded.
+	droppedJobs atomic.Uint64
 }
 
 // EventHandler is a function that handles events
-type EventHandler func(any)
+type EventHandler func(context.Context, any) error
 
 // SubscribeTyped subscribes to topic with a type-safe handler function.
 // It wraps the underlying EventBus.Subscribe, performing the type assertion
@@ -46,41 +49,95 @@ type EventHandler func(any)
 // If the assertion fails (e.g. wrong concrete type published to the topic),
 // the handler is silently skipped — matching the existing !ok pattern.
 func SubscribeTyped[T any](bus EventBus, ctx context.Context, topic string, handler func(T)) (uint64, error) { //nolint:revive // ctx cannot be first param; bus is the receiver-like primary argument
-	return bus.Subscribe(ctx, topic, func(raw any) {
+	return bus.Subscribe(ctx, topic, func(_ context.Context, raw any) error {
 		typed, ok := raw.(T)
 		if !ok {
-			return
+			return nil
 		}
 		handler(typed)
+		return nil
 	})
 }
 
 // SubscribeTypedNamed is like SubscribeTyped but records a human-readable
 // subscriber name for debugging. The name appears in panic recovery logs.
 func SubscribeTypedNamed[T any](bus EventBus, ctx context.Context, topic, name string, handler func(T)) (uint64, error) { //nolint:revive // ctx cannot be first param; bus is the receiver-like primary argument
-	return bus.SubscribeNamed(ctx, topic, name, func(raw any) {
+	return bus.SubscribeNamed(ctx, topic, name, func(_ context.Context, raw any) error {
 		typed, ok := raw.(T)
 		if !ok {
-			return
+			return nil
 		}
 		handler(typed)
+		return nil
 	})
 }
 
-// NewEventBus creates a new event bus with a bounded worker pool
+// NewEventBus creates a new event bus with a fixed-size worker pool.
+// Workers are started immediately and consume jobs from a bounded channel,
+// providing natural backpressure without unbounded goroutine growth.
 func NewEventBus(logger Logger) *DefaultEventBus {
-	pool := make(chan struct{}, defaultEventBusWorkers)
-	for i := 0; i < defaultEventBusWorkers; i++ {
-		pool <- struct{}{}
-	}
-	return &DefaultEventBus{
+	jobCh := make(chan eventBusJob, defaultEventBusWorkers)
+	eb := &DefaultEventBus{
 		subscribers:     make(map[string]map[uint64]EventHandler),
 		subIndex:        make(map[uint64]string),
 		subscriberNames: make(map[uint64]string),
 		logger:          logger,
-		workerPool:      pool,
+		jobCh:           jobCh,
 		done:            make(chan struct{}),
 	}
+
+	// Start fixed worker goroutines
+	for i := 0; i < defaultEventBusWorkers; i++ {
+		eb.workersWg.Add(1)
+		go eb.workerLoop()
+	}
+
+	return eb
+}
+
+// workerLoop is the main loop for each worker goroutine.
+// It consumes jobs from the job channel until the bus is stopped.
+// When the done channel closes, each worker drains any remaining
+// jobs from jobCh before exiting, ensuring no in-flight events are lost.
+func (eb *DefaultEventBus) workerLoop() {
+	defer eb.workersWg.Done()
+	for {
+		select {
+		case <-eb.done:
+			for {
+				select {
+				case job, ok := <-eb.jobCh:
+					if !ok {
+						return
+					}
+					eb.executeJob(job)
+				default:
+					return
+				}
+			}
+		case job, ok := <-eb.jobCh:
+			if !ok {
+				return
+			}
+			eb.executeJob(job)
+		}
+	}
+}
+
+// executeJob runs a single job with panic recovery.
+func (eb *DefaultEventBus) executeJob(j eventBusJob) {
+	defer func() {
+		if r := recover(); r != nil {
+			if eb.logger != nil {
+				eb.logger.Error("handler panic", "topic", j.topic, "subscriber", j.subscriberName, "panic", r)
+			}
+		}
+	}()
+	if err := j.handler(j.ctx, j.event); err != nil {
+			if eb.logger != nil {
+				eb.logger.Warn("handler returned error", "topic", j.topic, "subscriber", j.subscriberName, "error", err)
+			}
+		}
 }
 
 // Publish publishes an event to a topic
@@ -133,54 +190,54 @@ func (eb *DefaultEventBus) Publish(ctx context.Context, topic string, event any)
 		return nil
 	}
 
-	// Publish event to all subscribers via worker pool for backpressure
+	// Publish event to all subscribers via fixed worker pool for backpressure.
+	// Each handler invocation becomes a job sent to the bounded job channel.
+	// When the channel is full (all workers busy), Publish waits up to 5 seconds
+	// per job before dropping it — preventing deadlock when ctx has no timeout.
 	for _, entry := range snapshot {
-		// Check context before dispatching — avoid spawning goroutines that will immediately exit
 		select {
 		case <-ctx.Done():
 			if eb.logger != nil {
 				eb.logger.Debug("context canceled, skipping remaining handlers", "topic", topic)
 			}
 			return nil
-		default:
-		}
-
-		eb.wg.Add(1)
-		job := eventBusJob{
+		case eb.jobCh <- eventBusJob{
 			handler:        entry.handler,
 			event:          event,
 			topic:          topic,
 			subscriberName: entry.name,
 			ctx:            ctx,
-		}
-		go func(j eventBusJob) {
-			defer eb.wg.Done()
-
-			// Acquire worker slot (blocks if pool is full)
+		}:
+			// Job enqueued successfully
+		default:
+			// Channel is full — use a bounded wait to avoid deadlock
+			// when context has no deadline.
+			waitTimer := time.NewTimer(5 * time.Second)
 			select {
-			case <-j.ctx.Done():
+			case <-ctx.Done():
+				waitTimer.Stop()
 				if eb.logger != nil {
-					eb.logger.Debug("context canceled while waiting for worker slot", "topic", j.topic)
+					eb.logger.Warn("context canceled while waiting for worker, dropping job", "topic", topic)
 				}
-				return
-			case <-eb.workerPool:
-				// Got a worker slot
+				return nil
+			case eb.jobCh <- eventBusJob{
+				handler:        entry.handler,
+				event:          event,
+				topic:          topic,
+				subscriberName: entry.name,
+				ctx:            ctx,
+			}:
+				waitTimer.Stop()
+			case <-waitTimer.C:
+				eb.droppedJobs.Add(1)
+				if eb.logger != nil {
+					eb.logger.Warn("event bus worker pool saturated, dropping job",
+						"topic", topic, "subscriber", entry.name,
+						"total_dropped", eb.droppedJobs.Load(),
+					)
+				}
 			}
-
-			// Release worker slot when done
-			defer func() { eb.workerPool <- struct{}{} }()
-
-			// Execute handler with panic recovery
-			defer func() {
-				if r := recover(); r != nil {
-					if eb.logger != nil {
-						eb.logger.Error("handler panic", "topic", j.topic, "subscriber", j.subscriberName, "panic", r)
-					}
-				}
-			}()
-
-			j.handler(j.event)
-		}(job)
+		}
 	}
 
 	if eb.logger != nil {
@@ -191,7 +248,7 @@ func (eb *DefaultEventBus) Publish(ctx context.Context, topic string, event any)
 }
 
 // Subscribe subscribes to a topic and returns a subscription ID for later unsubscription
-func (eb *DefaultEventBus) Subscribe(ctx context.Context, topic string, handler func(any)) (uint64, error) {
+func (eb *DefaultEventBus) Subscribe(ctx context.Context, topic string, handler EventHandler) (uint64, error) {
 	if topic == "" {
 		return 0, NewSystemError(
 			ErrorTypePermanent,
@@ -232,7 +289,7 @@ func (eb *DefaultEventBus) Subscribe(ctx context.Context, topic string, handler 
 // The name appears in panic recovery logs and debug output, making it easy to
 // identify which component crashed or is handling an event. If name is empty,
 // falls back to Subscribe (no name recorded).
-func (eb *DefaultEventBus) SubscribeNamed(ctx context.Context, topic, name string, handler func(any)) (uint64, error) {
+func (eb *DefaultEventBus) SubscribeNamed(ctx context.Context, topic, name string, handler EventHandler) (uint64, error) {
 	subID, err := eb.Subscribe(ctx, topic, handler)
 	if err != nil {
 		return 0, err
@@ -281,7 +338,7 @@ func (eb *DefaultEventBus) Unsubscribe(subscriptionID uint64) error {
 // Wait blocks until all in-flight event handlers have completed.
 // Call this during graceful shutdown to ensure no events are lost.
 func (eb *DefaultEventBus) Wait() {
-	eb.wg.Wait()
+	eb.workersWg.Wait()
 }
 
 // Stop prevents new publications and waits for in-flight handlers to finish.
@@ -292,7 +349,7 @@ func (eb *DefaultEventBus) Stop() {
 		return // already stopped
 	}
 	close(eb.done)
-	eb.wg.Wait()
+	eb.workersWg.Wait()
 
 	if eb.logger != nil {
 		eb.logger.Info("event bus stopped")
@@ -336,6 +393,36 @@ func (eb *DefaultEventBus) Clear() {
 
 	if eb.logger != nil {
 		eb.logger.Info("event bus cleared")
+	}
+}
+
+// GetDroppedJobs returns the number of jobs dropped due to worker pool saturation.
+func (eb *DefaultEventBus) GetDroppedJobs() uint64 {
+	return eb.droppedJobs.Load()
+}
+
+// Drain waits for all remaining jobs in the job channel to be processed.
+// Call this before Stop() during graceful shutdown to ensure all published
+// events are handled. Returns the number of jobs drained.
+// If the bus is already stopped, drains immediately and returns.
+func (eb *DefaultEventBus) Drain(timeout time.Duration) int {
+	drained := 0
+	deadline := time.Now().Add(timeout)
+
+	for {
+		select {
+		case job, ok := <-eb.jobCh:
+			if !ok {
+				return drained
+			}
+			eb.executeJob(job)
+			drained++
+		default:
+			if time.Now().After(deadline) {
+				return drained
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
 	}
 }
 
@@ -394,7 +481,7 @@ func (eb *DefaultEventBus) PublishSync(ctx context.Context, topic string, event 
 						}
 					}
 				}()
-				h(event)
+				h(ctx, event)
 			}(handler)
 		}
 	}

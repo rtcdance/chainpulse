@@ -97,26 +97,11 @@ func TestEventFilterToQuery(t *testing.T) {
 		Network: "ethereum",
 	}
 
-	query := filter.ToQuery()
+query := filter.ToQuery()
 
 	assert.Contains(t, query, "SELECT * FROM events")
 	assert.Contains(t, query, "network = 'ethereum'")
 	assert.Contains(t, query, "ORDER BY block_number DESC, log_index DESC")
-}
-
-// TestEventFilterToQueryWithContractAddress tests query with contract address
-func TestEventFilterToQueryWithContractAddress(t *testing.T) {
-	t.Parallel()
-	addr := common.HexToAddress("0x1234567890123456789012345678901234567890")
-	filter := &EventFilter{
-		Network:         "ethereum",
-		ContractAddress: []common.Address{addr},
-	}
-
-	query := filter.ToQuery()
-
-	assert.Contains(t, query, "contract_address IN")
-	assert.Contains(t, query, addr.Hex())
 }
 
 // TestEventFilterToQueryWithEventSignature tests query with event signature
@@ -128,7 +113,7 @@ func TestEventFilterToQueryWithEventSignature(t *testing.T) {
 		EventSignature: []common.Hash{sig},
 	}
 
-	query := filter.ToQuery()
+	query, _ := filter.ToQuery()
 
 	assert.Contains(t, query, "event_signature IN")
 	assert.Contains(t, query, sig.Hex())
@@ -143,7 +128,7 @@ func TestEventFilterToQueryWithBlockRange(t *testing.T) {
 		ToBlock:   2000,
 	}
 
-	query := filter.ToQuery()
+	query, _ := filter.ToQuery()
 
 	assert.Contains(t, query, "block_number >= 1000")
 	assert.Contains(t, query, "block_number <= 2000")
@@ -158,7 +143,7 @@ func TestEventFilterToQueryWithTimestampRange(t *testing.T) {
 		ToTimestamp:   2000000,
 	}
 
-	query := filter.ToQuery()
+	query, _ := filter.ToQuery()
 
 	assert.Contains(t, query, "block_timestamp >= 1000000")
 	assert.Contains(t, query, "block_timestamp <= 2000000")
@@ -172,7 +157,7 @@ func TestEventFilterToQueryWithStatus(t *testing.T) {
 		Status:  []string{"confirmed", "pending"},
 	}
 
-	query := filter.ToQuery()
+	query, _ := filter.ToQuery()
 
 	assert.Contains(t, query, "status IN")
 	assert.Contains(t, query, "'confirmed'")
@@ -188,7 +173,7 @@ func TestEventFilterToQueryWithValueRange(t *testing.T) {
 		MaxValue: big.NewInt(5000),
 	}
 
-	query := filter.ToQuery()
+	query, _ := filter.ToQuery()
 
 	assert.Contains(t, query, "value >= 1000")
 	assert.Contains(t, query, "value <= 5000")
@@ -203,7 +188,7 @@ func TestEventFilterToQueryWithPagination(t *testing.T) {
 		Offset:  100,
 	}
 
-	query := filter.ToQuery()
+	query, _ := filter.ToQuery()
 
 	assert.Contains(t, query, "LIMIT 50")
 	assert.Contains(t, query, "OFFSET 100")
@@ -225,7 +210,7 @@ func TestEventFilterToQueryComplex(t *testing.T) {
 		Offset:          10,
 	}
 
-	query := filter.ToQuery()
+	query, _ := filter.ToQuery()
 
 	assert.Contains(t, query, "network = 'ethereum'")
 	assert.Contains(t, query, "contract_address IN")
@@ -512,7 +497,7 @@ func TestEventFilterMultipleAddresses(t *testing.T) {
 		ContractAddress: []common.Address{addr1, addr2, addr3},
 	}
 
-	query := filter.ToQuery()
+	query, _ := filter.ToQuery()
 
 	assert.Contains(t, query, addr1.Hex())
 	assert.Contains(t, query, addr2.Hex())
@@ -530,7 +515,7 @@ func TestEventFilterMultipleSignatures(t *testing.T) {
 		EventSignature: []common.Hash{sig1, sig2},
 	}
 
-	query := filter.ToQuery()
+	query, _ := filter.ToQuery()
 
 	assert.Contains(t, query, sig1.Hex())
 	assert.Contains(t, query, sig2.Hex())
@@ -544,7 +529,7 @@ func TestEventFilterMultipleStatuses(t *testing.T) {
 		Status:  []string{"confirmed", "pending", "failed"},
 	}
 
-	query := filter.ToQuery()
+	query, _ := filter.ToQuery()
 
 	assert.Contains(t, query, "'confirmed'")
 	assert.Contains(t, query, "'pending'")
@@ -601,7 +586,7 @@ func TestEventFilterToQueryNoConditions(t *testing.T) {
 		Network: "ethereum",
 	}
 
-	query := filter.ToQuery()
+	query, _ := filter.ToQuery()
 
 	assert.Contains(t, query, "SELECT * FROM events")
 	assert.Contains(t, query, "WHERE")
@@ -637,7 +622,7 @@ func TestEventFilterLargeBlockRange(t *testing.T) {
 
 	assert.NoError(t, err)
 
-	query := filter.ToQuery()
+	query, _ := filter.ToQuery()
 
 	assert.Contains(t, query, "block_number >= 1000000")
 	assert.Contains(t, query, "block_number <= 18000000")
@@ -659,7 +644,7 @@ func TestEventFilterLargeValues(t *testing.T) {
 
 	assert.NoError(t, err)
 
-	query := filter.ToQuery()
+	query, _ := filter.ToQuery()
 
 	assert.Contains(t, query, minVal.String())
 	assert.Contains(t, query, maxVal.String())

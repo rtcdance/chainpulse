@@ -7,6 +7,12 @@ import (
 	"sync/atomic"
 )
 
+// subscriber holds a channel and a done signal for safe concurrent access.
+type subscriber struct {
+	ch   chan any
+	done chan struct{}
+}
+
 // ChannelEventBus is a pure-Go EventBus implementation backed by channels.
 // It implements the core.EventBus interface without any external dependencies.
 //
@@ -20,7 +26,7 @@ import (
 // implementations instead.
 type ChannelEventBus struct {
 	mu            sync.RWMutex
-	subscriptions map[string]map[uint64]chan any
+	subscriptions map[string]map[uint64]*subscriber
 	nextID        atomic.Uint64
 	droppedCount  atomic.Uint64
 	logger        Logger
@@ -29,23 +35,34 @@ type ChannelEventBus struct {
 
 func NewChannelEventBus() *ChannelEventBus {
 	return &ChannelEventBus{
-		subscriptions: make(map[string]map[uint64]chan any),
+		subscriptions: make(map[string]map[uint64]*subscriber),
 	}
 }
 
 func (b *ChannelEventBus) Publish(ctx context.Context, topic string, event any) error {
 	b.mu.RLock()
 	subs := b.subscriptions[topic]
-	channels := make([]chan any, 0, len(subs))
-	for _, ch := range subs {
-		channels = append(channels, ch)
+	// Snapshot subscriber pointers to avoid close-vs-send race.
+	// Each sub.done is only closed once (in Unsubscribe), so after
+	// acquiring the snapshot the goroutine can safely check sub.done
+	// before sending to sub.ch.
+	subList := make([]*subscriber, 0, len(subs))
+	for _, sub := range subs {
+		subList = append(subList, sub)
 	}
 	b.mu.RUnlock()
 
 	var dropped int
-	for _, ch := range channels {
+	for _, sub := range subList {
+		// Skip if subscriber has been unsubscribed
 		select {
-		case ch <- event:
+		case <-sub.done:
+			continue
+		default:
+		}
+
+		select {
+		case sub.ch <- event:
 		case <-ctx.Done():
 			return ctx.Err()
 		default:
@@ -72,31 +89,38 @@ func (b *ChannelEventBus) Publish(ctx context.Context, topic string, event any) 
 	return nil
 }
 
-func (b *ChannelEventBus) Subscribe(ctx context.Context, topic string, handler func(any)) (uint64, error) {
+func (b *ChannelEventBus) Subscribe(ctx context.Context, topic string, handler EventHandler) (uint64, error) {
 	return b.SubscribeNamed(ctx, topic, "", handler)
 }
 
-func (b *ChannelEventBus) SubscribeNamed(ctx context.Context, topic, name string, handler func(any)) (uint64, error) {
+func (b *ChannelEventBus) SubscribeNamed(ctx context.Context, topic, name string, handler EventHandler) (uint64, error) {
 	id := b.nextID.Add(1)
-	ch := make(chan any, 64)
+	sub := &subscriber{
+		ch:   make(chan any, 64),
+		done: make(chan struct{}),
+	}
 
 	b.mu.Lock()
 	if b.subscriptions[topic] == nil {
-		b.subscriptions[topic] = make(map[uint64]chan any)
+		b.subscriptions[topic] = make(map[uint64]*subscriber)
 	}
-	b.subscriptions[topic][id] = ch
+	b.subscriptions[topic][id] = sub
 	b.mu.Unlock()
 
 	go func() {
 		for {
 			select {
-			case event, ok := <-ch:
+			case event, ok := <-sub.ch:
 				if !ok {
 					return
 				}
-				handler(event)
+				if err := handler(ctx, event); err != nil && b.logger != nil {
+					b.logger.Error("handler returned error", "topic", topic, "error", err)
+				}
 			case <-ctx.Done():
 				_ = b.Unsubscribe(id)
+				return
+			case <-sub.done:
 				return
 			}
 		}
@@ -110,8 +134,8 @@ func (b *ChannelEventBus) Unsubscribe(subscriptionID uint64) error {
 	defer b.mu.Unlock()
 
 	for topic, subs := range b.subscriptions {
-		if ch, ok := subs[subscriptionID]; ok {
-			close(ch)
+		if sub, ok := subs[subscriptionID]; ok {
+			close(sub.done)
 			delete(subs, subscriptionID)
 			if len(subs) == 0 {
 				delete(b.subscriptions, topic)

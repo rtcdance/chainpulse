@@ -376,13 +376,13 @@ func (p *KafkaMQPlugin) PublishMessage(ctx context.Context, message core.Message
 
 	startTime := time.Now()
 
-	p.mu.Lock()
+	p.mu.RLock()
 	if !p.isRunning {
-		p.mu.Unlock()
+		p.mu.RUnlock()
 		return fmt.Errorf("plugin not running")
 	}
 	producer := p.producer
-	p.mu.Unlock()
+	p.mu.RUnlock()
 
 	if producer == nil || producer.writer == nil {
 		return fmt.Errorf("producer not initialized")

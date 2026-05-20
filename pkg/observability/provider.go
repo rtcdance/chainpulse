@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strconv"
 	"sync"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
@@ -39,10 +40,22 @@ type ObservabilityConfig struct {
 // (spans are recorded but not exported).
 func NewObservabilityProvider(cfg ObservabilityConfig, logger core.Logger) (*ObservabilityProvider, error) {
 	if cfg.ServiceName == "" {
-		cfg.ServiceName = "chainpulse"
+		cfg.ServiceName = os.Getenv("OTEL_SERVICE_NAME")
+		if cfg.ServiceName == "" {
+			cfg.ServiceName = "chainpulse"
+		}
 	}
 	if cfg.SamplingRate <= 0 {
-		cfg.SamplingRate = 1.0
+		// Support OTEL_TRACES_SAMPLER_ARG env var (0.0-1.0)
+		if rateStr := os.Getenv("OTEL_TRACES_SAMPLER_ARG"); rateStr != "" {
+			if rate, err := strconv.ParseFloat(rateStr, 64); err == nil && rate > 0 && rate <= 1.0 {
+				cfg.SamplingRate = rate
+			} else {
+				cfg.SamplingRate = 1.0
+			}
+		} else {
+			cfg.SamplingRate = 1.0
+		}
 	}
 
 	// Use config endpoint, then fall back to env var
@@ -69,12 +82,12 @@ func NewObservabilityProvider(cfg ObservabilityConfig, logger core.Logger) (*Obs
 				logger.Error("failed to create OTLP exporter, falling back to noop tracer", "error", err)
 			}
 			provider = sdktrace.NewTracerProvider(
-				sdktrace.WithSampler(sdktrace.AlwaysSample()),
+				sdktrace.WithSampler(sdktrace.TraceIDRatioBased(cfg.SamplingRate)),
 				sdktrace.WithResource(res),
 			)
 		} else {
 			provider = sdktrace.NewTracerProvider(
-				sdktrace.WithSampler(sdktrace.AlwaysSample()),
+				sdktrace.WithSampler(sdktrace.TraceIDRatioBased(cfg.SamplingRate)),
 				sdktrace.WithResource(res),
 				sdktrace.WithBatcher(exporter),
 			)
@@ -82,7 +95,7 @@ func NewObservabilityProvider(cfg ObservabilityConfig, logger core.Logger) (*Obs
 	} else {
 		// No endpoint configured — spans are recorded but not exported
 		provider = sdktrace.NewTracerProvider(
-			sdktrace.WithSampler(sdktrace.AlwaysSample()),
+			sdktrace.WithSampler(sdktrace.TraceIDRatioBased(cfg.SamplingRate)),
 			sdktrace.WithResource(res),
 		)
 	}
