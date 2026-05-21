@@ -1,41 +1,43 @@
 # ChainPulse API Reference
 
-## Overview
+## Base URL
 
-ChainPulse provides REST, gRPC, and WebSocket APIs for querying blockchain events and managing the indexer.
+**REST API**: `http://localhost:8080`
+**WebSocket**: `ws://localhost:8080/ws`
 
-## Base URLs
+## Try It Now (Playground)
 
-- **REST API**: `http://localhost:8080/api/v1`
-- **gRPC API**: `localhost:50051`
-- **WebSocket**: `ws://localhost:8080/ws`
+```bash
+# Start the zero-setup playground
+go run cmd/playground/main.go
+
+# Then:
+curl http://localhost:9099/generate  # Create mock events
+curl http://localhost:9099/events     # View all events
+curl http://localhost:9099/stats      # Event statistics
+```
 
 ## Authentication
 
-Currently, the API does not require authentication for local development. Production deployments should use API keys or JWT tokens.
+API keys can be configured via `CHAINPULSE_AUTH_API_KEYS` env var.
+Send as: `X-API-Key: cp_abc123...` header.
 
 ## REST API Endpoints
 
 ### Health Check
 
-```http
-GET /health
+```bash
+curl http://localhost:8080/health
 ```
 
-Returns the health status of the service.
-
-**Response:**
 ```json
-{
-  "status": "healthy",
-  "timestamp": "2026-03-29T00:00:00Z"
-}
+{"status":"healthy","timestamp":"2026-05-21T00:00:00Z"}
 ```
 
-### Query Events
+### List Events
 
-```http
-GET /events?contract=0x...&fromBlock=1000&toBlock=2000&limit=100
+```bash
+curl 'http://localhost:8080/events?limit=5'
 ```
 
 **Query Parameters:**
@@ -43,167 +45,97 @@ GET /events?contract=0x...&fromBlock=1000&toBlock=2000&limit=100
 - `fromBlock` (integer): Start block number
 - `toBlock` (integer): End block number
 - `eventName` (string): Filter by event name
-- `limit` (integer, default: 100): Maximum results
+- `limit` (integer, default: 10, max: 100): Maximum results
 - `offset` (integer, default: 0): Pagination offset
 
 **Response:**
 ```json
 {
-  "events": [
-    {
-      "id": "event-123",
-      "block_number": 1500,
-      "transaction_hash": "0x...",
-      "contract_address": "0x...",
-      "event_name": "Transfer",
-      "decoded_data": {
-        "from": "0x...",
-        "to": "0x...",
-        "value": "1000000000000000000"
-      }
-    }
-  ],
-  "total": 1,
-  "limit": 100,
-  "offset": 0
+  "events": [{"id":"evt_xxx","eventName":"Transfer","chainId":"ethereum","blockNumber":1500,"contractAddress":"0x..."}],
+  "pagination": {"total":1,"limit":10,"offset":0}
 }
 ```
 
 ### Get Event by ID
 
-```http
-GET /events/{id}
+```bash
+curl http://localhost:8080/events/evt_xxx
 ```
 
-**Response:**
-```json
-{
-  "id": "event-123",
-  "block_number": 1500,
-  "block_hash": "0x...",
-  "transaction_hash": "0x...",
-  "contract_address": "0x...",
-  "event_name": "Transfer",
-  "decoded_data": {...}
-}
+### Get Correlated Events (Cross-Chain)
+
+```bash
+curl 'http://localhost:8080/events/correlated/corr_id_123?limit=10'
+```
+Returns events across all chains that share a correlation ID (e.g., bridge transfers).
+
+### Runtime Summary
+
+```bash
+curl http://localhost:8080/runtime/summary
 ```
 
-### Get Block
+### Metrics
 
-```http
-GET /api/v1/blocks/{number}
+```bash
+curl http://localhost:8080/metrics
+```
+Prometheus-format metrics for monitoring and alerting.
+
+### Admin API Keys
+
+```bash
+# List keys (requires admin role)
+curl -H "X-API-Key: cp_xxx" http://localhost:8080/admin/keys?clientId=myapp
+
+# Create key
+curl -X POST -H "Content-Type: application/json" \
+  -d '{"clientId":"myapp","name":"dev-key"}' \
+  http://localhost:8080/admin/api-keys
 ```
 
-**Response:**
-```json
-{
-  "number": 1500,
-  "hash": "0x...",
-  "parent_hash": "0x...",
-  "timestamp": 1234567890,
-  "transactions": ["0x...", "0x..."]
-}
-```
+### Admin Webhooks
 
-### Get Metrics
+```bash
+# Create webhook
+curl -X POST -H "Content-Type: application/json" \
+  -d '{"clientId":"myapp","name":"notify","url":"https://example.com/hook","secret":"whsec_xxx"}' \
+  http://localhost:8080/admin/webhooks
 
-```http
-GET /metrics
-```
-
-**Response:**
-```json
-{
-  "current_block": 1500,
-  "latest_block": 1600,
-  "indexing_lag": 100,
-  "events_indexed": 50000,
-  "cache_hit_rate": 0.85,
-  "reorgs_detected": 2
-}
+# List webhooks
+curl 'http://localhost:8080/admin/webhooks?clientId=myapp'
 ```
 
 ## WebSocket API
 
-Connect to `ws://localhost:8080/ws` for real-time event streaming.
-
-When gateway rate limiting is enabled, the WebSocket HTTP upgrade handshake is
-subject to the same gateway limiter before the connection is upgraded. Rejected
-handshakes return `429 Too Many Requests`.
-
-**Subscribe to events:**
-```json
-{
-  "action": "subscribe",
-  "topic": "events",
-  "filters": {
-    "contract": "0x..."
-  }
-}
+```bash
+# Install wscat: npm install -g wscat
+wscat -c ws://localhost:8080/ws
 ```
 
-**Receive events:**
+Send subscribe message:
 ```json
-{
-  "type": "event",
-  "data": {
-    "id": "event-123",
-    "block_number": 1500,
-    "event_name": "Transfer"
-  }
-}
-```
-
-## gRPC API
-
-See `pkg/plugins/api/proto/` for Protocol Buffer definitions.
-
-**Example (Go):**
-```go
-conn, _ := grpc.Dial("localhost:50051", grpc.WithInsecure())
-client := pb.NewEventServiceClient(conn)
-
-resp, _ := client.QueryEvents(ctx, &pb.QueryRequest{
-    Contract: "0x...",
-    FromBlock: 1000,
-    ToBlock: 2000,
-})
+{"action":"subscribe","topic":"events"}
 ```
 
 ## Error Responses
 
-All errors follow this format:
+All errors return structured JSON:
 
 ```json
-{
-  "error": {
-    "code": "NOT_FOUND",
-    "message": "Event not found",
-    "details": {}
-  }
-}
+{"error":"NOT_FOUND","message":"Event not found","statusCode":404}
 ```
 
-**Common Error Codes:**
-- `BAD_REQUEST` (400): Invalid request parameters
-- `NOT_FOUND` (404): Resource not found
-- `INTERNAL_ERROR` (500): Server error
-- `SERVICE_UNAVAILABLE` (503): Service temporarily unavailable
+**Common Codes:** `VALIDATION_ERROR` (400), `NOT_FOUND` (404), `RATE_LIMITED` (429), `INTERNAL_ERROR` (500)
 
 ## Rate Limiting
 
-Default rate limits:
-- 100 requests per minute per IP
-- 1000 requests per hour per IP
+When enabled, returns standard headers:
+- `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`
+- `Retry-After` on 429 responses
 
-When the optional gateway security surface is enabled, WebSocket handshake
-requests are rate limited together with the rest of the gateway entrypoints.
+Default: 60 requests/minute per client.
 
-## OpenAPI Specification
+## OpenAPI Spec
 
-Full OpenAPI 3.0 specification available at: `docs/api/openapi.yaml`
-
-Generate client SDKs using:
-```bash
-openapi-generator-cli generate -i docs/api/openapi.yaml -g go -o sdk/go
-```
+Full OpenAPI 3.0 at `docs/api/openapi.yaml`.

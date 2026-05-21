@@ -462,6 +462,21 @@ func main() {
 		Handler: chain.Then(mux),
 	}
 
+	fmt.Printf("\033]8;;http://localhost:%s\033\\🔗 http://localhost:%s\033]8;;\033\\\n", port, port)
+	fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+	fmt.Println("  ChainPulse Playground")
+	fmt.Println("  Next step: open the URL above in your browser")
+	fmt.Println("  → /generate  — create mock blockchain events")
+	fmt.Println("  → /events    — view all indexed events")
+	fmt.Println("  → /stats     — see event statistics")
+	fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+
+	go func() {
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			slog.Warn("playground server error", "error", err)
+		}
+	}()
+
 	// Graceful shutdown using the standard Go pattern:
 	//   1. signal.NotifyContext — cancel on SIGINT/SIGTERM
 	//   2. server.Shutdown(ctx) — drain connections
