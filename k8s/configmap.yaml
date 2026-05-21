@@ -5,9 +5,9 @@ metadata:
   namespace: chainpulse
 data:
   LOG_LEVEL: "info"
-  API_PORT: "8080"
-  GRPC_PORT: "50051"
-  METRICS_PORT: "9090"
+API_PORT: "8080"
+  LOG_LEVEL: "info"
+  CACHE_TYPE: "redis"
   DATABASE_TYPE: "postgres"
   DATABASE_HOST: "postgres"
   DATABASE_PORT: "5432"

@@ -12,9 +12,6 @@ spec:
     - name: http
       port: 8080
       targetPort: 8080
-    - name: grpc
-      port: 50051
-      targetPort: 50051
     - name: metrics
       port: 9090
       targetPort: 9090
@@ -65,8 +62,6 @@ spec:
         ports:
         - containerPort: 8080
           name: http
-        - containerPort: 50051
-          name: grpc
         - containerPort: 9090
           name: metrics
         env:
