@@ -1,6 +1,7 @@
 package core
 
 import (
+	"context"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -10,6 +11,22 @@ import (
 func TestPluginInterface(t *testing.T) {
 	// This test verifies the interface exists and has the expected methods
 	var _ Plugin = (*mockPlugin)(nil)
+
+	// Verify all Plugin methods are callable
+	p := &mockPlugin{}
+	ctx := context.Background()
+	if err := p.Initialize(ctx, Config{}); err != nil {
+		t.Errorf("Initialize() error: %v", err)
+	}
+	if err := p.Start(ctx); err != nil {
+		t.Errorf("Start() error: %v", err)
+	}
+	if err := p.Health(ctx); err != nil {
+		t.Errorf("Health() error: %v", err)
+	}
+	if err := p.Stop(ctx); err != nil {
+		t.Errorf("Stop() error: %v", err)
+	}
 }
 
 // TestConfigInterface verifies that Config struct has required fields
@@ -105,7 +122,7 @@ func TestHealthStatus(t *testing.T) {
 	status := HealthStatus{
 		Status:  "healthy",
 		Message: "System is running normally",
-		Details: map[string]interface{}{
+		Details: map[string]any{
 			"uptime": 3600,
 			"cpu":    45.5,
 		},
@@ -185,18 +202,42 @@ func (m *mockPlugin) Version() string {
 	return m.version
 }
 
-func (m *mockPlugin) Initialize(config Config) error {
+func (m *mockPlugin) Initialize(ctx context.Context, config Config) error {
+	_ = ctx
 	return nil
 }
 
-func (m *mockPlugin) Start() error {
+func (m *mockPlugin) Start(ctx context.Context) error {
+	_ = ctx
 	return nil
 }
 
-func (m *mockPlugin) Stop() error {
+func (m *mockPlugin) Stop(ctx context.Context) error {
+	_ = ctx
 	return nil
 }
 
-func (m *mockPlugin) Health() error {
+func (m *mockPlugin) Health(ctx context.Context) error {
+	_ = ctx
 	return nil
+}
+
+func TestStartPluginPropagatesContext(t *testing.T) {
+	t.Parallel()
+	p := &mockPlugin{}
+	ctx := context.Background()
+	err := StartPlugin(ctx, p)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestStopPluginPropagatesContext(t *testing.T) {
+	t.Parallel()
+	p := &mockPlugin{}
+	ctx := context.Background()
+	err := StopPlugin(ctx, p)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 }

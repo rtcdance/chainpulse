@@ -6,9 +6,9 @@ import (
 	"sync"
 	"time"
 
-	"chainpulse/pkg/core"
-	pluginapi "chainpulse/pkg/plugins/api"
-	"chainpulse/pkg/plugins/pullers"
+	"github.com/rtcdance/chainpulse/pkg/core"
+	pluginapi "github.com/rtcdance/chainpulse/pkg/plugins/api"
+	"github.com/rtcdance/chainpulse/pkg/plugins/pullers"
 )
 
 type pullerLoopControlSnapshot struct {

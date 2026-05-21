@@ -7,7 +7,10 @@ import (
 	"time"
 )
 
-// DistributedLock represents a distributed lock
+// DistributedLock provides in-process lock coordination. Note: despite the
+// name, this is NOT a true distributed lock — it stores state in a local map
+// and cannot coordinate across multiple processes. For multi-instance deployments,
+// use a Consul/etcd/Redis-backed lock instead.
 type DistributedLock struct {
 	mu          sync.RWMutex
 	locks       map[string]*LockInfo
@@ -199,11 +202,11 @@ func (dl *DistributedLock) CleanupExpiredLocks() {
 }
 
 // GetMetrics returns lock metrics
-func (dl *DistributedLock) GetMetrics() map[string]interface{} {
+func (dl *DistributedLock) GetMetrics() map[string]any {
 	dl.metrics.mu.RLock()
 	defer dl.metrics.mu.RUnlock()
 
-	return map[string]interface{}{
+	return map[string]any{
 		"locks_acquired":     dl.metrics.LocksAcquired,
 		"locks_released":     dl.metrics.LocksReleased,
 		"locks_failed":       dl.metrics.LocksFailed,
@@ -295,7 +298,7 @@ func (lm *LockManager) DetectDeadlocks(ctx context.Context) error {
 }
 
 // GetMetrics returns lock manager metrics
-func (lm *LockManager) GetMetrics() map[string]interface{} {
+func (lm *LockManager) GetMetrics() map[string]any {
 	return lm.locks.GetMetrics()
 }
 

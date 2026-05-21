@@ -8,8 +8,10 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 
-	"chainpulse/pkg/core"
-	"chainpulse/pkg/services/decoder"
+	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core/batch"
+	
+	"github.com/rtcdance/chainpulse/pkg/services/decoder"
 )
 
 // EventHandler defines the interface for handling decoded events
@@ -26,10 +28,10 @@ type DecodedContractEvent struct {
 	BlockNumber      uint64
 	BlockTimestamp   int64
 	TransactionHash  common.Hash
-	LogIndex         uint
-	Parameters       map[string]interface{}
-	IndexedParams    map[string]interface{}
-	NonIndexedParams map[string]interface{}
+	LogIndex         uint64
+	Parameters       map[string]any
+	IndexedParams    map[string]any
+	NonIndexedParams map[string]any
 	RawEvent         *core.BlockchainEvent
 }
 
@@ -131,14 +133,9 @@ func (gci *GenericContractIndexer) IndexEvents(
 		return fmt.Errorf("contract ABI not registered: %s", contractName)
 	}
 
-	for _, event := range events {
-		if err := gci.indexEvent(ctx, contractName, &contractABI, event); err != nil {
-			gci.logger.Error("failed to index event", "contract", contractName, "error", err.Error())
-			continue
-		}
-	}
-
-	return nil
+	return batch.Index(ctx, events, func(ctx context.Context, event *core.BlockchainEvent) error {
+		return gci.indexEvent(ctx, contractName, &contractABI, event)
+	})
 }
 
 // indexEvent indexes a single event
@@ -222,9 +219,9 @@ func (gci *GenericContractIndexer) decodeEvent(
 		BlockTimestamp:   event.BlockTimestamp,
 		TransactionHash:  event.TransactionHash,
 		LogIndex:         event.LogIndex,
-		Parameters:       make(map[string]interface{}),
-		IndexedParams:    make(map[string]interface{}),
-		NonIndexedParams: make(map[string]interface{}),
+		Parameters:       make(map[string]any),
+		IndexedParams:    make(map[string]any),
+		NonIndexedParams: make(map[string]any),
 		RawEvent:         event,
 	}
 
@@ -325,11 +322,11 @@ func (gci *GenericContractIndexer) SetContractMetadata(metadata *ContractMetadat
 }
 
 // GetCacheStats returns cache statistics
-func (gci *GenericContractIndexer) GetCacheStats() map[string]interface{} {
+func (gci *GenericContractIndexer) GetCacheStats() map[string]any {
 	gci.mu.RLock()
 	defer gci.mu.RUnlock()
 
-	return map[string]interface{}{
+	return map[string]any{
 		"cached_events":     len(gci.eventCache),
 		"registered_abis":   len(gci.contractABIs),
 		"event_handlers":    len(gci.eventHandlers),

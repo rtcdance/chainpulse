@@ -7,18 +7,17 @@ import (
 	"testing"
 	"time"
 
-	appindexing "chainpulse/pkg/application/indexing"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"chainpulse/pkg/core"
-	"chainpulse/pkg/integrations/generic"
+	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/integrations/generic"
 )
 
 // MockDatabasePlugin implements core.DatabasePlugin for testing
 type MockDatabasePlugin struct {
-	data       map[string]interface{}
+	data       map[string]any
 	events     map[string]*core.BlockchainEvent
 	mu         sync.RWMutex
 	storeCount int
@@ -26,12 +25,12 @@ type MockDatabasePlugin struct {
 
 func NewMockDatabasePlugin() *MockDatabasePlugin {
 	return &MockDatabasePlugin{
-		data:   make(map[string]interface{}),
+		data:   make(map[string]any),
 		events: make(map[string]*core.BlockchainEvent),
 	}
 }
 
-func (m *MockDatabasePlugin) StoreEvent(ctx context.Context, event interface{}) error {
+func (m *MockDatabasePlugin) StoreEvent(ctx context.Context, event any) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.storeCount++
@@ -56,17 +55,17 @@ func (m *MockDatabasePlugin) GetEvent(ctx context.Context, id string) (*core.Blo
 	return nil, nil
 }
 
-func (m *MockDatabasePlugin) QueryEvents(ctx context.Context, filter interface{}) ([]interface{}, error) {
+func (m *MockDatabasePlugin) QueryEvents(ctx context.Context, filter any) ([]any, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	result := make([]interface{}, 0)
+	result := make([]any, 0)
 	for _, e := range m.events {
 		result = append(result, e)
 	}
 	return result, nil
 }
 
-func (m *MockDatabasePlugin) BatchStoreEvents(ctx context.Context, events []interface{}) error {
+func (m *MockDatabasePlugin) BatchStoreEvents(ctx context.Context, events []any) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	for _, event := range events {
@@ -143,13 +142,17 @@ func (m *MockDatabasePlugin) DeleteEventsByBlockRange(ctx context.Context, fromB
 	return count, nil
 }
 
+func (m *MockDatabasePlugin) MarkEventsAsReorged(ctx context.Context, fromBlock, toBlock uint64) (int64, error) {
+	return 0, nil
+}
+
 func (m *MockDatabasePlugin) GetReorgStats(ctx context.Context) (*core.ReorgStats, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return &core.ReorgStats{}, nil
 }
 
-func (m *MockDatabasePlugin) Health() error {
+func (m *MockDatabasePlugin) Health(ctx context.Context) error {
 	return nil
 }
 
@@ -161,15 +164,15 @@ func (m *MockDatabasePlugin) Version() string {
 	return "1.0.0"
 }
 
-func (m *MockDatabasePlugin) Initialize(config core.Config) error {
+func (m *MockDatabasePlugin) Initialize(ctx context.Context, config core.Config) error {
 	return nil
 }
 
-func (m *MockDatabasePlugin) Start() error {
+func (m *MockDatabasePlugin) Start(ctx context.Context) error {
 	return nil
 }
 
-func (m *MockDatabasePlugin) Stop() error {
+func (m *MockDatabasePlugin) Stop(ctx context.Context) error {
 	return nil
 }
 
@@ -189,31 +192,31 @@ func NewMockLogger() *MockLogger {
 	}
 }
 
-func (m *MockLogger) Info(msg string, _ ...interface{}) {
+func (m *MockLogger) Info(msg string, _ ...any) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.logs = append(m.logs, msg)
 }
 
-func (m *MockLogger) Error(msg string, _ ...interface{}) {
+func (m *MockLogger) Error(msg string, _ ...any) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.logs = append(m.logs, msg)
 }
 
-func (m *MockLogger) Debug(msg string, _ ...interface{}) {
+func (m *MockLogger) Debug(msg string, _ ...any) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.logs = append(m.logs, msg)
 }
 
-func (m *MockLogger) Warn(msg string, _ ...interface{}) {
+func (m *MockLogger) Warn(msg string, _ ...any) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.logs = append(m.logs, msg)
 }
 
-func (m *MockLogger) Fatal(msg string, _ ...interface{}) {
+func (m *MockLogger) Fatal(msg string, _ ...any) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.logs = append(m.logs, msg)
@@ -299,19 +302,24 @@ func (mcp *MockCachePlugin) Version() string {
 	return "1.0.0"
 }
 
-func (mcp *MockCachePlugin) Initialize(config core.Config) error {
+func (mcp *MockCachePlugin) Initialize(ctx context.Context, config core.Config) error {
+	_ = ctx
+	_ = config
 	return nil
 }
 
-func (mcp *MockCachePlugin) Start() error {
+func (mcp *MockCachePlugin) Start(ctx context.Context) error {
+	_ = ctx
 	return nil
 }
 
-func (mcp *MockCachePlugin) Stop() error {
+func (mcp *MockCachePlugin) Stop(ctx context.Context) error {
+	_ = ctx
 	return nil
 }
 
-func (mcp *MockCachePlugin) Health() error {
+func (mcp *MockCachePlugin) Health(ctx context.Context) error {
+	_ = ctx
 	return nil
 }
 
@@ -324,20 +332,21 @@ type stubSharedBatchRuntime struct {
 	mu          sync.Mutex
 	calls       int
 	lastChainID string
-	lastEvents  []appindexing.EventEnvelope
+	lastEvents  []core.EventEnvelope
 	err         error
 }
 
-func (s *stubSharedBatchRuntime) ProcessBatch(ctx context.Context, chainID string, events []appindexing.EventEnvelope) error {
+func (s *stubSharedBatchRuntime) ProcessBatch(ctx context.Context, chainID string, events []core.EventEnvelope) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.calls++
 	s.lastChainID = chainID
-	s.lastEvents = append([]appindexing.EventEnvelope(nil), events...)
+	s.lastEvents = append([]core.EventEnvelope(nil), events...)
 	return s.err
 }
 
 func TestNewDefaultChainIndexer(t *testing.T) {
+	t.Parallel()
 	db := NewMockDatabasePlugin()
 	cache := NewMockCachePlugin()
 	logger := NewMockLogger()
@@ -352,6 +361,7 @@ func TestNewDefaultChainIndexer(t *testing.T) {
 }
 
 func TestIndexEvents(t *testing.T) {
+	t.Parallel()
 	db := NewMockDatabasePlugin()
 	cache := NewMockCachePlugin()
 	logger := NewMockLogger()
@@ -384,6 +394,7 @@ func TestIndexEvents(t *testing.T) {
 }
 
 func TestIndexEventsEmptyList(t *testing.T) {
+	t.Parallel()
 	db := NewMockDatabasePlugin()
 	cache := NewMockCachePlugin()
 	logger := NewMockLogger()
@@ -398,6 +409,7 @@ func TestIndexEventsEmptyList(t *testing.T) {
 }
 
 func TestIndexEventsChainIDMismatch(t *testing.T) {
+	t.Parallel()
 	db := NewMockDatabasePlugin()
 	cache := NewMockCachePlugin()
 	logger := NewMockLogger()
@@ -419,6 +431,7 @@ func TestIndexEventsChainIDMismatch(t *testing.T) {
 }
 
 func TestGetChainID(t *testing.T) {
+	t.Parallel()
 	db := NewMockDatabasePlugin()
 	cache := NewMockCachePlugin()
 	logger := NewMockLogger()
@@ -430,6 +443,7 @@ func TestGetChainID(t *testing.T) {
 }
 
 func TestGetStatus(t *testing.T) {
+	t.Parallel()
 	db := NewMockDatabasePlugin()
 	cache := NewMockCachePlugin()
 	logger := NewMockLogger()
@@ -460,6 +474,7 @@ func TestGetStatus(t *testing.T) {
 }
 
 func TestClose(t *testing.T) {
+	t.Parallel()
 	db := NewMockDatabasePlugin()
 	cache := NewMockCachePlugin()
 	logger := NewMockLogger()
@@ -472,6 +487,7 @@ func TestClose(t *testing.T) {
 }
 
 func TestGetLastIndexedBlock(t *testing.T) {
+	t.Parallel()
 	db := NewMockDatabasePlugin()
 	cache := NewMockCachePlugin()
 	logger := NewMockLogger()
@@ -497,6 +513,7 @@ func TestGetLastIndexedBlock(t *testing.T) {
 }
 
 func TestGetTotalEventsIndexed(t *testing.T) {
+	t.Parallel()
 	db := NewMockDatabasePlugin()
 	cache := NewMockCachePlugin()
 	logger := NewMockLogger()
@@ -529,6 +546,7 @@ func TestGetTotalEventsIndexed(t *testing.T) {
 }
 
 func TestGetTotalErrors(t *testing.T) {
+	t.Parallel()
 	db := NewMockDatabasePlugin()
 	cache := NewMockCachePlugin()
 	logger := NewMockLogger()
@@ -551,6 +569,7 @@ func TestGetTotalErrors(t *testing.T) {
 }
 
 func TestResetStats(t *testing.T) {
+	t.Parallel()
 	db := NewMockDatabasePlugin()
 	cache := NewMockCachePlugin()
 	logger := NewMockLogger()
@@ -580,6 +599,7 @@ func TestResetStats(t *testing.T) {
 }
 
 func TestMultipleIndexing(t *testing.T) {
+	t.Parallel()
 	db := NewMockDatabasePlugin()
 	cache := NewMockCachePlugin()
 	logger := NewMockLogger()
@@ -618,6 +638,7 @@ func TestMultipleIndexing(t *testing.T) {
 }
 
 func TestStatusMetrics(t *testing.T) {
+	t.Parallel()
 	db := NewMockDatabasePlugin()
 	cache := NewMockCachePlugin()
 	logger := NewMockLogger()
@@ -651,6 +672,7 @@ func TestStatusMetrics(t *testing.T) {
 }
 
 func TestIndexEventsForwardsShadowBatchToSharedRuntime(t *testing.T) {
+	t.Parallel()
 	db := NewMockDatabasePlugin()
 	cache := NewMockCachePlugin()
 	logger := NewMockLogger()
@@ -686,6 +708,7 @@ func TestIndexEventsForwardsShadowBatchToSharedRuntime(t *testing.T) {
 }
 
 func TestIndexEventsSharedRuntimeFailureDoesNotBlockLegacyIndexing(t *testing.T) {
+	t.Parallel()
 	db := NewMockDatabasePlugin()
 	cache := NewMockCachePlugin()
 	logger := NewMockLogger()
@@ -722,6 +745,7 @@ func TestIndexEventsSharedRuntimeFailureDoesNotBlockLegacyIndexing(t *testing.T)
 }
 
 func TestIndexEventsSkipsDuplicateLegacyWriteAfterShadowPersistence(t *testing.T) {
+	t.Parallel()
 	db := NewMockDatabasePlugin()
 	cache := NewMockCachePlugin()
 	logger := NewMockLogger()
@@ -741,7 +765,7 @@ func TestIndexEventsSkipsDuplicateLegacyWriteAfterShadowPersistence(t *testing.T
 		EventSignature:  common.HexToHash("0x5678"),
 	}
 
-	shadowWriteTracker.mark(event)
+	markShadowWrite(event)
 
 	err := indexer.IndexEvents(context.Background(), []*core.BlockchainEvent{event})
 	require.NoError(t, err)
@@ -759,6 +783,7 @@ func TestIndexEventsSkipsDuplicateLegacyWriteAfterShadowPersistence(t *testing.T
 }
 
 func TestIndexEventsDoesNotEmitShadowOwnedMetricOnLegacyFallback(t *testing.T) {
+	t.Parallel()
 	db := NewMockDatabasePlugin()
 	cache := NewMockCachePlugin()
 	logger := NewMockLogger()

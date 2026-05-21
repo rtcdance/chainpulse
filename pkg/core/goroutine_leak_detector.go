@@ -27,8 +27,7 @@ func NewGoroutineLeakDetector() *GoroutineLeakDetector {
 
 // Finish checks for goroutine leaks and returns the count of leaked goroutines
 func (d *GoroutineLeakDetector) Finish() int {
-	// Allow time for goroutines to clean up
-	time.Sleep(100 * time.Millisecond)
+	<-time.After(100 * time.Millisecond)
 
 	d.finalCount = CountGoroutines()
 	d.leaked = d.finalCount - d.initialCount
@@ -69,8 +68,7 @@ func (d *GoroutineLeakDetector) GetFinalCount() int {
 // AssertNoGoroutineLeaks is a helper function that asserts no goroutines were leaked
 // It should be called at the end of a test
 func AssertNoGoroutineLeaks(t *testing.T, initialCount int) {
-	// Allow time for goroutines to clean up
-	time.Sleep(100 * time.Millisecond)
+	<-time.After(100 * time.Millisecond)
 
 	finalCount := CountGoroutines()
 	leaked := finalCount - initialCount

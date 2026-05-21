@@ -9,6 +9,7 @@ import (
 
 // TestProperty22_CounterAccumulation tests that counters properly accumulate
 func TestProperty22_CounterAccumulation(t *testing.T) {
+	t.Parallel()
 	// Property: Counter values must accumulate correctly
 	collector := NewDefaultMetricsCollector()
 	tags := map[string]string{"service": "api"}
@@ -38,6 +39,7 @@ func TestProperty22_CounterAccumulation(t *testing.T) {
 
 // TestProperty22_GaugeReplacement tests that gauges replace previous values
 func TestProperty22_GaugeReplacement(t *testing.T) {
+	t.Parallel()
 	// Property: Gauge values must replace previous values, not accumulate
 	collector := NewDefaultMetricsCollector()
 	tags := map[string]string{"service": "api"}
@@ -66,6 +68,7 @@ func TestProperty22_GaugeReplacement(t *testing.T) {
 
 // TestProperty22_HistogramDataPreservation tests that histogram values are preserved
 func TestProperty22_HistogramDataPreservation(t *testing.T) {
+	t.Parallel()
 	// Property: All histogram values must be preserved for statistical analysis
 	collector := NewDefaultMetricsCollector()
 	tags := map[string]string{"service": "api"}
@@ -92,6 +95,7 @@ func TestProperty22_HistogramDataPreservation(t *testing.T) {
 
 // TestProperty22_TagIsolation tests that metrics with different tags are isolated
 func TestProperty22_TagIsolation(t *testing.T) {
+	t.Parallel()
 	// Property: Metrics with different tags must not interfere with each other
 	collector := NewDefaultMetricsCollector()
 	tags1 := map[string]string{"service": "api"}
@@ -119,6 +123,7 @@ func TestProperty22_TagIsolation(t *testing.T) {
 
 // TestProperty22_MetricsConsistency tests that metrics remain consistent
 func TestProperty22_MetricsConsistency(t *testing.T) {
+	t.Parallel()
 	// Property: Metrics must remain consistent across multiple reads
 	collector := NewDefaultMetricsCollector()
 	tags := map[string]string{"service": "api"}
@@ -136,6 +141,7 @@ func TestProperty22_MetricsConsistency(t *testing.T) {
 
 // TestProperty22_ConcurrentMetricsRecording tests concurrent metric recording
 func TestProperty22_ConcurrentMetricsRecording(t *testing.T) {
+	t.Parallel()
 	// Property: Concurrent metric recording must not lose data
 	collector := NewDefaultMetricsCollector()
 	tags := map[string]string{"service": "api"}
@@ -162,6 +168,7 @@ func TestProperty22_ConcurrentMetricsRecording(t *testing.T) {
 
 // TestProperty22_HistogramStatisticsAccuracy tests histogram statistics accuracy
 func TestProperty22_HistogramStatisticsAccuracy(t *testing.T) {
+	t.Parallel()
 	// Property: Histogram statistics must be calculated correctly
 	collector := NewDefaultMetricsCollector()
 	tags := map[string]string{"service": "api"}
@@ -193,6 +200,7 @@ func TestProperty22_HistogramStatisticsAccuracy(t *testing.T) {
 
 // TestProperty22_MetricsReset tests that reset clears all metrics
 func TestProperty22_MetricsReset(t *testing.T) {
+	t.Parallel()
 	// Property: Reset must clear all metrics completely
 	collector := NewDefaultMetricsCollector()
 	tags := map[string]string{"service": "api"}
@@ -216,6 +224,7 @@ func TestProperty22_MetricsReset(t *testing.T) {
 
 // TestProperty22_SelectiveReset tests that selective reset works correctly
 func TestProperty22_SelectiveReset(t *testing.T) {
+	t.Parallel()
 	// Property: Selective reset must only clear specified metrics
 	collector := NewDefaultMetricsCollector()
 	tags1 := map[string]string{"service": "api"}
@@ -239,6 +248,7 @@ func TestProperty22_SelectiveReset(t *testing.T) {
 
 // TestProperty22_MultipleMetricTypes tests multiple metric types together
 func TestProperty22_MultipleMetricTypes(t *testing.T) {
+	t.Parallel()
 	// Property: Different metric types must not interfere with each other
 	collector := NewDefaultMetricsCollector()
 	tags := map[string]string{"service": "api"}
@@ -264,6 +274,7 @@ func TestProperty22_MultipleMetricTypes(t *testing.T) {
 
 // TestProperty22_LargeMetricValues tests handling of large metric values
 func TestProperty22_LargeMetricValues(t *testing.T) {
+	t.Parallel()
 	// Property: Large metric values must be handled correctly
 	collector := NewDefaultMetricsCollector()
 	tags := map[string]string{"service": "api"}
@@ -293,6 +304,7 @@ func TestProperty22_LargeMetricValues(t *testing.T) {
 
 // TestProperty22_EmptyMetrics tests behavior with empty metrics
 func TestProperty22_EmptyMetrics(t *testing.T) {
+	t.Parallel()
 	// Property: Empty metrics should return zero values
 	collector := NewDefaultMetricsCollector()
 	tags := map[string]string{"service": "api"}
@@ -314,6 +326,7 @@ func TestProperty22_EmptyMetrics(t *testing.T) {
 
 // TestProperty22_MetricsExport tests that metrics can be exported
 func TestProperty22_MetricsExport(t *testing.T) {
+	t.Parallel()
 	// Property: All metrics must be exportable via GetMetrics
 	collector := NewDefaultMetricsCollector()
 	tags := map[string]string{"service": "api"}
@@ -337,6 +350,7 @@ func TestProperty22_MetricsExport(t *testing.T) {
 
 // TestProperty22_HistogramPercentileMonotonicity tests percentile monotonicity
 func TestProperty22_HistogramPercentileMonotonicity(t *testing.T) {
+	t.Parallel()
 	// Property: Percentiles must be monotonically increasing
 	collector := NewDefaultMetricsCollector()
 	tags := map[string]string{"service": "api"}
@@ -360,6 +374,7 @@ func TestProperty22_HistogramPercentileMonotonicity(t *testing.T) {
 
 // TestProperty22_MetricsCount tests metric counting
 func TestProperty22_MetricsCount(t *testing.T) {
+	t.Parallel()
 	// Property: Metric counts must accurately reflect recorded metrics
 	collector := NewDefaultMetricsCollector()
 
@@ -386,6 +401,7 @@ func TestProperty22_MetricsCount(t *testing.T) {
 
 // TestProperty22_NegativeCounterAccumulation tests negative counter accumulation
 func TestProperty22_NegativeCounterAccumulation(t *testing.T) {
+	t.Parallel()
 	// Property: Counters must handle negative increments correctly
 	collector := NewDefaultMetricsCollector()
 	tags := map[string]string{"service": "api"}
@@ -402,6 +418,7 @@ func TestProperty22_NegativeCounterAccumulation(t *testing.T) {
 
 // TestProperty22_HistogramMinMaxTracking tests min/max tracking
 func TestProperty22_HistogramMinMaxTracking(t *testing.T) {
+	t.Parallel()
 	// Property: Histogram must correctly track min and max values
 	collector := NewDefaultMetricsCollector()
 	tags := map[string]string{"service": "api"}

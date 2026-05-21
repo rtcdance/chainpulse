@@ -10,6 +10,7 @@ import (
 
 // TestNewRedisCluster tests Redis cluster creation
 func TestNewRedisCluster(t *testing.T) {
+	t.Parallel()
 	config := &RedisConfig{
 		Host:     "localhost",
 		Port:     6379,
@@ -29,6 +30,7 @@ func TestNewRedisCluster(t *testing.T) {
 
 // TestNewRedisClusterNilConfig tests Redis cluster creation with nil config
 func TestNewRedisClusterNilConfig(t *testing.T) {
+	t.Parallel()
 	cluster, err := NewRedisCluster(nil)
 
 	// Connection may fail if Redis is not running, but structure should be valid
@@ -43,6 +45,7 @@ func TestNewRedisClusterNilConfig(t *testing.T) {
 
 // TestRedisConfigStructure tests Redis config structure
 func TestRedisConfigStructure(t *testing.T) {
+	t.Parallel()
 	config := &RedisConfig{
 		Host:     "redis.example.com",
 		Port:     6379,
@@ -52,12 +55,13 @@ func TestRedisConfigStructure(t *testing.T) {
 
 	assert.Equal(t, "redis.example.com", config.Host)
 	assert.Equal(t, 6379, config.Port)
-	assert.Equal(t, "secret", config.Password)
+	assert.Equal(t, "secret", config.Password.Value())
 	assert.Equal(t, 1, config.DB)
 }
 
 // TestRedisClusterClose tests closing Redis cluster
 func TestRedisClusterClose(t *testing.T) {
+	t.Parallel()
 	config := &RedisConfig{
 		Host:     "localhost",
 		Port:     6379,
@@ -74,6 +78,7 @@ func TestRedisClusterClose(t *testing.T) {
 
 // TestRedisClusterCloseNilClient tests closing Redis cluster with nil client
 func TestRedisClusterCloseNilClient(t *testing.T) {
+	t.Parallel()
 	cluster := &RedisCluster{
 		config: &RedisConfig{
 			Host:     "localhost",
@@ -90,6 +95,7 @@ func TestRedisClusterCloseNilClient(t *testing.T) {
 
 // TestRedisConfigWithDifferentPorts tests Redis config with different ports
 func TestRedisConfigWithDifferentPorts(t *testing.T) {
+	t.Parallel()
 	ports := []int{6379, 6380, 6381, 26379}
 
 	for _, port := range ports {
@@ -106,6 +112,7 @@ func TestRedisConfigWithDifferentPorts(t *testing.T) {
 
 // TestRedisConfigWithDifferentDatabases tests Redis config with different databases
 func TestRedisConfigWithDifferentDatabases(t *testing.T) {
+	t.Parallel()
 	for db := 0; db < 16; db++ {
 		config := &RedisConfig{
 			Host:     "localhost",
@@ -120,6 +127,7 @@ func TestRedisConfigWithDifferentDatabases(t *testing.T) {
 
 // TestRedisConfigWithPassword tests Redis config with password
 func TestRedisConfigWithPassword(t *testing.T) {
+	t.Parallel()
 	config := &RedisConfig{
 		Host:     "localhost",
 		Port:     6379,
@@ -127,11 +135,12 @@ func TestRedisConfigWithPassword(t *testing.T) {
 		DB:       0,
 	}
 
-	assert.Equal(t, "mypassword", config.Password)
+	assert.Equal(t, "mypassword", config.Password.Value())
 }
 
 // TestRedisConfigWithEmptyPassword tests Redis config with empty password
 func TestRedisConfigWithEmptyPassword(t *testing.T) {
+	t.Parallel()
 	config := &RedisConfig{
 		Host:     "localhost",
 		Port:     6379,
@@ -139,11 +148,12 @@ func TestRedisConfigWithEmptyPassword(t *testing.T) {
 		DB:       0,
 	}
 
-	assert.Equal(t, "", config.Password)
+	assert.Equal(t, "", config.Password.Value())
 }
 
 // TestRedisConfigWithDifferentHosts tests Redis config with different hosts
 func TestRedisConfigWithDifferentHosts(t *testing.T) {
+	t.Parallel()
 	hosts := []string{"localhost", "127.0.0.1", "redis.example.com", "redis-primary"}
 
 	for _, host := range hosts {
@@ -160,6 +170,7 @@ func TestRedisConfigWithDifferentHosts(t *testing.T) {
 
 // TestRedisConfigDefaultValues tests Redis config default values
 func TestRedisConfigDefaultValues(t *testing.T) {
+	t.Parallel()
 	cluster, err := NewRedisCluster(nil)
 
 	if err == nil {
@@ -173,6 +184,7 @@ func TestRedisConfigDefaultValues(t *testing.T) {
 
 // TestRedisConfigWithSpecialCharacters tests Redis config with special characters
 func TestRedisConfigWithSpecialCharacters(t *testing.T) {
+	t.Parallel()
 	config := &RedisConfig{
 		Host:     "localhost",
 		Port:     6379,
@@ -180,11 +192,12 @@ func TestRedisConfigWithSpecialCharacters(t *testing.T) {
 		DB:       0,
 	}
 
-	assert.Equal(t, "p@ssw0rd!#$%", config.Password)
+	assert.Equal(t, "p@ssw0rd!#$%", config.Password.Value())
 }
 
 // TestRedisHealthContext tests health check with context
 func TestRedisHealthContext(t *testing.T) {
+	t.Parallel()
 	config := &RedisConfig{
 		Host:     "localhost",
 		Port:     6379,
@@ -205,6 +218,7 @@ func TestRedisHealthContext(t *testing.T) {
 
 // TestRedisConfigMultipleInstances tests creating multiple Redis config instances
 func TestRedisConfigMultipleInstances(t *testing.T) {
+	t.Parallel()
 	config1 := &RedisConfig{
 		Host:     "localhost",
 		Port:     6379,
@@ -226,6 +240,7 @@ func TestRedisConfigMultipleInstances(t *testing.T) {
 
 // TestRedisConfigClusterStructure tests Redis cluster structure
 func TestRedisConfigClusterStructure(t *testing.T) {
+	t.Parallel()
 	config := &RedisConfig{
 		Host:     "localhost",
 		Port:     6379,
@@ -243,6 +258,7 @@ func TestRedisConfigClusterStructure(t *testing.T) {
 
 // TestRedisConfigWithHighPort tests Redis config with high port number
 func TestRedisConfigWithHighPort(t *testing.T) {
+	t.Parallel()
 	config := &RedisConfig{
 		Host:     "localhost",
 		Port:     65432,
@@ -255,6 +271,7 @@ func TestRedisConfigWithHighPort(t *testing.T) {
 
 // TestRedisConfigWithLowPort tests Redis config with low port number
 func TestRedisConfigWithLowPort(t *testing.T) {
+	t.Parallel()
 	config := &RedisConfig{
 		Host:     "localhost",
 		Port:     1,
@@ -267,6 +284,7 @@ func TestRedisConfigWithLowPort(t *testing.T) {
 
 // TestRedisConfigWithMaxDatabase tests Redis config with max database number
 func TestRedisConfigWithMaxDatabase(t *testing.T) {
+	t.Parallel()
 	config := &RedisConfig{
 		Host:     "localhost",
 		Port:     6379,
@@ -279,6 +297,7 @@ func TestRedisConfigWithMaxDatabase(t *testing.T) {
 
 // TestRedisConfigWithMinDatabase tests Redis config with min database number
 func TestRedisConfigWithMinDatabase(t *testing.T) {
+	t.Parallel()
 	config := &RedisConfig{
 		Host:     "localhost",
 		Port:     6379,

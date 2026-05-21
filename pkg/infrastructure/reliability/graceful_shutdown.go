@@ -68,47 +68,63 @@ func (gsm *GracefulShutdownManager) RegisterService(serviceID string) {
 	}
 }
 
-// InitiateShutdown initiates graceful shutdown
+// InitiateShutdown initiates graceful shutdown.
+// The mutex is released before entering drain/wait loops to avoid deadlock
+// with UpdateConnectionCount and UpdatePendingRequests which also acquire gsm.mu.
 func (gsm *GracefulShutdownManager) InitiateShutdown(ctx context.Context) error {
 	gsm.mu.Lock()
-	defer gsm.mu.Unlock()
 
 	if gsm.shutdownInProgress {
+		gsm.mu.Unlock()
 		return fmt.Errorf("shutdown already in progress")
 	}
 
 	gsm.shutdownInProgress = true
-	start := time.Now()
-	defer func() {
-		gsm.recordShutdownTime(time.Since(start))
-		gsm.shutdownInProgress = false
-	}()
 
 	gsm.metrics.mu.Lock()
 	gsm.metrics.ShutdownsInitiated++
 	gsm.metrics.mu.Unlock()
 
-	// Start draining connections for all services
+	// Mark all services as draining and snapshot current state
+	type drainTarget struct {
+		serviceID string
+		info      *ShutdownInfo
+	}
+	var targets []drainTarget
 	for serviceID, info := range gsm.services {
 		info.Status = "draining"
 		info.DrainStartTime = time.Now()
+		targets = append(targets, drainTarget{serviceID: serviceID, info: info})
+	}
 
-		// Drain connections
-		gsm.drainConnections(ctx, serviceID, info)
+	// Release the lock before entering drain loops —
+	// UpdateConnectionCount/UpdatePendingRequests need gsm.mu to update counts.
+	gsm.mu.Unlock()
+
+	start := time.Now()
+
+	// Drain connections for all services
+	for _, t := range targets {
+		gsm.drainConnections(ctx, t.serviceID, t.info)
 	}
 
 	// Wait for all requests to complete
 	gsm.waitForRequestCompletion(ctx)
 
 	// Mark all services as stopped
-	for _, info := range gsm.services {
-		info.Status = "stopped"
-		info.DrainCompleteTime = time.Now()
+	gsm.mu.Lock()
+	for _, t := range targets {
+		t.info.Status = "stopped"
+		t.info.DrainCompleteTime = time.Now()
 	}
+	gsm.shutdownInProgress = false
+	gsm.mu.Unlock()
 
 	gsm.metrics.mu.Lock()
 	gsm.metrics.ShutdownsCompleted++
 	gsm.metrics.mu.Unlock()
+
+	gsm.recordShutdownTime(time.Since(start))
 
 	return nil
 }
@@ -230,13 +246,13 @@ func (gsm *GracefulShutdownManager) UpdatePendingRequests(serviceID string, coun
 }
 
 // GetShutdownStatus returns the shutdown status
-func (gsm *GracefulShutdownManager) GetShutdownStatus() map[string]interface{} {
+func (gsm *GracefulShutdownManager) GetShutdownStatus() map[string]any {
 	gsm.mu.RLock()
 	defer gsm.mu.RUnlock()
 
-	status := make(map[string]interface{})
+	status := make(map[string]any)
 	for serviceID, info := range gsm.services {
-		status[serviceID] = map[string]interface{}{
+		status[serviceID] = map[string]any{
 			"status":              info.Status,
 			"active_connections":  info.ActiveConnections,
 			"pending_requests":    info.PendingRequests,
@@ -249,11 +265,11 @@ func (gsm *GracefulShutdownManager) GetShutdownStatus() map[string]interface{} {
 }
 
 // GetMetrics returns shutdown metrics
-func (gsm *GracefulShutdownManager) GetMetrics() map[string]interface{} {
+func (gsm *GracefulShutdownManager) GetMetrics() map[string]any {
 	gsm.metrics.mu.RLock()
 	defer gsm.metrics.mu.RUnlock()
 
-	return map[string]interface{}{
+	return map[string]any{
 		"shutdowns_initiated":   gsm.metrics.ShutdownsInitiated,
 		"shutdowns_completed":   gsm.metrics.ShutdownsCompleted,
 		"shutdowns_failed":      gsm.metrics.ShutdownsFailed,

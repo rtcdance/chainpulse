@@ -6,24 +6,24 @@ import (
 	"testing"
 	"time"
 
-	"chainpulse/pkg/core"
-	domainquery "chainpulse/pkg/domain/query"
-	"chainpulse/pkg/infrastructure/database"
-	"chainpulse/pkg/plugins/api"
-	"chainpulse/pkg/services/query"
+	"github.com/rtcdance/chainpulse/pkg/core"
+	domainquery "github.com/rtcdance/chainpulse/pkg/domain/query"
+	"github.com/rtcdance/chainpulse/pkg/infrastructure/database"
+	"github.com/rtcdance/chainpulse/pkg/plugins/api"
+	"github.com/rtcdance/chainpulse/pkg/services/query"
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
 type fakeDBManager struct{}
 
-func (f *fakeDBManager) Initialize(ctx context.Context) error                    { return nil }
-func (f *fakeDBManager) GetMongoClient(ctx context.Context) (interface{}, error) { return nil, nil }
-func (f *fakeDBManager) GetMongoDatabase(name string) *mongo.Database            { return nil }
-func (f *fakeDBManager) GetPostgresDB(ctx context.Context) (interface{}, error)  { return nil, nil }
-func (f *fakeDBManager) CheckMongoHealth(ctx context.Context) error              { return nil }
-func (f *fakeDBManager) CheckPostgresHealth(ctx context.Context) error           { return nil }
-func (f *fakeDBManager) Health(ctx context.Context) interface{}                  { return nil }
-func (f *fakeDBManager) Close(ctx context.Context) error                         { return nil }
+func (f *fakeDBManager) Initialize(ctx context.Context) error            { return nil }
+func (f *fakeDBManager) GetMongoClient(ctx context.Context) (any, error) { return nil, nil }
+func (f *fakeDBManager) GetMongoDatabase(name string) *mongo.Database    { return nil }
+func (f *fakeDBManager) GetPostgresDB(ctx context.Context) (any, error)  { return nil, nil }
+func (f *fakeDBManager) CheckMongoHealth(ctx context.Context) error      { return nil }
+func (f *fakeDBManager) CheckPostgresHealth(ctx context.Context) error   { return nil }
+func (f *fakeDBManager) Health(ctx context.Context) any                  { return nil }
+func (f *fakeDBManager) Close(ctx context.Context) error                 { return nil }
 
 type fakeQueryRuntimeService struct{}
 
@@ -37,7 +37,9 @@ func (f *fakeQueryRuntimeService) Query(ctx context.Context, req *query.QueryReq
 func (f *fakeQueryRuntimeService) QueryByHash(ctx context.Context, hash string) (*core.BlockchainEvent, error) {
 	return nil, nil
 }
+
 func (f *fakeQueryRuntimeService) InvalidateCache(ctx context.Context, key string) error { return nil }
+
 func (f *fakeQueryRuntimeService) Health(ctx context.Context) *core.HealthStatus {
 	return &core.HealthStatus{Status: "healthy", Message: "ok"}
 }
@@ -55,6 +57,7 @@ func testConfig() *database.Config {
 }
 
 func TestBuildRuntimeWiringLoadConfigFailure(t *testing.T) {
+	t.Parallel()
 	deps := defaultRuntimeWiringDeps()
 	deps.loadConfig = func() (*database.Config, error) {
 		return nil, errors.New("load config boom")
@@ -69,6 +72,7 @@ func TestBuildRuntimeWiringLoadConfigFailure(t *testing.T) {
 }
 
 func TestBuildRuntimeWiringInitDBFailure(t *testing.T) {
+	t.Parallel()
 	deps := defaultRuntimeWiringDeps()
 	deps.loadConfig = func() (*database.Config, error) { return testConfig(), nil }
 	deps.newDB = func(cfg *database.Config) database.DatabaseManager { return &fakeDBManager{} }
@@ -85,6 +89,7 @@ func TestBuildRuntimeWiringInitDBFailure(t *testing.T) {
 }
 
 func TestBuildRuntimeWiringQueryBuildFailure(t *testing.T) {
+	t.Parallel()
 	deps := defaultRuntimeWiringDeps()
 	deps.loadConfig = func() (*database.Config, error) { return testConfig(), nil }
 	deps.newDB = func(cfg *database.Config) database.DatabaseManager { return &fakeDBManager{} }
@@ -108,6 +113,7 @@ func TestBuildRuntimeWiringQueryBuildFailure(t *testing.T) {
 }
 
 func TestBuildRuntimeWiringEventBuildFailure(t *testing.T) {
+	t.Parallel()
 	deps := defaultRuntimeWiringDeps()
 	deps.loadConfig = func() (*database.Config, error) { return testConfig(), nil }
 	deps.newDB = func(cfg *database.Config) database.DatabaseManager { return &fakeDBManager{} }
@@ -141,6 +147,7 @@ func TestBuildRuntimeWiringEventBuildFailure(t *testing.T) {
 }
 
 func TestRuntimeWiringCloseNilSafe(t *testing.T) {
+	t.Parallel()
 	var wiring *RuntimeWiring
 	if err := wiring.Close(context.Background()); err != nil {
 		t.Fatalf("expected nil-safe close, got err: %v", err)
@@ -148,6 +155,7 @@ func TestRuntimeWiringCloseNilSafe(t *testing.T) {
 }
 
 func TestCfgTimeout(t *testing.T) {
+	t.Parallel()
 	got := cfgTimeout(1500)
 	if got != 1500*time.Millisecond {
 		t.Fatalf("expected 1500ms, got %v", got)

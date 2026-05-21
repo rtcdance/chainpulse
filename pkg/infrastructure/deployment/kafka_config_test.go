@@ -8,6 +8,7 @@ import (
 
 // TestNewKafkaConfig tests creating a new Kafka configuration
 func TestNewKafkaConfig(t *testing.T) {
+	t.Parallel()
 	config := NewKafkaConfig()
 
 	assert.NotNil(t, config)
@@ -20,6 +21,7 @@ func TestNewKafkaConfig(t *testing.T) {
 
 // TestKafkaConfigDefaults tests Kafka configuration defaults
 func TestKafkaConfigDefaults(t *testing.T) {
+	t.Parallel()
 	config := NewKafkaConfig()
 
 	assert.Equal(t, int64(604800000), config.RetentionMs)
@@ -37,6 +39,7 @@ func TestKafkaConfigDefaults(t *testing.T) {
 
 // TestKafkaConfigValidate tests Kafka configuration validation
 func TestKafkaConfigValidate(t *testing.T) {
+	t.Parallel()
 	config := &KafkaConfig{}
 
 	err := config.Validate()
@@ -51,6 +54,7 @@ func TestKafkaConfigValidate(t *testing.T) {
 
 // TestKafkaConfigValidateWithExistingValues tests validation preserves existing values
 func TestKafkaConfigValidateWithExistingValues(t *testing.T) {
+	t.Parallel()
 	config := &KafkaConfig{
 		Brokers:           []string{"broker1:9092", "broker2:9092"},
 		Topic:             "custom-topic",
@@ -71,6 +75,7 @@ func TestKafkaConfigValidateWithExistingValues(t *testing.T) {
 
 // TestKafkaConfigWithCustomBrokers tests Kafka config with custom brokers
 func TestKafkaConfigWithCustomBrokers(t *testing.T) {
+	t.Parallel()
 	config := &KafkaConfig{
 		Brokers: []string{"kafka1:9092", "kafka2:9092", "kafka3:9092"},
 	}
@@ -83,6 +88,7 @@ func TestKafkaConfigWithCustomBrokers(t *testing.T) {
 
 // TestKafkaConfigWithCustomTopic tests Kafka config with custom topic
 func TestKafkaConfigWithCustomTopic(t *testing.T) {
+	t.Parallel()
 	config := &KafkaConfig{
 		Topic: "blockchain-events",
 	}
@@ -95,6 +101,7 @@ func TestKafkaConfigWithCustomTopic(t *testing.T) {
 
 // TestKafkaConfigWithCustomConsumerGroup tests Kafka config with custom consumer group
 func TestKafkaConfigWithCustomConsumerGroup(t *testing.T) {
+	t.Parallel()
 	config := &KafkaConfig{
 		ConsumerGroup: "my-consumer-group",
 	}
@@ -107,6 +114,7 @@ func TestKafkaConfigWithCustomConsumerGroup(t *testing.T) {
 
 // TestKafkaConfigWithCustomPartitions tests Kafka config with custom partitions
 func TestKafkaConfigWithCustomPartitions(t *testing.T) {
+	t.Parallel()
 	config := &KafkaConfig{
 		Partitions: 10,
 	}
@@ -119,6 +127,7 @@ func TestKafkaConfigWithCustomPartitions(t *testing.T) {
 
 // TestKafkaConfigWithCustomReplicationFactor tests Kafka config with custom replication factor
 func TestKafkaConfigWithCustomReplicationFactor(t *testing.T) {
+	t.Parallel()
 	config := &KafkaConfig{
 		ReplicationFactor: 3,
 	}
@@ -131,6 +140,7 @@ func TestKafkaConfigWithCustomReplicationFactor(t *testing.T) {
 
 // TestKafkaConfigWithSASL tests Kafka config with SASL authentication
 func TestKafkaConfigWithSASL(t *testing.T) {
+	t.Parallel()
 	config := &KafkaConfig{
 		SecurityProtocol: "SASL_SSL",
 		SASLMechanism:    "PLAIN",
@@ -147,6 +157,7 @@ func TestKafkaConfigWithSASL(t *testing.T) {
 
 // TestKafkaConfigWithSSL tests Kafka config with SSL
 func TestKafkaConfigWithSSL(t *testing.T) {
+	t.Parallel()
 	config := &KafkaConfig{
 		SecurityProtocol: "SSL",
 		SSLCALocation:    "/path/to/ca.pem",
@@ -162,6 +173,7 @@ func TestKafkaConfigWithSSL(t *testing.T) {
 
 // TestKafkaConfigWithCustomRetention tests Kafka config with custom retention
 func TestKafkaConfigWithCustomRetention(t *testing.T) {
+	t.Parallel()
 	config := &KafkaConfig{
 		RetentionMs: 86400000, // 1 day
 	}
@@ -174,6 +186,7 @@ func TestKafkaConfigWithCustomRetention(t *testing.T) {
 
 // TestKafkaConfigWithCustomCompression tests Kafka config with custom compression
 func TestKafkaConfigWithCustomCompression(t *testing.T) {
+	t.Parallel()
 	compressionTypes := []string{"gzip", "snappy", "lz4", "zstd", "uncompressed"}
 
 	for _, compression := range compressionTypes {
@@ -190,6 +203,7 @@ func TestKafkaConfigWithCustomCompression(t *testing.T) {
 
 // TestKafkaConfigWithCustomTimeouts tests Kafka config with custom timeouts
 func TestKafkaConfigWithCustomTimeouts(t *testing.T) {
+	t.Parallel()
 	config := &KafkaConfig{
 		ConnectTimeoutMs:    5000,
 		RequestTimeoutMs:    15000,
@@ -208,6 +222,7 @@ func TestKafkaConfigWithCustomTimeouts(t *testing.T) {
 
 // TestKafkaConfigWithCustomMaxPoll tests Kafka config with custom max poll settings
 func TestKafkaConfigWithCustomMaxPoll(t *testing.T) {
+	t.Parallel()
 	config := &KafkaConfig{
 		MaxPollIntervalMs: 600000,
 		MaxPollRecords:    1000,
@@ -222,6 +237,7 @@ func TestKafkaConfigWithCustomMaxPoll(t *testing.T) {
 
 // TestKafkaConfigWithCustomFetch tests Kafka config with custom fetch settings
 func TestKafkaConfigWithCustomFetch(t *testing.T) {
+	t.Parallel()
 	config := &KafkaConfig{
 		FetchMinBytes:  1024,
 		FetchMaxWaitMs: 1000,
@@ -236,6 +252,7 @@ func TestKafkaConfigWithCustomFetch(t *testing.T) {
 
 // TestKafkaConfigMultipleInstances tests creating multiple Kafka config instances
 func TestKafkaConfigMultipleInstances(t *testing.T) {
+	t.Parallel()
 	config1 := NewKafkaConfig()
 	config2 := NewKafkaConfig()
 
@@ -248,6 +265,7 @@ func TestKafkaConfigMultipleInstances(t *testing.T) {
 
 // TestKafkaConfigValidateEmptyBrokers tests validation with empty brokers
 func TestKafkaConfigValidateEmptyBrokers(t *testing.T) {
+	t.Parallel()
 	config := &KafkaConfig{
 		Brokers: []string{},
 	}
@@ -260,6 +278,7 @@ func TestKafkaConfigValidateEmptyBrokers(t *testing.T) {
 
 // TestKafkaConfigValidateEmptyTopic tests validation with empty topic
 func TestKafkaConfigValidateEmptyTopic(t *testing.T) {
+	t.Parallel()
 	config := &KafkaConfig{
 		Topic: "",
 	}
@@ -272,6 +291,7 @@ func TestKafkaConfigValidateEmptyTopic(t *testing.T) {
 
 // TestKafkaConfigValidateEmptyConsumerGroup tests validation with empty consumer group
 func TestKafkaConfigValidateEmptyConsumerGroup(t *testing.T) {
+	t.Parallel()
 	config := &KafkaConfig{
 		ConsumerGroup: "",
 	}
@@ -284,6 +304,7 @@ func TestKafkaConfigValidateEmptyConsumerGroup(t *testing.T) {
 
 // TestKafkaConfigValidateZeroPartitions tests validation with zero partitions
 func TestKafkaConfigValidateZeroPartitions(t *testing.T) {
+	t.Parallel()
 	config := &KafkaConfig{
 		Partitions: 0,
 	}
@@ -296,6 +317,7 @@ func TestKafkaConfigValidateZeroPartitions(t *testing.T) {
 
 // TestKafkaConfigValidateZeroReplicationFactor tests validation with zero replication factor
 func TestKafkaConfigValidateZeroReplicationFactor(t *testing.T) {
+	t.Parallel()
 	config := &KafkaConfig{
 		ReplicationFactor: 0,
 	}
@@ -308,6 +330,7 @@ func TestKafkaConfigValidateZeroReplicationFactor(t *testing.T) {
 
 // TestKafkaConfigValidateEmptyCompressionType tests validation with empty compression type
 func TestKafkaConfigValidateEmptyCompressionType(t *testing.T) {
+	t.Parallel()
 	config := &KafkaConfig{
 		CompressionType: "",
 	}
@@ -320,6 +343,7 @@ func TestKafkaConfigValidateEmptyCompressionType(t *testing.T) {
 
 // TestKafkaConfigValidateEmptySecurityProtocol tests validation with empty security protocol
 func TestKafkaConfigValidateEmptySecurityProtocol(t *testing.T) {
+	t.Parallel()
 	config := &KafkaConfig{
 		SecurityProtocol: "",
 	}

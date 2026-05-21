@@ -66,7 +66,7 @@ type RequestMetadata struct {
 
 // GetRuntimeMetrics returns a compact runtime surface for request metadata
 // readiness on top of protocol identity and request attribution completeness.
-func (m RequestMetadata) GetRuntimeMetrics() map[string]interface{} {
+func (m RequestMetadata) GetRuntimeMetrics() map[string]any {
 	protocolKnown := m.Protocol != ProtocolUnknown
 	clientIdentified := m.ClientIP != ""
 	requestTracked := m.RequestID != ""
@@ -76,7 +76,7 @@ func (m RequestMetadata) GetRuntimeMetrics() map[string]interface{} {
 	coveragePosture := classifyRequestMetadataCoveragePosture(protocolKnown, clientIdentified, requestTracked)
 	runtimePosture := classifyRequestMetadataRuntimePosture(protocolKnown, timestampSet, requestTracked)
 
-	return map[string]interface{}{
+	return map[string]any{
 		"protocol":           m.Protocol,
 		"client_ip_present":  clientIdentified,
 		"user_agent_present": m.UserAgent != "",
@@ -100,7 +100,7 @@ type ResponseMetadata struct {
 
 // GetRuntimeMetrics returns a compact runtime surface for response metadata
 // readiness on top of protocol identity and delivery timing completeness.
-func (m ResponseMetadata) GetRuntimeMetrics() map[string]interface{} {
+func (m ResponseMetadata) GetRuntimeMetrics() map[string]any {
 	protocolKnown := m.Protocol != ProtocolUnknown
 	hasPayload := m.ContentLength > 0
 	durationMeasured := m.Duration > 0
@@ -109,7 +109,7 @@ func (m ResponseMetadata) GetRuntimeMetrics() map[string]interface{} {
 	coveragePosture := classifyResponseMetadataCoveragePosture(protocolKnown, hasPayload, durationMeasured)
 	runtimePosture := classifyResponseMetadataRuntimePosture(protocolKnown, durationMeasured, timestampSet)
 
-	return map[string]interface{}{
+	return map[string]any{
 		"protocol":          m.Protocol,
 		"content_length":    m.ContentLength,
 		"payload_present":   hasPayload,

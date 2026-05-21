@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 // RetryConfig holds retry configuration
@@ -153,7 +153,7 @@ func (e *RetryExecutor) Execute(ctx context.Context, operation func() error, sou
 				e.metricsCollector.RecordCounter("retry_success", 1, map[string]string{
 					"source": source,
 				})
-				e.logger.Info(fmt.Sprintf("Operation succeeded after %d retries (source: %s)", attempt, source))
+				e.logger.Info("Operation succeeded after retries", "retries", attempt, "source", source)
 			}
 			return nil
 		}
@@ -165,7 +165,7 @@ func (e *RetryExecutor) Execute(ctx context.Context, operation func() error, sou
 			e.metricsCollector.RecordCounter("retry_exhausted", 1, map[string]string{
 				"source": source,
 			})
-			e.logger.Warn(fmt.Sprintf("Operation failed with non-retryable error after %d attempts (source: %s): %v", attempt+1, source, err))
+			e.logger.Warn("Operation failed with non-retryable error", "attempts", attempt+1, "source", source, "error", err)
 			return err
 		}
 
@@ -174,14 +174,14 @@ func (e *RetryExecutor) Execute(ctx context.Context, operation func() error, sou
 			e.metricsCollector.RecordCounter("retry_exhausted", 1, map[string]string{
 				"source": source,
 			})
-			e.logger.Warn(fmt.Sprintf("Operation failed after %d retries (source: %s): %v", attempt+1, source, err))
+			e.logger.Warn("Operation failed after max retries", "attempts", attempt+1, "source", source, "error", err)
 			return err
 		}
 
 		// Calculate backoff
 		backoff := e.policy.GetBackoff(attempt)
 
-		e.logger.Debug(fmt.Sprintf("Retrying operation after %v (attempt %d, source: %s)", backoff, attempt+1, source))
+		e.logger.Debug("Retrying operation", "backoff", backoff, "attempt", attempt+1, "source", source)
 
 		// Wait before retry
 		select {
@@ -199,7 +199,7 @@ func (e *RetryExecutor) Execute(ctx context.Context, operation func() error, sou
 func (e *RetryExecutor) ExecuteWithFallback(ctx context.Context, operation func() error, fallback func() error, source string) error {
 	err := e.Execute(ctx, operation, source)
 	if err != nil && fallback != nil {
-		e.logger.Info(fmt.Sprintf("Executing fallback operation (source: %s)", source))
+		e.logger.Info("Executing fallback operation", "source", source)
 		return fallback()
 	}
 	return err
@@ -273,7 +273,7 @@ func (s *RetryStats) RecordExhausted() {
 }
 
 // GetStats returns retry statistics
-func (s *RetryStats) GetStats() map[string]interface{} {
+func (s *RetryStats) GetStats() map[string]any {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -282,7 +282,7 @@ func (s *RetryStats) GetStats() map[string]interface{} {
 		successRate = float64(s.SuccessfulRetries) / float64(s.TotalAttempts) * 100
 	}
 
-	return map[string]interface{}{
+	return map[string]any{
 		"total_attempts":     s.TotalAttempts,
 		"successful_retries": s.SuccessfulRetries,
 		"failed_retries":     s.FailedRetries,

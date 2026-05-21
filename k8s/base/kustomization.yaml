@@ -4,6 +4,21 @@ kind: Kustomization
 resources:
   - namespace.yaml
   - configmap.yaml
+  - secret.yaml
+  - serviceaccount.yaml
+  - rbac.yaml
+  - networkpolicy.yaml
+  - pdb.yaml
+  - limitrange.yaml
+  - postgres-pvc.yaml
   - postgres-deployment.yaml
+  - redis-pvc.yaml
   - redis-deployment.yaml
+  - kafka-pvc.yaml
   - kafka-deployment.yaml
+  - mongodb-pvc.yaml
+  - mongodb-deployment.yaml
+  - exporters-deployment.yaml
+  - loki-deployment.yaml
+  - promtail-daemonset.yaml
+  - node-exporter-daemonset.yaml

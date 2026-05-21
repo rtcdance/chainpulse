@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net"
 	"syscall"
 	"time"
 )
@@ -20,6 +19,55 @@ var (
 	ErrInvalidLogIndex        = errors.New("invalid log index")
 	ErrInvalidEventData       = errors.New("invalid event data")
 	ErrInvalidTimestamp       = errors.New("invalid timestamp")
+)
+
+// Typed sentinel errors for error classification via errors.Is().
+// Each wraps a SystemError with the appropriate ErrorType so that
+// DefaultErrorClassifier can use type assertions instead of string matching.
+
+// Transient errors — retryable, typically network or timeout related.
+var (
+	ErrTimeout           = NewSystemError(ErrorTypeTransient, ErrorCodeTimeout, "timeout", nil)
+	ErrConnectionRefused = NewSystemError(ErrorTypeTransient, ErrorCodeNetworkError, "connection refused", nil)
+	ErrConnectionReset   = NewSystemError(ErrorTypeTransient, ErrorCodeNetworkError, "connection reset", nil)
+	ErrUnavailable       = NewSystemError(ErrorTypeTransient, ErrorCodeNetworkError, "service unavailable", nil)
+	ErrDeadlineExceeded  = NewSystemError(ErrorTypeTransient, ErrorCodeTimeout, "deadline exceeded", nil)
+	ErrTemporaryFailure  = NewSystemError(ErrorTypeTransient, ErrorCodeNetworkError, "temporary failure", nil)
+)
+
+// Permanent errors — not retryable, indicate a client or logic error.
+var (
+	ErrUnauthorized = NewSystemError(ErrorTypePermanent, ErrorCodeValidation, "unauthorized", nil)
+	ErrForbidden    = NewSystemError(ErrorTypePermanent, ErrorCodeValidation, "forbidden", nil)
+	ErrNotFound     = NewSystemError(ErrorTypePermanent, ErrorCodeNotFound, "not found", nil)
+	ErrBadRequest   = NewSystemError(ErrorTypePermanent, ErrorCodeValidation, "bad request", nil)
+	ErrInvalidState = NewSystemError(ErrorTypePermanent, ErrorCodeValidation, "invalid state", nil)
+	ErrAuthFailed   = NewSystemError(ErrorTypePermanent, ErrorCodeValidation, "authentication failed", nil)
+)
+
+// Critical errors — require immediate attention, indicate data corruption or system failure.
+var (
+	ErrDataCorruption  = NewSystemError(ErrorTypeCritical, ErrorCodeInternalError, "data corruption", nil)
+	ErrCriticalFailure = NewSystemError(ErrorTypeCritical, ErrorCodeInternalError, "critical failure", nil)
+	ErrFatalError      = NewSystemError(ErrorTypeCritical, ErrorCodeInternalError, "fatal error", nil)
+)
+
+// Web3-specific sentinel errors
+var (
+	ErrBlockNotFound     = NewSystemError(ErrorTypePermanent, ErrorCodeBlockNotFound, "block not found", nil)
+	ErrEventNotFound     = NewSystemError(ErrorTypePermanent, ErrorCodeEventNotFound, "event not found", nil)
+	ErrChainNotFound     = NewSystemError(ErrorTypePermanent, ErrorCodeChainNotFound, "chain not found", nil)
+	ErrChainNotSupported = NewSystemError(ErrorTypePermanent, ErrorCodeChainNotSupported, "chain not supported", nil)
+	ErrTxNotFound        = NewSystemError(ErrorTypePermanent, ErrorCodeTxNotFound, "transaction not found", nil)
+	ErrContractNotFound  = NewSystemError(ErrorTypePermanent, ErrorCodeContractNotFound, "contract not found", nil)
+	ErrRPCError          = NewSystemError(ErrorTypeTransient, ErrorCodeRPCError, "RPC call failed", nil)
+	ErrRPCRateLimited    = NewSystemError(ErrorTypeTransient, ErrorCodeRPCRateLimited, "RPC rate limit exceeded", nil)
+	ErrEventDecodeFailed = NewSystemError(ErrorTypePermanent, ErrorCodeEventDecodeFailed, "event decode failed", nil)
+	ErrABINotFound       = NewSystemError(ErrorTypePermanent, ErrorCodeABINotFound, "ABI not found for contract", nil)
+	ErrFinalityNotReady  = NewSystemError(ErrorTypeTransient, ErrorCodeFinalityNotReady, "block not yet finalized", nil)
+	ErrRPCUnreachable    = NewSystemError(ErrorTypeTransient, ErrorCodeRPCUnreachable, "RPC endpoint unreachable", nil)
+	ErrStaleBlock        = NewSystemError(ErrorTypePermanent, ErrorCodeStaleBlock, "block is too old, past safe reorg depth", nil)
+	ErrReorgDetected     = NewSystemError(ErrorTypeTransient, ErrorCodeReorgDetected, "blockchain reorganization detected", nil)
 )
 
 // Constants for configuration
@@ -44,6 +92,23 @@ const (
 	ErrorCodeTimeout       = "TIMEOUT"
 	ErrorCodeInternalError = "INTERNAL_ERROR"
 	ErrorCodeConfigError   = "CONFIG_ERROR"
+
+	// Web3-specific error codes
+	ErrorCodeBlockNotFound     = "BLOCK_NOT_FOUND"
+	ErrorCodeEventNotFound     = "EVENT_NOT_FOUND"
+	ErrorCodeChainNotFound     = "CHAIN_NOT_FOUND"
+	ErrorCodeChainNotSupported = "CHAIN_NOT_SUPPORTED"
+	ErrorCodeTxNotFound        = "TRANSACTION_NOT_FOUND"
+	ErrorCodeContractNotFound  = "CONTRACT_NOT_FOUND"
+	ErrorCodeRPCError          = "RPC_ERROR"
+	ErrorCodeRPCRateLimited    = "RPC_RATE_LIMITED"
+	ErrorCodeEventDecodeFailed = "EVENT_DECODE_FAILED"
+	ErrorCodeABINotFound       = "ABI_NOT_FOUND"
+	ErrorCodeFinalityNotReady  = "FINALITY_NOT_READY"
+	ErrorCodeReorgDetected     = "REORG_DETECTED"
+	ErrorCodeRPCUnreachable    = "RPC_UNREACHABLE"
+	ErrorCodeStaleBlock        = "STALE_BLOCK"
+	ErrorCodeInvalidEventData  = "INVALID_EVENT_DATA"
 )
 
 // NewSystemError creates a new system error
@@ -53,7 +118,7 @@ func NewSystemError(errorType ErrorType, code, message string, err error) *Syste
 		Code:    code,
 		Message: message,
 		Err:     err,
-		Details: make(map[string]interface{}),
+		Details: make(map[string]any),
 	}
 }
 
@@ -65,8 +130,23 @@ func (e *SystemError) Error() string {
 	return fmt.Sprintf("[%s] %s: %s", e.Type, e.Code, e.Message)
 }
 
+// Unwrap returns the underlying error, enabling errors.Is() and errors.As()
+// to traverse the error chain through SystemError.
+func (e *SystemError) Unwrap() error { return e.Err }
+
+// Is enables errors.Is matching by error Code instead of pointer identity.
+// This ensures that dynamically created SystemError values correctly match
+// sentinel errors (e.g. ErrTimeout) when they share the same Code.
+func (e *SystemError) Is(target error) bool {
+	t, ok := target.(*SystemError)
+	if !ok {
+		return false
+	}
+	return e.Code == t.Code
+}
+
 // WithDetail adds a detail to the error
-func (e *SystemError) WithDetail(key string, value interface{}) *SystemError {
+func (e *SystemError) WithDetail(key string, value any) *SystemError {
 	e.Details[key] = value
 	return e
 }
@@ -86,41 +166,47 @@ func (e *SystemError) IsCritical() bool {
 	return e.Type == ErrorTypeCritical
 }
 
-// ClassifyError classifies an error as transient, permanent, or critical
-func ClassifyError(err error) ErrorType {
+// ClassifyErrorCode returns a stable error code string suitable for metrics tagging.
+// Falls back to "UNKNOWN" if the error is not a SystemError or a known sentinel.
+func ClassifyErrorCode(err error) string {
 	if err == nil {
-		return ErrorTypePermanent
+		return "OK"
 	}
 
-	// Check if it's a SystemError first
-	if sysErr, ok := err.(*SystemError); ok {
-		return sysErr.Type
+	var sysErr *SystemError
+	if errors.As(err, &sysErr) {
+		return sysErr.Code
 	}
 
-	// Check for network errors (transient)
-	if netErr, ok := err.(net.Error); ok {
-		if netErr.Timeout() {
-			return ErrorTypeTransient
-		}
+	switch {
+	case errors.Is(err, ErrTimeout):
+		return ErrorCodeTimeout
+	case errors.Is(err, ErrConnectionRefused):
+		return ErrorCodeNetworkError
+	case errors.Is(err, ErrNotFound) || errors.Is(err, ErrBlockNotFound) ||
+		errors.Is(err, ErrEventNotFound) || errors.Is(err, ErrTxNotFound) ||
+		errors.Is(err, ErrContractNotFound):
+		return ErrorCodeNotFound
+	case errors.Is(err, ErrUnauthorized):
+		return ErrorCodeValidation
+	case errors.Is(err, context.DeadlineExceeded):
+		return ErrorCodeTimeout
+	case errors.Is(err, context.Canceled):
+		return ErrorCodeTimeout
 	}
 
-	// Note: Temporary() is deprecated, but we keep timeout check above
-
-	// Check for syscall errors (transient)
-	if err == syscall.ECONNREFUSED || err == syscall.ECONNRESET || err == syscall.ETIMEDOUT {
-		return ErrorTypeTransient
-	}
-
-	// Check for context deadline exceeded (transient)
-	if err == context.DeadlineExceeded {
-		return ErrorTypeTransient
-	}
-
-	// Default to permanent
-	return ErrorTypePermanent
+	return "UNKNOWN"
 }
 
-// RetryConfig represents retry configuration
+// WrapError wraps an error with additional context
+func WrapError(err error, message string) error {
+	if err == nil {
+		return nil
+	}
+	return fmt.Errorf("%s: %w", message, err)
+}
+
+// RetryConfig holds configuration for retry with backoff
 type RetryConfig struct {
 	MaxRetries   int
 	InitialDelay time.Duration
@@ -128,7 +214,7 @@ type RetryConfig struct {
 	Multiplier   float64
 }
 
-// DefaultRetryConfig returns default retry configuration
+// DefaultRetryConfig returns the default retry configuration
 func DefaultRetryConfig() RetryConfig {
 	return RetryConfig{
 		MaxRetries:   3,
@@ -138,64 +224,137 @@ func DefaultRetryConfig() RetryConfig {
 	}
 }
 
-// RetryWithBackoff retries an operation with exponential backoff
-func RetryWithBackoff(ctx context.Context, config RetryConfig, operation func() error) error {
-	var lastErr error
+// ClassifyError classifies an error into an ErrorType
+func ClassifyError(err error) ErrorType {
+	if err == nil {
+		return ErrorTypePermanent
+	}
+
+	var sysErr *SystemError
+	if errors.As(err, &sysErr) {
+		return sysErr.Type
+	}
+
+	switch {
+	case errors.Is(err, context.DeadlineExceeded):
+		return ErrorTypeTransient
+	case errors.Is(err, context.Canceled):
+		return ErrorTypePermanent
+	case errors.Is(err, ErrConnectionRefused),
+		errors.Is(err, ErrConnectionReset),
+		errors.Is(err, ErrTimeout),
+		errors.Is(err, ErrDeadlineExceeded),
+		errors.Is(err, ErrTemporaryFailure),
+		errors.Is(err, ErrUnavailable):
+		return ErrorTypeTransient
+	}
+
+	// Map raw syscall errnos to transient for network-related errors
+	var syscallErr syscall.Errno
+	if errors.As(err, &syscallErr) {
+		switch syscallErr {
+		case syscall.ECONNREFUSED, syscall.ECONNRESET, syscall.ETIMEDOUT:
+			return ErrorTypeTransient
+		}
+	}
+
+	return ErrorTypePermanent
+}
+
+// IsContextError checks if the error is a context error
+func IsContextError(err error) bool {
+	if err == nil {
+		return false
+	}
+	return errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
+}
+
+// RPCErr wraps RPC call failures with structured metadata for observability
+// and fine-grained error handling. Carries HTTP status code, endpoint URL,
+// method name, Retry-After duration, and correlation request ID.
+type RPCErr struct {
+	StatusCode int
+	Endpoint   string
+	Method     string
+	RetryAfter time.Duration
+	RequestID  string
+	Err        error
+}
+
+func (e *RPCErr) Error() string {
+	if e.Err != nil {
+		return fmt.Sprintf("RPC error [%s] %s (status=%d, endpoint=%s): %v",
+			e.Method, e.RequestID, e.StatusCode, e.Endpoint, e.Err)
+	}
+	return fmt.Sprintf("RPC error [%s] %s (status=%d, endpoint=%s)",
+		e.Method, e.RequestID, e.StatusCode, e.Endpoint)
+}
+
+func (e *RPCErr) Unwrap() error { return e.Err }
+
+func (e *RPCErr) IsRateLimited() bool {
+	return e.StatusCode == 429
+}
+
+func (e *RPCErr) IsServerError() bool {
+	return e.StatusCode >= 500
+}
+
+func (e *RPCErr) IsClientError() bool {
+	return e.StatusCode >= 400 && e.StatusCode < 500
+}
+
+func NewRPCErr(statusCode int, endpoint, method, requestID string, retryAfter time.Duration, err error) *RPCErr {
+	return &RPCErr{
+		StatusCode: statusCode,
+		Endpoint:   endpoint,
+		Method:     method,
+		RetryAfter: retryAfter,
+		RequestID:  requestID,
+		Err:        err,
+	}
+}
+
+// RetryWithBackoff retries a function with exponential backoff
+func RetryWithBackoff(ctx context.Context, config RetryConfig, fn func() error) error {
+	var err error
 	delay := config.InitialDelay
 
-	// MaxRetries represents the total number of attempts allowed
-	for attempt := 1; attempt <= config.MaxRetries; attempt++ {
-		err := operation()
+	for attempt := 0; attempt < config.MaxRetries; attempt++ {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+
+		err = fn()
 		if err == nil {
 			return nil
 		}
 
-		lastErr = err
+		// Permanent or critical errors are not retryable
+		var sysErr *SystemError
+		if errors.As(err, &sysErr) {
+			if sysErr.Type == ErrorTypePermanent || sysErr.Type == ErrorTypeCritical {
+				return err
+			}
+		}
 
-		// Check if error is transient
-		if ClassifyError(err) != ErrorTypeTransient {
+		if attempt == config.MaxRetries {
 			return err
 		}
 
-		// Check if this is the last attempt
-		if attempt == config.MaxRetries {
-			break
-		}
-
-		// Wait before retrying
 		select {
-		case <-time.After(delay):
-			// Calculate next delay with exponential backoff
-			nextDelay := time.Duration(float64(delay) * config.Multiplier)
-			if nextDelay > config.MaxDelay {
-				nextDelay = config.MaxDelay
-			}
-			delay = nextDelay
 		case <-ctx.Done():
 			return ctx.Err()
+		case <-time.After(delay):
+		}
+
+		delay = time.Duration(float64(delay) * config.Multiplier)
+		if delay > config.MaxDelay {
+			delay = config.MaxDelay
 		}
 	}
 
-	return NewSystemError(
-		ErrorTypeTransient,
-		ErrorCodeNetworkError,
-		"max retries exceeded",
-		lastErr,
-	)
-}
-
-// IsContextError checks if error is a context error
-func IsContextError(err error) bool {
-	if err == context.Canceled || err == context.DeadlineExceeded {
-		return true
-	}
-	return false
-}
-
-// WrapError wraps an error with additional context
-func WrapError(err error, message string) error {
-	if err == nil {
-		return nil
-	}
-	return fmt.Errorf("%s: %w", message, err)
+	return err
 }

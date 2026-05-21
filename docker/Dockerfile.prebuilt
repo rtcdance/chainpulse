@@ -1,0 +1,16 @@
+# Pre-built binary Docker image for ChainPulse
+# Use when Docker BuildKit OOMs on the full build
+FROM alpine:3.19
+
+WORKDIR /root/
+
+RUN apk --no-cache add ca-certificates curl
+
+COPY chainpulse-linux chainpulse
+
+EXPOSE 8080 50051 8081
+
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD wget --no-verbose --tries=1 --spider http://localhost:8080/health || exit 1
+
+CMD ["./chainpulse"]

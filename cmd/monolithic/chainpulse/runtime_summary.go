@@ -5,40 +5,38 @@ import (
 	"strconv"
 	"time"
 
-	"chainpulse/pkg/core"
-	"chainpulse/pkg/plugins/api"
-
-	appindexing "chainpulse/pkg/application/indexing"
+	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/plugins/api"
 )
 
 type monolithicRuntimeSummaryResponse struct {
-	Service         string                 `json:"service"`
-	Timestamp       int64                  `json:"timestamp"`
-	DeploymentMode  string                 `json:"deployment_mode"`
-	RuntimeMode     string                 `json:"runtime_mode"`
-	RuntimePosture  string                 `json:"runtime_posture"`
-	FaultPosture    string                 `json:"fault_posture"`
-	ReliabilityHint string                 `json:"reliability_hint"`
-	ComponentState  string                 `json:"component_state"`
-	Deployment      map[string]interface{} `json:"deployment"`
-	Rollout         map[string]interface{} `json:"rollout"`
-	Indexing        map[string]interface{} `json:"indexing"`
-	Query           map[string]interface{} `json:"query"`
-	Puller          map[string]interface{} `json:"puller"`
-	Gateway         map[string]interface{} `json:"gateway"`
-	Metrics         map[string]interface{} `json:"metrics"`
+	Service         string         `json:"service"`
+	Timestamp       int64          `json:"timestamp"`
+	DeploymentMode  string         `json:"deployment_mode"`
+	RuntimeMode     string         `json:"runtime_mode"`
+	RuntimePosture  string         `json:"runtime_posture"`
+	FaultPosture    string         `json:"fault_posture"`
+	ReliabilityHint string         `json:"reliability_hint"`
+	ComponentState  string         `json:"component_state"`
+	Deployment      map[string]any `json:"deployment"`
+	Rollout         map[string]any `json:"rollout"`
+	Indexing        map[string]any `json:"indexing"`
+	Query           map[string]any `json:"query"`
+	Puller          map[string]any `json:"puller"`
+	Gateway         map[string]any `json:"gateway"`
+	Metrics         map[string]any `json:"metrics"`
 }
 
 type monolithicRuntimeSharedStatus interface {
-	Status() appindexing.RuntimeStatus
+	Status() core.RuntimeStatus
 }
 
 type monolithicRuntimeIndexerStatus interface {
-	GetStatus() map[string]map[string]interface{}
+	GetStatus() map[string]map[string]any
 }
 
 type monolithicRuntimeQuerySurface interface {
-	summary() map[string]interface{}
+	summary() map[string]any
 }
 
 type monolithicRuntimeReorgSurface interface {
@@ -50,7 +48,7 @@ type monolithicRuntimePullerSurface interface {
 }
 
 type monolithicDeploymentModeSurface interface {
-	deploymentSummary() map[string]interface{}
+	deploymentSummary() map[string]any
 }
 
 func buildMonolithicRuntimeSummaryProvider(
@@ -62,8 +60,8 @@ func buildMonolithicRuntimeSummaryProvider(
 	pullerRuntime monolithicRuntimePullerSurface,
 	querySurface monolithicRuntimeQuerySurface,
 	deploymentMode monolithicDeploymentModeSurface,
-) func(*http.Request) interface{} {
-	return func(r *http.Request) interface{} {
+) func(*http.Request) any {
+	return func(r *http.Request) any {
 		_ = r
 		return buildMonolithicRuntimeSummaryResponse(metrics, gateway, sharedRuntime, indexer, reorgRuntime, pullerRuntime, querySurface, deploymentMode)
 	}
@@ -80,7 +78,7 @@ func buildMonolithicRuntimeSummaryResponse(
 	deploymentMode monolithicDeploymentModeSurface,
 ) *monolithicRuntimeSummaryResponse {
 	//nolint:funlen // Runtime summary builds many fields from various sources.
-	sharedStatus := appindexing.RuntimeStatus{}
+	sharedStatus := core.RuntimeStatus{}
 	if sharedRuntime != nil {
 		sharedStatus = sharedRuntime.Status()
 	}
@@ -160,7 +158,7 @@ func buildMonolithicRuntimeSummaryResponse(
 		gatewayMethodContractHint = classifyMonolithicGatewayMethodContractHint(routeInventory)
 	}
 
-	querySummary := map[string]interface{}{
+	querySummary := map[string]any{
 		"query_alignment_posture": "monolithic-query-unaligned",
 		"query_reliability_hint":  "monolithic query surface is still using legacy shared runtime wiring",
 	}
@@ -189,7 +187,7 @@ func buildMonolithicRuntimeSummaryResponse(
 	if pullerRuntime != nil {
 		pullerSummary = pullerRuntime.PullerStatus()
 	}
-	deploymentSummary := map[string]interface{}{
+	deploymentSummary := map[string]any{
 		"deployment_mode":            deploymentModeMonolithic,
 		"deployment_posture":         "deployment-mode-monolithic",
 		"reliability_hint":           "monolithic cmd wiring is running in its expected deployment mode baseline",
@@ -232,7 +230,7 @@ func buildMonolithicRuntimeSummaryResponse(
 		ComponentState:  componentState,
 		Deployment:      deploymentSummary,
 		Rollout:         rollout.readinessDetails(),
-		Indexing: map[string]interface{}{
+		Indexing: map[string]any{
 			"shared_runtime_state":           sharedStatus.State,
 			"shared_runtime_initialized":     sharedStatus.Initialized,
 			"shared_runtime_started":         sharedStatus.Started,
@@ -280,7 +278,7 @@ func buildMonolithicRuntimeSummaryResponse(
 			"reorg_reliability_hint":         reorgSummary.Hint,
 		},
 		Query: querySummary,
-		Puller: map[string]interface{}{
+		Puller: map[string]any{
 			"puller_count":        pullerSummary.PullerCount,
 			"active_puller_count": pullerSummary.ActivePullers,
 			"backing_off_chains":  pullerSummary.BackingOffChains,
@@ -299,7 +297,7 @@ func buildMonolithicRuntimeSummaryResponse(
 			"control_state":       pullerSummary.Control.State,
 			"control_paused":      pullerSummary.Control.Paused,
 		},
-		Gateway: map[string]interface{}{
+		Gateway: map[string]any{
 			"domain_bridge_enabled":           gatewayDomainBridgeEnabled,
 			"event_query_enabled":             gatewayEventQueryEnabled,
 			"event_subscription_enabled":      gatewayEventSubscriptionEnabled,
@@ -332,7 +330,7 @@ func buildMonolithicRuntimeSummaryResponse(
 }
 
 func classifyMonolithicRuntimeLifecycle(
-	sharedStatus appindexing.RuntimeStatus,
+	sharedStatus core.RuntimeStatus,
 	runtimeRoutesEnabled bool,
 	ownership ownershipSummary,
 	pullerPosture string,
@@ -544,7 +542,7 @@ func classifyMonolithicGatewayMethodContractHint(inventory api.GatewayRuntimeRou
 	}
 }
 
-func stringValue(value interface{}, fallback string) string {
+func stringValue(value any, fallback string) string {
 	if typed, ok := value.(string); ok && typed != "" {
 		return typed
 	}
@@ -552,7 +550,7 @@ func stringValue(value interface{}, fallback string) string {
 }
 
 func classifyMonolithicIndexingPosture(
-	sharedStatus appindexing.RuntimeStatus,
+	sharedStatus core.RuntimeStatus,
 	runtimeRoutesEnabled bool,
 	ownership ownershipSummary,
 ) string {
@@ -569,7 +567,7 @@ func classifyMonolithicIndexingPosture(
 }
 
 func classifyMonolithicIndexingHint(
-	sharedStatus appindexing.RuntimeStatus,
+	sharedStatus core.RuntimeStatus,
 	runtimeRoutesEnabled bool,
 	ownership ownershipSummary,
 ) string {
@@ -585,21 +583,21 @@ func classifyMonolithicIndexingHint(
 	}
 }
 
-func classifyMonolithicCheckpointScope(sharedStatus appindexing.RuntimeStatus) string {
+func classifyMonolithicCheckpointScope(sharedStatus core.RuntimeStatus) string {
 	if sharedStatus.CheckpointingEnabled {
 		return "monolithic-inmemory-checkpoint"
 	}
 	return "checkpoint-unconfigured"
 }
 
-func classifyMonolithicReplayBoundary(sharedStatus appindexing.RuntimeStatus) string {
+func classifyMonolithicReplayBoundary(sharedStatus core.RuntimeStatus) string {
 	if sharedStatus.ReplayEnabled {
 		return "monolithic-inmemory-failure-replay"
 	}
 	return "replay-unconfigured"
 }
 
-func classifyMonolithicCheckpointRecoveryReadiness(sharedStatus appindexing.RuntimeStatus) string {
+func classifyMonolithicCheckpointRecoveryReadiness(sharedStatus core.RuntimeStatus) string {
 	switch {
 	case !sharedStatus.CheckpointingEnabled:
 		return "checkpoint-recovery-unconfigured"
@@ -612,7 +610,7 @@ func classifyMonolithicCheckpointRecoveryReadiness(sharedStatus appindexing.Runt
 	}
 }
 
-func classifyMonolithicRecoveryPosture(sharedStatus appindexing.RuntimeStatus) string {
+func classifyMonolithicRecoveryPosture(sharedStatus core.RuntimeStatus) string {
 	switch {
 	case !sharedStatus.CheckpointingEnabled:
 		return "monolithic-recovery-unconfigured"
@@ -629,7 +627,7 @@ func classifyMonolithicRecoveryPosture(sharedStatus appindexing.RuntimeStatus) s
 	}
 }
 
-func classifyMonolithicRecoveryHint(sharedStatus appindexing.RuntimeStatus) string {
+func classifyMonolithicRecoveryHint(sharedStatus core.RuntimeStatus) string {
 	switch classifyMonolithicRecoveryPosture(sharedStatus) {
 	case "monolithic-recovery-unconfigured":
 		return "checkpoint and replay recovery ports are not configured for the monolithic indexing runtime"
@@ -644,8 +642,8 @@ func classifyMonolithicRecoveryHint(sharedStatus appindexing.RuntimeStatus) stri
 	}
 }
 
-func buildMonolithicMetricsSummary(metrics core.MetricsCollector) map[string]interface{} {
-	summary := map[string]interface{}{
+func buildMonolithicMetricsSummary(metrics core.MetricsCollector) map[string]any {
+	summary := map[string]any{
 		"collector_state":   "unavailable",
 		"counter_count":     0,
 		"gauge_count":       0,
@@ -657,9 +655,9 @@ func buildMonolithicMetricsSummary(metrics core.MetricsCollector) map[string]int
 	}
 
 	exported := metrics.GetMetrics()
-	counters, _ := exported["counters"].(map[string]interface{})
-	gauges, _ := exported["gauges"].(map[string]interface{})
-	histograms, _ := exported["histograms"].(map[string]interface{})
+	counters, _ := exported["counters"].(map[string]any)
+	gauges, _ := exported["gauges"].(map[string]any)
+	histograms, _ := exported["histograms"].(map[string]any)
 
 	summary["collector_state"] = "available"
 	summary["counter_count"] = len(counters)

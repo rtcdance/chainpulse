@@ -2,11 +2,20 @@ package indexing
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core"
+	"golang.org/x/sync/errgroup"
 )
+
+// ReorgConfirmationChecker provides the minimal interface needed by MultiChainIndexer
+// to check whether a block has reached the configured confirmation depth.
+type ReorgConfirmationChecker interface {
+	IsConfirmed(blockNumber uint64) bool
+	UpdateChainHead(head uint64)
+}
 
 // MultiChainIndexer orchestrates indexing across multiple blockchains
 type MultiChainIndexer struct {
@@ -14,13 +23,40 @@ type MultiChainIndexer struct {
 	mu       sync.RWMutex
 	logger   core.Logger
 	config   core.ConfigManager
+
+	reorgHandler ReorgConfirmationChecker
+	chainHeads   map[string]uint64
+}
+
+// SetReorgHandler configures an optional reorg handler for confirmation depth checks.
+func (mci *MultiChainIndexer) SetReorgHandler(handler ReorgConfirmationChecker) {
+	mci.mu.Lock()
+	mci.reorgHandler = handler
+	if mci.chainHeads == nil {
+		mci.chainHeads = make(map[string]uint64)
+	}
+	mci.mu.Unlock()
+}
+
+// UpdateChainHead records the latest known chain head for a chain,
+// enabling confirmation depth filtering.
+func (mci *MultiChainIndexer) UpdateChainHead(chainID string, head uint64) {
+	mci.mu.Lock()
+	defer mci.mu.Unlock()
+	if mci.chainHeads == nil {
+		mci.chainHeads = make(map[string]uint64)
+	}
+	mci.chainHeads[chainID] = head
+	if mci.reorgHandler != nil {
+		mci.reorgHandler.UpdateChainHead(head)
+	}
 }
 
 // ChainIndexer defines the interface for chain-specific indexing
 type ChainIndexer interface {
 	IndexEvents(ctx context.Context, events []*core.BlockchainEvent) error
 	GetChainID() string
-	GetStatus() map[string]interface{}
+	GetStatus() map[string]any
 	Close() error
 }
 
@@ -56,7 +92,10 @@ func (mci *MultiChainIndexer) RegisterChainIndexer(chainID string, indexer Chain
 	return nil
 }
 
-// IndexEventsFromChain indexes events from a specific blockchain
+// IndexEventsFromChain indexes events from a specific blockchain.
+// If a reorg handler is configured, only events that have reached the
+// configured confirmation depth are indexed; unconfirmed events are logged
+// and skipped to prevent indexing data that might be reorged away.
 func (mci *MultiChainIndexer) IndexEventsFromChain(
 	ctx context.Context,
 	chainID string,
@@ -72,10 +111,33 @@ func (mci *MultiChainIndexer) IndexEventsFromChain(
 
 	mci.mu.RLock()
 	indexer, exists := mci.indexers[chainID]
+	rh := mci.reorgHandler
 	mci.mu.RUnlock()
 
 	if !exists {
 		return fmt.Errorf("no indexer registered for chain %s", chainID)
+	}
+
+	// Filter events by confirmation depth if reorg handler is configured
+	if rh != nil {
+		confirmed := make([]*core.BlockchainEvent, 0, len(events))
+		skipped := 0
+		for _, evt := range events {
+			if rh.IsConfirmed(evt.BlockNumber) {
+				confirmed = append(confirmed, evt)
+			} else {
+				skipped++
+			}
+		}
+		if skipped > 0 {
+			mci.logger.Debug("deferring unconfirmed events pending confirmation depth",
+				"chain_id", chainID, "skipped", skipped, "confirmed", len(confirmed))
+		}
+		events = confirmed
+	}
+
+	if len(events) == 0 {
+		return nil
 	}
 
 	mci.logger.Debug("indexing events from chain", "chain_id", chainID, "count", len(events))
@@ -118,33 +180,18 @@ func (mci *MultiChainIndexer) IndexEventsFromAllChains(
 		}
 	}
 
-	// Index from all chains in parallel
-	errChan := make(chan error, len(eventsByChain))
-	var wg sync.WaitGroup
+	// Index from all chains in parallel using errgroup
+	g, gCtx := errgroup.WithContext(ctx)
 
 	for chainID, events := range eventsByChain {
-		wg.Add(1)
-		go func(cID string, evts []*core.BlockchainEvent) {
-			defer wg.Done()
-			if err := mci.IndexEventsFromChain(ctx, cID, evts); err != nil {
-				errChan <- err
-			}
-		}(chainID, events)
+		cID, evts := chainID, events
+		g.Go(func() error {
+			return mci.IndexEventsFromChain(gCtx, cID, evts)
+		})
 	}
 
-	wg.Wait()
-	close(errChan)
-
-	// Collect errors
-	var errs []error
-	for err := range errChan {
-		if err != nil {
-			errs = append(errs, err)
-		}
-	}
-
-	if len(errs) > 0 {
-		return fmt.Errorf("indexing failed for %d chains: %v", len(errs), errs)
+	if err := g.Wait(); err != nil {
+		return fmt.Errorf("indexing failed: %w", err)
 	}
 
 	return nil
@@ -177,11 +224,11 @@ func (mci *MultiChainIndexer) GetRegisteredChains() []string {
 }
 
 // GetStatus returns status of all chain indexers
-func (mci *MultiChainIndexer) GetStatus() map[string]map[string]interface{} {
+func (mci *MultiChainIndexer) GetStatus() map[string]map[string]any {
 	mci.mu.RLock()
 	defer mci.mu.RUnlock()
 
-	status := make(map[string]map[string]interface{})
+	status := make(map[string]map[string]any)
 	for chainID, indexer := range mci.indexers {
 		status[chainID] = indexer.GetStatus()
 	}
@@ -203,7 +250,7 @@ func (mci *MultiChainIndexer) Close() error {
 	}
 
 	if len(errs) > 0 {
-		return fmt.Errorf("failed to close %d indexers: %v", len(errs), errs)
+		return fmt.Errorf("failed to close %d indexers: %w", len(errs), errors.Join(errs...))
 	}
 
 	return nil

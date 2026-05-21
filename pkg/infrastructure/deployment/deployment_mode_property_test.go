@@ -10,6 +10,7 @@ import (
 // For any deployment mode configuration, initializing the system should result in
 // the correct mode being set and all required components being initialized
 func TestProperty_DualDeploymentModeSupport(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		mode     DeploymentMode
@@ -77,6 +78,7 @@ func TestProperty_DualDeploymentModeSupport(t *testing.T) {
 // For any monolithic deployment, all components should be initialized in the correct order
 // and health checks should pass
 func TestProperty_MonolithicModeInitializationCorrectness(t *testing.T) {
+	t.Parallel()
 	config := &DeploymentConfig{
 		Mode:                    MonolithicMode,
 		ServiceName:             "test-service",
@@ -120,6 +122,7 @@ func TestProperty_MonolithicModeInitializationCorrectness(t *testing.T) {
 // For any microservice deployment, all services should be registered and
 // infrastructure components should be initialized
 func TestProperty_MicroserviceModeInitializationCorrectness(t *testing.T) {
+	t.Parallel()
 	config := &DeploymentConfig{
 		Mode:                    MicroserviceMode,
 		ServiceName:             "test-service",
@@ -172,6 +175,7 @@ func TestProperty_MicroserviceModeInitializationCorrectness(t *testing.T) {
 // For any feature set, both monolithic and microservice modes should support
 // the same core functionality
 func TestProperty_FeatureParityBetweenModes(t *testing.T) {
+	t.Parallel()
 	monolithicConfig := &DeploymentConfig{
 		Mode:                    MonolithicMode,
 		ServiceName:             "test-service",
@@ -231,6 +235,7 @@ func TestProperty_FeatureParityBetweenModes(t *testing.T) {
 // Property 5: Graceful Shutdown Idempotency
 // For any initialized deployment, calling shutdown multiple times should be safe
 func TestProperty_GracefulShutdownIdempotency(t *testing.T) {
+	t.Parallel()
 	config := &DeploymentConfig{
 		Mode:                    MonolithicMode,
 		ServiceName:             "test-service",
@@ -262,6 +267,7 @@ func TestProperty_GracefulShutdownIdempotency(t *testing.T) {
 // Property 6: Metrics Tracking Accuracy
 // For any deployment mode, metrics should accurately reflect the state
 func TestProperty_MetricsTrackingAccuracy(t *testing.T) {
+	t.Parallel()
 	config := &DeploymentConfig{
 		Mode:                    MonolithicMode,
 		ServiceName:             "test-service",

@@ -64,7 +64,7 @@ func NewBaseRequest(ctx context.Context, method, path string, headers map[string
 
 // GetRuntimeMetrics returns a compact runtime surface for request readiness
 // on top of path/method metadata and parameter/payload coverage.
-func (r *BaseRequest) GetRuntimeMetrics() map[string]interface{} {
+func (r *BaseRequest) GetRuntimeMetrics() map[string]any {
 	headerCount := len(r.headers)
 	queryCount := len(r.query)
 	pathParamCount := len(r.pathParams)
@@ -73,7 +73,7 @@ func (r *BaseRequest) GetRuntimeMetrics() map[string]interface{} {
 	coveragePosture := classifyBaseRequestCoveragePosture(headerCount, queryCount, pathParamCount, bodyBytes)
 	runtimePosture := classifyBaseRequestRuntimePosture(r.method, r.path, coveragePosture)
 
-	return map[string]interface{}{
+	return map[string]any{
 		"method":           r.method,
 		"path":             r.path,
 		"header_count":     headerCount,

@@ -1,6 +1,6 @@
 package main
 
-import "chainpulse/pkg/core"
+import "github.com/rtcdance/chainpulse/pkg/core"
 
 type ownershipGuardedCutoverSummary struct {
 	Hook         ownershipGuardedCutoverHook
@@ -30,7 +30,7 @@ func buildOwnershipGuardedCutoverSummary(
 	}
 }
 
-func (summary ownershipGuardedCutoverSummary) applyReadinessDetails(details map[string]interface{}) {
+func (summary ownershipGuardedCutoverSummary) applyReadinessDetails(details map[string]any) {
 	details["rollout_guarded_cutover_hook_action"] = summary.Hook.Action
 	details["rollout_guarded_cutover_hook_reason"] = summary.Hook.Reason
 	details["rollout_guarded_cutover_hook_policy_mode"] = summary.HookPolicy.Mode

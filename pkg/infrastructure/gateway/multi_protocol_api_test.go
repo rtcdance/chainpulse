@@ -13,6 +13,7 @@ import (
 
 // TestNewRESTHandler tests REST handler creation
 func TestNewRESTHandler(t *testing.T) {
+	t.Parallel()
 	handler := NewRESTHandler(8080)
 
 	assert.NotNil(t, handler)
@@ -22,6 +23,7 @@ func TestNewRESTHandler(t *testing.T) {
 
 // TestRESTHandlerStart tests starting REST handler
 func TestRESTHandlerStart(t *testing.T) {
+	t.Parallel()
 	handler := NewRESTHandler(8080)
 	ctx := context.Background()
 
@@ -33,6 +35,7 @@ func TestRESTHandlerStart(t *testing.T) {
 
 // TestRESTHandlerStartAlreadyRunning tests starting already running handler
 func TestRESTHandlerStartAlreadyRunning(t *testing.T) {
+	t.Parallel()
 	handler := NewRESTHandler(8080)
 	ctx := context.Background()
 
@@ -45,6 +48,7 @@ func TestRESTHandlerStartAlreadyRunning(t *testing.T) {
 
 // TestRESTHandlerStop tests stopping REST handler
 func TestRESTHandlerStop(t *testing.T) {
+	t.Parallel()
 	handler := NewRESTHandler(8080)
 	ctx := context.Background()
 
@@ -57,6 +61,7 @@ func TestRESTHandlerStop(t *testing.T) {
 
 // TestRESTHandlerStopNotRunning tests stopping non-running handler
 func TestRESTHandlerStopNotRunning(t *testing.T) {
+	t.Parallel()
 	handler := NewRESTHandler(8080)
 
 	err := handler.Stop()
@@ -67,6 +72,7 @@ func TestRESTHandlerStopNotRunning(t *testing.T) {
 
 // TestRESTHandlerHandleRequest tests handling REST request
 func TestRESTHandlerHandleRequest(t *testing.T) {
+	t.Parallel()
 	handler := NewRESTHandler(8080)
 	ctx := context.Background()
 
@@ -75,11 +81,12 @@ func TestRESTHandlerHandleRequest(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.NotNil(t, resp)
-	assert.Equal(t, "REST", resp.(map[string]interface{})["protocol"])
+	assert.Equal(t, "REST", resp.(map[string]any)["protocol"])
 }
 
 // TestRESTHandlerHandleRequestNotRunning tests handling request when not running
 func TestRESTHandlerHandleRequestNotRunning(t *testing.T) {
+	t.Parallel()
 	handler := NewRESTHandler(8080)
 	ctx := context.Background()
 
@@ -91,6 +98,7 @@ func TestRESTHandlerHandleRequestNotRunning(t *testing.T) {
 
 // TestRESTHandlerHealth tests REST handler health
 func TestRESTHandlerHealth(t *testing.T) {
+	t.Parallel()
 	handler := NewRESTHandler(8080)
 	ctx := context.Background()
 
@@ -103,6 +111,7 @@ func TestRESTHandlerHealth(t *testing.T) {
 
 // TestRESTHandlerHealthNotRunning tests health when not running
 func TestRESTHandlerHealthNotRunning(t *testing.T) {
+	t.Parallel()
 	handler := NewRESTHandler(8080)
 
 	health := handler.Health()
@@ -112,6 +121,7 @@ func TestRESTHandlerHealthNotRunning(t *testing.T) {
 
 // TestNewgRPCHandler tests gRPC handler creation
 func TestNewgRPCHandler(t *testing.T) {
+	t.Parallel()
 	handler := NewgRPCHandler(9090)
 
 	assert.NotNil(t, handler)
@@ -121,6 +131,7 @@ func TestNewgRPCHandler(t *testing.T) {
 
 // TestGRPCHandlerStart tests starting gRPC handler
 func TestGRPCHandlerStart(t *testing.T) {
+	t.Parallel()
 	handler := NewgRPCHandler(9090)
 	ctx := context.Background()
 
@@ -132,6 +143,7 @@ func TestGRPCHandlerStart(t *testing.T) {
 
 // TestGRPCHandlerStop tests stopping gRPC handler
 func TestGRPCHandlerStop(t *testing.T) {
+	t.Parallel()
 	handler := NewgRPCHandler(9090)
 	ctx := context.Background()
 
@@ -144,6 +156,7 @@ func TestGRPCHandlerStop(t *testing.T) {
 
 // TestGRPCHandlerHandleRequest tests handling gRPC request
 func TestGRPCHandlerHandleRequest(t *testing.T) {
+	t.Parallel()
 	handler := NewgRPCHandler(9090)
 	ctx := context.Background()
 
@@ -152,11 +165,12 @@ func TestGRPCHandlerHandleRequest(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.NotNil(t, resp)
-	assert.Equal(t, "gRPC", resp.(map[string]interface{})["protocol"])
+	assert.Equal(t, "gRPC", resp.(map[string]any)["protocol"])
 }
 
 // TestGRPCHandlerHealth tests gRPC handler health
 func TestGRPCHandlerHealth(t *testing.T) {
+	t.Parallel()
 	handler := NewgRPCHandler(9090)
 	ctx := context.Background()
 
@@ -168,6 +182,7 @@ func TestGRPCHandlerHealth(t *testing.T) {
 
 // TestNewWebSocketHandler tests WebSocket handler creation
 func TestNewWebSocketHandler(t *testing.T) {
+	t.Parallel()
 	handler := NewWebSocketHandler(8081)
 
 	assert.NotNil(t, handler)
@@ -177,6 +192,7 @@ func TestNewWebSocketHandler(t *testing.T) {
 
 // TestWebSocketHandlerStart tests starting WebSocket handler
 func TestWebSocketHandlerStart(t *testing.T) {
+	t.Parallel()
 	handler := NewWebSocketHandler(8081)
 	ctx := context.Background()
 
@@ -188,6 +204,7 @@ func TestWebSocketHandlerStart(t *testing.T) {
 
 // TestWebSocketHandlerStop tests stopping WebSocket handler
 func TestWebSocketHandlerStop(t *testing.T) {
+	t.Parallel()
 	handler := NewWebSocketHandler(8081)
 	ctx := context.Background()
 
@@ -200,6 +217,7 @@ func TestWebSocketHandlerStop(t *testing.T) {
 
 // TestWebSocketHandlerHandleRequest tests handling WebSocket request
 func TestWebSocketHandlerHandleRequest(t *testing.T) {
+	t.Parallel()
 	handler := NewWebSocketHandler(8081)
 	ctx := context.Background()
 
@@ -208,11 +226,12 @@ func TestWebSocketHandlerHandleRequest(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.NotNil(t, resp)
-	assert.Equal(t, "WebSocket", resp.(map[string]interface{})["protocol"])
+	assert.Equal(t, "WebSocket", resp.(map[string]any)["protocol"])
 }
 
 // TestWebSocketHandlerHealth tests WebSocket handler health
 func TestWebSocketHandlerHealth(t *testing.T) {
+	t.Parallel()
 	handler := NewWebSocketHandler(8081)
 	ctx := context.Background()
 
@@ -224,6 +243,7 @@ func TestWebSocketHandlerHealth(t *testing.T) {
 
 // TestNewGraphQLHandler tests GraphQL handler creation
 func TestNewGraphQLHandler(t *testing.T) {
+	t.Parallel()
 	handler := NewGraphQLHandler(8082)
 
 	assert.NotNil(t, handler)
@@ -233,6 +253,7 @@ func TestNewGraphQLHandler(t *testing.T) {
 
 // TestGraphQLHandlerStart tests starting GraphQL handler
 func TestGraphQLHandlerStart(t *testing.T) {
+	t.Parallel()
 	handler := NewGraphQLHandler(8082)
 	ctx := context.Background()
 
@@ -244,6 +265,7 @@ func TestGraphQLHandlerStart(t *testing.T) {
 
 // TestGraphQLHandlerStop tests stopping GraphQL handler
 func TestGraphQLHandlerStop(t *testing.T) {
+	t.Parallel()
 	handler := NewGraphQLHandler(8082)
 	ctx := context.Background()
 
@@ -256,6 +278,7 @@ func TestGraphQLHandlerStop(t *testing.T) {
 
 // TestGraphQLHandlerHandleRequest tests handling GraphQL request
 func TestGraphQLHandlerHandleRequest(t *testing.T) {
+	t.Parallel()
 	handler := NewGraphQLHandler(8082)
 	ctx := context.Background()
 
@@ -264,11 +287,12 @@ func TestGraphQLHandlerHandleRequest(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.NotNil(t, resp)
-	assert.Equal(t, "GraphQL", resp.(map[string]interface{})["protocol"])
+	assert.Equal(t, "GraphQL", resp.(map[string]any)["protocol"])
 }
 
 // TestGraphQLHandlerHealth tests GraphQL handler health
 func TestGraphQLHandlerHealth(t *testing.T) {
+	t.Parallel()
 	handler := NewGraphQLHandler(8082)
 	ctx := context.Background()
 
@@ -280,6 +304,7 @@ func TestGraphQLHandlerHealth(t *testing.T) {
 
 // TestNewMultiProtocolAPI tests multi-protocol API creation
 func TestNewMultiProtocolAPI(t *testing.T) {
+	t.Parallel()
 	api := NewMultiProtocolAPI()
 
 	assert.NotNil(t, api)
@@ -289,6 +314,7 @@ func TestNewMultiProtocolAPI(t *testing.T) {
 
 // TestRegisterHandler tests registering a handler
 func TestRegisterHandler(t *testing.T) {
+	t.Parallel()
 	api := NewMultiProtocolAPI()
 	handler := NewRESTHandler(8080)
 
@@ -300,6 +326,7 @@ func TestRegisterHandler(t *testing.T) {
 
 // TestRegisterHandlerDuplicate tests registering duplicate handler
 func TestRegisterHandlerDuplicate(t *testing.T) {
+	t.Parallel()
 	api := NewMultiProtocolAPI()
 	handler1 := NewRESTHandler(8080)
 	handler2 := NewRESTHandler(8081)
@@ -313,6 +340,7 @@ func TestRegisterHandlerDuplicate(t *testing.T) {
 
 // TestStartAll tests starting all handlers
 func TestStartAll(t *testing.T) {
+	t.Parallel()
 	api := NewMultiProtocolAPI()
 	ctx := context.Background()
 
@@ -326,6 +354,7 @@ func TestStartAll(t *testing.T) {
 
 // TestStopAll tests stopping all handlers
 func TestStopAll(t *testing.T) {
+	t.Parallel()
 	api := NewMultiProtocolAPI()
 	ctx := context.Background()
 
@@ -340,6 +369,7 @@ func TestStopAll(t *testing.T) {
 
 // TestGetHandler tests getting a handler
 func TestGetHandler(t *testing.T) {
+	t.Parallel()
 	api := NewMultiProtocolAPI()
 	handler := NewRESTHandler(8080)
 
@@ -352,6 +382,7 @@ func TestGetHandler(t *testing.T) {
 
 // TestGetHandlerNotFound tests getting non-existent handler
 func TestGetHandlerNotFound(t *testing.T) {
+	t.Parallel()
 	api := NewMultiProtocolAPI()
 
 	_, err := api.GetHandler("nonexistent")
@@ -362,6 +393,7 @@ func TestGetHandlerNotFound(t *testing.T) {
 
 // TestHealthAll tests getting health of all handlers
 func TestHealthAll(t *testing.T) {
+	t.Parallel()
 	api := NewMultiProtocolAPI()
 	ctx := context.Background()
 
@@ -378,6 +410,7 @@ func TestHealthAll(t *testing.T) {
 
 // TestMultipleProtocols tests multiple protocol handlers
 func TestMultipleProtocols(t *testing.T) {
+	t.Parallel()
 	api := NewMultiProtocolAPI()
 	ctx := context.Background()
 
@@ -394,6 +427,7 @@ func TestMultipleProtocols(t *testing.T) {
 
 // TestConcurrentHandlerOperations tests concurrent handler operations
 func TestConcurrentHandlerOperations(t *testing.T) {
+	t.Parallel()
 	api := NewMultiProtocolAPI()
 	ctx := context.Background()
 
@@ -424,6 +458,7 @@ func TestConcurrentHandlerOperations(t *testing.T) {
 
 // TestHandlerStartStopCycle tests handler start/stop cycle
 func TestHandlerStartStopCycle(t *testing.T) {
+	t.Parallel()
 	handler := NewRESTHandler(8080)
 	ctx := context.Background()
 
@@ -438,6 +473,7 @@ func TestHandlerStartStopCycle(t *testing.T) {
 
 // TestProtocolHandlerInterface tests protocol handler interface
 func TestProtocolHandlerInterface(t *testing.T) {
+	t.Parallel()
 	var handler ProtocolHandler = NewRESTHandler(8080)
 
 	assert.NotNil(t, handler)
@@ -445,6 +481,7 @@ func TestProtocolHandlerInterface(t *testing.T) {
 
 // TestHandlerPortConfiguration tests handler port configuration
 func TestHandlerPortConfiguration(t *testing.T) {
+	t.Parallel()
 	restHandler := NewRESTHandler(8080)
 	grpcHandler := NewgRPCHandler(9090)
 	wsHandler := NewWebSocketHandler(8081)
@@ -458,6 +495,7 @@ func TestHandlerPortConfiguration(t *testing.T) {
 
 // TestMultiProtocolAPIHealthEmpty tests health of empty API
 func TestMultiProtocolAPIHealthEmpty(t *testing.T) {
+	t.Parallel()
 	api := NewMultiProtocolAPI()
 
 	health := api.HealthAll()
@@ -467,19 +505,21 @@ func TestMultiProtocolAPIHealthEmpty(t *testing.T) {
 
 // TestHandlerResponseFormat tests handler response format
 func TestHandlerResponseFormat(t *testing.T) {
+	t.Parallel()
 	handler := NewRESTHandler(8080)
 	ctx := context.Background()
 
 	_ = handler.Start(ctx)
 	resp, _ := handler.HandleRequest(ctx, nil)
 
-	respMap := resp.(map[string]interface{})
+	respMap := resp.(map[string]any)
 	assert.Equal(t, "REST", respMap["protocol"])
 	assert.Equal(t, "ok", respMap["status"])
 }
 
 // TestConcurrentHandlerRegistration tests concurrent handler registration
 func TestConcurrentHandlerRegistration(t *testing.T) {
+	t.Parallel()
 	api := NewMultiProtocolAPI()
 
 	var wg sync.WaitGroup
@@ -504,6 +544,7 @@ func TestConcurrentHandlerRegistration(t *testing.T) {
 
 // TestHandlerHealthTimestamp tests handler health timestamp
 func TestHandlerHealthTimestamp(t *testing.T) {
+	t.Parallel()
 	handler := NewRESTHandler(8080)
 	ctx := context.Background()
 
@@ -518,6 +559,7 @@ func TestHandlerHealthTimestamp(t *testing.T) {
 
 // TestMultiProtocolAPIStartAllFailure tests StartAll with handler failure
 func TestMultiProtocolAPIStartAllFailure(t *testing.T) {
+	t.Parallel()
 	api := NewMultiProtocolAPI()
 	ctx := context.Background()
 
@@ -535,6 +577,7 @@ func TestMultiProtocolAPIStartAllFailure(t *testing.T) {
 
 // TestHandlerConcurrentRequests tests concurrent requests to handler
 func TestHandlerConcurrentRequests(t *testing.T) {
+	t.Parallel()
 	handler := NewRESTHandler(8080)
 	ctx := context.Background()
 

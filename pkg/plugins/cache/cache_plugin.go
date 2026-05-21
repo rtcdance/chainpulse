@@ -1,54 +1,19 @@
 package cache
 
 import (
+	"context"
 	"fmt"
 	"sync"
 	"time"
 
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
-// CachePlugin defines the interface for cache implementations
-type CachePlugin interface {
-	// Initialize initializes the cache plugin
-	Initialize(config *core.Config) error
+const defaultCacheTTL = 24 * time.Hour
 
-	// Start starts the cache plugin
-	Start() error
-
-	// Stop stops the cache plugin
-	Stop() error
-
-	// Health returns the health status of the plugin
-	Health() *core.HealthStatus
-
-	// Get retrieves a value from cache
-	Get(key string) (*core.CacheEntry, error)
-
-	// Set stores a value in cache with TTL
-	Set(entry *core.CacheEntry) error
-
-	// Delete removes a value from cache
-	Delete(key string) error
-
-	// Clear clears all cache entries
-	Clear() error
-
-	// GetStats returns cache statistics
-	GetStats() *CacheStats
-}
-
-// CacheStats tracks cache performance metrics
-type CacheStats struct {
-	HitCount      int64
-	MissCount     int64
-	EvictionCount int64
-	TotalSize     int64
-	EntryCount    int64
-}
-
-// BaseCachePlugin provides base implementation for cache plugins
 type BaseCachePlugin struct {
+	name             string
+	version          string
 	mu               sync.RWMutex
 	initialized      bool
 	running          bool
@@ -61,16 +26,24 @@ type BaseCachePlugin struct {
 	evictionCount    int64
 }
 
-// NewBaseCachePlugin creates a new base cache plugin
-func NewBaseCachePlugin(logger core.Logger, metricsCollector core.MetricsCollector) *BaseCachePlugin {
+func NewBaseCachePlugin(name, version string, logger core.Logger, metricsCollector core.MetricsCollector) *BaseCachePlugin {
 	return &BaseCachePlugin{
+		name:             name,
+		version:          version,
 		logger:           logger,
 		metricsCollector: metricsCollector,
 	}
 }
 
-// Initialize initializes the cache plugin
-func (p *BaseCachePlugin) Initialize(config *core.Config) error {
+func (p *BaseCachePlugin) Name() string {
+	return p.name
+}
+
+func (p *BaseCachePlugin) Version() string {
+	return p.version
+}
+
+func (p *BaseCachePlugin) Initialize(ctx context.Context, config core.Config) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -78,11 +51,7 @@ func (p *BaseCachePlugin) Initialize(config *core.Config) error {
 		return fmt.Errorf("cache plugin already initialized")
 	}
 
-	if config == nil {
-		return fmt.Errorf("config is required")
-	}
-
-	p.config = config
+	p.config = &config
 	p.initialized = true
 
 	if p.logger != nil {
@@ -92,8 +61,7 @@ func (p *BaseCachePlugin) Initialize(config *core.Config) error {
 	return nil
 }
 
-// Start starts the cache plugin
-func (p *BaseCachePlugin) Start() error {
+func (p *BaseCachePlugin) Start(ctx context.Context) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -109,7 +77,7 @@ func (p *BaseCachePlugin) Start() error {
 	p.lastHealthCheck = &core.HealthStatus{
 		Status:    "healthy",
 		Message:   "Cache plugin started",
-		Details:   make(map[string]interface{}),
+		Details:   make(map[string]any),
 		Timestamp: time.Now(),
 	}
 
@@ -120,8 +88,7 @@ func (p *BaseCachePlugin) Start() error {
 	return nil
 }
 
-// Stop stops the cache plugin
-func (p *BaseCachePlugin) Stop() error {
+func (p *BaseCachePlugin) Stop(ctx context.Context) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -133,7 +100,7 @@ func (p *BaseCachePlugin) Stop() error {
 	p.lastHealthCheck = &core.HealthStatus{
 		Status:    "healthy",
 		Message:   "Cache plugin stopped",
-		Details:   make(map[string]interface{}),
+		Details:   make(map[string]any),
 		Timestamp: time.Now(),
 	}
 
@@ -144,38 +111,27 @@ func (p *BaseCachePlugin) Stop() error {
 	return nil
 }
 
-// Health returns the health status of the plugin
-func (p *BaseCachePlugin) Health() *core.HealthStatus {
+// Health satisfies core.Plugin
+func (p *BaseCachePlugin) Health(ctx context.Context) error {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
 	if !p.initialized {
-		return &core.HealthStatus{
-			Status:    "unhealthy",
-			Message:   "Cache plugin not initialized",
-			Details:   make(map[string]interface{}),
-			Timestamp: time.Now(),
-		}
+		return fmt.Errorf("cache plugin not initialized")
 	}
 
 	if !p.running {
-		return &core.HealthStatus{
-			Status:    "unhealthy",
-			Message:   "Cache plugin not running",
-			Details:   make(map[string]interface{}),
-			Timestamp: time.Now(),
-		}
+		return fmt.Errorf("cache plugin not running")
 	}
 
-	return &core.HealthStatus{
-		Status:    "healthy",
-		Message:   "Cache plugin healthy",
-		Details:   make(map[string]interface{}),
-		Timestamp: time.Now(),
-	}
+	return nil
 }
 
-// RecordHit records a cache hit
+// HealthCheck satisfies core.CachePlugin
+func (p *BaseCachePlugin) HealthCheck(ctx context.Context) error {
+	return p.Health(ctx)
+}
+
 func (p *BaseCachePlugin) RecordHit() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -186,7 +142,6 @@ func (p *BaseCachePlugin) RecordHit() {
 	}
 }
 
-// RecordMiss records a cache miss
 func (p *BaseCachePlugin) RecordMiss() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -197,7 +152,6 @@ func (p *BaseCachePlugin) RecordMiss() {
 	}
 }
 
-// RecordEviction records a cache eviction
 func (p *BaseCachePlugin) RecordEviction() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -208,46 +162,40 @@ func (p *BaseCachePlugin) RecordEviction() {
 	}
 }
 
-// GetHitCount returns the hit count
-func (p *BaseCachePlugin) GetHitCount() int64 {
+func (p *BaseCachePlugin) recordHitCount() int64 {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
-
 	return p.hitCount
 }
 
-// GetMissCount returns the miss count
-func (p *BaseCachePlugin) GetMissCount() int64 {
+func (p *BaseCachePlugin) recordMissCount() int64 {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
-
 	return p.missCount
 }
 
-// GetEvictionCount returns the eviction count
-func (p *BaseCachePlugin) GetEvictionCount() int64 {
+func (p *BaseCachePlugin) recordEvictionCount() int64 {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
-
 	return p.evictionCount
 }
 
-// DefaultInMemoryCachePlugin provides in-memory cache implementation
 type DefaultInMemoryCachePlugin struct {
 	*BaseCachePlugin
-	data map[string]*core.CacheEntry
+	data map[string][]byte
+	ttls map[string]time.Time
 }
 
-// NewDefaultInMemoryCachePlugin creates a new in-memory cache plugin
-func NewDefaultInMemoryCachePlugin(logger core.Logger, metricsCollector core.MetricsCollector) *DefaultInMemoryCachePlugin {
+func NewDefaultInMemoryCachePlugin(name, version string, logger core.Logger, metricsCollector core.MetricsCollector) *DefaultInMemoryCachePlugin {
 	return &DefaultInMemoryCachePlugin{
-		BaseCachePlugin: NewBaseCachePlugin(logger, metricsCollector),
-		data:            make(map[string]*core.CacheEntry),
+		BaseCachePlugin: NewBaseCachePlugin(name, version, logger, metricsCollector),
+		data:            make(map[string][]byte),
+		ttls:            make(map[string]time.Time),
 	}
 }
 
-// Get retrieves a value from cache
-func (p *DefaultInMemoryCachePlugin) Get(key string) (*core.CacheEntry, error) {
+// Get satisfies core.CachePlugin.Get
+func (p *DefaultInMemoryCachePlugin) Get(ctx context.Context, key string) ([]byte, error) {
 	if key == "" {
 		return nil, fmt.Errorf("key is required")
 	}
@@ -258,36 +206,33 @@ func (p *DefaultInMemoryCachePlugin) Get(key string) (*core.CacheEntry, error) {
 		return nil, fmt.Errorf("cache plugin not running")
 	}
 
-	entry, exists := p.data[key]
+	value, exists := p.data[key]
 	if !exists {
 		p.mu.RUnlock()
 		p.RecordMiss()
 		return nil, nil
 	}
 
-	// Check if entry has expired
-	if entry.ExpiresAt.Before(time.Now()) {
+	expiresAt, hasTTL := p.ttls[key]
+	if hasTTL && expiresAt.Before(time.Now()) {
 		p.mu.RUnlock()
 		p.RecordEviction()
 		p.mu.Lock()
 		delete(p.data, key)
+		delete(p.ttls, key)
 		p.mu.Unlock()
 		return nil, nil
 	}
 
 	p.mu.RUnlock()
 	p.RecordHit()
-	return entry, nil
+	return value, nil
 }
 
-// Set stores a value in cache with TTL
-func (p *DefaultInMemoryCachePlugin) Set(entry *core.CacheEntry) error {
-	if entry == nil {
-		return fmt.Errorf("entry is required")
-	}
-
-	if entry.Key == "" {
-		return fmt.Errorf("entry key is required")
+// Set satisfies core.CachePlugin.Set
+func (p *DefaultInMemoryCachePlugin) Set(ctx context.Context, key string, value []byte, ttl int) error {
+	if key == "" {
+		return fmt.Errorf("key is required")
 	}
 
 	p.mu.Lock()
@@ -297,14 +242,13 @@ func (p *DefaultInMemoryCachePlugin) Set(entry *core.CacheEntry) error {
 		return fmt.Errorf("cache plugin not running")
 	}
 
-	// Set expiration time if TTL is specified
-	if entry.TTL > 0 {
-		entry.ExpiresAt = time.Now().Add(time.Duration(entry.TTL) * time.Second)
+	if ttl > 0 {
+		p.ttls[key] = time.Now().Add(time.Duration(ttl) * time.Second)
 	} else {
-		entry.ExpiresAt = time.Now().Add(24 * time.Hour) // default 24 hours
+		p.ttls[key] = time.Now().Add(defaultCacheTTL)
 	}
 
-	p.data[entry.Key] = entry
+	p.data[key] = value
 
 	if p.metricsCollector != nil {
 		p.metricsCollector.RecordCounter("cache_set", 1, map[string]string{})
@@ -313,8 +257,8 @@ func (p *DefaultInMemoryCachePlugin) Set(entry *core.CacheEntry) error {
 	return nil
 }
 
-// Delete removes a value from cache
-func (p *DefaultInMemoryCachePlugin) Delete(key string) error {
+// Delete satisfies core.CachePlugin.Delete
+func (p *DefaultInMemoryCachePlugin) Delete(ctx context.Context, key string) error {
 	if key == "" {
 		return fmt.Errorf("key is required")
 	}
@@ -327,6 +271,7 @@ func (p *DefaultInMemoryCachePlugin) Delete(key string) error {
 	}
 
 	delete(p.data, key)
+	delete(p.ttls, key)
 
 	if p.metricsCollector != nil {
 		p.metricsCollector.RecordCounter("cache_delete", 1, map[string]string{})
@@ -335,7 +280,7 @@ func (p *DefaultInMemoryCachePlugin) Delete(key string) error {
 	return nil
 }
 
-// Clear clears all cache entries
+// Clear removes all cache entries
 func (p *DefaultInMemoryCachePlugin) Clear() error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -344,7 +289,8 @@ func (p *DefaultInMemoryCachePlugin) Clear() error {
 		return fmt.Errorf("cache plugin not running")
 	}
 
-	p.data = make(map[string]*core.CacheEntry)
+	p.data = make(map[string][]byte)
+	p.ttls = make(map[string]time.Time)
 
 	if p.metricsCollector != nil {
 		p.metricsCollector.RecordCounter("cache_clear", 1, map[string]string{})
@@ -353,20 +299,17 @@ func (p *DefaultInMemoryCachePlugin) Clear() error {
 	return nil
 }
 
-// GetStats returns cache statistics
-func (p *DefaultInMemoryCachePlugin) GetStats() *CacheStats {
+// GetStats satisfies core.CachePlugin.GetStats
+func (p *DefaultInMemoryCachePlugin) GetStats() core.CacheStats {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
 	totalSize := int64(0)
-	for _, entry := range p.data {
-		if entry.Value != nil {
-			// Rough estimate of size
-			totalSize += 100
-		}
+	for _, value := range p.data {
+		totalSize += int64(len(value))
 	}
 
-	return &CacheStats{
+	return core.CacheStats{
 		HitCount:      p.hitCount,
 		MissCount:     p.missCount,
 		EvictionCount: p.evictionCount,

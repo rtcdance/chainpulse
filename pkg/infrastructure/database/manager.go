@@ -3,7 +3,9 @@ package database
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
+	"log/slog"
 	"math"
 	"strings"
 	"sync"
@@ -15,28 +17,27 @@ import (
 
 // DatabaseManager manages connections to MongoDB and PostgreSQL
 type DatabaseManager interface {
-	// Initialize initializes the database manager
 	Initialize(ctx context.Context) error
-
-	// MongoDB operations
-	GetMongoClient(ctx context.Context) (interface{}, error)
+	GetMongoClient(ctx context.Context) (any, error)
 	GetMongoDatabase(name string) *mongo.Database
-
-	// PostgreSQL operations
-	GetPostgresDB(ctx context.Context) (interface{}, error)
-
-	// Health checks
+	GetPostgresDB(ctx context.Context) (any, error)
 	CheckMongoHealth(ctx context.Context) error
 	CheckPostgresHealth(ctx context.Context) error
-
-	// Health returns the health status
-	Health(ctx context.Context) interface{}
-
-	// Lifecycle
+	Health(ctx context.Context) any
 	Close(ctx context.Context) error
 }
 
-// DefaultDatabaseManager provides default implementation of DatabaseManager
+// BatchInserter provides bulk write operations for efficient data loading.
+type BatchInserter interface {
+	// BatchInsertEvents inserts multiple events in a single database operation.
+	// Returns the number of successfully inserted events and any error.
+	BatchInsertEvents(ctx context.Context, events []any) (int, error)
+}
+
+// DefaultDatabaseManager provides default implementation of DatabaseManager.
+// Each database is initialized independently — only the databases with
+// non-empty connection URIs are connected. This allows deployments that
+// use only PostgreSQL or only MongoDB without forcing both.
 type DefaultDatabaseManager struct {
 	mongoURI        string
 	postgresURL     string
@@ -47,44 +48,77 @@ type DefaultDatabaseManager struct {
 	mongoTimeout    time.Duration
 	postgresTimeout time.Duration
 	mu              sync.RWMutex
-	initialized     bool
+	mongoInit       bool
+	postgresInit    bool
 	closed          bool
 }
 
-// NewDatabaseManager creates a new database manager
-func NewDatabaseManager(mongoURI, postgresURL string, poolSize int, timeout time.Duration) *DefaultDatabaseManager {
+// NewDatabaseManager creates a new database manager.
+// Either mongoURI or postgresURL (or both) can be empty — only
+// non-empty URIs will be initialized during Initialize().
+func NewDatabaseManager(mongoURI, postgresURL, postgresSSLMode string, poolSize int, timeout time.Duration) *DefaultDatabaseManager {
+	if postgresSSLMode == "" {
+		postgresSSLMode = "disable"
+	}
 	return &DefaultDatabaseManager{
 		mongoURI:        mongoURI,
 		postgresURL:     postgresURL,
-		postgresSSLMode: "disable",
+		postgresSSLMode: postgresSSLMode,
 		mongoTimeout:    timeout,
 		postgresTimeout: timeout,
 		poolSize:        poolSize,
 	}
 }
 
-// Initialize initializes both MongoDB and PostgreSQL connections
+// Initialize connects to each configured database independently.
+// Only databases with non-empty connection URIs are initialized.
+// Returns an error only if no databases could be initialized
+// and both URIs were non-empty.
 func (m *DefaultDatabaseManager) Initialize(ctx context.Context) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if m.initialized {
+	if m.mongoInit || m.postgresInit {
 		return fmt.Errorf("database manager already initialized")
 	}
 
-	// Initialize MongoDB
-	if err := m.initMongo(ctx); err != nil {
-		return fmt.Errorf("failed to initialize MongoDB: %w", err)
+	// Track which databases were configured and which succeeded.
+	// Each database is independent — failure of one should not roll back another.
+	hasMongo := m.mongoURI != ""
+	hasPostgres := m.postgresURL != ""
+
+	if !hasMongo && !hasPostgres {
+		return fmt.Errorf("no database configured: both MongoDB URI and PostgreSQL URL are empty")
 	}
 
-	// Initialize PostgreSQL
-	if err := m.initPostgres(ctx); err != nil {
-		// Close MongoDB if PostgreSQL fails
-		_ = m.mongoClient.Disconnect(context.Background())
-		return fmt.Errorf("failed to initialize PostgreSQL: %w", err)
+	var mongoErr, postgresErr error
+
+	if hasMongo {
+		mongoErr = m.initMongo(ctx)
+		if mongoErr == nil {
+			m.mongoInit = true
+		}
 	}
 
-	m.initialized = true
+	if hasPostgres {
+		postgresErr = m.initPostgres(ctx)
+		if postgresErr == nil {
+			m.postgresInit = true
+		}
+	}
+
+	// If all configured databases failed, return a combined error.
+	if (hasMongo && !m.mongoInit) && (hasPostgres && !m.postgresInit) {
+		return fmt.Errorf("failed to initialize databases: MongoDB: %w; PostgreSQL: %v", mongoErr, postgresErr)
+	}
+	if hasMongo && !m.mongoInit && !hasPostgres {
+		return fmt.Errorf("failed to initialize MongoDB: %w", mongoErr)
+	}
+	if hasPostgres && !m.postgresInit && !hasMongo {
+		return fmt.Errorf("failed to initialize PostgreSQL: %w", postgresErr)
+	}
+
+	// At least one database succeeded — degraded but operational.
 	return nil
 }
 
@@ -112,7 +146,8 @@ func (m *DefaultDatabaseManager) initMongo(ctx context.Context) error {
 	defer cancel()
 
 	if err := client.Ping(pingCtx, nil); err != nil {
-		_ = client.Disconnect(context.Background())
+		if disconnectErr := client.Disconnect(context.Background()); disconnectErr != nil {
+		}
 		return fmt.Errorf("failed to ping MongoDB: %w", err)
 	}
 
@@ -120,14 +155,34 @@ func (m *DefaultDatabaseManager) initMongo(ctx context.Context) error {
 	return nil
 }
 
+const (
+	defaultMinPoolSize  = 4
+	defaultMaxPoolSize  = 25
+	defaultMinMongoPool = 2
+	defaultMaxMongoPool = 100
+)
+
 func sanitizeMongoPoolSize(size int) uint64 {
 	if size <= 0 {
-		return 0
+		return defaultMaxMongoPool
 	}
 	if size > math.MaxInt32 {
 		return math.MaxInt32
 	}
+	if size < defaultMinMongoPool {
+		return defaultMinMongoPool
+	}
 	return uint64(size)
+}
+
+func sanitizePostgresPoolSize(size int) int {
+	if size <= 0 {
+		return defaultMaxPoolSize
+	}
+	if size < defaultMinPoolSize {
+		return defaultMinPoolSize
+	}
+	return size
 }
 
 // initPostgres initializes PostgreSQL connection
@@ -150,17 +205,25 @@ func (m *DefaultDatabaseManager) initPostgres(ctx context.Context) error {
 		return fmt.Errorf("failed to open PostgreSQL connection: %w", err)
 	}
 
-	// Configure connection pool
-	db.SetMaxOpenConns(m.poolSize)
-	db.SetMaxIdleConns(m.poolSize / 2)
+	// Configure connection pool with safe minimums
+	maxOpen := sanitizePostgresPoolSize(m.poolSize)
+	maxIdle := maxOpen / 2
+	if maxIdle < 2 {
+		maxIdle = 2
+	}
+	db.SetMaxOpenConns(maxOpen)
+	db.SetMaxIdleConns(maxIdle)
 	db.SetConnMaxLifetime(time.Hour)
+	db.SetConnMaxIdleTime(30 * time.Minute)
 
 	// Verify connection
 	pingCtx, cancel := context.WithTimeout(ctx, m.postgresTimeout)
 	defer cancel()
 
 	if err := db.PingContext(pingCtx); err != nil {
-		_ = db.Close()
+		if cerr := db.Close(); cerr != nil {
+			slog.Warn("failed to close PostgreSQL connection after ping failure", "error", cerr)
+		}
 		return fmt.Errorf("failed to ping PostgreSQL: %w", err)
 	}
 
@@ -169,12 +232,12 @@ func (m *DefaultDatabaseManager) initPostgres(ctx context.Context) error {
 }
 
 // GetMongoClient returns the MongoDB client
-func (m *DefaultDatabaseManager) GetMongoClient(ctx context.Context) (interface{}, error) {
+func (m *DefaultDatabaseManager) GetMongoClient(ctx context.Context) (any, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	if !m.initialized {
-		return nil, fmt.Errorf("database manager not initialized")
+	if !m.mongoInit {
+		return nil, fmt.Errorf("MongoDB not initialized")
 	}
 
 	if m.mongoClient == nil {
@@ -197,12 +260,12 @@ func (m *DefaultDatabaseManager) GetMongoDatabase(name string) *mongo.Database {
 }
 
 // GetPostgresDB returns the PostgreSQL database connection
-func (m *DefaultDatabaseManager) GetPostgresDB(ctx context.Context) (interface{}, error) {
+func (m *DefaultDatabaseManager) GetPostgresDB(ctx context.Context) (any, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	if !m.initialized {
-		return nil, fmt.Errorf("database manager not initialized")
+	if !m.postgresInit {
+		return nil, fmt.Errorf("PostgreSQL not initialized")
 	}
 
 	if m.postgresClient == nil {
@@ -243,32 +306,62 @@ func (m *DefaultDatabaseManager) CheckPostgresHealth(ctx context.Context) error 
 }
 
 // Health returns the health status
-func (m *DefaultDatabaseManager) Health(ctx context.Context) interface{} {
+func (m *DefaultDatabaseManager) Health(ctx context.Context) any {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	if !m.initialized {
-		return map[string]interface{}{
+	if !m.mongoInit && !m.postgresInit {
+		return map[string]any{
 			"status": "unhealthy",
-			"reason": "not initialized",
+			"reason": "no databases initialized",
 		}
 	}
 
-	mongoHealthy := m.mongoClient != nil
-	postgresHealthy := m.postgresClient != nil
+	mongoHealthy := m.mongoInit && m.mongoClient != nil
+	postgresHealthy := m.postgresInit && m.postgresClient != nil
 
 	if !mongoHealthy && !postgresHealthy {
-		return map[string]interface{}{
+		return map[string]any{
 			"status": "unhealthy",
 			"reason": "both databases unavailable",
 		}
 	}
 
-	return map[string]interface{}{
+	return map[string]any{
 		"status":   "healthy",
 		"mongodb":  mongoHealthy,
 		"postgres": postgresHealthy,
 	}
+}
+
+// BatchInsertEvents inserts multiple events in bulk using MongoDB's InsertMany
+// for efficiency. Returns an error if MongoDB is not available.
+func (m *DefaultDatabaseManager) BatchInsertEvents(ctx context.Context, events []any) (int, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	if len(events) == 0 {
+		return 0, nil
+	}
+
+	// MongoDB bulk insert requires mongoClient to be initialized
+	if m.mongoClient == nil || !m.mongoInit {
+		return 0, fmt.Errorf("MongoDB not initialized: cannot batch insert %d events", len(events))
+	}
+
+	db := m.mongoClient.Database("chainpulse")
+	collection := db.Collection("events")
+
+	result, err := collection.InsertMany(ctx, events)
+	if err != nil {
+		// Partial insert: return count of successfully inserted documents
+		if result != nil && len(result.InsertedIDs) > 0 {
+			return len(result.InsertedIDs), fmt.Errorf("partial batch insert: %w", err)
+		}
+		return 0, fmt.Errorf("batch insert failed: %w", err)
+	}
+
+	return len(result.InsertedIDs), nil
 }
 
 // Close closes both MongoDB and PostgreSQL connections
@@ -299,7 +392,43 @@ func (m *DefaultDatabaseManager) Close(ctx context.Context) error {
 	m.closed = true
 
 	if len(errs) > 0 {
-		return fmt.Errorf("errors closing database connections: %v", errs)
+		return errors.Join(errs...)
+	}
+
+	return nil
+}
+
+// Warmup pre-allocates connection pools and prepares prepared statements.
+// This should be called after Initialize() and before serving traffic
+// to reduce cold-start latency for the first requests.
+func (m *DefaultDatabaseManager) Warmup(ctx context.Context) error {
+	m.mu.RLock()
+	mongoClient := m.mongoClient
+	mongoInit := m.mongoInit
+	postgresClient := m.postgresClient
+	m.mu.RUnlock()
+
+	// MongoDB: trigger initial connection pool allocation
+	if mongoClient != nil && mongoInit {
+		// ListDatabaseNames forces the driver to establish a connection,
+		// which warms up the connection pool.
+		if _, err := mongoClient.ListDatabaseNames(ctx, map[string]any{}); err != nil {
+			return fmt.Errorf("mongodb warmup failed: %w", err)
+		}
+	}
+
+	// PostgreSQL: create prepared statements for common queries
+	if postgresClient != nil {
+		// Ping to ensure connection is ready
+		if err := postgresClient.PingContext(ctx); err != nil {
+			return fmt.Errorf("postgres warmup failed: %w", err)
+		}
+		// The sql.DB connection pool is automatically warmed as queries execute.
+		// For explicit pool warming, we can execute a simple query.
+		_, err := postgresClient.ExecContext(ctx, "SELECT 1")
+		if err != nil {
+			return fmt.Errorf("postgres warmup query failed: %w", err)
+		}
 	}
 
 	return nil

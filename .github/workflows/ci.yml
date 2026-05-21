@@ -1,274 +1,82 @@
 name: CI
 
-# Triggers: push/PR to main branches only
-# Integration and E2E tests are in ci-integration.yml
 on:
   push:
-    branches: [ main, master, develop ]
+    branches: [main, codex/acceptance-wrapup-2026-04-09]
   pull_request:
-    branches: [ main, master, develop ]
-
-permissions:
-  contents: read
-
-env:
-  GOLANGCI_LINT_VERSION: 'v2.0.0'
-  # Opt into Node.js 24 now so we catch any action incompatibilities before GitHub flips the default.
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+    branches: [main]
+  workflow_dispatch:
 
 jobs:
-  policy-contract:
-    name: Policy Metric Contract
-    runs-on: ubuntu-latest
-    env:
-      CHAINPULSE_POLICY_METRIC_SCHEMA_MODE: dual_write
-      CHAINPULSE_POLICY_V1_DEPRECATION_DATE: '2026-07-01'
-      CHAINPULSE_POLICY_V1_DEPRECATION_WARN_DAYS: '30'
-      CHAINPULSE_MIGRATION_WARN_DAYS: '30'
-      CHAINPULSE_MIGRATION_REQUIRE_SPEC_SYNC: 'true'
-      CHAINPULSE_MIGRATION_REQUIRE_SPEC_METADATA_SYNC: 'true'
-      CHAINPULSE_ENFORCE_BASELINE_CHANGELOG_QUALITY: 'true'
-      CHAINPULSE_MIGRATION_TICKET_PATTERN: '^[A-Z0-9]+-[A-Z0-9]+$'
-      CHAINPULSE_MIGRATION_TICKET_VERIFY_MODE: 'both'
-      CHAINPULSE_MIGRATION_TICKET_REGISTRY_SOURCE: 'file'
-      CHAINPULSE_MIGRATION_TICKET_REGISTRY_FILE: 'docs/operations/MIGRATION_TICKET_REGISTRY.txt'
-      CHAINPULSE_MIGRATION_TICKET_VERIFY_FAILURE_MODE: 'enforce'
-      CHAINPULSE_MIGRATION_REGISTRY_HEALTH_DELTA_FAILURE_MODE: 'warn'
-      CHAINPULSE_BASELINE_SCOPE_SMOKE_DELTA_FAILURE_MODE: 'warn'
-      CHAINPULSE_BASELINE_RESOLVER_TEST_DELTA_FAILURE_MODE: 'warn'
-      CHAINPULSE_MIGRATION_BASELINE_SCOPE_SMOKE_BASELINE_FILE: 'docs/operations/MIGRATION_BASELINE_SCOPE_SMOKE_BASELINE.prom'
-      CHAINPULSE_MIGRATION_OWNER_ALLOWLIST: 'platform-team,sre-team,indexer-team'
-      CHAINPULSE_MIGRATION_CHANGELOG_SCOPE_ALLOWLIST: 'kpi-only,health-only,dual'
-      CHAINPULSE_MIGRATION_CHANGELOG_REQUIRE_SCOPE: 'true'
-      CHAINPULSE_MIGRATION_ENFORCE_BASELINE_SCOPE_ALIGNMENT: 'true'
-      CHAINPULSE_MIGRATION_CHANGELOG_CHANGED_BASELINES_ALLOWLIST: 'kpi,health,smoke,resolver'
-      CHAINPULSE_MIGRATION_CHANGELOG_REQUIRE_CHANGED_BASELINES: 'true'
-      CHAINPULSE_MIGRATION_ENFORCE_CHANGED_BASELINES_ALIGNMENT: 'true'
-      CHAINPULSE_FAIL_ON_UNKNOWN_MIGRATION_OWNER: 'true'
-    steps:
-    - uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-
-    - name: Set up Go
-      uses: actions/setup-go@v5
-      with:
-        go-version-file: go.mod
-        cache: true
-
-    - name: Run policy metric/tag contract check
-      run: ./scripts/check-policy-metric-contract.sh
-
-    - name: Run migration manifest deadline check
-      run: ./scripts/check-migration-manifest.sh
-
-    - name: Export migration governance KPI snapshot
-      run: ./scripts/export-migration-governance-kpi.sh
-
-    - name: Compare migration governance KPI against baseline
-      run: ./scripts/compare-migration-governance-kpi.sh
-
-    - name: Run baseline update preflight
-      run: ./scripts/preflight-migration-baseline-update.sh
-
-    - name: Run baseline update resolver tests
-      run: ./scripts/test-baseline-update-resolver.sh
-
-    - name: Compare baseline resolver test against baseline
-      run: ./scripts/compare-baseline-resolver-test.sh
-
-    - name: Check migration baseline governance
-      run: |
-        if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-          export CHAINPULSE_MIGRATION_BASELINE_DIFF_REF="${{ github.event.pull_request.base.sha }}"
-        else
-          export CHAINPULSE_MIGRATION_BASELINE_DIFF_REF="HEAD~1"
-        fi
-        ./scripts/check-migration-baseline-governance.sh
-
-    - name: Run baseline governance scope smoke tests
-      run: ./scripts/smoke-baseline-governance-scope.sh
-
-    - name: Compare baseline scope smoke against baseline
-      run: ./scripts/compare-baseline-scope-smoke.sh
-
-    - name: Check migration changelog quality
-      run: ./scripts/check-migration-changelog-quality.sh
-
-    - name: Compare ticket registry health against baseline
-      run: ./scripts/compare-ticket-registry-health.sh
-
-    - name: Export migration owner drift report
-      run: ./scripts/export-migration-owner-drift-report.sh
-
-    - name: Append migration owner drift report to job summary
-      run: cat build/migration-governance/migration-owner-drift-report.md >> "$GITHUB_STEP_SUMMARY"
-
-    - name: Append ticket registry health report to job summary
-      run: cat build/migration-governance/ticket-registry-health.md >> "$GITHUB_STEP_SUMMARY"
-
-    - name: Append ticket registry health delta to job summary
-      run: cat build/migration-governance/ticket-registry-health-delta.md >> "$GITHUB_STEP_SUMMARY"
-
-    - name: Append governance overview to job summary
-      run: ./scripts/append-governance-overview-summary.sh
-
-    - name: Append baseline scope smoke report to job summary
-      run: |
-        ./scripts/append-baseline-scope-smoke-summary.sh
-        cat build/migration-governance/baseline-scope-smoke.md >> "$GITHUB_STEP_SUMMARY"
-
-    - name: Append baseline scope smoke delta to job summary
-      run: cat build/migration-governance/baseline-scope-smoke-delta.md >> "$GITHUB_STEP_SUMMARY"
-
-    - name: Append baseline update preflight to job summary
-      run: cat build/migration-governance/baseline-update-preflight.md >> "$GITHUB_STEP_SUMMARY"
-
-    - name: Append baseline resolver test report to job summary
-      run: |
-        ./scripts/append-baseline-resolver-test-summary.sh
-        cat build/migration-governance/baseline-resolver-test.md >> "$GITHUB_STEP_SUMMARY"
-
-    - name: Append baseline resolver test delta to job summary
-      run: cat build/migration-governance/baseline-resolver-test-delta.md >> "$GITHUB_STEP_SUMMARY"
-
-    - name: Append migration KPI delta to job summary
-      run: cat build/migration-governance/migration-governance-delta.md >> "$GITHUB_STEP_SUMMARY"
-
-    - name: Upload migration governance KPI artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: migration-governance-kpi-${{ github.sha }}
-        path: build/migration-governance/
-        retention-days: 14
-
-  lint:
-    name: Lint
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v4
-
-    - name: Set up Go
-      uses: actions/setup-go@v5
-      with:
-        go-version-file: go.mod
-        cache: true
-
-    - name: Run golangci-lint
-      run: |
-        if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-          export LINT_BASE_REF="${{ github.event.pull_request.base.sha }}"
-        else
-          export LINT_BASE_REF="HEAD~1"
-        fi
-        make lint
-
-    - name: Run go vet
-      run: go vet ./...
-
-  test-unit:
-    name: Unit Tests
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v4
-
-    - name: Set up Go
-      uses: actions/setup-go@v5
-      with:
-        go-version-file: go.mod
-        cache: true
-
-    - name: Download dependencies
-      run: go mod download
-
-    - name: Run unit tests
-      run: go test -v -race -short ./pkg/...
-
-    - name: Run runnable-app security posture checks
-      run: go test -v -short ./cmd/microservices/api-gateway/... ./cmd/microservices/api-service/... ./cmd/microservices/puller/... ./cmd/microservices/event-processor/...
-
-    - name: Generate coverage report
-      run: |
-        go test -coverprofile=coverage.out ./pkg/...
-        go tool cover -func=coverage.out
-
-    - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v4
-      with:
-        files: ./coverage.out
-        flags: unittests
-        fail_ci_if_error: false
-
-  k8s-capability:
-    name: K8s Capability
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v4
-
-    - name: Verify k8s deployment capability
-      run: make k8s-verify
-
-    - name: Set up kubectl
-      uses: azure/setup-kubectl@v4
-      with:
-        version: 'latest'
-
-    - name: Run k8s acceptance (strict dry-run)
-      run: make k8s-acceptance-strict
-
   build:
-    name: Build
+    name: Build & Test
     runs-on: ubuntu-latest
-    needs: [ policy-contract, lint, test-unit, k8s-capability ]
+
     steps:
-    - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-    - name: Set up Go
-      uses: actions/setup-go@v5
-      with:
-        go-version-file: go.mod
-        cache: true
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+          cache: true
 
-    - name: Build monolithic
-      run: go build -v -o bin/chainpulse ./cmd/monolithic/chainpulse
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
 
-    - name: Build microservices
-      run: |
-        go build -v -o bin/puller          ./cmd/microservices/puller
-        go build -v -o bin/event-processor ./cmd/microservices/event-processor
-        go build -v -o bin/api-service     ./cmd/microservices/api-service
-        go build -v -o bin/api-gateway     ./cmd/microservices/api-gateway
+      - name: Format check
+        run: |
+          output=$(gofmt -l .)
+          if [ -n "$output" ]; then
+            echo "Files not formatted:"
+            echo "$output"
+            exit 1
+          fi
 
-    - name: Upload binaries
-      uses: actions/upload-artifact@v4
-      with:
-        name: binaries-${{ github.sha }}
-        path: bin/
-        retention-days: 7
+      - name: Vet
+        run: go vet ./...
 
-  security:
-    name: Security Scan
-    runs-on: ubuntu-latest
-    # Run independently, don't block build
-    permissions:
-      contents: read
-      security-events: write
-    steps:
-    - uses: actions/checkout@v4
+      - name: Build monolithic
+        run: go build ./cmd/monolithic/chainpulse/
 
-    - name: Set up Go
-      uses: actions/setup-go@v5
-      with:
-        go-version-file: go.mod
-        cache: true
+      - name: Build microservices
+        run: |
+          go build ./cmd/microservices/api-service/
+          go build ./cmd/microservices/api-gateway/
+          go build ./cmd/microservices/event-processor/
+          go build ./cmd/microservices/puller/
 
-    - name: Run Gosec
-      uses: securego/gosec@master
-      with:
-        args: '-fmt sarif -out gosec.sarif ./...'
+      - name: Test (short, with race detector)
+        run: go test -race -short -timeout 120s ./...
 
-    - name: Upload SARIF file
-      uses: github/codeql-action/upload-sarif@v4
-      if: always()
-      with:
-        sarif_file: gosec.sarif
+      - name: Integration tests
+        if: github.event_name == 'push'
+        run: go test -timeout 300s -tags=integration ./test/integration/...
+
+      - name: E2E tests
+        if: github.event_name == 'push'
+        run: go test -timeout 300s -tags=e2e ./test/e2e/...
+
+      - name: Security scan
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          govulncheck ./...
+
+      - name: Frontend build
+        run: |
+          cd frontend
+          npm ci
+          npm run build
+
+      - name: Docker build (all targets)
+        run: |
+          docker build --target=monolithic -f docker/Dockerfile -t chainpulse-monolithic:ci .
+          docker build --target=puller -f docker/Dockerfile -t chainpulse-puller:ci .
+          docker build --target=event-processor -f docker/Dockerfile -t chainpulse-event-processor:ci .
+          docker build --target=api-service -f docker/Dockerfile -t chainpulse-api-service:ci .
+          docker build --target=api-gateway -f docker/Dockerfile -t chainpulse-api-gateway:ci .

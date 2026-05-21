@@ -11,6 +11,7 @@ import (
 
 // TestNewKafkaCluster tests Kafka cluster creation
 func TestNewKafkaCluster(t *testing.T) {
+	t.Parallel()
 	config := &KafkaConfig{
 		Brokers:           []string{"localhost:9092"},
 		Topic:             "test-topic",
@@ -28,6 +29,7 @@ func TestNewKafkaCluster(t *testing.T) {
 
 // TestNewKafkaClusterNilConfig tests Kafka cluster creation with nil config
 func TestNewKafkaClusterNilConfig(t *testing.T) {
+	t.Parallel()
 	cluster, err := NewKafkaCluster(nil)
 
 	assert.NoError(t, err)
@@ -38,6 +40,7 @@ func TestNewKafkaClusterNilConfig(t *testing.T) {
 
 // TestKafkaClusterConfig tests Kafka cluster configuration
 func TestKafkaClusterConfig(t *testing.T) {
+	t.Parallel()
 	config := &KafkaConfig{
 		Brokers:           []string{"broker1:9092", "broker2:9092"},
 		Topic:             "test-topic",
@@ -56,6 +59,7 @@ func TestKafkaClusterConfig(t *testing.T) {
 
 // TestKafkaClusterClose tests closing Kafka cluster
 func TestKafkaClusterClose(t *testing.T) {
+	t.Parallel()
 	config := &KafkaConfig{
 		Brokers:           []string{"localhost:9092"},
 		PartitionCount:    3,
@@ -72,6 +76,7 @@ func TestKafkaClusterClose(t *testing.T) {
 
 // TestTopicMetadataStructure tests TopicMetadata structure
 func TestTopicMetadataStructure(t *testing.T) {
+	t.Parallel()
 	metadata := &TopicMetadata{
 		Topic:      "test-topic",
 		Partitions: make([]kafkago.Partition, 0),
@@ -83,6 +88,7 @@ func TestTopicMetadataStructure(t *testing.T) {
 
 // TestKafkaConfigStructure tests KafkaConfig structure
 func TestKafkaConfigStructure(t *testing.T) {
+	t.Parallel()
 	config := &KafkaConfig{
 		Brokers:           []string{"localhost:9092"},
 		Topic:             "test-topic",
@@ -100,6 +106,7 @@ func TestKafkaConfigStructure(t *testing.T) {
 
 // TestKafkaClusterMultipleBrokers tests Kafka cluster with multiple brokers
 func TestKafkaClusterMultipleBrokers(t *testing.T) {
+	t.Parallel()
 	config := &KafkaConfig{
 		Brokers:           []string{"broker1:9092", "broker2:9092", "broker3:9092"},
 		PartitionCount:    3,
@@ -114,6 +121,7 @@ func TestKafkaClusterMultipleBrokers(t *testing.T) {
 
 // TestKafkaClusterDefaultConfig tests Kafka cluster with default configuration
 func TestKafkaClusterDefaultConfig(t *testing.T) {
+	t.Parallel()
 	cluster, err := NewKafkaCluster(nil)
 
 	assert.NoError(t, err)
@@ -124,6 +132,7 @@ func TestKafkaClusterDefaultConfig(t *testing.T) {
 
 // TestKafkaClusterBrokerAccess tests accessing brokers
 func TestKafkaClusterBrokerAccess(t *testing.T) {
+	t.Parallel()
 	config := &KafkaConfig{
 		Brokers:           []string{"localhost:9092"},
 		PartitionCount:    3,
@@ -139,6 +148,7 @@ func TestKafkaClusterBrokerAccess(t *testing.T) {
 
 // TestKafkaConfigWithCustomValues tests Kafka config with custom values
 func TestKafkaConfigWithCustomValues(t *testing.T) {
+	t.Parallel()
 	config := &KafkaConfig{
 		Brokers:           []string{"kafka1:9092", "kafka2:9092"},
 		Topic:             "custom-topic",
@@ -158,6 +168,7 @@ func TestKafkaConfigWithCustomValues(t *testing.T) {
 
 // TestKafkaClusterContextHandling tests context handling
 func TestKafkaClusterContextHandling(t *testing.T) {
+	t.Parallel()
 	config := &KafkaConfig{
 		Brokers:           []string{"localhost:9092"},
 		PartitionCount:    3,
@@ -176,6 +187,7 @@ func TestKafkaClusterContextHandling(t *testing.T) {
 
 // TestKafkaClusterEmptyBrokers tests Kafka cluster with empty brokers
 func TestKafkaClusterEmptyBrokers(t *testing.T) {
+	t.Parallel()
 	config := &KafkaConfig{
 		Brokers:           []string{},
 		PartitionCount:    3,
@@ -190,6 +202,7 @@ func TestKafkaClusterEmptyBrokers(t *testing.T) {
 
 // TestKafkaClusterSingleBroker tests Kafka cluster with single broker
 func TestKafkaClusterSingleBroker(t *testing.T) {
+	t.Parallel()
 	config := &KafkaConfig{
 		Brokers:           []string{"single-broker:9092"},
 		PartitionCount:    1,
@@ -204,6 +217,7 @@ func TestKafkaClusterSingleBroker(t *testing.T) {
 
 // TestKafkaClusterHighReplication tests Kafka cluster with high replication factor
 func TestKafkaClusterHighReplication(t *testing.T) {
+	t.Parallel()
 	config := &KafkaConfig{
 		Brokers:           []string{"broker1:9092", "broker2:9092", "broker3:9092"},
 		PartitionCount:    10,
@@ -218,6 +232,7 @@ func TestKafkaClusterHighReplication(t *testing.T) {
 
 // TestKafkaClusterManyPartitions tests Kafka cluster with many partitions
 func TestKafkaClusterManyPartitions(t *testing.T) {
+	t.Parallel()
 	config := &KafkaConfig{
 		Brokers:           []string{"localhost:9092"},
 		PartitionCount:    100,
@@ -232,6 +247,7 @@ func TestKafkaClusterManyPartitions(t *testing.T) {
 
 // TestKafkaClusterConfigCopy tests that config is properly stored
 func TestKafkaClusterConfigCopy(t *testing.T) {
+	t.Parallel()
 	originalConfig := &KafkaConfig{
 		Brokers:           []string{"localhost:9092"},
 		Topic:             "test-topic",
@@ -249,6 +265,7 @@ func TestKafkaClusterConfigCopy(t *testing.T) {
 
 // TestKafkaClusterBrokersList tests brokers list
 func TestKafkaClusterBrokersList(t *testing.T) {
+	t.Parallel()
 	brokers := []string{"broker1:9092", "broker2:9092", "broker3:9092"}
 	config := &KafkaConfig{
 		Brokers:           brokers,

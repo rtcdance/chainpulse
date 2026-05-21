@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 // contextKey is a custom type for context keys to avoid collisions
@@ -27,21 +27,19 @@ const (
 
 // RateLimiter implements rate limiting for API requests
 type RateLimiter struct {
-	// Per-client rate limiters (keyed by client identifier)
-	clientLimiters map[string]*TokenBucket
-	// Per-endpoint rate limiters (keyed by endpoint path)
+	clientLimiters  map[string]*TokenBucket
 	endpointLimiters map[string]*TokenBucket
-	// Per-IP rate limiters (keyed by IP address)
-	ipLimiters map[string]*TokenBucket
+	ipLimiters      map[string]*TokenBucket
 
 	logger  core.Logger
 	metrics core.MetricsCollector
 
-	// Configuration
 	defaultRequestsPerSecond float64
 	defaultBurstSize         int
 	cleanupInterval          time.Duration
 	lastCleanup              time.Time
+
+	trustedProxies map[string]bool
 
 	mu sync.RWMutex
 }
@@ -52,6 +50,7 @@ type TokenBucket struct {
 	maxTokens      float64
 	refillRate     float64 // tokens per second
 	lastRefillTime time.Time
+	lastActivity   time.Time
 	requestCount   int64
 	rejectedCount  int64
 	mu             sync.RWMutex
@@ -159,13 +158,25 @@ func NewRateLimiter(logger core.Logger, metrics core.MetricsCollector, config *R
 	return rl
 }
 
+// SetTrustedProxies configures which proxy IPs are trusted to send X-Forwarded-For headers.
+func (rl *RateLimiter) SetTrustedProxies(proxies []string) {
+	rl.mu.Lock()
+	defer rl.mu.Unlock()
+	rl.trustedProxies = make(map[string]bool, len(proxies))
+	for _, p := range proxies {
+		rl.trustedProxies[p] = true
+	}
+}
+
 // NewTokenBucket creates a new token bucket
 func NewTokenBucket(refillRate float64, maxTokens float64) *TokenBucket {
+	now := time.Now()
 	return &TokenBucket{
 		tokens:         maxTokens,
 		maxTokens:      maxTokens,
 		refillRate:     refillRate,
-		lastRefillTime: time.Now(),
+		lastRefillTime: now,
+		lastActivity:   now,
 		requestCount:   0,
 		rejectedCount:  0,
 	}
@@ -193,22 +204,25 @@ func (rl *RateLimiter) AllowRequest(r *http.Request, clientID string) (bool, *Ra
 		if !endpointLimit.Allow() {
 			info.Allowed = false
 			rl.metrics.RecordCounter("rate_limit_exceeded_endpoint", 1, nil)
-			rl.logger.Warn("Rate limit exceeded for endpoint",
+			rl.logger.Warn(
+				"Rate limit exceeded for endpoint",
 				"path", r.URL.Path,
 				"clientID", clientID,
 			)
 			return false, info
 		}
 		info.RequestsRemaining = int(endpointLimit.GetAvailableTokens())
+		info.Limit = endpointLimit.GetLimit()
 	}
 
 	// Check IP-based rate limit
-	clientIP := getClientIP(r)
+	clientIP := getClientIP(r, rl.trustedProxies)
 	if ipLimiter, ok := rl.ipLimiters[clientIP]; ok {
 		if !ipLimiter.Allow() {
 			info.Allowed = false
 			rl.metrics.RecordCounter("rate_limit_exceeded_ip", 1, nil)
-			rl.logger.Warn("Rate limit exceeded for IP",
+			rl.logger.Warn(
+				"Rate limit exceeded for IP",
 				"ip", clientIP,
 				"clientID", clientID,
 			)
@@ -233,7 +247,8 @@ func (rl *RateLimiter) AllowRequest(r *http.Request, clientID string) (bool, *Ra
 			if !clientLimiter.Allow() {
 				info.Allowed = false
 				rl.metrics.RecordCounter("rate_limit_exceeded_client", 1, nil)
-				rl.logger.Warn("Rate limit exceeded for client",
+				rl.logger.Warn(
+					"Rate limit exceeded for client",
 					"clientID", clientID,
 				)
 				return false, info
@@ -260,6 +275,7 @@ func (rl *RateLimiter) AllowRequest(r *http.Request, clientID string) (bool, *Ra
 type RateLimitInfo struct {
 	Allowed           bool
 	RequestsRemaining int
+	Limit             int
 	ResetTime         time.Time
 	RetryAfter        time.Duration
 }
@@ -270,6 +286,7 @@ func (tb *TokenBucket) Allow() bool {
 	defer tb.mu.Unlock()
 
 	tb.refill()
+	tb.lastActivity = time.Now()
 
 	if tb.tokens >= 1.0 {
 		tb.tokens -= 1.0
@@ -283,11 +300,16 @@ func (tb *TokenBucket) Allow() bool {
 
 // GetAvailableTokens returns the number of available tokens
 func (tb *TokenBucket) GetAvailableTokens() float64 {
-	tb.mu.RLock()
-	defer tb.mu.RUnlock()
+	tb.mu.Lock()
+	defer tb.mu.Unlock()
 
 	tb.refill()
 	return tb.tokens
+}
+
+// GetLimit returns the maximum tokens (burst size) for this bucket
+func (tb *TokenBucket) GetLimit() int {
+	return int(tb.maxTokens)
 }
 
 // refill adds tokens based on elapsed time
@@ -303,11 +325,11 @@ func (tb *TokenBucket) refill() {
 }
 
 // GetStats returns statistics for the token bucket
-func (tb *TokenBucket) GetStats() map[string]interface{} {
+func (tb *TokenBucket) GetStats() map[string]any {
 	tb.mu.RLock()
 	defer tb.mu.RUnlock()
 
-	return map[string]interface{}{
+	return map[string]any{
 		"available_tokens": tb.tokens,
 		"max_tokens":       tb.maxTokens,
 		"refill_rate":      tb.refillRate,
@@ -316,18 +338,26 @@ func (tb *TokenBucket) GetStats() map[string]interface{} {
 	}
 }
 
-// cleanup removes stale limiters
+// cleanup removes stale limiters that haven't been accessed recently
 func (rl *RateLimiter) cleanup() {
+	cleanupTTL := rl.cleanupInterval * 10 // stale after 10x cleanup interval
+
 	// Remove IP limiters that haven't been used recently
 	for ip, limiter := range rl.ipLimiters {
-		if limiter.requestCount == 0 && limiter.rejectedCount == 0 {
+		limiter.mu.RLock()
+		last := limiter.lastActivity
+		limiter.mu.RUnlock()
+		if time.Since(last) > cleanupTTL {
 			delete(rl.ipLimiters, ip)
 		}
 	}
 
 	// Remove client limiters that haven't been used recently
 	for clientID, limiter := range rl.clientLimiters {
-		if limiter.requestCount == 0 && limiter.rejectedCount == 0 {
+		limiter.mu.RLock()
+		last := limiter.lastActivity
+		limiter.mu.RUnlock()
+		if time.Since(last) > cleanupTTL {
 			delete(rl.clientLimiters, clientID)
 		}
 	}
@@ -339,7 +369,8 @@ func (rl *RateLimiter) SetEndpointLimit(path string, requestsPerSecond float64, 
 	defer rl.mu.Unlock()
 
 	rl.endpointLimiters[path] = NewTokenBucket(requestsPerSecond, float64(burstSize))
-	rl.logger.Info("Endpoint rate limit set",
+	rl.logger.Info(
+		"Endpoint rate limit set",
 		"path", path,
 		"requestsPerSecond", requestsPerSecond,
 		"burstSize", burstSize,
@@ -352,7 +383,8 @@ func (rl *RateLimiter) SetClientLimit(clientID string, requestsPerSecond float64
 	defer rl.mu.Unlock()
 
 	rl.clientLimiters[clientID] = NewTokenBucket(requestsPerSecond, float64(burstSize))
-	rl.logger.Info("Client rate limit set",
+	rl.logger.Info(
+		"Client rate limit set",
 		"clientID", clientID,
 		"requestsPerSecond", requestsPerSecond,
 		"burstSize", burstSize,
@@ -365,7 +397,8 @@ func (rl *RateLimiter) SetIPLimit(ip string, requestsPerSecond float64, burstSiz
 	defer rl.mu.Unlock()
 
 	rl.ipLimiters[ip] = NewTokenBucket(requestsPerSecond, float64(burstSize))
-	rl.logger.Info("IP rate limit set",
+	rl.logger.Info(
+		"IP rate limit set",
 		"ip", ip,
 		"requestsPerSecond", requestsPerSecond,
 		"burstSize", burstSize,
@@ -373,26 +406,26 @@ func (rl *RateLimiter) SetIPLimit(ip string, requestsPerSecond float64, burstSiz
 }
 
 // GetStats returns rate limiter statistics
-func (rl *RateLimiter) GetStats() map[string]interface{} {
+func (rl *RateLimiter) GetStats() map[string]any {
 	rl.mu.RLock()
 	defer rl.mu.RUnlock()
 
-	endpointStats := make(map[string]interface{})
+	endpointStats := make(map[string]any)
 	for path, limiter := range rl.endpointLimiters {
 		endpointStats[path] = limiter.GetStats()
 	}
 
-	clientStats := make(map[string]interface{})
+	clientStats := make(map[string]any)
 	for clientID, limiter := range rl.clientLimiters {
 		clientStats[clientID] = limiter.GetStats()
 	}
 
-	ipStats := make(map[string]interface{})
+	ipStats := make(map[string]any)
 	for ip, limiter := range rl.ipLimiters {
 		ipStats[ip] = limiter.GetStats()
 	}
 
-	return map[string]interface{}{
+	return map[string]any{
 		"endpoint_limiters": endpointStats,
 		"client_limiters":   clientStats,
 		"ip_limiters":       ipStats,
@@ -404,15 +437,29 @@ func (rl *RateLimiter) GetStats() map[string]interface{} {
 
 // RateLimitMiddleware wraps an HTTP handler with rate limiting
 type RateLimitMiddleware struct {
-	limiter *RateLimiter
-	logger  core.Logger
+	limiter        *RateLimiter
+	logger         core.Logger
+	trustedProxies map[string]bool // IPs of trusted reverse proxies
 }
 
 // NewRateLimitMiddleware creates a new rate limit middleware
 func NewRateLimitMiddleware(limiter *RateLimiter, logger core.Logger) *RateLimitMiddleware {
 	return &RateLimitMiddleware{
-		limiter: limiter,
-		logger:  logger,
+		limiter:        limiter,
+		logger:         logger,
+		trustedProxies: make(map[string]bool),
+	}
+}
+
+// SetTrustedProxies configures which proxy IPs are trusted to send X-Forwarded-For headers.
+// Only requests from trusted proxies will use X-Forwarded-For for client IP extraction.
+func (m *RateLimitMiddleware) SetTrustedProxies(proxies []string) {
+	m.trustedProxies = make(map[string]bool, len(proxies))
+	for _, p := range proxies {
+		m.trustedProxies[p] = true
+	}
+	if m.limiter != nil {
+		m.limiter.SetTrustedProxies(proxies)
 	}
 }
 
@@ -436,12 +483,13 @@ func (m *RateLimitMiddleware) Middleware(limiter *RateLimiter) func(http.Handler
 			allowed, info := limiter.AllowRequest(r, clientID)
 
 			// Set rate limit headers
+			w.Header().Set("X-RateLimit-Limit", fmt.Sprintf("%d", info.Limit))
 			w.Header().Set("X-RateLimit-Remaining", fmt.Sprintf("%d", info.RequestsRemaining))
 			w.Header().Set("X-RateLimit-Reset", fmt.Sprintf("%d", info.ResetTime.Unix()))
 
 			if !allowed {
 				w.Header().Set("Retry-After", fmt.Sprintf("%d", int(info.RetryAfter.Seconds())))
-				http.Error(w, "Rate limit exceeded", http.StatusTooManyRequests)
+				(&APIError{Code: "RATE_LIMITED", Message: "too many requests", Status: http.StatusTooManyRequests}).WriteHTTP(w)
 				return
 			}
 
@@ -451,69 +499,38 @@ func (m *RateLimitMiddleware) Middleware(limiter *RateLimiter) func(http.Handler
 	}
 }
 
-// getClientIP extracts the client IP address from the request
-func getClientIP(r *http.Request) string {
-	// Check X-Forwarded-For header first (for proxied requests)
-	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-		ips := parseIPList(xff)
-		if len(ips) > 0 {
-			return ips[0]
+// getClientIP extracts the client IP address from the request safely.
+// X-Forwarded-For is only trusted if the request comes from a trusted proxy.
+// Otherwise, X-Real-IP is preferred, falling back to RemoteAddr.
+func getClientIP(r *http.Request, trustedProxies map[string]bool) string {
+	remoteIP, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		remoteIP = r.RemoteAddr
+	}
+
+	if trustedProxies[remoteIP] {
+		if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+			parts := strings.SplitN(xff, ",", 2)
+			clientIP := strings.TrimSpace(parts[0])
+			if net.ParseIP(clientIP) != nil {
+				return clientIP
+			}
 		}
 	}
 
-	// Check X-Real-IP header
 	if xri := r.Header.Get("X-Real-IP"); xri != "" {
 		return xri
 	}
 
-	// Fall back to remote address
-	ip, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err != nil {
-		return r.RemoteAddr
-	}
-
-	return ip
-}
-
-// parseIPList parses a comma-separated list of IPs
-func parseIPList(ips string) []string {
-	var result []string
-	parts := strings.Split(ips, ",")
-	for _, ip := range parts {
-		trimmed := strings.TrimSpace(ip)
-		if trimmed != "" {
-			result = append(result, trimmed)
-		}
-	}
-	return result
+	return remoteIP
 }
 
 // extractClientID extracts client ID from request context or headers
 func extractClientID(r *http.Request) string {
-	// Check context first
 	if clientID, ok := r.Context().Value("clientID").(string); ok {
 		return clientID
 	}
-
-	// Check Authorization header
-	if auth := r.Header.Get("Authorization"); auth != "" {
-		return auth
-	}
-
-	// Check API key header
-	if apiKey := r.Header.Get("X-API-Key"); apiKey != "" {
-		return apiKey
-	}
-
 	return ""
-}
-
-// min returns the minimum of two float64 values
-func min(a, b float64) float64 {
-	if a < b {
-		return a
-	}
-	return b
 }
 
 // RateLimitContext adds rate limit information to request context

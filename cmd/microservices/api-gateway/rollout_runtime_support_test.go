@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
-	"chainpulse/pkg/core"
-	"chainpulse/pkg/plugins/api"
 	"github.com/gorilla/websocket"
+	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/plugins/api"
 )
 
 func TestBuildAPIGatewayRuntimeRolloutComponents(t *testing.T) {
@@ -169,8 +169,8 @@ func TestAPIGatewayRuntimeRolloutRouteIncludesMonolithParityReason(t *testing.T)
 		logger,
 		metrics,
 		gateway,
-		func() map[string]interface{} {
-			return map[string]interface{}{
+		func() map[string]any {
+			return map[string]any{
 				"ownership_mode":                  "shadow",
 				"rollout_ready_for_runtime_owned": false,
 				"rollout_status":                  "shadow-observe",
@@ -277,7 +277,7 @@ func TestAPIGatewayRuntimeSummaryRoute(t *testing.T) {
 		t.Fatalf("expected status 200, got %d body=%s", rec.Code, rec.Body.String())
 	}
 
-	var payload map[string]interface{}
+	var payload map[string]any
 	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
 		t.Fatalf("decode runtime summary: %v", err)
 	}
@@ -293,7 +293,7 @@ func TestAPIGatewayRuntimeSummaryRoute(t *testing.T) {
 	if got := payload["runtime_posture"]; got != "runtime-wired" {
 		t.Fatalf("expected runtime posture runtime-wired, got %v", got)
 	}
-	gatewaySection, ok := payload["gateway"].(map[string]interface{})
+	gatewaySection, ok := payload["gateway"].(map[string]any)
 	if !ok {
 		t.Fatalf("expected gateway section, got %#v", payload["gateway"])
 	}
@@ -330,7 +330,7 @@ func TestAPIGatewayRuntimeSummaryRoute(t *testing.T) {
 	if got := gatewaySection["rate_limit_posture"]; got != "gateway-rate-limit-unconfigured" {
 		t.Fatalf("expected rate limit posture unconfigured, got %v", got)
 	}
-	metricsSection, ok := payload["metrics"].(map[string]interface{})
+	metricsSection, ok := payload["metrics"].(map[string]any)
 	if !ok {
 		t.Fatalf("expected metrics section, got %#v", payload["metrics"])
 	}
@@ -433,11 +433,11 @@ func TestAPIGatewayRuntimeSummaryRouteWithSecurityControls(t *testing.T) {
 		t.Fatalf("expected status 200, got %d body=%s", rec.Code, rec.Body.String())
 	}
 
-	var payload map[string]interface{}
+	var payload map[string]any
 	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
 		t.Fatalf("decode runtime summary: %v", err)
 	}
-	gatewaySection, ok := payload["gateway"].(map[string]interface{})
+	gatewaySection, ok := payload["gateway"].(map[string]any)
 	if !ok {
 		t.Fatalf("expected gateway section, got %#v", payload["gateway"])
 	}

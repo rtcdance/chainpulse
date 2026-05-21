@@ -65,7 +65,7 @@ func (m *MockRedisCluster) Health(ctx context.Context) error {
 	return args.Error(0)
 }
 
-func (m *MockRedisCluster) Set(ctx context.Context, key string, value interface{}, ttl int) error {
+func (m *MockRedisCluster) Set(ctx context.Context, key string, value any, ttl int) error {
 	args := m.Called(ctx, key, value, ttl)
 	return args.Error(0)
 }
@@ -81,7 +81,7 @@ type MockPostgresRow struct {
 	value string
 }
 
-func (m *MockPostgresRow) Scan(dest ...interface{}) error {
+func (m *MockPostgresRow) Scan(dest ...any) error {
 	if len(dest) > 0 {
 		if ptr, ok := dest[0].(*string); ok {
 			*ptr = m.value
@@ -105,18 +105,19 @@ func (m *MockPostgresCluster) Health(ctx context.Context) error {
 	return args.Error(0)
 }
 
-func (m *MockPostgresCluster) Exec(ctx context.Context, query string, args ...interface{}) error {
+func (m *MockPostgresCluster) Exec(ctx context.Context, query string, args ...any) error {
 	callArgs := m.Called(ctx, query, args)
 	return callArgs.Error(0)
 }
 
-func (m *MockPostgresCluster) QueryRow(ctx context.Context, query string, args ...interface{}) PostgresRow {
+func (m *MockPostgresCluster) QueryRow(ctx context.Context, query string, args ...any) PostgresRow {
 	callArgs := m.Called(ctx, query, args)
 	return callArgs.Get(0).(PostgresRow)
 }
 
 // TestNewCheckpointValidator tests creating a new checkpoint validator
 func TestNewCheckpointValidator(t *testing.T) {
+	t.Parallel()
 	consul := &MockConsulClient{}
 	kafka := &MockKafkaCluster{}
 	redis := &MockRedisCluster{}
@@ -133,6 +134,7 @@ func TestNewCheckpointValidator(t *testing.T) {
 
 // TestValidatePhase1InfrastructureAllHealthy tests validation when all systems are healthy
 func TestValidatePhase1InfrastructureAllHealthy(t *testing.T) {
+	t.Parallel()
 	consul := &MockConsulClient{}
 	kafka := &MockKafkaCluster{}
 	redis := &MockRedisCluster{}
@@ -162,6 +164,7 @@ func TestValidatePhase1InfrastructureAllHealthy(t *testing.T) {
 
 // TestValidatePhase1InfrastructureConsulUnhealthy tests validation when Consul is unhealthy
 func TestValidatePhase1InfrastructureConsulUnhealthy(t *testing.T) {
+	t.Parallel()
 	consul := &MockConsulClient{}
 	kafka := &MockKafkaCluster{}
 	redis := &MockRedisCluster{}
@@ -189,6 +192,7 @@ func TestValidatePhase1InfrastructureConsulUnhealthy(t *testing.T) {
 
 // TestValidatePhase1InfrastructureKafkaUnhealthy tests validation when Kafka is unhealthy
 func TestValidatePhase1InfrastructureKafkaUnhealthy(t *testing.T) {
+	t.Parallel()
 	consul := &MockConsulClient{}
 	kafka := &MockKafkaCluster{}
 	redis := &MockRedisCluster{}
@@ -216,6 +220,7 @@ func TestValidatePhase1InfrastructureKafkaUnhealthy(t *testing.T) {
 
 // TestValidatePhase1InfrastructureRedisUnhealthy tests validation when Redis is unhealthy
 func TestValidatePhase1InfrastructureRedisUnhealthy(t *testing.T) {
+	t.Parallel()
 	consul := &MockConsulClient{}
 	kafka := &MockKafkaCluster{}
 	redis := &MockRedisCluster{}
@@ -243,6 +248,7 @@ func TestValidatePhase1InfrastructureRedisUnhealthy(t *testing.T) {
 
 // TestValidatePhase1InfrastructurePostgresUnhealthy tests validation when PostgreSQL is unhealthy
 func TestValidatePhase1InfrastructurePostgresUnhealthy(t *testing.T) {
+	t.Parallel()
 	consul := &MockConsulClient{}
 	kafka := &MockKafkaCluster{}
 	redis := &MockRedisCluster{}
@@ -270,6 +276,7 @@ func TestValidatePhase1InfrastructurePostgresUnhealthy(t *testing.T) {
 
 // TestCheckpointResultTimestamp tests checkpoint result timestamp
 func TestCheckpointResultTimestamp(t *testing.T) {
+	t.Parallel()
 	consul := &MockConsulClient{}
 	kafka := &MockKafkaCluster{}
 	redis := &MockRedisCluster{}
@@ -299,6 +306,7 @@ func TestCheckpointResultTimestamp(t *testing.T) {
 
 // TestCheckpointResultAllHealthy tests checkpoint result all healthy flag
 func TestCheckpointResultAllHealthy(t *testing.T) {
+	t.Parallel()
 	consul := &MockConsulClient{}
 	kafka := &MockKafkaCluster{}
 	redis := &MockRedisCluster{}
@@ -325,6 +333,7 @@ func TestCheckpointResultAllHealthy(t *testing.T) {
 
 // TestCheckpointResultNotAllHealthy tests checkpoint result when not all healthy
 func TestCheckpointResultNotAllHealthy(t *testing.T) {
+	t.Parallel()
 	consul := &MockConsulClient{}
 	kafka := &MockKafkaCluster{}
 	redis := &MockRedisCluster{}
@@ -351,6 +360,7 @@ func TestCheckpointResultNotAllHealthy(t *testing.T) {
 
 // TestBackupCheckStatus tests backup check status
 func TestBackupCheckStatus(t *testing.T) {
+	t.Parallel()
 	consul := &MockConsulClient{}
 	kafka := &MockKafkaCluster{}
 	redis := &MockRedisCluster{}
@@ -373,12 +383,13 @@ func TestBackupCheckStatus(t *testing.T) {
 	result := validator.ValidatePhase1Infrastructure(ctx)
 
 	assert.NotNil(t, result.BackupStatus)
-	assert.True(t, result.BackupStatus.BackupConfigured)
-	assert.False(t, result.BackupStatus.LastBackupTime.IsZero())
+	assert.False(t, result.BackupStatus.BackupConfigured)
+	assert.True(t, result.BackupStatus.LastBackupTime.IsZero())
 }
 
 // TestPrintCheckpointReport tests printing checkpoint report
 func TestPrintCheckpointReport(t *testing.T) {
+	t.Parallel()
 	result := CheckpointResult{
 		Timestamp:        time.Now(),
 		AllHealthy:       true,
@@ -405,6 +416,7 @@ func TestPrintCheckpointReport(t *testing.T) {
 
 // TestStatusIcon tests status icon function
 func TestStatusIcon(t *testing.T) {
+	t.Parallel()
 	healthyIcon := statusIcon(true)
 	unhealthyIcon := statusIcon(false)
 
@@ -414,6 +426,7 @@ func TestStatusIcon(t *testing.T) {
 
 // TestStatusText tests status text function
 func TestStatusText(t *testing.T) {
+	t.Parallel()
 	healthyText := statusText(true, "")
 	unhealthyText := statusText(false, "connection error")
 
@@ -424,6 +437,7 @@ func TestStatusText(t *testing.T) {
 
 // TestOverallStatus tests overall status function
 func TestOverallStatus(t *testing.T) {
+	t.Parallel()
 	healthyStatus := overallStatus(true)
 	unhealthyStatus := overallStatus(false)
 
@@ -433,6 +447,7 @@ func TestOverallStatus(t *testing.T) {
 
 // TestValidateClusterCommunication tests cluster communication validation
 func TestValidateClusterCommunication(t *testing.T) {
+	t.Parallel()
 	consul := &MockConsulClient{}
 	kafka := &MockKafkaCluster{}
 	redis := &MockRedisCluster{}
@@ -455,6 +470,7 @@ func TestValidateClusterCommunication(t *testing.T) {
 
 // TestValidateBackupAndRecovery tests backup and recovery validation
 func TestValidateBackupAndRecovery(t *testing.T) {
+	t.Parallel()
 	consul := &MockConsulClient{}
 	kafka := &MockKafkaCluster{}
 	redis := &MockRedisCluster{}
@@ -470,6 +486,7 @@ func TestValidateBackupAndRecovery(t *testing.T) {
 
 // TestCheckpointValidatorConcurrentValidation tests concurrent validation
 func TestCheckpointValidatorConcurrentValidation(t *testing.T) {
+	t.Parallel()
 	consul := &MockConsulClient{}
 	kafka := &MockKafkaCluster{}
 	redis := &MockRedisCluster{}
@@ -504,6 +521,7 @@ func TestCheckpointValidatorConcurrentValidation(t *testing.T) {
 
 // TestCheckpointValidatorContextCancellation tests validation with cancelled context
 func TestCheckpointValidatorContextCancellation(t *testing.T) {
+	t.Parallel()
 	consul := &MockConsulClient{}
 	kafka := &MockKafkaCluster{}
 	redis := &MockRedisCluster{}

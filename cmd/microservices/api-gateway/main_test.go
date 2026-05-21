@@ -5,7 +5,9 @@ import (
 	"strings"
 	"testing"
 
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/application/bootstrap"
+	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/plugins/api"
 )
 
 func TestLoadGatewayConfigDefaultsToLocalhostUpstream(t *testing.T) {
@@ -20,6 +22,18 @@ func TestLoadGatewayConfigDefaultsToLocalhostUpstream(t *testing.T) {
 	if got := cfg.UpstreamServices[0]; got != "http://localhost:8081" {
 		t.Fatalf("expected localhost upstream default, got %q", got)
 	}
+}
+
+func buildAPIGatewaySecurityControls(cfg GatewayConfig, logger core.Logger, metrics core.MetricsCollector) (*api.AuthMiddleware, *api.RateLimitMiddleware, error) {
+	return bootstrap.BuildSecurityControls(bootstrap.SecurityControlsConfig{
+		AuthEnabled:        cfg.AuthEnabled,
+		AuthJWTSecret:      cfg.AuthJWTSecret,
+		AuthAPIKeys:        cfg.AuthAPIKeys,
+		RateLimitEnabled:   cfg.RateLimitEnabled,
+		RateLimitPerMinute: cfg.RateLimitPerMinute,
+		ServiceName:        "api-gateway",
+		EnvPrefix:          "GATEWAY",
+	}, logger, metrics)
 }
 
 func TestLoadGatewayConfigParsesUpstreamServicesOverride(t *testing.T) {
@@ -54,7 +68,7 @@ func TestBuildAPIGatewaySecurityControlsEnabled(t *testing.T) {
 	authMiddleware, rateLimitMiddleware, err := buildAPIGatewaySecurityControls(GatewayConfig{
 		AuthEnabled:        true,
 		AuthJWTSecret:      "secret-123",
-		AuthAPIKeys:        []string{"svc-key=client-1"},
+		AuthAPIKeys: []core.SecretString{core.SecretString("svc-key=client-1")},
 		RateLimitEnabled:   true,
 		RateLimitPerMinute: 120,
 	}, logger, metrics)

@@ -6,7 +6,7 @@ This guide covers deploying ChainPulse in various environments: local developmen
 
 ## Prerequisites
 
-- Go 1.25.5 or later
+- Go 1.24 or later
 - Docker and Docker Compose (for containerized deployment)
 - Kubernetes 1.20+ (for Kubernetes deployment)
 - PostgreSQL 12+ or MongoDB 4.4+
@@ -76,8 +76,14 @@ docker run -d --name redis -p 6379:6379 redis:6
 # Start Kafka
 docker-compose up -d kafka zookeeper
 
-# Run ChainPulse
-go run main.go
+# Run ChainPulse (Monolithic mode)
+go run cmd/monolithic/chainpulse/main.go
+
+# Or run individual microservices:
+# API Service       (port 8081): go run cmd/microservices/api-service/main.go
+# API Gateway       (port 8080): go run cmd/microservices/api-gateway/main.go
+# Event Processor   (port 8082): go run cmd/microservices/event-processor/main.go
+# Puller            (port 8083): go run cmd/microservices/puller/main.go
 ```
 
 ### 5. Verify Installation
@@ -191,6 +197,23 @@ make k8s-verify
 make k8s-acceptance
 ```
 
+### Deploy -> Real Event -> API/H5 Acceptance
+
+```bash
+# default provider: docker
+make deploy-event-acceptance
+
+# Kubernetes deploy path
+PROVIDER=k8s make deploy-event-acceptance
+
+# API/runtime only, skip Playwright H5 checks
+RUN_H5_ACCEPTANCE=0 make deploy-event-acceptance
+```
+
+This entrypoint reuses the existing provider deploy flow, the deployed real
+event injector, provider-specific API acceptance, and the Playwright H5
+acceptance suite in one command.
+
 ### Multi-Chain E2E Acceptance (EVM + Solana)
 
 ```bash
@@ -207,6 +230,12 @@ make multichain-e2e-fork-acceptance
 # strict fork mode (require EVM + Solana gates)
 EVM_FORK_URLS=ethereum=https://eth-mainnet.g.alchemy.com/v2/<KEY> \
 make multichain-e2e-fork-acceptance-strict
+
+# inject a real on-chain event after deployment and verify visibility
+make deployed-real-event-acceptance
+
+# chain-side only
+EXPECT_API=0 make deployed-real-event-acceptance
 ```
 
 ### 3. Verify Deployment

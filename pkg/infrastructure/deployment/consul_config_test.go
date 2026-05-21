@@ -3,11 +3,14 @@ package deployment
 import (
 	"testing"
 
+	"github.com/rtcdance/chainpulse/pkg/core"
+
 	"github.com/stretchr/testify/assert"
 )
 
 // TestNewConsulConfig tests creating a new Consul configuration
 func TestNewConsulConfig(t *testing.T) {
+	t.Parallel()
 	config := NewConsulConfig()
 
 	assert.NotNil(t, config)
@@ -20,6 +23,7 @@ func TestNewConsulConfig(t *testing.T) {
 
 // TestConsulConfigDefaults tests Consul configuration defaults
 func TestConsulConfigDefaults(t *testing.T) {
+	t.Parallel()
 	config := NewConsulConfig()
 
 	assert.Equal(t, 5, config.ConnectTimeout)
@@ -32,6 +36,7 @@ func TestConsulConfigDefaults(t *testing.T) {
 
 // TestConsulConfigValidate tests Consul configuration validation
 func TestConsulConfigValidate(t *testing.T) {
+	t.Parallel()
 	config := &ConsulConfig{}
 
 	err := config.Validate()
@@ -45,6 +50,7 @@ func TestConsulConfigValidate(t *testing.T) {
 
 // TestConsulConfigValidateWithExistingValues tests validation preserves existing values
 func TestConsulConfigValidateWithExistingValues(t *testing.T) {
+	t.Parallel()
 	config := &ConsulConfig{
 		Host:       "consul.example.com",
 		Port:       8501,
@@ -63,6 +69,7 @@ func TestConsulConfigValidateWithExistingValues(t *testing.T) {
 
 // TestConsulConfigWithCustomHost tests Consul config with custom host
 func TestConsulConfigWithCustomHost(t *testing.T) {
+	t.Parallel()
 	config := &ConsulConfig{
 		Host: "consul-primary",
 	}
@@ -75,6 +82,7 @@ func TestConsulConfigWithCustomHost(t *testing.T) {
 
 // TestConsulConfigWithCustomPort tests Consul config with custom port
 func TestConsulConfigWithCustomPort(t *testing.T) {
+	t.Parallel()
 	config := &ConsulConfig{
 		Port: 8501,
 	}
@@ -87,6 +95,7 @@ func TestConsulConfigWithCustomPort(t *testing.T) {
 
 // TestConsulConfigWithCustomDatacenter tests Consul config with custom datacenter
 func TestConsulConfigWithCustomDatacenter(t *testing.T) {
+	t.Parallel()
 	config := &ConsulConfig{
 		Datacenter: "dc-us-west",
 	}
@@ -99,18 +108,20 @@ func TestConsulConfigWithCustomDatacenter(t *testing.T) {
 
 // TestConsulConfigWithToken tests Consul config with token
 func TestConsulConfigWithToken(t *testing.T) {
+	t.Parallel()
 	config := &ConsulConfig{
-		Token: "mytoken123",
+		Token: core.SecretString("mytoken123"),
 	}
 
 	err := config.Validate()
 
 	assert.NoError(t, err)
-	assert.Equal(t, "mytoken123", config.Token)
+	assert.Equal(t, core.SecretString("mytoken123"), config.Token)
 }
 
 // TestConsulConfigWithHTTPScheme tests Consul config with HTTP scheme
 func TestConsulConfigWithHTTPScheme(t *testing.T) {
+	t.Parallel()
 	config := &ConsulConfig{
 		Scheme: "http",
 	}
@@ -123,6 +134,7 @@ func TestConsulConfigWithHTTPScheme(t *testing.T) {
 
 // TestConsulConfigWithHTTPSScheme tests Consul config with HTTPS scheme
 func TestConsulConfigWithHTTPSScheme(t *testing.T) {
+	t.Parallel()
 	config := &ConsulConfig{
 		Scheme: "https",
 		TLS:    true,
@@ -137,6 +149,7 @@ func TestConsulConfigWithHTTPSScheme(t *testing.T) {
 
 // TestConsulConfigWithTLS tests Consul config with TLS enabled
 func TestConsulConfigWithTLS(t *testing.T) {
+	t.Parallel()
 	config := &ConsulConfig{
 		TLS:                true,
 		InsecureSkipVerify: false,
@@ -154,6 +167,7 @@ func TestConsulConfigWithTLS(t *testing.T) {
 
 // TestConsulConfigWithInsecureSkipVerify tests Consul config with insecure skip verify
 func TestConsulConfigWithInsecureSkipVerify(t *testing.T) {
+	t.Parallel()
 	config := &ConsulConfig{
 		TLS:                true,
 		InsecureSkipVerify: true,
@@ -167,6 +181,7 @@ func TestConsulConfigWithInsecureSkipVerify(t *testing.T) {
 
 // TestConsulConfigWithCustomTimeouts tests Consul config with custom timeouts
 func TestConsulConfigWithCustomTimeouts(t *testing.T) {
+	t.Parallel()
 	config := &ConsulConfig{
 		ConnectTimeout: 10,
 		ReadTimeout:    20,
@@ -183,6 +198,7 @@ func TestConsulConfigWithCustomTimeouts(t *testing.T) {
 
 // TestConsulConfigWithCustomRetries tests Consul config with custom retry settings
 func TestConsulConfigWithCustomRetries(t *testing.T) {
+	t.Parallel()
 	config := &ConsulConfig{
 		MaxRetries:   5,
 		RetryWaitMin: 200,
@@ -199,6 +215,7 @@ func TestConsulConfigWithCustomRetries(t *testing.T) {
 
 // TestConsulConfigMultipleInstances tests creating multiple Consul config instances
 func TestConsulConfigMultipleInstances(t *testing.T) {
+	t.Parallel()
 	config1 := NewConsulConfig()
 	config2 := NewConsulConfig()
 
@@ -211,6 +228,7 @@ func TestConsulConfigMultipleInstances(t *testing.T) {
 
 // TestConsulConfigValidateEmptyHost tests validation with empty host
 func TestConsulConfigValidateEmptyHost(t *testing.T) {
+	t.Parallel()
 	config := &ConsulConfig{
 		Host: "",
 	}
@@ -223,6 +241,7 @@ func TestConsulConfigValidateEmptyHost(t *testing.T) {
 
 // TestConsulConfigValidateZeroPort tests validation with zero port
 func TestConsulConfigValidateZeroPort(t *testing.T) {
+	t.Parallel()
 	config := &ConsulConfig{
 		Port: 0,
 	}
@@ -235,6 +254,7 @@ func TestConsulConfigValidateZeroPort(t *testing.T) {
 
 // TestConsulConfigValidateEmptyDatacenter tests validation with empty datacenter
 func TestConsulConfigValidateEmptyDatacenter(t *testing.T) {
+	t.Parallel()
 	config := &ConsulConfig{
 		Datacenter: "",
 	}
@@ -247,6 +267,7 @@ func TestConsulConfigValidateEmptyDatacenter(t *testing.T) {
 
 // TestConsulConfigValidateEmptyScheme tests validation with empty scheme
 func TestConsulConfigValidateEmptyScheme(t *testing.T) {
+	t.Parallel()
 	config := &ConsulConfig{
 		Scheme: "",
 	}
@@ -259,6 +280,7 @@ func TestConsulConfigValidateEmptyScheme(t *testing.T) {
 
 // TestConsulConfigWithCAFile tests Consul config with CA file
 func TestConsulConfigWithCAFile(t *testing.T) {
+	t.Parallel()
 	config := &ConsulConfig{
 		CAFile: "/etc/consul/ca.pem",
 	}
@@ -271,6 +293,7 @@ func TestConsulConfigWithCAFile(t *testing.T) {
 
 // TestConsulConfigWithCertFile tests Consul config with cert file
 func TestConsulConfigWithCertFile(t *testing.T) {
+	t.Parallel()
 	config := &ConsulConfig{
 		CertFile: "/etc/consul/cert.pem",
 	}
@@ -283,6 +306,7 @@ func TestConsulConfigWithCertFile(t *testing.T) {
 
 // TestConsulConfigWithKeyFile tests Consul config with key file
 func TestConsulConfigWithKeyFile(t *testing.T) {
+	t.Parallel()
 	config := &ConsulConfig{
 		KeyFile: "/etc/consul/key.pem",
 	}
@@ -295,6 +319,7 @@ func TestConsulConfigWithKeyFile(t *testing.T) {
 
 // TestConsulConfigWithAllTLSFiles tests Consul config with all TLS files
 func TestConsulConfigWithAllTLSFiles(t *testing.T) {
+	t.Parallel()
 	config := &ConsulConfig{
 		TLS:      true,
 		CAFile:   "/etc/consul/ca.pem",
@@ -313,6 +338,7 @@ func TestConsulConfigWithAllTLSFiles(t *testing.T) {
 
 // TestConsulConfigWithHighPort tests Consul config with high port number
 func TestConsulConfigWithHighPort(t *testing.T) {
+	t.Parallel()
 	config := &ConsulConfig{
 		Port: 65432,
 	}
@@ -325,6 +351,7 @@ func TestConsulConfigWithHighPort(t *testing.T) {
 
 // TestConsulConfigWithLowPort tests Consul config with low port number
 func TestConsulConfigWithLowPort(t *testing.T) {
+	t.Parallel()
 	config := &ConsulConfig{
 		Port: 1,
 	}
@@ -337,6 +364,7 @@ func TestConsulConfigWithLowPort(t *testing.T) {
 
 // TestConsulConfigWithMultipleDatacenters tests Consul config with different datacenters
 func TestConsulConfigWithMultipleDatacenters(t *testing.T) {
+	t.Parallel()
 	datacenters := []string{"dc1", "dc2", "dc-us-west", "dc-eu-central"}
 
 	for _, dc := range datacenters {
@@ -353,6 +381,7 @@ func TestConsulConfigWithMultipleDatacenters(t *testing.T) {
 
 // TestConsulConfigStructure tests Consul config structure
 func TestConsulConfigStructure(t *testing.T) {
+	t.Parallel()
 	config := NewConsulConfig()
 
 	assert.NotNil(t, config.Host)

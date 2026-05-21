@@ -4,10 +4,13 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
+
+const apiV1Prefix = "/api/v1"
 
 // AuthMiddleware handles authentication and authorization for HTTP requests
 type AuthMiddleware struct {
@@ -109,7 +112,7 @@ func (am *AuthMiddleware) Handler(next http.Handler) http.Handler {
 		}
 
 		// Validate token
-		validationResult := am.tokenValidator.ValidateToken(authValue)
+		validationResult := am.tokenValidator.ValidateToken(r.Context(), authValue)
 		if !validationResult.Valid {
 			am.auditLogger.LogAuthenticationFailure("unknown", authMethod, validationResult.Error)
 			am.metrics.RecordCounter("auth.validation_failed", 1, nil)
@@ -120,35 +123,72 @@ func (am *AuthMiddleware) Handler(next http.Handler) http.Handler {
 		// Log successful authentication
 		am.auditLogger.LogAuthenticationSuccess(validationResult.ClientID, validationResult.UserID, authMethod)
 
-		// Check authorization if required
-		if len(am.requiredRoles) > 0 || len(am.requiredPerms) > 0 {
-			accessResult := am.rbacChecker.CheckEndpointAccess(
-				r.URL.Path,
-				validationResult.Roles,
-				validationResult.Permissions,
-			)
+		// Normalise the request path for RBAC lookup: strip /api/v1 prefix
+		// so the endpoint key matches the route registration paths.
+		endpointPath := r.URL.Path
+		if strings.HasPrefix(endpointPath, apiV1Prefix+"/") {
+			endpointPath = strings.TrimPrefix(endpointPath, apiV1Prefix)
+		} else if endpointPath == apiV1Prefix {
+			endpointPath = "/"
+		}
 
-			if !accessResult.Allowed {
-				am.auditLogger.LogAuthorizationDenied(
-					validationResult.UserID,
-					r.URL.Path,
-					r.Method,
-					accessResult.Reason,
-					validationResult.Roles,
-					validationResult.Permissions,
-				)
-				am.metrics.RecordCounter("auth.authorization_denied", 1, nil)
-				am.respondForbidden(w, accessResult.Reason)
-				return
-			}
+		// Always check RBAC — the RBAC checker has its own per-endpoint
+		// role/permission map. The middleware-level requiredRoles/perms are
+		// an additional layer (e.g. for per-route overrides).
+		accessResult := am.rbacChecker.CheckEndpointAccess(
+			endpointPath,
+			validationResult.Roles,
+			validationResult.Permissions,
+		)
 
-			am.auditLogger.LogAuthorizationAllowed(
+		if !accessResult.Allowed {
+			am.auditLogger.LogAuthorizationDenied(
 				validationResult.UserID,
 				r.URL.Path,
 				r.Method,
+				accessResult.Reason,
 				validationResult.Roles,
 				validationResult.Permissions,
 			)
+			am.metrics.RecordCounter("auth.authorization_denied", 1, nil)
+			am.respondForbidden(w, accessResult.Reason)
+			return
+		}
+
+		am.auditLogger.LogAuthorizationAllowed(
+			validationResult.UserID,
+			r.URL.Path,
+			r.Method,
+			validationResult.Roles,
+			validationResult.Permissions,
+		)
+
+		// Also check middleware-level required roles/perms if set
+		if len(am.requiredRoles) > 0 && !am.rbacChecker.CheckRole(validationResult.Roles, am.requiredRoles) {
+			am.auditLogger.LogAuthorizationDenied(
+				validationResult.UserID,
+				r.URL.Path,
+				r.Method,
+				"insufficient middleware-level role",
+				validationResult.Roles,
+				validationResult.Permissions,
+			)
+			am.metrics.RecordCounter("auth.authorization_denied", 1, nil)
+			am.respondForbidden(w, "insufficient role")
+			return
+		}
+		if len(am.requiredPerms) > 0 && !am.rbacChecker.CheckPermission(validationResult.Permissions, am.requiredPerms) {
+			am.auditLogger.LogAuthorizationDenied(
+				validationResult.UserID,
+				r.URL.Path,
+				r.Method,
+				"insufficient middleware-level permission",
+				validationResult.Roles,
+				validationResult.Permissions,
+			)
+			am.metrics.RecordCounter("auth.authorization_denied", 1, nil)
+			am.respondForbidden(w, "insufficient permission")
+			return
 		}
 
 		// Add authentication context to request
@@ -171,20 +211,12 @@ func (am *AuthMiddleware) HandlerFunc(next http.HandlerFunc) http.HandlerFunc {
 
 // respondUnauthorized sends a 401 Unauthorized response
 func (am *AuthMiddleware) respondUnauthorized(w http.ResponseWriter, message string) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusUnauthorized)
-	if _, err := fmt.Fprintf(w, `{"error":"unauthorized","message":"%s"}`, message); err != nil {
-		am.logger.Error("Failed to write unauthorized response", "error", err.Error())
-	}
+	(&APIError{Code: "UNAUTHORIZED", Message: message, Status: http.StatusUnauthorized}).WriteHTTP(w)
 }
 
 // respondForbidden sends a 403 Forbidden response
 func (am *AuthMiddleware) respondForbidden(w http.ResponseWriter, message string) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusForbidden)
-	if _, err := fmt.Fprintf(w, `{"error":"forbidden","message":"%s"}`, message); err != nil {
-		am.logger.Error("Failed to write forbidden response", "error", err.Error())
-	}
+	(&APIError{Code: "FORBIDDEN", Message: message, Status: http.StatusForbidden}).WriteHTTP(w)
 }
 
 // TokenRefreshHandler handles token refresh requests
@@ -248,6 +280,18 @@ func (trh *TokenRefreshHandler) ServeHTTP(w http.ResponseWriter, r *http.Request
 		w.WriteHeader(http.StatusUnauthorized)
 		if _, err := fmt.Fprint(w, `{"error":"invalid refresh token"}`); err != nil {
 			trh.logger.Error("Failed to write invalid token response", "error", err.Error())
+		}
+		return
+	}
+
+	// Ensure the token is a refresh token, not an access token
+	if validationResult.TokenType != "refresh" {
+		trh.auditLogger.LogTokenRefresh(validationResult.ClientID, validationResult.UserID, false, "not a refresh token")
+		trh.metrics.RecordCounter("auth.token_refresh_wrong_type", 1, nil)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusUnauthorized)
+		if _, err := fmt.Fprint(w, `{"error":"not a refresh token"}`); err != nil {
+			trh.logger.Error("Failed to write wrong token type response", "error", err.Error())
 		}
 		return
 	}

@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"chainpulse/pkg/core"
-	"chainpulse/pkg/services/query"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/services/query"
 	"pgregory.net/rapid"
 )
 
@@ -305,23 +305,23 @@ func TestProperty_CacheService_InvalidationCleanup(t *testing.T) {
 // testLogger is a simple test logger implementation
 type testLogger struct{}
 
-func (l *testLogger) Debug(msg string, fields ...interface{}) {
+func (l *testLogger) Debug(msg string, fields ...any) {
 	// No-op for testing
 }
 
-func (l *testLogger) Info(msg string, fields ...interface{}) {
+func (l *testLogger) Info(msg string, fields ...any) {
 	// No-op for testing
 }
 
-func (l *testLogger) Warn(msg string, fields ...interface{}) {
+func (l *testLogger) Warn(msg string, fields ...any) {
 	// No-op for testing
 }
 
-func (l *testLogger) Error(msg string, fields ...interface{}) {
+func (l *testLogger) Error(msg string, fields ...any) {
 	// No-op for testing
 }
 
-func (l *testLogger) Fatal(msg string, fields ...interface{}) {
+func (l *testLogger) Fatal(msg string, fields ...any) {
 	// No-op for testing
 }
 
@@ -332,14 +332,14 @@ func (l *testLogger) WithCorrelationID(id string) core.Logger {
 // testMetricsCollector is a simple test metrics collector implementation
 type testMetricsCollector struct {
 	mu      sync.Mutex
-	metrics map[string]interface{}
+	metrics map[string]any
 }
 
 func (m *testMetricsCollector) RecordCounter(name string, value int64, tags map[string]string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.metrics == nil {
-		m.metrics = make(map[string]interface{})
+		m.metrics = make(map[string]any)
 	}
 	m.metrics[name] = value
 }
@@ -348,7 +348,7 @@ func (m *testMetricsCollector) RecordGauge(name string, value float64, tags map[
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.metrics == nil {
-		m.metrics = make(map[string]interface{})
+		m.metrics = make(map[string]any)
 	}
 	m.metrics[name] = value
 }
@@ -357,12 +357,12 @@ func (m *testMetricsCollector) RecordHistogram(name string, value float64, tags 
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.metrics == nil {
-		m.metrics = make(map[string]interface{})
+		m.metrics = make(map[string]any)
 	}
 	m.metrics[name] = value
 }
 
-func (m *testMetricsCollector) GetMetrics() map[string]interface{} {
+func (m *testMetricsCollector) GetMetrics() map[string]any {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.metrics

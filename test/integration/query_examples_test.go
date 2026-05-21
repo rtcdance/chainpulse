@@ -11,10 +11,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"chainpulse/pkg/core"
-	"chainpulse/pkg/integrations/erc20"
-	"chainpulse/pkg/integrations/uniswap"
-	"chainpulse/pkg/services/decoder"
+	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/integrations/erc20"
+	"github.com/rtcdance/chainpulse/pkg/integrations/uniswap"
+	"github.com/rtcdance/chainpulse/pkg/services/decoder"
 )
 
 // MockDatabasePlugin for testing - defined in test_helpers.go
@@ -157,7 +157,7 @@ func TestExampleUniswapGetPoolMetadata(t *testing.T) {
 		TransactionHash: common.HexToHash("0x1234567890123456789012345678901234567890123456789012345678901234"),
 		ContractAddress: poolAddr,
 		EventName:       "Swap",
-		DecodedData: map[string]interface{}{
+		DecodedData: map[string]any{
 			"sender":       common.HexToAddress("0x2222222222222222222222222222222222222222"),
 			"recipient":    common.HexToAddress("0x3333333333333333333333333333333333333333"),
 			"amount0In":    big.NewInt(1000),
@@ -197,7 +197,7 @@ func TestExampleUniswapGetAllPools(t *testing.T) {
 			TransactionHash: common.HexToHash(fmt.Sprintf("0x%064d", i)),
 			ContractAddress: poolAddr,
 			EventName:       "Swap",
-			DecodedData: map[string]interface{}{
+			DecodedData: map[string]any{
 				"sender":       common.HexToAddress("0x2222222222222222222222222222222222222222"),
 				"recipient":    common.HexToAddress("0x3333333333333333333333333333333333333333"),
 				"amount0In":    big.NewInt(1000),

@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core"
 
 	"github.com/ethereum/go-ethereum/common"
 )
@@ -15,11 +15,11 @@ import (
 func TestDatabaseIntegrationSuite(t *testing.T) {
 	requirePostgresIntegration(t)
 
-	config := &core.Config{
+	config := core.Config{
 		PostgresHost:     "localhost",
 		PostgresPort:     "5432",
 		PostgresUser:     "chainpulse",
-		PostgresPassword: "chainpulse",
+		PostgresPassword: core.SecretString("chainpulse"),
 		PostgresDB:       "chainpulse",
 	}
 
@@ -30,7 +30,7 @@ func TestDatabaseIntegrationSuite(t *testing.T) {
 
 	// Test 1: Initialize
 	t.Run("Initialize", func(t *testing.T) {
-		err := db.Initialize(config)
+		err := db.Initialize(context.Background(), config)
 		if err != nil {
 			t.Fatalf("Failed to initialize: %v", err)
 		}
@@ -38,13 +38,13 @@ func TestDatabaseIntegrationSuite(t *testing.T) {
 
 	// Test 2: Start
 	t.Run("Start", func(t *testing.T) {
-		err := db.Start()
+		err := db.Start(context.Background())
 		if err != nil {
 			t.Fatalf("Failed to start: %v", err)
 		}
 	})
 	defer func() {
-		if err := db.Stop(); err != nil {
+		if err := db.Stop(context.Background()); err != nil {
 			t.Logf("Failed to stop: %v", err)
 		}
 	}()
@@ -61,7 +61,7 @@ func TestDatabaseIntegrationSuite(t *testing.T) {
 			EventData:       []byte("data1"),
 		}
 
-		err := db.WriteEvent(event)
+		err := db.WriteEvent(context.Background(), event)
 		if err != nil {
 			t.Fatalf("Failed to write event: %v", err)
 		}
@@ -75,14 +75,14 @@ func TestDatabaseIntegrationSuite(t *testing.T) {
 				ID:              fmt.Sprintf("suite-batch-hash-%d", i),
 				BlockNumber:     uint64(i),
 				TransactionHash: common.HexToHash(fmt.Sprintf("0x%064x", i)),
-				LogIndex:        uint(i),
+				LogIndex:        uint64(i),
 				ContractAddress: common.HexToAddress("0x123"),
 				EventName:       "Transfer",
 				EventData:       []byte("data1"),
 			}
 		}
 
-		err := db.WriteEvents(events)
+		err := db.WriteEvents(context.Background(), events)
 		if err != nil {
 			t.Fatalf("Failed to write events: %v", err)
 		}
@@ -143,7 +143,7 @@ func TestDatabaseIntegrationSuite(t *testing.T) {
 				ID:              fmt.Sprintf("suite-perf-hash-%d-%d", time.Now().UnixNano(), i),
 				BlockNumber:     uint64(i),
 				TransactionHash: common.HexToHash(fmt.Sprintf("0x%064x", i)),
-				LogIndex:        uint(i),
+				LogIndex:        uint64(i),
 				ContractAddress: common.HexToAddress("0x123"),
 				EventName:       "Transfer",
 				EventData:       []byte("data1"),
@@ -151,7 +151,7 @@ func TestDatabaseIntegrationSuite(t *testing.T) {
 		}
 
 		start := time.Now()
-		err := db.WriteEvents(events)
+		err := db.WriteEvents(context.Background(), events)
 		duration := time.Since(start)
 
 		if err != nil {
@@ -200,11 +200,11 @@ func TestDatabaseIntegrationSuite(t *testing.T) {
 func TestDatabaseIntegrationWithErrors(t *testing.T) {
 	requirePostgresIntegration(t)
 
-	config := &core.Config{
+	config := core.Config{
 		PostgresHost:     "localhost",
 		PostgresPort:     "5432",
 		PostgresUser:     "chainpulse",
-		PostgresPassword: "chainpulse",
+		PostgresPassword: core.SecretString("chainpulse"),
 		PostgresDB:       "chainpulse",
 	}
 
@@ -212,20 +212,20 @@ func TestDatabaseIntegrationWithErrors(t *testing.T) {
 	metrics := core.NewDefaultMetricsCollector()
 
 	db := NewPostgreSQLDatabase(logger, metrics)
-	err := db.Initialize(config)
+	err := db.Initialize(context.Background(), config)
 	if err != nil {
 		t.Fatalf("Failed to initialize: %v", err)
 	}
 
-	err = db.Start()
+	err = db.Start(context.Background())
 	if err != nil {
 		t.Fatalf("Failed to start: %v", err)
 	}
-	defer func() { _ = db.Stop() }()
+	defer func() { _ = db.Stop(context.Background()) }()
 
 	// Test 1: Write nil event
 	t.Run("WriteNilEvent", func(t *testing.T) {
-		err := db.WriteEvent(nil)
+		err := db.WriteEvent(context.Background(), nil)
 		if err == nil {
 			t.Fatal("Expected error for nil event")
 		}
@@ -260,11 +260,11 @@ func TestDatabaseIntegrationWithErrors(t *testing.T) {
 func TestDatabaseIntegrationConcurrency(t *testing.T) {
 	requirePostgresIntegration(t)
 
-	config := &core.Config{
+	config := core.Config{
 		PostgresHost:     "localhost",
 		PostgresPort:     "5432",
 		PostgresUser:     "chainpulse",
-		PostgresPassword: "chainpulse",
+		PostgresPassword: core.SecretString("chainpulse"),
 		PostgresDB:       "chainpulse",
 	}
 
@@ -272,16 +272,16 @@ func TestDatabaseIntegrationConcurrency(t *testing.T) {
 	metrics := core.NewDefaultMetricsCollector()
 
 	db := NewPostgreSQLDatabase(logger, metrics)
-	err := db.Initialize(config)
+	err := db.Initialize(context.Background(), config)
 	if err != nil {
 		t.Fatalf("Failed to initialize: %v", err)
 	}
 
-	err = db.Start()
+	err = db.Start(context.Background())
 	if err != nil {
 		t.Fatalf("Failed to start: %v", err)
 	}
-	defer func() { _ = db.Stop() }()
+	defer func() { _ = db.Stop(context.Background()) }()
 
 	// Run concurrent operations
 	done := make(chan bool, 10)
@@ -293,13 +293,13 @@ func TestDatabaseIntegrationConcurrency(t *testing.T) {
 				ID:              fmt.Sprintf("concurrent-hash-%d", id),
 				BlockNumber:     uint64(id),
 				TransactionHash: common.HexToHash(fmt.Sprintf("0x%064x", id)),
-				LogIndex:        uint(id),
+				LogIndex:        uint64(id),
 				ContractAddress: common.HexToAddress("0x123"),
 				EventName:       "Transfer",
 				EventData:       []byte("data1"),
 			}
 
-			err := db.WriteEvent(event)
+			err := db.WriteEvent(context.Background(), event)
 			if err != nil {
 				errors <- err
 			}

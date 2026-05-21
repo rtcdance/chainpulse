@@ -9,6 +9,7 @@ import (
 )
 
 func TestGraphQLRequestCreation(t *testing.T) {
+	t.Parallel()
 	body := []byte(`{"query":"{ event(id: \"1\") { id } }"}`)
 	req := httpRequest("POST", "/graphql", body)
 
@@ -24,6 +25,7 @@ func TestGraphQLRequestCreation(t *testing.T) {
 }
 
 func TestGraphQLRequestBody(t *testing.T) {
+	t.Parallel()
 	body := []byte(`{"query":"test"}`)
 	req := httpRequest("POST", "/graphql", body)
 
@@ -35,6 +37,7 @@ func TestGraphQLRequestBody(t *testing.T) {
 }
 
 func TestGraphQLRequestHeaders(t *testing.T) {
+	t.Parallel()
 	body := []byte(`{"query":"test"}`)
 	req := httpRequest("POST", "/graphql", body)
 	req.Header.Set("Content-Type", "application/json")
@@ -53,6 +56,7 @@ func TestGraphQLRequestHeaders(t *testing.T) {
 }
 
 func TestGraphQLRequestHeader(t *testing.T) {
+	t.Parallel()
 	body := []byte(`{"query":"test"}`)
 	req := httpRequest("POST", "/graphql", body)
 	req.Header.Set("X-Custom", "value")
@@ -65,6 +69,7 @@ func TestGraphQLRequestHeader(t *testing.T) {
 }
 
 func TestGraphQLRequestContext(t *testing.T) {
+	t.Parallel()
 	body := []byte(`{"query":"test"}`)
 	req := httpRequest("POST", "/graphql", body)
 
@@ -77,6 +82,7 @@ func TestGraphQLRequestContext(t *testing.T) {
 }
 
 func TestGraphQLRequestQuery(t *testing.T) {
+	t.Parallel()
 	body := []byte(`{"query":"test"}`)
 	req := httpRequest("POST", "/graphql?limit=10&offset=0", body)
 
@@ -93,6 +99,7 @@ func TestGraphQLRequestQuery(t *testing.T) {
 }
 
 func TestGraphQLRequestQueryParam(t *testing.T) {
+	t.Parallel()
 	body := []byte(`{"query":"test"}`)
 	req := httpRequest("POST", "/graphql?key=value", body)
 
@@ -104,8 +111,9 @@ func TestGraphQLRequestQueryParam(t *testing.T) {
 }
 
 func TestGraphQLRequestGetGraphQLQuery(t *testing.T) {
+	t.Parallel()
 	query := "{ event(id: \"1\") { id } }"
-	payload := map[string]interface{}{
+	payload := map[string]any{
 		"query": query,
 	}
 	body, _ := json.Marshal(payload)
@@ -123,10 +131,11 @@ func TestGraphQLRequestGetGraphQLQuery(t *testing.T) {
 }
 
 func TestGraphQLRequestGetGraphQLVariables(t *testing.T) {
-	variables := map[string]interface{}{
+	t.Parallel()
+	variables := map[string]any{
 		"id": "123",
 	}
-	payload := map[string]interface{}{
+	payload := map[string]any{
 		"query":     "{ event(id: $id) { id } }",
 		"variables": variables,
 	}
@@ -145,6 +154,7 @@ func TestGraphQLRequestGetGraphQLVariables(t *testing.T) {
 }
 
 func TestGraphQLRequestPathParam(t *testing.T) {
+	t.Parallel()
 	body := []byte(`{"query":"test"}`)
 	req := httpRequest("POST", "/graphql", body)
 
@@ -157,6 +167,7 @@ func TestGraphQLRequestPathParam(t *testing.T) {
 }
 
 func TestGraphQLResponseCreation(t *testing.T) {
+	t.Parallel()
 	w := &mockResponseWriter{}
 	resp := NewGraphQLResponse(w)
 
@@ -170,6 +181,7 @@ func TestGraphQLResponseCreation(t *testing.T) {
 }
 
 func TestGraphQLResponseSetStatus(t *testing.T) {
+	t.Parallel()
 	w := &mockResponseWriter{}
 	resp := NewGraphQLResponse(w)
 
@@ -181,6 +193,7 @@ func TestGraphQLResponseSetStatus(t *testing.T) {
 }
 
 func TestGraphQLResponseSetHeader(t *testing.T) {
+	t.Parallel()
 	w := &mockResponseWriter{}
 	resp := NewGraphQLResponse(w)
 
@@ -192,6 +205,7 @@ func TestGraphQLResponseSetHeader(t *testing.T) {
 }
 
 func TestGraphQLResponseHeaders(t *testing.T) {
+	t.Parallel()
 	w := &mockResponseWriter{}
 	resp := NewGraphQLResponse(w)
 
@@ -210,6 +224,7 @@ func TestGraphQLResponseHeaders(t *testing.T) {
 }
 
 func TestGraphQLResponseSetBody(t *testing.T) {
+	t.Parallel()
 	w := &mockResponseWriter{}
 	resp := NewGraphQLResponse(w)
 
@@ -222,6 +237,7 @@ func TestGraphQLResponseSetBody(t *testing.T) {
 }
 
 func TestGraphQLResponseWrite(t *testing.T) {
+	t.Parallel()
 	w := &mockResponseWriter{}
 	resp := NewGraphQLResponse(w)
 
@@ -238,6 +254,7 @@ func TestGraphQLResponseWrite(t *testing.T) {
 }
 
 func TestGraphQLResponseSend(t *testing.T) {
+	t.Parallel()
 	w := &mockResponseWriter{}
 	resp := NewGraphQLResponse(w)
 
@@ -255,11 +272,12 @@ func TestGraphQLResponseSend(t *testing.T) {
 }
 
 func TestGraphQLResponseSetGraphQLResult(t *testing.T) {
+	t.Parallel()
 	w := &mockResponseWriter{}
 	resp := NewGraphQLResponse(w)
 
-	data := map[string]interface{}{
-		"event": map[string]interface{}{
+	data := map[string]any{
+		"event": map[string]any{
 			"id": "1",
 		},
 	}
@@ -268,7 +286,7 @@ func TestGraphQLResponseSetGraphQLResult(t *testing.T) {
 		t.Fatalf("failed to set GraphQL result: %v", err)
 	}
 
-	var result map[string]interface{}
+	var result map[string]any
 	if err := json.Unmarshal(resp.Body(), &result); err != nil {
 		t.Fatalf("failed to unmarshal result: %v", err)
 	}
@@ -279,10 +297,11 @@ func TestGraphQLResponseSetGraphQLResult(t *testing.T) {
 }
 
 func TestGraphQLResponseSetGraphQLResultWithErrors(t *testing.T) {
+	t.Parallel()
 	w := &mockResponseWriter{}
 	resp := NewGraphQLResponse(w)
 
-	data := map[string]interface{}{}
+	data := map[string]any{}
 	errors := []error{
 		&testError{"error 1"},
 		&testError{"error 2"},
@@ -292,7 +311,7 @@ func TestGraphQLResponseSetGraphQLResultWithErrors(t *testing.T) {
 		t.Fatalf("failed to set GraphQL result: %v", err)
 	}
 
-	var result map[string]interface{}
+	var result map[string]any
 	if err := json.Unmarshal(resp.Body(), &result); err != nil {
 		t.Fatalf("failed to unmarshal result: %v", err)
 	}
@@ -303,6 +322,7 @@ func TestGraphQLResponseSetGraphQLResultWithErrors(t *testing.T) {
 }
 
 func TestGraphQLResponseHeadersImmutableAfterSend(t *testing.T) {
+	t.Parallel()
 	w := &mockResponseWriter{}
 	resp := NewGraphQLResponse(w)
 
@@ -318,6 +338,7 @@ func TestGraphQLResponseHeadersImmutableAfterSend(t *testing.T) {
 }
 
 func TestGraphQLResponseStatusImmutableAfterSend(t *testing.T) {
+	t.Parallel()
 	w := &mockResponseWriter{}
 	resp := NewGraphQLResponse(w)
 
@@ -333,6 +354,7 @@ func TestGraphQLResponseStatusImmutableAfterSend(t *testing.T) {
 }
 
 func TestGraphQLResponseBodyAccumulation(t *testing.T) {
+	t.Parallel()
 	w := &mockResponseWriter{}
 	resp := NewGraphQLResponse(w)
 
@@ -347,6 +369,7 @@ func TestGraphQLResponseBodyAccumulation(t *testing.T) {
 }
 
 func TestGraphQLResponseDefaultContentType(t *testing.T) {
+	t.Parallel()
 	w := &mockResponseWriter{}
 	resp := NewGraphQLResponse(w)
 
@@ -361,6 +384,7 @@ func TestGraphQLResponseDefaultContentType(t *testing.T) {
 }
 
 func TestParseQueryParams(t *testing.T) {
+	t.Parallel()
 	params := parseQueryParams("key1=value1&key2=value2&key3=value3")
 
 	if params["key1"] != "value1" {
@@ -377,6 +401,7 @@ func TestParseQueryParams(t *testing.T) {
 }
 
 func TestParseQueryParamsEmpty(t *testing.T) {
+	t.Parallel()
 	params := parseQueryParams("")
 
 	if len(params) != 0 {
@@ -385,6 +410,7 @@ func TestParseQueryParamsEmpty(t *testing.T) {
 }
 
 func TestGraphQLRequestMultipleHeaders(t *testing.T) {
+	t.Parallel()
 	body := []byte(`{"query":"test"}`)
 	req := httpRequest("POST", "/graphql", body)
 	req.Header.Set("X-Header-1", "value1")
@@ -400,6 +426,7 @@ func TestGraphQLRequestMultipleHeaders(t *testing.T) {
 }
 
 func TestGraphQLResponseMultipleWrites(t *testing.T) {
+	t.Parallel()
 	w := &mockResponseWriter{}
 	resp := NewGraphQLResponse(w)
 

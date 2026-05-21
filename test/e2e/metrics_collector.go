@@ -222,11 +222,11 @@ func (mc *MetricsCollector) GetSuccessRate() float64 {
 }
 
 // GetStats returns overall statistics
-func (mc *MetricsCollector) GetStats() map[string]interface{} {
+func (mc *MetricsCollector) GetStats() map[string]any {
 	mc.mu.RLock()
 	defer mc.mu.RUnlock()
 
-	return map[string]interface{}{
+	return map[string]any{
 		"test_name":        mc.testName,
 		"test_status":      mc.testStatus,
 		"duration":         mc.GetDuration().String(),

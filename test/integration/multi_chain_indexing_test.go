@@ -10,10 +10,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"chainpulse/pkg/core"
-	"chainpulse/pkg/integrations/generic"
-	"chainpulse/pkg/services/decoder"
-	"chainpulse/pkg/services/indexing"
+	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/integrations/generic"
+	"github.com/rtcdance/chainpulse/pkg/services/decoder"
+	"github.com/rtcdance/chainpulse/pkg/services/indexing"
 )
 
 // MockDatabasePlugin for testing - defined in test_helpers.go
@@ -33,11 +33,11 @@ func (m *MockConfigManager) Validate(config core.Config) error {
 	return nil
 }
 
-func (m *MockConfigManager) Get(key string) (interface{}, error) {
+func (m *MockConfigManager) Get(key string) (any, error) {
 	return nil, fmt.Errorf("key not found: %s", key)
 }
 
-func (m *MockConfigManager) Set(key string, value interface{}) error {
+func (m *MockConfigManager) Set(key string, value any) error {
 	return nil
 }
 
@@ -455,7 +455,7 @@ func TestDefaultChainIndexerResetStats(t *testing.T) {
 }
 
 func TestConcurrentMultiChainIndexing(t *testing.T) {
-	t.Skip("Skipping concurrent test due to goroutine management issues - will be fixed in next iteration")
+	t.Skip("known limitation: goroutine leak in concurrent multi-chain indexing — see ADR-003 for post-reindex concurrency design")
 
 	logger := &MockLogger{}
 	config := &MockConfigManager{

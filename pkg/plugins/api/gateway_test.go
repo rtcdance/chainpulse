@@ -3,10 +3,11 @@ package api
 import (
 	"testing"
 
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 func TestAPIGatewayPluginDomainBridgeToggle(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	plugin := NewAPIGatewayPlugin(logger, metrics)
@@ -22,6 +23,7 @@ func TestAPIGatewayPluginDomainBridgeToggle(t *testing.T) {
 }
 
 func TestAPIGatewayPluginDomainBridgeEnabledByUpstreamQueryEndpoints(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	plugin := NewAPIGatewayPlugin(logger, metrics)
@@ -33,6 +35,7 @@ func TestAPIGatewayPluginDomainBridgeEnabledByUpstreamQueryEndpoints(t *testing.
 }
 
 func TestAPIGatewayPluginEventQueryHandlerToggle(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	plugin := NewAPIGatewayPlugin(logger, metrics)
@@ -48,6 +51,7 @@ func TestAPIGatewayPluginEventQueryHandlerToggle(t *testing.T) {
 }
 
 func TestAPIGatewayPluginRuntimeRoutesEnabledWhenHandlersWired(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	plugin := NewAPIGatewayPlugin(logger, metrics)
@@ -66,6 +70,7 @@ func TestAPIGatewayPluginRuntimeRoutesEnabledWhenHandlersWired(t *testing.T) {
 }
 
 func TestAPIGatewayPluginEventSubscriptionHandlerToggle(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	plugin := NewAPIGatewayPlugin(logger, metrics)
@@ -81,6 +86,7 @@ func TestAPIGatewayPluginEventSubscriptionHandlerToggle(t *testing.T) {
 }
 
 func TestAPIGatewayPluginInitializeInjectsRateLimiterIntoSubscriptionHandler(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	plugin := NewAPIGatewayPlugin(logger, metrics)
@@ -104,6 +110,7 @@ func TestAPIGatewayPluginInitializeInjectsRateLimiterIntoSubscriptionHandler(t *
 }
 
 func TestAPIGatewayPluginHealthCheckHandlerToggle(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	plugin := NewAPIGatewayPlugin(logger, metrics)

@@ -10,6 +10,9 @@ import (
 // HorizontalScaler manages horizontal scaling of services
 type HorizontalScaler struct {
 	mu               sync.RWMutex
+	wg               sync.WaitGroup
+	done             chan struct{}
+	closeOnce        sync.Once
 	id               string
 	minInstances     int
 	maxInstances     int
@@ -82,6 +85,7 @@ func NewHorizontalScaler(id string, minInstances, maxInstances int) *HorizontalS
 		metrics:         &ScalingMetrics{},
 		lastScalingTime: time.Now(),
 		scalingCooldown: 5 * time.Minute,
+		done:            make(chan struct{}),
 	}
 }
 
@@ -167,6 +171,8 @@ func (hs *HorizontalScaler) scaleUp(ctx context.Context) error {
 		targetCount = hs.maxInstances
 	}
 
+	created := targetCount - hs.currentInstances
+
 	for i := hs.currentInstances; i < targetCount; i++ {
 		instanceID := fmt.Sprintf("%s-instance-%d", hs.id, i)
 		instance := &ServiceInstance{
@@ -178,11 +184,19 @@ func (hs *HorizontalScaler) scaleUp(ctx context.Context) error {
 		hs.instances[instanceID] = instance
 
 		// Simulate instance startup
-		go func() {
-			time.Sleep(1 * time.Second)
-			instance.Status = "running"
-			instance.StartedAt = time.Now()
-		}()
+		hs.wg.Add(1)
+		go func(inst *ServiceInstance) {
+			defer hs.wg.Done()
+			select {
+			case <-hs.done:
+				return // shutting down
+			case <-time.After(1 * time.Second):
+			}
+			hs.mu.Lock()
+			inst.Status = "running"
+			inst.StartedAt = time.Now()
+			hs.mu.Unlock()
+		}(instance)
 	}
 
 	hs.currentInstances = targetCount
@@ -190,7 +204,7 @@ func (hs *HorizontalScaler) scaleUp(ctx context.Context) error {
 
 	hs.metrics.mu.Lock()
 	hs.metrics.ScaleUpEvents++
-	hs.metrics.InstancesCreated += int64(targetCount - hs.currentInstances)
+	hs.metrics.InstancesCreated += int64(created)
 	hs.metrics.mu.Unlock()
 
 	return nil
@@ -219,8 +233,14 @@ func (hs *HorizontalScaler) scaleDown(ctx context.Context) error {
 			instance.Status = "stopping"
 
 			// Simulate graceful shutdown
+			hs.wg.Add(1)
 			go func(id string) {
-				time.Sleep(2 * time.Second)
+				defer hs.wg.Done()
+				select {
+				case <-hs.done:
+					return // shutting down
+				case <-time.After(2 * time.Second):
+				}
 				hs.mu.Lock()
 				if inst, exists := hs.instances[id]; exists {
 					inst.Status = "stopped"
@@ -290,14 +310,14 @@ func (hs *HorizontalScaler) GetInstances() []*ServiceInstance {
 }
 
 // GetMetrics returns scaling metrics
-func (hs *HorizontalScaler) GetMetrics() map[string]interface{} {
+func (hs *HorizontalScaler) GetMetrics() map[string]any {
 	hs.mu.RLock()
 	defer hs.mu.RUnlock()
 
 	hs.metrics.mu.RLock()
 	defer hs.metrics.mu.RUnlock()
 
-	return map[string]interface{}{
+	return map[string]any{
 		"current_instances":    hs.currentInstances,
 		"target_instances":     hs.targetInstances,
 		"min_instances":        hs.minInstances,
@@ -315,14 +335,15 @@ func (hs *HorizontalScaler) GetMetrics() map[string]interface{} {
 // GracefulShutdown performs graceful shutdown of an instance
 func (hs *HorizontalScaler) GracefulShutdown(ctx context.Context, instanceID string) error {
 	hs.mu.Lock()
-	defer hs.mu.Unlock()
 
 	instance, exists := hs.instances[instanceID]
 	if !exists {
+		hs.mu.Unlock()
 		return fmt.Errorf("instance not found")
 	}
 
 	instance.Status = "stopping"
+	hs.mu.Unlock()
 
 	// Wait for existing connections to drain
 	select {
@@ -332,9 +353,14 @@ func (hs *HorizontalScaler) GracefulShutdown(ctx context.Context, instanceID str
 		// Timeout, force shutdown
 	}
 
+	hs.mu.Lock()
 	instance.Status = "stopped"
 	instance.StoppedAt = time.Now()
 	delete(hs.instances, instanceID)
+	hs.mu.Unlock()
+
+	// Wait for in-flight goroutines to complete
+	hs.wg.Wait()
 
 	return nil
 }
@@ -344,6 +370,14 @@ func (hs *HorizontalScaler) GetCurrentInstanceCount() int {
 	hs.mu.RLock()
 	defer hs.mu.RUnlock()
 	return hs.currentInstances
+}
+
+// Stop signals all background goroutines to exit and waits for them to finish.
+func (hs *HorizontalScaler) Stop() {
+	hs.closeOnce.Do(func() {
+		close(hs.done)
+	})
+	hs.wg.Wait()
 }
 
 // SetScalingPolicy sets the scaling policy

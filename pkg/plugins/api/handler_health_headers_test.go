@@ -7,6 +7,7 @@ import (
 )
 
 func TestRequestHandlerCheckHealthUsesConfiguredHeaders(t *testing.T) {
+	t.Parallel()
 	t.Helper()
 
 	apiKeySeen := ""

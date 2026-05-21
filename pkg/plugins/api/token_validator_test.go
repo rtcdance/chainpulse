@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"sync"
@@ -13,6 +14,7 @@ import (
 
 // TestNewTokenValidator tests token validator initialization
 func TestNewTokenValidator(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 
@@ -25,18 +27,23 @@ func TestNewTokenValidator(t *testing.T) {
 
 // TestRegisterAPIKey tests API key registration
 func TestRegisterAPIKey(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	validator := NewTokenValidator("secret", logger, metrics)
 
-	err := validator.RegisterAPIKey("key123", "client1")
+	err := validator.RegisterAPIKey("cp_testkey123", "client1")
 
 	require.NoError(t, err)
-	assert.Equal(t, "client1", validator.apiKeyWhitelist["key123"])
+	// Keys are stored as SHA-256 hashes, so verify via ValidateAPIKey instead of direct map lookup
+	result := validator.ValidateAPIKey(context.Background(), "cp_testkey123")
+	assert.True(t, result.Valid)
+	assert.Equal(t, "client1", result.ClientID)
 }
 
 // TestRegisterAPIKeyEmptyKey tests registering with empty key
 func TestRegisterAPIKeyEmptyKey(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	validator := NewTokenValidator("secret", logger, metrics)
@@ -49,6 +56,7 @@ func TestRegisterAPIKeyEmptyKey(t *testing.T) {
 
 // TestRegisterAPIKeyEmptyClientID tests registering with empty client ID
 func TestRegisterAPIKeyEmptyClientID(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	validator := NewTokenValidator("secret", logger, metrics)
@@ -61,14 +69,15 @@ func TestRegisterAPIKeyEmptyClientID(t *testing.T) {
 
 // TestValidateAPIKeySuccess tests successful API key validation
 func TestValidateAPIKeySuccess(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	validator := NewTokenValidator("secret", logger, metrics)
 
-	err := validator.RegisterAPIKey("key123", "client1")
+	err := validator.RegisterAPIKey("cp_key123", "client1")
 	require.NoError(t, err)
 
-	result := validator.ValidateAPIKey("key123")
+	result := validator.ValidateAPIKey(context.Background(), "cp_key123")
 
 	assert.True(t, result.Valid)
 	assert.Equal(t, "client1", result.ClientID)
@@ -77,11 +86,12 @@ func TestValidateAPIKeySuccess(t *testing.T) {
 
 // TestValidateAPIKeyEmpty tests validating empty API key
 func TestValidateAPIKeyEmpty(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	validator := NewTokenValidator("secret", logger, metrics)
 
-	result := validator.ValidateAPIKey("")
+	result := validator.ValidateAPIKey(context.Background(), "")
 
 	assert.False(t, result.Valid)
 	assert.Contains(t, result.Error, "empty")
@@ -89,11 +99,12 @@ func TestValidateAPIKeyEmpty(t *testing.T) {
 
 // TestValidateAPIKeyNotFound tests validating unregistered API key
 func TestValidateAPIKeyNotFound(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	validator := NewTokenValidator("secret", logger, metrics)
 
-	result := validator.ValidateAPIKey("unknown")
+	result := validator.ValidateAPIKey(context.Background(), "unknown")
 
 	assert.False(t, result.Valid)
 	assert.Contains(t, result.Error, "not found")
@@ -101,6 +112,7 @@ func TestValidateAPIKeyNotFound(t *testing.T) {
 
 // TestGenerateJWT tests JWT generation
 func TestGenerateJWT(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	validator := NewTokenValidator("secret", logger, metrics)
@@ -117,6 +129,7 @@ func TestGenerateJWT(t *testing.T) {
 
 // TestValidateJWTSuccess tests successful JWT validation
 func TestValidateJWTSuccess(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	validator := NewTokenValidator("secret", logger, metrics)
@@ -134,6 +147,7 @@ func TestValidateJWTSuccess(t *testing.T) {
 
 // TestValidateJWTEmpty tests validating empty JWT
 func TestValidateJWTEmpty(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	validator := NewTokenValidator("secret", logger, metrics)
@@ -146,6 +160,7 @@ func TestValidateJWTEmpty(t *testing.T) {
 
 // TestValidateJWTInvalidFormat tests validating JWT with invalid format
 func TestValidateJWTInvalidFormat(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	validator := NewTokenValidator("secret", logger, metrics)
@@ -153,11 +168,12 @@ func TestValidateJWTInvalidFormat(t *testing.T) {
 	result := validator.ValidateJWT("invalid.token")
 
 	assert.False(t, result.Valid)
-	assert.Contains(t, result.Error, "invalid token format")
+	assert.Contains(t, result.Error, "malformed")
 }
 
 // TestValidateJWTExpired tests validating expired JWT
 func TestValidateJWTExpired(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	validator := NewTokenValidator("secret", logger, metrics)
@@ -174,6 +190,7 @@ func TestValidateJWTExpired(t *testing.T) {
 
 // TestValidateJWTInvalidSignature tests validating JWT with invalid signature
 func TestValidateJWTInvalidSignature(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	validator := NewTokenValidator("secret", logger, metrics)
@@ -188,11 +205,12 @@ func TestValidateJWTInvalidSignature(t *testing.T) {
 	result := validator.ValidateJWT(invalidToken)
 
 	assert.False(t, result.Valid)
-	assert.Contains(t, result.Error, "invalid signature")
+	assert.Contains(t, result.Error, "signature")
 }
 
 // TestValidateJWTDifferentSecret tests validating JWT with different secret
 func TestValidateJWTDifferentSecret(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	validator1 := NewTokenValidator("secret1", logger, metrics)
@@ -203,11 +221,12 @@ func TestValidateJWTDifferentSecret(t *testing.T) {
 	result := validator2.ValidateJWT(token)
 
 	assert.False(t, result.Valid)
-	assert.Contains(t, result.Error, "invalid signature")
+	assert.Contains(t, result.Error, "signature")
 }
 
 // TestValidateToken tests ValidateToken with Bearer token
 func TestValidateTokenBearer(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	validator := NewTokenValidator("secret", logger, metrics)
@@ -215,7 +234,7 @@ func TestValidateTokenBearer(t *testing.T) {
 	token, _ := validator.GenerateJWT("client1", "user1", []string{}, []string{}, 1*time.Hour)
 	authHeader := fmt.Sprintf("Bearer %s", token)
 
-	result := validator.ValidateToken(authHeader)
+	result := validator.ValidateToken(context.Background(), authHeader)
 
 	assert.True(t, result.Valid)
 	assert.Equal(t, "client1", result.ClientID)
@@ -223,13 +242,14 @@ func TestValidateTokenBearer(t *testing.T) {
 
 // TestValidateTokenAPIKey tests ValidateToken with API key
 func TestValidateTokenAPIKey(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	validator := NewTokenValidator("secret", logger, metrics)
 
-	require.NoError(t, validator.RegisterAPIKey("key123", "client1"))
+	require.NoError(t, validator.RegisterAPIKey("cp_key123", "client1"))
 
-	result := validator.ValidateToken("key123")
+	result := validator.ValidateToken(context.Background(), "cp_key123")
 
 	assert.True(t, result.Valid)
 	assert.Equal(t, "client1", result.ClientID)
@@ -237,11 +257,12 @@ func TestValidateTokenAPIKey(t *testing.T) {
 
 // TestValidateTokenEmpty tests ValidateToken with empty header
 func TestValidateTokenEmpty(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	validator := NewTokenValidator("secret", logger, metrics)
 
-	result := validator.ValidateToken("")
+	result := validator.ValidateToken(context.Background(), "")
 
 	assert.False(t, result.Valid)
 	assert.Contains(t, result.Error, "empty")
@@ -249,6 +270,7 @@ func TestValidateTokenEmpty(t *testing.T) {
 
 // TestJWTClaimsPreservation tests that JWT claims are preserved
 func TestJWTClaimsPreservation(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	validator := NewTokenValidator("secret", logger, metrics)
@@ -266,20 +288,21 @@ func TestJWTClaimsPreservation(t *testing.T) {
 
 // TestMultipleAPIKeys tests registering multiple API keys
 func TestMultipleAPIKeys(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	validator := NewTokenValidator("secret", logger, metrics)
 
-	err := validator.RegisterAPIKey("key1", "client1")
+	err := validator.RegisterAPIKey("cp_key1", "client1")
 	require.NoError(t, err)
-	err = validator.RegisterAPIKey("key2", "client2")
+	err = validator.RegisterAPIKey("cp_key2", "client2")
 	require.NoError(t, err)
-	err = validator.RegisterAPIKey("key3", "client3")
+	err = validator.RegisterAPIKey("cp_key3", "client3")
 	require.NoError(t, err)
 
-	result1 := validator.ValidateAPIKey("key1")
-	result2 := validator.ValidateAPIKey("key2")
-	result3 := validator.ValidateAPIKey("key3")
+	result1 := validator.ValidateAPIKey(context.Background(), "cp_key1")
+	result2 := validator.ValidateAPIKey(context.Background(), "cp_key2")
+	result3 := validator.ValidateAPIKey(context.Background(), "cp_key3")
 
 	assert.True(t, result1.Valid)
 	assert.Equal(t, "client1", result1.ClientID)
@@ -293,11 +316,12 @@ func TestMultipleAPIKeys(t *testing.T) {
 
 // TestConcurrentAPIKeyValidation tests concurrent API key validation
 func TestConcurrentAPIKeyValidation(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	validator := NewTokenValidator("secret", logger, metrics)
 
-	err := validator.RegisterAPIKey("key1", "client1")
+	err := validator.RegisterAPIKey("cp_key1", "client1")
 	require.NoError(t, err)
 
 	var wg sync.WaitGroup
@@ -309,7 +333,7 @@ func TestConcurrentAPIKeyValidation(t *testing.T) {
 		go func() {
 			defer wg.Done()
 
-			result := validator.ValidateAPIKey("key1")
+			result := validator.ValidateAPIKey(context.Background(), "cp_key1")
 
 			mu.Lock()
 			if result.Valid {
@@ -326,6 +350,7 @@ func TestConcurrentAPIKeyValidation(t *testing.T) {
 
 // TestConcurrentJWTValidation tests concurrent JWT validation
 func TestConcurrentJWTValidation(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	validator := NewTokenValidator("secret", logger, metrics)
@@ -358,27 +383,30 @@ func TestConcurrentJWTValidation(t *testing.T) {
 
 // TestJWTExpirationBoundary tests JWT expiration at boundary
 func TestJWTExpirationBoundary(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	validator := NewTokenValidator("secret", logger, metrics)
 
-	// Generate token that expires in 100ms
-	token, _ := validator.GenerateJWT("client1", "user1", []string{}, []string{}, 100*time.Millisecond)
+	// Generate token that expires in 1 second
+	token, err := validator.GenerateJWT("client1", "user1", []string{}, []string{}, 1*time.Second)
+	require.NoError(t, err)
 
 	// Should be valid immediately
 	result := validator.ValidateJWT(token)
-	assert.True(t, result.Valid)
+	assert.True(t, result.Valid, "token should be valid immediately after generation")
 
-	// Wait for expiration (add buffer for system clock precision)
-	time.Sleep(200 * time.Millisecond)
+	// Wait for expiration
+	time.Sleep(1500 * time.Millisecond)
 
 	// Should be expired
 	result = validator.ValidateJWT(token)
-	assert.False(t, result.Valid)
+	assert.False(t, result.Valid, "token should be expired after wait")
 }
 
 // TestJWTWithEmptyRolesAndPermissions tests JWT with empty roles and permissions
 func TestJWTWithEmptyRolesAndPermissions(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	validator := NewTokenValidator("secret", logger, metrics)
@@ -393,6 +421,7 @@ func TestJWTWithEmptyRolesAndPermissions(t *testing.T) {
 
 // TestJWTWithLargeRolesAndPermissions tests JWT with many roles and permissions
 func TestJWTWithLargeRolesAndPermissions(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	validator := NewTokenValidator("secret", logger, metrics)
@@ -415,17 +444,18 @@ func TestJWTWithLargeRolesAndPermissions(t *testing.T) {
 
 // TestTokenValidatorMetricsRecording tests metrics recording
 func TestTokenValidatorMetricsRecording(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	validator := NewTokenValidator("secret", logger, metrics)
 
 	// Test API key validation metrics
-	err := validator.RegisterAPIKey("key1", "client1")
+	err := validator.RegisterAPIKey("cp_key1", "client1")
 	require.NoError(t, err)
-	validator.ValidateAPIKey("key1")
+	validator.ValidateAPIKey(context.Background(), "cp_key1")
 	assert.Greater(t, metrics.GetCounterValue("auth.api_key_validation_success"), int64(0))
 
-	validator.ValidateAPIKey("invalid")
+	validator.ValidateAPIKey(context.Background(), "invalid")
 	assert.Greater(t, metrics.GetCounterValue("auth.api_key_validation_failed"), int64(0))
 
 	// Test JWT validation metrics
@@ -442,16 +472,17 @@ func TestTokenValidatorMetricsRecording(t *testing.T) {
 
 // TestAPIKeyOverwrite tests overwriting an API key
 func TestAPIKeyOverwrite(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	validator := NewTokenValidator("secret", logger, metrics)
 
-	err := validator.RegisterAPIKey("key1", "client1")
+	err := validator.RegisterAPIKey("cp_key1", "client1")
 	require.NoError(t, err)
-	err = validator.RegisterAPIKey("key1", "client2")
+	err = validator.RegisterAPIKey("cp_key1", "client2")
 	require.NoError(t, err)
 
-	result := validator.ValidateAPIKey("key1")
+	result := validator.ValidateAPIKey(context.Background(), "cp_key1")
 
 	assert.True(t, result.Valid)
 	assert.Equal(t, "client2", result.ClientID)
@@ -459,6 +490,7 @@ func TestAPIKeyOverwrite(t *testing.T) {
 
 // TestValidateTokenWithBearerPrefix tests Bearer token prefix handling
 func TestValidateTokenWithBearerPrefix(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	validator := NewTokenValidator("secret", logger, metrics)
@@ -466,19 +498,19 @@ func TestValidateTokenWithBearerPrefix(t *testing.T) {
 	token, _ := validator.GenerateJWT("client1", "user1", []string{}, []string{}, 1*time.Hour)
 
 	// Test with Bearer prefix
-	result := validator.ValidateToken(fmt.Sprintf("Bearer %s", token))
+	result := validator.ValidateToken(context.Background(), fmt.Sprintf("Bearer %s", token))
 	assert.True(t, result.Valid)
 
-	// Test without Bearer prefix (should treat as API key)
-	err := validator.RegisterAPIKey(token, "client2")
-	require.NoError(t, err)
-	result = validator.ValidateToken(token)
+	// Test without Bearer prefix (should treat as API key — register one separately)
+	require.NoError(t, validator.RegisterAPIKey("cp_testapikey", "client2"))
+	result = validator.ValidateToken(context.Background(), "cp_testapikey")
 	assert.True(t, result.Valid)
 	assert.Equal(t, "client2", result.ClientID)
 }
 
 // TestJWTTokenStructure tests JWT token structure
 func TestJWTTokenStructure(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	validator := NewTokenValidator("secret", logger, metrics)
@@ -496,6 +528,7 @@ func TestJWTTokenStructure(t *testing.T) {
 
 // TestValidationResultFields tests validation result fields
 func TestValidationResultFields(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	validator := NewTokenValidator("secret", logger, metrics)
@@ -513,6 +546,7 @@ func TestValidationResultFields(t *testing.T) {
 
 // TestSpecialCharactersInClaims tests JWT with special characters in claims
 func TestSpecialCharactersInClaims(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	validator := NewTokenValidator("secret", logger, metrics)
@@ -527,6 +561,7 @@ func TestSpecialCharactersInClaims(t *testing.T) {
 
 // TestDifferentExpirationTimes tests JWT with different expiration times
 func TestDifferentExpirationTimes(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	validator := NewTokenValidator("secret", logger, metrics)
@@ -547,6 +582,7 @@ func TestDifferentExpirationTimes(t *testing.T) {
 
 // TestConcurrentTokenGeneration tests concurrent JWT generation
 func TestConcurrentTokenGeneration(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	validator := NewTokenValidator("secret", logger, metrics)

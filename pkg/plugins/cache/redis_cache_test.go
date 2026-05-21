@@ -5,14 +5,17 @@ import (
 	"testing"
 	"time"
 
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
+var ctx = context.Background()
+
 func TestRedisCacheInitialize(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	cache := NewRedisCachePlugin(logger, metrics)
-	defer func() { _ = cache.Stop() }()
+	defer func() { _ = cache.Stop(ctx) }()
 
 	config := &core.Config{
 		BlockchainNodeURL:  "http://localhost:8545",
@@ -38,6 +41,7 @@ func TestRedisCacheInitialize(t *testing.T) {
 }
 
 func TestRedisCacheLifecycle(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	cache := NewRedisCachePlugin(logger, metrics)
@@ -52,35 +56,34 @@ func TestRedisCacheLifecycle(t *testing.T) {
 	_ = cache.Initialize(config)
 
 	// Start
-	err := cache.Start()
+	err := cache.Start(ctx)
 	if err != nil {
 		t.Fatalf("Start failed: %v", err)
 	}
 
 	// Check health
-	health := cache.Health()
-	if health.Status != "healthy" {
-		t.Fatalf("Expected healthy status, got %s", health.Status)
+	if err := cache.HealthCheck(ctx); err != nil {
+		t.Fatalf("Expected healthy, got error: %v", err)
 	}
 
 	// Stop
-	err = cache.Stop()
+	err = cache.Stop(ctx)
 	if err != nil {
 		t.Fatalf("Stop failed: %v", err)
 	}
 
 	// Check health after stop
-	health = cache.Health()
-	if health.Status != "unhealthy" {
-		t.Fatalf("Expected unhealthy status after stop, got %s", health.Status)
+	if err := cache.HealthCheck(ctx); err == nil {
+		t.Fatalf("Expected unhealthy status after stop")
 	}
 }
 
 func TestRedisCacheSetAndGet(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	cache := NewRedisCachePlugin(logger, metrics)
-	defer func() { _ = cache.Stop() }()
+	defer func() { _ = cache.Stop(ctx) }()
 
 	config := &core.Config{
 		BlockchainNodeURL:  "http://localhost:8545",
@@ -90,7 +93,7 @@ func TestRedisCacheSetAndGet(t *testing.T) {
 	}
 
 	_ = cache.Initialize(config)
-	_ = cache.Start()
+	_ = cache.Start(ctx)
 
 	// Set a value
 	entry := &CacheEntry{
@@ -124,10 +127,11 @@ func TestRedisCacheSetAndGet(t *testing.T) {
 }
 
 func TestRedisCacheDelete(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	cache := NewRedisCachePlugin(logger, metrics)
-	defer func() { _ = cache.Stop() }()
+	defer func() { _ = cache.Stop(ctx) }()
 
 	config := &core.Config{
 		BlockchainNodeURL:  "http://localhost:8545",
@@ -137,7 +141,7 @@ func TestRedisCacheDelete(t *testing.T) {
 	}
 
 	_ = cache.Initialize(config)
-	_ = cache.Start()
+	_ = cache.Start(ctx)
 
 	// Set a value
 	entry := &CacheEntry{
@@ -168,10 +172,11 @@ func TestRedisCacheDelete(t *testing.T) {
 }
 
 func TestRedisCacheExists(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	cache := NewRedisCachePlugin(logger, metrics)
-	defer func() { _ = cache.Stop() }()
+	defer func() { _ = cache.Stop(ctx) }()
 
 	config := &core.Config{
 		BlockchainNodeURL:  "http://localhost:8545",
@@ -181,7 +186,7 @@ func TestRedisCacheExists(t *testing.T) {
 	}
 
 	_ = cache.Initialize(config)
-	_ = cache.Start()
+	_ = cache.Start(ctx)
 
 	// Set a value
 	entry := &CacheEntry{
@@ -214,10 +219,11 @@ func TestRedisCacheExists(t *testing.T) {
 }
 
 func TestRedisCacheExpire(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	cache := NewRedisCachePlugin(logger, metrics)
-	defer func() { _ = cache.Stop() }()
+	defer func() { _ = cache.Stop(ctx) }()
 
 	config := &core.Config{
 		BlockchainNodeURL:  "http://localhost:8545",
@@ -227,7 +233,7 @@ func TestRedisCacheExpire(t *testing.T) {
 	}
 
 	_ = cache.Initialize(config)
-	_ = cache.Start()
+	_ = cache.Start(ctx)
 
 	// Set a value
 	entry := &CacheEntry{
@@ -255,10 +261,11 @@ func TestRedisCacheExpire(t *testing.T) {
 }
 
 func TestRedisCacheTTL(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	cache := NewRedisCachePlugin(logger, metrics)
-	defer func() { _ = cache.Stop() }()
+	defer func() { _ = cache.Stop(ctx) }()
 
 	config := &core.Config{
 		BlockchainNodeURL:  "http://localhost:8545",
@@ -268,7 +275,7 @@ func TestRedisCacheTTL(t *testing.T) {
 	}
 
 	_ = cache.Initialize(config)
-	_ = cache.Start()
+	_ = cache.Start(ctx)
 
 	// Set a value
 	entry := &CacheEntry{
@@ -301,10 +308,11 @@ func TestRedisCacheTTL(t *testing.T) {
 }
 
 func TestRedisCacheIncrement(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	cache := NewRedisCachePlugin(logger, metrics)
-	defer func() { _ = cache.Stop() }()
+	defer func() { _ = cache.Stop(ctx) }()
 
 	config := &core.Config{
 		BlockchainNodeURL:  "http://localhost:8545",
@@ -314,7 +322,7 @@ func TestRedisCacheIncrement(t *testing.T) {
 	}
 
 	_ = cache.Initialize(config)
-	_ = cache.Start()
+	_ = cache.Start(ctx)
 
 	// Increment non-existent key
 	val, err := cache.Increment("counter", 5)
@@ -338,10 +346,11 @@ func TestRedisCacheIncrement(t *testing.T) {
 }
 
 func TestRedisCacheDecrement(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	cache := NewRedisCachePlugin(logger, metrics)
-	defer func() { _ = cache.Stop() }()
+	defer func() { _ = cache.Stop(ctx) }()
 
 	config := &core.Config{
 		BlockchainNodeURL:  "http://localhost:8545",
@@ -351,7 +360,7 @@ func TestRedisCacheDecrement(t *testing.T) {
 	}
 
 	_ = cache.Initialize(config)
-	_ = cache.Start()
+	_ = cache.Start(ctx)
 
 	// Set initial value
 	entry := &CacheEntry{
@@ -374,10 +383,11 @@ func TestRedisCacheDecrement(t *testing.T) {
 }
 
 func TestRedisCacheGetAllKeys(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	cache := NewRedisCachePlugin(logger, metrics)
-	defer func() { _ = cache.Stop() }()
+	defer func() { _ = cache.Stop(ctx) }()
 
 	config := &core.Config{
 		BlockchainNodeURL:  "http://localhost:8545",
@@ -387,7 +397,7 @@ func TestRedisCacheGetAllKeys(t *testing.T) {
 	}
 
 	_ = cache.Initialize(config)
-	_ = cache.Start()
+	_ = cache.Start(ctx)
 
 	// Set multiple values
 	for i := 0; i < 5; i++ {
@@ -411,10 +421,11 @@ func TestRedisCacheGetAllKeys(t *testing.T) {
 }
 
 func TestRedisCachePing(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	cache := NewRedisCachePlugin(logger, metrics)
-	defer func() { _ = cache.Stop() }()
+	defer func() { _ = cache.Stop(ctx) }()
 
 	config := &core.Config{
 		BlockchainNodeURL:  "http://localhost:8545",
@@ -424,7 +435,7 @@ func TestRedisCachePing(t *testing.T) {
 	}
 
 	_ = cache.Initialize(config)
-	_ = cache.Start()
+	_ = cache.Start(ctx)
 
 	// Ping
 	err := cache.Ping(context.Background())
@@ -434,10 +445,11 @@ func TestRedisCachePing(t *testing.T) {
 }
 
 func TestRedisCacheFlushDB(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	cache := NewRedisCachePlugin(logger, metrics)
-	defer func() { _ = cache.Stop() }()
+	defer func() { _ = cache.Stop(ctx) }()
 
 	config := &core.Config{
 		BlockchainNodeURL:  "http://localhost:8545",
@@ -447,7 +459,7 @@ func TestRedisCacheFlushDB(t *testing.T) {
 	}
 
 	_ = cache.Initialize(config)
-	_ = cache.Start()
+	_ = cache.Start(ctx)
 
 	// Set multiple values
 	for i := 0; i < 5; i++ {
@@ -473,10 +485,11 @@ func TestRedisCacheFlushDB(t *testing.T) {
 }
 
 func TestRedisCacheGetKeyCount(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	cache := NewRedisCachePlugin(logger, metrics)
-	defer func() { _ = cache.Stop() }()
+	defer func() { _ = cache.Stop(ctx) }()
 
 	config := &core.Config{
 		BlockchainNodeURL:  "http://localhost:8545",
@@ -486,7 +499,7 @@ func TestRedisCacheGetKeyCount(t *testing.T) {
 	}
 
 	_ = cache.Initialize(config)
-	_ = cache.Start()
+	_ = cache.Start(ctx)
 
 	// Set multiple values
 	for i := 0; i < 5; i++ {
@@ -506,10 +519,11 @@ func TestRedisCacheGetKeyCount(t *testing.T) {
 }
 
 func TestRedisCacheStats(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	cache := NewRedisCachePlugin(logger, metrics)
-	defer func() { _ = cache.Stop() }()
+	defer func() { _ = cache.Stop(ctx) }()
 
 	config := &core.Config{
 		BlockchainNodeURL:  "http://localhost:8545",
@@ -519,7 +533,7 @@ func TestRedisCacheStats(t *testing.T) {
 	}
 
 	_ = cache.Initialize(config)
-	_ = cache.Start()
+	_ = cache.Start(ctx)
 
 	// Set values
 	for i := 0; i < 3; i++ {
@@ -557,10 +571,11 @@ func TestRedisCacheStats(t *testing.T) {
 }
 
 func TestRedisCacheConcurrentOperations(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	cache := NewRedisCachePlugin(logger, metrics)
-	defer func() { _ = cache.Stop() }()
+	defer func() { _ = cache.Stop(ctx) }()
 
 	config := &core.Config{
 		BlockchainNodeURL:  "http://localhost:8545",
@@ -570,7 +585,7 @@ func TestRedisCacheConcurrentOperations(t *testing.T) {
 	}
 
 	_ = cache.Initialize(config)
-	_ = cache.Start()
+	_ = cache.Start(ctx)
 
 	// Concurrent set operations
 	done := make(chan bool, 10)
@@ -600,6 +615,7 @@ func TestRedisCacheConcurrentOperations(t *testing.T) {
 }
 
 func TestRedisCacheDefaultConnectionURL(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 	cache := NewRedisCachePlugin(logger, metrics)

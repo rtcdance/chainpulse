@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"chainpulse/pkg/infrastructure/data"
+	"github.com/rtcdance/chainpulse/pkg/infrastructure/data"
 )
 
 type pullerCheckpointSource interface {

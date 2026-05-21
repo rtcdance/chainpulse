@@ -22,6 +22,7 @@ func (lw *lockedWriter) Write(p []byte) (n int, err error) {
 
 // TestNewDefaultLogger tests logger creation
 func TestNewDefaultLogger(t *testing.T) {
+	t.Parallel()
 	logger := NewDefaultLogger(LogLevelInfo)
 	if logger == nil {
 		t.Fatal("expected logger, got nil")
@@ -33,6 +34,7 @@ func TestNewDefaultLogger(t *testing.T) {
 
 // TestNewDefaultLoggerWithOutput tests logger creation with custom output
 func TestNewDefaultLoggerWithOutput(t *testing.T) {
+	t.Parallel()
 	buf := &bytes.Buffer{}
 	logger := NewDefaultLoggerWithOutput(LogLevelInfo, buf)
 	if logger == nil {
@@ -45,6 +47,7 @@ func TestNewDefaultLoggerWithOutput(t *testing.T) {
 
 // TestLoggerDebug tests debug logging
 func TestLoggerDebug(t *testing.T) {
+	t.Parallel()
 	buf := &bytes.Buffer{}
 	logger := NewDefaultLoggerWithOutput(LogLevelDebug, buf)
 
@@ -72,6 +75,7 @@ func TestLoggerDebug(t *testing.T) {
 
 // TestLoggerInfo tests info logging
 func TestLoggerInfo(t *testing.T) {
+	t.Parallel()
 	buf := &bytes.Buffer{}
 	logger := NewDefaultLoggerWithOutput(LogLevelInfo, buf)
 
@@ -88,6 +92,7 @@ func TestLoggerInfo(t *testing.T) {
 
 // TestLoggerWarn tests warning logging
 func TestLoggerWarn(t *testing.T) {
+	t.Parallel()
 	buf := &bytes.Buffer{}
 	logger := NewDefaultLoggerWithOutput(LogLevelWarn, buf)
 
@@ -104,6 +109,7 @@ func TestLoggerWarn(t *testing.T) {
 
 // TestLoggerError tests error logging
 func TestLoggerError(t *testing.T) {
+	t.Parallel()
 	buf := &bytes.Buffer{}
 	logger := NewDefaultLoggerWithOutput(LogLevelError, buf)
 
@@ -120,6 +126,7 @@ func TestLoggerError(t *testing.T) {
 
 // TestLoggerWithCorrelationID tests correlation ID tracking
 func TestLoggerWithCorrelationID(t *testing.T) {
+	t.Parallel()
 	buf := &bytes.Buffer{}
 	logger := NewDefaultLoggerWithOutput(LogLevelInfo, buf)
 
@@ -138,6 +145,7 @@ func TestLoggerWithCorrelationID(t *testing.T) {
 
 // TestLoggerWithField tests adding a single field
 func TestLoggerWithField(t *testing.T) {
+	t.Parallel()
 	buf := &bytes.Buffer{}
 	logger := NewDefaultLoggerWithOutput(LogLevelInfo, buf)
 
@@ -156,10 +164,11 @@ func TestLoggerWithField(t *testing.T) {
 
 // TestLoggerWithFields tests adding multiple fields
 func TestLoggerWithFields(t *testing.T) {
+	t.Parallel()
 	buf := &bytes.Buffer{}
 	logger := NewDefaultLoggerWithOutput(LogLevelInfo, buf)
 
-	fields := map[string]interface{}{
+	fields := map[string]any{
 		"key1": "value1",
 		"key2": 42,
 		"key3": true,
@@ -185,6 +194,7 @@ func TestLoggerWithFields(t *testing.T) {
 
 // TestLoggerLevelFiltering tests that lower level logs are filtered
 func TestLoggerLevelFiltering(t *testing.T) {
+	t.Parallel()
 	buf := &bytes.Buffer{}
 	logger := NewDefaultLoggerWithOutput(LogLevelWarn, buf)
 
@@ -206,6 +216,7 @@ func TestLoggerLevelFiltering(t *testing.T) {
 
 // TestLoggerSetLevel tests changing log level
 func TestLoggerSetLevel(t *testing.T) {
+	t.Parallel()
 	buf := &bytes.Buffer{}
 	logger := NewDefaultLoggerWithOutput(LogLevelWarn, buf)
 
@@ -223,6 +234,7 @@ func TestLoggerSetLevel(t *testing.T) {
 
 // TestLoggerFields tests inline fields
 func TestLoggerFields(t *testing.T) {
+	t.Parallel()
 	buf := &bytes.Buffer{}
 	logger := NewDefaultLoggerWithOutput(LogLevelInfo, buf)
 
@@ -243,6 +255,7 @@ func TestLoggerFields(t *testing.T) {
 
 // TestLoggerTimestamp tests timestamp inclusion
 func TestLoggerTimestamp(t *testing.T) {
+	t.Parallel()
 	buf := &bytes.Buffer{}
 	logger := NewDefaultLoggerWithOutput(LogLevelInfo, buf)
 
@@ -260,6 +273,7 @@ func TestLoggerTimestamp(t *testing.T) {
 
 // TestLoggerConcurrency tests concurrent logging
 func TestLoggerConcurrency(t *testing.T) {
+	t.Parallel()
 	// Use a thread-safe buffer wrapper
 	buf := &bytes.Buffer{}
 	lw := &lockedWriter{mu: &sync.Mutex{}, w: buf}
@@ -287,6 +301,7 @@ func TestLoggerConcurrency(t *testing.T) {
 
 // TestLoggerChaining tests method chaining
 func TestLoggerChaining(t *testing.T) {
+	t.Parallel()
 	buf := &bytes.Buffer{}
 	logger := NewDefaultLoggerWithOutput(LogLevelInfo, buf)
 
@@ -307,6 +322,7 @@ func TestLoggerChaining(t *testing.T) {
 
 // TestParseLogLevel tests log level parsing
 func TestParseLogLevel(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		input    string
 		expected LogLevel
@@ -329,6 +345,7 @@ func TestParseLogLevel(t *testing.T) {
 
 // TestLogLevelString tests log level string representation
 func TestLogLevelString(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		level    LogLevel
 		expected string
@@ -350,6 +367,7 @@ func TestLogLevelString(t *testing.T) {
 
 // TestLoggerMultipleCorrelationIDs tests multiple correlation IDs
 func TestLoggerMultipleCorrelationIDs(t *testing.T) {
+	t.Parallel()
 	buf := &bytes.Buffer{}
 	logger := NewDefaultLoggerWithOutput(LogLevelInfo, buf)
 
@@ -382,6 +400,7 @@ func TestLoggerMultipleCorrelationIDs(t *testing.T) {
 
 // TestLoggerFieldOverride tests field override behavior
 func TestLoggerFieldOverride(t *testing.T) {
+	t.Parallel()
 	buf := &bytes.Buffer{}
 	logger := NewDefaultLoggerWithOutput(LogLevelInfo, buf)
 
@@ -399,6 +418,7 @@ func TestLoggerFieldOverride(t *testing.T) {
 
 // TestLoggerEmptyFields tests logging with no fields
 func TestLoggerEmptyFields(t *testing.T) {
+	t.Parallel()
 	buf := &bytes.Buffer{}
 	logger := NewDefaultLoggerWithOutput(LogLevelInfo, buf)
 
@@ -416,6 +436,7 @@ func TestLoggerEmptyFields(t *testing.T) {
 
 // TestLoggerOddFields tests logging with odd number of fields
 func TestLoggerOddFields(t *testing.T) {
+	t.Parallel()
 	buf := &bytes.Buffer{}
 	logger := NewDefaultLoggerWithOutput(LogLevelInfo, buf)
 

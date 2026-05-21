@@ -16,7 +16,7 @@ func TestErrorTypeConstants(t *testing.T) {
 
 // TestSystemErrorCreation tests SystemError creation
 func TestSystemErrorCreation(t *testing.T) {
-	details := map[string]interface{}{
+	details := map[string]any{
 		"service": "test-service",
 		"code":    500,
 	}

@@ -4,11 +4,13 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 func TestEventSubscriptionHandlerRateLimitsHandshakeWithoutContext(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelError)
 	metrics := core.NewDefaultMetricsCollector()
 
@@ -17,6 +19,7 @@ func TestEventSubscriptionHandlerRateLimitsHandshakeWithoutContext(t *testing.T)
 	handler.SetRateLimiter(NewRateLimiter(logger, metrics, &RateLimitConfig{
 		DefaultRequestsPerSecond: 1,
 		DefaultBurstSize:         1,
+		CleanupInterval:          5 * time.Minute,
 	}))
 
 	req1 := httptest.NewRequest(http.MethodGet, "/events/subscribe", nil)
@@ -44,6 +47,7 @@ func TestEventSubscriptionHandlerRateLimitsHandshakeWithoutContext(t *testing.T)
 }
 
 func TestEventSubscriptionHandlerSkipsDirectRateLimitWhenContextAlreadyLimited(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelError)
 	metrics := core.NewDefaultMetricsCollector()
 
@@ -52,6 +56,7 @@ func TestEventSubscriptionHandlerSkipsDirectRateLimitWhenContextAlreadyLimited(t
 	handler.SetRateLimiter(NewRateLimiter(logger, metrics, &RateLimitConfig{
 		DefaultRequestsPerSecond: 1,
 		DefaultBurstSize:         1,
+		CleanupInterval:          5 * time.Minute,
 	}))
 
 	req := httptest.NewRequest(http.MethodGet, "/events/subscribe", nil)

@@ -1,6 +1,14 @@
 # Policy Dashboard Query Templates
 
-**Status**: Active | **Last Updated**: 2026-03-30
+**Status**: Active | **Last Updated**: 2026-03-30 | **Deadline**: 2026-06-15
+
+## Owner
+
+sre-team
+
+## Delivery Status
+
+Implemented
 
 ## Notes
 

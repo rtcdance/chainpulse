@@ -246,7 +246,7 @@ func TestContractRegistry_UpdateMetadata(t *testing.T) {
 		t.Fatalf("Register failed: %v", err)
 	}
 
-	metadata := map[string]interface{}{
+	metadata := map[string]any{
 		"version": "1.0",
 		"author":  "test",
 	}

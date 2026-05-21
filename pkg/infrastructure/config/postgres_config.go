@@ -4,9 +4,12 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log"
 	"time"
 
-	_ "github.com/lib/pq" // PostgreSQL driver for database/sql
+	"github.com/rtcdance/chainpulse/pkg/core"
+
+	_ "github.com/lib/pq"
 )
 
 // PostgresConfig holds PostgreSQL configuration
@@ -14,7 +17,7 @@ type PostgresConfig struct {
 	Host     string
 	Port     int
 	User     string
-	Password string
+	Password core.SecretString
 	Database string
 	SSLMode  string
 }
@@ -33,12 +36,12 @@ func NewPostgresCluster(cfg *PostgresConfig) (*PostgresCluster, error) {
 			Port:     5432,
 			User:     "postgres",
 			Database: "postgres",
-			SSLMode:  "disable",
+			SSLMode:  "require",
 		}
 	}
 
 	connStr := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
-		cfg.Host, cfg.Port, cfg.User, cfg.Password, cfg.Database, cfg.SSLMode)
+		cfg.Host, cfg.Port, cfg.User, cfg.Password.Value(), cfg.Database, cfg.SSLMode)
 
 	db, err := sql.Open("postgres", connStr)
 	if err != nil {
@@ -69,14 +72,14 @@ func (p *PostgresCluster) Close() error {
 }
 
 // WaitForPostgres waits for PostgreSQL to be available
-func WaitForPostgres(cfg *PostgresConfig, timeout time.Duration) error {
+func WaitForPostgres(ctx context.Context, cfg *PostgresConfig, timeout time.Duration) error {
 	cluster, err := NewPostgresCluster(cfg)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to create postgres cluster: %w", err)
 	}
 	defer func() {
 		if err := cluster.Close(); err != nil {
-			_ = err // Log but continue
+			log.Printf("WARN: failed to close Postgres health-check connection: %v", err)
 		}
 	}()
 
@@ -86,14 +89,18 @@ func WaitForPostgres(cfg *PostgresConfig, timeout time.Duration) error {
 			return fmt.Errorf("timeout waiting for PostgreSQL")
 		}
 
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		err := cluster.Health(ctx)
+		healthCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		err := cluster.Health(healthCtx)
 		cancel()
 
 		if err == nil {
 			return nil
 		}
 
-		time.Sleep(1 * time.Second)
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(1 * time.Second):
+		}
 	}
 }

@@ -1,0 +1,19 @@
+# ChainPulse UI Extension
+# Add a frontend service to the main docker-compose.yml stack.
+# Usage: docker compose -f docker/docker-compose.yml -f docker/docker-compose.with-ui.yml up -d
+#
+# Then open http://localhost:3000 to see the ChainPulse dashboard.
+
+services:
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+    container_name: chainpulse-frontend
+    ports:
+      - "3000:3000"
+    depends_on:
+      chainpulse:
+        condition: service_started
+    networks:
+      - chainpulse-network

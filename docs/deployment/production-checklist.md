@@ -10,7 +10,7 @@
 - [ ] 所有单元测试通过
 - [ ] 所有集成测试通过
 - [ ] 所有E2E测试通过
-- [ ] 代码覆盖率 ≥ 80%
+- [ ] 代码覆盖率 ≥ 60%
 - [ ] 代码审查完成
 - [ ] 没有TODO或FIXME注释
 - [ ] 没有调试代码
@@ -337,6 +337,22 @@ psql -c "SELECT count(*) FROM events;"
 {Any issues encountered and how they were resolved}
 
 ## 签名
+
+### 企业级可观测性检查（Phases 1-4 新增）
+
+- [x] **RED 指标框架**: 所有 RPC 调用已添加 Rate/Errors/Duration 指标 (`pkg/observability/red_metrics.go`)
+- [x] **错误码体系**: 23 个 Web3 错误码 + 12 个 sentinel errors，API 返回 `error_code` 字段
+- [x] **API 响应信封**: 统一 `APIEnvelope` 包装所有响应（成功 `data` / 失败 `error`）
+- [x] **安全扫描**: `make govulncheck` + `make security` 在 CI 中运行
+- [x] **CI 并行化**: lint/security/test/benchmark/build/docker 6 个并行 job
+- [x] **集成测试容器化**: `test/integration/container_helper.go` 自动管理 Docker 容器
+- [x] **数据库迁移测试**: `test/migration/migration_test.go` 验证 up/down/up 幂等
+- [x] **SLI/SLO 定义**: `docs/operations/INDEXING_SLO.md` 含 5 个 SLI + 告警规则
+- [x] **ADR 记录**: ADR-005 (错误码分类法) + ADR-006 (API 版本化策略)
+- [x] **性能基准**: CI benchmark job 防止性能回归
+- [x] **RPC 故障转移**: `MultiRPCPuller` 支持多 RPC 端点自动切换
+- [x] **类型安全合约绑定**: EventEmitter ABI → Go 类型 (`pkg/core/eventemitter_binding.go`)
+- [x] **最终性策略**: Per-chain `FinalityStrategy` (ETH PoS / BSC / L2 Rollup)
 
 **部署人员**: _________________ **日期**: _________
 

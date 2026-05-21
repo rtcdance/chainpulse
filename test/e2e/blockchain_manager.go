@@ -301,7 +301,7 @@ func (bm *BlockchainManager) DeployContract(ctx context.Context, contract Contra
 }
 
 // EmitEvent triggers an event emission on the blockchain
-func (bm *BlockchainManager) EmitEvent(ctx context.Context, contractAddr string, eventName string, params map[string]interface{}) (*EventEmission, error) {
+func (bm *BlockchainManager) EmitEvent(ctx context.Context, contractAddr string, eventName string, params map[string]any) (*EventEmission, error) {
 	if !bm.initialized {
 		return nil, fmt.Errorf("blockchain manager not initialized")
 	}

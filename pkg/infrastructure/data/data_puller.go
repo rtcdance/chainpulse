@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 // BlockchainType represents a blockchain network type
@@ -27,7 +27,7 @@ type BlockchainEvent struct {
 	LogIndex        uint
 	ContractAddress string
 	EventName       string
-	EventData       map[string]interface{}
+	EventData       map[string]any
 	ChainID         string
 	Timestamp       time.Time
 	ProcessedAt     time.Time
@@ -54,6 +54,9 @@ type DataPuller struct {
 	metrics         *DataPullerMetrics
 	eventChan       chan *BlockchainEvent
 	errorChan       chan error
+	done            chan struct{}  // signals pullLoop to stop
+	wg              sync.WaitGroup // waits for pullLoop goroutine to exit
+	stopOnce        sync.Once      // ensures Stop() cleanup runs only once
 }
 
 // NewDataPuller creates a new data puller
@@ -75,34 +78,42 @@ func (dp *DataPuller) Start(ctx context.Context) error {
 		return fmt.Errorf("data puller already running")
 	}
 	dp.running = true
+	dp.done = make(chan struct{})
+	dp.wg.Add(1)
 	dp.mutex.Unlock()
 
 	go dp.pullLoop(ctx)
 	return nil
 }
 
-// Stop stops the data puller
+// Stop stops the data puller.
+// It signals the pullLoop goroutine to exit, waits for it to finish,
+// and then safely closes the event and error channels.
 func (dp *DataPuller) Stop() error {
-	dp.mutex.Lock()
-	defer dp.mutex.Unlock()
+	dp.stopOnce.Do(func() {
+		dp.mutex.Lock()
+		dp.running = false
+		close(dp.done) // signal pullLoop to exit
+		dp.mutex.Unlock()
 
-	if !dp.running {
-		return fmt.Errorf("data puller not running")
-	}
+		dp.wg.Wait() // wait for pullLoop goroutine to finish
 
-	dp.running = false
-	close(dp.eventChan)
-	close(dp.errorChan)
+		close(dp.eventChan)
+		close(dp.errorChan)
+	})
 	return nil
 }
 
 // pullLoop continuously pulls events
 func (dp *DataPuller) pullLoop(ctx context.Context) {
+	defer dp.wg.Done()
 	ticker := time.NewTicker(dp.config.PollInterval)
 	defer ticker.Stop()
 
 	for {
 		select {
+		case <-dp.done:
+			return
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
@@ -156,7 +167,7 @@ func (dp *DataPuller) simulatePullEvents(fromBlock uint64) []*BlockchainEvent {
 			LogIndex:        uint(i),
 			ContractAddress: "0x1234567890123456789012345678901234567890",
 			EventName:       "Transfer",
-			EventData: map[string]interface{}{
+			EventData: map[string]any{
 				"from":   "0x1111111111111111111111111111111111111111",
 				"to":     "0x2222222222222222222222222222222222222222",
 				"amount": "1000000000000000000",
@@ -193,6 +204,9 @@ func (dp *DataPuller) GetProcessedHeight(ctx context.Context) (uint64, error) {
 		return 0, fmt.Errorf("data puller not running")
 	}
 
+	if dp.currentBlock == 0 {
+		return 0, nil
+	}
 	return dp.currentBlock - 1, nil
 }
 
@@ -259,11 +273,11 @@ func (dpm *DataPullerMetrics) RecordError() {
 }
 
 // GetMetrics returns current metrics
-func (dpm *DataPullerMetrics) GetMetrics() map[string]interface{} {
+func (dpm *DataPullerMetrics) GetMetrics() map[string]any {
 	dpm.mutex.RLock()
 	defer dpm.mutex.RUnlock()
 
-	return map[string]interface{}{
+	return map[string]any{
 		"events_pulled":  dpm.eventsPulled,
 		"events_dropped": dpm.eventsDropped,
 		"errors":         dpm.errors,
@@ -359,11 +373,11 @@ func (mcdp *MultiChainDataPuller) StopAll() error {
 }
 
 // GetAllMetrics gets metrics from all pullers
-func (mcdp *MultiChainDataPuller) GetAllMetrics() map[string]map[string]interface{} {
+func (mcdp *MultiChainDataPuller) GetAllMetrics() map[string]map[string]any {
 	mcdp.mutex.RLock()
 	defer mcdp.mutex.RUnlock()
 
-	metrics := make(map[string]map[string]interface{})
+	metrics := make(map[string]map[string]any)
 	for chainID, puller := range mcdp.pullers {
 		metrics[chainID] = puller.metrics.GetMetrics()
 	}

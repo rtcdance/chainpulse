@@ -15,12 +15,13 @@ type MockPlugin struct {
 	err     error
 }
 
-func (m *MockPlugin) Name() string                   { return m.name }
-func (m *MockPlugin) Version() string                { return m.version }
-func (m *MockPlugin) Initialize(config Config) error { return nil }
-func (m *MockPlugin) Start() error                   { return nil }
-func (m *MockPlugin) Stop() error                    { return nil }
-func (m *MockPlugin) Health() error {
+func (m *MockPlugin) Name() string                              { return m.name }
+func (m *MockPlugin) Version() string                           { return m.version }
+func (m *MockPlugin) Initialize(ctx context.Context, config Config) error { _ = ctx; return nil }
+func (m *MockPlugin) Start(ctx context.Context) error            { _ = ctx; return nil }
+func (m *MockPlugin) Stop(ctx context.Context) error             { _ = ctx; return nil }
+func (m *MockPlugin) Health(ctx context.Context) error {
+	_ = ctx
 	if !m.healthy {
 		return m.err
 	}
@@ -63,8 +64,8 @@ func (m *MockPluginRegistry) List() []Plugin {
 	return plugins
 }
 
-func (m *MockPluginRegistry) Start() error { return nil }
-func (m *MockPluginRegistry) Stop() error  { return nil }
+func (m *MockPluginRegistry) Start(ctx context.Context) error { _ = ctx; return nil }
+func (m *MockPluginRegistry) Stop(ctx context.Context) error  { _ = ctx; return nil }
 
 // MockConfigManager is a mock config manager for testing
 type MockConfigManager struct {
@@ -93,16 +94,17 @@ func (m *MockConfigManager) Validate(config Config) error {
 	return nil
 }
 
-func (m *MockConfigManager) Get(key string) (interface{}, error) {
+func (m *MockConfigManager) Get(key string) (any, error) {
 	return nil, nil
 }
 
-func (m *MockConfigManager) Set(key string, value interface{}) error {
+func (m *MockConfigManager) Set(key string, value any) error {
 	return nil
 }
 
 // TestNewDefaultHealthChecker tests health checker creation
 func TestNewDefaultHealthChecker(t *testing.T) {
+	t.Parallel()
 	registry := NewMockPluginRegistry()
 	config := NewMockConfigManager()
 	bus := NewEventBus(nil)
@@ -117,6 +119,7 @@ func TestNewDefaultHealthChecker(t *testing.T) {
 
 // TestHealthCheckBasic tests basic health check
 func TestHealthCheckBasic(t *testing.T) {
+	t.Parallel()
 	registry := NewMockPluginRegistry()
 	config := NewMockConfigManager()
 	bus := NewEventBus(nil)
@@ -135,6 +138,7 @@ func TestHealthCheckBasic(t *testing.T) {
 
 // TestHealthCheckWithHealthyPlugin tests health check with healthy plugin
 func TestHealthCheckWithHealthyPlugin(t *testing.T) {
+	t.Parallel()
 	registry := NewMockPluginRegistry()
 	plugin := &MockPlugin{
 		name:    "test-plugin",
@@ -162,6 +166,7 @@ func TestHealthCheckWithHealthyPlugin(t *testing.T) {
 
 // TestHealthCheckWithUnhealthyPlugin tests health check with unhealthy plugin
 func TestHealthCheckWithUnhealthyPlugin(t *testing.T) {
+	t.Parallel()
 	registry := NewMockPluginRegistry()
 	plugin := &MockPlugin{
 		name:    "test-plugin",
@@ -190,6 +195,7 @@ func TestHealthCheckWithUnhealthyPlugin(t *testing.T) {
 
 // TestHealthCheckWithInvalidConfig tests health check with invalid configuration
 func TestHealthCheckWithInvalidConfig(t *testing.T) {
+	t.Parallel()
 	registry := NewMockPluginRegistry()
 	config := NewMockConfigManager()
 	config.valid = false
@@ -210,6 +216,7 @@ func TestHealthCheckWithInvalidConfig(t *testing.T) {
 
 // TestGetLastCheckStatus tests getting last check status
 func TestGetLastCheckStatus(t *testing.T) {
+	t.Parallel()
 	registry := NewMockPluginRegistry()
 	config := NewMockConfigManager()
 	bus := NewEventBus(nil)
@@ -230,6 +237,7 @@ func TestGetLastCheckStatus(t *testing.T) {
 
 // TestGetLastCheckTime tests getting last check time
 func TestGetLastCheckTime(t *testing.T) {
+	t.Parallel()
 	registry := NewMockPluginRegistry()
 	config := NewMockConfigManager()
 	bus := NewEventBus(nil)
@@ -252,6 +260,7 @@ func TestGetLastCheckTime(t *testing.T) {
 
 // TestSetCheckInterval tests setting check interval
 func TestSetCheckInterval(t *testing.T) {
+	t.Parallel()
 	registry := NewMockPluginRegistry()
 	config := NewMockConfigManager()
 	bus := NewEventBus(nil)
@@ -269,6 +278,7 @@ func TestSetCheckInterval(t *testing.T) {
 
 // TestIsHealthy tests IsHealthy method
 func TestIsHealthy(t *testing.T) {
+	t.Parallel()
 	registry := NewMockPluginRegistry()
 	config := NewMockConfigManager()
 	bus := NewEventBus(nil)
@@ -288,6 +298,7 @@ func TestIsHealthy(t *testing.T) {
 
 // TestGetHealthSummary tests getting health summary
 func TestGetHealthSummary(t *testing.T) {
+	t.Parallel()
 	registry := NewMockPluginRegistry()
 	config := NewMockConfigManager()
 	bus := NewEventBus(nil)
@@ -315,6 +326,7 @@ func TestGetHealthSummary(t *testing.T) {
 
 // TestPerformHealthCheck tests performing health check with logging
 func TestPerformHealthCheck(t *testing.T) {
+	t.Parallel()
 	registry := NewMockPluginRegistry()
 	config := NewMockConfigManager()
 	bus := NewEventBus(nil)
@@ -330,6 +342,7 @@ func TestPerformHealthCheck(t *testing.T) {
 
 // TestHealthCheckDetails tests health check details
 func TestHealthCheckDetails(t *testing.T) {
+	t.Parallel()
 	registry := NewMockPluginRegistry()
 	plugin := &MockPlugin{
 		name:    "test-plugin",
@@ -365,6 +378,7 @@ func TestHealthCheckDetails(t *testing.T) {
 
 // TestHealthCheckDuration tests health check duration tracking
 func TestHealthCheckDuration(t *testing.T) {
+	t.Parallel()
 	registry := NewMockPluginRegistry()
 	config := NewMockConfigManager()
 	bus := NewEventBus(nil)
@@ -382,6 +396,7 @@ func TestHealthCheckDuration(t *testing.T) {
 
 // TestMultipleHealthChecks tests multiple consecutive health checks
 func TestMultipleHealthChecks(t *testing.T) {
+	t.Parallel()
 	registry := NewMockPluginRegistry()
 	config := NewMockConfigManager()
 	bus := NewEventBus(nil)
@@ -403,6 +418,7 @@ func TestMultipleHealthChecks(t *testing.T) {
 
 // TestHealthCheckWithMultiplePlugins tests health check with multiple plugins
 func TestHealthCheckWithMultiplePlugins(t *testing.T) {
+	t.Parallel()
 	registry := NewMockPluginRegistry()
 	for i := 0; i < 3; i++ {
 		plugin := &MockPlugin{
@@ -431,6 +447,7 @@ func TestHealthCheckWithMultiplePlugins(t *testing.T) {
 
 // TestHealthCheckWithNilRegistry tests health check with nil registry
 func TestHealthCheckWithNilRegistry(t *testing.T) {
+	t.Parallel()
 	config := NewMockConfigManager()
 	bus := NewEventBus(nil)
 	metrics := NewDefaultMetricsCollector()
@@ -447,6 +464,7 @@ func TestHealthCheckWithNilRegistry(t *testing.T) {
 
 // TestHealthCheckWithNilConfigManager tests health check with nil config manager
 func TestHealthCheckWithNilConfigManager(t *testing.T) {
+	t.Parallel()
 	registry := NewMockPluginRegistry()
 	bus := NewEventBus(nil)
 	metrics := NewDefaultMetricsCollector()
@@ -463,6 +481,7 @@ func TestHealthCheckWithNilConfigManager(t *testing.T) {
 
 // TestHealthCheckWithNilEventBus tests health check with nil event bus
 func TestHealthCheckWithNilEventBus(t *testing.T) {
+	t.Parallel()
 	registry := NewMockPluginRegistry()
 	config := NewMockConfigManager()
 	metrics := NewDefaultMetricsCollector()
@@ -479,6 +498,7 @@ func TestHealthCheckWithNilEventBus(t *testing.T) {
 
 // TestHealthCheckWithNilMetricsCollector tests health check with nil metrics collector
 func TestHealthCheckWithNilMetricsCollector(t *testing.T) {
+	t.Parallel()
 	registry := NewMockPluginRegistry()
 	config := NewMockConfigManager()
 	bus := NewEventBus(nil)
@@ -495,6 +515,7 @@ func TestHealthCheckWithNilMetricsCollector(t *testing.T) {
 
 // TestHealthCheckConcurrency tests concurrent health checks
 func TestHealthCheckConcurrency(t *testing.T) {
+	t.Parallel()
 	registry := NewMockPluginRegistry()
 	config := NewMockConfigManager()
 	bus := NewEventBus(nil)

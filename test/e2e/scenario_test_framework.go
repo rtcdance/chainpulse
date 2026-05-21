@@ -47,7 +47,7 @@ type ScenarioResult struct {
 	StepsRun     int
 	StepsFailed  int
 	Error        error
-	Metrics      map[string]interface{}
+	Metrics      map[string]any
 	Timestamp    time.Time
 }
 
@@ -241,7 +241,7 @@ func (se *ScenarioExecutor) GetResultsByType(scenarioType ScenarioType) []Scenar
 }
 
 // GetSummary returns a summary of all scenario results
-func (se *ScenarioExecutor) GetSummary() map[string]interface{} {
+func (se *ScenarioExecutor) GetSummary() map[string]any {
 	se.mu.RLock()
 	defer se.mu.RUnlock()
 
@@ -268,7 +268,7 @@ func (se *ScenarioExecutor) GetSummary() map[string]interface{} {
 		successRate = float64(passedScenarios) / float64(totalScenarios) * 100
 	}
 
-	return map[string]interface{}{
+	return map[string]any{
 		"total_scenarios":  totalScenarios,
 		"passed_scenarios": passedScenarios,
 		"failed_scenarios": failedScenarios,

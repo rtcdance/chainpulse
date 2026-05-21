@@ -10,9 +10,20 @@ import (
 	"sync"
 	"time"
 
-	"chainpulse/pkg/core"
-	"chainpulse/pkg/observability"
+	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/observability"
 )
+
+var sharedHTTPClient = &http.Client{
+	Timeout: core.DefaultTimeout,
+	Transport: &http.Transport{
+		MaxIdleConns:        100,
+		MaxIdleConnsPerHost: 20,
+		MaxConnsPerHost:     50,
+		IdleConnTimeout:     90 * time.Second,
+		DisableKeepAlives:   false,
+	},
+}
 
 // RequestRouter manages route registration and request forwarding
 type RequestRouter struct {
@@ -27,7 +38,8 @@ type RequestRouter struct {
 	circuitBreakers map[string]*CircuitBreaker
 }
 
-// CircuitBreaker implements circuit breaker pattern
+// CircuitBreaker implements the circuit breaker pattern for API route forwarding.
+// A separate implementation for RPC call gating exists in pkg/plugins/pullers/circuit_breaker.go.
 type CircuitBreaker struct {
 	state           string // "closed", "open", "half-open"
 	failureCount    int
@@ -51,7 +63,7 @@ type ForwardedRequest struct {
 type AggregatedResponse struct {
 	Status  int
 	Headers map[string]string
-	Body    interface{}
+	Body    any
 	Error   string
 }
 
@@ -62,9 +74,9 @@ func NewRequestRouter(logger core.Logger, metrics core.MetricsCollector) *Reques
 		loadBalancers:   make(map[string]*LoadBalancer),
 		logger:          logger,
 		metrics:         metrics,
-		httpClient:      &http.Client{Timeout: 30 * time.Second},
+		httpClient:      sharedHTTPClient,
 		initialized:     false,
-		defaultTimeout:  30 * time.Second,
+		defaultTimeout:  core.DefaultTimeout,
 		circuitBreakers: make(map[string]*CircuitBreaker),
 	}
 }
@@ -74,7 +86,7 @@ func (rr *RequestRouter) SetHTTPClient(client *http.Client) {
 	rr.mu.Lock()
 	defer rr.mu.Unlock()
 	if client == nil {
-		rr.httpClient = &http.Client{Timeout: rr.defaultTimeout}
+		rr.httpClient = sharedHTTPClient
 		return
 	}
 	rr.httpClient = client
@@ -126,7 +138,7 @@ func (rr *RequestRouter) RegisterRoute(route *Route) error {
 	rr.loadBalancers[route.ID] = NewLoadBalancer("round-robin")
 
 	// Create circuit breaker for this route
-	rr.circuitBreakers[route.ID] = NewCircuitBreaker(5, 30*time.Second)
+	rr.circuitBreakers[route.ID] = NewCircuitBreaker(5, core.DefaultTimeout)
 
 	rr.logger.Info("Route registered", "routeId", route.ID, "pattern", route.Pattern)
 	rr.metrics.RecordCounter("router_route_registered", 1, nil)
@@ -221,7 +233,7 @@ func (rr *RequestRouter) ForwardRequest(ctx context.Context, route *Route, req *
 	start := time.Now()
 	defer func() {
 		duration := time.Since(start).Milliseconds()
-		rr.metrics.RecordGauge("router_forward_request_time_ms", float64(duration), nil)
+		rr.metrics.RecordHistogram("router_forward_request_time_ms", float64(duration), nil)
 	}()
 
 	// Get load balancer for this route
@@ -294,7 +306,7 @@ func (rr *RequestRouter) forwardToHandler(ctx context.Context, handler *RequestH
 
 	client := rr.httpClient
 	if client == nil {
-		client = &http.Client{Timeout: rr.defaultTimeout}
+		client = sharedHTTPClient
 	}
 
 	resp, err := client.Do(httpReq)
@@ -355,16 +367,16 @@ func (rr *RequestRouter) GetRoutes() []*Route {
 }
 
 // GetMetrics returns router metrics
-func (rr *RequestRouter) GetMetrics() map[string]interface{} {
+func (rr *RequestRouter) GetMetrics() map[string]any {
 	rr.mu.RLock()
 	defer rr.mu.RUnlock()
 
-	metrics := make(map[string]interface{})
+	metrics := make(map[string]any)
 	metrics["route_count"] = len(rr.routes)
 	metrics["load_balancer_count"] = len(rr.loadBalancers)
 
 	// Collect load balancer metrics
-	lbMetrics := make(map[string]interface{})
+	lbMetrics := make(map[string]any)
 	for routeID, lb := range rr.loadBalancers {
 		lbMetrics[routeID] = lb.GetMetrics()
 	}
@@ -412,21 +424,17 @@ func (cb *CircuitBreaker) RecordFailure() {
 	}
 }
 
-// IsOpen checks if the circuit breaker is open
+// IsOpen checks if the circuit breaker is open.
+// Uses write-lock to prevent TOCTOU race between state-read and state-transition.
 func (cb *CircuitBreaker) IsOpen() bool {
-	cb.mu.RLock()
-	defer cb.mu.RUnlock()
+	cb.mu.Lock()
+	defer cb.mu.Unlock()
 
 	if cb.state == "open" {
-		// Check if timeout has passed
 		if time.Since(cb.lastFailureTime) > cb.timeout {
-			cb.mu.RUnlock()
-			cb.mu.Lock()
 			cb.state = "half-open"
 			cb.failureCount = 0
 			cb.successCount = 0
-			cb.mu.Unlock()
-			cb.mu.RLock()
 			return false
 		}
 		return true

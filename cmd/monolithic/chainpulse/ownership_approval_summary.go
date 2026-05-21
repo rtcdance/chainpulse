@@ -1,6 +1,6 @@
 package main
 
-import "chainpulse/pkg/core"
+import "github.com/rtcdance/chainpulse/pkg/core"
 
 type ownershipApprovalSummary struct {
 	ManualApprovalCheckpoint ownershipManualApprovalCheckpoint
@@ -26,7 +26,7 @@ func buildOwnershipApprovalSummary(
 	}
 }
 
-func (summary ownershipApprovalSummary) applyReadinessDetails(details map[string]interface{}) {
+func (summary ownershipApprovalSummary) applyReadinessDetails(details map[string]any) {
 	details["rollout_manual_approval_checkpoint_state"] = summary.ManualApprovalCheckpoint.State
 	details["rollout_manual_approval_checkpoint_reason"] = summary.ManualApprovalCheckpoint.Reason
 	details["rollout_operator_handoff_state"] = summary.OperatorHandoff.State

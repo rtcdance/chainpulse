@@ -4,10 +4,10 @@ import (
 	"context"
 	"testing"
 
-	"chainpulse/pkg/core"
-	"chainpulse/pkg/plugins/cache"
-	"chainpulse/pkg/plugins/database"
-	"chainpulse/pkg/plugins/mq"
+	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/plugins/cache"
+	"github.com/rtcdance/chainpulse/pkg/plugins/database"
+	"github.com/rtcdance/chainpulse/pkg/plugins/mq"
 )
 
 func BenchmarkMemoryMQ_Publish(b *testing.B) {
@@ -78,9 +78,9 @@ func BenchmarkInMemoryCache_Get(b *testing.B) {
 
 func BenchmarkMockDB_StoreEvent(b *testing.B) {
 	db := database.NewMockDB()
-	_ = db.Initialize(core.Config{})
-	_ = db.Start()
-	defer func() { _ = db.Stop() }()
+	_ = db.Initialize(context.Background(), core.Config{})
+	_ = db.Start(context.Background())
+	defer func() { _ = db.Stop(context.Background()) }()
 
 	ctx := context.Background()
 	event := &core.BlockchainEvent{
@@ -96,9 +96,9 @@ func BenchmarkMockDB_StoreEvent(b *testing.B) {
 
 func BenchmarkMockDB_GetEvent(b *testing.B) {
 	db := database.NewMockDB()
-	_ = db.Initialize(core.Config{})
-	_ = db.Start()
-	defer func() { _ = db.Stop() }()
+	_ = db.Initialize(context.Background(), core.Config{})
+	_ = db.Start(context.Background())
+	defer func() { _ = db.Stop(context.Background()) }()
 
 	ctx := context.Background()
 	event := &core.BlockchainEvent{
@@ -115,12 +115,12 @@ func BenchmarkMockDB_GetEvent(b *testing.B) {
 
 func BenchmarkMockDB_BatchStore(b *testing.B) {
 	db := database.NewMockDB()
-	_ = db.Initialize(core.Config{})
-	_ = db.Start()
-	defer func() { _ = db.Stop() }()
+	_ = db.Initialize(context.Background(), core.Config{})
+	_ = db.Start(context.Background())
+	defer func() { _ = db.Stop(context.Background()) }()
 
 	ctx := context.Background()
-	events := make([]interface{}, 100)
+	events := make([]any, 100)
 	for i := 0; i < 100; i++ {
 		events[i] = &core.BlockchainEvent{
 			ID:          "event-" + string(rune(i)),

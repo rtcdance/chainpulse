@@ -7,19 +7,19 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 // MockDistributedCache is a mock implementation of DistributedCache
 type MockDistributedCache struct {
-	data map[string]interface{}
+	data map[string]any
 }
 
-func (m *MockDistributedCache) Get(ctx context.Context, key string) (interface{}, error) {
+func (m *MockDistributedCache) Get(ctx context.Context, key string) (any, error) {
 	return m.data[key], nil
 }
 
-func (m *MockDistributedCache) Set(ctx context.Context, key string, value interface{}, ttl time.Duration) error {
+func (m *MockDistributedCache) Set(ctx context.Context, key string, value any, ttl time.Duration) error {
 	m.data[key] = value
 	return nil
 }
@@ -30,13 +30,14 @@ func (m *MockDistributedCache) Delete(ctx context.Context, key string) error {
 }
 
 func (m *MockDistributedCache) Clear(ctx context.Context) error {
-	m.data = make(map[string]interface{})
+	m.data = make(map[string]any)
 	return nil
 }
 
 // TestNewCrossChainAPI tests creating a new cross-chain API
 func TestNewCrossChainAPI(t *testing.T) {
-	cache := &MockDistributedCache{data: make(map[string]interface{})}
+	t.Parallel()
+	cache := &MockDistributedCache{data: make(map[string]any)}
 	api := NewCrossChainAPI(nil, cache)
 
 	assert.NotNil(t, api)
@@ -48,6 +49,7 @@ func TestNewCrossChainAPI(t *testing.T) {
 
 // TestCrossChainQueryStructure tests CrossChainQuery structure
 func TestCrossChainQueryStructure(t *testing.T) {
+	t.Parallel()
 	query := &CrossChainQuery{
 		QueryID:     "query-1",
 		Blockchains: []string{"ethereum", "polygon"},
@@ -65,6 +67,7 @@ func TestCrossChainQueryStructure(t *testing.T) {
 
 // TestCrossChainResultStructure tests CrossChainResult structure
 func TestCrossChainResultStructure(t *testing.T) {
+	t.Parallel()
 	result := &CrossChainResult{
 		QueryID:       "query-1",
 		Events:        make([]core.BlockchainEvent, 0),
@@ -81,6 +84,7 @@ func TestCrossChainResultStructure(t *testing.T) {
 
 // TestCrossChainMetricsStructure tests CrossChainMetrics structure
 func TestCrossChainMetricsStructure(t *testing.T) {
+	t.Parallel()
 	metrics := &CrossChainMetrics{
 		TotalQueries:      0,
 		SuccessfulQueries: 0,
@@ -98,12 +102,11 @@ func TestCrossChainMetricsStructure(t *testing.T) {
 
 // TestCrossChainAPIMaxConcurrentQueries tests max concurrent queries limit
 func TestCrossChainAPIMaxConcurrentQueries(t *testing.T) {
-	cache := &MockDistributedCache{data: make(map[string]interface{})}
+	t.Parallel()
+	cache := &MockDistributedCache{data: make(map[string]any)}
 	api := NewCrossChainAPI(nil, cache)
 
-	api.mu.Lock()
-	api.activeQueries = api.maxConcurrentQueries
-	api.mu.Unlock()
+	api.activeQueries.Store(int32(api.maxConcurrentQueries))
 
 	query := &CrossChainQuery{
 		QueryID:     "query-1",
@@ -121,7 +124,8 @@ func TestCrossChainAPIMaxConcurrentQueries(t *testing.T) {
 
 // TestCrossChainAPIMetricsIncrement tests metrics increment
 func TestCrossChainAPIMetricsIncrement(t *testing.T) {
-	cache := &MockDistributedCache{data: make(map[string]interface{})}
+	t.Parallel()
+	cache := &MockDistributedCache{data: make(map[string]any)}
 	api := NewCrossChainAPI(nil, cache)
 
 	api.metrics.mu.Lock()
@@ -135,7 +139,8 @@ func TestCrossChainAPIMetricsIncrement(t *testing.T) {
 
 // TestCrossChainAPICacheOperations tests cache operations
 func TestCrossChainAPICacheOperations(t *testing.T) {
-	cache := &MockDistributedCache{data: make(map[string]interface{})}
+	t.Parallel()
+	cache := &MockDistributedCache{data: make(map[string]any)}
 	api := NewCrossChainAPI(nil, cache)
 	ctx := context.Background()
 
@@ -150,6 +155,7 @@ func TestCrossChainAPICacheOperations(t *testing.T) {
 
 // TestCrossChainAPIMultipleBlockchains tests multiple blockchains
 func TestCrossChainAPIMultipleBlockchains(t *testing.T) {
+	t.Parallel()
 	query := &CrossChainQuery{
 		QueryID:     "query-1",
 		Blockchains: []string{"ethereum", "polygon", "arbitrum", "optimism"},
@@ -162,6 +168,7 @@ func TestCrossChainAPIMultipleBlockchains(t *testing.T) {
 
 // TestCrossChainAPIPagination tests pagination
 func TestCrossChainAPIPagination(t *testing.T) {
+	t.Parallel()
 	query := &CrossChainQuery{
 		QueryID:     "query-1",
 		Blockchains: []string{"ethereum"},
@@ -175,7 +182,8 @@ func TestCrossChainAPIPagination(t *testing.T) {
 
 // TestCrossChainAPITimeout tests timeout configuration
 func TestCrossChainAPITimeout(t *testing.T) {
-	cache := &MockDistributedCache{data: make(map[string]interface{})}
+	t.Parallel()
+	cache := &MockDistributedCache{data: make(map[string]any)}
 	api := NewCrossChainAPI(nil, cache)
 
 	assert.Equal(t, 30*time.Second, api.queryTimeout)
@@ -183,22 +191,20 @@ func TestCrossChainAPITimeout(t *testing.T) {
 
 // TestCrossChainAPIActiveQueries tests active queries tracking
 func TestCrossChainAPIActiveQueries(t *testing.T) {
-	cache := &MockDistributedCache{data: make(map[string]interface{})}
+	t.Parallel()
+	cache := &MockDistributedCache{data: make(map[string]any)}
 	api := NewCrossChainAPI(nil, cache)
 
-	api.mu.Lock()
-	assert.Equal(t, 0, api.activeQueries)
-	api.activeQueries = 5
-	api.mu.Unlock()
+	assert.Equal(t, int32(0), api.activeQueries.Load())
+	api.activeQueries.Store(5)
 
-	api.mu.RLock()
-	assert.Equal(t, 5, api.activeQueries)
-	api.mu.RUnlock()
+	assert.Equal(t, int32(5), api.activeQueries.Load())
 }
 
 // TestCrossChainAPIMetricsTracking tests metrics tracking
 func TestCrossChainAPIMetricsTracking(t *testing.T) {
-	cache := &MockDistributedCache{data: make(map[string]interface{})}
+	t.Parallel()
+	cache := &MockDistributedCache{data: make(map[string]any)}
 	api := NewCrossChainAPI(nil, cache)
 
 	api.metrics.mu.Lock()
@@ -218,6 +224,7 @@ func TestCrossChainAPIMetricsTracking(t *testing.T) {
 
 // TestCrossChainAPIQueryTime tests query time tracking
 func TestCrossChainAPIQueryTime(t *testing.T) {
+	t.Parallel()
 	result := &CrossChainResult{
 		QueryID:   "query-1",
 		QueryTime: 150 * time.Millisecond,
@@ -228,6 +235,7 @@ func TestCrossChainAPIQueryTime(t *testing.T) {
 
 // TestCrossChainAPIBlockchainMap tests blockchain map structure
 func TestCrossChainAPIBlockchainMap(t *testing.T) {
+	t.Parallel()
 	result := &CrossChainResult{
 		QueryID:       "query-1",
 		BlockchainMap: make(map[string][]core.BlockchainEvent),
@@ -241,6 +249,7 @@ func TestCrossChainAPIBlockchainMap(t *testing.T) {
 
 // TestCrossChainAPIQueryIDGeneration tests query ID
 func TestCrossChainAPIQueryIDGeneration(t *testing.T) {
+	t.Parallel()
 	query1 := &CrossChainQuery{QueryID: "query-1"}
 	query2 := &CrossChainQuery{QueryID: "query-2"}
 
@@ -249,6 +258,7 @@ func TestCrossChainAPIQueryIDGeneration(t *testing.T) {
 
 // TestCrossChainAPILimitValidation tests limit validation
 func TestCrossChainAPILimitValidation(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name  string
 		limit int
@@ -269,6 +279,7 @@ func TestCrossChainAPILimitValidation(t *testing.T) {
 
 // TestCrossChainAPIOffsetValidation tests offset validation
 func TestCrossChainAPIOffsetValidation(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name   string
 		offset int
@@ -288,7 +299,8 @@ func TestCrossChainAPIOffsetValidation(t *testing.T) {
 
 // TestCrossChainAPIMetricsReset tests metrics reset
 func TestCrossChainAPIMetricsReset(t *testing.T) {
-	cache := &MockDistributedCache{data: make(map[string]interface{})}
+	t.Parallel()
+	cache := &MockDistributedCache{data: make(map[string]any)}
 	api := NewCrossChainAPI(nil, cache)
 
 	api.metrics.mu.Lock()
@@ -306,7 +318,8 @@ func TestCrossChainAPIMetricsReset(t *testing.T) {
 
 // TestCrossChainAPIConcurrentMetricsUpdate tests concurrent metrics update
 func TestCrossChainAPIConcurrentMetricsUpdate(t *testing.T) {
-	cache := &MockDistributedCache{data: make(map[string]interface{})}
+	t.Parallel()
+	cache := &MockDistributedCache{data: make(map[string]any)}
 	api := NewCrossChainAPI(nil, cache)
 
 	done := make(chan bool, 10)
@@ -330,6 +343,7 @@ func TestCrossChainAPIConcurrentMetricsUpdate(t *testing.T) {
 
 // TestCrossChainAPIEmptyBlockchains tests empty blockchains list
 func TestCrossChainAPIEmptyBlockchains(t *testing.T) {
+	t.Parallel()
 	query := &CrossChainQuery{
 		QueryID:     "query-1",
 		Blockchains: []string{},
@@ -340,6 +354,7 @@ func TestCrossChainAPIEmptyBlockchains(t *testing.T) {
 
 // TestCrossChainAPIResultAggregation tests result aggregation
 func TestCrossChainAPIResultAggregation(t *testing.T) {
+	t.Parallel()
 	result := &CrossChainResult{
 		QueryID:       "query-1",
 		Events:        make([]core.BlockchainEvent, 0),

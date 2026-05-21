@@ -6,7 +6,16 @@ import (
 	"sync"
 	"time"
 
-	"chainpulse/pkg/core"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
+
+	"github.com/rtcdance/chainpulse/pkg/core"
+)
+
+const (
+	defaultMongoMaxConnections    = 100
+	defaultMongoQueryTimeout      = 30 * time.Second
+	defaultMongoDisconnectTimeout = 10 * time.Second
 )
 
 // MongoDBDatabase implements DatabasePlugin for MongoDB
@@ -18,6 +27,7 @@ type MongoDBDatabase struct {
 	maxConnections   int
 	queryTimeout     time.Duration
 	mu               sync.RWMutex
+	client           *mongo.Client                    // MongoDB client for real connection management
 	events           map[string]*core.BlockchainEvent // in-memory cache for testing
 	eventsMu         sync.RWMutex
 }
@@ -28,15 +38,15 @@ func NewMongoDBDatabase(logger core.Logger, metricsCollector core.MetricsCollect
 		BaseDatabasePlugin: NewBaseDatabasePlugin(logger, metricsCollector),
 		databaseName:       "chainpulse",
 		collectionName:     "events",
-		maxConnections:     100,
-		queryTimeout:       30 * time.Second,
+		maxConnections:     defaultMongoMaxConnections,
+		queryTimeout:       defaultMongoQueryTimeout,
 		events:             make(map[string]*core.BlockchainEvent),
 	}
 }
 
 // Initialize initializes the MongoDB database plugin
-func (m *MongoDBDatabase) Initialize(config *core.Config) error {
-	if err := m.BaseDatabasePlugin.Initialize(config); err != nil {
+func (m *MongoDBDatabase) Initialize(ctx context.Context, config core.Config) error {
+	if err := m.BaseDatabasePlugin.Initialize(ctx, config); err != nil {
 		return err
 	}
 
@@ -44,16 +54,16 @@ func (m *MongoDBDatabase) Initialize(config *core.Config) error {
 	defer m.mu.Unlock()
 
 	// Extract MongoDB connection string from config
-	connStr := config.GetString("MONGODB_CONNECTION_STRING", "")
+	connStr := orDefault(config.MongoDBConnectionString.Value(), "")
 	if connStr == "" {
 		// Build connection string from individual components
-		host := config.GetString("MONGODB_HOST", "localhost")
-		port := config.GetString("MONGODB_PORT", "27017")
-		user := config.GetString("MONGODB_USER", "")
-		password := config.GetString("MONGODB_PASSWORD", "")
+		host := orDefault(config.MongoDBHost, "localhost")
+		port := orDefault(config.MongoDBPort, "27017")
+		user := orDefault(config.MongoDBUser, "")
+		password := config.MongoDBPassword
 
 		if user != "" && password != "" {
-			connStr = fmt.Sprintf("mongodb://%s:%s@%s:%s", user, password, host, port)
+			connStr = fmt.Sprintf("mongodb://%s:%s@%s:%s", user, password.Value(), host, port)
 		} else {
 			connStr = fmt.Sprintf("mongodb://%s:%s", host, port)
 		}
@@ -62,35 +72,40 @@ func (m *MongoDBDatabase) Initialize(config *core.Config) error {
 	m.connectionString = connStr
 
 	// Extract database and collection names
-	m.databaseName = config.GetString("MONGODB_DATABASE", "chainpulse")
-	m.collectionName = config.GetString("MONGODB_COLLECTION", "events")
+	m.databaseName = orDefault(config.MongoDBDatabase, "chainpulse")
+	m.collectionName = orDefault(config.MongoDBCollection, "events")
 
-	// Test connection
-	ctx, cancel := context.WithTimeout(context.Background(), m.queryTimeout)
+	// Connect to MongoDB
+	ctx, cancel := context.WithTimeout(ctx, m.queryTimeout)
 	defer cancel()
 
-	// In a real implementation, we would connect to MongoDB here
-	// For now, we just validate the configuration
-	if m.connectionString == "" {
+	clientOpts := options.Client().ApplyURI(m.connectionString).
+		SetMaxPoolSize(uint64(m.maxConnections))
+
+	client, err := mongo.Connect(ctx, clientOpts)
+	if err != nil {
 		m.RecordError()
-		m.logger.Error("MongoDB connection string is empty", map[string]interface{}{})
-		return fmt.Errorf("MongoDB connection string is required")
+		m.logger.Error("Failed to connect to MongoDB", core.LogKeyError, err)
+		return fmt.Errorf("failed to connect to MongoDB: %w", err)
 	}
 
-	_ = ctx // Use context to avoid unused variable warning
+	// Verify connection
+	if err := client.Ping(ctx, nil); err != nil {
+		m.RecordError()
+		m.logger.Error("Failed to ping MongoDB", core.LogKeyError, err)
+		return fmt.Errorf("failed to ping MongoDB: %w", err)
+	}
 
-	m.logger.Info("MongoDB database initialized", map[string]interface{}{
-		"component":  "mongodb_database",
-		"database":   m.databaseName,
-		"collection": m.collectionName,
-	})
+	m.client = client
+
+	m.logger.Info("MongoDB database initialized", core.LogKeyComponent, "mongodb_database", "database", m.databaseName, "collection", m.collectionName)
 
 	return nil
 }
 
 // Start starts the MongoDB database plugin
-func (m *MongoDBDatabase) Start() error {
-	if err := m.BaseDatabasePlugin.Start(); err != nil {
+func (m *MongoDBDatabase) Start(ctx context.Context) error {
+	if err := m.BaseDatabasePlugin.Start(ctx); err != nil {
 		return err
 	}
 
@@ -98,32 +113,37 @@ func (m *MongoDBDatabase) Start() error {
 	defer m.mu.Unlock()
 
 	// In a real implementation, we would establish connection pool here
-	m.logger.Info("MongoDB database started", map[string]interface{}{
-		"component": "mongodb_database",
-	})
+	m.logger.Info("MongoDB database started", core.LogKeyComponent, "mongodb_database")
 
 	return nil
 }
 
 // Stop stops the MongoDB database plugin
-func (m *MongoDBDatabase) Stop() error {
-	if err := m.BaseDatabasePlugin.Stop(); err != nil {
+func (m *MongoDBDatabase) Stop(ctx context.Context) error {
+	if err := m.BaseDatabasePlugin.Stop(ctx); err != nil {
 		return err
 	}
 
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	// In a real implementation, we would close connections here
-	m.logger.Info("MongoDB database stopped", map[string]interface{}{
-		"component": "mongodb_database",
-	})
+	// Disconnect MongoDB client
+	if m.client != nil {
+		disconnectCtx, cancel := context.WithTimeout(ctx, defaultMongoDisconnectTimeout)
+		defer cancel()
+		if err := m.client.Disconnect(disconnectCtx); err != nil {
+			m.logger.Error("Failed to disconnect MongoDB client", core.LogKeyError, err)
+		}
+		m.client = nil
+	}
+
+	m.logger.Info("MongoDB database stopped", core.LogKeyComponent, "mongodb_database")
 
 	return nil
 }
 
 // WriteEvent writes a blockchain event to the database
-func (m *MongoDBDatabase) WriteEvent(event *core.BlockchainEvent) error {
+func (m *MongoDBDatabase) WriteEvent(ctx context.Context, event *core.BlockchainEvent) error {
 	if event == nil {
 		return fmt.Errorf("event is required")
 	}
@@ -157,7 +177,7 @@ func (m *MongoDBDatabase) WriteEvent(event *core.BlockchainEvent) error {
 }
 
 // WriteEvents writes multiple blockchain events to the database (batch)
-func (m *MongoDBDatabase) WriteEvents(events []core.BlockchainEvent) error {
+func (m *MongoDBDatabase) WriteEvents(ctx context.Context, events []core.BlockchainEvent) error {
 	if len(events) == 0 {
 		return nil
 	}
@@ -187,6 +207,42 @@ func (m *MongoDBDatabase) WriteEvents(events []core.BlockchainEvent) error {
 	m.RecordWrite(duration)
 
 	// Update event count
+	m.updateEventCount()
+
+	return nil
+}
+
+// WriteBatch writes multiple blockchain events to the database (batch).
+// This is a stub implementation that falls back to per-event in-memory cache.
+func (m *MongoDBDatabase) WriteBatch(ctx context.Context, events []*core.BlockchainEvent) error {
+	if len(events) == 0 {
+		return nil
+	}
+
+	start := time.Now()
+
+	m.mu.RLock()
+	connStr := m.connectionString
+	m.mu.RUnlock()
+
+	if connStr == "" {
+		m.RecordError()
+		return fmt.Errorf("database not initialized")
+	}
+
+	// In a real implementation, we would use MongoDB bulk write here.
+	// For now, update in-memory cache.
+	m.eventsMu.Lock()
+	for _, event := range events {
+		if event == nil || event.EventHash == "" {
+			continue
+		}
+		m.events[event.EventHash] = event
+	}
+	m.eventsMu.Unlock()
+
+	duration := time.Since(start).Milliseconds()
+	m.RecordWrite(duration)
 	m.updateEventCount()
 
 	return nil
@@ -461,3 +517,5 @@ func (m *MongoDBDatabase) GetReorgStats(ctx context.Context) (*core.ReorgStats, 
 	m.RecordRead(0)
 	return &core.ReorgStats{}, nil
 }
+
+

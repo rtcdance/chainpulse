@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"chainpulse/pkg/plugins/api"
+	"github.com/rtcdance/chainpulse/pkg/plugins/api"
 )
 
 const (
@@ -53,7 +53,7 @@ func newAPIServiceRolloutReportProducer(instanceID string, stateProvider func() 
 func newAPIServiceRolloutReportProducerWithReadinessDetails(
 	instanceID string,
 	stateProvider func() apiServiceRolloutRuntimeState,
-	readinessDetailsProvider func() map[string]interface{},
+	readinessDetailsProvider func() map[string]any,
 ) api.RolloutReportProducer {
 	return newAPIServiceRolloutReportProducerWithOwnershipSource(
 		instanceID,
@@ -245,7 +245,7 @@ func buildAPIServiceSkeletonApprovalFlowInput() api.RolloutReportApprovalFlowInp
 }
 
 func buildAPIServiceSkeletonApprovalWorkItemInput() api.RolloutReportApprovalWorkItemInput {
-	state := api.BuildRouteOwnershipParityStateFromSource("api-service", buildAPIServiceOwnershipParitySource(false), "rollout_effective_state", "rollout_cutover_candidate")
+	state := api.BuildRouteOwnershipParityStateFromSource("api-service", buildAPIServiceOwnershipParitySource(/* runtimeSignalsPresent= */ false), "rollout_effective_state", "rollout_cutover_candidate")
 	return api.BuildOwnershipParityApprovalWorkItem(api.OwnershipParityApprovalWorkItemInput{
 		State:  state,
 		Status: "investigate",
@@ -451,7 +451,7 @@ func buildAPIServiceOwnershipParitySource(runtimeSignalsPresent bool) api.RouteO
 }
 
 //nolint:unused
-func buildAPIServiceOwnershipParitySourceFromReadinessDetails(readinessDetailsProvider func() map[string]interface{}) api.RouteOwnershipParitySource {
+func buildAPIServiceOwnershipParitySourceFromReadinessDetails(readinessDetailsProvider func() map[string]any) api.RouteOwnershipParitySource {
 	return api.RouteOwnershipParitySourceFunc(func() api.RouteOwnershipParitySourceSnapshot {
 		if readinessDetailsProvider == nil {
 			return api.RouteOwnershipParitySourceSnapshot{}

@@ -8,8 +8,9 @@ import (
 	"strings"
 	"testing"
 
-	"chainpulse/pkg/core"
-	"chainpulse/pkg/plugins/api"
+	"github.com/rtcdance/chainpulse/pkg/application/bootstrap"
+	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/plugins/api"
 )
 
 func TestBuildPullerRuntimeHTTPHandlerExposesRolloutRoute(t *testing.T) {
@@ -59,14 +60,14 @@ func TestBuildPullerRuntimeHTTPHandlerExposesReadyAndComponentsDetails(t *testin
 			Name:      "Polling Runtime",
 			Status:    "healthy",
 			Timestamp: 1712345678,
-			Details: map[string]interface{}{
+			Details: map[string]any{
 				"runtime_mode":          "runtime-wired",
 				"rollout_gate_decision": "allow",
 			},
 		}
 	})
-	handler.SetReadinessDetailsProvider(func(ctx context.Context) map[string]interface{} {
-		return map[string]interface{}{
+	handler.SetReadinessDetailsProvider(func(ctx context.Context) map[string]any {
+		return map[string]any{
 			"runtime_mode":          "runtime-wired",
 			"rollout_gate_decision": "allow",
 			"rollout_status":        "runtime-wired",
@@ -164,18 +165,18 @@ func TestBuildPullerRuntimeHTTPHandlerExposesRuntimeSummaryRoute(t *testing.T) {
 			RuntimeMode:    "runtime-wired",
 			RuntimePosture: "runtime-wired",
 			ComponentState: "healthy",
-			Rollout: map[string]interface{}{
+			Rollout: map[string]any{
 				"rollout_gate_decision": "allow",
 				"poll_activity_state":   "active",
 			},
-			Metrics: map[string]interface{}{
+			Metrics: map[string]any{
 				"collector_state":   "available",
 				"counter_count":     1,
 				"gauge_count":       1,
 				"histogram_count":   0,
 				"execution_summary": "counters=1 gauges=1 histograms=0",
 			},
-			Security: map[string]interface{}{
+			Security: map[string]any{
 				"auth_enabled":       false,
 				"rate_limit_enabled": false,
 				"security_posture":   "puller-security-unconfigured",
@@ -314,7 +315,7 @@ func TestBuildPullerRuntimeHTTPHandlerSecuritySurfaceProtectsControlRoutes(t *te
 	authMiddleware, rateLimitMiddleware, err := buildPullerSecurityControls(PullerConfig{
 		AuthEnabled:   true,
 		AuthJWTSecret: "secret-123",
-		AuthAPIKeys:   []string{"svc-key=client-1"},
+		AuthAPIKeys: []core.SecretString{core.SecretString("svc-key=client-1")},
 	}, logger, metrics)
 	if err != nil {
 		t.Fatalf("build security controls: %v", err)
@@ -351,4 +352,16 @@ func TestNewPullerRuntimeHTTPServerUsesRuntimeHandler(t *testing.T) {
 	if err := server.Shutdown(context.Background()); err != nil {
 		t.Fatalf("shutdown server: %v", err)
 	}
+}
+
+func buildPullerSecurityControls(cfg PullerConfig, logger core.Logger, metrics core.MetricsCollector) (*api.AuthMiddleware, *api.RateLimitMiddleware, error) {
+	return bootstrap.BuildSecurityControls(bootstrap.SecurityControlsConfig{
+		AuthEnabled:        cfg.AuthEnabled,
+		AuthJWTSecret:      cfg.AuthJWTSecret,
+		AuthAPIKeys:        cfg.AuthAPIKeys,
+		RateLimitEnabled:   cfg.RateLimitEnabled,
+		RateLimitPerMinute: cfg.RateLimitPerMinute,
+		ServiceName:        "puller",
+		EnvPrefix:          "PULLER",
+	}, logger, metrics)
 }

@@ -7,6 +7,7 @@ import (
 
 // TestProperty_AllProtocolsRoutingWorks tests that all protocols can route requests
 func TestProperty_AllProtocolsRoutingWorks(t *testing.T) {
+	t.Parallel()
 	// Feature: Multi-Protocol Integration, Property 1: All protocols can route requests successfully
 	detector := NewProtocolDetector()
 
@@ -54,6 +55,7 @@ func TestProperty_AllProtocolsRoutingWorks(t *testing.T) {
 
 // TestProperty_ProtocolDetectionIsAccurate tests protocol detection accuracy
 func TestProperty_ProtocolDetectionIsAccurate(t *testing.T) {
+	t.Parallel()
 	// Feature: Protocol Detection, Property 2: Protocol detection is accurate for all protocols
 	detector := NewProtocolDetector()
 
@@ -106,6 +108,7 @@ func TestProperty_ProtocolDetectionIsAccurate(t *testing.T) {
 
 // TestProperty_RequestResponseIntegrity tests request/response integrity
 func TestProperty_RequestResponseIntegrity(t *testing.T) {
+	t.Parallel()
 	// Feature: Request/Response Integrity, Property 3: Request data is preserved through response
 	detector := NewProtocolDetector()
 
@@ -156,6 +159,7 @@ func TestProperty_RequestResponseIntegrity(t *testing.T) {
 
 // TestProperty_MultiProtocolConsistency tests consistency across protocols
 func TestProperty_MultiProtocolConsistency(t *testing.T) {
+	t.Parallel()
 	// Feature: Multi-Protocol Consistency, Property 4: All protocols handle requests consistently
 	detector := NewProtocolDetector()
 
@@ -210,6 +214,7 @@ func TestProperty_MultiProtocolConsistency(t *testing.T) {
 
 // TestProperty_ProtocolIndependence tests protocol independence
 func TestProperty_ProtocolIndependence(t *testing.T) {
+	t.Parallel()
 	// Feature: Protocol Independence, Property 5: Protocols operate independently
 	detector := NewProtocolDetector()
 
@@ -261,6 +266,7 @@ func TestProperty_ProtocolIndependence(t *testing.T) {
 
 // TestProperty_ErrorHandlingConsistency tests error handling consistency
 func TestProperty_ErrorHandlingConsistency(t *testing.T) {
+	t.Parallel()
 	// Feature: Error Handling, Property 6: Error handling is consistent across protocols
 	detector := NewProtocolDetector()
 
@@ -306,6 +312,7 @@ func TestProperty_ErrorHandlingConsistency(t *testing.T) {
 
 // TestProperty_HeaderPreservation tests header preservation across protocols
 func TestProperty_HeaderPreservation(t *testing.T) {
+	t.Parallel()
 	// Feature: Header Handling, Property 7: Headers are preserved through routing
 	detector := NewProtocolDetector()
 
@@ -347,6 +354,7 @@ func TestProperty_HeaderPreservation(t *testing.T) {
 
 // TestProperty_ProtocolDetectionStability tests detection stability
 func TestProperty_ProtocolDetectionStability(t *testing.T) {
+	t.Parallel()
 	// Feature: Protocol Detection, Property 8: Protocol detection is stable and repeatable
 	detector := NewProtocolDetector()
 
@@ -381,6 +389,7 @@ func TestProperty_ProtocolDetectionStability(t *testing.T) {
 
 // TestProperty_ConcurrentMultiProtocolRouting tests concurrent routing across protocols
 func TestProperty_ConcurrentMultiProtocolRouting(t *testing.T) {
+	t.Parallel()
 	// Feature: Concurrency, Property 9: Concurrent multi-protocol routing is safe
 	detector := NewProtocolDetector()
 
@@ -436,6 +445,7 @@ func TestProperty_ConcurrentMultiProtocolRouting(t *testing.T) {
 
 // TestProperty_ProtocolMetricsAccuracy tests metrics accuracy
 func TestProperty_ProtocolMetricsAccuracy(t *testing.T) {
+	t.Parallel()
 	// Feature: Metrics, Property 10: Protocol metrics are accurate
 	detector := NewProtocolDetector()
 

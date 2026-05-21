@@ -1,0 +1,69 @@
+# ChainPulse 学习断点集
+# 使用: dlv debug ./cmd/monolithic/chainpulse --init .dlv/learn-init.dlv
+#
+# 这组断点覆盖 5 条全链路学习路径。
+# 命中断点后: next (单步) / step (步入) / continue (下一个断点)
+
+# ── 路径 1: 启动引导 — main → puller 创建 ──
+# Observe: runtimeWiring 各字段的值 (DBConfig, EventQueryHandler...)
+# 思考: 为什么 BuildRuntimeWiring 需要 ctx + logger + metrics 三个参数？
+#       依赖注入的好处是什么？
+break cmd/monolithic/chainpulse/main.go:92
+
+# Observe: config 的 BlockchainNodeURL, DataPullerType, ChainID
+# 思考: NewHTTPSJSONRPCPuller 只接收 config, logger, metrics, bus 四个参数
+#       ethclient.Client 不是在这里创建的——为什么？
+#       答案: 在 Start() 中通过 ethclient.Dial() 创建，因为 Dial 是阻塞操作
+break cmd/monolithic/chainpulse/m1a_runtime_wiring.go:119
+
+# ── 路径 2: 拉取循环 — Poll → FilterLogs → ethLogToEvent ──
+# Observe: p.pollInterval, p.currentBlock, p.nodeURL
+# 思考: Poll 使用 select + ticker 而不是 time.Sleep。为什么？
+#       答案: select 可以监听 stopChan，实现优雅停止
+break pkg/plugins/pullers/https_jsonrpc_puller.go:301
+
+# Observe: blockNumber 的值，确认它 > 0
+# 思考: 这个 RPC 调用走了哪条路径？ethclient.BlockNumber(ctx) 还是自定义 HTTP？
+#       答案: 走 ethclient.BlockNumber (见 R1 重构)
+#       用 goroutine 打印调用栈: 在 dlv 中执行 goroutine 1 stack
+break pkg/plugins/pullers/https_jsonrpc_puller.go:264
+
+# Observe: log.Topics[0].Hex() (topic0), log.Data (hex), log.Address
+# 思考: topic0 = keccak256("EventName(params...)")
+#       验证: 在 dlv 中执行
+#       echo common.Bytes2Hex(log.Topics[0][:]). match with event_signature.go?
+#       提示: 如果这行号不对，用 `funcs -r ethLogToEvent` 找正确行号
+break pkg/plugins/pullers/https_jsonrpc_puller.go:568
+
+# ── 路径 3: EventBus 分发 — Publish → subscriber handler ──
+# Observe: topic 参数的值 ("blockchain-events"), event 的类型
+# 思考: Publish 是同步的还是异步的？
+#       查看 code: Publish 遍历 subscribers 并逐个调用 handler
+#       同步！所有 handler 执行完 Publish 才返回
+#       如果某个 handler 阻塞了会怎样？(workerPool 16 slot 背压)
+break pkg/core/eventbus.go:87
+
+# Observe: j.handler 被调用时的参数值
+# 思考: handler 是 func(any) 类型，参数是 interface{} 断言
+#       查看 SubscribeTyped[T] 的源码理解泛型包装
+break pkg/core/eventbus.go:182
+
+# ── 路径 4: 重组检测与回滚 ──
+# Observe: reorgThreshold, maxRollback, lastKnownBlocks 的值
+# 思考: 重组检测的策略是什么？比较 parent hash?
+#       查看 DetectReorg 的循环，理解如何找到重组点
+break pkg/services/reorg/reorg_handler.go:128
+
+# Observe: reorgBlock, blocksToRollback, eventsRolledBack
+# 思考: 为什么需要 maxRollback 限制？(防止误删)
+#       重组后发生了什么？(Publish "reorg-rollback" → puller 重新索引)
+break pkg/services/reorg/reorg_handler.go:183
+
+# ── 路径 5: 事件发布到 EventBus ──
+# Observe: event.Key, event.ChainID, event.BlockNumber
+# 思考: eventBus.Publish(ctx, "blockchain-events", event) 之后谁在消费？
+#       查看 core.SubscribeTyped[BlockchainEvent] 的调用者
+break pkg/plugins/pullers/data_puller.go:270
+
+# 启动后继续执行，等待 Poll 循环触发断点
+continue

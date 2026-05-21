@@ -3,6 +3,8 @@ package core
 import (
 	"os"
 	"testing"
+
+	"github.com/rtcdance/chainpulse/pkg/env"
 )
 
 // TestNewConfigManager verifies config manager creation
@@ -70,7 +72,7 @@ func TestValidateConfigurationValid(t *testing.T) {
 		DataPullerType:     "https-jsonrpc",
 		BlockchainNodeURL:  "http://localhost:8545",
 		MQType:             "kafka",
-		MQConnectionURL:    "localhost:9092",
+		MQConnectionURL:    "kafka://localhost:9092",
 		CacheType:          "redis",
 		CacheConnectionURL: "localhost:6379",
 		CacheTTL:           3600,
@@ -89,7 +91,7 @@ func TestValidateConfigurationValid(t *testing.T) {
 	}
 
 	cm := NewConfigManager(nil)
-	err := cm.Validate(config)
+	err := cm.ValidateConfig(config)
 	if err != nil {
 		t.Errorf("expected valid configuration to pass validation, got error %v", err)
 	}
@@ -101,7 +103,7 @@ func TestValidateConfigurationInvalidDataPullerType(t *testing.T) {
 		DataPullerType:     "invalid",
 		BlockchainNodeURL:  "http://localhost:8545",
 		MQType:             "kafka",
-		MQConnectionURL:    "localhost:9092",
+		MQConnectionURL:    "kafka://localhost:9092",
 		CacheType:          "redis",
 		CacheConnectionURL: "localhost:6379",
 		CacheTTL:           3600,
@@ -120,7 +122,7 @@ func TestValidateConfigurationInvalidDataPullerType(t *testing.T) {
 	}
 
 	cm := NewConfigManager(nil)
-	err := cm.Validate(config)
+	err := cm.ValidateConfig(config)
 
 	if err == nil {
 		t.Errorf("expected validation to fail for invalid DataPullerType")
@@ -133,7 +135,7 @@ func TestValidateConfigurationMissingBlockchainNodeURL(t *testing.T) {
 		DataPullerType:     "https-jsonrpc",
 		BlockchainNodeURL:  "",
 		MQType:             "kafka",
-		MQConnectionURL:    "localhost:9092",
+		MQConnectionURL:    "kafka://localhost:9092",
 		CacheType:          "redis",
 		CacheConnectionURL: "localhost:6379",
 		CacheTTL:           3600,
@@ -152,7 +154,7 @@ func TestValidateConfigurationMissingBlockchainNodeURL(t *testing.T) {
 	}
 
 	cm := NewConfigManager(nil)
-	err := cm.Validate(config)
+	err := cm.ValidateConfig(config)
 
 	if err == nil {
 		t.Errorf("expected validation to fail for missing BlockchainNodeURL")
@@ -165,7 +167,7 @@ func TestValidateConfigurationInvalidAPIPort(t *testing.T) {
 		DataPullerType:     "https-jsonrpc",
 		BlockchainNodeURL:  "http://localhost:8545",
 		MQType:             "kafka",
-		MQConnectionURL:    "localhost:9092",
+		MQConnectionURL:    "kafka://localhost:9092",
 		CacheType:          "redis",
 		CacheConnectionURL: "localhost:6379",
 		CacheTTL:           3600,
@@ -184,7 +186,7 @@ func TestValidateConfigurationInvalidAPIPort(t *testing.T) {
 	}
 
 	cm := NewConfigManager(nil)
-	err := cm.Validate(config)
+	err := cm.ValidateConfig(config)
 
 	if err == nil {
 		t.Errorf("expected validation to fail for invalid APIPort")
@@ -197,7 +199,7 @@ func TestGetConfigurationValue(t *testing.T) {
 		DataPullerType:     "https-jsonrpc",
 		BlockchainNodeURL:  "http://localhost:8545",
 		MQType:             "kafka",
-		MQConnectionURL:    "localhost:9092",
+		MQConnectionURL:    "kafka://localhost:9092",
 		CacheType:          "redis",
 		CacheConnectionURL: "localhost:6379",
 		CacheTTL:           3600,
@@ -269,12 +271,12 @@ func TestGetEnvWithDefault(t *testing.T) {
 	_ = os.Setenv("TEST_VAR", "test_value")
 	defer func() { _ = os.Unsetenv("TEST_VAR") }()
 
-	value := getEnv("TEST_VAR", "default")
+	value := env.Get("TEST_VAR", "default")
 	if value != "test_value" {
 		t.Errorf("expected 'test_value', got %s", value)
 	}
 
-	value = getEnv("NONEXISTENT_VAR", "default")
+	value = env.Get("NONEXISTENT_VAR", "default")
 	if value != "default" {
 		t.Errorf("expected 'default', got %s", value)
 	}

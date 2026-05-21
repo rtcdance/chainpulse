@@ -81,7 +81,7 @@ func (r *GraphQLRequest) PathParam(key string) string {
 
 // GetGraphQLQuery extracts the GraphQL query from the request body
 func (r *GraphQLRequest) GetGraphQLQuery() (string, error) {
-	var payload map[string]interface{}
+	var payload map[string]any
 	if err := json.Unmarshal(r.body, &payload); err != nil {
 		return "", err
 	}
@@ -95,15 +95,15 @@ func (r *GraphQLRequest) GetGraphQLQuery() (string, error) {
 }
 
 // GetGraphQLVariables extracts the GraphQL variables from the request body
-func (r *GraphQLRequest) GetGraphQLVariables() (map[string]interface{}, error) {
-	var payload map[string]interface{}
+func (r *GraphQLRequest) GetGraphQLVariables() (map[string]any, error) {
+	var payload map[string]any
 	if err := json.Unmarshal(r.body, &payload); err != nil {
 		return nil, err
 	}
 
-	variables, ok := payload["variables"].(map[string]interface{})
+	variables, ok := payload["variables"].(map[string]any)
 	if !ok {
-		return make(map[string]interface{}), nil
+		return make(map[string]any), nil
 	}
 
 	return variables, nil
@@ -214,7 +214,7 @@ func (r *GraphQLResponse) Send() error {
 }
 
 // SetGraphQLResult sets a GraphQL result with data and errors
-func (r *GraphQLResponse) SetGraphQLResult(data map[string]interface{}, errors []error) error {
+func (r *GraphQLResponse) SetGraphQLResult(data map[string]any, errors []error) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -222,13 +222,13 @@ func (r *GraphQLResponse) SetGraphQLResult(data map[string]interface{}, errors [
 		return nil
 	}
 
-	result := make(map[string]interface{})
+	result := make(map[string]any)
 	result["data"] = data
 
 	if len(errors) > 0 {
 		errorMessages := make([]string, len(errors))
-		for i, err := range errors {
-			errorMessages[i] = err.Error()
+		for i := range errors {
+			errorMessages[i] = "internal error"
 		}
 		result["errors"] = errorMessages
 	}

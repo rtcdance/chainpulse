@@ -12,6 +12,16 @@ spec:
   type: ClusterIP
 
 ---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: redis-secret
+  namespace: chainpulse
+type: Opaque
+data:
+  password: UkVQTEFDRV9NRQ==
+
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -30,6 +40,23 @@ spec:
       containers:
       - name: redis
         image: redis:7-alpine
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+        command:
+        - redis-server
+        - --requirepass
+        - $(REDIS_PASSWORD)
+        env:
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: redis-secret
+              key: password
         ports:
         - containerPort: 6379
         volumeMounts:
@@ -39,6 +66,8 @@ spec:
           exec:
             command:
             - redis-cli
+            - -a
+            - $(REDIS_PASSWORD)
             - ping
           initialDelaySeconds: 30
           periodSeconds: 10
@@ -46,9 +75,12 @@ spec:
           exec:
             command:
             - redis-cli
+            - -a
+            - $(REDIS_PASSWORD)
             - ping
           initialDelaySeconds: 5
           periodSeconds: 10
       volumes:
       - name: redis-storage
-        emptyDir: {}
+        persistentVolumeClaim:
+          claimName: redis-pvc

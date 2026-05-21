@@ -51,6 +51,7 @@ func (f *MockConnectionFactory) Create(ctx context.Context) (Connection, error) 
 }
 
 func TestConnectionPoolAcquire(t *testing.T) {
+	t.Parallel()
 	factory := &MockConnectionFactory{}
 	pool := NewConnectionPool("test", factory, 5, 1*time.Minute)
 	defer func() {
@@ -76,6 +77,7 @@ func TestConnectionPoolAcquire(t *testing.T) {
 }
 
 func TestConnectionPoolReuse(t *testing.T) {
+	t.Parallel()
 	factory := &MockConnectionFactory{}
 	pool := NewConnectionPool("test", factory, 5, 1*time.Minute)
 	defer func() {
@@ -105,6 +107,7 @@ func TestConnectionPoolReuse(t *testing.T) {
 }
 
 func TestConnectionPoolMaxSize(t *testing.T) {
+	t.Parallel()
 	factory := &MockConnectionFactory{}
 	pool := NewConnectionPool("test", factory, 2, 1*time.Minute)
 	defer func() {
@@ -135,6 +138,7 @@ func TestConnectionPoolMaxSize(t *testing.T) {
 }
 
 func TestConnectionPoolConcurrent(t *testing.T) {
+	t.Parallel()
 	factory := &MockConnectionFactory{}
 	pool := NewConnectionPool("test", factory, 10, 1*time.Minute)
 	defer func() {
@@ -171,6 +175,7 @@ func TestConnectionPoolConcurrent(t *testing.T) {
 }
 
 func TestConnectionPoolMetrics(t *testing.T) {
+	t.Parallel()
 	factory := &MockConnectionFactory{}
 	pool := NewConnectionPool("test", factory, 5, 1*time.Minute)
 	defer func() {
@@ -205,6 +210,7 @@ func TestConnectionPoolMetrics(t *testing.T) {
 }
 
 func TestConnectionPoolUnhealthyConnection(t *testing.T) {
+	t.Parallel()
 	factory := &MockConnectionFactory{}
 	pool := NewConnectionPool("test", factory, 5, 1*time.Minute)
 	defer func() {
@@ -233,6 +239,7 @@ func TestConnectionPoolUnhealthyConnection(t *testing.T) {
 }
 
 func TestConnectionPoolClose(t *testing.T) {
+	t.Parallel()
 	factory := &MockConnectionFactory{}
 	pool := NewConnectionPool("test", factory, 5, 1*time.Minute)
 
@@ -254,6 +261,7 @@ func TestConnectionPoolClose(t *testing.T) {
 }
 
 func TestConnectionPoolRuntimeMetricsHealthy(t *testing.T) {
+	t.Parallel()
 	factory := &MockConnectionFactory{}
 	pool := NewConnectionPool("test", factory, 5, 1*time.Minute)
 	defer func() {
@@ -283,6 +291,7 @@ func TestConnectionPoolRuntimeMetricsHealthy(t *testing.T) {
 }
 
 func TestConnectionPoolMetricsIncludesPostureFields(t *testing.T) {
+	t.Parallel()
 	factory := &MockConnectionFactory{}
 	pool := NewConnectionPool("test", factory, 5, 1*time.Minute)
 	defer func() {
@@ -315,6 +324,7 @@ func TestConnectionPoolMetricsIncludesPostureFields(t *testing.T) {
 }
 
 func TestConnectionPoolRuntimeMetricsUnobserved(t *testing.T) {
+	t.Parallel()
 	factory := &MockConnectionFactory{}
 	pool := NewConnectionPool("test", factory, 5, 1*time.Minute)
 	defer func() {
@@ -333,6 +343,7 @@ func TestConnectionPoolRuntimeMetricsUnobserved(t *testing.T) {
 }
 
 func TestConnectionPoolRuntimeMetricsDegraded(t *testing.T) {
+	t.Parallel()
 	factory := &MockConnectionFactory{}
 	pool := NewConnectionPool("test", factory, 5, 1*time.Minute)
 	defer func() {

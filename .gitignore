@@ -20,6 +20,7 @@ coverage/
 # Environment
 .env
 .env.local
+**/.env
 
 # Dependencies
 vendor/
@@ -41,6 +42,9 @@ Thumbs.db
 .ai-archive/
 .kiro/
 .trae/
+
+# MCP config (contains local tokens, do not commit)
+.mcp.json
 
 # Local reports
 docs/ARCHITECTURE_REVIEW_REPORT.md

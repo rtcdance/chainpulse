@@ -2,21 +2,113 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
+	"net/url"
+	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 )
 
-// SubscriptionHub manages WebSocket subscriptions
-type SubscriptionHub struct{}
+// replayBufferCapacity is the maximum number of events stored per topic for replay
+const replayBufferCapacity = 1000
+
+// replayEntry is a single buffered event with a monotonic sequence ID
+type replayEntry struct {
+	Seq  uint64 `json:"seq"`
+	Data any    `json:"data"`
+}
+
+// topicReplayBuffer is a ring buffer of recent events for a single topic
+type topicReplayBuffer struct {
+	entries []replayEntry
+	head    int // next write position
+	count   int
+}
+
+func newTopicReplayBuffer() *topicReplayBuffer {
+	return &topicReplayBuffer{
+		entries: make([]replayEntry, replayBufferCapacity),
+	}
+}
+
+// Add appends an event to the ring buffer, returning its sequence number
+func (b *topicReplayBuffer) Add(seq uint64, data any) {
+	b.entries[b.head] = replayEntry{Seq: seq, Data: data}
+	b.head = (b.head + 1) % replayBufferCapacity
+	if b.count < replayBufferCapacity {
+		b.count++
+	}
+}
+
+// Since returns all entries with sequence > afterSeq
+func (b *topicReplayBuffer) Since(afterSeq uint64) []replayEntry {
+	if b.count == 0 {
+		return nil
+	}
+	var result []replayEntry
+	for i := 0; i < b.count; i++ {
+		idx := (b.head - b.count + i + replayBufferCapacity) % replayBufferCapacity
+		if b.entries[idx].Seq > afterSeq {
+			result = append(result, b.entries[idx])
+		}
+	}
+	return result
+}
+
+// SubscriptionHub manages WebSocket subscriptions and event replay buffers
+type SubscriptionHub struct {
+	replayBuffers map[string]*topicReplayBuffer
+	seqCounters   map[string]*uint64
+	mu            sync.RWMutex
+}
 
 // NewSubscriptionHub creates a new subscription hub
 func NewSubscriptionHub() *SubscriptionHub {
-	return &SubscriptionHub{}
+	return &SubscriptionHub{
+		replayBuffers: make(map[string]*topicReplayBuffer),
+		seqCounters:   make(map[string]*uint64),
+	}
+}
+
+// BufferEvent stores an event in the replay buffer and returns its sequence number
+func (h *SubscriptionHub) BufferEvent(topic string, data any) uint64 {
+	h.mu.Lock()
+	buf, ok := h.replayBuffers[topic]
+	if !ok {
+		buf = newTopicReplayBuffer()
+		h.replayBuffers[topic] = buf
+	}
+	counter, ok := h.seqCounters[topic]
+	if !ok {
+		var c uint64
+		counter = &c
+		h.seqCounters[topic] = counter
+	}
+	seq := atomic.AddUint64(counter, 1)
+	buf.Add(seq, data)
+	h.mu.Unlock()
+
+	return seq
+}
+
+// GetReplayEvents returns buffered events for a topic after the given sequence
+func (h *SubscriptionHub) GetReplayEvents(topic string, afterSeq uint64) []replayEntry {
+	h.mu.RLock()
+	buf, ok := h.replayBuffers[topic]
+	if !ok {
+		h.mu.RUnlock()
+		return nil
+	}
+	result := buf.Since(afterSeq)
+	h.mu.RUnlock()
+	return result
 }
 
 // WebSocketHandler handles WebSocket connections and upgrades
@@ -28,6 +120,9 @@ type WebSocketHandler struct {
 	maxSubscriptionsPerConn int
 	mu                      sync.RWMutex
 	activeConnections       map[string]*WSConnection
+	tokenValidator          *TokenValidator
+	allowedOrigins          map[string]bool
+	requireAuth             bool
 }
 
 // WSConnection represents an active WebSocket connection
@@ -41,45 +136,124 @@ type WSConnection struct {
 	mu            sync.RWMutex
 	tlsEnabled    bool
 	remoteAddr    string
+	lastEventSeq  map[string]uint64 // topic -> last received seq
 }
 
 // WSSubscription represents a WebSocket subscription
 type WSSubscription struct {
 	id        string
+	topic     string
 	query     string
-	variables map[string]interface{}
+	variables map[string]any
 	done      chan struct{}
+	closeOnce sync.Once
 }
 
 // NewWebSocketHandler creates a new WebSocket handler
 func NewWebSocketHandler(hub *SubscriptionHub, maxSubscriptionsPerConn int) *WebSocketHandler {
-	return &WebSocketHandler{
+	h := &WebSocketHandler{
 		hub:                     hub,
 		connectionTimeout:       5 * time.Minute,
 		keepAlivePingInterval:   30 * time.Second,
 		maxSubscriptionsPerConn: maxSubscriptionsPerConn,
 		activeConnections:       make(map[string]*WSConnection),
+		allowedOrigins:          map[string]bool{"localhost": true, "127.0.0.1": true},
+		requireAuth:             true,
 		upgrader: websocket.Upgrader{
 			ReadBufferSize:  1024,
 			WriteBufferSize: 1024,
-			CheckOrigin: func(r *http.Request) bool {
-				// Allow all origins for now, can be restricted later
-				return true
-			},
 		},
 	}
+	h.upgrader.CheckOrigin = h.checkOrigin
+	return h
+}
+
+// SetTokenValidator sets the token validator for WebSocket authentication
+func (h *WebSocketHandler) SetTokenValidator(validator *TokenValidator) {
+	h.tokenValidator = validator
+}
+
+// SetAllowedOrigins configures allowed origins for CORS
+func (h *WebSocketHandler) SetAllowedOrigins(origins []string) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.allowedOrigins = make(map[string]bool, len(origins))
+	for _, o := range origins {
+		h.allowedOrigins[o] = true
+	}
+}
+
+// SetRequireAuth configures whether authentication is required
+func (h *WebSocketHandler) SetRequireAuth(require bool) {
+	h.requireAuth = require
+}
+
+// checkOrigin validates the Origin header against the allowed origins list
+func (h *WebSocketHandler) checkOrigin(r *http.Request) bool {
+	origin := r.Header.Get("Origin")
+	if origin == "" {
+		return true // Non-browser clients don't send Origin
+	}
+	// Parse the origin to extract host
+	u, err := url.Parse(origin)
+	if err != nil {
+		return false
+	}
+	h.mu.RLock()
+	allowed := h.allowedOrigins[u.Hostname()]
+	h.mu.RUnlock()
+	return allowed
 }
 
 // HandleUpgrade upgrades an HTTP connection to WebSocket
 func (h *WebSocketHandler) HandleUpgrade(w http.ResponseWriter, r *http.Request) error {
+	// Authenticate the connection (Authorization: Bearer or X-API-Key only)
+	if h.requireAuth && h.tokenValidator != nil {
+		var result ValidationResult
+
+		// 1. Try Authorization: Bearer header
+		authHeader := r.Header.Get("Authorization")
+		if strings.HasPrefix(authHeader, "Bearer ") {
+			result = h.tokenValidator.ValidateJWT(strings.TrimPrefix(authHeader, "Bearer "))
+		}
+
+		// 2. Try X-API-Key header
+		if !result.Valid {
+			apiKey := r.Header.Get("X-API-Key")
+			if apiKey != "" {
+				result = h.tokenValidator.ValidateAPIKey(r.Context(), apiKey)
+			}
+		}
+
+		if !result.Valid {
+			http.Error(w, "authentication required (Authorization: Bearer or X-API-Key)", http.StatusUnauthorized)
+			return fmt.Errorf("websocket connection rejected: no valid auth header")
+		}
+	}
+
 	// Upgrade HTTP connection to WebSocket
 	conn, err := h.upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		return fmt.Errorf("failed to upgrade connection: %w", err)
 	}
 
-	// Create connection context
-	ctx, cancel := context.WithCancel(context.Background())
+	// Create connection context derived from the HTTP request context.
+	// This ensures the connection is cancelled when the HTTP server's base
+	// context is cancelled (e.g., during graceful shutdown), while still
+	// allowing explicit CloseConnection() via the separate cancel function.
+	ctx, cancel := context.WithCancel(r.Context())
+
+	// Parse Last-Event-ID header for replay
+	lastEventSeq := make(map[string]uint64)
+	if leid := r.Header.Get("Last-Event-ID"); leid != "" {
+		// Format: "topic1:seq1,topic2:seq2" or just a global sequence number
+		if seq, err := parseLastEventID(leid); err == nil {
+			// Global sequence — apply to all known topics
+			for _, topic := range []string{"event:created", "event:confirmed", "event:failed", "event:updated", "event:deleted"} {
+				lastEventSeq[topic] = seq
+			}
+		}
+	}
 
 	// Create WebSocket connection
 	wsConn := &WSConnection{
@@ -91,6 +265,7 @@ func (h *WebSocketHandler) HandleUpgrade(w http.ResponseWriter, r *http.Request)
 		lastActivity:  time.Now(),
 		tlsEnabled:    r.TLS != nil,
 		remoteAddr:    r.RemoteAddr,
+		lastEventSeq:  lastEventSeq,
 	}
 
 	// Register connection
@@ -104,6 +279,13 @@ func (h *WebSocketHandler) HandleUpgrade(w http.ResponseWriter, r *http.Request)
 	return nil
 }
 
+// parseLastEventID parses a Last-Event-ID value into a sequence number
+func parseLastEventID(id string) (uint64, error) {
+	var seq uint64
+	_, err := fmt.Sscanf(id, "%d", &seq)
+	return seq, err
+}
+
 // manageConnection manages a WebSocket connection lifecycle
 func (h *WebSocketHandler) manageConnection(wsConn *WSConnection) {
 	defer func() {
@@ -113,13 +295,43 @@ func (h *WebSocketHandler) manageConnection(wsConn *WSConnection) {
 
 		wsConn.mu.Lock()
 		for _, sub := range wsConn.subscriptions {
-			close(sub.done)
+			sub.closeOnce.Do(func() { close(sub.done) })
 		}
 		wsConn.mu.Unlock()
 
 		wsConn.cancel()
 		if err := wsConn.conn.Close(); err != nil {
-			_ = err // Silently ignore close errors
+			slog.Debug("websocket close error", "error", err)
+		}
+	}()
+
+	// Channel for messages read by the blocking read goroutine
+	type readResult struct {
+		messageType int
+		data        []byte
+		err         error
+	}
+	readCh := make(chan readResult, 1)
+
+	// Start a dedicated blocking read goroutine
+	go func() {
+		for {
+			wsConn.mu.Lock()
+			if err := wsConn.conn.SetReadDeadline(time.Now().Add(h.connectionTimeout)); err != nil {
+				wsConn.mu.Unlock()
+				readCh <- readResult{err: err}
+				return
+			}
+			messageType, data, err := wsConn.conn.ReadMessage()
+			if err := wsConn.conn.SetReadDeadline(time.Time{}); err != nil {
+				slog.Debug("websocket set read deadline error", "error", err)
+			}
+			wsConn.mu.Unlock()
+
+			readCh <- readResult{messageType: messageType, data: data, err: err}
+			if err != nil {
+				return
+			}
 		}
 	}()
 
@@ -136,6 +348,24 @@ func (h *WebSocketHandler) manageConnection(wsConn *WSConnection) {
 		case <-wsConn.ctx.Done():
 			return
 
+		case result := <-readCh:
+			if result.err != nil {
+				if websocket.IsUnexpectedCloseError(result.err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
+					slog.Debug("unexpected websocket close", "error", result.err)
+				}
+				return
+			}
+
+			// Update last activity
+			wsConn.mu.Lock()
+			wsConn.lastActivity = time.Now()
+			wsConn.mu.Unlock()
+
+			// Handle message
+			if result.messageType == websocket.TextMessage {
+				h.handleMessage(wsConn, result.data)
+			}
+
 		case <-ticker.C:
 			// Send keep-alive ping
 			wsConn.mu.Lock()
@@ -145,7 +375,7 @@ func (h *WebSocketHandler) manageConnection(wsConn *WSConnection) {
 			}
 			err := wsConn.conn.WriteMessage(websocket.PingMessage, []byte{})
 			if err := wsConn.conn.SetWriteDeadline(time.Time{}); err != nil {
-				_ = err // Log but continue
+				slog.Debug("websocket set write deadline error", "error", err)
 			}
 			wsConn.mu.Unlock()
 
@@ -163,68 +393,63 @@ func (h *WebSocketHandler) manageConnection(wsConn *WSConnection) {
 				// Close idle connection
 				wsConn.mu.Lock()
 				if err := wsConn.conn.Close(); err != nil {
-					_ = err // Log but continue
+					slog.Debug("websocket close error", "error", err)
 				}
 				wsConn.mu.Unlock()
 				return
 			}
-
-		default:
-			// Read message from client
-			wsConn.mu.Lock()
-			if err := wsConn.conn.SetReadDeadline(time.Now().Add(h.connectionTimeout)); err != nil {
-				wsConn.mu.Unlock()
-				return
-			}
-			messageType, data, err := wsConn.conn.ReadMessage()
-			if err := wsConn.conn.SetReadDeadline(time.Time{}); err != nil {
-				_ = err // Log but continue
-			}
-			wsConn.mu.Unlock()
-
-			if err != nil {
-				if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-					_ = err // Log unexpected close
-				}
-				return
-			}
-
-			// Update last activity
-			wsConn.mu.Lock()
-			wsConn.lastActivity = time.Now()
-			wsConn.mu.Unlock()
-
-			// Handle message
-			if messageType == websocket.TextMessage {
-				h.handleMessage(wsConn, data)
-			}
-
-			// Small delay to prevent busy loop
-			time.Sleep(10 * time.Millisecond)
 		}
 	}
 }
 
 // handleMessage processes a WebSocket message
 func (h *WebSocketHandler) handleMessage(wsConn *WSConnection, data []byte) {
-	// Parse message (simplified - in real implementation would parse JSON)
-	// For now, just acknowledge receipt
-	wsConn.mu.Lock()
-	defer wsConn.mu.Unlock()
-
-	if err := wsConn.conn.SetWriteDeadline(time.Now().Add(10 * time.Second)); err != nil {
+	var msg struct {
+		Type      string         `json:"type"`
+		ID        string         `json:"id"`
+		Topic     string         `json:"topic"`
+		Query     string         `json:"query"`
+		Variables map[string]any `json:"variables"`
+	}
+	if err := json.Unmarshal(data, &msg); err != nil {
+		wsConn.mu.Lock()
+		_ = wsConn.conn.WriteMessage(websocket.TextMessage, []byte(`{"type":"error","message":"invalid JSON"}`))
+		wsConn.mu.Unlock()
 		return
 	}
-	if err := wsConn.conn.WriteMessage(websocket.TextMessage, []byte(`{"type":"ack"}`)); err != nil {
-		_ = err // Log but continue
-	}
-	if err := wsConn.conn.SetWriteDeadline(time.Time{}); err != nil {
-		_ = err // Log but continue
+
+	switch msg.Type {
+	case "subscribe":
+		if msg.Topic == "" {
+			wsConn.mu.Lock()
+			_ = wsConn.conn.WriteMessage(websocket.TextMessage, []byte(`{"type":"error","message":"topic is required"}`))
+			wsConn.mu.Unlock()
+			return
+		}
+		if err := h.AddSubscription(wsConn.id, msg.ID, msg.Topic, msg.Query, msg.Variables); err != nil {
+			errMsg, _ := json.Marshal(map[string]any{"type": "error", "message": err.Error()})
+			wsConn.mu.Lock()
+			_ = wsConn.conn.WriteMessage(websocket.TextMessage, errMsg)
+			wsConn.mu.Unlock()
+			return
+		}
+		ack, _ := json.Marshal(map[string]any{"type": "subscribed", "id": msg.ID, "topic": msg.Topic})
+		wsConn.mu.Lock()
+		_ = wsConn.conn.WriteMessage(websocket.TextMessage, ack)
+		wsConn.mu.Unlock()
+
+	case "unsubscribe":
+		_ = h.RemoveSubscription(wsConn.id, msg.ID)
+
+	default:
+		wsConn.mu.Lock()
+		_ = wsConn.conn.WriteMessage(websocket.TextMessage, []byte(`{"type":"ack"}`))
+		wsConn.mu.Unlock()
 	}
 }
 
-// AddSubscription adds a subscription to a connection
-func (h *WebSocketHandler) AddSubscription(connID string, subID string, query string, variables map[string]interface{}) error {
+// AddSubscription adds a subscription to a connection, replaying missed events if available
+func (h *WebSocketHandler) AddSubscription(connID string, subID string, topic string, query string, variables map[string]any) error {
 	h.mu.RLock()
 	wsConn, exists := h.activeConnections[connID]
 	h.mu.RUnlock()
@@ -243,9 +468,30 @@ func (h *WebSocketHandler) AddSubscription(connID string, subID string, query st
 
 	wsConn.subscriptions[subID] = &WSSubscription{
 		id:        subID,
+		topic:     topic,
 		query:     query,
 		variables: variables,
 		done:      make(chan struct{}),
+	}
+
+	// Replay buffered events for this topic
+	if h.hub != nil && topic != "" {
+		afterSeq := wsConn.lastEventSeq[topic]
+		if entries := h.hub.GetReplayEvents(topic, afterSeq); len(entries) > 0 {
+			go func() {
+				for _, entry := range entries {
+					msg, _ := json.Marshal(map[string]any{
+						"type":         "data",
+						"subscription": subID,
+						"seq":          entry.Seq,
+						"payload":      entry.Data,
+					})
+					wsConn.mu.Lock()
+					_ = wsConn.conn.WriteMessage(websocket.TextMessage, msg)
+					wsConn.mu.Unlock()
+				}
+			}()
+		}
 	}
 
 	return nil
@@ -265,7 +511,7 @@ func (h *WebSocketHandler) RemoveSubscription(connID string, subID string) error
 	defer wsConn.mu.Unlock()
 
 	if sub, exists := wsConn.subscriptions[subID]; exists {
-		close(sub.done)
+		sub.closeOnce.Do(func() { close(sub.done) })
 		delete(wsConn.subscriptions, subID)
 	}
 
@@ -273,7 +519,7 @@ func (h *WebSocketHandler) RemoveSubscription(connID string, subID string) error
 }
 
 // BroadcastToConnection sends a message to a specific connection
-func (h *WebSocketHandler) BroadcastToConnection(connID string, message interface{}) error {
+func (h *WebSocketHandler) BroadcastToConnection(connID string, message any) error {
 	h.mu.RLock()
 	wsConn, exists := h.activeConnections[connID]
 	h.mu.RUnlock()
@@ -350,7 +596,7 @@ func (h *WebSocketHandler) IsConnectionSecure(connID string) bool {
 }
 
 // GetConnectionInfo returns information about a connection
-func (h *WebSocketHandler) GetConnectionInfo(connID string) map[string]interface{} {
+func (h *WebSocketHandler) GetConnectionInfo(connID string) map[string]any {
 	h.mu.RLock()
 	wsConn, exists := h.activeConnections[connID]
 	h.mu.RUnlock()
@@ -362,12 +608,13 @@ func (h *WebSocketHandler) GetConnectionInfo(connID string) map[string]interface
 	wsConn.mu.RLock()
 	defer wsConn.mu.RUnlock()
 
-	return map[string]interface{}{
+	return map[string]any{
 		"id":              wsConn.id,
 		"remote_addr":     wsConn.remoteAddr,
 		"tls_enabled":     wsConn.tlsEnabled,
 		"subscriptions":   len(wsConn.subscriptions),
 		"last_activity":   wsConn.lastActivity,
 		"connection_time": time.Since(wsConn.lastActivity),
+		"last_event_seq":  wsConn.lastEventSeq,
 	}
 }

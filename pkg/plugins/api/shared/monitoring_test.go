@@ -6,6 +6,7 @@ import (
 )
 
 func TestMonitoringMetricsIncludesPostureFields(t *testing.T) {
+	t.Parallel()
 	monitoring := NewMonitoring()
 	monitoring.RecordRequest("http", 50*time.Millisecond, true)
 	monitoring.RecordRequest("http", 70*time.Millisecond, true)
@@ -23,6 +24,7 @@ func TestMonitoringMetricsIncludesPostureFields(t *testing.T) {
 }
 
 func TestMonitoringRuntimeMetricsUnobserved(t *testing.T) {
+	t.Parallel()
 	monitoring := NewMonitoring()
 
 	monitoring.RecordRequest("http", 0, true)
@@ -38,6 +40,7 @@ func TestMonitoringRuntimeMetricsUnobserved(t *testing.T) {
 }
 
 func TestMonitoringRuntimeMetricsHealthy(t *testing.T) {
+	t.Parallel()
 	monitoring := NewMonitoring()
 
 	monitoring.RecordRequest("http", 50*time.Millisecond, true)
@@ -53,6 +56,7 @@ func TestMonitoringRuntimeMetricsHealthy(t *testing.T) {
 }
 
 func TestMonitoringRuntimeMetricsDegraded(t *testing.T) {
+	t.Parallel()
 	monitoring := NewMonitoring()
 
 	monitoring.RecordRequest("grpc", 200*time.Millisecond, false)
@@ -68,6 +72,7 @@ func TestMonitoringRuntimeMetricsDegraded(t *testing.T) {
 }
 
 func TestMonitoringAggregateRuntimeMetricsUnobserved(t *testing.T) {
+	t.Parallel()
 	monitoring := NewMonitoring()
 
 	metrics := monitoring.GetRuntimeMetrics()
@@ -80,6 +85,7 @@ func TestMonitoringAggregateRuntimeMetricsUnobserved(t *testing.T) {
 }
 
 func TestMonitoringAggregateRuntimeMetricsHealthy(t *testing.T) {
+	t.Parallel()
 	monitoring := NewMonitoring()
 	monitoring.RecordRequest("http", 80*time.Millisecond, true)
 	monitoring.RecordRequest("grpc", 120*time.Millisecond, true)
@@ -94,6 +100,7 @@ func TestMonitoringAggregateRuntimeMetricsHealthy(t *testing.T) {
 }
 
 func TestMonitoringAggregateRuntimeMetricsDegraded(t *testing.T) {
+	t.Parallel()
 	monitoring := NewMonitoring()
 	monitoring.RecordRequest("http", 100*time.Millisecond, false)
 	monitoring.RecordRequest("grpc", 120*time.Millisecond, false)

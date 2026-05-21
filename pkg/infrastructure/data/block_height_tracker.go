@@ -106,56 +106,6 @@ func (bht *BlockHeightTracker) GetAllRecords() map[string]*BlockHeightRecord {
 	return records
 }
 
-// ReorgHandler handles blockchain reorganizations
-type ReorgHandler struct {
-	tracker *BlockHeightTracker
-	mutex   sync.RWMutex
-}
-
-// NewReorgHandler creates a new reorg handler
-func NewReorgHandler(tracker *BlockHeightTracker) *ReorgHandler {
-	return &ReorgHandler{
-		tracker: tracker,
-	}
-}
-
-// DetectReorg detects a blockchain reorganization
-func (rh *ReorgHandler) DetectReorg(ctx context.Context, chainID string, currentBlock uint64, expectedBlock uint64) (bool, error) {
-	rh.mutex.RLock()
-	defer rh.mutex.RUnlock()
-
-	// If current block is less than expected, a reorg occurred
-	if currentBlock < expectedBlock {
-		return true, nil
-	}
-
-	return false, nil
-}
-
-// HandleReorg handles a blockchain reorganization
-func (rh *ReorgHandler) HandleReorg(ctx context.Context, chainID string, reorgDepth uint64) error {
-	rh.mutex.Lock()
-	defer rh.mutex.Unlock()
-
-	// Get current block height
-	record, err := rh.tracker.GetRecord(ctx, chainID)
-	if err != nil {
-		return fmt.Errorf("failed to get block height record: %w", err)
-	}
-
-	// Rewind block height by reorg depth
-	if record.LastBlockHeight >= reorgDepth {
-		record.LastBlockHeight -= reorgDepth
-	} else {
-		record.LastBlockHeight = 0
-	}
-
-	record.Status = "reorg_handled"
-	record.LastProcessedAt = time.Now()
-
-	return nil
-}
-
 // BlockHeightSynchronizer synchronizes block heights across instances
 type BlockHeightSynchronizer struct {
 	tracker *BlockHeightTracker

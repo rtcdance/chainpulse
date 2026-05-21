@@ -10,10 +10,10 @@ import (
 // ServiceHandler defines the interface for service handlers
 type ServiceHandler interface {
 	// Handle processes a request and returns a response
-	Handle(ctx context.Context, req interface{}) (interface{}, error)
+	Handle(ctx context.Context, req any) (any, error)
 
 	// GetMetrics returns service metrics
-	GetMetrics() map[string]interface{}
+	GetMetrics() map[string]any
 }
 
 // ServiceFactory creates and manages service handlers
@@ -69,11 +69,11 @@ func (f *ServiceFactory) List() []string {
 }
 
 // GetMetrics returns metrics for all services
-func (f *ServiceFactory) GetMetrics() map[string]interface{} {
+func (f *ServiceFactory) GetMetrics() map[string]any {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
 
-	metrics := make(map[string]interface{})
+	metrics := make(map[string]any)
 	for name, handler := range f.services {
 		metrics[name] = handler.GetMetrics()
 	}
@@ -103,7 +103,7 @@ func NewGenericServiceHandler(name string, backend ServiceBackend, cache Service
 }
 
 // Handle processes a request
-func (h *GenericServiceHandler) Handle(ctx context.Context, req interface{}) (interface{}, error) {
+func (h *GenericServiceHandler) Handle(ctx context.Context, req any) (any, error) {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 
@@ -133,7 +133,7 @@ func (h *GenericServiceHandler) Handle(ctx context.Context, req interface{}) (in
 }
 
 // GetMetrics returns service metrics
-func (h *GenericServiceHandler) GetMetrics() map[string]interface{} {
+func (h *GenericServiceHandler) GetMetrics() map[string]any {
 	h.metrics.mu.RLock()
 	defer h.metrics.mu.RUnlock()
 
@@ -148,7 +148,7 @@ func (h *GenericServiceHandler) GetMetrics() map[string]interface{} {
 		cacheHitRate = float64(h.metrics.cacheHits) / float64(totalCacheOps) * 100.0
 	}
 
-	return map[string]interface{}{
+	return map[string]any{
 		"service_name":     h.name,
 		"total_operations": h.metrics.totalOperations,
 		"cache_hits":       h.metrics.cacheHits,
@@ -197,14 +197,14 @@ type ListRequest struct {
 
 // QueryRequest represents a query operation
 type QueryRequest struct {
-	Filter map[string]interface{}
+	Filter map[string]any
 	Limit  int
 	Offset int
 }
 
 // Handler methods
 
-func (h *GenericServiceHandler) handleCreate(ctx context.Context, req *CreateRequest) (interface{}, error) {
+func (h *GenericServiceHandler) handleCreate(ctx context.Context, req *CreateRequest) (any, error) {
 	created, err := h.backend.Create(ctx, req.Entity)
 	if err != nil {
 		h.recordError()
@@ -217,7 +217,7 @@ func (h *GenericServiceHandler) handleCreate(ctx context.Context, req *CreateReq
 	return created, nil
 }
 
-func (h *GenericServiceHandler) handleRead(ctx context.Context, req *ReadRequest) (interface{}, error) {
+func (h *GenericServiceHandler) handleRead(ctx context.Context, req *ReadRequest) (any, error) {
 	// Try cache first
 	if h.cache != nil {
 		cacheKey := h.getCacheKey("read", req.ID)
@@ -238,13 +238,13 @@ func (h *GenericServiceHandler) handleRead(ctx context.Context, req *ReadRequest
 	// Cache result
 	if h.cache != nil && entity != nil {
 		cacheKey := h.getCacheKey("read", req.ID)
-		_ = h.cache.Set(ctx, cacheKey, entity, h.cacheTTL)
+		logCacheErr("set", cacheKey, h.cache.Set(ctx, cacheKey, entity, h.cacheTTL))
 	}
 
 	return entity, nil
 }
 
-func (h *GenericServiceHandler) handleUpdate(ctx context.Context, req *UpdateRequest) (interface{}, error) {
+func (h *GenericServiceHandler) handleUpdate(ctx context.Context, req *UpdateRequest) (any, error) {
 	updated, err := h.backend.Update(ctx, req.Entity)
 	if err != nil {
 		h.recordError()
@@ -254,7 +254,7 @@ func (h *GenericServiceHandler) handleUpdate(ctx context.Context, req *UpdateReq
 	// Invalidate cache for this entity
 	if h.cache != nil {
 		cacheKey := h.getCacheKey("read", req.Entity.GetID())
-		_ = h.cache.Delete(ctx, cacheKey)
+		logCacheErr("delete", cacheKey, h.cache.Delete(ctx, cacheKey))
 	}
 
 	// Invalidate list cache
@@ -263,7 +263,7 @@ func (h *GenericServiceHandler) handleUpdate(ctx context.Context, req *UpdateReq
 	return updated, nil
 }
 
-func (h *GenericServiceHandler) handleDelete(ctx context.Context, req *DeleteRequest) (interface{}, error) {
+func (h *GenericServiceHandler) handleDelete(ctx context.Context, req *DeleteRequest) (any, error) {
 	err := h.backend.Delete(ctx, req.ID)
 	if err != nil {
 		h.recordError()
@@ -273,7 +273,7 @@ func (h *GenericServiceHandler) handleDelete(ctx context.Context, req *DeleteReq
 	// Invalidate cache for this entity
 	if h.cache != nil {
 		cacheKey := h.getCacheKey("read", req.ID)
-		_ = h.cache.Delete(ctx, cacheKey)
+		logCacheErr("delete", cacheKey, h.cache.Delete(ctx, cacheKey))
 	}
 
 	// Invalidate list cache
@@ -282,7 +282,7 @@ func (h *GenericServiceHandler) handleDelete(ctx context.Context, req *DeleteReq
 	return nil, nil
 }
 
-func (h *GenericServiceHandler) handleList(ctx context.Context, req *ListRequest) (interface{}, error) {
+func (h *GenericServiceHandler) handleList(ctx context.Context, req *ListRequest) (any, error) {
 	// Validate pagination
 	limit := h.validateLimit(req.Limit)
 	offset := h.validateOffset(req.Offset)
@@ -307,13 +307,13 @@ func (h *GenericServiceHandler) handleList(ctx context.Context, req *ListRequest
 	// Cache result
 	if h.cache != nil && entities != nil {
 		cacheKey := h.getCacheKey("list", fmt.Sprintf("limit:%d:offset:%d", limit, offset))
-		_ = h.cache.Set(ctx, cacheKey, entities, h.cacheTTL)
+		logCacheErr("set", cacheKey, h.cache.Set(ctx, cacheKey, entities, h.cacheTTL))
 	}
 
 	return entities, nil
 }
 
-func (h *GenericServiceHandler) handleQuery(ctx context.Context, req *QueryRequest) (interface{}, error) {
+func (h *GenericServiceHandler) handleQuery(ctx context.Context, req *QueryRequest) (any, error) {
 	// Validate pagination
 	limit := h.validateLimit(req.Limit)
 	offset := h.validateOffset(req.Offset)
@@ -338,7 +338,7 @@ func (h *GenericServiceHandler) handleQuery(ctx context.Context, req *QueryReque
 	// Cache result
 	if h.cache != nil && entities != nil {
 		cacheKey := h.getCacheKey("query", fmt.Sprintf("filter:%v:limit:%d:offset:%d", req.Filter, limit, offset))
-		_ = h.cache.Set(ctx, cacheKey, entities, h.cacheTTL)
+		logCacheErr("set", cacheKey, h.cache.Set(ctx, cacheKey, entities, h.cacheTTL))
 	}
 
 	return entities, nil

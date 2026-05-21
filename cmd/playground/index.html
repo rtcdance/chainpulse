@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ChainPulse Playground</title>
+<style>
+  :root {
+    --ink: #07111f;
+    --sand: #f1e8d8;
+    --glow: #f4a261;
+    --mist: #a89f91;
+    --card: rgba(255,255,255,0.04);
+    --border: rgba(255,255,255,0.08);
+    --success: #2ecc71;
+    --warn: #f39c12;
+    --error: #e74c3c;
+    --code-bg: rgba(0,0,0,0.35);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+    background: var(--ink);
+    color: var(--sand);
+    min-height: 100vh;
+  }
+  .container { max-width: 1100px; margin: 0 auto; padding: 2rem; }
+  header {
+    text-align: center;
+    padding: 3rem 0 2rem;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 2rem;
+  }
+  h1 { font-size: 2rem; margin-bottom: 0.5rem; }
+  h1 span { color: var(--glow); }
+  .subtitle { color: var(--mist); font-size: 0.9rem; }
+  h2 { font-size: 1.1rem; color: var(--glow); margin: 1.5rem 0 1rem; }
+  .endpoint-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 0.75rem;
+  }
+  .endpoint {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1rem;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+  }
+  .endpoint:hover {
+    border-color: var(--glow);
+    background: rgba(244,162,97,0.06);
+  }
+  .endpoint .method {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: bold;
+    margin-right: 0.5rem;
+    background: var(--glow);
+    color: var(--ink);
+  }
+  .endpoint .path { font-weight: bold; }
+  .endpoint .desc { color: var(--mist); font-size: 0.8rem; margin-top: 0.35rem; }
+  .curl {
+    background: var(--code-bg);
+    border-radius: 6px;
+    padding: 0.75rem 1rem;
+    font-size: 0.8rem;
+    margin-top: 0.5rem;
+    word-break: break-all;
+    color: var(--glow);
+    display: none;
+  }
+  .endpoint.open .curl { display: block; }
+  .output {
+    background: var(--code-bg);
+    border-radius: 6px;
+    padding: 0.75rem 1rem;
+    font-size: 0.78rem;
+    margin-top: 0.5rem;
+    max-height: 300px;
+    overflow: auto;
+    white-space: pre-wrap;
+    display: none;
+  }
+  .output.visible { display: block; }
+  .status-bar {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+    flex-wrap: wrap;
+  }
+  .status-dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    background: var(--success);
+    display: inline-block;
+  }
+  .status-dot.error { background: var(--error); }
+  .section { margin-bottom: 2.5rem; }
+  .concept-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1rem 1.25rem;
+    margin-bottom: 0.5rem;
+  }
+  .concept-card h3 { font-size: 0.95rem; margin-bottom: 0.35rem; }
+  .concept-card p { color: var(--mist); font-size: 0.82rem; line-height: 1.5; }
+  .concept-card .tag {
+    display: inline-block;
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-size: 0.7rem;
+    background: rgba(244,162,97,0.15);
+    color: var(--glow);
+    margin-right: 0.3rem;
+  }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
+  @media (max-width: 700px) {
+    .grid-2 { grid-template-columns: 1fr; }
+    .endpoint-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>ChainPulse <span>Playground</span></h1>
+    <p class="subtitle">零依赖 · 内存模式 · Web3→Go 学习沙箱</p>
+  </header>
+
+  <div class="status-bar">
+    <span class="status-dot" id="statusDot"></span>
+    <span id="statusText">检测服务器状态...</span>
+  </div>
+
+  <div class="section">
+    <h2>API 端点</h2>
+    <div class="endpoint-grid" id="endpoints"></div>
+  </div>
+
+  <div class="section">
+    <h2>核心概念 — Web3 实体到 Go 的映射</h2>
+    <div class="grid-2">
+      <div class="concept-card">
+        <h3><span class="tag">struct</span> BlockchainEvent</h3>
+        <p>链上事件在 Go 中是强类型结构体。每个 block/log 信息都是类型安全的字段，不会出现 <code>undefined</code>。</p>
+      </div>
+      <div class="concept-card">
+        <h3><span class="tag">channel</span> EventBus</h3>
+        <p>Go 的 channel 天然支持发布-订阅模式，无需 Kafka。CSP 并发模型：<code>ch &lt;- event</code> 发送，<code>&lt;-ch</code> 接收。</p>
+      </div>
+      <div class="concept-card">
+        <h3><span class="tag">big.Int</span> 区块链数学</h3>
+        <p>Solidity 的 uint256 在 Go 中用 <code>*big.Int</code> 表示，避免溢出。ConstantProductAMM 展示 AMM 恒定乘积公式。</p>
+      </div>
+      <div class="concept-card">
+        <h3><span class="tag">context</span> 超时与取消</h3>
+        <p>每个 RPC 调用、数据库查询、HTTP 请求都携带 <code>context.Context</code>。到点了自动取消，不会泄漏 goroutine。</p>
+      </div>
+      <div class="concept-card">
+        <h3><span class="tag">interface</span> 插件系统</h3>
+        <p>Logger、MetricsCollector、DatabasePlugin 都是接口，实现随时可替换，类似 Solidity 的接口与代理模式。</p>
+      </div>
+      <div class="concept-card">
+        <h3><span class="tag">sync</span> 并发安全</h3>
+        <p><code>sync.RWMutex</code> 保证读写安全，<code>sync.Pool</code> 复用对象，<code>errgroup</code> 并发编排 — Go 的标准库就够用。</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const BASE = window.location.origin;
+
+const endpoints = [
+  { method: 'GET', path: '/stats', desc: '系统状态与统计', curl: `curl ${BASE}/stats` },
+  { method: 'GET', path: '/generate', desc: '生成 5 个模拟 Transfer 事件', curl: `curl ${BASE}/generate` },
+  { method: 'GET', path: '/generate-swap', desc: '生成模拟 Uniswap Swap 事件', curl: `curl ${BASE}/generate-swap` },
+  { method: 'GET', path: '/generate-aa', desc: '生成 ERC-4337 UserOperation 事件', curl: `curl ${BASE}/generate-aa` },
+  { method: 'GET', path: '/events', desc: '列出所有已存储的事件', curl: `curl ${BASE}/events` },
+  { method: 'GET', path: '/subscribe?topic=events', desc: 'SSE 实时事件流', curl: `curl ${BASE}/subscribe?topic=events` },
+  { method: 'GET', path: '/publish?msg=hello', desc: '手动发布消息到 EventBus', curl: `curl "${BASE}/publish?msg=hello"` },
+  { method: 'GET', path: '/tutorial', desc: '10 步 Go 学习教程', curl: `curl ${BASE}/tutorial` },
+  { method: 'GET', path: '/concepts', desc: 'Web3↔Go 概念对照表', curl: `curl ${BASE}/concepts` },
+  { method: 'GET', path: '/pool', desc: 'sync.Pool 性能演示', curl: `curl ${BASE}/pool` },
+];
+
+function renderEndpoints() {
+  const grid = document.getElementById('endpoints');
+  endpoints.forEach((ep, i) => {
+    const div = document.createElement('div');
+    div.className = 'endpoint';
+    div.innerHTML = `
+      <div onclick="toggleEndpoint(${i})">
+        <span class="method">${ep.method}</span>
+        <span class="path">${ep.path}</span>
+        <div class="desc">${ep.desc}</div>
+      </div>
+      <div class="curl">$ ${ep.curl}</div>
+      <div class="output" id="output-${i}"></div>
+    `;
+    grid.appendChild(div);
+  });
+}
+
+function toggleEndpoint(i) {
+  const el = document.getElementById('endpoints').children[i];
+  el.classList.toggle('open');
+}
+
+async function checkHealth() {
+  const dot = document.getElementById('statusDot');
+  const text = document.getElementById('statusText');
+  try {
+    const res = await fetch('/stats');
+    const data = await res.json();
+    dot.className = 'status-dot';
+    text.textContent = `运行中 · ${data.total_events} 事件 · 模式: ${data.mode}`;
+  } catch {
+    dot.className = 'status-dot error';
+    text.textContent = '服务器未连接 — 请启动 playground';
+  }
+}
+
+renderEndpoints();
+checkHealth();
+</script>
+</body>
+</html>

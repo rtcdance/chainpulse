@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"chainpulse/pkg/core"
-	"chainpulse/pkg/infrastructure/database"
-	"chainpulse/pkg/plugins/api"
+	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/infrastructure/database"
+	"github.com/rtcdance/chainpulse/pkg/plugins/api"
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
@@ -22,11 +22,11 @@ type pullerTestDatabaseManager struct {
 var _ database.DatabaseManager = (*pullerTestDatabaseManager)(nil)
 
 func (m *pullerTestDatabaseManager) Initialize(ctx context.Context) error { return nil }
-func (m *pullerTestDatabaseManager) GetMongoClient(ctx context.Context) (interface{}, error) {
+func (m *pullerTestDatabaseManager) GetMongoClient(ctx context.Context) (any, error) {
 	return nil, nil
 }
 func (m *pullerTestDatabaseManager) GetMongoDatabase(name string) *mongo.Database { return nil }
-func (m *pullerTestDatabaseManager) GetPostgresDB(ctx context.Context) (interface{}, error) {
+func (m *pullerTestDatabaseManager) GetPostgresDB(ctx context.Context) (any, error) {
 	return nil, nil
 }
 func (m *pullerTestDatabaseManager) CheckMongoHealth(ctx context.Context) error { return nil }
@@ -37,14 +37,14 @@ func (m *pullerTestDatabaseManager) CheckPostgresHealth(ctx context.Context) err
 	return context.DeadlineExceeded
 }
 
-func (m *pullerTestDatabaseManager) Health(ctx context.Context) interface{} {
+func (m *pullerTestDatabaseManager) Health(ctx context.Context) any {
 	if m.postgresHealthy {
-		return map[string]interface{}{
+		return map[string]any{
 			"status":   "healthy",
 			"postgres": true,
 		}
 	}
-	return map[string]interface{}{
+	return map[string]any{
 		"status":   "unhealthy",
 		"postgres": false,
 		"reason":   "postgres unreachable",

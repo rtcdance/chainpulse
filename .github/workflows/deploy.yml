@@ -16,7 +16,6 @@ on:
           - production
 
 env:
-  GO_VERSION: '1.24.11'
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
 
@@ -58,7 +57,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: ${{ env.GO_VERSION }}
+          go-version-file: go.mod
           cache: true
       
       - name: Install Foundry (for Anvil)
@@ -227,28 +226,28 @@ jobs:
           
           # Build puller service
           echo "Building puller service..."
-          docker build -f ./docker/Dockerfile \
+          docker build -f ./docker/Dockerfile.microservices \
             --build-arg SERVICE=puller \
             -t "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.ref_name }}-puller" \
             . && docker push "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.ref_name }}-puller" || echo "⚠ Puller service build/push failed"
           
           # Build event-processor service
           echo "Building event-processor service..."
-          docker build -f ./docker/Dockerfile \
+          docker build -f ./docker/Dockerfile.microservices \
             --build-arg SERVICE=event-processor \
             -t "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.ref_name }}-event-processor" \
             . && docker push "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.ref_name }}-event-processor" || echo "⚠ Event-processor service build/push failed"
           
           # Build api-service
           echo "Building api-service..."
-          docker build -f ./docker/Dockerfile \
+          docker build -f ./docker/Dockerfile.microservices \
             --build-arg SERVICE=api-service \
             -t "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.ref_name }}-api-service" \
             . && docker push "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.ref_name }}-api-service" || echo "⚠ API service build/push failed"
           
           # Build api-gateway
           echo "Building api-gateway..."
-          docker build -f ./docker/Dockerfile \
+          docker build -f ./docker/Dockerfile.microservices \
             --build-arg SERVICE=api-gateway \
             -t "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.ref_name }}-api-gateway" \
             . && docker push "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.ref_name }}-api-gateway" || echo "⚠ API gateway build/push failed"
@@ -267,43 +266,36 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
       
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: 'latest'
+
+      - name: Configure kubeconfig
+        run: |
+          mkdir -p "${HOME}/.kube"
+          echo "${{ secrets.KUBECONFIG_STAGING }}" | base64 -d > "${HOME}/.kube/config"
+        continue-on-error: true
+
       - name: Deploy to staging
         run: |
           echo "Deploying to staging environment..."
-          
-          mkdir -p logs
-          
-          # This would typically use kubectl or similar deployment tool
-          # For now, we'll just create a deployment record
-          
-          cat > logs/staging-deployment.log << 'EOF'
-          Deployment to Staging
-          =====================
-          
-          Timestamp: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
-          Version: ${{ github.ref_name }}
-          Commit: ${{ github.sha }}
-          
-          Services deployed:
-          - chainpulse-monolithic
-          - chainpulse-puller
-          - chainpulse-event-processor
-          - chainpulse-api-service
-          - chainpulse-api-gateway
-          
-          Status: ✓ Deployment completed
-          EOF
-          
-          cat logs/staging-deployment.log
+          bash scripts/deploy-staging.sh --monolithic
         continue-on-error: true
-      
+
       - name: Run smoke tests
         run: |
           echo "Running smoke tests on staging..."
-          # Add smoke test commands here
-          echo "✓ Smoke tests completed"
+          if [[ -x scripts/verify-staging.sh ]]; then
+            bash scripts/verify-staging.sh
+          else
+            echo "scripts/verify-staging.sh not found, verifying health endpoints..."
+            NAMESPACE="chainpulse"
+            kubectl get pods -n "${NAMESPACE}" -o wide
+            kubectl get svc -n "${NAMESPACE}"
+          fi
         continue-on-error: true
-      
+
       - name: Notify deployment
         uses: actions/github-script@v7
         with:
@@ -339,62 +331,39 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: 'latest'
+
+      - name: Configure kubeconfig
+        run: |
+          mkdir -p "${HOME}/.kube"
+          echo "${{ secrets.KUBECONFIG_PRODUCTION }}" | base64 -d > "${HOME}/.kube/config"
+
       - name: Pre-deployment checks
         run: |
           echo "Running pre-deployment checks..."
-          
-          # Verify all required services are available
-          echo "✅ All services available"
-          
-          # Verify database migrations
-          echo "✅ Database migrations verified"
-          
-          # Verify configuration
-          echo "✅ Configuration verified"
-      
+          bash scripts/verify-production-readiness.sh 2>/dev/null || echo "Pre-checks completed with warnings"
+
       - name: Deploy to production
         run: |
           echo "Deploying to production environment..."
-          
-          cat > production-deployment.log << 'EOF'
-          Deployment to Production
-          ========================
-          
-          Timestamp: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
-          Version: ${{ github.ref_name }}
-          Commit: ${{ github.sha }}
-          
-          Services deployed:
-          - chainpulse-monolithic
-          - chainpulse-puller
-          - chainpulse-event-processor
-          - chainpulse-api-service
-          - chainpulse-api-gateway
-          
-          Status: ✅ Deployment successful
-          EOF
-          
-          cat production-deployment.log
-      
+          OVERLAY=monolithic bash scripts/run-k8s-deploy.sh up
+
       - name: Verify deployment
         run: |
           echo "Verifying production deployment..."
-          
-          # Check service health
-          echo "✅ All services healthy"
-          
-          # Verify data consistency
-          echo "✅ Data consistency verified"
-          
-          # Check performance metrics
-          echo "✅ Performance metrics normal"
-      
+          NAMESPACE="chainpulse"
+          kubectl get pods -n "${NAMESPACE}" -o wide
+          kubectl rollout status deployment/chainpulse-monolithic -n "${NAMESPACE}" --timeout=300s
+          bash scripts/verify-production.sh 2>/dev/null || true
+
       - name: Create release notes
         uses: actions/github-script@v7
         with:
           script: |
-            const fs = require('fs');
             const tag = context.ref.replace('refs/tags/', '');
             
             const releaseNotes = `
@@ -403,24 +372,9 @@ jobs:
             **Deployment Date**: ${new Date().toISOString()}
             **Commit**: ${{ github.sha }}
             
-            ## What's New
-            
-            - Production readiness verification complete
-            - All tests passing
-            - Documentation updated
-            - Performance metrics validated
-            
             ## Deployment Status
             
             ✅ Successfully deployed to production
-            
-            ## Services
-            
-            - Monolithic service
-            - Puller microservice
-            - Event processor microservice
-            - API service microservice
-            - API gateway microservice
             `;
             
             github.rest.repos.createRelease({
@@ -432,7 +386,7 @@ jobs:
               draft: false,
               prerelease: false
             });
-      
+
       - name: Notify deployment
         uses: actions/github-script@v7
         with:
@@ -443,19 +397,17 @@ jobs:
               commit_sha: context.sha,
               body: '✅ Production deployment completed successfully'
             });
-      
+
       - name: Post-deployment monitoring
         run: |
           echo "Starting post-deployment monitoring..."
-          
-          # Monitor error rates
-          echo "✅ Error rates normal"
-          
-          # Monitor performance
-          echo "✅ Performance metrics normal"
-          
-          # Monitor resource usage
-          echo "✅ Resource usage normal"
+          NAMESPACE="chainpulse"
+          echo "Pods:"
+          kubectl get pods -n "${NAMESPACE}" -o wide
+          echo "Services:"
+          kubectl get svc -n "${NAMESPACE}"
+          echo "Deployments:"
+          kubectl get deployments -n "${NAMESPACE}"
 
   rollback:
     name: Rollback on Failure
@@ -467,37 +419,39 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: 'latest'
+
+      - name: Configure kubeconfig
+        run: |
+          mkdir -p "${HOME}/.kube"
+          echo "${{ secrets.KUBECONFIG_PRODUCTION }}" | base64 -d > "${HOME}/.kube/config"
+
       - name: Initiate rollback
         run: |
           echo "Initiating rollback..."
+          NAMESPACE="chainpulse"
           
-          cat > rollback.log << 'EOF'
-          Rollback Initiated
-          ==================
+          echo "Current deployment state:"
+          kubectl rollout history deployment/chainpulse-monolithic -n "${NAMESPACE}" || true
           
-          Timestamp: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
-          Version: ${{ github.ref_name }}
-          Reason: Deployment failure detected
+          echo "Executing rollback..."
+          kubectl rollout undo deployment/chainpulse-monolithic -n "${NAMESPACE}"
+          kubectl rollout status deployment/chainpulse-monolithic -n "${NAMESPACE}" --timeout=300s
           
-          Rollback Status: ✅ Rollback successful
-          EOF
-          
-          cat rollback.log
-      
+          echo "Rollback completed"
+
       - name: Verify rollback
         run: |
           echo "Verifying rollback..."
-          
-          # Verify previous version is running
-          echo "✅ Previous version restored"
-          
-          # Verify data consistency
-          echo "✅ Data consistency verified"
-          
-          # Verify services are healthy
-          echo "✅ All services healthy"
-      
+          NAMESPACE="chainpulse"
+          kubectl get pods -n "${NAMESPACE}" -o wide
+          kubectl get deployments -n "${NAMESPACE}"
+          echo "Rollback verification completed"
+
       - name: Notify rollback
         uses: actions/github-script@v7
         with:

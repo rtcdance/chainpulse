@@ -4,7 +4,7 @@ import (
 	"context"
 	"sync"
 
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 type MockDB struct {
@@ -28,18 +28,18 @@ func NewMockDB() *MockDB {
 func (m *MockDB) Name() string    { return m.name }
 func (m *MockDB) Version() string { return m.version }
 
-func (m *MockDB) Initialize(config core.Config) error {
+func (m *MockDB) Initialize(_ context.Context, _ core.Config) error {
 	return nil
 }
 
-func (m *MockDB) Start() error {
+func (m *MockDB) Start(_ context.Context) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.started = true
 	return nil
 }
 
-func (m *MockDB) Stop() error {
+func (m *MockDB) Stop(_ context.Context) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.started = false
@@ -48,7 +48,7 @@ func (m *MockDB) Stop() error {
 	return nil
 }
 
-func (m *MockDB) Health() error {
+func (m *MockDB) Health(_ context.Context) error {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	if !m.started {
@@ -57,7 +57,7 @@ func (m *MockDB) Health() error {
 	return nil
 }
 
-func (m *MockDB) StoreEvent(ctx context.Context, event interface{}) error {
+func (m *MockDB) StoreEvent(ctx context.Context, event any) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -78,18 +78,18 @@ func (m *MockDB) GetEvent(ctx context.Context, id string) (*core.BlockchainEvent
 	return event, nil
 }
 
-func (m *MockDB) QueryEvents(ctx context.Context, filter interface{}) ([]interface{}, error) {
+func (m *MockDB) QueryEvents(ctx context.Context, filter any) ([]any, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	results := make([]interface{}, 0, len(m.events))
+	results := make([]any, 0, len(m.events))
 	for _, event := range m.events {
 		results = append(results, event)
 	}
 	return results, nil
 }
 
-func (m *MockDB) BatchStoreEvents(ctx context.Context, events []interface{}) error {
+func (m *MockDB) BatchStoreEvents(ctx context.Context, events []any) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -175,6 +175,21 @@ func (m *MockDB) DeleteEventsByBlockRange(ctx context.Context, fromBlock, toBloc
 	for id, event := range m.events {
 		if event.BlockNumber >= fromBlock && event.BlockNumber <= toBlock {
 			delete(m.events, id)
+			count++
+		}
+	}
+	return count, nil
+}
+
+func (m *MockDB) MarkEventsAsReorged(ctx context.Context, fromBlock, toBlock uint64) (int64, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	var count int64
+	for id, event := range m.events {
+		if event.BlockNumber >= fromBlock && event.BlockNumber <= toBlock {
+			event.Status = core.EventStatusReorged
+			m.events[id] = event
 			count++
 		}
 	}

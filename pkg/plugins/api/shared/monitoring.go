@@ -78,13 +78,13 @@ func (pm *ProtocolMetrics) recordRequest(duration time.Duration, success bool) {
 }
 
 // GetMetrics returns metrics for a protocol
-func (m *Monitoring) GetMetrics(protocol string) map[string]interface{} {
+func (m *Monitoring) GetMetrics(protocol string) map[string]any {
 	m.mu.RLock()
 	metrics, ok := m.protocols[protocol]
 	m.mu.RUnlock()
 
 	if !ok {
-		return map[string]interface{}{
+		return map[string]any{
 			"protocol": protocol,
 			"error":    "protocol not found",
 		}
@@ -108,7 +108,7 @@ func (m *Monitoring) GetMetrics(protocol string) map[string]interface{} {
 
 // GetProtocolRuntimeMetrics returns protocol-scoped compact runtime metrics for
 // request health and delivery latency on top of raw monitoring counters.
-func (m *Monitoring) GetProtocolRuntimeMetrics(protocol string) map[string]interface{} {
+func (m *Monitoring) GetProtocolRuntimeMetrics(protocol string) map[string]any {
 	metrics := m.GetMetrics(protocol)
 	if _, ok := metrics["error"]; ok {
 		return metrics
@@ -120,7 +120,7 @@ func (m *Monitoring) GetProtocolRuntimeMetrics(protocol string) map[string]inter
 	errorRate, _ := metrics["error_rate"].(float64)
 	avgDurationMS, _ := metrics["avg_duration_ms"].(int64)
 
-	return map[string]interface{}{
+	return map[string]any{
 		"protocol":            protocol,
 		"total_requests":      totalRequests,
 		"successful_requests": successfulRequests,
@@ -137,7 +137,7 @@ func (m *Monitoring) GetProtocolRuntimeMetrics(protocol string) map[string]inter
 
 // GetRuntimeMetrics returns an aggregate compact runtime surface across all
 // monitored protocols.
-func (m *Monitoring) GetRuntimeMetrics() map[string]interface{} {
+func (m *Monitoring) GetRuntimeMetrics() map[string]any {
 	totalRequests := m.GetTotalRequests()
 	successfulRequests := m.GetTotalSuccessfulRequests()
 	failedRequests := m.GetTotalFailedRequests()
@@ -153,7 +153,7 @@ func (m *Monitoring) GetRuntimeMetrics() map[string]interface{} {
 	coveragePosture := classifyMonitoringCoveragePosture(totalRequests, successfulRequests, failedRequests)
 	runtimePosture := classifyMonitoringRuntimePosture(totalRequests, errorRate, avgDurationMS)
 
-	return map[string]interface{}{
+	return map[string]any{
 		"protocol_count":      m.GetProtocolCount(),
 		"total_requests":      totalRequests,
 		"successful_requests": successfulRequests,
@@ -168,7 +168,7 @@ func (m *Monitoring) GetRuntimeMetrics() map[string]interface{} {
 }
 
 // getMetrics returns metrics from protocol metrics
-func (pm *ProtocolMetrics) getMetrics() map[string]interface{} {
+func (pm *ProtocolMetrics) getMetrics() map[string]any {
 	pm.mu.RLock()
 	defer pm.mu.RUnlock()
 
@@ -187,7 +187,7 @@ func (pm *ProtocolMetrics) getMetrics() map[string]interface{} {
 		errorRate = float64(pm.failedRequests) / float64(pm.totalRequests) * 100.0
 	}
 
-	return map[string]interface{}{
+	return map[string]any{
 		"protocol":            pm.name,
 		"total_requests":      pm.totalRequests,
 		"successful_requests": pm.successfulRequests,
@@ -203,11 +203,11 @@ func (pm *ProtocolMetrics) getMetrics() map[string]interface{} {
 }
 
 // GetAllMetrics returns metrics for all protocols
-func (m *Monitoring) GetAllMetrics() map[string]map[string]interface{} {
+func (m *Monitoring) GetAllMetrics() map[string]map[string]any {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	result := make(map[string]map[string]interface{})
+	result := make(map[string]map[string]any)
 	for protocol, metrics := range m.protocols {
 		result[protocol] = metrics.getMetrics()
 	}

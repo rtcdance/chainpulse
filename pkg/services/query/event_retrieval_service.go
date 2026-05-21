@@ -5,7 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core"
+	domainquery "github.com/rtcdance/chainpulse/pkg/domain/query"
 )
 
 // EventRetrievalService provides unified event retrieval from MongoDB and PostgreSQL
@@ -31,6 +32,11 @@ func NewEventRetrievalService(
 		metrics:       metrics,
 		initialized:   false,
 	}
+}
+
+// GetEventReader exposes the underlying event store as a domain EventReader.
+func (s *EventRetrievalService) GetEventReader() domainquery.EventReader {
+	return s.eventStore
 }
 
 // Initialize initializes the event retrieval service
@@ -77,7 +83,7 @@ func (s *EventRetrievalService) GetEventWithMetadata(ctx context.Context, eventI
 	// Get event from MongoDB
 	event, err := s.eventStore.GetEvent(ctx, eventID)
 	if err != nil {
-		s.logger.Error("Failed to get event", "eventId", eventID, "error", err.Error())
+		s.logger.Error("Failed to get event", "eventId", eventID, "error", err)
 		s.metrics.RecordCounter("event_retrieval_get_with_metadata_error", 1, nil)
 		return nil, fmt.Errorf("failed to get event: %w", err)
 	}
@@ -89,7 +95,7 @@ func (s *EventRetrievalService) GetEventWithMetadata(ctx context.Context, eventI
 	// Get metadata from PostgreSQL
 	metadata, err := s.metadataStore.GetMetadata(ctx, eventID)
 	if err != nil {
-		s.logger.Error("Failed to get metadata", "eventId", eventID, "error", err.Error())
+		s.logger.Error("Failed to get metadata", "eventId", eventID, "error", err)
 		s.metrics.RecordCounter("event_retrieval_get_with_metadata_error", 1, nil)
 		return nil, fmt.Errorf("failed to get metadata: %w", err)
 	}
@@ -121,7 +127,7 @@ func (s *EventRetrievalService) GetEventsByChainWithMetadata(
 	// Get events from MongoDB
 	events, err := s.eventStore.GetEventsByChain(ctx, chainID, limit, offset)
 	if err != nil {
-		s.logger.Error("Failed to get events by chain", "chainId", chainID, "error", err.Error())
+		s.logger.Error("Failed to get events by chain", "chainId", chainID, "error", err)
 		s.metrics.RecordCounter("event_retrieval_get_by_chain_with_metadata_error", 1, nil)
 		return nil, fmt.Errorf("failed to get events by chain: %w", err)
 	}
@@ -130,24 +136,10 @@ func (s *EventRetrievalService) GetEventsByChainWithMetadata(
 		return []*EventWithMetadata{}, nil
 	}
 
-	// Get metadata for all events
-	result := make([]*EventWithMetadata, 0, len(events))
-	for _, event := range events {
-		metadata, err := s.metadataStore.GetMetadata(ctx, event.ID)
-		if err != nil {
-			s.logger.Warn("Failed to get metadata for event", "eventId", event.ID, "error", err.Error())
-			// Continue with nil metadata if retrieval fails
-			result = append(result, &EventWithMetadata{
-				Event:    event,
-				Metadata: nil,
-			})
-			continue
-		}
-
-		result = append(result, &EventWithMetadata{
-			Event:    event,
-			Metadata: metadata,
-		})
+	result, err := s.attachMetadata(ctx, events)
+	if err != nil {
+		s.logger.Error("Failed to attach metadata", "error", err)
+		return nil, fmt.Errorf("failed to attach metadata: %w", err)
 	}
 
 	s.metrics.RecordCounter("event_retrieval_get_by_chain_with_metadata_success", int64(len(result)), nil)
@@ -178,7 +170,7 @@ func (s *EventRetrievalService) GetEventsByContractWithMetadata(
 	// Get events from MongoDB
 	events, err := s.eventStore.GetEventsByContract(ctx, contractAddress, limit, offset)
 	if err != nil {
-		s.logger.Error("Failed to get events by contract", "contractAddress", contractAddress, "error", err.Error())
+		s.logger.Error("Failed to get events by contract", "contractAddress", contractAddress, "error", err)
 		s.metrics.RecordCounter("event_retrieval_get_by_contract_with_metadata_error", 1, nil)
 		return nil, fmt.Errorf("failed to get events by contract: %w", err)
 	}
@@ -187,24 +179,10 @@ func (s *EventRetrievalService) GetEventsByContractWithMetadata(
 		return []*EventWithMetadata{}, nil
 	}
 
-	// Get metadata for all events
-	result := make([]*EventWithMetadata, 0, len(events))
-	for _, event := range events {
-		metadata, err := s.metadataStore.GetMetadata(ctx, event.ID)
-		if err != nil {
-			s.logger.Warn("Failed to get metadata for event", "eventId", event.ID, "error", err.Error())
-			// Continue with nil metadata if retrieval fails
-			result = append(result, &EventWithMetadata{
-				Event:    event,
-				Metadata: nil,
-			})
-			continue
-		}
-
-		result = append(result, &EventWithMetadata{
-			Event:    event,
-			Metadata: metadata,
-		})
+	result, err := s.attachMetadata(ctx, events)
+	if err != nil {
+		s.logger.Error("Failed to attach metadata", "error", err)
+		return nil, fmt.Errorf("failed to attach metadata: %w", err)
 	}
 
 	s.metrics.RecordCounter("event_retrieval_get_by_contract_with_metadata_success", int64(len(result)), nil)
@@ -235,7 +213,7 @@ func (s *EventRetrievalService) GetEventsByEventNameWithMetadata(
 	// Get events from MongoDB
 	events, err := s.eventStore.GetEventsByEventName(ctx, eventName, limit, offset)
 	if err != nil {
-		s.logger.Error("Failed to get events by name", "eventName", eventName, "error", err.Error())
+		s.logger.Error("Failed to get events by name", "eventName", eventName, "error", err)
 		s.metrics.RecordCounter("event_retrieval_get_by_name_with_metadata_error", 1, nil)
 		return nil, fmt.Errorf("failed to get events by name: %w", err)
 	}
@@ -244,27 +222,56 @@ func (s *EventRetrievalService) GetEventsByEventNameWithMetadata(
 		return []*EventWithMetadata{}, nil
 	}
 
-	// Get metadata for all events
-	result := make([]*EventWithMetadata, 0, len(events))
-	for _, event := range events {
-		metadata, err := s.metadataStore.GetMetadata(ctx, event.ID)
-		if err != nil {
-			s.logger.Warn("Failed to get metadata for event", "eventId", event.ID, "error", err.Error())
-			// Continue with nil metadata if retrieval fails
-			result = append(result, &EventWithMetadata{
-				Event:    event,
-				Metadata: nil,
-			})
-			continue
-		}
-
-		result = append(result, &EventWithMetadata{
-			Event:    event,
-			Metadata: metadata,
-		})
+	result, err := s.attachMetadata(ctx, events)
+	if err != nil {
+		s.logger.Error("Failed to attach metadata", "error", err)
+		return nil, fmt.Errorf("failed to attach metadata: %w", err)
 	}
 
 	s.metrics.RecordCounter("event_retrieval_get_by_name_with_metadata_success", int64(len(result)), nil)
+	return result, nil
+}
+
+// GetEventsByCorrelationID retrieves events across all chains that share a
+// correlation ID. This enables cross-chain event correlation for bridge
+// transfers, multi-chain contract interactions, and other linked events.
+func (s *EventRetrievalService) GetEventsByCorrelationID(
+	ctx context.Context,
+	correlationID string,
+	limit int,
+	offset int,
+) ([]*EventWithMetadata, error) {
+	if !s.initialized {
+		return nil, fmt.Errorf("event retrieval service not initialized")
+	}
+	if correlationID == "" {
+		return nil, fmt.Errorf("correlation ID is required")
+	}
+
+	start := time.Now()
+	defer func() {
+		duration := time.Since(start).Milliseconds()
+		s.metrics.RecordGauge("event_retrieval_get_by_correlation_id_time_ms", float64(duration), nil)
+	}()
+
+	events, err := s.eventStore.GetEventsByCorrelationID(ctx, correlationID, limit, offset)
+	if err != nil {
+		s.logger.Error("Failed to get events by correlation ID", "correlationId", correlationID, "error", err)
+		s.metrics.RecordCounter("event_retrieval_get_by_correlation_id_error", 1, nil)
+		return nil, fmt.Errorf("failed to get events by correlation ID: %w", err)
+	}
+
+	if len(events) == 0 {
+		return []*EventWithMetadata{}, nil
+	}
+
+	result, err := s.attachMetadata(ctx, events)
+	if err != nil {
+		s.logger.Error("Failed to attach metadata for correlated events", "error", err)
+		return nil, fmt.Errorf("failed to attach metadata: %w", err)
+	}
+
+	s.metrics.RecordCounter("event_retrieval_get_by_correlation_id_success", int64(len(result)), nil)
 	return result, nil
 }
 
@@ -301,4 +308,32 @@ func (s *EventRetrievalService) Close(ctx context.Context) error {
 
 	s.initialized = false
 	return nil
+}
+
+// attachMetadata fetches metadata for all events in a single batch query and
+// joins them into EventWithMetadata results.
+func (s *EventRetrievalService) attachMetadata(ctx context.Context, events []*core.BlockchainEvent) ([]*EventWithMetadata, error) {
+	if len(events) == 0 {
+		return []*EventWithMetadata{}, nil
+	}
+
+	eventIDs := make([]string, len(events))
+	for i, event := range events {
+		eventIDs[i] = event.ID
+	}
+
+	metadataMap, err := s.metadataStore.GetMetadataBatch(ctx, eventIDs)
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]*EventWithMetadata, 0, len(events))
+	for _, event := range events {
+		result = append(result, &EventWithMetadata{
+			Event:    event,
+			Metadata: metadataMap[event.ID],
+		})
+	}
+
+	return result, nil
 }

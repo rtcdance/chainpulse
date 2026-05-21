@@ -7,7 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"chainpulse/pkg/infrastructure/database"
+	"github.com/rtcdance/chainpulse/pkg/infrastructure/database"
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
@@ -23,7 +23,7 @@ func (m *mockHealthDatabaseManager) Initialize(ctx context.Context) error {
 	return nil
 }
 
-func (m *mockHealthDatabaseManager) GetMongoClient(ctx context.Context) (interface{}, error) {
+func (m *mockHealthDatabaseManager) GetMongoClient(ctx context.Context) (any, error) {
 	return nil, nil
 }
 
@@ -31,7 +31,7 @@ func (m *mockHealthDatabaseManager) GetMongoDatabase(name string) *mongo.Databas
 	return nil
 }
 
-func (m *mockHealthDatabaseManager) GetPostgresDB(ctx context.Context) (interface{}, error) {
+func (m *mockHealthDatabaseManager) GetPostgresDB(ctx context.Context) (any, error) {
 	return nil, nil
 }
 
@@ -43,8 +43,8 @@ func (m *mockHealthDatabaseManager) CheckPostgresHealth(ctx context.Context) err
 	return nil
 }
 
-func (m *mockHealthDatabaseManager) Health(ctx context.Context) interface{} {
-	return map[string]interface{}{"status": "healthy"}
+func (m *mockHealthDatabaseManager) Health(ctx context.Context) any {
+	return map[string]any{"status": "healthy"}
 }
 
 func (m *mockHealthDatabaseManager) Close(ctx context.Context) error {
@@ -56,6 +56,7 @@ func (m *mockRolloutReportProducer) BuildRolloutReport(ctx context.Context) *Rol
 }
 
 func TestHealthCheckHandlerIncludesRuntimeComponent(t *testing.T) {
+	t.Parallel()
 	handler := NewHealthCheckHandler(&mockHealthDatabaseManager{}, &MockLogger{}, NewMockMetricsCollector())
 	if err := handler.Initialize(context.Background()); err != nil {
 		t.Fatalf("initialize handler: %v", err)
@@ -66,7 +67,7 @@ func TestHealthCheckHandlerIncludesRuntimeComponent(t *testing.T) {
 			Name:      "Indexing Runtime",
 			Status:    "healthy",
 			Timestamp: 123,
-			Details: map[string]interface{}{
+			Details: map[string]any{
 				"ownership_mode":      "shadow",
 				"shadow_owned_events": int64(4),
 				"legacy_owned_events": int64(7),
@@ -98,6 +99,7 @@ func TestHealthCheckHandlerIncludesRuntimeComponent(t *testing.T) {
 }
 
 func TestHealthCheckHandlerRuntimeComponentProviderInvalidatesCache(t *testing.T) {
+	t.Parallel()
 	handler := NewHealthCheckHandler(&mockHealthDatabaseManager{}, &MockLogger{}, NewMockMetricsCollector())
 	if err := handler.Initialize(context.Background()); err != nil {
 		t.Fatalf("initialize handler: %v", err)
@@ -108,7 +110,7 @@ func TestHealthCheckHandlerRuntimeComponentProviderInvalidatesCache(t *testing.T
 			Name:      "Indexing Runtime",
 			Status:    "healthy",
 			Timestamp: 1,
-			Details: map[string]interface{}{
+			Details: map[string]any{
 				"ownership_mode": "legacy-only",
 			},
 		}
@@ -123,7 +125,7 @@ func TestHealthCheckHandlerRuntimeComponentProviderInvalidatesCache(t *testing.T
 			Name:      "Indexing Runtime",
 			Status:    "healthy",
 			Timestamp: 2,
-			Details: map[string]interface{}{
+			Details: map[string]any{
 				"ownership_mode": "runtime-owned",
 			},
 		}
@@ -135,12 +137,13 @@ func TestHealthCheckHandlerRuntimeComponentProviderInvalidatesCache(t *testing.T
 }
 
 func TestHealthCheckHandlerHandleReadyIncludesReadinessDetails(t *testing.T) {
+	t.Parallel()
 	handler := NewHealthCheckHandler(&mockHealthDatabaseManager{}, &MockLogger{}, NewMockMetricsCollector())
 	if err := handler.Initialize(context.Background()); err != nil {
 		t.Fatalf("initialize handler: %v", err)
 	}
-	handler.SetReadinessDetailsProvider(func(ctx context.Context) map[string]interface{} {
-		return map[string]interface{}{
+	handler.SetReadinessDetailsProvider(func(ctx context.Context) map[string]any {
+		return map[string]any{
 			"ownership_mode":                  "shadow",
 			"rollout_ready_for_runtime_owned": false,
 			"rollout_status":                  "shadow-observe",
@@ -181,6 +184,7 @@ func TestHealthCheckHandlerHandleReadyIncludesReadinessDetails(t *testing.T) {
 }
 
 func TestHealthCheckHandlerHandleRolloutIncludesReport(t *testing.T) {
+	t.Parallel()
 	handler := NewHealthCheckHandler(&mockHealthDatabaseManager{}, &MockLogger{}, NewMockMetricsCollector())
 	if err := handler.Initialize(context.Background()); err != nil {
 		t.Fatalf("initialize handler: %v", err)
@@ -258,6 +262,7 @@ func TestHealthCheckHandlerHandleRolloutIncludesReport(t *testing.T) {
 }
 
 func TestHealthCheckHandlerHandleRolloutUnavailableWithoutProvider(t *testing.T) {
+	t.Parallel()
 	handler := NewHealthCheckHandler(&mockHealthDatabaseManager{}, &MockLogger{}, NewMockMetricsCollector())
 	if err := handler.Initialize(context.Background()); err != nil {
 		t.Fatalf("initialize handler: %v", err)
@@ -285,6 +290,7 @@ func TestHealthCheckHandlerHandleRolloutUnavailableWithoutProvider(t *testing.T)
 }
 
 func TestHealthCheckHandlerHandleRolloutWithProducer(t *testing.T) {
+	t.Parallel()
 	handler := NewHealthCheckHandler(&mockHealthDatabaseManager{}, &MockLogger{}, NewMockMetricsCollector())
 	if err := handler.Initialize(context.Background()); err != nil {
 		t.Fatalf("initialize handler: %v", err)

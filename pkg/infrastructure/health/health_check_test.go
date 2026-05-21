@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"chainpulse/pkg/infrastructure/discovery"
+	"github.com/rtcdance/chainpulse/pkg/infrastructure/discovery"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -85,6 +85,7 @@ func (m *MockServiceRegistry) GetStatus(serviceID string) string {
 
 // TestNewHealthCheckSystem tests HealthCheckSystem creation
 func TestNewHealthCheckSystem(t *testing.T) {
+	t.Parallel()
 	registry := NewMockServiceRegistry()
 	hcs := NewHealthCheckSystem(registry)
 
@@ -97,6 +98,7 @@ func TestNewHealthCheckSystem(t *testing.T) {
 
 // TestRegisterHealthCheckEndpoint tests registering a health check endpoint
 func TestRegisterHealthCheckEndpoint(t *testing.T) {
+	t.Parallel()
 	registry := NewMockServiceRegistry()
 	hcs := NewHealthCheckSystem(registry)
 
@@ -122,6 +124,7 @@ func TestRegisterHealthCheckEndpoint(t *testing.T) {
 
 // TestStartHealthCheckSystem tests starting the health check system
 func TestStartHealthCheckSystem(t *testing.T) {
+	t.Parallel()
 	registry := NewMockServiceRegistry()
 	hcs := NewHealthCheckSystem(registry)
 
@@ -136,6 +139,7 @@ func TestStartHealthCheckSystem(t *testing.T) {
 
 // TestStartHealthCheckSystemAlreadyRunning tests starting already running system
 func TestStartHealthCheckSystemAlreadyRunning(t *testing.T) {
+	t.Parallel()
 	registry := NewMockServiceRegistry()
 	hcs := NewHealthCheckSystem(registry)
 
@@ -153,6 +157,7 @@ func TestStartHealthCheckSystemAlreadyRunning(t *testing.T) {
 
 // TestStopHealthCheckSystem tests stopping the health check system
 func TestStopHealthCheckSystem(t *testing.T) {
+	t.Parallel()
 	registry := NewMockServiceRegistry()
 	hcs := NewHealthCheckSystem(registry)
 
@@ -167,6 +172,7 @@ func TestStopHealthCheckSystem(t *testing.T) {
 
 // TestGetHealthCheckResult tests retrieving health check result
 func TestGetHealthCheckResult(t *testing.T) {
+	t.Parallel()
 	registry := NewMockServiceRegistry()
 	hcs := NewHealthCheckSystem(registry)
 
@@ -190,6 +196,7 @@ func TestGetHealthCheckResult(t *testing.T) {
 
 // TestGetHealthCheckResultNotFound tests retrieving non-existent result
 func TestGetHealthCheckResultNotFound(t *testing.T) {
+	t.Parallel()
 	registry := NewMockServiceRegistry()
 	hcs := NewHealthCheckSystem(registry)
 
@@ -201,6 +208,7 @@ func TestGetHealthCheckResultNotFound(t *testing.T) {
 
 // TestGetAllHealthCheckResults tests retrieving all results
 func TestGetAllHealthCheckResults(t *testing.T) {
+	t.Parallel()
 	registry := NewMockServiceRegistry()
 	hcs := NewHealthCheckSystem(registry)
 
@@ -223,6 +231,7 @@ func TestGetAllHealthCheckResults(t *testing.T) {
 
 // TestNewFailureDetector tests FailureDetector creation
 func TestNewFailureDetector(t *testing.T) {
+	t.Parallel()
 	registry := NewMockServiceRegistry()
 	hcs := NewHealthCheckSystem(registry)
 	fd := NewFailureDetector(hcs, 3)
@@ -235,6 +244,7 @@ func TestNewFailureDetector(t *testing.T) {
 
 // TestDetectFailuresNoFailures tests failure detection with no failures
 func TestDetectFailuresNoFailures(t *testing.T) {
+	t.Parallel()
 	registry := NewMockServiceRegistry()
 	hcs := NewHealthCheckSystem(registry)
 	fd := NewFailureDetector(hcs, 3)
@@ -259,6 +269,7 @@ func TestDetectFailuresNoFailures(t *testing.T) {
 
 // TestDetectFailuresWithFailures tests failure detection with failures
 func TestDetectFailuresWithFailures(t *testing.T) {
+	t.Parallel()
 	registry := NewMockServiceRegistry()
 	hcs := NewHealthCheckSystem(registry)
 	fd := NewFailureDetector(hcs, 2)
@@ -288,6 +299,7 @@ func TestDetectFailuresWithFailures(t *testing.T) {
 
 // TestResetFailureCount tests resetting failure count
 func TestResetFailureCount(t *testing.T) {
+	t.Parallel()
 	registry := NewMockServiceRegistry()
 	hcs := NewHealthCheckSystem(registry)
 	fd := NewFailureDetector(hcs, 3)
@@ -308,6 +320,7 @@ func TestResetFailureCount(t *testing.T) {
 
 // TestNewAutomaticDeregistration tests AutomaticDeregistration creation
 func TestNewAutomaticDeregistration(t *testing.T) {
+	t.Parallel()
 	registry := NewMockServiceRegistry()
 	hcs := NewHealthCheckSystem(registry)
 	fd := NewFailureDetector(hcs, 3)
@@ -322,6 +335,7 @@ func TestNewAutomaticDeregistration(t *testing.T) {
 
 // TestStartAutomaticDeregistration tests starting automatic deregistration
 func TestStartAutomaticDeregistration(t *testing.T) {
+	t.Parallel()
 	registry := NewMockServiceRegistry()
 	hcs := NewHealthCheckSystem(registry)
 	fd := NewFailureDetector(hcs, 3)
@@ -338,6 +352,7 @@ func TestStartAutomaticDeregistration(t *testing.T) {
 
 // TestStartAutomaticDeregistrationAlreadyRunning tests starting already running system
 func TestStartAutomaticDeregistrationAlreadyRunning(t *testing.T) {
+	t.Parallel()
 	registry := NewMockServiceRegistry()
 	hcs := NewHealthCheckSystem(registry)
 	fd := NewFailureDetector(hcs, 3)
@@ -357,6 +372,7 @@ func TestStartAutomaticDeregistrationAlreadyRunning(t *testing.T) {
 
 // TestStopAutomaticDeregistration tests stopping automatic deregistration
 func TestStopAutomaticDeregistration(t *testing.T) {
+	t.Parallel()
 	registry := NewMockServiceRegistry()
 	hcs := NewHealthCheckSystem(registry)
 	fd := NewFailureDetector(hcs, 3)
@@ -373,6 +389,7 @@ func TestStopAutomaticDeregistration(t *testing.T) {
 
 // TestHealthCheckResultFields tests HealthCheckResult fields
 func TestHealthCheckResultFields(t *testing.T) {
+	t.Parallel()
 	result := &HealthCheckResult{
 		ServiceID:    "service-1",
 		ServiceName:  "my-service",
@@ -392,6 +409,7 @@ func TestHealthCheckResultFields(t *testing.T) {
 
 // TestHealthCheckEndpointFields tests HealthCheckEndpoint fields
 func TestHealthCheckEndpointFields(t *testing.T) {
+	t.Parallel()
 	endpoint := HealthCheckEndpoint{
 		ServiceID: "service-1",
 		URL:       "http://localhost:8080/health",
@@ -407,6 +425,7 @@ func TestHealthCheckEndpointFields(t *testing.T) {
 
 // TestConcurrentHealthCheckRegistration tests concurrent endpoint registration
 func TestConcurrentHealthCheckRegistration(t *testing.T) {
+	t.Parallel()
 	registry := NewMockServiceRegistry()
 	hcs := NewHealthCheckSystem(registry)
 
@@ -440,6 +459,7 @@ func TestConcurrentHealthCheckRegistration(t *testing.T) {
 
 // TestConcurrentResultRetrieval tests concurrent result retrieval
 func TestConcurrentResultRetrieval(t *testing.T) {
+	t.Parallel()
 	registry := NewMockServiceRegistry()
 	hcs := NewHealthCheckSystem(registry)
 
@@ -473,6 +493,7 @@ func TestConcurrentResultRetrieval(t *testing.T) {
 
 // TestFailureDetectionThreshold tests failure detection threshold
 func TestFailureDetectionThreshold(t *testing.T) {
+	t.Parallel()
 	registry := NewMockServiceRegistry()
 	hcs := NewHealthCheckSystem(registry)
 	threshold := 3
@@ -504,6 +525,7 @@ func TestFailureDetectionThreshold(t *testing.T) {
 
 // TestHealthCheckResultTimestamp tests result timestamp
 func TestHealthCheckResultTimestamp(t *testing.T) {
+	t.Parallel()
 	before := time.Now()
 	result := &HealthCheckResult{
 		ServiceID: "service-1",
@@ -518,6 +540,7 @@ func TestHealthCheckResultTimestamp(t *testing.T) {
 
 // TestHealthCheckResponseTime tests response time measurement
 func TestHealthCheckResponseTime(t *testing.T) {
+	t.Parallel()
 	result := &HealthCheckResult{
 		ServiceID:    "service-1",
 		Healthy:      true,
@@ -526,4 +549,67 @@ func TestHealthCheckResponseTime(t *testing.T) {
 
 	assert.Equal(t, 150*time.Millisecond, result.ResponseTime)
 	assert.Greater(t, result.ResponseTime, time.Duration(0))
+}
+
+func TestHealthCheckSystemStopWaitsForGoroutines(t *testing.T) {
+	t.Parallel()
+	registry := NewMockServiceRegistry()
+	hcs := NewHealthCheckSystem(registry)
+
+	// Register a health check endpoint
+	ctx := context.Background()
+	endpoint := HealthCheckEndpoint{
+		ServiceID: "test-service",
+		URL:       "http://localhost:9999",
+		Timeout:   1 * time.Second,
+	}
+	_ = hcs.RegisterHealthCheckEndpoint(ctx, endpoint)
+
+	// Start the health check system
+	err := hcs.Start(ctx)
+	assert.NoError(t, err)
+	assert.True(t, hcs.running)
+
+	// Stop should complete without hanging (proves wg.Wait() works)
+	done := make(chan struct{})
+	go func() {
+		hcs.Stop()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		// Success — Stop() waited for goroutines and returned
+	case <-time.After(5 * time.Second):
+		t.Fatal("Stop() hung — goroutine leak not fixed")
+	}
+
+	assert.False(t, hcs.running)
+}
+
+func TestAutomaticDeregistrationStopWaitsForGoroutine(t *testing.T) {
+	t.Parallel()
+	registry := NewMockServiceRegistry()
+	fd := NewFailureDetector(NewHealthCheckSystem(registry), 3)
+	ad := NewAutomaticDeregistration(registry, fd, 30*time.Second)
+
+	ctx := context.Background()
+	err := ad.Start(ctx)
+	assert.NoError(t, err)
+	assert.True(t, ad.running)
+
+	done := make(chan struct{})
+	go func() {
+		ad.Stop()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		// Success
+	case <-time.After(5 * time.Second):
+		t.Fatal("AutomaticDeregistration.Stop() hung")
+	}
+
+	assert.False(t, ad.running)
 }

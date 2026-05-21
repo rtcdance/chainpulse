@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"chainpulse/pkg/core"
-	"chainpulse/pkg/infrastructure/database"
-	"chainpulse/pkg/plugins/api"
+	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/infrastructure/database"
+	"github.com/rtcdance/chainpulse/pkg/plugins/api"
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
@@ -23,11 +23,13 @@ type eventProcessorTestDatabaseManager struct {
 var _ database.DatabaseManager = (*eventProcessorTestDatabaseManager)(nil)
 
 func (m *eventProcessorTestDatabaseManager) Initialize(ctx context.Context) error { return nil }
-func (m *eventProcessorTestDatabaseManager) GetMongoClient(ctx context.Context) (interface{}, error) {
+func (m *eventProcessorTestDatabaseManager) GetMongoClient(ctx context.Context) (any, error) {
 	return nil, nil
 }
+
 func (m *eventProcessorTestDatabaseManager) GetMongoDatabase(name string) *mongo.Database { return nil }
-func (m *eventProcessorTestDatabaseManager) GetPostgresDB(ctx context.Context) (interface{}, error) {
+
+func (m *eventProcessorTestDatabaseManager) GetPostgresDB(ctx context.Context) (any, error) {
 	return nil, nil
 }
 
@@ -45,8 +47,8 @@ func (m *eventProcessorTestDatabaseManager) CheckPostgresHealth(ctx context.Cont
 	return context.DeadlineExceeded
 }
 
-func (m *eventProcessorTestDatabaseManager) Health(ctx context.Context) interface{} {
-	return map[string]interface{}{
+func (m *eventProcessorTestDatabaseManager) Health(ctx context.Context) any {
+	return map[string]any{
 		"status":   "healthy",
 		"mongodb":  m.mongoHealthy,
 		"postgres": m.postgresHealthy,
@@ -69,8 +71,8 @@ func (c *eventProcessorTestComponentHealth) Health(ctx context.Context) *core.He
 type eventProcessorTestKafkaHealth struct {
 	status             string
 	message            string
-	details            map[string]interface{}
-	consumerGroupState map[string]interface{}
+	details            map[string]any
+	consumerGroupState map[string]any
 	consumerMetrics    map[string]int64
 }
 
@@ -82,7 +84,7 @@ func (k *eventProcessorTestKafkaHealth) Health() *core.HealthStatus {
 	}
 }
 
-func (k *eventProcessorTestKafkaHealth) GetConsumerGroupStatus() map[string]interface{} {
+func (k *eventProcessorTestKafkaHealth) GetConsumerGroupStatus() map[string]any {
 	return k.consumerGroupState
 }
 
@@ -147,12 +149,12 @@ func TestBuildEventProcessorRuntimeRolloutState(t *testing.T) {
 		&eventProcessorTestKafkaHealth{
 			status:  "healthy",
 			message: "kafka ready",
-			details: map[string]interface{}{
+			details: map[string]any{
 				"message_count":      int64(12),
 				"error_count":        int64(1),
 				"max_tracked_offset": int64(144),
 			},
-			consumerGroupState: map[string]interface{}{
+			consumerGroupState: map[string]any{
 				"active_consumers": int64(2),
 			},
 			consumerMetrics: map[string]int64{
@@ -506,7 +508,7 @@ func TestClassifyEventProcessorConsumerBacklogHint(t *testing.T) {
 func TestBuildEventProcessorKafkaConsumerProgressSnapshot(t *testing.T) {
 	snapshot := buildEventProcessorKafkaConsumerProgressSnapshot(
 		&eventProcessorTestKafkaHealth{
-			consumerGroupState: map[string]interface{}{
+			consumerGroupState: map[string]any{
 				"active_consumers": int64(2),
 			},
 			consumerMetrics: map[string]int64{
@@ -530,7 +532,7 @@ func TestBuildEventProcessorKafkaConsumerProgressSnapshot(t *testing.T) {
 func TestBuildEventProcessorKafkaConsumerProgressSnapshotFromHealthDetails(t *testing.T) {
 	snapshot := buildEventProcessorKafkaConsumerProgressSnapshot(
 		&eventProcessorTestKafkaHealth{
-			details: map[string]interface{}{
+			details: map[string]any{
 				"active_consumers":   int64(3),
 				"consumer_group_lag": int64(8),
 				"max_tracked_offset": int64(144),
@@ -568,12 +570,12 @@ func TestBuildEventProcessorRuntimeRolloutHealthHandler(t *testing.T) {
 		&eventProcessorTestKafkaHealth{
 			status:  "healthy",
 			message: "kafka ready",
-			details: map[string]interface{}{
+			details: map[string]any{
 				"message_count":      int64(12),
 				"error_count":        int64(1),
 				"max_tracked_offset": int64(144),
 			},
-			consumerGroupState: map[string]interface{}{
+			consumerGroupState: map[string]any{
 				"active_consumers": int64(2),
 			},
 			consumerMetrics: map[string]int64{

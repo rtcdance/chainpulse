@@ -3,13 +3,15 @@ package observability
 import (
 	"context"
 	"fmt"
+	"os"
 	"sync"
 	"time"
 
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core"
 	"go.opentelemetry.io/otel"
 	otelattribute "go.opentelemetry.io/otel/attribute"
 	otelcodes "go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.opentelemetry.io/otel/propagation"
 	sdkresource "go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
@@ -73,7 +75,7 @@ type Span struct {
 	Status     SpanStatus
 	StatusCode int
 	StatusMsg  string
-	Attributes map[string]interface{}
+	Attributes map[string]any
 	Events     []SpanEvent
 	Links      []SpanLink
 	Duration   time.Duration
@@ -83,14 +85,14 @@ type Span struct {
 type SpanEvent struct {
 	Name       string
 	Timestamp  time.Time
-	Attributes map[string]interface{}
+	Attributes map[string]any
 }
 
 // SpanLink represents a link to another span
 type SpanLink struct {
 	TraceID    string
 	SpanID     string
-	Attributes map[string]interface{}
+	Attributes map[string]any
 }
 
 // Tracer creates and manages spans
@@ -102,13 +104,13 @@ type Tracer interface {
 	EndSpan(span Span)
 
 	// AddEvent adds an event to a span
-	AddEvent(span *Span, name string, attributes map[string]interface{})
+	AddEvent(span *Span, name string, attributes map[string]any)
 
 	// AddLink adds a link to a span
-	AddLink(span *Span, traceID, spanID string, attributes map[string]interface{})
+	AddLink(span *Span, traceID, spanID string, attributes map[string]any)
 
 	// SetAttribute sets an attribute on a span
-	SetAttribute(span *Span, key string, value interface{})
+	SetAttribute(span *Span, key string, value any)
 
 	// SetStatus sets the status of a span
 	SetStatus(span *Span, status SpanStatus, code int, msg string)
@@ -127,6 +129,7 @@ type Tracer interface {
 type DefaultTracer struct {
 	mu               sync.RWMutex
 	spans            []Span
+	maxSpans         int // cap on recorded spans to prevent unbounded growth
 	activeSpans      map[string]*activeSpanState
 	traceIDCounter   uint64
 	spanIDCounter    uint64
@@ -136,17 +139,62 @@ type DefaultTracer struct {
 	otelTracer       oteltrace.Tracer
 }
 
-// NewDefaultTracer creates a new tracer
+// NewDefaultTracer creates a new tracer.
+//
+// Deprecated: Use NewDefaultTracerWithProvider instead to avoid creating
+// duplicate TracerProvider instances. Each call to NewDefaultTracer creates a
+// new TracerProvider and calls otel.SetTracerProvider, which overwrites the
+// global state and breaks trace correlation between components.
+// Will be removed in a future release.
 func NewDefaultTracer(logger core.Logger, metrics core.MetricsCollector) *DefaultTracer {
-	provider := sdktrace.NewTracerProvider(
-		sdktrace.WithSampler(sdktrace.AlwaysSample()),
-		sdktrace.WithResource(sdkresource.NewWithAttributes(
-			"",
-			otelattribute.String("service.name", "chainpulse"),
-			otelattribute.String("service.namespace", "pkg.observability"),
-		)),
+	res := sdkresource.NewWithAttributes(
+		"",
+		otelattribute.String("service.name", "chainpulse"),
+		otelattribute.String("service.namespace", "pkg.observability"),
 	)
-	otel.SetTracerProvider(provider)
+
+	var provider *sdktrace.TracerProvider
+
+	// Configure OTLP exporter if endpoint is set
+	otlpEndpoint := os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
+	if otlpEndpoint != "" {
+		exporter, err := otlptracegrpc.New(context.Background(),
+			otlptracegrpc.WithEndpoint(otlpEndpoint),
+			otlptracegrpc.WithInsecure(),
+		)
+		if err != nil {
+			// Fall back to noop provider if exporter fails
+			if logger != nil {
+				logger.Error("failed to create OTLP exporter, using noop tracer", "error", err)
+			}
+			provider = sdktrace.NewTracerProvider(
+				sdktrace.WithSampler(sdktrace.AlwaysSample()),
+				sdktrace.WithResource(res),
+			)
+		} else {
+			provider = sdktrace.NewTracerProvider(
+				sdktrace.WithSampler(sdktrace.AlwaysSample()),
+				sdktrace.WithResource(res),
+				sdktrace.WithBatcher(exporter),
+			)
+		}
+	} else {
+		// No endpoint configured, use in-process provider (spans are recorded but not exported)
+		provider = sdktrace.NewTracerProvider(
+			sdktrace.WithSampler(sdktrace.AlwaysSample()),
+			sdktrace.WithResource(res),
+		)
+	}
+
+	// NOTE: We intentionally do NOT call otel.SetTracerProvider() here.
+	// The global TracerProvider should only be set once by ObservabilityProvider
+	// at application startup. Setting it here would overwrite the shared provider
+	// and break trace correlation between components.
+	// This is one of the reasons NewDefaultTracer is deprecated.
+
+	// Set the global text map propagator if not already set, so that
+	// ExtractContext/InjectContext work correctly for trace propagation.
+	// This is idempotent — calling it multiple times with the same propagator is safe.
 	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(
 		propagation.TraceContext{},
 		propagation.Baggage{},
@@ -154,13 +202,14 @@ func NewDefaultTracer(logger core.Logger, metrics core.MetricsCollector) *Defaul
 
 	return &DefaultTracer{
 		spans:            make([]Span, 0),
+		maxSpans:         10000,
 		activeSpans:      make(map[string]*activeSpanState),
 		traceIDCounter:   1,
 		spanIDCounter:    1,
 		logger:           logger,
 		metricsCollector: metrics,
 		otelProvider:     provider,
-		otelTracer:       provider.Tracer("chainpulse/pkg/observability"),
+		otelTracer:       provider.Tracer("github.com/rtcdance/chainpulse/pkg.observability"),
 	}
 }
 
@@ -209,7 +258,7 @@ func (t *DefaultTracer) StartSpan(ctx context.Context, name string, kind SpanKin
 		Kind:       kind,
 		StartTime:  time.Now().UTC(),
 		Status:     SpanStatusUnset,
-		Attributes: make(map[string]interface{}),
+		Attributes: make(map[string]any),
 		Events:     make([]SpanEvent, 0),
 		Links:      make([]SpanLink, 0),
 	}
@@ -276,7 +325,15 @@ func (t *DefaultTracer) EndSpan(span *Span) {
 	// Remove from active spans
 	delete(t.activeSpans, span.SpanID)
 
-	// Add to recorded spans
+	// Add to recorded spans with bounded capacity
+	if t.maxSpans > 0 && len(t.spans) >= t.maxSpans {
+		// Evict oldest half to amortize the cost
+		half := t.maxSpans / 2
+		if half < len(t.spans) {
+			copy(t.spans, t.spans[half:])
+			t.spans = t.spans[:len(t.spans)-half]
+		}
+	}
 	t.spans = append(t.spans, *span)
 
 	// Record metric
@@ -295,7 +352,7 @@ func (t *DefaultTracer) EndSpan(span *Span) {
 }
 
 // AddEvent adds an event to a span
-func (t *DefaultTracer) AddEvent(span *Span, name string, attributes map[string]interface{}) {
+func (t *DefaultTracer) AddEvent(span *Span, name string, attributes map[string]any) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
@@ -322,7 +379,7 @@ func (t *DefaultTracer) AddEvent(span *Span, name string, attributes map[string]
 }
 
 // AddLink adds a link to a span
-func (t *DefaultTracer) AddLink(span *Span, traceID, spanID string, attributes map[string]interface{}) {
+func (t *DefaultTracer) AddLink(span *Span, traceID, spanID string, attributes map[string]any) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
@@ -354,7 +411,7 @@ func (t *DefaultTracer) AddLink(span *Span, traceID, spanID string, attributes m
 }
 
 // SetAttribute sets an attribute on a span
-func (t *DefaultTracer) SetAttribute(span *Span, key string, value interface{}) {
+func (t *DefaultTracer) SetAttribute(span *Span, key string, value any) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
@@ -463,30 +520,6 @@ func (t *DefaultTracer) generateSpanID() string {
 	return fmt.Sprintf("%016x", t.spanIDCounter)
 }
 
-// parseTraceParent parses W3C Trace Context traceparent header
-//
-//nolint:unused
-func parseTraceParent(traceparent string) []string {
-	// Format: version-traceID-parentID-flags
-	// Example: 00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01
-	parts := make([]string, 0)
-	var current string
-	for _, ch := range traceparent {
-		if ch == '-' {
-			if current != "" {
-				parts = append(parts, current)
-				current = ""
-			}
-		} else {
-			current += string(ch)
-		}
-	}
-	if current != "" {
-		parts = append(parts, current)
-	}
-	return parts
-}
-
 // TracingContext represents the context for tracing operations
 type TracingContext struct {
 	TraceID       string
@@ -497,14 +530,16 @@ type TracingContext struct {
 
 // SpanRecorder records spans for testing and analysis
 type SpanRecorder struct {
-	mu    sync.RWMutex
-	spans []Span
+	mu       sync.RWMutex
+	spans    []Span
+	maxSpans int // cap to prevent unbounded growth
 }
 
 // NewSpanRecorder creates a new span recorder
 func NewSpanRecorder() *SpanRecorder {
 	return &SpanRecorder{
-		spans: make([]Span, 0),
+		spans:    make([]Span, 0),
+		maxSpans: 10000,
 	}
 }
 
@@ -512,6 +547,13 @@ func NewSpanRecorder() *SpanRecorder {
 func (sr *SpanRecorder) Record(span Span) {
 	sr.mu.Lock()
 	defer sr.mu.Unlock()
+	if sr.maxSpans > 0 && len(sr.spans) >= sr.maxSpans {
+		half := sr.maxSpans / 2
+		if half < len(sr.spans) {
+			copy(sr.spans, sr.spans[half:])
+			sr.spans = sr.spans[:len(sr.spans)-half]
+		}
+	}
 	sr.spans = append(sr.spans, span)
 }
 

@@ -3,32 +3,37 @@ package query
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"regexp"
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
-	"chainpulse/pkg/core"
-	"chainpulse/pkg/infrastructure/database"
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
+
+type postgresConnectionProvider interface {
+	GetPostgresDB(ctx context.Context) (any, error)
+}
 
 // DefaultPostgreSQLAdapter provides PostgreSQL query operations
 type DefaultPostgreSQLAdapter struct {
-	mu               sync.RWMutex
-	dbManager        database.DatabaseManager
+	initMu           sync.Mutex
+initialized      atomic.Bool
+	dbManager        postgresConnectionProvider
 	db               *sql.DB
 	logger           core.Logger
 	metricsCollector core.MetricsCollector
-	initialized      bool
 }
 
 var postgresIdentifierPattern = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_]*$`)
 
 // NewPostgreSQLAdapter creates a new PostgreSQL adapter
 func NewPostgreSQLAdapter(
-	dbManager database.DatabaseManager,
+	dbManager postgresConnectionProvider,
 	logger core.Logger,
 	metricsCollector core.MetricsCollector,
 ) PostgreSQLAdapter {
@@ -41,10 +46,10 @@ func NewPostgreSQLAdapter(
 
 // Initialize initializes the PostgreSQL adapter
 func (pa *DefaultPostgreSQLAdapter) Initialize(ctx context.Context) error {
-	pa.mu.Lock()
-	defer pa.mu.Unlock()
+	pa.initMu.Lock()
+	defer pa.initMu.Unlock()
 
-	if pa.initialized {
+	if pa.initialized.Load() {
 		return fmt.Errorf("PostgreSQL adapter already initialized")
 	}
 
@@ -58,22 +63,22 @@ func (pa *DefaultPostgreSQLAdapter) Initialize(ctx context.Context) error {
 		return fmt.Errorf("PostgreSQL connection is nil")
 	}
 
-	pa.db = db.(*sql.DB)
-	pa.initialized = true
+	sqlDB, ok := db.(*sql.DB)
+	if !ok {
+		return fmt.Errorf("expected *sql.DB, got %T", db)
+	}
+	pa.db = sqlDB
+	pa.initialized.Store(true)
 
-	pa.logger.Info("PostgreSQL adapter initialized", map[string]interface{}{
-		"component": "postgres-adapter",
-	})
+	pa.logger.Info("PostgreSQL adapter initialized", core.LogKeyComponent, "postgres-adapter")
 
 	return nil
 }
 
 // Query executes a query against PostgreSQL
 func (pa *DefaultPostgreSQLAdapter) Query(ctx context.Context, req *QueryRequest) (*QueryResult, error) {
-	pa.mu.RLock()
-	defer pa.mu.RUnlock()
 
-	if !pa.initialized {
+	if !pa.initialized.Load() {
 		return nil, fmt.Errorf("PostgreSQL adapter not initialized")
 	}
 
@@ -96,7 +101,7 @@ func (pa *DefaultPostgreSQLAdapter) Query(ctx context.Context, req *QueryRequest
 
 	// Build WHERE clause from filter
 	whereClause := ""
-	args := []interface{}{}
+	args := []any{}
 	argIndex := 1
 
 	if req.Filter != nil {
@@ -151,11 +156,7 @@ func (pa *DefaultPostgreSQLAdapter) Query(ctx context.Context, req *QueryRequest
 	if err != nil {
 		duration := time.Since(start).Milliseconds()
 		pa.metricsCollector.RecordCounter("postgres_query_error", 1, map[string]string{})
-		pa.logger.Error("PostgreSQL query failed", map[string]interface{}{
-			"table":    req.Collection,
-			"error":    err.Error(),
-			"duration": duration,
-		})
+		pa.logger.Error("PostgreSQL query failed", "table", req.Collection, core.LogKeyError, err, core.LogKeyDuration, duration)
 		return nil, fmt.Errorf("PostgreSQL query failed: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
@@ -176,9 +177,7 @@ func (pa *DefaultPostgreSQLAdapter) Query(ctx context.Context, req *QueryRequest
 			&event.BlockTimestamp,
 			&event.ChainID,
 		); err != nil {
-			pa.logger.Error("Failed to scan PostgreSQL row", map[string]interface{}{
-				"error": err.Error(),
-			})
+			pa.logger.Error("Failed to scan PostgreSQL row", core.LogKeyError, err)
 			continue
 		}
 		events = append(events, event)
@@ -187,11 +186,7 @@ func (pa *DefaultPostgreSQLAdapter) Query(ctx context.Context, req *QueryRequest
 	if err := rows.Err(); err != nil {
 		duration := time.Since(start).Milliseconds()
 		pa.metricsCollector.RecordCounter("postgres_scan_error", 1, map[string]string{})
-		pa.logger.Error("PostgreSQL scan error", map[string]interface{}{
-			"table":    req.Collection,
-			"error":    err.Error(),
-			"duration": duration,
-		})
+		pa.logger.Error("PostgreSQL scan error", "table", req.Collection, core.LogKeyError, err, core.LogKeyDuration, duration)
 		return nil, fmt.Errorf("PostgreSQL scan failed: %w", err)
 	}
 
@@ -203,10 +198,7 @@ func (pa *DefaultPostgreSQLAdapter) Query(ctx context.Context, req *QueryRequest
 
 	var total int64
 	if err := pa.db.QueryRowContext(ctx, countQuery, args...).Scan(&total); err != nil {
-		pa.logger.Error("Failed to count PostgreSQL rows", map[string]interface{}{
-			"table": req.Collection,
-			"error": err.Error(),
-		})
+		pa.logger.Error("Failed to count PostgreSQL rows", "table", req.Collection, core.LogKeyError, err)
 		total = int64(len(events))
 	}
 
@@ -214,12 +206,7 @@ func (pa *DefaultPostgreSQLAdapter) Query(ctx context.Context, req *QueryRequest
 	pa.metricsCollector.RecordHistogram("postgres_query_time_ms", float64(duration), map[string]string{})
 	pa.metricsCollector.RecordCounter("postgres_query_success", 1, map[string]string{})
 
-	pa.logger.Info("PostgreSQL query successful", map[string]interface{}{
-		"table":    req.Collection,
-		"count":    len(events),
-		"total":    total,
-		"duration": duration,
-	})
+	pa.logger.Info("PostgreSQL query successful", "table", req.Collection, core.LogKeyCount, len(events), "total", total, core.LogKeyDuration, duration)
 
 	return &QueryResult{
 		Events:       events,
@@ -235,10 +222,8 @@ func isSafePostgresIdentifier(identifier string) bool {
 
 // QueryByHash retrieves a single item by hash
 func (pa *DefaultPostgreSQLAdapter) QueryByHash(ctx context.Context, hash string) (*core.BlockchainEvent, error) {
-	pa.mu.RLock()
-	defer pa.mu.RUnlock()
 
-	if !pa.initialized {
+	if !pa.initialized.Load() {
 		return nil, fmt.Errorf("PostgreSQL adapter not initialized")
 	}
 
@@ -269,22 +254,15 @@ func (pa *DefaultPostgreSQLAdapter) QueryByHash(ctx context.Context, hash string
 		&event.ChainID,
 	)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			duration := time.Since(start).Milliseconds()
-			pa.logger.Debug("Event not found in PostgreSQL", map[string]interface{}{
-				"hash":     hash,
-				"duration": duration,
-			})
+			pa.logger.Debug("Event not found in PostgreSQL", core.LogKeyHash, hash, core.LogKeyDuration, duration)
 			return nil, nil
 		}
 
 		duration := time.Since(start).Milliseconds()
 		pa.metricsCollector.RecordCounter("postgres_query_by_hash_error", 1, map[string]string{})
-		pa.logger.Error("PostgreSQL query by hash failed", map[string]interface{}{
-			"hash":     hash,
-			"error":    err.Error(),
-			"duration": duration,
-		})
+		pa.logger.Error("PostgreSQL query by hash failed", core.LogKeyHash, hash, core.LogKeyError, err, core.LogKeyDuration, duration)
 		return nil, fmt.Errorf("PostgreSQL query failed: %w", err)
 	}
 
@@ -292,20 +270,15 @@ func (pa *DefaultPostgreSQLAdapter) QueryByHash(ctx context.Context, hash string
 	pa.metricsCollector.RecordHistogram("postgres_query_by_hash_time_ms", float64(duration), map[string]string{})
 	pa.metricsCollector.RecordCounter("postgres_query_by_hash_success", 1, map[string]string{})
 
-	pa.logger.Info("PostgreSQL query by hash successful", map[string]interface{}{
-		"hash":     hash,
-		"duration": duration,
-	})
+	pa.logger.Info("PostgreSQL query by hash successful", core.LogKeyHash, hash, core.LogKeyDuration, duration)
 
 	return &event, nil
 }
 
 // Health returns the health status
 func (pa *DefaultPostgreSQLAdapter) Health(ctx context.Context) *core.HealthStatus {
-	pa.mu.RLock()
-	defer pa.mu.RUnlock()
 
-	if !pa.initialized {
+	if !pa.initialized.Load() {
 		return &core.HealthStatus{
 			Status:  "unhealthy",
 			Message: "PostgreSQL adapter not initialized",

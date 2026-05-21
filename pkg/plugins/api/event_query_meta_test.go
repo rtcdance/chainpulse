@@ -3,6 +3,7 @@ package api
 import "testing"
 
 func TestBuildEventQueryMetaFromInputDerivesSharedFields(t *testing.T) {
+	t.Parallel()
 	meta := buildEventQueryMetaFromInput(eventQueryMetaInput{
 		Source:                "event-retrieval",
 		QueryPath:             "retrieval-list",
@@ -30,6 +31,7 @@ func TestBuildEventQueryMetaFromInputDerivesSharedFields(t *testing.T) {
 }
 
 func TestBuildEventQueryMetaFromInputPreservesExplicitSourcePosture(t *testing.T) {
+	t.Parallel()
 	meta := buildEventQueryMetaFromInput(eventQueryMetaInput{
 		Source:                "cache",
 		QuerySourcePosture:    "cache-hit",

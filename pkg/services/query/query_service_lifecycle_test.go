@@ -3,8 +3,9 @@ package query
 import (
 	"context"
 	"testing"
+	"time"
 
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 type lifecycleCacheService struct {
@@ -42,7 +43,7 @@ func (m *lifecycleCacheService) GetSingle(ctx context.Context, key string) (*cor
 	return nil, nil
 }
 
-func (m *lifecycleCacheService) Set(ctx context.Context, key string, value []core.BlockchainEvent, ttl interface{}) error {
+func (m *lifecycleCacheService) Set(ctx context.Context, key string, value []core.BlockchainEvent, ttl time.Duration) error {
 	_ = ctx
 	_ = key
 	_ = value
@@ -50,12 +51,27 @@ func (m *lifecycleCacheService) Set(ctx context.Context, key string, value []cor
 	return nil
 }
 
-func (m *lifecycleCacheService) SetSingle(ctx context.Context, key string, value *core.BlockchainEvent, ttl interface{}) error {
+func (m *lifecycleCacheService) SetSingle(ctx context.Context, key string, value *core.BlockchainEvent, ttl time.Duration) error {
 	_ = ctx
 	_ = key
 	_ = value
 	_ = ttl
 	return nil
+}
+
+func (m *lifecycleCacheService) SetQueryResult(ctx context.Context, key string, events []core.BlockchainEvent, total int64, ttl time.Duration) error {
+	_ = ctx
+	_ = key
+	_ = events
+	_ = total
+	_ = ttl
+	return nil
+}
+
+func (m *lifecycleCacheService) GetQueryResult(ctx context.Context, key string) ([]core.BlockchainEvent, int64, error) {
+	_ = ctx
+	_ = key
+	return nil, 0, nil
 }
 
 func (m *lifecycleCacheService) Delete(ctx context.Context, key string) error {
@@ -73,12 +89,13 @@ func (m *lifecycleCacheService) Health(ctx context.Context) *core.HealthStatus {
 }
 
 func TestQueryServiceStartStopManagesCacheLifecycle(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	cache := &lifecycleCacheService{}
 	logger := &MockLogger{}
 	metricsCollector := NewMockMetricsCollector()
 	service := NewQueryService(
-		nil,
+
 		&MockMongoDBAdapter{healthy: true},
 		&MockPostgreSQLAdapter{healthy: true},
 		cache,

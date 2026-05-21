@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"chainpulse/pkg/core"
-	"chainpulse/pkg/infrastructure/processing"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/infrastructure/processing"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -76,10 +76,14 @@ func (m *MockEventStore) QueryEvents(ctx context.Context, filter *processing.Eve
 	return m.storedEvents, nil
 }
 
-func (m *MockEventStore) BatchStoreEvents(ctx context.Context, events []*processing.Event) error {
+func (m *MockEventStore) BatchStoreEvents(ctx context.Context, events []any) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.storedEvents = append(m.storedEvents, events...)
+	for _, e := range events {
+		if evt, ok := e.(*processing.Event); ok {
+			m.storedEvents = append(m.storedEvents, evt)
+		}
+	}
 	return nil
 }
 
@@ -87,9 +91,14 @@ func (m *MockEventStore) GetMetrics() processing.StorageMetrics {
 	return processing.StorageMetrics{}
 }
 
+func (m *MockEventStore) DeleteEventsByBlockRange(_ context.Context, _, _ uint64) (int64, error) {
+	return 0, nil
+}
+
 // TestNewBlockchainCluster tests cluster creation
 func TestNewBlockchainCluster(t *testing.T) {
-	cluster := NewBlockchainCluster("test-cluster", "EVM", 2, 5)
+	t.Parallel()
+	cluster := NewBlockchainCluster("test-cluster", "EVM", "EVM", 2, 5)
 
 	assert.NotNil(t, cluster)
 	assert.Equal(t, "test-cluster", cluster.id)
@@ -101,7 +110,8 @@ func TestNewBlockchainCluster(t *testing.T) {
 
 // TestDeployCluster tests cluster deployment
 func TestDeployCluster(t *testing.T) {
-	cluster := NewBlockchainCluster("test-cluster", "EVM", 2, 5)
+	t.Parallel()
+	cluster := NewBlockchainCluster("test-cluster", "EVM", "EVM", 2, 5)
 
 	err := cluster.Deploy(context.Background())
 
@@ -112,7 +122,8 @@ func TestDeployCluster(t *testing.T) {
 
 // TestClusterProcessEvent tests event processing
 func TestClusterProcessEvent(t *testing.T) {
-	cluster := NewBlockchainCluster("test-cluster", "EVM", 1, 5)
+	t.Parallel()
+	cluster := NewBlockchainCluster("test-cluster", "EVM", "EVM", 1, 5)
 	_ = cluster.Deploy(context.Background())
 
 	// Set instance to running
@@ -135,7 +146,8 @@ func TestClusterProcessEvent(t *testing.T) {
 
 // TestProcessEventNoInstances tests processing with no instances
 func TestProcessEventNoInstances(t *testing.T) {
-	cluster := NewBlockchainCluster("test-cluster", "EVM", 0, 5)
+	t.Parallel()
+	cluster := NewBlockchainCluster("test-cluster", "EVM", "EVM", 0, 5)
 
 	event := &core.BlockchainEvent{
 		ID:      "test-event",
@@ -150,7 +162,8 @@ func TestProcessEventNoInstances(t *testing.T) {
 
 // TestProcessEventBlockchainMismatch tests processing with blockchain type mismatch
 func TestProcessEventBlockchainMismatch(t *testing.T) {
-	cluster := NewBlockchainCluster("test-cluster", "EVM", 1, 5)
+	t.Parallel()
+	cluster := NewBlockchainCluster("test-cluster", "EVM", "EVM", 1, 5)
 	_ = cluster.Deploy(context.Background())
 
 	event := &core.BlockchainEvent{
@@ -166,7 +179,8 @@ func TestProcessEventBlockchainMismatch(t *testing.T) {
 
 // TestProcessEventNoRunningInstances tests processing with no running instances
 func TestProcessEventNoRunningInstances(t *testing.T) {
-	cluster := NewBlockchainCluster("test-cluster", "EVM", 1, 5)
+	t.Parallel()
+	cluster := NewBlockchainCluster("test-cluster", "EVM", "EVM", 1, 5)
 	_ = cluster.Deploy(context.Background())
 
 	event := &core.BlockchainEvent{
@@ -182,7 +196,8 @@ func TestProcessEventNoRunningInstances(t *testing.T) {
 
 // TestHealthCheck tests health check
 func TestHealthCheck(t *testing.T) {
-	cluster := NewBlockchainCluster("test-cluster", "EVM", 2, 5)
+	t.Parallel()
+	cluster := NewBlockchainCluster("test-cluster", "EVM", "EVM", 2, 5)
 	_ = cluster.Deploy(context.Background())
 
 	// Set instances to running
@@ -199,7 +214,8 @@ func TestHealthCheck(t *testing.T) {
 
 // TestClusterGetMetrics tests metrics retrieval
 func TestClusterGetMetrics(t *testing.T) {
-	cluster := NewBlockchainCluster("test-cluster", "EVM", 1, 5)
+	t.Parallel()
+	cluster := NewBlockchainCluster("test-cluster", "EVM", "EVM", 1, 5)
 	_ = cluster.Deploy(context.Background())
 
 	metrics := cluster.GetMetrics()
@@ -210,7 +226,8 @@ func TestClusterGetMetrics(t *testing.T) {
 
 // TestGetBlockchainType tests blockchain type retrieval
 func TestGetBlockchainType(t *testing.T) {
-	cluster := NewBlockchainCluster("test-cluster", "Cosmos", 1, 5)
+	t.Parallel()
+	cluster := NewBlockchainCluster("test-cluster", "Cosmos", "Cosmos", 1, 5)
 
 	blockchainType := cluster.GetBlockchainType()
 
@@ -219,7 +236,8 @@ func TestGetBlockchainType(t *testing.T) {
 
 // TestGetInstanceCount tests instance count retrieval
 func TestGetInstanceCount(t *testing.T) {
-	cluster := NewBlockchainCluster("test-cluster", "EVM", 3, 5)
+	t.Parallel()
+	cluster := NewBlockchainCluster("test-cluster", "EVM", "EVM", 3, 5)
 	_ = cluster.Deploy(context.Background())
 
 	count := cluster.GetInstanceCount()
@@ -229,6 +247,7 @@ func TestGetInstanceCount(t *testing.T) {
 
 // TestNewMultiBlockchainClusterManager tests manager creation
 func TestNewMultiBlockchainClusterManager(t *testing.T) {
+	t.Parallel()
 	manager := NewMultiBlockchainClusterManager()
 
 	assert.NotNil(t, manager)
@@ -237,8 +256,9 @@ func TestNewMultiBlockchainClusterManager(t *testing.T) {
 
 // TestRegisterCluster tests cluster registration
 func TestRegisterCluster(t *testing.T) {
+	t.Parallel()
 	manager := NewMultiBlockchainClusterManager()
-	cluster := NewBlockchainCluster("test-cluster", "EVM", 1, 5)
+	cluster := NewBlockchainCluster("test-cluster", "EVM", "EVM", 1, 5)
 
 	err := manager.RegisterCluster(cluster)
 
@@ -248,9 +268,10 @@ func TestRegisterCluster(t *testing.T) {
 
 // TestRegisterClusterDuplicate tests registering duplicate cluster
 func TestRegisterClusterDuplicate(t *testing.T) {
+	t.Parallel()
 	manager := NewMultiBlockchainClusterManager()
-	cluster1 := NewBlockchainCluster("test-cluster-1", "EVM", 1, 5)
-	cluster2 := NewBlockchainCluster("test-cluster-2", "EVM", 1, 5)
+	cluster1 := NewBlockchainCluster("test-cluster-1", "EVM", "EVM", 1, 5)
+	cluster2 := NewBlockchainCluster("test-cluster-2", "EVM", "EVM", 1, 5)
 
 	_ = manager.RegisterCluster(cluster1)
 	err := manager.RegisterCluster(cluster2)
@@ -261,8 +282,9 @@ func TestRegisterClusterDuplicate(t *testing.T) {
 
 // TestManagerProcessEventWithCluster tests processing event through manager
 func TestManagerProcessEventWithCluster(t *testing.T) {
+	t.Parallel()
 	manager := NewMultiBlockchainClusterManager()
-	cluster := NewBlockchainCluster("test-cluster", "EVM", 1, 5)
+	cluster := NewBlockchainCluster("test-cluster", "EVM", "EVM", 1, 5)
 	_ = cluster.Deploy(context.Background())
 
 	// Set instance to running
@@ -287,6 +309,7 @@ func TestManagerProcessEventWithCluster(t *testing.T) {
 
 // TestManagerProcessEventNoCluster tests processing with no cluster
 func TestManagerProcessEventNoCluster(t *testing.T) {
+	t.Parallel()
 	manager := NewMultiBlockchainClusterManager()
 
 	event := &core.BlockchainEvent{
@@ -302,8 +325,9 @@ func TestManagerProcessEventNoCluster(t *testing.T) {
 
 // TestGetCluster tests cluster retrieval
 func TestGetCluster(t *testing.T) {
+	t.Parallel()
 	manager := NewMultiBlockchainClusterManager()
-	cluster := NewBlockchainCluster("test-cluster", "EVM", 1, 5)
+	cluster := NewBlockchainCluster("test-cluster", "EVM", "EVM", 1, 5)
 	_ = manager.RegisterCluster(cluster)
 
 	retrieved, err := manager.GetCluster("EVM")
@@ -314,6 +338,7 @@ func TestGetCluster(t *testing.T) {
 
 // TestGetClusterNotFound tests retrieving non-existent cluster
 func TestGetClusterNotFound(t *testing.T) {
+	t.Parallel()
 	manager := NewMultiBlockchainClusterManager()
 
 	_, err := manager.GetCluster("EVM")
@@ -324,9 +349,10 @@ func TestGetClusterNotFound(t *testing.T) {
 
 // TestGetAllClusters tests retrieving all clusters
 func TestGetAllClusters(t *testing.T) {
+	t.Parallel()
 	manager := NewMultiBlockchainClusterManager()
-	cluster1 := NewBlockchainCluster("test-cluster-1", "EVM", 1, 5)
-	cluster2 := NewBlockchainCluster("test-cluster-2", "Cosmos", 1, 5)
+	cluster1 := NewBlockchainCluster("test-cluster-1", "EVM", "EVM", 1, 5)
+	cluster2 := NewBlockchainCluster("test-cluster-2", "Cosmos", "Cosmos", 1, 5)
 
 	_ = manager.RegisterCluster(cluster1)
 	_ = manager.RegisterCluster(cluster2)
@@ -338,8 +364,9 @@ func TestGetAllClusters(t *testing.T) {
 
 // TestManagerGetMetrics tests metrics retrieval
 func TestManagerGetMetrics(t *testing.T) {
+	t.Parallel()
 	manager := NewMultiBlockchainClusterManager()
-	cluster := NewBlockchainCluster("test-cluster", "EVM", 2, 5)
+	cluster := NewBlockchainCluster("test-cluster", "EVM", "EVM", 2, 5)
 	_ = cluster.Deploy(context.Background())
 	_ = manager.RegisterCluster(cluster)
 
@@ -351,9 +378,10 @@ func TestManagerGetMetrics(t *testing.T) {
 
 // TestConcurrentProcessing tests concurrent event processing
 func TestConcurrentProcessing(t *testing.T) {
+	t.Parallel()
 	skipBlockchainClusterConcurrencyTestsInShortMode(t)
 
-	cluster := NewBlockchainCluster("test-cluster", "EVM", 2, 5)
+	cluster := NewBlockchainCluster("test-cluster", "EVM", "EVM", 2, 5)
 	_ = cluster.Deploy(context.Background())
 
 	// Set instances to running
@@ -388,15 +416,16 @@ func TestConcurrentProcessing(t *testing.T) {
 
 // TestMultipleBlockchains tests processing multiple blockchains
 func TestMultipleBlockchains(t *testing.T) {
+	t.Parallel()
 	manager := NewMultiBlockchainClusterManager()
 
-	evmCluster := NewBlockchainCluster("evm-cluster", "EVM", 1, 5)
+	evmCluster := NewBlockchainCluster("evm-cluster", "EVM", "EVM", 1, 5)
 	_ = evmCluster.Deploy(context.Background())
 	for _, instance := range evmCluster.instances {
 		instance.Status = "running"
 	}
 
-	cosmosCluster := NewBlockchainCluster("cosmos-cluster", "Cosmos", 1, 5)
+	cosmosCluster := NewBlockchainCluster("cosmos-cluster", "Cosmos", "Cosmos", 1, 5)
 	_ = cosmosCluster.Deploy(context.Background())
 	for _, instance := range cosmosCluster.instances {
 		instance.Status = "running"
@@ -429,7 +458,8 @@ func TestMultipleBlockchains(t *testing.T) {
 
 // TestInstanceMetrics tests instance metrics tracking
 func TestInstanceMetrics(t *testing.T) {
-	cluster := NewBlockchainCluster("test-cluster", "EVM", 1, 5)
+	t.Parallel()
+	cluster := NewBlockchainCluster("test-cluster", "EVM", "EVM", 1, 5)
 	_ = cluster.Deploy(context.Background())
 
 	for _, instance := range cluster.instances {
@@ -454,8 +484,8 @@ func TestInstanceMetrics(t *testing.T) {
 
 // TestClusterWithEventStore tests cluster with event store
 func TestClusterWithEventStore(t *testing.T) {
-	cluster := NewBlockchainCluster("test-cluster", "EVM", 1, 5)
-	cluster.dataStore = &MockEventStore{}
+	t.Parallel()
+	cluster := NewBlockchainCluster("test-cluster", "EVM", "EVM", 1, 5)
 	_ = cluster.Deploy(context.Background())
 
 	for _, instance := range cluster.instances {
@@ -467,7 +497,7 @@ func TestClusterWithEventStore(t *testing.T) {
 		ChainID:         "EVM",
 		ContractAddress: common.Address{0x1},
 		EventName:       "Transfer",
-		DecodedData:     map[string]interface{}{"from": "0x123", "to": "0x456"},
+		DecodedData:     map[string]any{"from": "0x123", "to": "0x456"},
 		CreatedAt:       time.Now(),
 	}
 
@@ -478,6 +508,7 @@ func TestClusterWithEventStore(t *testing.T) {
 
 // TestBlockchainInstanceCreation tests instance creation
 func TestBlockchainInstanceCreation(t *testing.T) {
+	t.Parallel()
 	instance := &BlockchainInstance{
 		ID:             "instance-1",
 		BlockchainType: "EVM",
@@ -496,7 +527,8 @@ func TestBlockchainInstanceCreation(t *testing.T) {
 
 // TestClusterScaling tests cluster scaling
 func TestClusterScaling(t *testing.T) {
-	cluster := NewBlockchainCluster("test-cluster", "EVM", 1, 5)
+	t.Parallel()
+	cluster := NewBlockchainCluster("test-cluster", "EVM", "EVM", 1, 5)
 	_ = cluster.Deploy(context.Background())
 
 	initialCount := cluster.GetInstanceCount()
@@ -525,7 +557,8 @@ func TestClusterScaling(t *testing.T) {
 
 // TestHealthCheckMetrics tests health check metrics
 func TestHealthCheckMetrics(t *testing.T) {
-	cluster := NewBlockchainCluster("test-cluster", "EVM", 3, 5)
+	t.Parallel()
+	cluster := NewBlockchainCluster("test-cluster", "EVM", "EVM", 3, 5)
 	_ = cluster.Deploy(context.Background())
 
 	// Set some instances to running, others to syncing

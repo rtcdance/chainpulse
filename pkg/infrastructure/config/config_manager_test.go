@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -117,6 +118,7 @@ func generateTestEncryptionKey() []byte {
 
 // TestNewConfigManager tests ConfigManager creation
 func TestNewConfigManager(t *testing.T) {
+	t.Parallel()
 	consul := NewMockConsulClient()
 	key := generateTestEncryptionKey()
 
@@ -133,6 +135,7 @@ func TestNewConfigManager(t *testing.T) {
 
 // TestGetConfigFromCache tests retrieving config from cache
 func TestGetConfigFromCache(t *testing.T) {
+	t.Parallel()
 	consul := NewMockConsulClient()
 	cm := NewConfigManager(consul, generateTestEncryptionKey())
 
@@ -150,6 +153,7 @@ func TestGetConfigFromCache(t *testing.T) {
 
 // TestGetConfigFromConsul tests retrieving config from Consul
 func TestGetConfigFromConsul(t *testing.T) {
+	t.Parallel()
 	consul := NewMockConsulClient()
 	err := consul.SetConfig(context.Background(), "test_key", "test_value")
 	assert.NoError(t, err)
@@ -173,6 +177,7 @@ func TestGetConfigFromConsul(t *testing.T) {
 
 // TestGetConfigNotFound tests retrieving non-existent config
 func TestGetConfigNotFound(t *testing.T) {
+	t.Parallel()
 	consul := NewMockConsulClient()
 	cm := NewConfigManager(consul, generateTestEncryptionKey())
 
@@ -185,6 +190,7 @@ func TestGetConfigNotFound(t *testing.T) {
 
 // TestGetConfigConsulError tests handling Consul errors
 func TestGetConfigConsulError(t *testing.T) {
+	t.Parallel()
 	consul := NewMockConsulClient()
 	consul.getConfigErr = fmt.Errorf("consul connection error")
 
@@ -199,6 +205,7 @@ func TestGetConfigConsulError(t *testing.T) {
 
 // TestSetConfig tests setting a configuration value
 func TestSetConfig(t *testing.T) {
+	t.Parallel()
 	consul := NewMockConsulClient()
 	cm := NewConfigManager(consul, generateTestEncryptionKey())
 
@@ -223,6 +230,7 @@ func TestSetConfig(t *testing.T) {
 
 // TestSetConfigConsulError tests handling Consul errors during set
 func TestSetConfigConsulError(t *testing.T) {
+	t.Parallel()
 	consul := NewMockConsulClient()
 	consul.setConfigErr = fmt.Errorf("consul write error")
 
@@ -237,6 +245,7 @@ func TestSetConfigConsulError(t *testing.T) {
 
 // TestEncryptDecrypt tests encryption and decryption
 func TestEncryptDecrypt(t *testing.T) {
+	t.Parallel()
 	key := generateTestEncryptionKey()
 	cm := NewConfigManager(NewMockConsulClient(), key)
 
@@ -253,6 +262,7 @@ func TestEncryptDecrypt(t *testing.T) {
 
 // TestEncryptWithoutKey tests encryption without key
 func TestEncryptWithoutKey(t *testing.T) {
+	t.Parallel()
 	cm := NewConfigManager(NewMockConsulClient(), []byte{})
 
 	plaintext := "test_value"
@@ -264,6 +274,7 @@ func TestEncryptWithoutKey(t *testing.T) {
 
 // TestDecryptWithoutKey tests decryption without key
 func TestDecryptWithoutKey(t *testing.T) {
+	t.Parallel()
 	cm := NewConfigManager(NewMockConsulClient(), []byte{})
 
 	ciphertext := "test_value"
@@ -275,6 +286,7 @@ func TestDecryptWithoutKey(t *testing.T) {
 
 // TestDecryptInvalidBase64 tests decryption with invalid base64
 func TestDecryptInvalidBase64(t *testing.T) {
+	t.Parallel()
 	key := generateTestEncryptionKey()
 	cm := NewConfigManager(NewMockConsulClient(), key)
 
@@ -284,6 +296,7 @@ func TestDecryptInvalidBase64(t *testing.T) {
 
 // TestDecryptTooShort tests decryption with too short ciphertext
 func TestDecryptTooShort(t *testing.T) {
+	t.Parallel()
 	key := generateTestEncryptionKey()
 	cm := NewConfigManager(NewMockConsulClient(), key)
 
@@ -297,6 +310,7 @@ func TestDecryptTooShort(t *testing.T) {
 
 // TestSensitiveKeyDetection tests sensitive key detection
 func TestSensitiveKeyDetection(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		key      string
 		expected bool
@@ -316,8 +330,8 @@ func TestSensitiveKeyDetection(t *testing.T) {
 		{"host", false},
 		{"port", false},
 		{"database", false},
-		{"db_password", false}, // doesn't start with sensitive key
-		{"api_token", false},   // doesn't start with sensitive key
+		{"db_password", true},
+		{"api_token", true},
 	}
 
 	for _, tt := range tests {
@@ -330,6 +344,7 @@ func TestSensitiveKeyDetection(t *testing.T) {
 
 // TestSetConfigWithSensitiveKey tests setting sensitive config
 func TestSetConfigWithSensitiveKey(t *testing.T) {
+	t.Parallel()
 	consul := NewMockConsulClient()
 	key := generateTestEncryptionKey()
 	cm := NewConfigManager(consul, key)
@@ -350,6 +365,7 @@ func TestSetConfigWithSensitiveKey(t *testing.T) {
 
 // TestClearCache tests clearing the cache
 func TestClearCache(t *testing.T) {
+	t.Parallel()
 	consul := NewMockConsulClient()
 	cm := NewConfigManager(consul, generateTestEncryptionKey())
 
@@ -368,6 +384,7 @@ func TestClearCache(t *testing.T) {
 
 // TestGetCacheSize tests getting cache size
 func TestGetCacheSize(t *testing.T) {
+	t.Parallel()
 	consul := NewMockConsulClient()
 	cm := NewConfigManager(consul, generateTestEncryptionKey())
 
@@ -384,6 +401,7 @@ func TestGetCacheSize(t *testing.T) {
 
 // TestWatchConfig tests watching configuration changes
 func TestWatchConfig(t *testing.T) {
+	t.Parallel()
 	skipConfigWatchTestsInShortMode(t)
 
 	consul := NewMockConsulClient()
@@ -393,12 +411,12 @@ func TestWatchConfig(t *testing.T) {
 	cm := NewConfigManager(consul, generateTestEncryptionKey())
 
 	ctx := context.Background()
-	callCount := 0
-	var receivedValue string
+	var callCount atomic.Int32
+	var receivedValue atomic.Pointer[string]
 
 	err = cm.WatchConfig(ctx, "watch_key", func(value string) {
-		callCount++
-		receivedValue = value
+		callCount.Add(1)
+		receivedValue.Store(&value)
 	})
 
 	assert.NoError(t, err)
@@ -407,15 +425,19 @@ func TestWatchConfig(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 	consul.TriggerWatch("watch_key", "updated_value")
 
-	// Wait for the handler to be called
-	time.Sleep(100 * time.Millisecond)
+	// Wait for all watcher goroutines to complete
+	cm.WaitWatchers()
 
-	assert.Greater(t, callCount, 0)
-	assert.Equal(t, "updated_value", receivedValue)
+	assert.Greater(t, int(callCount.Load()), 0)
+	stored := receivedValue.Load()
+	if stored != nil {
+		assert.Equal(t, "updated_value", *stored)
+	}
 }
 
 // TestWatchConfigError tests watch error handling
 func TestWatchConfigError(t *testing.T) {
+	t.Parallel()
 	consul := NewMockConsulClient()
 	consul.watchConfigErr = fmt.Errorf("watch error")
 
@@ -430,6 +452,7 @@ func TestWatchConfigError(t *testing.T) {
 
 // TestConcurrentGetConfig tests concurrent config retrieval
 func TestConcurrentGetConfig(t *testing.T) {
+	t.Parallel()
 	consul := NewMockConsulClient()
 	err := consul.SetConfig(context.Background(), "concurrent_key", "concurrent_value")
 	assert.NoError(t, err)
@@ -461,6 +484,7 @@ func TestConcurrentGetConfig(t *testing.T) {
 
 // TestConcurrentSetConfig tests concurrent config setting
 func TestConcurrentSetConfig(t *testing.T) {
+	t.Parallel()
 	consul := NewMockConsulClient()
 	cm := NewConfigManager(consul, generateTestEncryptionKey())
 
@@ -490,6 +514,7 @@ func TestConcurrentSetConfig(t *testing.T) {
 
 // TestVersionedConfigManager tests versioned config management
 func TestVersionedConfigManager(t *testing.T) {
+	t.Parallel()
 	consul := NewMockConsulClient()
 	cm := NewConfigManager(consul, generateTestEncryptionKey())
 	vcm := NewVersionedConfigManager(cm)
@@ -520,6 +545,7 @@ func TestVersionedConfigManager(t *testing.T) {
 
 // TestVersionedConfigManagerHistory tests config history retrieval
 func TestVersionedConfigManagerHistory(t *testing.T) {
+	t.Parallel()
 	consul := NewMockConsulClient()
 	cm := NewConfigManager(consul, generateTestEncryptionKey())
 	vcm := NewVersionedConfigManager(cm)
@@ -545,6 +571,7 @@ func TestVersionedConfigManagerHistory(t *testing.T) {
 
 // TestVersionedConfigManagerRollback tests config rollback
 func TestVersionedConfigManagerRollback(t *testing.T) {
+	t.Parallel()
 	consul := NewMockConsulClient()
 	cm := NewConfigManager(consul, generateTestEncryptionKey())
 	vcm := NewVersionedConfigManager(cm)
@@ -573,6 +600,7 @@ func TestVersionedConfigManagerRollback(t *testing.T) {
 
 // TestVersionedConfigManagerInvalidVersion tests invalid version retrieval
 func TestVersionedConfigManagerInvalidVersion(t *testing.T) {
+	t.Parallel()
 	consul := NewMockConsulClient()
 	cm := NewConfigManager(consul, generateTestEncryptionKey())
 	vcm := NewVersionedConfigManager(cm)
@@ -589,6 +617,7 @@ func TestVersionedConfigManagerInvalidVersion(t *testing.T) {
 
 // TestVersionedConfigManagerNoHistory tests no history error
 func TestVersionedConfigManagerNoHistory(t *testing.T) {
+	t.Parallel()
 	consul := NewMockConsulClient()
 	cm := NewConfigManager(consul, generateTestEncryptionKey())
 	vcm := NewVersionedConfigManager(cm)

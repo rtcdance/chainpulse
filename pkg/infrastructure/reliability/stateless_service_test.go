@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 // MockEventStore is a mock implementation of EventStore
@@ -87,12 +87,25 @@ func (m *MockEventStore) GetEventsByName(ctx context.Context, eventName string, 
 	return args.Get(0).([]*core.BlockchainEvent), args.Error(1)
 }
 
+func (m *MockEventStore) GetEventsByCorrelationID(ctx context.Context, correlationID string, limit, offset int) ([]*core.BlockchainEvent, error) {
+	args := m.Called(ctx, correlationID, limit, offset)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*core.BlockchainEvent), args.Error(1)
+}
+
 func (m *MockEventStore) GetEventsPaginated(ctx context.Context, cursor string, limit int) ([]*core.BlockchainEvent, bool, error) {
 	args := m.Called(ctx, cursor, limit)
 	if args.Get(0) == nil {
 		return nil, args.Bool(1), args.Error(2)
 	}
 	return args.Get(0).([]*core.BlockchainEvent), args.Bool(1), args.Error(2)
+}
+
+func (m *MockEventStore) CountEvents(ctx context.Context) (int64, error) {
+	args := m.Called(ctx)
+	return args.Get(0).(int64), args.Error(1)
 }
 
 func (m *MockEventStore) DeleteExpiredEvents(ctx context.Context) (int64, error) {
@@ -115,6 +128,7 @@ func (m *MockEventStore) Close(ctx context.Context) error {
 
 // TestNewStatelessService tests creating a new stateless service
 func TestNewStatelessService(t *testing.T) {
+	t.Parallel()
 	cache := NewDistributedCache()
 	db := &MockEventStore{}
 
@@ -130,6 +144,7 @@ func TestNewStatelessService(t *testing.T) {
 
 // TestStatelessServiceProcessRequest tests processing a request
 func TestStatelessServiceProcessRequest(t *testing.T) {
+	t.Parallel()
 	cache := NewDistributedCache()
 	db := &MockEventStore{}
 
@@ -139,7 +154,7 @@ func TestStatelessServiceProcessRequest(t *testing.T) {
 	service := NewStatelessService("service-1", "my-service", cache, db)
 	ctx := context.Background()
 
-	result, err := service.ProcessRequest(ctx, "req-1", map[string]interface{}{"input": "data"})
+	result, err := service.ProcessRequest(ctx, "req-1", map[string]any{"input": "data"})
 
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
@@ -147,6 +162,7 @@ func TestStatelessServiceProcessRequest(t *testing.T) {
 
 // TestStatelessServiceGetMetrics tests getting service metrics
 func TestStatelessServiceGetMetrics(t *testing.T) {
+	t.Parallel()
 	cache := NewDistributedCache()
 	db := &MockEventStore{}
 
@@ -160,6 +176,7 @@ func TestStatelessServiceGetMetrics(t *testing.T) {
 
 // TestStatelessServiceHealth tests service health status
 func TestStatelessServiceHealth(t *testing.T) {
+	t.Parallel()
 	cache := NewDistributedCache()
 	db := &MockEventStore{}
 
@@ -174,6 +191,7 @@ func TestStatelessServiceHealth(t *testing.T) {
 
 // TestStatelessServiceSyncState tests syncing state
 func TestStatelessServiceSyncState(t *testing.T) {
+	t.Parallel()
 	cache := NewDistributedCache()
 	db := &MockEventStore{}
 
@@ -188,6 +206,7 @@ func TestStatelessServiceSyncState(t *testing.T) {
 
 // TestNewDistributedCache tests creating a new distributed cache
 func TestNewDistributedCache(t *testing.T) {
+	t.Parallel()
 	cache := NewDistributedCache()
 
 	assert.NotNil(t, cache)
@@ -198,6 +217,7 @@ func TestNewDistributedCache(t *testing.T) {
 
 // TestDistributedCacheSet tests setting a value in cache
 func TestDistributedCacheSet(t *testing.T) {
+	t.Parallel()
 	cache := NewDistributedCache()
 
 	cache.Set("key1", "value1", 5*time.Minute)
@@ -207,6 +227,7 @@ func TestDistributedCacheSet(t *testing.T) {
 
 // TestDistributedCacheGet tests getting a value from cache
 func TestDistributedCacheGet(t *testing.T) {
+	t.Parallel()
 	cache := NewDistributedCache()
 
 	cache.Set("key1", "value1", 5*time.Minute)
@@ -218,6 +239,7 @@ func TestDistributedCacheGet(t *testing.T) {
 
 // TestDistributedCacheGetNotFound tests getting non-existent value
 func TestDistributedCacheGetNotFound(t *testing.T) {
+	t.Parallel()
 	cache := NewDistributedCache()
 
 	_, ok := cache.Get("nonexistent")
@@ -227,6 +249,7 @@ func TestDistributedCacheGetNotFound(t *testing.T) {
 
 // TestDistributedCacheDelete tests deleting a value from cache
 func TestDistributedCacheDelete(t *testing.T) {
+	t.Parallel()
 	cache := NewDistributedCache()
 
 	cache.Set("key1", "value1", 5*time.Minute)
@@ -237,6 +260,7 @@ func TestDistributedCacheDelete(t *testing.T) {
 
 // TestDistributedCacheClear tests clearing all cache entries
 func TestDistributedCacheClear(t *testing.T) {
+	t.Parallel()
 	cache := NewDistributedCache()
 
 	cache.Set("key1", "value1", 5*time.Minute)
@@ -248,6 +272,7 @@ func TestDistributedCacheClear(t *testing.T) {
 
 // TestDistributedCacheGetMetrics tests getting cache metrics
 func TestDistributedCacheGetMetrics(t *testing.T) {
+	t.Parallel()
 	cache := NewDistributedCache()
 
 	cache.Set("key1", "value1", 5*time.Minute)
@@ -264,6 +289,7 @@ func TestDistributedCacheGetMetrics(t *testing.T) {
 
 // TestDistributedCacheExpiration tests cache expiration
 func TestDistributedCacheExpiration(t *testing.T) {
+	t.Parallel()
 	cache := NewDistributedCache()
 
 	cache.Set("key1", "value1", 1*time.Millisecond)
@@ -276,6 +302,7 @@ func TestDistributedCacheExpiration(t *testing.T) {
 
 // TestDistributedCacheCleanup tests cache cleanup
 func TestDistributedCacheCleanup(t *testing.T) {
+	t.Parallel()
 	cache := NewDistributedCache()
 
 	cache.Set("key1", "value1", 1*time.Millisecond)
@@ -290,6 +317,7 @@ func TestDistributedCacheCleanup(t *testing.T) {
 
 // TestDistributedCacheMultipleValues tests cache with multiple values
 func TestDistributedCacheMultipleValues(t *testing.T) {
+	t.Parallel()
 	cache := NewDistributedCache()
 
 	for i := 0; i < 10; i++ {
@@ -303,6 +331,7 @@ func TestDistributedCacheMultipleValues(t *testing.T) {
 
 // TestDistributedCacheConcurrentAccess tests concurrent cache access
 func TestDistributedCacheConcurrentAccess(t *testing.T) {
+	t.Parallel()
 	cache := NewDistributedCache()
 
 	done := make(chan bool, 20)
@@ -324,6 +353,7 @@ func TestDistributedCacheConcurrentAccess(t *testing.T) {
 
 // TestStatelessServiceMetricsTracking tests metrics tracking
 func TestStatelessServiceMetricsTracking(t *testing.T) {
+	t.Parallel()
 	cache := NewDistributedCache()
 	db := &MockEventStore{}
 
@@ -333,7 +363,7 @@ func TestStatelessServiceMetricsTracking(t *testing.T) {
 	service := NewStatelessService("service-1", "my-service", cache, db)
 	ctx := context.Background()
 
-	_, _ = service.ProcessRequest(ctx, "req-1", map[string]interface{}{})
+	_, _ = service.ProcessRequest(ctx, "req-1", map[string]any{})
 
 	metrics := service.GetMetrics()
 
@@ -342,6 +372,7 @@ func TestStatelessServiceMetricsTracking(t *testing.T) {
 
 // TestStatelessServiceCacheHitRate tests cache hit rate
 func TestStatelessServiceCacheHitRate(t *testing.T) {
+	t.Parallel()
 	cache := NewDistributedCache()
 	db := &MockEventStore{}
 
@@ -365,6 +396,7 @@ func TestStatelessServiceCacheHitRate(t *testing.T) {
 
 // TestStatelessServiceStateVersion tests state version tracking
 func TestStatelessServiceStateVersion(t *testing.T) {
+	t.Parallel()
 	cache := NewDistributedCache()
 	db := &MockEventStore{}
 
@@ -380,6 +412,7 @@ func TestStatelessServiceStateVersion(t *testing.T) {
 
 // TestStatelessServiceLastSyncTime tests last sync time tracking
 func TestStatelessServiceLastSyncTime(t *testing.T) {
+	t.Parallel()
 	cache := NewDistributedCache()
 	db := &MockEventStore{}
 
@@ -396,6 +429,7 @@ func TestStatelessServiceLastSyncTime(t *testing.T) {
 
 // TestCacheMetricsStructure tests cache metrics structure
 func TestCacheMetricsStructure(t *testing.T) {
+	t.Parallel()
 	cache := NewDistributedCache()
 
 	cache.Set("key1", "value1", 5*time.Minute)
@@ -413,6 +447,7 @@ func TestCacheMetricsStructure(t *testing.T) {
 
 // TestStatelessServiceHealthDetails tests health status details
 func TestStatelessServiceHealthDetails(t *testing.T) {
+	t.Parallel()
 	cache := NewDistributedCache()
 	db := &MockEventStore{}
 
@@ -427,13 +462,14 @@ func TestStatelessServiceHealthDetails(t *testing.T) {
 
 // TestDistributedCacheDataTypes tests cache with various data types
 func TestDistributedCacheDataTypes(t *testing.T) {
+	t.Parallel()
 	cache := NewDistributedCache()
 
 	cache.Set("string", "value", 5*time.Minute)
 	cache.Set("int", 42, 5*time.Minute)
 	cache.Set("float", 3.14, 5*time.Minute)
 	cache.Set("bool", true, 5*time.Minute)
-	cache.Set("map", map[string]interface{}{"key": "value"}, 5*time.Minute)
+	cache.Set("map", map[string]any{"key": "value"}, 5*time.Minute)
 
 	assert.Equal(t, 5, cache.GetSize())
 
@@ -446,6 +482,7 @@ func TestDistributedCacheDataTypes(t *testing.T) {
 
 // TestStatelessServiceConcurrentRequests tests concurrent request processing
 func TestStatelessServiceConcurrentRequests(t *testing.T) {
+	t.Parallel()
 	cache := NewDistributedCache()
 	db := &MockEventStore{}
 
@@ -459,7 +496,7 @@ func TestStatelessServiceConcurrentRequests(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		go func(index int) {
 			defer func() { done <- true }()
-			_, _ = service.ProcessRequest(ctx, "req-"+string(rune(index)), map[string]interface{}{})
+			_, _ = service.ProcessRequest(ctx, "req-"+string(rune(index)), map[string]any{})
 		}(i)
 	}
 
@@ -473,6 +510,7 @@ func TestStatelessServiceConcurrentRequests(t *testing.T) {
 
 // TestDistributedCacheTTLVariations tests cache with various TTL values
 func TestDistributedCacheTTLVariations(t *testing.T) {
+	t.Parallel()
 	cache := NewDistributedCache()
 
 	ttls := []time.Duration{

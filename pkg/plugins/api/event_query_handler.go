@@ -3,6 +3,8 @@ package api
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"math"
@@ -11,9 +13,12 @@ import (
 	"strings"
 	"time"
 
-	"chainpulse/pkg/core"
-	domainquery "chainpulse/pkg/domain/query"
-	"chainpulse/pkg/services/query"
+	"github.com/rtcdance/chainpulse/pkg/chainid"
+	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core/eventsig"
+	domainquery "github.com/rtcdance/chainpulse/pkg/domain/query"
+	"github.com/rtcdance/chainpulse/pkg/observability"
+	"github.com/rtcdance/chainpulse/pkg/services/query"
 )
 
 // EventQueryHandler handles event query requests
@@ -22,6 +27,7 @@ type EventQueryHandler struct {
 	domainQuery      domainquery.Service
 	logger           core.Logger
 	metrics          core.MetricsCollector
+	tracer           *observability.DefaultTracer
 	initialized      bool
 }
 
@@ -35,6 +41,7 @@ func NewEventQueryHandler(
 		retrievalService: retrievalService,
 		logger:           logger,
 		metrics:          metrics,
+		tracer:           observability.NewDefaultTracer(logger, metrics),
 		initialized:      false,
 	}
 }
@@ -69,8 +76,8 @@ type QueryRequest struct {
 
 // QueryResponse represents a query response with pagination info
 type QueryResponse struct {
-	Data       interface{} `json:"data"`
-	Events     interface{} `json:"events,omitempty"`
+	Data       any         `json:"data"`
+	Events     any         `json:"events,omitempty"`
 	Pagination *Pagination `json:"pagination"`
 	Meta       *QueryMeta  `json:"meta,omitempty"`
 	Timestamp  int64       `json:"timestamp"`
@@ -101,32 +108,33 @@ type Pagination struct {
 
 // EventResponse represents a single event in the response
 type EventResponse struct {
-	EventID         string                 `json:"eventId"`
-	ChainID         int                    `json:"chainId"`
-	BlockNumber     int64                  `json:"blockNumber"`
-	TransactionHash string                 `json:"transactionHash"`
-	LogIndex        int                    `json:"logIndex"`
-	ContractAddress string                 `json:"contractAddress"`
-	EventName       string                 `json:"eventName"`
-	EventData       map[string]interface{} `json:"eventData"`
-	Timestamp       int64                  `json:"timestamp"`
-	ProcessedAt     int64                  `json:"processedAt"`
+	EventID         string         `json:"eventId"`
+	ChainID         string         `json:"chainId"`
+	BlockNumber     int64          `json:"blockNumber"`
+	TransactionHash string         `json:"transactionHash"`
+	LogIndex        int64          `json:"logIndex"`
+	ContractAddress string         `json:"contractAddress"`
+	EventName       string         `json:"eventName"`
+	EventSignature  string         `json:"eventSignature,omitempty"`
+	EventData       map[string]any `json:"eventData"`
+	Timestamp       int64          `json:"timestamp"`
+	ProcessedAt     int64          `json:"processedAt"`
+	Status          string         `json:"status"`
 }
 
-// ErrorResponse represents an error response
-type ErrorResponse struct {
-	Error      string `json:"error"`
-	Message    string `json:"message"`
-	StatusCode int    `json:"statusCode"`
-	Timestamp  int64  `json:"timestamp"`
+type listQuerySpec struct {
+	metricsPrefix  string
+	cacheKeyPrefix string
+	queryPath      string
+	baseFilterFn   func() map[string]any
+	fetchRetrieval func(ctx context.Context, limit, offset int) ([]*query.EventWithMetadata, error)
 }
 
-// HandleGetAllEvents handles GET /events request
-func (h *EventQueryHandler) HandleGetAllEvents(w http.ResponseWriter, r *http.Request) {
+func (h *EventQueryHandler) executeListQuery(w http.ResponseWriter, r *http.Request, spec *listQuerySpec) {
 	start := time.Now()
 	defer func() {
 		duration := time.Since(start).Milliseconds()
-		h.metrics.RecordGauge("event_query_get_all_events_time_ms", float64(duration), nil)
+		h.metrics.RecordHistogram("event_query_"+spec.metricsPrefix+"_time_ms", float64(duration), nil)
 	}()
 
 	if !h.initialized {
@@ -134,78 +142,90 @@ func (h *EventQueryHandler) HandleGetAllEvents(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	// Parse query parameters
-	limitParam := strings.TrimSpace(r.URL.Query().Get("limit"))
-	offsetParam := strings.TrimSpace(r.URL.Query().Get("offset"))
-	limit := h.parseIntParam(r, "limit", 20)
-	offset := h.parseIntParam(r, "offset", 0)
-
-	// Validate parameters
-	if limitParam != "" && (limit <= 0 || limit > 1000) {
-		h.respondError(w, http.StatusBadRequest, "invalid_request", "limit must be between 1 and 1000")
+	fp := h.parseFilterParams(r)
+	if errMsg := h.validateFilterParams(fp); errMsg != "" {
+		h.respondError(w, http.StatusBadRequest, "invalid_request", errMsg)
 		return
 	}
-	if offsetParam != "" && offset < 0 {
-		h.respondError(w, http.StatusBadRequest, "invalid_request", "offset must be greater than or equal to 0")
-		return
-	}
-	if limit <= 0 || limit > 1000 {
-		limit = 20
-	}
-	if offset < 0 {
-		offset = 0
-	}
 
-	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), core.DefaultTimeout)
 	defer cancel()
 
 	if h.domainQuery != nil {
+		mongoFilter := h.buildMongoFilter(fp, spec.baseFilterFn())
 		domainResult, domainErr := h.domainQuery.Query(ctx, &domainquery.Request{
 			QueryType:  "mongodb",
 			Collection: "events",
-			Limit:      int64(limit),
-			Offset:     int64(offset),
+			Filter:     mongoFilter,
+			Limit:      int64(fp.Limit),
+			Offset:     int64(fp.Offset),
+			CacheKey:   h.generateCacheKey(spec.cacheKeyPrefix, mongoFilter, int64(fp.Limit), int64(fp.Offset)),
+			CacheTTL:   5 * time.Minute,
 		})
 		if domainErr == nil && domainResult != nil && len(domainResult.Events) > 0 {
 			response := buildPaginatedEventQueryResponse(
 				h.convertDomainEventsToResponse(domainResult.Events),
-				limit,
-				offset,
+				fp.Limit,
+				fp.Offset,
 				int(domainResult.Total),
-				buildDomainListQueryMeta(domainResult),
+				buildDomainQueryListMeta(domainResult, "domain-"+spec.cacheKeyPrefix),
 			)
-			h.metrics.RecordGauge("event_query_get_all_events_domain_success", float64(len(domainResult.Events)), nil)
+			h.metrics.RecordGauge("event_query_"+spec.metricsPrefix+"_domain_success", float64(len(domainResult.Events)), nil)
 			h.respondJSON(w, http.StatusOK, response)
 			return
 		}
 		if domainErr != nil {
-			h.logger.Warn("Domain query list failed, fallback to retrieval", "error", domainErr.Error())
-			h.metrics.RecordGauge("event_query_get_all_events_domain_error", 1, nil)
+			h.logger.Warn("Domain query failed, fallback to retrieval", "path", spec.metricsPrefix, "error", domainErr.Error())
+			h.metrics.RecordGauge("event_query_"+spec.metricsPrefix+"_domain_error", 1, nil)
 		}
 	}
 
-	// Get events from retrieval service
-	events, err := h.retrievalService.GetEventsByChainWithMetadata(ctx, 0, limit, offset)
+	fetchLimit := fp.Limit
+	if fp.hasFilters() {
+		fetchLimit = 1000
+	}
+	events, err := spec.fetchRetrieval(ctx, fetchLimit, 0)
 	if err != nil {
-		h.logger.Error("Failed to get all events", "error", err.Error())
-		h.metrics.RecordGauge("event_query_get_all_events_error", 1, nil)
-		h.respondError(w, http.StatusInternalServerError, "query_failed", err.Error())
+		h.logger.Error("Failed to get events", "path", spec.metricsPrefix, "error", err.Error())
+		h.metrics.RecordGauge("event_query_"+spec.metricsPrefix+"_error", 1, nil)
+		h.respondError(w, http.StatusInternalServerError, "query_failed", "internal error")
 		return
 	}
 
-	// Convert to response format
 	eventResponses := h.convertEventsToResponse(events)
+	eventResponses = h.applyFilterToResponses(fp, eventResponses)
+
+	totalFiltered := len(eventResponses)
+	if fp.Offset < totalFiltered {
+		eventResponses = eventResponses[fp.Offset:]
+	}
+	if len(eventResponses) > fp.Limit {
+		eventResponses = eventResponses[:fp.Limit]
+	}
 
 	response := buildPaginatedEventQueryResponse(
 		eventResponses,
-		limit,
-		offset,
-		len(eventResponses),
-		buildEventQueryMeta("event-retrieval", "retrieval-list", false, events),
+		fp.Limit,
+		fp.Offset,
+		totalFiltered,
+		buildEventQueryMeta("event-retrieval", spec.queryPath, false, events),
 	)
 
-	h.metrics.RecordGauge("event_query_get_all_events_success", float64(len(eventResponses)), nil)
+	h.metrics.RecordGauge("event_query_"+spec.metricsPrefix+"_success", float64(len(eventResponses)), nil)
 	h.respondJSON(w, http.StatusOK, response)
+}
+
+// HandleGetAllEvents handles GET /events request
+func (h *EventQueryHandler) HandleGetAllEvents(w http.ResponseWriter, r *http.Request) {
+	h.executeListQuery(w, r, &listQuerySpec{
+		metricsPrefix:  "get_all_events",
+		cacheKeyPrefix: "all",
+		queryPath:      "retrieval-list",
+		baseFilterFn:   func() map[string]any { return nil },
+		fetchRetrieval: func(ctx context.Context, limit, offset int) ([]*query.EventWithMetadata, error) {
+			return h.retrievalService.GetEventsByChainWithMetadata(ctx, 0, limit, offset)
+		},
+	})
 }
 
 // HandleGetEventByID handles GET /events/{id} request
@@ -213,7 +233,7 @@ func (h *EventQueryHandler) HandleGetEventByID(w http.ResponseWriter, r *http.Re
 	start := time.Now()
 	defer func() {
 		duration := time.Since(start).Milliseconds()
-		h.metrics.RecordGauge("event_query_get_by_id_time_ms", float64(duration), nil)
+		h.metrics.RecordHistogram("event_query_get_by_id_time_ms", float64(duration), nil)
 	}()
 
 	if !h.initialized {
@@ -226,7 +246,7 @@ func (h *EventQueryHandler) HandleGetEventByID(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), core.DefaultTimeout)
 	defer cancel()
 
 	if h.domainQuery != nil && looksLikeHash(eventID) {
@@ -247,12 +267,11 @@ func (h *EventQueryHandler) HandleGetEventByID(w http.ResponseWriter, r *http.Re
 		}
 	}
 
-	// Get event from retrieval service
 	eventWithMetadata, err := h.retrievalService.GetEventWithMetadata(ctx, eventID)
 	if err != nil {
 		h.logger.Error("Failed to get event by ID", "eventId", eventID, "error", err.Error())
 		h.metrics.RecordGauge("event_query_get_by_id_error", 1, nil)
-		h.respondError(w, http.StatusInternalServerError, "query_failed", err.Error())
+		h.respondError(w, http.StatusInternalServerError, "query_failed", "internal error")
 		return
 	}
 
@@ -262,7 +281,6 @@ func (h *EventQueryHandler) HandleGetEventByID(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	// Convert to response format
 	eventResponse := h.convertEventToResponse(eventWithMetadata)
 
 	response := buildSingleEventQueryResponse(
@@ -283,265 +301,115 @@ func looksLikeHash(value string) bool {
 
 // HandleGetEventsByChain handles GET /events/chain/{chainId} request
 func (h *EventQueryHandler) HandleGetEventsByChain(w http.ResponseWriter, r *http.Request, chainIDStr string) {
-	start := time.Now()
-	defer func() {
-		duration := time.Since(start).Milliseconds()
-		h.metrics.RecordGauge("event_query_get_by_chain_time_ms", float64(duration), nil)
-	}()
-
-	if !h.initialized {
-		h.respondError(w, http.StatusInternalServerError, "handler not initialized", "Event query handler not initialized")
-		return
-	}
-
 	chainID, chainIDErr := strconv.Atoi(chainIDStr)
 	stringChainPath := chainIDErr != nil
 
-	// Parse query parameters
-	limit := h.parseIntParam(r, "limit", 20)
-	offset := h.parseIntParam(r, "offset", 0)
-
-	// Validate parameters
-	if limit <= 0 || limit > 1000 {
-		limit = 20
-	}
-	if offset < 0 {
-		offset = 0
-	}
-
-	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
-	defer cancel()
-
-	if h.domainQuery != nil {
-		filterValue := interface{}(chainID)
+	if err := validateChainID(chainIDStr); err != nil {
 		if stringChainPath {
-			filterValue = chainIDStr
-		}
-
-		domainResult, domainErr := h.domainQuery.Query(ctx, &domainquery.Request{
-			QueryType:  "mongodb",
-			Collection: "events",
-			Filter: map[string]interface{}{
-				"chainId": filterValue,
-			},
-			Limit:  int64(limit),
-			Offset: int64(offset),
-		})
-		if domainErr == nil && domainResult != nil && (stringChainPath || len(domainResult.Events) > 0) {
-			response := buildPaginatedEventQueryResponse(
-				h.convertDomainEventsToResponse(domainResult.Events),
-				limit,
-				offset,
-				int(domainResult.Total),
-				buildDomainQueryListMeta(domainResult, "domain-chain"),
-			)
-			h.metrics.RecordGauge("event_query_get_by_chain_domain_success", float64(len(domainResult.Events)), nil)
-			h.respondJSON(w, http.StatusOK, response)
+			h.logger.Warn("non-numeric chain ID, proceeding with string lookup", "chainId", chainIDStr)
+		} else {
+			h.respondError(w, http.StatusBadRequest, "invalid_request", err.Error())
 			return
 		}
-		if domainErr != nil {
-			h.logger.Warn("Domain query chain list failed, fallback to retrieval", "chainId", chainIDStr, "error", domainErr.Error())
-			h.metrics.RecordGauge("event_query_get_by_chain_domain_error", 1, nil)
-		}
 	}
 
-	if stringChainPath {
-		h.respondError(w, http.StatusBadRequest, "invalid_request", "Invalid chain ID")
-		return
-	}
-
-	// Get events from retrieval service
-	events, err := h.retrievalService.GetEventsByChainWithMetadata(ctx, chainID, limit, offset)
-	if err != nil {
-		h.logger.Error("Failed to get events by chain", "chainId", chainID, "error", err.Error())
-		h.metrics.RecordGauge("event_query_get_by_chain_error", 1, nil)
-		h.respondError(w, http.StatusInternalServerError, "query_failed", err.Error())
-		return
-	}
-
-	// Convert to response format
-	eventResponses := h.convertEventsToResponse(events)
-
-	response := buildPaginatedEventQueryResponse(
-		eventResponses,
-		limit,
-		offset,
-		len(eventResponses),
-		buildEventQueryMeta("event-retrieval", "retrieval-list", false, events),
-	)
-
-	h.metrics.RecordGauge("event_query_get_by_chain_success", float64(len(eventResponses)), nil)
-	h.respondJSON(w, http.StatusOK, response)
+	h.executeListQuery(w, r, &listQuerySpec{
+		metricsPrefix:  "get_by_chain",
+		cacheKeyPrefix: "chain",
+		queryPath:      "retrieval-chain",
+		baseFilterFn: func() map[string]any {
+			if stringChainPath {
+				return map[string]any{"chainId": chainIDStr}
+			}
+			chainName := chainid.ResolveChainName(chainID)
+			return map[string]any{
+				"chainId": map[string]any{
+					"$in": []any{chainID, strconv.Itoa(chainID), chainName},
+				},
+			}
+		},
+		fetchRetrieval: func(ctx context.Context, limit, offset int) ([]*query.EventWithMetadata, error) {
+			if stringChainPath {
+				return nil, fmt.Errorf("string chain IDs not supported in retrieval")
+			}
+			return h.retrievalService.GetEventsByChainWithMetadata(ctx, chainID, limit, offset)
+		},
+	})
 }
 
 // HandleGetEventsByContract handles GET /events/contract/{address} request
 func (h *EventQueryHandler) HandleGetEventsByContract(w http.ResponseWriter, r *http.Request, contractAddress string) {
-	start := time.Now()
-	defer func() {
-		duration := time.Since(start).Milliseconds()
-		h.metrics.RecordGauge("event_query_get_by_contract_time_ms", float64(duration), nil)
-	}()
-
-	if !h.initialized {
-		h.respondError(w, http.StatusInternalServerError, "handler not initialized", "Event query handler not initialized")
-		return
-	}
-
 	if contractAddress == "" {
 		h.respondError(w, http.StatusBadRequest, "invalid_request", "Contract address is required")
 		return
 	}
-
-	// Parse query parameters
-	limit := h.parseIntParam(r, "limit", 20)
-	offset := h.parseIntParam(r, "offset", 0)
-
-	// Validate parameters
-	if limit <= 0 || limit > 1000 {
-		limit = 20
-	}
-	if offset < 0 {
-		offset = 0
-	}
-
-	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
-	defer cancel()
-
-	if h.domainQuery != nil {
-		domainResult, domainErr := h.domainQuery.Query(ctx, &domainquery.Request{
-			QueryType:  "mongodb",
-			Collection: "events",
-			Filter: map[string]interface{}{
-				"contractAddress": contractAddress,
-			},
-			Limit:  int64(limit),
-			Offset: int64(offset),
-		})
-		if domainErr == nil && domainResult != nil && len(domainResult.Events) > 0 {
-			response := buildPaginatedEventQueryResponse(
-				h.convertDomainEventsToResponse(domainResult.Events),
-				limit,
-				offset,
-				int(domainResult.Total),
-				buildDomainQueryListMeta(domainResult, "domain-contract"),
-			)
-			h.metrics.RecordGauge("event_query_get_by_contract_domain_success", float64(len(domainResult.Events)), nil)
-			h.respondJSON(w, http.StatusOK, response)
-			return
-		}
-		if domainErr != nil {
-			h.logger.Warn("Domain query contract list failed, fallback to retrieval", "contractAddress", contractAddress, "error", domainErr.Error())
-			h.metrics.RecordGauge("event_query_get_by_contract_domain_error", 1, nil)
-		}
-	}
-
-	// Get events from retrieval service
-	events, err := h.retrievalService.GetEventsByContractWithMetadata(ctx, contractAddress, limit, offset)
-	if err != nil {
-		h.logger.Error("Failed to get events by contract", "contractAddress", contractAddress, "error", err.Error())
-		h.metrics.RecordGauge("event_query_get_by_contract_error", 1, nil)
-		h.respondError(w, http.StatusInternalServerError, "query_failed", err.Error())
+	if err := validateEthereumAddress(contractAddress); err != nil {
+		h.respondError(w, http.StatusBadRequest, "invalid_request", err.Error())
 		return
 	}
 
-	// Convert to response format
-	eventResponses := h.convertEventsToResponse(events)
-
-	response := buildPaginatedEventQueryResponse(
-		eventResponses,
-		limit,
-		offset,
-		len(eventResponses),
-		buildEventQueryMeta("event-retrieval", "retrieval-list", false, events),
-	)
-
-	h.metrics.RecordGauge("event_query_get_by_contract_success", float64(len(eventResponses)), nil)
-	h.respondJSON(w, http.StatusOK, response)
+	h.executeListQuery(w, r, &listQuerySpec{
+		metricsPrefix:  "get_by_contract",
+		cacheKeyPrefix: "contract",
+		queryPath:      "retrieval-list",
+		baseFilterFn:   func() map[string]any { return map[string]any{"contractAddress": contractAddress} },
+		fetchRetrieval: func(ctx context.Context, limit, offset int) ([]*query.EventWithMetadata, error) {
+			return h.retrievalService.GetEventsByContractWithMetadata(ctx, contractAddress, limit, offset)
+		},
+	})
 }
 
 // HandleGetEventsByName handles GET /events/name/{eventName} request
 func (h *EventQueryHandler) HandleGetEventsByName(w http.ResponseWriter, r *http.Request, eventName string) {
-	start := time.Now()
-	defer func() {
-		duration := time.Since(start).Milliseconds()
-		h.metrics.RecordGauge("event_query_get_by_name_time_ms", float64(duration), nil)
-	}()
-
-	if !h.initialized {
-		h.respondError(w, http.StatusInternalServerError, "handler not initialized", "Event query handler not initialized")
-		return
-	}
-
 	if eventName == "" {
 		h.respondError(w, http.StatusBadRequest, "invalid_request", "Event name is required")
 		return
 	}
 
-	// Parse query parameters
-	limit := h.parseIntParam(r, "limit", 20)
-	offset := h.parseIntParam(r, "offset", 0)
+	h.executeListQuery(w, r, &listQuerySpec{
+		metricsPrefix:  "get_by_name",
+		cacheKeyPrefix: "name",
+		queryPath:      "retrieval-list",
+		baseFilterFn:   func() map[string]any { return map[string]any{"eventName": eventName} },
+		fetchRetrieval: func(ctx context.Context, limit, offset int) ([]*query.EventWithMetadata, error) {
+			return h.retrievalService.GetEventsByEventNameWithMetadata(ctx, eventName, limit, offset)
+		},
+	})
+}
 
-	// Validate parameters
-	if limit <= 0 || limit > 1000 {
-		limit = 20
-	}
-	if offset < 0 {
-		offset = 0
-	}
-
-	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
-	defer cancel()
-
-	if h.domainQuery != nil {
-		domainResult, domainErr := h.domainQuery.Query(ctx, &domainquery.Request{
-			QueryType:  "mongodb",
-			Collection: "events",
-			Filter: map[string]interface{}{
-				"eventName": eventName,
-			},
-			Limit:  int64(limit),
-			Offset: int64(offset),
-		})
-		if domainErr == nil && domainResult != nil && len(domainResult.Events) > 0 {
-			response := buildPaginatedEventQueryResponse(
-				h.convertDomainEventsToResponse(domainResult.Events),
-				limit,
-				offset,
-				int(domainResult.Total),
-				buildDomainQueryListMeta(domainResult, "domain-name"),
-			)
-			h.metrics.RecordGauge("event_query_get_by_name_domain_success", float64(len(domainResult.Events)), nil)
-			h.respondJSON(w, http.StatusOK, response)
-			return
-		}
-		if domainErr != nil {
-			h.logger.Warn("Domain query name list failed, fallback to retrieval", "eventName", eventName, "error", domainErr.Error())
-			h.metrics.RecordGauge("event_query_get_by_name_domain_error", 1, nil)
-		}
-	}
-
-	// Get events from retrieval service
-	events, err := h.retrievalService.GetEventsByEventNameWithMetadata(ctx, eventName, limit, offset)
-	if err != nil {
-		h.logger.Error("Failed to get events by name", "eventName", eventName, "error", err.Error())
-		h.metrics.RecordGauge("event_query_get_by_name_error", 1, nil)
-		h.respondError(w, http.StatusInternalServerError, "query_failed", err.Error())
+// HandleGetCorrelatedEvents returns events across all chains that share a correlation ID.
+// GET /events/correlated/:correlationId
+// Query params: limit (default 50), offset (default 0)
+func (h *EventQueryHandler) HandleGetCorrelatedEvents(w http.ResponseWriter, r *http.Request, correlationID string) {
+	if correlationID == "" {
+		h.respondError(w, http.StatusBadRequest, "INVALID_PARAM", "correlationId is required")
 		return
 	}
 
-	// Convert to response format
-	eventResponses := h.convertEventsToResponse(events)
+	limit := h.parseIntParam(r, "limit", 50)
+	offset := h.parseIntParam(r, "offset", 0)
 
-	response := buildPaginatedEventQueryResponse(
-		eventResponses,
-		limit,
-		offset,
-		len(eventResponses),
-		buildEventQueryMeta("event-retrieval", "retrieval-list", false, events),
-	)
+	if h.retrievalService == nil {
+		h.respondError(w, http.StatusInternalServerError, "SERVICE_UNAVAILABLE", "event retrieval service not available")
+		return
+	}
 
-	h.metrics.RecordGauge("event_query_get_by_name_success", float64(len(eventResponses)), nil)
-	h.respondJSON(w, http.StatusOK, response)
+	events, err := h.retrievalService.GetEventsByCorrelationID(r.Context(), correlationID, limit, offset)
+	if err != nil {
+		h.logger.Error("Failed to query correlated events", "correlationId", correlationID, "error", err)
+		h.respondError(w, http.StatusInternalServerError, "QUERY_ERROR", "failed to query correlated events")
+		return
+	}
+
+	h.respondJSON(w, http.StatusOK, map[string]any{
+		"events": h.convertEventsToResponse(events),
+		"meta": buildEventQueryMeta(
+			"retrieval_service",
+			fmt.Sprintf("/events/correlated/%s", correlationID),
+			false,
+			events,
+		),
+	})
 }
 
 // Helper methods
@@ -558,17 +426,27 @@ func (h *EventQueryHandler) convertEventToResponse(eventWithMetadata *query.Even
 		processedAt = eventWithMetadata.Metadata.ProcessedAt.Unix()
 	}
 
+	// Resolve chainID to numeric string for API consistency.
+	// Internally ChainID may be stored as a name ("ethereum"),
+	// but consumers expect the canonical numeric ID ("1").
+	resolvedChainID := event.ChainID
+	if id := chainid.ResolveChainID(event.ChainID); id != 0 {
+		resolvedChainID = strconv.Itoa(id)
+	}
+
 	return &EventResponse{
 		EventID:         event.ID,
-		ChainID:         0, // Parse from event.ChainID string if needed
+		ChainID:         resolvedChainID,
 		BlockNumber:     safeUint64ToInt64(event.BlockNumber),
 		TransactionHash: event.TransactionHash.Hex(),
-		LogIndex:        safeUintToInt(event.LogIndex),
+		LogIndex:        int64(event.LogIndex),
 		ContractAddress: event.ContractAddress.Hex(),
 		EventName:       event.EventName,
+		EventSignature:  event.EventSignature.Hex(),
 		EventData:       event.DecodedData,
 		Timestamp:       event.BlockTimestamp,
 		ProcessedAt:     processedAt,
+		Status:          string(event.Status),
 	}
 }
 
@@ -617,6 +495,273 @@ func (h *EventQueryHandler) parseIntParam(r *http.Request, name string, defaultV
 	}
 
 	return intValue
+}
+
+// parseInt64Param parses an int64 query parameter with a default value
+func (h *EventQueryHandler) parseInt64Param(r *http.Request, name string, defaultValue int64) int64 {
+	value := r.URL.Query().Get(name)
+	if value == "" {
+		return defaultValue
+	}
+
+	intValue, err := strconv.ParseInt(value, 10, 64)
+	if err != nil {
+		return defaultValue
+	}
+
+	return intValue
+}
+
+// parseUint64Param parses a uint64 query parameter with a default value
+func (h *EventQueryHandler) parseUint64Param(r *http.Request, name string, defaultValue uint64) uint64 {
+	value := r.URL.Query().Get(name)
+	if value == "" {
+		return defaultValue
+	}
+
+	intValue, err := strconv.ParseUint(value, 10, 64)
+	if err != nil {
+		return defaultValue
+	}
+
+	return intValue
+}
+
+// filterParams holds parsed query filter parameters
+type filterParams struct {
+	FromBlock       uint64
+	ToBlock         uint64
+	FromTime        int64
+	ToTime          int64
+	EventSignature  string
+	ContractAddress string
+	Chain           string
+	EventName       string
+	Status          string
+	Search          string
+	Limit           int
+	Offset          int
+}
+
+// parseFilterParams parses common filter query parameters from the request
+func (h *EventQueryHandler) parseFilterParams(r *http.Request) *filterParams {
+	return &filterParams{
+		FromBlock:       h.parseUint64Param(r, "from_block", 0),
+		ToBlock:         h.parseUint64Param(r, "to_block", 0),
+		FromTime:        h.parseInt64Param(r, "from_time", 0),
+		ToTime:          h.parseInt64Param(r, "to_time", 0),
+		EventSignature:  strings.TrimSpace(r.URL.Query().Get("event_signature")),
+		ContractAddress: strings.TrimSpace(r.URL.Query().Get("contract")),
+		Chain:           strings.TrimSpace(r.URL.Query().Get("chain")),
+		EventName:       strings.TrimSpace(r.URL.Query().Get("event_name")),
+		Status:          strings.TrimSpace(r.URL.Query().Get("status")),
+		Search:          strings.TrimSpace(r.URL.Query().Get("search")),
+		Limit:           h.parseIntParam(r, "limit", 20),
+		Offset:          h.parseIntParam(r, "offset", 0),
+	}
+}
+
+// validateFilterParams validates filter parameters and returns an error message if invalid
+func (h *EventQueryHandler) validateFilterParams(fp *filterParams) string {
+	if fp.FromBlock > 0 && fp.ToBlock > 0 && fp.FromBlock > fp.ToBlock {
+		return "from_block must be less than or equal to to_block"
+	}
+	if fp.FromTime > 0 && fp.ToTime > 0 && fp.FromTime > fp.ToTime {
+		return "from_time must be less than or equal to to_time"
+	}
+	if fp.Limit <= 0 || fp.Limit > 1000 {
+		return "limit must be between 1 and 1000"
+	}
+	if fp.Offset < 0 {
+		return "offset must be greater than or equal to 0"
+	}
+	if fp.Status != "" {
+		validStatuses := map[string]bool{"pending": true, "confirmed": true, "failed": true, "reorged": true}
+		if !validStatuses[fp.Status] {
+			return "status must be one of: pending, confirmed, failed, reorged"
+		}
+	}
+	return ""
+}
+
+// hasFilters returns true if any non-pagination filter is active
+func (fp *filterParams) hasFilters() bool {
+	return fp.FromBlock > 0 || fp.ToBlock > 0 || fp.FromTime > 0 || fp.ToTime > 0 ||
+		fp.EventSignature != "" || fp.ContractAddress != "" || fp.Chain != "" || fp.EventName != "" || fp.Status != ""
+}
+
+// applyFilterToResponses applies filter parameters to event responses (for retrieval fallback path)
+func (h *EventQueryHandler) applyFilterToResponses(fp *filterParams, responses []*EventResponse) []*EventResponse {
+	if !fp.hasFilters() {
+		return responses
+	}
+
+	filtered := make([]*EventResponse, 0, len(responses))
+	for _, e := range responses {
+		// Block range filter
+		if fp.FromBlock > 0 && uint64(e.BlockNumber) < fp.FromBlock {
+			continue
+		}
+		if fp.ToBlock > 0 && uint64(e.BlockNumber) > fp.ToBlock {
+			continue
+		}
+
+		// Time range filter
+		if fp.FromTime > 0 && e.Timestamp < fp.FromTime {
+			continue
+		}
+		if fp.ToTime > 0 && e.Timestamp > fp.ToTime {
+			continue
+		}
+
+		// Event signature filter (match by name or hex signature)
+		if fp.EventSignature != "" {
+			sig := fp.EventSignature
+			if resolved := eventsig.ResolveTopicFromName(sig); resolved != "" {
+				sig = resolved
+			}
+			sigLower := strings.ToLower(sig)
+			if e.EventName != fp.EventSignature && e.EventName != sig &&
+				strings.ToLower(e.EventSignature) != sigLower {
+				continue
+			}
+		}
+
+		// Contract address filter
+		if fp.ContractAddress != "" {
+			if !strings.EqualFold(e.ContractAddress, fp.ContractAddress) {
+				continue
+			}
+		}
+
+		// Chain filter
+		if fp.Chain != "" {
+			resolvedID := chainid.ResolveChainID(fp.Chain)
+			resolvedName := chainid.ResolveChainName(resolvedID)
+			// Match against chainId string: could be "arbitrum", "42161", etc.
+			if e.ChainID != fp.Chain && strconv.Itoa(resolvedID) != e.ChainID && resolvedName != e.ChainID {
+				continue
+			}
+		}
+
+		// Event name filter
+		if fp.EventName != "" && e.EventName != fp.EventName {
+			continue
+		}
+
+		// Status filter
+		if fp.Status != "" && e.Status != fp.Status {
+			continue
+		}
+
+		filtered = append(filtered, e)
+	}
+	return filtered
+}
+
+// buildMongoFilter builds a MongoDB filter map from parsed filter params and base filters
+func (h *EventQueryHandler) buildMongoFilter(fp *filterParams, baseFilter map[string]any) map[string]any {
+	filter := make(map[string]any)
+	for k, v := range baseFilter {
+		filter[k] = v
+	}
+
+	if fp.FromBlock > 0 || fp.ToBlock > 0 {
+		blockFilter := make(map[string]any)
+		if fp.FromBlock > 0 {
+			blockFilter["$gte"] = fp.FromBlock
+		}
+		if fp.ToBlock > 0 {
+			blockFilter["$lte"] = fp.ToBlock
+		}
+		filter["blockNumber"] = blockFilter
+	}
+
+	if fp.FromTime > 0 || fp.ToTime > 0 {
+		timeFilter := make(map[string]any)
+		if fp.FromTime > 0 {
+			timeFilter["$gte"] = fp.FromTime
+		}
+		if fp.ToTime > 0 {
+			timeFilter["$lte"] = fp.ToTime
+		}
+		filter["timestamp"] = timeFilter
+	}
+
+	if fp.EventSignature != "" {
+		// If a known name like "Transfer" is provided, resolve it to the hex signature
+		sig := fp.EventSignature
+		if resolved := eventsig.ResolveTopicFromName(sig); resolved != "" {
+			sig = resolved
+		}
+		// Try matching against eventName (resolved name) first, then eventSignature (hex)
+		nameFilter := map[string]any{
+			"$or": []any{
+				map[string]any{"eventName": fp.EventSignature},
+				map[string]any{"eventName": sig},
+				map[string]any{"eventSignature": strings.ToLower(sig)},
+			},
+		}
+		filter["$or"] = nameFilter["$or"]
+	}
+
+	if fp.ContractAddress != "" {
+		filter["contractAddress"] = strings.ToLower(fp.ContractAddress)
+	}
+
+	if fp.Chain != "" {
+		chainID, err := strconv.Atoi(fp.Chain)
+		if err != nil {
+			// String chain identifier (e.g., "ethereum", "arbitrum")
+			filter["chainId"] = fp.Chain
+		} else {
+			// Numeric chain ID — match integer, string form, and canonical name
+			chainName := chainid.ResolveChainName(chainID)
+			filter["chainId"] = map[string]any{
+				"$in": []any{chainID, strconv.Itoa(chainID), chainName},
+			}
+		}
+	}
+
+	if fp.EventName != "" {
+		filter["eventName"] = fp.EventName
+	}
+
+	if fp.Status != "" {
+		filter["status"] = fp.Status
+	}
+
+	if fp.Search != "" {
+		escaped := strings.ReplaceAll(fp.Search, ".", "\\.")
+		escaped = strings.ReplaceAll(escaped, "*", "\\*")
+		escaped = strings.ReplaceAll(escaped, "+", "\\+")
+		escaped = strings.ReplaceAll(escaped, "?", "\\?")
+		escaped = strings.ReplaceAll(escaped, "^", "\\^")
+		escaped = strings.ReplaceAll(escaped, "$", "\\$")
+		escaped = strings.ReplaceAll(escaped, "|", "\\|")
+		escaped = strings.ReplaceAll(escaped, "(", "\\(")
+		escaped = strings.ReplaceAll(escaped, ")", "\\)")
+		escaped = strings.ReplaceAll(escaped, "[", "\\[")
+		escaped = strings.ReplaceAll(escaped, "]", "\\]")
+		escaped = strings.ReplaceAll(escaped, "{", "\\{")
+		escaped = strings.ReplaceAll(escaped, "}", "\\}")
+
+		searchOr := []any{
+			map[string]any{"eventName": map[string]any{"$regex": escaped, "$options": "i"}},
+			map[string]any{"contractAddress": map[string]any{"$regex": escaped, "$options": "i"}},
+			map[string]any{"chainId": map[string]any{"$regex": escaped, "$options": "i"}},
+			map[string]any{"transactionHash": map[string]any{"$regex": escaped, "$options": "i"}},
+		}
+
+		if existing, ok := filter["$or"]; ok {
+			if existingSlice, ok2 := existing.([]any); ok2 {
+				searchOr = append(existingSlice, searchOr...)
+			}
+		}
+		filter["$or"] = searchOr
+	}
+
+	return filter
 }
 
 func buildSingleEventQueryMeta(source, queryPath string, fallbackUsed bool, eventWithMetadata *query.EventWithMetadata) *QueryMeta {
@@ -818,8 +963,14 @@ func buildEventQueryReliabilityHint(sourcePosture, consistencyPosture string) st
 	}
 }
 
+func (h *EventQueryHandler) generateCacheKey(prefix string, filter map[string]any, limit, offset int64) string {
+	data, _ := json.Marshal([]any{filter, limit, offset})
+	hash := sha256.Sum256(data)
+	return "query:" + prefix + ":" + hex.EncodeToString(hash[:16])
+}
+
 // respondJSON responds with JSON data
-func (h *EventQueryHandler) respondJSON(w http.ResponseWriter, statusCode int, data interface{}) {
+func (h *EventQueryHandler) respondJSON(w http.ResponseWriter, statusCode int, data any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
 
@@ -830,14 +981,7 @@ func (h *EventQueryHandler) respondJSON(w http.ResponseWriter, statusCode int, d
 
 // respondError responds with an error message
 func (h *EventQueryHandler) respondError(w http.ResponseWriter, statusCode int, errorType string, message string) {
-	response := &ErrorResponse{
-		Error:      errorType,
-		Message:    message,
-		StatusCode: statusCode,
-		Timestamp:  time.Now().Unix(),
-	}
-
-	h.respondJSON(w, statusCode, response)
+	(&APIError{Code: errorType, Message: message, Status: statusCode}).WriteHTTP(w)
 }
 
 // Health returns the health status of the event query handler
@@ -875,13 +1019,4 @@ func safeUint64ToInt64(value uint64) int64 {
 	}
 
 	return int64(value)
-}
-
-func safeUintToInt(value uint) int {
-	maxIntAsUint := uint(math.MaxInt)
-	if value > maxIntAsUint {
-		return math.MaxInt
-	}
-
-	return int(value)
 }

@@ -21,9 +21,9 @@ type ServiceInfo struct {
 
 // HealthStatus represents the health status of a service
 type HealthStatus struct {
-	Status  string                 `json:"status"`
-	Message string                 `json:"message"`
-	Details map[string]interface{} `json:"details"`
+	Status  string         `json:"status"`
+	Message string         `json:"message"`
+	Details map[string]any `json:"details"`
 }
 
 // NewServiceInfo creates a new ServiceInfo

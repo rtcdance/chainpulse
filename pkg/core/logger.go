@@ -15,25 +15,37 @@ type DefaultLogger struct {
 	level           LogLevel
 	correlationID   string
 	output          io.Writer
-	fields          map[string]interface{}
+	fields          map[string]any
 	enableTimestamp bool
 }
 
 // LogEntry represents a structured log entry
 type LogEntry struct {
-	Timestamp     string                 `json:"timestamp,omitempty"`
-	Level         string                 `json:"level"`
-	Message       string                 `json:"message"`
-	CorrelationID string                 `json:"correlation_id,omitempty"`
-	Fields        map[string]interface{} `json:"fields,omitempty"`
+	Timestamp     string         `json:"timestamp,omitempty"`
+	Level         string         `json:"level"`
+	Message       string         `json:"message"`
+	CorrelationID string         `json:"correlation_id,omitempty"`
+	Fields        map[string]any `json:"fields,omitempty"`
 }
 
-// NewDefaultLogger creates a new logger instance
+// NewProductionLogger returns a slog-backed Logger (Go 1.21+ standard).
+// This is the recommended constructor for production deployments.
+func NewProductionLogger() Logger {
+	return NewSlogLogger(LogLevelInfo, "json")
+}
+
+// NewProductionLoggerWithLevel returns a slog-backed Logger with the specified level.
+func NewProductionLoggerWithLevel(level LogLevel) Logger {
+	return NewSlogLogger(level, "json")
+}
+
+// NewDefaultLogger creates a new logger instance.
+// Deprecated: Use NewProductionLogger or NewSlogLogger for slog-backed logging.
 func NewDefaultLogger(level LogLevel) *DefaultLogger {
 	return &DefaultLogger{
 		level:           level,
 		output:          os.Stdout,
-		fields:          make(map[string]interface{}),
+		fields:          make(map[string]any),
 		enableTimestamp: true,
 	}
 }
@@ -43,33 +55,33 @@ func NewDefaultLoggerWithOutput(level LogLevel, output io.Writer) *DefaultLogger
 	return &DefaultLogger{
 		level:           level,
 		output:          output,
-		fields:          make(map[string]interface{}),
+		fields:          make(map[string]any),
 		enableTimestamp: true,
 	}
 }
 
 // Debug logs a debug message
-func (l *DefaultLogger) Debug(msg string, fields ...interface{}) {
+func (l *DefaultLogger) Debug(msg string, fields ...any) {
 	l.log(LogLevelDebug, msg, fields...)
 }
 
 // Info logs an info message
-func (l *DefaultLogger) Info(msg string, fields ...interface{}) {
+func (l *DefaultLogger) Info(msg string, fields ...any) {
 	l.log(LogLevelInfo, msg, fields...)
 }
 
 // Warn logs a warning message
-func (l *DefaultLogger) Warn(msg string, fields ...interface{}) {
+func (l *DefaultLogger) Warn(msg string, fields ...any) {
 	l.log(LogLevelWarn, msg, fields...)
 }
 
 // Error logs an error message
-func (l *DefaultLogger) Error(msg string, fields ...interface{}) {
+func (l *DefaultLogger) Error(msg string, fields ...any) {
 	l.log(LogLevelError, msg, fields...)
 }
 
 // Fatal logs a fatal message and exits
-func (l *DefaultLogger) Fatal(msg string, fields ...interface{}) {
+func (l *DefaultLogger) Fatal(msg string, fields ...any) {
 	l.log(LogLevelFatal, msg, fields...)
 	os.Exit(1)
 }
@@ -83,7 +95,7 @@ func (l *DefaultLogger) WithCorrelationID(id string) Logger {
 		level:           l.level,
 		correlationID:   id,
 		output:          l.output,
-		fields:          make(map[string]interface{}),
+		fields:          make(map[string]any),
 		enableTimestamp: l.enableTimestamp,
 	}
 
@@ -96,7 +108,7 @@ func (l *DefaultLogger) WithCorrelationID(id string) Logger {
 }
 
 // WithField adds a field to the logger
-func (l *DefaultLogger) WithField(key string, value interface{}) *DefaultLogger {
+func (l *DefaultLogger) WithField(key string, value any) *DefaultLogger {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
@@ -104,7 +116,7 @@ func (l *DefaultLogger) WithField(key string, value interface{}) *DefaultLogger 
 		level:           l.level,
 		correlationID:   l.correlationID,
 		output:          l.output,
-		fields:          make(map[string]interface{}),
+		fields:          make(map[string]any),
 		enableTimestamp: l.enableTimestamp,
 	}
 
@@ -118,7 +130,7 @@ func (l *DefaultLogger) WithField(key string, value interface{}) *DefaultLogger 
 }
 
 // WithFields adds multiple fields to the logger
-func (l *DefaultLogger) WithFields(fields map[string]interface{}) *DefaultLogger {
+func (l *DefaultLogger) WithFields(fields map[string]any) *DefaultLogger {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
@@ -126,7 +138,7 @@ func (l *DefaultLogger) WithFields(fields map[string]interface{}) *DefaultLogger
 		level:           l.level,
 		correlationID:   l.correlationID,
 		output:          l.output,
-		fields:          make(map[string]interface{}),
+		fields:          make(map[string]any),
 		enableTimestamp: l.enableTimestamp,
 	}
 
@@ -158,7 +170,7 @@ func (l *DefaultLogger) GetLevel() LogLevel {
 }
 
 // log is the internal logging function
-func (l *DefaultLogger) log(level LogLevel, msg string, fields ...interface{}) {
+func (l *DefaultLogger) log(level LogLevel, msg string, fields ...any) {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
 
@@ -168,7 +180,7 @@ func (l *DefaultLogger) log(level LogLevel, msg string, fields ...interface{}) {
 	}
 
 	// Parse fields
-	fieldMap := make(map[string]interface{})
+	fieldMap := make(map[string]any)
 	for i := 0; i < len(fields); i += 2 {
 		if i+1 < len(fields) {
 			key, ok := fields[i].(string)
@@ -203,12 +215,18 @@ func (l *DefaultLogger) log(level LogLevel, msg string, fields ...interface{}) {
 	// Marshal to JSON
 	data, err := json.Marshal(entry)
 	if err != nil {
-		_, _ = fmt.Fprintf(l.output, "error marshaling log entry: %v\n", err)
+		if l.output != os.Stderr {
+			_, _ = fmt.Fprintf(os.Stderr, "logger: failed to marshal log entry: %v\n", err)
+		}
 		return
 	}
 
 	// Write to output
-	_, _ = fmt.Fprintf(l.output, "%s\n", string(data))
+	if _, err := fmt.Fprintf(l.output, "%s\n", string(data)); err != nil {
+		if l.output != os.Stderr {
+			_, _ = fmt.Fprintf(os.Stderr, "logger: failed to write to output: %v\n", err)
+		}
+	}
 }
 
 // LogLevel represents the log level

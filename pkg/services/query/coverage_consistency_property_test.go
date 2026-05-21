@@ -12,6 +12,7 @@ import (
 
 // TestProperty2_QueryServiceCoverageConsistency tests that all query service code paths are covered
 func TestProperty2_QueryServiceCoverageConsistency(t *testing.T) {
+	t.Parallel()
 	// Property: All executed code paths in QueryService must be tracked by coverage
 	ctx := context.Background()
 
@@ -23,7 +24,7 @@ func TestProperty2_QueryServiceCoverageConsistency(t *testing.T) {
 	metricsCollector := NewMockMetricsCollector()
 
 	// Create query service
-	service := NewQueryService(nil, mongoAdapter, postgresAdapter, cacheService, logger, metricsCollector)
+	service := NewQueryService(mongoAdapter, postgresAdapter, cacheService, logger, metricsCollector)
 
 	// Path 1: Initialize service
 	err := service.Initialize(ctx)
@@ -41,7 +42,7 @@ func TestProperty2_QueryServiceCoverageConsistency(t *testing.T) {
 	req := &QueryRequest{
 		QueryType:  "mongodb",
 		Collection: "events",
-		Filter:     map[string]interface{}{"id": "test"},
+		Filter:     map[string]any{"id": "test"},
 		CacheKey:   "test-key",
 		CacheTTL:   1 * time.Hour,
 	}

@@ -60,7 +60,7 @@ func TestDataPullerEventCollectionCompleteness(t *testing.T) {
 					TxHash:          fmt.Sprintf("0x%064d", i),
 					BlockNumber:     blockNumber,
 					LogIndex:        logIndex,
-					Parameters:      map[string]interface{}{"value": i},
+					Parameters:      map[string]any{"value": i},
 					Timestamp:       time.Now(),
 				}
 			}

@@ -1,9 +1,72 @@
 package core
 
 import (
+	"context"
 	"fmt"
 	"sync"
+	"time"
 )
+
+// sortTopological orders plugins by dependency using Kahn's algorithm.
+// Plugins implementing DependentPlugin declare dependencies by name.
+// Returns error if a dependency is missing or a cycle is detected.
+func sortTopological(plugins []Plugin) ([]Plugin, error) {
+	inDegree := make(map[string]int, len(plugins))
+	byName := make(map[string]Plugin, len(plugins))
+
+	for _, p := range plugins {
+		byName[p.Name()] = p
+	}
+	for _, p := range plugins {
+		n := p.Name()
+		if _, ok := inDegree[n]; !ok {
+			inDegree[n] = 0
+		}
+		if dep, ok := p.(DependentPlugin); ok {
+			for _, d := range dep.Dependencies() {
+				if _, exists := byName[d]; !exists {
+					return nil, fmt.Errorf("plugin %q depends on %q which is not registered", n, d)
+				}
+				inDegree[n]++
+			}
+		}
+	}
+
+	var queue []string
+	for n, deg := range inDegree {
+		if deg == 0 {
+			queue = append(queue, n)
+		}
+	}
+
+	sorted := make([]Plugin, 0, len(plugins))
+	for len(queue) > 0 {
+		name := queue[0]
+		queue = queue[1:]
+		sorted = append(sorted, byName[name])
+
+		for _, other := range plugins {
+			dep, ok := other.(DependentPlugin)
+			if !ok {
+				continue
+			}
+			for _, d := range dep.Dependencies() {
+				if d == name {
+					inDegree[other.Name()]--
+					if inDegree[other.Name()] == 0 {
+						queue = append(queue, other.Name())
+					}
+				}
+			}
+		}
+	}
+
+	if len(sorted) != len(plugins) {
+		return nil, fmt.Errorf("dependency cycle detected among %d plugins", len(plugins)-len(sorted))
+	}
+
+	return sorted, nil
+}
 
 // DefaultPluginRegistry is the default implementation of PluginRegistry
 type DefaultPluginRegistry struct {
@@ -55,7 +118,11 @@ func (r *DefaultPluginRegistry) Register(plugin Plugin) error {
 
 	r.plugins[name] = plugin
 	if r.logger != nil {
-		r.logger.Info("plugin registered", "name", name, "version", plugin.Version())
+		version := ""
+		if vp, ok := any(plugin).(interface{ Version() string }); ok {
+			version = vp.Version()
+		}
+		r.logger.Info("plugin registered", "name", name, "version", version)
 	}
 
 	return nil
@@ -132,8 +199,9 @@ func (r *DefaultPluginRegistry) List() []Plugin {
 	return plugins
 }
 
-// Start starts all registered plugins
-func (r *DefaultPluginRegistry) Start() error {
+// Start starts all registered plugins with the given context.
+// Plugins are started in topological order based on declared dependencies.
+func (r *DefaultPluginRegistry) Start(ctx context.Context) error {
 	r.mu.RLock()
 	plugins := make([]Plugin, 0, len(r.plugins))
 	for _, plugin := range r.plugins {
@@ -141,8 +209,20 @@ func (r *DefaultPluginRegistry) Start() error {
 	}
 	r.mu.RUnlock()
 
-	for _, plugin := range plugins {
-		if err := plugin.Start(); err != nil {
+	sorted, err := sortTopological(plugins)
+	if err != nil {
+		return fmt.Errorf("plugin start order: %w", err)
+	}
+
+	for _, plugin := range sorted {
+		lp, ok := plugin.(LifecyclePlugin)
+		if !ok {
+			if r.logger != nil {
+				r.logger.Info("plugin has no lifecycle", "name", plugin.Name())
+			}
+			continue
+		}
+		if err := lp.Start(ctx); err != nil {
 			if r.logger != nil {
 				r.logger.Error("failed to start plugin", "name", plugin.Name(), "error", err)
 			}
@@ -162,8 +242,12 @@ func (r *DefaultPluginRegistry) Start() error {
 	return nil
 }
 
-// Stop stops all registered plugins
-func (r *DefaultPluginRegistry) Stop() error {
+// Stop stops all registered plugins in reverse topological order with the given context.
+// Each plugin's Stop call is bounded by a 30-second timeout to prevent a hung plugin
+// from blocking the entire shutdown sequence.
+func (r *DefaultPluginRegistry) Stop(ctx context.Context) error {
+	const stopTimeout = 30 * time.Second
+
 	r.mu.RLock()
 	plugins := make([]Plugin, 0, len(r.plugins))
 	for _, plugin := range r.plugins {
@@ -171,17 +255,42 @@ func (r *DefaultPluginRegistry) Stop() error {
 	}
 	r.mu.RUnlock()
 
-	// Stop plugins in reverse order
-	for i := len(plugins) - 1; i >= 0; i-- {
-		plugin := plugins[i]
-		if err := plugin.Stop(); err != nil {
-			if r.logger != nil {
-				r.logger.Error("failed to stop plugin", "name", plugin.Name(), "error", err)
+	sorted, err := sortTopological(plugins)
+	if err != nil {
+		if r.logger != nil {
+			r.logger.Error("failed to compute stop order", "error", err)
+		}
+		sorted = plugins
+	}
+
+	for i := len(sorted) - 1; i >= 0; i-- {
+		plugin := sorted[i]
+		lp, ok := plugin.(LifecyclePlugin)
+		if !ok {
+			continue
+		}
+
+		stopCtx, cancel := context.WithTimeout(ctx, stopTimeout)
+		done := make(chan error, 1)
+		go func() {
+			done <- lp.Stop(stopCtx)
+		}()
+		select {
+		case stopErr := <-done:
+			cancel()
+			if stopErr != nil {
+				if r.logger != nil {
+					r.logger.Error("failed to stop plugin", "name", plugin.Name(), "error", stopErr)
+				}
+			} else {
+				if r.logger != nil {
+					r.logger.Info("plugin stopped", "name", plugin.Name())
+				}
 			}
-			// Continue stopping other plugins even if one fails
-		} else {
+		case <-stopCtx.Done():
+			cancel()
 			if r.logger != nil {
-				r.logger.Info("plugin stopped", "name", plugin.Name())
+				r.logger.Warn("plugin stop timed out, continuing shutdown", "name", plugin.Name(), "timeout", stopTimeout)
 			}
 		}
 	}

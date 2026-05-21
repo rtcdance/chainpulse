@@ -2,32 +2,38 @@ package query
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"math"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 
-	"chainpulse/pkg/core"
-	"chainpulse/pkg/infrastructure/database"
+	"github.com/rtcdance/chainpulse/pkg/chainid"
+	"github.com/rtcdance/chainpulse/pkg/core"
+	domainquery "github.com/rtcdance/chainpulse/pkg/domain/query"
+	"github.com/rtcdance/chainpulse/pkg/observability"
 )
 
 // MongoDBEventStore implements EventStore for MongoDB
 type MongoDBEventStore struct {
-	dbManager   database.DatabaseManager
+	dbManager   mongoClientProvider
 	logger      core.Logger
 	metrics     core.MetricsCollector
 	config      *EventStoreConfig
 	collection  *mongo.Collection
 	initialized bool
+	tracer      *observability.DefaultTracer
 }
 
 // NewMongoDBEventStore creates a new MongoDB event store
 func NewMongoDBEventStore(
-	dbManager database.DatabaseManager,
+	dbManager mongoClientProvider,
 	logger core.Logger,
 	metrics core.MetricsCollector,
 	config *EventStoreConfig,
@@ -40,6 +46,7 @@ func NewMongoDBEventStore(
 		logger:      logger,
 		metrics:     metrics,
 		config:      config,
+		tracer:      observability.NewDefaultTracer(logger, metrics),
 		initialized: false,
 	}
 }
@@ -53,7 +60,7 @@ func (s *MongoDBEventStore) Initialize(ctx context.Context) error {
 	// Get MongoDB client
 	clientInterface, err := s.dbManager.GetMongoClient(ctx)
 	if err != nil {
-		s.logger.Error("Failed to get MongoDB client", "error", err.Error())
+		s.logger.Error("Failed to get MongoDB client", "error", err)
 		return fmt.Errorf("failed to get MongoDB client: %w", err)
 	}
 
@@ -69,7 +76,7 @@ func (s *MongoDBEventStore) Initialize(ctx context.Context) error {
 
 	// Create indexes
 	if err := s.createIndexes(ctx); err != nil {
-		s.logger.Error("Failed to create indexes", "error", err.Error())
+		s.logger.Error("Failed to create indexes", "error", err)
 		return fmt.Errorf("failed to create indexes: %w", err)
 	}
 
@@ -130,6 +137,9 @@ func (s *MongoDBEventStore) createIndexes(ctx context.Context) error {
 
 // InsertEvent inserts a single event into the store
 func (s *MongoDBEventStore) InsertEvent(ctx context.Context, event *core.BlockchainEvent) error {
+	ctx, span := s.tracer.StartSpan(ctx, "storage.insert_event", observability.SpanKindInternal)
+	defer s.tracer.EndSpan(&span)
+
 	if !s.initialized {
 		return fmt.Errorf("event store not initialized")
 	}
@@ -142,6 +152,9 @@ func (s *MongoDBEventStore) InsertEvent(ctx context.Context, event *core.Blockch
 		return fmt.Errorf("event is required")
 	}
 
+	s.tracer.SetAttribute(&span, "event_id", event.ID)
+	s.tracer.SetAttribute(&span, "chain_id", event.ChainID)
+
 	start := time.Now()
 	defer func() {
 		duration := time.Since(start).Milliseconds()
@@ -151,12 +164,15 @@ func (s *MongoDBEventStore) InsertEvent(ctx context.Context, event *core.Blockch
 	// Prepare document with TTL
 	doc := bson.M{
 		"id":              event.ID,
-		"chainId":         event.ChainID,
-		"blockNumber":     event.BlockNumber,
+		"eventHash":       event.EventHash,
+		"chainId":         normalizeChainIDForStorage(event.ChainID),
+		"blockNumber":     int64(event.BlockNumber),
+		"blockTimestamp":  event.BlockTimestamp,
 		"transactionHash": event.TransactionHash.Hex(),
-		"logIndex":        event.LogIndex,
+		"logIndex":        int64(event.LogIndex),
 		"contractAddress": event.ContractAddress.Hex(),
 		"eventName":       event.EventName,
+		"eventSignature":  event.EventSignature.Hex(),
 		"eventData":       event.EventData,
 		"decodedData":     event.DecodedData,
 		"createdAt":       event.CreatedAt,
@@ -172,7 +188,7 @@ func (s *MongoDBEventStore) InsertEvent(ctx context.Context, event *core.Blockch
 
 	_, err := s.collection.InsertOne(ctx, doc)
 	if err != nil {
-		s.logger.Error("Failed to insert event", "id", event.ID, "error", err.Error())
+		s.logger.Error("Failed to insert event", "id", event.ID, "error", err)
 		s.metrics.RecordCounter("mongodb_event_insert_error", 1, map[string]string{})
 		return fmt.Errorf("failed to insert event: %w", err)
 	}
@@ -202,7 +218,7 @@ func (s *MongoDBEventStore) InsertEventBatch(ctx context.Context, events []*core
 	}()
 
 	// Prepare documents
-	docs := make([]interface{}, len(events))
+	docs := make([]any, len(events))
 	for i, event := range events {
 		if event == nil {
 			continue
@@ -210,12 +226,15 @@ func (s *MongoDBEventStore) InsertEventBatch(ctx context.Context, events []*core
 
 		doc := bson.M{
 			"id":              event.ID,
-			"chainId":         event.ChainID,
-			"blockNumber":     event.BlockNumber,
+			"eventHash":       event.EventHash,
+			"chainId":         normalizeChainIDForStorage(event.ChainID),
+			"blockNumber":     int64(event.BlockNumber),
+			"blockTimestamp":  event.BlockTimestamp,
 			"transactionHash": event.TransactionHash.Hex(),
-			"logIndex":        event.LogIndex,
+			"logIndex":        int64(event.LogIndex),
 			"contractAddress": event.ContractAddress.Hex(),
 			"eventName":       event.EventName,
+			"eventSignature":  event.EventSignature.Hex(),
 			"eventData":       event.EventData,
 			"decodedData":     event.DecodedData,
 			"createdAt":       event.CreatedAt,
@@ -236,7 +255,7 @@ func (s *MongoDBEventStore) InsertEventBatch(ctx context.Context, events []*core
 	opts := options.InsertMany().SetOrdered(false)
 	result, err := s.collection.InsertMany(ctx, docs, opts)
 	if err != nil {
-		s.logger.Error("Failed to insert event batch", "count", len(events), "error", err.Error())
+		s.logger.Error("Failed to insert event batch", "count", len(events), "error", err)
 		s.metrics.RecordCounter("mongodb_event_batch_insert_error", 1, map[string]string{})
 		return fmt.Errorf("failed to insert event batch: %w", err)
 	}
@@ -265,14 +284,14 @@ func (s *MongoDBEventStore) GetEvent(ctx context.Context, eventID string) (*core
 		s.metrics.RecordHistogram("mongodb_event_get_time_ms", float64(duration), map[string]string{})
 	}()
 
-	filter := bson.M{"eventId": eventID}
+	filter := bson.M{"id": eventID}
 	var result bson.M
 	err := s.collection.FindOne(ctx, filter).Decode(&result)
 	if err != nil {
-		if err == mongo.ErrNoDocuments {
+		if errors.Is(err, mongo.ErrNoDocuments) {
 			return nil, nil
 		}
-		s.logger.Error("Failed to get event", "id", eventID, "error", err.Error())
+		s.logger.Error("Failed to get event", "id", eventID, "error", err)
 		s.metrics.RecordCounter("mongodb_event_get_error", 1, map[string]string{})
 		return nil, fmt.Errorf("failed to get event: %w", err)
 	}
@@ -282,28 +301,20 @@ func (s *MongoDBEventStore) GetEvent(ctx context.Context, eventID string) (*core
 	if err != nil {
 		return nil, fmt.Errorf("invalid blockNumber: %w", err)
 	}
-	logIndex, err := bsonNumericToUint(result["logIndex"])
+	logIndex, err := bsonNumericToUint64(result["logIndex"])
 	if err != nil {
 		return nil, fmt.Errorf("invalid logIndex: %w", err)
 	}
-	event := &core.BlockchainEvent{
-		ID:              eventID,
-		ChainID:         result["chainId"].(string),
-		BlockNumber:     blockNumber,
-		TransactionHash: common.HexToHash(result["transactionHash"].(string)),
-		LogIndex:        logIndex,
-		ContractAddress: common.HexToAddress(result["contractAddress"].(string)),
-		EventName:       result["eventName"].(string),
-		EventData:       result["eventData"].([]byte),
-		DecodedData:     result["decodedData"].(map[string]interface{}),
-		CreatedAt:       result["createdAt"].(time.Time),
-	}
+	event := decodeMongoEventDocument(result)
+	event.ID = eventID
+	event.BlockNumber = blockNumber
+	event.LogIndex = logIndex
 
 	s.metrics.RecordCounter("mongodb_event_get_success", 1, map[string]string{})
 	return event, nil
 }
 
-func bsonNumericToUint64(value interface{}) (uint64, error) {
+func bsonNumericToUint64(value any) (uint64, error) {
 	switch typed := value.(type) {
 	case int32:
 		if typed < 0 {
@@ -319,20 +330,17 @@ func bsonNumericToUint64(value interface{}) (uint64, error) {
 		return uint64(typed), nil
 	case uint64:
 		return typed, nil
+	case float64:
+		if typed < 0 {
+			return 0, fmt.Errorf("negative value %f", typed)
+		}
+		if typed > 1<<53 {
+			return 0, fmt.Errorf("float64 precision loss: value %f exceeds 2^53", typed)
+		}
+		return uint64(typed), nil
 	default:
 		return 0, fmt.Errorf("unsupported type %T", value)
 	}
-}
-
-func bsonNumericToUint(value interface{}) (uint, error) {
-	number, err := bsonNumericToUint64(value)
-	if err != nil {
-		return 0, err
-	}
-	if number > uint64(math.MaxUint) {
-		return 0, fmt.Errorf("value %d exceeds uint range", number)
-	}
-	return uint(number), nil
 }
 
 // GetEventsByChain retrieves events for a specific chain
@@ -351,7 +359,7 @@ func (s *MongoDBEventStore) GetEventsByChain(ctx context.Context, chainID int, l
 		s.metrics.RecordHistogram("mongodb_event_query_chain_time_ms", float64(duration), map[string]string{})
 	}()
 
-	filter := bson.M{"chainId": chainID}
+	filter := buildChainLookupFilter(chainID)
 	opts := options.Find().
 		SetSkip(int64(offset)).
 		SetLimit(int64(limit)).
@@ -359,20 +367,46 @@ func (s *MongoDBEventStore) GetEventsByChain(ctx context.Context, chainID int, l
 
 	cursor, err := s.collection.Find(ctx, filter, opts)
 	if err != nil {
-		s.logger.Error("Failed to query events by chain", "chainId", chainID, "error", err.Error())
+		s.logger.Error("Failed to query events by chain", "chainId", chainID, "error", err)
 		s.metrics.RecordCounter("mongodb_event_query_chain_error", 1, map[string]string{})
 		return nil, fmt.Errorf("failed to query events by chain: %w", err)
 	}
 	defer func() { _ = cursor.Close(ctx) }()
 
-	var events []*core.BlockchainEvent
-	if err := cursor.All(ctx, &events); err != nil {
-		s.logger.Error("Failed to decode events", "error", err.Error())
+	events, err := decodeMongoEventCursor(ctx, cursor)
+	if err != nil {
+		s.logger.Error("Failed to decode events", "error", err)
 		return nil, fmt.Errorf("failed to decode events: %w", err)
 	}
 
 	s.metrics.RecordCounter("mongodb_event_query_chain_success", int64(len(events)), map[string]string{})
 	return events, nil
+}
+
+func normalizeChainIDForStorage(chainID string) any {
+	trimmed := strings.TrimSpace(chainID)
+	if trimmed == "" {
+		return ""
+	}
+	return trimmed
+}
+
+func buildChainLookupFilter(chainID int) bson.M {
+	if chainID == 0 {
+		return bson.M{}
+	}
+
+	// Build string-only $in filter — chainId is always stored as string
+	// after the ChainID string migration.
+	values := []any{strconv.Itoa(chainID)}
+	if name := chainid.ResolveChainName(chainID); name != strconv.Itoa(chainID) {
+		values = append(values, name)
+	}
+	return bson.M{
+		"chainId": bson.M{
+			"$in": values,
+		},
+	}
 }
 
 // GetEventsByContract retrieves events for a specific contract
@@ -403,15 +437,15 @@ func (s *MongoDBEventStore) GetEventsByContract(ctx context.Context, contractAdd
 
 	cursor, err := s.collection.Find(ctx, filter, opts)
 	if err != nil {
-		s.logger.Error("Failed to query events by contract", "contractAddress", contractAddress, "error", err.Error())
+		s.logger.Error("Failed to query events by contract", "contractAddress", contractAddress, "error", err)
 		s.metrics.RecordCounter("mongodb_event_query_contract_error", 1, map[string]string{})
 		return nil, fmt.Errorf("failed to query events by contract: %w", err)
 	}
 	defer func() { _ = cursor.Close(ctx) }()
 
-	var events []*core.BlockchainEvent
-	if err := cursor.All(ctx, &events); err != nil {
-		s.logger.Error("Failed to decode events", "error", err.Error())
+	events, err := decodeMongoEventCursor(ctx, cursor)
+	if err != nil {
+		s.logger.Error("Failed to decode events", "error", err)
 		return nil, fmt.Errorf("failed to decode events: %w", err)
 	}
 
@@ -447,19 +481,61 @@ func (s *MongoDBEventStore) GetEventsByEventName(ctx context.Context, eventName 
 
 	cursor, err := s.collection.Find(ctx, filter, opts)
 	if err != nil {
-		s.logger.Error("Failed to query events by name", "eventName", eventName, "error", err.Error())
+		s.logger.Error("Failed to query events by name", "eventName", eventName, "error", err)
 		s.metrics.RecordCounter("mongodb_event_query_name_error", 1, map[string]string{})
 		return nil, fmt.Errorf("failed to query events by name: %w", err)
 	}
 	defer func() { _ = cursor.Close(ctx) }()
 
-	var events []*core.BlockchainEvent
-	if err := cursor.All(ctx, &events); err != nil {
-		s.logger.Error("Failed to decode events", "error", err.Error())
+	events, err := decodeMongoEventCursor(ctx, cursor)
+	if err != nil {
+		s.logger.Error("Failed to decode events", "error", err)
 		return nil, fmt.Errorf("failed to decode events: %w", err)
 	}
 
 	s.metrics.RecordCounter("mongodb_event_query_name_success", int64(len(events)), map[string]string{})
+	return events, nil
+}
+
+// GetEventsByCorrelationID retrieves events across all chains that share a correlation ID.
+func (s *MongoDBEventStore) GetEventsByCorrelationID(ctx context.Context, correlationID string, limit int, offset int) ([]*core.BlockchainEvent, error) {
+	if !s.initialized {
+		return nil, fmt.Errorf("event store not initialized")
+	}
+	if s.collection == nil {
+		return nil, fmt.Errorf("MongoDB collection not initialized")
+	}
+	if correlationID == "" {
+		return nil, fmt.Errorf("correlation ID is required")
+	}
+
+	start := time.Now()
+	defer func() {
+		duration := time.Since(start).Milliseconds()
+		s.metrics.RecordHistogram("mongodb_event_query_correlation_id_time_ms", float64(duration), map[string]string{})
+	}()
+
+	filter := bson.M{"correlationid": correlationID}
+	opts := options.Find().
+		SetSkip(int64(offset)).
+		SetLimit(int64(limit)).
+		SetSort(bson.M{"timestamp": -1})
+
+	cursor, err := s.collection.Find(ctx, filter, opts)
+	if err != nil {
+		s.logger.Error("Failed to query events by correlation ID", "correlationId", correlationID, "error", err)
+		s.metrics.RecordCounter("mongodb_event_query_correlation_id_error", 1, map[string]string{})
+		return nil, fmt.Errorf("failed to query events by correlation ID: %w", err)
+	}
+	defer cursor.Close(ctx)
+
+	events := make([]*core.BlockchainEvent, 0, limit)
+	if err := cursor.All(ctx, &events); err != nil {
+		s.logger.Error("Failed to decode correlated events", "error", err)
+		return nil, fmt.Errorf("failed to decode correlated events: %w", err)
+	}
+
+	s.metrics.RecordCounter("mongodb_event_query_correlation_id_success", int64(len(events)), map[string]string{})
 	return events, nil
 }
 
@@ -491,7 +567,7 @@ func (s *MongoDBEventStore) DeleteExpiredEvents(ctx context.Context) (int64, err
 
 	result, err := s.collection.DeleteMany(ctx, filter)
 	if err != nil {
-		s.logger.Error("Failed to delete expired events", "error", err.Error())
+		s.logger.Error("Failed to delete expired events", "error", err)
 		s.metrics.RecordCounter("mongodb_event_delete_expired_error", 1, map[string]string{})
 		return 0, fmt.Errorf("failed to delete expired events: %w", err)
 	}
@@ -563,20 +639,74 @@ func (s *MongoDBEventStore) GetEventsByBlock(ctx context.Context, blockNumber in
 
 	cursor, err := s.collection.Find(ctx, filter, opts)
 	if err != nil {
-		s.logger.Error("Failed to query events by block", "blockNumber", blockNumber, "error", err.Error())
+		s.logger.Error("Failed to query events by block", "blockNumber", blockNumber, "error", err)
 		s.metrics.RecordCounter("mongodb_event_query_block_error", 1, map[string]string{})
 		return nil, fmt.Errorf("failed to query events by block: %w", err)
 	}
 	defer func() { _ = cursor.Close(ctx) }()
 
-	var events []*core.BlockchainEvent
-	if err := cursor.All(ctx, &events); err != nil {
-		s.logger.Error("Failed to decode events", "error", err.Error())
+	events, err := decodeMongoEventCursor(ctx, cursor)
+	if err != nil {
+		s.logger.Error("Failed to decode events", "error", err)
 		return nil, fmt.Errorf("failed to decode events: %w", err)
 	}
 
 	s.metrics.RecordCounter("mongodb_event_query_block_success", int64(len(events)), map[string]string{})
 	return events, nil
+}
+
+// GetEventsByBlockRange retrieves events from fromBlock to toBlock (inclusive)
+func (s *MongoDBEventStore) GetEventsByBlockRange(ctx context.Context, fromBlock, toBlock uint64) ([]*core.BlockchainEvent, error) {
+	if !s.initialized {
+		return nil, fmt.Errorf("event store not initialized")
+	}
+
+	if s.collection == nil {
+		return nil, fmt.Errorf("MongoDB collection not initialized")
+	}
+
+	filter := bson.M{
+		"blockNumber": bson.M{
+			"$gte": fromBlock,
+			"$lte": toBlock,
+		},
+	}
+	opts := options.Find().SetSort(bson.M{"blockNumber": 1, "logIndex": 1})
+
+	cursor, err := s.collection.Find(ctx, filter, opts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query events by block range: %w", err)
+	}
+	defer func() { _ = cursor.Close(ctx) }()
+
+	return decodeMongoEventCursor(ctx, cursor)
+}
+
+// DeleteEventsByBlockRange deletes events from fromBlock to toBlock (inclusive)
+func (s *MongoDBEventStore) DeleteEventsByBlockRange(ctx context.Context, fromBlock, toBlock uint64) (int64, error) {
+	if !s.initialized {
+		return 0, fmt.Errorf("event store not initialized")
+	}
+
+	if s.collection == nil {
+		return 0, fmt.Errorf("MongoDB collection not initialized")
+	}
+
+	filter := bson.M{
+		"blockNumber": bson.M{
+			"$gte": fromBlock,
+			"$lte": toBlock,
+		},
+	}
+
+	result, err := s.collection.DeleteMany(ctx, filter)
+	if err != nil {
+		return 0, fmt.Errorf("failed to delete events by block range: %w", err)
+	}
+
+	s.logger.Info("Deleted events by block range", core.LogKeyFromBlock, fromBlock, core.LogKeyToBlock, toBlock, core.LogKeyCount, result.DeletedCount)
+
+	return result.DeletedCount, nil
 }
 
 // GetEventsByAddress retrieves events by contract address with limit
@@ -606,15 +736,15 @@ func (s *MongoDBEventStore) GetEventsByAddress(ctx context.Context, address stri
 
 	cursor, err := s.collection.Find(ctx, filter, opts)
 	if err != nil {
-		s.logger.Error("Failed to query events by address", "address", address, "error", err.Error())
+		s.logger.Error("Failed to query events by address", "address", address, "error", err)
 		s.metrics.RecordCounter("mongodb_event_query_address_error", 1, map[string]string{})
 		return nil, fmt.Errorf("failed to query events by address: %w", err)
 	}
 	defer func() { _ = cursor.Close(ctx) }()
 
-	var events []*core.BlockchainEvent
-	if err := cursor.All(ctx, &events); err != nil {
-		s.logger.Error("Failed to decode events", "error", err.Error())
+	events, err := decodeMongoEventCursor(ctx, cursor)
+	if err != nil {
+		s.logger.Error("Failed to decode events", "error", err)
 		return nil, fmt.Errorf("failed to decode events: %w", err)
 	}
 
@@ -649,15 +779,15 @@ func (s *MongoDBEventStore) GetEventsByName(ctx context.Context, eventName strin
 
 	cursor, err := s.collection.Find(ctx, filter, opts)
 	if err != nil {
-		s.logger.Error("Failed to query events by name", "eventName", eventName, "error", err.Error())
+		s.logger.Error("Failed to query events by name", "eventName", eventName, "error", err)
 		s.metrics.RecordCounter("mongodb_event_query_eventname_error", 1, map[string]string{})
 		return nil, fmt.Errorf("failed to query events by name: %w", err)
 	}
 	defer func() { _ = cursor.Close(ctx) }()
 
-	var events []*core.BlockchainEvent
-	if err := cursor.All(ctx, &events); err != nil {
-		s.logger.Error("Failed to decode events", "error", err.Error())
+	events, err := decodeMongoEventCursor(ctx, cursor)
+	if err != nil {
+		s.logger.Error("Failed to decode events", "error", err)
 		return nil, fmt.Errorf("failed to decode events: %w", err)
 	}
 
@@ -684,11 +814,21 @@ func (s *MongoDBEventStore) GetEventsPaginated(ctx context.Context, cursor strin
 	// Build filter based on cursor
 	filter := bson.M{}
 	if cursor != "" {
-		// Cursor is a block number - get events after this block
-		filter = bson.M{
-			"blockNumber": bson.M{
-				"$lt": cursor,
-			},
+		// Try decoding as opaque PageCursor first
+		if pc, ok := domainquery.DecodePageCursor(cursor); ok {
+			filter = bson.M{
+				"$or": []bson.M{
+					{"blockNumber": bson.M{"$lt": pc.BlockNumber}},
+					{"blockNumber": pc.BlockNumber, "logIndex": bson.M{"$lt": pc.LogIndex}},
+				},
+			}
+		} else {
+			// Legacy cursor: treat as block number string
+			filter = bson.M{
+				"blockNumber": bson.M{
+					"$lt": cursor,
+				},
+			}
 		}
 	}
 
@@ -702,15 +842,15 @@ func (s *MongoDBEventStore) GetEventsPaginated(ctx context.Context, cursor strin
 
 	cursorResult, err := s.collection.Find(queryCtx, filter, opts)
 	if err != nil {
-		s.logger.Error("Failed to query paginated events", "error", err.Error())
+		s.logger.Error("Failed to query paginated events", "error", err)
 		s.metrics.RecordCounter("mongodb_event_query_paginated_error", 1, map[string]string{})
 		return nil, false, fmt.Errorf("failed to query paginated events: %w", err)
 	}
 	defer func() { _ = cursorResult.Close(ctx) }()
 
-	var events []*core.BlockchainEvent
-	if err := cursorResult.All(ctx, &events); err != nil {
-		s.logger.Error("Failed to decode events", "error", err.Error())
+	events, err := decodeMongoEventCursor(ctx, cursorResult)
+	if err != nil {
+		s.logger.Error("Failed to decode events", "error", err)
 		return nil, false, fmt.Errorf("failed to decode events: %w", err)
 	}
 
@@ -722,4 +862,152 @@ func (s *MongoDBEventStore) GetEventsPaginated(ctx context.Context, cursor strin
 
 	s.metrics.RecordCounter("mongodb_event_query_paginated_success", int64(len(events)), map[string]string{})
 	return events, hasNextPage, nil
+}
+
+// CountEvents returns the total number of events in the store
+func (s *MongoDBEventStore) CountEvents(ctx context.Context) (int64, error) {
+	if !s.initialized {
+		return 0, fmt.Errorf("event store not initialized")
+	}
+	if s.collection == nil {
+		return 0, fmt.Errorf("MongoDB collection not initialized")
+	}
+
+	start := time.Now()
+	defer func() {
+		duration := time.Since(start).Milliseconds()
+		s.metrics.RecordHistogram("mongodb_event_count_time_ms", float64(duration), map[string]string{})
+	}()
+
+	count, err := s.collection.CountDocuments(ctx, bson.M{})
+	if err != nil {
+		s.logger.Error("Failed to count events", "error", err)
+		return 0, fmt.Errorf("failed to count events: %w", err)
+	}
+	return count, nil
+}
+
+func decodeMongoEventCursor(ctx context.Context, cursor *mongo.Cursor) ([]*core.BlockchainEvent, error) {
+	var docs []bson.M
+	if err := cursor.All(ctx, &docs); err != nil {
+		return nil, err
+	}
+
+	events := make([]*core.BlockchainEvent, 0, len(docs))
+	for _, doc := range docs {
+		events = append(events, decodeMongoEventDocument(doc))
+	}
+	return events, nil
+}
+
+func decodeMongoEventDocument(doc bson.M) *core.BlockchainEvent {
+	eventSig := common.Hash{}
+	if sigStr := bsonString(doc["eventSignature"]); sigStr != "" {
+		eventSig = common.HexToHash(sigStr)
+	}
+	return &core.BlockchainEvent{
+		ID:              bsonString(doc["id"]),
+		EventHash:       bsonString(doc["eventHash"]),
+		ChainID:         bsonString(doc["chainId"]),
+		BlockNumber:     bsonUint64(doc["blockNumber"]),
+		BlockTimestamp:  bsonInt64(doc["blockTimestamp"]),
+		TransactionHash: common.HexToHash(bsonString(doc["transactionHash"])),
+		LogIndex:        uint64(bsonInt64(doc["logIndex"])),
+		ContractAddress: common.HexToAddress(bsonString(doc["contractAddress"])),
+		EventName:       bsonString(doc["eventName"]),
+		EventSignature:  eventSig,
+		EventData:       bsonBytes(doc["eventData"]),
+		DecodedData:     bsonMap(doc["decodedData"]),
+		CreatedAt:       bsonTime(doc["createdAt"]),
+		ProcessedAt:     bsonTime(doc["processedAt"]),
+		IndexedAt:       bsonTime(doc["indexedAt"]),
+	}
+}
+
+func bsonString(value any) string {
+	switch typed := value.(type) {
+	case string:
+		return typed
+	case nil:
+		return ""
+	default:
+		return fmt.Sprint(typed)
+	}
+}
+
+func bsonUint64(value any) uint64 {
+	switch typed := value.(type) {
+	case int32:
+		return uint64(typed)
+	case int64:
+		return uint64(typed)
+	case uint32:
+		return uint64(typed)
+	case uint64:
+		return typed
+	case float64:
+		if typed < 0 {
+			return 0
+		}
+		if typed > 1<<53 {
+			return 0
+		}
+		return uint64(typed)
+	case primitive.DateTime:
+		return uint64(typed.Time().Unix())
+	default:
+		return 0
+	}
+}
+
+func bsonInt64(value any) int64 {
+	switch typed := value.(type) {
+	case int32:
+		return int64(typed)
+	case int64:
+		return typed
+	case uint32:
+		return int64(typed)
+	case uint64:
+		return int64(typed)
+	case float64:
+		return int64(typed)
+	case primitive.DateTime:
+		return typed.Time().Unix()
+	default:
+		return 0
+	}
+}
+
+func bsonBytes(value any) []byte {
+	switch typed := value.(type) {
+	case []byte:
+		return typed
+	case primitive.Binary:
+		return typed.Data
+	default:
+		return nil
+	}
+}
+
+func bsonMap(value any) map[string]any {
+	switch typed := value.(type) {
+	case map[string]any:
+		return typed
+	case bson.M:
+		return map[string]any(typed)
+	default:
+		return nil
+	}
+}
+
+func bsonTime(value any) time.Time {
+	switch typed := value.(type) {
+	case time.Time:
+		return typed
+	case primitive.DateTime:
+		return typed.Time()
+	default:
+		return time.Time{}
+	}
 }

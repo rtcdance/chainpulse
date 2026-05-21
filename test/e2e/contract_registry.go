@@ -28,7 +28,7 @@ type ContractRegistry interface {
 	ListByChain(ctx context.Context, chainID string) ([]*RegisteredContract, error)
 
 	// UpdateMetadata updates contract metadata
-	UpdateMetadata(ctx context.Context, address string, metadata map[string]interface{}) error
+	UpdateMetadata(ctx context.Context, address string, metadata map[string]any) error
 
 	// GetStats returns registry statistics
 	GetStats() RegistryStats
@@ -44,7 +44,7 @@ type RegisteredContract struct {
 	DeployedAt      time.Time
 	DeploymentTx    string
 	DeploymentBlock uint64
-	Metadata        map[string]interface{}
+	Metadata        map[string]any
 	Events          []string
 	Functions       []string
 }
@@ -119,7 +119,7 @@ func (cr *DefaultContractRegistry) Register(ctx context.Context, contract *Regis
 
 	// Initialize metadata if nil
 	if contract.Metadata == nil {
-		contract.Metadata = make(map[string]interface{})
+		contract.Metadata = make(map[string]any)
 	}
 
 	// Register contract
@@ -266,7 +266,7 @@ func (cr *DefaultContractRegistry) ListByChain(ctx context.Context, chainID stri
 }
 
 // UpdateMetadata updates contract metadata
-func (cr *DefaultContractRegistry) UpdateMetadata(ctx context.Context, address string, metadata map[string]interface{}) error {
+func (cr *DefaultContractRegistry) UpdateMetadata(ctx context.Context, address string, metadata map[string]any) error {
 	cr.mu.Lock()
 	defer cr.mu.Unlock()
 
@@ -284,7 +284,7 @@ func (cr *DefaultContractRegistry) UpdateMetadata(ctx context.Context, address s
 
 	// Update metadata
 	if contract.Metadata == nil {
-		contract.Metadata = make(map[string]interface{})
+		contract.Metadata = make(map[string]any)
 	}
 
 	for key, value := range metadata {

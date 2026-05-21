@@ -3,10 +3,19 @@ package health
 import (
 	"context"
 	"fmt"
+	"log/slog"
+	"net/http"
 	"sync"
 	"time"
 
-	"chainpulse/pkg/infrastructure/discovery"
+	"github.com/rtcdance/chainpulse/pkg/infrastructure/discovery"
+)
+
+const (
+	defaultHealthCheckInterval    = 5 * time.Second
+	defaultEndpointCheckTimeout   = 5 * time.Second
+	unhealthyThreshold            = 30 * time.Second
+	defaultDeregistrationInterval = 10 * time.Second
 )
 
 // ServiceRegistryInterface defines the interface for service registry operations
@@ -20,7 +29,7 @@ type ServiceRegistryInterface interface {
 
 // HealthCheckResult represents the result of a health check.
 //
-//nolint:exported // Renaming would break many external uses.
+// Renaming would break many external uses.
 type HealthCheckResult struct {
 	ServiceID    string
 	ServiceName  string
@@ -30,25 +39,42 @@ type HealthCheckResult struct {
 	ResponseTime time.Duration
 }
 
+// LivenessReadinessResult contains separate liveness and readiness check results.
+// Liveness = the process is alive (not crashed/deadlocked).
+// Readiness = the process is ready to serve traffic (dependencies healthy).
+type LivenessReadinessResult struct {
+	ServiceID     string
+	Liveness      bool
+	Readiness     bool
+	LivenessMsg   string
+	ReadinessMsg  string
+	Timestamp     time.Time
+	LivenessTime  time.Duration
+	ReadinessTime time.Duration
+}
+
 // HealthCheckEndpoint represents a health check endpoint.
 //
-//nolint:exported // Renaming would break many external uses.
+// Renaming would break many external uses.
 type HealthCheckEndpoint struct {
-	ServiceID string
-	URL       string
-	Interval  time.Duration
-	Timeout   time.Duration
+	ServiceID  string
+	URL        string
+	HealthPath string // defaults to "/health/live" if empty
+	Interval   time.Duration
+	Timeout    time.Duration
 }
 
 // HealthCheckSystem manages health checks for all services.
 //
-//nolint:exported // Renaming would break many external uses.
+// Renaming would break many external uses.
 type HealthCheckSystem struct {
 	registry  ServiceRegistryInterface
 	endpoints map[string]*HealthCheckEndpoint
 	results   map[string]*HealthCheckResult
 	mutex     sync.RWMutex
 	running   bool
+	wg        sync.WaitGroup
+	stopCh    chan struct{}
 }
 
 // NewHealthCheckSystem creates a new health check system
@@ -78,30 +104,120 @@ func (hcs *HealthCheckSystem) Start(ctx context.Context) error {
 		return fmt.Errorf("health check system already running")
 	}
 	hcs.running = true
+	hcs.stopCh = make(chan struct{})
 	hcs.mutex.Unlock()
 
+	hcs.wg.Add(1)
 	go hcs.checkLoop(ctx)
 	return nil
 }
 
-// Stop stops the health check system
+// Stop stops the health check system and waits for the check loop to exit
 func (hcs *HealthCheckSystem) Stop() {
 	hcs.mutex.Lock()
-	defer hcs.mutex.Unlock()
+	if !hcs.running {
+		hcs.mutex.Unlock()
+		return
+	}
 	hcs.running = false
+	close(hcs.stopCh)
+	hcs.mutex.Unlock()
+
+	hcs.wg.Wait()
 }
 
 // checkLoop performs periodic health checks
 func (hcs *HealthCheckSystem) checkLoop(ctx context.Context) {
+	defer hcs.wg.Done()
+
+	ticker := time.NewTicker(defaultHealthCheckInterval)
+	defer ticker.Stop()
+
+	// Run once immediately
+	hcs.performAllHealthChecks(ctx)
+
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		default:
+		case <-hcs.stopCh:
+			return
+		case <-ticker.C:
 			hcs.performAllHealthChecks(ctx)
-			time.Sleep(5 * time.Second)
 		}
 	}
+}
+
+// CheckLiveness performs a liveness check on all registered endpoints.
+// Liveness = the process is alive (HTTP server responding).
+func (hcs *HealthCheckSystem) CheckLiveness(ctx context.Context) map[string]bool {
+	hcs.mutex.RLock()
+	endpoints := make(map[string]*HealthCheckEndpoint)
+	for k, v := range hcs.endpoints {
+		endpoints[k] = v
+	}
+	hcs.mutex.RUnlock()
+
+	results := make(map[string]bool, len(endpoints))
+	for serviceID, endpoint := range endpoints {
+		checkCtx, cancel := context.WithTimeout(ctx, endpoint.Timeout)
+		healthy := hcs.checkEndpoint(checkCtx, endpoint.URL, "/health/live")
+		cancel()
+		results[serviceID] = healthy
+	}
+	return results
+}
+
+// CheckReadiness performs a readiness check on all registered endpoints.
+// Readiness = liveness + all dependencies are healthy and initialized.
+func (hcs *HealthCheckSystem) CheckReadiness(ctx context.Context) map[string]*LivenessReadinessResult {
+	hcs.mutex.RLock()
+	endpoints := make(map[string]*HealthCheckEndpoint)
+	for k, v := range hcs.endpoints {
+		endpoints[k] = v
+	}
+	hcs.mutex.RUnlock()
+
+	results := make(map[string]*LivenessReadinessResult, len(endpoints))
+	for serviceID, endpoint := range endpoints {
+		result := &LivenessReadinessResult{
+			ServiceID: serviceID,
+			Timestamp: time.Now(),
+		}
+
+		// Liveness check
+		livenessStart := time.Now()
+		livenessCtx, livenessCancel := context.WithTimeout(ctx, endpoint.Timeout)
+		livenessOK := hcs.checkEndpoint(livenessCtx, endpoint.URL, "/health/live")
+		livenessCancel()
+		result.LivenessTime = time.Since(livenessStart)
+		result.Liveness = livenessOK
+
+		if !livenessOK {
+			result.LivenessMsg = "Service is not alive"
+			result.ReadinessMsg = "Cannot check readiness: liveness failed"
+			results[serviceID] = result
+			continue
+		}
+		result.LivenessMsg = "Service is alive"
+
+		// Readiness check
+		readinessStart := time.Now()
+		readinessCtx, readinessCancel := context.WithTimeout(ctx, endpoint.Timeout)
+		readinessOK := hcs.checkEndpoint(readinessCtx, endpoint.URL, "/health/ready")
+		readinessCancel()
+		result.ReadinessTime = time.Since(readinessStart)
+		result.Readiness = readinessOK
+
+		if readinessOK {
+			result.ReadinessMsg = "Service is ready to serve traffic"
+		} else {
+			result.ReadinessMsg = "Service is not ready: dependencies may be unhealthy"
+		}
+
+		results[serviceID] = result
+	}
+	return results
 }
 
 // performAllHealthChecks performs health checks for all services
@@ -114,7 +230,11 @@ func (hcs *HealthCheckSystem) performAllHealthChecks(ctx context.Context) {
 	hcs.mutex.RUnlock()
 
 	for serviceID, endpoint := range endpoints {
-		go hcs.performHealthCheck(ctx, serviceID, endpoint)
+		hcs.wg.Add(1)
+		go func(sid string, ep *HealthCheckEndpoint) {
+			defer hcs.wg.Done()
+			hcs.performHealthCheck(ctx, sid, ep)
+		}(serviceID, endpoint)
 	}
 }
 
@@ -124,7 +244,7 @@ func (hcs *HealthCheckSystem) performHealthCheck(ctx context.Context, serviceID 
 	defer cancel()
 
 	start := time.Now()
-	healthy := hcs.checkEndpoint(checkCtx, endpoint.URL)
+	healthy := hcs.checkEndpoint(checkCtx, endpoint.URL, endpoint.HealthPath)
 	duration := time.Since(start)
 
 	result := &HealthCheckResult{
@@ -149,7 +269,9 @@ func (hcs *HealthCheckSystem) performHealthCheck(ctx context.Context, serviceID 
 	if !healthy {
 		status = "unhealthy"
 	}
-	_ = hcs.registry.UpdateServiceStatus(ctx, serviceID, status)
+	if err := hcs.registry.UpdateServiceStatus(ctx, serviceID, status); err != nil {
+		slog.Warn("failed to update service status in registry", "service_id", serviceID, "status", status, "error", err)
+	}
 
 	// Deregister if unhealthy for too long
 	if !healthy {
@@ -157,11 +279,28 @@ func (hcs *HealthCheckSystem) performHealthCheck(ctx context.Context, serviceID 
 	}
 }
 
-// checkEndpoint checks if an endpoint is healthy
-func (hcs *HealthCheckSystem) checkEndpoint(ctx context.Context, url string) bool {
-	// This is a placeholder for actual health check logic
-	// In production, this would make HTTP requests to the health check endpoint
-	return true
+// checkEndpoint checks if an endpoint is healthy by making an HTTP GET
+// request to its health endpoint (defaults to /health/live if path is empty)
+func (hcs *HealthCheckSystem) checkEndpoint(ctx context.Context, url string, healthPath string) bool {
+	if healthPath == "" {
+		healthPath = "/health/live"
+	}
+
+	checkCtx, cancel := context.WithTimeout(ctx, defaultEndpointCheckTimeout)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(checkCtx, http.MethodGet, url+healthPath, nil)
+	if err != nil {
+		return false
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return false
+	}
+	defer resp.Body.Close() //nolint:errcheck // defer close
+
+	return resp.StatusCode == http.StatusOK
 }
 
 // handleUnhealthyService handles an unhealthy service
@@ -176,8 +315,10 @@ func (hcs *HealthCheckSystem) handleUnhealthyService(ctx context.Context, servic
 	}
 
 	// If unhealthy for more than 30 seconds, deregister
-	if time.Since(result.Timestamp) > 30*time.Second {
-		_ = hcs.registry.DeregisterService(ctx, serviceID)
+	if time.Since(result.Timestamp) > unhealthyThreshold {
+		if err := hcs.registry.DeregisterService(ctx, serviceID); err != nil {
+			slog.Warn("failed to deregister unhealthy service", "service_id", serviceID, "error", err)
+		}
 	}
 }
 
@@ -264,6 +405,8 @@ type AutomaticDeregistration struct {
 	deregistrationTTL time.Duration
 	mutex             sync.RWMutex
 	running           bool
+	wg                sync.WaitGroup
+	stopCh            chan struct{}
 }
 
 // NewAutomaticDeregistration creates a new automatic deregistration system
@@ -283,33 +426,48 @@ func (ad *AutomaticDeregistration) Start(ctx context.Context) error {
 		return fmt.Errorf("automatic deregistration already running")
 	}
 	ad.running = true
+	ad.stopCh = make(chan struct{})
 	ad.mutex.Unlock()
 
+	ad.wg.Add(1)
 	go ad.deregistrationLoop(ctx)
 	return nil
 }
 
-// Stop stops the automatic deregistration system
+// Stop stops the automatic deregistration system and waits for the loop to exit
 func (ad *AutomaticDeregistration) Stop() {
 	ad.mutex.Lock()
-	defer ad.mutex.Unlock()
+	if !ad.running {
+		ad.mutex.Unlock()
+		return
+	}
 	ad.running = false
+	close(ad.stopCh)
+	ad.mutex.Unlock()
+
+	ad.wg.Wait()
 }
 
 // deregistrationLoop performs periodic deregistration checks
 func (ad *AutomaticDeregistration) deregistrationLoop(ctx context.Context) {
-	ticker := time.NewTicker(10 * time.Second)
+	defer ad.wg.Done()
+
+	ticker := time.NewTicker(defaultDeregistrationInterval)
 	defer ticker.Stop()
 
 	for {
 		select {
 		case <-ctx.Done():
 			return
+		case <-ad.stopCh:
+			return
 		case <-ticker.C:
 			failedServices := ad.failureDetector.DetectFailures(ctx)
-			for _, serviceID := range failedServices {
-				_ = ad.registry.DeregisterService(ctx, serviceID)
+		for _, serviceID := range failedServices {
+			if err := ad.registry.DeregisterService(ctx, serviceID); err != nil {
+				slog.Warn("failed to deregister failed service", "service_id", serviceID, "error", err)
 			}
+		}
 		}
 	}
 }

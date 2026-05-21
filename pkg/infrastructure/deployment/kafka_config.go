@@ -1,5 +1,7 @@
 package deployment
 
+import "github.com/rtcdance/chainpulse/pkg/core"
+
 // KafkaConfig holds Kafka configuration
 type KafkaConfig struct {
 	Brokers             []string
@@ -12,11 +14,11 @@ type KafkaConfig struct {
 	SecurityProtocol    string
 	SASLMechanism       string
 	SASLUsername        string
-	SASLPassword        string
+	SASLPassword        core.SecretString
 	SSLCALocation       string
 	SSLCertLocation     string
 	SSLKeyLocation      string
-	SSLKeyPassword      string
+	SSLKeyPassword      core.SecretString
 	ConnectTimeoutMs    int
 	RequestTimeoutMs    int
 	SessionTimeoutMs    int
@@ -71,6 +73,24 @@ func (k *KafkaConfig) Validate() error {
 	}
 	if k.SecurityProtocol == "" {
 		k.SecurityProtocol = "PLAINTEXT"
+	}
+	if k.ConnectTimeoutMs <= 0 {
+		k.ConnectTimeoutMs = 10000
+	}
+	if k.RequestTimeoutMs <= 0 {
+		k.RequestTimeoutMs = 30000
+	}
+	if k.SessionTimeoutMs <= 0 {
+		k.SessionTimeoutMs = 10000
+	}
+	if k.HeartbeatIntervalMs <= 0 {
+		k.HeartbeatIntervalMs = 3000
+	}
+	if k.MaxPollIntervalMs <= 0 {
+		k.MaxPollIntervalMs = 300000
+	}
+	if k.MaxPollRecords <= 0 {
+		k.MaxPollRecords = 500
 	}
 	return nil
 }

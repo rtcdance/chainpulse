@@ -7,6 +7,7 @@ import (
 )
 
 func TestWriteRuntimeControlEnvelope(t *testing.T) {
+	t.Parallel()
 	rec := httptest.NewRecorder()
 	err := WriteRuntimeControlEnvelope(rec, "puller", RuntimeControlCore{
 		Paused:      true,
@@ -35,6 +36,7 @@ func TestWriteRuntimeControlEnvelope(t *testing.T) {
 }
 
 func TestWriteRuntimeControlEnvelopeWithTarget(t *testing.T) {
+	t.Parallel()
 	rec := httptest.NewRecorder()
 	err := WriteRuntimeControlEnvelopeWithTarget(rec, "event-processor", RuntimeControlTargetConsumeLoopIntake, RuntimeControlCore{
 		Paused:      false,
@@ -63,6 +65,7 @@ func TestWriteRuntimeControlEnvelopeWithTarget(t *testing.T) {
 }
 
 func TestWriteRuntimeControlEnvelopeWithPollingTarget(t *testing.T) {
+	t.Parallel()
 	rec := httptest.NewRecorder()
 	err := WriteRuntimeControlEnvelopeWithTarget(rec, "puller", RuntimeControlTargetPollingLoop, RuntimeControlCore{
 		Paused:      true,
@@ -85,6 +88,7 @@ func TestWriteRuntimeControlEnvelopeWithPollingTarget(t *testing.T) {
 }
 
 func TestValidateRuntimeControlCoreRejectsUnexpectedState(t *testing.T) {
+	t.Parallel()
 	err := ValidateRuntimeControlCore(RuntimeControlCore{
 		State:       "unknown",
 		LastAction:  "pause",

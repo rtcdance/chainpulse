@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"chainpulse/pkg/plugins/api"
+	"github.com/rtcdance/chainpulse/pkg/plugins/api"
 )
 
 func TestAPIServiceRolloutReportProducerSkeleton(t *testing.T) {
@@ -185,8 +185,8 @@ func TestAPIServiceRolloutReportProducerRuntimeDerivedIncludesMonolithParitySour
 				RuntimeRoutesEnabled:     true,
 			}
 		},
-		func() map[string]interface{} {
-			return map[string]interface{}{
+		func() map[string]any {
+			return map[string]any{
 				"ownership_mode":                  "runtime-owned",
 				"rollout_ready_for_runtime_owned": true,
 				"rollout_status":                  "ready",

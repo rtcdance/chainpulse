@@ -7,7 +7,8 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/ports"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -30,11 +31,13 @@ func (m *MonoMockPluginRegistry) List() []core.Plugin {
 	return []core.Plugin{}
 }
 
-func (m *MonoMockPluginRegistry) Start() error {
+func (m *MonoMockPluginRegistry) Start(ctx context.Context) error {
+	_ = ctx
 	return nil
 }
 
-func (m *MonoMockPluginRegistry) Stop() error {
+func (m *MonoMockPluginRegistry) Stop(ctx context.Context) error {
+	_ = ctx
 	return nil
 }
 
@@ -49,37 +52,41 @@ func (m *MonoMockConfigManager) Validate(config core.Config) error {
 	return nil
 }
 
-func (m *MonoMockConfigManager) Get(key string) (interface{}, error) {
+func (m *MonoMockConfigManager) Get(key string) (any, error) {
 	return nil, nil
 }
 
-func (m *MonoMockConfigManager) Set(key string, value interface{}) error {
+func (m *MonoMockConfigManager) Set(key string, value any) error {
 	return nil
 }
 
 // MonoMockEventBus for testing
 type MonoMockEventBus struct{}
 
-func (m *MonoMockEventBus) Publish(ctx context.Context, topic string, event interface{}) error {
+func (m *MonoMockEventBus) Publish(ctx context.Context, topic string, event any) error {
 	return nil
 }
 
-func (m *MonoMockEventBus) Subscribe(ctx context.Context, topic string, handler func(interface{})) error {
-	return nil
+func (m *MonoMockEventBus) Subscribe(ctx context.Context, topic string, handler ports.EventHandler) (uint64, error) {
+	return 0, nil
 }
 
-func (m *MonoMockEventBus) Unsubscribe(topic string, handler func(interface{})) error {
+func (m *MonoMockEventBus) SubscribeNamed(ctx context.Context, topic, name string, handler ports.EventHandler) (uint64, error) {
+	return 0, nil
+}
+
+func (m *MonoMockEventBus) Unsubscribe(subscriptionID uint64) error {
 	return nil
 }
 
 // MonoMockLogger for testing
 type MonoMockLogger struct{}
 
-func (m *MonoMockLogger) Debug(msg string, fields ...interface{}) {}
-func (m *MonoMockLogger) Info(msg string, fields ...interface{})  {}
-func (m *MonoMockLogger) Warn(msg string, fields ...interface{})  {}
-func (m *MonoMockLogger) Error(msg string, fields ...interface{}) {}
-func (m *MonoMockLogger) Fatal(msg string, fields ...interface{}) {}
+func (m *MonoMockLogger) Debug(msg string, fields ...any) {}
+func (m *MonoMockLogger) Info(msg string, fields ...any)  {}
+func (m *MonoMockLogger) Warn(msg string, fields ...any)  {}
+func (m *MonoMockLogger) Error(msg string, fields ...any) {}
+func (m *MonoMockLogger) Fatal(msg string, fields ...any) {}
 func (m *MonoMockLogger) WithCorrelationID(id string) core.Logger {
 	return m
 }
@@ -88,12 +95,14 @@ func (m *MonoMockLogger) WithCorrelationID(id string) core.Logger {
 type MonoMockMetricsCollector struct{}
 
 func (m *MonoMockMetricsCollector) RecordCounter(name string, value int64, tags map[string]string) {}
+
 func (m *MonoMockMetricsCollector) RecordGauge(name string, value float64, tags map[string]string) {}
+
 func (m *MonoMockMetricsCollector) RecordHistogram(name string, value float64, tags map[string]string) {
 }
 
-func (m *MonoMockMetricsCollector) GetMetrics() map[string]interface{} {
-	return make(map[string]interface{})
+func (m *MonoMockMetricsCollector) GetMetrics() map[string]any {
+	return make(map[string]any)
 }
 
 // MonoMockHealthChecker for testing
@@ -105,6 +114,7 @@ func (m *MonoMockHealthChecker) Check(ctx context.Context) (core.HealthStatus, e
 
 // TestMonolithicNewDeployment tests deployment creation
 func TestMonolithicNewDeployment(t *testing.T) {
+	t.Parallel()
 	config := core.Config{ServiceName: "test-service"}
 	registry := &MonoMockPluginRegistry{}
 	configManager := &MonoMockConfigManager{}
@@ -122,6 +132,7 @@ func TestMonolithicNewDeployment(t *testing.T) {
 
 // TestMonolithicRegisterService tests service registration
 func TestMonolithicRegisterService(t *testing.T) {
+	t.Parallel()
 	md := NewMonolithicDeployment(
 		core.Config{ServiceName: "test"},
 		&MonoMockPluginRegistry{},
@@ -140,6 +151,7 @@ func TestMonolithicRegisterService(t *testing.T) {
 
 // TestMonolithicGetServiceCount tests service count retrieval
 func TestMonolithicGetServiceCount(t *testing.T) {
+	t.Parallel()
 	md := NewMonolithicDeployment(
 		core.Config{ServiceName: "test"},
 		&MonoMockPluginRegistry{},
@@ -160,6 +172,7 @@ func TestMonolithicGetServiceCount(t *testing.T) {
 
 // TestMonolithicGetServices tests service names retrieval
 func TestMonolithicGetServices(t *testing.T) {
+	t.Parallel()
 	md := NewMonolithicDeployment(
 		core.Config{ServiceName: "test"},
 		&MonoMockPluginRegistry{},
@@ -182,6 +195,7 @@ func TestMonolithicGetServices(t *testing.T) {
 
 // TestMonolithicInitialize tests deployment initialization
 func TestMonolithicInitialize(t *testing.T) {
+	t.Parallel()
 	md := NewMonolithicDeployment(
 		core.Config{ServiceName: "test"},
 		&MonoMockPluginRegistry{},
@@ -201,6 +215,7 @@ func TestMonolithicInitialize(t *testing.T) {
 
 // TestMonolithicGetHealth tests health status
 func TestMonolithicGetHealth(t *testing.T) {
+	t.Parallel()
 	md := NewMonolithicDeployment(
 		core.Config{ServiceName: "test"},
 		&MonoMockPluginRegistry{},
@@ -219,6 +234,7 @@ func TestMonolithicGetHealth(t *testing.T) {
 
 // TestMonolithicGetHealthRunning tests health status when running
 func TestMonolithicGetHealthRunning(t *testing.T) {
+	t.Parallel()
 	md := NewMonolithicDeployment(
 		core.Config{ServiceName: "test"},
 		&MonoMockPluginRegistry{},
@@ -241,6 +257,7 @@ func TestMonolithicGetHealthRunning(t *testing.T) {
 
 // TestMonolithicGetMetrics tests metrics retrieval
 func TestMonolithicGetMetrics(t *testing.T) {
+	t.Parallel()
 	md := NewMonolithicDeployment(
 		core.Config{ServiceName: "test"},
 		&MonoMockPluginRegistry{},
@@ -260,6 +277,7 @@ func TestMonolithicGetMetrics(t *testing.T) {
 
 // TestMonolithicConcurrentOperations tests concurrent operations
 func TestMonolithicConcurrentOperations(t *testing.T) {
+	t.Parallel()
 	md := NewMonolithicDeployment(
 		core.Config{ServiceName: "test"},
 		&MonoMockPluginRegistry{},
@@ -291,6 +309,7 @@ func TestMonolithicConcurrentOperations(t *testing.T) {
 
 // TestMonolithicInitializeMultipleServices tests initializing multiple services
 func TestMonolithicInitializeMultipleServices(t *testing.T) {
+	t.Parallel()
 	md := NewMonolithicDeployment(
 		core.Config{ServiceName: "test"},
 		&MonoMockPluginRegistry{},
@@ -323,6 +342,7 @@ func TestMonolithicInitializeMultipleServices(t *testing.T) {
 
 // TestMonolithicInitializeServiceFailure tests initialization failure
 func TestMonolithicInitializeServiceFailure(t *testing.T) {
+	t.Parallel()
 	md := NewMonolithicDeployment(
 		core.Config{ServiceName: "test"},
 		&MonoMockPluginRegistry{},
@@ -348,6 +368,7 @@ func TestMonolithicInitializeServiceFailure(t *testing.T) {
 
 // TestMonolithicShutdownNotRunning tests shutdown when not running
 func TestMonolithicShutdownNotRunning(t *testing.T) {
+	t.Parallel()
 	md := NewMonolithicDeployment(
 		core.Config{ServiceName: "test"},
 		&MonoMockPluginRegistry{},
@@ -365,6 +386,7 @@ func TestMonolithicShutdownNotRunning(t *testing.T) {
 
 // TestMonolithicStopNotRunning tests stop when not running
 func TestMonolithicStopNotRunning(t *testing.T) {
+	t.Parallel()
 	md := NewMonolithicDeployment(
 		core.Config{ServiceName: "test"},
 		&MonoMockPluginRegistry{},
@@ -382,6 +404,7 @@ func TestMonolithicStopNotRunning(t *testing.T) {
 
 // TestMonolithicMultipleServices tests registering multiple services
 func TestMonolithicMultipleServices(t *testing.T) {
+	t.Parallel()
 	md := NewMonolithicDeployment(
 		core.Config{ServiceName: "test"},
 		&MonoMockPluginRegistry{},

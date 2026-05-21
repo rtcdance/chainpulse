@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 // DatabaseFixture provides database setup and teardown for integration tests
@@ -124,7 +124,8 @@ func (f *DatabaseFixture) InsertEvent(ctx context.Context, event *core.Blockchai
 	ON CONFLICT (id) DO NOTHING;
 	`
 
-	_, err := f.db.ExecContext(ctx, insertSQL,
+	_, err := f.db.ExecContext(
+		ctx, insertSQL,
 		event.ID,
 		event.ChainID,
 		event.BlockNumber,

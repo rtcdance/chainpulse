@@ -7,6 +7,7 @@ import (
 )
 
 func TestErrorMetricsCollectorInitialization(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
@@ -26,6 +27,7 @@ func TestErrorMetricsCollectorInitialization(t *testing.T) {
 }
 
 func TestRecordError(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
@@ -50,6 +52,7 @@ func TestRecordError(t *testing.T) {
 }
 
 func TestRecordErrorTypes(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
@@ -80,6 +83,7 @@ func TestRecordErrorTypes(t *testing.T) {
 }
 
 func TestRecordErrorSources(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
@@ -102,6 +106,7 @@ func TestRecordErrorSources(t *testing.T) {
 }
 
 func TestRecordRetryAttempt(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
@@ -128,6 +133,7 @@ func TestRecordRetryAttempt(t *testing.T) {
 }
 
 func TestRetrySuccessRate(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
@@ -147,6 +153,7 @@ func TestRetrySuccessRate(t *testing.T) {
 }
 
 func TestRecordCircuitBreakerStateChange(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
@@ -177,6 +184,7 @@ func TestRecordCircuitBreakerStateChange(t *testing.T) {
 }
 
 func TestRecordConsistencyCheck(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
@@ -203,6 +211,7 @@ func TestRecordConsistencyCheck(t *testing.T) {
 }
 
 func TestConsistencyPassRate(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
@@ -223,6 +232,7 @@ func TestConsistencyPassRate(t *testing.T) {
 }
 
 func TestRecordDegradationEvent(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
@@ -253,6 +263,7 @@ func TestRecordDegradationEvent(t *testing.T) {
 }
 
 func TestGetErrorMetricsReturnsACopy(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
@@ -272,6 +283,7 @@ func TestGetErrorMetricsReturnsACopy(t *testing.T) {
 }
 
 func TestHealthStatusInitialized(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
@@ -286,6 +298,7 @@ func TestHealthStatusInitialized(t *testing.T) {
 }
 
 func TestHealthStatusNotInitialized(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
@@ -299,6 +312,7 @@ func TestHealthStatusNotInitialized(t *testing.T) {
 }
 
 func TestClose(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
@@ -318,6 +332,7 @@ func TestClose(t *testing.T) {
 }
 
 func TestAverageDuration(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
@@ -337,6 +352,7 @@ func TestAverageDuration(t *testing.T) {
 }
 
 func TestAverageAttempts(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
@@ -356,6 +372,7 @@ func TestAverageAttempts(t *testing.T) {
 }
 
 func TestMultipleConcurrentRecords(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
@@ -380,6 +397,7 @@ func TestMultipleConcurrentRecords(t *testing.T) {
 }
 
 func TestLastEventTimes(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
@@ -398,6 +416,7 @@ func TestLastEventTimes(t *testing.T) {
 }
 
 func TestErrorMetricsUnknownType(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
@@ -414,6 +433,7 @@ func TestErrorMetricsUnknownType(t *testing.T) {
 }
 
 func TestDegradationAllModes(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()

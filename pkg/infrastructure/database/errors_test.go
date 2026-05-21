@@ -9,30 +9,35 @@ import (
 
 // TestErrorMongoClientNotInitialized tests MongoDB client not initialized error
 func TestErrorMongoClientNotInitialized(t *testing.T) {
+	t.Parallel()
 	assert.NotNil(t, ErrMongoClientNotInitialized)
 	assert.Equal(t, "MongoDB client not initialized", ErrMongoClientNotInitialized.Error())
 }
 
 // TestErrorPostgresDBNotInitialized tests PostgreSQL DB not initialized error
 func TestErrorPostgresDBNotInitialized(t *testing.T) {
+	t.Parallel()
 	assert.NotNil(t, ErrPostgresDBNotInitialized)
 	assert.Equal(t, "PostgreSQL database not initialized", ErrPostgresDBNotInitialized.Error())
 }
 
 // TestErrorDatabaseManagerNotInitialized tests database manager not initialized error
 func TestErrorDatabaseManagerNotInitialized(t *testing.T) {
+	t.Parallel()
 	assert.NotNil(t, ErrDatabaseManagerNotInitialized)
 	assert.Equal(t, "database manager not initialized", ErrDatabaseManagerNotInitialized.Error())
 }
 
 // TestErrorDatabaseManagerAlreadyClosed tests database manager already closed error
 func TestErrorDatabaseManagerAlreadyClosed(t *testing.T) {
+	t.Parallel()
 	assert.NotNil(t, ErrDatabaseManagerAlreadyClosed)
 	assert.Equal(t, "database manager already closed", ErrDatabaseManagerAlreadyClosed.Error())
 }
 
 // TestErrorsAreErrors tests that all errors implement error interface
 func TestErrorsAreErrors(t *testing.T) {
+	t.Parallel()
 	errors := []error{
 		ErrMongoClientNotInitialized,
 		ErrPostgresDBNotInitialized,
@@ -48,6 +53,7 @@ func TestErrorsAreErrors(t *testing.T) {
 
 // TestErrorsAreUnique tests that all errors are unique
 func TestErrorsAreUnique(t *testing.T) {
+	t.Parallel()
 	errors := []error{
 		ErrMongoClientNotInitialized,
 		ErrPostgresDBNotInitialized,
@@ -65,6 +71,7 @@ func TestErrorsAreUnique(t *testing.T) {
 
 // TestErrorMongoClientNotInitializedComparison tests error comparison
 func TestErrorMongoClientNotInitializedComparison(t *testing.T) {
+	t.Parallel()
 	err := ErrMongoClientNotInitialized
 	assert.Equal(t, ErrMongoClientNotInitialized, err)
 	assert.NotEqual(t, ErrPostgresDBNotInitialized, err)
@@ -72,6 +79,7 @@ func TestErrorMongoClientNotInitializedComparison(t *testing.T) {
 
 // TestErrorPostgresDBNotInitializedComparison tests error comparison
 func TestErrorPostgresDBNotInitializedComparison(t *testing.T) {
+	t.Parallel()
 	err := ErrPostgresDBNotInitialized
 	assert.Equal(t, ErrPostgresDBNotInitialized, err)
 	assert.NotEqual(t, ErrMongoClientNotInitialized, err)
@@ -79,6 +87,7 @@ func TestErrorPostgresDBNotInitializedComparison(t *testing.T) {
 
 // TestErrorDatabaseManagerNotInitializedComparison tests error comparison
 func TestErrorDatabaseManagerNotInitializedComparison(t *testing.T) {
+	t.Parallel()
 	err := ErrDatabaseManagerNotInitialized
 	assert.Equal(t, ErrDatabaseManagerNotInitialized, err)
 	assert.NotEqual(t, ErrDatabaseManagerAlreadyClosed, err)
@@ -86,6 +95,7 @@ func TestErrorDatabaseManagerNotInitializedComparison(t *testing.T) {
 
 // TestErrorDatabaseManagerAlreadyClosedComparison tests error comparison
 func TestErrorDatabaseManagerAlreadyClosedComparison(t *testing.T) {
+	t.Parallel()
 	err := ErrDatabaseManagerAlreadyClosed
 	assert.Equal(t, ErrDatabaseManagerAlreadyClosed, err)
 	assert.NotEqual(t, ErrDatabaseManagerNotInitialized, err)
@@ -93,6 +103,7 @@ func TestErrorDatabaseManagerAlreadyClosedComparison(t *testing.T) {
 
 // TestErrorWrapping tests error wrapping
 func TestErrorWrapping(t *testing.T) {
+	t.Parallel()
 	wrappedErr := fmt.Errorf("failed to initialize: %w", ErrMongoClientNotInitialized)
 
 	assert.NotNil(t, wrappedErr)
@@ -101,6 +112,7 @@ func TestErrorWrapping(t *testing.T) {
 
 // TestErrorMessages tests error messages are descriptive
 func TestErrorMessages(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		err     error
 		message string
@@ -118,6 +130,7 @@ func TestErrorMessages(t *testing.T) {
 
 // TestErrorsNotNil tests that all errors are not nil
 func TestErrorsNotNil(t *testing.T) {
+	t.Parallel()
 	assert.NotNil(t, ErrMongoClientNotInitialized)
 	assert.NotNil(t, ErrPostgresDBNotInitialized)
 	assert.NotNil(t, ErrDatabaseManagerNotInitialized)
@@ -126,6 +139,7 @@ func TestErrorsNotNil(t *testing.T) {
 
 // TestErrorsCanBeUsedInConditions tests errors can be used in conditions
 func TestErrorsCanBeUsedInConditions(t *testing.T) {
+	t.Parallel()
 	var err error
 
 	err = ErrMongoClientNotInitialized
@@ -143,6 +157,7 @@ func TestErrorsCanBeUsedInConditions(t *testing.T) {
 
 // TestErrorsInSlice tests errors in slice
 func TestErrorsInSlice(t *testing.T) {
+	t.Parallel()
 	errors := []error{
 		ErrMongoClientNotInitialized,
 		ErrPostgresDBNotInitialized,
@@ -158,6 +173,7 @@ func TestErrorsInSlice(t *testing.T) {
 
 // TestErrorsInMap tests errors in map
 func TestErrorsInMap(t *testing.T) {
+	t.Parallel()
 	errorMap := map[string]error{
 		"mongo":    ErrMongoClientNotInitialized,
 		"postgres": ErrPostgresDBNotInitialized,
@@ -174,6 +190,7 @@ func TestErrorsInMap(t *testing.T) {
 
 // TestErrorStringRepresentation tests error string representation
 func TestErrorStringRepresentation(t *testing.T) {
+	t.Parallel()
 	err := ErrMongoClientNotInitialized
 	errStr := err.Error()
 
@@ -183,6 +200,7 @@ func TestErrorStringRepresentation(t *testing.T) {
 
 // TestErrorTypeAssertion tests error type assertion
 func TestErrorTypeAssertion(t *testing.T) {
+	t.Parallel()
 	err := ErrMongoClientNotInitialized
 
 	assert.NotNil(t, err)
@@ -190,6 +208,7 @@ func TestErrorTypeAssertion(t *testing.T) {
 
 // TestErrorComparison tests error comparison with nil
 func TestErrorComparison(t *testing.T) {
+	t.Parallel()
 	assert.NotEqual(t, nil, ErrMongoClientNotInitialized)
 	assert.NotEqual(t, nil, ErrPostgresDBNotInitialized)
 	assert.NotEqual(t, nil, ErrDatabaseManagerNotInitialized)
@@ -198,6 +217,7 @@ func TestErrorComparison(t *testing.T) {
 
 // TestErrorsCanBeReturned tests errors can be returned from functions
 func TestErrorsCanBeReturned(t *testing.T) {
+	t.Parallel()
 	testFunc := func() error {
 		return ErrMongoClientNotInitialized
 	}
@@ -208,6 +228,7 @@ func TestErrorsCanBeReturned(t *testing.T) {
 
 // TestErrorsCanBeChecked tests errors can be checked
 func TestErrorsCanBeChecked(t *testing.T) {
+	t.Parallel()
 	err := ErrMongoClientNotInitialized
 
 	if err != nil {
@@ -219,6 +240,7 @@ func TestErrorsCanBeChecked(t *testing.T) {
 
 // TestErrorsCanBeFormatted tests errors can be formatted
 func TestErrorsCanBeFormatted(t *testing.T) {
+	t.Parallel()
 	err := ErrMongoClientNotInitialized
 	formatted := fmt.Sprintf("Error: %v", err)
 
@@ -227,6 +249,7 @@ func TestErrorsCanBeFormatted(t *testing.T) {
 
 // TestErrorsCanBeLogged tests errors can be logged
 func TestErrorsCanBeLogged(t *testing.T) {
+	t.Parallel()
 	err := ErrMongoClientNotInitialized
 	logMessage := fmt.Sprintf("Database error: %s", err.Error())
 

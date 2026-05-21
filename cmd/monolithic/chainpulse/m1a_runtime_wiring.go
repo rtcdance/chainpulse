@@ -8,16 +8,18 @@ import (
 	"sync"
 	"time"
 
-	"chainpulse/pkg/core"
-	pluginapi "chainpulse/pkg/plugins/api"
-	"chainpulse/pkg/plugins/pullers"
-	"chainpulse/pkg/services/indexing"
-	"chainpulse/pkg/services/reorg"
+	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/chainid"
+	"github.com/rtcdance/chainpulse/pkg/core/topics"
+	pluginapi "github.com/rtcdance/chainpulse/pkg/plugins/api"
+	"github.com/rtcdance/chainpulse/pkg/plugins/pullers"
+	"github.com/rtcdance/chainpulse/pkg/services/indexing"
+	"github.com/rtcdance/chainpulse/pkg/services/reorg"
 
 	"github.com/ethereum/go-ethereum/common"
 )
 
-const monolithicEventTopic = "blockchain-events"
+const monolithicEventTopic = topics.TopicBlockchainEvents
 
 type monolithicPullerRuntime struct {
 	logger      core.Logger
@@ -39,11 +41,11 @@ type monolithicBlockSnapshotStore interface {
 }
 
 type monolithicPollingPuller interface {
-	Start() error
-	Stop() error
+	Start(ctx context.Context) error
+	Stop(ctx context.Context) error
 	Poll(ctx context.Context) error
 	GetConfig() core.Config
-	GetStats() map[string]interface{}
+	GetStats() map[string]any
 }
 
 type monolithicChainReorgRuntime struct {
@@ -70,6 +72,7 @@ type monolithicPullLoopRuntime struct {
 }
 
 func newMonolithicPullerRuntime(
+	ctx context.Context,
 	baseConfig core.Config,
 	rawNodeURLs string,
 	chains []string,
@@ -92,7 +95,7 @@ func newMonolithicPullerRuntime(
 	}
 
 	eventBus := core.NewEventBus(logger)
-	if err := subscribeMonolithicIndexer(context.Background(), eventBus, multiChainIndexer, logger); err != nil {
+	if err := subscribeMonolithicIndexer(ctx, eventBus, multiChainIndexer, logger); err != nil {
 		return nil, err
 	}
 
@@ -109,12 +112,22 @@ func newMonolithicPullerRuntime(
 
 	for idx, chainID := range chains {
 		pullerConfig := baseConfig
+		pullerConfig.ChainID = chainID
 		pullerConfig.ServiceName = chainID
 		pullerConfig.BlockchainNodeURL = nodeURLs[idx]
-		fmt.Printf("  [DEBUG] Creating puller for chain=%s, nodeURL=%s\n", chainID, nodeURLs[idx])
-		puller := pullers.NewHTTPSJSONRPCPuller(pullerConfig, logger, metrics, eventBus)
-		if err := puller.SubscribeToEvents(context.Background(), runtime.observeEvent); err != nil {
-			return nil, err
+		logger.Debug("creating puller", "chain", chainID, "nodeURL", nodeURLs[idx])
+		var puller monolithicPollingPuller
+		if chainid.IsCosmosChain(chainID) {
+			puller = pullers.NewCosmosPuller(pullerConfig, logger, metrics)
+		} else if chainid.IsSolanaChain(chainID) {
+			puller = pullers.NewSolanaPuller(pullerConfig, logger, metrics)
+		} else {
+			puller = pullers.NewHTTPSJSONRPCPuller(pullerConfig, logger, metrics, eventBus)
+		}
+		if dataPuller, ok := any(puller).(core.DataPullerPlugin); ok {
+			if err := dataPuller.SubscribeToEvents(ctx, runtime.observeEvent); err != nil {
+				return nil, err
+			}
 		}
 		runtime.pullers = append(runtime.pullers, puller)
 		reorgThreshold := reorgThresholdForChain(chainID)
@@ -124,9 +137,19 @@ func newMonolithicPullerRuntime(
 				logger,
 				reorgThreshold,
 				reorgThreshold*10,
-			),
+			).WithChainID(chainID).WithEventBus(runtime.eventBus),
 			chainID: chainID,
 		}
+		// Inject RPC-backed block hash provider so reorg detection
+		// compares local hashes against the live canonical chain.
+		// Only supports EVM pullers that expose block hash RPC methods.
+		if evmPuller, ok := puller.(*pullers.HTTPSJSONRPCPuller); ok {
+			rpcProvider := pullers.NewRPCBlockHashProvider(evmPuller)
+			runtime.reorgChains[chainID].handler.SetBlockHashProvider(rpcProvider)
+		}
+		// Note: SetIdempotencyInvalidator should be called here if an
+		// IdempotencyService is available in the runtime, so that re-indexed
+		// events after a reorg are not rejected as duplicates.
 		runtime.loopChains[chainID] = &monolithicPullLoopRuntime{
 			chainID: chainID,
 			state:   "primed",
@@ -143,10 +166,10 @@ func (m *monolithicPullerRuntime) Start(ctx context.Context, wg *sync.WaitGroup)
 	m.stateMu.Unlock()
 
 	for _, puller := range m.pullers {
-		if err := puller.Start(); err != nil {
+		if err := puller.Start(ctx); err != nil {
 			_ = m.Stop()
 
-			return err
+			return fmt.Errorf("failed to start puller: %w", err)
 		}
 
 		wg.Add(1)
@@ -184,9 +207,9 @@ func (m *monolithicPullerRuntime) runPullerLoop(ctx context.Context, wg *sync.Wa
 		m.logger.Error("monolithic puller exited", "chain_id", chainID, "error", err.Error(), "restart_backoff", backoff.String())
 
 		timer := time.NewTimer(backoff)
-		defer timer.Stop()
 		select {
 		case <-ctx.Done():
+			timer.Stop()
 			m.recordLoopState(chainID, "stopped")
 			return
 		case <-timer.C:
@@ -199,7 +222,7 @@ func (m *monolithicPullerRuntime) Stop() error {
 	var errs []string
 
 	for _, puller := range m.pullers {
-		if err := puller.Stop(); err != nil && !strings.Contains(err.Error(), "plugin not running") {
+		if err := puller.Stop(context.Background()); err != nil && !strings.Contains(err.Error(), "plugin not running") {
 			errs = append(errs, err.Error())
 		}
 	}
@@ -217,6 +240,11 @@ func (m *monolithicPullerRuntime) PullerCount() int {
 
 func (m *monolithicPullerRuntime) SubscriberCount() int {
 	return m.eventBus.GetSubscriberCount(monolithicEventTopic)
+}
+
+// EventBus returns the shared event bus for wiring push-based subscriptions.
+func (m *monolithicPullerRuntime) EventBus() core.EventBus {
+	return m.eventBus
 }
 
 func (m *monolithicPullerRuntime) recordLoopError(err error) {
@@ -589,19 +617,22 @@ func subscribeMonolithicIndexer(
 	multiChainIndexer *indexing.MultiChainIndexer,
 	logger core.Logger,
 ) error {
-	return eventBus.Subscribe(ctx, monolithicEventTopic, func(payload interface{}) {
+	_, err := eventBus.SubscribeNamed(ctx, monolithicEventTopic, "monolithic-indexer", func(_ context.Context, payload any) error {
 		event, ok := payload.(core.BlockchainEvent)
 		if !ok {
 			logger.Warn("ignored unexpected monolithic event payload", "topic", monolithicEventTopic)
 
-			return
+			return nil
 		}
 
-		eventCopy := event
-		if err := multiChainIndexer.IndexEventsFromChain(ctx, eventCopy.ChainID, []*core.BlockchainEvent{&eventCopy}); err != nil {
-			logger.Error("failed to route monolithic event to indexer", "chain_id", eventCopy.ChainID, "error", err.Error())
+		logger.Info("monolithic event received", "event_name", event.EventName, "block", event.BlockNumber)
+		err := multiChainIndexer.IndexEventsFromChain(ctx, event.ChainID, []*core.BlockchainEvent{&event})
+		if err != nil {
+			logger.Error("failed to process monolithic event", "error", err)
 		}
+		return nil
 	})
+	return err
 }
 
 func parseNodeURLs(raw string) ([]string, error) {

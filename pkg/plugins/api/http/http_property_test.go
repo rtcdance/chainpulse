@@ -6,13 +6,14 @@ import (
 	"net/http"
 	"testing"
 
-	"chainpulse/pkg/plugins/api/core"
+	"github.com/rtcdance/chainpulse/pkg/plugins/api/core"
 )
 
 // Property 1: Request Abstraction Consistency
 // For any HTTP request, converting it to Request abstraction and back
 // SHALL preserve all properties.
 func TestProperty_HTTPRequestAbstractionConsistency(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name    string
 		method  string
@@ -79,6 +80,7 @@ func TestProperty_HTTPRequestAbstractionConsistency(t *testing.T) {
 // For any HTTP response, converting it to Response abstraction and back
 // SHALL preserve all properties.
 func TestProperty_HTTPResponseAbstractionConsistency(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name    string
 		status  int
@@ -138,6 +140,7 @@ func TestProperty_HTTPResponseAbstractionConsistency(t *testing.T) {
 // Property 3: HTTP Plugin Request Routing
 // For any registered route, the HTTP plugin SHALL route requests correctly.
 func TestProperty_HTTPPluginRoutingCorrectness(t *testing.T) {
+	t.Parallel()
 	apiLayer := core.NewAPILayer()
 	plugin := NewHTTPPlugin("http", 8089, apiLayer)
 
@@ -170,6 +173,7 @@ func TestProperty_HTTPPluginRoutingCorrectness(t *testing.T) {
 // Property 4: HTTP Request Context Preservation
 // For any HTTP request with context, the context SHALL be preserved.
 func TestProperty_HTTPRequestContextPreservation(t *testing.T) {
+	t.Parallel()
 	ctx := context.WithValue(context.Background(), userIDContextKey, "123")
 	httpReq, _ := http.NewRequestWithContext(ctx, "GET", "/api/users", nil)
 
@@ -184,6 +188,7 @@ func TestProperty_HTTPRequestContextPreservation(t *testing.T) {
 // Property 5: HTTP Response Header Immutability After Send
 // For any HTTP response, headers SHALL NOT be modifiable after send.
 func TestProperty_HTTPResponseHeaderImmutabilityAfterSend(t *testing.T) {
+	t.Parallel()
 	w := &testResponseWriter{buf: &bytes.Buffer{}}
 	resp := NewHTTPResponse(w)
 
@@ -209,6 +214,7 @@ func TestProperty_HTTPResponseHeaderImmutabilityAfterSend(t *testing.T) {
 // Property 6: HTTP Request Query Parameter Extraction
 // For any HTTP request with query parameters, all parameters SHALL be extractable.
 func TestProperty_HTTPRequestQueryParameterExtraction(t *testing.T) {
+	t.Parallel()
 	params := map[string]string{
 		"page":   "1",
 		"limit":  "10",
@@ -237,6 +243,7 @@ func TestProperty_HTTPRequestQueryParameterExtraction(t *testing.T) {
 // Property 7: HTTP Response Body Accumulation
 // For any HTTP response, multiple Write() calls SHALL accumulate in the body.
 func TestProperty_HTTPResponseBodyAccumulation(t *testing.T) {
+	t.Parallel()
 	w := &testResponseWriter{buf: &bytes.Buffer{}}
 	resp := NewHTTPResponse(w)
 
@@ -253,6 +260,7 @@ func TestProperty_HTTPResponseBodyAccumulation(t *testing.T) {
 // Property 8: HTTP Plugin Middleware Application
 // For any HTTP plugin with middleware, middleware SHALL be applied to all requests.
 func TestProperty_HTTPPluginMiddlewareApplication(t *testing.T) {
+	t.Parallel()
 	apiLayer := core.NewAPILayer()
 	plugin := NewHTTPPlugin("http", 8090, apiLayer)
 

@@ -10,8 +10,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"chainpulse/pkg/core"
-	mqplugin "chainpulse/pkg/plugins/mq"
+	"github.com/rtcdance/chainpulse/pkg/core"
+	mqplugin "github.com/rtcdance/chainpulse/pkg/plugins/mq"
 )
 
 // MQContractTest defines the contract that all MQ implementations must satisfy

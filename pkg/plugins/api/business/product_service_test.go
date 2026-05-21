@@ -73,7 +73,7 @@ func (m *MockProductBackend) List(ctx context.Context, limit, offset int) ([]*Pr
 	return products, nil
 }
 
-func (m *MockProductBackend) Query(ctx context.Context, filter map[string]interface{}, limit, offset int) ([]*Product, error) {
+func (m *MockProductBackend) Query(ctx context.Context, filter map[string]any, limit, offset int) ([]*Product, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	products := make([]*Product, 0)
@@ -107,6 +107,7 @@ func (m *MockProductBackend) UpdateStock(ctx context.Context, id string, quantit
 }
 
 func TestProductServiceCreate(t *testing.T) {
+	t.Parallel()
 	backend := NewMockProductBackend()
 	cache := NewMockServiceCache()
 	service := NewProductService(backend, cache)
@@ -135,6 +136,7 @@ func TestProductServiceCreate(t *testing.T) {
 }
 
 func TestProductServiceRead(t *testing.T) {
+	t.Parallel()
 	backend := NewMockProductBackend()
 	cache := NewMockServiceCache()
 	service := NewProductService(backend, cache)
@@ -164,6 +166,7 @@ func TestProductServiceRead(t *testing.T) {
 }
 
 func TestProductServiceUpdate(t *testing.T) {
+	t.Parallel()
 	backend := NewMockProductBackend()
 	cache := NewMockServiceCache()
 	service := NewProductService(backend, cache)
@@ -194,6 +197,7 @@ func TestProductServiceUpdate(t *testing.T) {
 }
 
 func TestProductServiceDelete(t *testing.T) {
+	t.Parallel()
 	backend := NewMockProductBackend()
 	cache := NewMockServiceCache()
 	service := NewProductService(backend, cache)
@@ -224,6 +228,7 @@ func TestProductServiceDelete(t *testing.T) {
 }
 
 func TestProductServiceGetByCategory(t *testing.T) {
+	t.Parallel()
 	backend := NewMockProductBackend()
 	cache := NewMockServiceCache()
 	service := NewProductService(backend, cache)
@@ -253,6 +258,7 @@ func TestProductServiceGetByCategory(t *testing.T) {
 }
 
 func TestProductServiceUpdateStock(t *testing.T) {
+	t.Parallel()
 	backend := NewMockProductBackend()
 	cache := NewMockServiceCache()
 	service := NewProductService(backend, cache)
@@ -283,6 +289,7 @@ func TestProductServiceUpdateStock(t *testing.T) {
 }
 
 func TestProductServiceMetrics(t *testing.T) {
+	t.Parallel()
 	backend := NewMockProductBackend()
 	cache := NewMockServiceCache()
 	service := NewProductService(backend, cache)

@@ -3,5 +3,4 @@ kind: Kustomization
 
 resources:
   - ../../base
-  - ../../namespace.yaml
   - chainpulse-microservice-deployment.yaml

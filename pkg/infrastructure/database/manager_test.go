@@ -10,28 +10,33 @@ import (
 
 // TestNewDatabaseManager tests creating a new database manager
 func TestNewDatabaseManager(t *testing.T) {
-	manager := NewDatabaseManager("mongodb://localhost:27017", "postgres://localhost:5432", 10, 5*time.Second)
+	t.Parallel()
+	manager := NewDatabaseManager("mongodb://localhost:27017", "postgres://localhost:5432", "disable", 10, 5*time.Second)
 
 	assert.NotNil(t, manager)
 	assert.Equal(t, "mongodb://localhost:27017", manager.mongoURI)
 	assert.Equal(t, "postgres://localhost:5432", manager.postgresURL)
 	assert.Equal(t, 10, manager.poolSize)
 	assert.Equal(t, 5*time.Second, manager.mongoTimeout)
-	assert.False(t, manager.initialized)
+	assert.False(t, manager.mongoInit)
+	assert.False(t, manager.postgresInit)
 	assert.False(t, manager.closed)
 }
 
 // TestDatabaseManagerInitializeNotInitialized tests that manager starts uninitialized
 func TestDatabaseManagerInitializeNotInitialized(t *testing.T) {
-	manager := NewDatabaseManager("mongodb://localhost:27017", "postgres://localhost:5432", 10, 5*time.Second)
+	t.Parallel()
+	manager := NewDatabaseManager("mongodb://localhost:27017", "postgres://localhost:5432", "disable", 10, 5*time.Second)
 
-	assert.False(t, manager.initialized)
+	assert.False(t, manager.mongoInit)
+	assert.False(t, manager.postgresInit)
 	assert.False(t, manager.closed)
 }
 
 // TestDatabaseManagerGetMongoClientNotInitialized tests getting mongo client before initialization
 func TestDatabaseManagerGetMongoClientNotInitialized(t *testing.T) {
-	manager := NewDatabaseManager("mongodb://localhost:27017", "postgres://localhost:5432", 10, 5*time.Second)
+	t.Parallel()
+	manager := NewDatabaseManager("mongodb://localhost:27017", "postgres://localhost:5432", "disable", 10, 5*time.Second)
 	ctx := context.Background()
 
 	_, err := manager.GetMongoClient(ctx)
@@ -42,7 +47,8 @@ func TestDatabaseManagerGetMongoClientNotInitialized(t *testing.T) {
 
 // TestDatabaseManagerGetPostgresDBNotInitialized tests getting postgres db before initialization
 func TestDatabaseManagerGetPostgresDBNotInitialized(t *testing.T) {
-	manager := NewDatabaseManager("mongodb://localhost:27017", "postgres://localhost:5432", 10, 5*time.Second)
+	t.Parallel()
+	manager := NewDatabaseManager("mongodb://localhost:27017", "postgres://localhost:5432", "disable", 10, 5*time.Second)
 	ctx := context.Background()
 
 	_, err := manager.GetPostgresDB(ctx)
@@ -53,7 +59,8 @@ func TestDatabaseManagerGetPostgresDBNotInitialized(t *testing.T) {
 
 // TestDatabaseManagerCheckMongoHealthNotInitialized tests checking mongo health before initialization
 func TestDatabaseManagerCheckMongoHealthNotInitialized(t *testing.T) {
-	manager := NewDatabaseManager("mongodb://localhost:27017", "postgres://localhost:5432", 10, 5*time.Second)
+	t.Parallel()
+	manager := NewDatabaseManager("mongodb://localhost:27017", "postgres://localhost:5432", "disable", 10, 5*time.Second)
 	ctx := context.Background()
 
 	err := manager.CheckMongoHealth(ctx)
@@ -64,7 +71,8 @@ func TestDatabaseManagerCheckMongoHealthNotInitialized(t *testing.T) {
 
 // TestDatabaseManagerCheckPostgresHealthNotInitialized tests checking postgres health before initialization
 func TestDatabaseManagerCheckPostgresHealthNotInitialized(t *testing.T) {
-	manager := NewDatabaseManager("mongodb://localhost:27017", "postgres://localhost:5432", 10, 5*time.Second)
+	t.Parallel()
+	manager := NewDatabaseManager("mongodb://localhost:27017", "postgres://localhost:5432", "disable", 10, 5*time.Second)
 	ctx := context.Background()
 
 	err := manager.CheckPostgresHealth(ctx)
@@ -75,19 +83,21 @@ func TestDatabaseManagerCheckPostgresHealthNotInitialized(t *testing.T) {
 
 // TestDatabaseManagerHealthNotInitialized tests health check before initialization
 func TestDatabaseManagerHealthNotInitialized(t *testing.T) {
-	manager := NewDatabaseManager("mongodb://localhost:27017", "postgres://localhost:5432", 10, 5*time.Second)
+	t.Parallel()
+	manager := NewDatabaseManager("mongodb://localhost:27017", "postgres://localhost:5432", "disable", 10, 5*time.Second)
 	ctx := context.Background()
 
 	health := manager.Health(ctx)
 
 	assert.NotNil(t, health)
-	healthMap := health.(map[string]interface{})
+	healthMap := health.(map[string]any)
 	assert.Equal(t, "unhealthy", healthMap["status"])
 }
 
 // TestDatabaseManagerCloseNotInitialized tests closing manager before initialization
 func TestDatabaseManagerCloseNotInitialized(t *testing.T) {
-	manager := NewDatabaseManager("mongodb://localhost:27017", "postgres://localhost:5432", 10, 5*time.Second)
+	t.Parallel()
+	manager := NewDatabaseManager("mongodb://localhost:27017", "postgres://localhost:5432", "disable", 10, 5*time.Second)
 	ctx := context.Background()
 
 	err := manager.Close(ctx)
@@ -98,7 +108,8 @@ func TestDatabaseManagerCloseNotInitialized(t *testing.T) {
 
 // TestDatabaseManagerCloseAlreadyClosed tests closing manager twice
 func TestDatabaseManagerCloseAlreadyClosed(t *testing.T) {
-	manager := NewDatabaseManager("mongodb://localhost:27017", "postgres://localhost:5432", 10, 5*time.Second)
+	t.Parallel()
+	manager := NewDatabaseManager("mongodb://localhost:27017", "postgres://localhost:5432", "disable", 10, 5*time.Second)
 	ctx := context.Background()
 
 	_ = manager.Close(ctx)
@@ -110,7 +121,8 @@ func TestDatabaseManagerCloseAlreadyClosed(t *testing.T) {
 
 // TestDatabaseManagerInitializeEmptyMongoURI tests initialization with empty mongo URI
 func TestDatabaseManagerInitializeEmptyMongoURI(t *testing.T) {
-	manager := NewDatabaseManager("", "postgres://localhost:5432", 10, 5*time.Second)
+	t.Parallel()
+	manager := NewDatabaseManager("", "postgres://localhost:5432", "disable", 10, 5*time.Second)
 	ctx := context.Background()
 
 	err := manager.Initialize(ctx)
@@ -121,7 +133,8 @@ func TestDatabaseManagerInitializeEmptyMongoURI(t *testing.T) {
 
 // TestDatabaseManagerInitializeEmptyPostgresURL tests initialization with empty postgres URL
 func TestDatabaseManagerInitializeEmptyPostgresURL(t *testing.T) {
-	manager := NewDatabaseManager("mongodb://localhost:27017", "", 10, 5*time.Second)
+	t.Parallel()
+	manager := NewDatabaseManager("mongodb://localhost:27017", "", "disable", 10, 5*time.Second)
 	ctx := context.Background()
 
 	err := manager.Initialize(ctx)
@@ -133,20 +146,22 @@ func TestDatabaseManagerInitializeEmptyPostgresURL(t *testing.T) {
 
 // TestDatabaseManagerPoolSize tests pool size configuration
 func TestDatabaseManagerPoolSize(t *testing.T) {
+	t.Parallel()
 	poolSizes := []int{5, 10, 20, 50}
 
 	for _, size := range poolSizes {
-		manager := NewDatabaseManager("mongodb://localhost:27017", "postgres://localhost:5432", size, 5*time.Second)
+		manager := NewDatabaseManager("mongodb://localhost:27017", "postgres://localhost:5432", "disable", size, 5*time.Second)
 		assert.Equal(t, size, manager.poolSize)
 	}
 }
 
 // TestDatabaseManagerTimeout tests timeout configuration
 func TestDatabaseManagerTimeout(t *testing.T) {
+	t.Parallel()
 	timeouts := []time.Duration{1 * time.Second, 5 * time.Second, 10 * time.Second}
 
 	for _, timeout := range timeouts {
-		manager := NewDatabaseManager("mongodb://localhost:27017", "postgres://localhost:5432", 10, timeout)
+		manager := NewDatabaseManager("mongodb://localhost:27017", "postgres://localhost:5432", "disable", 10, timeout)
 		assert.Equal(t, timeout, manager.mongoTimeout)
 		assert.Equal(t, timeout, manager.postgresTimeout)
 	}
@@ -154,7 +169,8 @@ func TestDatabaseManagerTimeout(t *testing.T) {
 
 // TestDatabaseManagerGetMongoDatabaseNotInitialized tests getting mongo database before initialization
 func TestDatabaseManagerGetMongoDatabaseNotInitialized(t *testing.T) {
-	manager := NewDatabaseManager("mongodb://localhost:27017", "postgres://localhost:5432", 10, 5*time.Second)
+	t.Parallel()
+	manager := NewDatabaseManager("mongodb://localhost:27017", "postgres://localhost:5432", "disable", 10, 5*time.Second)
 
 	db := manager.GetMongoDatabase("testdb")
 
@@ -163,7 +179,8 @@ func TestDatabaseManagerGetMongoDatabaseNotInitialized(t *testing.T) {
 
 // TestDatabaseManagerConcurrentAccess tests concurrent access to manager
 func TestDatabaseManagerConcurrentAccess(t *testing.T) {
-	manager := NewDatabaseManager("mongodb://localhost:27017", "postgres://localhost:5432", 10, 5*time.Second)
+	t.Parallel()
+	manager := NewDatabaseManager("mongodb://localhost:27017", "postgres://localhost:5432", "disable", 10, 5*time.Second)
 	ctx := context.Background()
 
 	done := make(chan bool, 10)
@@ -182,12 +199,12 @@ func TestDatabaseManagerConcurrentAccess(t *testing.T) {
 
 // TestDatabaseManagerInitializeAlreadyInitialized tests initializing twice
 func TestDatabaseManagerInitializeAlreadyInitialized(t *testing.T) {
-	manager := NewDatabaseManager("mongodb://localhost:27017", "postgres://localhost:5432", 10, 5*time.Second)
+	t.Parallel()
+	manager := NewDatabaseManager("mongodb://localhost:27017", "postgres://localhost:5432", "disable", 10, 5*time.Second)
 	ctx := context.Background()
 
 	// First initialization will fail due to connection issues, but set initialized flag
 	_ = manager.Initialize(ctx)
-	manager.initialized = true
 
 	// Second initialization should fail
 	err := manager.Initialize(ctx)
@@ -198,6 +215,7 @@ func TestDatabaseManagerInitializeAlreadyInitialized(t *testing.T) {
 
 // TestDatabaseManagerURIConfiguration tests URI configuration
 func TestDatabaseManagerURIConfiguration(t *testing.T) {
+	t.Parallel()
 	mongoURIs := []string{
 		"mongodb://localhost:27017",
 		"mongodb://user:pass@localhost:27017",
@@ -212,7 +230,7 @@ func TestDatabaseManagerURIConfiguration(t *testing.T) {
 
 	for _, mongoURI := range mongoURIs {
 		for _, postgresURL := range postgresURLs {
-			manager := NewDatabaseManager(mongoURI, postgresURL, 10, 5*time.Second)
+			manager := NewDatabaseManager(mongoURI, postgresURL, "disable", 10, 5*time.Second)
 			assert.Equal(t, mongoURI, manager.mongoURI)
 			assert.Equal(t, postgresURL, manager.postgresURL)
 		}
@@ -221,20 +239,22 @@ func TestDatabaseManagerURIConfiguration(t *testing.T) {
 
 // TestDatabaseManagerHealthStatus tests health status structure
 func TestDatabaseManagerHealthStatus(t *testing.T) {
-	manager := NewDatabaseManager("mongodb://localhost:27017", "postgres://localhost:5432", 10, 5*time.Second)
+	t.Parallel()
+	manager := NewDatabaseManager("mongodb://localhost:27017", "postgres://localhost:5432", "disable", 10, 5*time.Second)
 	ctx := context.Background()
 
 	health := manager.Health(ctx)
 
 	assert.NotNil(t, health)
-	healthMap := health.(map[string]interface{})
+	healthMap := health.(map[string]any)
 	assert.Contains(t, healthMap, "status")
 	assert.Contains(t, healthMap, "reason")
 }
 
 // TestDatabaseManagerContextCancellation tests operations with cancelled context
 func TestDatabaseManagerContextCancellation(t *testing.T) {
-	manager := NewDatabaseManager("mongodb://localhost:27017", "postgres://localhost:5432", 10, 5*time.Second)
+	t.Parallel()
+	manager := NewDatabaseManager("mongodb://localhost:27017", "postgres://localhost:5432", "disable", 10, 5*time.Second)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
@@ -247,8 +267,9 @@ func TestDatabaseManagerContextCancellation(t *testing.T) {
 
 // TestDatabaseManagerMultipleInstances tests creating multiple manager instances
 func TestDatabaseManagerMultipleInstances(t *testing.T) {
-	manager1 := NewDatabaseManager("mongodb://localhost:27017", "postgres://localhost:5432", 10, 5*time.Second)
-	manager2 := NewDatabaseManager("mongodb://localhost:27017", "postgres://localhost:5432", 20, 10*time.Second)
+	t.Parallel()
+	manager1 := NewDatabaseManager("mongodb://localhost:27017", "postgres://localhost:5432", "disable", 10, 5*time.Second)
+	manager2 := NewDatabaseManager("mongodb://localhost:27017", "postgres://localhost:5432", "disable", 20, 10*time.Second)
 
 	assert.Equal(t, 10, manager1.poolSize)
 	assert.Equal(t, 20, manager2.poolSize)
@@ -258,9 +279,11 @@ func TestDatabaseManagerMultipleInstances(t *testing.T) {
 
 // TestDatabaseManagerInitializeState tests initialization state tracking
 func TestDatabaseManagerInitializeState(t *testing.T) {
-	manager := NewDatabaseManager("mongodb://localhost:27017", "postgres://localhost:5432", 10, 5*time.Second)
+	t.Parallel()
+	manager := NewDatabaseManager("mongodb://localhost:27017", "postgres://localhost:5432", "disable", 10, 5*time.Second)
 
-	assert.False(t, manager.initialized)
+	assert.False(t, manager.mongoInit)
+	assert.False(t, manager.postgresInit)
 	assert.False(t, manager.closed)
 
 	// Attempt initialization (will fail due to connection issues)
@@ -272,7 +295,8 @@ func TestDatabaseManagerInitializeState(t *testing.T) {
 
 // TestDatabaseManagerCloseState tests close state tracking
 func TestDatabaseManagerCloseState(t *testing.T) {
-	manager := NewDatabaseManager("mongodb://localhost:27017", "postgres://localhost:5432", 10, 5*time.Second)
+	t.Parallel()
+	manager := NewDatabaseManager("mongodb://localhost:27017", "postgres://localhost:5432", "disable", 10, 5*time.Second)
 
 	assert.False(t, manager.closed)
 
@@ -283,7 +307,8 @@ func TestDatabaseManagerCloseState(t *testing.T) {
 
 // TestDatabaseManagerMinPoolSize tests minimum pool size calculation
 func TestDatabaseManagerMinPoolSize(t *testing.T) {
-	manager := NewDatabaseManager("mongodb://localhost:27017", "postgres://localhost:5432", 10, 5*time.Second)
+	t.Parallel()
+	manager := NewDatabaseManager("mongodb://localhost:27017", "postgres://localhost:5432", "disable", 10, 5*time.Second)
 
 	// Pool size should be 10, min pool size should be 5
 	assert.Equal(t, 10, manager.poolSize)
@@ -291,6 +316,7 @@ func TestDatabaseManagerMinPoolSize(t *testing.T) {
 
 // TestDatabaseManagerTimeoutValues tests various timeout values
 func TestDatabaseManagerTimeoutValues(t *testing.T) {
+	t.Parallel()
 	timeouts := []time.Duration{
 		100 * time.Millisecond,
 		1 * time.Second,
@@ -300,7 +326,7 @@ func TestDatabaseManagerTimeoutValues(t *testing.T) {
 	}
 
 	for _, timeout := range timeouts {
-		manager := NewDatabaseManager("mongodb://localhost:27017", "postgres://localhost:5432", 10, timeout)
+		manager := NewDatabaseManager("mongodb://localhost:27017", "postgres://localhost:5432", "disable", 10, timeout)
 		assert.Equal(t, timeout, manager.mongoTimeout)
 		assert.Equal(t, timeout, manager.postgresTimeout)
 	}

@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 // CacheWarmer pre-populates cache with common queries
@@ -83,7 +83,8 @@ func (cw *CacheWarmer) Start(ctx context.Context) error {
 
 	go cw.run(ctx)
 
-	cw.logger.Info("Cache warmer started",
+	cw.logger.Info(
+		"Cache warmer started",
 		"interval", cw.config.WarmingInterval,
 		"batchSize", cw.config.WarmingBatchSize,
 	)
@@ -133,7 +134,8 @@ func (cw *CacheWarmer) warm(ctx context.Context) {
 		cw.failedWarmingCount++
 		cw.mu.Unlock()
 
-		cw.logger.Error("Failed to get warming data",
+		cw.logger.Error(
+			"Failed to get warming data",
 			"error", err,
 		)
 		cw.metrics.RecordCounter("cache_warming_failed", 1, map[string]string{
@@ -156,7 +158,8 @@ func (cw *CacheWarmer) warm(ctx context.Context) {
 
 	duration := time.Since(start)
 
-	cw.logger.Info("Cache warming completed",
+	cw.logger.Info(
+		"Cache warming completed",
 		"itemsWarmed", successCount,
 		"duration", duration,
 	)
@@ -194,11 +197,11 @@ func (cw *CacheWarmer) IsRunning() bool {
 }
 
 // GetStats returns cache warmer statistics
-func (cw *CacheWarmer) GetStats() map[string]interface{} {
+func (cw *CacheWarmer) GetStats() map[string]any {
 	cw.mu.RLock()
 	defer cw.mu.RUnlock()
 
-	return map[string]interface{}{
+	return map[string]any{
 		"is_running":           cw.isRunning,
 		"warming_count":        cw.warmingCount,
 		"failed_warming_count": cw.failedWarmingCount,

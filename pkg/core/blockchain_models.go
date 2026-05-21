@@ -1,199 +1,100 @@
 package core
 
 import (
-	"math/big"
-	"time"
-
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
+
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 )
 
-// EventStatus represents the processing status of an event
-type EventStatus string
+// Event status values
+type EventStatus = blockchain.EventStatus
 
 const (
-	EventStatusPending   EventStatus = "pending"
-	EventStatusConfirmed EventStatus = "confirmed"
-	EventStatusFailed    EventStatus = "failed"
-	EventStatusReorged   EventStatus = "reorged"
+	EventStatusPending   EventStatus = blockchain.EventStatusPending
+	EventStatusConfirmed EventStatus = blockchain.EventStatusConfirmed
+	EventStatusFinalized EventStatus = blockchain.EventStatusFinalized
+	EventStatusFailed    EventStatus = blockchain.EventStatusFailed
+	EventStatusReorged   EventStatus = blockchain.EventStatusReorged
 )
 
-// BlockchainEvent represents a blockchain event with full details
-type BlockchainEvent struct {
-	// Event identification
-	ID             string      `json:"id"`
-	EventHash      string      `json:"event_hash"`
-	EventSignature common.Hash `json:"event_signature"`
+// Transaction type constants for EIP-2718
+const (
+	TxLegacy     = blockchain.TxLegacy
+	TxAccessList = blockchain.TxAccessList
+	TxEIP1559    = blockchain.TxEIP1559
+	TxBlob       = blockchain.TxBlob
+)
 
-	// Block information
-	BlockNumber    uint64      `json:"block_number"`
-	BlockHash      common.Hash `json:"block_hash"`
-	BlockTimestamp int64       `json:"block_timestamp"`
+// Transaction receipt status constants
+const (
+	TxStatusUnknown = blockchain.TxStatusUnknown
+	TxStatusFailed  = blockchain.TxStatusFailed
+	TxStatusSuccess = blockchain.TxStatusSuccess
+)
 
-	// Transaction information
-	TransactionHash  common.Hash `json:"transaction_hash"`
-	TransactionIndex uint        `json:"transaction_index"`
-	GasUsed          uint64      `json:"gas_used"`
-	GasPrice         *big.Int    `json:"gas_price"`
+// BlockchainEvent is the canonical event structure used across the entire system.
+// NOTE: This type and its siblings (Block, Transaction, etc.) technically belong
+// in a domain model package (e.g. pkg/domain/model/) rather than pkg/core/.
+// They remain here for now because moving them would require updating 30+ import
+// paths — a future, planned refactoring.
+type BlockchainEvent = blockchain.BlockchainEvent
 
-	// Log information
-	LogIndex uint `json:"log_index"`
-	Removed  bool `json:"removed"`
+// TxTypeResolver type alias
+type TxTypeResolver = blockchain.TxTypeResolver
 
-	// Contract information
-	ContractAddress common.Address `json:"contract_address"`
-	EventName       string         `json:"event_name"`
-	EventTopic      []common.Hash  `json:"event_topic"`
+// Transaction type alias
+type Transaction = blockchain.Transaction
 
-	// Event data
-	EventData   []byte                 `json:"event_data"`
-	DecodedData map[string]interface{} `json:"decoded_data"`
+// BlobSidecar type alias
+type BlobSidecar = blockchain.BlobSidecar
 
-	// Indexing metadata
-	ChainID string      `json:"chain_id"`
-	Network string      `json:"network"`
-	Status  EventStatus `json:"status"`
+// Blob type alias
+type Blob = blockchain.Blob
 
-	// Timestamps
-	CreatedAt   time.Time `json:"created_at"`
-	ProcessedAt time.Time `json:"processed_at"`
-	IndexedAt   time.Time `json:"indexed_at"`
-}
+// KZGCommitment type alias
+type KZGCommitment = blockchain.KZGCommitment
 
-// Transaction represents a blockchain transaction
-type Transaction struct {
-	Hash              common.Hash     `json:"hash"`
-	From              common.Address  `json:"from"`
-	To                *common.Address `json:"to"`
-	Value             *big.Int        `json:"value"`
-	Gas               uint64          `json:"gas"`
-	GasPrice          *big.Int        `json:"gas_price"`
-	Input             []byte          `json:"input"`
-	Nonce             uint64          `json:"nonce"`
-	BlockNumber       uint64          `json:"block_number"`
-	BlockHash         common.Hash     `json:"block_hash"`
-	TransactionIndex  uint            `json:"transaction_index"`
-	Status            uint64          `json:"status"` // 1 = success, 0 = failed
-	ContractAddress   *common.Address `json:"contract_address"`
-	CumulativeGasUsed uint64          `json:"cumulative_gas_used"`
-	Logs              []*types.Log    `json:"logs"`
-}
+// KZGProof type alias
+type KZGProof = blockchain.KZGProof
 
-// Block represents a blockchain block
-type Block struct {
-	Number       uint64         `json:"number"`
-	Hash         common.Hash    `json:"hash"`
-	ParentHash   common.Hash    `json:"parent_hash"`
-	Timestamp    int64          `json:"timestamp"`
-	Miner        common.Address `json:"miner"`
-	Difficulty   *big.Int       `json:"difficulty"`
-	GasLimit     uint64         `json:"gas_limit"`
-	GasUsed      uint64         `json:"gas_used"`
-	Transactions []common.Hash  `json:"transactions"`
-	LogsBloom    types.Bloom    `json:"logs_bloom"`
-}
+// BlockBuilder type alias
+type BlockBuilder = blockchain.BlockBuilder
 
-// Validate validates the blockchain event
-func (be *BlockchainEvent) Validate() error {
-	if be.BlockNumber == 0 {
-		return ErrInvalidBlockNumber
-	}
-	if be.TransactionHash == (common.Hash{}) {
-		return ErrInvalidTransactionHash
-	}
-	if be.ContractAddress == (common.Address{}) {
-		return ErrInvalidContractAddress
-	}
-	if be.EventName == "" {
-		return ErrInvalidEventName
-	}
-	return nil
-}
+// BeaconBlockInfo type alias
+type BeaconBlockInfo = blockchain.BeaconBlockInfo
 
-// IsConfirmed returns whether the event is confirmed
-func (be *BlockchainEvent) IsConfirmed() bool {
-	return be.Status == EventStatusConfirmed
-}
+// Block type alias
+type Block = blockchain.Block
 
-// IsPending returns whether the event is pending
-func (be *BlockchainEvent) IsPending() bool {
-	return be.Status == EventStatusPending
-}
+// Withdrawal type alias
+type Withdrawal = blockchain.Withdrawal
 
-// IsFailed returns whether the event failed
-func (be *BlockchainEvent) IsFailed() bool {
-	return be.Status == EventStatusFailed
-}
+// UserOperation type alias
+type UserOperation = blockchain.UserOperation
 
-// IsReorged returns whether the event was reorged
-func (be *BlockchainEvent) IsReorged() bool {
-	return be.Status == EventStatusReorged
-}
+// PaymasterReputation type alias
+type PaymasterReputation = blockchain.PaymasterReputation
 
-// Validate validates the transaction
-func (t *Transaction) Validate() error {
-	if t.Hash == (common.Hash{}) {
-		return ErrInvalidTransactionHash
-	}
-	if t.From == (common.Address{}) {
-		return ErrInvalidAddress
-	}
-	if t.BlockNumber == 0 {
-		return ErrInvalidBlockNumber
-	}
-	return nil
-}
+// TransactionReceipt type alias
+type TransactionReceipt = blockchain.TransactionReceipt
 
-// IsSuccessful returns whether the transaction was successful
-func (t *Transaction) IsSuccessful() bool {
-	return t.Status == 1
-}
+// ReorgDetectedMessage type alias
+type ReorgDetectedMessage = blockchain.ReorgDetectedMessage
 
-// IsFailed returns whether the transaction failed
-func (t *Transaction) IsFailed() bool {
-	return t.Status == 0
-}
+// EntryPointVersion type alias
+type EntryPointVersion = blockchain.EntryPointVersion
 
-// Validate validates the block
-func (b *Block) Validate() error {
-	if b.Number == 0 {
-		return ErrInvalidBlockNumber
-	}
-	if b.Hash == (common.Hash{}) {
-		return ErrInvalidBlockHash
-	}
-	if b.Timestamp == 0 {
-		return ErrInvalidTimestamp
-	}
-	return nil
-}
+const (
+	EntryPointV06 EntryPointVersion = blockchain.EntryPointV06
+	EntryPointV07 EntryPointVersion = blockchain.EntryPointV07
+)
 
-// GetTimestamp returns the block timestamp as time.Time
-func (b *Block) GetTimestamp() time.Time {
-	return time.Unix(b.Timestamp, 0)
-}
+// EntryPointAddresses type alias
+var EntryPointAddresses = blockchain.EntryPointAddresses
 
-// TransactionReceipt represents a transaction receipt
-type TransactionReceipt struct {
-	TransactionHash   common.Hash     `json:"transaction_hash"`
-	BlockNumber       uint64          `json:"block_number"`
-	BlockHash         common.Hash     `json:"block_hash"`
-	From              common.Address  `json:"from"`
-	To                *common.Address `json:"to"`
-	GasUsed           uint64          `json:"gas_used"`
-	CumulativeGasUsed uint64          `json:"cumulative_gas_used"`
-	ContractAddress   *common.Address `json:"contract_address"`
-	Logs              []*types.Log    `json:"logs"`
-	Status            uint64          `json:"status"` // 1 = success, 0 = failed
-	LogsBloom         types.Bloom     `json:"logs_bloom"`
-}
+// UserOperationV07 type alias
+type UserOperationV07 = blockchain.UserOperationV07
 
-// IsSuccessful returns whether the receipt indicates success
-func (tr *TransactionReceipt) IsSuccessful() bool {
-	return tr.Status == 1
-}
-
-// IsFailed returns whether the receipt indicates failure
-func (tr *TransactionReceipt) IsFailed() bool {
-	return tr.Status == 0
+func EntryPointVersionForAddress(addr common.Address) EntryPointVersion {
+	return blockchain.EntryPointVersionForAddress(addr)
 }

@@ -206,13 +206,13 @@ func ExtractBearerToken(authHeader string) (string, error) {
 }
 
 // GetTokenInfo returns information about a token
-func (a *Authentication) GetTokenInfo(token string) map[string]interface{} {
+func (a *Authentication) GetTokenInfo(token string) map[string]any {
 	a.mu.RLock()
 	tokenInfo, ok := a.tokens[token]
 	a.mu.RUnlock()
 
 	if !ok {
-		return map[string]interface{}{
+		return map[string]any{
 			"error": "token not found",
 		}
 	}
@@ -222,7 +222,7 @@ func (a *Authentication) GetTokenInfo(token string) map[string]interface{} {
 
 	isExpired := time.Now().After(tokenInfo.expiresAt)
 
-	return map[string]interface{}{
+	return map[string]any{
 		"user_id":     tokenInfo.userID,
 		"issued_at":   tokenInfo.issuedAt,
 		"expires_at":  tokenInfo.expiresAt,
@@ -274,7 +274,7 @@ func (a *Authentication) GetTokenCount() int {
 }
 
 // GetMetrics returns authentication metrics
-func (a *Authentication) GetMetrics() map[string]interface{} {
+func (a *Authentication) GetMetrics() map[string]any {
 	a.mu.RLock()
 	activeTokens := 0
 	expiredTokens := 0
@@ -295,7 +295,7 @@ func (a *Authentication) GetMetrics() map[string]interface{} {
 	coveragePosture := classifyAuthenticationCoveragePosture(totalTokens, activeTokens, expiredTokens)
 	runtimePosture := classifyAuthenticationRuntimePosture(totalTokens, activeTokens, expiredTokens)
 
-	return map[string]interface{}{
+	return map[string]any{
 		"total_tokens":     totalTokens,
 		"active_tokens":    activeTokens,
 		"expired_tokens":   expiredTokens,
@@ -307,14 +307,14 @@ func (a *Authentication) GetMetrics() map[string]interface{} {
 
 // GetRuntimeMetrics returns a compact runtime surface for token validity and
 // authentication readiness on top of the raw authentication metrics.
-func (a *Authentication) GetRuntimeMetrics() map[string]interface{} {
+func (a *Authentication) GetRuntimeMetrics() map[string]any {
 	metrics := a.GetMetrics()
 
 	totalTokens, _ := metrics["total_tokens"].(int)
 	activeTokens, _ := metrics["active_tokens"].(int)
 	expiredTokens, _ := metrics["expired_tokens"].(int)
 
-	return map[string]interface{}{
+	return map[string]any{
 		"total_tokens":     totalTokens,
 		"active_tokens":    activeTokens,
 		"expired_tokens":   expiredTokens,

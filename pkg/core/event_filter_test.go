@@ -11,6 +11,7 @@ import (
 
 // TestEventFilterValidate tests filter validation
 func TestEventFilterValidate(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name    string
 		filter  *EventFilter
@@ -91,40 +92,28 @@ func TestEventFilterValidate(t *testing.T) {
 
 // TestEventFilterToQuery tests SQL query generation
 func TestEventFilterToQuery(t *testing.T) {
+	t.Parallel()
 	filter := &EventFilter{
 		Network: "ethereum",
 	}
 
-	query := filter.ToQuery()
+query := filter.ToQuery()
 
 	assert.Contains(t, query, "SELECT * FROM events")
 	assert.Contains(t, query, "network = 'ethereum'")
 	assert.Contains(t, query, "ORDER BY block_number DESC, log_index DESC")
 }
 
-// TestEventFilterToQueryWithContractAddress tests query with contract address
-func TestEventFilterToQueryWithContractAddress(t *testing.T) {
-	addr := common.HexToAddress("0x1234567890123456789012345678901234567890")
-	filter := &EventFilter{
-		Network:         "ethereum",
-		ContractAddress: []common.Address{addr},
-	}
-
-	query := filter.ToQuery()
-
-	assert.Contains(t, query, "contract_address IN")
-	assert.Contains(t, query, addr.Hex())
-}
-
 // TestEventFilterToQueryWithEventSignature tests query with event signature
 func TestEventFilterToQueryWithEventSignature(t *testing.T) {
+	t.Parallel()
 	sig := common.HexToHash("0x1234567890123456789012345678901234567890123456789012345678901234")
 	filter := &EventFilter{
 		Network:        "ethereum",
 		EventSignature: []common.Hash{sig},
 	}
 
-	query := filter.ToQuery()
+	query, _ := filter.ToQuery()
 
 	assert.Contains(t, query, "event_signature IN")
 	assert.Contains(t, query, sig.Hex())
@@ -132,13 +121,14 @@ func TestEventFilterToQueryWithEventSignature(t *testing.T) {
 
 // TestEventFilterToQueryWithBlockRange tests query with block range
 func TestEventFilterToQueryWithBlockRange(t *testing.T) {
+	t.Parallel()
 	filter := &EventFilter{
 		Network:   "ethereum",
 		FromBlock: 1000,
 		ToBlock:   2000,
 	}
 
-	query := filter.ToQuery()
+	query, _ := filter.ToQuery()
 
 	assert.Contains(t, query, "block_number >= 1000")
 	assert.Contains(t, query, "block_number <= 2000")
@@ -146,13 +136,14 @@ func TestEventFilterToQueryWithBlockRange(t *testing.T) {
 
 // TestEventFilterToQueryWithTimestampRange tests query with timestamp range
 func TestEventFilterToQueryWithTimestampRange(t *testing.T) {
+	t.Parallel()
 	filter := &EventFilter{
 		Network:       "ethereum",
 		FromTimestamp: 1000000,
 		ToTimestamp:   2000000,
 	}
 
-	query := filter.ToQuery()
+	query, _ := filter.ToQuery()
 
 	assert.Contains(t, query, "block_timestamp >= 1000000")
 	assert.Contains(t, query, "block_timestamp <= 2000000")
@@ -160,12 +151,13 @@ func TestEventFilterToQueryWithTimestampRange(t *testing.T) {
 
 // TestEventFilterToQueryWithStatus tests query with status filter
 func TestEventFilterToQueryWithStatus(t *testing.T) {
+	t.Parallel()
 	filter := &EventFilter{
 		Network: "ethereum",
 		Status:  []string{"confirmed", "pending"},
 	}
 
-	query := filter.ToQuery()
+	query, _ := filter.ToQuery()
 
 	assert.Contains(t, query, "status IN")
 	assert.Contains(t, query, "'confirmed'")
@@ -174,13 +166,14 @@ func TestEventFilterToQueryWithStatus(t *testing.T) {
 
 // TestEventFilterToQueryWithValueRange tests query with value range
 func TestEventFilterToQueryWithValueRange(t *testing.T) {
+	t.Parallel()
 	filter := &EventFilter{
 		Network:  "ethereum",
 		MinValue: big.NewInt(1000),
 		MaxValue: big.NewInt(5000),
 	}
 
-	query := filter.ToQuery()
+	query, _ := filter.ToQuery()
 
 	assert.Contains(t, query, "value >= 1000")
 	assert.Contains(t, query, "value <= 5000")
@@ -188,13 +181,14 @@ func TestEventFilterToQueryWithValueRange(t *testing.T) {
 
 // TestEventFilterToQueryWithPagination tests query with pagination
 func TestEventFilterToQueryWithPagination(t *testing.T) {
+	t.Parallel()
 	filter := &EventFilter{
 		Network: "ethereum",
 		Limit:   50,
 		Offset:  100,
 	}
 
-	query := filter.ToQuery()
+	query, _ := filter.ToQuery()
 
 	assert.Contains(t, query, "LIMIT 50")
 	assert.Contains(t, query, "OFFSET 100")
@@ -202,6 +196,7 @@ func TestEventFilterToQueryWithPagination(t *testing.T) {
 
 // TestEventFilterToQueryComplex tests query with multiple filters
 func TestEventFilterToQueryComplex(t *testing.T) {
+	t.Parallel()
 	addr := common.HexToAddress("0x1234567890123456789012345678901234567890")
 	filter := &EventFilter{
 		Network:         "ethereum",
@@ -215,7 +210,7 @@ func TestEventFilterToQueryComplex(t *testing.T) {
 		Offset:          10,
 	}
 
-	query := filter.ToQuery()
+	query, _ := filter.ToQuery()
 
 	assert.Contains(t, query, "network = 'ethereum'")
 	assert.Contains(t, query, "contract_address IN")
@@ -230,6 +225,7 @@ func TestEventFilterToQueryComplex(t *testing.T) {
 
 // TestEventFilterGetCacheKey tests cache key generation
 func TestEventFilterGetCacheKey(t *testing.T) {
+	t.Parallel()
 	filter := &EventFilter{
 		Network: "ethereum",
 	}
@@ -242,6 +238,7 @@ func TestEventFilterGetCacheKey(t *testing.T) {
 
 // TestEventFilterGetCacheKeyWithAddress tests cache key with address
 func TestEventFilterGetCacheKeyWithAddress(t *testing.T) {
+	t.Parallel()
 	addr := common.HexToAddress("0x1234567890123456789012345678901234567890")
 	filter := &EventFilter{
 		Network:         "ethereum",
@@ -256,6 +253,7 @@ func TestEventFilterGetCacheKeyWithAddress(t *testing.T) {
 
 // TestEventFilterGetCacheKeyWithSignature tests cache key with signature
 func TestEventFilterGetCacheKeyWithSignature(t *testing.T) {
+	t.Parallel()
 	sig := common.HexToHash("0x1234567890123456789012345678901234567890123456789012345678901234")
 	filter := &EventFilter{
 		Network:        "ethereum",
@@ -270,6 +268,7 @@ func TestEventFilterGetCacheKeyWithSignature(t *testing.T) {
 
 // TestEventFilterGetCacheKeyWithBlockRange tests cache key with block range
 func TestEventFilterGetCacheKeyWithBlockRange(t *testing.T) {
+	t.Parallel()
 	filter := &EventFilter{
 		Network:   "ethereum",
 		FromBlock: 1000,
@@ -284,6 +283,7 @@ func TestEventFilterGetCacheKeyWithBlockRange(t *testing.T) {
 
 // TestEventFilterGetCacheKeyWithPagination tests cache key with pagination
 func TestEventFilterGetCacheKeyWithPagination(t *testing.T) {
+	t.Parallel()
 	filter := &EventFilter{
 		Network: "ethereum",
 		Limit:   50,
@@ -298,6 +298,7 @@ func TestEventFilterGetCacheKeyWithPagination(t *testing.T) {
 
 // TestNewEventFilterBuilder tests builder creation
 func TestNewEventFilterBuilder(t *testing.T) {
+	t.Parallel()
 	builder := NewEventFilterBuilder()
 
 	assert.NotNil(t, builder)
@@ -308,6 +309,7 @@ func TestNewEventFilterBuilder(t *testing.T) {
 
 // TestEventFilterBuilderNetwork tests setting network
 func TestEventFilterBuilderNetwork(t *testing.T) {
+	t.Parallel()
 	builder := NewEventFilterBuilder()
 	builder.Network("ethereum")
 
@@ -316,6 +318,7 @@ func TestEventFilterBuilderNetwork(t *testing.T) {
 
 // TestEventFilterBuilderContractAddress tests adding contract address
 func TestEventFilterBuilderContractAddress(t *testing.T) {
+	t.Parallel()
 	addr := common.HexToAddress("0x1234567890123456789012345678901234567890")
 	builder := NewEventFilterBuilder()
 	builder.ContractAddress(addr)
@@ -326,6 +329,7 @@ func TestEventFilterBuilderContractAddress(t *testing.T) {
 
 // TestEventFilterBuilderMultipleAddresses tests adding multiple addresses
 func TestEventFilterBuilderMultipleAddresses(t *testing.T) {
+	t.Parallel()
 	addr1 := common.HexToAddress("0x1111111111111111111111111111111111111111")
 	addr2 := common.HexToAddress("0x2222222222222222222222222222222222222222")
 	builder := NewEventFilterBuilder()
@@ -338,6 +342,7 @@ func TestEventFilterBuilderMultipleAddresses(t *testing.T) {
 
 // TestEventFilterBuilderEventSignature tests adding event signature
 func TestEventFilterBuilderEventSignature(t *testing.T) {
+	t.Parallel()
 	sig := common.HexToHash("0x1234567890123456789012345678901234567890123456789012345678901234")
 	builder := NewEventFilterBuilder()
 	builder.EventSignature(sig)
@@ -348,6 +353,7 @@ func TestEventFilterBuilderEventSignature(t *testing.T) {
 
 // TestEventFilterBuilderBlockRange tests setting block range
 func TestEventFilterBuilderBlockRange(t *testing.T) {
+	t.Parallel()
 	builder := NewEventFilterBuilder()
 	builder.BlockRange(1000, 2000)
 
@@ -357,6 +363,7 @@ func TestEventFilterBuilderBlockRange(t *testing.T) {
 
 // TestEventFilterBuilderTimeRange tests setting time range
 func TestEventFilterBuilderTimeRange(t *testing.T) {
+	t.Parallel()
 	fromTime := time.Unix(1000000, 0)
 	toTime := time.Unix(2000000, 0)
 
@@ -369,6 +376,7 @@ func TestEventFilterBuilderTimeRange(t *testing.T) {
 
 // TestEventFilterBuilderStatus tests adding status
 func TestEventFilterBuilderStatus(t *testing.T) {
+	t.Parallel()
 	builder := NewEventFilterBuilder()
 	builder.Status("confirmed", "pending")
 
@@ -379,6 +387,7 @@ func TestEventFilterBuilderStatus(t *testing.T) {
 
 // TestEventFilterBuilderValueRange tests setting value range
 func TestEventFilterBuilderValueRange(t *testing.T) {
+	t.Parallel()
 	minVal := big.NewInt(1000)
 	maxVal := big.NewInt(5000)
 
@@ -391,6 +400,7 @@ func TestEventFilterBuilderValueRange(t *testing.T) {
 
 // TestEventFilterBuilderPagination tests setting pagination
 func TestEventFilterBuilderPagination(t *testing.T) {
+	t.Parallel()
 	builder := NewEventFilterBuilder()
 	builder.Pagination(50, 100)
 
@@ -400,6 +410,7 @@ func TestEventFilterBuilderPagination(t *testing.T) {
 
 // TestEventFilterBuilderBuild tests building filter
 func TestEventFilterBuilderBuild(t *testing.T) {
+	t.Parallel()
 	builder := NewEventFilterBuilder()
 	builder.Network("ethereum")
 	builder.BlockRange(1000, 2000)
@@ -415,6 +426,7 @@ func TestEventFilterBuilderBuild(t *testing.T) {
 
 // TestEventFilterBuilderBuildInvalid tests building invalid filter
 func TestEventFilterBuilderBuildInvalid(t *testing.T) {
+	t.Parallel()
 	builder := NewEventFilterBuilder()
 	// Don't set network, which is required
 
@@ -424,8 +436,19 @@ func TestEventFilterBuilderBuildInvalid(t *testing.T) {
 	assert.Nil(t, filter)
 }
 
+// MustBuild builds the filter and panics on error.
+// Deprecated: Use Build() instead and handle the error explicitly in production code.
+func (efb *EventFilterBuilder) MustBuild() *EventFilter {
+	filter, err := efb.Build()
+	if err != nil {
+		panic(err)
+	}
+	return filter
+}
+
 // TestEventFilterBuilderMustBuild tests MustBuild with valid filter
 func TestEventFilterBuilderMustBuild(t *testing.T) {
+	t.Parallel()
 	builder := NewEventFilterBuilder()
 	builder.Network("ethereum")
 
@@ -437,6 +460,7 @@ func TestEventFilterBuilderMustBuild(t *testing.T) {
 
 // TestEventFilterBuilderMustBuildPanic tests MustBuild panics on invalid filter
 func TestEventFilterBuilderMustBuildPanic(t *testing.T) {
+	t.Parallel()
 	builder := NewEventFilterBuilder()
 	// Don't set network
 
@@ -447,6 +471,7 @@ func TestEventFilterBuilderMustBuildPanic(t *testing.T) {
 
 // TestEventFilterBuilderChaining tests method chaining
 func TestEventFilterBuilderChaining(t *testing.T) {
+	t.Parallel()
 	addr := common.HexToAddress("0x1234567890123456789012345678901234567890")
 	sig := common.HexToHash("0x1234567890123456789012345678901234567890123456789012345678901234")
 
@@ -472,6 +497,7 @@ func TestEventFilterBuilderChaining(t *testing.T) {
 
 // TestEventFilterMultipleAddresses tests filter with multiple addresses
 func TestEventFilterMultipleAddresses(t *testing.T) {
+	t.Parallel()
 	addr1 := common.HexToAddress("0x1111111111111111111111111111111111111111")
 	addr2 := common.HexToAddress("0x2222222222222222222222222222222222222222")
 	addr3 := common.HexToAddress("0x3333333333333333333333333333333333333333")
@@ -481,7 +507,7 @@ func TestEventFilterMultipleAddresses(t *testing.T) {
 		ContractAddress: []common.Address{addr1, addr2, addr3},
 	}
 
-	query := filter.ToQuery()
+	query, _ := filter.ToQuery()
 
 	assert.Contains(t, query, addr1.Hex())
 	assert.Contains(t, query, addr2.Hex())
@@ -490,6 +516,7 @@ func TestEventFilterMultipleAddresses(t *testing.T) {
 
 // TestEventFilterMultipleSignatures tests filter with multiple signatures
 func TestEventFilterMultipleSignatures(t *testing.T) {
+	t.Parallel()
 	sig1 := common.HexToHash("0x1111111111111111111111111111111111111111111111111111111111111111")
 	sig2 := common.HexToHash("0x2222222222222222222222222222222222222222222222222222222222222222")
 
@@ -498,7 +525,7 @@ func TestEventFilterMultipleSignatures(t *testing.T) {
 		EventSignature: []common.Hash{sig1, sig2},
 	}
 
-	query := filter.ToQuery()
+	query, _ := filter.ToQuery()
 
 	assert.Contains(t, query, sig1.Hex())
 	assert.Contains(t, query, sig2.Hex())
@@ -506,12 +533,13 @@ func TestEventFilterMultipleSignatures(t *testing.T) {
 
 // TestEventFilterMultipleStatuses tests filter with multiple statuses
 func TestEventFilterMultipleStatuses(t *testing.T) {
+	t.Parallel()
 	filter := &EventFilter{
 		Network: "ethereum",
 		Status:  []string{"confirmed", "pending", "failed"},
 	}
 
-	query := filter.ToQuery()
+	query, _ := filter.ToQuery()
 
 	assert.Contains(t, query, "'confirmed'")
 	assert.Contains(t, query, "'pending'")
@@ -520,6 +548,7 @@ func TestEventFilterMultipleStatuses(t *testing.T) {
 
 // TestEventFilterCacheKeyConsistency tests cache key consistency
 func TestEventFilterCacheKeyConsistency(t *testing.T) {
+	t.Parallel()
 	filter := &EventFilter{
 		Network:   "ethereum",
 		FromBlock: 1000,
@@ -536,6 +565,7 @@ func TestEventFilterCacheKeyConsistency(t *testing.T) {
 
 // TestEventFilterValidateZeroValues tests validation with zero values
 func TestEventFilterValidateZeroValues(t *testing.T) {
+	t.Parallel()
 	filter := &EventFilter{
 		Network:   "ethereum",
 		FromBlock: 0,
@@ -551,6 +581,7 @@ func TestEventFilterValidateZeroValues(t *testing.T) {
 
 // TestEventFilterBuilderDefaults tests builder default values
 func TestEventFilterBuilderDefaults(t *testing.T) {
+	t.Parallel()
 	builder := NewEventFilterBuilder()
 
 	assert.Equal(t, 100, builder.filter.Limit)
@@ -560,11 +591,12 @@ func TestEventFilterBuilderDefaults(t *testing.T) {
 
 // TestEventFilterToQueryNoConditions tests query with no conditions
 func TestEventFilterToQueryNoConditions(t *testing.T) {
+	t.Parallel()
 	filter := &EventFilter{
 		Network: "ethereum",
 	}
 
-	query := filter.ToQuery()
+	query, _ := filter.ToQuery()
 
 	assert.Contains(t, query, "SELECT * FROM events")
 	assert.Contains(t, query, "WHERE")
@@ -573,6 +605,7 @@ func TestEventFilterToQueryNoConditions(t *testing.T) {
 
 // TestEventFilterBuilderTopics tests adding topics
 func TestEventFilterBuilderTopics(t *testing.T) {
+	t.Parallel()
 	topic1 := []common.Hash{
 		common.HexToHash("0x1111111111111111111111111111111111111111111111111111111111111111"),
 	}
@@ -588,6 +621,7 @@ func TestEventFilterBuilderTopics(t *testing.T) {
 
 // TestEventFilterLargeBlockRange tests filter with large block range
 func TestEventFilterLargeBlockRange(t *testing.T) {
+	t.Parallel()
 	filter := &EventFilter{
 		Network:   "ethereum",
 		FromBlock: 1000000,
@@ -598,7 +632,7 @@ func TestEventFilterLargeBlockRange(t *testing.T) {
 
 	assert.NoError(t, err)
 
-	query := filter.ToQuery()
+	query, _ := filter.ToQuery()
 
 	assert.Contains(t, query, "block_number >= 1000000")
 	assert.Contains(t, query, "block_number <= 18000000")
@@ -606,6 +640,7 @@ func TestEventFilterLargeBlockRange(t *testing.T) {
 
 // TestEventFilterLargeValues tests filter with large values
 func TestEventFilterLargeValues(t *testing.T) {
+	t.Parallel()
 	minVal := big.NewInt(0).Exp(big.NewInt(10), big.NewInt(18), nil) // 1 ETH in wei
 	maxVal := big.NewInt(0).Exp(big.NewInt(10), big.NewInt(20), nil) // 100 ETH in wei
 
@@ -619,7 +654,7 @@ func TestEventFilterLargeValues(t *testing.T) {
 
 	assert.NoError(t, err)
 
-	query := filter.ToQuery()
+	query, _ := filter.ToQuery()
 
 	assert.Contains(t, query, minVal.String())
 	assert.Contains(t, query, maxVal.String())

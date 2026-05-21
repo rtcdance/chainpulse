@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 type multiChainPullerTestPlugin struct {
@@ -15,10 +15,10 @@ type multiChainPullerTestPlugin struct {
 
 func (p *multiChainPullerTestPlugin) Name() string                        { return p.name }
 func (p *multiChainPullerTestPlugin) Version() string                     { return "test" }
-func (p *multiChainPullerTestPlugin) Initialize(config core.Config) error { return nil }
-func (p *multiChainPullerTestPlugin) Start() error                        { return nil }
-func (p *multiChainPullerTestPlugin) Stop() error                         { return nil }
-func (p *multiChainPullerTestPlugin) Health() error                       { return nil }
+func (p *multiChainPullerTestPlugin) Initialize(ctx context.Context, config core.Config) error { _ = ctx; return nil }
+func (p *multiChainPullerTestPlugin) Start(ctx context.Context) error                        { _ = ctx; return nil }
+func (p *multiChainPullerTestPlugin) Stop(ctx context.Context) error                         { _ = ctx; return nil }
+func (p *multiChainPullerTestPlugin) Health(ctx context.Context) error                       { _ = ctx; return nil }
 func (p *multiChainPullerTestPlugin) PullEvents(ctx context.Context, fromBlock, toBlock uint64) ([]core.BlockchainEvent, error) {
 	return nil, nil
 }
@@ -31,15 +31,17 @@ func (p *multiChainPullerTestPlugin) SubscribeToEvents(ctx context.Context, hand
 	return nil
 }
 
-func (p *multiChainPullerTestPlugin) GetStats() map[string]interface{} {
-	return map[string]interface{}{}
+func (p *multiChainPullerTestPlugin) GetStats() map[string]any {
+	return map[string]any{}
 }
+func (p *multiChainPullerTestPlugin) ChainID() string            { return p.name }
 func (p *multiChainPullerTestPlugin) GetLastBlockNumber() uint64 { return p.lastBlock }
 func (p *multiChainPullerTestPlugin) SetLastBlockNumber(block uint64) {
 	p.lastBlock = block
 }
 
 func TestMultiChainDataPullerGetHighestLatestBlock(t *testing.T) {
+	t.Parallel()
 	puller := NewMultiChainDataPuller(nil)
 	if err := puller.RegisterPuller("eth", &multiChainPullerTestPlugin{name: "eth", latestBlock: 120}); err != nil {
 		t.Fatalf("register eth puller: %v", err)
@@ -58,6 +60,7 @@ func TestMultiChainDataPullerGetHighestLatestBlock(t *testing.T) {
 }
 
 func TestMultiChainDataPullerGetHighestProcessedBlock(t *testing.T) {
+	t.Parallel()
 	puller := NewMultiChainDataPuller(nil)
 	if err := puller.RegisterPuller("eth", &multiChainPullerTestPlugin{name: "eth", lastBlock: 118}); err != nil {
 		t.Fatalf("register eth puller: %v", err)
@@ -73,6 +76,7 @@ func TestMultiChainDataPullerGetHighestProcessedBlock(t *testing.T) {
 }
 
 func TestMultiChainDataPullerRegisteredChainsAndSetLastProcessedBlock(t *testing.T) {
+	t.Parallel()
 	puller := NewMultiChainDataPuller(nil)
 	eth := &multiChainPullerTestPlugin{name: "eth", lastBlock: 118}
 	polygon := &multiChainPullerTestPlugin{name: "polygon", lastBlock: 144}

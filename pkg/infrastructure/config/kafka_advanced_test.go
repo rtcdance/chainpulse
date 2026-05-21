@@ -8,6 +8,7 @@ import (
 
 // TestKafkaTopicConfigStructure tests KafkaTopicConfig structure
 func TestKafkaTopicConfigStructure(t *testing.T) {
+	t.Parallel()
 	config := KafkaTopicConfig{
 		Name:              "test-topic",
 		Partitions:        3,
@@ -29,6 +30,7 @@ func TestKafkaTopicConfigStructure(t *testing.T) {
 
 // TestNewKafkaAdvancedManager tests creating a new advanced Kafka manager
 func TestNewKafkaAdvancedManager(t *testing.T) {
+	t.Parallel()
 	cluster := &KafkaCluster{}
 	manager := NewKafkaAdvancedManager(cluster)
 
@@ -38,6 +40,7 @@ func TestNewKafkaAdvancedManager(t *testing.T) {
 
 // TestKafkaTopicConfigWithCompaction tests topic config with compaction
 func TestKafkaTopicConfigWithCompaction(t *testing.T) {
+	t.Parallel()
 	config := KafkaTopicConfig{
 		Name:          "compacted-topic",
 		Partitions:    1,
@@ -49,6 +52,7 @@ func TestKafkaTopicConfigWithCompaction(t *testing.T) {
 
 // TestKafkaTopicConfigWithDeletion tests topic config with deletion
 func TestKafkaTopicConfigWithDeletion(t *testing.T) {
+	t.Parallel()
 	config := KafkaTopicConfig{
 		Name:          "deletion-topic",
 		Partitions:    3,
@@ -60,6 +64,7 @@ func TestKafkaTopicConfigWithDeletion(t *testing.T) {
 
 // TestKafkaTopicConfigCompressionTypes tests various compression types
 func TestKafkaTopicConfigCompressionTypes(t *testing.T) {
+	t.Parallel()
 	compressionTypes := []string{"none", "gzip", "snappy", "lz4", "zstd"}
 
 	for _, ct := range compressionTypes {
@@ -73,6 +78,7 @@ func TestKafkaTopicConfigCompressionTypes(t *testing.T) {
 
 // TestKafkaTopicConfigPartitions tests various partition counts
 func TestKafkaTopicConfigPartitions(t *testing.T) {
+	t.Parallel()
 	partitionCounts := []int{1, 3, 5, 10, 20}
 
 	for _, count := range partitionCounts {
@@ -86,6 +92,7 @@ func TestKafkaTopicConfigPartitions(t *testing.T) {
 
 // TestKafkaTopicConfigReplicationFactor tests various replication factors
 func TestKafkaTopicConfigReplicationFactor(t *testing.T) {
+	t.Parallel()
 	replicationFactors := []int{1, 2, 3}
 
 	for _, rf := range replicationFactors {
@@ -99,6 +106,7 @@ func TestKafkaTopicConfigReplicationFactor(t *testing.T) {
 
 // TestKafkaTopicConfigRetention tests retention configuration
 func TestKafkaTopicConfigRetention(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name        string
 		retentionMs int64
@@ -122,6 +130,7 @@ func TestKafkaTopicConfigRetention(t *testing.T) {
 
 // TestKafkaTopicConfigSegment tests segment configuration
 func TestKafkaTopicConfigSegment(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		segmentMs int64
@@ -144,6 +153,7 @@ func TestKafkaTopicConfigSegment(t *testing.T) {
 
 // TestKafkaTopicConfigMinInSyncReplicas tests min in-sync replicas
 func TestKafkaTopicConfigMinInSyncReplicas(t *testing.T) {
+	t.Parallel()
 	config := KafkaTopicConfig{
 		Name:              "test-topic",
 		ReplicationFactor: 3,
@@ -156,6 +166,7 @@ func TestKafkaTopicConfigMinInSyncReplicas(t *testing.T) {
 
 // TestKafkaAdvancedManagerMutex tests mutex protection
 func TestKafkaAdvancedManagerMutex(t *testing.T) {
+	t.Parallel()
 	cluster := &KafkaCluster{}
 	manager := NewKafkaAdvancedManager(cluster)
 
@@ -166,6 +177,7 @@ func TestKafkaAdvancedManagerMutex(t *testing.T) {
 
 // TestKafkaTopicConfigMultipleTopics tests multiple topic configurations
 func TestKafkaTopicConfigMultipleTopics(t *testing.T) {
+	t.Parallel()
 	configs := []KafkaTopicConfig{
 		{Name: "topic-1", Partitions: 3},
 		{Name: "topic-2", Partitions: 5},
@@ -180,6 +192,7 @@ func TestKafkaTopicConfigMultipleTopics(t *testing.T) {
 
 // TestKafkaTopicConfigDefaults tests default values
 func TestKafkaTopicConfigDefaults(t *testing.T) {
+	t.Parallel()
 	config := KafkaTopicConfig{
 		Name: "test-topic",
 	}
@@ -191,6 +204,7 @@ func TestKafkaTopicConfigDefaults(t *testing.T) {
 
 // TestKafkaAdvancedManagerClusterReference tests cluster reference
 func TestKafkaAdvancedManagerClusterReference(t *testing.T) {
+	t.Parallel()
 	cluster := &KafkaCluster{}
 	manager := NewKafkaAdvancedManager(cluster)
 
@@ -201,6 +215,7 @@ func TestKafkaAdvancedManagerClusterReference(t *testing.T) {
 
 // TestKafkaTopicConfigNameValidation tests topic name
 func TestKafkaTopicConfigNameValidation(t *testing.T) {
+	t.Parallel()
 	names := []string{"topic-1", "my_topic", "test.topic", "TOPIC"}
 
 	for _, name := range names {
@@ -211,6 +226,7 @@ func TestKafkaTopicConfigNameValidation(t *testing.T) {
 
 // TestKafkaTopicConfigHighPartitionCount tests high partition count
 func TestKafkaTopicConfigHighPartitionCount(t *testing.T) {
+	t.Parallel()
 	config := KafkaTopicConfig{
 		Name:       "high-partition-topic",
 		Partitions: 100,
@@ -221,6 +237,7 @@ func TestKafkaTopicConfigHighPartitionCount(t *testing.T) {
 
 // TestKafkaTopicConfigHighReplicationFactor tests high replication factor
 func TestKafkaTopicConfigHighReplicationFactor(t *testing.T) {
+	t.Parallel()
 	config := KafkaTopicConfig{
 		Name:              "replicated-topic",
 		ReplicationFactor: 5,
@@ -231,6 +248,7 @@ func TestKafkaTopicConfigHighReplicationFactor(t *testing.T) {
 
 // TestKafkaTopicConfigLongRetention tests long retention period
 func TestKafkaTopicConfigLongRetention(t *testing.T) {
+	t.Parallel()
 	config := KafkaTopicConfig{
 		Name:        "long-retention-topic",
 		RetentionMs: 31536000000, // 1 year
@@ -241,6 +259,7 @@ func TestKafkaTopicConfigLongRetention(t *testing.T) {
 
 // TestKafkaAdvancedManagerConcurrentAccess tests concurrent access
 func TestKafkaAdvancedManagerConcurrentAccess(t *testing.T) {
+	t.Parallel()
 	cluster := &KafkaCluster{}
 	manager := NewKafkaAdvancedManager(cluster)
 
@@ -261,6 +280,7 @@ func TestKafkaAdvancedManagerConcurrentAccess(t *testing.T) {
 
 // TestKafkaTopicConfigZeroRetention tests zero retention
 func TestKafkaTopicConfigZeroRetention(t *testing.T) {
+	t.Parallel()
 	config := KafkaTopicConfig{
 		Name:        "no-retention-topic",
 		RetentionMs: 0,
@@ -271,6 +291,7 @@ func TestKafkaTopicConfigZeroRetention(t *testing.T) {
 
 // TestKafkaTopicConfigNegativeRetention tests negative retention (unlimited)
 func TestKafkaTopicConfigNegativeRetention(t *testing.T) {
+	t.Parallel()
 	config := KafkaTopicConfig{
 		Name:        "unlimited-retention-topic",
 		RetentionMs: -1,

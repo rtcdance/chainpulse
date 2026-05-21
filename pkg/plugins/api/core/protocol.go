@@ -127,7 +127,7 @@ func (r *ProtocolRegistry) StopAll() error {
 
 // GetRuntimeMetrics returns a compact runtime surface for protocol-registry
 // readiness on top of handler registration and running-state coverage.
-func (r *ProtocolRegistry) GetRuntimeMetrics() map[string]interface{} {
+func (r *ProtocolRegistry) GetRuntimeMetrics() map[string]any {
 	r.mu.RLock()
 	handlerCount := len(r.handlers)
 	runningCount := 0
@@ -141,7 +141,7 @@ func (r *ProtocolRegistry) GetRuntimeMetrics() map[string]interface{} {
 	coveragePosture := classifyProtocolRegistryCoveragePosture(handlerCount, runningCount)
 	runtimePosture := classifyProtocolRegistryRuntimePosture(handlerCount, runningCount)
 
-	return map[string]interface{}{
+	return map[string]any{
 		"handler_count":    handlerCount,
 		"running_count":    runningCount,
 		"coverage_posture": coveragePosture,
@@ -206,7 +206,7 @@ func NewDefaultRequestProcessor(apiLayer *APILayer) *DefaultRequestProcessor {
 
 // GetRuntimeMetrics returns a compact runtime surface for request-processor
 // readiness on top of API-layer wiring and route/error coverage.
-func (p *DefaultRequestProcessor) GetRuntimeMetrics() map[string]interface{} {
+func (p *DefaultRequestProcessor) GetRuntimeMetrics() map[string]any {
 	p.mu.RLock()
 	apiLayer := p.apiLayer
 	p.mu.RUnlock()
@@ -228,7 +228,7 @@ func (p *DefaultRequestProcessor) GetRuntimeMetrics() map[string]interface{} {
 	coveragePosture := classifyRequestProcessorCoveragePosture(apiLayerConfigured, layerCoveragePosture)
 	runtimePosture := classifyRequestProcessorRuntimePosture(apiLayerConfigured, routeCount, errorMapperConfigured)
 
-	return map[string]interface{}{
+	return map[string]any{
 		"api_layer_configured":    apiLayerConfigured,
 		"route_count":             routeCount,
 		"middleware_count":        middlewareCount,
@@ -380,7 +380,7 @@ func (h *BaseProtocolHandler) GetProcessor() RequestProcessor {
 
 // GetRuntimeMetrics returns a compact runtime surface for protocol-handler
 // readiness on top of router wiring, processor presence, and running state.
-func (h *BaseProtocolHandler) GetRuntimeMetrics() map[string]interface{} {
+func (h *BaseProtocolHandler) GetRuntimeMetrics() map[string]any {
 	h.mu.RLock()
 	running := h.running
 	processorConfigured := h.processor != nil
@@ -398,7 +398,7 @@ func (h *BaseProtocolHandler) GetRuntimeMetrics() map[string]interface{} {
 	coveragePosture := classifyBaseProtocolHandlerCoveragePosture(routeCount, middlewareCount, processorConfigured)
 	runtimePosture := classifyBaseProtocolHandlerRuntimePosture(running, routeCount, processorConfigured)
 
-	return map[string]interface{}{
+	return map[string]any{
 		"protocol_name":        name,
 		"running":              running,
 		"processor_configured": processorConfigured,

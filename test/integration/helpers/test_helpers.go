@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"chainpulse/pkg/core"
-	"chainpulse/pkg/infrastructure/database"
-	"chainpulse/pkg/services/query"
+	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/services/query"
+	"github.com/rtcdance/chainpulse/pkg/testhelpers"
 )
 
 // ServiceInitializer provides helpers for initializing services in integration tests
@@ -26,7 +26,6 @@ func NewServiceInitializer(t *testing.T) *ServiceInitializer {
 // InitializeQueryService initializes a query service for testing
 func (si *ServiceInitializer) InitializeQueryService(
 	ctx context.Context,
-	dbManager database.DatabaseManager,
 	mongoAdapter query.MongoDBAdapter,
 	postgresAdapter query.PostgreSQLAdapter,
 	cacheService query.CacheService,
@@ -34,7 +33,6 @@ func (si *ServiceInitializer) InitializeQueryService(
 	metricsCollector core.MetricsCollector,
 ) (query.QueryService, error) {
 	qs := query.NewQueryService(
-		dbManager,
 		mongoAdapter,
 		postgresAdapter,
 		cacheService,
@@ -77,7 +75,7 @@ func (si *ServiceInitializer) InitializeCacheService(
 }
 
 // CleanupService stops and cleans up a service
-func (si *ServiceInitializer) CleanupService(ctx context.Context, service interface{}) error {
+func (si *ServiceInitializer) CleanupService(ctx context.Context, service any) error {
 	// Try to stop the service if it has a Stop method
 	if stoppable, ok := service.(interface{ Stop(context.Context) error }); ok {
 		if err := stoppable.Stop(ctx); err != nil {
@@ -158,7 +156,7 @@ func (tc *TestContext) Err() error {
 }
 
 // Value returns the value associated with a key in the context
-func (tc *TestContext) Value(key interface{}) interface{} {
+func (tc *TestContext) Value(key any) any {
 	return tc.ctx.Value(key)
 }
 
@@ -261,7 +259,7 @@ func safePositiveIntToUint64(value int) (uint64, bool) {
 // TestFixtureManager manages test fixtures for integration tests
 type TestFixtureManager struct {
 	t         *testing.T
-	fixtures  map[string]interface{}
+	fixtures  map[string]any
 	cleanupFn []func() error
 	mu        sync.RWMutex
 }
@@ -270,19 +268,19 @@ type TestFixtureManager struct {
 func NewTestFixtureManager(t *testing.T) *TestFixtureManager {
 	return &TestFixtureManager{
 		t:        t,
-		fixtures: make(map[string]interface{}),
+		fixtures: make(map[string]any),
 	}
 }
 
 // Register registers a fixture
-func (tfm *TestFixtureManager) Register(name string, fixture interface{}) {
+func (tfm *TestFixtureManager) Register(name string, fixture any) {
 	tfm.mu.Lock()
 	defer tfm.mu.Unlock()
 	tfm.fixtures[name] = fixture
 }
 
 // Get retrieves a registered fixture
-func (tfm *TestFixtureManager) Get(name string) interface{} {
+func (tfm *TestFixtureManager) Get(name string) any {
 	tfm.mu.RLock()
 	defer tfm.mu.RUnlock()
 	return tfm.fixtures[name]
@@ -359,18 +357,18 @@ func (teb *TestEventBuilder) Build() *core.BlockchainEvent {
 type TestServiceBuilder struct {
 	logger             core.Logger
 	metricsCollector   core.MetricsCollector
-	cache              interface{}
-	database           interface{}
-	eventBus           interface{}
-	additionalServices map[string]interface{}
+	cache              any
+	database           any
+	eventBus           any
+	additionalServices map[string]any
 }
 
 // NewTestServiceBuilder creates a new test service builder
 func NewTestServiceBuilder() *TestServiceBuilder {
 	return &TestServiceBuilder{
-		logger:             core.NewTestLogger(),
-		metricsCollector:   core.NewTestMetricsCollector(),
-		additionalServices: make(map[string]interface{}),
+		logger:             testhelpers.NewTestLogger(),
+		metricsCollector:   testhelpers.NewTestMetricsCollector(),
+		additionalServices: make(map[string]any),
 	}
 }
 
@@ -387,25 +385,25 @@ func (tsb *TestServiceBuilder) WithMetricsCollector(mc core.MetricsCollector) *T
 }
 
 // WithCache sets the cache
-func (tsb *TestServiceBuilder) WithCache(cache interface{}) *TestServiceBuilder {
+func (tsb *TestServiceBuilder) WithCache(cache any) *TestServiceBuilder {
 	tsb.cache = cache
 	return tsb
 }
 
 // WithDatabase sets the database
-func (tsb *TestServiceBuilder) WithDatabase(db interface{}) *TestServiceBuilder {
+func (tsb *TestServiceBuilder) WithDatabase(db any) *TestServiceBuilder {
 	tsb.database = db
 	return tsb
 }
 
 // WithEventBus sets the event bus
-func (tsb *TestServiceBuilder) WithEventBus(eb interface{}) *TestServiceBuilder {
+func (tsb *TestServiceBuilder) WithEventBus(eb any) *TestServiceBuilder {
 	tsb.eventBus = eb
 	return tsb
 }
 
 // WithService adds an additional service
-func (tsb *TestServiceBuilder) WithService(name string, service interface{}) *TestServiceBuilder {
+func (tsb *TestServiceBuilder) WithService(name string, service any) *TestServiceBuilder {
 	tsb.additionalServices[name] = service
 	return tsb
 }
@@ -421,22 +419,22 @@ func (tsb *TestServiceBuilder) GetMetricsCollector() core.MetricsCollector {
 }
 
 // GetCache returns the cache
-func (tsb *TestServiceBuilder) GetCache() interface{} {
+func (tsb *TestServiceBuilder) GetCache() any {
 	return tsb.cache
 }
 
 // GetDatabase returns the database
-func (tsb *TestServiceBuilder) GetDatabase() interface{} {
+func (tsb *TestServiceBuilder) GetDatabase() any {
 	return tsb.database
 }
 
 // GetEventBus returns the event bus
-func (tsb *TestServiceBuilder) GetEventBus() interface{} {
+func (tsb *TestServiceBuilder) GetEventBus() any {
 	return tsb.eventBus
 }
 
 // GetService returns an additional service
-func (tsb *TestServiceBuilder) GetService(name string) interface{} {
+func (tsb *TestServiceBuilder) GetService(name string) any {
 	return tsb.additionalServices[name]
 }
 
@@ -477,36 +475,36 @@ func (ttm *TestTimeoutManager) GetTimeout(testName string) time.Duration {
 // TestMetricsCollector collects metrics during tests
 type TestMetricsCollector struct {
 	mu      sync.RWMutex
-	metrics map[string]interface{}
+	metrics map[string]any
 }
 
 // NewTestMetricsCollector creates a new test metrics collector
 func NewTestMetricsCollector() *TestMetricsCollector {
 	return &TestMetricsCollector{
-		metrics: make(map[string]interface{}),
+		metrics: make(map[string]any),
 	}
 }
 
 // RecordMetric records a metric
-func (tmc *TestMetricsCollector) RecordMetric(name string, value interface{}) {
+func (tmc *TestMetricsCollector) RecordMetric(name string, value any) {
 	tmc.mu.Lock()
 	defer tmc.mu.Unlock()
 	tmc.metrics[name] = value
 }
 
 // GetMetric retrieves a metric
-func (tmc *TestMetricsCollector) GetMetric(name string) interface{} {
+func (tmc *TestMetricsCollector) GetMetric(name string) any {
 	tmc.mu.RLock()
 	defer tmc.mu.RUnlock()
 	return tmc.metrics[name]
 }
 
 // GetAllMetrics retrieves all metrics
-func (tmc *TestMetricsCollector) GetAllMetrics() map[string]interface{} {
+func (tmc *TestMetricsCollector) GetAllMetrics() map[string]any {
 	tmc.mu.RLock()
 	defer tmc.mu.RUnlock()
 
-	metrics := make(map[string]interface{})
+	metrics := make(map[string]any)
 	for k, v := range tmc.metrics {
 		metrics[k] = v
 	}
@@ -518,5 +516,5 @@ func (tmc *TestMetricsCollector) GetAllMetrics() map[string]interface{} {
 func (tmc *TestMetricsCollector) Reset() {
 	tmc.mu.Lock()
 	defer tmc.mu.Unlock()
-	tmc.metrics = make(map[string]interface{})
+	tmc.metrics = make(map[string]any)
 }

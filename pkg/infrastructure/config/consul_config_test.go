@@ -10,6 +10,7 @@ import (
 
 // TestNewConsulClient tests Consul client creation
 func TestNewConsulClient(t *testing.T) {
+	t.Parallel()
 	config := &ConsulConfig{
 		Address: "localhost",
 		Port:    8500,
@@ -29,6 +30,7 @@ func TestNewConsulClient(t *testing.T) {
 
 // TestNewConsulClientNilConfig tests Consul client creation with nil config
 func TestNewConsulClientNilConfig(t *testing.T) {
+	t.Parallel()
 	client, err := NewConsulClient(nil)
 
 	// Connection may fail if Consul is not running, but structure should be valid
@@ -43,6 +45,7 @@ func TestNewConsulClientNilConfig(t *testing.T) {
 
 // TestConsulConfigStructure tests Consul config structure
 func TestConsulConfigStructure(t *testing.T) {
+	t.Parallel()
 	config := &ConsulConfig{
 		Address: "consul.example.com",
 		Port:    8500,
@@ -53,11 +56,12 @@ func TestConsulConfigStructure(t *testing.T) {
 	assert.Equal(t, "consul.example.com", config.Address)
 	assert.Equal(t, 8500, config.Port)
 	assert.Equal(t, "https", config.Scheme)
-	assert.Equal(t, "mytoken", config.Token)
+	assert.Equal(t, "mytoken", config.Token.Value())
 }
 
 // TestConsulClientClose tests closing Consul client
 func TestConsulClientClose(t *testing.T) {
+	t.Parallel()
 	config := &ConsulConfig{
 		Address: "localhost",
 		Port:    8500,
@@ -73,6 +77,7 @@ func TestConsulClientClose(t *testing.T) {
 
 // TestConsulConfigWithDifferentPorts tests Consul config with different ports
 func TestConsulConfigWithDifferentPorts(t *testing.T) {
+	t.Parallel()
 	ports := []int{8500, 8501, 8502, 8600}
 
 	for _, port := range ports {
@@ -88,6 +93,7 @@ func TestConsulConfigWithDifferentPorts(t *testing.T) {
 
 // TestConsulConfigWithDifferentSchemes tests Consul config with different schemes
 func TestConsulConfigWithDifferentSchemes(t *testing.T) {
+	t.Parallel()
 	schemes := []string{"http", "https"}
 
 	for _, scheme := range schemes {
@@ -103,6 +109,7 @@ func TestConsulConfigWithDifferentSchemes(t *testing.T) {
 
 // TestConsulConfigWithToken tests Consul config with token
 func TestConsulConfigWithToken(t *testing.T) {
+	t.Parallel()
 	config := &ConsulConfig{
 		Address: "localhost",
 		Port:    8500,
@@ -110,11 +117,12 @@ func TestConsulConfigWithToken(t *testing.T) {
 		Token:   "mytoken123",
 	}
 
-	assert.Equal(t, "mytoken123", config.Token)
+	assert.Equal(t, "mytoken123", config.Token.Value())
 }
 
 // TestConsulConfigWithEmptyToken tests Consul config with empty token
 func TestConsulConfigWithEmptyToken(t *testing.T) {
+	t.Parallel()
 	config := &ConsulConfig{
 		Address: "localhost",
 		Port:    8500,
@@ -122,11 +130,12 @@ func TestConsulConfigWithEmptyToken(t *testing.T) {
 		Token:   "",
 	}
 
-	assert.Equal(t, "", config.Token)
+	assert.Equal(t, "", config.Token.Value())
 }
 
 // TestConsulConfigWithDifferentAddresses tests Consul config with different addresses
 func TestConsulConfigWithDifferentAddresses(t *testing.T) {
+	t.Parallel()
 	addresses := []string{"localhost", "127.0.0.1", "consul.example.com", "consul-primary"}
 
 	for _, address := range addresses {
@@ -142,6 +151,7 @@ func TestConsulConfigWithDifferentAddresses(t *testing.T) {
 
 // TestConsulConfigDefaultValues tests Consul config default values
 func TestConsulConfigDefaultValues(t *testing.T) {
+	t.Parallel()
 	client, err := NewConsulClient(nil)
 
 	if err == nil {
@@ -154,6 +164,7 @@ func TestConsulConfigDefaultValues(t *testing.T) {
 
 // TestConsulConfigWithSpecialCharacters tests Consul config with special characters
 func TestConsulConfigWithSpecialCharacters(t *testing.T) {
+	t.Parallel()
 	config := &ConsulConfig{
 		Address: "localhost",
 		Port:    8500,
@@ -161,11 +172,12 @@ func TestConsulConfigWithSpecialCharacters(t *testing.T) {
 		Token:   "token!@#$%^&*()",
 	}
 
-	assert.Equal(t, "token!@#$%^&*()", config.Token)
+	assert.Equal(t, "token!@#$%^&*()", config.Token.Value())
 }
 
 // TestConsulHealthContext tests health check with context
 func TestConsulHealthContext(t *testing.T) {
+	t.Parallel()
 	config := &ConsulConfig{
 		Address: "localhost",
 		Port:    8500,
@@ -185,6 +197,7 @@ func TestConsulHealthContext(t *testing.T) {
 
 // TestConsulConfigMultipleInstances tests creating multiple Consul config instances
 func TestConsulConfigMultipleInstances(t *testing.T) {
+	t.Parallel()
 	config1 := &ConsulConfig{
 		Address: "localhost",
 		Port:    8500,
@@ -207,6 +220,7 @@ func TestConsulConfigMultipleInstances(t *testing.T) {
 
 // TestConsulConfigClientStructure tests Consul client structure
 func TestConsulConfigClientStructure(t *testing.T) {
+	t.Parallel()
 	config := &ConsulConfig{
 		Address: "localhost",
 		Port:    8500,
@@ -223,6 +237,7 @@ func TestConsulConfigClientStructure(t *testing.T) {
 
 // TestConsulConfigWithHighPort tests Consul config with high port number
 func TestConsulConfigWithHighPort(t *testing.T) {
+	t.Parallel()
 	config := &ConsulConfig{
 		Address: "localhost",
 		Port:    65432,
@@ -234,6 +249,7 @@ func TestConsulConfigWithHighPort(t *testing.T) {
 
 // TestConsulConfigWithLowPort tests Consul config with low port number
 func TestConsulConfigWithLowPort(t *testing.T) {
+	t.Parallel()
 	config := &ConsulConfig{
 		Address: "localhost",
 		Port:    1,
@@ -245,6 +261,7 @@ func TestConsulConfigWithLowPort(t *testing.T) {
 
 // TestConsulRegisterServiceContext tests service registration with context
 func TestConsulRegisterServiceContext(t *testing.T) {
+	t.Parallel()
 	config := &ConsulConfig{
 		Address: "localhost",
 		Port:    8500,
@@ -264,6 +281,7 @@ func TestConsulRegisterServiceContext(t *testing.T) {
 
 // TestConsulDeregisterServiceContext tests service deregistration with context
 func TestConsulDeregisterServiceContext(t *testing.T) {
+	t.Parallel()
 	config := &ConsulConfig{
 		Address: "localhost",
 		Port:    8500,
@@ -283,6 +301,7 @@ func TestConsulDeregisterServiceContext(t *testing.T) {
 
 // TestConsulDiscoverServiceContext tests service discovery with context
 func TestConsulDiscoverServiceContext(t *testing.T) {
+	t.Parallel()
 	config := &ConsulConfig{
 		Address: "localhost",
 		Port:    8500,
@@ -302,6 +321,7 @@ func TestConsulDiscoverServiceContext(t *testing.T) {
 
 // TestConsulGetConfigContext tests getting config with context
 func TestConsulGetConfigContext(t *testing.T) {
+	t.Parallel()
 	config := &ConsulConfig{
 		Address: "localhost",
 		Port:    8500,
@@ -321,6 +341,7 @@ func TestConsulGetConfigContext(t *testing.T) {
 
 // TestConsulSetConfigContext tests setting config with context
 func TestConsulSetConfigContext(t *testing.T) {
+	t.Parallel()
 	config := &ConsulConfig{
 		Address: "localhost",
 		Port:    8500,
@@ -340,6 +361,7 @@ func TestConsulSetConfigContext(t *testing.T) {
 
 // TestConsulWatchConfigContext tests watching config with context
 func TestConsulWatchConfigContext(t *testing.T) {
+	t.Parallel()
 	config := &ConsulConfig{
 		Address: "localhost",
 		Port:    8500,

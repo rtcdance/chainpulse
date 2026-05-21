@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"chainpulse/pkg/core"
-	"chainpulse/pkg/plugins/api"
+	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/plugins/api"
 )
 
 func TestMonolithicRuntimeMetricsRoute(t *testing.T) {
@@ -22,9 +22,9 @@ func TestMonolithicRuntimeMetricsRoute(t *testing.T) {
 	healthHandler := api.NewHealthCheckHandler(nil, logger, metrics)
 	healthHandler.InitializedForTests()
 	gateway.SetHealthCheckHandler(healthHandler)
-	gateway.SetRuntimeMetricsProvider(buildMonolithicMetricsProvider(metrics))
-	gateway.SetRuntimeSummaryProvider(func(r *http.Request) interface{} {
-		return map[string]interface{}{"service": "monolithic"}
+	gateway.SetRuntimeMetricsProvider(buildMonolithicMetricsProvider(metrics, nil))
+	gateway.SetRuntimeSummaryProvider(func(r *http.Request) any {
+		return map[string]any{"service": "monolithic"}
 	})
 
 	if err := gateway.Initialize(core.Config{}); err != nil {

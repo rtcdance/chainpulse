@@ -4,7 +4,7 @@ import (
 	"sync"
 	"time"
 
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 // CacheMetrics collects cache performance metrics
@@ -106,7 +106,7 @@ func (cm *CacheMetrics) GetHitRate() float64 {
 }
 
 // GetStats returns cache statistics
-func (cm *CacheMetrics) GetStats() map[string]interface{} {
+func (cm *CacheMetrics) GetStats() map[string]any {
 	cm.mu.RLock()
 	defer cm.mu.RUnlock()
 
@@ -125,7 +125,7 @@ func (cm *CacheMetrics) GetStats() map[string]interface{} {
 		avgDuration = float64(totalDuration.Milliseconds()) / float64(len(cm.operationDurations))
 	}
 
-	return map[string]interface{}{
+	return map[string]any{
 		"hit_count":                 cm.hitCount,
 		"miss_count":                cm.missCount,
 		"eviction_count":            cm.evictionCount,

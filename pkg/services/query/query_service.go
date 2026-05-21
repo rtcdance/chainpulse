@@ -7,24 +7,18 @@ import (
 	"sync"
 	"time"
 
-	"chainpulse/pkg/core"
-	"chainpulse/pkg/infrastructure/database"
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
-// QueryService defines the interface for query execution with cache-first pattern
-type QueryService interface {
-	// Query executes a query with cache-first pattern
-	Query(ctx context.Context, req *QueryRequest) (*QueryResult, error)
+// QueryService defines the interface for query execution with cache-first pattern.
+// This is a type alias for core.QueryService — both are the same type.
+type QueryService = core.QueryService
 
-	// QueryByHash retrieves a single item by hash
-	QueryByHash(ctx context.Context, hash string) (*core.BlockchainEvent, error)
+// QueryRequest is a type alias for core.QueryRequest.
+type QueryRequest = core.QueryRequest
 
-	// InvalidateCache invalidates cache for a key
-	InvalidateCache(ctx context.Context, key string) error
-
-	// Health returns the health status
-	Health(ctx context.Context) *core.HealthStatus
-}
+// QueryResult is a type alias for core.QueryResult.
+type QueryResult = core.QueryResult
 
 // RuntimeSummarizer provides a compact runtime summary for operator-facing
 // query service surfaces.
@@ -43,53 +37,9 @@ type RuntimeSummary struct {
 	ReliabilityHint       string
 }
 
-// QueryRequest represents a query request
-type QueryRequest struct {
-	// Query type: "mongodb" or "postgresql"
-	QueryType string
-
-	// Collection or table name
-	Collection string
-
-	// Filter criteria
-	Filter map[string]interface{}
-
-	// Pagination
-	Limit  int64
-	Offset int64
-
-	// Cache key
-	CacheKey string
-
-	// Cache TTL
-	CacheTTL time.Duration
-
-	// Sort order
-	Sort map[string]int
-}
-
-// QueryResult represents a query result
-type QueryResult struct {
-	// Events returned
-	Events []core.BlockchainEvent
-
-	// Total count
-	Total int64
-
-	// Whether result came from cache
-	CacheHit bool
-
-	// Response time in milliseconds
-	ResponseTime int64
-
-	// Source: "cache", "mongodb", or "postgresql"
-	Source string
-}
-
 // DefaultQueryService provides default implementation of QueryService
 type DefaultQueryService struct {
 	mu               sync.RWMutex
-	dbManager        database.DatabaseManager
 	mongoAdapter     MongoDBAdapter
 	postgresAdapter  PostgreSQLAdapter
 	cacheService     CacheService
@@ -101,7 +51,6 @@ type DefaultQueryService struct {
 
 // NewQueryService creates a new query service
 func NewQueryService(
-	dbManager database.DatabaseManager,
 	mongoAdapter MongoDBAdapter,
 	postgresAdapter PostgreSQLAdapter,
 	cacheService CacheService,
@@ -109,7 +58,6 @@ func NewQueryService(
 	metricsCollector core.MetricsCollector,
 ) *DefaultQueryService {
 	return &DefaultQueryService{
-		dbManager:        dbManager,
 		mongoAdapter:     mongoAdapter,
 		postgresAdapter:  postgresAdapter,
 		cacheService:     cacheService,
@@ -141,9 +89,7 @@ func (qs *DefaultQueryService) Initialize(ctx context.Context) error {
 	}
 
 	qs.initialized = true
-	qs.logger.Info("Query service initialized", map[string]interface{}{
-		"component": "query-service",
-	})
+	qs.logger.Info("Query service initialized", core.LogKeyComponent, core.ComponentQueryService)
 
 	return nil
 }
@@ -166,9 +112,7 @@ func (qs *DefaultQueryService) Start(ctx context.Context) error {
 	}
 
 	qs.running = true
-	qs.logger.Info("Query service started", map[string]interface{}{
-		"component": "query-service",
-	})
+	qs.logger.Info("Query service started", core.LogKeyComponent, core.ComponentQueryService)
 
 	return nil
 }
@@ -179,7 +123,7 @@ func (qs *DefaultQueryService) Stop(ctx context.Context) error {
 	defer qs.mu.Unlock()
 
 	if !qs.running {
-		return fmt.Errorf("query service not running")
+		return nil
 	}
 
 	if err := qs.cacheService.Stop(ctx); err != nil {
@@ -187,14 +131,11 @@ func (qs *DefaultQueryService) Stop(ctx context.Context) error {
 	}
 
 	qs.running = false
-	qs.logger.Info("Query service stopped", map[string]interface{}{
-		"component": "query-service",
-	})
+	qs.logger.Info("Query service stopped", core.LogKeyComponent, core.ComponentQueryService)
 
 	return nil
 }
 
-// Query executes a query with cache-first pattern
 func (qs *DefaultQueryService) Query(ctx context.Context, req *QueryRequest) (*QueryResult, error) {
 	qs.mu.RLock()
 	defer qs.mu.RUnlock()
@@ -209,92 +150,82 @@ func (qs *DefaultQueryService) Query(ctx context.Context, req *QueryRequest) (*Q
 
 	start := time.Now()
 
-	// Step 1: Try cache first
+	var cacheGet func() (*QueryResult, bool)
+	var cacheSet func(*QueryResult) error
 	if req.CacheKey != "" {
-		if cached, err := qs.cacheService.Get(ctx, req.CacheKey); err == nil && cached != nil {
-			duration := time.Since(start).Milliseconds()
-			qs.metricsCollector.RecordHistogram("query_cache_hit_time_ms", float64(duration), map[string]string{})
-			qs.logger.Info("Cache hit", map[string]interface{}{
-				"cache_key": req.CacheKey,
-				"duration":  duration,
-			})
-
-			return &QueryResult{
-				Events:       cached,
-				Total:        int64(len(cached)),
-				CacheHit:     true,
-				ResponseTime: duration,
-				Source:       "cache",
-			}, nil
+		cacheKey := req.CacheKey
+		cacheTTL := req.CacheTTL
+		cacheGet = func() (*QueryResult, bool) {
+			events, total, err := qs.cacheService.GetQueryResult(ctx, cacheKey)
+			if err == nil && events != nil {
+				return &QueryResult{Events: events, Total: total}, true
+			}
+			return nil, false
+		}
+		cacheSet = func(r *QueryResult) error {
+			return qs.cacheService.SetQueryResult(ctx, cacheKey, r.Events, r.Total, cacheTTL)
 		}
 	}
 
-	// Step 2: Try MongoDB
-	mongoResult, mongoErr := qs.mongoAdapter.Query(ctx, req)
-	if mongoErr == nil && mongoResult != nil && len(mongoResult.Events) > 0 {
-		// Cache the result
-		if req.CacheKey != "" {
-			_ = qs.cacheService.Set(ctx, req.CacheKey, mongoResult.Events, req.CacheTTL)
-		}
+	result, fromCache, source, mongoErr, postgresErr := queryWithFallback(
+		ctx,
+		qs.logger,
+		qs.metricsCollector,
+		cacheGet,
+		cacheSet,
+		func() (*QueryResult, error) { return qs.mongoAdapter.Query(ctx, req) },
+		func() (*QueryResult, error) { return qs.postgresAdapter.Query(ctx, req) },
+		func(r *QueryResult) bool { return r == nil || len(r.Events) == 0 },
+		"failed to cache query result",
+		"cache_key", req.CacheKey,
+		map[string]string{"adapter": "mongodb"},
+		map[string]string{"adapter": "postgres"},
+	)
 
-		duration := time.Since(start).Milliseconds()
-		qs.metricsCollector.RecordHistogram("query_mongodb_time_ms", float64(duration), map[string]string{})
-
-		return &QueryResult{
-			Events:       mongoResult.Events,
-			Total:        mongoResult.Total,
-			CacheHit:     false,
-			ResponseTime: duration,
-			Source:       "mongodb",
-		}, nil
-	}
-
-	// Step 3: Fall back to PostgreSQL
-	postgresResult, postgresErr := qs.postgresAdapter.Query(ctx, req)
-	if postgresErr == nil && postgresResult != nil && len(postgresResult.Events) > 0 {
-		// Cache the result
-		if req.CacheKey != "" {
-			_ = qs.cacheService.Set(ctx, req.CacheKey, postgresResult.Events, req.CacheTTL)
-		}
-
-		duration := time.Since(start).Milliseconds()
-		qs.metricsCollector.RecordHistogram("query_postgres_time_ms", float64(duration), map[string]string{})
-
-		return &QueryResult{
-			Events:       postgresResult.Events,
-			Total:        postgresResult.Total,
-			CacheHit:     false,
-			ResponseTime: duration,
-			Source:       "postgresql",
-		}, nil
-	}
-
-	// Both databases failed or returned no results
 	duration := time.Since(start).Milliseconds()
-	qs.metricsCollector.RecordCounter("query_error", 1, map[string]string{})
+
+	if fromCache {
+		qs.metricsCollector.RecordHistogram("query_cache_hit_time_ms", float64(duration), map[string]string{})
+		qs.logger.Info("Cache hit", core.LogKeyKey, req.CacheKey, core.LogKeyDuration, duration)
+		return &QueryResult{
+			Events: result.Events, Total: result.Total,
+			CacheHit: true, ResponseTime: duration, Source: "cache",
+		}, nil
+	}
+
+	if source != "" {
+		histogram := "query_mongodb_time_ms"
+		if source == "postgresql" {
+			histogram = "query_postgres_time_ms"
+		}
+		qs.metricsCollector.RecordHistogram(histogram, float64(duration), map[string]string{})
+		return &QueryResult{
+			Events: result.Events, Total: result.Total,
+			CacheHit: false, ResponseTime: duration, Source: source,
+		}, nil
+	}
 
 	if mongoErr != nil {
-		qs.logger.Error("MongoDB query failed", map[string]interface{}{
-			"error": mongoErr.Error(),
-		})
+		qs.logger.Error("MongoDB query failed", core.LogKeyError, mongoErr)
 	}
 
 	if postgresErr != nil {
-		qs.logger.Error("PostgreSQL query failed", map[string]interface{}{
-			"error": postgresErr.Error(),
-		})
+		qs.logger.Error("PostgreSQL query failed", core.LogKeyError, postgresErr)
 	}
 
+	if mongoErr != nil && postgresErr != nil {
+		qs.metricsCollector.RecordCounter("query_error", 1, map[string]string{"reason": "both_backends_failed"})
+		return nil, fmt.Errorf("both backends failed: mongo=%w, postgres=%w", mongoErr, postgresErr)
+	}
+
+	qs.metricsCollector.RecordCounter("query_empty", 1, map[string]string{})
+
 	return &QueryResult{
-		Events:       []core.BlockchainEvent{},
-		Total:        0,
-		CacheHit:     false,
-		ResponseTime: duration,
-		Source:       "none",
+		Events: []core.BlockchainEvent{}, Total: 0,
+		CacheHit: false, ResponseTime: duration, Source: "none",
 	}, nil
 }
 
-// QueryByHash retrieves a single item by hash
 func (qs *DefaultQueryService) QueryByHash(ctx context.Context, hash string) (*core.BlockchainEvent, error) {
 	qs.mu.RLock()
 	defer qs.mu.RUnlock()
@@ -309,51 +240,107 @@ func (qs *DefaultQueryService) QueryByHash(ctx context.Context, hash string) (*c
 
 	start := time.Now()
 
-	// Try cache first
 	cacheKey := fmt.Sprintf("event:%s", hash)
-	if cached, err := qs.cacheService.GetSingle(ctx, cacheKey); err == nil && cached != nil {
-		duration := time.Since(start).Milliseconds()
+	cacheGet := func() (*core.BlockchainEvent, bool) {
+		event, err := qs.cacheService.GetSingle(ctx, cacheKey)
+		if err == nil && event != nil {
+			return event, true
+		}
+		return nil, false
+	}
+	cacheSet := func(event *core.BlockchainEvent) error {
+		return qs.cacheService.SetSingle(ctx, cacheKey, event, core.DefaultEventCacheTTL)
+	}
+
+	result, fromCache, source, mongoErr, postgresErr := queryWithFallback(
+		ctx,
+		qs.logger,
+		qs.metricsCollector,
+		cacheGet,
+		cacheSet,
+		func() (*core.BlockchainEvent, error) { return qs.mongoAdapter.QueryByHash(ctx, hash) },
+		func() (*core.BlockchainEvent, error) { return qs.postgresAdapter.QueryByHash(ctx, hash) },
+		func(e *core.BlockchainEvent) bool { return e == nil },
+		"failed to cache event by hash",
+		"hash", hash,
+		map[string]string{"adapter": "mongodb", "op": "by_hash"},
+		map[string]string{"adapter": "postgres", "op": "by_hash"},
+	)
+
+	duration := time.Since(start).Milliseconds()
+
+	if fromCache {
 		qs.metricsCollector.RecordHistogram("query_by_hash_cache_hit_time_ms", float64(duration), map[string]string{})
-		return cached, nil
+		return result, nil
 	}
 
-	// Try MongoDB
-	event, mongoErr := qs.mongoAdapter.QueryByHash(ctx, hash)
-	if mongoErr == nil && event != nil {
-		// Cache the result
-		_ = qs.cacheService.SetSingle(ctx, cacheKey, event, 1*time.Hour)
-		duration := time.Since(start).Milliseconds()
-		qs.metricsCollector.RecordHistogram("query_by_hash_mongodb_time_ms", float64(duration), map[string]string{})
-		return event, nil
-	}
-
-	// Fall back to PostgreSQL
-	event, postgresErr := qs.postgresAdapter.QueryByHash(ctx, hash)
-	if postgresErr == nil && event != nil {
-		// Cache the result
-		_ = qs.cacheService.SetSingle(ctx, cacheKey, event, 1*time.Hour)
-		duration := time.Since(start).Milliseconds()
-		qs.metricsCollector.RecordHistogram("query_by_hash_postgres_time_ms", float64(duration), map[string]string{})
-		return event, nil
+	if source != "" {
+		histogram := "query_by_hash_mongodb_time_ms"
+		if source == "postgresql" {
+			histogram = "query_by_hash_postgres_time_ms"
+		}
+		qs.metricsCollector.RecordHistogram(histogram, float64(duration), map[string]string{})
+		return result, nil
 	}
 
 	qs.metricsCollector.RecordCounter("query_by_hash_error", 1, map[string]string{})
 
 	if mongoErr != nil {
-		qs.logger.Error("MongoDB query by hash failed", map[string]interface{}{
-			"hash":  hash,
-			"error": mongoErr.Error(),
-		})
+		qs.logger.Error("MongoDB query by hash failed", core.LogKeyHash, hash, core.LogKeyError, mongoErr)
 	}
 
 	if postgresErr != nil {
-		qs.logger.Error("PostgreSQL query by hash failed", map[string]interface{}{
-			"hash":  hash,
-			"error": postgresErr.Error(),
-		})
+		qs.logger.Error("PostgreSQL query by hash failed", core.LogKeyHash, hash, core.LogKeyError, postgresErr)
 	}
 
 	return nil, fmt.Errorf("event not found: %s", hash)
+}
+
+func queryWithFallback[T any](
+	ctx context.Context,
+	logger core.Logger,
+	metrics core.MetricsCollector,
+	cacheGet func() (T, bool),
+	cacheSet func(T) error,
+	mongoFetch func() (T, error),
+	postgresFetch func() (T, error),
+	isEmpty func(T) bool,
+	cacheWarnMsg string,
+	cacheWarnKey string,
+	cacheWarnVal string,
+	mongoCacheLabel map[string]string,
+	postgresCacheLabel map[string]string,
+) (result T, fromCache bool, source string, mongoErr, postgresErr error) {
+	if cacheGet != nil {
+		if cached, ok := cacheGet(); ok {
+			return cached, true, "cache", nil, nil
+		}
+	}
+
+	mongoResult, mongoErr := mongoFetch()
+	if mongoErr == nil && !isEmpty(mongoResult) {
+		if cacheSet != nil {
+			if err := cacheSet(mongoResult); err != nil {
+				logger.Warn(cacheWarnMsg, cacheWarnKey, cacheWarnVal, "error", err)
+				metrics.RecordCounter("query_cache_write_errors", 1, mongoCacheLabel)
+			}
+		}
+		return mongoResult, false, "mongodb", nil, nil
+	}
+
+	postgresResult, postgresErr := postgresFetch()
+	if postgresErr == nil && !isEmpty(postgresResult) {
+		if cacheSet != nil {
+			if err := cacheSet(postgresResult); err != nil {
+				logger.Warn(cacheWarnMsg, cacheWarnKey, cacheWarnVal, "error", err)
+				metrics.RecordCounter("query_cache_write_errors", 1, postgresCacheLabel)
+			}
+		}
+		return postgresResult, false, "postgresql", nil, nil
+	}
+
+	var zero T
+	return zero, false, "", mongoErr, postgresErr
 }
 
 // InvalidateCache invalidates cache for a key
@@ -370,16 +357,11 @@ func (qs *DefaultQueryService) InvalidateCache(ctx context.Context, key string) 
 	}
 
 	if err := qs.cacheService.Delete(ctx, key); err != nil {
-		qs.logger.Error("Failed to invalidate cache", map[string]interface{}{
-			"key":   key,
-			"error": err.Error(),
-		})
+		qs.logger.Error("Failed to invalidate cache", core.LogKeyKey, key, core.LogKeyError, err)
 		return err
 	}
 
-	qs.logger.Info("Cache invalidated", map[string]interface{}{
-		"key": key,
-	})
+	qs.logger.Info("Cache invalidated", core.LogKeyKey, key)
 
 	return nil
 }
@@ -452,8 +434,8 @@ func (qs *DefaultQueryService) RuntimeSummary(ctx context.Context) *RuntimeSumma
 
 	cachePosture := qs.classifyCachePosture(ctx)
 	queryPosture := classifyQueryRuntimePosture(health.Status)
-	circuitPosture := "circuit-not-wired"
-	consistencyPosture := "consistency-not-wired"
+	circuitPosture := "circuit-breaker-not-applicable"
+	consistencyPosture := "consistency-check-not-applicable"
 
 	return &RuntimeSummary{
 		Status:                health.Status,

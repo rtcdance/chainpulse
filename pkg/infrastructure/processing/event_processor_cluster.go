@@ -3,10 +3,11 @@ package processing
 import (
 	"context"
 	"fmt"
+	"log"
 	"sync"
 	"time"
 
-	"chainpulse/pkg/infrastructure/discovery"
+	"github.com/rtcdance/chainpulse/pkg/infrastructure/discovery"
 )
 
 // EventProcessorClusterDeployment orchestrates event processor cluster
@@ -62,6 +63,9 @@ type ClusterMetrics struct {
 	ConsumerGroupCount    int
 	IdempotencyDuplicates int64
 	CircuitBreakerTrips   int64
+	DLQEnqueueErrors      int64
+	IdempotencyMarkErrors int64
+	StoreErrors           int64
 }
 
 // NewEventProcessorClusterDeployment creates a new cluster deployment
@@ -71,7 +75,7 @@ func NewEventProcessorClusterDeployment(id string) *EventProcessorClusterDeploym
 		processors:          make(map[string]*EventProcessor),
 		consumerGroups:      make(map[string]*ConsumerGroup),
 		deploymentStatus:    "undeployed",
-		idempotencyService:  NewIdempotencyService(24 * time.Hour),
+		idempotencyService:  NewIdempotencyService(),
 		retryManager:        NewRetryManager(NewRetryPolicy(3)),
 		eventStore:          NewInMemoryEventStore(100000),
 		healthCheckInterval: 30 * time.Second,
@@ -236,15 +240,31 @@ func (epcd *EventProcessorClusterDeployment) ProcessEvent(ctx context.Context, e
 		epcd.metrics.mu.Unlock()
 
 		// Add to dead letter queue
-		_ = epcd.retryManager.deadLetterQueue.Enqueue(event, err.Error())
+		if dlqErr := epcd.retryManager.deadLetterQueue.Enqueue(event, err.Error()); dlqErr != nil {
+			log.Printf("[ERROR] DLQ enqueue failed for event %s: %v (original error: %v)", event.EventHash, dlqErr, err)
+			epcd.metrics.mu.Lock()
+			epcd.metrics.DLQEnqueueErrors++
+			epcd.metrics.mu.Unlock()
+		}
 		return err
 	}
 
 	// Mark as processed in idempotency service
-	_ = epcd.idempotencyService.MarkProcessed(ctx, event.EventHash, event.ChainID, event.TransactionHash, "success")
+	if markErr := epcd.idempotencyService.MarkProcessed(ctx, event.EventHash, event.ChainID, event.TransactionHash, event.BlockNumber, "success"); markErr != nil {
+		log.Printf("[WARN] idempotency mark failed for event %s: %v — event may be reprocessed", event.EventHash, markErr)
+		epcd.metrics.mu.Lock()
+		epcd.metrics.IdempotencyMarkErrors++
+		epcd.metrics.mu.Unlock()
+	}
 
 	// Store event
-	_ = epcd.eventStore.StoreEvent(ctx, event)
+	if storeErr := epcd.eventStore.StoreEvent(ctx, event); storeErr != nil {
+		log.Printf("[ERROR] failed to store processed event %s: %v", event.EventHash, storeErr)
+		epcd.metrics.mu.Lock()
+		epcd.metrics.StoreErrors++
+		epcd.metrics.mu.Unlock()
+		return fmt.Errorf("failed to store processed event %s: %w", event.EventHash, storeErr)
+	}
 
 	epcd.metrics.mu.Lock()
 	epcd.metrics.EventsProcessed++
@@ -420,10 +440,14 @@ func (epcd *EventProcessorClusterDeployment) GetConsumerGroupCount() int {
 // GetDeadLetterQueueSize returns the size of the dead letter queue
 func (epcd *EventProcessorClusterDeployment) GetDeadLetterQueueSize() int {
 	dlqMetrics := epcd.retryManager.deadLetterQueue.GetMetrics()
-	return int(dlqMetrics["current_size"].(int))
+	size, ok := dlqMetrics["current_size"].(int)
+	if !ok {
+		return 0
+	}
+	return size
 }
 
 // GetIdempotencyMetrics returns idempotency metrics
-func (epcd *EventProcessorClusterDeployment) GetIdempotencyMetrics() map[string]interface{} {
+func (epcd *EventProcessorClusterDeployment) GetIdempotencyMetrics() map[string]any {
 	return epcd.idempotencyService.GetMetrics()
 }

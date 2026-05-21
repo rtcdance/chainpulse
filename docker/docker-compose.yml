@@ -7,14 +7,15 @@ services:
   anvil-ethereum:
     image: ghcr.io/foundry-rs/foundry:latest
     container_name: chainpulse-anvil-ethereum
+    entrypoint: ["anvil", "--host", "0.0.0.0", "--port", "8545", "--chain-id", "1", "--accounts", "10", "--balance", "10000", "--timestamp", "0"]
     ports:
       - "8545:8545"
-    command: anvil --host 0.0.0.0 --port 8545 --chain-id 1 --accounts 10 --balance 10000 --timestamp 0
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8545"]
+      test: ["CMD-SHELL", "cast chain --rpc-url http://localhost:8545 2>/dev/null || exit 1"]
       interval: 10s
       timeout: 5s
-      retries: 5
+      retries: 10
+      start_period: 10s
     networks:
       - chainpulse-network
 
@@ -22,14 +23,15 @@ services:
   anvil-polygon:
     image: ghcr.io/foundry-rs/foundry:latest
     container_name: chainpulse-anvil-polygon
+    entrypoint: ["anvil", "--host", "0.0.0.0", "--port", "8545", "--chain-id", "137", "--accounts", "10", "--balance", "10000", "--timestamp", "0"]
     ports:
       - "8546:8545"
-    command: anvil --host 0.0.0.0 --port 8545 --chain-id 137 --accounts 10 --balance 10000 --timestamp 0
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8545"]
+      test: ["CMD-SHELL", "cast chain --rpc-url http://localhost:8545 2>/dev/null || exit 1"]
       interval: 10s
       timeout: 5s
-      retries: 5
+      retries: 10
+      start_period: 10s
     networks:
       - chainpulse-network
 
@@ -37,14 +39,15 @@ services:
   anvil-bsc:
     image: ghcr.io/foundry-rs/foundry:latest
     container_name: chainpulse-anvil-bsc
+    entrypoint: ["anvil", "--host", "0.0.0.0", "--port", "8545", "--chain-id", "97", "--accounts", "10", "--balance", "10000", "--timestamp", "0"]
     ports:
       - "8547:8545"
-    command: anvil --host 0.0.0.0 --port 8545 --chain-id 97 --accounts 10 --balance 10000 --timestamp 0
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8545"]
+      test: ["CMD-SHELL", "cast chain --rpc-url http://localhost:8545 2>/dev/null || exit 1"]
       interval: 10s
       timeout: 5s
-      retries: 5
+      retries: 10
+      start_period: 10s
     networks:
       - chainpulse-network
 
@@ -52,14 +55,15 @@ services:
   anvil-arbitrum:
     image: ghcr.io/foundry-rs/foundry:latest
     container_name: chainpulse-anvil-arbitrum
+    entrypoint: ["anvil", "--host", "0.0.0.0", "--port", "8545", "--chain-id", "421614", "--accounts", "10", "--balance", "10000", "--timestamp", "0"]
     ports:
       - "8548:8545"
-    command: anvil --host 0.0.0.0 --port 8545 --chain-id 421614 --accounts 10 --balance 10000 --timestamp 0
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8545"]
+      test: ["CMD-SHELL", "cast chain --rpc-url http://localhost:8545 2>/dev/null || exit 1"]
       interval: 10s
       timeout: 5s
-      retries: 5
+      retries: 10
+      start_period: 10s
     networks:
       - chainpulse-network
 
@@ -67,14 +71,15 @@ services:
   anvil-optimism:
     image: ghcr.io/foundry-rs/foundry:latest
     container_name: chainpulse-anvil-optimism
+    entrypoint: ["anvil", "--host", "0.0.0.0", "--port", "8545", "--chain-id", "11155420", "--accounts", "10", "--balance", "10000", "--timestamp", "0"]
     ports:
       - "8549:8545"
-    command: anvil --host 0.0.0.0 --port 8545 --chain-id 11155420 --accounts 10 --balance 10000 --timestamp 0
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8545"]
+      test: ["CMD-SHELL", "cast chain --rpc-url http://localhost:8545 2>/dev/null || exit 1"]
       interval: 10s
       timeout: 5s
-      retries: 5
+      retries: 10
+      start_period: 10s
     networks:
       - chainpulse-network
 
@@ -82,14 +87,15 @@ services:
   anvil-base:
     image: ghcr.io/foundry-rs/foundry:latest
     container_name: chainpulse-anvil-base
+    entrypoint: ["anvil", "--host", "0.0.0.0", "--port", "8545", "--chain-id", "84532", "--accounts", "10", "--balance", "10000", "--timestamp", "0"]
     ports:
       - "8550:8545"
-    command: anvil --host 0.0.0.0 --port 8545 --chain-id 84532 --accounts 10 --balance 10000 --timestamp 0
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8545"]
+      test: ["CMD-SHELL", "cast chain --rpc-url http://localhost:8545 2>/dev/null || exit 1"]
       interval: 10s
       timeout: 5s
-      retries: 5
+      retries: 10
+      start_period: 10s
     networks:
       - chainpulse-network
 
@@ -97,14 +103,15 @@ services:
   anvil-avalanche:
     image: ghcr.io/foundry-rs/foundry:latest
     container_name: chainpulse-anvil-avalanche
+    entrypoint: ["anvil", "--host", "0.0.0.0", "--port", "8545", "--chain-id", "43113", "--accounts", "10", "--balance", "10000", "--timestamp", "0"]
     ports:
       - "8551:8545"
-    command: anvil --host 0.0.0.0 --port 8545 --chain-id 43113 --accounts 10 --balance 10000 --timestamp 0
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8545"]
+      test: ["CMD-SHELL", "cast chain --rpc-url http://localhost:8545 2>/dev/null || exit 1"]
       interval: 10s
       timeout: 5s
-      retries: 5
+      retries: 10
+      start_period: 10s
     networks:
       - chainpulse-network
 
@@ -117,12 +124,13 @@ services:
     container_name: chainpulse-postgres
     environment:
       POSTGRES_USER: chainpulse
-      POSTGRES_PASSWORD: chainpulse_password
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: chainpulse
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U chainpulse"]
       interval: 10s
@@ -150,7 +158,8 @@ services:
     image: confluentinc/cp-kafka:7.5.0
     container_name: chainpulse-kafka
     depends_on:
-      - zookeeper
+      zookeeper:
+        condition: service_healthy
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
@@ -158,13 +167,15 @@ services:
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
     ports:
       - "9092:9092"
     healthcheck:
-      test: ["CMD", "kafka-broker-api-versions.sh", "--bootstrap-server", "localhost:9092"]
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
       interval: 10s
       timeout: 5s
-      retries: 5
+      retries: 10
+      start_period: 15s
     networks:
       - chainpulse-network
 
@@ -177,17 +188,34 @@ services:
     ports:
       - "2181:2181"
     healthcheck:
-      test: ["CMD", "echo", "ruok", "|", "nc", "localhost", "2181"]
+      test: ["CMD-SHELL", "echo srvr | nc localhost 2181 | grep -q Mode"]
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 10s
+    networks:
+      - chainpulse-network
+
+  mongodb:
+    image: mongo:7
+    container_name: chainpulse-mongodb
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.runCommand({ ping: 1 })"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     networks:
       - chainpulse-network
 
   chainpulse:
     build:
       context: ..
-      dockerfile: docker/Dockerfile
+      dockerfile: docker/Dockerfile.prebuilt
     container_name: chainpulse-app
     depends_on:
       anvil-ethereum:
@@ -206,49 +234,39 @@ services:
         condition: service_healthy
       postgres:
         condition: service_healthy
+      mongodb:
+        condition: service_healthy
       redis:
         condition: service_healthy
       kafka:
         condition: service_healthy
     environment:
-      CHAINPULSE_CHAINS: ethereum,polygon,bsc,arbitrum,optimism,base,avalanche
-      CHAINPULSE_ETHEREUM_NODE_URL: http://anvil-ethereum:8545
-      CHAINPULSE_ETHEREUM_CHAIN_ID: 1
-      CHAINPULSE_POLYGON_NODE_URL: http://anvil-polygon:8545
-      CHAINPULSE_POLYGON_CHAIN_ID: 137
-      CHAINPULSE_BSC_NODE_URL: http://anvil-bsc:8545
-      CHAINPULSE_BSC_CHAIN_ID: 97
-      CHAINPULSE_ARBITRUM_NODE_URL: http://anvil-arbitrum:8545
-      CHAINPULSE_ARBITRUM_CHAIN_ID: 421614
-      CHAINPULSE_OPTIMISM_NODE_URL: http://anvil-optimism:8545
-      CHAINPULSE_OPTIMISM_CHAIN_ID: 11155420
-      CHAINPULSE_BASE_NODE_URL: http://anvil-base:8545
-      CHAINPULSE_BASE_CHAIN_ID: 84532
-      CHAINPULSE_AVALANCHE_NODE_URL: http://anvil-avalanche:8545
-      CHAINPULSE_AVALANCHE_CHAIN_ID: 43113
-      CHAINPULSE_LOG_LEVEL: INFO
-      CHAINPULSE_DEPLOYMENT_MODE: monolithic
-      CHAINPULSE_API_PORT: 8080
-      CHAINPULSE_GRPC_PORT: 50051
-      CHAINPULSE_METRICS_PORT: 8081
-      CHAINPULSE_DATA_PULLER_TYPE: https_jsonrpc
-      CHAINPULSE_PULLER_POLL_INTERVAL_MS: 1000
-      CHAINPULSE_CACHE_TYPE: redis
-      CHAINPULSE_CACHE_TTL_SECONDS: 3600
-      CHAINPULSE_DATABASE_TYPE: postgres
-      CHAINPULSE_DATABASE_URL: postgres://chainpulse:chainpulse_password@postgres:5432/chainpulse
-      CHAINPULSE_MQ_TYPE: kafka
-      CHAINPULSE_MQ_BROKERS: kafka:29092
+      CHAINS: ethereum,polygon,bsc,arbitrum,optimism,base,avalanche
+      BLOCKCHAIN_NODE_URLS: http://anvil-ethereum:8545,http://anvil-polygon:8545,http://anvil-bsc:8545,http://anvil-arbitrum:8545,http://anvil-optimism:8545,http://anvil-base:8545,http://anvil-avalanche:8545
+      DATA_PULLER_TYPE: https-jsonrpc
+      DEPLOYMENT_MODE: monolithic
+      LOG_LEVEL: info
+      API_PORT: "8080"
+      WORKER_POOL_SIZE: "8"
+      BATCH_SIZE: "100"
+      CACHE_TYPE: redis
+      CACHE_CONNECTION_URL: redis://redis:6379
+      DATABASE_TYPE: postgres
+      DATABASE_URL: ${DATABASE_URL}
+      MONGODB_URI: mongodb://mongodb:27017
+      MQ_TYPE: kafka
+      MQ_CONNECTION_URL: kafka:29092
+      MONOLITHIC_DLQ_RETENTION: 168h
     ports:
       - "8080:8080"
       - "50051:50051"
       - "8081:8081"
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
-      interval: 30s
-      timeout: 3s
-      start_period: 5s
-      retries: 3
+      interval: 15s
+      timeout: 5s
+      start_period: 30s
+      retries: 10
     networks:
       - chainpulse-network
     restart: unless-stopped
@@ -256,6 +274,7 @@ services:
 volumes:
   postgres_data:
   redis_data:
+  mongodb_data:
 
 networks:
   chainpulse-network:

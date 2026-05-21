@@ -6,6 +6,8 @@ import (
 	"time"
 )
 
+const recoveryTimeout = 30 * time.Second
+
 // HealthChecker manages database health checks
 type HealthChecker struct {
 	db                      *PostgreSQLDatabase
@@ -112,7 +114,9 @@ func (hc *HealthChecker) attemptRecovery() {
 	}
 
 	// Reinitialize
-	err := hc.db.Initialize(hc.db.config)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	err := hc.db.Initialize(ctx, *hc.db.config)
 	if err != nil {
 		hc.db.logger.Error("Recovery failed", "error", err.Error(), "attempt", attempts)
 
@@ -142,11 +146,11 @@ func (hc *HealthChecker) IsHealthy() bool {
 }
 
 // GetStatus returns the health status
-func (hc *HealthChecker) GetStatus() map[string]interface{} {
+func (hc *HealthChecker) GetStatus() map[string]any {
 	hc.mu.RLock()
 	defer hc.mu.RUnlock()
 
-	return map[string]interface{}{
+	return map[string]any{
 		"is_healthy":             hc.isHealthy,
 		"last_health_check":      hc.lastHealthCheck,
 		"consecutive_errors":     hc.consecutiveErrors,

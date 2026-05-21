@@ -37,7 +37,7 @@ type DeploymentModeManager struct {
 	config      *DeploymentConfig
 	mode        DeploymentMode
 	initialized bool
-	components  map[string]interface{}
+	components  map[string]any
 	metrics     *DeploymentMetrics
 }
 
@@ -55,7 +55,7 @@ func NewDeploymentModeManager(config *DeploymentConfig) *DeploymentModeManager {
 	return &DeploymentModeManager{
 		config:     config,
 		mode:       config.Mode,
-		components: make(map[string]interface{}),
+		components: make(map[string]any),
 		metrics: &DeploymentMetrics{
 			LastInitializedTime: time.Now(),
 		},
@@ -200,11 +200,11 @@ func (dmm *DeploymentModeManager) IsInitialized() bool {
 }
 
 // GetMetrics returns deployment metrics
-func (dmm *DeploymentModeManager) GetMetrics() map[string]interface{} {
+func (dmm *DeploymentModeManager) GetMetrics() map[string]any {
 	dmm.metrics.mu.RLock()
 	defer dmm.metrics.mu.RUnlock()
 
-	return map[string]interface{}{
+	return map[string]any{
 		"initialization_time":    dmm.metrics.InitializationTime.String(),
 		"components_initialized": dmm.metrics.ComponentsInitialized,
 		"components_failed":      dmm.metrics.ComponentsFailed,

@@ -6,20 +6,20 @@ import (
 	"net/http"
 	"time"
 
-	"chainpulse/pkg/core"
-	"chainpulse/pkg/plugins/api"
+	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/plugins/api"
 )
 
 type pullerRuntimeSummaryResponse struct {
-	Service        string                 `json:"service"`
-	Timestamp      int64                  `json:"timestamp"`
-	DeploymentMode string                 `json:"deployment_mode"`
-	RuntimeMode    string                 `json:"runtime_mode"`
-	RuntimePosture string                 `json:"runtime_posture"`
-	ComponentState string                 `json:"component_state"`
-	Rollout        map[string]interface{} `json:"rollout"`
-	Security       map[string]interface{} `json:"security"`
-	Metrics        map[string]interface{} `json:"metrics"`
+	Service        string         `json:"service"`
+	Timestamp      int64          `json:"timestamp"`
+	DeploymentMode string         `json:"deployment_mode"`
+	RuntimeMode    string         `json:"runtime_mode"`
+	RuntimePosture string         `json:"runtime_posture"`
+	ComponentState string         `json:"component_state"`
+	Rollout        map[string]any `json:"rollout"`
+	Security       map[string]any `json:"security"`
+	Metrics        map[string]any `json:"metrics"`
 }
 
 func buildPullerRuntimeHTTPHandler(

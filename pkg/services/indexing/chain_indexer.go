@@ -6,14 +6,11 @@ import (
 	"sync"
 	"time"
 
-	appindexing "chainpulse/pkg/application/indexing"
-	"chainpulse/pkg/core"
-	"chainpulse/pkg/integrations/generic"
+	"github.com/rtcdance/chainpulse/pkg/consensus"
+	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/domain"
+	"github.com/rtcdance/chainpulse/pkg/integrations/generic"
 )
-
-type sharedBatchRuntime interface {
-	ProcessBatch(ctx context.Context, chainID string, events []appindexing.EventEnvelope) error
-}
 
 // DefaultChainIndexer implements ChainIndexer for a specific blockchain
 type DefaultChainIndexer struct {
@@ -22,8 +19,9 @@ type DefaultChainIndexer struct {
 	cache                  core.CachePlugin
 	logger                 core.Logger
 	genericIndexer         *generic.GenericContractIndexer
-	sharedRuntime          sharedBatchRuntime
+	sharedRuntime          domain.SharedBatchRuntime
 	metrics                core.MetricsCollector
+	confirmationTracker    *consensus.ConfirmationTracker
 	mu                     sync.RWMutex
 	lastIndexedBlock       uint64
 	totalEventsIndexed     int64
@@ -52,9 +50,19 @@ func NewDefaultChainIndexer(
 }
 
 // SetSharedRuntime configures additive shared runtime shadow batch forwarding.
-func (dci *DefaultChainIndexer) SetSharedRuntime(runtime sharedBatchRuntime, metrics core.MetricsCollector) {
+func (dci *DefaultChainIndexer) SetSharedRuntime(runtime domain.SharedBatchRuntime, metrics core.MetricsCollector) {
+	dci.mu.Lock()
+	defer dci.mu.Unlock()
 	dci.sharedRuntime = runtime
 	dci.metrics = metrics
+}
+
+// SetConfirmationTracker configures the optional confirmation tracker for
+// tracking events through the Pending → Confirmed → Finalized lifecycle.
+func (dci *DefaultChainIndexer) SetConfirmationTracker(tracker *consensus.ConfirmationTracker) {
+	dci.mu.Lock()
+	defer dci.mu.Unlock()
+	dci.confirmationTracker = tracker
 }
 
 // IndexEvents indexes events for this chain
@@ -87,11 +95,11 @@ func (dci *DefaultChainIndexer) IndexEvents(
 	dci.forwardShadowBatch(ctx, validEvents)
 
 	for _, event := range validEvents {
-		if shadowWriteTracker.consume(event) {
+		if consumeShadowWrite(event) {
 			if dci.metrics != nil {
 				dci.metrics.RecordCounter("indexing_runtime_shadow_owned_events_total", 1, map[string]string{
 					"chain_id":  dci.chainID,
-					"service":   "monolithic",
+					"service":   core.DeploymentMonolithic,
 					"operation": "shadow_owned_write",
 				})
 			}
@@ -102,6 +110,11 @@ func (dci *DefaultChainIndexer) IndexEvents(
 			dci.totalEventsIndexed++
 			dci.shadowOwnedEvents++
 			dci.mu.Unlock()
+
+			// Track event in confirmation tracker
+			if dci.confirmationTracker != nil {
+				dci.confirmationTracker.Track(event.ID, event.BlockNumber, event.BlockHash.Hex())
+			}
 			continue
 		}
 
@@ -111,7 +124,7 @@ func (dci *DefaultChainIndexer) IndexEvents(
 			dci.totalErrorsEncountered++
 			dci.mu.Unlock()
 
-			dci.logger.Error("failed to index event", "chain_id", dci.chainID, "error", err.Error())
+			dci.logger.Error("failed to index event", "chain_id", dci.chainID, "error", err)
 			continue
 		}
 
@@ -123,6 +136,19 @@ func (dci *DefaultChainIndexer) IndexEvents(
 		dci.totalEventsIndexed++
 		dci.legacyOwnedEvents++
 		dci.mu.Unlock()
+
+		// Track event in confirmation tracker
+		if dci.confirmationTracker != nil {
+			dci.confirmationTracker.Track(event.ID, event.BlockNumber, event.BlockHash.Hex())
+		}
+	}
+
+	// Advance block in confirmation tracker with the highest block number
+	if dci.confirmationTracker != nil && len(validEvents) > 0 {
+		dci.mu.RLock()
+		highestBlock := dci.lastIndexedBlock
+		dci.mu.RUnlock()
+		dci.confirmationTracker.AdvanceBlock(highestBlock)
 	}
 
 	return nil
@@ -133,7 +159,7 @@ func (dci *DefaultChainIndexer) forwardShadowBatch(ctx context.Context, events [
 		return
 	}
 
-	envelopes := make([]appindexing.EventEnvelope, 0, len(events))
+	envelopes := make([]core.EventEnvelope, 0, len(events))
 	for _, event := range events {
 		envelopes = append(envelopes, toEventEnvelope(event))
 	}
@@ -148,15 +174,15 @@ func (dci *DefaultChainIndexer) forwardShadowBatch(ctx context.Context, events [
 		if dci.metrics != nil {
 			dci.metrics.RecordCounter("indexing_runtime_shadow_batch_errors_total", 1, map[string]string{
 				"chain_id":  dci.chainID,
-				"service":   "monolithic",
+				"service":   core.DeploymentMonolithic,
 				"operation": "shadow_batch",
 			})
 		}
 	}
 }
 
-func toEventEnvelope(event *core.BlockchainEvent) appindexing.EventEnvelope {
-	return appindexing.EventEnvelope{
+func toEventEnvelope(event *core.BlockchainEvent) core.EventEnvelope {
+	return core.EventEnvelope{
 		EventKey:         event.ID,
 		ChainID:          event.ChainID,
 		BlockNumber:      event.BlockNumber,
@@ -195,7 +221,7 @@ func (dci *DefaultChainIndexer) indexEvent(ctx context.Context, event *core.Bloc
 	// Convert event ID to bytes for caching
 	eventIDBytes := []byte(event.ID)
 	if err := dci.cache.Set(ctx, cacheKey, eventIDBytes, eventCacheTTLSeconds); err != nil {
-		dci.logger.Warn("failed to cache event", "error", err.Error())
+		dci.logger.Warn("failed to cache event", "error", err)
 		// Don't fail if caching fails
 	}
 
@@ -208,13 +234,23 @@ func (dci *DefaultChainIndexer) GetChainID() string {
 }
 
 // GetStatus returns status information for this chain indexer
-func (dci *DefaultChainIndexer) GetStatus() map[string]interface{} {
+func (dci *DefaultChainIndexer) GetStatus() map[string]any {
 	dci.mu.RLock()
 	defer dci.mu.RUnlock()
 
 	uptime := time.Since(dci.startTime).Seconds()
 
-	return map[string]interface{}{
+	eventsPerSecond := float64(0)
+	if uptime > 0 {
+		eventsPerSecond = float64(dci.totalEventsIndexed) / uptime
+	}
+	total := dci.totalEventsIndexed + dci.totalErrorsEncountered
+	errorRate := float64(0)
+	if total > 0 {
+		errorRate = float64(dci.totalErrorsEncountered) / float64(total)
+	}
+
+	status := map[string]any{
 		"chain_id":             dci.chainID,
 		"last_indexed_block":   dci.lastIndexedBlock,
 		"total_events_indexed": dci.totalEventsIndexed,
@@ -222,9 +258,17 @@ func (dci *DefaultChainIndexer) GetStatus() map[string]interface{} {
 		"legacy_owned_events":  dci.legacyOwnedEvents,
 		"total_errors":         dci.totalErrorsEncountered,
 		"uptime_seconds":       uptime,
-		"events_per_second":    float64(dci.totalEventsIndexed) / uptime,
-		"error_rate":           float64(dci.totalErrorsEncountered) / float64(dci.totalEventsIndexed+dci.totalErrorsEncountered),
+		"events_per_second":    eventsPerSecond,
+		"error_rate":           errorRate,
 	}
+
+	if dci.confirmationTracker != nil {
+		status["confirmation_pending"] = dci.confirmationTracker.PendingCount()
+		status["confirmation_confirmed"] = dci.confirmationTracker.ConfirmedCount()
+		status["confirmation_finalized"] = dci.confirmationTracker.FinalizedCount()
+	}
+
+	return status
 }
 
 // Close closes the chain indexer

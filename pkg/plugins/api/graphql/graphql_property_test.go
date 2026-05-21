@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"testing"
 
-	"chainpulse/pkg/plugins/api/core"
+	"github.com/rtcdance/chainpulse/pkg/plugins/api/core"
 )
 
 func skipGraphQLLifecycleTestsInShortMode(t *testing.T) {
@@ -28,17 +28,18 @@ const (
 // Property 1: GraphQL Request Abstraction Consistency
 // For any GraphQL request, converting it to Request abstraction and back SHALL preserve all properties
 func TestGraphQLRequestAbstractionConsistency(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		name   string
 		method string
 		path   string
-		body   map[string]interface{}
+		body   map[string]any
 	}{
 		{
 			name:   "simple query",
 			method: "POST",
 			path:   "/graphql",
-			body: map[string]interface{}{
+			body: map[string]any{
 				"query": "{ event(id: \"1\") { id } }",
 			},
 		},
@@ -46,9 +47,9 @@ func TestGraphQLRequestAbstractionConsistency(t *testing.T) {
 			name:   "query with variables",
 			method: "POST",
 			path:   "/graphql",
-			body: map[string]interface{}{
+			body: map[string]any{
 				"query": "query GetEvent($id: ID!) { event(id: $id) { id } }",
-				"variables": map[string]interface{}{
+				"variables": map[string]any{
 					"id": "123",
 				},
 			},
@@ -57,7 +58,7 @@ func TestGraphQLRequestAbstractionConsistency(t *testing.T) {
 			name:   "mutation",
 			method: "POST",
 			path:   "/graphql",
-			body: map[string]interface{}{
+			body: map[string]any{
 				"query": "mutation { executeQuery(query: \"test\") }",
 			},
 		},
@@ -65,7 +66,7 @@ func TestGraphQLRequestAbstractionConsistency(t *testing.T) {
 			name:   "complex query",
 			method: "POST",
 			path:   "/graphql",
-			body: map[string]interface{}{
+			body: map[string]any{
 				"query": "{ events(limit: 10, offset: 0) { id type } }",
 			},
 		},
@@ -103,17 +104,18 @@ func TestGraphQLRequestAbstractionConsistency(t *testing.T) {
 // Property 2: GraphQL Response Abstraction Consistency
 // For any Response abstraction, converting it to protocol-specific format and back SHALL preserve all properties
 func TestGraphQLResponseAbstractionConsistency(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		name   string
 		status int
-		body   map[string]interface{}
+		body   map[string]any
 	}{
 		{
 			name:   "success response",
 			status: 200,
-			body: map[string]interface{}{
-				"data": map[string]interface{}{
-					"event": map[string]interface{}{
+			body: map[string]any{
+				"data": map[string]any{
+					"event": map[string]any{
 						"id": "1",
 					},
 				},
@@ -122,21 +124,21 @@ func TestGraphQLResponseAbstractionConsistency(t *testing.T) {
 		{
 			name:   "error response",
 			status: 400,
-			body: map[string]interface{}{
+			body: map[string]any{
 				"errors": []string{"invalid query"},
 			},
 		},
 		{
 			name:   "not found response",
 			status: 404,
-			body: map[string]interface{}{
+			body: map[string]any{
 				"errors": []string{"not found"},
 			},
 		},
 		{
 			name:   "server error response",
 			status: 500,
-			body: map[string]interface{}{
+			body: map[string]any{
 				"errors": []string{"internal server error"},
 			},
 		},
@@ -168,6 +170,7 @@ func TestGraphQLResponseAbstractionConsistency(t *testing.T) {
 // Property 3: GraphQL Request Context Preservation
 // For any GraphQL request, the context SHALL be preserved through the request lifecycle
 func TestGraphQLRequestContextPreservation(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		name string
 		ctx  context.Context
@@ -211,22 +214,23 @@ func TestGraphQLRequestContextPreservation(t *testing.T) {
 // Property 4: GraphQL Response JSON Serialization Round Trip
 // For any GraphQL result, serializing and deserializing SHALL produce equivalent data
 func TestGraphQLResponseJSONSerializationRoundTrip(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		name string
-		data map[string]interface{}
+		data map[string]any
 	}{
 		{
 			name: "simple data",
-			data: map[string]interface{}{
-				"event": map[string]interface{}{
+			data: map[string]any{
+				"event": map[string]any{
 					"id": "1",
 				},
 			},
 		},
 		{
 			name: "nested data",
-			data: map[string]interface{}{
-				"events": []map[string]interface{}{
+			data: map[string]any{
+				"events": []map[string]any{
 					{"id": "1", "type": "Transfer"},
 					{"id": "2", "type": "Swap"},
 				},
@@ -234,16 +238,16 @@ func TestGraphQLResponseJSONSerializationRoundTrip(t *testing.T) {
 		},
 		{
 			name: "data with null values",
-			data: map[string]interface{}{
+			data: map[string]any{
 				"event": nil,
 			},
 		},
 		{
 			name: "complex nested structure",
-			data: map[string]interface{}{
-				"pool": map[string]interface{}{
+			data: map[string]any{
+				"pool": map[string]any{
 					"address": "0x123",
-					"stats": map[string]interface{}{
+					"stats": map[string]any{
 						"tvl":    "1000000",
 						"volume": "500000",
 					},
@@ -264,7 +268,7 @@ func TestGraphQLResponseJSONSerializationRoundTrip(t *testing.T) {
 			}
 
 			// Deserialize
-			var result map[string]interface{}
+			var result map[string]any
 			if err := json.Unmarshal(resp.Body(), &result); err != nil {
 				t.Fatalf("failed to unmarshal: %v", err)
 			}
@@ -280,6 +284,7 @@ func TestGraphQLResponseJSONSerializationRoundTrip(t *testing.T) {
 // Property 6: GraphQL Response Header Immutability After Send
 // For any response, headers set after Send() SHALL not be applied
 func TestGraphQLResponseHeaderImmutabilityAfterSend(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		name    string
 		headers map[string]string
@@ -338,6 +343,7 @@ func TestGraphQLResponseHeaderImmutabilityAfterSend(t *testing.T) {
 // Property 7: GraphQL Plugin Lifecycle Management
 // For any plugin, Start/Stop operations SHALL be idempotent and state-consistent
 func TestGraphQLPluginLifecycleManagement(t *testing.T) {
+	t.Parallel()
 	skipGraphQLLifecycleTestsInShortMode(t)
 
 	testCases := []struct {
@@ -401,26 +407,27 @@ func TestGraphQLPluginLifecycleManagement(t *testing.T) {
 // Property 8: GraphQL Response JSON Envelope Structure
 // For any GraphQL response, the JSON envelope SHALL contain required fields
 func TestGraphQLResponseJSONEnvelopeStructure(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		name   string
-		data   map[string]interface{}
+		data   map[string]any
 		errors []error
 	}{
 		{
 			name: "success with data",
-			data: map[string]interface{}{
-				"event": map[string]interface{}{"id": "1"},
+			data: map[string]any{
+				"event": map[string]any{"id": "1"},
 			},
 			errors: nil,
 		},
 		{
 			name:   "error response",
-			data:   map[string]interface{}{},
+			data:   map[string]any{},
 			errors: []error{&testError{"error 1"}},
 		},
 		{
 			name: "data and errors",
-			data: map[string]interface{}{
+			data: map[string]any{
 				"event": nil,
 			},
 			errors: []error{&testError{"not found"}},
@@ -439,7 +446,7 @@ func TestGraphQLResponseJSONEnvelopeStructure(t *testing.T) {
 			}
 
 			// Deserialize
-			var envelope map[string]interface{}
+			var envelope map[string]any
 			if err := json.Unmarshal(resp.Body(), &envelope); err != nil {
 				t.Fatalf("failed to unmarshal: %v", err)
 			}
@@ -474,6 +481,7 @@ func hashString(s string) int {
 // Feature: GraphQL Plugin, Property 1: GraphQL Request Abstraction Consistency
 // For any GraphQL request, converting it to Request abstraction and back SHALL preserve all properties
 func TestGraphQLPluginProperty1RequestAbstractionConsistency(t *testing.T) {
+	t.Parallel()
 	// This test validates that the GraphQL request adapter correctly implements the Request interface
 	// and preserves all request properties through the abstraction layer
 	for i := 0; i < 100; i++ {
@@ -498,6 +506,7 @@ func TestGraphQLPluginProperty1RequestAbstractionConsistency(t *testing.T) {
 // Feature: GraphQL Plugin, Property 2: GraphQL Response Abstraction Consistency
 // For any Response abstraction, converting it to protocol-specific format and back SHALL preserve all properties
 func TestGraphQLPluginProperty2ResponseAbstractionConsistency(t *testing.T) {
+	t.Parallel()
 	// This test validates that the GraphQL response adapter correctly implements the Response interface
 	// and preserves all response properties through the abstraction layer
 	for i := 0; i < 100; i++ {
@@ -527,6 +536,7 @@ func TestGraphQLPluginProperty2ResponseAbstractionConsistency(t *testing.T) {
 // Feature: GraphQL Plugin, Property 3: GraphQL Request Context Preservation
 // For any GraphQL request, the context SHALL be preserved through the request lifecycle
 func TestGraphQLPluginProperty3ContextPreservation(t *testing.T) {
+	t.Parallel()
 	for i := 0; i < 100; i++ {
 		body := []byte(`{"query":"test"}`)
 		httpReq := httpRequest("POST", "/graphql", body)
@@ -545,11 +555,12 @@ func TestGraphQLPluginProperty3ContextPreservation(t *testing.T) {
 // Feature: GraphQL Plugin, Property 4: GraphQL Response JSON Serialization Round Trip
 // For any GraphQL result, serializing and deserializing SHALL produce equivalent data
 func TestGraphQLPluginProperty4JSONSerializationRoundTrip(t *testing.T) {
+	t.Parallel()
 	for i := 0; i < 100; i++ {
 		w := &mockResponseWriter{}
 		resp := NewGraphQLResponse(w)
 
-		data := map[string]interface{}{
+		data := map[string]any{
 			"id":   fmt.Sprintf("id_%d", i),
 			"type": "test",
 		}
@@ -559,7 +570,7 @@ func TestGraphQLPluginProperty4JSONSerializationRoundTrip(t *testing.T) {
 			continue
 		}
 
-		var result map[string]interface{}
+		var result map[string]any
 		if err := json.Unmarshal(resp.Body(), &result); err != nil {
 			t.Errorf("iteration %d: failed to unmarshal: %v", i, err)
 			continue
@@ -574,6 +585,7 @@ func TestGraphQLPluginProperty4JSONSerializationRoundTrip(t *testing.T) {
 // Feature: GraphQL Plugin, Property 5: GraphQL Response Body Accumulation
 // For any sequence of writes, the body SHALL accumulate all data in order
 func TestGraphQLPluginProperty5BodyAccumulation(t *testing.T) {
+	t.Parallel()
 	for i := 0; i < 100; i++ {
 		w := &mockResponseWriter{}
 		resp := NewGraphQLResponse(w)
@@ -604,6 +616,7 @@ func TestGraphQLPluginProperty5BodyAccumulation(t *testing.T) {
 // Feature: GraphQL Plugin, Property 6: GraphQL Response Header Immutability After Send
 // For any response, headers set after Send() SHALL not be applied
 func TestGraphQLPluginProperty6HeaderImmutabilityAfterSend(t *testing.T) {
+	t.Parallel()
 	for i := 0; i < 100; i++ {
 		w := &mockResponseWriter{}
 		resp := NewGraphQLResponse(w)
@@ -624,6 +637,7 @@ func TestGraphQLPluginProperty6HeaderImmutabilityAfterSend(t *testing.T) {
 // Feature: GraphQL Plugin, Property 7: GraphQL Plugin Lifecycle Management
 // For any plugin, Start/Stop operations SHALL be idempotent and state-consistent
 func TestGraphQLPluginProperty7LifecycleManagement(t *testing.T) {
+	t.Parallel()
 	for i := 0; i < 100; i++ {
 		apiLayer := core.NewAPILayer()
 		plugin := NewGraphQLPlugin("graphql", 9100+i%100, apiLayer)
@@ -653,11 +667,12 @@ func TestGraphQLPluginProperty7LifecycleManagement(t *testing.T) {
 // Feature: GraphQL Plugin, Property 8: GraphQL Response JSON Envelope Structure
 // For any GraphQL response, the JSON envelope SHALL contain required fields
 func TestGraphQLPluginProperty8JSONEnvelopeStructure(t *testing.T) {
+	t.Parallel()
 	for i := 0; i < 100; i++ {
 		w := &mockResponseWriter{}
 		resp := NewGraphQLResponse(w)
 
-		data := map[string]interface{}{
+		data := map[string]any{
 			"id": fmt.Sprintf("id_%d", i),
 		}
 
@@ -666,7 +681,7 @@ func TestGraphQLPluginProperty8JSONEnvelopeStructure(t *testing.T) {
 			continue
 		}
 
-		var envelope map[string]interface{}
+		var envelope map[string]any
 		if err := json.Unmarshal(resp.Body(), &envelope); err != nil {
 			t.Errorf("iteration %d: failed to unmarshal: %v", i, err)
 			continue

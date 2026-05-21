@@ -7,8 +7,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"chainpulse/pkg/core"
-	"chainpulse/pkg/plugins/api"
+	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/plugins/api"
 )
 
 func TestMonolithicRolloutReportRouteParityMetadataAndBodyBoundaries(t *testing.T) {
@@ -18,7 +18,7 @@ func TestMonolithicRolloutReportRouteParityMetadataAndBodyBoundaries(t *testing.
 	healthHandler := api.NewHealthCheckHandler(nil, logger, metrics)
 	healthHandler.SetRolloutReportProducer(api.RolloutReportProducerFunc(func(ctx context.Context) *api.RolloutReportDetails {
 		_ = ctx
-		return buildOwnershipRolloutSummary(map[string]map[string]interface{}{
+		return buildOwnershipRolloutSummary(map[string]map[string]any{
 			"ethereum": {
 				"shadow_owned_events": int64(4),
 				"legacy_owned_events": int64(2),

@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 // RecoveryState represents the state of recovery
@@ -219,9 +219,7 @@ func (rh *DefaultRecoveryHandler) RecoverConnection(ctx context.Context, store s
 		rh.mu.Unlock()
 	}()
 
-	rh.logger.Info("Starting connection recovery", map[string]interface{}{
-		"store": store,
-	})
+	rh.logger.Info("Starting connection recovery", "store", store)
 
 	// Attempt reconnection with exponential backoff
 	backoff := rh.config.InitialBackoff
@@ -263,21 +261,13 @@ func (rh *DefaultRecoveryHandler) RecoverConnection(ctx context.Context, store s
 			rh.connectionRecoveries++
 			rh.mu.Unlock()
 
-			rh.logger.Info("Connection recovery successful", map[string]interface{}{
-				"store":    store,
-				"attempts": attempt + 1,
-			})
+			rh.logger.Info("Connection recovery successful", "store", store, "attempts", attempt+1)
 
 			rh.metricsCollector.RecordCounter("recovery_connection_success", 1, nil)
 			return nil
 		}
 
-		rh.logger.Warn("Connection recovery attempt failed", map[string]interface{}{
-			"store":   store,
-			"attempt": attempt + 1,
-			"error":   err.Error(),
-			"backoff": backoff.String(),
-		})
+		rh.logger.Warn("Connection recovery attempt failed", "store", store, core.LogKeyAttempt, attempt+1, core.LogKeyError, err, "backoff", backoff.String())
 
 		// Wait before retry
 		if attempt < rh.config.MaxRetries-1 {
@@ -305,10 +295,7 @@ func (rh *DefaultRecoveryHandler) RecoverConnection(ctx context.Context, store s
 	rh.failedRecoveries++
 	rh.mu.Unlock()
 
-	rh.logger.Error("Connection recovery failed after all attempts", map[string]interface{}{
-		"store":    store,
-		"attempts": rh.config.MaxRetries,
-	})
+	rh.logger.Error("Connection recovery failed after all attempts", "store", store, "attempts", rh.config.MaxRetries)
 
 	rh.metricsCollector.RecordCounter("recovery_connection_failed", 1, nil)
 	return fmt.Errorf("connection recovery failed for store: %s", store)
@@ -359,15 +346,11 @@ func (rh *DefaultRecoveryHandler) RecoverState(ctx context.Context) error {
 	metadataStoreHealth := rh.metadataStore.Health(ctx)
 
 	if eventStoreHealth.Status != "healthy" {
-		rh.logger.Warn("Event store unhealthy during state recovery", map[string]interface{}{
-			"message": eventStoreHealth.Message,
-		})
+		rh.logger.Warn("Event store unhealthy during state recovery", "message", eventStoreHealth.Message)
 	}
 
 	if metadataStoreHealth.Status != "healthy" {
-		rh.logger.Warn("Metadata store unhealthy during state recovery", map[string]interface{}{
-			"message": metadataStoreHealth.Message,
-		})
+		rh.logger.Warn("Metadata store unhealthy during state recovery", "message", metadataStoreHealth.Message)
 	}
 
 	// If both stores are healthy, state recovery is successful
@@ -387,17 +370,13 @@ func (rh *DefaultRecoveryHandler) RecoverState(ctx context.Context) error {
 	// Attempt to recover individual stores
 	if eventStoreHealth.Status != "healthy" {
 		if err := rh.RecoverConnection(ctx, "mongodb"); err != nil {
-			rh.logger.Error("Failed to recover event store", map[string]interface{}{
-				"error": err.Error(),
-			})
+			rh.logger.Error("Failed to recover event store", core.LogKeyError, err)
 		}
 	}
 
 	if metadataStoreHealth.Status != "healthy" {
 		if err := rh.RecoverConnection(ctx, "postgresql"); err != nil {
-			rh.logger.Error("Failed to recover metadata store", map[string]interface{}{
-				"error": err.Error(),
-			})
+			rh.logger.Error("Failed to recover metadata store", core.LogKeyError, err)
 		}
 	}
 
@@ -467,9 +446,7 @@ func (rh *DefaultRecoveryHandler) SyncData(ctx context.Context, store string) er
 		rh.mu.Unlock()
 	}()
 
-	rh.logger.Info("Starting data sync", map[string]interface{}{
-		"store": store,
-	})
+	rh.logger.Info("Starting data sync", "store", store)
 
 	// Create a context with timeout for data sync
 	ctx, cancel := context.WithTimeout(ctx, rh.config.DataSyncTimeout)
@@ -498,10 +475,7 @@ func (rh *DefaultRecoveryHandler) SyncData(ctx context.Context, store string) er
 		rh.failedRecoveries++
 		rh.mu.Unlock()
 
-		rh.logger.Error("Data sync failed", map[string]interface{}{
-			"store": store,
-			"error": err.Error(),
-		})
+		rh.logger.Error("Data sync failed", "store", store, core.LogKeyError, err)
 
 		rh.metricsCollector.RecordCounter("recovery_data_sync_failed", 1, nil)
 		return fmt.Errorf("data sync failed for store %s: %w", store, err)
@@ -515,9 +489,7 @@ func (rh *DefaultRecoveryHandler) SyncData(ctx context.Context, store string) er
 	rh.dataSyncRecoveries++
 	rh.mu.Unlock()
 
-	rh.logger.Info("Data sync successful", map[string]interface{}{
-		"store": store,
-	})
+	rh.logger.Info("Data sync successful", "store", store)
 
 	rh.metricsCollector.RecordCounter("recovery_data_sync_success", 1, nil)
 	return nil

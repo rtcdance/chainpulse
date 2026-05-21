@@ -10,12 +10,14 @@ import (
 )
 
 func TestNewCacheInvalidator(t *testing.T) {
+	t.Parallel()
 	config := DefaultCacheConfig()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 
 	cm := NewCacheMiddleware(config, logger, metrics)
 	ci := NewCacheInvalidator(cm, logger, metrics)
+	defer ci.Close()
 
 	assert.NotNil(t, ci)
 	assert.NotNil(t, ci.invalidationQueue)
@@ -23,6 +25,7 @@ func TestNewCacheInvalidator(t *testing.T) {
 }
 
 func TestDefaultRetryPolicy(t *testing.T) {
+	t.Parallel()
 	policy := DefaultRetryPolicy()
 
 	assert.NotNil(t, policy)
@@ -33,36 +36,42 @@ func TestDefaultRetryPolicy(t *testing.T) {
 }
 
 func TestInvalidateKey(t *testing.T) {
+	t.Parallel()
 	config := DefaultCacheConfig()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 
 	cm := NewCacheMiddleware(config, logger, metrics)
 	ci := NewCacheInvalidator(cm, logger, metrics)
+	defer ci.Close()
 
 	err := ci.InvalidateKey("key1", "test reason")
 	require.NoError(t, err)
 }
 
 func TestInvalidatePattern(t *testing.T) {
+	t.Parallel()
 	config := DefaultCacheConfig()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 
 	cm := NewCacheMiddleware(config, logger, metrics)
 	ci := NewCacheInvalidator(cm, logger, metrics)
+	defer ci.Close()
 
 	err := ci.InvalidatePattern("user:*", "test reason")
 	require.NoError(t, err)
 }
 
 func TestInvalidateRelated(t *testing.T) {
+	t.Parallel()
 	config := DefaultCacheConfig()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 
 	cm := NewCacheMiddleware(config, logger, metrics)
 	ci := NewCacheInvalidator(cm, logger, metrics)
+	defer ci.Close()
 
 	keys := []string{"key1", "key2", "key3"}
 	err := ci.InvalidateRelated(keys, "test reason")
@@ -70,18 +79,21 @@ func TestInvalidateRelated(t *testing.T) {
 }
 
 func TestInvalidateRelatedEmpty(t *testing.T) {
+	t.Parallel()
 	config := DefaultCacheConfig()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 
 	cm := NewCacheMiddleware(config, logger, metrics)
 	ci := NewCacheInvalidator(cm, logger, metrics)
+	defer ci.Close()
 
 	err := ci.InvalidateRelated([]string{}, "test reason")
 	require.NoError(t, err)
 }
 
 func TestGetBackoffDuration(t *testing.T) {
+	t.Parallel()
 	policy := DefaultRetryPolicy()
 
 	duration0 := policy.GetBackoffDuration(0)
@@ -95,6 +107,7 @@ func TestGetBackoffDuration(t *testing.T) {
 }
 
 func TestGetBackoffDurationMaxBackoff(t *testing.T) {
+	t.Parallel()
 	policy := DefaultRetryPolicy()
 
 	// With high retry count, should hit max backoff
@@ -103,6 +116,7 @@ func TestGetBackoffDurationMaxBackoff(t *testing.T) {
 }
 
 func TestShouldRetry(t *testing.T) {
+	t.Parallel()
 	policy := DefaultRetryPolicy()
 
 	assert.True(t, policy.ShouldRetry(0))
@@ -113,12 +127,14 @@ func TestShouldRetry(t *testing.T) {
 }
 
 func TestCacheInvalidatorGetStats(t *testing.T) {
+	t.Parallel()
 	config := DefaultCacheConfig()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 
 	cm := NewCacheMiddleware(config, logger, metrics)
 	ci := NewCacheInvalidator(cm, logger, metrics)
+	defer ci.Close()
 
 	stats := ci.GetStats()
 
@@ -129,6 +145,7 @@ func TestCacheInvalidatorGetStats(t *testing.T) {
 }
 
 func TestClose(t *testing.T) {
+	t.Parallel()
 	config := DefaultCacheConfig()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
@@ -141,12 +158,14 @@ func TestClose(t *testing.T) {
 }
 
 func TestInvalidationQueueFull(t *testing.T) {
+	t.Parallel()
 	config := DefaultCacheConfig()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 
 	cm := NewCacheMiddleware(config, logger, metrics)
 	ci := NewCacheInvalidator(cm, logger, metrics)
+	defer ci.Close()
 
 	// Fill the queue
 	for i := 0; i < 1000; i++ {
@@ -160,6 +179,7 @@ func TestInvalidationQueueFull(t *testing.T) {
 }
 
 func TestInvalidationRequestStructure(t *testing.T) {
+	t.Parallel()
 	req := InvalidationRequest{
 		Key:       "test_key",
 		Pattern:   "test:*",
@@ -175,6 +195,7 @@ func TestInvalidationRequestStructure(t *testing.T) {
 }
 
 func TestRetryPolicyStructure(t *testing.T) {
+	t.Parallel()
 	policy := &RetryPolicy{
 		MaxRetries:     5,
 		InitialBackoff: 50 * time.Millisecond,
@@ -189,6 +210,7 @@ func TestRetryPolicyStructure(t *testing.T) {
 }
 
 func TestInvalidationStatsStructure(t *testing.T) {
+	t.Parallel()
 	stats := InvalidationStats{
 		TotalInvalidations: 100,
 		SuccessfulCount:    95,
@@ -203,12 +225,14 @@ func TestInvalidationStatsStructure(t *testing.T) {
 }
 
 func TestConcurrentInvalidation(t *testing.T) {
+	t.Parallel()
 	config := DefaultCacheConfig()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 
 	cm := NewCacheMiddleware(config, logger, metrics)
 	ci := NewCacheInvalidator(cm, logger, metrics)
+	defer ci.Close()
 
 	done := make(chan struct{})
 	for i := 0; i < 10; i++ {
@@ -225,12 +249,14 @@ func TestConcurrentInvalidation(t *testing.T) {
 }
 
 func TestInvalidateKeyWithContext(t *testing.T) {
+	t.Parallel()
 	config := DefaultCacheConfig()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 
 	cm := NewCacheMiddleware(config, logger, metrics)
 	ci := NewCacheInvalidator(cm, logger, metrics)
+	defer ci.Close()
 
 	// Set a value first
 	headers := http.Header{}
@@ -249,12 +275,14 @@ func TestInvalidateKeyWithContext(t *testing.T) {
 }
 
 func TestInvalidatePatternMultipleKeys(t *testing.T) {
+	t.Parallel()
 	config := DefaultCacheConfig()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 
 	cm := NewCacheMiddleware(config, logger, metrics)
 	ci := NewCacheInvalidator(cm, logger, metrics)
+	defer ci.Close()
 
 	// Set multiple keys
 	headers := http.Header{}
@@ -280,6 +308,7 @@ func TestInvalidatePatternMultipleKeys(t *testing.T) {
 }
 
 func TestBackoffCalculation(t *testing.T) {
+	t.Parallel()
 	policy := &RetryPolicy{
 		MaxRetries:     5,
 		InitialBackoff: 100 * time.Millisecond,

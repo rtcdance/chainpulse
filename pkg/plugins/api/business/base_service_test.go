@@ -70,7 +70,7 @@ func (m *MockBackend) List(ctx context.Context, limit, offset int) ([]Entity, er
 	return result, nil
 }
 
-func (m *MockBackend) Query(ctx context.Context, filter map[string]interface{}, limit, offset int) ([]Entity, error) {
+func (m *MockBackend) Query(ctx context.Context, filter map[string]any, limit, offset int) ([]Entity, error) {
 	var result []Entity
 	count := 0
 	for _, entity := range m.entities {
@@ -84,16 +84,16 @@ func (m *MockBackend) Query(ctx context.Context, filter map[string]interface{}, 
 
 // MockCache implements ServiceCache interface for testing
 type MockCache struct {
-	data map[string]interface{}
+	data map[string]any
 }
 
 func NewMockCache() *MockCache {
 	return &MockCache{
-		data: make(map[string]interface{}),
+		data: make(map[string]any),
 	}
 }
 
-func (m *MockCache) Get(ctx context.Context, key string) (interface{}, error) {
+func (m *MockCache) Get(ctx context.Context, key string) (any, error) {
 	value, ok := m.data[key]
 	if !ok {
 		return nil, fmt.Errorf("key not found")
@@ -101,7 +101,7 @@ func (m *MockCache) Get(ctx context.Context, key string) (interface{}, error) {
 	return value, nil
 }
 
-func (m *MockCache) Set(ctx context.Context, key string, value interface{}, ttl time.Duration) error {
+func (m *MockCache) Set(ctx context.Context, key string, value any, ttl time.Duration) error {
 	m.data[key] = value
 	return nil
 }
@@ -112,6 +112,7 @@ func (m *MockCache) Delete(ctx context.Context, key string) error {
 }
 
 func TestAbstractServiceCreate(t *testing.T) {
+	t.Parallel()
 	backend := NewMockBackend()
 	cache := NewMockCache()
 	service := NewAbstractService("test-service", backend, cache)
@@ -128,6 +129,7 @@ func TestAbstractServiceCreate(t *testing.T) {
 }
 
 func TestAbstractServiceRead(t *testing.T) {
+	t.Parallel()
 	backend := NewMockBackend()
 	cache := NewMockCache()
 	service := NewAbstractService("test-service", backend, cache)
@@ -148,6 +150,7 @@ func TestAbstractServiceRead(t *testing.T) {
 }
 
 func TestAbstractServiceReadCaching(t *testing.T) {
+	t.Parallel()
 	backend := NewMockBackend()
 	cache := NewMockCache()
 	service := NewAbstractService("test-service", backend, cache)
@@ -181,6 +184,7 @@ func TestAbstractServiceReadCaching(t *testing.T) {
 }
 
 func TestAbstractServiceUpdate(t *testing.T) {
+	t.Parallel()
 	backend := NewMockBackend()
 	cache := NewMockCache()
 	service := NewAbstractService("test-service", backend, cache)
@@ -202,6 +206,7 @@ func TestAbstractServiceUpdate(t *testing.T) {
 }
 
 func TestAbstractServiceDelete(t *testing.T) {
+	t.Parallel()
 	backend := NewMockBackend()
 	cache := NewMockCache()
 	service := NewAbstractService("test-service", backend, cache)
@@ -223,6 +228,7 @@ func TestAbstractServiceDelete(t *testing.T) {
 }
 
 func TestAbstractServiceList(t *testing.T) {
+	t.Parallel()
 	backend := NewMockBackend()
 	cache := NewMockCache()
 	service := NewAbstractService("test-service", backend, cache)
@@ -246,6 +252,7 @@ func TestAbstractServiceList(t *testing.T) {
 }
 
 func TestAbstractServiceListPagination(t *testing.T) {
+	t.Parallel()
 	backend := NewMockBackend()
 	cache := NewMockCache()
 	service := NewAbstractService("test-service", backend, cache)
@@ -281,6 +288,7 @@ func TestAbstractServiceListPagination(t *testing.T) {
 }
 
 func TestAbstractServiceQuery(t *testing.T) {
+	t.Parallel()
 	backend := NewMockBackend()
 	cache := NewMockCache()
 	service := NewAbstractService("test-service", backend, cache)
@@ -293,7 +301,7 @@ func TestAbstractServiceQuery(t *testing.T) {
 		}
 	}
 
-	filter := map[string]interface{}{"name": "Test"}
+	filter := map[string]any{"name": "Test"}
 	entities, err := service.Query(context.Background(), filter, 10, 0)
 	if err != nil {
 		t.Fatalf("Failed to query entities: %v", err)
@@ -305,6 +313,7 @@ func TestAbstractServiceQuery(t *testing.T) {
 }
 
 func TestAbstractServiceMetrics(t *testing.T) {
+	t.Parallel()
 	backend := NewMockBackend()
 	cache := NewMockCache()
 	service := NewAbstractService("test-service", backend, cache)
@@ -334,6 +343,7 @@ func TestAbstractServiceMetrics(t *testing.T) {
 }
 
 func TestAbstractServiceSetCacheTTL(t *testing.T) {
+	t.Parallel()
 	backend := NewMockBackend()
 	cache := NewMockCache()
 	service := NewAbstractService("test-service", backend, cache)
@@ -347,6 +357,7 @@ func TestAbstractServiceSetCacheTTL(t *testing.T) {
 }
 
 func TestAbstractServiceWithoutCache(t *testing.T) {
+	t.Parallel()
 	backend := NewMockBackend()
 	service := NewAbstractService("test-service", backend, nil)
 
@@ -372,6 +383,7 @@ func TestAbstractServiceWithoutCache(t *testing.T) {
 }
 
 func TestAbstractServiceErrorHandling(t *testing.T) {
+	t.Parallel()
 	backend := NewMockBackend()
 	cache := NewMockCache()
 	service := NewAbstractService("test-service", backend, cache)

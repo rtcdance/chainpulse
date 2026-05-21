@@ -128,7 +128,7 @@ func convertSpanKind(kind SpanKind) oteltrace.SpanKind {
 	}
 }
 
-func convertSpanAttributes(attributes map[string]interface{}) []otelattribute.KeyValue {
+func convertSpanAttributes(attributes map[string]any) []otelattribute.KeyValue {
 	if len(attributes) == 0 {
 		return nil
 	}
@@ -141,7 +141,7 @@ func convertSpanAttributes(attributes map[string]interface{}) []otelattribute.Ke
 	return result
 }
 
-func convertSpanAttribute(key string, value interface{}) otelattribute.KeyValue {
+func convertSpanAttribute(key string, value any) otelattribute.KeyValue {
 	switch v := value.(type) {
 	case string:
 		return otelattribute.String(key, v)

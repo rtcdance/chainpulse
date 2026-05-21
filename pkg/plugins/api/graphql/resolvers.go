@@ -3,17 +3,20 @@ package graphql
 import (
 	"encoding/json"
 	"fmt"
-	"strings"
+	"strconv"
 	"time"
 
-	"chainpulse/pkg/core"
-	domainquery "chainpulse/pkg/domain/query"
 	"github.com/graphql-go/graphql"
+	"github.com/graphql-go/graphql/language/ast"
+	"github.com/graphql-go/graphql/language/parser"
+	"github.com/graphql-go/graphql/language/source"
+	"github.com/rtcdance/chainpulse/pkg/core"
+	domainquery "github.com/rtcdance/chainpulse/pkg/domain/query"
 )
 
 // ResolverContext holds context for resolvers
 type ResolverContext struct {
-	EventStore  domainquery.EventStore
+	EventStore  domainquery.EventReader
 	Logger      core.Logger
 	Metrics     core.MetricsCollector
 	Cache       core.CachePlugin
@@ -31,7 +34,7 @@ func NewEventResolver(ctx *ResolverContext) *EventResolver {
 }
 
 // ResolveEvent resolves a single event by ID
-func (r *EventResolver) ResolveEvent(p graphql.ResolveParams) (interface{}, error) {
+func (r *EventResolver) ResolveEvent(p graphql.ResolveParams) (any, error) {
 	id, ok := p.Args["id"].(string)
 	if !ok || id == "" {
 		return nil, fmt.Errorf("invalid or missing id parameter")
@@ -53,7 +56,7 @@ func (r *EventResolver) ResolveEvent(p graphql.ResolveParams) (interface{}, erro
 		cacheKey := fmt.Sprintf("graphql:event:%s", id)
 		if cached, err := r.ctx.Cache.Get(p.Context, cacheKey); err == nil && cached != nil {
 			r.ctx.Metrics.RecordCounter("graphql_cache_hit", 1, nil)
-			var result map[string]interface{}
+			var result map[string]any
 			if err := json.Unmarshal(cached, &result); err == nil {
 				return withQuerySourcePosture(result, "graphql-cache-hit"), nil
 			}
@@ -67,7 +70,7 @@ func (r *EventResolver) ResolveEvent(p graphql.ResolveParams) (interface{}, erro
 	if err != nil {
 		r.ctx.Logger.Error("Failed to resolve event", "id", id, "error", err.Error())
 		r.ctx.Metrics.RecordCounter("graphql_resolve_event_error", 1, nil)
-		return nil, fmt.Errorf("failed to resolve event: %w", err)
+		return nil, fmt.Errorf("failed to resolve event")
 	}
 
 	if event == nil {
@@ -81,7 +84,9 @@ func (r *EventResolver) ResolveEvent(p graphql.ResolveParams) (interface{}, erro
 	if r.ctx.Cache != nil {
 		cacheKey := fmt.Sprintf("graphql:event:%s", id)
 		resultBytes, _ := json.Marshal(result)
-		_ = r.ctx.Cache.Set(p.Context, cacheKey, resultBytes, 300) // 5 minutes
+		if err := r.ctx.Cache.Set(p.Context, cacheKey, resultBytes, 300); err != nil {
+			r.ctx.Logger.Error("cache set error", "key", cacheKey, "error", err)
+		}
 	}
 
 	r.ctx.Metrics.RecordCounter("graphql_resolve_event_success", 1, nil)
@@ -89,7 +94,7 @@ func (r *EventResolver) ResolveEvent(p graphql.ResolveParams) (interface{}, erro
 }
 
 // ResolveEvents resolves events with pagination
-func (r *EventResolver) ResolveEvents(p graphql.ResolveParams) (interface{}, error) {
+func (r *EventResolver) ResolveEvents(p graphql.ResolveParams) (any, error) {
 	// Limit maximum page size
 	first := 20
 	if f, ok := p.Args["first"].(int); ok && f > 0 {
@@ -121,7 +126,7 @@ func (r *EventResolver) ResolveEvents(p graphql.ResolveParams) (interface{}, err
 		cacheKey := fmt.Sprintf("graphql:events:root:after:%s:first:%d", after, first)
 		if cached, err := r.ctx.Cache.Get(p.Context, cacheKey); err == nil && cached != nil {
 			r.ctx.Metrics.RecordCounter("graphql_cache_hit", 1, nil)
-			var connection map[string]interface{}
+			var connection map[string]any
 			if err := json.Unmarshal(cached, &connection); err == nil {
 				return withQuerySourcePostureConnection(connection, "graphql-cache-hit"), nil
 			}
@@ -135,15 +140,35 @@ func (r *EventResolver) ResolveEvents(p graphql.ResolveParams) (interface{}, err
 	if err != nil {
 		r.ctx.Logger.Error("Failed to resolve events", "error", err.Error())
 		r.ctx.Metrics.RecordCounter("graphql_resolve_events_error", 1, nil)
-		return nil, fmt.Errorf("failed to resolve events: %w", err)
+		return nil, fmt.Errorf("failed to resolve events")
 	}
 
-	// Build edges
-	edges := make([]interface{}, 0, len(events))
+	// Get total count (use cached count to avoid N+1 query on every page request)
+	totalCount := int64(len(events))
+	if r.ctx.Cache != nil {
+		if cached, err := r.ctx.Cache.Get(p.Context, "graphql:events:count"); err == nil && cached != nil {
+			if parsed, parseErr := strconv.ParseInt(string(cached), 10, 64); parseErr == nil {
+				totalCount = parsed
+			}
+		}
+	}
+	if totalCount == int64(len(events)) {
+		if count, err := r.ctx.EventStore.CountEvents(p.Context); err == nil {
+			totalCount = count
+			if r.ctx.Cache != nil {
+				if err := r.ctx.Cache.Set(p.Context, "graphql:events:count", []byte(strconv.FormatInt(count, 10)), 30); err != nil {
+					r.ctx.Logger.Error("cache set error", "key", "graphql:events:count", "error", err)
+				}
+			}
+		}
+	}
+
+	// Build edges with opaque cursors based on stable sort keys
+	edges := make([]any, 0, len(events))
 	var endCursor string
 	for i, event := range events {
-		cursor := fmt.Sprintf("cursor_%d", i)
-		edges = append(edges, map[string]interface{}{
+		cursor := domainquery.EncodePageCursor(event.BlockNumber, event.LogIndex, event.ID)
+		edges = append(edges, map[string]any{
 			"node":   withQuerySourcePosture(eventToGraphQL(event), "graphql-event-store"),
 			"cursor": cursor,
 		})
@@ -152,21 +177,23 @@ func (r *EventResolver) ResolveEvents(p graphql.ResolveParams) (interface{}, err
 		}
 	}
 
-	connection := map[string]interface{}{
+	connection := map[string]any{
 		"edges": edges,
-		"pageInfo": map[string]interface{}{
+		"pageInfo": map[string]any{
 			"hasNextPage":     hasNextPage,
 			"hasPreviousPage": after != "",
 			"startCursor":     after,
 			"endCursor":       endCursor,
-			"totalCount":      len(events),
+			"totalCount":      totalCount,
 		},
 	}
 
 	if r.ctx.Cache != nil {
 		cacheKey := fmt.Sprintf("graphql:events:root:after:%s:first:%d", after, first)
 		connectionBytes, _ := json.Marshal(connection)
-		_ = r.ctx.Cache.Set(p.Context, cacheKey, connectionBytes, 300)
+		if err := r.ctx.Cache.Set(p.Context, cacheKey, connectionBytes, 300); err != nil {
+			r.ctx.Logger.Error("cache set error", "key", cacheKey, "error", err)
+		}
 	}
 
 	r.ctx.Metrics.RecordCounter("graphql_resolve_events_success", 1, nil)
@@ -174,7 +201,7 @@ func (r *EventResolver) ResolveEvents(p graphql.ResolveParams) (interface{}, err
 }
 
 // ResolveEventsByBlock resolves events by block number
-func (r *EventResolver) ResolveEventsByBlock(p graphql.ResolveParams) (interface{}, error) {
+func (r *EventResolver) ResolveEventsByBlock(p graphql.ResolveParams) (any, error) {
 	blockNumber, ok := p.Args["blockNumber"].(int)
 	if !ok || blockNumber < 0 {
 		return nil, fmt.Errorf("invalid or missing blockNumber parameter")
@@ -196,11 +223,11 @@ func (r *EventResolver) ResolveEventsByBlock(p graphql.ResolveParams) (interface
 	if err != nil {
 		r.ctx.Logger.Error("Failed to resolve events by block", "blockNumber", blockNumber, "error", err.Error())
 		r.ctx.Metrics.RecordCounter("graphql_resolve_events_by_block_error", 1, nil)
-		return nil, fmt.Errorf("failed to resolve events by block: %w", err)
+		return nil, fmt.Errorf("failed to resolve events by block")
 	}
 
 	// Convert to GraphQL response format
-	result := make([]interface{}, 0, len(events))
+	result := make([]any, 0, len(events))
 	for _, event := range events {
 		result = append(result, withQuerySourcePosture(eventToGraphQL(event), "graphql-event-store"))
 	}
@@ -210,7 +237,7 @@ func (r *EventResolver) ResolveEventsByBlock(p graphql.ResolveParams) (interface
 }
 
 // ResolveEventsByAddress resolves events by contract address
-func (r *EventResolver) ResolveEventsByAddress(p graphql.ResolveParams) (interface{}, error) {
+func (r *EventResolver) ResolveEventsByAddress(p graphql.ResolveParams) (any, error) {
 	address, ok := p.Args["address"].(string)
 	if !ok || address == "" {
 		return nil, fmt.Errorf("invalid or missing address parameter")
@@ -242,7 +269,7 @@ func (r *EventResolver) ResolveEventsByAddress(p graphql.ResolveParams) (interfa
 		cacheKey := fmt.Sprintf("graphql:events:address:%s:limit:%d", address, limit)
 		if cached, err := r.ctx.Cache.Get(p.Context, cacheKey); err == nil && cached != nil {
 			r.ctx.Metrics.RecordCounter("graphql_cache_hit", 1, nil)
-			var result []interface{}
+			var result []any
 			if err := json.Unmarshal(cached, &result); err == nil {
 				return withQuerySourcePostureList(result, "graphql-cache-hit"), nil
 			}
@@ -254,11 +281,11 @@ func (r *EventResolver) ResolveEventsByAddress(p graphql.ResolveParams) (interfa
 	if err != nil {
 		r.ctx.Logger.Error("Failed to resolve events by address", "address", address, "error", err.Error())
 		r.ctx.Metrics.RecordCounter("graphql_resolve_events_by_address_error", 1, nil)
-		return nil, fmt.Errorf("failed to resolve events by address: %w", err)
+		return nil, fmt.Errorf("failed to resolve events by address")
 	}
 
 	// Convert to GraphQL response format
-	result := make([]interface{}, 0, len(events))
+	result := make([]any, 0, len(events))
 	for _, event := range events {
 		result = append(result, withQuerySourcePosture(eventToGraphQL(event), "graphql-event-store"))
 	}
@@ -267,7 +294,9 @@ func (r *EventResolver) ResolveEventsByAddress(p graphql.ResolveParams) (interfa
 	if r.ctx.Cache != nil {
 		cacheKey := fmt.Sprintf("graphql:events:address:%s:limit:%d", address, limit)
 		resultBytes, _ := json.Marshal(result)
-		_ = r.ctx.Cache.Set(p.Context, cacheKey, resultBytes, 600) // 10 minutes
+		if err := r.ctx.Cache.Set(p.Context, cacheKey, resultBytes, 600); err != nil {
+			r.ctx.Logger.Error("cache set error", "key", cacheKey, "error", err)
+		}
 	}
 
 	r.ctx.Metrics.RecordCounter("graphql_resolve_events_by_address_success", 1, nil)
@@ -275,7 +304,7 @@ func (r *EventResolver) ResolveEventsByAddress(p graphql.ResolveParams) (interfa
 }
 
 // ResolveEventsByName resolves events by event name
-func (r *EventResolver) ResolveEventsByName(p graphql.ResolveParams) (interface{}, error) {
+func (r *EventResolver) ResolveEventsByName(p graphql.ResolveParams) (any, error) {
 	eventName, ok := p.Args["eventName"].(string)
 	if !ok || eventName == "" {
 		return nil, fmt.Errorf("invalid or missing eventName parameter")
@@ -307,7 +336,7 @@ func (r *EventResolver) ResolveEventsByName(p graphql.ResolveParams) (interface{
 		cacheKey := fmt.Sprintf("graphql:events:name:%s:limit:%d", eventName, limit)
 		if cached, err := r.ctx.Cache.Get(p.Context, cacheKey); err == nil && cached != nil {
 			r.ctx.Metrics.RecordCounter("graphql_cache_hit", 1, nil)
-			var result []interface{}
+			var result []any
 			if err := json.Unmarshal(cached, &result); err == nil {
 				return withQuerySourcePostureList(result, "graphql-cache-hit"), nil
 			}
@@ -319,11 +348,11 @@ func (r *EventResolver) ResolveEventsByName(p graphql.ResolveParams) (interface{
 	if err != nil {
 		r.ctx.Logger.Error("Failed to resolve events by name", "eventName", eventName, "error", err.Error())
 		r.ctx.Metrics.RecordCounter("graphql_resolve_events_by_name_error", 1, nil)
-		return nil, fmt.Errorf("failed to resolve events by name: %w", err)
+		return nil, fmt.Errorf("failed to resolve events by name")
 	}
 
 	// Convert to GraphQL response format
-	result := make([]interface{}, 0, len(events))
+	result := make([]any, 0, len(events))
 	for _, event := range events {
 		result = append(result, withQuerySourcePosture(eventToGraphQL(event), "graphql-event-store"))
 	}
@@ -332,7 +361,9 @@ func (r *EventResolver) ResolveEventsByName(p graphql.ResolveParams) (interface{
 	if r.ctx.Cache != nil {
 		cacheKey := fmt.Sprintf("graphql:events:name:%s:limit:%d", eventName, limit)
 		resultBytes, _ := json.Marshal(result)
-		_ = r.ctx.Cache.Set(p.Context, cacheKey, resultBytes, 600) // 10 minutes
+		if err := r.ctx.Cache.Set(p.Context, cacheKey, resultBytes, 600); err != nil {
+			r.ctx.Logger.Error("cache set error", "key", cacheKey, "error", err)
+		}
 	}
 
 	r.ctx.Metrics.RecordCounter("graphql_resolve_events_by_name_success", 1, nil)
@@ -350,7 +381,7 @@ func NewCacheResolver(ctx *ResolverContext) *CacheResolver {
 }
 
 // ResolveInvalidateCache invalidates cache for an event
-func (r *CacheResolver) ResolveInvalidateCache(p graphql.ResolveParams) (interface{}, error) {
+func (r *CacheResolver) ResolveInvalidateCache(p graphql.ResolveParams) (any, error) {
 	eventID, ok := p.Args["eventId"].(string)
 	if !ok || eventID == "" {
 		return nil, fmt.Errorf("invalid or missing eventId parameter")
@@ -370,7 +401,7 @@ func (r *CacheResolver) ResolveInvalidateCache(p graphql.ResolveParams) (interfa
 	if err := r.ctx.Cache.Delete(p.Context, cacheKey); err != nil {
 		r.ctx.Logger.Error("Failed to invalidate cache", "eventId", eventID, "error", err.Error())
 		r.ctx.Metrics.RecordCounter("graphql_invalidate_cache_error", 1, nil)
-		return false, fmt.Errorf("failed to invalidate cache: %w", err)
+		return false, fmt.Errorf("failed to invalidate cache")
 	}
 
 	r.ctx.Metrics.RecordCounter("graphql_invalidate_cache_success", 1, nil)
@@ -378,7 +409,7 @@ func (r *CacheResolver) ResolveInvalidateCache(p graphql.ResolveParams) (interfa
 }
 
 // ResolveClearCache clears all cache
-func (r *CacheResolver) ResolveClearCache(p graphql.ResolveParams) (interface{}, error) {
+func (r *CacheResolver) ResolveClearCache(p graphql.ResolveParams) (any, error) {
 	// Check authorization
 	if r.ctx.AuthContext != nil && !r.ctx.AuthContext.CanManageCache() {
 		return nil, fmt.Errorf("unauthorized to manage cache")
@@ -402,7 +433,7 @@ func (r *CacheResolver) ResolveClearCache(p graphql.ResolveParams) (interface{},
 }
 
 // Helper function to convert event to GraphQL response format
-func eventToGraphQL(event *core.BlockchainEvent) map[string]interface{} {
+func eventToGraphQL(event *core.BlockchainEvent) map[string]any {
 	decodedData := ""
 	if event.DecodedData != nil {
 		if data, err := json.Marshal(event.DecodedData); err == nil {
@@ -410,7 +441,7 @@ func eventToGraphQL(event *core.BlockchainEvent) map[string]interface{} {
 		}
 	}
 
-	return map[string]interface{}{
+	return map[string]any{
 		"id":               event.ID,
 		"eventHash":        event.EventHash,
 		"blockNumber":      event.BlockNumber,
@@ -455,40 +486,64 @@ func (a *QueryComplexityAnalyzer) AnalyzeComplexity(query string) (int, error) {
 	return complexity, nil
 }
 
-// calculateQueryComplexity calculates query complexity based on heuristics
+// calculateQueryComplexity calculates query complexity by walking the parsed AST.
+// Each field selection costs 1, nesting multiplies by depthFactor, and known
+// list fields carry a listMultiplier.
 func calculateQueryComplexity(query string) int {
-	complexity := 1
+	src := source.Source{Body: []byte(query)}
+	doc, err := parser.Parse(parser.ParseParams{Source: &src})
+	if err != nil {
+		return len(query)/10 + 1
+	}
 
-	// Count field selections
-	complexity += strings.Count(query, "{")
-
-	// Count arguments (each argument adds complexity)
-	complexity += strings.Count(query, "(") * 2
-
-	// Count aliases
-	complexity += strings.Count(query, ":") / 2
-
-	// Count fragments
-	complexity += strings.Count(query, "fragment") * 5
-
-	// Count nested queries (depth-based)
-	depth := 0
-	maxDepth := 0
-	for _, char := range query {
-		switch char {
-		case '{':
-			depth++
-			if depth > maxDepth {
-				maxDepth = depth
-			}
-		case '}':
-			depth--
+	total := 0
+	for _, def := range doc.Definitions {
+		if op, ok := def.(*ast.OperationDefinition); ok {
+			total += walkASTSelectionSet(op.GetSelectionSet(), 1)
+		}
+		if frag, ok := def.(*ast.FragmentDefinition); ok {
+			total += walkASTSelectionSet(frag.GetSelectionSet(), 1)
 		}
 	}
-	complexity += maxDepth * 3
+	if total == 0 {
+		return 1
+	}
+	return total
+}
 
-	// Count array selections (multipliers)
-	complexity += strings.Count(query, "[") * 2
+// walkASTSelectionSet recursively walks a GraphQL selection set for complexity.
+func walkASTSelectionSet(selSet *ast.SelectionSet, depth int) int {
+	if selSet == nil {
+		return 0
+	}
 
-	return complexity
+	const depthFactor = 2
+	const listMultiplier = 10
+
+	cost := 0
+	for _, sel := range selSet.Selections {
+		switch s := sel.(type) {
+		case *ast.Field:
+			fieldCost := 1
+			name := s.Name.Value
+			if name == "edges" || name == "events" || name == "nodes" ||
+				name == "transactions" || name == "logs" {
+				fieldCost *= listMultiplier
+			}
+			if depth > 1 {
+				fieldCost *= depthFactor
+			}
+			cost += fieldCost
+			if s.SelectionSet != nil {
+				cost += walkASTSelectionSet(s.SelectionSet, depth+1)
+			}
+		case *ast.InlineFragment:
+			if s.SelectionSet != nil {
+				cost += walkASTSelectionSet(s.SelectionSet, depth)
+			}
+		case *ast.FragmentSpread:
+			cost += 5
+		}
+	}
+	return cost
 }

@@ -11,6 +11,7 @@ import (
 
 // TestNewCacheMetrics tests cache metrics initialization
 func TestNewCacheMetrics(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 
@@ -26,6 +27,7 @@ func TestNewCacheMetrics(t *testing.T) {
 
 // TestRecordHit tests recording cache hits
 func TestRecordHit(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	cm := NewCacheMetrics(logger, metrics)
@@ -40,6 +42,7 @@ func TestRecordHit(t *testing.T) {
 
 // TestRecordMiss tests recording cache misses
 func TestRecordMiss(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	cm := NewCacheMetrics(logger, metrics)
@@ -54,6 +57,7 @@ func TestRecordMiss(t *testing.T) {
 
 // TestRecordEviction tests recording cache evictions
 func TestRecordEviction(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	cm := NewCacheMetrics(logger, metrics)
@@ -66,6 +70,7 @@ func TestRecordEviction(t *testing.T) {
 
 // TestRecordInvalidation tests recording cache invalidations
 func TestRecordInvalidation(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	cm := NewCacheMetrics(logger, metrics)
@@ -78,6 +83,7 @@ func TestRecordInvalidation(t *testing.T) {
 
 // TestGetHitRate tests hit rate calculation
 func TestGetHitRate(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		hits     int
@@ -111,6 +117,7 @@ func TestGetHitRate(t *testing.T) {
 
 // TestGetStats tests statistics retrieval
 func TestGetStats(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	cm := NewCacheMetrics(logger, metrics)
@@ -134,6 +141,7 @@ func TestGetStats(t *testing.T) {
 
 // TestGetStatsEmpty tests statistics with no operations
 func TestGetStatsEmpty(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	cm := NewCacheMetrics(logger, metrics)
@@ -151,6 +159,7 @@ func TestGetStatsEmpty(t *testing.T) {
 
 // TestReset tests metrics reset
 func TestReset(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	cm := NewCacheMetrics(logger, metrics)
@@ -171,6 +180,7 @@ func TestReset(t *testing.T) {
 
 // TestConcurrentRecordHit tests concurrent hit recording
 func TestConcurrentRecordHit(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	cm := NewCacheMetrics(logger, metrics)
@@ -198,6 +208,7 @@ func TestConcurrentRecordHit(t *testing.T) {
 
 // TestConcurrentRecordMiss tests concurrent miss recording
 func TestConcurrentRecordMiss(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	cm := NewCacheMetrics(logger, metrics)
@@ -224,6 +235,7 @@ func TestConcurrentRecordMiss(t *testing.T) {
 
 // TestConcurrentRecordEviction tests concurrent eviction recording
 func TestConcurrentRecordEviction(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	cm := NewCacheMetrics(logger, metrics)
@@ -250,6 +262,7 @@ func TestConcurrentRecordEviction(t *testing.T) {
 
 // TestConcurrentRecordInvalidation tests concurrent invalidation recording
 func TestConcurrentRecordInvalidation(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	cm := NewCacheMetrics(logger, metrics)
@@ -276,6 +289,7 @@ func TestConcurrentRecordInvalidation(t *testing.T) {
 
 // TestConcurrentMixedOperations tests concurrent mixed operations
 func TestConcurrentMixedOperations(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	cm := NewCacheMetrics(logger, metrics)
@@ -307,6 +321,7 @@ func TestConcurrentMixedOperations(t *testing.T) {
 
 // TestConcurrentGetStats tests concurrent stats retrieval
 func TestConcurrentGetStats(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	cm := NewCacheMetrics(logger, metrics)
@@ -319,7 +334,7 @@ func TestConcurrentGetStats(t *testing.T) {
 
 	var wg sync.WaitGroup
 	numGoroutines := 10
-	statsResults := make([]map[string]interface{}, numGoroutines)
+	statsResults := make([]map[string]any, numGoroutines)
 
 	for i := 0; i < numGoroutines; i++ {
 		wg.Add(1)
@@ -341,6 +356,7 @@ func TestConcurrentGetStats(t *testing.T) {
 
 // TestMultipleEvictionReasons tests evictions with different reasons
 func TestMultipleEvictionReasons(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	cm := NewCacheMetrics(logger, metrics)
@@ -358,6 +374,7 @@ func TestMultipleEvictionReasons(t *testing.T) {
 
 // TestMultipleInvalidationReasons tests invalidations with different reasons
 func TestMultipleInvalidationReasons(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	cm := NewCacheMetrics(logger, metrics)
@@ -375,6 +392,7 @@ func TestMultipleInvalidationReasons(t *testing.T) {
 
 // TestOperationDurationTracking tests operation duration tracking
 func TestOperationDurationTracking(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	cm := NewCacheMetrics(logger, metrics)
@@ -400,6 +418,7 @@ func TestOperationDurationTracking(t *testing.T) {
 
 // TestHistogramRecording tests histogram recording in metrics
 func TestHistogramRecording(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	cm := NewCacheMetrics(logger, metrics)
@@ -420,6 +439,7 @@ func TestHistogramRecording(t *testing.T) {
 
 // TestResetClearsOperationDurations tests that reset clears operation durations
 func TestResetClearsOperationDurations(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	cm := NewCacheMetrics(logger, metrics)
@@ -439,6 +459,7 @@ func TestResetClearsOperationDurations(t *testing.T) {
 
 // TestLargeScaleMetrics tests metrics with large number of operations
 func TestLargeScaleMetrics(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	cm := NewCacheMetrics(logger, metrics)
@@ -461,6 +482,7 @@ func TestLargeScaleMetrics(t *testing.T) {
 
 // TestStatsConsistency tests that stats remain consistent across calls
 func TestStatsConsistency(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	cm := NewCacheMetrics(logger, metrics)

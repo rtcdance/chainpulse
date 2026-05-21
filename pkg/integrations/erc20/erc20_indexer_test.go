@@ -9,18 +9,18 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"chainpulse/pkg/core"
-	"chainpulse/pkg/services/decoder"
+	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/services/decoder"
 )
 
 // MockLogger for testing
 type MockLogger struct{}
 
-func (ml *MockLogger) Debug(msg string, args ...interface{}) {}
-func (ml *MockLogger) Info(msg string, args ...interface{})  {}
-func (ml *MockLogger) Warn(msg string, args ...interface{})  {}
-func (ml *MockLogger) Error(msg string, args ...interface{}) {}
-func (ml *MockLogger) Fatal(msg string, args ...interface{}) {}
+func (ml *MockLogger) Debug(msg string, args ...any) {}
+func (ml *MockLogger) Info(msg string, args ...any)  {}
+func (ml *MockLogger) Warn(msg string, args ...any)  {}
+func (ml *MockLogger) Error(msg string, args ...any) {}
+func (ml *MockLogger) Fatal(msg string, args ...any) {}
 func (ml *MockLogger) WithCorrelationID(id string) core.Logger {
 	return ml
 }
@@ -30,7 +30,7 @@ type MockDatabasePlugin struct {
 	events []*core.BlockchainEvent
 }
 
-func (mdp *MockDatabasePlugin) StoreEvent(ctx context.Context, event interface{}) error {
+func (mdp *MockDatabasePlugin) StoreEvent(ctx context.Context, event any) error {
 	if e, ok := event.(*core.BlockchainEvent); ok {
 		mdp.events = append(mdp.events, e)
 	}
@@ -49,7 +49,7 @@ func (mdp *MockDatabasePlugin) GetEventsByBlockRange(ctx context.Context, from, 
 	return nil, nil
 }
 
-func (mdp *MockDatabasePlugin) QueryEvents(ctx context.Context, filter interface{}) ([]interface{}, error) {
+func (mdp *MockDatabasePlugin) QueryEvents(ctx context.Context, filter any) ([]any, error) {
 	return nil, nil
 }
 
@@ -65,7 +65,7 @@ func (mdp *MockDatabasePlugin) GetAllBlocks(ctx context.Context) ([]*core.Block,
 	return nil, nil
 }
 
-func (mdp *MockDatabasePlugin) BatchStoreEvents(ctx context.Context, events []interface{}) error {
+func (mdp *MockDatabasePlugin) BatchStoreEvents(ctx context.Context, events []any) error {
 	for _, event := range events {
 		if e, ok := event.(*core.BlockchainEvent); ok {
 			mdp.events = append(mdp.events, e)
@@ -78,6 +78,10 @@ func (mdp *MockDatabasePlugin) DeleteEventsByBlockRange(ctx context.Context, fro
 	return 0, nil
 }
 
+func (mdp *MockDatabasePlugin) MarkEventsAsReorged(ctx context.Context, fromBlock, toBlock uint64) (int64, error) {
+	return 0, nil
+}
+
 func (mdp *MockDatabasePlugin) GetLatestBlock(ctx context.Context) (uint64, error) {
 	return 0, nil
 }
@@ -86,7 +90,8 @@ func (mdp *MockDatabasePlugin) GetReorgStats(ctx context.Context) (*core.ReorgSt
 	return &core.ReorgStats{}, nil
 }
 
-func (mdp *MockDatabasePlugin) Health() error {
+func (mdp *MockDatabasePlugin) Health(ctx context.Context) error {
+	_ = ctx
 	return nil
 }
 
@@ -98,15 +103,19 @@ func (mdp *MockDatabasePlugin) Version() string {
 	return "1.0.0"
 }
 
-func (mdp *MockDatabasePlugin) Initialize(config core.Config) error {
+func (mdp *MockDatabasePlugin) Initialize(ctx context.Context, config core.Config) error {
+	_ = ctx
+	_ = config
 	return nil
 }
 
-func (mdp *MockDatabasePlugin) Start() error {
+func (mdp *MockDatabasePlugin) Start(ctx context.Context) error {
+	_ = ctx
 	return nil
 }
 
-func (mdp *MockDatabasePlugin) Stop() error {
+func (mdp *MockDatabasePlugin) Stop(ctx context.Context) error {
+	_ = ctx
 	return nil
 }
 
@@ -161,19 +170,24 @@ func (mcp *MockCachePlugin) Version() string {
 	return "1.0.0"
 }
 
-func (mcp *MockCachePlugin) Initialize(config core.Config) error {
+func (mcp *MockCachePlugin) Initialize(ctx context.Context, config core.Config) error {
+	_ = ctx
+	_ = config
 	return nil
 }
 
-func (mcp *MockCachePlugin) Start() error {
+func (mcp *MockCachePlugin) Start(ctx context.Context) error {
+	_ = ctx
 	return nil
 }
 
-func (mcp *MockCachePlugin) Stop() error {
+func (mcp *MockCachePlugin) Stop(ctx context.Context) error {
+	_ = ctx
 	return nil
 }
 
-func (mcp *MockCachePlugin) Health() error {
+func (mcp *MockCachePlugin) Health(ctx context.Context) error {
+	_ = ctx
 	return nil
 }
 
@@ -183,6 +197,7 @@ func (mcp *MockCachePlugin) HealthCheck(ctx context.Context) error {
 }
 
 func TestNewERC20Indexer(t *testing.T) {
+	t.Parallel()
 	db := &MockDatabasePlugin{}
 	cache := NewMockCachePlugin()
 	logger := &MockLogger{}
@@ -195,6 +210,7 @@ func TestNewERC20Indexer(t *testing.T) {
 }
 
 func TestIndexTransfers(t *testing.T) {
+	t.Parallel()
 	db := &MockDatabasePlugin{}
 	cache := NewMockCachePlugin()
 	logger := &MockLogger{}
@@ -210,7 +226,7 @@ func TestIndexTransfers(t *testing.T) {
 			LogIndex:        0,
 			TransactionHash: common.HexToHash("0x1234"),
 			ContractAddress: common.HexToAddress("0x1111"),
-			DecodedData: map[string]interface{}{
+			DecodedData: map[string]any{
 				"from":  common.HexToAddress("0x2222"),
 				"to":    common.HexToAddress("0x3333"),
 				"value": big.NewInt(1000),
@@ -223,6 +239,7 @@ func TestIndexTransfers(t *testing.T) {
 }
 
 func TestIndexTransfersEmpty(t *testing.T) {
+	t.Parallel()
 	db := &MockDatabasePlugin{}
 	cache := NewMockCachePlugin()
 	logger := &MockLogger{}
@@ -236,6 +253,7 @@ func TestIndexTransfersEmpty(t *testing.T) {
 }
 
 func TestGetBalance(t *testing.T) {
+	t.Parallel()
 	db := &MockDatabasePlugin{}
 	cache := NewMockCachePlugin()
 	logger := &MockLogger{}
@@ -254,6 +272,7 @@ func TestGetBalance(t *testing.T) {
 }
 
 func TestGetBalanceEmptyAddress(t *testing.T) {
+	t.Parallel()
 	db := &MockDatabasePlugin{}
 	cache := NewMockCachePlugin()
 	logger := &MockLogger{}
@@ -269,6 +288,7 @@ func TestGetBalanceEmptyAddress(t *testing.T) {
 }
 
 func TestGetTokenMetadata(t *testing.T) {
+	t.Parallel()
 	db := &MockDatabasePlugin{}
 	cache := NewMockCachePlugin()
 	logger := &MockLogger{}
@@ -285,6 +305,7 @@ func TestGetTokenMetadata(t *testing.T) {
 }
 
 func TestSetTokenMetadata(t *testing.T) {
+	t.Parallel()
 	db := &MockDatabasePlugin{}
 	cache := NewMockCachePlugin()
 	logger := &MockLogger{}
@@ -311,6 +332,7 @@ func TestSetTokenMetadata(t *testing.T) {
 }
 
 func TestSetTokenMetadataNil(t *testing.T) {
+	t.Parallel()
 	db := &MockDatabasePlugin{}
 	cache := NewMockCachePlugin()
 	logger := &MockLogger{}
@@ -324,6 +346,7 @@ func TestSetTokenMetadataNil(t *testing.T) {
 }
 
 func TestSetTokenMetadataEmptyAddress(t *testing.T) {
+	t.Parallel()
 	db := &MockDatabasePlugin{}
 	cache := NewMockCachePlugin()
 	logger := &MockLogger{}
@@ -342,6 +365,7 @@ func TestSetTokenMetadataEmptyAddress(t *testing.T) {
 }
 
 func TestGetAllTokenMetadata(t *testing.T) {
+	t.Parallel()
 	db := &MockDatabasePlugin{}
 	cache := NewMockCachePlugin()
 	logger := &MockLogger{}
@@ -373,6 +397,7 @@ func TestGetAllTokenMetadata(t *testing.T) {
 }
 
 func TestClearCache(t *testing.T) {
+	t.Parallel()
 	db := &MockDatabasePlugin{}
 	cache := NewMockCachePlugin()
 	logger := &MockLogger{}
@@ -388,6 +413,7 @@ func TestClearCache(t *testing.T) {
 }
 
 func TestGetCacheStats(t *testing.T) {
+	t.Parallel()
 	db := &MockDatabasePlugin{}
 	cache := NewMockCachePlugin()
 	logger := &MockLogger{}
@@ -405,6 +431,7 @@ func TestGetCacheStats(t *testing.T) {
 }
 
 func TestTransferEventStructure(t *testing.T) {
+	t.Parallel()
 	transfer := &TransferEvent{
 		TransactionHash: common.HexToHash("0x1234"),
 		BlockNumber:     100,
@@ -422,6 +449,7 @@ func TestTransferEventStructure(t *testing.T) {
 }
 
 func TestTokenBalanceStructure(t *testing.T) {
+	t.Parallel()
 	balance := &TokenBalance{
 		Token:       common.HexToAddress("0x1111"),
 		Account:     common.HexToAddress("0x2222"),
@@ -435,6 +463,7 @@ func TestTokenBalanceStructure(t *testing.T) {
 }
 
 func TestTransferHistoryStructure(t *testing.T) {
+	t.Parallel()
 	history := &TransferHistory{
 		Transfers:     make([]*TransferEvent, 0),
 		TotalIncoming: big.NewInt(1000),
@@ -451,6 +480,7 @@ func TestTransferHistoryStructure(t *testing.T) {
 }
 
 func TestConcurrentIndexing(t *testing.T) {
+	t.Parallel()
 	db := &MockDatabasePlugin{}
 	cache := NewMockCachePlugin()
 	logger := &MockLogger{}
@@ -470,7 +500,7 @@ func TestConcurrentIndexing(t *testing.T) {
 					LogIndex:        0,
 					TransactionHash: common.HexToHash("0x1234"),
 					ContractAddress: common.HexToAddress("0x1111"),
-					DecodedData: map[string]interface{}{
+					DecodedData: map[string]any{
 						"from":  common.HexToAddress("0x2222"),
 						"to":    common.HexToAddress("0x3333"),
 						"value": big.NewInt(1000),

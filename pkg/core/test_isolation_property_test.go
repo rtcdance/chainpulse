@@ -271,8 +271,8 @@ func TestProperty1_ContextIsolation(t *testing.T) {
 // TestProperty1_MapIsolation tests that map instances don't share state
 func TestProperty1_MapIsolation(t *testing.T) {
 	// Property: Map instances must maintain independent state
-	map1 := make(map[string]interface{})
-	map2 := make(map[string]interface{})
+	map1 := make(map[string]any)
+	map2 := make(map[string]any)
 
 	map1["key1"] = "value1"
 	map2["key2"] = "value2"

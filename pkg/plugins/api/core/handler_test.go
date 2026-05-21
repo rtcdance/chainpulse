@@ -7,6 +7,7 @@ import (
 )
 
 func TestHandlerFunc(t *testing.T) {
+	t.Parallel()
 	handler := HandlerFunc(func(req Request) (Response, error) {
 		resp := NewBaseResponse(nil)
 		resp.SetStatus(200)
@@ -26,6 +27,7 @@ func TestHandlerFunc(t *testing.T) {
 }
 
 func TestNewAPIRouter(t *testing.T) {
+	t.Parallel()
 	router := NewAPIRouter()
 
 	if router == nil {
@@ -38,6 +40,7 @@ func TestNewAPIRouter(t *testing.T) {
 }
 
 func TestAPIRouterRegister(t *testing.T) {
+	t.Parallel()
 	router := NewAPIRouter()
 
 	handler := HandlerFunc(func(req Request) (Response, error) {
@@ -54,6 +57,7 @@ func TestAPIRouterRegister(t *testing.T) {
 }
 
 func TestAPIRouterRoute(t *testing.T) {
+	t.Parallel()
 	router := NewAPIRouter()
 
 	handler := HandlerFunc(func(req Request) (Response, error) {
@@ -71,6 +75,7 @@ func TestAPIRouterRoute(t *testing.T) {
 }
 
 func TestAPIRouterRouteCount(t *testing.T) {
+	t.Parallel()
 	router := NewAPIRouter()
 
 	if router.RouteCount() != 0 {
@@ -92,6 +97,7 @@ func TestAPIRouterRouteCount(t *testing.T) {
 }
 
 func TestAPIRouterRuntimeMetricsUnobserved(t *testing.T) {
+	t.Parallel()
 	router := NewAPIRouter()
 
 	metrics := router.GetRuntimeMetrics()
@@ -104,6 +110,7 @@ func TestAPIRouterRuntimeMetricsUnobserved(t *testing.T) {
 }
 
 func TestAPIRouterRuntimeMetricsWatch(t *testing.T) {
+	t.Parallel()
 	router := NewAPIRouter()
 	handler := HandlerFunc(func(req Request) (Response, error) {
 		resp := NewBaseResponse(nil)
@@ -123,6 +130,7 @@ func TestAPIRouterRuntimeMetricsWatch(t *testing.T) {
 }
 
 func TestAPIRouterRuntimeMetricsReady(t *testing.T) {
+	t.Parallel()
 	router := NewAPIRouter()
 	handler := HandlerFunc(func(req Request) (Response, error) {
 		resp := NewBaseResponse(nil)
@@ -148,6 +156,7 @@ func TestAPIRouterRuntimeMetricsReady(t *testing.T) {
 }
 
 func TestAPIRouterRouteNotFound(t *testing.T) {
+	t.Parallel()
 	router := NewAPIRouter()
 
 	retrieved := router.Route("/api/nonexistent")
@@ -157,6 +166,7 @@ func TestAPIRouterRouteNotFound(t *testing.T) {
 }
 
 func TestAPIRouterHandle(t *testing.T) {
+	t.Parallel()
 	router := NewAPIRouter()
 
 	handler := HandlerFunc(func(req Request) (Response, error) {
@@ -180,6 +190,7 @@ func TestAPIRouterHandle(t *testing.T) {
 }
 
 func TestAPIRouterHandleNotFound(t *testing.T) {
+	t.Parallel()
 	router := NewAPIRouter()
 
 	req := NewBaseRequest(context.Background(), "GET", "/api/nonexistent", nil, []byte(""))
@@ -195,6 +206,7 @@ func TestAPIRouterHandleNotFound(t *testing.T) {
 }
 
 func TestAPIRouterMiddleware(t *testing.T) {
+	t.Parallel()
 	router := NewAPIRouter()
 
 	// Create middleware that adds a header
@@ -230,6 +242,7 @@ func TestAPIRouterMiddleware(t *testing.T) {
 }
 
 func TestDefaultErrorMapper(t *testing.T) {
+	t.Parallel()
 	mapper := NewDefaultErrorMapper()
 
 	// Test nil error
@@ -256,6 +269,7 @@ func TestDefaultErrorMapper(t *testing.T) {
 }
 
 func TestNewAPILayer(t *testing.T) {
+	t.Parallel()
 	layer := NewAPILayer()
 
 	if layer == nil {
@@ -272,6 +286,7 @@ func TestNewAPILayer(t *testing.T) {
 }
 
 func TestAPILayerRegisterHandler(t *testing.T) {
+	t.Parallel()
 	layer := NewAPILayer()
 
 	handler := HandlerFunc(func(req Request) (Response, error) {
@@ -292,6 +307,7 @@ func TestAPILayerRegisterHandler(t *testing.T) {
 }
 
 func TestAPILayerHandle(t *testing.T) {
+	t.Parallel()
 	layer := NewAPILayer()
 
 	handler := HandlerFunc(func(req Request) (Response, error) {
@@ -312,6 +328,7 @@ func TestAPILayerHandle(t *testing.T) {
 }
 
 func TestAPILayerHandleError(t *testing.T) {
+	t.Parallel()
 	layer := NewAPILayer()
 
 	handler := HandlerFunc(func(req Request) (Response, error) {
@@ -329,6 +346,7 @@ func TestAPILayerHandleError(t *testing.T) {
 }
 
 func TestAPILayerSetErrorMapper(t *testing.T) {
+	t.Parallel()
 	layer := NewAPILayer()
 
 	customMapper := &testErrorMapper{}
@@ -349,6 +367,7 @@ func TestAPILayerSetErrorMapper(t *testing.T) {
 }
 
 func TestAPILayerMiddleware(t *testing.T) {
+	t.Parallel()
 	layer := NewAPILayer()
 
 	middleware := func(next Handler) Handler {
@@ -380,6 +399,7 @@ func TestAPILayerMiddleware(t *testing.T) {
 }
 
 func TestAPILayerRuntimeMetricsUnobserved(t *testing.T) {
+	t.Parallel()
 	layer := NewAPILayer()
 	layer.router = NewAPIRouter()
 	layer.errorMapper = nil
@@ -394,6 +414,7 @@ func TestAPILayerRuntimeMetricsUnobserved(t *testing.T) {
 }
 
 func TestAPILayerRuntimeMetricsWatch(t *testing.T) {
+	t.Parallel()
 	layer := NewAPILayer()
 	layer.errorMapper = nil
 	layer.RegisterHandler("/api/users", HandlerFunc(func(req Request) (Response, error) {
@@ -412,6 +433,7 @@ func TestAPILayerRuntimeMetricsWatch(t *testing.T) {
 }
 
 func TestAPILayerRuntimeMetricsHardened(t *testing.T) {
+	t.Parallel()
 	layer := NewAPILayer()
 	layer.Use(func(next Handler) Handler {
 		return HandlerFunc(func(req Request) (Response, error) {

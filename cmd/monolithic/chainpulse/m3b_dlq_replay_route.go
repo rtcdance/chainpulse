@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	appindexing "chainpulse/pkg/application/indexing"
+	appindexing "github.com/rtcdance/chainpulse/pkg/application/indexing"
 )
 
 type dlqReplayRequest struct {

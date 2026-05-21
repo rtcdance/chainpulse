@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 // CacheInvalidator handles cache invalidation logic
@@ -16,6 +16,7 @@ type CacheInvalidator struct {
 	invalidationQueue chan InvalidationRequest
 	retryPolicy       *RetryPolicy
 	mu                sync.RWMutex
+	closeOnce         sync.Once
 }
 
 // InvalidationRequest represents a cache invalidation request
@@ -99,7 +100,8 @@ func (ci *CacheInvalidator) InvalidatePattern(pattern string, reason string) err
 func (ci *CacheInvalidator) InvalidateRelated(keys []string, reason string) error {
 	for _, key := range keys {
 		if err := ci.InvalidateKey(key, reason); err != nil {
-			ci.logger.Error("Failed to invalidate related key",
+			ci.logger.Error(
+				"Failed to invalidate related key",
 				"key", key,
 				"reason", reason,
 				"error", err,
@@ -121,7 +123,8 @@ func (ci *CacheInvalidator) processInvalidations() {
 func (ci *CacheInvalidator) processInvalidation(req InvalidationRequest) {
 	if req.Key != "" {
 		ci.cache.Invalidate(req.Key)
-		ci.logger.Info("Cache key invalidated",
+		ci.logger.Info(
+			"Cache key invalidated",
 			"key", req.Key,
 			"reason", req.Reason,
 		)
@@ -130,7 +133,8 @@ func (ci *CacheInvalidator) processInvalidation(req InvalidationRequest) {
 		})
 	} else if req.Pattern != "" {
 		ci.cache.InvalidatePattern(req.Pattern)
-		ci.logger.Info("Cache pattern invalidated",
+		ci.logger.Info(
+			"Cache pattern invalidated",
 			"pattern", req.Pattern,
 			"reason", req.Reason,
 		)
@@ -183,6 +187,8 @@ func (ci *CacheInvalidator) GetStats() InvalidationStats {
 
 // Close closes the invalidator
 func (ci *CacheInvalidator) Close() error {
-	close(ci.invalidationQueue)
+	ci.closeOnce.Do(func() {
+		close(ci.invalidationQueue)
+	})
 	return nil
 }

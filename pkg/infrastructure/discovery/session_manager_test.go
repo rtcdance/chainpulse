@@ -17,6 +17,7 @@ func skipSessionManagerConcurrencyTestsInShortMode(t *testing.T) {
 
 // TestNewSessionManager tests creating a new session manager
 func TestNewSessionManager(t *testing.T) {
+	t.Parallel()
 	sm := NewSessionManager()
 
 	assert.NotNil(t, sm)
@@ -26,6 +27,7 @@ func TestNewSessionManager(t *testing.T) {
 
 // TestCreateSession tests creating a new session
 func TestCreateSession(t *testing.T) {
+	t.Parallel()
 	sm := NewSessionManager()
 	ctx := context.Background()
 
@@ -40,6 +42,7 @@ func TestCreateSession(t *testing.T) {
 
 // TestCreateSessionMultiple tests creating multiple sessions
 func TestCreateSessionMultiple(t *testing.T) {
+	t.Parallel()
 	sm := NewSessionManager()
 	ctx := context.Background()
 
@@ -55,6 +58,7 @@ func TestCreateSessionMultiple(t *testing.T) {
 
 // TestGetSession tests retrieving a session
 func TestGetSession(t *testing.T) {
+	t.Parallel()
 	sm := NewSessionManager()
 	ctx := context.Background()
 
@@ -69,6 +73,7 @@ func TestGetSession(t *testing.T) {
 
 // TestGetSessionNotFound tests retrieving a non-existent session
 func TestGetSessionNotFound(t *testing.T) {
+	t.Parallel()
 	sm := NewSessionManager()
 	ctx := context.Background()
 
@@ -80,6 +85,7 @@ func TestGetSessionNotFound(t *testing.T) {
 
 // TestGetSessionExpired tests retrieving an expired session
 func TestGetSessionExpired(t *testing.T) {
+	t.Parallel()
 	sm := NewSessionManager()
 	sm.ttl = 1 * time.Millisecond
 	ctx := context.Background()
@@ -95,11 +101,12 @@ func TestGetSessionExpired(t *testing.T) {
 
 // TestUpdateSession tests updating session data
 func TestUpdateSession(t *testing.T) {
+	t.Parallel()
 	sm := NewSessionManager()
 	ctx := context.Background()
 
 	session, _ := sm.CreateSession(ctx, "user123")
-	data := map[string]interface{}{
+	data := map[string]any{
 		"key1": "value1",
 		"key2": 42,
 	}
@@ -115,10 +122,11 @@ func TestUpdateSession(t *testing.T) {
 
 // TestUpdateSessionNonExistent tests updating a non-existent session
 func TestUpdateSessionNonExistent(t *testing.T) {
+	t.Parallel()
 	sm := NewSessionManager()
 	ctx := context.Background()
 
-	data := map[string]interface{}{"key": "value"}
+	data := map[string]any{"key": "value"}
 	err := sm.UpdateSession(ctx, "nonexistent", data)
 
 	assert.Error(t, err)
@@ -126,6 +134,7 @@ func TestUpdateSessionNonExistent(t *testing.T) {
 
 // TestUpdateSessionRefreshesExpiration tests that update refreshes expiration
 func TestUpdateSessionRefreshesExpiration(t *testing.T) {
+	t.Parallel()
 	sm := NewSessionManager()
 	sm.ttl = 100 * time.Millisecond
 	ctx := context.Background()
@@ -134,7 +143,7 @@ func TestUpdateSessionRefreshesExpiration(t *testing.T) {
 	originalExpiry := session.ExpiresAt
 
 	time.Sleep(50 * time.Millisecond)
-	_ = sm.UpdateSession(ctx, session.ID, map[string]interface{}{})
+	_ = sm.UpdateSession(ctx, session.ID, map[string]any{})
 
 	updated, _ := sm.GetSession(ctx, session.ID)
 	assert.True(t, updated.ExpiresAt.After(originalExpiry))
@@ -142,6 +151,7 @@ func TestUpdateSessionRefreshesExpiration(t *testing.T) {
 
 // TestDeleteSession tests deleting a session
 func TestDeleteSession(t *testing.T) {
+	t.Parallel()
 	sm := NewSessionManager()
 	ctx := context.Background()
 
@@ -156,6 +166,7 @@ func TestDeleteSession(t *testing.T) {
 
 // TestDeleteSessionNonExistent tests deleting a non-existent session
 func TestDeleteSessionNonExistent(t *testing.T) {
+	t.Parallel()
 	sm := NewSessionManager()
 	ctx := context.Background()
 
@@ -166,6 +177,7 @@ func TestDeleteSessionNonExistent(t *testing.T) {
 
 // TestSessionDataPersistence tests that session data persists
 func TestSessionDataPersistence(t *testing.T) {
+	t.Parallel()
 	sm := NewSessionManager()
 	ctx := context.Background()
 
@@ -178,6 +190,7 @@ func TestSessionDataPersistence(t *testing.T) {
 
 // TestSessionConcurrentAccess tests concurrent session access
 func TestSessionConcurrentAccess(t *testing.T) {
+	t.Parallel()
 	sm := NewSessionManager()
 	ctx := context.Background()
 
@@ -201,6 +214,7 @@ func TestSessionConcurrentAccess(t *testing.T) {
 
 // TestSessionConcurrentUpdate tests concurrent session updates
 func TestSessionConcurrentUpdate(t *testing.T) {
+	t.Parallel()
 	skipSessionManagerConcurrencyTestsInShortMode(t)
 
 	sm := NewSessionManager()
@@ -212,7 +226,7 @@ func TestSessionConcurrentUpdate(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		go func(index int) {
 			defer func() { done <- true }()
-			data := map[string]interface{}{"key": index}
+			data := map[string]any{"key": index}
 			_ = sm.UpdateSession(ctx, session.ID, data)
 		}(i)
 	}
@@ -227,6 +241,7 @@ func TestSessionConcurrentUpdate(t *testing.T) {
 
 // TestSessionTTL tests session TTL configuration
 func TestSessionTTL(t *testing.T) {
+	t.Parallel()
 	sm := NewSessionManager()
 	sm.ttl = 5 * time.Second
 	ctx := context.Background()
@@ -239,6 +254,7 @@ func TestSessionTTL(t *testing.T) {
 
 // TestSessionIDUniqueness tests that session IDs are unique
 func TestSessionIDUniqueness(t *testing.T) {
+	t.Parallel()
 	sm := NewSessionManager()
 	ctx := context.Background()
 
@@ -252,6 +268,7 @@ func TestSessionIDUniqueness(t *testing.T) {
 
 // TestSessionWithEmptyUserID tests creating session with empty user ID
 func TestSessionWithEmptyUserID(t *testing.T) {
+	t.Parallel()
 	sm := NewSessionManager()
 	ctx := context.Background()
 
@@ -264,6 +281,7 @@ func TestSessionWithEmptyUserID(t *testing.T) {
 
 // TestSessionWithLongUserID tests creating session with long user ID
 func TestSessionWithLongUserID(t *testing.T) {
+	t.Parallel()
 	sm := NewSessionManager()
 	ctx := context.Background()
 
@@ -277,11 +295,12 @@ func TestSessionWithLongUserID(t *testing.T) {
 
 // TestSessionDataTypes tests various data types in session
 func TestSessionDataTypes(t *testing.T) {
+	t.Parallel()
 	sm := NewSessionManager()
 	ctx := context.Background()
 
 	session, _ := sm.CreateSession(ctx, "user123")
-	data := map[string]interface{}{
+	data := map[string]any{
 		"string": "value",
 		"int":    42,
 		"float":  3.14,
@@ -301,6 +320,7 @@ func TestSessionDataTypes(t *testing.T) {
 
 // TestSessionCreatedAtTimestamp tests session created at timestamp
 func TestSessionCreatedAtTimestamp(t *testing.T) {
+	t.Parallel()
 	sm := NewSessionManager()
 	ctx := context.Background()
 
@@ -314,6 +334,7 @@ func TestSessionCreatedAtTimestamp(t *testing.T) {
 
 // TestSessionExpiresAtTimestamp tests session expires at timestamp
 func TestSessionExpiresAtTimestamp(t *testing.T) {
+	t.Parallel()
 	sm := NewSessionManager()
 	sm.ttl = 1 * time.Hour
 	ctx := context.Background()
@@ -327,13 +348,14 @@ func TestSessionExpiresAtTimestamp(t *testing.T) {
 
 // TestSessionMultipleUpdates tests multiple updates to same session
 func TestSessionMultipleUpdates(t *testing.T) {
+	t.Parallel()
 	sm := NewSessionManager()
 	ctx := context.Background()
 
 	session, _ := sm.CreateSession(ctx, "user123")
 
 	for i := 0; i < 5; i++ {
-		data := map[string]interface{}{"iteration": i}
+		data := map[string]any{"iteration": i}
 		err := sm.UpdateSession(ctx, session.ID, data)
 		assert.NoError(t, err)
 	}
@@ -344,6 +366,7 @@ func TestSessionMultipleUpdates(t *testing.T) {
 
 // TestSessionContextCancellation tests session operations with cancelled context
 func TestSessionContextCancellation(t *testing.T) {
+	t.Parallel()
 	sm := NewSessionManager()
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()

@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 // Property 12: Cache Hit Return
@@ -25,7 +25,7 @@ func TestRedisCacheHitReturn(t *testing.T) {
 	}
 
 	_ = cache.Initialize(config)
-	_ = cache.Start()
+	_ = cache.Start(ctx)
 
 	// Property: All set values are retrievable
 	entries := make([]*CacheEntry, 10)
@@ -56,7 +56,7 @@ func TestRedisCacheHitReturn(t *testing.T) {
 		}
 	}
 
-	_ = cache.Stop()
+	_ = cache.Stop(ctx)
 }
 
 // Property: Cache hits are recorded in Redis
@@ -73,7 +73,7 @@ func TestRedisCacheHitRecording(t *testing.T) {
 	}
 
 	_ = cache.Initialize(config)
-	_ = cache.Start()
+	_ = cache.Start(ctx)
 
 	// Property: Each successful get increments hit count
 	entry := &CacheEntry{
@@ -88,11 +88,12 @@ func TestRedisCacheHitRecording(t *testing.T) {
 		_, _ = cache.Get("test_key")
 	}
 
-	if cache.GetHitCount() != 10 {
-		t.Fatalf("Expected 10 hits, got %d", cache.GetHitCount())
+	stats := cache.GetStats()
+	if stats.HitCount != 10 {
+		t.Fatalf("Expected 10 hits, got %d", stats.HitCount)
 	}
 
-	_ = cache.Stop()
+	_ = cache.Stop(ctx)
 }
 
 // Property: Cache misses are recorded in Redis
@@ -109,18 +110,19 @@ func TestRedisCacheMissRecording(t *testing.T) {
 	}
 
 	_ = cache.Initialize(config)
-	_ = cache.Start()
+	_ = cache.Start(ctx)
 
 	// Property: Each failed get increments miss count
 	for i := 0; i < 10; i++ {
 		_, _ = cache.Get(fmt.Sprintf("nonexistent_key_%d", i))
 	}
 
-	if cache.GetMissCount() != 10 {
-		t.Fatalf("Expected 10 misses, got %d", cache.GetMissCount())
+	stats := cache.GetStats()
+	if stats.MissCount != 10 {
+		t.Fatalf("Expected 10 misses, got %d", stats.MissCount)
 	}
 
-	_ = cache.Stop()
+	_ = cache.Stop(ctx)
 }
 
 // Property 14: Cache Expiration
@@ -139,7 +141,7 @@ func TestRedisCacheExpirationConsistency(t *testing.T) {
 	}
 
 	_ = cache.Initialize(config)
-	_ = cache.Start()
+	_ = cache.Start(ctx)
 
 	// Property: Expired entries are not returned
 	entry := &CacheEntry{
@@ -165,7 +167,7 @@ func TestRedisCacheExpirationConsistency(t *testing.T) {
 		t.Fatal("Expected value to be expired")
 	}
 
-	_ = cache.Stop()
+	_ = cache.Stop(ctx)
 }
 
 // Property: Eviction count increases for expired entries in Redis
@@ -182,7 +184,7 @@ func TestRedisCacheEvictionTracking(t *testing.T) {
 	}
 
 	_ = cache.Initialize(config)
-	_ = cache.Start()
+	_ = cache.Start(ctx)
 
 	// Property: Each expired entry increments eviction count
 	for i := 0; i < 5; i++ {
@@ -203,11 +205,12 @@ func TestRedisCacheEvictionTracking(t *testing.T) {
 		_, _ = cache.Get(fmt.Sprintf("key_%d", i))
 	}
 
-	if cache.GetEvictionCount() != 5 {
-		t.Fatalf("Expected 5 evictions, got %d", cache.GetEvictionCount())
+	stats := cache.GetStats()
+	if stats.EvictionCount != 5 {
+		t.Fatalf("Expected 5 evictions, got %d", stats.EvictionCount)
 	}
 
-	_ = cache.Stop()
+	_ = cache.Stop(ctx)
 }
 
 // Property: Redis cache maintains data consistency across operations
@@ -224,7 +227,7 @@ func TestRedisCacheDataConsistency(t *testing.T) {
 	}
 
 	_ = cache.Initialize(config)
-	_ = cache.Start()
+	_ = cache.Start(ctx)
 
 	// Property: Set, Get, Update, Get sequence maintains consistency
 	entry1 := &CacheEntry{
@@ -254,7 +257,7 @@ func TestRedisCacheDataConsistency(t *testing.T) {
 		t.Fatalf("Expected value2, got %v", retrieved2.Value)
 	}
 
-	_ = cache.Stop()
+	_ = cache.Stop(ctx)
 }
 
 // Property: Redis cache delete operation removes entries
@@ -271,7 +274,7 @@ func TestRedisCacheDeleteConsistency(t *testing.T) {
 	}
 
 	_ = cache.Initialize(config)
-	_ = cache.Start()
+	_ = cache.Start(ctx)
 
 	// Property: Deleted entries are not retrievable
 	entry := &CacheEntry{
@@ -297,7 +300,7 @@ func TestRedisCacheDeleteConsistency(t *testing.T) {
 		t.Fatal("Expected value to be deleted")
 	}
 
-	_ = cache.Stop()
+	_ = cache.Stop(ctx)
 }
 
 // Property: Redis cache clear operation removes all entries
@@ -314,7 +317,7 @@ func TestRedisCacheClearConsistency(t *testing.T) {
 	}
 
 	_ = cache.Initialize(config)
-	_ = cache.Start()
+	_ = cache.Start(ctx)
 
 	// Property: Clear removes all entries
 	for i := 0; i < 10; i++ {
@@ -339,7 +342,7 @@ func TestRedisCacheClearConsistency(t *testing.T) {
 		t.Fatalf("Expected 0 keys after clear, got %d", cache.GetKeyCount())
 	}
 
-	_ = cache.Stop()
+	_ = cache.Stop(ctx)
 }
 
 // Property: Redis cache exists operation returns correct status
@@ -356,7 +359,7 @@ func TestRedisCacheExistsConsistency(t *testing.T) {
 	}
 
 	_ = cache.Initialize(config)
-	_ = cache.Start()
+	_ = cache.Start(ctx)
 
 	// Property: Exists returns true for existing keys
 	entry := &CacheEntry{
@@ -378,7 +381,7 @@ func TestRedisCacheExistsConsistency(t *testing.T) {
 		t.Fatal("Expected key to not exist")
 	}
 
-	_ = cache.Stop()
+	_ = cache.Stop(ctx)
 }
 
 // Property: Redis cache TTL operation returns correct remaining time
@@ -395,7 +398,7 @@ func TestRedisCacheTTLConsistency(t *testing.T) {
 	}
 
 	_ = cache.Initialize(config)
-	_ = cache.Start()
+	_ = cache.Start(ctx)
 
 	// Property: TTL returns remaining time for existing keys
 	entry := &CacheEntry{
@@ -417,7 +420,7 @@ func TestRedisCacheTTLConsistency(t *testing.T) {
 		t.Fatalf("Expected TTL -2 for non-existing key, got %d", ttl)
 	}
 
-	_ = cache.Stop()
+	_ = cache.Stop(ctx)
 }
 
 // Property: Redis cache expire operation updates TTL
@@ -434,7 +437,7 @@ func TestRedisCacheExpireConsistency(t *testing.T) {
 	}
 
 	_ = cache.Initialize(config)
-	_ = cache.Start()
+	_ = cache.Start(ctx)
 
 	// Property: Expire updates TTL for existing keys
 	entry := &CacheEntry{
@@ -453,7 +456,7 @@ func TestRedisCacheExpireConsistency(t *testing.T) {
 		t.Fatalf("Expected TTL between 0 and 5, got %d", ttl)
 	}
 
-	_ = cache.Stop()
+	_ = cache.Stop(ctx)
 }
 
 // Property: Redis cache GetAllKeys returns all non-expired keys
@@ -470,7 +473,7 @@ func TestRedisCacheGetAllKeysConsistency(t *testing.T) {
 	}
 
 	_ = cache.Initialize(config)
-	_ = cache.Start()
+	_ = cache.Start(ctx)
 
 	// Property: GetAllKeys returns all set keys
 	for i := 0; i < 5; i++ {
@@ -487,7 +490,7 @@ func TestRedisCacheGetAllKeysConsistency(t *testing.T) {
 		t.Fatalf("Expected 5 keys, got %d", len(keys))
 	}
 
-	_ = cache.Stop()
+	_ = cache.Stop(ctx)
 }
 
 // Property: Redis cache increment operation increases numeric values
@@ -504,7 +507,7 @@ func TestRedisCacheIncrementConsistency(t *testing.T) {
 	}
 
 	_ = cache.Initialize(config)
-	_ = cache.Start()
+	_ = cache.Start(ctx)
 
 	// Property: Increment creates entry if not exists
 	val, _ := cache.Increment("counter", 5)
@@ -518,7 +521,7 @@ func TestRedisCacheIncrementConsistency(t *testing.T) {
 		t.Fatalf("Expected 8, got %d", val)
 	}
 
-	_ = cache.Stop()
+	_ = cache.Stop(ctx)
 }
 
 // Property: Redis cache decrement operation decreases numeric values
@@ -535,7 +538,7 @@ func TestRedisCacheDecrementConsistency(t *testing.T) {
 	}
 
 	_ = cache.Initialize(config)
-	_ = cache.Start()
+	_ = cache.Start(ctx)
 
 	// Property: Decrement creates entry if not exists
 	val, _ := cache.Decrement("counter", 5)
@@ -549,7 +552,7 @@ func TestRedisCacheDecrementConsistency(t *testing.T) {
 		t.Fatalf("Expected -8, got %d", val)
 	}
 
-	_ = cache.Stop()
+	_ = cache.Stop(ctx)
 }
 
 // Property: Redis cache statistics are accurate
@@ -566,7 +569,7 @@ func TestRedisCacheStatsAccuracy(t *testing.T) {
 	}
 
 	_ = cache.Initialize(config)
-	_ = cache.Start()
+	_ = cache.Start(ctx)
 
 	// Property: Stats reflect cache operations
 	for i := 0; i < 5; i++ {
@@ -601,7 +604,7 @@ func TestRedisCacheStatsAccuracy(t *testing.T) {
 		t.Fatalf("Expected 5 entries, got %d", stats.EntryCount)
 	}
 
-	_ = cache.Stop()
+	_ = cache.Stop(ctx)
 }
 
 // Property: Redis cache ping operation verifies connectivity
@@ -618,18 +621,20 @@ func TestRedisCachePingConsistency(t *testing.T) {
 	}
 
 	_ = cache.Initialize(config)
-	_ = cache.Start()
+	_ = cache.Start(ctx)
 
 	// Property: Ping succeeds when running
-	err := cache.Ping(context.TODO())
+	err := cache.Ping(context.Background())
 	if err != nil {
 		t.Fatalf("Ping failed: %v", err)
 	}
 
-	_ = cache.Stop()
+	_ = cache.Stop(ctx)
 
 	// Property: Ping fails when not running
-	err = cache.Ping(context.TODO())
+	pingCtx, pingCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer pingCancel()
+	err = cache.Ping(pingCtx)
 	if err == nil {
 		t.Fatal("Expected Ping to fail when not running")
 	}
@@ -649,7 +654,7 @@ func TestRedisCacheFlushDBConsistency(t *testing.T) {
 	}
 
 	_ = cache.Initialize(config)
-	_ = cache.Start()
+	_ = cache.Start(ctx)
 
 	// Property: FlushDB removes all entries
 	for i := 0; i < 10; i++ {
@@ -661,13 +666,13 @@ func TestRedisCacheFlushDBConsistency(t *testing.T) {
 		_ = cache.Set(entry)
 	}
 
-	_ = cache.FlushDB(context.TODO())
+	_ = cache.FlushDB(context.Background())
 
 	if cache.GetKeyCount() != 0 {
 		t.Fatalf("Expected 0 keys after FlushDB, got %d", cache.GetKeyCount())
 	}
 
-	_ = cache.Stop()
+	_ = cache.Stop(ctx)
 }
 
 // Property: Redis cache handles concurrent operations safely
@@ -684,7 +689,7 @@ func TestRedisCacheConcurrentOperationsProperty(t *testing.T) {
 	}
 
 	_ = cache.Initialize(config)
-	_ = cache.Start()
+	_ = cache.Start(ctx)
 
 	// Property: Concurrent sets and gets maintain consistency
 	done := make(chan bool, 20)
@@ -724,7 +729,7 @@ func TestRedisCacheConcurrentOperationsProperty(t *testing.T) {
 		t.Fatalf("Expected 100 keys, got %d", cache.GetKeyCount())
 	}
 
-	_ = cache.Stop()
+	_ = cache.Stop(ctx)
 }
 
 // Property: Redis cache handles error conditions gracefully
@@ -741,7 +746,7 @@ func TestRedisCacheErrorHandling(t *testing.T) {
 	}
 
 	_ = cache.Initialize(config)
-	_ = cache.Start()
+	_ = cache.Start(ctx)
 
 	// Property: Get with empty key returns error
 	_, err := cache.Get("")
@@ -774,7 +779,7 @@ func TestRedisCacheErrorHandling(t *testing.T) {
 		t.Fatal("Expected error for negative TTL")
 	}
 
-	_ = cache.Stop()
+	_ = cache.Stop(ctx)
 }
 
 // Property: Redis cache maintains entry count accuracy
@@ -791,7 +796,7 @@ func TestRedisCacheEntryCountAccuracy(t *testing.T) {
 	}
 
 	_ = cache.Initialize(config)
-	_ = cache.Start()
+	_ = cache.Start(ctx)
 
 	// Property: Entry count increases with Set
 	for i := 0; i < 10; i++ {
@@ -816,5 +821,5 @@ func TestRedisCacheEntryCountAccuracy(t *testing.T) {
 		}
 	}
 
-	_ = cache.Stop()
+	_ = cache.Stop(ctx)
 }

@@ -9,6 +9,7 @@ import (
 
 // TestPostgresReplicationConfigStructure tests PostgresReplicationConfig structure
 func TestPostgresReplicationConfigStructure(t *testing.T) {
+	t.Parallel()
 	config := PostgresReplicationConfig{
 		PrimaryAddress:      "localhost:5432",
 		ReplicaAddresses:    []string{"replica1:5432", "replica2:5432"},
@@ -28,6 +29,7 @@ func TestPostgresReplicationConfigStructure(t *testing.T) {
 
 // TestNewPostgresAdvancedManager tests creating a new advanced PostgreSQL manager
 func TestNewPostgresAdvancedManager(t *testing.T) {
+	t.Parallel()
 	cluster := &PostgresCluster{}
 	manager := NewPostgresAdvancedManager(cluster)
 
@@ -37,6 +39,7 @@ func TestNewPostgresAdvancedManager(t *testing.T) {
 
 // TestPostgresReplicationConfigWALLevels tests various WAL levels
 func TestPostgresReplicationConfigWALLevels(t *testing.T) {
+	t.Parallel()
 	walLevels := []string{"minimal", "replica", "logical"}
 
 	for _, level := range walLevels {
@@ -49,6 +52,7 @@ func TestPostgresReplicationConfigWALLevels(t *testing.T) {
 
 // TestPostgresReplicationConfigMaxWALSenders tests max WAL senders
 func TestPostgresReplicationConfigMaxWALSenders(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name          string
 		maxWALSenders int
@@ -70,6 +74,7 @@ func TestPostgresReplicationConfigMaxWALSenders(t *testing.T) {
 
 // TestPostgresReplicationConfigMaxReplicationSlots tests max replication slots
 func TestPostgresReplicationConfigMaxReplicationSlots(t *testing.T) {
+	t.Parallel()
 	config := PostgresReplicationConfig{
 		MaxReplicationSlots: 10,
 	}
@@ -79,6 +84,7 @@ func TestPostgresReplicationConfigMaxReplicationSlots(t *testing.T) {
 
 // TestPostgresReplicationConfigSyncInterval tests sync interval
 func TestPostgresReplicationConfigSyncInterval(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name         string
 		syncInterval time.Duration
@@ -101,6 +107,7 @@ func TestPostgresReplicationConfigSyncInterval(t *testing.T) {
 
 // TestPostgresReplicationConfigMaxSyncRetries tests max sync retries
 func TestPostgresReplicationConfigMaxSyncRetries(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name           string
 		maxSyncRetries int
@@ -122,6 +129,7 @@ func TestPostgresReplicationConfigMaxSyncRetries(t *testing.T) {
 
 // TestPostgresReplicationConfigMultipleReplicas tests multiple replicas
 func TestPostgresReplicationConfigMultipleReplicas(t *testing.T) {
+	t.Parallel()
 	config := PostgresReplicationConfig{
 		PrimaryAddress: "primary:5432",
 		ReplicaAddresses: []string{
@@ -136,6 +144,7 @@ func TestPostgresReplicationConfigMultipleReplicas(t *testing.T) {
 
 // TestPostgresReplicationConfigSingleReplica tests single replica
 func TestPostgresReplicationConfigSingleReplica(t *testing.T) {
+	t.Parallel()
 	config := PostgresReplicationConfig{
 		PrimaryAddress:   "primary:5432",
 		ReplicaAddresses: []string{"replica:5432"},
@@ -146,6 +155,7 @@ func TestPostgresReplicationConfigSingleReplica(t *testing.T) {
 
 // TestPostgresReplicationConfigNoReplicas tests no replicas
 func TestPostgresReplicationConfigNoReplicas(t *testing.T) {
+	t.Parallel()
 	config := PostgresReplicationConfig{
 		PrimaryAddress:   "primary:5432",
 		ReplicaAddresses: []string{},
@@ -156,6 +166,7 @@ func TestPostgresReplicationConfigNoReplicas(t *testing.T) {
 
 // TestPostgresAdvancedManagerMutex tests mutex protection
 func TestPostgresAdvancedManagerMutex(t *testing.T) {
+	t.Parallel()
 	cluster := &PostgresCluster{}
 	manager := NewPostgresAdvancedManager(cluster)
 
@@ -166,6 +177,7 @@ func TestPostgresAdvancedManagerMutex(t *testing.T) {
 
 // TestPostgresAdvancedManagerClusterReference tests cluster reference
 func TestPostgresAdvancedManagerClusterReference(t *testing.T) {
+	t.Parallel()
 	cluster := &PostgresCluster{}
 	manager := NewPostgresAdvancedManager(cluster)
 
@@ -176,6 +188,7 @@ func TestPostgresAdvancedManagerClusterReference(t *testing.T) {
 
 // TestPostgresReplicationConfigDefaults tests default values
 func TestPostgresReplicationConfigDefaults(t *testing.T) {
+	t.Parallel()
 	config := PostgresReplicationConfig{}
 
 	assert.Equal(t, "", config.PrimaryAddress)
@@ -185,6 +198,7 @@ func TestPostgresReplicationConfigDefaults(t *testing.T) {
 
 // TestPostgresReplicationConfigAddressFormats tests various address formats
 func TestPostgresReplicationConfigAddressFormats(t *testing.T) {
+	t.Parallel()
 	addresses := []string{
 		"localhost:5432",
 		"127.0.0.1:5432",
@@ -202,6 +216,7 @@ func TestPostgresReplicationConfigAddressFormats(t *testing.T) {
 
 // TestPostgresReplicationConfigHighMaxWALSenders tests high max WAL senders
 func TestPostgresReplicationConfigHighMaxWALSenders(t *testing.T) {
+	t.Parallel()
 	config := PostgresReplicationConfig{
 		MaxWALSenders: 100,
 	}
@@ -211,6 +226,7 @@ func TestPostgresReplicationConfigHighMaxWALSenders(t *testing.T) {
 
 // TestPostgresReplicationConfigHighMaxReplicationSlots tests high max replication slots
 func TestPostgresReplicationConfigHighMaxReplicationSlots(t *testing.T) {
+	t.Parallel()
 	config := PostgresReplicationConfig{
 		MaxReplicationSlots: 100,
 	}
@@ -220,6 +236,7 @@ func TestPostgresReplicationConfigHighMaxReplicationSlots(t *testing.T) {
 
 // TestPostgresAdvancedManagerConcurrentAccess tests concurrent access
 func TestPostgresAdvancedManagerConcurrentAccess(t *testing.T) {
+	t.Parallel()
 	cluster := &PostgresCluster{}
 	manager := NewPostgresAdvancedManager(cluster)
 
@@ -240,6 +257,7 @@ func TestPostgresAdvancedManagerConcurrentAccess(t *testing.T) {
 
 // TestPostgresReplicationConfigZeroSyncInterval tests zero sync interval
 func TestPostgresReplicationConfigZeroSyncInterval(t *testing.T) {
+	t.Parallel()
 	config := PostgresReplicationConfig{
 		SyncInterval: 0,
 	}
@@ -249,6 +267,7 @@ func TestPostgresReplicationConfigZeroSyncInterval(t *testing.T) {
 
 // TestPostgresReplicationConfigLargeSyncInterval tests large sync interval
 func TestPostgresReplicationConfigLargeSyncInterval(t *testing.T) {
+	t.Parallel()
 	config := PostgresReplicationConfig{
 		SyncInterval: 1 * time.Hour,
 	}

@@ -1,0 +1,44 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: chainpulse-reader
+  namespace: chainpulse
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "services", "configmaps", "endpoints"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get", "list"]
+  - apiGroups: ["apps"]
+    resources: ["deployments", "replicasets"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: chainpulse-reader-binding
+  namespace: chainpulse
+subjects:
+  - kind: ServiceAccount
+    name: chainpulse
+    namespace: chainpulse
+  - kind: ServiceAccount
+    name: chainpulse-monolithic
+    namespace: chainpulse
+  - kind: ServiceAccount
+    name: chainpulse-puller
+    namespace: chainpulse
+  - kind: ServiceAccount
+    name: chainpulse-event-processor
+    namespace: chainpulse
+  - kind: ServiceAccount
+    name: chainpulse-api-service
+    namespace: chainpulse
+  - kind: ServiceAccount
+    name: chainpulse-api-gateway
+    namespace: chainpulse
+roleRef:
+  kind: Role
+  name: chainpulse-reader
+  apiGroup: rbac.authorization.k8s.io

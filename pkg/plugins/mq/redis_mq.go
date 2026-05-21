@@ -6,11 +6,19 @@ import (
 	"sync"
 	"time"
 
-	"chainpulse/pkg/core"
-	"github.com/go-redis/redis/v8"
+	"github.com/redis/go-redis/v9"
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
-// RedisMQPlugin represents the Redis message queue plugin
+const (
+	defaultRedisBatchSize         = 100
+	defaultRedisMaxRetries        = 3
+	defaultRedisRetryDelay        = 1 * time.Second
+	defaultRedisConnectionTimeout = 5 * time.Second
+	defaultRedisStopTimeout       = 10 * time.Second
+	defaultRedisPopTimeout        = 1 * time.Second
+)
+
 type RedisMQPlugin struct {
 	name                string
 	version             string
@@ -33,9 +41,11 @@ type RedisMQPlugin struct {
 	retryDelay          time.Duration
 	connectionURL       string
 	offsetTracking      map[string]int64
+	inFlight            sync.WaitGroup
+
+	subCancellers map[string]context.CancelFunc
 }
 
-// NewRedisMQPlugin creates a new Redis message queue plugin
 func NewRedisMQPlugin(
 	name, version string,
 	config *core.Config,
@@ -57,16 +67,16 @@ func NewRedisMQPlugin(
 		errorCount:          0,
 		deadLetterQueueSize: 0,
 		processingTime:      0,
-		batchSize:           100,
-		maxRetries:          3,
-		retryDelay:          1 * time.Second,
+		batchSize:           defaultRedisBatchSize,
+		maxRetries:          defaultRedisMaxRetries,
+		retryDelay:          defaultRedisRetryDelay,
 		connectionURL:       connectionURL,
 		offsetTracking:      make(map[string]int64),
+		subCancellers:       make(map[string]context.CancelFunc),
 	}
 }
 
-// Initialize initializes the Redis plugin
-func (p *RedisMQPlugin) Initialize() error {
+func (p *RedisMQPlugin) Initialize(ctx context.Context, config core.Config) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -74,7 +84,10 @@ func (p *RedisMQPlugin) Initialize() error {
 		return fmt.Errorf("plugin already initialized")
 	}
 
-	// Parse Redis connection URL and create client
+	if p.config == nil {
+		p.config = &config
+	}
+
 	opt, err := redis.ParseURL(p.connectionURL)
 	if err != nil {
 		p.logger.Error("failed to parse Redis URL", "url", p.connectionURL, "error", err)
@@ -83,11 +96,10 @@ func (p *RedisMQPlugin) Initialize() error {
 
 	p.client = redis.NewClient(opt)
 
-	// Test connection
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	pingCtx, cancel := context.WithTimeout(ctx, defaultRedisConnectionTimeout)
 	defer cancel()
 
-	if err := p.client.Ping(ctx).Err(); err != nil {
+	if err := p.client.Ping(pingCtx).Err(); err != nil {
 		p.logger.Error("failed to connect to Redis", "error", err)
 		return err
 	}
@@ -98,8 +110,7 @@ func (p *RedisMQPlugin) Initialize() error {
 	return nil
 }
 
-// Start starts the Redis plugin
-func (p *RedisMQPlugin) Start() error {
+func (p *RedisMQPlugin) Start(ctx context.Context) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -117,79 +128,84 @@ func (p *RedisMQPlugin) Start() error {
 	return nil
 }
 
-// Stop stops the Redis plugin
-func (p *RedisMQPlugin) Stop() error {
+func (p *RedisMQPlugin) Stop(ctx context.Context) error {
 	p.mu.Lock()
-	defer p.mu.Unlock()
-
 	if !p.isRunning {
+		p.mu.Unlock()
 		return nil
 	}
+	p.isRunning = false
 
-	// Close Redis connection
+	for _, cancel := range p.subCancellers {
+		cancel()
+	}
+	p.subCancellers = make(map[string]context.CancelFunc)
+	p.mu.Unlock()
+
+	done := make(chan struct{})
+	go func() {
+		p.inFlight.Wait()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		p.logger.Info("Redis in-flight operations completed")
+	case <-time.After(defaultRedisStopTimeout):
+		p.logger.Warn("Redis stop timed out waiting for in-flight operations")
+	}
+
+	p.mu.Lock()
 	if p.client != nil {
 		if err := p.client.Close(); err != nil {
 			p.logger.Error("failed to close Redis connection", "error", err)
 		}
 	}
+	p.mu.Unlock()
 
-	p.isRunning = false
 	p.logger.Info("Redis MQ plugin stopped", "name", p.name)
 
 	return nil
 }
 
-// Health returns the health status of the plugin
-func (p *RedisMQPlugin) Health() *core.HealthStatus {
+// Health satisfies core.Plugin.Health interface
+func (p *RedisMQPlugin) Health(ctx context.Context) error {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
-	status := "healthy"
-	if p.errorCount > 0 {
-		status = "degraded"
+	if p.client == nil {
+		return fmt.Errorf("redis client not initialized")
 	}
 
-	return &core.HealthStatus{
-		Status:    status,
-		Timestamp: time.Now().UTC(),
-		Details: map[string]interface{}{
-			"name":                   p.name,
-			"version":                p.version,
-			"is_running":             p.isRunning,
-			"message_count":          p.messageCount,
-			"error_count":            p.errorCount,
-			"dead_letter_queue_size": p.deadLetterQueueSize,
-			"connection_url":         p.connectionURL,
-		},
+	if err := p.client.Ping(ctx).Err(); err != nil {
+		return fmt.Errorf("redis ping failed: %w", err)
 	}
+
+	return nil
 }
 
-// Name returns the plugin name
 func (p *RedisMQPlugin) Name() string {
 	return p.name
 }
 
-// Version returns the plugin version
 func (p *RedisMQPlugin) Version() string {
 	return p.version
 }
 
-// IsInitialized returns whether the plugin is initialized
 func (p *RedisMQPlugin) IsInitialized() bool {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 	return p.isInitialized
 }
 
-// IsRunning returns whether the plugin is running
 func (p *RedisMQPlugin) IsRunning() bool {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 	return p.isRunning
 }
 
-// PublishMessage publishes a message to a Redis list
-func (p *RedisMQPlugin) PublishMessage(ctx context.Context, message core.MessageQueueMessage) error {
+// Publish satisfies core.MQPlugin.Publish
+func (p *RedisMQPlugin) Publish(ctx context.Context, topic string, message []byte) error {
 	p.mu.Lock()
 	if !p.isRunning {
 		p.mu.Unlock()
@@ -202,106 +218,93 @@ func (p *RedisMQPlugin) PublishMessage(ctx context.Context, message core.Message
 		return fmt.Errorf("redis client not initialized")
 	}
 
-	// Use Redis list (LPUSH) for message queue
-	queueKey := fmt.Sprintf("queue:%s", message.Topic)
+	p.inFlight.Add(1)
+	defer p.inFlight.Done()
 
-	// Create message with metadata
-	msgData := fmt.Sprintf("%s|%s|%d", message.ID, message.Timestamp.String(), message.Offset)
+	queueKey := fmt.Sprintf("queue:%s", topic)
 
-	// Push message to Redis list
-	err := client.LPush(ctx, queueKey, msgData).Err()
-	if err != nil {
+	if err := client.RPush(ctx, queueKey, string(message)).Err(); err != nil {
 		p.mu.Lock()
 		p.errorCount++
 		p.lastError = err
 		p.lastErrorTime = time.Now()
 		p.mu.Unlock()
-		p.metricsCollector.RecordCounter("mq_publish_errors", int64(1), map[string]string{"topic": message.Topic})
-		p.logger.Error("failed to publish message to Redis", "topic", message.Topic, "error", err)
+		p.metricsCollector.RecordCounter("mq_publish_errors", 1, map[string]string{"topic": topic})
+		p.logger.Error("failed to publish message to Redis", "topic", topic, "error", err)
 		return err
 	}
 
 	p.mu.Lock()
 	p.messageCount++
 	p.mu.Unlock()
-	p.metricsCollector.RecordCounter("mq_messages_published", int64(1), map[string]string{"topic": message.Topic})
-	p.logger.Info("message published to Redis", "topic", message.Topic, "message_id", message.ID)
-
+	p.metricsCollector.RecordCounter("mq_messages_published", 1, map[string]string{"topic": topic})
 	return nil
 }
 
-// ConsumeMessages consumes messages from a Redis list
-func (p *RedisMQPlugin) ConsumeMessages(ctx context.Context, topic string, handler func(core.MessageQueueMessage) error) error {
+// Subscribe satisfies core.MQPlugin.Subscribe
+func (p *RedisMQPlugin) Subscribe(ctx context.Context, topic string, handler func([]byte)) error {
 	p.mu.Lock()
 	if !p.isRunning {
 		p.mu.Unlock()
 		return fmt.Errorf("plugin not running")
 	}
+
+	if _, exists := p.subCancellers[topic]; exists {
+		p.mu.Unlock()
+		return fmt.Errorf("already subscribed to topic: %s", topic)
+	}
+
+	subCtx, cancel := context.WithCancel(context.Background())
+	p.subCancellers[topic] = cancel
 	client := p.client
 	p.mu.Unlock()
 
 	if client == nil {
+		cancel()
 		return fmt.Errorf("redis client not initialized")
 	}
 
-	queueKey := fmt.Sprintf("queue:%s", topic)
-	p.logger.Info("consuming messages from Redis", "topic", topic)
+	go func() {
+		defer cancel()
+		queueKey := fmt.Sprintf("queue:%s", topic)
+		p.logger.Info("subscribing to Redis queue", "topic", topic)
 
-	// Consume messages in a loop
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-			// Use BRPOP to block and wait for messages
-			result, err := client.BRPop(ctx, 1*time.Second, queueKey).Result()
-			if err != nil {
-				if err == redis.Nil {
-					// Timeout, no message available
+		for {
+			select {
+			case <-subCtx.Done():
+				return
+			default:
+				result, err := client.BLPop(subCtx, defaultRedisPopTimeout, queueKey).Result()
+				if err != nil {
+					if err == redis.Nil || err == context.Canceled {
+						continue
+					}
+					p.mu.Lock()
+					p.errorCount++
+					p.lastError = err
+					p.lastErrorTime = time.Now()
+					p.mu.Unlock()
+					p.metricsCollector.RecordCounter("mq_consume_errors", 1, map[string]string{"topic": topic})
+					p.logger.Error("failed to read message from Redis", "topic", topic, "error", err)
 					continue
 				}
-				p.mu.Lock()
-				p.errorCount++
-				p.lastError = err
-				p.lastErrorTime = time.Now()
-				p.mu.Unlock()
-				p.metricsCollector.RecordCounter("mq_consume_errors", int64(1), map[string]string{"topic": topic})
-				p.logger.Error("failed to read message from Redis", "topic", topic, "error", err)
-				continue
+
+				if len(result) < 2 {
+					continue
+				}
+
+				p.inFlight.Add(1)
+				handler([]byte(result[1]))
+				p.inFlight.Done()
+
+				p.metricsCollector.RecordCounter("mq_messages_consumed", 1, map[string]string{"topic": topic})
 			}
-
-			if len(result) < 2 {
-				continue
-			}
-
-			msgData := result[1]
-
-			// Parse message data
-			queueMsg := core.MessageQueueMessage{
-				ID:        msgData,
-				Topic:     topic,
-				Payload:   []byte(msgData),
-				Timestamp: time.Now().UTC(),
-			}
-
-			// Call handler
-			if err := handler(queueMsg); err != nil {
-				p.mu.Lock()
-				p.errorCount++
-				p.lastError = err
-				p.lastErrorTime = time.Now()
-				p.mu.Unlock()
-				p.metricsCollector.RecordCounter("mq_handler_errors", int64(1), map[string]string{"topic": topic})
-				p.logger.Error("handler error", "topic", topic, "message_id", msgData, "error", err)
-				continue
-			}
-
-			p.metricsCollector.RecordCounter("mq_messages_consumed", int64(1), map[string]string{"topic": topic})
 		}
-	}
+	}()
+
+	return nil
 }
 
-// AcknowledgeMessage acknowledges a message
 func (p *RedisMQPlugin) AcknowledgeMessage(ctx context.Context, message core.MessageQueueMessage) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -310,13 +313,12 @@ func (p *RedisMQPlugin) AcknowledgeMessage(ctx context.Context, message core.Mes
 		return fmt.Errorf("plugin not running")
 	}
 
-	p.metricsCollector.RecordCounter("mq_messages_acknowledged", int64(1), map[string]string{"topic": message.Topic})
+	p.metricsCollector.RecordCounter("mq_messages_acknowledged", 1, map[string]string{"topic": message.Topic})
 	p.logger.Info("message acknowledged", "topic", message.Topic, "message_id", message.ID)
 
 	return nil
 }
 
-// SendToDeadLetterQueue sends a message to the dead letter queue
 func (p *RedisMQPlugin) SendToDeadLetterQueue(ctx context.Context, message core.MessageQueueMessage, reason string) error {
 	p.mu.Lock()
 	if !p.isRunning {
@@ -330,13 +332,9 @@ func (p *RedisMQPlugin) SendToDeadLetterQueue(ctx context.Context, message core.
 		return fmt.Errorf("redis client not initialized")
 	}
 
-	// Create DLQ key
 	dlqKey := fmt.Sprintf("dlq:%s", message.Topic)
-
-	// Create DLQ message with reason
 	dlqMsg := fmt.Sprintf("%s|%s|%s", message.ID, reason, message.Timestamp.String())
 
-	// Push message to DLQ
 	err := client.LPush(ctx, dlqKey, dlqMsg).Err()
 	if err != nil {
 		p.mu.Lock()
@@ -357,7 +355,6 @@ func (p *RedisMQPlugin) SendToDeadLetterQueue(ctx context.Context, message core.
 	return nil
 }
 
-// GetDeadLetterQueueMessages retrieves messages from the dead letter queue
 func (p *RedisMQPlugin) GetDeadLetterQueueMessages(ctx context.Context, limit int) ([]core.MessageQueueMessage, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -372,7 +369,6 @@ func (p *RedisMQPlugin) GetDeadLetterQueueMessages(ctx context.Context, limit in
 	return messages, nil
 }
 
-// RetryMessage retries a message
 func (p *RedisMQPlugin) RetryMessage(ctx context.Context, message core.MessageQueueMessage) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -386,13 +382,12 @@ func (p *RedisMQPlugin) RetryMessage(ctx context.Context, message core.MessageQu
 	}
 
 	message.RetryCount++
-	p.metricsCollector.RecordCounter("mq_message_retries", int64(1), map[string]string{"topic": message.Topic})
+	p.metricsCollector.RecordCounter("mq_message_retries", 1, map[string]string{"topic": message.Topic})
 	p.logger.Info("message retry", "topic", message.Topic, "retry_count", message.RetryCount)
 
 	return nil
 }
 
-// GetStats returns statistics about the message queue
 func (p *RedisMQPlugin) GetStats() core.MessageQueueStats {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
@@ -408,7 +403,30 @@ func (p *RedisMQPlugin) GetStats() core.MessageQueueStats {
 	}
 }
 
-// SetBatchSize sets the batch size for message processing
+func (p *RedisMQPlugin) GetHealthStatus() *core.HealthStatus {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+
+	status := "healthy"
+	if p.errorCount > 0 {
+		status = "degraded"
+	}
+
+	return &core.HealthStatus{
+		Status:    status,
+		Timestamp: time.Now().UTC(),
+		Details: map[string]any{
+			"name":                   p.name,
+			"version":                p.version,
+			"is_running":             p.isRunning,
+			"message_count":          p.messageCount,
+			"error_count":            p.errorCount,
+			"dead_letter_queue_size": p.deadLetterQueueSize,
+			"connection_url":         p.connectionURL,
+		},
+	}
+}
+
 func (p *RedisMQPlugin) SetBatchSize(size int) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -416,7 +434,6 @@ func (p *RedisMQPlugin) SetBatchSize(size int) {
 	p.logger.Info("batch size set", "size", size)
 }
 
-// SetMaxRetries sets the maximum number of retries
 func (p *RedisMQPlugin) SetMaxRetries(maxRetries int) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -424,7 +441,6 @@ func (p *RedisMQPlugin) SetMaxRetries(maxRetries int) {
 	p.logger.Info("max retries set", "max_retries", maxRetries)
 }
 
-// SetRetryDelay sets the retry delay
 func (p *RedisMQPlugin) SetRetryDelay(delay time.Duration) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -432,27 +448,22 @@ func (p *RedisMQPlugin) SetRetryDelay(delay time.Duration) {
 	p.logger.Info("retry delay set", "delay", delay)
 }
 
-// RecordMetric records a metric
 func (p *RedisMQPlugin) RecordCounter(name string, value int64, tags map[string]string) {
 	p.metricsCollector.RecordCounter(name, value, tags)
 }
 
-// LogInfo logs an info message
-func (p *RedisMQPlugin) LogInfo(message string, fields ...interface{}) {
+func (p *RedisMQPlugin) LogInfo(message string, fields ...any) {
 	p.logger.Info(message, fields...)
 }
 
-// LogError logs an error message
-func (p *RedisMQPlugin) LogError(message string, fields ...interface{}) {
+func (p *RedisMQPlugin) LogError(message string, fields ...any) {
 	p.logger.Error(message, fields...)
 }
 
-// LogWarn logs a warning message
-func (p *RedisMQPlugin) LogWarn(message string, fields ...interface{}) {
+func (p *RedisMQPlugin) LogWarn(message string, fields ...any) {
 	p.logger.Warn(message, fields...)
 }
 
-// RecordError records an error
 func (p *RedisMQPlugin) RecordError(err error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -460,24 +471,9 @@ func (p *RedisMQPlugin) RecordError(err error) {
 	p.errorCount++
 	p.lastError = err
 	p.lastErrorTime = time.Now()
-	p.metricsCollector.RecordCounter("mq_errors", int64(1), nil)
+	p.metricsCollector.RecordCounter("mq_errors", 1, nil)
 }
 
-// GetLastBlockNumber returns the last block number processed
-func (p *RedisMQPlugin) GetLastBlockNumber() uint64 {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-	return 0
-}
-
-// SetLastBlockNumber sets the last block number processed
-func (p *RedisMQPlugin) SetLastBlockNumber(_ uint64) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	// Not used for Redis MQ
-}
-
-// GetQueueDepth returns the depth of a queue
 func (p *RedisMQPlugin) GetQueueDepth(ctx context.Context, topic string) (int64, error) {
 	p.mu.Lock()
 	if !p.isRunning {
@@ -501,7 +497,6 @@ func (p *RedisMQPlugin) GetQueueDepth(ctx context.Context, topic string) (int64,
 	return depth, nil
 }
 
-// FlushQueue flushes all messages from a queue
 func (p *RedisMQPlugin) FlushQueue(ctx context.Context, topic string) error {
 	p.mu.Lock()
 	if !p.isRunning {

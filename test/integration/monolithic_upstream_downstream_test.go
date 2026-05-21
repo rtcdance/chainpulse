@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -14,7 +14,7 @@ type UpstreamDownstreamTestSuite struct {
 	suite.Suite
 
 	// 下游组件 (数据访问层)
-	mqPlugin core.MQPlugin
+	mqPlugin *MockMQPlugin
 
 	// 测试上下文
 	ctx    context.Context

@@ -7,6 +7,7 @@ import (
 
 // TestIntegration_HTTPRequestFlow tests complete HTTP request flow
 func TestIntegration_HTTPRequestFlow(t *testing.T) {
+	t.Parallel()
 	// Setup
 	detector := NewProtocolDetector()
 
@@ -50,6 +51,7 @@ func TestIntegration_HTTPRequestFlow(t *testing.T) {
 
 // TestIntegration_WebSocketRequestFlow tests complete WebSocket request flow
 func TestIntegration_WebSocketRequestFlow(t *testing.T) {
+	t.Parallel()
 	// Setup
 	detector := NewProtocolDetector()
 
@@ -90,6 +92,7 @@ func TestIntegration_WebSocketRequestFlow(t *testing.T) {
 
 // TestIntegration_GRPCRequestFlow tests complete gRPC request flow
 func TestIntegration_GRPCRequestFlow(t *testing.T) {
+	t.Parallel()
 	// Setup
 	detector := NewProtocolDetector()
 
@@ -131,6 +134,7 @@ func TestIntegration_GRPCRequestFlow(t *testing.T) {
 
 // TestIntegration_GraphQLRequestFlow tests complete GraphQL request flow
 func TestIntegration_GraphQLRequestFlow(t *testing.T) {
+	t.Parallel()
 	// Setup
 	detector := NewProtocolDetector()
 
@@ -175,6 +179,7 @@ func TestIntegration_GraphQLRequestFlow(t *testing.T) {
 
 // TestIntegration_MultiProtocolDetection tests detecting multiple protocols
 func TestIntegration_MultiProtocolDetection(t *testing.T) {
+	t.Parallel()
 	// Setup
 	detector := NewProtocolDetector()
 
@@ -275,6 +280,7 @@ func TestIntegration_MultiProtocolDetection(t *testing.T) {
 
 // TestIntegration_RequestResponseConsistency tests request/response consistency
 func TestIntegration_RequestResponseConsistency(t *testing.T) {
+	t.Parallel()
 	// Setup
 	detector := NewProtocolDetector()
 
@@ -320,6 +326,7 @@ func TestIntegration_RequestResponseConsistency(t *testing.T) {
 
 // TestIntegration_ErrorHandling tests error handling across protocols
 func TestIntegration_ErrorHandling(t *testing.T) {
+	t.Parallel()
 	// Setup
 	detector := NewProtocolDetector()
 
@@ -351,6 +358,7 @@ func TestIntegration_ErrorHandling(t *testing.T) {
 
 // TestIntegration_ProtocolPriority tests protocol detection priority
 func TestIntegration_ProtocolPriority(t *testing.T) {
+	t.Parallel()
 	// Setup
 	detector := NewProtocolDetector()
 
@@ -377,6 +385,7 @@ func TestIntegration_ProtocolPriority(t *testing.T) {
 
 // TestIntegration_ConcurrentRequests tests handling concurrent requests
 func TestIntegration_ConcurrentRequests(t *testing.T) {
+	t.Parallel()
 	// Setup
 	detector := NewProtocolDetector()
 
@@ -417,6 +426,7 @@ func TestIntegration_ConcurrentRequests(t *testing.T) {
 
 // TestIntegration_FullRequestLifecycle tests complete request lifecycle
 func TestIntegration_FullRequestLifecycle(t *testing.T) {
+	t.Parallel()
 	// Setup
 	detector := NewProtocolDetector()
 	apiLayer := NewAPILayer()

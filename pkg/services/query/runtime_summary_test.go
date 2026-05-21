@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 func TestQueryServiceRuntimeSummaryReady(t *testing.T) {
@@ -15,7 +15,7 @@ func TestQueryServiceRuntimeSummaryReady(t *testing.T) {
 	cacheService := NewCacheService(logger, metrics)
 
 	service := NewQueryService(
-		&mockDatabaseManager{},
+
 		&MockMongoDBAdapter{healthy: true},
 		&MockPostgreSQLAdapter{healthy: true},
 		cacheService,
@@ -51,7 +51,7 @@ func TestQueryServiceRuntimeSummaryHealthyCacheAfterStart(t *testing.T) {
 	cacheService := NewCacheService(logger, metrics)
 
 	service := NewQueryService(
-		&mockDatabaseManager{},
+
 		&MockMongoDBAdapter{healthy: true},
 		&MockPostgreSQLAdapter{healthy: true},
 		cacheService,
@@ -81,7 +81,7 @@ func TestQueryServiceRuntimeSummaryDegradedWhenPostgresUnhealthy(t *testing.T) {
 	cacheService := NewCacheService(logger, metrics)
 
 	service := NewQueryService(
-		&mockDatabaseManager{},
+
 		&MockMongoDBAdapter{healthy: true},
 		&MockPostgreSQLAdapter{healthy: false},
 		cacheService,

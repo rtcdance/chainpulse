@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 // MockEventStoreForRecovery for testing
@@ -89,6 +89,13 @@ func (m *MockEventStoreForRecovery) GetEventsPaginated(ctx context.Context, curs
 	return []*core.BlockchainEvent{}, false, nil
 }
 
+func (m *MockEventStoreForRecovery) CountEvents(ctx context.Context) (int64, error) {
+	if !m.healthy {
+		return 0, m.err
+	}
+	return 0, nil
+}
+
 func (m *MockEventStoreForRecovery) DeleteExpiredEvents(ctx context.Context) (int64, error) {
 	if !m.healthy {
 		return 0, m.err
@@ -145,6 +152,13 @@ func (m *MockMetadataStore) GetMetadataByChain(ctx context.Context, chainID int,
 	return []*EventMetadata{}, nil
 }
 
+func (m *MockMetadataStore) GetMetadataBatch(ctx context.Context, eventIDs []string) (map[string]*EventMetadata, error) {
+	if !m.healthy {
+		return nil, m.err
+	}
+	return nil, nil
+}
+
 func (m *MockMetadataStore) UpdateMetadata(ctx context.Context, metadata *EventMetadata) error {
 	if !m.healthy {
 		return m.err
@@ -195,18 +209,32 @@ func (m *MockCacheServiceForRecovery) GetSingle(ctx context.Context, key string)
 	return &core.BlockchainEvent{}, nil
 }
 
-func (m *MockCacheServiceForRecovery) Set(ctx context.Context, key string, value []core.BlockchainEvent, ttl interface{}) error {
+func (m *MockCacheServiceForRecovery) Set(ctx context.Context, key string, value []core.BlockchainEvent, ttl time.Duration) error {
 	if !m.healthy {
 		return m.err
 	}
 	return nil
 }
 
-func (m *MockCacheServiceForRecovery) SetSingle(ctx context.Context, key string, value *core.BlockchainEvent, ttl interface{}) error {
+func (m *MockCacheServiceForRecovery) SetSingle(ctx context.Context, key string, value *core.BlockchainEvent, ttl time.Duration) error {
 	if !m.healthy {
 		return m.err
 	}
 	return nil
+}
+
+func (m *MockCacheServiceForRecovery) SetQueryResult(ctx context.Context, key string, events []core.BlockchainEvent, total int64, ttl time.Duration) error {
+	if !m.healthy {
+		return m.err
+	}
+	return nil
+}
+
+func (m *MockCacheServiceForRecovery) GetQueryResult(ctx context.Context, key string) ([]core.BlockchainEvent, int64, error) {
+	if !m.healthy {
+		return nil, 0, m.err
+	}
+	return []core.BlockchainEvent{}, 0, nil
 }
 
 func (m *MockCacheServiceForRecovery) Delete(ctx context.Context, key string) error {
@@ -225,6 +253,7 @@ func (m *MockCacheServiceForRecovery) Health(ctx context.Context) *core.HealthSt
 
 // Test initialization
 func TestRecoveryHandlerInitialize(t *testing.T) {
+	t.Parallel()
 	config := DefaultRecoveryConfig()
 	eventStore := &MockEventStoreForRecovery{healthy: true}
 	metadataStore := &MockMetadataStore{healthy: true}
@@ -246,6 +275,7 @@ func TestRecoveryHandlerInitialize(t *testing.T) {
 
 // Test recovery with healthy stores
 func TestRecoveryWithHealthyStores(t *testing.T) {
+	t.Parallel()
 	config := DefaultRecoveryConfig()
 	eventStore := &MockEventStoreForRecovery{healthy: true}
 	metadataStore := &MockMetadataStore{healthy: true}
@@ -269,6 +299,7 @@ func TestRecoveryWithHealthyStores(t *testing.T) {
 
 // Test recovery with unhealthy event store
 func TestRecoveryWithUnhealthyEventStore(t *testing.T) {
+	t.Parallel()
 	config := DefaultRecoveryConfig()
 	eventStore := &MockEventStoreForRecovery{healthy: false, err: fmt.Errorf("store error")}
 	metadataStore := &MockMetadataStore{healthy: true}
@@ -292,6 +323,7 @@ func TestRecoveryWithUnhealthyEventStore(t *testing.T) {
 
 // Test recovery with unhealthy metadata store
 func TestRecoveryWithUnhealthyMetadataStore(t *testing.T) {
+	t.Parallel()
 	config := DefaultRecoveryConfig()
 	eventStore := &MockEventStoreForRecovery{healthy: true}
 	metadataStore := &MockMetadataStore{healthy: false, err: fmt.Errorf("store error")}
@@ -315,6 +347,7 @@ func TestRecoveryWithUnhealthyMetadataStore(t *testing.T) {
 
 // Test recovery with unhealthy cache service
 func TestRecoveryWithUnhealthyCacheService(t *testing.T) {
+	t.Parallel()
 	config := DefaultRecoveryConfig()
 	eventStore := &MockEventStoreForRecovery{healthy: true}
 	metadataStore := &MockMetadataStore{healthy: true}
@@ -339,6 +372,7 @@ func TestRecoveryWithUnhealthyCacheService(t *testing.T) {
 
 // Test recovery timeout
 func TestRecoveryTimeout(t *testing.T) {
+	t.Parallel()
 	config := DefaultRecoveryConfig()
 	eventStore := &MockEventStoreForRecovery{healthy: true}
 	metadataStore := &MockMetadataStore{healthy: true}
@@ -363,6 +397,7 @@ func TestRecoveryTimeout(t *testing.T) {
 
 // Test recovery with nil stores
 func TestRecoveryWithNilStores(t *testing.T) {
+	t.Parallel()
 	config := DefaultRecoveryConfig()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
@@ -381,6 +416,7 @@ func TestRecoveryWithNilStores(t *testing.T) {
 
 // Test recovery status
 func TestRecoveryStatus(t *testing.T) {
+	t.Parallel()
 	config := DefaultRecoveryConfig()
 	eventStore := &MockEventStoreForRecovery{healthy: true}
 	metadataStore := &MockMetadataStore{healthy: true}

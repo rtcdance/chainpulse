@@ -2,8 +2,12 @@ package core
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/bits"
+	"net"
+	"sync"
+	"syscall"
 	"time"
 )
 
@@ -18,6 +22,7 @@ const ErrorTypeUnknown = "unknown"
 
 // MQErrorHandler handles errors and recovery for MQ operations
 type MQErrorHandler struct {
+	mu                   sync.RWMutex
 	logger               Logger
 	metricsCollector     MetricsCollector
 	maxRetries           int
@@ -56,31 +61,70 @@ func NewMQErrorHandler(
 	}
 }
 
-// ClassifyError classifies an error into a specific type
+// ClassifyError classifies an error into a specific type using errors.Is/As
+// instead of fragile string matching.
 func (eh *MQErrorHandler) ClassifyError(err error) ErrorType {
 	if err == nil {
 		return ErrorTypeUnknown
 	}
 
-	errStr := err.Error()
+	// Check for project sentinel errors via errors.Is
+	if errors.Is(err, ErrTimeout) || errors.Is(err, ErrDeadlineExceeded) {
+		return ErrorTypeTimeout
+	}
+	if errors.Is(err, ErrConnectionRefused) || errors.Is(err, ErrConnectionReset) {
+		return ErrorTypeConnection
+	}
+	if errors.Is(err, ErrUnauthorized) || errors.Is(err, ErrForbidden) ||
+		errors.Is(err, ErrNotFound) || errors.Is(err, ErrBadRequest) ||
+		errors.Is(err, ErrInvalidState) || errors.Is(err, ErrAuthFailed) {
+		return ErrorTypePermanent
+	}
+	if errors.Is(err, ErrDataCorruption) || errors.Is(err, ErrCriticalFailure) {
+		return ErrorTypeCritical
+	}
 
-	// Check for timeout errors
-	if errStr == "context deadline exceeded" || errStr == "i/o timeout" {
+	// Check for standard library errors via errors.Is
+	if errors.Is(err, context.DeadlineExceeded) {
 		return ErrorTypeTimeout
 	}
 
-	// Check for connection errors
-	if errStr == "connection refused" || errStr == "connection reset" ||
-		errStr == "broken pipe" || errStr == "EOF" {
+	// Check for network errors via errors.As (covers "connection refused", "connection reset", etc.)
+	var netErr net.Error
+	if errors.As(err, &netErr) {
+		if netErr.Timeout() {
+			return ErrorTypeTimeout
+		}
 		return ErrorTypeConnection
 	}
 
-	// Check for permanent errors
+	// Check for syscall errors (ECONNREFUSED, ECONNRESET, EPIPE)
+	var sysErr syscall.Errno
+	if errors.As(err, &sysErr) {
+		switch sysErr {
+		case syscall.ECONNREFUSED, syscall.ECONNRESET, syscall.EPIPE:
+			return ErrorTypeConnection
+		}
+	}
+
+	// Check for SystemError via errors.As (our custom type)
+	var sysErr2 *SystemError
+	if errors.As(err, &sysErr2) {
+		switch sysErr2.Type {
+		case ErrorTypeTransient:
+			return ErrorTypeTransient
+		case ErrorTypePermanent:
+			return ErrorTypePermanent
+		case ErrorTypeCritical:
+			return ErrorTypeCritical
+		}
+	}
+
+	// Check registered error codes (string-based fallback for external errors)
+	errStr := err.Error()
 	if eh.permanentErrorCodes[errStr] {
 		return ErrorTypePermanent
 	}
-
-	// Check for transient errors
 	if eh.transientErrorCodes[errStr] {
 		return ErrorTypeTransient
 	}
@@ -91,6 +135,9 @@ func (eh *MQErrorHandler) ClassifyError(err error) ErrorType {
 
 // HandleError handles an error and returns whether to retry
 func (eh *MQErrorHandler) HandleError(ctx context.Context, err error, operationName string) (bool, error) {
+	eh.mu.Lock()
+	defer eh.mu.Unlock()
+
 	if err == nil {
 		// Reset consecutive errors on success
 		eh.consecutiveErrors = 0
@@ -112,7 +159,8 @@ func (eh *MQErrorHandler) HandleError(ctx context.Context, err error, operationN
 		"type":      string(errorType),
 	})
 
-	eh.logger.Error("MQ operation error",
+	eh.logger.Error(
+		"MQ operation error",
 		"operation", operationName,
 		"error_type", string(errorType),
 		"error", err,
@@ -159,10 +207,14 @@ func (eh *MQErrorHandler) RetryWithBackoff(ctx context.Context, operation func()
 		err := operation()
 		if err == nil {
 			// Success
+			eh.mu.Lock()
 			if attempt > 1 {
 				eh.successfulRecoveries++
+				eh.mu.Unlock()
 				eh.logger.Info("operation succeeded after retry", "operation", operationName, "attempt", attempt)
 				eh.metricsCollector.RecordCounter("mq_successful_recovery", int64(1), map[string]string{"operation": operationName})
+			} else {
+				eh.mu.Unlock()
 			}
 			return nil
 		}
@@ -182,7 +234,9 @@ func (eh *MQErrorHandler) RetryWithBackoff(ctx context.Context, operation func()
 			eh.logger.Info("retrying operation", "operation", operationName, "attempt", attempt+1, "delay_ms", delay.Milliseconds())
 
 			// Record retry attempt
+			eh.mu.Lock()
 			eh.recoveryAttempts++
+			eh.mu.Unlock()
 			eh.metricsCollector.RecordCounter("mq_retry_attempts", int64(1), map[string]string{"operation": operationName})
 
 			// Wait for the delay or until context is cancelled
@@ -196,7 +250,9 @@ func (eh *MQErrorHandler) RetryWithBackoff(ctx context.Context, operation func()
 	}
 
 	// All retries exhausted
+	eh.mu.Lock()
 	eh.degradedMode = true
+	eh.mu.Unlock()
 	eh.logger.Error("operation failed after all retries", "operation", operationName, "max_retries", eh.maxRetries, "last_error", lastErr)
 	eh.metricsCollector.RecordCounter("mq_retries_exhausted", int64(1), map[string]string{"operation": operationName})
 
@@ -240,23 +296,31 @@ func (eh *MQErrorHandler) CalculateBackoffDelay(attempt int) time.Duration {
 
 // RegisterPermanentError registers an error code as permanent
 func (eh *MQErrorHandler) RegisterPermanentError(errorCode string) {
+	eh.mu.Lock()
+	defer eh.mu.Unlock()
 	eh.permanentErrorCodes[errorCode] = true
 	eh.logger.Info("registered permanent error code", "error_code", errorCode)
 }
 
 // RegisterTransientError registers an error code as transient
 func (eh *MQErrorHandler) RegisterTransientError(errorCode string) {
+	eh.mu.Lock()
+	defer eh.mu.Unlock()
 	eh.transientErrorCodes[errorCode] = true
 	eh.logger.Info("registered transient error code", "error_code", errorCode)
 }
 
 // IsInDegradedMode returns whether the handler is in degraded mode
 func (eh *MQErrorHandler) IsInDegradedMode() bool {
+	eh.mu.RLock()
+	defer eh.mu.RUnlock()
 	return eh.degradedMode
 }
 
 // SetDegradedMode sets the degraded mode flag
 func (eh *MQErrorHandler) SetDegradedMode(degraded bool) {
+	eh.mu.Lock()
+	defer eh.mu.Unlock()
 	eh.degradedMode = degraded
 	if degraded {
 		eh.logger.Warn("entering degraded mode")
@@ -269,17 +333,23 @@ func (eh *MQErrorHandler) SetDegradedMode(degraded bool) {
 
 // GetConsecutiveErrorCount returns the number of consecutive errors
 func (eh *MQErrorHandler) GetConsecutiveErrorCount() int64 {
+	eh.mu.RLock()
+	defer eh.mu.RUnlock()
 	return eh.consecutiveErrors
 }
 
 // ResetConsecutiveErrorCount resets the consecutive error count
 func (eh *MQErrorHandler) ResetConsecutiveErrorCount() {
+	eh.mu.Lock()
+	defer eh.mu.Unlock()
 	eh.consecutiveErrors = 0
 }
 
 // GetRecoveryStats returns recovery statistics
-func (eh *MQErrorHandler) GetRecoveryStats() map[string]interface{} {
-	return map[string]interface{}{
+func (eh *MQErrorHandler) GetRecoveryStats() map[string]any {
+	eh.mu.RLock()
+	defer eh.mu.RUnlock()
+	return map[string]any{
 		"recovery_attempts":     eh.recoveryAttempts,
 		"successful_recoveries": eh.successfulRecoveries,
 		"consecutive_errors":    eh.consecutiveErrors,
@@ -294,23 +364,31 @@ func (eh *MQErrorHandler) GetRecoveryStats() map[string]interface{} {
 
 // SetTimeoutDuration sets the timeout duration for operations
 func (eh *MQErrorHandler) SetTimeoutDuration(duration time.Duration) {
+	eh.mu.Lock()
+	defer eh.mu.Unlock()
 	eh.timeoutDuration = duration
 	eh.logger.Info("timeout duration set", "duration_ms", duration.Milliseconds())
 }
 
 // GetTimeoutDuration returns the timeout duration
 func (eh *MQErrorHandler) GetTimeoutDuration() time.Duration {
+	eh.mu.RLock()
+	defer eh.mu.RUnlock()
 	return eh.timeoutDuration
 }
 
 // SetMaxRetries sets the maximum number of retries
 func (eh *MQErrorHandler) SetMaxRetries(maxRetries int) {
+	eh.mu.Lock()
+	defer eh.mu.Unlock()
 	eh.maxRetries = maxRetries
 	eh.logger.Info("max retries set", "max_retries", maxRetries)
 }
 
 // SetMaxRetryDelay sets the maximum retry delay
 func (eh *MQErrorHandler) SetMaxRetryDelay(delay time.Duration) {
+	eh.mu.Lock()
+	defer eh.mu.Unlock()
 	eh.maxRetryDelay = delay
 	eh.logger.Info("max retry delay set", "delay_ms", delay.Milliseconds())
 }

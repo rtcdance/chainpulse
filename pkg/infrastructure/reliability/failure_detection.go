@@ -228,11 +228,11 @@ func (fd *FailureDetector) GetFailedServices() []string {
 }
 
 // GetMetrics returns failure detection metrics
-func (fd *FailureDetector) GetMetrics() map[string]interface{} {
+func (fd *FailureDetector) GetMetrics() map[string]any {
 	fd.metrics.mu.RLock()
 	defer fd.metrics.mu.RUnlock()
 
-	return map[string]interface{}{
+	return map[string]any{
 		"failures_detected":      fd.metrics.FailuresDetected,
 		"false_positives":        fd.metrics.FalsePositives,
 		"false_negatives":        fd.metrics.FalseNegatives,
@@ -369,11 +369,11 @@ func (af *AutomaticFailover) recordFailoverTime(duration time.Duration) {
 }
 
 // GetMetrics returns failover metrics
-func (af *AutomaticFailover) GetMetrics() map[string]interface{} {
+func (af *AutomaticFailover) GetMetrics() map[string]any {
 	af.metrics.mu.RLock()
 	defer af.metrics.mu.RUnlock()
 
-	return map[string]interface{}{
+	return map[string]any{
 		"failovers_executed":      af.metrics.FailoversExecuted,
 		"failovers_successful":    af.metrics.FailoversSuccessful,
 		"failovers_failed":        af.metrics.FailoversFailed,

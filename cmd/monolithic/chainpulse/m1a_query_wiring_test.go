@@ -8,21 +8,22 @@ import (
 	"testing"
 	"time"
 
-	"chainpulse/pkg/application/bootstrap"
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/application/bootstrap"
+	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/testhelpers"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 
-	indexingadapter "chainpulse/pkg/adapters/indexing"
+	indexingadapter "github.com/rtcdance/chainpulse/pkg/application/bootstrap"
 )
 
 func TestMonolithicIndexingBackedQuerySurfaceServesEventsFromIndexingDatabase(t *testing.T) {
-	logger := core.NewTestLogger()
+	logger := testhelpers.NewTestLogger()
 	metrics := core.NewDefaultMetricsCollector()
 	indexingDatabase := indexingadapter.NewMonolithicMemoryDatabase(logger)
-	require.NoError(t, indexingDatabase.Initialize(core.Config{}))
-	require.NoError(t, indexingDatabase.Start())
+	require.NoError(t, indexingDatabase.Initialize(context.Background(), core.Config{}))
+	require.NoError(t, indexingDatabase.Start(context.Background()))
 
 	event := &core.BlockchainEvent{
 		ID:              "evt-monolithic-1",
@@ -47,24 +48,24 @@ func TestMonolithicIndexingBackedQuerySurfaceServesEventsFromIndexingDatabase(t 
 
 	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
 
-	var payload map[string]interface{}
+	var payload map[string]any
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &payload))
 
-	data, ok := payload["data"].([]interface{})
+	data, ok := payload["data"].([]any)
 	require.True(t, ok, "expected data array")
 	require.Len(t, data, 1)
 
-	meta, ok := payload["meta"].(map[string]interface{})
+	meta, ok := payload["meta"].(map[string]any)
 	require.True(t, ok, "expected meta object")
 	require.Equal(t, "monolithic-indexing", meta["source"])
 }
 
 func TestMonolithicIndexingBackedQuerySurfaceServesStringChainRouteFromIndexingDatabase(t *testing.T) {
-	logger := core.NewTestLogger()
+	logger := testhelpers.NewTestLogger()
 	metrics := core.NewDefaultMetricsCollector()
 	indexingDatabase := indexingadapter.NewMonolithicMemoryDatabase(logger)
-	require.NoError(t, indexingDatabase.Initialize(core.Config{}))
-	require.NoError(t, indexingDatabase.Start())
+	require.NoError(t, indexingDatabase.Initialize(context.Background(), core.Config{}))
+	require.NoError(t, indexingDatabase.Start(context.Background()))
 
 	event := &core.BlockchainEvent{
 		ID:              "evt-monolithic-chain-1",
@@ -89,16 +90,16 @@ func TestMonolithicIndexingBackedQuerySurfaceServesStringChainRouteFromIndexingD
 
 	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
 
-	var payload map[string]interface{}
+	var payload map[string]any
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &payload))
 
-	data, ok := payload["data"].([]interface{})
+	data, ok := payload["data"].([]any)
 	require.True(t, ok, "expected data array")
 	require.Len(t, data, 1)
 }
 
 func TestResolveMonolithicQuerySurfaceKeepsManagedDBRuntimeForMicroserviceIntent(t *testing.T) {
-	logger := core.NewTestLogger()
+	logger := testhelpers.NewTestLogger()
 	metrics := core.NewDefaultMetricsCollector()
 
 	runtimeWiring := &bootstrap.RuntimeWiring{}

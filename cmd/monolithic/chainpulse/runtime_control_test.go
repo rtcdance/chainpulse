@@ -1,31 +1,32 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
-	"chainpulse/pkg/core"
-	"chainpulse/pkg/plugins/api"
-	"chainpulse/pkg/services/indexing"
+	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/plugins/api"
+	"github.com/rtcdance/chainpulse/pkg/services/indexing"
 
-	appindexingadapter "chainpulse/pkg/adapters/indexing"
+	appindexingadapter "github.com/rtcdance/chainpulse/pkg/application/bootstrap"
 )
 
 func TestMonolithicRuntimeControlRoute(t *testing.T) {
 	logger := core.NewDefaultLogger(core.LogLevelError)
 	metrics := core.NewDefaultMetricsCollector()
 	db := appindexingadapter.NewMonolithicMemoryDatabase(logger)
-	if err := db.Initialize(core.Config{}); err != nil {
+	if err := db.Initialize(context.Background(), core.Config{}); err != nil {
 		t.Fatalf("initialize db: %v", err)
 	}
-	if err := db.Start(); err != nil {
+	if err := db.Start(context.Background()); err != nil {
 		t.Fatalf("start db: %v", err)
 	}
 
 	indexer := indexing.NewMultiChainIndexer(logger, nil)
-	runtime, err := newMonolithicPullerRuntime(core.Config{}, "http://localhost:8545", []string{"ethereum"}, logger, metrics, db, indexer)
+	runtime, err := newMonolithicPullerRuntime(context.Background(), core.Config{}, "http://localhost:8545", []string{"ethereum"}, logger, metrics, db, indexer)
 	if err != nil {
 		t.Fatalf("new monolithic runtime: %v", err)
 	}
@@ -36,8 +37,8 @@ func TestMonolithicRuntimeControlRoute(t *testing.T) {
 	healthHandler := api.NewHealthCheckHandler(nil, logger, metrics)
 	healthHandler.InitializedForTests()
 	gateway.SetHealthCheckHandler(healthHandler)
-	gateway.SetRuntimeSummaryProvider(func(r *http.Request) interface{} {
-		return map[string]interface{}{"service": "monolithic"}
+	gateway.SetRuntimeSummaryProvider(func(r *http.Request) any {
+		return map[string]any{"service": "monolithic"}
 	})
 	gateway.SetRuntimeControlProvider(runtime.HandleRuntimeControl)
 

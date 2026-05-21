@@ -7,11 +7,12 @@ import (
 	"testing"
 	"time"
 
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 // TestKafkaMQPluginCreation tests Kafka MQ plugin creation
 func TestKafkaMQPluginCreation(t *testing.T) {
+	t.Parallel()
 	config := &core.Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -39,6 +40,7 @@ func TestKafkaMQPluginCreation(t *testing.T) {
 
 // TestKafkaMQPluginInitialization tests Kafka plugin initialization
 func TestKafkaMQPluginInitialization(t *testing.T) {
+	t.Parallel()
 	config := &core.Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -51,7 +53,7 @@ func TestKafkaMQPluginInitialization(t *testing.T) {
 
 	plugin := NewKafkaMQPlugin("kafka", "1.0.0", config, logger, metrics, eventBus, brokers, consumerGroup)
 
-	if err := plugin.Initialize(); err != nil {
+	if err := plugin.Initialize(context.Background(), *config); err != nil {
 		t.Fatalf("failed to initialize: %v", err)
 	}
 
@@ -60,13 +62,14 @@ func TestKafkaMQPluginInitialization(t *testing.T) {
 	}
 
 	// Try to initialize again (should fail)
-	if err := plugin.Initialize(); err == nil {
+	if err := plugin.Initialize(context.Background(), *config); err == nil {
 		t.Fatal("expected error when initializing twice")
 	}
 }
 
 // TestKafkaMQPluginLifecycle tests Kafka plugin lifecycle
 func TestKafkaMQPluginLifecycle(t *testing.T) {
+	t.Parallel()
 	config := &core.Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -79,11 +82,11 @@ func TestKafkaMQPluginLifecycle(t *testing.T) {
 
 	plugin := NewKafkaMQPlugin("kafka", "1.0.0", config, logger, metrics, eventBus, brokers, consumerGroup)
 
-	if err := plugin.Initialize(); err != nil {
+	if err := plugin.Initialize(context.Background(), *config); err != nil {
 		t.Fatalf("failed to initialize: %v", err)
 	}
 
-	if err := plugin.Start(); err != nil {
+	if err := plugin.Start(context.Background()); err != nil {
 		t.Fatalf("failed to start: %v", err)
 	}
 
@@ -91,7 +94,7 @@ func TestKafkaMQPluginLifecycle(t *testing.T) {
 		t.Fatal("expected plugin to be running")
 	}
 
-	if err := plugin.Stop(); err != nil {
+	if err := plugin.Stop(context.Background()); err != nil {
 		t.Fatalf("failed to stop: %v", err)
 	}
 
@@ -102,6 +105,7 @@ func TestKafkaMQPluginLifecycle(t *testing.T) {
 
 // TestKafkaMQPluginPublishMessage tests publishing a message
 func TestKafkaMQPluginPublishMessage(t *testing.T) {
+	t.Parallel()
 	config := &core.Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -114,11 +118,11 @@ func TestKafkaMQPluginPublishMessage(t *testing.T) {
 
 	plugin := NewKafkaMQPlugin("kafka", "1.0.0", config, logger, metrics, eventBus, brokers, consumerGroup)
 
-	if err := plugin.Initialize(); err != nil {
+	if err := plugin.Initialize(context.Background(), *config); err != nil {
 		t.Fatalf("failed to initialize: %v", err)
 	}
 
-	if err := plugin.Start(); err != nil {
+	if err := plugin.Start(context.Background()); err != nil {
 		t.Fatalf("failed to start: %v", err)
 	}
 
@@ -142,6 +146,7 @@ func TestKafkaMQPluginPublishMessage(t *testing.T) {
 
 // TestKafkaMQPluginAcknowledgeMessage tests acknowledging a message
 func TestKafkaMQPluginAcknowledgeMessage(t *testing.T) {
+	t.Parallel()
 	config := &core.Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -154,11 +159,11 @@ func TestKafkaMQPluginAcknowledgeMessage(t *testing.T) {
 
 	plugin := NewKafkaMQPlugin("kafka", "1.0.0", config, logger, metrics, eventBus, brokers, consumerGroup)
 
-	if err := plugin.Initialize(); err != nil {
+	if err := plugin.Initialize(context.Background(), *config); err != nil {
 		t.Fatalf("failed to initialize: %v", err)
 	}
 
-	if err := plugin.Start(); err != nil {
+	if err := plugin.Start(context.Background()); err != nil {
 		t.Fatalf("failed to start: %v", err)
 	}
 
@@ -179,6 +184,7 @@ func TestKafkaMQPluginAcknowledgeMessage(t *testing.T) {
 
 // TestKafkaMQPluginDeadLetterQueue tests dead letter queue handling
 func TestKafkaMQPluginDeadLetterQueue(t *testing.T) {
+	t.Parallel()
 	config := &core.Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -191,11 +197,11 @@ func TestKafkaMQPluginDeadLetterQueue(t *testing.T) {
 
 	plugin := NewKafkaMQPlugin("kafka", "1.0.0", config, logger, metrics, eventBus, brokers, consumerGroup)
 
-	if err := plugin.Initialize(); err != nil {
+	if err := plugin.Initialize(context.Background(), *config); err != nil {
 		t.Fatalf("failed to initialize: %v", err)
 	}
 
-	if err := plugin.Start(); err != nil {
+	if err := plugin.Start(context.Background()); err != nil {
 		t.Fatalf("failed to start: %v", err)
 	}
 
@@ -223,6 +229,7 @@ func TestKafkaMQPluginDeadLetterQueue(t *testing.T) {
 
 // TestKafkaMQPluginRetryMessage tests message retry
 func TestKafkaMQPluginRetryMessage(t *testing.T) {
+	t.Parallel()
 	config := &core.Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -235,11 +242,11 @@ func TestKafkaMQPluginRetryMessage(t *testing.T) {
 
 	plugin := NewKafkaMQPlugin("kafka", "1.0.0", config, logger, metrics, eventBus, brokers, consumerGroup)
 
-	if err := plugin.Initialize(); err != nil {
+	if err := plugin.Initialize(context.Background(), *config); err != nil {
 		t.Fatalf("failed to initialize: %v", err)
 	}
 
-	if err := plugin.Start(); err != nil {
+	if err := plugin.Start(context.Background()); err != nil {
 		t.Fatalf("failed to start: %v", err)
 	}
 
@@ -260,13 +267,14 @@ func TestKafkaMQPluginRetryMessage(t *testing.T) {
 
 	// RetryMessage increments internally, so we just verify no error was returned
 	// The actual retry count is managed internally by the plugin
-	if err := plugin.Stop(); err != nil {
+	if err := plugin.Stop(context.Background()); err != nil {
 		t.Fatalf("failed to stop: %v", err)
 	}
 }
 
 // TestKafkaMQPluginGetStats tests statistics retrieval
 func TestKafkaMQPluginGetStats(t *testing.T) {
+	t.Parallel()
 	config := &core.Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -279,7 +287,7 @@ func TestKafkaMQPluginGetStats(t *testing.T) {
 
 	plugin := NewKafkaMQPlugin("kafka", "1.0.0", config, logger, metrics, eventBus, brokers, consumerGroup)
 
-	if err := plugin.Initialize(); err != nil {
+	if err := plugin.Initialize(context.Background(), *config); err != nil {
 		t.Fatalf("failed to initialize: %v", err)
 	}
 
@@ -296,6 +304,7 @@ func TestKafkaMQPluginGetStats(t *testing.T) {
 
 // TestKafkaMQPluginSetBatchSize tests setting batch size
 func TestKafkaMQPluginSetBatchSize(t *testing.T) {
+	t.Parallel()
 	config := &core.Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -318,6 +327,7 @@ func TestKafkaMQPluginSetBatchSize(t *testing.T) {
 
 // TestKafkaMQPluginSetMaxRetries tests setting max retries
 func TestKafkaMQPluginSetMaxRetries(t *testing.T) {
+	t.Parallel()
 	config := &core.Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -340,6 +350,7 @@ func TestKafkaMQPluginSetMaxRetries(t *testing.T) {
 
 // TestKafkaMQPluginSetRetryDelay tests setting retry delay
 func TestKafkaMQPluginSetRetryDelay(t *testing.T) {
+	t.Parallel()
 	config := &core.Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -362,6 +373,7 @@ func TestKafkaMQPluginSetRetryDelay(t *testing.T) {
 
 // TestKafkaMQPluginConcurrentOperations tests concurrent operations
 func TestKafkaMQPluginConcurrentOperations(t *testing.T) {
+	t.Parallel()
 	config := &core.Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -374,11 +386,11 @@ func TestKafkaMQPluginConcurrentOperations(t *testing.T) {
 
 	plugin := NewKafkaMQPlugin("kafka", "1.0.0", config, logger, metrics, eventBus, brokers, consumerGroup)
 
-	if err := plugin.Initialize(); err != nil {
+	if err := plugin.Initialize(context.Background(), *config); err != nil {
 		t.Fatalf("failed to initialize: %v", err)
 	}
 
-	if err := plugin.Start(); err != nil {
+	if err := plugin.Start(context.Background()); err != nil {
 		t.Fatalf("failed to start: %v", err)
 	}
 
@@ -416,6 +428,7 @@ func TestKafkaMQPluginConcurrentOperations(t *testing.T) {
 
 // TestKafkaMQPluginHealth tests health check
 func TestKafkaMQPluginHealth(t *testing.T) {
+	t.Parallel()
 	config := &core.Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -428,37 +441,22 @@ func TestKafkaMQPluginHealth(t *testing.T) {
 
 	plugin := NewKafkaMQPlugin("kafka", "1.0.0", config, logger, metrics, eventBus, brokers, consumerGroup)
 
-	if err := plugin.Initialize(); err != nil {
+	if err := plugin.Initialize(context.Background(), *config); err != nil {
 		t.Fatalf("failed to initialize: %v", err)
 	}
 	plugin.UpdateConsumerGroupMetric("lag", 25)
 	plugin.SetLastOffset("raw-events", 144)
 
-	health := plugin.Health()
+	health := plugin.Health(context.Background())
 
-	if health == nil {
-		t.Fatal("expected health status")
-	}
-
-	if health.Status != "healthy" {
-		t.Errorf("expected healthy status, got %s", health.Status)
-	}
-	if health.Details["consumer_group"] != consumerGroup {
-		t.Errorf("expected consumer_group %s, got %v", consumerGroup, health.Details["consumer_group"])
-	}
-	if health.Details["active_consumers"] != 0 {
-		t.Errorf("expected active_consumers 0, got %v", health.Details["active_consumers"])
-	}
-	if health.Details["consumer_group_lag"] != int64(25) {
-		t.Errorf("expected consumer_group_lag 25, got %v", health.Details["consumer_group_lag"])
-	}
-	if health.Details["max_tracked_offset"] != int64(144) {
-		t.Errorf("expected max_tracked_offset 144, got %v", health.Details["max_tracked_offset"])
+	if health != nil {
+		t.Fatalf("expected healthy plugin, got error: %v", health)
 	}
 }
 
 // TestKafkaMQPluginOffsetTracking tests offset tracking
 func TestKafkaMQPluginOffsetTracking(t *testing.T) {
+	t.Parallel()
 	config := &core.Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -484,6 +482,7 @@ func TestKafkaMQPluginOffsetTracking(t *testing.T) {
 
 // TestKafkaMQPluginMultipleTopics tests handling multiple topics
 func TestKafkaMQPluginMultipleTopics(t *testing.T) {
+	t.Parallel()
 	config := &core.Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -496,11 +495,11 @@ func TestKafkaMQPluginMultipleTopics(t *testing.T) {
 
 	plugin := NewKafkaMQPlugin("kafka", "1.0.0", config, logger, metrics, eventBus, brokers, consumerGroup)
 
-	if err := plugin.Initialize(); err != nil {
+	if err := plugin.Initialize(context.Background(), *config); err != nil {
 		t.Fatalf("failed to initialize: %v", err)
 	}
 
-	if err := plugin.Start(); err != nil {
+	if err := plugin.Start(context.Background()); err != nil {
 		t.Fatalf("failed to start: %v", err)
 	}
 
@@ -520,6 +519,7 @@ func TestKafkaMQPluginMultipleTopics(t *testing.T) {
 
 // TestKafkaMQPluginBrokerConfiguration tests broker configuration
 func TestKafkaMQPluginBrokerConfiguration(t *testing.T) {
+	t.Parallel()
 	config := &core.Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -545,6 +545,7 @@ func TestKafkaMQPluginBrokerConfiguration(t *testing.T) {
 
 // TestKafkaMQPluginConsumerGroupConfiguration tests consumer group configuration
 func TestKafkaMQPluginConsumerGroupConfiguration(t *testing.T) {
+	t.Parallel()
 	config := &core.Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -564,6 +565,7 @@ func TestKafkaMQPluginConsumerGroupConfiguration(t *testing.T) {
 
 // TestKafkaMQPluginErrorHandling tests error handling
 func TestKafkaMQPluginErrorHandling(t *testing.T) {
+	t.Parallel()
 	config := &core.Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -576,11 +578,11 @@ func TestKafkaMQPluginErrorHandling(t *testing.T) {
 
 	plugin := NewKafkaMQPlugin("kafka", "1.0.0", config, logger, metrics, eventBus, brokers, consumerGroup)
 
-	if err := plugin.Initialize(); err != nil {
+	if err := plugin.Initialize(context.Background(), *config); err != nil {
 		t.Fatalf("failed to initialize: %v", err)
 	}
 
-	if err := plugin.Start(); err != nil {
+	if err := plugin.Start(context.Background()); err != nil {
 		t.Fatalf("failed to start: %v", err)
 	}
 
@@ -600,6 +602,7 @@ func TestKafkaMQPluginErrorHandling(t *testing.T) {
 
 // TestKafkaMQPluginNotRunningError tests operations when plugin is not running
 func TestKafkaMQPluginNotRunningError(t *testing.T) {
+	t.Parallel()
 	config := &core.Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -643,6 +646,7 @@ func TestKafkaMQPluginNotRunningError(t *testing.T) {
 
 // TestKafkaMQPluginNotInitializedError tests operations when plugin is not initialized
 func TestKafkaMQPluginNotInitializedError(t *testing.T) {
+	t.Parallel()
 	config := &core.Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -656,7 +660,7 @@ func TestKafkaMQPluginNotInitializedError(t *testing.T) {
 	plugin := NewKafkaMQPlugin("kafka", "1.0.0", config, logger, metrics, eventBus, brokers, consumerGroup)
 
 	// Try to start without initializing
-	err := plugin.Start()
+	err := plugin.Start(context.Background())
 	if err == nil {
 		t.Fatal("expected error when starting without initializing")
 	}
@@ -664,6 +668,7 @@ func TestKafkaMQPluginNotInitializedError(t *testing.T) {
 
 // TestKafkaMQPluginDoubleStart tests starting plugin twice
 func TestKafkaMQPluginDoubleStart(t *testing.T) {
+	t.Parallel()
 	config := &core.Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -676,16 +681,16 @@ func TestKafkaMQPluginDoubleStart(t *testing.T) {
 
 	plugin := NewKafkaMQPlugin("kafka", "1.0.0", config, logger, metrics, eventBus, brokers, consumerGroup)
 
-	if err := plugin.Initialize(); err != nil {
+	if err := plugin.Initialize(context.Background(), *config); err != nil {
 		t.Fatalf("failed to initialize: %v", err)
 	}
 
-	if err := plugin.Start(); err != nil {
+	if err := plugin.Start(context.Background()); err != nil {
 		t.Fatalf("failed to start: %v", err)
 	}
 
 	// Try to start again
-	err := plugin.Start()
+	err := plugin.Start(context.Background())
 	if err == nil {
 		t.Fatal("expected error when starting twice")
 	}
@@ -693,6 +698,7 @@ func TestKafkaMQPluginDoubleStart(t *testing.T) {
 
 // TestKafkaMQPluginStopWithoutStart tests stopping without starting
 func TestKafkaMQPluginStopWithoutStart(t *testing.T) {
+	t.Parallel()
 	config := &core.Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -705,12 +711,12 @@ func TestKafkaMQPluginStopWithoutStart(t *testing.T) {
 
 	plugin := NewKafkaMQPlugin("kafka", "1.0.0", config, logger, metrics, eventBus, brokers, consumerGroup)
 
-	if err := plugin.Initialize(); err != nil {
+	if err := plugin.Initialize(context.Background(), *config); err != nil {
 		t.Fatalf("failed to initialize: %v", err)
 	}
 
 	// Stop without starting should not error
-	err := plugin.Stop()
+	err := plugin.Stop(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error when stopping without starting: %v", err)
 	}
@@ -718,6 +724,7 @@ func TestKafkaMQPluginStopWithoutStart(t *testing.T) {
 
 // TestKafkaMQPluginMaxRetriesExceeded tests max retries exceeded
 func TestKafkaMQPluginMaxRetriesExceeded(t *testing.T) {
+	t.Parallel()
 	config := &core.Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -730,11 +737,11 @@ func TestKafkaMQPluginMaxRetriesExceeded(t *testing.T) {
 
 	plugin := NewKafkaMQPlugin("kafka", "1.0.0", config, logger, metrics, eventBus, brokers, consumerGroup)
 
-	if err := plugin.Initialize(); err != nil {
+	if err := plugin.Initialize(context.Background(), *config); err != nil {
 		t.Fatalf("failed to initialize: %v", err)
 	}
 
-	if err := plugin.Start(); err != nil {
+	if err := plugin.Start(context.Background()); err != nil {
 		t.Fatalf("failed to start: %v", err)
 	}
 
@@ -757,49 +764,9 @@ func TestKafkaMQPluginMaxRetriesExceeded(t *testing.T) {
 	}
 }
 
-// TestKafkaMQPluginGetLastBlockNumber tests getting last block number
-func TestKafkaMQPluginGetLastBlockNumber(t *testing.T) {
-	config := &core.Config{
-		BlockchainNodeURL: "localhost:50051",
-		StartBlock:        0,
-	}
-	logger := core.NewDefaultLogger(core.LogLevelInfo)
-	metrics := core.NewDefaultMetricsCollector()
-	eventBus := core.NewEventBus(logger)
-	brokers := []string{"localhost:9092"}
-	consumerGroup := "test-group"
-
-	plugin := NewKafkaMQPlugin("kafka", "1.0.0", config, logger, metrics, eventBus, brokers, consumerGroup)
-
-	blockNumber := plugin.GetLastBlockNumber()
-	if blockNumber != 0 {
-		t.Errorf("expected block number 0, got %d", blockNumber)
-	}
-}
-
-// TestKafkaMQPluginSetLastBlockNumber tests setting last block number
-func TestKafkaMQPluginSetLastBlockNumber(t *testing.T) {
-	config := &core.Config{
-		BlockchainNodeURL: "localhost:50051",
-		StartBlock:        0,
-	}
-	logger := core.NewDefaultLogger(core.LogLevelInfo)
-	metrics := core.NewDefaultMetricsCollector()
-	eventBus := core.NewEventBus(logger)
-	brokers := []string{"localhost:9092"}
-	consumerGroup := "test-group"
-
-	plugin := NewKafkaMQPlugin("kafka", "1.0.0", config, logger, metrics, eventBus, brokers, consumerGroup)
-
-	blockNumber := uint64(12345)
-	plugin.SetLastBlockNumber(blockNumber)
-
-	// Note: SetLastBlockNumber doesn't actually store for Kafka MQ
-	// This is expected behavior as Kafka uses offset tracking instead
-}
-
 // TestKafkaMQPluginHealthDegraded tests health status when errors occur
 func TestKafkaMQPluginHealthDegraded(t *testing.T) {
+	t.Parallel()
 	config := &core.Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -812,22 +779,24 @@ func TestKafkaMQPluginHealthDegraded(t *testing.T) {
 
 	plugin := NewKafkaMQPlugin("kafka", "1.0.0", config, logger, metrics, eventBus, brokers, consumerGroup)
 
-	if err := plugin.Initialize(); err != nil {
+	if err := plugin.Initialize(context.Background(), *config); err != nil {
 		t.Fatalf("failed to initialize: %v", err)
 	}
 
 	// Record an error
 	plugin.RecordError(fmt.Errorf("test error"))
 
-	health := plugin.Health()
+	health := plugin.Health(context.Background())
 
-	if health.Status != "degraded" {
-		t.Errorf("expected degraded status, got %s", health.Status)
+	// Health() should return an error since errors were recorded
+	if health == nil {
+		t.Error("expected degraded health (non-nil error)")
 	}
 }
 
 // TestKafkaMQPluginMessageQueueMessageFields tests message fields
 func TestKafkaMQPluginMessageQueueMessageFields(t *testing.T) {
+	t.Parallel()
 	message := core.MessageQueueMessage{
 		ID:           "msg-123",
 		Topic:        "events",
@@ -861,6 +830,7 @@ func TestKafkaMQPluginMessageQueueMessageFields(t *testing.T) {
 
 // TestKafkaMQPluginStatsStructure tests stats structure
 func TestKafkaMQPluginStatsStructure(t *testing.T) {
+	t.Parallel()
 	config := &core.Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -873,7 +843,7 @@ func TestKafkaMQPluginStatsStructure(t *testing.T) {
 
 	plugin := NewKafkaMQPlugin("kafka", "1.0.0", config, logger, metrics, eventBus, brokers, consumerGroup)
 
-	if err := plugin.Initialize(); err != nil {
+	if err := plugin.Initialize(context.Background(), *config); err != nil {
 		t.Fatalf("failed to initialize: %v", err)
 	}
 
@@ -898,6 +868,7 @@ func TestKafkaMQPluginStatsStructure(t *testing.T) {
 
 // TestKafkaMQPluginLogMethods tests logging methods
 func TestKafkaMQPluginLogMethods(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 
 	// These should not panic
@@ -908,6 +879,7 @@ func TestKafkaMQPluginLogMethods(t *testing.T) {
 
 // TestKafkaMQPluginRecordMetric tests metric recording
 func TestKafkaMQPluginRecordMetric(t *testing.T) {
+	t.Parallel()
 	metrics := core.NewDefaultMetricsCollector()
 
 	// This should not panic

@@ -9,6 +9,7 @@ import (
 
 // TestDefaultRetryPolicy tests the default retry policy
 func TestDefaultRetryPolicy(t *testing.T) {
+	t.Parallel()
 	policy := DefaultRetryPolicy()
 
 	if policy.MaxAttempts != 3 {
@@ -34,6 +35,7 @@ func TestDefaultRetryPolicy(t *testing.T) {
 
 // TestCalculateBackoff tests backoff calculation
 func TestCalculateBackoff(t *testing.T) {
+	t.Parallel()
 	policy := DefaultRetryPolicy()
 
 	testCases := []struct {
@@ -58,6 +60,7 @@ func TestCalculateBackoff(t *testing.T) {
 
 // TestCalculateBackoffZeroAttempt tests backoff for zero attempt
 func TestCalculateBackoffZeroAttempt(t *testing.T) {
+	t.Parallel()
 	policy := DefaultRetryPolicy()
 
 	backoff := policy.CalculateBackoff(0)
@@ -68,6 +71,7 @@ func TestCalculateBackoffZeroAttempt(t *testing.T) {
 
 // TestCalculateBackoffNegativeAttempt tests backoff for negative attempt
 func TestCalculateBackoffNegativeAttempt(t *testing.T) {
+	t.Parallel()
 	policy := DefaultRetryPolicy()
 
 	backoff := policy.CalculateBackoff(-1)
@@ -78,6 +82,7 @@ func TestCalculateBackoffNegativeAttempt(t *testing.T) {
 
 // TestCalculateBackoffMaxBackoff tests that backoff is capped at max
 func TestCalculateBackoffMaxBackoff(t *testing.T) {
+	t.Parallel()
 	policy := DefaultRetryPolicy()
 
 	// Large attempt number should be capped at MaxBackoff
@@ -89,6 +94,7 @@ func TestCalculateBackoffMaxBackoff(t *testing.T) {
 
 // TestShouldRetryTransientError tests retry for transient errors
 func TestShouldRetryTransientError(t *testing.T) {
+	t.Parallel()
 	policy := DefaultRetryPolicy()
 
 	err := errors.New("connection refused")
@@ -99,6 +105,7 @@ func TestShouldRetryTransientError(t *testing.T) {
 
 // TestShouldRetryPermanentError tests no retry for permanent errors
 func TestShouldRetryPermanentError(t *testing.T) {
+	t.Parallel()
 	policy := DefaultRetryPolicy()
 
 	err := errors.New("unique constraint violation")
@@ -109,6 +116,7 @@ func TestShouldRetryPermanentError(t *testing.T) {
 
 // TestShouldRetryMaxAttempts tests no retry when max attempts reached
 func TestShouldRetryMaxAttempts(t *testing.T) {
+	t.Parallel()
 	policy := DefaultRetryPolicy()
 
 	err := errors.New("connection refused")
@@ -119,6 +127,7 @@ func TestShouldRetryMaxAttempts(t *testing.T) {
 
 // TestShouldRetryNilError tests no retry for nil error
 func TestShouldRetryNilError(t *testing.T) {
+	t.Parallel()
 	policy := DefaultRetryPolicy()
 
 	if policy.ShouldRetry(nil, 1) {
@@ -128,6 +137,7 @@ func TestShouldRetryNilError(t *testing.T) {
 
 // TestRetryHandlerExecuteSuccess tests successful execution
 func TestRetryHandlerExecuteSuccess(t *testing.T) {
+	t.Parallel()
 	handler := NewRetryHandler(DefaultRetryPolicy())
 
 	attempts := 0
@@ -149,6 +159,7 @@ func TestRetryHandlerExecuteSuccess(t *testing.T) {
 
 // TestRetryHandlerExecuteFailure tests failure after max attempts
 func TestRetryHandlerExecuteFailure(t *testing.T) {
+	t.Parallel()
 	handler := NewRetryHandler(DefaultRetryPolicy())
 
 	attempts := 0
@@ -171,6 +182,7 @@ func TestRetryHandlerExecuteFailure(t *testing.T) {
 
 // TestRetryHandlerExecuteEventualSuccess tests eventual success after retries
 func TestRetryHandlerExecuteEventualSuccess(t *testing.T) {
+	t.Parallel()
 	handler := NewRetryHandler(DefaultRetryPolicy())
 
 	attempts := 0
@@ -195,6 +207,7 @@ func TestRetryHandlerExecuteEventualSuccess(t *testing.T) {
 
 // TestRetryHandlerExecutePermanentError tests no retry for permanent error
 func TestRetryHandlerExecutePermanentError(t *testing.T) {
+	t.Parallel()
 	handler := NewRetryHandler(DefaultRetryPolicy())
 
 	attempts := 0
@@ -217,6 +230,7 @@ func TestRetryHandlerExecutePermanentError(t *testing.T) {
 
 // TestRetryHandlerExecuteContextCancellation tests context cancellation
 func TestRetryHandlerExecuteContextCancellation(t *testing.T) {
+	t.Parallel()
 	handler := NewRetryHandler(DefaultRetryPolicy())
 
 	attempts := 0
@@ -241,6 +255,7 @@ func TestRetryHandlerExecuteContextCancellation(t *testing.T) {
 
 // TestRetryHandlerExecuteWithTimeout tests execution with timeout
 func TestRetryHandlerExecuteWithTimeout(t *testing.T) {
+	t.Parallel()
 	handler := NewRetryHandler(DefaultRetryPolicy())
 
 	attempts := 0
@@ -264,6 +279,7 @@ func TestRetryHandlerExecuteWithTimeout(t *testing.T) {
 
 // TestRetryHandlerExecuteWithStats tests execution with statistics
 func TestRetryHandlerExecuteWithStats(t *testing.T) {
+	t.Parallel()
 	handler := NewRetryHandler(DefaultRetryPolicy())
 
 	attempts := 0
@@ -300,6 +316,7 @@ func TestRetryHandlerExecuteWithStats(t *testing.T) {
 
 // TestRetryHandlerExecuteWithStatsFailure tests statistics on failure
 func TestRetryHandlerExecuteWithStatsFailure(t *testing.T) {
+	t.Parallel()
 	handler := NewRetryHandler(DefaultRetryPolicy())
 
 	fn := func(ctx context.Context) error {
@@ -332,6 +349,7 @@ func TestRetryHandlerExecuteWithStatsFailure(t *testing.T) {
 
 // TestRetryHandlerNilPolicy tests retry handler with nil policy
 func TestRetryHandlerNilPolicy(t *testing.T) {
+	t.Parallel()
 	handler := NewRetryHandler(nil)
 
 	if handler.policy == nil {
@@ -345,6 +363,7 @@ func TestRetryHandlerNilPolicy(t *testing.T) {
 
 // TestRetryPolicyCustom tests custom retry policy
 func TestRetryPolicyCustom(t *testing.T) {
+	t.Parallel()
 	policy := &RetryPolicy{
 		MaxAttempts:       5,
 		InitialBackoff:    50 * time.Millisecond,

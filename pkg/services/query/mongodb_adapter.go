@@ -2,30 +2,35 @@ package query
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
-	"chainpulse/pkg/core"
-	"chainpulse/pkg/infrastructure/database"
+	"github.com/rtcdance/chainpulse/pkg/core"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
+type mongoClientProvider interface {
+	GetMongoClient(ctx context.Context) (any, error)
+}
+
 // DefaultMongoDBAdapter provides MongoDB query operations
 type DefaultMongoDBAdapter struct {
-	mu               sync.RWMutex
-	dbManager        database.DatabaseManager
+	initMu           sync.Mutex
+	initialized      atomic.Bool
+	dbManager        mongoClientProvider
 	mongoClient      *mongo.Client
 	logger           core.Logger
 	metricsCollector core.MetricsCollector
-	initialized      bool
 }
 
 // NewMongoDBAdapter creates a new MongoDB adapter
 func NewMongoDBAdapter(
-	dbManager database.DatabaseManager,
+	dbManager mongoClientProvider,
 	logger core.Logger,
 	metricsCollector core.MetricsCollector,
 ) MongoDBAdapter {
@@ -38,10 +43,10 @@ func NewMongoDBAdapter(
 
 // Initialize initializes the MongoDB adapter
 func (ma *DefaultMongoDBAdapter) Initialize(ctx context.Context) error {
-	ma.mu.Lock()
-	defer ma.mu.Unlock()
+	ma.initMu.Lock()
+	defer ma.initMu.Unlock()
 
-	if ma.initialized {
+	if ma.initialized.Load() {
 		return fmt.Errorf("MongoDB adapter already initialized")
 	}
 
@@ -58,21 +63,16 @@ func (ma *DefaultMongoDBAdapter) Initialize(ctx context.Context) error {
 	}
 
 	ma.mongoClient = client
-	ma.initialized = true
+	ma.initialized.Store(true)
 
-	ma.logger.Info("MongoDB adapter initialized", map[string]interface{}{
-		"component": "mongodb-adapter",
-	})
+	ma.logger.Info("MongoDB adapter initialized", core.LogKeyComponent, "mongodb-adapter")
 
 	return nil
 }
 
 // Query executes a query against MongoDB
 func (ma *DefaultMongoDBAdapter) Query(ctx context.Context, req *QueryRequest) (*QueryResult, error) {
-	ma.mu.RLock()
-	defer ma.mu.RUnlock()
-
-	if !ma.initialized {
+	if !ma.initialized.Load() {
 		return nil, fmt.Errorf("MongoDB adapter not initialized")
 	}
 
@@ -124,11 +124,7 @@ func (ma *DefaultMongoDBAdapter) Query(ctx context.Context, req *QueryRequest) (
 	if err != nil {
 		duration := time.Since(start).Milliseconds()
 		ma.metricsCollector.RecordCounter("mongodb_query_error", 1, map[string]string{})
-		ma.logger.Error("MongoDB query failed", map[string]interface{}{
-			"collection": req.Collection,
-			"error":      err.Error(),
-			"duration":   duration,
-		})
+		ma.logger.Error("MongoDB query failed", "collection", req.Collection, core.LogKeyError, err, core.LogKeyDuration, duration)
 		return nil, fmt.Errorf("MongoDB query failed: %w", err)
 	}
 	defer func() { _ = cursor.Close(ctx) }()
@@ -138,21 +134,14 @@ func (ma *DefaultMongoDBAdapter) Query(ctx context.Context, req *QueryRequest) (
 	if err := cursor.All(ctx, &events); err != nil {
 		duration := time.Since(start).Milliseconds()
 		ma.metricsCollector.RecordCounter("mongodb_decode_error", 1, map[string]string{})
-		ma.logger.Error("Failed to decode MongoDB results", map[string]interface{}{
-			"collection": req.Collection,
-			"error":      err.Error(),
-			"duration":   duration,
-		})
+		ma.logger.Error("Failed to decode MongoDB results", "collection", req.Collection, core.LogKeyError, err, core.LogKeyDuration, duration)
 		return nil, fmt.Errorf("failed to decode results: %w", err)
 	}
 
 	// Get total count
 	total, err := collection.CountDocuments(ctx, filter)
 	if err != nil {
-		ma.logger.Error("Failed to count MongoDB documents", map[string]interface{}{
-			"collection": req.Collection,
-			"error":      err.Error(),
-		})
+		ma.logger.Error("Failed to count MongoDB documents", "collection", req.Collection, core.LogKeyError, err)
 		total = int64(len(events))
 	}
 
@@ -160,12 +149,7 @@ func (ma *DefaultMongoDBAdapter) Query(ctx context.Context, req *QueryRequest) (
 	ma.metricsCollector.RecordHistogram("mongodb_query_time_ms", float64(duration), map[string]string{})
 	ma.metricsCollector.RecordCounter("mongodb_query_success", 1, map[string]string{})
 
-	ma.logger.Info("MongoDB query successful", map[string]interface{}{
-		"collection": req.Collection,
-		"count":      len(events),
-		"total":      total,
-		"duration":   duration,
-	})
+	ma.logger.Info("MongoDB query successful", "collection", req.Collection, core.LogKeyCount, len(events), "total", total, core.LogKeyDuration, duration)
 
 	return &QueryResult{
 		Events:       events,
@@ -177,10 +161,8 @@ func (ma *DefaultMongoDBAdapter) Query(ctx context.Context, req *QueryRequest) (
 
 // QueryByHash retrieves a single item by hash
 func (ma *DefaultMongoDBAdapter) QueryByHash(ctx context.Context, hash string) (*core.BlockchainEvent, error) {
-	ma.mu.RLock()
-	defer ma.mu.RUnlock()
 
-	if !ma.initialized {
+	if !ma.initialized.Load() {
 		return nil, fmt.Errorf("MongoDB adapter not initialized")
 	}
 
@@ -200,22 +182,15 @@ func (ma *DefaultMongoDBAdapter) QueryByHash(ctx context.Context, hash string) (
 	var event core.BlockchainEvent
 	err := collection.FindOne(ctx, filter).Decode(&event)
 	if err != nil {
-		if err == mongo.ErrNoDocuments {
+		if errors.Is(err, mongo.ErrNoDocuments) {
 			duration := time.Since(start).Milliseconds()
-			ma.logger.Debug("Event not found in MongoDB", map[string]interface{}{
-				"hash":     hash,
-				"duration": duration,
-			})
+			ma.logger.Debug("Event not found in MongoDB", core.LogKeyHash, hash, core.LogKeyDuration, duration)
 			return nil, nil
 		}
 
 		duration := time.Since(start).Milliseconds()
 		ma.metricsCollector.RecordCounter("mongodb_query_by_hash_error", 1, map[string]string{})
-		ma.logger.Error("MongoDB query by hash failed", map[string]interface{}{
-			"hash":     hash,
-			"error":    err.Error(),
-			"duration": duration,
-		})
+		ma.logger.Error("MongoDB query by hash failed", core.LogKeyHash, hash, core.LogKeyError, err, core.LogKeyDuration, duration)
 		return nil, fmt.Errorf("MongoDB query failed: %w", err)
 	}
 
@@ -223,20 +198,15 @@ func (ma *DefaultMongoDBAdapter) QueryByHash(ctx context.Context, hash string) (
 	ma.metricsCollector.RecordHistogram("mongodb_query_by_hash_time_ms", float64(duration), map[string]string{})
 	ma.metricsCollector.RecordCounter("mongodb_query_by_hash_success", 1, map[string]string{})
 
-	ma.logger.Info("MongoDB query by hash successful", map[string]interface{}{
-		"hash":     hash,
-		"duration": duration,
-	})
+	ma.logger.Info("MongoDB query by hash successful", core.LogKeyHash, hash, core.LogKeyDuration, duration)
 
 	return &event, nil
 }
 
 // Health returns the health status
 func (ma *DefaultMongoDBAdapter) Health(ctx context.Context) *core.HealthStatus {
-	ma.mu.RLock()
-	defer ma.mu.RUnlock()
 
-	if !ma.initialized {
+	if !ma.initialized.Load() {
 		return &core.HealthStatus{
 			Status:  "unhealthy",
 			Message: "MongoDB adapter not initialized",

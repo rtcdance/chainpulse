@@ -16,6 +16,7 @@ const (
 )
 
 func TestNewHTTPRequest(t *testing.T) {
+	t.Parallel()
 	req, _ := http.NewRequest("GET", "/api/users", nil)
 	httpReq := NewHTTPRequest(req)
 
@@ -29,6 +30,7 @@ func TestNewHTTPRequest(t *testing.T) {
 }
 
 func TestHTTPRequestMethod(t *testing.T) {
+	t.Parallel()
 	methods := []string{"GET", "POST", "PUT", "DELETE", "PATCH"}
 
 	for _, method := range methods {
@@ -42,6 +44,7 @@ func TestHTTPRequestMethod(t *testing.T) {
 }
 
 func TestHTTPRequestPath(t *testing.T) {
+	t.Parallel()
 	paths := []string{"/api/users", "/api/posts/1", "/health"}
 
 	for _, path := range paths {
@@ -55,6 +58,7 @@ func TestHTTPRequestPath(t *testing.T) {
 }
 
 func TestHTTPRequestHeaders(t *testing.T) {
+	t.Parallel()
 	req, _ := http.NewRequest("GET", "/api/test", nil)
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer token")
@@ -76,6 +80,7 @@ func TestHTTPRequestHeaders(t *testing.T) {
 }
 
 func TestHTTPRequestBody(t *testing.T) {
+	t.Parallel()
 	body := []byte(`{"name":"test"}`)
 	req, _ := http.NewRequest("POST", "/api/users", bytes.NewReader(body))
 
@@ -87,6 +92,7 @@ func TestHTTPRequestBody(t *testing.T) {
 }
 
 func TestHTTPRequestContext(t *testing.T) {
+	t.Parallel()
 	ctx := context.WithValue(context.Background(), userIDContextKey, "123")
 	req, _ := http.NewRequestWithContext(ctx, "GET", "/api/test", nil)
 
@@ -98,6 +104,7 @@ func TestHTTPRequestContext(t *testing.T) {
 }
 
 func TestHTTPRequestQuery(t *testing.T) {
+	t.Parallel()
 	req, _ := http.NewRequest("GET", "/api/users?page=1&limit=10", nil)
 	httpReq := NewHTTPRequest(req)
 
@@ -116,6 +123,7 @@ func TestHTTPRequestQuery(t *testing.T) {
 }
 
 func TestNewHTTPResponse(t *testing.T) {
+	t.Parallel()
 	buf := &bytes.Buffer{}
 	w := &testResponseWriter{buf: buf}
 
@@ -131,6 +139,7 @@ func TestNewHTTPResponse(t *testing.T) {
 }
 
 func TestHTTPResponseStatus(t *testing.T) {
+	t.Parallel()
 	w := &testResponseWriter{buf: &bytes.Buffer{}}
 	resp := NewHTTPResponse(w)
 
@@ -146,6 +155,7 @@ func TestHTTPResponseStatus(t *testing.T) {
 }
 
 func TestHTTPResponseHeaders(t *testing.T) {
+	t.Parallel()
 	w := &testResponseWriter{buf: &bytes.Buffer{}}
 	resp := NewHTTPResponse(w)
 
@@ -163,6 +173,7 @@ func TestHTTPResponseHeaders(t *testing.T) {
 }
 
 func TestHTTPResponseBody(t *testing.T) {
+	t.Parallel()
 	w := &testResponseWriter{buf: &bytes.Buffer{}}
 	resp := NewHTTPResponse(w)
 
@@ -175,6 +186,7 @@ func TestHTTPResponseBody(t *testing.T) {
 }
 
 func TestHTTPResponseWrite(t *testing.T) {
+	t.Parallel()
 	w := &testResponseWriter{buf: &bytes.Buffer{}}
 	resp := NewHTTPResponse(w)
 
@@ -193,6 +205,7 @@ func TestHTTPResponseWrite(t *testing.T) {
 }
 
 func TestHTTPResponseSend(t *testing.T) {
+	t.Parallel()
 	buf := &bytes.Buffer{}
 	w := &testResponseWriter{buf: buf}
 	resp := NewHTTPResponse(w)

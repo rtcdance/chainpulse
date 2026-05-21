@@ -19,7 +19,7 @@ type endpoint struct {
 
 type rpcResponse struct {
 	Result json.RawMessage `json:"result"`
-	Error  interface{}     `json:"error"`
+	Error  any             `json:"error"`
 }
 
 func parseNamedEndpoints(raw string) []endpoint {
@@ -45,7 +45,7 @@ func parseNamedEndpoints(raw string) []endpoint {
 	return endpoints
 }
 
-func rpcCall(ctx context.Context, endpointURL string, payload map[string]interface{}) (rpcResponse, error) {
+func rpcCall(ctx context.Context, endpointURL string, payload map[string]any) (rpcResponse, error) {
 	body, err := json.Marshal(payload)
 	if err != nil {
 		return rpcResponse{}, err
@@ -79,31 +79,31 @@ func rpcCall(ctx context.Context, endpointURL string, payload map[string]interfa
 }
 
 func probeEVMChainID(ctx context.Context, endpointURL string) error {
-	_, err := rpcCall(ctx, endpointURL, map[string]interface{}{
+	_, err := rpcCall(ctx, endpointURL, map[string]any{
 		"jsonrpc": "2.0",
 		"id":      1,
 		"method":  "eth_chainId",
-		"params":  []interface{}{},
+		"params":  []any{},
 	})
 	return err
 }
 
 func probeSolanaRPC(ctx context.Context, endpointURL string) error {
-	_, versionErr := rpcCall(ctx, endpointURL, map[string]interface{}{
+	_, versionErr := rpcCall(ctx, endpointURL, map[string]any{
 		"jsonrpc": "2.0",
 		"id":      1,
 		"method":  "getVersion",
-		"params":  []interface{}{},
+		"params":  []any{},
 	})
 	if versionErr == nil {
 		return nil
 	}
 
-	_, healthErr := rpcCall(ctx, endpointURL, map[string]interface{}{
+	_, healthErr := rpcCall(ctx, endpointURL, map[string]any{
 		"jsonrpc": "2.0",
 		"id":      2,
 		"method":  "getHealth",
-		"params":  []interface{}{},
+		"params":  []any{},
 	})
 	return healthErr
 }

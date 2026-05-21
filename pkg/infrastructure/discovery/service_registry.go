@@ -3,6 +3,8 @@ package discovery
 import (
 	"context"
 	"fmt"
+	"log/slog"
+	"net/http"
 	"sync"
 	"time"
 )
@@ -42,43 +44,41 @@ func NewServiceRegistry(consul ConsulClient) *ServiceRegistry {
 	}
 }
 
-// RegisterService registers a service
+// RegisterService registers a service with Consul and then stores it locally.
+// Consul I/O is performed outside the local mutex to avoid blocking service discovery.
 func (sr *ServiceRegistry) RegisterService(ctx context.Context, service ServiceInfo) error {
-	sr.mutex.Lock()
-	defer sr.mutex.Unlock()
-
 	service.RegisteredAt = time.Now()
 	service.LastHeartbeat = time.Now()
 	service.Status = "healthy"
 
-	// Register with Consul
 	if err := sr.consul.RegisterService(ctx, service.ID, service.Name, service.Address, service.Port, service.Tags); err != nil {
 		return fmt.Errorf("failed to register service with Consul: %w", err)
 	}
 
-	// Store locally
+	sr.mutex.Lock()
 	sr.services[service.ID] = &service
+	sr.mutex.Unlock()
 
 	return nil
 }
 
-// DeregisterService deregisters a service
+// DeregisterService deregisters a service from Consul and removes it locally.
 func (sr *ServiceRegistry) DeregisterService(ctx context.Context, serviceID string) error {
-	sr.mutex.Lock()
-	defer sr.mutex.Unlock()
+	sr.mutex.RLock()
+	_, exists := sr.services[serviceID]
+	sr.mutex.RUnlock()
 
-	// Check if service exists
-	if _, exists := sr.services[serviceID]; !exists {
+	if !exists {
 		return fmt.Errorf("service not found: %s", serviceID)
 	}
 
-	// Deregister from Consul
 	if err := sr.consul.DeregisterService(ctx, serviceID); err != nil {
 		return fmt.Errorf("failed to deregister service from Consul: %w", err)
 	}
 
-	// Remove locally
+	sr.mutex.Lock()
 	delete(sr.services, serviceID)
+	sr.mutex.Unlock()
 
 	return nil
 }
@@ -231,14 +231,37 @@ func (hc *HealthChecker) checkService(ctx context.Context, service *ServiceInfo)
 		status = "healthy"
 	}
 
-	_ = hc.registry.UpdateServiceStatus(ctx, service.ID, status)
+	if err := hc.registry.UpdateServiceStatus(ctx, service.ID, status); err != nil {
+		slog.Warn("failed to update service status", "service_id", service.ID, "status", status, "error", err)
+	}
 }
 
-// performHealthCheck performs the actual health check
+// performHealthCheck probes the service's HealthCheckURL with an HTTP GET.
+// Returns true if the service responds with 2xx within the context deadline.
 func (hc *HealthChecker) performHealthCheck(ctx context.Context, service *ServiceInfo) bool {
-	// This is a placeholder for actual health check logic
-	// In production, this would make HTTP requests to the health check endpoint
-	return true
+	if service.HealthCheckURL == "" {
+		return true
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, service.HealthCheckURL, nil)
+	if err != nil {
+		slog.Warn("health check: failed to build request", "service", service.ID, "url", service.HealthCheckURL, "error", err)
+		return false
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		slog.Debug("health check: service unreachable", "service", service.ID, "url", service.HealthCheckURL, "error", err)
+		return false
+	}
+	resp.Body.Close()
+
+	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+		return true
+	}
+
+	slog.Debug("health check: unhealthy status code", "service", service.ID, "status", resp.StatusCode)
+	return false
 }
 
 // ServiceDiscoveryClient provides service discovery functionality

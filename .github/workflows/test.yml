@@ -220,7 +220,7 @@ jobs:
           echo ""
           echo "Packages in unit test coverage file:"
           if [ -f coverage-unit.out ] && [ -s coverage-unit.out ]; then
-            go tool cover -func=coverage-unit.out 2>/dev/null | grep "chainpulse/pkg" | cut -d'/' -f1-2 | sort -u > /tmp/packages_in_coverage.txt
+            go tool cover -func=coverage-unit.out 2>/dev/null | grep "github.com/rtcdance/chainpulse/pkg" | cut -d'/' -f1-2 | sort -u > /tmp/packages_in_coverage.txt
             cat /tmp/packages_in_coverage.txt
             
             # Find missing packages

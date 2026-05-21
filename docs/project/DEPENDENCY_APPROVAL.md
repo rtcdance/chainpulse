@@ -11,6 +11,16 @@
 
 ## Pending Approvals
 
+- [ ] github.com/testcontainers/testcontainers-go v0.35.0
+  - **Purpose**: Programmatic Docker container management for integration tests
+  - **Why needed**: Current integration tests (test/integration/) hardcode external DB/MQ URLs; without testcontainers they require pre-running docker-compose infrastructure which isn't CI-friendly
+  - **Why not stdlib**: Go stdlib has no Docker API bindings
+  - **Alternatives**: os/exec + docker CLI (brittle), docker-compose (already exists but requires manual orchestration)
+  - **License**: MIT
+  - **Size**: ~5MB
+  - **Scope**: test-only dependency (not in production binary)
+  - **Approved by**: [pending]
+
 <!-- Add new dependencies here -->
 
 ## Approved Dependencies

@@ -3,13 +3,20 @@ package main
 import (
 	"net/http"
 
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/observability"
 )
 
-func buildMonolithicMetricsProvider(metrics core.MetricsCollector) func(*http.Request) interface{} {
-	return func(r *http.Request) interface{} {
+func buildMonolithicMetricsProvider(metrics core.MetricsCollector, indexerMetrics *observability.IndexerMetrics) func(*http.Request) any {
+	return func(r *http.Request) any {
 		if metrics == nil {
 			return nil
+		}
+
+		// Sync business metrics from IndexerMetrics to MetricsCollector
+		// so they appear on the /metrics endpoint alongside system metrics
+		if indexerMetrics != nil {
+			indexerMetrics.SyncToMetricsCollector(metrics)
 		}
 
 		if prefersJSONMetrics(r) {

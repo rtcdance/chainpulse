@@ -6,14 +6,14 @@ import (
 	"sync"
 	"time"
 
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 // ProtocolHandler defines the interface for protocol handlers
 type ProtocolHandler interface {
 	Start(ctx context.Context) error
 	Stop() error
-	HandleRequest(ctx context.Context, req interface{}) (interface{}, error)
+	HandleRequest(ctx context.Context, req any) (any, error)
 	Health() core.HealthStatus
 }
 
@@ -58,7 +58,7 @@ func (rh *RESTHandler) Stop() error {
 }
 
 // HandleRequest handles a REST request
-func (rh *RESTHandler) HandleRequest(ctx context.Context, req interface{}) (interface{}, error) {
+func (rh *RESTHandler) HandleRequest(ctx context.Context, req any) (any, error) {
 	rh.mutex.RLock()
 	if !rh.running {
 		rh.mutex.RUnlock()
@@ -66,7 +66,7 @@ func (rh *RESTHandler) HandleRequest(ctx context.Context, req interface{}) (inte
 	}
 	rh.mutex.RUnlock()
 
-	return map[string]interface{}{
+	return map[string]any{
 		"protocol": "REST",
 		"status":   "ok",
 	}, nil
@@ -131,7 +131,7 @@ func (gh *gRPCHandler) Stop() error {
 }
 
 // HandleRequest handles a gRPC request
-func (gh *gRPCHandler) HandleRequest(ctx context.Context, req interface{}) (interface{}, error) {
+func (gh *gRPCHandler) HandleRequest(ctx context.Context, req any) (any, error) {
 	gh.mutex.RLock()
 	if !gh.running {
 		gh.mutex.RUnlock()
@@ -139,7 +139,7 @@ func (gh *gRPCHandler) HandleRequest(ctx context.Context, req interface{}) (inte
 	}
 	gh.mutex.RUnlock()
 
-	return map[string]interface{}{
+	return map[string]any{
 		"protocol": "gRPC",
 		"status":   "ok",
 	}, nil
@@ -204,7 +204,7 @@ func (wh *WebSocketHandler) Stop() error {
 }
 
 // HandleRequest handles a WebSocket request
-func (wh *WebSocketHandler) HandleRequest(ctx context.Context, req interface{}) (interface{}, error) {
+func (wh *WebSocketHandler) HandleRequest(ctx context.Context, req any) (any, error) {
 	wh.mutex.RLock()
 	if !wh.running {
 		wh.mutex.RUnlock()
@@ -212,7 +212,7 @@ func (wh *WebSocketHandler) HandleRequest(ctx context.Context, req interface{}) 
 	}
 	wh.mutex.RUnlock()
 
-	return map[string]interface{}{
+	return map[string]any{
 		"protocol": "WebSocket",
 		"status":   "ok",
 	}, nil
@@ -277,7 +277,7 @@ func (gh *GraphQLHandler) Stop() error {
 }
 
 // HandleRequest handles a GraphQL request
-func (gh *GraphQLHandler) HandleRequest(ctx context.Context, req interface{}) (interface{}, error) {
+func (gh *GraphQLHandler) HandleRequest(ctx context.Context, req any) (any, error) {
 	gh.mutex.RLock()
 	if !gh.running {
 		gh.mutex.RUnlock()
@@ -285,7 +285,7 @@ func (gh *GraphQLHandler) HandleRequest(ctx context.Context, req interface{}) (i
 	}
 	gh.mutex.RUnlock()
 
-	return map[string]interface{}{
+	return map[string]any{
 		"protocol": "GraphQL",
 		"status":   "ok",
 	}, nil

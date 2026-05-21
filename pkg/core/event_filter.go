@@ -3,11 +3,14 @@ package core
 import (
 	"fmt"
 	"math/big"
+	"regexp"
 	"strings"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 )
+
+var safeIdentifierRE = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
 
 // EventFilter provides advanced filtering capabilities for blockchain events
 type EventFilter struct {
@@ -39,10 +42,20 @@ type EventFilter struct {
 	Offset int
 }
 
-// Validate validates the filter parameters
+// Validate validates the filter parameters and rejects potentially dangerous inputs.
 func (ef *EventFilter) Validate() error {
 	if ef.Network == "" {
 		return fmt.Errorf("network is required")
+	}
+
+	if !safeIdentifierRE.MatchString(ef.Network) {
+		return fmt.Errorf("network contains invalid characters: %q", ef.Network)
+	}
+
+	for _, status := range ef.Status {
+		if !safeIdentifierRE.MatchString(status) {
+			return fmt.Errorf("status contains invalid characters: %q", status)
+		}
 	}
 
 	if ef.FromBlock > ef.ToBlock && ef.ToBlock != 0 {
@@ -70,16 +83,24 @@ func (ef *EventFilter) Validate() error {
 	return nil
 }
 
-// ToQuery converts filter to SQL query string
+// ToQuery converts filter to SQL query string.
+// All user-supplied string values are validated against safeIdentifierRE
+// before interpolation to prevent SQL injection. ContractAddress and
+// EventSignature use .Hex() which produces only [0-9a-fA-Fx] characters.
 func (ef *EventFilter) ToQuery() string {
 	var conditions []string
+	var sb strings.Builder
 
 	// Network filter
 	if ef.Network != "" {
+		if !safeIdentifierRE.MatchString(ef.Network) {
+			sb.WriteString("-- WARNING: invalid network filtered out; returning empty result")
+			return sb.String()
+		}
 		conditions = append(conditions, fmt.Sprintf("network = '%s'", ef.Network))
 	}
 
-	// Contract address filter
+	// Contract address filter — Hex() produces only 0x[0-9a-fA-F]+, inherently safe
 	if len(ef.ContractAddress) > 0 {
 		addresses := make([]string, len(ef.ContractAddress))
 		for i, addr := range ef.ContractAddress {
@@ -88,7 +109,7 @@ func (ef *EventFilter) ToQuery() string {
 		conditions = append(conditions, fmt.Sprintf("contract_address IN (%s)", strings.Join(addresses, ",")))
 	}
 
-	// Event signature filter
+	// Event signature filter — Hex() produces only 0x[0-9a-fA-F]+, inherently safe
 	if len(ef.EventSignature) > 0 {
 		signatures := make([]string, len(ef.EventSignature))
 		for i, sig := range ef.EventSignature {
@@ -115,14 +136,19 @@ func (ef *EventFilter) ToQuery() string {
 
 	// Status filter
 	if len(ef.Status) > 0 {
-		statuses := make([]string, len(ef.Status))
-		for i, status := range ef.Status {
-			statuses[i] = fmt.Sprintf("'%s'", status)
+		statuses := make([]string, 0, len(ef.Status))
+		for _, status := range ef.Status {
+			if !safeIdentifierRE.MatchString(status) {
+				continue
+			}
+			statuses = append(statuses, fmt.Sprintf("'%s'", status))
 		}
-		conditions = append(conditions, fmt.Sprintf("status IN (%s)", strings.Join(statuses, ",")))
+		if len(statuses) > 0 {
+			conditions = append(conditions, fmt.Sprintf("status IN (%s)", strings.Join(statuses, ",")))
+		}
 	}
 
-	// Value range filter
+	// Value range filter — *big.Int.String() produces only [0-9-], safe for numeric column
 	if ef.MinValue != nil {
 		conditions = append(conditions, fmt.Sprintf("value >= %s", ef.MinValue.String()))
 	}
@@ -261,13 +287,4 @@ func (efb *EventFilterBuilder) Build() (*EventFilter, error) {
 		return nil, err
 	}
 	return efb.filter, nil
-}
-
-// MustBuild builds the filter and panics on error
-func (efb *EventFilterBuilder) MustBuild() *EventFilter {
-	filter, err := efb.Build()
-	if err != nil {
-		panic(err)
-	}
-	return filter
 }

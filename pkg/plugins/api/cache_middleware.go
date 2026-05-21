@@ -2,8 +2,6 @@ package api
 
 import (
 	"bytes"
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"net/http"
 	"sort"
@@ -11,7 +9,8 @@ import (
 	"sync"
 	"time"
 
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/plugins/api/shared"
 )
 
 // CacheEntry represents a cached response
@@ -232,11 +231,11 @@ func (cm *CacheMiddleware) evict() {
 }
 
 // GetStats returns cache statistics
-func (cm *CacheMiddleware) GetStats() map[string]interface{} {
+func (cm *CacheMiddleware) GetStats() map[string]any {
 	cm.mu.RLock()
 	defer cm.mu.RUnlock()
 
-	return map[string]interface{}{
+	return map[string]any{
 		"size":     len(cm.cache),
 		"max_size": cm.config.MaxSize,
 		"metrics":  cm.metrics.GetStats(),
@@ -250,6 +249,14 @@ func (cm *CacheMiddleware) Clear() {
 
 	cm.cache = make(map[string]*CacheEntry)
 	cm.metrics.Reset()
+}
+
+// Close closes the cache middleware and its invalidator
+func (cm *CacheMiddleware) Close() error {
+	if cm.invalidator != nil {
+		return cm.invalidator.Close()
+	}
+	return nil
 }
 
 // Middleware wraps an HTTP handler with caching
@@ -353,9 +360,7 @@ func generateCacheKey(r *http.Request) string {
 
 	// Generate a short, stable key. Cryptographic strength isn't required here,
 	// but sha256 avoids gosec's md5 warnings.
-	hash := sha256.Sum256([]byte(key))
-	// Keep legacy 32-hex-char length (16 bytes) to avoid breaking expectations.
-	return hex.EncodeToString(hash[:16])
+	return shared.HashCacheKey(key)
 }
 
 // matchPattern checks if a key matches a pattern

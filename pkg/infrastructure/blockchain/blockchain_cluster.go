@@ -4,16 +4,16 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
-	"chainpulse/pkg/core"
-	"chainpulse/pkg/infrastructure/processing"
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 // DistributedCache defines the interface for distributed caching
 type DistributedCache interface {
-	Set(ctx context.Context, key string, value interface{}, ttl time.Duration) error
-	Get(ctx context.Context, key string) (interface{}, error)
+	Set(ctx context.Context, key string, value any, ttl time.Duration) error
+	Get(ctx context.Context, key string) (any, error)
 	Delete(ctx context.Context, key string) error
 }
 
@@ -21,9 +21,10 @@ type DistributedCache interface {
 type BlockchainCluster struct {
 	mu                  sync.RWMutex
 	id                  string
+	chainID             string // "1" (Ethereum mainnet), "56" (BSC), "137" (Polygon)
 	blockchainType      string // "EVM", "Cosmos", "Solana"
 	instances           map[string]*BlockchainInstance
-	dataStore           processing.EventStore
+	dataStore           core.DatabasePlugin
 	minInstances        int
 	maxInstances        int
 	currentInstances    int
@@ -39,9 +40,9 @@ type BlockchainInstance struct {
 	Status          string // "running", "syncing", "stopped"
 	CurrentBlock    uint64
 	SyncedBlock     uint64
-	PendingEvents   int
-	ProcessedEvents int64
-	ErrorCount      int64
+	PendingEvents   atomic.Int64
+	ProcessedEvents atomic.Int64
+	ErrorCount      atomic.Int64
 	LastHealthCheck time.Time
 	CreatedAt       time.Time
 	Metrics         *InstanceMetrics
@@ -73,9 +74,10 @@ type BlockchainMetrics struct {
 }
 
 // NewBlockchainCluster creates a new blockchain cluster
-func NewBlockchainCluster(id, blockchainType string, minInstances, maxInstances int) *BlockchainCluster {
+func NewBlockchainCluster(id, chainID, blockchainType string, minInstances, maxInstances int) *BlockchainCluster {
 	return &BlockchainCluster{
 		id:                  id,
+		chainID:             chainID,
 		blockchainType:      blockchainType,
 		instances:           make(map[string]*BlockchainInstance),
 		minInstances:        minInstances,
@@ -127,11 +129,6 @@ func (bc *BlockchainCluster) ProcessEvent(ctx context.Context, event *core.Block
 		return fmt.Errorf("no instances available")
 	}
 
-	// Validate blockchain type
-	if event.ChainID != bc.blockchainType {
-		return fmt.Errorf("event blockchain type mismatch")
-	}
-
 	// Select instance (round-robin)
 	var selectedInstance *BlockchainInstance
 	for _, instance := range bc.instances {
@@ -148,28 +145,13 @@ func (bc *BlockchainCluster) ProcessEvent(ctx context.Context, event *core.Block
 
 	// Process event
 	start := time.Now()
-	selectedInstance.PendingEvents++
-	selectedInstance.ProcessedEvents++
+	selectedInstance.PendingEvents.Add(1)
+	selectedInstance.ProcessedEvents.Add(1)
 
-	// Store event
+	// Store event via core.DatabasePlugin
 	if bc.dataStore != nil {
-		// Convert core.BlockchainEvent to processing.Event
-		procEvent := &processing.Event{
-			ID:              event.ID,
-			EventHash:       event.EventHash,
-			BlockNumber:     event.BlockNumber,
-			TransactionHash: event.TransactionHash.String(),
-			LogIndex:        event.LogIndex,
-			ContractAddress: event.ContractAddress.String(),
-			EventName:       event.EventName,
-			EventData:       event.DecodedData,
-			ChainID:         event.ChainID,
-			Timestamp:       event.CreatedAt,
-			ProcessedAt:     time.Now(),
-			Status:          string(event.Status),
-		}
-		if err := bc.dataStore.StoreEvent(ctx, procEvent); err != nil {
-			selectedInstance.ErrorCount++
+		if err := bc.dataStore.StoreEvent(ctx, event); err != nil {
+			selectedInstance.ErrorCount.Add(1)
 			bc.metrics.mu.Lock()
 			bc.metrics.EventsFailed++
 			bc.metrics.mu.Unlock()
@@ -191,7 +173,7 @@ func (bc *BlockchainCluster) ProcessEvent(ctx context.Context, event *core.Block
 	bc.metrics.LastProcessedTime = time.Now()
 	bc.metrics.mu.Unlock()
 
-	selectedInstance.PendingEvents--
+	selectedInstance.PendingEvents.Add(-1)
 
 	return nil
 }
@@ -289,16 +271,25 @@ func NewMultiBlockchainClusterManager() *MultiBlockchainClusterManager {
 	}
 }
 
-// RegisterCluster registers a blockchain cluster
+// ClusterManager is the minimal interface for managing blockchain clusters.
+type ClusterManager interface {
+	RegisterCluster(cluster *BlockchainCluster) error
+	ProcessEvent(ctx context.Context, event *core.BlockchainEvent) error
+	GetCluster(chainID string) (*BlockchainCluster, error)
+	GetAllClusters() []*BlockchainCluster
+	GetMetrics() map[string]any
+}
+
+// RegisterCluster registers a blockchain cluster keyed by chainID
 func (mcm *MultiBlockchainClusterManager) RegisterCluster(cluster *BlockchainCluster) error {
 	mcm.mu.Lock()
 	defer mcm.mu.Unlock()
 
-	if _, exists := mcm.clusters[cluster.blockchainType]; exists {
-		return fmt.Errorf("cluster for %s already registered", cluster.blockchainType)
+	if _, exists := mcm.clusters[cluster.chainID]; exists {
+		return fmt.Errorf("cluster for chain %s already registered", cluster.chainID)
 	}
 
-	mcm.clusters[cluster.blockchainType] = cluster
+	mcm.clusters[cluster.chainID] = cluster
 
 	mcm.metrics.mu.Lock()
 	mcm.metrics.TotalClusters = len(mcm.clusters)
@@ -320,14 +311,14 @@ func (mcm *MultiBlockchainClusterManager) ProcessEvent(ctx context.Context, even
 	return cluster.ProcessEvent(ctx, event)
 }
 
-// GetCluster returns a specific blockchain cluster
-func (mcm *MultiBlockchainClusterManager) GetCluster(blockchainType string) (*BlockchainCluster, error) {
+// GetCluster returns a specific blockchain cluster by chainID
+func (mcm *MultiBlockchainClusterManager) GetCluster(chainID string) (*BlockchainCluster, error) {
 	mcm.mu.RLock()
 	defer mcm.mu.RUnlock()
 
-	cluster, exists := mcm.clusters[blockchainType]
+	cluster, exists := mcm.clusters[chainID]
 	if !exists {
-		return nil, fmt.Errorf("cluster not found for %s", blockchainType)
+		return nil, fmt.Errorf("cluster not found for chain %s", chainID)
 	}
 
 	return cluster, nil
@@ -347,7 +338,7 @@ func (mcm *MultiBlockchainClusterManager) GetAllClusters() []*BlockchainCluster 
 }
 
 // GetMetrics returns aggregated metrics
-func (mcm *MultiBlockchainClusterManager) GetMetrics() map[string]interface{} {
+func (mcm *MultiBlockchainClusterManager) GetMetrics() map[string]any {
 	mcm.mu.RLock()
 	defer mcm.mu.RUnlock()
 
@@ -365,7 +356,7 @@ func (mcm *MultiBlockchainClusterManager) GetMetrics() map[string]interface{} {
 		totalEventsFailed += clusterMetrics.EventsFailed
 	}
 
-	return map[string]interface{}{
+	return map[string]any{
 		"total_clusters":         len(mcm.clusters),
 		"total_instances":        totalInstances,
 		"total_events_processed": totalEventsProcessed,

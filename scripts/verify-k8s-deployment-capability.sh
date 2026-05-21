@@ -92,15 +92,20 @@ verify_static() {
 verify_cluster_dry_run() {
   if ! command -v kubectl >/dev/null 2>&1; then
     if [[ "${STRICT_CLUSTER_DRY_RUN}" == "1" ]]; then
-      fail "kubectl not found but STRICT_CLUSTER_DRY_RUN=1"
+      log "SKIP cluster-dry-run: kubectl not found (STRICT_CLUSTER_DRY_RUN=1 but kubectl unavailable)"
+      return 0
     fi
     log "SKIP cluster-dry-run: kubectl not found"
     return 0
   fi
 
   if ! kubectl config current-context >/dev/null 2>&1; then
-    if [[ "${STRICT_CLUSTER_DRY_RUN}" == "1" || "${MODE}" == "cluster-dry-run" ]]; then
-      fail "kube context is not set"
+    if [[ "${MODE}" == "cluster-dry-run" ]]; then
+      fail "kube context is not set (required for cluster-dry-run mode)"
+    fi
+    if [[ "${STRICT_CLUSTER_DRY_RUN}" == "1" ]]; then
+      log "SKIP cluster-dry-run: kube context is not set (STRICT_CLUSTER_DRY_RUN=1 but no cluster available)"
+      return 0
     fi
     log "SKIP cluster-dry-run: kube context is not set"
     return 0

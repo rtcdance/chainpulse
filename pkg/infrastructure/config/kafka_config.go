@@ -179,7 +179,7 @@ func (k *KafkaCluster) Close() error {
 }
 
 // WaitForKafka waits for Kafka to be available
-func WaitForKafka(cfg *KafkaConfig, timeout time.Duration) error {
+func WaitForKafka(ctx context.Context, cfg *KafkaConfig, timeout time.Duration) error {
 	cluster, err := NewKafkaCluster(cfg)
 	if err != nil {
 		return err
@@ -196,15 +196,19 @@ func WaitForKafka(cfg *KafkaConfig, timeout time.Duration) error {
 			return fmt.Errorf("timeout waiting for Kafka")
 		}
 
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		err := cluster.Health(ctx)
+		healthCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		err := cluster.Health(healthCtx)
 		cancel()
 
 		if err == nil {
 			return nil
 		}
 
-		time.Sleep(1 * time.Second)
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(1 * time.Second):
+		}
 	}
 }
 

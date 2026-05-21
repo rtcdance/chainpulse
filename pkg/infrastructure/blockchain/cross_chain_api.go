@@ -3,10 +3,12 @@ package blockchain
 import (
 	"context"
 	"fmt"
+	"log"
 	"sync"
+	"sync/atomic"
 	"time"
 
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 // CrossChainQuery represents a query across multiple blockchains
@@ -32,11 +34,10 @@ type CrossChainResult struct {
 
 // CrossChainAPI provides unified query interface for cross-chain aggregation
 type CrossChainAPI struct {
-	mu                   sync.RWMutex
 	clusterManager       *MultiBlockchainClusterManager
 	cache                DistributedCache
 	maxConcurrentQueries int
-	activeQueries        int
+	activeQueries        atomic.Int32 // atomic to avoid data race with GetMetrics
 	queryTimeout         time.Duration
 	metrics              *CrossChainMetrics
 }
@@ -70,19 +71,12 @@ func NewCrossChainAPI(clusterManager *MultiBlockchainClusterManager, cache Distr
 
 // Query executes a cross-chain query
 func (cca *CrossChainAPI) Query(ctx context.Context, query *CrossChainQuery) (*CrossChainResult, error) {
-	cca.mu.Lock()
-	if cca.activeQueries >= cca.maxConcurrentQueries {
-		cca.mu.Unlock()
+	if int(cca.activeQueries.Load()) >= cca.maxConcurrentQueries {
 		return nil, fmt.Errorf("max concurrent queries exceeded")
 	}
-	cca.activeQueries++
-	cca.mu.Unlock()
+	cca.activeQueries.Add(1)
 
-	defer func() {
-		cca.mu.Lock()
-		cca.activeQueries--
-		cca.mu.Unlock()
-	}()
+	defer cca.activeQueries.Add(-1)
 
 	// Check cache first
 	cacheKey := fmt.Sprintf("cross-chain-query:%s", query.QueryID)
@@ -110,7 +104,7 @@ func (cca *CrossChainAPI) Query(ctx context.Context, query *CrossChainQuery) (*C
 
 	// Query each blockchain cluster in parallel
 	var wg sync.WaitGroup
-	resultsChan := make(chan map[string]interface{}, len(query.Blockchains))
+	resultsChan := make(chan map[string]any, len(query.Blockchains))
 	errorsChan := make(chan error, len(query.Blockchains))
 
 	for _, blockchain := range query.Blockchains {
@@ -126,7 +120,7 @@ func (cca *CrossChainAPI) Query(ctx context.Context, query *CrossChainQuery) (*C
 
 			// Query cluster (simplified - would query actual data store)
 			events := make([]core.BlockchainEvent, 0)
-			result := map[string]interface{}{
+			result := map[string]any{
 				"blockchain": bc,
 				"events":     events,
 			}
@@ -144,8 +138,14 @@ func (cca *CrossChainAPI) Query(ctx context.Context, query *CrossChainQuery) (*C
 	// Collect results
 	aggregationErrors := 0
 	for res := range resultsChan {
-		blockchain := res["blockchain"].(string)
-		events := res["events"].([]core.BlockchainEvent)
+		blockchain, ok := res["blockchain"].(string)
+		if !ok {
+			continue
+		}
+		events, ok := res["events"].([]core.BlockchainEvent)
+		if !ok {
+			continue
+		}
 		result.BlockchainMap[blockchain] = events
 		result.Events = append(result.Events, events...)
 	}
@@ -176,7 +176,9 @@ func (cca *CrossChainAPI) Query(ctx context.Context, query *CrossChainQuery) (*C
 	result.CompletedAt = time.Now()
 
 	// Cache result
-	_ = cca.cache.Set(ctx, cacheKey, result, 5*time.Minute)
+	if err := cca.cache.Set(ctx, cacheKey, result, 5*time.Minute); err != nil {
+		log.Printf("cache set error for key %s: %v", cacheKey, err)
+	}
 
 	// Update metrics
 	cca.metrics.mu.Lock()
@@ -250,11 +252,11 @@ func (cca *CrossChainAPI) PaginateResults(results []core.BlockchainEvent, limit,
 }
 
 // GetMetrics returns cross-chain API metrics
-func (cca *CrossChainAPI) GetMetrics() map[string]interface{} {
+func (cca *CrossChainAPI) GetMetrics() map[string]any {
 	cca.metrics.mu.RLock()
 	defer cca.metrics.mu.RUnlock()
 
-	return map[string]interface{}{
+	return map[string]any{
 		"total_queries":      cca.metrics.TotalQueries,
 		"successful_queries": cca.metrics.SuccessfulQueries,
 		"failed_queries":     cca.metrics.FailedQueries,
@@ -264,7 +266,7 @@ func (cca *CrossChainAPI) GetMetrics() map[string]interface{} {
 		"cache_misses":       cca.metrics.CacheMisses,
 		"aggregation_errors": cca.metrics.AggregationErrors,
 		"last_query_time":    cca.metrics.LastQueryTime,
-		"active_queries":     cca.activeQueries,
+		"active_queries":     cca.activeQueries.Load(),
 	}
 }
 

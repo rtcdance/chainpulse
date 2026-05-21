@@ -2,14 +2,14 @@ package resilience
 
 import (
 	"context"
-	"errors"
 	"testing"
 	"time"
 
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 func TestDefaultRetryConfig(t *testing.T) {
+	t.Parallel()
 	config := DefaultRetryConfig()
 
 	if config.MaxRetries != 3 {
@@ -30,6 +30,7 @@ func TestDefaultRetryConfig(t *testing.T) {
 }
 
 func TestDefaultRetryPolicyShouldRetry(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metricsCollector := core.NewDefaultMetricsCollector()
 	errorHandler := NewErrorHandler(logger, metricsCollector)
@@ -38,13 +39,13 @@ func TestDefaultRetryPolicyShouldRetry(t *testing.T) {
 	policy := NewDefaultRetryPolicy(config, errorHandler)
 
 	// Test 1: Should retry on transient error
-	transientErr := errors.New("timeout")
+	transientErr := core.ErrTimeout
 	if !policy.ShouldRetry(0, transientErr) {
 		t.Error("Expected to retry on transient error")
 	}
 
 	// Test 2: Should not retry on permanent error
-	permanentErr := errors.New("invalid configuration")
+	permanentErr := core.ErrBadRequest
 	if policy.ShouldRetry(0, permanentErr) {
 		t.Error("Expected not to retry on permanent error")
 	}
@@ -61,6 +62,7 @@ func TestDefaultRetryPolicyShouldRetry(t *testing.T) {
 }
 
 func TestDefaultRetryPolicyGetBackoff(t *testing.T) {
+	t.Parallel()
 	config := DefaultRetryConfig()
 	policy := NewDefaultRetryPolicy(config, nil)
 
@@ -92,6 +94,7 @@ func TestDefaultRetryPolicyGetBackoff(t *testing.T) {
 }
 
 func TestRetryExecutorSuccess(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metricsCollector := core.NewDefaultMetricsCollector()
 	errorHandler := NewErrorHandler(logger, metricsCollector)
@@ -118,6 +121,7 @@ func TestRetryExecutorSuccess(t *testing.T) {
 }
 
 func TestRetryExecutorTransientError(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metricsCollector := core.NewDefaultMetricsCollector()
 	errorHandler := NewErrorHandler(logger, metricsCollector)
@@ -139,7 +143,7 @@ func TestRetryExecutorTransientError(t *testing.T) {
 	err := executor.Execute(ctx, func() error {
 		attempts++
 		if attempts < 3 {
-			return errors.New("timeout")
+			return core.ErrTimeout
 		}
 		return nil
 	}, "test_source")
@@ -153,6 +157,7 @@ func TestRetryExecutorTransientError(t *testing.T) {
 }
 
 func TestRetryExecutorPermanentError(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metricsCollector := core.NewDefaultMetricsCollector()
 	errorHandler := NewErrorHandler(logger, metricsCollector)
@@ -167,7 +172,7 @@ func TestRetryExecutorPermanentError(t *testing.T) {
 	attempts := 0
 	err := executor.Execute(ctx, func() error {
 		attempts++
-		return errors.New("invalid configuration")
+		return core.ErrBadRequest
 	}, "test_source")
 
 	if err == nil {
@@ -180,6 +185,7 @@ func TestRetryExecutorPermanentError(t *testing.T) {
 }
 
 func TestRetryExecutorExhaustedRetries(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metricsCollector := core.NewDefaultMetricsCollector()
 	errorHandler := NewErrorHandler(logger, metricsCollector)
@@ -200,7 +206,7 @@ func TestRetryExecutorExhaustedRetries(t *testing.T) {
 	attempts := 0
 	err := executor.Execute(ctx, func() error {
 		attempts++
-		return errors.New("timeout")
+		return core.ErrTimeout
 	}, "test_source")
 
 	if err == nil {
@@ -213,6 +219,7 @@ func TestRetryExecutorExhaustedRetries(t *testing.T) {
 }
 
 func TestRetryExecutorContextCancellation(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metricsCollector := core.NewDefaultMetricsCollector()
 	errorHandler := NewErrorHandler(logger, metricsCollector)
@@ -236,7 +243,7 @@ func TestRetryExecutorContextCancellation(t *testing.T) {
 		if attempts == 2 {
 			cancel()
 		}
-		return errors.New("timeout")
+		return core.ErrTimeout
 	}, "test_source")
 
 	if err == nil {
@@ -249,6 +256,7 @@ func TestRetryExecutorContextCancellation(t *testing.T) {
 }
 
 func TestRetryExecutorWithFallback(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metricsCollector := core.NewDefaultMetricsCollector()
 	errorHandler := NewErrorHandler(logger, metricsCollector)
@@ -262,7 +270,7 @@ func TestRetryExecutorWithFallback(t *testing.T) {
 	// Test: Fallback on failure
 	fallbackCalled := false
 	err := executor.ExecuteWithFallback(ctx, func() error {
-		return errors.New("invalid configuration")
+		return core.ErrBadRequest
 	}, func() error {
 		fallbackCalled = true
 		return nil
@@ -277,6 +285,7 @@ func TestRetryExecutorWithFallback(t *testing.T) {
 }
 
 func TestRetryableOperation(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metricsCollector := core.NewDefaultMetricsCollector()
 	errorHandler := NewErrorHandler(logger, metricsCollector)
@@ -292,7 +301,7 @@ func TestRetryableOperation(t *testing.T) {
 	operation := NewRetryableOperation(func() error {
 		attempts++
 		if attempts < 2 {
-			return errors.New("timeout")
+			return core.ErrTimeout
 		}
 		return nil
 	}, config, "test_source")
@@ -308,6 +317,7 @@ func TestRetryableOperation(t *testing.T) {
 }
 
 func TestRetryStats(t *testing.T) {
+	t.Parallel()
 	stats := NewRetryStats()
 
 	// Test initial state
@@ -349,6 +359,7 @@ func TestRetryStats(t *testing.T) {
 }
 
 func TestRetryExecutorConcurrent(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metricsCollector := core.NewDefaultMetricsCollector()
 	errorHandler := NewErrorHandler(logger, metricsCollector)
@@ -381,6 +392,7 @@ func TestRetryExecutorConcurrent(t *testing.T) {
 }
 
 func TestRetryPolicyGetMaxRetries(t *testing.T) {
+	t.Parallel()
 	config := &RetryConfig{
 		MaxRetries: 5,
 	}
@@ -392,6 +404,7 @@ func TestRetryPolicyGetMaxRetries(t *testing.T) {
 }
 
 func TestRetryExecutorNilPolicy(t *testing.T) {
+	t.Parallel()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metricsCollector := core.NewDefaultMetricsCollector()
 
@@ -408,6 +421,7 @@ func TestRetryExecutorNilPolicy(t *testing.T) {
 }
 
 func TestRetryBackoffCalculation(t *testing.T) {
+	t.Parallel()
 	config := &RetryConfig{
 		MaxRetries:        10,
 		InitialBackoff:    100 * time.Millisecond,

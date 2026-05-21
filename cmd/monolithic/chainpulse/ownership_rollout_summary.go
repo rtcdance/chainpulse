@@ -3,8 +3,8 @@ package main
 import (
 	"time"
 
-	"chainpulse/pkg/core"
-	"chainpulse/pkg/plugins/api"
+	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/plugins/api"
 )
 
 type ownershipRolloutSummarySnapshot struct {
@@ -26,7 +26,7 @@ type ownershipRolloutSummarySnapshot struct {
 	GuardedCutoverOverview     ownershipGuardedCutoverOverview
 }
 
-func buildOwnershipRolloutSummary(status map[string]map[string]interface{}) ownershipRolloutSummarySnapshot {
+func buildOwnershipRolloutSummary(status map[string]map[string]any) ownershipRolloutSummarySnapshot {
 	summary := aggregateIndexerOwnership(status)
 	mode := classifyOwnershipMode(summary)
 	advisory := classifyOwnershipRolloutAdvisory(summary)
@@ -64,8 +64,8 @@ func buildOwnershipRolloutSummary(status map[string]map[string]interface{}) owne
 	}
 }
 
-func (snapshot ownershipRolloutSummarySnapshot) readinessDetails() map[string]interface{} {
-	details := map[string]interface{}{}
+func (snapshot ownershipRolloutSummarySnapshot) readinessDetails() map[string]any {
+	details := map[string]any{}
 
 	ownershipRolloutSurface{
 		Summary:          snapshot.Summary,

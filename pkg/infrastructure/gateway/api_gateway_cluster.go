@@ -3,11 +3,12 @@ package gateway
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"sync"
 	"time"
 
-	"chainpulse/pkg/infrastructure/discovery"
-	"chainpulse/pkg/infrastructure/health"
+	"github.com/rtcdance/chainpulse/pkg/infrastructure/discovery"
+	"github.com/rtcdance/chainpulse/pkg/infrastructure/health"
 )
 
 // APIGatewayClusterConfig represents API gateway cluster configuration
@@ -152,7 +153,7 @@ func (agcd *APIGatewayClusterDeployment) Undeploy(ctx context.Context) error {
 		// Deregister service
 		if err := agcd.registry.DeregisterService(ctx, instanceID); err != nil {
 			// Log error but continue with cleanup
-			fmt.Printf("Failed to deregister service %s: %v\n", instanceID, err)
+			slog.Warn("failed to deregister service", "instanceID", instanceID, "error", err)
 		}
 	}
 
@@ -191,7 +192,7 @@ func (agcd *APIGatewayClusterDeployment) ListInstances() []*APIGateway {
 }
 
 // GetClusterHealth gets the health status of the cluster
-func (agcd *APIGatewayClusterDeployment) GetClusterHealth(ctx context.Context) (map[string]interface{}, error) {
+func (agcd *APIGatewayClusterDeployment) GetClusterHealth(ctx context.Context) (map[string]any, error) {
 	agcd.mutex.RLock()
 	defer agcd.mutex.RUnlock()
 
@@ -209,7 +210,7 @@ func (agcd *APIGatewayClusterDeployment) GetClusterHealth(ctx context.Context) (
 		}
 	}
 
-	return map[string]interface{}{
+	return map[string]any{
 		"status":             "ok",
 		"healthy_instances":  healthyInstances,
 		"total_instances":    totalInstances,
@@ -277,7 +278,7 @@ func (agcd *APIGatewayClusterDeployment) ScaleDown(ctx context.Context, count in
 }
 
 // GetMetrics gets cluster metrics
-func (agcd *APIGatewayClusterDeployment) GetMetrics() map[string]interface{} {
+func (agcd *APIGatewayClusterDeployment) GetMetrics() map[string]any {
 	agcd.mutex.RLock()
 	defer agcd.mutex.RUnlock()
 
@@ -286,11 +287,15 @@ func (agcd *APIGatewayClusterDeployment) GetMetrics() map[string]interface{} {
 
 	for _, gateway := range agcd.gateways {
 		metrics := gateway.metrics.GetMetrics()
-		totalRequests += metrics["total_requests"].(int64)
-		totalErrors += metrics["total_errors"].(int64)
+		if v, ok := metrics["total_requests"].(int64); ok {
+			totalRequests += v
+		}
+		if v, ok := metrics["total_errors"].(int64); ok {
+			totalErrors += v
+		}
 	}
 
-	return map[string]interface{}{
+	return map[string]any{
 		"total_requests": totalRequests,
 		"total_errors":   totalErrors,
 		"instance_count": len(agcd.gateways),

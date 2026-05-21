@@ -8,14 +8,22 @@ import (
 	"sync"
 	"time"
 
-	"chainpulse/pkg/core"
-	"chainpulse/pkg/infrastructure/database"
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
+
+// DatabaseHealthChecker provides health-check access to database backends.
+// This interface follows the Interface Segregation Principle: handlers only
+// depend on the methods they actually use, not the full DatabaseManager.
+type DatabaseHealthChecker interface {
+	CheckMongoHealth(ctx context.Context) error
+	CheckPostgresHealth(ctx context.Context) error
+}
 
 // HealthCheckHandler handles health check requests
 type HealthCheckHandler struct {
-	dbManager   database.DatabaseManager
+	dbManager   DatabaseHealthChecker
 	cachePlugin core.CachePlugin
+	mqPlugin    core.MQPlugin
 	logger      core.Logger
 	metrics     core.MetricsCollector
 	initialized bool
@@ -26,7 +34,7 @@ type HealthCheckHandler struct {
 	lastHealthCheckStatus    *HealthCheckResponse
 	healthCheckInterval      time.Duration
 	runtimeComponentProvider func(context.Context) *ComponentStatus
-	readinessDetailsProvider func(context.Context) map[string]interface{}
+	readinessDetailsProvider func(context.Context) map[string]any
 	rolloutReportProducer    RolloutReportProducer
 }
 
@@ -40,21 +48,21 @@ type HealthCheckResponse struct {
 
 // ComponentStatus represents the status of a component
 type ComponentStatus struct {
-	Name         string                 `json:"name"`
-	Status       string                 `json:"status"`
-	Error        string                 `json:"error,omitempty"`
-	Timestamp    int64                  `json:"timestamp"`
-	ResponseTime int64                  `json:"responseTime"`
-	Details      map[string]interface{} `json:"details,omitempty"`
+	Name         string         `json:"name"`
+	Status       string         `json:"status"`
+	Error        string         `json:"error,omitempty"`
+	Timestamp    int64          `json:"timestamp"`
+	ResponseTime int64          `json:"responseTime"`
+	Details      map[string]any `json:"details,omitempty"`
 }
 
 // ReadinessResponse represents a readiness probe response
 type ReadinessResponse struct {
-	Status    string                 `json:"status"`
-	Timestamp int64                  `json:"timestamp"`
-	Ready     bool                   `json:"ready"`
-	Message   string                 `json:"message"`
-	Details   map[string]interface{} `json:"details,omitempty"`
+	Status    string         `json:"status"`
+	Timestamp int64          `json:"timestamp"`
+	Ready     bool           `json:"ready"`
+	Message   string         `json:"message"`
+	Details   map[string]any `json:"details,omitempty"`
 }
 
 // LivenessResponse represents a liveness probe response
@@ -67,8 +75,8 @@ type LivenessResponse struct {
 
 // NewHealthCheckHandler creates a new health check handler
 func NewHealthCheckHandler(
-	dbManager database.DatabaseManager,
-	args ...interface{},
+	dbManager DatabaseHealthChecker,
+	args ...any,
 ) *HealthCheckHandler {
 	var (
 		cachePlugin core.CachePlugin
@@ -98,7 +106,7 @@ func NewHealthCheckHandler(
 		logger:              logger,
 		metrics:             metrics,
 		initialized:         false,
-		healthCheckInterval: 30 * time.Second,
+		healthCheckInterval: core.DefaultTimeout,
 	}
 }
 
@@ -106,6 +114,12 @@ func NewHealthCheckHandler(
 // that do not exercise full dependency bootstrapping.
 func (h *HealthCheckHandler) InitializedForTests() {
 	h.initialized = true
+}
+
+// WithMQPlugin sets the MQ plugin for Kafka health checking.
+func (h *HealthCheckHandler) WithMQPlugin(mq core.MQPlugin) *HealthCheckHandler {
+	h.mqPlugin = mq
+	return h
 }
 
 // Initialize initializes the health check handler
@@ -136,7 +150,7 @@ func (h *HealthCheckHandler) SetRuntimeComponentProvider(provider func(context.C
 
 // SetReadinessDetailsProvider registers an optional provider that enriches
 // readiness responses with rollout or service-specific details.
-func (h *HealthCheckHandler) SetReadinessDetailsProvider(provider func(context.Context) map[string]interface{}) {
+func (h *HealthCheckHandler) SetReadinessDetailsProvider(provider func(context.Context) map[string]any) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
@@ -163,7 +177,7 @@ func (h *HealthCheckHandler) HandleHealth(w http.ResponseWriter, r *http.Request
 	start := time.Now()
 	defer func() {
 		duration := time.Since(start).Milliseconds()
-		h.metrics.RecordGauge("health_check_overall_time_ms", float64(duration), nil)
+		h.metrics.RecordHistogram("health_check_overall_time_ms", float64(duration), nil)
 	}()
 
 	if !h.initialized {
@@ -171,7 +185,7 @@ func (h *HealthCheckHandler) HandleHealth(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), core.DefaultTimeout)
 	defer cancel()
 
 	response := h.performHealthCheck(ctx)
@@ -189,7 +203,7 @@ func (h *HealthCheckHandler) HandleReady(w http.ResponseWriter, r *http.Request)
 	start := time.Now()
 	defer func() {
 		duration := time.Since(start).Milliseconds()
-		h.metrics.RecordGauge("health_check_ready_time_ms", float64(duration), nil)
+		h.metrics.RecordHistogram("health_check_ready_time_ms", float64(duration), nil)
 	}()
 
 	if !h.initialized {
@@ -231,7 +245,7 @@ func (h *HealthCheckHandler) HandleRollout(w http.ResponseWriter, r *http.Reques
 	start := time.Now()
 	defer func() {
 		duration := time.Since(start).Milliseconds()
-		h.metrics.RecordGauge("health_check_rollout_time_ms", float64(duration), nil)
+		h.metrics.RecordHistogram("health_check_rollout_time_ms", float64(duration), nil)
 	}()
 
 	if !h.initialized {
@@ -268,7 +282,7 @@ func (h *HealthCheckHandler) HandleLive(w http.ResponseWriter, r *http.Request) 
 	start := time.Now()
 	defer func() {
 		duration := time.Since(start).Milliseconds()
-		h.metrics.RecordGauge("health_check_live_time_ms", float64(duration), nil)
+		h.metrics.RecordHistogram("health_check_live_time_ms", float64(duration), nil)
 	}()
 
 	if !h.initialized {
@@ -307,7 +321,7 @@ func (h *HealthCheckHandler) HandleComponents(w http.ResponseWriter, r *http.Req
 	start := time.Now()
 	defer func() {
 		duration := time.Since(start).Milliseconds()
-		h.metrics.RecordGauge("health_check_components_time_ms", float64(duration), nil)
+		h.metrics.RecordHistogram("health_check_components_time_ms", float64(duration), nil)
 	}()
 
 	if !h.initialized {
@@ -315,7 +329,7 @@ func (h *HealthCheckHandler) HandleComponents(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), core.DefaultTimeout)
 	defer cancel()
 
 	response := h.performHealthCheck(ctx)
@@ -365,6 +379,15 @@ func (h *HealthCheckHandler) performHealthCheck(ctx context.Context) *HealthChec
 		response.Status = "degraded"
 	}
 
+	// Check Kafka (if configured)
+	if h.mqPlugin != nil {
+		kafkaStatus := h.checkKafkaHealth(ctx)
+		response.Components["kafka"] = kafkaStatus
+		if kafkaStatus.Status != "healthy" {
+			response.Status = "unhealthy"
+		}
+	}
+
 	if h.runtimeComponentProvider != nil {
 		if runtimeStatus := h.runtimeComponentProvider(ctx); runtimeStatus != nil {
 			response.Components["indexing_runtime"] = runtimeStatus
@@ -388,7 +411,7 @@ func (h *HealthCheckHandler) checkReadiness(ctx context.Context) bool {
 	return mongoStatus.Status == "healthy" && postgresStatus.Status == "healthy"
 }
 
-func (h *HealthCheckHandler) readinessDetails(ctx context.Context) map[string]interface{} {
+func (h *HealthCheckHandler) readinessDetails(ctx context.Context) map[string]any {
 	h.mu.RLock()
 	provider := h.readinessDetailsProvider
 	h.mu.RUnlock()
@@ -447,7 +470,7 @@ func (h *HealthCheckHandler) checkMongoDBHealth(ctx context.Context) *ComponentS
 	err := h.dbManager.CheckMongoHealth(ctx)
 	if err != nil {
 		status.Status = "unhealthy"
-		status.Error = err.Error()
+		status.Error = "MongoDB health check failed"
 		h.logger.Error("MongoDB health check failed", "error", err.Error())
 	}
 
@@ -475,7 +498,7 @@ func (h *HealthCheckHandler) checkPostgresHealth(ctx context.Context) *Component
 	err := h.dbManager.CheckPostgresHealth(ctx)
 	if err != nil {
 		status.Status = "unhealthy"
-		status.Error = err.Error()
+		status.Error = "PostgreSQL health check failed"
 		h.logger.Error("PostgreSQL health check failed", "error", err.Error())
 	}
 
@@ -501,7 +524,7 @@ func (h *HealthCheckHandler) checkRedisHealth(ctx context.Context) *ComponentSta
 
 	if h.cachePlugin == nil {
 		status.Status = "healthy"
-		status.Details = map[string]interface{}{
+		status.Details = map[string]any{
 			"posture": "cache-plugin-not-wired",
 		}
 		status.ResponseTime = time.Since(start).Milliseconds()
@@ -513,7 +536,38 @@ func (h *HealthCheckHandler) checkRedisHealth(ctx context.Context) *ComponentSta
 
 	if err := h.cachePlugin.HealthCheck(pingCtx); err != nil {
 		status.Status = "degraded"
-		status.Error = "Redis health check failed: " + err.Error()
+		status.Error = "Redis health check failed"
+	}
+
+	status.ResponseTime = time.Since(start).Milliseconds()
+	return status
+}
+
+// checkKafkaHealth checks the health of the Kafka message queue
+func (h *HealthCheckHandler) checkKafkaHealth(ctx context.Context) *ComponentStatus {
+	start := time.Now()
+	status := &ComponentStatus{
+		Name:      "Kafka",
+		Status:    "healthy",
+		Timestamp: time.Now().Unix(),
+	}
+
+	// HealthCheck via type assertion (MQPlugin interface doesn't require Health)
+	if hc, ok := h.mqPlugin.(interface{ Health(context.Context) error }); ok {
+		if err := hc.Health(ctx); err != nil {
+			status.Status = "unhealthy"
+			status.Error = "Kafka health check failed"
+			h.logger.Error("Kafka health check failed", "error", err.Error())
+		}
+	}
+
+	// Structured details via optional DetailedHealth method
+	if dh, ok := h.mqPlugin.(interface{ DetailedHealth(context.Context) core.HealthStatus }); ok {
+		detailed := dh.DetailedHealth(ctx)
+		status.Details = detailed.Details
+		if detailed.Status != "healthy" && status.Status == "healthy" {
+			status.Status = detailed.Status
+		}
 	}
 
 	status.ResponseTime = time.Since(start).Milliseconds()
@@ -521,7 +575,7 @@ func (h *HealthCheckHandler) checkRedisHealth(ctx context.Context) *ComponentSta
 }
 
 // respondJSON responds with JSON data
-func (h *HealthCheckHandler) respondJSON(w http.ResponseWriter, statusCode int, data interface{}) {
+func (h *HealthCheckHandler) respondJSON(w http.ResponseWriter, statusCode int, data any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
 
@@ -532,13 +586,11 @@ func (h *HealthCheckHandler) respondJSON(w http.ResponseWriter, statusCode int, 
 
 // respondError responds with an error message
 func (h *HealthCheckHandler) respondError(w http.ResponseWriter, statusCode int, message string) {
-	response := map[string]interface{}{
-		"status":    "error",
-		"message":   message,
-		"timestamp": time.Now().Unix(),
+	code := "INTERNAL_SERVER_ERROR"
+	if statusCode == http.StatusServiceUnavailable {
+		code = "SERVICE_UNAVAILABLE"
 	}
-
-	h.respondJSON(w, statusCode, response)
+	(&APIError{Code: code, Message: message, Status: statusCode}).WriteHTTP(w)
 }
 
 // Health returns the health status of the health check handler

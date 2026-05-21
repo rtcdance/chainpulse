@@ -6,7 +6,8 @@ import (
 	"sync"
 	"time"
 
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/ports"
 )
 
 // MonolithicDeployment represents a monolithic deployment mode where all services run in a single binary
@@ -86,7 +87,8 @@ func (md *MonolithicDeployment) RegisterService(
 	md.serviceStoppers[name] = stopper
 
 	if md.logger != nil {
-		md.logger.Info("service registered",
+		md.logger.Info(
+			"service registered",
 			"service", name,
 		)
 	}
@@ -109,7 +111,8 @@ func (md *MonolithicDeployment) Initialize(ctx context.Context) error {
 	}
 
 	if md.logger != nil {
-		md.logger.Info("initializing monolithic deployment",
+		md.logger.Info(
+			"initializing monolithic deployment",
 			"service_count", len(md.serviceInitializers),
 		)
 	}
@@ -118,7 +121,8 @@ func (md *MonolithicDeployment) Initialize(ctx context.Context) error {
 	for name, initializer := range md.serviceInitializers {
 		if err := initializer(); err != nil {
 			if md.logger != nil {
-				md.logger.Error("failed to initialize service",
+				md.logger.Error(
+					"failed to initialize service",
 					"service", name,
 					"error", err.Error(),
 				)
@@ -132,7 +136,8 @@ func (md *MonolithicDeployment) Initialize(ctx context.Context) error {
 		}
 
 		if md.logger != nil {
-			md.logger.Info("service initialized",
+			md.logger.Info(
+				"service initialized",
 				"service", name,
 			)
 		}
@@ -157,7 +162,8 @@ func (md *MonolithicDeployment) Start(ctx context.Context) error {
 	md.mu.Unlock()
 
 	if md.logger != nil {
-		md.logger.Info("starting monolithic deployment",
+		md.logger.Info(
+			"starting monolithic deployment",
 			"service_count", len(md.serviceStarters),
 		)
 	}
@@ -170,7 +176,8 @@ func (md *MonolithicDeployment) Start(ctx context.Context) error {
 
 			if err := startFunc(); err != nil {
 				if md.logger != nil {
-					md.logger.Error("service error",
+					md.logger.Error(
+						"service error",
 						"service", serviceName,
 						"error", err.Error(),
 					)
@@ -184,7 +191,8 @@ func (md *MonolithicDeployment) Start(ctx context.Context) error {
 		}(name, starter)
 
 		if md.logger != nil {
-			md.logger.Info("service started",
+			md.logger.Info(
+				"service started",
 				"service", name,
 			)
 		}
@@ -207,7 +215,8 @@ func (md *MonolithicDeployment) Stop(ctx context.Context) error {
 	md.mu.Unlock()
 
 	if md.logger != nil {
-		md.logger.Info("stopping monolithic deployment",
+		md.logger.Info(
+			"stopping monolithic deployment",
 			"service_count", len(md.serviceStoppers),
 		)
 	}
@@ -225,14 +234,16 @@ func (md *MonolithicDeployment) Stop(ctx context.Context) error {
 
 		if err := stopper(); err != nil {
 			if md.logger != nil {
-				md.logger.Error("failed to stop service",
+				md.logger.Error(
+					"failed to stop service",
 					"service", name,
 					"error", err.Error(),
 				)
 			}
 		} else {
 			if md.logger != nil {
-				md.logger.Info("service stopped",
+				md.logger.Info(
+					"service stopped",
 					"service", name,
 				)
 			}
@@ -329,7 +340,7 @@ func (md *MonolithicDeployment) GetHealth(ctx context.Context) (core.HealthStatu
 		return core.HealthStatus{
 			Status:    "unhealthy",
 			Timestamp: time.Now(),
-			Details: map[string]interface{}{
+			Details: map[string]any{
 				"reason": "deployment not running",
 			},
 		}, nil
@@ -340,7 +351,7 @@ func (md *MonolithicDeployment) GetHealth(ctx context.Context) (core.HealthStatu
 		return core.HealthStatus{
 			Status:    "healthy",
 			Timestamp: time.Now(),
-			Details: map[string]interface{}{
+			Details: map[string]any{
 				"service_count": md.GetServiceCount(),
 			},
 		}, nil
@@ -351,10 +362,12 @@ func (md *MonolithicDeployment) GetHealth(ctx context.Context) (core.HealthStatu
 	unhealthyServices := make([]string, 0)
 
 	for _, plugin := range plugins {
-		if err := plugin.Health(); err == nil {
-			healthyCount++
-		} else {
-			unhealthyServices = append(unhealthyServices, plugin.Name())
+		if hp, ok := plugin.(ports.HealthPlugin); ok {
+			if err := hp.Health(context.Background()); err != nil {
+				unhealthyServices = append(unhealthyServices, plugin.Name())
+			} else {
+				healthyCount++
+			}
 		}
 	}
 
@@ -366,7 +379,7 @@ func (md *MonolithicDeployment) GetHealth(ctx context.Context) (core.HealthStatu
 	return core.HealthStatus{
 		Status:    status,
 		Timestamp: time.Now(),
-		Details: map[string]interface{}{
+		Details: map[string]any{
 			"service_count":      md.GetServiceCount(),
 			"healthy_count":      healthyCount,
 			"unhealthy_services": unhealthyServices,
@@ -375,14 +388,14 @@ func (md *MonolithicDeployment) GetHealth(ctx context.Context) (core.HealthStatu
 }
 
 // GetMetrics returns metrics for the deployment
-func (md *MonolithicDeployment) GetMetrics() map[string]interface{} {
+func (md *MonolithicDeployment) GetMetrics() map[string]any {
 	md.mu.RLock()
 	defer md.mu.RUnlock()
 
-	metrics := make(map[string]interface{})
+	metrics := make(map[string]any)
 	metrics["is_running"] = md.isRunning
 	metrics["service_count"] = len(md.serviceInitializers)
-	metrics["deployment_mode"] = "monolithic"
+	metrics["deployment_mode"] = core.DeploymentModeMonolithic
 
 	if md.metricsCollector != nil {
 		exported := md.metricsCollector.GetMetrics()

@@ -7,6 +7,7 @@ import (
 
 // TestNewDefaultMetricsCollector tests metrics collector creation
 func TestNewDefaultMetricsCollector(t *testing.T) {
+	t.Parallel()
 	collector := NewDefaultMetricsCollector()
 	if collector == nil {
 		t.Fatal("expected collector, got nil")
@@ -24,6 +25,7 @@ func TestNewDefaultMetricsCollector(t *testing.T) {
 
 // TestRecordCounter tests counter recording
 func TestRecordCounter(t *testing.T) {
+	t.Parallel()
 	collector := NewDefaultMetricsCollector()
 	tags := map[string]string{"service": "api"}
 
@@ -38,6 +40,7 @@ func TestRecordCounter(t *testing.T) {
 
 // TestRecordGauge tests gauge recording
 func TestRecordGauge(t *testing.T) {
+	t.Parallel()
 	collector := NewDefaultMetricsCollector()
 	tags := map[string]string{"service": "api"}
 
@@ -51,6 +54,7 @@ func TestRecordGauge(t *testing.T) {
 
 // TestRecordHistogram tests histogram recording
 func TestRecordHistogram(t *testing.T) {
+	t.Parallel()
 	collector := NewDefaultMetricsCollector()
 	tags := map[string]string{"service": "api"}
 
@@ -69,6 +73,7 @@ func TestRecordHistogram(t *testing.T) {
 
 // TestGetMetrics tests getting all metrics
 func TestGetMetrics(t *testing.T) {
+	t.Parallel()
 	collector := NewDefaultMetricsCollector()
 	tags := map[string]string{"service": "api"}
 
@@ -90,6 +95,7 @@ func TestGetMetrics(t *testing.T) {
 }
 
 func TestExportPrometheusIncludesCounterGaugeAndHistogram(t *testing.T) {
+	t.Parallel()
 	collector := NewDefaultMetricsCollector()
 	tags := map[string]string{"service": "api", "chain-id": "ethereum"}
 
@@ -119,15 +125,16 @@ func TestExportPrometheusIncludesCounterGaugeAndHistogram(t *testing.T) {
 }
 
 func TestFormatPrometheusMetricsFallback(t *testing.T) {
-	payload := map[string]interface{}{
-		"counters": map[string]interface{}{
-			"test_counter:service=api": map[string]interface{}{
+	t.Parallel()
+	payload := map[string]any{
+		"counters": map[string]any{
+			"test_counter:service=api": map[string]any{
 				"value": int64(3),
-				"tags":  map[string]interface{}{"service": "api"},
+				"tags":  map[string]any{"service": "api"},
 			},
 		},
-		"gauges": map[string]interface{}{
-			"test_gauge": map[string]interface{}{
+		"gauges": map[string]any{
+			"test_gauge": map[string]any{
 				"value": float64(7),
 			},
 		},
@@ -146,6 +153,7 @@ func TestFormatPrometheusMetricsFallback(t *testing.T) {
 }
 
 func TestExportPrometheusDefaultsChainIDForApplicationMetrics(t *testing.T) {
+	t.Parallel()
 	collector := NewDefaultMetricsCollector()
 	collector.RecordCounter("gateway_request_success", 1, map[string]string{"service": "api-gateway"})
 
@@ -158,6 +166,7 @@ func TestExportPrometheusDefaultsChainIDForApplicationMetrics(t *testing.T) {
 }
 
 func TestExportPrometheusNormalizesChainLabelAliases(t *testing.T) {
+	t.Parallel()
 	collector := NewDefaultMetricsCollector()
 	collector.RecordGauge("indexing_runtime_started", 1, map[string]string{"chain": "polygon"})
 
@@ -170,6 +179,7 @@ func TestExportPrometheusNormalizesChainLabelAliases(t *testing.T) {
 
 // TestReset tests resetting all metrics
 func TestReset(t *testing.T) {
+	t.Parallel()
 	collector := NewDefaultMetricsCollector()
 	tags := map[string]string{"service": "api"}
 
@@ -192,6 +202,7 @@ func TestReset(t *testing.T) {
 
 // TestResetCounter tests resetting a specific counter
 func TestResetCounter(t *testing.T) {
+	t.Parallel()
 	collector := NewDefaultMetricsCollector()
 	tags := map[string]string{"service": "api"}
 
@@ -206,6 +217,7 @@ func TestResetCounter(t *testing.T) {
 
 // TestResetGauge tests resetting a specific gauge
 func TestResetGauge(t *testing.T) {
+	t.Parallel()
 	collector := NewDefaultMetricsCollector()
 	tags := map[string]string{"service": "api"}
 
@@ -220,6 +232,7 @@ func TestResetGauge(t *testing.T) {
 
 // TestResetHistogram tests resetting a specific histogram
 func TestResetHistogram(t *testing.T) {
+	t.Parallel()
 	collector := NewDefaultMetricsCollector()
 	tags := map[string]string{"service": "api"}
 
@@ -234,6 +247,7 @@ func TestResetHistogram(t *testing.T) {
 
 // TestMultipleTags tests metrics with different tags
 func TestMultipleTags(t *testing.T) {
+	t.Parallel()
 	collector := NewDefaultMetricsCollector()
 	tags1 := map[string]string{"service": "api"}
 	tags2 := map[string]string{"service": "worker"}
@@ -254,6 +268,7 @@ func TestMultipleTags(t *testing.T) {
 
 // TestNoTags tests metrics without tags
 func TestNoTags(t *testing.T) {
+	t.Parallel()
 	collector := NewDefaultMetricsCollector()
 
 	collector.RecordCounter("requests", 5, nil)
@@ -266,6 +281,7 @@ func TestNoTags(t *testing.T) {
 
 // TestHistogramStats tests histogram statistics calculation
 func TestHistogramStats(t *testing.T) {
+	t.Parallel()
 	collector := NewDefaultMetricsCollector()
 	tags := map[string]string{"service": "api"}
 
@@ -295,6 +311,7 @@ func TestHistogramStats(t *testing.T) {
 
 // TestHistogramPercentiles tests histogram percentile calculation
 func TestHistogramPercentiles(t *testing.T) {
+	t.Parallel()
 	collector := NewDefaultMetricsCollector()
 	tags := map[string]string{"service": "api"}
 
@@ -319,6 +336,7 @@ func TestHistogramPercentiles(t *testing.T) {
 
 // TestConcurrentRecording tests concurrent metric recording
 func TestConcurrentRecording(t *testing.T) {
+	t.Parallel()
 	collector := NewDefaultMetricsCollector()
 	tags := map[string]string{"service": "api"}
 
@@ -342,6 +360,7 @@ func TestConcurrentRecording(t *testing.T) {
 
 // TestCounterAccumulation tests counter accumulation
 func TestCounterAccumulation(t *testing.T) {
+	t.Parallel()
 	collector := NewDefaultMetricsCollector()
 	tags := map[string]string{"service": "api"}
 
@@ -357,6 +376,7 @@ func TestCounterAccumulation(t *testing.T) {
 
 // TestGaugeOverwrite tests gauge overwrite behavior
 func TestGaugeOverwrite(t *testing.T) {
+	t.Parallel()
 	collector := NewDefaultMetricsCollector()
 	tags := map[string]string{"service": "api"}
 
@@ -372,6 +392,7 @@ func TestGaugeOverwrite(t *testing.T) {
 
 // TestEmptyHistogramStats tests histogram stats with no values
 func TestEmptyHistogramStats(t *testing.T) {
+	t.Parallel()
 	collector := NewDefaultMetricsCollector()
 	tags := map[string]string{"service": "api"}
 
@@ -383,6 +404,7 @@ func TestEmptyHistogramStats(t *testing.T) {
 
 // TestMetricsWithComplexTags tests metrics with multiple tag values
 func TestMetricsWithComplexTags(t *testing.T) {
+	t.Parallel()
 	collector := NewDefaultMetricsCollector()
 	tags := map[string]string{
 		"service": "api",
@@ -400,6 +422,7 @@ func TestMetricsWithComplexTags(t *testing.T) {
 
 // TestGetCounterCount tests counter count
 func TestGetCounterCount(t *testing.T) {
+	t.Parallel()
 	collector := NewDefaultMetricsCollector()
 	tags1 := map[string]string{"service": "api"}
 	tags2 := map[string]string{"service": "worker"}
@@ -415,6 +438,7 @@ func TestGetCounterCount(t *testing.T) {
 
 // TestGetGaugeCount tests gauge count
 func TestGetGaugeCount(t *testing.T) {
+	t.Parallel()
 	collector := NewDefaultMetricsCollector()
 	tags1 := map[string]string{"service": "api"}
 	tags2 := map[string]string{"service": "worker"}
@@ -430,6 +454,7 @@ func TestGetGaugeCount(t *testing.T) {
 
 // TestGetHistogramCount tests histogram count
 func TestGetHistogramCount(t *testing.T) {
+	t.Parallel()
 	collector := NewDefaultMetricsCollector()
 	tags1 := map[string]string{"service": "api"}
 	tags2 := map[string]string{"service": "worker"}
@@ -445,6 +470,7 @@ func TestGetHistogramCount(t *testing.T) {
 
 // TestHistogramSingleValue tests histogram with single value
 func TestHistogramSingleValue(t *testing.T) {
+	t.Parallel()
 	collector := NewDefaultMetricsCollector()
 	tags := map[string]string{"service": "api"}
 
@@ -470,6 +496,7 @@ func TestHistogramSingleValue(t *testing.T) {
 
 // TestNegativeValues tests metrics with negative values
 func TestNegativeValues(t *testing.T) {
+	t.Parallel()
 	collector := NewDefaultMetricsCollector()
 	tags := map[string]string{"service": "api"}
 
@@ -494,6 +521,7 @@ func TestNegativeValues(t *testing.T) {
 
 // TestZeroValues tests metrics with zero values
 func TestZeroValues(t *testing.T) {
+	t.Parallel()
 	collector := NewDefaultMetricsCollector()
 	tags := map[string]string{"service": "api"}
 

@@ -24,7 +24,7 @@ type Fixture struct {
 	ID           string
 	Type         FixtureType
 	Name         string
-	Data         interface{}
+	Data         any
 	CreatedAt    time.Time
 	ExpiresAt    time.Time
 	Checksum     string
@@ -36,7 +36,7 @@ type Fixture struct {
 type FixtureFactory struct {
 	mu        sync.RWMutex
 	fixtures  map[string]*Fixture
-	templates map[string]interface{}
+	templates map[string]any
 }
 
 var (
@@ -48,12 +48,12 @@ var (
 func NewFixtureFactory() *FixtureFactory {
 	return &FixtureFactory{
 		fixtures:  make(map[string]*Fixture),
-		templates: make(map[string]interface{}),
+		templates: make(map[string]any),
 	}
 }
 
 // RegisterTemplate registers a fixture template
-func (ff *FixtureFactory) RegisterTemplate(name string, template interface{}) {
+func (ff *FixtureFactory) RegisterTemplate(name string, template any) {
 	ff.mu.Lock()
 	defer ff.mu.Unlock()
 
@@ -106,7 +106,7 @@ func (ff *FixtureFactory) GetFixture(id string) (*Fixture, error) {
 }
 
 // UpdateFixture updates a fixture
-func (ff *FixtureFactory) UpdateFixture(id string, data interface{}) error {
+func (ff *FixtureFactory) UpdateFixture(id string, data any) error {
 	ff.mu.Lock()
 	defer ff.mu.Unlock()
 
@@ -338,12 +338,12 @@ func generateSnapshotID(fixtureID string) string {
 	return fmt.Sprintf("snapshot_%s_%d_%d", fixtureID, time.Now().UnixNano(), snapshotIDCounter.Add(1))
 }
 
-func calculateChecksum(data interface{}) string {
+func calculateChecksum(data any) string {
 	hash := sha256.Sum256([]byte(fmt.Sprintf("%v", data)))
 	return hex.EncodeToString(hash[:])
 }
 
-func deepCopy(data interface{}) interface{} {
+func deepCopy(data any) any {
 	switch typed := data.(type) {
 	case map[string]string:
 		cloned := make(map[string]string, len(typed))
@@ -351,8 +351,8 @@ func deepCopy(data interface{}) interface{} {
 			cloned[key] = value
 		}
 		return cloned
-	case map[string]interface{}:
-		cloned := make(map[string]interface{}, len(typed))
+	case map[string]any:
+		cloned := make(map[string]any, len(typed))
 		for key, value := range typed {
 			cloned[key] = deepCopy(value)
 		}

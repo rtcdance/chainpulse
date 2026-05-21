@@ -100,25 +100,25 @@ func TestProperty23_MultipleLogLevels(t *testing.T) {
 func TestProperty23_FieldPreservation(t *testing.T) {
 	testCases := []struct {
 		name   string
-		fields map[string]interface{}
+		fields map[string]any
 	}{
 		{
 			name: "string fields",
-			fields: map[string]interface{}{
+			fields: map[string]any{
 				"user_id": "user-123",
 				"action":  "login",
 			},
 		},
 		{
 			name: "numeric fields",
-			fields: map[string]interface{}{
+			fields: map[string]any{
 				"count":    42,
 				"duration": 1.5,
 			},
 		},
 		{
 			name: "mixed fields",
-			fields: map[string]interface{}{
+			fields: map[string]any{
 				"user_id":  "user-123",
 				"count":    42,
 				"success":  true,
@@ -288,7 +288,7 @@ func TestProperty23_SpecialCharactersInFields(t *testing.T) {
 		"unicode":   "你好世界",
 	}
 
-	specialCharsInterface := make(map[string]interface{})
+	specialCharsInterface := make(map[string]any)
 	for k, v := range specialChars {
 		specialCharsInterface[k] = v
 	}

@@ -3,7 +3,7 @@ package shared
 import (
 	"sync"
 
-	"chainpulse/pkg/plugins/api/core"
+	"github.com/rtcdance/chainpulse/pkg/plugins/api/core"
 )
 
 // MiddlewareChain represents a chain of middleware
@@ -362,7 +362,7 @@ func (r *MiddlewareRegistry) GetAllMiddleware() []core.Middleware {
 
 // GetRuntimeMetrics returns a compact runtime surface for middleware coverage
 // and registry readiness on top of the grouped middleware configuration.
-func (r *MiddlewareRegistry) GetRuntimeMetrics() map[string]interface{} {
+func (r *MiddlewareRegistry) GetRuntimeMetrics() map[string]any {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
@@ -392,7 +392,7 @@ func (r *MiddlewareRegistry) GetRuntimeMetrics() map[string]interface{} {
 	coveragePosture := classifyMiddlewareCoveragePosture(totalMiddleware, securityCount, observabilityCount, performanceCount, errorHandlingEnabled)
 	runtimePosture := classifyMiddlewareRuntimePosture(totalMiddleware, securityCount, observabilityCount, performanceCount, errorHandlingEnabled)
 
-	return map[string]interface{}{
+	return map[string]any{
 		"total_middleware":       totalMiddleware,
 		"security_count":         securityCount,
 		"observability_count":    observabilityCount,

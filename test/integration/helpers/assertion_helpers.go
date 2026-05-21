@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"chainpulse/pkg/core"
-	"chainpulse/pkg/services/query"
-	"chainpulse/test/integration/fixtures"
+	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/services/query"
+	"github.com/rtcdance/chainpulse/test/integration/fixtures"
 )
 
 // AssertionHelper provides assertion helpers for integration tests
@@ -212,14 +212,14 @@ func (ah *AssertionHelper) AssertErrorContains(err error, substring string) {
 }
 
 // AssertEqual asserts that two values are equal
-func (ah *AssertionHelper) AssertEqual(actual, expected interface{}, message string) {
+func (ah *AssertionHelper) AssertEqual(actual, expected any, message string) {
 	if actual != expected {
 		ah.t.Errorf("%s: expected %v, but got %v", message, expected, actual)
 	}
 }
 
 // AssertNotEqual asserts that two values are not equal
-func (ah *AssertionHelper) AssertNotEqual(actual, expected interface{}, message string) {
+func (ah *AssertionHelper) AssertNotEqual(actual, expected any, message string) {
 	if actual == expected {
 		ah.t.Errorf("%s: expected not equal to %v, but got %v", message, expected, actual)
 	}
@@ -240,14 +240,14 @@ func (ah *AssertionHelper) AssertFalse(condition bool, message string) {
 }
 
 // AssertNil asserts that a value is nil
-func (ah *AssertionHelper) AssertNil(value interface{}, message string) {
+func (ah *AssertionHelper) AssertNil(value any, message string) {
 	if value != nil {
 		ah.t.Errorf("%s: expected nil, but got %v", message, value)
 	}
 }
 
 // AssertNotNil asserts that a value is not nil
-func (ah *AssertionHelper) AssertNotNil(value interface{}, message string) {
+func (ah *AssertionHelper) AssertNotNil(value any, message string) {
 	if value == nil {
 		ah.t.Errorf("%s: expected not nil, but got nil", message)
 	}
@@ -344,10 +344,10 @@ func (ah *AssertionHelper) AssertQueryResultEmpty(result *query.QueryResult) {
 }
 
 // AssertSliceLength asserts that a slice has the expected length
-func (ah *AssertionHelper) AssertSliceLength(slice interface{}, expectedLen int, message string) {
+func (ah *AssertionHelper) AssertSliceLength(slice any, expectedLen int, message string) {
 	// Use reflection to get slice length
 	switch s := slice.(type) {
-	case []interface{}:
+	case []any:
 		if len(s) != expectedLen {
 			ah.t.Errorf("%s: expected length %d, but got %d", message, expectedLen, len(s))
 		}
@@ -361,14 +361,14 @@ func (ah *AssertionHelper) AssertSliceLength(slice interface{}, expectedLen int,
 }
 
 // AssertMapContainsKey asserts that a map contains a key
-func (ah *AssertionHelper) AssertMapContainsKey(m map[string]interface{}, key string, message string) {
+func (ah *AssertionHelper) AssertMapContainsKey(m map[string]any, key string, message string) {
 	if _, exists := m[key]; !exists {
 		ah.t.Errorf("%s: expected map to contain key %s", message, key)
 	}
 }
 
 // AssertMapNotContainsKey asserts that a map does not contain a key
-func (ah *AssertionHelper) AssertMapNotContainsKey(m map[string]interface{}, key string, message string) {
+func (ah *AssertionHelper) AssertMapNotContainsKey(m map[string]any, key string, message string) {
 	if _, exists := m[key]; exists {
 		ah.t.Errorf("%s: expected map to not contain key %s", message, key)
 	}
@@ -597,9 +597,9 @@ func (ah *AssertionHelper) AssertErrorType(err error, expectedType string, messa
 }
 
 // AssertSliceNotEmpty asserts that a slice is not empty
-func (ah *AssertionHelper) AssertSliceNotEmpty(slice interface{}, message string) {
+func (ah *AssertionHelper) AssertSliceNotEmpty(slice any, message string) {
 	switch s := slice.(type) {
-	case []interface{}:
+	case []any:
 		if len(s) == 0 {
 			ah.t.Errorf("%s: expected non-empty slice", message)
 		}
@@ -613,9 +613,9 @@ func (ah *AssertionHelper) AssertSliceNotEmpty(slice interface{}, message string
 }
 
 // AssertSliceEmpty asserts that a slice is empty
-func (ah *AssertionHelper) AssertSliceEmpty(slice interface{}, message string) {
+func (ah *AssertionHelper) AssertSliceEmpty(slice any, message string) {
 	switch s := slice.(type) {
-	case []interface{}:
+	case []any:
 		if len(s) != 0 {
 			ah.t.Errorf("%s: expected empty slice, but got %d elements", message, len(s))
 		}
@@ -629,14 +629,14 @@ func (ah *AssertionHelper) AssertSliceEmpty(slice interface{}, message string) {
 }
 
 // AssertMapNotEmpty asserts that a map is not empty
-func (ah *AssertionHelper) AssertMapNotEmpty(m map[string]interface{}, message string) {
+func (ah *AssertionHelper) AssertMapNotEmpty(m map[string]any, message string) {
 	if len(m) == 0 {
 		ah.t.Errorf("%s: expected non-empty map", message)
 	}
 }
 
 // AssertMapEmpty asserts that a map is empty
-func (ah *AssertionHelper) AssertMapEmpty(m map[string]interface{}, message string) {
+func (ah *AssertionHelper) AssertMapEmpty(m map[string]any, message string) {
 	if len(m) != 0 {
 		ah.t.Errorf("%s: expected empty map, but got %d elements", message, len(m))
 	}

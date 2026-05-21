@@ -1,8 +1,29 @@
-# Anvil Testing Capability Analysis - December 30, 2025
+# Anvil Testing Capability — 2026-05-13
 
-## Current Status: ❌ NO ANVIL TESTING CAPABILITY
+## Current Status: ✅ FULL ANVIL SUPPORT
 
-The project **does not currently have Anvil testing capability**, but has the **foundation to add it**.
+ChainPulse has full Anvil integration for debugging, E2E testing, and learning.
+
+## What Exists
+
+### Docker Compose Integration
+- `docker/docker-compose.yml` — Anvil-ethereum on :8545, Anvil-polygon on :8546 (+ BSC, Arbitrum, Optimism, Base, Avalanche)
+- Healthchecks via `cast chain` — debug tasks wait for readiness via `--wait`
+- `.vscode/tasks.json` — `Monolithic Debug RPC Up/Down` toggles Anvil containers
+
+### E2E Test Support
+- `test/e2e/anvil_test.go` — `startAnvil()` helper launches Anvil on a random port, polls for readiness
+- `Makefile test-anvil` — runs Anvil-based E2E tests (auto-installs Foundry if missing)
+- Build tag: `go test -tags=e2e -run TestAnvil`
+
+### Debugger Integration
+- `.vscode/launch.json` — `Debug Monolithic (In-Memory)` starts Anvil via preLaunchTask, connects monolithic mode
+- `.dlv/learn-init.dlv` — 14 breakpoints across 5 learning paths
+- `scripts/deploy-event-emitter.sh` — Deploys a test contract to Anvil + emits events
+
+### Smart Contract
+- `contracts/EventEmitter.sol` — Minimal contract emitting Transfer + CustomEvent + Batch events
+- Compiled via Foundry in Docker (no local Foundry needed)
 
 ## Current Testing Infrastructure
 

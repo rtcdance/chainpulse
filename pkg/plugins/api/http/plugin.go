@@ -1,16 +1,20 @@
 package http
 
 import (
+	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strings"
 	"sync"
 	"time"
 
-	"chainpulse/pkg/observability"
-	"chainpulse/pkg/plugins/api/core"
-	"chainpulse/pkg/plugins/api/shared"
+	"github.com/rtcdance/chainpulse/pkg/observability"
+	"github.com/rtcdance/chainpulse/pkg/plugins/api/core"
+	"github.com/rtcdance/chainpulse/pkg/plugins/api/shared"
 )
+
+const defaultWriteTimeout = 30 * time.Second
 
 // HTTPPlugin implements the HTTP protocol handler
 type HTTPPlugin struct {
@@ -41,7 +45,7 @@ func NewHTTPPlugin(name string, port int, apiLayer *core.APILayer) *HTTPPlugin {
 		router:     core.NewAPIRouter(),
 		processor:  processor,
 		middleware: make([]core.Middleware, 0),
-		tracer:     observability.NewDefaultTracer(nil, nil),
+		tracer:     observability.NewDefaultTracer(nil, nil), // will be overridden via SetTracer if provider is available
 	}
 }
 
@@ -62,8 +66,15 @@ func NewHTTPPluginWithTLS(name string, port int, httpsPort int, certFile, keyFil
 		tlsManager: tlsManager,
 		processor:  processor,
 		middleware: make([]core.Middleware, 0),
-		tracer:     observability.NewDefaultTracer(nil, nil),
+		tracer:     observability.NewDefaultTracer(nil, nil), // will be overridden via SetTracer if provider is available
 	}, nil
+}
+
+// SetTracer sets the tracer for the HTTP plugin, replacing the default nil-logger tracer.
+func (p *HTTPPlugin) SetTracer(tracer *observability.DefaultTracer) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.tracer = tracer
 }
 
 // Start starts the HTTP server
@@ -83,6 +94,9 @@ func (p *HTTPPlugin) Start() error {
 		Addr:              fmt.Sprintf(":%d", p.port),
 		Handler:           mux,
 		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       15 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       120 * time.Second,
 	}
 
 	p.running = true
@@ -90,7 +104,7 @@ func (p *HTTPPlugin) Start() error {
 	// Start HTTP server in background
 	go func() {
 		if err := p.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			fmt.Printf("HTTP server error: %v\n", err)
+			slog.Error("HTTP server error", "error", err)
 		}
 	}()
 
@@ -111,20 +125,31 @@ func (p *HTTPPlugin) startHTTPS(mux *http.ServeMux) error {
 		Handler:           mux,
 		TLSConfig:         p.tlsManager.GetConfig(),
 		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       15 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       120 * time.Second,
 	}
 
 	// Start HTTPS server in background
 	go func() {
 		if err := p.httpsServer.ListenAndServeTLS("", ""); err != nil && err != http.ErrServerClosed {
-			fmt.Printf("HTTPS server error: %v\n", err)
+			slog.Error("HTTPS server error", "error", err)
 		}
 	}()
 
 	return nil
 }
 
-// Stop stops the HTTP server
+// Stop stops the HTTP server with a 30-second deadline for graceful connection draining.
 func (p *HTTPPlugin) Stop() error {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	return p.ShutdownWithContext(ctx)
+}
+
+// ShutdownWithContext stops the HTTP server with a context deadline,
+// allowing in-flight requests to complete before closing connections.
+func (p *HTTPPlugin) ShutdownWithContext(ctx context.Context) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -133,13 +158,13 @@ func (p *HTTPPlugin) Stop() error {
 	}
 
 	if p.server != nil {
-		if err := p.server.Close(); err != nil {
+		if err := p.server.Shutdown(ctx); err != nil {
 			return err
 		}
 	}
 
 	if p.httpsServer != nil {
-		if err := p.httpsServer.Close(); err != nil {
+		if err := p.httpsServer.Shutdown(ctx); err != nil {
 			return err
 		}
 	}
@@ -187,6 +212,19 @@ func (p *HTTPPlugin) handleRequest(w http.ResponseWriter, r *http.Request) {
 }
 
 func (p *HTTPPlugin) handleRequestCore(w http.ResponseWriter, r *http.Request) {
+	// Recover from panics in any registered handler to avoid
+	// crashing the HTTP server goroutine.
+		defer func() {
+			if rec := recover(); rec != nil {
+				slog.Error("HTTP handler panicked, returning 500",
+					slog.String("method", r.Method),
+					slog.String("path", r.URL.Path),
+					slog.Any("panic", rec),
+				)
+				http.Error(w, `{"error":"internal server error"}`, http.StatusInternalServerError)
+			}
+		}()
+
 	p.mu.RLock()
 	nativeHandler := p.nativeHandler
 	p.mu.RUnlock()
@@ -212,7 +250,9 @@ func (p *HTTPPlugin) handleRequestCore(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(result.Status())
-	_, _ = w.Write(result.Body())
+	if _, err := w.Write(result.Body()); err != nil {
+		slog.Warn("failed to write HTTP response body", "error", err)
+	}
 }
 
 // SetNativeHandler sets an optional native HTTP request handler override.
@@ -264,7 +304,7 @@ func (p *HTTPPlugin) GetHTTPSPort() int {
 }
 
 // GetTLSMetrics returns TLS metrics
-func (p *HTTPPlugin) GetTLSMetrics() map[string]interface{} {
+func (p *HTTPPlugin) GetTLSMetrics() map[string]any {
 	if p.tlsManager == nil {
 		return nil
 	}
@@ -273,14 +313,14 @@ func (p *HTTPPlugin) GetTLSMetrics() map[string]interface{} {
 
 // GetRuntimeMetrics returns compact runtime metrics for the HTTP transport
 // surface.
-func (p *HTTPPlugin) GetRuntimeMetrics() map[string]interface{} {
+func (p *HTTPPlugin) GetRuntimeMetrics() map[string]any {
 	running := p.IsRunning()
 	routeCount := p.router.RouteCount()
 	transportPosture := classifyHTTPTransportPosture(p.tlsManager != nil)
 	routePosture := classifyHTTPRoutePosture(routeCount)
 	runtimePosture := classifyHTTPRuntimePosture(running, routeCount)
 
-	return map[string]interface{}{
+	return map[string]any{
 		"running":           running,
 		"route_count":       routeCount,
 		"transport_posture": transportPosture,

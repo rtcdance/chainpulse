@@ -5,6 +5,8 @@ import (
 	"math"
 	"sync"
 	"time"
+
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 // IndexerMetrics tracks metrics for the Web3 indexer
@@ -22,8 +24,8 @@ type IndexerMetrics struct {
 	EventsFailed    int64
 
 	// Timing metrics
-	IndexingLatencies []time.Duration
-	QueryLatencies    []time.Duration
+	IndexingLatencies *latencyRing
+	QueryLatencies    *latencyRing
 
 	// Reorg tracking
 	ReorgsDetected   int64
@@ -46,6 +48,18 @@ type IndexerMetrics struct {
 	// Error tracking
 	ErrorCount map[string]int64
 
+	// RPC latency percentiles
+	RPCLatencyP50 time.Duration
+	RPCLatencyP95 time.Duration
+	RPCLatencyP99 time.Duration
+
+	// Queue depth tracking
+	EventQueueDepth int64
+	ProcessingDepth int64
+
+	// Block delay: difference between block timestamp and processing time
+	BlockDelayLatencies *latencyRing
+
 	// Timestamps
 	StartTime      time.Time
 	LastUpdateTime time.Time
@@ -54,8 +68,8 @@ type IndexerMetrics struct {
 // NewIndexerMetrics creates a new IndexerMetrics instance
 func NewIndexerMetrics() *IndexerMetrics {
 	return &IndexerMetrics{
-		IndexingLatencies: make([]time.Duration, 0),
-		QueryLatencies:    make([]time.Duration, 0),
+		IndexingLatencies: newLatencyRing(1000),
+		QueryLatencies:    newLatencyRing(1000),
 		ErrorCount:        make(map[string]int64),
 		StartTime:         time.Now(),
 		LastUpdateTime:    time.Now(),
@@ -85,12 +99,7 @@ func (im *IndexerMetrics) RecordEventIndexed(latency time.Duration) {
 	defer im.mu.Unlock()
 
 	im.EventsIndexed++
-	im.IndexingLatencies = append(im.IndexingLatencies, latency)
-
-	// Keep only last 1000 latencies to avoid memory bloat
-	if len(im.IndexingLatencies) > 1000 {
-		im.IndexingLatencies = im.IndexingLatencies[1:]
-	}
+	im.IndexingLatencies.Push(latency)
 
 	im.LastUpdateTime = time.Now()
 }
@@ -119,12 +128,7 @@ func (im *IndexerMetrics) RecordQueryLatency(latency time.Duration) {
 	im.mu.Lock()
 	defer im.mu.Unlock()
 
-	im.QueryLatencies = append(im.QueryLatencies, latency)
-
-	// Keep only last 1000 latencies to avoid memory bloat
-	if len(im.QueryLatencies) > 1000 {
-		im.QueryLatencies = im.QueryLatencies[1:]
-	}
+	im.QueryLatencies.Push(latency)
 
 	im.LastUpdateTime = time.Now()
 }
@@ -192,21 +196,57 @@ func (im *IndexerMetrics) RecordReorgRecoveryTime(recoveryTimeMs int64) {
 	im.LastUpdateTime = time.Now()
 }
 
+// RecordRPCLatency records an RPC call latency and updates percentiles
+func (im *IndexerMetrics) RecordRPCLatency(latency time.Duration) {
+	im.mu.Lock()
+	defer im.mu.Unlock()
+
+	im.IndexingLatencies.Push(latency)
+
+	// Update percentiles from the ring buffer
+	im.RPCLatencyP50 = im.IndexingLatencies.Percentile(0.50)
+	im.RPCLatencyP95 = im.IndexingLatencies.Percentile(0.95)
+	im.RPCLatencyP99 = im.IndexingLatencies.Percentile(0.99)
+
+	im.LastUpdateTime = time.Now()
+}
+
+// RecordBlockDelay records the delay between block creation and processing
+func (im *IndexerMetrics) RecordBlockDelay(delay time.Duration) {
+	im.mu.Lock()
+	defer im.mu.Unlock()
+
+	if im.BlockDelayLatencies == nil {
+		im.BlockDelayLatencies = newLatencyRing(1000)
+	}
+	im.BlockDelayLatencies.Push(delay)
+	im.LastUpdateTime = time.Now()
+}
+
+// RecordEventQueueDepth records the current event queue depth
+func (im *IndexerMetrics) RecordEventQueueDepth(depth int64) {
+	im.mu.Lock()
+	defer im.mu.Unlock()
+
+	im.EventQueueDepth = depth
+	im.LastUpdateTime = time.Now()
+}
+
+// RecordProcessingDepth records the current processing depth
+func (im *IndexerMetrics) RecordProcessingDepth(depth int64) {
+	im.mu.Lock()
+	defer im.mu.Unlock()
+
+	im.ProcessingDepth = depth
+	im.LastUpdateTime = time.Now()
+}
+
 // GetAverageIndexingLatency returns the average indexing latency
 func (im *IndexerMetrics) GetAverageIndexingLatency() time.Duration {
 	im.mu.RLock()
 	defer im.mu.RUnlock()
 
-	if len(im.IndexingLatencies) == 0 {
-		return 0
-	}
-
-	var total time.Duration
-	for _, latency := range im.IndexingLatencies {
-		total += latency
-	}
-
-	return total / time.Duration(len(im.IndexingLatencies))
+	return im.IndexingLatencies.Avg()
 }
 
 // GetMaxIndexingLatency returns the maximum indexing latency
@@ -214,18 +254,7 @@ func (im *IndexerMetrics) GetMaxIndexingLatency() time.Duration {
 	im.mu.RLock()
 	defer im.mu.RUnlock()
 
-	if len(im.IndexingLatencies) == 0 {
-		return 0
-	}
-
-	var max time.Duration
-	for _, latency := range im.IndexingLatencies {
-		if latency > max {
-			max = latency
-		}
-	}
-
-	return max
+	return im.IndexingLatencies.Max()
 }
 
 // GetAverageQueryLatency returns the average query latency
@@ -233,16 +262,7 @@ func (im *IndexerMetrics) GetAverageQueryLatency() time.Duration {
 	im.mu.RLock()
 	defer im.mu.RUnlock()
 
-	if len(im.QueryLatencies) == 0 {
-		return 0
-	}
-
-	var total time.Duration
-	for _, latency := range im.QueryLatencies {
-		total += latency
-	}
-
-	return total / time.Duration(len(im.QueryLatencies))
+	return im.QueryLatencies.Avg()
 }
 
 // GetMaxQueryLatency returns the maximum query latency
@@ -250,18 +270,7 @@ func (im *IndexerMetrics) GetMaxQueryLatency() time.Duration {
 	im.mu.RLock()
 	defer im.mu.RUnlock()
 
-	if len(im.QueryLatencies) == 0 {
-		return 0
-	}
-
-	var max time.Duration
-	for _, latency := range im.QueryLatencies {
-		if latency > max {
-			max = latency
-		}
-	}
-
-	return max
+	return im.QueryLatencies.Max()
 }
 
 // GetCacheHitRate returns the cache hit rate as a percentage
@@ -304,7 +313,7 @@ func (im *IndexerMetrics) GetErrorRate() float64 {
 }
 
 // GetMetricsSummary returns a summary of all metrics
-func (im *IndexerMetrics) GetMetricsSummary() map[string]interface{} {
+func (im *IndexerMetrics) GetMetricsSummary() map[string]any {
 	im.mu.RLock()
 	defer im.mu.RUnlock()
 
@@ -315,37 +324,10 @@ func (im *IndexerMetrics) GetMetricsSummary() map[string]interface{} {
 
 	// Calculate averages and rates directly without calling other methods
 	// to avoid potential lock contention
-	avgIndexingLatency := time.Duration(0)
-	if len(im.IndexingLatencies) > 0 {
-		var total time.Duration
-		for _, latency := range im.IndexingLatencies {
-			total += latency
-		}
-		avgIndexingLatency = total / time.Duration(len(im.IndexingLatencies))
-	}
-
-	maxIndexingLatency := time.Duration(0)
-	for _, latency := range im.IndexingLatencies {
-		if latency > maxIndexingLatency {
-			maxIndexingLatency = latency
-		}
-	}
-
-	avgQueryLatency := time.Duration(0)
-	if len(im.QueryLatencies) > 0 {
-		var total time.Duration
-		for _, latency := range im.QueryLatencies {
-			total += latency
-		}
-		avgQueryLatency = total / time.Duration(len(im.QueryLatencies))
-	}
-
-	maxQueryLatency := time.Duration(0)
-	for _, latency := range im.QueryLatencies {
-		if latency > maxQueryLatency {
-			maxQueryLatency = latency
-		}
-	}
+	avgIndexingLatency := im.IndexingLatencies.Avg()
+	maxIndexingLatency := im.IndexingLatencies.Max()
+	avgQueryLatency := im.QueryLatencies.Avg()
+	maxQueryLatency := im.QueryLatencies.Max()
 
 	cacheHitRate := 0.0
 	if im.CacheHits+im.CacheMisses > 0 {
@@ -363,7 +345,7 @@ func (im *IndexerMetrics) GetMetricsSummary() map[string]interface{} {
 		errorRate = float64(im.EventsFailed) / float64(im.EventsIndexed) * 100
 	}
 
-	return map[string]interface{}{
+	return map[string]any{
 		"current_block":            im.CurrentBlockNumber,
 		"latest_block":             im.LatestBlockNumber,
 		"indexing_lag":             im.IndexingLag,
@@ -391,6 +373,38 @@ func (im *IndexerMetrics) GetMetricsSummary() map[string]interface{} {
 	}
 }
 
+// SyncToMetricsCollector pushes all business metrics to a MetricsCollector
+// so they appear on the /metrics endpoint alongside system metrics.
+func (im *IndexerMetrics) SyncToMetricsCollector(mc core.MetricsCollector) {
+	if mc == nil {
+		return
+	}
+
+	im.mu.RLock()
+	defer im.mu.RUnlock()
+
+	mc.RecordGauge("chainpulse_indexer_current_block", float64(im.CurrentBlockNumber), nil)
+	mc.RecordGauge("chainpulse_indexer_latest_block", float64(im.LatestBlockNumber), nil)
+	mc.RecordGauge("chainpulse_indexer_lag", float64(im.IndexingLag), nil)
+	mc.RecordCounter("chainpulse_indexer_events_indexed_total", im.EventsIndexed, nil)
+	mc.RecordCounter("chainpulse_indexer_events_processed_total", im.EventsProcessed, nil)
+	mc.RecordCounter("chainpulse_indexer_events_failed_total", im.EventsFailed, nil)
+	mc.RecordGauge("chainpulse_indexer_cache_hits", float64(im.CacheHits), nil)
+	mc.RecordGauge("chainpulse_indexer_cache_misses", float64(im.CacheMisses), nil)
+	mc.RecordGauge("chainpulse_indexer_dlq_depth", float64(im.DLQDepth), nil)
+	mc.RecordGauge("chainpulse_indexer_consistency_mismatches", float64(im.ConsistencyMismatches), nil)
+	mc.RecordCounter("chainpulse_indexer_reorgs_detected_total", im.ReorgsDetected, nil)
+	mc.RecordCounter("chainpulse_indexer_blocks_rolled_back_total", im.BlocksRolledBack, nil)
+	mc.RecordGauge("chainpulse_indexer_reorg_recovery_time_ms", float64(im.ReorgRecoveryTimeMs), nil)
+
+	// Error breakdown by type
+	for errorType, count := range im.ErrorCount {
+		mc.RecordCounter("chainpulse_indexer_errors_total", count, map[string]string{
+			"error_type": errorType,
+		})
+	}
+}
+
 // Reset resets all metrics
 func (im *IndexerMetrics) Reset() {
 	im.mu.Lock()
@@ -402,8 +416,8 @@ func (im *IndexerMetrics) Reset() {
 	im.EventsIndexed = 0
 	im.EventsProcessed = 0
 	im.EventsFailed = 0
-	im.IndexingLatencies = make([]time.Duration, 0)
-	im.QueryLatencies = make([]time.Duration, 0)
+	im.IndexingLatencies.Reset()
+	im.QueryLatencies.Reset()
 	im.ReorgsDetected = 0
 	im.BlocksRolledBack = 0
 	im.CacheHits = 0

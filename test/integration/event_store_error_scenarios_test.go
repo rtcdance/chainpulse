@@ -3,21 +3,21 @@ package integration
 import (
 	"context"
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
-	"chainpulse/pkg/core"
-	"chainpulse/pkg/services/query"
+	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/services/query"
 )
 
 // TestMongoDBConnectionFailure tests MongoDB connection failure handling
 func TestMongoDBConnectionFailure(t *testing.T) {
 	classifier := query.NewErrorClassifier()
-	logger := &MockLogger{}
 
 	// Classify the error
 	err := fmt.Errorf("connection refused")
-	errorType := classifier.ClassifyError(err)
+	errorType := classifier.Classify(err)
 
 	if errorType != query.ErrorTypeTransient {
 		t.Errorf("Error classification = %v, want %v", errorType, query.ErrorTypeTransient)
@@ -27,8 +27,6 @@ func TestMongoDBConnectionFailure(t *testing.T) {
 	if !classifier.IsTransient(err) {
 		t.Errorf("Error should be classified as transient")
 	}
-
-	logger.Info("MongoDB connection failure test passed")
 }
 
 // TestPostgreSQLConnectionFailure tests PostgreSQL connection failure handling
@@ -37,7 +35,7 @@ func TestPostgreSQLConnectionFailure(t *testing.T) {
 
 	// Create a PostgreSQL connection error
 	err := fmt.Errorf("connection refused")
-	errorType := classifier.ClassifyError(err)
+	errorType := classifier.Classify(err)
 
 	if errorType != query.ErrorTypeTransient {
 		t.Errorf("Error classification = %v, want %v", errorType, query.ErrorTypeTransient)
@@ -54,7 +52,7 @@ func TestTimeoutDuringQuery(t *testing.T) {
 
 	// Create a timeout error
 	err := fmt.Errorf("context deadline exceeded")
-	errorType := classifier.ClassifyError(err)
+	errorType := classifier.Classify(err)
 
 	if errorType != query.ErrorTypeTransient {
 		t.Errorf("Error classification = %v, want %v", errorType, query.ErrorTypeTransient)
@@ -71,7 +69,7 @@ func TestDuplicateKeyError(t *testing.T) {
 
 	// Create a duplicate key error
 	err := fmt.Errorf("duplicate key error")
-	errorType := classifier.ClassifyError(err)
+	errorType := classifier.Classify(err)
 
 	if errorType != query.ErrorTypePermanent {
 		t.Errorf("Error classification = %v, want %v", errorType, query.ErrorTypePermanent)
@@ -88,7 +86,7 @@ func TestConstraintViolation(t *testing.T) {
 
 	// Create a constraint violation error
 	err := fmt.Errorf("unique constraint violation")
-	errorType := classifier.ClassifyError(err)
+	errorType := classifier.Classify(err)
 
 	if errorType != query.ErrorTypePermanent {
 		t.Errorf("Error classification = %v, want %v", errorType, query.ErrorTypePermanent)
@@ -105,7 +103,7 @@ func TestNetworkPartition(t *testing.T) {
 
 	// Create a network partition error
 	err := fmt.Errorf("network unreachable")
-	errorType := classifier.ClassifyError(err)
+	errorType := classifier.Classify(err)
 
 	if errorType != query.ErrorTypeTransient {
 		t.Errorf("Error classification = %v, want %v", errorType, query.ErrorTypeTransient)
@@ -243,10 +241,7 @@ func TestErrorLogging(t *testing.T) {
 	logger := &MockLogger{}
 
 	// Log an error
-	logger.Error("Test error", map[string]interface{}{
-		"component": "test",
-		"error":     "test error message",
-	})
+	logger.Error("Test error", "component", "test", "error", "test error message")
 
 	// Verify logging occurred
 }
@@ -284,15 +279,21 @@ const (
 )
 
 type MockEventStoreWithFailure struct {
+	mu             sync.Mutex
 	failureMode    FailureMode
 	failureCount   int
 	currentAttempt int
 }
 
 func (m *MockEventStoreWithFailure) StoreEvent(ctx context.Context, event *core.BlockchainEvent) error {
+	m.mu.Lock()
 	m.currentAttempt++
-	if m.currentAttempt <= m.failureCount {
-		switch m.failureMode {
+	currentAttempt := m.currentAttempt
+	failureCount := m.failureCount
+	failureMode := m.failureMode
+	m.mu.Unlock()
+	if currentAttempt <= failureCount {
+		switch failureMode {
 		case FailureConnectionRefused:
 			return fmt.Errorf("connection refused")
 		case FailureTimeout:

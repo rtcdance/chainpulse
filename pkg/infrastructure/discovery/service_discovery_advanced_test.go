@@ -10,6 +10,7 @@ import (
 
 // TestRoutingUpdateStructure tests RoutingUpdate structure
 func TestRoutingUpdateStructure(t *testing.T) {
+	t.Parallel()
 	services := []*ServiceInfo{
 		{ID: "service-1", Name: "api", Port: 8080},
 		{ID: "service-2", Name: "api", Port: 8081},
@@ -28,6 +29,7 @@ func TestRoutingUpdateStructure(t *testing.T) {
 
 // TestNewAdvancedServiceDiscoveryClient tests creating a new advanced service discovery client
 func TestNewAdvancedServiceDiscoveryClient(t *testing.T) {
+	t.Parallel()
 	discoveryClient := &ServiceDiscoveryClient{}
 	registry := &ServiceRegistry{}
 
@@ -42,6 +44,7 @@ func TestNewAdvancedServiceDiscoveryClient(t *testing.T) {
 
 // TestRegisterRoutingUpdateListener tests registering a routing update listener
 func TestRegisterRoutingUpdateListener(t *testing.T) {
+	t.Parallel()
 	discoveryClient := &ServiceDiscoveryClient{}
 	registry := &ServiceRegistry{}
 	client := NewAdvancedServiceDiscoveryClient(discoveryClient, registry)
@@ -56,6 +59,7 @@ func TestRegisterRoutingUpdateListener(t *testing.T) {
 
 // TestRegisterMultipleListeners tests registering multiple listeners
 func TestRegisterMultipleListeners(t *testing.T) {
+	t.Parallel()
 	discoveryClient := &ServiceDiscoveryClient{}
 	registry := &ServiceRegistry{}
 	client := NewAdvancedServiceDiscoveryClient(discoveryClient, registry)
@@ -73,6 +77,7 @@ func TestRegisterMultipleListeners(t *testing.T) {
 
 // TestRegisterListenersForDifferentServices tests registering listeners for different services
 func TestRegisterListenersForDifferentServices(t *testing.T) {
+	t.Parallel()
 	discoveryClient := &ServiceDiscoveryClient{}
 	registry := &ServiceRegistry{}
 	client := NewAdvancedServiceDiscoveryClient(discoveryClient, registry)
@@ -92,6 +97,7 @@ func TestRegisterListenersForDifferentServices(t *testing.T) {
 
 // TestStartAdvancedServiceDiscoveryClient tests starting the client
 func TestStartAdvancedServiceDiscoveryClient(t *testing.T) {
+	t.Parallel()
 	discoveryClient := &ServiceDiscoveryClient{}
 	registry := &ServiceRegistry{}
 	client := NewAdvancedServiceDiscoveryClient(discoveryClient, registry)
@@ -109,6 +115,7 @@ func TestStartAdvancedServiceDiscoveryClient(t *testing.T) {
 
 // TestStartAlreadyRunning tests starting when already running
 func TestStartAlreadyRunning(t *testing.T) {
+	t.Parallel()
 	discoveryClient := &ServiceDiscoveryClient{}
 	registry := &ServiceRegistry{}
 	client := NewAdvancedServiceDiscoveryClient(discoveryClient, registry)
@@ -126,6 +133,7 @@ func TestStartAlreadyRunning(t *testing.T) {
 
 // TestStopAdvancedServiceDiscoveryClient tests stopping the client
 func TestStopAdvancedServiceDiscoveryClient(t *testing.T) {
+	t.Parallel()
 	discoveryClient := &ServiceDiscoveryClient{}
 	registry := &ServiceRegistry{}
 	client := NewAdvancedServiceDiscoveryClient(discoveryClient, registry)
@@ -141,6 +149,7 @@ func TestStopAdvancedServiceDiscoveryClient(t *testing.T) {
 
 // TestRoutingUpdateTimestamp tests routing update timestamp
 func TestRoutingUpdateTimestamp(t *testing.T) {
+	t.Parallel()
 	before := time.Now()
 	update := RoutingUpdate{
 		ServiceName: "api",
@@ -154,6 +163,7 @@ func TestRoutingUpdateTimestamp(t *testing.T) {
 
 // TestAdvancedServiceDiscoveryClientListenerStorage tests listener storage
 func TestAdvancedServiceDiscoveryClientListenerStorage(t *testing.T) {
+	t.Parallel()
 	discoveryClient := &ServiceDiscoveryClient{}
 	registry := &ServiceRegistry{}
 	client := NewAdvancedServiceDiscoveryClient(discoveryClient, registry)
@@ -170,6 +180,7 @@ func TestAdvancedServiceDiscoveryClientListenerStorage(t *testing.T) {
 
 // TestAdvancedServiceDiscoveryClientConcurrentListenerRegistration tests concurrent listener registration
 func TestAdvancedServiceDiscoveryClientConcurrentListenerRegistration(t *testing.T) {
+	t.Parallel()
 	discoveryClient := &ServiceDiscoveryClient{}
 	registry := &ServiceRegistry{}
 	client := NewAdvancedServiceDiscoveryClient(discoveryClient, registry)
@@ -195,6 +206,7 @@ func TestAdvancedServiceDiscoveryClientConcurrentListenerRegistration(t *testing
 
 // TestRoutingUpdateEmptyServices tests routing update with empty services
 func TestRoutingUpdateEmptyServices(t *testing.T) {
+	t.Parallel()
 	update := RoutingUpdate{
 		ServiceName: "api",
 		Services:    []*ServiceInfo{},
@@ -206,6 +218,7 @@ func TestRoutingUpdateEmptyServices(t *testing.T) {
 
 // TestRoutingUpdateMultipleServices tests routing update with multiple services
 func TestRoutingUpdateMultipleServices(t *testing.T) {
+	t.Parallel()
 	services := make([]*ServiceInfo, 10)
 	for i := 0; i < 10; i++ {
 		services[i] = &ServiceInfo{ID: "service-" + string(rune(i))}
@@ -222,6 +235,7 @@ func TestRoutingUpdateMultipleServices(t *testing.T) {
 
 // TestAdvancedServiceDiscoveryClientInitialState tests initial state
 func TestAdvancedServiceDiscoveryClientInitialState(t *testing.T) {
+	t.Parallel()
 	discoveryClient := &ServiceDiscoveryClient{}
 	registry := &ServiceRegistry{}
 	client := NewAdvancedServiceDiscoveryClient(discoveryClient, registry)
@@ -237,6 +251,7 @@ func TestAdvancedServiceDiscoveryClientInitialState(t *testing.T) {
 
 // TestAdvancedServiceDiscoveryClientReferences tests client references
 func TestAdvancedServiceDiscoveryClientReferences(t *testing.T) {
+	t.Parallel()
 	discoveryClient := &ServiceDiscoveryClient{}
 	registry := &ServiceRegistry{}
 	client := NewAdvancedServiceDiscoveryClient(discoveryClient, registry)
@@ -247,6 +262,7 @@ func TestAdvancedServiceDiscoveryClientReferences(t *testing.T) {
 
 // TestRoutingUpdateServiceName tests routing update service name
 func TestRoutingUpdateServiceName(t *testing.T) {
+	t.Parallel()
 	serviceNames := []string{"api", "auth", "database", "cache"}
 
 	for _, name := range serviceNames {
@@ -259,6 +275,7 @@ func TestRoutingUpdateServiceName(t *testing.T) {
 
 // TestAdvancedServiceDiscoveryClientStopWhenNotRunning tests stopping when not running
 func TestAdvancedServiceDiscoveryClientStopWhenNotRunning(t *testing.T) {
+	t.Parallel()
 	discoveryClient := &ServiceDiscoveryClient{}
 	registry := &ServiceRegistry{}
 	client := NewAdvancedServiceDiscoveryClient(discoveryClient, registry)
@@ -273,6 +290,7 @@ func TestAdvancedServiceDiscoveryClientStopWhenNotRunning(t *testing.T) {
 
 // TestAdvancedServiceDiscoveryClientMultipleStarts tests multiple starts and stops
 func TestAdvancedServiceDiscoveryClientMultipleStarts(t *testing.T) {
+	t.Parallel()
 	discoveryClient := &ServiceDiscoveryClient{}
 	registry := &ServiceRegistry{}
 	client := NewAdvancedServiceDiscoveryClient(discoveryClient, registry)

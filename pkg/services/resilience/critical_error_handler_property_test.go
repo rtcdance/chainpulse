@@ -11,6 +11,7 @@ import (
 // Validates that critical errors are handled safely and prevent data corruption
 
 func TestProperty_CriticalErrorSafety_ErrorReporting(t *testing.T) {
+	t.Parallel()
 	// Property: All reported critical errors must be retrievable
 	ceh := NewDefaultCriticalErrorHandler(100)
 	ctx := context.Background()
@@ -20,7 +21,7 @@ func TestProperty_CriticalErrorSafety_ErrorReporting(t *testing.T) {
 			Type:        CriticalErrorTypeSystemFailure,
 			Message:     fmt.Sprintf("error_%d", trial),
 			Component:   "test",
-			Details:     make(map[string]interface{}),
+			Details:     make(map[string]any),
 			Recoverable: true,
 		}
 
@@ -37,6 +38,7 @@ func TestProperty_CriticalErrorSafety_ErrorReporting(t *testing.T) {
 }
 
 func TestProperty_CriticalErrorSafety_SafeModeTransitions(t *testing.T) {
+	t.Parallel()
 	// Property: Safe mode transitions must be valid
 	ceh := NewDefaultCriticalErrorHandler(10)
 	ctx := context.Background()
@@ -65,6 +67,7 @@ func TestProperty_CriticalErrorSafety_SafeModeTransitions(t *testing.T) {
 }
 
 func TestProperty_CriticalErrorSafety_DataCorruptionDetection(t *testing.T) {
+	t.Parallel()
 	// Property: Data corruption errors must trigger safe mode
 	ceh := NewDefaultCriticalErrorHandler(10)
 	ctx := context.Background()
@@ -74,7 +77,7 @@ func TestProperty_CriticalErrorSafety_DataCorruptionDetection(t *testing.T) {
 			Type:        CriticalErrorTypeDataCorruption,
 			Message:     fmt.Sprintf("corruption_%d", trial),
 			Component:   "database",
-			Details:     make(map[string]interface{}),
+			Details:     make(map[string]any),
 			Recoverable: false,
 		}
 
@@ -90,6 +93,7 @@ func TestProperty_CriticalErrorSafety_DataCorruptionDetection(t *testing.T) {
 }
 
 func TestProperty_CriticalErrorSafety_AlertGeneration(t *testing.T) {
+	t.Parallel()
 	// Property: Each critical error must generate an alert
 	ceh := NewDefaultCriticalErrorHandler(100)
 	ctx := context.Background()
@@ -99,7 +103,7 @@ func TestProperty_CriticalErrorSafety_AlertGeneration(t *testing.T) {
 			Type:        CriticalErrorTypeSystemFailure,
 			Message:     fmt.Sprintf("failure_%d", trial),
 			Component:   "core",
-			Details:     make(map[string]interface{}),
+			Details:     make(map[string]any),
 			Recoverable: true,
 		}
 
@@ -113,6 +117,7 @@ func TestProperty_CriticalErrorSafety_AlertGeneration(t *testing.T) {
 }
 
 func TestProperty_CriticalErrorSafety_AlertAcknowledgment(t *testing.T) {
+	t.Parallel()
 	// Property: Acknowledged alerts must be marked as notified
 	ceh := NewDefaultCriticalErrorHandler(10)
 	ctx := context.Background()
@@ -122,7 +127,7 @@ func TestProperty_CriticalErrorSafety_AlertAcknowledgment(t *testing.T) {
 			Type:        CriticalErrorTypeResourceExhaustion,
 			Message:     fmt.Sprintf("exhaustion_%d", trial),
 			Component:   "memory",
-			Details:     make(map[string]interface{}),
+			Details:     make(map[string]any),
 			Recoverable: true,
 		}
 
@@ -145,6 +150,7 @@ func TestProperty_CriticalErrorSafety_AlertAcknowledgment(t *testing.T) {
 }
 
 func TestProperty_CriticalErrorSafety_ErrorTypeTracking(t *testing.T) {
+	t.Parallel()
 	// Property: Error types must be tracked accurately
 	ceh := NewDefaultCriticalErrorHandler(100)
 	ctx := context.Background()
@@ -162,7 +168,7 @@ func TestProperty_CriticalErrorSafety_ErrorTypeTracking(t *testing.T) {
 				Type:        errorType,
 				Message:     fmt.Sprintf("error_%s_%d", errorType, i),
 				Component:   "test",
-				Details:     make(map[string]interface{}),
+				Details:     make(map[string]any),
 				Recoverable: true,
 			}
 
@@ -192,6 +198,7 @@ func TestProperty_CriticalErrorSafety_ErrorTypeTracking(t *testing.T) {
 }
 
 func TestProperty_CriticalErrorSafety_HealthStatus(t *testing.T) {
+	t.Parallel()
 	// Property: Health status must reflect safe mode state
 	ceh := NewDefaultCriticalErrorHandler(10)
 	ctx := context.Background()
@@ -211,6 +218,7 @@ func TestProperty_CriticalErrorSafety_HealthStatus(t *testing.T) {
 }
 
 func TestProperty_CriticalErrorSafety_DataCorruptionDetector(t *testing.T) {
+	t.Parallel()
 	// Property: Data corruption detector must verify integrity correctly
 	dcd := NewDefaultDataCorruptionDetector()
 	ctx := context.Background()
@@ -234,6 +242,7 @@ func TestProperty_CriticalErrorSafety_DataCorruptionDetector(t *testing.T) {
 }
 
 func TestProperty_CriticalErrorSafety_AlerterHistory(t *testing.T) {
+	t.Parallel()
 	// Property: Alert history must maintain insertion order
 	cea := NewDefaultCriticalErrorAlerter(100)
 	ctx := context.Background()
@@ -244,7 +253,7 @@ func TestProperty_CriticalErrorSafety_AlerterHistory(t *testing.T) {
 				Type:      CriticalErrorTypeSystemFailure,
 				Message:   fmt.Sprintf("alert_%d", trial),
 				Component: "test",
-				Details:   make(map[string]interface{}),
+				Details:   make(map[string]any),
 			},
 			AlertTime: time.Now(),
 			Severity:  "critical",
@@ -268,6 +277,7 @@ func TestProperty_CriticalErrorSafety_AlerterHistory(t *testing.T) {
 }
 
 func TestProperty_CriticalErrorSafety_SeverityDetermination(t *testing.T) {
+	t.Parallel()
 	// Property: Error severity must be determined correctly
 	ceh := NewDefaultCriticalErrorHandler(10)
 	ctx := context.Background()
@@ -287,7 +297,7 @@ func TestProperty_CriticalErrorSafety_SeverityDetermination(t *testing.T) {
 			Type:        tc.errorType,
 			Message:     "test",
 			Component:   "test",
-			Details:     make(map[string]interface{}),
+			Details:     make(map[string]any),
 			Recoverable: true,
 		}
 
@@ -305,6 +315,7 @@ func TestProperty_CriticalErrorSafety_SeverityDetermination(t *testing.T) {
 }
 
 func TestProperty_CriticalErrorSafety_ActionDetermination(t *testing.T) {
+	t.Parallel()
 	// Property: Error action must be determined correctly
 	ceh := NewDefaultCriticalErrorHandler(10)
 	ctx := context.Background()
@@ -324,7 +335,7 @@ func TestProperty_CriticalErrorSafety_ActionDetermination(t *testing.T) {
 			Type:        tc.errorType,
 			Message:     "test",
 			Component:   "test",
-			Details:     make(map[string]interface{}),
+			Details:     make(map[string]any),
 			Recoverable: true,
 		}
 
@@ -340,6 +351,7 @@ func TestProperty_CriticalErrorSafety_ActionDetermination(t *testing.T) {
 }
 
 func TestProperty_CriticalErrorSafety_ConcurrentErrorReporting(t *testing.T) {
+	t.Parallel()
 	// Property: Concurrent error reporting must be safe
 	ceh := NewDefaultCriticalErrorHandler(100)
 	ctx := context.Background()
@@ -352,7 +364,7 @@ func TestProperty_CriticalErrorSafety_ConcurrentErrorReporting(t *testing.T) {
 				Type:        CriticalErrorTypeSystemFailure,
 				Message:     fmt.Sprintf("error_%d", index),
 				Component:   "test",
-				Details:     make(map[string]interface{}),
+				Details:     make(map[string]any),
 				Recoverable: true,
 			}
 
@@ -375,6 +387,7 @@ func TestProperty_CriticalErrorSafety_ConcurrentErrorReporting(t *testing.T) {
 }
 
 func TestProperty_CriticalErrorSafety_ErrorHistoryLimit(t *testing.T) {
+	t.Parallel()
 	// Property: Error history must respect size limit
 	ceh := NewDefaultCriticalErrorHandler(10)
 	ctx := context.Background()
@@ -385,7 +398,7 @@ func TestProperty_CriticalErrorSafety_ErrorHistoryLimit(t *testing.T) {
 			Type:        CriticalErrorTypeSystemFailure,
 			Message:     fmt.Sprintf("error_%d", i),
 			Component:   "test",
-			Details:     make(map[string]interface{}),
+			Details:     make(map[string]any),
 			Recoverable: true,
 		}
 
@@ -399,6 +412,7 @@ func TestProperty_CriticalErrorSafety_ErrorHistoryLimit(t *testing.T) {
 }
 
 func TestProperty_CriticalErrorSafety_LastErrorTracking(t *testing.T) {
+	t.Parallel()
 	// Property: Last critical error must be tracked
 	ceh := NewDefaultCriticalErrorHandler(10)
 	ctx := context.Background()
@@ -408,7 +422,7 @@ func TestProperty_CriticalErrorSafety_LastErrorTracking(t *testing.T) {
 			Type:        CriticalErrorTypeSystemFailure,
 			Message:     fmt.Sprintf("error_%d", trial),
 			Component:   "test",
-			Details:     make(map[string]interface{}),
+			Details:     make(map[string]any),
 			Recoverable: true,
 		}
 
@@ -422,6 +436,7 @@ func TestProperty_CriticalErrorSafety_LastErrorTracking(t *testing.T) {
 }
 
 func TestProperty_CriticalErrorSafety_AlerterHistoryLimit(t *testing.T) {
+	t.Parallel()
 	// Property: Alert history must respect size limit
 	cea := NewDefaultCriticalErrorAlerter(10)
 	ctx := context.Background()
@@ -433,7 +448,7 @@ func TestProperty_CriticalErrorSafety_AlerterHistoryLimit(t *testing.T) {
 				Type:      CriticalErrorTypeSystemFailure,
 				Message:   fmt.Sprintf("alert_%d", i),
 				Component: "test",
-				Details:   make(map[string]interface{}),
+				Details:   make(map[string]any),
 			},
 			AlertTime: time.Now(),
 			Severity:  "critical",

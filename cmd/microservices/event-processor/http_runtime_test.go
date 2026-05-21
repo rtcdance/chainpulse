@@ -8,8 +8,9 @@ import (
 	"strings"
 	"testing"
 
-	"chainpulse/pkg/core"
-	"chainpulse/pkg/plugins/api"
+	"github.com/rtcdance/chainpulse/pkg/application/bootstrap"
+	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/plugins/api"
 )
 
 func TestBuildEventProcessorRuntimeHTTPHandlerExposesRolloutRoute(t *testing.T) {
@@ -62,14 +63,14 @@ func TestBuildEventProcessorRuntimeHTTPHandlerExposesReadyAndComponentsDetails(t
 			Name:      "Indexing Runtime",
 			Status:    "healthy",
 			Timestamp: 1712345678,
-			Details: map[string]interface{}{
+			Details: map[string]any{
 				"runtime_mode":          "runtime-wired",
 				"rollout_gate_decision": "allow",
 			},
 		}
 	})
-	handler.SetReadinessDetailsProvider(func(ctx context.Context) map[string]interface{} {
-		return map[string]interface{}{
+	handler.SetReadinessDetailsProvider(func(ctx context.Context) map[string]any {
+		return map[string]any{
 			"runtime_mode":          "runtime-wired",
 			"rollout_gate_decision": "allow",
 			"rollout_status":        "runtime-wired",
@@ -167,23 +168,23 @@ func TestBuildEventProcessorRuntimeHTTPHandlerExposesRuntimeSummaryRoute(t *test
 			RuntimeMode:    "runtime-wired",
 			RuntimePosture: "runtime-wired",
 			ComponentState: "healthy",
-			Rollout: map[string]interface{}{
+			Rollout: map[string]any{
 				"rollout_gate_decision":     "allow",
 				"consumer_progress_posture": "consumer-advancing",
 			},
-			Processor: map[string]interface{}{
+			Processor: map[string]any{
 				"runtime_ready":      true,
 				"health_status":      "healthy",
 				"execution_boundary": "consume-process-seam",
 			},
-			Metrics: map[string]interface{}{
+			Metrics: map[string]any{
 				"collector_state":   "available",
 				"counter_count":     1,
 				"gauge_count":       1,
 				"histogram_count":   0,
 				"execution_summary": "counters=1 gauges=1 histograms=0",
 			},
-			Security: map[string]interface{}{
+			Security: map[string]any{
 				"auth_enabled":       false,
 				"rate_limit_enabled": false,
 				"security_posture":   "event-processor-security-unconfigured",
@@ -256,7 +257,10 @@ func TestBuildEventProcessorRuntimeHTTPHandlerExposesControlRoutes(t *testing.T)
 		core.NewDefaultMetricsCollector(),
 		nil,
 		nil,
+		nil,
 		[]string{"raw-events", "blockchain-events"},
+		[]string{"processed-events"},
+		nil,
 	)
 
 	mux := buildEventProcessorRuntimeHTTPHandler(nil, nil, nil, controller)
@@ -341,14 +345,17 @@ func TestBuildEventProcessorRuntimeHTTPHandlerSecuritySurfaceProtectsControlRout
 		metrics,
 		nil,
 		nil,
+		nil,
 		[]string{"raw-events"},
+		[]string{"processed-events"},
+		nil,
 	)
 
 	mux := buildEventProcessorRuntimeHTTPHandler(handler, metrics, nil, controller)
 	authMiddleware, rateLimitMiddleware, err := buildEventProcessorSecurityControls(EventProcessorConfig{
 		AuthEnabled:   true,
 		AuthJWTSecret: "secret-123",
-		AuthAPIKeys:   []string{"svc-key=client-1"},
+		AuthAPIKeys: []core.SecretString{core.SecretString("svc-key=client-1")},
 	}, logger, metrics)
 	if err != nil {
 		t.Fatalf("build security controls: %v", err)
@@ -369,4 +376,16 @@ func TestBuildEventProcessorRuntimeHTTPHandlerSecuritySurfaceProtectsControlRout
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected control status 200 with api key, got %d body=%s", rec.Code, rec.Body.String())
 	}
+}
+
+func buildEventProcessorSecurityControls(cfg EventProcessorConfig, logger core.Logger, metrics core.MetricsCollector) (*api.AuthMiddleware, *api.RateLimitMiddleware, error) {
+	return bootstrap.BuildSecurityControls(bootstrap.SecurityControlsConfig{
+		AuthEnabled:        cfg.AuthEnabled,
+		AuthJWTSecret:      cfg.AuthJWTSecret,
+		AuthAPIKeys:        cfg.AuthAPIKeys,
+		RateLimitEnabled:   cfg.RateLimitEnabled,
+		RateLimitPerMinute: cfg.RateLimitPerMinute,
+		ServiceName:        "event-processor",
+		EnvPrefix:          "EVENT_PROCESSOR",
+	}, logger, metrics)
 }

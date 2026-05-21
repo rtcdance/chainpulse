@@ -9,10 +9,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"chainpulse/pkg/application/bootstrap"
-	appindexing "chainpulse/pkg/application/indexing"
-	"chainpulse/pkg/core"
-	"chainpulse/pkg/plugins/api"
+	"github.com/rtcdance/chainpulse/pkg/application/bootstrap"
+	appindexing "github.com/rtcdance/chainpulse/pkg/application/indexing"
+	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/plugins/api"
 )
 
 type replayRouteRuntimeStub struct {

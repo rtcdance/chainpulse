@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kafka-config
+  namespace: chainpulse
+data:
+  kafka_server_jaas.conf: |
+    KafkaServer {
+      org.apache.kafka.common.security.plain.PlainLoginModule required
+      username="${KAFKA_SASL_USERNAME}"
+      password="${KAFKA_SASL_PASSWORD}"
+      user_${KAFKA_SASL_USERNAME}="${KAFKA_SASL_PASSWORD}";
+    };
+    Client {
+      org.apache.kafka.common.security.plain.PlainLoginModule required
+      username="${KAFKA_SASL_USERNAME}"
+      password="${KAFKA_SASL_PASSWORD}";
+    };
+  kafka-client.properties: |
+    security.protocol=SASL_PLAINTEXT
+    sasl.mechanism=PLAIN
+    sasl.jaas.config=org.apache.kafka.common.security.plain.PlainLoginModule required username="${KAFKA_SASL_USERNAME}" password="${KAFKA_SASL_PASSWORD}";

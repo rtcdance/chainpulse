@@ -3,6 +3,7 @@ package business
 import (
 	"context"
 	"fmt"
+	"log"
 	"time"
 )
 
@@ -31,7 +32,7 @@ type ProductBackend interface {
 	Update(ctx context.Context, product *Product) (*Product, error)
 	Delete(ctx context.Context, id string) error
 	List(ctx context.Context, limit, offset int) ([]*Product, error)
-	Query(ctx context.Context, filter map[string]interface{}, limit, offset int) ([]*Product, error)
+	Query(ctx context.Context, filter map[string]any, limit, offset int) ([]*Product, error)
 	GetByCategory(ctx context.Context, category string, limit, offset int) ([]*Product, error)
 	UpdateStock(ctx context.Context, id string, quantity int64) error
 }
@@ -57,7 +58,11 @@ func (s *ProductService) CreateProduct(ctx context.Context, product *Product) (*
 	if err != nil {
 		return nil, err
 	}
-	return entity.(*Product), nil
+	product, ok := entity.(*Product)
+	if !ok {
+		return nil, fmt.Errorf("unexpected entity type: %T", entity)
+	}
+	return product, nil
 }
 
 // GetProduct retrieves a product by ID
@@ -66,7 +71,11 @@ func (s *ProductService) GetProduct(ctx context.Context, id string) (*Product, e
 	if err != nil {
 		return nil, err
 	}
-	return entity.(*Product), nil
+	product, ok := entity.(*Product)
+	if !ok {
+		return nil, fmt.Errorf("unexpected entity type: %T", entity)
+	}
+	return product, nil
 }
 
 // UpdateProduct updates an existing product
@@ -75,7 +84,11 @@ func (s *ProductService) UpdateProduct(ctx context.Context, product *Product) (*
 	if err != nil {
 		return nil, err
 	}
-	return entity.(*Product), nil
+	p, ok := entity.(*Product)
+	if !ok {
+		return nil, fmt.Errorf("unexpected entity type: %T", entity)
+	}
+	return p, nil
 }
 
 // DeleteProduct deletes a product
@@ -92,13 +105,17 @@ func (s *ProductService) ListProducts(ctx context.Context, limit, offset int) ([
 
 	products := make([]*Product, len(entities))
 	for i, entity := range entities {
-		products[i] = entity.(*Product)
+		p, ok := entity.(*Product)
+		if !ok {
+			return nil, fmt.Errorf("unexpected entity type: %T", entity)
+		}
+		products[i] = p
 	}
 	return products, nil
 }
 
 // QueryProducts queries products with filtering
-func (s *ProductService) QueryProducts(ctx context.Context, filter map[string]interface{}, limit, offset int) ([]*Product, error) {
+func (s *ProductService) QueryProducts(ctx context.Context, filter map[string]any, limit, offset int) ([]*Product, error) {
 	entities, err := s.Query(ctx, filter, limit, offset)
 	if err != nil {
 		return nil, err
@@ -106,7 +123,11 @@ func (s *ProductService) QueryProducts(ctx context.Context, filter map[string]in
 
 	products := make([]*Product, len(entities))
 	for i, entity := range entities {
-		products[i] = entity.(*Product)
+		p, ok := entity.(*Product)
+		if !ok {
+			return nil, fmt.Errorf("unexpected entity type: %T", entity)
+		}
+		products[i] = p
 	}
 	return products, nil
 }
@@ -117,7 +138,11 @@ func (s *ProductService) GetProductsByCategory(ctx context.Context, category str
 	cacheKey := fmt.Sprintf("product-service:category:%s:limit:%d:offset:%d", category, limit, offset)
 	if s.cache != nil {
 		if cached, err := s.cache.Get(ctx, cacheKey); err == nil && cached != nil {
-			return cached.([]*Product), nil
+			products, ok := cached.([]*Product)
+			if !ok {
+				return nil, fmt.Errorf("unexpected cached type: %T", cached)
+			}
+			return products, nil
 		}
 	}
 
@@ -129,7 +154,9 @@ func (s *ProductService) GetProductsByCategory(ctx context.Context, category str
 
 	// Cache result
 	if s.cache != nil && products != nil {
-		_ = s.cache.Set(ctx, cacheKey, products, 5*time.Minute)
+		if err := s.cache.Set(ctx, cacheKey, products, 5*time.Minute); err != nil {
+			log.Printf("ProductService: cache set error for key %s: %v", cacheKey, err)
+		}
 	}
 
 	return products, nil
@@ -146,7 +173,9 @@ func (s *ProductService) UpdateProductStock(ctx context.Context, id string, quan
 	// Invalidate cache for this product
 	if s.cache != nil {
 		cacheKey := fmt.Sprintf("product-service:read:%s", id)
-		_ = s.cache.Delete(ctx, cacheKey)
+		if err := s.cache.Delete(ctx, cacheKey); err != nil {
+			log.Printf("ProductService: cache delete error for key %s: %v", cacheKey, err)
+		}
 	}
 
 	return nil
@@ -158,7 +187,10 @@ type productServiceAdapter struct {
 }
 
 func (a *productServiceAdapter) Create(ctx context.Context, entity Entity) (Entity, error) {
-	product := entity.(*Product)
+	product, ok := entity.(*Product)
+	if !ok {
+		return nil, fmt.Errorf("expected *Product, got %T", entity)
+	}
 	return a.backend.Create(ctx, product)
 }
 
@@ -167,7 +199,10 @@ func (a *productServiceAdapter) Read(ctx context.Context, id string) (Entity, er
 }
 
 func (a *productServiceAdapter) Update(ctx context.Context, entity Entity) (Entity, error) {
-	product := entity.(*Product)
+	product, ok := entity.(*Product)
+	if !ok {
+		return nil, fmt.Errorf("expected *Product, got %T", entity)
+	}
 	return a.backend.Update(ctx, product)
 }
 
@@ -188,7 +223,7 @@ func (a *productServiceAdapter) List(ctx context.Context, limit, offset int) ([]
 	return entities, nil
 }
 
-func (a *productServiceAdapter) Query(ctx context.Context, filter map[string]interface{}, limit, offset int) ([]Entity, error) {
+func (a *productServiceAdapter) Query(ctx context.Context, filter map[string]any, limit, offset int) ([]Entity, error) {
 	products, err := a.backend.Query(ctx, filter, limit, offset)
 	if err != nil {
 		return nil, err

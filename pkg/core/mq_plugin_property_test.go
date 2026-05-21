@@ -16,6 +16,7 @@ import (
 
 // TestProperty8_DeadLetterQueueConsistency tests that DLQ maintains consistency
 func TestProperty8_DeadLetterQueueConsistency(t *testing.T) {
+	t.Parallel()
 	// Property: Dead letter queue SHALL maintain consistency across operations
 	config := Config{
 		BlockchainNodeURL: "localhost:50051",
@@ -73,6 +74,7 @@ func TestProperty8_DeadLetterQueueConsistency(t *testing.T) {
 
 // TestProperty8_RetryLogicCorrectness tests that retry logic is correct
 func TestProperty8_RetryLogicCorrectness(t *testing.T) {
+	t.Parallel()
 	// Property: Retry logic SHALL enforce max retries and move to DLQ after max retries exceeded
 	config := Config{
 		BlockchainNodeURL: "localhost:50051",
@@ -126,6 +128,7 @@ func TestProperty8_RetryLogicCorrectness(t *testing.T) {
 
 // TestProperty8_MessageOrderingInDLQ tests that message ordering is maintained in DLQ
 func TestProperty8_MessageOrderingInDLQ(t *testing.T) {
+	t.Parallel()
 	// Property: Message ordering SHALL be maintained in dead letter queue
 	config := Config{
 		BlockchainNodeURL: "localhost:50051",
@@ -187,6 +190,7 @@ func TestProperty8_MessageOrderingInDLQ(t *testing.T) {
 
 // TestProperty8_DeadLetterQueueReasonPreservation tests that failure reasons are preserved
 func TestProperty8_DeadLetterQueueReasonPreservation(t *testing.T) {
+	t.Parallel()
 	// Property: Failure reasons SHALL be preserved in dead letter queue
 	config := Config{
 		BlockchainNodeURL: "localhost:50051",
@@ -245,6 +249,7 @@ func TestProperty8_DeadLetterQueueReasonPreservation(t *testing.T) {
 
 // TestProperty8_ConcurrentDLQOperations tests concurrent DLQ operations
 func TestProperty8_ConcurrentDLQOperations(t *testing.T) {
+	t.Parallel()
 	// Property: Concurrent DLQ operations SHALL maintain consistency
 	config := Config{
 		BlockchainNodeURL: "localhost:50051",
@@ -302,6 +307,7 @@ func TestProperty8_ConcurrentDLQOperations(t *testing.T) {
 
 // TestProperty8_DLQSizeTracking tests that DLQ size is accurately tracked
 func TestProperty8_DLQSizeTracking(t *testing.T) {
+	t.Parallel()
 	// Property: DLQ size SHALL be accurately tracked across operations
 	config := Config{
 		BlockchainNodeURL: "localhost:50051",
@@ -353,6 +359,7 @@ func TestProperty8_DLQSizeTracking(t *testing.T) {
 
 // TestProperty8_RetryDelayRespected tests that retry delay is respected
 func TestProperty8_RetryDelayRespected(t *testing.T) {
+	t.Parallel()
 	// Property: Retry delay SHALL be respected between retries
 	config := Config{
 		BlockchainNodeURL: "localhost:50051",
@@ -403,6 +410,7 @@ func TestProperty8_RetryDelayRespected(t *testing.T) {
 
 // TestProperty8_MessageDeliveryGuarantees tests message delivery guarantees
 func TestProperty8_MessageDeliveryGuarantees(t *testing.T) {
+	t.Parallel()
 	// Property: Messages SHALL be delivered exactly once or moved to DLQ
 	config := Config{
 		BlockchainNodeURL: "localhost:50051",
@@ -457,6 +465,7 @@ func TestProperty8_MessageDeliveryGuarantees(t *testing.T) {
 
 // TestProperty8_DLQMetricsCollection tests that DLQ metrics are collected
 func TestProperty8_DLQMetricsCollection(t *testing.T) {
+	t.Parallel()
 	// Property: DLQ operations SHALL be tracked in metrics
 	config := Config{
 		BlockchainNodeURL: "localhost:50051",
@@ -503,6 +512,7 @@ func TestProperty8_DLQMetricsCollection(t *testing.T) {
 
 // TestProperty8_ConcurrentRetryAndDLQ tests concurrent retry and DLQ operations
 func TestProperty8_ConcurrentRetryAndDLQ(t *testing.T) {
+	t.Parallel()
 	// Property: Concurrent retry and DLQ operations SHALL maintain consistency
 	config := Config{
 		BlockchainNodeURL: "localhost:50051",
@@ -573,6 +583,7 @@ func TestProperty8_ConcurrentRetryAndDLQ(t *testing.T) {
 
 // TestProperty8_DLQRecovery tests DLQ recovery scenarios
 func TestProperty8_DLQRecovery(t *testing.T) {
+	t.Parallel()
 	// Property: Messages in DLQ SHALL be recoverable
 	config := Config{
 		BlockchainNodeURL: "localhost:50051",
@@ -640,6 +651,7 @@ func TestProperty8_DLQRecovery(t *testing.T) {
 
 // TestProperty2_ExactlyOnceSemantics tests that messages are processed exactly once
 func TestProperty2_ExactlyOnceSemantics(t *testing.T) {
+	t.Parallel()
 	// Property: Each message SHALL be processed exactly once
 	config := Config{
 		BlockchainNodeURL: "localhost:50051",
@@ -713,6 +725,7 @@ func TestProperty2_ExactlyOnceSemantics(t *testing.T) {
 
 // TestProperty2_OffsetTracking tests that offsets are tracked correctly
 func TestProperty2_OffsetTracking(t *testing.T) {
+	t.Parallel()
 	// Property: Offsets SHALL be tracked to prevent duplicate processing
 	config := Config{
 		BlockchainNodeURL: "localhost:50051",
@@ -760,6 +773,7 @@ func TestProperty2_OffsetTracking(t *testing.T) {
 
 // TestProperty2_HandlerInvocation tests that handlers are invoked correctly
 func TestProperty2_HandlerInvocation(t *testing.T) {
+	t.Parallel()
 	// Property: Handler SHALL be invoked for each message
 	config := Config{
 		BlockchainNodeURL: "localhost:50051",
@@ -813,6 +827,7 @@ func TestProperty2_HandlerInvocation(t *testing.T) {
 
 // TestProperty2_ErrorHandling tests error handling in consumption
 func TestProperty2_ErrorHandling(t *testing.T) {
+	t.Parallel()
 	// Property: Errors in handler SHALL be recorded and not prevent further processing
 	config := Config{
 		BlockchainNodeURL: "localhost:50051",
@@ -881,6 +896,7 @@ func TestProperty2_ErrorHandling(t *testing.T) {
 
 // TestProperty2_GracefulShutdown tests graceful consumer shutdown
 func TestProperty2_GracefulShutdown(t *testing.T) {
+	t.Parallel()
 	// Property: Consumer SHALL shutdown gracefully without losing messages
 	config := Config{
 		BlockchainNodeURL: "localhost:50051",
@@ -934,6 +950,7 @@ func TestProperty2_GracefulShutdown(t *testing.T) {
 
 // TestProperty2_ConcurrentConsumption tests concurrent message consumption
 func TestProperty2_ConcurrentConsumption(t *testing.T) {
+	t.Parallel()
 	// Property: Concurrent consumption SHALL maintain exactly-once semantics
 	config := Config{
 		BlockchainNodeURL: "localhost:50051",
@@ -1004,6 +1021,7 @@ func TestProperty2_ConcurrentConsumption(t *testing.T) {
 
 // TestProperty2_ConsumptionMetrics tests that consumption metrics are recorded
 func TestProperty2_ConsumptionMetrics(t *testing.T) {
+	t.Parallel()
 	// Property: Consumption metrics SHALL be recorded for every message
 	config := Config{
 		BlockchainNodeURL: "localhost:50051",
@@ -1048,6 +1066,7 @@ func TestProperty2_ConsumptionMetrics(t *testing.T) {
 
 // TestProperty2_IdempotentProcessing tests idempotent message processing
 func TestProperty2_IdempotentProcessing(t *testing.T) {
+	t.Parallel()
 	// Property: Message processing SHALL be idempotent
 	config := Config{
 		BlockchainNodeURL: "localhost:50051",
@@ -1105,6 +1124,7 @@ func TestProperty2_IdempotentProcessing(t *testing.T) {
 
 // TestProperty2_OffsetPersistence tests offset persistence
 func TestProperty2_OffsetPersistence(t *testing.T) {
+	t.Parallel()
 	// Property: Offsets SHALL be persisted to prevent reprocessing
 	config := Config{
 		BlockchainNodeURL: "localhost:50051",
@@ -1158,6 +1178,7 @@ func TestProperty2_OffsetPersistence(t *testing.T) {
 
 // TestProperty1_MessageDeliveryGuarantee tests that messages are delivered or moved to DLQ
 func TestProperty1_MessageDeliveryGuarantee(t *testing.T) {
+	t.Parallel()
 	// Property: For any message, it SHALL be delivered or moved to DLQ
 	config := Config{
 		BlockchainNodeURL: "localhost:50051",
@@ -1207,6 +1228,7 @@ func TestProperty1_MessageDeliveryGuarantee(t *testing.T) {
 
 // TestProperty1_MessageIDGeneration tests that message IDs are generated
 func TestProperty1_MessageIDGeneration(t *testing.T) {
+	t.Parallel()
 	// Property: Every message SHALL have a unique ID
 	config := Config{
 		BlockchainNodeURL: "localhost:50051",
@@ -1261,6 +1283,7 @@ func TestProperty1_MessageIDGeneration(t *testing.T) {
 
 // TestProperty1_TimestampAssignment tests that timestamps are assigned
 func TestProperty1_TimestampAssignment(t *testing.T) {
+	t.Parallel()
 	// Property: Every message SHALL have a timestamp
 	config := Config{
 		BlockchainNodeURL: "localhost:50051",
@@ -1315,6 +1338,7 @@ func TestProperty1_TimestampAssignment(t *testing.T) {
 
 // TestProperty1_PartitionKeyRouting tests partition key routing
 func TestProperty1_PartitionKeyRouting(t *testing.T) {
+	t.Parallel()
 	// Property: Messages with same partition key SHALL be routed to same partition
 	config := Config{
 		BlockchainNodeURL: "localhost:50051",
@@ -1368,6 +1392,7 @@ func TestProperty1_PartitionKeyRouting(t *testing.T) {
 
 // TestProperty1_MetricsRecording tests that metrics are recorded
 func TestProperty1_MetricsRecording(t *testing.T) {
+	t.Parallel()
 	// Property: Publishing metrics SHALL be recorded for every message
 	config := Config{
 		BlockchainNodeURL: "localhost:50051",
@@ -1414,6 +1439,7 @@ func TestProperty1_MetricsRecording(t *testing.T) {
 
 // TestProperty1_ConcurrentPublishing tests concurrent message publishing
 func TestProperty1_ConcurrentPublishing(t *testing.T) {
+	t.Parallel()
 	// Property: Concurrent publishing SHALL maintain delivery guarantee
 	config := Config{
 		BlockchainNodeURL: "localhost:50051",
@@ -1475,6 +1501,7 @@ func TestProperty1_ConcurrentPublishing(t *testing.T) {
 
 // TestProperty1_ErrorRecording tests that errors are recorded
 func TestProperty1_ErrorRecording(t *testing.T) {
+	t.Parallel()
 	// Property: Publishing errors SHALL be recorded
 	config := Config{
 		BlockchainNodeURL: "localhost:50051",
@@ -1519,6 +1546,7 @@ func TestProperty1_ErrorRecording(t *testing.T) {
 
 // TestProperty9_ConfigurationValidation_InvalidBatchSize tests that invalid batch sizes are rejected
 func TestProperty9_ConfigurationValidation_InvalidBatchSize(t *testing.T) {
+	t.Parallel()
 	config := Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -1556,6 +1584,7 @@ func TestProperty9_ConfigurationValidation_InvalidBatchSize(t *testing.T) {
 
 // TestProperty9_ConfigurationValidation_InvalidMaxRetries tests that invalid max retries are rejected
 func TestProperty9_ConfigurationValidation_InvalidMaxRetries(t *testing.T) {
+	t.Parallel()
 	config := Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -1593,6 +1622,7 @@ func TestProperty9_ConfigurationValidation_InvalidMaxRetries(t *testing.T) {
 
 // TestProperty9_ConfigurationValidation_InvalidRetryDelay tests that invalid retry delays are rejected
 func TestProperty9_ConfigurationValidation_InvalidRetryDelay(t *testing.T) {
+	t.Parallel()
 	config := Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -1630,6 +1660,7 @@ func TestProperty9_ConfigurationValidation_InvalidRetryDelay(t *testing.T) {
 
 // TestProperty9_ConfigurationValidation_ValidConfigurations tests that valid configurations are accepted
 func TestProperty9_ConfigurationValidation_ValidConfigurations(t *testing.T) {
+	t.Parallel()
 	config := Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -1662,6 +1693,7 @@ func TestProperty9_ConfigurationValidation_ValidConfigurations(t *testing.T) {
 
 // TestProperty9_ConfigurationApplication_BatchSize tests that batch size configuration is applied correctly
 func TestProperty9_ConfigurationApplication_BatchSize(t *testing.T) {
+	t.Parallel()
 	config := Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -1696,6 +1728,7 @@ func TestProperty9_ConfigurationApplication_BatchSize(t *testing.T) {
 
 // TestProperty9_ConfigurationApplication_MaxRetries tests that max retries configuration is applied correctly
 func TestProperty9_ConfigurationApplication_MaxRetries(t *testing.T) {
+	t.Parallel()
 	config := Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -1730,6 +1763,7 @@ func TestProperty9_ConfigurationApplication_MaxRetries(t *testing.T) {
 
 // TestProperty9_ConfigurationApplication_RetryDelay tests that retry delay configuration is applied correctly
 func TestProperty9_ConfigurationApplication_RetryDelay(t *testing.T) {
+	t.Parallel()
 	config := Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -1765,6 +1799,7 @@ func TestProperty9_ConfigurationApplication_RetryDelay(t *testing.T) {
 
 // TestProperty9_ConfigurationValidation_ErrorMessages tests that error messages are clear and helpful
 func TestProperty9_ConfigurationValidation_ErrorMessages(t *testing.T) {
+	t.Parallel()
 	config := Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -1804,6 +1839,7 @@ func TestProperty9_ConfigurationValidation_ErrorMessages(t *testing.T) {
 
 // TestProperty9_ConfigurationValidation_Concurrent tests that configuration validation is thread-safe
 func TestProperty9_ConfigurationValidation_Concurrent(t *testing.T) {
+	t.Parallel()
 	config := Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -1879,6 +1915,7 @@ func TestProperty9_ConfigurationValidation_Concurrent(t *testing.T) {
 
 // TestProperty9_ConfigurationValidation_RejectionWithoutApplication tests that invalid configs are rejected without being applied
 func TestProperty9_ConfigurationValidation_RejectionWithoutApplication(t *testing.T) {
+	t.Parallel()
 	config := Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,
@@ -1929,6 +1966,7 @@ func TestProperty9_ConfigurationValidation_RejectionWithoutApplication(t *testin
 
 // TestProperty9_ConfigurationValidation_BoundaryValues tests configuration validation with boundary values
 func TestProperty9_ConfigurationValidation_BoundaryValues(t *testing.T) {
+	t.Parallel()
 	config := Config{
 		BlockchainNodeURL: "localhost:50051",
 		StartBlock:        0,

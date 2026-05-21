@@ -1,0 +1,19 @@
+# ChainPulse Microservice - Pre-built Binary (Offline-Friendly)
+# Build locally first:
+#   CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -a -installsuffix cgo \
+#     -o build/bin/linux/microservices/<service> ./cmd/microservices/<service>
+#
+# Uses postgres:15-alpine as runtime base for offline friendliness.
+FROM postgres:15-alpine
+
+ARG SERVICE
+RUN apk add --no-cache ca-certificates curl
+
+COPY build/bin/linux/microservices/${SERVICE} /usr/local/bin/service
+
+EXPOSE 8080 8081 8082 8083 50051
+
+HEALTHCHECK --interval=15s --timeout=5s --start-period=30s --retries=10 \
+  CMD wget --no-verbose --tries=1 --spider http://localhost:8080/health || exit 1
+
+CMD ["service"]

@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"log/slog"
 	"sync"
 	"time"
 )
@@ -15,14 +16,17 @@ type Session struct {
 	UserID    string
 	CreatedAt time.Time
 	ExpiresAt time.Time
-	Data      map[string]interface{}
+	Data      map[string]any
 }
 
-// SessionManager manages distributed sessions
+// SessionManager manages distributed sessions with periodic eviction
+// of expired sessions to prevent unbounded memory growth.
 type SessionManager struct {
-	sessions map[string]*Session
-	ttl      time.Duration
-	mutex    sync.RWMutex
+	sessions  map[string]*Session
+	ttl       time.Duration
+	mutex     sync.RWMutex
+	done      chan struct{}
+	closeOnce sync.Once
 }
 
 // NewSessionManager creates a new session manager
@@ -30,6 +34,42 @@ func NewSessionManager() *SessionManager {
 	return &SessionManager{
 		sessions: make(map[string]*Session),
 		ttl:      24 * time.Hour,
+		done:     make(chan struct{}),
+	}
+}
+
+// Start begins the periodic expired-session cleanup goroutine.
+func (sm *SessionManager) Start() {
+	go sm.evictLoop()
+}
+
+// Stop terminates the cleanup goroutine.
+func (sm *SessionManager) Stop() {
+	sm.closeOnce.Do(func() {
+		close(sm.done)
+	})
+}
+
+// evictLoop periodically removes expired sessions to prevent memory leaks
+// in long-running services.
+func (sm *SessionManager) evictLoop() {
+	ticker := time.NewTicker(5 * time.Minute)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-sm.done:
+			return
+		case <-ticker.C:
+			sm.mutex.Lock()
+			now := time.Now()
+			for id, s := range sm.sessions {
+				if now.After(s.ExpiresAt) {
+					delete(sm.sessions, id)
+				}
+			}
+			sm.mutex.Unlock()
+		}
 	}
 }
 
@@ -45,7 +85,7 @@ func (sm *SessionManager) CreateSession(ctx context.Context, userID string) (*Se
 		UserID:    userID,
 		CreatedAt: time.Now(),
 		ExpiresAt: time.Now().Add(sm.ttl),
-		Data:      make(map[string]interface{}),
+		Data:      make(map[string]any),
 	}
 
 	// Store in local map
@@ -69,7 +109,9 @@ func (sm *SessionManager) GetSession(ctx context.Context, sessionID string) (*Se
 
 	// Check expiration
 	if time.Now().After(session.ExpiresAt) {
-		_ = sm.DeleteSession(ctx, sessionID)
+		if err := sm.DeleteSession(ctx, sessionID); err != nil {
+			slog.Warn("failed to delete expired session", "session_id", sessionID, "error", err)
+		}
 		return nil, fmt.Errorf("session expired: %s", sessionID)
 	}
 
@@ -77,23 +119,26 @@ func (sm *SessionManager) GetSession(ctx context.Context, sessionID string) (*Se
 }
 
 // UpdateSession updates session data
-func (sm *SessionManager) UpdateSession(ctx context.Context, sessionID string, data map[string]interface{}) error {
-	session, err := sm.GetSession(ctx, sessionID)
-	if err != nil {
-		return err
+func (sm *SessionManager) UpdateSession(ctx context.Context, sessionID string, data map[string]any) error {
+	sm.mutex.Lock()
+	session, exists := sm.sessions[sessionID]
+	if !exists {
+		sm.mutex.Unlock()
+		return fmt.Errorf("session not found: %s", sessionID)
 	}
 
-	// Update data
+	// Check expiration
+	if time.Now().After(session.ExpiresAt) {
+		delete(sm.sessions, sessionID)
+		sm.mutex.Unlock()
+		return fmt.Errorf("session expired: %s", sessionID)
+	}
+
+	// Update data and expiration under the same lock
 	for key, value := range data {
 		session.Data[key] = value
 	}
-
-	// Update expiration
 	session.ExpiresAt = time.Now().Add(sm.ttl)
-
-	// Update local map
-	sm.mutex.Lock()
-	sm.sessions[sessionID] = session
 	sm.mutex.Unlock()
 
 	return nil
@@ -120,7 +165,7 @@ func generateSessionID() (string, error) {
 
 // SessionCache provides session caching interface
 type SessionCache interface {
-	Set(ctx context.Context, key string, value interface{}, ttl time.Duration) error
-	Get(ctx context.Context, key string) (interface{}, error)
+	Set(ctx context.Context, key string, value any, ttl time.Duration) error
+	Get(ctx context.Context, key string) (any, error)
 	Delete(ctx context.Context, key string) error
 }

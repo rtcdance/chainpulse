@@ -1,0 +1,12 @@
+[profile.default]
+src = "."
+test = "test"
+out = "out"
+libs = ["lib"]
+solc = "0.8.20"
+evm_version = "cancun"
+
+# Install forge-std: forge install foundry-rs/forge-std
+remappings = [
+    "forge-std/=lib/forge-std/src/"
+]

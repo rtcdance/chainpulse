@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/rtcdance/chainpulse/pkg/core"
+
 	"github.com/stretchr/testify/assert"
 )
 
@@ -42,7 +44,7 @@ func getTestPostgresConfig() *PostgresConfig {
 		Host:     host,
 		Port:     port,
 		User:     user,
-		Password: password,
+		Password: core.SecretString(password),
 		Database: database,
 		SSLMode:  "disable",
 	}
@@ -50,6 +52,7 @@ func getTestPostgresConfig() *PostgresConfig {
 
 // TestNewPostgresCluster tests PostgreSQL cluster creation
 func TestNewPostgresCluster(t *testing.T) {
+	t.Parallel()
 	config := getTestPostgresConfig()
 
 	cluster, err := NewPostgresCluster(config)
@@ -64,6 +67,7 @@ func TestNewPostgresCluster(t *testing.T) {
 
 // TestNewPostgresClusterNilConfig tests PostgreSQL cluster creation with nil config
 func TestNewPostgresClusterNilConfig(t *testing.T) {
+	t.Parallel()
 	cluster, err := NewPostgresCluster(nil)
 
 	// Connection may fail if PostgreSQL is not running, but structure should be valid
@@ -78,6 +82,7 @@ func TestNewPostgresClusterNilConfig(t *testing.T) {
 
 // TestPostgresConfigStructure tests PostgreSQL config structure
 func TestPostgresConfigStructure(t *testing.T) {
+	t.Parallel()
 	config := &PostgresConfig{
 		Host:     "db.example.com",
 		Port:     5432,
@@ -90,13 +95,14 @@ func TestPostgresConfigStructure(t *testing.T) {
 	assert.Equal(t, "db.example.com", config.Host)
 	assert.Equal(t, 5432, config.Port)
 	assert.Equal(t, "admin", config.User)
-	assert.Equal(t, "secret", config.Password)
+	assert.Equal(t, "secret", config.Password.Value())
 	assert.Equal(t, "mydb", config.Database)
 	assert.Equal(t, "require", config.SSLMode)
 }
 
 // TestPostgresClusterClose tests closing PostgreSQL cluster
 func TestPostgresClusterClose(t *testing.T) {
+	t.Parallel()
 	config := getTestPostgresConfig()
 
 	cluster, err := NewPostgresCluster(config)
@@ -108,6 +114,7 @@ func TestPostgresClusterClose(t *testing.T) {
 
 // TestPostgresClusterCloseNilDB tests closing PostgreSQL cluster with nil DB
 func TestPostgresClusterCloseNilDB(t *testing.T) {
+	t.Parallel()
 	cluster := &PostgresCluster{
 		config: getTestPostgresConfig(),
 		DB:     nil,
@@ -119,6 +126,7 @@ func TestPostgresClusterCloseNilDB(t *testing.T) {
 
 // TestPostgresConfigWithDifferentPorts tests PostgreSQL config with different ports
 func TestPostgresConfigWithDifferentPorts(t *testing.T) {
+	t.Parallel()
 	config := getTestPostgresConfig()
 	config.Port = 5433
 
@@ -127,6 +135,7 @@ func TestPostgresConfigWithDifferentPorts(t *testing.T) {
 
 // TestPostgresConfigWithSSLModes tests PostgreSQL config with different SSL modes
 func TestPostgresConfigWithSSLModes(t *testing.T) {
+	t.Parallel()
 	sslModes := []string{"disable", "allow", "prefer", "require", "verify-ca", "verify-full"}
 
 	for _, mode := range sslModes {
@@ -139,6 +148,7 @@ func TestPostgresConfigWithSSLModes(t *testing.T) {
 
 // TestPostgresConfigWithDifferentDatabases tests PostgreSQL config with different databases
 func TestPostgresConfigWithDifferentDatabases(t *testing.T) {
+	t.Parallel()
 	databases := []string{"postgres", "testdb", "myapp", "analytics"}
 
 	for _, db := range databases {
@@ -151,6 +161,7 @@ func TestPostgresConfigWithDifferentDatabases(t *testing.T) {
 
 // TestPostgresConfigWithDifferentUsers tests PostgreSQL config with different users
 func TestPostgresConfigWithDifferentUsers(t *testing.T) {
+	t.Parallel()
 	users := []string{"postgres", "admin", "app_user", "readonly"}
 
 	for _, user := range users {
@@ -163,6 +174,7 @@ func TestPostgresConfigWithDifferentUsers(t *testing.T) {
 
 // TestPostgresConfigWithDifferentHosts tests PostgreSQL config with different hosts
 func TestPostgresConfigWithDifferentHosts(t *testing.T) {
+	t.Parallel()
 	hosts := []string{"localhost", "127.0.0.1", "db.example.com", "postgres-primary"}
 
 	for _, host := range hosts {
@@ -175,6 +187,7 @@ func TestPostgresConfigWithDifferentHosts(t *testing.T) {
 
 // TestPostgresConfigDefaultValues tests PostgreSQL config default values
 func TestPostgresConfigDefaultValues(t *testing.T) {
+	t.Parallel()
 	cluster, err := NewPostgresCluster(nil)
 
 	if err == nil {
@@ -190,24 +203,27 @@ func TestPostgresConfigDefaultValues(t *testing.T) {
 
 // TestPostgresConfigWithEmptyPassword tests PostgreSQL config with empty password
 func TestPostgresConfigWithEmptyPassword(t *testing.T) {
+	t.Parallel()
 	config := getTestPostgresConfig()
 	config.Password = ""
 
-	assert.Equal(t, "", config.Password)
+	assert.Equal(t, "", config.Password.Value())
 }
 
 // TestPostgresConfigWithSpecialCharacters tests PostgreSQL config with special characters
 func TestPostgresConfigWithSpecialCharacters(t *testing.T) {
+	t.Parallel()
 	config := getTestPostgresConfig()
 	config.Password = "p@ssw0rd!#$%"
 	config.Database = "test_db_2024"
 
-	assert.Equal(t, "p@ssw0rd!#$%", config.Password)
+	assert.Equal(t, "p@ssw0rd!#$%", config.Password.Value())
 	assert.Equal(t, "test_db_2024", config.Database)
 }
 
 // TestPostgresHealthContext tests health check with context
 func TestPostgresHealthContext(t *testing.T) {
+	t.Parallel()
 	config := getTestPostgresConfig()
 
 	cluster, err := NewPostgresCluster(config)
@@ -223,6 +239,7 @@ func TestPostgresHealthContext(t *testing.T) {
 
 // TestPostgresConfigMultipleInstances tests creating multiple PostgreSQL config instances
 func TestPostgresConfigMultipleInstances(t *testing.T) {
+	t.Parallel()
 	config1 := getTestPostgresConfig()
 	config1.Port = 5432
 	config1.User = "user1"
@@ -243,6 +260,7 @@ func TestPostgresConfigMultipleInstances(t *testing.T) {
 
 // TestPostgresConfigClusterStructure tests PostgreSQL cluster structure
 func TestPostgresConfigClusterStructure(t *testing.T) {
+	t.Parallel()
 	config := getTestPostgresConfig()
 
 	cluster, err := NewPostgresCluster(config)
@@ -255,6 +273,7 @@ func TestPostgresConfigClusterStructure(t *testing.T) {
 
 // TestPostgresConfigWithHighPort tests PostgreSQL config with high port number
 func TestPostgresConfigWithHighPort(t *testing.T) {
+	t.Parallel()
 	config := getTestPostgresConfig()
 	config.Port = 65432
 
@@ -263,6 +282,7 @@ func TestPostgresConfigWithHighPort(t *testing.T) {
 
 // TestPostgresConfigWithLowPort tests PostgreSQL config with low port number
 func TestPostgresConfigWithLowPort(t *testing.T) {
+	t.Parallel()
 	config := getTestPostgresConfig()
 	config.Port = 1
 

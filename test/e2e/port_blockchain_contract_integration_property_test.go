@@ -292,7 +292,7 @@ func TestMetadataIsolation(t *testing.T) {
 		}
 
 		// Update metadata for first contract
-		err := registry.UpdateMetadata(ctx, contracts[0].Address, map[string]interface{}{
+		err := registry.UpdateMetadata(ctx, contracts[0].Address, map[string]any{
 			"version": "2.0",
 			"owner":   "0xowner",
 		})

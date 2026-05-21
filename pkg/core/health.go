@@ -21,19 +21,19 @@ type DefaultHealthChecker struct {
 
 // HealthCheckResult represents the result of a health check
 type HealthCheckResult struct {
-	Status     string                 `json:"status"`
-	Timestamp  time.Time              `json:"timestamp"`
-	Duration   int64                  `json:"duration_ms"`
-	Components map[string]interface{} `json:"components"`
-	Message    string                 `json:"message"`
+	Status     string         `json:"status"`
+	Timestamp  time.Time      `json:"timestamp"`
+	Duration   int64          `json:"duration_ms"`
+	Components map[string]any `json:"components"`
+	Message    string         `json:"message"`
 }
 
 // ComponentHealth represents the health of a component
 type ComponentHealth struct {
-	Name    string                 `json:"name"`
-	Status  string                 `json:"status"`
-	Message string                 `json:"message"`
-	Details map[string]interface{} `json:"details,omitempty"`
+	Name    string         `json:"name"`
+	Status  string         `json:"status"`
+	Message string         `json:"message"`
+	Details map[string]any `json:"details,omitempty"`
 }
 
 // NewDefaultHealthChecker creates a new health checker
@@ -54,7 +54,7 @@ func NewDefaultHealthChecker(
 		lastCheckStatus: HealthStatus{
 			Status:  "unknown",
 			Message: "no check performed yet",
-			Details: make(map[string]interface{}),
+			Details: make(map[string]any),
 		},
 	}
 }
@@ -67,7 +67,7 @@ func (h *DefaultHealthChecker) Check(ctx context.Context) (HealthStatus, error) 
 	startTime := time.Now()
 	status := HealthStatus{
 		Status:  "healthy",
-		Details: make(map[string]interface{}),
+		Details: make(map[string]any),
 	}
 
 	// Check plugins
@@ -87,10 +87,11 @@ func (h *DefaultHealthChecker) Check(ctx context.Context) (HealthStatus, error) 
 	status.Details["metrics"] = metricsHealth
 
 	// Determine overall status
-	if !pluginHealth["healthy"].(bool) ||
-		!configHealth["healthy"].(bool) ||
-		!eventBusHealth["healthy"].(bool) ||
-		!metricsHealth["healthy"].(bool) {
+	pluginOk, _ := pluginHealth["healthy"].(bool)
+	configOk, _ := configHealth["healthy"].(bool)
+	eventBusOk, _ := eventBusHealth["healthy"].(bool)
+	metricsOk, _ := metricsHealth["healthy"].(bool)
+	if !pluginOk || !configOk || !eventBusOk || !metricsOk {
 		status.Status = "unhealthy"
 		status.Message = "one or more components are unhealthy"
 	} else {
@@ -135,11 +136,11 @@ func (h *DefaultHealthChecker) GetCheckInterval() time.Duration {
 }
 
 // checkPlugins checks the health of all plugins
-func (h *DefaultHealthChecker) checkPlugins(ctx context.Context) map[string]interface{} {
-	result := map[string]interface{}{
+func (h *DefaultHealthChecker) checkPlugins(ctx context.Context) map[string]any {
+	result := map[string]any{
 		"healthy": true,
 		"count":   0,
-		"details": make([]map[string]interface{}, 0),
+		"details": make([]map[string]any, 0),
 	}
 
 	if h.pluginRegistry == nil {
@@ -151,19 +152,24 @@ func (h *DefaultHealthChecker) checkPlugins(ctx context.Context) map[string]inte
 	plugins := h.pluginRegistry.List()
 	result["count"] = len(plugins)
 
-	details := make([]map[string]interface{}, 0)
+	details := make([]map[string]any, 0)
 	for _, plugin := range plugins {
-		pluginHealth := map[string]interface{}{
+		pluginHealth := map[string]any{
 			"name":    plugin.Name(),
-			"version": plugin.Version(),
 			"healthy": true,
 		}
 
+		if vp, ok := any(plugin).(interface{ Version() string }); ok {
+			pluginHealth["version"] = vp.Version()
+		}
+
 		// Check plugin health
-		if err := plugin.Health(); err != nil {
-			pluginHealth["healthy"] = false
-			pluginHealth["error"] = err.Error()
-			result["healthy"] = false
+		if hp, ok := plugin.(HealthPlugin); ok {
+			if err := hp.Health(ctx); err != nil {
+				pluginHealth["healthy"] = false
+				pluginHealth["error"] = err.Error()
+				result["healthy"] = false
+			}
 		}
 
 		details = append(details, pluginHealth)
@@ -174,8 +180,8 @@ func (h *DefaultHealthChecker) checkPlugins(ctx context.Context) map[string]inte
 }
 
 // checkConfiguration checks the health of configuration
-func (h *DefaultHealthChecker) checkConfiguration(ctx context.Context) map[string]interface{} {
-	result := map[string]interface{}{
+func (h *DefaultHealthChecker) checkConfiguration(ctx context.Context) map[string]any {
+	result := map[string]any{
 		"healthy": true,
 	}
 
@@ -208,8 +214,8 @@ func (h *DefaultHealthChecker) checkConfiguration(ctx context.Context) map[strin
 }
 
 // checkEventBus checks the health of the event bus
-func (h *DefaultHealthChecker) checkEventBus(ctx context.Context) map[string]interface{} {
-	result := map[string]interface{}{
+func (h *DefaultHealthChecker) checkEventBus(ctx context.Context) map[string]any {
+	result := map[string]any{
 		"healthy": true,
 	}
 
@@ -226,8 +232,8 @@ func (h *DefaultHealthChecker) checkEventBus(ctx context.Context) map[string]int
 }
 
 // checkMetrics checks the health of metrics collection
-func (h *DefaultHealthChecker) checkMetrics(ctx context.Context) map[string]interface{} {
-	result := map[string]interface{}{
+func (h *DefaultHealthChecker) checkMetrics(ctx context.Context) map[string]any {
+	result := map[string]any{
 		"healthy": true,
 	}
 
@@ -253,11 +259,11 @@ func (h *DefaultHealthChecker) IsHealthy() bool {
 }
 
 // GetHealthSummary returns a summary of the health status
-func (h *DefaultHealthChecker) GetHealthSummary() map[string]interface{} {
+func (h *DefaultHealthChecker) GetHealthSummary() map[string]any {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 
-	return map[string]interface{}{
+	return map[string]any{
 		"status":          h.lastCheckStatus.Status,
 		"message":         h.lastCheckStatus.Message,
 		"last_check_time": h.lastCheckTime,

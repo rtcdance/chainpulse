@@ -1,115 +1,45 @@
-import { useEffect, useMemo, useState } from 'react'
-import { Activity, CheckCircle2, Loader2, RefreshCw, ShieldAlert, Waves } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { Activity, ArrowRight, BarChart3, Bell, Globe, Layers, Loader2, RefreshCw, Search } from 'lucide-react'
+import { useAuth } from '../lib/auth'
 import {
-  fetchCurrentSliceReport,
   fetchEvents,
-  fetchHealth,
-  fetchMetrics,
-  fetchRuntimeSummary,
+  fetchEventStats,
   formatTimestamp,
-  type HealthPayload,
-  type MetricsPayload,
-  type RuntimePayload,
-  type ServiceAcceptanceReport,
+  type NormalizedEventsResponse,
+  type EventStats,
 } from '../lib/chainpulse'
 
-interface DashboardState {
-  health: HealthPayload | null
-  runtime: RuntimePayload | null
-  metrics: MetricsPayload | null
-  sampleEvents: Awaited<ReturnType<typeof fetchEvents>> | null
-  serviceReports: ServiceAcceptanceReport[]
-}
-
-interface LoadWarning {
-  label: string
-  message: string
-}
-
-function tone(ok: boolean): string {
-  return ok
-    ? 'border-emerald-300/25 bg-emerald-300/10 text-emerald-100'
-    : 'border-rose-400/25 bg-rose-400/10 text-rose-100'
+function formatAddress(address: string): string {
+  return `${address.slice(0, 6)}...${address.slice(-4)}`
 }
 
 export default function Dashboard() {
-  const [state, setState] = useState<DashboardState>({
-    health: null,
-    runtime: null,
-    metrics: null,
-    sampleEvents: null,
-    serviceReports: [],
-  })
+  const { address } = useAuth()
+  const navigate = useNavigate()
+
+  const [events, setEvents] = useState<NormalizedEventsResponse | null>(null)
+  const [stats, setStats] = useState<EventStats | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [warnings, setWarnings] = useState<LoadWarning[]>([])
 
   async function load(): Promise<void> {
-    setLoading(true)
-
-    const requests = [
-      { label: 'Gateway health', run: fetchHealth },
-      { label: 'Runtime summary', run: fetchRuntimeSummary },
-      { label: 'Metrics', run: fetchMetrics },
-      { label: 'Sample events', run: () => fetchEvents({ limit: 5, offset: 0 }) },
-      { label: 'Service matrix', run: fetchCurrentSliceReport },
-    ] as const
-
     try {
-      const results = await Promise.allSettled(requests.map((request) => request.run()))
-      const nextState: DashboardState = {
-        health: null,
-        runtime: null,
-        metrics: null,
-        sampleEvents: null,
-        serviceReports: [],
+      const [eventsRes, statsRes] = await Promise.allSettled([
+        fetchEvents({ limit: 10, offset: 0 }),
+        fetchEventStats(),
+      ])
+
+      if (eventsRes.status === 'fulfilled') setEvents(eventsRes.value)
+      if (statsRes.status === 'fulfilled') setStats(statsRes.value)
+
+      if (eventsRes.status === 'rejected' && statsRes.status === 'rejected') {
+        setError('Failed to load dashboard data')
+      } else {
+        setError(null)
       }
-      const nextWarnings: LoadWarning[] = []
-      let successCount = 0
-
-      results.forEach((result, index) => {
-        const label = requests[index].label
-        if (result.status === 'fulfilled') {
-          successCount += 1
-          switch (label) {
-            case 'Gateway health':
-              nextState.health = result.value as HealthPayload
-              break
-            case 'Runtime summary':
-              nextState.runtime = result.value as RuntimePayload
-              break
-            case 'Metrics':
-              nextState.metrics = result.value as MetricsPayload
-              break
-            case 'Sample events':
-              nextState.sampleEvents = result.value as Awaited<ReturnType<typeof fetchEvents>>
-              break
-            case 'Service matrix':
-              nextState.serviceReports = result.value as ServiceAcceptanceReport[]
-              break
-          }
-          return
-        }
-
-        nextWarnings.push({
-          label,
-          message: result.reason instanceof Error ? result.reason.message : 'request failed',
-        })
-      })
-
-      if (successCount === 0) {
-        setError('All dashboard data sources failed to load')
-        setWarnings(nextWarnings)
-        setState(nextState)
-        return
-      }
-
-      setState(nextState)
-      setWarnings(nextWarnings)
-      setError(null)
-    } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : 'Failed to load acceptance dashboard')
-      setWarnings([])
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load')
     } finally {
       setLoading(false)
     }
@@ -119,205 +49,164 @@ export default function Dashboard() {
     void load()
   }, [])
 
-  const availability = useMemo(() => {
-    const total = state.serviceReports.reduce((sum, report) => sum + report.probes.length, 0)
-    const ok = state.serviceReports.reduce((sum, report) => sum + report.probes.filter((probe) => probe.ok).length, 0)
-    return { total, ok }
-  }, [state.serviceReports])
-
-  if (loading) {
-    return (
-      <div className="flex h-72 items-center justify-center rounded-[28px] border border-white/10 bg-white/5">
-        <Loader2 className="h-10 w-10 animate-spin text-glow" />
-      </div>
-    )
-  }
-
-  if (error) {
-    return (
-      <div className="rounded-[28px] border border-rose-400/30 bg-rose-400/10 p-8">
-        <ShieldAlert className="h-10 w-10 text-rose-200" />
-        <h2 className="mt-4 text-2xl font-semibold text-white">Acceptance dashboard unavailable</h2>
-        <p className="mt-2 max-w-2xl text-sm leading-6 text-rose-100/90">{error}</p>
-        <button
-          onClick={() => void load()}
-          className="mt-5 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-4 py-2 text-sm text-white transition hover:bg-white/15"
-        >
-          <RefreshCw className="h-4 w-4" />
-          Retry
-        </button>
-      </div>
-    )
-  }
+  const chainCount = stats ? Object.keys(stats.byChain).length : 0
+  const eventTypeCount = stats ? Object.keys(stats.byEventName).length : 0
 
   return (
-    <div className="space-y-6">
-      {warnings.length > 0 ? (
-        <section className="rounded-[28px] border border-amber-300/30 bg-amber-300/10 p-5 text-amber-50">
-          <div className="flex items-start gap-3">
-            <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0" />
-            <div className="space-y-2">
-              <h2 className="text-lg font-semibold text-white">Dashboard loaded with partial live evidence</h2>
-              <div className="space-y-1 text-sm leading-6 text-amber-50/90">
-                {warnings.map((warning) => (
-                  <p key={warning.label}>
-                    <span className="font-medium text-white">{warning.label}:</span> {warning.message}
-                  </p>
-                ))}
-              </div>
-            </div>
+    <div className="space-y-8">
+      <section className="rounded-[28px] border border-white/10 bg-white/5 p-8 backdrop-blur">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-xs uppercase tracking-[0.35em] text-mist">Welcome back</p>
+            <h1 className="mt-2 text-2xl font-semibold text-white sm:text-3xl">
+              {formatAddress(address)}
+            </h1>
+            <p className="mt-1 font-mono text-xs text-sand/40">{address}</p>
           </div>
-        </section>
-      ) : null}
-
-      <section className="grid gap-4 xl:grid-cols-4">
-        <article className="rounded-[26px] border border-white/10 bg-white/5 p-5">
-          <div className="flex items-center justify-between">
-            <span className="text-xs uppercase tracking-[0.25em] text-mist">Gateway Health</span>
-            <Activity className="h-5 w-5 text-glow" />
-          </div>
-          <div className="mt-4 text-3xl font-semibold text-white">{state.health?.status || 'unknown'}</div>
-          <p className="mt-3 text-sm text-sand/75">
-            Source <span className="font-mono text-white/90">{state.health?.evidence.path}</span>
-          </p>
-        </article>
-
-        <article className="rounded-[26px] border border-white/10 bg-white/5 p-5">
-          <div className="flex items-center justify-between">
-            <span className="text-xs uppercase tracking-[0.25em] text-mist">Sample Events</span>
-            <Waves className="h-5 w-5 text-glow" />
-          </div>
-          <div className="mt-4 text-3xl font-semibold text-white">{state.sampleEvents?.events.length || 0}</div>
-          <p className="mt-3 text-sm text-sand/75">
-            Live sample from {state.sampleEvents?.evidence.path || '/events'}
-          </p>
-        </article>
-
-        <article className="rounded-[26px] border border-white/10 bg-white/5 p-5">
-          <div className="flex items-center justify-between">
-            <span className="text-xs uppercase tracking-[0.25em] text-mist">Metrics Samples</span>
-            <Activity className="h-5 w-5 text-glow" />
-          </div>
-          <div className="mt-4 text-3xl font-semibold text-white">{state.metrics?.samples.length || 0}</div>
-          <p className="mt-3 text-sm text-sand/75">
-            Parsed from {state.metrics?.evidence.path || '/metrics'}
-          </p>
-        </article>
-
-        <article className="rounded-[26px] border border-white/10 bg-white/5 p-5">
-          <div className="flex items-center justify-between">
-            <span className="text-xs uppercase tracking-[0.25em] text-mist">Slice Coverage</span>
-            <CheckCircle2 className="h-5 w-5 text-glow" />
-          </div>
-          <div className="mt-4 text-3xl font-semibold text-white">{availability.ok}/{availability.total}</div>
-          <p className="mt-3 text-sm text-sand/75">
-            Successful probes across the current runnable slice
-          </p>
-        </article>
+          <button
+            onClick={() => void load()}
+            className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-sand/70 transition hover:border-white/20 hover:text-white"
+          >
+            <RefreshCw className="h-3.5 w-3.5" />
+            Refresh
+          </button>
+        </div>
       </section>
 
-      <section className="grid gap-6 xl:grid-cols-[1.1fr,0.9fr]">
-        <article className="rounded-[28px] border border-white/10 bg-white/5 p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs uppercase tracking-[0.25em] text-mist">Acceptance Scope</p>
-              <h2 className="mt-3 text-2xl font-semibold text-white">Current slice coverage in one place</h2>
+      {loading ? (
+        <div className="flex h-48 items-center justify-center rounded-[28px] border border-white/10 bg-white/5">
+          <Loader2 className="h-8 w-8 animate-spin text-glow" />
+        </div>
+      ) : error ? (
+        <div className="rounded-2xl border border-rose-400/25 bg-rose-400/10 p-6 text-rose-100">
+          <p className="font-medium">{error}</p>
+          <button onClick={() => { setLoading(true); void load() }} className="mt-3 flex items-center gap-2 rounded-lg border border-current/20 px-4 py-2 text-sm hover:bg-current/10">
+            <RefreshCw className="h-4 w-4" /> Retry
+          </button>
+        </div>
+      ) : (
+        <>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
+              <div className="flex items-center gap-2 text-sm text-sand/60"><Layers className="h-4 w-4" /> Total Events</div>
+              <p className="mt-3 text-3xl font-semibold text-white">{stats?.total ?? '—'}</p>
             </div>
-            <button
-              onClick={() => void load()}
-              className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-4 py-2 text-sm text-white transition hover:bg-white/15"
-            >
-              <RefreshCw className="h-4 w-4" />
-              Refresh
-            </button>
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
+              <div className="flex items-center gap-2 text-sm text-sand/60"><Globe className="h-4 w-4" /> Active Chains</div>
+              <p className="mt-3 text-3xl font-semibold text-white">{chainCount || '—'}</p>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
+              <div className="flex items-center gap-2 text-sm text-sand/60"><Activity className="h-4 w-4" /> Event Types</div>
+              <p className="mt-3 text-3xl font-semibold text-white">{eventTypeCount || '—'}</p>
+            </div>
+            <div className={`rounded-2xl border p-5 ${(stats?.reorged ?? 0) > 0 ? 'border-amber-300/25 bg-amber-300/10' : 'border-white/10 bg-white/5'}`}>
+              <div className="flex items-center gap-2 text-sm text-sand/60"><Bell className="h-4 w-4" /> Reorgs</div>
+              <p className={`mt-3 text-3xl font-semibold ${(stats?.reorged ?? 0) > 0 ? 'text-amber-300' : 'text-white'}`}>
+                {stats?.reorged ?? '—'}
+              </p>
+            </div>
           </div>
 
-          <div className="mt-6 grid gap-3 md:grid-cols-2">
-            {[
-              { title: 'REST Event Query', description: 'List, filter, pagination, event detail' },
-              { title: 'GraphQL', description: 'Schema, event connection, block query' },
-              { title: 'WebSocket', description: 'Connection, messages, manual subscriptions' },
-              { title: 'Metrics', description: 'Prometheus text and parsed samples' },
-              { title: 'Health Surfaces', description: 'health, ready, live, components, rollout' },
-              { title: 'Execution Control', description: 'runtime summary and control endpoints for execution services' },
-            ].map((item) => (
-              <div key={item.title} className="rounded-2xl border border-white/10 bg-black/15 p-4">
-                <h3 className="text-base font-medium text-white">{item.title}</h3>
-                <p className="mt-2 text-sm leading-6 text-sand/75">{item.description}</p>
-              </div>
-            ))}
-          </div>
-        </article>
-
-        <article className="rounded-[28px] border border-white/10 bg-white/5 p-6">
-          <p className="text-xs uppercase tracking-[0.25em] text-mist">Gateway Evidence</p>
-          <div className="mt-5 space-y-3">
-            <div className="rounded-2xl border border-white/10 bg-black/15 p-4">
-              <div className="text-xs uppercase tracking-[0.2em] text-mist">Deployment Mode</div>
-              <div className="mt-2 text-white">{state.runtime?.deploymentMode || 'unknown'}</div>
-            </div>
-            <div className="rounded-2xl border border-white/10 bg-black/15 p-4">
-              <div className="text-xs uppercase tracking-[0.2em] text-mist">Runtime Mode</div>
-              <div className="mt-2 text-white">{state.runtime?.runtimeMode || 'unknown'}</div>
-            </div>
-            <div className="rounded-2xl border border-white/10 bg-black/15 p-4">
-              <div className="text-xs uppercase tracking-[0.2em] text-mist">Health Timestamp</div>
-              <div className="mt-2 text-white">
-                {typeof state.health?.timestamp === 'number'
-                  ? formatTimestamp(state.health.timestamp)
-                  : state.health?.timestamp || '-'}
-              </div>
-            </div>
-            <div className="rounded-2xl border border-white/10 bg-black/15 p-4">
-              <div className="text-xs uppercase tracking-[0.2em] text-mist">Summary Path</div>
-              <div className="mt-2 font-mono text-sm text-white">{state.runtime?.evidence.path || '/runtime/summary'}</div>
-            </div>
-          </div>
-        </article>
-      </section>
-
-      <section className="rounded-[28px] border border-white/10 bg-white/5 p-6">
-        <p className="text-xs uppercase tracking-[0.25em] text-mist">Current Slice Service Matrix</p>
-        <h2 className="mt-3 text-2xl font-semibold text-white">Gateway, API service, event processor, and puller</h2>
-        {state.serviceReports.length === 0 ? (
-          <div className="mt-6 rounded-[24px] border border-white/10 bg-black/15 p-5 text-sm leading-6 text-sand/80">
-            Service matrix evidence is currently unavailable.
-          </div>
-        ) : (
-          <div className="mt-6 grid gap-4 xl:grid-cols-2">
-            {state.serviceReports.map((report) => (
-            <article key={report.service.id} className="min-w-0 rounded-[24px] border border-white/10 bg-black/15 p-5">
-              <div className="flex items-start justify-between gap-4">
-                <div className="min-w-0 flex-1">
-                  <h3 className="text-lg font-medium text-white">{report.service.name}</h3>
-                  <p className="mt-2 text-sm leading-6 text-sand/70">{report.service.role}</p>
-                  <p className="mt-2 break-words font-mono text-xs text-white/75">{report.service.baseUrl}</p>
+          <section className="grid gap-6 lg:grid-cols-[1.4fr,1fr]">
+            <div className="rounded-[28px] border border-white/10 bg-white/5 p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.25em] text-mist">Recent Events</p>
+                  <h2 className="mt-2 text-xl font-semibold text-white">Latest indexed events</h2>
                 </div>
-                <div className={`shrink-0 rounded-full border px-3 py-1 text-xs ${tone(report.probes.every((probe) => probe.ok))}`}>
-                  {report.probes.filter((probe) => probe.ok).length}/{report.probes.length} ready
-                </div>
+                <button
+                  onClick={() => navigate('/events')}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-white/10 px-4 py-2 text-sm text-sand/60 transition hover:border-white/20 hover:text-white"
+                >
+                  View All <ArrowRight className="h-3.5 w-3.5" />
+                </button>
               </div>
 
-              <div className="mt-5 grid gap-3">
-                {report.probes.map((probe) => (
-                  <div key={`${report.service.id}-${probe.path}`} className={`min-w-0 rounded-2xl border p-4 ${tone(probe.ok)}`}>
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <span className="min-w-0 flex-1 break-words font-mono text-sm text-white">{probe.path}</span>
-                      <span className="shrink-0 text-xs uppercase tracking-[0.18em]">
-                        {probe.status ?? 'ERR'}
-                      </span>
-                    </div>
-                    <pre className="mt-2 max-h-28 overflow-auto whitespace-pre-wrap break-words rounded-xl bg-black/20 p-3 font-mono text-[11px] leading-5 opacity-90">
-                      {probe.summary || 'No body preview'}
-                    </pre>
+              <div className="mt-5 overflow-x-auto">
+                {events && events.events.length > 0 ? (
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-white/5 text-left text-xs uppercase tracking-[0.2em] text-mist">
+                        <th className="pb-3 pr-4 font-medium">Event</th>
+                        <th className="pb-3 pr-4 font-medium">Chain</th>
+                        <th className="pb-3 pr-4 font-medium">Contract</th>
+                        <th className="pb-3 pr-4 font-medium">Block</th>
+                        <th className="pb-3 font-medium">Time</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {events.events.slice(0, 8).map((event) => (
+                        <tr key={event.id} className="border-b border-white/[0.03] hover:bg-white/[0.02]">
+                          <td className="py-3 pr-4 font-medium text-white">{event.eventName}</td>
+                          <td className="py-3 pr-4 text-sand/60">{event.chainId}</td>
+                          <td className="py-3 pr-4 font-mono text-xs text-sand/50">{event.contractAddress.slice(0, 8)}...</td>
+                          <td className="py-3 pr-4 font-mono text-xs text-sand/50">{event.blockNumber ?? '—'}</td>
+                          <td className="py-3 text-xs text-sand/45">{formatTimestamp(event.timestamp)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                ) : (
+                  <div className="py-10 text-center text-sm text-sand/40">
+                    No events indexed yet. Start the ChainPulse puller to begin indexing.
                   </div>
-                ))}
+                )}
               </div>
-            </article>
-            ))}
-          </div>
-        )}
-      </section>
+            </div>
+
+            <div className="space-y-4">
+              <div className="rounded-[28px] border border-white/10 bg-white/5 p-6">
+                <p className="text-xs uppercase tracking-[0.25em] text-mist">Quick Search</p>
+                <h3 className="mt-2 text-lg font-semibold text-white">Find events</h3>
+                <p className="mt-2 text-sm leading-6 text-sand/60">
+                  Search by event name, contract address, or transaction hash.
+                </p>
+                <button
+                  onClick={() => navigate('/events')}
+                  className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full border border-glow/30 bg-glow/10 px-5 py-2.5 text-sm text-glow transition hover:bg-glow/20"
+                >
+                  <Search className="h-4 w-4" />
+                  Open Event Explorer
+                  <ArrowRight className="h-4 w-4" />
+                </button>
+              </div>
+
+              <div className="rounded-[28px] border border-white/10 bg-white/5 p-6">
+                <p className="text-xs uppercase tracking-[0.25em] text-mist">API Access</p>
+                <h3 className="mt-2 text-lg font-semibold text-white">Integration</h3>
+                <p className="mt-2 text-sm leading-6 text-sand/60">
+                  Use REST, GraphQL, or WebSocket to query events from your applications.
+                </p>
+                <div className="mt-4 space-y-2 font-mono text-xs text-sand/40">
+                  <div className="rounded-lg bg-black/20 px-3 py-2">GET /events</div>
+                  <div className="rounded-lg bg-black/20 px-3 py-2">POST /graphql</div>
+                  <div className="rounded-lg bg-black/20 px-3 py-2">WS /events/subscribe</div>
+                </div>
+              </div>
+
+              {stats && Object.keys(stats.byChain).length > 0 && (
+                <div className="rounded-[28px] border border-white/10 bg-white/5 p-6">
+                  <div className="flex items-center gap-2 text-xs uppercase tracking-[0.25em] text-mist">
+                    <BarChart3 className="h-3.5 w-3.5" />
+                    Chain Distribution
+                  </div>
+                  <div className="mt-4 space-y-3">
+                    {Object.entries(stats.byChain).slice(0, 5).map(([chain, count]) => (
+                      <div key={chain} className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className="h-2 w-2 rounded-full bg-glow/50" />
+                          <span className="text-sm text-white">{chain}</span>
+                        </div>
+                        <span className="font-mono text-xs text-sand/50">{count}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </section>
+        </>
+      )}
     </div>
   )
 }

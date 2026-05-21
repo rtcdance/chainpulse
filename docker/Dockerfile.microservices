@@ -1,5 +1,5 @@
 # Multi-stage build for ChainPulse Microservices
-FROM golang:1.24-alpine AS builder
+FROM golang:1.25-alpine AS builder
 
 WORKDIR /app
 
@@ -13,7 +13,7 @@ COPY . .
 ARG SERVICE
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o /app/service ./cmd/microservices/${SERVICE}
 
-FROM alpine:latest
+FROM alpine:3.19
 
 WORKDIR /root/
 

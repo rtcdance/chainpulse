@@ -1,12 +1,31 @@
 import { useEffect, useState } from 'react'
-import { Loader2, RefreshCw, ServerCog } from 'lucide-react'
-import { fetchCurrentSliceReport, fetchRuntimeSummary, type RuntimePayload, type ServiceAcceptanceReport } from '../lib/chainpulse'
+import { Loader2, Pause, Play, RefreshCw, ServerCog } from 'lucide-react'
+import { fetchCurrentSliceReport, fetchRuntimeSummary, postRuntimeControl, type RuntimePayload, type ServiceAcceptanceReport } from '../lib/chainpulse'
+import { useToast } from '../lib/toast'
+
+interface ActionDef {
+  serviceId: 'puller' | 'event-processor'
+  action: 'pause' | 'resume' | 'pause-intake' | 'resume-intake'
+  label: string
+  icon: 'pause' | 'play'
+  variant: 'warning' | 'success'
+}
+
+const controlActions: ActionDef[] = [
+  { serviceId: 'puller', action: 'pause', label: 'Pause Puller', icon: 'pause', variant: 'warning' },
+  { serviceId: 'puller', action: 'resume', label: 'Resume Puller', icon: 'play', variant: 'success' },
+  { serviceId: 'event-processor', action: 'pause-intake', label: 'Pause Intake', icon: 'pause', variant: 'warning' },
+  { serviceId: 'event-processor', action: 'resume-intake', label: 'Resume Intake', icon: 'play', variant: 'success' },
+]
 
 export default function Runtime() {
   const [gatewaySummary, setGatewaySummary] = useState<RuntimePayload | null>(null)
   const [reports, setReports] = useState<ServiceAcceptanceReport[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [confirmAction, setConfirmAction] = useState<ActionDef | null>(null)
+  const [actionLoading, setActionLoading] = useState(false)
+  const { addToast } = useToast()
 
   async function loadRuntime(): Promise<void> {
     setLoading(true)
@@ -25,6 +44,24 @@ export default function Runtime() {
     }
   }
 
+  async function executeAction(action: ActionDef): Promise<void> {
+    setActionLoading(true)
+    try {
+      const result = await postRuntimeControl(action.serviceId, action.action)
+      if (result.success) {
+        addToast('success', `${action.label} succeeded — ${result.message}`)
+        await loadRuntime()
+      } else {
+        addToast('error', `${action.label} failed — ${result.message}`)
+      }
+    } catch (err) {
+      addToast('error', err instanceof Error ? err.message : 'action failed')
+    } finally {
+      setActionLoading(false)
+      setConfirmAction(null)
+    }
+  }
+
   useEffect(() => {
     void loadRuntime()
   }, [])
@@ -37,7 +74,7 @@ export default function Runtime() {
             <p className="text-xs uppercase tracking-[0.25em] text-mist">Runtime Acceptance</p>
             <h2 className="mt-3 text-2xl font-semibold text-white">Cross-service runtime, rollout, and control evidence</h2>
             <p className="mt-3 max-w-3xl text-sm leading-6 text-sand/75">
-              This page is focused on the operator-facing control plane of the current runnable slice. It surfaces read-only runtime evidence first, then shows which services expose rollout and runtime-control endpoints.
+              This page surfaces the runtime identity, rollout state, and operator control actions. Use the control panel below to pause/resume services and observe the state change in real time.
             </p>
           </div>
           <button
@@ -92,6 +129,53 @@ export default function Runtime() {
                 {JSON.stringify(gatewaySummary?.summary || {}, null, 2)}
               </pre>
             </article>
+          </section>
+
+          <section className="rounded-[28px] border border-white/10 bg-white/5 p-6">
+            <p className="text-xs uppercase tracking-[0.25em] text-mist">Control Panel</p>
+            <p className="mt-2 text-sm text-sand/75">Execute runtime control actions. Each action requires confirmation before it is sent to the backend.</p>
+
+            <div className="mt-5 flex flex-wrap gap-3">
+              {controlActions.map((action) => (
+                <button
+                  key={`${action.serviceId}-${action.action}`}
+                  onClick={() => setConfirmAction(action)}
+                  disabled={actionLoading}
+                  className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                    action.variant === 'warning'
+                      ? 'border-amber-300/30 bg-amber-300/10 text-amber-100 hover:bg-amber-300/20'
+                      : 'border-emerald-300/30 bg-emerald-300/10 text-emerald-100 hover:bg-emerald-300/20'
+                  }`}
+                >
+                  {action.icon === 'pause' ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+                  {action.label}
+                </button>
+              ))}
+            </div>
+
+            {confirmAction && (
+              <div className="mt-4 rounded-2xl border border-amber-300/30 bg-amber-300/10 p-5">
+                <p className="text-sm text-amber-50">
+                  Confirm: <span className="font-semibold text-white">{confirmAction.label}</span> on <span className="font-semibold text-white">{confirmAction.serviceId}</span>?
+                </p>
+                <div className="mt-3 flex gap-3">
+                  <button
+                    onClick={() => void executeAction(confirmAction)}
+                    disabled={actionLoading}
+                    className="inline-flex items-center gap-2 rounded-full bg-glow px-4 py-2 text-sm font-medium text-ink transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {actionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                    Confirm
+                  </button>
+                  <button
+                    onClick={() => setConfirmAction(null)}
+                    className="rounded-full border border-white/15 bg-white/10 px-4 py-2 text-sm text-white transition hover:bg-white/15"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
           </section>
 
           <section className="rounded-[28px] border border-white/10 bg-white/5 p-6">

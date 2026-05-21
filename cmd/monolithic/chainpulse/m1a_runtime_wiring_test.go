@@ -7,12 +7,13 @@ import (
 	"testing"
 	"time"
 
-	"chainpulse/pkg/core"
-	"chainpulse/pkg/services/indexing"
+	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/testhelpers"
+	"github.com/rtcdance/chainpulse/pkg/services/indexing"
 
 	"github.com/ethereum/go-ethereum/common"
 
-	appindexingadapter "chainpulse/pkg/adapters/indexing"
+	appindexingadapter "github.com/rtcdance/chainpulse/pkg/application/bootstrap"
 )
 
 func TestParseNodeURLs(t *testing.T) {
@@ -49,7 +50,7 @@ func TestMonolithicPullerRuntimeRunLoopRestartsAfterFailure(t *testing.T) {
 	}
 
 	runtime := &monolithicPullerRuntime{
-		logger:      core.NewTestLogger(),
+		logger:      testhelpers.NewTestLogger(),
 		pullers:     []monolithicPollingPuller{puller},
 		loopChains:  map[string]*monolithicPullLoopRuntime{"ethereum": {chainID: "ethereum", state: "primed"}},
 		backoffBase: time.Millisecond,
@@ -81,7 +82,7 @@ func TestParseNodeURLsRequiresAtLeastOneValue(t *testing.T) {
 }
 
 func TestSubscribeMonolithicIndexerRoutesBlockchainEvents(t *testing.T) {
-	logger := core.NewTestLogger()
+	logger := testhelpers.NewTestLogger()
 	eventBus := core.NewEventBus(logger)
 	indexer := indexing.NewMultiChainIndexer(logger, nil)
 	chainIndexer := newRecordingChainIndexer("ethereum")
@@ -121,36 +122,36 @@ func TestSubscribeMonolithicIndexerRoutesBlockchainEvents(t *testing.T) {
 }
 
 func TestNewMonolithicPullerRuntimeRequiresAlignedChainsAndNodeURLs(t *testing.T) {
-	logger := core.NewTestLogger()
+	logger := testhelpers.NewTestLogger()
 	metrics := core.NewDefaultMetricsCollector()
 	indexer := indexing.NewMultiChainIndexer(logger, nil)
 	db := appindexingadapter.NewMonolithicMemoryDatabase(logger)
-	if err := db.Initialize(core.Config{}); err != nil {
+	if err := db.Initialize(context.Background(), core.Config{}); err != nil {
 		t.Fatalf("init db: %v", err)
 	}
-	if err := db.Start(); err != nil {
+	if err := db.Start(context.Background()); err != nil {
 		t.Fatalf("start db: %v", err)
 	}
 
-	_, err := newMonolithicPullerRuntime(core.Config{}, "http://localhost:8545", []string{"ethereum", "polygon"}, logger, metrics, db, indexer)
+	_, err := newMonolithicPullerRuntime(context.Background(), core.Config{}, "http://localhost:8545", []string{"ethereum", "polygon"}, logger, metrics, db, indexer)
 	if err == nil {
 		t.Fatalf("expected alignment error")
 	}
 }
 
 func TestMonolithicPullerRuntimeObserveEventDetectsAndHandlesReorg(t *testing.T) {
-	logger := core.NewTestLogger()
+	logger := testhelpers.NewTestLogger()
 	metrics := core.NewDefaultMetricsCollector()
 	indexer := indexing.NewMultiChainIndexer(logger, nil)
 	db := appindexingadapter.NewMonolithicMemoryDatabase(logger)
-	if err := db.Initialize(core.Config{}); err != nil {
+	if err := db.Initialize(context.Background(), core.Config{}); err != nil {
 		t.Fatalf("init db: %v", err)
 	}
-	if err := db.Start(); err != nil {
+	if err := db.Start(context.Background()); err != nil {
 		t.Fatalf("start db: %v", err)
 	}
 
-	runtime, err := newMonolithicPullerRuntime(core.Config{}, "http://localhost:8545", []string{"ethereum"}, logger, metrics, db, indexer)
+	runtime, err := newMonolithicPullerRuntime(context.Background(), core.Config{}, "http://localhost:8545", []string{"ethereum"}, logger, metrics, db, indexer)
 	if err != nil {
 		t.Fatalf("new runtime: %v", err)
 	}
@@ -190,8 +191,11 @@ func TestMonolithicPullerRuntimeObserveEventDetectsAndHandlesReorg(t *testing.T)
 	if err != nil {
 		t.Fatalf("get old event after reorg: %v", err)
 	}
-	if removed != nil {
-		t.Fatalf("expected old event to be rolled back, got %#v", removed)
+	if removed == nil {
+		t.Fatalf("expected old event to be marked as reorged, got nil")
+	}
+	if removed.Status != core.EventStatusReorged {
+		t.Fatalf("expected old event status %q, got %q", core.EventStatusReorged, removed.Status)
 	}
 
 	block, err = db.GetBlock(context.Background(), 12)
@@ -232,14 +236,14 @@ type stubMonolithicPollingPuller struct {
 	poll   func(context.Context) error
 }
 
-func (s *stubMonolithicPollingPuller) Start() error { return nil }
-func (s *stubMonolithicPollingPuller) Stop() error  { return nil }
+func (s *stubMonolithicPollingPuller) Start(_ context.Context) error { return nil }
+func (s *stubMonolithicPollingPuller) Stop(_ context.Context) error  { return nil }
 func (s *stubMonolithicPollingPuller) Poll(ctx context.Context) error {
 	return s.poll(ctx)
 }
 func (s *stubMonolithicPollingPuller) GetConfig() core.Config { return s.config }
-func (s *stubMonolithicPollingPuller) GetStats() map[string]interface{} {
-	return map[string]interface{}{
+func (s *stubMonolithicPollingPuller) GetStats() map[string]any {
+	return map[string]any{
 		"is_running":      true,
 		"request_count":   int64(0),
 		"error_count":     int64(0),
@@ -265,8 +269,8 @@ func (r *recordingChainIndexer) GetChainID() string {
 	return r.chainID
 }
 
-func (r *recordingChainIndexer) GetStatus() map[string]interface{} {
-	return map[string]interface{}{"chain_id": r.chainID}
+func (r *recordingChainIndexer) GetStatus() map[string]any {
+	return map[string]any{"chain_id": r.chainID}
 }
 
 func (r *recordingChainIndexer) Close() error {

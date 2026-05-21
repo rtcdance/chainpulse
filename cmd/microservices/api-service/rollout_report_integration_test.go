@@ -8,9 +8,9 @@ import (
 	"strings"
 	"testing"
 
-	"chainpulse/pkg/core"
-	"chainpulse/pkg/plugins/api"
-	"chainpulse/pkg/services/query"
+	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/plugins/api"
+	"github.com/rtcdance/chainpulse/pkg/services/query"
 )
 
 func TestAPIServiceRolloutReportRouteParityMetadataAndBodyBoundaries(t *testing.T) {
@@ -30,8 +30,8 @@ func TestAPIServiceRolloutReportRouteParityMetadataAndBodyBoundaries(t *testing.
 				RuntimeRoutesEnabled:     true,
 			}
 		},
-		func() map[string]interface{} {
-			return map[string]interface{}{
+		func() map[string]any {
+			return map[string]any{
 				"ownership_mode":                  "shadow",
 				"rollout_ready_for_runtime_owned": false,
 				"rollout_status":                  "shadow-observe",
@@ -331,7 +331,7 @@ func TestAPIServiceSecuritySurfaceProtectsRuntimeSummaryWhenEnabled(t *testing.T
 	authMiddleware, rateLimitMiddleware, err := buildAPIServiceSecurityControls(APIServiceConfig{
 		AuthEnabled:   true,
 		AuthJWTSecret: "secret-123",
-		AuthAPIKeys:   []string{"svc-key=client-1"},
+		AuthAPIKeys:   []core.SecretString{"svc-key=client-1"},
 	}, logger, metrics)
 	if err != nil {
 		t.Fatalf("build security controls: %v", err)

@@ -23,6 +23,7 @@ type AdvancedServiceDiscoveryClient struct {
 	registry        *ServiceRegistry
 	listeners       map[string][]RoutingUpdateListener
 	listenerMutex   sync.RWMutex
+	listenerWg      sync.WaitGroup
 	running         bool
 	runningMutex    sync.RWMutex
 }
@@ -112,7 +113,11 @@ func (asdc *AdvancedServiceDiscoveryClient) notifyListeners(serviceName string, 
 	asdc.listenerMutex.RUnlock()
 
 	for _, listener := range listeners {
-		go listener(update)
+		asdc.listenerWg.Add(1)
+		go func(l RoutingUpdateListener) {
+			defer asdc.listenerWg.Done()
+			l(update)
+		}(listener)
 	}
 }
 
@@ -250,7 +255,7 @@ func (slb *ServiceLoadBalancer) SelectService(ctx context.Context, serviceName s
 
 // ServiceConnectionPool manages connections to services
 type ServiceConnectionPool struct {
-	connections    map[string]interface{}
+	connections    map[string]any
 	maxConnections int
 	mutex          sync.RWMutex
 }
@@ -258,13 +263,13 @@ type ServiceConnectionPool struct {
 // NewServiceConnectionPool creates a new service connection pool
 func NewServiceConnectionPool(maxConnections int) *ServiceConnectionPool {
 	return &ServiceConnectionPool{
-		connections:    make(map[string]interface{}),
+		connections:    make(map[string]any),
 		maxConnections: maxConnections,
 	}
 }
 
 // GetConnection retrieves a connection to a service
-func (scp *ServiceConnectionPool) GetConnection(serviceID string) (interface{}, error) {
+func (scp *ServiceConnectionPool) GetConnection(serviceID string) (any, error) {
 	scp.mutex.RLock()
 	defer scp.mutex.RUnlock()
 
@@ -277,7 +282,7 @@ func (scp *ServiceConnectionPool) GetConnection(serviceID string) (interface{}, 
 }
 
 // SetConnection sets a connection for a service
-func (scp *ServiceConnectionPool) SetConnection(serviceID string, conn interface{}) error {
+func (scp *ServiceConnectionPool) SetConnection(serviceID string, conn any) error {
 	scp.mutex.Lock()
 	defer scp.mutex.Unlock()
 
@@ -303,5 +308,5 @@ func (scp *ServiceConnectionPool) ClearConnections() {
 	scp.mutex.Lock()
 	defer scp.mutex.Unlock()
 
-	scp.connections = make(map[string]interface{})
+	scp.connections = make(map[string]any)
 }

@@ -19,12 +19,12 @@ type ConfigurationService struct {
 
 // ConfigValidator validates configuration values.
 //
-//nolint:exported // Renaming would break many external uses.
+// Renaming would break many external uses.
 type ConfigValidator func(key, value string) error
 
 // ConfigUpdateHook is called when configuration is updated.
 //
-//nolint:exported // Renaming would break many external uses.
+// Renaming would break many external uses.
 type ConfigUpdateHook func(key, oldValue, newValue string) error
 
 // NewConfigurationService creates a new configuration service
@@ -171,7 +171,7 @@ type ConfigurationBuilder struct {
 }
 
 // NewConfigurationBuilder creates a new configuration builder
-func NewConfigurationBuilder(service *ConfigurationService, ctx context.Context, author string) *ConfigurationBuilder {
+func NewConfigurationBuilder(service *ConfigurationService, ctx context.Context, author string) *ConfigurationBuilder { //nolint:revive // ctx cannot be first; service is the primary receiver-like param
 	return &ConfigurationBuilder{
 		service: service,
 		ctx:     ctx,

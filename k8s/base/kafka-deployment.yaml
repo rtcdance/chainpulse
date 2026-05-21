@@ -30,6 +30,13 @@ spec:
       containers:
       - name: zookeeper
         image: confluentinc/cp-zookeeper:7.5.0
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
         ports:
         - containerPort: 2181
         env:
@@ -37,6 +44,18 @@ spec:
           value: "2181"
         - name: ZOOKEEPER_TICK_TIME
           value: "2000"
+        volumeMounts:
+        - name: zookeeper-storage
+          mountPath: /var/lib/zookeeper/data
+        startupProbe:
+          exec:
+            command:
+            - sh
+            - -c
+            - echo ruok | nc localhost 2181
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          failureThreshold: 30
         livenessProbe:
           exec:
             command:
@@ -53,6 +72,21 @@ spec:
             - echo ruok | nc localhost 2181
           initialDelaySeconds: 5
           periodSeconds: 10
+      volumes:
+      - name: zookeeper-storage
+        persistentVolumeClaim:
+          claimName: zookeeper-pvc
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: kafka-secret
+  namespace: chainpulse
+type: Opaque
+data:
+  kafka-username: YWRtaW4=
+  kafka-password: YWRtaW4=
 
 ---
 apiVersion: v1
@@ -88,9 +122,42 @@ spec:
       labels:
         app: kafka
     spec:
+      initContainers:
+      - name: kafka-config-init
+        image: busybox:1.36
+        env:
+        - name: KAFKA_SASL_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: kafka-secret
+              key: kafka-username
+        - name: KAFKA_SASL_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: kafka-secret
+              key: kafka-password
+        command:
+        - sh
+        - -c
+        - |
+          export KAFKA_SASL_USERNAME KAFKA_SASL_PASSWORD
+          envsubst < /templates/kafka_server_jaas.conf > /generated/kafka_server_jaas.conf
+          envsubst < /templates/kafka-client.properties > /generated/kafka-client.properties
+        volumeMounts:
+        - name: kafka-config-templates
+          mountPath: /templates
+        - name: kafka-config-generated
+          mountPath: /generated
       containers:
       - name: kafka
         image: confluentinc/cp-kafka:7.5.0
+        resources:
+          requests:
+            cpu: 250m
+            memory: 512Mi
+          limits:
+            cpu: "1"
+            memory: 1Gi
         ports:
         - containerPort: 29092
           name: internal
@@ -102,19 +169,45 @@ spec:
         - name: KAFKA_ZOOKEEPER_CONNECT
           value: "zookeeper:2181"
         - name: KAFKA_ADVERTISED_LISTENERS
-          value: "PLAINTEXT://kafka:29092,PLAINTEXT_HOST://kafka:9092"
+          value: "SASL_PLAINTEXT://kafka:29092,PLAINTEXT_HOST://kafka:9092"
         - name: KAFKA_LISTENER_SECURITY_PROTOCOL_MAP
-          value: "PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT"
+          value: "SASL_PLAINTEXT:SASL_PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT"
         - name: KAFKA_INTER_BROKER_LISTENER_NAME
-          value: "PLAINTEXT"
+          value: "SASL_PLAINTEXT"
+        - name: KAFKA_SASL_MECHANISM_INTER_BROKER_PROTOCOL
+          value: "PLAIN"
+        - name: KAFKA_SASL_ENABLED_MECHANISMS
+          value: "PLAIN"
         - name: KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR
           value: "1"
+        volumeMounts:
+        - name: kafka-storage
+          mountPath: /var/lib/kafka/data
+        - name: kafka-config-generated
+          mountPath: /etc/kafka/kafka_server_jaas.conf
+          subPath: kafka_server_jaas.conf
+        - name: kafka-config-generated
+          mountPath: /etc/kafka/kafka-client.properties
+          subPath: kafka-client.properties
+        startupProbe:
+          exec:
+            command:
+            - kafka-broker-api-versions.sh
+            - --bootstrap-server
+            - localhost:29092
+            - --command-config
+            - /etc/kafka/kafka-client.properties
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          failureThreshold: 30
         livenessProbe:
           exec:
             command:
             - kafka-broker-api-versions.sh
             - --bootstrap-server
-            - localhost:9092
+            - localhost:29092
+            - --command-config
+            - /etc/kafka/kafka-client.properties
           initialDelaySeconds: 30
           periodSeconds: 10
         readinessProbe:
@@ -122,6 +215,17 @@ spec:
             command:
             - kafka-broker-api-versions.sh
             - --bootstrap-server
-            - localhost:9092
+            - localhost:29092
+            - --command-config
+            - /etc/kafka/kafka-client.properties
           initialDelaySeconds: 5
           periodSeconds: 10
+      volumes:
+      - name: kafka-storage
+        persistentVolumeClaim:
+          claimName: kafka-pvc
+      - name: kafka-config-templates
+        configMap:
+          name: kafka-config
+      - name: kafka-config-generated
+        emptyDir: {}

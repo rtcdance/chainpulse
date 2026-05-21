@@ -9,7 +9,8 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/ports"
 )
 
 // Log level constants
@@ -22,11 +23,11 @@ const (
 
 // LogEntry represents a structured log entry
 type LogEntry struct {
-	Level         string                 `json:"level"`
-	Message       string                 `json:"message"`
-	CorrelationID string                 `json:"correlation_id,omitempty"`
-	Fields        map[string]interface{} `json:"fields,omitempty"`
-	Timestamp     time.Time              `json:"timestamp"`
+	Level         string         `json:"level"`
+	Message       string         `json:"message"`
+	CorrelationID string         `json:"correlation_id,omitempty"`
+	Fields        map[string]any `json:"fields,omitempty"`
+	Timestamp     time.Time      `json:"timestamp"`
 }
 
 // BlockchainEvent is a test helper struct for blockchain events
@@ -40,27 +41,38 @@ type BlockchainEvent struct {
 
 // MockLogger is a mock implementation of core.Logger for testing
 type MockLogger struct {
+	mu       sync.Mutex
 	messages []string
 }
 
-func (m *MockLogger) Info(msg string, _ ...interface{}) {
+func (m *MockLogger) Info(msg string, _ ...any) {
+	m.mu.Lock()
 	m.messages = append(m.messages, msg)
+	m.mu.Unlock()
 }
 
-func (m *MockLogger) Debug(msg string, _ ...interface{}) {
+func (m *MockLogger) Debug(msg string, _ ...any) {
+	m.mu.Lock()
 	m.messages = append(m.messages, msg)
+	m.mu.Unlock()
 }
 
-func (m *MockLogger) Warn(msg string, _ ...interface{}) {
+func (m *MockLogger) Warn(msg string, _ ...any) {
+	m.mu.Lock()
 	m.messages = append(m.messages, msg)
+	m.mu.Unlock()
 }
 
-func (m *MockLogger) Error(msg string, _ ...interface{}) {
+func (m *MockLogger) Error(msg string, _ ...any) {
+	m.mu.Lock()
 	m.messages = append(m.messages, msg)
+	m.mu.Unlock()
 }
 
-func (m *MockLogger) Fatal(msg string, _ ...interface{}) {
+func (m *MockLogger) Fatal(msg string, _ ...any) {
+	m.mu.Lock()
 	m.messages = append(m.messages, msg)
+	m.mu.Unlock()
 }
 
 func (m *MockLogger) WithCorrelationID(_ string) core.Logger {
@@ -132,15 +144,19 @@ func (m *MockDataPuller) GetLatestBlock(ctx context.Context) (uint64, error) {
 	return maxBlock, nil
 }
 
-func (m *MockDataPuller) GetStats() map[string]interface{} {
+func (m *MockDataPuller) GetStats() map[string]any {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	return map[string]interface{}{
+	return map[string]any{
 		"chain_id":    m.chainID,
 		"event_count": len(m.events),
 		"calls":       m.calls,
 	}
+}
+
+func (m *MockDataPuller) ChainID() string {
+	return m.chainID
 }
 
 func (m *MockDataPuller) SubscribeToEvents(ctx context.Context, handler func(core.BlockchainEvent)) error {
@@ -187,10 +203,14 @@ func (m *SlowMockDataPuller) GetLatestBlock(ctx context.Context) (uint64, error)
 	return 0, nil
 }
 
-func (m *SlowMockDataPuller) GetStats() map[string]interface{} {
-	return map[string]interface{}{
+func (m *SlowMockDataPuller) GetStats() map[string]any {
+	return map[string]any{
 		"chain_id": m.chainID,
 	}
+}
+
+func (m *SlowMockDataPuller) ChainID() string {
+	return m.chainID
 }
 
 func (m *SlowMockDataPuller) SubscribeToEvents(ctx context.Context, handler func(core.BlockchainEvent)) error {
@@ -232,15 +252,15 @@ func (m *MockDatabasePlugin) Health() error {
 	return nil
 }
 
-func (m *MockDatabasePlugin) QueryEvents(ctx context.Context, filter interface{}) ([]interface{}, error) {
-	result := make([]interface{}, 0)
+func (m *MockDatabasePlugin) QueryEvents(ctx context.Context, filter any) ([]any, error) {
+	result := make([]any, 0)
 	for _, event := range m.events {
 		result = append(result, event)
 	}
 	return result, nil
 }
 
-func (m *MockDatabasePlugin) StoreEvent(ctx context.Context, event interface{}) error {
+func (m *MockDatabasePlugin) StoreEvent(ctx context.Context, event any) error {
 	if blockchainEvent, ok := event.(*core.BlockchainEvent); ok {
 		m.events[blockchainEvent.ID] = blockchainEvent
 	}
@@ -256,7 +276,7 @@ func (m *MockDatabasePlugin) DeleteEvent(ctx context.Context, eventID string) er
 	return nil
 }
 
-func (m *MockDatabasePlugin) BatchStoreEvents(ctx context.Context, events []interface{}) error {
+func (m *MockDatabasePlugin) BatchStoreEvents(ctx context.Context, events []any) error {
 	for _, event := range events {
 		if blockchainEvent, ok := event.(*core.BlockchainEvent); ok {
 			m.events[blockchainEvent.ID] = blockchainEvent
@@ -296,6 +316,10 @@ func (m *MockDatabasePlugin) GetLatestBlock(ctx context.Context) (uint64, error)
 }
 
 func (m *MockDatabasePlugin) DeleteEventsByBlockRange(ctx context.Context, fromBlock, toBlock uint64) (int64, error) {
+	return 0, nil
+}
+
+func (m *MockDatabasePlugin) MarkEventsAsReorged(ctx context.Context, fromBlock, toBlock uint64) (int64, error) {
 	return 0, nil
 }
 
@@ -506,14 +530,14 @@ func NewDefaultConfigManager() core.ConfigManager {
 			DeploymentMode: "monolithic",
 			LogLevel:       LogLevelInfo,
 		},
-		values: make(map[string]interface{}),
+		values: make(map[string]any),
 	}
 }
 
 // NewDefaultEventBus creates a default event bus for testing
 func NewDefaultEventBus() core.EventBus {
 	return &DefaultEventBus{
-		subscribers: make(map[string][]func(interface{})),
+		subscribers: make(map[string][]ports.EventHandler),
 	}
 }
 
@@ -540,7 +564,7 @@ func NewDefaultHealthChecker(registry core.PluginRegistry, configManager core.Co
 // DefaultConfigManager is a default implementation of ConfigManager for testing
 type DefaultConfigManager struct {
 	config core.Config
-	values map[string]interface{}
+	values map[string]any
 }
 
 func (m *DefaultConfigManager) Load() (core.Config, error) {
@@ -554,7 +578,7 @@ func (m *DefaultConfigManager) Validate(config core.Config) error {
 	return nil
 }
 
-func (m *DefaultConfigManager) Get(key string) (interface{}, error) {
+func (m *DefaultConfigManager) Get(key string) (any, error) {
 	// Check config struct first
 	switch key {
 	case "deployment_mode":
@@ -570,32 +594,39 @@ func (m *DefaultConfigManager) Get(key string) (interface{}, error) {
 	return nil, fmt.Errorf("key not found: %s", key)
 }
 
-func (m *DefaultConfigManager) Set(key string, value interface{}) error {
+func (m *DefaultConfigManager) Set(key string, value any) error {
 	m.values[key] = value
 	return nil
 }
 
 // DefaultEventBus is a default implementation of EventBus for testing
 type DefaultEventBus struct {
-	subscribers map[string][]func(interface{})
+	subscribers map[string][]ports.EventHandler
+	nextID      uint64
 }
 
-func (b *DefaultEventBus) Subscribe(ctx context.Context, topic string, handler func(interface{})) error {
+func (b *DefaultEventBus) Subscribe(ctx context.Context, topic string, handler ports.EventHandler) (uint64, error) {
 	b.subscribers[topic] = append(b.subscribers[topic], handler)
-	return nil
+	b.nextID++
+	return b.nextID, nil
 }
 
-func (b *DefaultEventBus) Publish(ctx context.Context, topic string, event interface{}) error {
+func (b *DefaultEventBus) SubscribeNamed(ctx context.Context, topic, name string, handler ports.EventHandler) (uint64, error) {
+	return b.Subscribe(ctx, topic, handler)
+}
+
+func (b *DefaultEventBus) Publish(ctx context.Context, topic string, event any) error {
 	if handlers, ok := b.subscribers[topic]; ok {
 		for _, handler := range handlers {
-			handler(event)
+			_ = handler(ctx, event)
 		}
 	}
 	return nil
 }
 
-func (b *DefaultEventBus) Unsubscribe(topic string, handler func(interface{})) error {
-	delete(b.subscribers, topic)
+func (b *DefaultEventBus) Unsubscribe(subscriptionID uint64) error {
+	// Simplified test implementation: remove all handlers for the topic
+	// In production code, use the proper subscription ID-based approach
 	return nil
 }
 
@@ -625,10 +656,10 @@ func (m *DefaultMetricsCollector) RecordHistogram(name string, value float64, _ 
 	m.histograms[name] = append(m.histograms[name], value)
 }
 
-func (m *DefaultMetricsCollector) GetMetrics() map[string]interface{} {
+func (m *DefaultMetricsCollector) GetMetrics() map[string]any {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	return map[string]interface{}{
+	return map[string]any{
 		"counters":   m.counters,
 		"gauges":     m.gauges,
 		"histograms": m.histograms,
@@ -647,13 +678,13 @@ func (m *DefaultMetricsCollector) GetGauge(name string, tags map[string]string) 
 	return m.gauges[name]
 }
 
-func (m *DefaultMetricsCollector) GetHistogramStats(name string, tags map[string]string) map[string]interface{} {
+func (m *DefaultMetricsCollector) GetHistogramStats(name string, tags map[string]string) map[string]any {
 	m.mu.RLock()
 	values := m.histograms[name]
 	m.mu.RUnlock()
 
 	if len(values) == 0 {
-		return map[string]interface{}{"count": 0}
+		return map[string]any{"count": 0}
 	}
 
 	sum := 0.0
@@ -670,7 +701,7 @@ func (m *DefaultMetricsCollector) GetHistogramStats(name string, tags map[string
 		}
 	}
 
-	return map[string]interface{}{
+	return map[string]any{
 		"count": len(values),
 		"sum":   sum,
 		"min":   min,
@@ -691,7 +722,7 @@ type DefaultHealthChecker struct {
 func (h *DefaultHealthChecker) Check(ctx context.Context) (core.HealthStatus, error) {
 	return core.HealthStatus{
 		Status: "healthy",
-		Details: map[string]interface{}{
+		Details: map[string]any{
 			"timestamp": time.Now(),
 		},
 	}, nil

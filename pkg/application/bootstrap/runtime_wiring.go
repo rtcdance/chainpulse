@@ -5,14 +5,10 @@ import (
 	"fmt"
 	"time"
 
-	"chainpulse/pkg/core"
-	"chainpulse/pkg/infrastructure/database"
-	"chainpulse/pkg/plugins/api"
-	"chainpulse/pkg/services/query"
-
-	adapterquery "chainpulse/pkg/adapters/query"
-
-	domainquery "chainpulse/pkg/domain/query"
+	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/infrastructure/database"
+	"github.com/rtcdance/chainpulse/pkg/plugins/api"
+	"github.com/rtcdance/chainpulse/pkg/services/query"
 )
 
 // QueryRuntimeService is the managed query runtime contract used by startup wiring.
@@ -28,7 +24,7 @@ type RuntimeWiring struct {
 	DBConfig                 *database.Config
 	DBManager                database.DatabaseManager
 	QueryService             QueryRuntimeService
-	DomainQueryService       domainquery.Service
+	DomainQueryService       core.QueryService
 	EventRetrievalService    *query.EventRetrievalService
 	EventQueryHandler        *api.EventQueryHandler
 	EventSubscriptionHandler *api.EventSubscriptionHandler
@@ -46,12 +42,12 @@ type runtimeWiringDeps struct {
 		cfg *database.Config,
 		logger core.Logger,
 		metrics core.MetricsCollector,
-	) (QueryRuntimeService, domainquery.Service, error)
+	) (QueryRuntimeService, core.QueryService, error)
 	buildEvent func(
 		ctx context.Context,
 		db database.DatabaseManager,
 		cfg *database.Config,
-		domainSvc domainquery.Service,
+		domainSvc core.QueryService,
 		logger core.Logger,
 		metrics core.MetricsCollector,
 	) (*query.EventRetrievalService, *api.EventQueryHandler, *api.EventSubscriptionHandler, *api.HealthCheckHandler, *api.GraphQLHandler, error)
@@ -65,6 +61,7 @@ func defaultRuntimeWiringDeps() runtimeWiringDeps {
 			return database.NewDatabaseManager(
 				cfg.MongoDBURI,
 				cfg.PostgresURL,
+				cfg.PostgresSSLMode,
 				cfg.PoolSize,
 				cfg.GetTimeout(),
 			)
@@ -80,12 +77,11 @@ func defaultRuntimeWiringDeps() runtimeWiringDeps {
 			cfg *database.Config,
 			logger core.Logger,
 			metrics core.MetricsCollector,
-		) (QueryRuntimeService, domainquery.Service, error) {
+		) (QueryRuntimeService, core.QueryService, error) {
 			mongoAdapter := query.NewMongoDBAdapter(db, logger, metrics)
 			postgresAdapter := query.NewPostgreSQLAdapter(db, logger, metrics)
 			cacheService := query.NewCacheService(logger, metrics)
-			queryService := query.NewQueryService(db, mongoAdapter, postgresAdapter, cacheService, logger, metrics)
-			domainService := adapterquery.NewDomainServiceFromLegacy(queryService)
+			queryService := query.NewQueryService(mongoAdapter, postgresAdapter, cacheService, logger, metrics)
 
 			initCtx, cancel := context.WithTimeout(ctx, cfg.GetTimeout())
 			if err := queryService.Initialize(initCtx); err != nil {
@@ -94,13 +90,16 @@ func defaultRuntimeWiringDeps() runtimeWiringDeps {
 			}
 			cancel()
 
-			return queryService, domainService, nil
+			// queryService implements QueryRuntimeService (Start/Stop) and
+			// also satisfies core.QueryService (= domainquery.Service) via
+			// the type alias, so it can be used directly.
+			return queryService, queryService, nil
 		},
 		buildEvent: func(
 			ctx context.Context,
 			db database.DatabaseManager,
 			cfg *database.Config,
-			domainSvc domainquery.Service,
+			domainSvc core.QueryService,
 			logger core.Logger,
 			metrics core.MetricsCollector,
 		) (*query.EventRetrievalService, *api.EventQueryHandler, *api.EventSubscriptionHandler, *api.HealthCheckHandler, *api.GraphQLHandler, error) {

@@ -1,3 +1,7 @@
+// Simulation initializer for testing and playground — not for production use.
+// All component initializers are stubs that return ready state without actual
+// service initialization. Use the bootstrap package (pkg/application/bootstrap)
+// for production deployment.
 package deployment
 
 import (
@@ -11,11 +15,11 @@ import (
 type MonolithicInitializer struct {
 	mu             sync.RWMutex
 	config         *DeploymentConfig
-	apiGateway     interface{}
-	dataPuller     interface{}
-	eventProcessor interface{}
-	cache          interface{}
-	database       interface{}
+	apiGateway     any
+	dataPuller     any
+	eventProcessor any
+	cache          any
+	database       any
 	metrics        *MonolithicMetrics
 }
 
@@ -184,7 +188,7 @@ func (mi *MonolithicInitializer) HealthCheck(ctx context.Context) error {
 	mi.mu.RLock()
 	defer mi.mu.RUnlock()
 
-	components := []interface{}{
+	components := []any{
 		mi.database,
 		mi.cache,
 		mi.dataPuller,
@@ -210,11 +214,11 @@ func (mi *MonolithicInitializer) HealthCheck(ctx context.Context) error {
 }
 
 // GetMetrics returns monolithic metrics
-func (mi *MonolithicInitializer) GetMetrics() map[string]interface{} {
+func (mi *MonolithicInitializer) GetMetrics() map[string]any {
 	mi.metrics.mu.RLock()
 	defer mi.metrics.mu.RUnlock()
 
-	return map[string]interface{}{
+	return map[string]any{
 		"initialization_time":  mi.metrics.InitializationTime.String(),
 		"components_ready":     mi.metrics.ComponentsReady,
 		"components_failed":    mi.metrics.ComponentsFailed,

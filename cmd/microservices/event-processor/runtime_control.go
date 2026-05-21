@@ -3,7 +3,7 @@ package main
 import (
 	"net/http"
 
-	pluginapi "chainpulse/pkg/plugins/api"
+	pluginapi "github.com/rtcdance/chainpulse/pkg/plugins/api"
 )
 
 //nolint:unused

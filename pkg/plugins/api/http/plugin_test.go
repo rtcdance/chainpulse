@@ -7,13 +7,14 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"chainpulse/pkg/plugins/api/core"
-	"chainpulse/pkg/plugins/api/shared"
+	"github.com/rtcdance/chainpulse/pkg/plugins/api/core"
+	"github.com/rtcdance/chainpulse/pkg/plugins/api/shared"
 
 	oteltrace "go.opentelemetry.io/otel/trace"
 )
 
 func TestNewHTTPPlugin(t *testing.T) {
+	t.Parallel()
 	apiLayer := core.NewAPILayer()
 	plugin := NewHTTPPlugin("http", 8080, apiLayer)
 
@@ -31,6 +32,7 @@ func TestNewHTTPPlugin(t *testing.T) {
 }
 
 func TestHTTPPluginStart(t *testing.T) {
+	t.Parallel()
 	apiLayer := core.NewAPILayer()
 	plugin := NewHTTPPlugin("http", 8081, apiLayer)
 
@@ -48,6 +50,7 @@ func TestHTTPPluginStart(t *testing.T) {
 }
 
 func TestHTTPPluginStartAlreadyRunning(t *testing.T) {
+	t.Parallel()
 	apiLayer := core.NewAPILayer()
 	plugin := NewHTTPPlugin("http", 8082, apiLayer)
 
@@ -62,6 +65,7 @@ func TestHTTPPluginStartAlreadyRunning(t *testing.T) {
 }
 
 func TestHTTPPluginStop(t *testing.T) {
+	t.Parallel()
 	apiLayer := core.NewAPILayer()
 	plugin := NewHTTPPlugin("http", 8083, apiLayer)
 
@@ -78,6 +82,7 @@ func TestHTTPPluginStop(t *testing.T) {
 }
 
 func TestHTTPPluginStopNotRunning(t *testing.T) {
+	t.Parallel()
 	apiLayer := core.NewAPILayer()
 	plugin := NewHTTPPlugin("http", 8084, apiLayer)
 
@@ -88,6 +93,7 @@ func TestHTTPPluginStopNotRunning(t *testing.T) {
 }
 
 func TestHTTPPluginRegisterRoute(t *testing.T) {
+	t.Parallel()
 	apiLayer := core.NewAPILayer()
 	plugin := NewHTTPPlugin("http", 8085, apiLayer)
 
@@ -107,6 +113,7 @@ func TestHTTPPluginRegisterRoute(t *testing.T) {
 }
 
 func TestHTTPPluginUseMiddleware(t *testing.T) {
+	t.Parallel()
 	apiLayer := core.NewAPILayer()
 	plugin := NewHTTPPlugin("http", 8086, apiLayer)
 
@@ -128,6 +135,7 @@ func TestHTTPPluginUseMiddleware(t *testing.T) {
 }
 
 func TestHTTPPluginGetName(t *testing.T) {
+	t.Parallel()
 	apiLayer := core.NewAPILayer()
 	plugin := NewHTTPPlugin("test-http", 8087, apiLayer)
 
@@ -137,6 +145,7 @@ func TestHTTPPluginGetName(t *testing.T) {
 }
 
 func TestHTTPPluginIsRunning(t *testing.T) {
+	t.Parallel()
 	apiLayer := core.NewAPILayer()
 	plugin := NewHTTPPlugin("http", 8088, apiLayer)
 
@@ -153,6 +162,7 @@ func TestHTTPPluginIsRunning(t *testing.T) {
 }
 
 func TestHTTPPluginGetRuntimeMetricsPlaintextStopped(t *testing.T) {
+	t.Parallel()
 	apiLayer := core.NewAPILayer()
 	plugin := NewHTTPPlugin("http", 8089, apiLayer)
 
@@ -169,6 +179,7 @@ func TestHTTPPluginGetRuntimeMetricsPlaintextStopped(t *testing.T) {
 }
 
 func TestHTTPPluginGetRuntimeMetricsTLSServing(t *testing.T) {
+	t.Parallel()
 	apiLayer := core.NewAPILayer()
 	plugin := NewHTTPPlugin("http", 8090, apiLayer)
 	plugin.tlsManager = &shared.TLSManager{}
@@ -197,6 +208,7 @@ func TestHTTPPluginGetRuntimeMetricsTLSServing(t *testing.T) {
 }
 
 func TestHTTPPluginPropagatesTraceContextToNativeHandler(t *testing.T) {
+	t.Parallel()
 	apiLayer := core.NewAPILayer()
 	plugin := NewHTTPPlugin("http", 8091, apiLayer)
 
@@ -234,6 +246,7 @@ func (r *hijackableRecorder) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 }
 
 func TestHTTPPluginPreservesHijackerForWebSocketNativeHandler(t *testing.T) {
+	t.Parallel()
 	apiLayer := core.NewAPILayer()
 	plugin := NewHTTPPlugin("http", 8092, apiLayer)
 

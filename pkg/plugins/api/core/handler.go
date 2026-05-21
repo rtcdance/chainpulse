@@ -90,14 +90,14 @@ func (r *APIRouter) MiddlewareCount() int {
 
 // GetRuntimeMetrics returns a compact runtime surface for route coverage and
 // router readiness on top of the registered routes and middleware stack.
-func (r *APIRouter) GetRuntimeMetrics() map[string]interface{} {
+func (r *APIRouter) GetRuntimeMetrics() map[string]any {
 	routeCount := r.RouteCount()
 	middlewareCount := r.MiddlewareCount()
 
 	coveragePosture := classifyRouterCoveragePosture(routeCount, middlewareCount)
 	runtimePosture := classifyRouterRuntimePosture(routeCount, middlewareCount)
 
-	return map[string]interface{}{
+	return map[string]any{
 		"route_count":      routeCount,
 		"middleware_count": middlewareCount,
 		"coverage_posture": coveragePosture,
@@ -135,18 +135,26 @@ func NewDefaultErrorMapper() *DefaultErrorMapper {
 	return &DefaultErrorMapper{}
 }
 
-// MapError maps an error to a response
+// MapError maps an error to a response using the unified APIError format.
 func (m *DefaultErrorMapper) MapError(err error) (int, map[string]string, []byte) {
 	if err == nil {
 		return 200, make(map[string]string), []byte("")
 	}
 
-	// Default error mapping
+	// Use the api package's MapErrorToAPIError via a deferred import to
+	// avoid circular dependency. The api package imports core, and core
+	// must not import api. We resolve this by doing the mapping inline
+	// with the same logic, or by accepting a mapper function at wire time.
+	//
+	// For now, produce a consistent error response without leaking internals.
 	status := 500
+	code := "INTERNAL_SERVER_ERROR"
+	message := "an internal error occurred"
+
 	headers := map[string]string{
 		"Content-Type": "application/json",
 	}
-	body := []byte(fmt.Sprintf(`{"error":"%s"}`, err.Error()))
+	body := []byte(fmt.Sprintf(`{"error":"%s","message":"%s","statusCode":%d}`, code, message, status))
 
 	return status, headers, body
 }
@@ -196,7 +204,7 @@ func (a *APILayer) SetErrorMapper(mapper ErrorMapper) {
 
 // GetRuntimeMetrics returns a compact runtime surface for API-layer route
 // readiness and error-mapper wiring on top of router/runtime state.
-func (a *APILayer) GetRuntimeMetrics() map[string]interface{} {
+func (a *APILayer) GetRuntimeMetrics() map[string]any {
 	a.mu.RLock()
 	router := a.router
 	errorMapper := a.errorMapper
@@ -210,7 +218,7 @@ func (a *APILayer) GetRuntimeMetrics() map[string]interface{} {
 	coveragePosture := classifyAPILayerCoveragePosture(routeCount, middlewareCount, errorMapperConfigured)
 	runtimePosture := classifyAPILayerRuntimePosture(routeCount, middlewareCount, errorMapperConfigured)
 
-	return map[string]interface{}{
+	return map[string]any{
 		"route_count":             routeCount,
 		"middleware_count":        middlewareCount,
 		"error_mapper_configured": errorMapperConfigured,

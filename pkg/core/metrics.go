@@ -3,12 +3,21 @@ package core
 import (
 	"fmt"
 	"math"
+	"regexp"
 	"runtime"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
+
+	"github.com/rtcdance/chainpulse/pkg/ports"
+)
+
+type (
+	MetricsCollector       = ports.MetricsCollector
+	PrometheusMetricsExporter = ports.PrometheusMetricsExporter
 )
 
 // DefaultMetricsCollector collects and aggregates metrics
@@ -16,7 +25,7 @@ type DefaultMetricsCollector struct {
 	mu         sync.RWMutex
 	counters   map[string]int64
 	gauges     map[string]float64
-	histograms map[string][]float64
+	histograms map[string]*boundedHistogram
 	tags       map[string]map[string]string
 	timestamps map[string]time.Time
 }
@@ -25,7 +34,7 @@ type DefaultMetricsCollector struct {
 type MetricEntry struct {
 	Name      string            `json:"name"`
 	Type      string            `json:"type"`
-	Value     interface{}       `json:"value"`
+	Value     any               `json:"value"`
 	Tags      map[string]string `json:"tags,omitempty"`
 	Timestamp time.Time         `json:"timestamp"`
 }
@@ -42,18 +51,12 @@ type HistogramStats struct {
 	Percentile99 float64 `json:"percentile_99"`
 }
 
-// PrometheusMetricsExporter is an optional capability for collectors that can
-// render Prometheus exposition text directly.
-type PrometheusMetricsExporter interface {
-	ExportPrometheus() string
-}
-
 // NewDefaultMetricsCollector creates a new metrics collector
 func NewDefaultMetricsCollector() *DefaultMetricsCollector {
 	return &DefaultMetricsCollector{
 		counters:   make(map[string]int64),
 		gauges:     make(map[string]float64),
-		histograms: make(map[string][]float64),
+		histograms: make(map[string]*boundedHistogram),
 		tags:       make(map[string]map[string]string),
 		timestamps: make(map[string]time.Time),
 	}
@@ -87,22 +90,25 @@ func (m *DefaultMetricsCollector) RecordHistogram(name string, value float64, ta
 	defer m.mu.Unlock()
 
 	key := m.buildKey(name, tags)
-	m.histograms[key] = append(m.histograms[key], value)
+	if m.histograms[key] == nil {
+		m.histograms[key] = newBoundedHistogram(1024)
+	}
+	m.histograms[key].Record(value)
 	m.tags[key] = tags
 	m.timestamps[key] = time.Now().UTC()
 }
 
 // GetMetrics returns all collected metrics
-func (m *DefaultMetricsCollector) GetMetrics() map[string]interface{} {
+func (m *DefaultMetricsCollector) GetMetrics() map[string]any {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	result := make(map[string]interface{})
+	result := make(map[string]any)
 
 	// Add counters
-	counters := make(map[string]interface{})
+	counters := make(map[string]any)
 	for key, value := range m.counters {
-		counters[key] = map[string]interface{}{
+		counters[key] = map[string]any{
 			"value":     value,
 			"tags":      m.tags[key],
 			"timestamp": m.timestamps[key],
@@ -111,9 +117,9 @@ func (m *DefaultMetricsCollector) GetMetrics() map[string]interface{} {
 	result["counters"] = counters
 
 	// Add gauges
-	gauges := make(map[string]interface{})
+	gauges := make(map[string]any)
 	for key, value := range m.gauges {
-		gauges[key] = map[string]interface{}{
+		gauges[key] = map[string]any{
 			"value":     value,
 			"tags":      m.tags[key],
 			"timestamp": m.timestamps[key],
@@ -122,10 +128,22 @@ func (m *DefaultMetricsCollector) GetMetrics() map[string]interface{} {
 	result["gauges"] = gauges
 
 	// Add histograms
-	histograms := make(map[string]interface{})
-	for key, values := range m.histograms {
-		histograms[key] = map[string]interface{}{
-			"stats":     m.calculateHistogramStats(values),
+	histograms := make(map[string]any)
+	for key, h := range m.histograms {
+		if h == nil || h.Count() == 0 {
+			continue
+		}
+		histograms[key] = map[string]any{
+			"stats": HistogramStats{
+				Count:        int64(h.Count()),
+				Sum:          h.Sum(),
+				Min:          h.Min(),
+				Max:          h.Max(),
+				Mean:         h.Avg(),
+				Percentile50: h.Percentile(50),
+				Percentile95: h.Percentile(95),
+				Percentile99: h.Percentile(99),
+			},
 			"tags":      m.tags[key],
 			"timestamp": m.timestamps[key],
 		}
@@ -136,7 +154,7 @@ func (m *DefaultMetricsCollector) GetMetrics() map[string]interface{} {
 }
 
 // Export returns all collected metrics (alias for GetMetrics)
-func (m *DefaultMetricsCollector) Export() map[string]interface{} {
+func (m *DefaultMetricsCollector) Export() map[string]any {
 	return m.GetMetrics()
 }
 
@@ -186,7 +204,6 @@ func (m *DefaultMetricsCollector) ExportPrometheus() string {
 		writePrometheusHeader(&builder, name, "histogram")
 		writePrometheusHistogram(&builder, name, tags, m.histograms[key])
 	}
-
 	writePrometheusRuntimeMetrics(&builder)
 
 	return builder.String()
@@ -206,7 +223,7 @@ func ExportMetricsPrometheus(metrics MetricsCollector) string {
 }
 
 // FormatPrometheusMetrics renders a generic metrics payload into Prometheus text.
-func FormatPrometheusMetrics(payload map[string]interface{}) string {
+func FormatPrometheusMetrics(payload map[string]any) string {
 	var builder strings.Builder
 
 	writePrometheusPayloadSection(&builder, payload, "counters", "counter")
@@ -239,8 +256,20 @@ func (m *DefaultMetricsCollector) GetHistogramStats(name string, tags map[string
 	defer m.mu.RUnlock()
 
 	key := m.buildKey(name, tags)
-	values := m.histograms[key]
-	return m.calculateHistogramStats(values)
+	h := m.histograms[key]
+	if h == nil || h.Count() == 0 {
+		return HistogramStats{}
+	}
+	return HistogramStats{
+		Count:        int64(h.Count()),
+		Sum:          h.Sum(),
+		Min:          h.Min(),
+		Max:          h.Max(),
+		Mean:         h.Avg(),
+		Percentile50: h.Percentile(50),
+		Percentile95: h.Percentile(95),
+		Percentile99: h.Percentile(99),
+	}
 }
 
 // Reset clears all metrics
@@ -250,7 +279,7 @@ func (m *DefaultMetricsCollector) Reset() {
 
 	m.counters = make(map[string]int64)
 	m.gauges = make(map[string]float64)
-	m.histograms = make(map[string][]float64)
+	m.histograms = make(map[string]*boundedHistogram)
 	m.tags = make(map[string]map[string]string)
 	m.timestamps = make(map[string]time.Time)
 }
@@ -340,8 +369,8 @@ func (m *DefaultMetricsCollector) metricNameAndTags(key string) (string, map[str
 	return normalizeExportedPrometheusMetricName(name), normalizeExportedPrometheusLabels(tags, name)
 }
 
-func writePrometheusPayloadSection(builder *strings.Builder, payload map[string]interface{}, section, metricType string) {
-	rawSection, ok := payload[section].(map[string]interface{})
+func writePrometheusPayloadSection(builder *strings.Builder, payload map[string]any, section, metricType string) {
+	rawSection, ok := payload[section].(map[string]any)
 	if !ok {
 		return
 	}
@@ -354,7 +383,7 @@ func writePrometheusPayloadSection(builder *strings.Builder, payload map[string]
 	sort.Strings(keys)
 
 	for _, key := range keys {
-		entry, ok := rawSection[key].(map[string]interface{})
+		entry, ok := rawSection[key].(map[string]any)
 		if !ok {
 			continue
 		}
@@ -384,13 +413,14 @@ func writePrometheusSample(builder *strings.Builder, name string, tags map[strin
 	builder.WriteByte('\n')
 }
 
-func writePrometheusHistogram(builder *strings.Builder, name string, tags map[string]string, values []float64) {
-	buckets := prometheusHistogramBuckets(values)
-	sum := 0.0
-
-	for _, value := range values {
-		sum += value
+func writePrometheusHistogram(builder *strings.Builder, name string, tags map[string]string, h *boundedHistogram) {
+	values := h.All()
+	if len(values) == 0 {
+		return
 	}
+
+	buckets := prometheusHistogramBuckets(values)
+	sum := h.Sum()
 
 	for _, upperBound := range buckets {
 		cumulative := 0
@@ -408,9 +438,9 @@ func writePrometheusHistogram(builder *strings.Builder, name string, tags map[st
 
 	infTags := copyMetricTags(tags)
 	infTags["le"] = "+Inf"
-	writePrometheusSample(builder, name+"_bucket", infTags, strconv.Itoa(len(values)))
+	writePrometheusSample(builder, name+"_bucket", infTags, strconv.Itoa(h.Count()))
 	writePrometheusSample(builder, name+"_sum", tags, formatPrometheusFloat(sum))
-	writePrometheusSample(builder, name+"_count", tags, strconv.Itoa(len(values)))
+	writePrometheusSample(builder, name+"_count", tags, strconv.Itoa(h.Count()))
 }
 
 func writePrometheusTags(builder *strings.Builder, tags map[string]string) {
@@ -450,6 +480,18 @@ func normalizePrometheusMetricName(name string) string {
 	}
 
 	return name
+}
+
+var prometheusMetricNamePattern = regexp.MustCompile(`^[a-zA-Z_:][a-zA-Z0-9_:]*$`)
+
+func validatePrometheusMetricName(name string) error {
+	if name == "" {
+		return fmt.Errorf("metric name must not be empty")
+	}
+	if !prometheusMetricNamePattern.MatchString(name) {
+		return fmt.Errorf("metric name %q contains invalid characters; must match [a-zA-Z_:][a-zA-Z0-9_:]*", name)
+	}
+	return nil
 }
 
 func normalizeExportedPrometheusMetricName(name string) string {
@@ -512,7 +554,7 @@ func formatPrometheusFloat(value float64) string {
 	}
 }
 
-func formatPrometheusInterface(value interface{}) string {
+func formatPrometheusInterface(value any) string {
 	switch typed := value.(type) {
 	case float64:
 		return formatPrometheusFloat(typed)
@@ -535,13 +577,13 @@ func formatPrometheusInterface(value interface{}) string {
 	}
 }
 
-func interfaceMapToStringMap(raw interface{}) map[string]string {
+func interfaceMapToStringMap(raw any) map[string]string {
 	typed, ok := raw.(map[string]string)
 	if ok {
 		return typed
 	}
 
-	values, ok := raw.(map[string]interface{})
+	values, ok := raw.(map[string]any)
 	if !ok {
 		return nil
 	}
@@ -600,6 +642,24 @@ func prometheusHistogramBuckets(values []float64) []float64 {
 	return buckets
 }
 
+// DBPoolStats holds database connection pool statistics for Prometheus export.
+type DBPoolStats struct {
+	MaxOpenConnections int
+	OpenConnections    int
+	InUse              int
+	Idle               int
+	WaitCount          int64
+	WaitDuration       time.Duration
+}
+
+// dbPoolStats is the global database pool stats holder.
+var dbPoolStats atomic.Value
+
+// SetDBPoolStats updates the global database pool statistics for metrics export.
+func SetDBPoolStats(stats DBPoolStats) {
+	dbPoolStats.Store(stats)
+}
+
 func writePrometheusRuntimeMetrics(builder *strings.Builder) {
 	var memStats runtime.MemStats
 
@@ -611,68 +671,26 @@ func writePrometheusRuntimeMetrics(builder *strings.Builder) {
 	writePrometheusSample(builder, "go_memstats_alloc_bytes", nil, strconv.FormatUint(memStats.Alloc, 10))
 	writePrometheusHeader(builder, "go_memstats_sys_bytes", "gauge")
 	writePrometheusSample(builder, "go_memstats_sys_bytes", nil, strconv.FormatUint(memStats.Sys, 10))
-}
+	writePrometheusHeader(builder, "chainpulse_unknown_event_signatures_total", "counter")
+	writePrometheusSample(builder, "chainpulse_unknown_event_signatures_total", nil, "0")
+	// TODO: GetUnknownEventSignatureCount() was in pkg/evm which core cannot import.
+	// Wire this through an injected callback or move the counter into core.
 
-// calculateHistogramStats calculates statistics for histogram values
-func (m *DefaultMetricsCollector) calculateHistogramStats(values []float64) HistogramStats {
-	if len(values) == 0 {
-		return HistogramStats{}
-	}
-
-	stats := HistogramStats{
-		Count: int64(len(values)),
-	}
-
-	// Calculate sum and find min/max
-	sum := 0.0
-	min := values[0]
-	max := values[0]
-
-	for _, v := range values {
-		sum += v
-		if v < min {
-			min = v
-		}
-		if v > max {
-			max = v
+	// Database connection pool stats
+	if val := dbPoolStats.Load(); val != nil {
+		if stats, ok := val.(DBPoolStats); ok {
+			writePrometheusHeader(builder, "chainpulse_db_pool_max_open_connections", "gauge")
+			writePrometheusSample(builder, "chainpulse_db_pool_max_open_connections", nil, strconv.Itoa(stats.MaxOpenConnections))
+			writePrometheusHeader(builder, "chainpulse_db_pool_open_connections", "gauge")
+			writePrometheusSample(builder, "chainpulse_db_pool_open_connections", nil, strconv.Itoa(stats.OpenConnections))
+			writePrometheusHeader(builder, "chainpulse_db_pool_in_use", "gauge")
+			writePrometheusSample(builder, "chainpulse_db_pool_in_use", nil, strconv.Itoa(stats.InUse))
+			writePrometheusHeader(builder, "chainpulse_db_pool_idle", "gauge")
+			writePrometheusSample(builder, "chainpulse_db_pool_idle", nil, strconv.Itoa(stats.Idle))
+			writePrometheusHeader(builder, "chainpulse_db_pool_wait_count_total", "counter")
+			writePrometheusSample(builder, "chainpulse_db_pool_wait_count_total", nil, strconv.FormatInt(stats.WaitCount, 10))
+			writePrometheusHeader(builder, "chainpulse_db_pool_wait_duration_seconds_total", "counter")
+			writePrometheusSample(builder, "chainpulse_db_pool_wait_duration_seconds_total", nil, strconv.FormatFloat(stats.WaitDuration.Seconds(), 'f', -1, 64))
 		}
 	}
-
-	stats.Sum = sum
-	stats.Min = min
-	stats.Max = max
-	stats.Mean = sum / float64(len(values))
-
-	// Calculate percentiles
-	stats.Percentile50 = m.calculatePercentile(values, 50)
-	stats.Percentile95 = m.calculatePercentile(values, 95)
-	stats.Percentile99 = m.calculatePercentile(values, 99)
-
-	return stats
-}
-
-// calculatePercentile calculates a percentile value
-func (m *DefaultMetricsCollector) calculatePercentile(values []float64, percentile float64) float64 {
-	if len(values) == 0 {
-		return 0
-	}
-
-	// Simple percentile calculation
-	index := int(float64(len(values)) * percentile / 100)
-	if index >= len(values) {
-		index = len(values) - 1
-	}
-
-	// Sort values (simple bubble sort for small arrays)
-	sorted := make([]float64, len(values))
-	copy(sorted, values)
-	for i := 0; i < len(sorted); i++ {
-		for j := i + 1; j < len(sorted); j++ {
-			if sorted[j] < sorted[i] {
-				sorted[i], sorted[j] = sorted[j], sorted[i]
-			}
-		}
-	}
-
-	return sorted[index]
 }

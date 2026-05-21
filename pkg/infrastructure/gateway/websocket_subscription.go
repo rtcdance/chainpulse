@@ -3,11 +3,12 @@ package gateway
 import (
 	"context"
 	"fmt"
+	"log"
 	"sync"
 	"sync/atomic"
 	"time"
 
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 // Subscription represents a WebSocket subscription
@@ -139,6 +140,7 @@ type EventDeliveryManager struct {
 	subscriptionMgr *SubscriptionManager
 	deliveryChans   map[string]chan *core.BlockchainEvent
 	mutex           sync.RWMutex
+	eventsDropped   atomic.Int64
 }
 
 // NewEventDeliveryManager creates a new event delivery manager
@@ -162,15 +164,15 @@ func (edm *EventDeliveryManager) RegisterDeliveryChannel(subscriptionID string, 
 	return nil
 }
 
-// UnregisterDeliveryChannel unregisters a delivery channel
+// UnregisterDeliveryChannel unregisters a delivery channel.
+// The channel is removed from the map but NOT closed — DeliverEvent may hold
+// a stale reference and sending to a closed channel panics. The subscriber's
+// goroutine will exit via context cancellation.
 func (edm *EventDeliveryManager) UnregisterDeliveryChannel(subscriptionID string) error {
 	edm.mutex.Lock()
 	defer edm.mutex.Unlock()
 
-	if ch, exists := edm.deliveryChans[subscriptionID]; exists {
-		close(ch)
-		delete(edm.deliveryChans, subscriptionID)
-	}
+	delete(edm.deliveryChans, subscriptionID)
 
 	return nil
 }
@@ -189,13 +191,8 @@ func (edm *EventDeliveryManager) DeliverEvent(ctx context.Context, event *core.B
 	// Deliver event to each subscription
 	for _, sub := range subscriptions {
 		if ch, exists := edm.deliveryChans[sub.ID]; exists {
-			select {
-			case ch <- event:
-				// Event delivered
-			case <-ctx.Done():
-				return ctx.Err()
-			default:
-				// Channel full, skip
+			if !safeSend(ch, event, ctx) {
+				edm.eventsDropped.Add(1)
 			}
 		}
 	}
@@ -203,14 +200,48 @@ func (edm *EventDeliveryManager) DeliverEvent(ctx context.Context, event *core.B
 	return nil
 }
 
+// safeSend attempts to send an event on a channel, recovering from send-to-closed-channel.
+// This guards against the race where UnregisterDeliveryChannel removes the channel
+// from the map but DeliverEvent already holds a stale reference.
+func safeSend(ch chan *core.BlockchainEvent, event *core.BlockchainEvent, ctx context.Context) (sent bool) { //nolint:revive // ctx cannot be first; chan and event are primary params
+	defer func() {
+		if r := recover(); r != nil {
+			// Expected: send on closed channel (channel removed from map while DeliverEvent held stale ref).
+			// Unexpected: log to stderr so the panic is not silently swallowed.
+			if r != "send on closed channel" {
+				log.Printf("safeSend: unexpected panic recovered: %v", r)
+			}
+		}
+	}()
+	select {
+	case ch <- event:
+		return true
+	case <-ctx.Done():
+		return false
+	default:
+		// Channel full — briefly wait before giving up
+		select {
+		case ch <- event:
+			return true
+		case <-time.After(100 * time.Millisecond):
+			return false
+		case <-ctx.Done():
+			return false
+		}
+	}
+}
+
+// GetDroppedCount returns the total number of events dropped due to full channels.
+func (edm *EventDeliveryManager) GetDroppedCount() int64 {
+	return edm.eventsDropped.Load()
+}
+
 // ConnectionPoolManager manages WebSocket connections
 type ConnectionPoolManager struct {
 	connections map[string]*WebSocketConnection
-	//nolint:unused
-	_clientConns map[string][]string // clientID -> connectionIDs
-	mutex        sync.RWMutex
-	maxConns     int
-	nextConnID   atomic.Int64
+	mutex       sync.RWMutex
+	maxConns    int
+	nextConnID  atomic.Int64
 }
 
 // WebSocketConnection represents a WebSocket connection

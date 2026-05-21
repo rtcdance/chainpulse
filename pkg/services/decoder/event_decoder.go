@@ -2,8 +2,11 @@ package decoder
 
 import (
 	"fmt"
+	"sync"
 
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/evm"
+
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -13,14 +16,19 @@ import (
 type EventDecoder struct {
 	contractManager *ContractManager
 	logger          core.Logger
+
+	// eventSigCache maps event signature hash -> abi.Event
+	// for O(1) event lookup instead of O(n) iteration per event.
+	eventSigCache   map[common.Hash]*abi.Event
+	eventSigCacheMu sync.RWMutex
 }
 
 // DecodedEvent represents a decoded blockchain event
 type DecodedEvent struct {
 	EventName  string
-	Parameters map[string]interface{}
-	Indexed    map[string]interface{}
-	NonIndexed map[string]interface{}
+	Parameters map[string]any
+	Indexed    map[string]any
+	NonIndexed map[string]any
 }
 
 // NewEventDecoder creates a new event decoder
@@ -44,39 +52,30 @@ func (ed *EventDecoder) DecodeEvent(
 		return nil, fmt.Errorf("event has no topics")
 	}
 
-	// Find matching event in ABI
+	// Find matching event in ABI using O(1) cache lookup
 	eventSig := rawEvent.Topics[0]
-	var event abi.Event
-	found := false
-
-	for _, e := range contractABI.Events {
-		if e.ID == eventSig {
-			event = e
-			found = true
-			break
-		}
-	}
-
-	if !found {
-		return nil, fmt.Errorf("event signature not found in ABI: %s", eventSig.Hex())
+	event, err := ed.lookupEvent(contractABI, eventSig)
+	if err != nil {
+		return nil, err
 	}
 
 	// Decode indexed and non-indexed parameters
 	decoded := &DecodedEvent{
 		EventName:  event.Name,
-		Parameters: make(map[string]interface{}),
-		Indexed:    make(map[string]interface{}),
-		NonIndexed: make(map[string]interface{}),
+		Parameters: make(map[string]any),
+		Indexed:    make(map[string]any),
+		NonIndexed: make(map[string]any),
 	}
 
-	// Decode indexed parameters from topics
+	// Decode indexed parameters from topics with type-aware decoding
 	topicIndex := 1
 	for _, input := range event.Inputs {
 		if input.Indexed {
 			if topicIndex < len(rawEvent.Topics) {
 				topic := rawEvent.Topics[topicIndex]
-				decoded.Indexed[input.Name] = topic.Hex()
-				decoded.Parameters[input.Name] = topic.Hex()
+				val := decodeIndexedTopic(input.Type.String(), topic)
+				decoded.Indexed[input.Name] = val
+				decoded.Parameters[input.Name] = val
 				topicIndex++
 			}
 		}
@@ -92,26 +91,73 @@ func (ed *EventDecoder) DecodeEvent(
 		}
 
 		if len(nonIndexedInputs) > 0 {
+			// Pre-validate data length: abi.Unpack can panic on extremely
+			// short data for certain types. Check that we have at least
+			// the minimum expected length (32 bytes per static param).
+			minExpectedLen := len(nonIndexedInputs) * 32
+			if len(rawEvent.Data) < minExpectedLen && !hasDynamicType(nonIndexedInputs) {
+				return nil, fmt.Errorf("event data too short: expected at least %d bytes, got %d",
+					minExpectedLen, len(rawEvent.Data))
+			}
+
 			values, err := nonIndexedInputs.Unpack(rawEvent.Data)
 			if err != nil {
-				ed.logger.Error("failed to unpack event data", map[string]interface{}{
-					"error":    err.Error(),
-					"event":    event.Name,
-					"data_len": len(rawEvent.Data),
-				})
+				ed.logger.Error("failed to unpack event data", core.LogKeyError, err, core.LogKeyEventName, event.Name, "data_len", len(rawEvent.Data))
 				return nil, fmt.Errorf("failed to unpack event data: %w", err)
 			}
 
 			for i, input := range nonIndexedInputs {
 				if i < len(values) {
-					decoded.NonIndexed[input.Name] = values[i]
-					decoded.Parameters[input.Name] = values[i]
+					formatted := evm.FormatDecodedValue(values[i])
+					decoded.NonIndexed[input.Name] = formatted
+					decoded.Parameters[input.Name] = formatted
 				}
 			}
 		}
 	}
 
 	return decoded, nil
+}
+
+// lookupEvent finds an event by its signature hash using the ABI cache.
+// Falls back to linear scan on cache miss, then populates the cache.
+func (ed *EventDecoder) lookupEvent(contractABI abi.ABI, eventSig common.Hash) (*abi.Event, error) {
+	// Try cache first
+	ed.eventSigCacheMu.RLock()
+	cache := ed.eventSigCache
+	if cache != nil {
+		if event, ok := cache[eventSig]; ok {
+			ed.eventSigCacheMu.RUnlock()
+			return event, nil
+		}
+	}
+	ed.eventSigCacheMu.RUnlock()
+
+	// Cache miss — linear scan
+	// NOTE: Go 1.22+ creates a new variable per iteration, so &e is safe here.
+	// We use explicit copy to be defensive and version-agnostic.
+	var foundEvent *abi.Event
+	for _, e := range contractABI.Events {
+		ev := e // explicit copy
+		if ev.ID == eventSig {
+			foundEvent = &ev
+			break
+		}
+	}
+
+	if foundEvent == nil {
+		return nil, fmt.Errorf("event signature not found in ABI: %s", eventSig.Hex())
+	}
+
+	// Populate cache
+	ed.eventSigCacheMu.Lock()
+	if ed.eventSigCache == nil {
+		ed.eventSigCache = make(map[common.Hash]*abi.Event)
+	}
+	ed.eventSigCache[eventSig] = foundEvent
+	ed.eventSigCacheMu.Unlock()
+
+	return foundEvent, nil
 }
 
 // DecodeEventBatch decodes multiple events
@@ -127,9 +173,7 @@ func (ed *EventDecoder) DecodeEventBatch(
 	for _, rawEvent := range rawEvents {
 		decodedEvent, err := ed.DecodeEvent(rawEvent, contractABI)
 		if err != nil {
-			ed.logger.Warn("failed to decode event", map[string]interface{}{
-				"error": err.Error(),
-			})
+			ed.logger.Warn("failed to decode event", core.LogKeyError, err)
 			continue
 		}
 		decoded = append(decoded, decodedEvent)
@@ -195,4 +239,21 @@ func (ed *EventDecoder) GetEventSignatures(contractName string) (map[string]comm
 	}
 
 	return signatures, nil
+}
+
+// decodeIndexedTopic performs type-aware decoding of an indexed topic
+// using the core decoder's type-aware conversion.
+func decodeIndexedTopic(abiType string, topic common.Hash) any {
+	return evm.FormatIndexedTopicValue(abiType, topic)
+}
+
+// hasDynamicType returns true if any of the ABI arguments have a dynamic type
+// (e.g., string, bytes, dynamic array) where the length cannot be predicted upfront.
+func hasDynamicType(inputs abi.Arguments) bool {
+	for _, input := range inputs {
+		if input.Type.T == abi.StringTy || input.Type.T == abi.BytesTy || input.Type.T == abi.SliceTy {
+			return true
+		}
+	}
+	return false
 }

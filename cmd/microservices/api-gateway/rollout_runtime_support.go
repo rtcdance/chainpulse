@@ -3,9 +3,9 @@ package main
 import (
 	"context"
 
-	"chainpulse/pkg/core"
-	"chainpulse/pkg/infrastructure/database"
-	"chainpulse/pkg/plugins/api"
+	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/infrastructure/database"
+	"github.com/rtcdance/chainpulse/pkg/plugins/api"
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
@@ -17,7 +17,7 @@ func (m *apiGatewayNoopDatabaseManager) Initialize(ctx context.Context) error {
 	return nil
 }
 
-func (m *apiGatewayNoopDatabaseManager) GetMongoClient(ctx context.Context) (interface{}, error) {
+func (m *apiGatewayNoopDatabaseManager) GetMongoClient(ctx context.Context) (any, error) {
 	return nil, nil
 }
 
@@ -25,7 +25,7 @@ func (m *apiGatewayNoopDatabaseManager) GetMongoDatabase(name string) *mongo.Dat
 	return nil
 }
 
-func (m *apiGatewayNoopDatabaseManager) GetPostgresDB(ctx context.Context) (interface{}, error) {
+func (m *apiGatewayNoopDatabaseManager) GetPostgresDB(ctx context.Context) (any, error) {
 	return nil, nil
 }
 
@@ -37,8 +37,8 @@ func (m *apiGatewayNoopDatabaseManager) CheckPostgresHealth(ctx context.Context)
 	return nil
 }
 
-func (m *apiGatewayNoopDatabaseManager) Health(ctx context.Context) interface{} {
-	return map[string]interface{}{"status": "healthy"}
+func (m *apiGatewayNoopDatabaseManager) Health(ctx context.Context) any {
+	return map[string]any{"status": "healthy"}
 }
 
 func (m *apiGatewayNoopDatabaseManager) Close(ctx context.Context) error {
@@ -87,7 +87,7 @@ func buildAPIGatewayRuntimeRolloutComponentsWithReadinessDetails(
 	logger core.Logger,
 	metrics core.MetricsCollector,
 	gateway *api.APIGatewayPlugin,
-	readinessDetailsProvider func() map[string]interface{},
+	readinessDetailsProvider func() map[string]any,
 ) (*api.EventQueryHandler, *api.EventSubscriptionHandler, *api.HealthCheckHandler, error) {
 	healthHandler := api.NewHealthCheckHandler(&apiGatewayNoopDatabaseManager{}, nil, logger, metrics)
 	if err := healthHandler.Initialize(ctx); err != nil {

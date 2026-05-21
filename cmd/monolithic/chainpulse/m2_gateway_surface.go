@@ -1,8 +1,8 @@
 package main
 
 import (
-	domainquery "chainpulse/pkg/domain/query"
-	"chainpulse/pkg/plugins/api"
+	domainquery "github.com/rtcdance/chainpulse/pkg/domain/query"
+	"github.com/rtcdance/chainpulse/pkg/plugins/api"
 )
 
 type monolithicGatewaySurface struct {

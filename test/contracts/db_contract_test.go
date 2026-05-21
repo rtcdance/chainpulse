@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 // DatabaseContractTest defines the contract that all database implementations must satisfy
@@ -38,7 +38,7 @@ func DatabaseContractTest(t *testing.T, factory func(t *testing.T) core.Database
 		db := factory(t)
 		ctx := context.Background()
 
-		events := []interface{}{
+		events := []any{
 			&core.BlockchainEvent{ID: "batch-1", ChainID: "ethereum", BlockNumber: 1},
 			&core.BlockchainEvent{ID: "batch-2", ChainID: "ethereum", BlockNumber: 2},
 			&core.BlockchainEvent{ID: "batch-3", ChainID: "ethereum", BlockNumber: 3},

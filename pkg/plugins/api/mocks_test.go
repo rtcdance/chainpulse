@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 // MockLogger implements core.Logger for testing
@@ -14,31 +14,31 @@ type MockLogger struct {
 	messages []string
 }
 
-func (m *MockLogger) Debug(msg string, fields ...interface{}) {
+func (m *MockLogger) Debug(msg string, fields ...any) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.messages = append(m.messages, msg)
 }
 
-func (m *MockLogger) Info(msg string, fields ...interface{}) {
+func (m *MockLogger) Info(msg string, fields ...any) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.messages = append(m.messages, msg)
 }
 
-func (m *MockLogger) Warn(msg string, fields ...interface{}) {
+func (m *MockLogger) Warn(msg string, fields ...any) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.messages = append(m.messages, msg)
 }
 
-func (m *MockLogger) Error(msg string, fields ...interface{}) {
+func (m *MockLogger) Error(msg string, fields ...any) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.messages = append(m.messages, msg)
 }
 
-func (m *MockLogger) Fatal(msg string, fields ...interface{}) {
+func (m *MockLogger) Fatal(msg string, fields ...any) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.messages = append(m.messages, msg)
@@ -105,10 +105,10 @@ func (m *MockMetricsCollector) GetGauge(name string) float64 {
 	return m.gauges[name]
 }
 
-func (m *MockMetricsCollector) GetMetrics() map[string]interface{} {
+func (m *MockMetricsCollector) GetMetrics() map[string]any {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	metrics := make(map[string]interface{})
+	metrics := make(map[string]any)
 	metrics["counters"] = m.counters
 	metrics["gauges"] = m.gauges
 	metrics["histograms"] = m.histograms
@@ -130,22 +130,22 @@ func (m *MockMetricsCollector) GetHistogramValues(name string) []float64 {
 // MockCacheService implements cache service interface for testing
 type MockCacheService struct {
 	mu    sync.RWMutex
-	cache map[string]interface{}
+	cache map[string]any
 }
 
 func NewMockCacheService() *MockCacheService {
 	return &MockCacheService{
-		cache: make(map[string]interface{}),
+		cache: make(map[string]any),
 	}
 }
 
-func (m *MockCacheService) Get(key string) (interface{}, error) {
+func (m *MockCacheService) Get(key string) (any, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.cache[key], nil
 }
 
-func (m *MockCacheService) Set(key string, value interface{}, ttl time.Duration) error {
+func (m *MockCacheService) Set(key string, value any, ttl time.Duration) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.cache[key] = value
@@ -162,7 +162,7 @@ func (m *MockCacheService) Delete(key string) error {
 func (m *MockCacheService) Clear() error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.cache = make(map[string]interface{})
+	m.cache = make(map[string]any)
 	return nil
 }
 

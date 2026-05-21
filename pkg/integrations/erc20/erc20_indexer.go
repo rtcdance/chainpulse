@@ -9,8 +9,10 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 
-	"chainpulse/pkg/core"
-	"chainpulse/pkg/services/decoder"
+	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core/batch"
+	
+	"github.com/rtcdance/chainpulse/pkg/services/decoder"
 )
 
 // TransferEvent represents a decoded ERC20 transfer event
@@ -18,12 +20,12 @@ type TransferEvent struct {
 	TransactionHash common.Hash
 	BlockNumber     uint64
 	BlockTimestamp  int64
-	LogIndex        uint
+	LogIndex        uint64
 	Token           common.Address
 	From            common.Address
 	To              common.Address
 	Value           *big.Int
-	DecodedData     map[string]interface{}
+	DecodedData     map[string]any
 }
 
 // TokenBalance represents a token balance at a specific block
@@ -98,23 +100,9 @@ func (ei *ERC20Indexer) IndexTransfers(
 		return nil
 	}
 
-	ei.logger.Debug("indexing transfer events", map[string]interface{}{
-		"count": len(events),
-	})
+	ei.logger.Debug("indexing transfer events", core.LogKeyCount, len(events))
 
-	for _, event := range events {
-		if err := ei.indexTransferEvent(ctx, event); err != nil {
-			ei.logger.Error("failed to index transfer event", map[string]interface{}{
-				"error":    err.Error(),
-				"event_id": event.ID,
-				"block":    event.BlockNumber,
-				"tx_hash":  event.TransactionHash.Hex(),
-			})
-			continue
-		}
-	}
-
-	return nil
+	return batch.Index(ctx, events, ei.indexTransferEvent)
 }
 
 // indexTransferEvent indexes a single transfer event
@@ -146,12 +134,11 @@ func (ei *ERC20Indexer) indexTransferEvent(
 	// Update balances
 	ei.updateBalance(transferEvent)
 
-	ei.logger.Debug("indexed transfer event", map[string]interface{}{
-		"token": transferEvent.Token.Hex(),
-		"from":  transferEvent.From.Hex(),
-		"to":    transferEvent.To.Hex(),
-		"value": transferEvent.Value.String(),
-	})
+	ei.logger.Debug("indexed transfer event",
+		"token", transferEvent.Token.Hex(),
+		core.LogKeySender, transferEvent.From.Hex(),
+		core.LogKeyRecipient, transferEvent.To.Hex(),
+		"value", transferEvent.Value.String())
 
 	return nil
 }
@@ -292,12 +279,11 @@ func (ei *ERC20Indexer) GetTransferHistory(
 		return nil, fmt.Errorf("from_block must be <= to_block")
 	}
 
-	ei.logger.Debug("getting transfer history", map[string]interface{}{
-		"token":      token.Hex(),
-		"account":    account.Hex(),
-		"from_block": fromBlock,
-		"to_block":   toBlock,
-	})
+	ei.logger.Debug("getting transfer history",
+		"token", token.Hex(),
+		"account", account.Hex(),
+		core.LogKeyFromBlock, fromBlock,
+		core.LogKeyToBlock, toBlock)
 
 	// Create filter for transfer events
 	filter := &core.EventFilter{
@@ -309,12 +295,11 @@ func (ei *ERC20Indexer) GetTransferHistory(
 	}
 
 	// Query events from database
-	events, err := ei.database.QueryEvents(context.Background(), filter)
+	events, err := ei.database.QueryEvents(ctx, filter)
 	if err != nil {
-		ei.logger.Error("failed to query transfer events", map[string]interface{}{
-			"error": err.Error(),
-			"token": token.Hex(),
-		})
+		ei.logger.Error("failed to query transfer events",
+			core.LogKeyError, err.Error(),
+			"token", token.Hex())
 		return nil, err
 	}
 
@@ -327,18 +312,15 @@ func (ei *ERC20Indexer) GetTransferHistory(
 	for i, eventInterface := range events {
 		event, ok := eventInterface.(*core.BlockchainEvent)
 		if !ok {
-			ei.logger.Warn("failed to cast event to BlockchainEvent", map[string]interface{}{
-				"index": i,
-			})
+			ei.logger.Warn("failed to cast event to BlockchainEvent", "index", i)
 			continue
 		}
 
 		transferEvent, err := ei.decodeTransferEvent(event)
 		if err != nil {
-			ei.logger.Warn("failed to decode transfer event", map[string]interface{}{
-				"error": err.Error(),
-				"event": event.ID,
-			})
+			ei.logger.Warn("failed to decode transfer event",
+				core.LogKeyError, err.Error(),
+				core.LogKeyEventID, event.ID)
 			continue
 		}
 
@@ -377,13 +359,12 @@ func (ei *ERC20Indexer) GetTransferHistory(
 		LastTransfer:  lastTransfer,
 	}
 
-	ei.logger.Debug("retrieved transfer history", map[string]interface{}{
-		"token":          token.Hex(),
-		"account":        account.Hex(),
-		"transfer_count": len(transfers),
-		"total_incoming": totalIncoming.String(),
-		"total_outgoing": totalOutgoing.String(),
-	})
+	ei.logger.Debug("retrieved transfer history",
+		"token", token.Hex(),
+		"account", account.Hex(),
+		"transfer_count", len(transfers),
+		"total_incoming", totalIncoming.String(),
+		"total_outgoing", totalOutgoing.String())
 
 	return history, nil
 }
@@ -437,11 +418,11 @@ func (ei *ERC20Indexer) ClearCache() {
 }
 
 // GetCacheStats returns cache statistics
-func (ei *ERC20Indexer) GetCacheStats() map[string]interface{} {
+func (ei *ERC20Indexer) GetCacheStats() map[string]any {
 	ei.mu.RLock()
 	defer ei.mu.RUnlock()
 
-	return map[string]interface{}{
+	return map[string]any{
 		"cached_transfers": len(ei.transferCache),
 		"tracked_balances": len(ei.balances),
 		"tokens":           len(ei.tokenMetadata),

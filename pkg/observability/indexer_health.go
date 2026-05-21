@@ -236,12 +236,12 @@ func (ih *IndexerHealth) IsUnhealthy() bool {
 }
 
 // GetHealthSummary returns a summary of the health status
-func (ih *IndexerHealth) GetHealthSummary() map[string]interface{} {
+func (ih *IndexerHealth) GetHealthSummary() map[string]any {
 	ih.mu.RLock()
 	defer ih.mu.RUnlock()
 
 	if ih.lastHealthCheckResult == nil {
-		return map[string]interface{}{
+		return map[string]any{
 			"status":  "unknown",
 			"message": "no health check performed yet",
 		}
@@ -249,7 +249,7 @@ func (ih *IndexerHealth) GetHealthSummary() map[string]interface{} {
 
 	result := ih.lastHealthCheckResult
 
-	return map[string]interface{}{
+	return map[string]any{
 		"status":              string(result.Status),
 		"message":             result.Message,
 		"current_block":       result.CurrentBlock,

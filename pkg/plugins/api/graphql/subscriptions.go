@@ -6,12 +6,12 @@ import (
 	"sync"
 	"time"
 
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 // SubscriptionManager manages GraphQL subscriptions
 type SubscriptionManager struct {
-	subscribers map[string][]chan interface{}
+	subscribers map[string][]chan any
 	mu          sync.RWMutex
 	logger      core.Logger
 	metrics     core.MetricsCollector
@@ -25,7 +25,7 @@ func NewSubscriptionManager(
 	eventBus core.EventBus,
 ) *SubscriptionManager {
 	return &SubscriptionManager{
-		subscribers: make(map[string][]chan interface{}),
+		subscribers: make(map[string][]chan any),
 		logger:      logger,
 		metrics:     metrics,
 		eventBus:    eventBus,
@@ -36,7 +36,7 @@ func NewSubscriptionManager(
 type Subscription struct {
 	ID        string
 	Topic     string
-	Channel   chan interface{}
+	Channel   chan any
 	Context   context.Context
 	Cancel    context.CancelFunc
 	CreatedAt time.Time
@@ -49,7 +49,7 @@ func (sm *SubscriptionManager) Subscribe(topic string) (*Subscription, error) {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	channel := make(chan interface{}, 100)
+	channel := make(chan any, 100)
 
 	subscription := &Subscription{
 		ID:        fmt.Sprintf("%s:%d", topic, time.Now().UnixNano()),
@@ -107,7 +107,7 @@ func (sm *SubscriptionManager) Unsubscribe(subscription *Subscription) error {
 }
 
 // Publish publishes a message to all subscribers of a topic
-func (sm *SubscriptionManager) Publish(topic string, data interface{}) error {
+func (sm *SubscriptionManager) Publish(topic string, data any) error {
 	if topic == "" {
 		return fmt.Errorf("topic is required")
 	}
@@ -185,10 +185,14 @@ func NewSubscriptionTopics() *SubscriptionTopics {
 
 // EventSubscriptionPayload represents the payload for event subscriptions
 type EventSubscriptionPayload struct {
-	Type      string                 `json:"type"`
-	EventID   string                 `json:"eventId"`
-	Event     map[string]interface{} `json:"event,omitempty"`
-	Timestamp time.Time              `json:"timestamp"`
+	Type            string         `json:"type"`
+	EventID         string         `json:"eventId"`
+	ChainID         string         `json:"chainId,omitempty"`
+	ContractAddress string         `json:"contractAddress,omitempty"`
+	EventName       string         `json:"eventName,omitempty"`
+	BlockNumber     int64          `json:"blockNumber,omitempty"`
+	Event           map[string]any `json:"event,omitempty"`
+	Timestamp       int64          `json:"timestamp"`
 }
 
 // SubscriptionHandler handles subscription operations
@@ -219,7 +223,7 @@ func (sh *SubscriptionHandler) OnEventCreated(event *core.BlockchainEvent) error
 		Type:      "created",
 		EventID:   event.ID,
 		Event:     eventToGraphQL(event),
-		Timestamp: time.Now(),
+		Timestamp: time.Now().Unix(),
 	}
 
 	return sh.manager.Publish(sh.topics.EventCreated, payload)
@@ -231,7 +235,7 @@ func (sh *SubscriptionHandler) OnEventUpdated(event *core.BlockchainEvent) error
 		Type:      "updated",
 		EventID:   event.ID,
 		Event:     eventToGraphQL(event),
-		Timestamp: time.Now(),
+		Timestamp: time.Now().Unix(),
 	}
 
 	return sh.manager.Publish(sh.topics.EventUpdated, payload)
@@ -242,7 +246,7 @@ func (sh *SubscriptionHandler) OnEventDeleted(eventID string) error {
 	payload := EventSubscriptionPayload{
 		Type:      "deleted",
 		EventID:   eventID,
-		Timestamp: time.Now(),
+		Timestamp: time.Now().Unix(),
 	}
 
 	return sh.manager.Publish(sh.topics.EventDeleted, payload)
@@ -254,7 +258,7 @@ func (sh *SubscriptionHandler) OnEventConfirmed(event *core.BlockchainEvent) err
 		Type:      "confirmed",
 		EventID:   event.ID,
 		Event:     eventToGraphQL(event),
-		Timestamp: time.Now(),
+		Timestamp: time.Now().Unix(),
 	}
 
 	return sh.manager.Publish(sh.topics.EventConfirmed, payload)
@@ -266,7 +270,7 @@ func (sh *SubscriptionHandler) OnEventFailed(event *core.BlockchainEvent) error 
 		Type:      "failed",
 		EventID:   event.ID,
 		Event:     eventToGraphQL(event),
-		Timestamp: time.Now(),
+		Timestamp: time.Now().Unix(),
 	}
 
 	return sh.manager.Publish(sh.topics.EventFailed, payload)
@@ -274,7 +278,7 @@ func (sh *SubscriptionHandler) OnEventFailed(event *core.BlockchainEvent) error 
 
 // OnCacheInvalidated publishes cache invalidated notification
 func (sh *SubscriptionHandler) OnCacheInvalidated(pattern string) error {
-	payload := map[string]interface{}{
+	payload := map[string]any{
 		"type":      "invalidated",
 		"pattern":   pattern,
 		"timestamp": time.Now(),

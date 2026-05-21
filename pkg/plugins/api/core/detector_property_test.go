@@ -18,6 +18,7 @@ func NewPropertyTestHelper(t *testing.T) *PropertyTestHelper {
 
 // TestProperty_DetectorAlwaysReturnsValidProtocol tests that detector always returns a valid protocol
 func TestProperty_DetectorAlwaysReturnsValidProtocol(t *testing.T) {
+	t.Parallel()
 	// Feature: Protocol Detection, Property 1: Detector always returns a valid protocol type
 	pd := NewProtocolDetector()
 
@@ -63,6 +64,7 @@ func TestProperty_DetectorAlwaysReturnsValidProtocol(t *testing.T) {
 
 // TestProperty_RegisteredHandlerIsRetrievable tests that registered handlers can be retrieved
 func TestProperty_RegisteredHandlerIsRetrievable(t *testing.T) {
+	t.Parallel()
 	// Feature: Handler Registration, Property 2: Any registered handler can be retrieved
 	pd := NewProtocolDetector()
 
@@ -84,6 +86,7 @@ func TestProperty_RegisteredHandlerIsRetrievable(t *testing.T) {
 
 // TestProperty_DetectionIsConsistent tests that protocol detection is consistent
 func TestProperty_DetectionIsConsistent(t *testing.T) {
+	t.Parallel()
 	// Feature: Protocol Detection, Property 3: Protocol detection is consistent for same request
 	pd := NewProtocolDetector()
 
@@ -111,6 +114,7 @@ func TestProperty_DetectionIsConsistent(t *testing.T) {
 
 // TestProperty_ProtocolCountMatchesRegistrations tests that protocol count matches registrations
 func TestProperty_ProtocolCountMatchesRegistrations(t *testing.T) {
+	t.Parallel()
 	// Feature: Handler Management, Property 4: Protocol count always matches number of registrations
 	pd := NewProtocolDetector()
 
@@ -126,6 +130,7 @@ func TestProperty_ProtocolCountMatchesRegistrations(t *testing.T) {
 
 // TestProperty_MetricsAlwaysContainRequiredFields tests that metrics contain required fields
 func TestProperty_MetricsAlwaysContainRequiredFields(t *testing.T) {
+	t.Parallel()
 	// Feature: Metrics, Property 5: Metrics always contain required fields
 	pd := NewProtocolDetector()
 
@@ -154,6 +159,7 @@ func TestProperty_MetricsAlwaysContainRequiredFields(t *testing.T) {
 
 // TestProperty_GraphQLDetectionByPath tests GraphQL detection by path
 func TestProperty_GraphQLDetectionByPath(t *testing.T) {
+	t.Parallel()
 	// Feature: Protocol Detection, Property 6: GraphQL is detected when path contains 'graphql'
 	pd := NewProtocolDetector()
 
@@ -169,6 +175,7 @@ func TestProperty_GraphQLDetectionByPath(t *testing.T) {
 
 // TestProperty_WebSocketDetectionByHeaders tests WebSocket detection by headers
 func TestProperty_WebSocketDetectionByHeaders(t *testing.T) {
+	t.Parallel()
 	// Feature: Protocol Detection, Property 7: WebSocket is detected by Upgrade header
 	pd := NewProtocolDetector()
 
@@ -189,6 +196,7 @@ func TestProperty_WebSocketDetectionByHeaders(t *testing.T) {
 
 // TestProperty_GRPCDetectionByContentType tests gRPC detection by content type
 func TestProperty_GRPCDetectionByContentType(t *testing.T) {
+	t.Parallel()
 	// Feature: Protocol Detection, Property 8: gRPC is detected by application/grpc content type
 	pd := NewProtocolDetector()
 
@@ -209,6 +217,7 @@ func TestProperty_GRPCDetectionByContentType(t *testing.T) {
 
 // TestProperty_RoutingFailsWithoutHandler tests that routing fails without handler
 func TestProperty_RoutingFailsWithoutHandler(t *testing.T) {
+	t.Parallel()
 	// Feature: Routing, Property 9: Routing fails when no handler is registered for detected protocol
 	pd := NewProtocolDetector()
 
@@ -222,6 +231,7 @@ func TestProperty_RoutingFailsWithoutHandler(t *testing.T) {
 
 // TestProperty_RoutingSucceedsWithHandler tests that routing succeeds with handler
 func TestProperty_RoutingSucceedsWithHandler(t *testing.T) {
+	t.Parallel()
 	// Feature: Routing, Property 10: Routing succeeds when handler is registered for detected protocol
 	pd := NewProtocolDetector()
 	handler := &MockHandler{resp: NewBaseResponse(nil)}
@@ -239,6 +249,7 @@ func TestProperty_RoutingSucceedsWithHandler(t *testing.T) {
 
 // TestProperty_ProtocolNameIsNeverEmpty tests that protocol names are never empty
 func TestProperty_ProtocolNameIsNeverEmpty(t *testing.T) {
+	t.Parallel()
 	// Feature: Protocol Names, Property 11: Protocol names are never empty
 	protocols := []ProtocolType{
 		ProtocolHTTP, ProtocolWebSocket, ProtocolGRPC, ProtocolGraphQL, ProtocolUnknown,
@@ -254,6 +265,7 @@ func TestProperty_ProtocolNameIsNeverEmpty(t *testing.T) {
 
 // TestProperty_GetRegisteredProtocolsReturnsAllRegistered tests that all registered protocols are returned
 func TestProperty_GetRegisteredProtocolsReturnsAllRegistered(t *testing.T) {
+	t.Parallel()
 	// Feature: Handler Management, Property 12: GetRegisteredProtocols returns all registered protocols
 	pd := NewProtocolDetector()
 
@@ -283,6 +295,7 @@ func TestProperty_GetRegisteredProtocolsReturnsAllRegistered(t *testing.T) {
 
 // TestProperty_NilRequestReturnsUnknown tests that nil request returns Unknown protocol
 func TestProperty_NilRequestReturnsUnknown(t *testing.T) {
+	t.Parallel()
 	// Feature: Protocol Detection, Property 13: Nil request always returns Unknown protocol
 	pd := NewProtocolDetector()
 
@@ -294,6 +307,7 @@ func TestProperty_NilRequestReturnsUnknown(t *testing.T) {
 
 // TestProperty_GraphQLDetectionByBody tests GraphQL detection by body content
 func TestProperty_GraphQLDetectionByBody(t *testing.T) {
+	t.Parallel()
 	// Feature: Protocol Detection, Property 14: GraphQL is detected by query/mutation in body
 	pd := NewProtocolDetector()
 
@@ -314,6 +328,7 @@ func TestProperty_GraphQLDetectionByBody(t *testing.T) {
 
 // TestProperty_WebSocketDetectionByPath tests WebSocket detection by path
 func TestProperty_WebSocketDetectionByPath(t *testing.T) {
+	t.Parallel()
 	// Feature: Protocol Detection, Property 15: WebSocket is detected by path containing ws/websocket
 	pd := NewProtocolDetector()
 
@@ -329,6 +344,7 @@ func TestProperty_WebSocketDetectionByPath(t *testing.T) {
 
 // TestProperty_ConcurrentOperationsAreSafe tests that concurrent operations are safe
 func TestProperty_ConcurrentOperationsAreSafe(t *testing.T) {
+	t.Parallel()
 	// Feature: Concurrency, Property 16: Concurrent operations are safe and don't cause data races
 	pd := NewProtocolDetector()
 
@@ -374,6 +390,7 @@ func TestProperty_ConcurrentOperationsAreSafe(t *testing.T) {
 
 // TestProperty_ProtocolDetectionIsIdempotent tests that protocol detection is idempotent
 func TestProperty_ProtocolDetectionIsIdempotent(t *testing.T) {
+	t.Parallel()
 	// Feature: Protocol Detection, Property 17: Protocol detection is idempotent
 	pd := NewProtocolDetector()
 
@@ -409,6 +426,7 @@ func TestProperty_ProtocolDetectionIsIdempotent(t *testing.T) {
 
 // TestProperty_HandlerCallReceivesCorrectRequest tests that handler receives correct request
 func TestProperty_HandlerCallReceivesCorrectRequest(t *testing.T) {
+	t.Parallel()
 	// Feature: Routing, Property 18: Handler receives the exact request that was routed
 	pd := NewProtocolDetector()
 	handler := &MockHandler{resp: NewBaseResponse(nil)}
@@ -430,6 +448,7 @@ func TestProperty_HandlerCallReceivesCorrectRequest(t *testing.T) {
 
 // TestProperty_ProtocolDetectionPriority tests protocol detection priority order
 func TestProperty_ProtocolDetectionPriority(t *testing.T) {
+	t.Parallel()
 	// Feature: Protocol Detection, Property 19: Protocol detection follows correct priority
 	pd := NewProtocolDetector()
 
@@ -448,6 +467,7 @@ func TestProperty_ProtocolDetectionPriority(t *testing.T) {
 
 // TestProperty_EmptyHeadersHandledCorrectly tests that empty headers are handled correctly
 func TestProperty_EmptyHeadersHandledCorrectly(t *testing.T) {
+	t.Parallel()
 	// Feature: Protocol Detection, Property 20: Empty headers are handled correctly
 	pd := NewProtocolDetector()
 
@@ -462,6 +482,7 @@ func TestProperty_EmptyHeadersHandledCorrectly(t *testing.T) {
 
 // TestProperty_ProtocolNameConsistency tests that protocol names are consistent
 func TestProperty_ProtocolNameConsistency(t *testing.T) {
+	t.Parallel()
 	// Feature: Protocol Names, Property 21: Protocol names are consistent across calls
 	protocols := []ProtocolType{
 		ProtocolHTTP, ProtocolWebSocket, ProtocolGRPC, ProtocolGraphQL, ProtocolUnknown,
@@ -479,6 +500,7 @@ func TestProperty_ProtocolNameConsistency(t *testing.T) {
 
 // TestProperty_RegistrationDoesNotAffectDetection tests that registration doesn't affect detection
 func TestProperty_RegistrationDoesNotAffectDetection(t *testing.T) {
+	t.Parallel()
 	// Feature: Protocol Detection, Property 22: Protocol detection is independent of handler registration
 	pd := NewProtocolDetector()
 
@@ -500,6 +522,7 @@ func TestProperty_RegistrationDoesNotAffectDetection(t *testing.T) {
 
 // TestProperty_MetricsReflectCurrentState tests that metrics reflect current state
 func TestProperty_MetricsReflectCurrentState(t *testing.T) {
+	t.Parallel()
 	// Feature: Metrics, Property 23: Metrics always reflect current state
 	pd := NewProtocolDetector()
 
@@ -517,6 +540,7 @@ func TestProperty_MetricsReflectCurrentState(t *testing.T) {
 
 // TestProperty_ProtocolTypeValuesAreUnique tests that protocol type values are unique
 func TestProperty_ProtocolTypeValuesAreUnique(t *testing.T) {
+	t.Parallel()
 	// Feature: Protocol Types, Property 24: Protocol type values are unique
 	protocols := []ProtocolType{
 		ProtocolHTTP, ProtocolWebSocket, ProtocolGRPC, ProtocolGraphQL, ProtocolUnknown,
@@ -533,6 +557,7 @@ func TestProperty_ProtocolTypeValuesAreUnique(t *testing.T) {
 
 // TestProperty_LargeNumberOfHandlers tests detector with large number of handlers
 func TestProperty_LargeNumberOfHandlers(t *testing.T) {
+	t.Parallel()
 	// Feature: Handler Management, Property 25: Detector handles large number of handlers efficiently
 	pd := NewProtocolDetector()
 
@@ -553,6 +578,7 @@ func TestProperty_LargeNumberOfHandlers(t *testing.T) {
 
 // TestProperty_SpecialCharactersInPath tests protocol detection with special characters
 func TestProperty_SpecialCharactersInPath(t *testing.T) {
+	t.Parallel()
 	// Feature: Protocol Detection, Property 26: Protocol detection handles special characters in path
 	pd := NewProtocolDetector()
 
@@ -579,6 +605,7 @@ func TestProperty_SpecialCharactersInPath(t *testing.T) {
 
 // TestProperty_CaseInsensitivePathDetection tests case-insensitive path detection
 func TestProperty_CaseInsensitivePathDetection(t *testing.T) {
+	t.Parallel()
 	// Feature: Protocol Detection, Property 27: Path detection is case-sensitive for protocol keywords
 	pd := NewProtocolDetector()
 
@@ -601,6 +628,7 @@ func TestProperty_CaseInsensitivePathDetection(t *testing.T) {
 
 // TestProperty_MultipleHeadersHandledCorrectly tests handling of multiple headers
 func TestProperty_MultipleHeadersHandledCorrectly(t *testing.T) {
+	t.Parallel()
 	// Feature: Protocol Detection, Property 28: Multiple headers are handled correctly
 	pd := NewProtocolDetector()
 
@@ -622,6 +650,7 @@ func TestProperty_MultipleHeadersHandledCorrectly(t *testing.T) {
 
 // TestProperty_ErrorHandlingIsConsistent tests that error handling is consistent
 func TestProperty_ErrorHandlingIsConsistent(t *testing.T) {
+	t.Parallel()
 	// Feature: Error Handling, Property 29: Error handling is consistent
 	pd := NewProtocolDetector()
 
@@ -645,6 +674,7 @@ func TestProperty_ErrorHandlingIsConsistent(t *testing.T) {
 
 // TestProperty_ProtocolDetectionWithEmptyBody tests protocol detection with empty body
 func TestProperty_ProtocolDetectionWithEmptyBody(t *testing.T) {
+	t.Parallel()
 	// Feature: Protocol Detection, Property 30: Protocol detection works with empty body
 	pd := NewProtocolDetector()
 

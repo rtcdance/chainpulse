@@ -28,12 +28,13 @@ func (mmc *MockMetricsCollector) RecordGauge(name string, value float64, tags ma
 func (mmc *MockMetricsCollector) RecordHistogram(name string, value float64, tags map[string]string) {
 }
 
-func (mmc *MockMetricsCollector) GetMetrics() map[string]interface{} {
-	return map[string]interface{}{}
+func (mmc *MockMetricsCollector) GetMetrics() map[string]any {
+	return map[string]any{}
 }
 
 // TestNewMQErrorHandler tests handler creation
 func TestNewMQErrorHandler(t *testing.T) {
+	t.Parallel()
 	logger := &EventBusTestLogger{}
 	metrics := &MockMetricsCollector{}
 
@@ -49,6 +50,7 @@ func TestNewMQErrorHandler(t *testing.T) {
 
 // TestClassifyErrorNilMQ tests classifying nil error
 func TestClassifyErrorNilMQ(t *testing.T) {
+	t.Parallel()
 	logger := &EventBusTestLogger{}
 	metrics := &MockMetricsCollector{}
 	handler := NewMQErrorHandler(logger, metrics, 3, 100*time.Millisecond)
@@ -60,11 +62,12 @@ func TestClassifyErrorNilMQ(t *testing.T) {
 
 // TestClassifyErrorTimeout tests classifying timeout error
 func TestClassifyErrorTimeout(t *testing.T) {
+	t.Parallel()
 	logger := &EventBusTestLogger{}
 	metrics := &MockMetricsCollector{}
 	handler := NewMQErrorHandler(logger, metrics, 3, 100*time.Millisecond)
 
-	err := errors.New("context deadline exceeded")
+	err := ErrTimeout
 	errorType := handler.ClassifyError(err)
 
 	assert.Equal(t, ErrorType("timeout"), errorType)
@@ -72,25 +75,23 @@ func TestClassifyErrorTimeout(t *testing.T) {
 
 // TestClassifyErrorConnection tests classifying connection error
 func TestClassifyErrorConnection(t *testing.T) {
+	t.Parallel()
 	logger := &EventBusTestLogger{}
 	metrics := &MockMetricsCollector{}
 	handler := NewMQErrorHandler(logger, metrics, 3, 100*time.Millisecond)
 
 	tests := []struct {
 		name    string
-		errMsg  string
+		err     error
 		wantErr ErrorType
 	}{
-		{"connection refused", "connection refused", ErrorType("connection")},
-		{"connection reset", "connection reset", ErrorType("connection")},
-		{"broken pipe", "broken pipe", ErrorType("connection")},
-		{"EOF", "EOF", ErrorType("connection")},
+		{"connection refused", ErrConnectionRefused, ErrorType("connection")},
+		{"connection reset", ErrConnectionReset, ErrorType("connection")},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := errors.New(tt.errMsg)
-			errorType := handler.ClassifyError(err)
+			errorType := handler.ClassifyError(tt.err)
 			assert.Equal(t, tt.wantErr, errorType)
 		})
 	}
@@ -98,6 +99,7 @@ func TestClassifyErrorConnection(t *testing.T) {
 
 // TestClassifyErrorPermanent tests classifying permanent error
 func TestClassifyErrorPermanent(t *testing.T) {
+	t.Parallel()
 	logger := &EventBusTestLogger{}
 	metrics := &MockMetricsCollector{}
 	handler := NewMQErrorHandler(logger, metrics, 3, 100*time.Millisecond)
@@ -112,6 +114,7 @@ func TestClassifyErrorPermanent(t *testing.T) {
 
 // TestClassifyErrorTransient tests classifying transient error
 func TestClassifyErrorTransient(t *testing.T) {
+	t.Parallel()
 	logger := &EventBusTestLogger{}
 	metrics := &MockMetricsCollector{}
 	handler := NewMQErrorHandler(logger, metrics, 3, 100*time.Millisecond)
@@ -126,6 +129,7 @@ func TestClassifyErrorTransient(t *testing.T) {
 
 // TestHandleErrorNil tests handling nil error
 func TestHandleErrorNil(t *testing.T) {
+	t.Parallel()
 	logger := &EventBusTestLogger{}
 	metrics := &MockMetricsCollector{}
 	handler := NewMQErrorHandler(logger, metrics, 3, 100*time.Millisecond)
@@ -140,6 +144,7 @@ func TestHandleErrorNil(t *testing.T) {
 
 // TestHandleErrorConnection tests handling connection error
 func TestHandleErrorConnection(t *testing.T) {
+	t.Parallel()
 	logger := &EventBusTestLogger{}
 	metrics := &MockMetricsCollector{}
 	handler := NewMQErrorHandler(logger, metrics, 3, 100*time.Millisecond)
@@ -154,6 +159,7 @@ func TestHandleErrorConnection(t *testing.T) {
 
 // TestHandleErrorPermanent tests handling permanent error
 func TestHandleErrorPermanent(t *testing.T) {
+	t.Parallel()
 	logger := &EventBusTestLogger{}
 	metrics := &MockMetricsCollector{}
 	handler := NewMQErrorHandler(logger, metrics, 3, 100*time.Millisecond)
@@ -171,6 +177,7 @@ func TestHandleErrorPermanent(t *testing.T) {
 
 // TestHandleErrorRecovery tests error recovery
 func TestHandleErrorRecovery(t *testing.T) {
+	t.Parallel()
 	logger := &EventBusTestLogger{}
 	metrics := &MockMetricsCollector{}
 	handler := NewMQErrorHandler(logger, metrics, 3, 100*time.Millisecond)
@@ -185,6 +192,7 @@ func TestHandleErrorRecovery(t *testing.T) {
 
 // TestRetryWithBackoffSuccessMQ tests successful retry
 func TestRetryWithBackoffSuccessMQ(t *testing.T) {
+	t.Parallel()
 	logger := &EventBusTestLogger{}
 	metrics := &MockMetricsCollector{}
 	handler := NewMQErrorHandler(logger, metrics, 3, 10*time.Millisecond)
@@ -208,6 +216,7 @@ func TestRetryWithBackoffSuccessMQ(t *testing.T) {
 
 // TestRetryWithBackoffExhausted tests exhausted retries
 func TestRetryWithBackoffExhausted(t *testing.T) {
+	t.Parallel()
 	logger := &EventBusTestLogger{}
 	metrics := &MockMetricsCollector{}
 	handler := NewMQErrorHandler(logger, metrics, 2, 10*time.Millisecond)
@@ -228,6 +237,7 @@ func TestRetryWithBackoffExhausted(t *testing.T) {
 
 // TestRetryWithBackoffPermanentErrorMQ tests permanent error no retry
 func TestRetryWithBackoffPermanentErrorMQ(t *testing.T) {
+	t.Parallel()
 	logger := &EventBusTestLogger{}
 	metrics := &MockMetricsCollector{}
 	handler := NewMQErrorHandler(logger, metrics, 3, 10*time.Millisecond)
@@ -249,6 +259,7 @@ func TestRetryWithBackoffPermanentErrorMQ(t *testing.T) {
 
 // TestRetryWithBackoffContextCanceledMQ tests context cancellation
 func TestRetryWithBackoffContextCanceledMQ(t *testing.T) {
+	t.Parallel()
 	logger := &EventBusTestLogger{}
 	metrics := &MockMetricsCollector{}
 	handler := NewMQErrorHandler(logger, metrics, 5, 100*time.Millisecond)
@@ -275,6 +286,7 @@ func TestRetryWithBackoffContextCanceledMQ(t *testing.T) {
 
 // TestCalculateBackoffDelay tests backoff delay calculation
 func TestCalculateBackoffDelay(t *testing.T) {
+	t.Parallel()
 	logger := &EventBusTestLogger{}
 	metrics := &MockMetricsCollector{}
 	handler := NewMQErrorHandler(logger, metrics, 3, 100*time.Millisecond)
@@ -301,6 +313,7 @@ func TestCalculateBackoffDelay(t *testing.T) {
 
 // TestCalculateBackoffDelayCapped tests backoff delay capping
 func TestCalculateBackoffDelayCapped(t *testing.T) {
+	t.Parallel()
 	logger := &EventBusTestLogger{}
 	metrics := &MockMetricsCollector{}
 	handler := NewMQErrorHandler(logger, metrics, 10, 1*time.Second)
@@ -313,6 +326,7 @@ func TestCalculateBackoffDelayCapped(t *testing.T) {
 
 // TestRegisterPermanentError tests registering permanent error
 func TestRegisterPermanentError(t *testing.T) {
+	t.Parallel()
 	logger := &EventBusTestLogger{}
 	metrics := &MockMetricsCollector{}
 	handler := NewMQErrorHandler(logger, metrics, 3, 100*time.Millisecond)
@@ -324,6 +338,7 @@ func TestRegisterPermanentError(t *testing.T) {
 
 // TestRegisterTransientError tests registering transient error
 func TestRegisterTransientError(t *testing.T) {
+	t.Parallel()
 	logger := &EventBusTestLogger{}
 	metrics := &MockMetricsCollector{}
 	handler := NewMQErrorHandler(logger, metrics, 3, 100*time.Millisecond)
@@ -335,6 +350,7 @@ func TestRegisterTransientError(t *testing.T) {
 
 // TestIsInDegradedMode tests degraded mode check
 func TestIsInDegradedMode(t *testing.T) {
+	t.Parallel()
 	logger := &EventBusTestLogger{}
 	metrics := &MockMetricsCollector{}
 	handler := NewMQErrorHandler(logger, metrics, 3, 100*time.Millisecond)
@@ -348,6 +364,7 @@ func TestIsInDegradedMode(t *testing.T) {
 
 // TestSetDegradedMode tests setting degraded mode
 func TestSetDegradedMode(t *testing.T) {
+	t.Parallel()
 	logger := &EventBusTestLogger{}
 	metrics := &MockMetricsCollector{}
 	handler := NewMQErrorHandler(logger, metrics, 3, 100*time.Millisecond)
@@ -361,6 +378,7 @@ func TestSetDegradedMode(t *testing.T) {
 
 // TestGetConsecutiveErrorCount tests getting consecutive error count
 func TestGetConsecutiveErrorCount(t *testing.T) {
+	t.Parallel()
 	logger := &EventBusTestLogger{}
 	metrics := &MockMetricsCollector{}
 	handler := NewMQErrorHandler(logger, metrics, 3, 100*time.Millisecond)
@@ -376,6 +394,7 @@ func TestGetConsecutiveErrorCount(t *testing.T) {
 
 // TestResetConsecutiveErrorCount tests resetting consecutive error count
 func TestResetConsecutiveErrorCount(t *testing.T) {
+	t.Parallel()
 	logger := &EventBusTestLogger{}
 	metrics := &MockMetricsCollector{}
 	handler := NewMQErrorHandler(logger, metrics, 3, 100*time.Millisecond)
@@ -391,6 +410,7 @@ func TestResetConsecutiveErrorCount(t *testing.T) {
 
 // TestGetRecoveryStats tests getting recovery statistics
 func TestGetRecoveryStats(t *testing.T) {
+	t.Parallel()
 	logger := &EventBusTestLogger{}
 	metrics := &MockMetricsCollector{}
 	handler := NewMQErrorHandler(logger, metrics, 3, 100*time.Millisecond)
@@ -407,6 +427,7 @@ func TestGetRecoveryStats(t *testing.T) {
 
 // TestSetTimeoutDuration tests setting timeout duration
 func TestSetTimeoutDuration(t *testing.T) {
+	t.Parallel()
 	logger := &EventBusTestLogger{}
 	metrics := &MockMetricsCollector{}
 	handler := NewMQErrorHandler(logger, metrics, 3, 100*time.Millisecond)
@@ -418,6 +439,7 @@ func TestSetTimeoutDuration(t *testing.T) {
 
 // TestSetMaxRetries tests setting max retries
 func TestSetMaxRetries(t *testing.T) {
+	t.Parallel()
 	logger := &EventBusTestLogger{}
 	metrics := &MockMetricsCollector{}
 	handler := NewMQErrorHandler(logger, metrics, 3, 100*time.Millisecond)
@@ -429,6 +451,7 @@ func TestSetMaxRetries(t *testing.T) {
 
 // TestSetMaxRetryDelay tests setting max retry delay
 func TestSetMaxRetryDelay(t *testing.T) {
+	t.Parallel()
 	logger := &EventBusTestLogger{}
 	metrics := &MockMetricsCollector{}
 	handler := NewMQErrorHandler(logger, metrics, 3, 100*time.Millisecond)
@@ -440,6 +463,7 @@ func TestSetMaxRetryDelay(t *testing.T) {
 
 // TestMultipleErrorTypes tests handling multiple error types
 func TestMultipleErrorTypes(t *testing.T) {
+	t.Parallel()
 	logger := &EventBusTestLogger{}
 	metrics := &MockMetricsCollector{}
 	handler := NewMQErrorHandler(logger, metrics, 3, 10*time.Millisecond)
@@ -470,6 +494,7 @@ func TestMultipleErrorTypes(t *testing.T) {
 
 // TestErrorMetricsRecording tests error metrics recording
 func TestErrorMetricsRecording(t *testing.T) {
+	t.Parallel()
 	logger := &EventBusTestLogger{}
 	metrics := &MockMetricsCollector{}
 	handler := NewMQErrorHandler(logger, metrics, 3, 10*time.Millisecond)
@@ -483,6 +508,7 @@ func TestErrorMetricsRecording(t *testing.T) {
 
 // TestConsecutiveErrorsTracking tests tracking consecutive errors
 func TestConsecutiveErrorsTracking(t *testing.T) {
+	t.Parallel()
 	logger := &EventBusTestLogger{}
 	metrics := &MockMetricsCollector{}
 	handler := NewMQErrorHandler(logger, metrics, 3, 10*time.Millisecond)
@@ -502,6 +528,7 @@ func TestConsecutiveErrorsTracking(t *testing.T) {
 
 // TestBackoffDelayIncreases tests that backoff delay increases with attempts
 func TestBackoffDelayIncreases(t *testing.T) {
+	t.Parallel()
 	logger := &EventBusTestLogger{}
 	metrics := &MockMetricsCollector{}
 	handler := NewMQErrorHandler(logger, metrics, 5, 100*time.Millisecond)
@@ -516,6 +543,7 @@ func TestBackoffDelayIncreases(t *testing.T) {
 
 // TestRetrySuccessfulAfterMultipleAttempts tests successful retry after multiple attempts
 func TestRetrySuccessfulAfterMultipleAttempts(t *testing.T) {
+	t.Parallel()
 	logger := &EventBusTestLogger{}
 	metrics := &MockMetricsCollector{}
 	handler := NewMQErrorHandler(logger, metrics, 5, 10*time.Millisecond)
@@ -539,6 +567,7 @@ func TestRetrySuccessfulAfterMultipleAttempts(t *testing.T) {
 
 // TestDegradedModeOnPermanentError tests degraded mode on permanent error
 func TestDegradedModeOnPermanentError(t *testing.T) {
+	t.Parallel()
 	logger := &EventBusTestLogger{}
 	metrics := &MockMetricsCollector{}
 	handler := NewMQErrorHandler(logger, metrics, 3, 10*time.Millisecond)
@@ -554,6 +583,7 @@ func TestDegradedModeOnPermanentError(t *testing.T) {
 
 // TestRecoveryAttemptsTracking tests tracking recovery attempts
 func TestRecoveryAttemptsTracking(t *testing.T) {
+	t.Parallel()
 	logger := &EventBusTestLogger{}
 	metrics := &MockMetricsCollector{}
 	handler := NewMQErrorHandler(logger, metrics, 3, 10*time.Millisecond)

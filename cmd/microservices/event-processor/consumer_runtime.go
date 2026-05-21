@@ -2,13 +2,14 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"sync"
 	"time"
 
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 type eventProcessorMessageConsumer interface {
@@ -16,7 +17,7 @@ type eventProcessorMessageConsumer interface {
 }
 
 type eventProcessorMessageProcessor interface {
-	ProcessEvent(*core.BlockchainEvent) error
+	ProcessEvent(context.Context, *core.BlockchainEvent) error
 	Health() *core.HealthStatus
 	GetProcessedCount() int64
 	GetFailedCount() int64
@@ -37,11 +38,14 @@ type eventProcessorConsumeLoopSnapshot struct {
 }
 
 type eventProcessorConsumeRuntime struct {
-	logger    core.Logger
-	metrics   core.MetricsCollector
-	consumer  eventProcessorMessageConsumer
-	processor eventProcessorMessageProcessor
-	topics    []string
+	logger       core.Logger
+	metrics      core.MetricsCollector
+	consumer     eventProcessorMessageConsumer
+	processor    eventProcessorMessageProcessor
+	publisher    eventProcessorMessagePublisher
+	topics       []string
+	outputTopics []string
+	dlqDB        *sql.DB // PostgreSQL for DLQ persistence
 
 	mu              sync.RWMutex
 	running         bool
@@ -54,6 +58,11 @@ type eventProcessorConsumeRuntime struct {
 	reason          string
 	updatedAtUnix   int64
 	waitCh          chan struct{}
+	closeOnce       sync.Once
+}
+
+type eventProcessorMessagePublisher interface {
+	Publish(ctx context.Context, topic string, payload []byte) error
 }
 
 func newEventProcessorConsumeRuntime(
@@ -61,14 +70,20 @@ func newEventProcessorConsumeRuntime(
 	metrics core.MetricsCollector,
 	consumer eventProcessorMessageConsumer,
 	processor eventProcessorMessageProcessor,
+	publisher eventProcessorMessagePublisher,
 	topics []string,
+	outputTopics []string,
+	dlqDB *sql.DB,
 ) *eventProcessorConsumeRuntime {
 	return &eventProcessorConsumeRuntime{
 		logger:        logger,
 		metrics:       metrics,
 		consumer:      consumer,
 		processor:     processor,
+		publisher:     publisher,
 		topics:        append([]string(nil), topics...),
+		outputTopics:  append([]string(nil), outputTopics...),
+		dlqDB:         dlqDB,
 		activeTopics:  make(map[string]bool),
 		activeCancels: make(map[string]context.CancelFunc),
 		waitCh:        make(chan struct{}),
@@ -103,10 +118,13 @@ func (r *eventProcessorConsumeRuntime) Start(ctx context.Context, wg *sync.WaitG
 						r.recordError(fmt.Errorf("decode topic %s message %s: %w", topic, message.ID, err))
 						return err
 					}
-					if err := r.processor.ProcessEvent(event); err != nil {
+					if err := r.processor.ProcessEvent(ctx, event); err != nil {
 						r.recordError(fmt.Errorf("process topic %s event %s: %w", topic, event.ID, err))
+						r.writeToDLQ(ctx, event, err)
 						return err
 					}
+					// Publish processed event to output topics for downstream consumers (e.g., API service WebSocket push)
+					r.publishProcessedEvent(ctx, event)
 					if r.metrics != nil {
 						r.metrics.RecordCounter("event_processor_consume_processed", 1, map[string]string{"topic": topic})
 					}
@@ -162,7 +180,9 @@ func (r *eventProcessorConsumeRuntime) ResumeIntake(reason string) eventProcesso
 	r.reason = reason
 	r.lastAction = "resume-intake"
 	r.updatedAtUnix = time.Now().Unix()
-	close(r.waitCh)
+	r.closeOnce.Do(func() {
+		close(r.waitCh)
+	})
 	r.waitCh = make(chan struct{})
 	r.mu.Unlock()
 
@@ -260,4 +280,39 @@ func decodeEventProcessorQueueMessage(message core.MessageQueueMessage) (*core.B
 		return nil, err
 	}
 	return &event, nil
+}
+
+func (r *eventProcessorConsumeRuntime) publishProcessedEvent(ctx context.Context, event *core.BlockchainEvent) {
+	if r.publisher == nil || len(r.outputTopics) == 0 {
+		return
+	}
+	payload, err := json.Marshal(event)
+	if err != nil {
+		r.logger.Warn("Failed to marshal event for output topic", "eventId", event.ID, "error", err.Error())
+		return
+	}
+	for _, topic := range r.outputTopics {
+		if err := r.publisher.Publish(ctx, topic, payload); err != nil {
+			r.logger.Warn("Failed to publish event to output topic", "topic", topic, "eventId", event.ID, "error", err.Error())
+		}
+	}
+}
+
+func (r *eventProcessorConsumeRuntime) writeToDLQ(ctx context.Context, event *core.BlockchainEvent, processErr error) {
+	if r.dlqDB == nil {
+		return
+	}
+	payload, err := json.Marshal(event)
+	if err != nil {
+		r.logger.Warn("Failed to marshal event for DLQ", "eventId", event.ID, "error", err.Error())
+		return
+	}
+	_, err = r.dlqDB.ExecContext(ctx,
+		`INSERT INTO dlq_events (id, chain_id, original_event_id, error_message, retry_count, status, payload)
+		 VALUES ($1, $2, $3, $4, 0, 'pending', $5)
+		 ON CONFLICT (id) DO UPDATE SET retry_count = dlq_events.retry_count + 1, error_message = $4, status = 'pending', payload = $5, updated_at = NOW()`,
+		event.ID, event.ChainID, event.ID, processErr.Error(), string(payload))
+	if err != nil {
+		r.logger.Warn("Failed to write event to DLQ", "eventId", event.ID, "error", err.Error())
+	}
 }

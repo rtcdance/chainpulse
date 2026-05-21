@@ -3,7 +3,7 @@ package main
 import (
 	"testing"
 
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 func TestLoadPullerConfigDefaultsToSecurityDisabled(t *testing.T) {
@@ -18,8 +18,8 @@ func TestLoadPullerConfigDefaultsToSecurityDisabled(t *testing.T) {
 	if cfg.AuthEnabled {
 		t.Fatal("expected auth to be disabled by default")
 	}
-	if cfg.RateLimitEnabled {
-		t.Fatal("expected rate limiting to be disabled by default")
+	if !cfg.RateLimitEnabled {
+		t.Fatal("expected rate limiting to be enabled by default (secure-by-default)")
 	}
 	if len(cfg.AuthAPIKeys) != 0 {
 		t.Fatalf("expected no auth api keys by default, got %d", len(cfg.AuthAPIKeys))
@@ -58,7 +58,7 @@ func TestBuildPullerSecurityControlsEnabled(t *testing.T) {
 	authMiddleware, rateLimitMiddleware, err := buildPullerSecurityControls(PullerConfig{
 		AuthEnabled:        true,
 		AuthJWTSecret:      "secret-123",
-		AuthAPIKeys:        []string{"svc-key=client-1"},
+		AuthAPIKeys:        []core.SecretString{"svc-key=client-1"},
 		RateLimitEnabled:   true,
 		RateLimitPerMinute: 120,
 	}, logger, metrics)

@@ -11,6 +11,7 @@ import (
 
 // TestNewBlockHeightTracker tests creating a new block height tracker
 func TestNewBlockHeightTracker(t *testing.T) {
+	t.Parallel()
 	tracker := NewBlockHeightTracker()
 
 	assert.NotNil(t, tracker)
@@ -20,6 +21,7 @@ func TestNewBlockHeightTracker(t *testing.T) {
 
 // TestInitializeBlockHeightTracker tests initializing block height tracking
 func TestInitializeBlockHeightTracker(t *testing.T) {
+	t.Parallel()
 	tracker := NewBlockHeightTracker()
 	ctx := context.Background()
 
@@ -34,6 +36,7 @@ func TestInitializeBlockHeightTracker(t *testing.T) {
 
 // TestInitializeMultipleChains tests initializing multiple chains
 func TestInitializeMultipleChains(t *testing.T) {
+	t.Parallel()
 	tracker := NewBlockHeightTracker()
 	ctx := context.Background()
 
@@ -58,6 +61,7 @@ func TestInitializeMultipleChains(t *testing.T) {
 
 // TestInitializeDuplicate tests initializing duplicate chain
 func TestInitializeDuplicate(t *testing.T) {
+	t.Parallel()
 	tracker := NewBlockHeightTracker()
 	ctx := context.Background()
 
@@ -71,6 +75,7 @@ func TestInitializeDuplicate(t *testing.T) {
 
 // TestUpdateBlockHeight tests updating block height
 func TestUpdateBlockHeight(t *testing.T) {
+	t.Parallel()
 	tracker := NewBlockHeightTracker()
 	ctx := context.Background()
 
@@ -86,6 +91,7 @@ func TestUpdateBlockHeight(t *testing.T) {
 
 // TestUpdateBlockHeightNotInitialized tests updating non-existent chain
 func TestUpdateBlockHeightNotInitialized(t *testing.T) {
+	t.Parallel()
 	tracker := NewBlockHeightTracker()
 	ctx := context.Background()
 
@@ -97,6 +103,7 @@ func TestUpdateBlockHeightNotInitialized(t *testing.T) {
 
 // TestGetBlockHeight tests getting block height
 func TestGetBlockHeight(t *testing.T) {
+	t.Parallel()
 	tracker := NewBlockHeightTracker()
 	ctx := context.Background()
 
@@ -109,6 +116,7 @@ func TestGetBlockHeight(t *testing.T) {
 
 // TestGetBlockHeightNotFound tests getting non-existent chain
 func TestGetBlockHeightNotFound(t *testing.T) {
+	t.Parallel()
 	tracker := NewBlockHeightTracker()
 	ctx := context.Background()
 
@@ -120,6 +128,7 @@ func TestGetBlockHeightNotFound(t *testing.T) {
 
 // TestGetRecord tests getting block height record
 func TestGetRecord(t *testing.T) {
+	t.Parallel()
 	tracker := NewBlockHeightTracker()
 	ctx := context.Background()
 
@@ -134,6 +143,7 @@ func TestGetRecord(t *testing.T) {
 
 // TestGetAllRecords tests getting all records
 func TestGetAllRecords(t *testing.T) {
+	t.Parallel()
 	tracker := NewBlockHeightTracker()
 	ctx := context.Background()
 
@@ -151,6 +161,7 @@ func TestGetAllRecords(t *testing.T) {
 
 // TestBlockHeightRecordStatus tests record status updates
 func TestBlockHeightRecordStatus(t *testing.T) {
+	t.Parallel()
 	tracker := NewBlockHeightTracker()
 	ctx := context.Background()
 
@@ -169,6 +180,7 @@ func TestBlockHeightRecordStatus(t *testing.T) {
 
 // TestBlockHeightRecordTimestamp tests record timestamp updates
 func TestBlockHeightRecordTimestamp(t *testing.T) {
+	t.Parallel()
 	tracker := NewBlockHeightTracker()
 	ctx := context.Background()
 
@@ -188,73 +200,9 @@ func TestBlockHeightRecordTimestamp(t *testing.T) {
 	assert.True(t, time2.After(time1))
 }
 
-// TestNewReorgHandler tests creating a new reorg handler
-func TestNewReorgHandler(t *testing.T) {
-	tracker := NewBlockHeightTracker()
-	handler := NewReorgHandler(tracker)
-
-	assert.NotNil(t, handler)
-	assert.Equal(t, tracker, handler.tracker)
-}
-
-// TestDetectReorg tests detecting a reorganization
-func TestDetectReorg(t *testing.T) {
-	tracker := NewBlockHeightTracker()
-	handler := NewReorgHandler(tracker)
-	ctx := context.Background()
-
-	detected, err := handler.DetectReorg(ctx, "ethereum", 1000, 1100)
-
-	assert.NoError(t, err)
-	assert.True(t, detected)
-}
-
-// TestDetectReorgNoReorg tests detecting no reorganization
-func TestDetectReorgNoReorg(t *testing.T) {
-	tracker := NewBlockHeightTracker()
-	handler := NewReorgHandler(tracker)
-	ctx := context.Background()
-
-	detected, err := handler.DetectReorg(ctx, "ethereum", 1100, 1000)
-
-	assert.NoError(t, err)
-	assert.False(t, detected)
-}
-
-// TestHandleReorg tests handling a reorganization
-func TestHandleReorg(t *testing.T) {
-	tracker := NewBlockHeightTracker()
-	handler := NewReorgHandler(tracker)
-	ctx := context.Background()
-
-	err := tracker.Initialize(ctx, "ethereum", 1000)
-	require.NoError(t, err)
-	err = handler.HandleReorg(ctx, "ethereum", 50)
-
-	assert.NoError(t, err)
-	height, err := tracker.GetBlockHeight(ctx, "ethereum")
-	require.NoError(t, err)
-	assert.Equal(t, uint64(950), height)
-}
-
-// TestHandleReorgBelowZero tests handling reorg that would go below zero
-func TestHandleReorgBelowZero(t *testing.T) {
-	tracker := NewBlockHeightTracker()
-	handler := NewReorgHandler(tracker)
-	ctx := context.Background()
-
-	err := tracker.Initialize(ctx, "ethereum", 30)
-	require.NoError(t, err)
-	err = handler.HandleReorg(ctx, "ethereum", 50)
-
-	assert.NoError(t, err)
-	height, err := tracker.GetBlockHeight(ctx, "ethereum")
-	require.NoError(t, err)
-	assert.Equal(t, uint64(0), height)
-}
-
 // TestNewBlockHeightSynchronizer tests creating a new synchronizer
 func TestNewBlockHeightSynchronizer(t *testing.T) {
+	t.Parallel()
 	tracker := NewBlockHeightTracker()
 	cache := &RedisClusterManager{}
 	sync := NewBlockHeightSynchronizer(tracker, cache)
@@ -266,6 +214,7 @@ func TestNewBlockHeightSynchronizer(t *testing.T) {
 
 // TestSyncBlockHeight tests syncing block height
 func TestSyncBlockHeight(t *testing.T) {
+	t.Parallel()
 	tracker := NewBlockHeightTracker()
 	cache := &RedisClusterManager{}
 	sync := NewBlockHeightSynchronizer(tracker, cache)
@@ -283,6 +232,7 @@ func TestSyncBlockHeight(t *testing.T) {
 
 // TestGetSyncedBlockHeight tests getting synced block height
 func TestGetSyncedBlockHeight(t *testing.T) {
+	t.Parallel()
 	tracker := NewBlockHeightTracker()
 	cache := &RedisClusterManager{}
 	sync := NewBlockHeightSynchronizer(tracker, cache)
@@ -298,6 +248,7 @@ func TestGetSyncedBlockHeight(t *testing.T) {
 
 // TestNewRecoveryManager tests creating a new recovery manager
 func TestNewRecoveryManager(t *testing.T) {
+	t.Parallel()
 	tracker := NewBlockHeightTracker()
 	manager := NewRecoveryManager(tracker)
 
@@ -307,6 +258,7 @@ func TestNewRecoveryManager(t *testing.T) {
 
 // TestRecoverFromLastCheckpoint tests recovering from last checkpoint
 func TestRecoverFromLastCheckpoint(t *testing.T) {
+	t.Parallel()
 	tracker := NewBlockHeightTracker()
 	manager := NewRecoveryManager(tracker)
 	ctx := context.Background()
@@ -321,6 +273,7 @@ func TestRecoverFromLastCheckpoint(t *testing.T) {
 
 // TestCreateCheckpoint tests creating a checkpoint
 func TestCreateCheckpoint(t *testing.T) {
+	t.Parallel()
 	tracker := NewBlockHeightTracker()
 	manager := NewRecoveryManager(tracker)
 	ctx := context.Background()
@@ -337,6 +290,7 @@ func TestCreateCheckpoint(t *testing.T) {
 
 // TestValidateCheckpoint tests validating a checkpoint
 func TestValidateCheckpoint(t *testing.T) {
+	t.Parallel()
 	tracker := NewBlockHeightTracker()
 	manager := NewRecoveryManager(tracker)
 	ctx := context.Background()
@@ -350,6 +304,7 @@ func TestValidateCheckpoint(t *testing.T) {
 
 // TestValidateCheckpointInvalid tests validating an invalid checkpoint
 func TestValidateCheckpointInvalid(t *testing.T) {
+	t.Parallel()
 	tracker := NewBlockHeightTracker()
 	manager := NewRecoveryManager(tracker)
 	ctx := context.Background()
@@ -363,6 +318,7 @@ func TestValidateCheckpointInvalid(t *testing.T) {
 
 // TestBlockHeightTrackerConcurrentUpdates tests concurrent updates
 func TestBlockHeightTrackerConcurrentUpdates(t *testing.T) {
+	t.Parallel()
 	tracker := NewBlockHeightTracker()
 	ctx := context.Background()
 
@@ -389,6 +345,7 @@ func TestBlockHeightTrackerConcurrentUpdates(t *testing.T) {
 
 // TestBlockHeightTrackerLargeBlockNumbers tests with large block numbers
 func TestBlockHeightTrackerLargeBlockNumbers(t *testing.T) {
+	t.Parallel()
 	tracker := NewBlockHeightTracker()
 	ctx := context.Background()
 
@@ -403,6 +360,7 @@ func TestBlockHeightTrackerLargeBlockNumbers(t *testing.T) {
 
 // TestBlockHeightTrackerZeroBlock tests with zero block height
 func TestBlockHeightTrackerZeroBlock(t *testing.T) {
+	t.Parallel()
 	tracker := NewBlockHeightTracker()
 	ctx := context.Background()
 
@@ -416,6 +374,7 @@ func TestBlockHeightTrackerZeroBlock(t *testing.T) {
 
 // TestBlockHeightTrackerMultipleChainsConcurrent tests concurrent operations on multiple chains
 func TestBlockHeightTrackerMultipleChainsConcurrent(t *testing.T) {
+	t.Parallel()
 	tracker := NewBlockHeightTracker()
 	ctx := context.Background()
 
@@ -445,6 +404,7 @@ func TestBlockHeightTrackerMultipleChainsConcurrent(t *testing.T) {
 
 // TestBlockHeightRecordFields tests all fields of block height record
 func TestBlockHeightRecordFields(t *testing.T) {
+	t.Parallel()
 	tracker := NewBlockHeightTracker()
 	ctx := context.Background()
 

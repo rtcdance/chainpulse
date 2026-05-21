@@ -6,12 +6,12 @@ import (
 	"sync"
 	"time"
 
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 // DatabaseStats tracks database performance metrics.
 //
-//nolint:exported // Renaming would break many external uses.
+// Renaming would break many external uses.
 type DatabaseStats struct {
 	WriteCount     int64
 	ReadCount      int64
@@ -54,8 +54,18 @@ func NewBaseDatabasePlugin(logger core.Logger, metricsCollector core.MetricsColl
 	}
 }
 
+// Name returns the plugin name
+func (p *BaseDatabasePlugin) Name() string {
+	return "database"
+}
+
+// Version returns the plugin version
+func (p *BaseDatabasePlugin) Version() string {
+	return "1.0.0"
+}
+
 // Initialize initializes the database plugin
-func (p *BaseDatabasePlugin) Initialize(config *core.Config) error {
+func (p *BaseDatabasePlugin) Initialize(_ context.Context, config core.Config) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -63,22 +73,16 @@ func (p *BaseDatabasePlugin) Initialize(config *core.Config) error {
 		return fmt.Errorf("database plugin already initialized")
 	}
 
-	if config == nil {
-		return fmt.Errorf("config is required")
-	}
-
-	p.config = config
+	p.config = &config
 	p.initialized = true
 
-	p.logger.Info("Database plugin initialized", map[string]interface{}{
-		"component": "database",
-	})
+	p.logger.Info("Database plugin initialized", core.LogKeyComponent, "database")
 
 	return nil
 }
 
 // Start starts the database plugin
-func (p *BaseDatabasePlugin) Start() error {
+func (p *BaseDatabasePlugin) Start(_ context.Context) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -96,15 +100,13 @@ func (p *BaseDatabasePlugin) Start() error {
 		Message: "Database plugin started",
 	}
 
-	p.logger.Info("Database plugin started", map[string]interface{}{
-		"component": "database",
-	})
+	p.logger.Info("Database plugin started", core.LogKeyComponent, "database")
 
 	return nil
 }
 
 // Stop stops the database plugin
-func (p *BaseDatabasePlugin) Stop() error {
+func (p *BaseDatabasePlugin) Stop(_ context.Context) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -118,36 +120,25 @@ func (p *BaseDatabasePlugin) Stop() error {
 		Message: "Database plugin stopped",
 	}
 
-	p.logger.Info("Database plugin stopped", map[string]interface{}{
-		"component": "database",
-	})
+	p.logger.Info("Database plugin stopped", core.LogKeyComponent, "database")
 
 	return nil
 }
 
 // Health returns the health status of the plugin
-func (p *BaseDatabasePlugin) Health() *core.HealthStatus {
+func (p *BaseDatabasePlugin) Health(_ context.Context) error {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
 	if !p.initialized {
-		return &core.HealthStatus{
-			Status:  "unhealthy",
-			Message: "Database plugin not initialized",
-		}
+		return fmt.Errorf("database plugin not initialized")
 	}
 
 	if !p.running {
-		return &core.HealthStatus{
-			Status:  "unhealthy",
-			Message: "Database plugin not running",
-		}
+		return fmt.Errorf("database plugin not running")
 	}
 
-	return &core.HealthStatus{
-		Status:  "healthy",
-		Message: "Database plugin healthy",
-	}
+	return nil
 }
 
 // RecordWrite records a database write operation
@@ -298,7 +289,7 @@ func NewDefaultInMemoryDatabasePlugin(logger core.Logger, metricsCollector core.
 }
 
 // WriteEvent writes a blockchain event to the database
-func (p *DefaultInMemoryDatabasePlugin) WriteEvent(event *core.BlockchainEvent) error {
+func (p *DefaultInMemoryDatabasePlugin) WriteEvent(ctx context.Context, event *core.BlockchainEvent) error {
 	if event == nil {
 		return fmt.Errorf("event is required")
 	}
@@ -325,7 +316,7 @@ func (p *DefaultInMemoryDatabasePlugin) WriteEvent(event *core.BlockchainEvent) 
 }
 
 // WriteEvents writes multiple blockchain events to the database (batch)
-func (p *DefaultInMemoryDatabasePlugin) WriteEvents(events []core.BlockchainEvent) error {
+func (p *DefaultInMemoryDatabasePlugin) WriteEvents(ctx context.Context, events []core.BlockchainEvent) error {
 	if len(events) == 0 {
 		return fmt.Errorf("events list is required")
 	}
@@ -348,6 +339,39 @@ func (p *DefaultInMemoryDatabasePlugin) WriteEvents(events []core.BlockchainEven
 			return fmt.Errorf("event hash is required for event %d", i)
 		}
 		p.events[events[i].EventHash] = &events[i]
+	}
+
+	duration := time.Since(start).Milliseconds()
+	p.recordWriteUnlocked(duration)
+	p.updateEventCountUnlocked(int64(len(p.events)))
+
+	return nil
+}
+
+// WriteBatch writes multiple blockchain events atomically (in-memory batch).
+func (p *DefaultInMemoryDatabasePlugin) WriteBatch(ctx context.Context, events []*core.BlockchainEvent) error {
+	if len(events) == 0 {
+		return nil
+	}
+
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	if !p.running {
+		return fmt.Errorf("database plugin not running")
+	}
+
+	start := time.Now()
+
+	for _, event := range events {
+		if event == nil {
+			continue
+		}
+		if event.EventHash == "" {
+			p.errorCount++
+			return fmt.Errorf("event hash is required")
+		}
+		p.events[event.EventHash] = event
 	}
 
 	duration := time.Since(start).Milliseconds()
@@ -611,6 +635,27 @@ func (p *DefaultInMemoryDatabasePlugin) DeleteEventsByBlockRange(ctx context.Con
 			p.metricsCollector.RecordCounter("database_delete", 1, map[string]string{})
 		}
 		p.updateEventCountUnlocked(int64(len(p.events)))
+	}
+
+	return count, nil
+}
+
+// MarkEventsAsReorged marks events within a block range as reorged (soft delete)
+func (p *DefaultInMemoryDatabasePlugin) MarkEventsAsReorged(ctx context.Context, fromBlock, toBlock uint64) (int64, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	if !p.running {
+		return 0, fmt.Errorf("database plugin not running")
+	}
+
+	count := int64(0)
+	for key, event := range p.events {
+		if event.BlockNumber >= fromBlock && event.BlockNumber <= toBlock {
+			event.Status = core.EventStatusReorged
+			p.events[key] = event
+			count++
+		}
 	}
 
 	return count, nil

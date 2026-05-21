@@ -1,0 +1,15 @@
+# ChainPulse Frontend - Pre-built Static Files
+# Build locally first:
+#   cd frontend && npm ci && npm run build
+#
+# Uses postgres:15-alpine as runtime base for offline friendliness.
+FROM postgres:15-alpine
+
+RUN apk add --no-cache nginx
+
+COPY dist/ /usr/share/nginx/html/
+COPY nginx.conf /etc/nginx/http.d/default.conf
+
+EXPOSE 3000
+
+CMD ["nginx", "-g", "daemon off;"]

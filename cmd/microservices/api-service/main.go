@@ -3,18 +3,19 @@ package main
 
 import (
 	"context"
+	"database/sql"
+	"encoding/json"
 	"fmt"
 	"os"
-	"os/signal"
-	"strconv"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 
-	"chainpulse/pkg/application/bootstrap"
-	"chainpulse/pkg/core"
-	"chainpulse/pkg/plugins/api"
+	"github.com/rtcdance/chainpulse/pkg/application/bootstrap"
+	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/env"
+	"github.com/rtcdance/chainpulse/pkg/plugins/api"
+	"github.com/rtcdance/chainpulse/pkg/plugins/mq"
 )
 
 func main() {
@@ -26,6 +27,11 @@ func main() {
 
 	// Load configuration from environment
 	config := loadAPIServiceConfig()
+
+	if err := validateAPIServiceConfig(config); err != nil {
+		fmt.Printf("config validation failed: %v\n", err)
+		os.Exit(1)
+	}
 
 	// Print configuration
 	fmt.Println("Configuration Loaded:")
@@ -106,6 +112,10 @@ func main() {
 			"policy_code", policyEval.ViolationCode,
 		)
 	}
+	if err := validateAPIServiceProductionSecurity(config, runtimeProfile); err != nil {
+		logger.Error("API Service production security gate rejected startup", "profile", runtimeProfile, "error", err.Error())
+		os.Exit(1)
+	}
 	coreCfg = bootstrap.ApplyCoreConfigOverrides(coreCfg, coreOverrides)
 	logger.Info("Core config overrides applied", "overrides", bootstrap.SummarizeCoreConfigOverrides(coreOverrides))
 	metricSchemaMode := bootstrap.ResolvePolicyMetricSchemaModeFromEnv()
@@ -124,7 +134,15 @@ func main() {
 	// Initialize API Service Plugin
 	fmt.Println("Initializing API Service:")
 	service := api.NewAPIGatewayPlugin(logger, metrics)
-	authMiddleware, rateLimitMiddleware, err := buildAPIServiceSecurityControls(config, logger, metrics)
+	authMiddleware, rateLimitMiddleware, err := bootstrap.BuildSecurityControls(bootstrap.SecurityControlsConfig{
+		AuthEnabled:        config.AuthEnabled,
+		AuthJWTSecret:      config.AuthJWTSecret,
+		AuthAPIKeys:        config.AuthAPIKeys,
+		RateLimitEnabled:   config.RateLimitEnabled,
+		RateLimitPerMinute: config.RateLimitPerMinute,
+		ServiceName:        "api service",
+		EnvPrefix:          "API_SERVICE",
+	}, logger, metrics)
 	if err != nil {
 		logger.Error("Failed to build API Service security controls", "error", err.Error())
 		os.Exit(1)
@@ -136,6 +154,16 @@ func main() {
 	service.SetEventSubscriptionHandler(runtimeWiring.EventSubscriptionHandler)
 	service.SetHealthCheckHandler(runtimeWiring.HealthCheckHandler)
 	service.SetGraphQLHandler(runtimeWiring.GraphQLHandler)
+
+	// Wire DLQ handler using PostgreSQL
+	if runtimeWiring.DBManager != nil {
+		if pgDB, err := runtimeWiring.DBManager.GetPostgresDB(context.Background()); err == nil {
+			if sqlDB, ok := pgDB.(*sql.DB); ok {
+				dlqHandler := api.NewDLQHandler(sqlDB, nil, logger, metrics)
+				service.SetDLQHandler(dlqHandler)
+			}
+		}
+	}
 	service.SetRuntimeSummaryProvider(buildAPIServiceRuntimeSummaryProvider(config.InstanceID, metrics, service, runtimeWiring.QueryService))
 	service.SetRuntimeMetricsProvider(buildAPIServiceMetricsProvider(metrics))
 	if err := service.Initialize(*coreConfig); err != nil {
@@ -205,6 +233,18 @@ func main() {
 		}
 	}()
 	fmt.Println("  [2/2] API Service started")
+
+	// Start WebSocket event push consumer (listens for processed events and pushes to WebSocket clients)
+	var kafkaWG sync.WaitGroup
+	pushCancel := func() {}
+	if len(config.KafkaBrokers) > 0 && runtimeWiring.EventSubscriptionHandler != nil {
+		pushCtx, cancel := context.WithCancel(context.Background())
+		pushCancel = cancel
+		startEventPushConsumer(pushCtx, &kafkaWG, config, runtimeWiring.EventSubscriptionHandler, logger, metrics)
+		fmt.Println("  [3/3] WebSocket event push consumer started")
+	} else {
+		fmt.Println("  [3/3] WebSocket event push consumer skipped (no Kafka brokers)")
+	}
 	fmt.Println()
 
 	fmt.Println("✓ All services started successfully")
@@ -218,46 +258,38 @@ func main() {
 	fmt.Println()
 
 	// Setup signal handling
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
-
-	// Wait for shutdown signal
-	sig := <-sigChan
-	fmt.Println()
-	fmt.Printf("Received signal: %v\n", sig)
-	fmt.Println()
+	_ = bootstrap.WaitForSignal()
 
 	// Graceful shutdown
 	fmt.Println("Shutting Down Services:")
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	// Stop API Service
-	if err := service.Stop(); err != nil {
+	// Stop API Service (graceful shutdown with context)
+	if err := service.ShutdownWithContext(shutdownCtx); err != nil {
 		logger.Error("Error stopping API Service", "error", err.Error())
 	}
-	fmt.Println("  [1/2] API Service stopped")
+	fmt.Println("  [1/3] API Service stopped")
+
+	// Stop WebSocket push consumer
+	pushCancel()
+	pushDone := make(chan struct{})
+	go func() {
+		kafkaWG.Wait()
+		close(pushDone)
+	}()
+	select {
+	case <-pushDone:
+	case <-time.After(5 * time.Second):
+	}
+	fmt.Println("  [2/3] WebSocket push consumer stopped")
 
 	if err := runtimeWiring.Close(shutdownCtx); err != nil {
 		logger.Error("Error closing runtime wiring", "error", err.Error())
 	}
-	fmt.Println("  [2/2] Runtime wiring closed")
+	fmt.Println("  [3/3] Runtime wiring closed")
 
-	// Wait for all goroutines to finish
-	done := make(chan struct{})
-	go func() {
-		wg.Wait()
-		close(done)
-	}()
-
-	select {
-	case <-done:
-		fmt.Println()
-		fmt.Println("✓ All services stopped successfully")
-	case <-shutdownCtx.Done():
-		fmt.Println()
-		fmt.Println("⚠ Shutdown timeout exceeded")
-	}
+	bootstrap.ShutdownWithTimeout(&wg, 30*time.Second)
 
 	fmt.Println()
 	fmt.Println("Status: Shutdown complete")
@@ -275,130 +307,119 @@ type APIServiceConfig struct {
 	ConsumerGroup      string
 	LogLevel           string
 	AuthEnabled        bool
-	AuthJWTSecret      string
-	AuthAPIKeys        []string
+	AuthJWTSecret      core.SecretString
+	AuthAPIKeys        []core.SecretString
 	RateLimitEnabled   bool
 	RateLimitPerMinute int
 }
 
 // loadAPIServiceConfig loads configuration from environment variables
 func loadAPIServiceConfig() APIServiceConfig {
-	instanceID := getEnv("HOSTNAME", "api-service-1")
-	if id := getEnv("INSTANCE_ID", ""); id != "" {
+	instanceID := env.Get("HOSTNAME", "api-service-1")
+	if id := env.Get("INSTANCE_ID", ""); id != "" {
 		instanceID = id
 	}
 
 	return APIServiceConfig{
-		Port:               getEnvInt("SERVICE_PORT", 8081),
+		Port:               env.GetInt("API_SERVICE_PORT", 8081),
 		InstanceID:         instanceID,
-		DatabaseHost:       getEnv("DB_HOST", "postgres-primary"),
-		DatabasePort:       getEnvInt("DB_PORT", 5432),
+		DatabaseHost:       env.Get("API_SERVICE_DB_HOST", "postgres-primary"),
+		DatabasePort:       env.GetInt("API_SERVICE_DB_PORT", 5432),
 		RedisCluster:       []string{"redis-1:6379", "redis-2:6379", "redis-3:6379"},
-		KafkaBrokers:       []string{"kafka-1:9092", "kafka-2:9092", "kafka-3:9092"},
-		ConsumerGroup:      "api-service-consumers",
-		LogLevel:           getEnv("LOG_LEVEL", "info"),
-		AuthEnabled:        parseBoolEnv("API_SERVICE_AUTH_ENABLED", false),
-		AuthJWTSecret:      getEnv("API_SERVICE_AUTH_JWT_SECRET", ""),
-		AuthAPIKeys:        parseCommaSeparatedList(getEnv("API_SERVICE_AUTH_API_KEYS", "")),
-		RateLimitEnabled:   parseBoolEnv("API_SERVICE_RATE_LIMIT_ENABLED", false),
-		RateLimitPerMinute: getEnvInt("API_SERVICE_RATE_LIMIT", 100),
+		KafkaBrokers:       env.GetCSV("API_SERVICE_KAFKA_BROKERS", []string{"kafka:9092"}),
+		ConsumerGroup:      env.Get("API_SERVICE_KAFKA_CONSUMER_GROUP", "api-service-consumers"),
+		LogLevel:           env.Get("LOG_LEVEL", "info"),
+		AuthEnabled:        env.GetBool("API_SERVICE_AUTH_ENABLED", false),
+		AuthJWTSecret:      core.SecretString(env.Get("API_SERVICE_AUTH_JWT_SECRET", "")),
+		AuthAPIKeys:        core.ToSecretStrings(env.GetCSV("API_SERVICE_AUTH_API_KEYS", nil)),
+		RateLimitEnabled:   env.GetBool("API_SERVICE_RATE_LIMIT_ENABLED", true),
+		RateLimitPerMinute: env.GetInt("API_SERVICE_RATE_LIMIT", 100),
 	}
 }
 
-func buildAPIServiceSecurityControls(config APIServiceConfig, logger core.Logger, metrics core.MetricsCollector) (*api.AuthMiddleware, *api.RateLimitMiddleware, error) {
-	if !config.AuthEnabled && !config.RateLimitEnabled {
-		return nil, nil, nil
+func validateAPIServiceConfig(c APIServiceConfig) error {
+	if c.DatabasePort < 1 || c.DatabasePort > 65535 {
+		return fmt.Errorf("API_SERVICE_DB_PORT must be between 1 and 65535, got %d", c.DatabasePort)
+	}
+	if c.RateLimitPerMinute < 1 {
+		return fmt.Errorf("API_SERVICE_RATE_LIMIT must be >= 1, got %d", c.RateLimitPerMinute)
+	}
+	if c.AuthEnabled && strings.TrimSpace(c.AuthJWTSecret.Value()) == "" {
+		return fmt.Errorf("API_SERVICE_AUTH_JWT_SECRET must not be empty when API_SERVICE_AUTH_ENABLED is true")
+	}
+	return nil
+}
+
+func validateAPIServiceProductionSecurity(c APIServiceConfig, runtimeProfile string) error {
+	if runtimeProfile != "production" {
+		return nil
+	}
+	if !c.AuthEnabled {
+		return fmt.Errorf("production api service requires API_SERVICE_AUTH_ENABLED=true")
+	}
+	if strings.TrimSpace(c.AuthJWTSecret.Value()) == "" {
+		return fmt.Errorf("production api service requires non-empty API_SERVICE_AUTH_JWT_SECRET")
+	}
+	if !c.RateLimitEnabled {
+		return fmt.Errorf("production api service requires API_SERVICE_RATE_LIMIT_ENABLED=true")
+	}
+	if c.RateLimitPerMinute < 1 {
+		return fmt.Errorf("production api service requires API_SERVICE_RATE_LIMIT >= 1")
+	}
+	return nil
+}
+
+// startEventPushConsumer starts a Kafka consumer that listens for processed events
+// and pushes them to WebSocket subscribers via BroadcastEvent().
+func startEventPushConsumer(
+	ctx context.Context,
+	wg *sync.WaitGroup,
+	config APIServiceConfig,
+	subscriptionHandler *api.EventSubscriptionHandler,
+	logger core.Logger,
+	metrics core.MetricsCollector,
+) {
+	kafkaMQ := mq.NewKafkaMQPlugin(
+		"api-service-push-consumer",
+		"1.0.0",
+		&core.Config{
+			APIType:  "kafka",
+			LogLevel: config.LogLevel,
+		},
+		logger,
+		metrics,
+		nil, // eventBus not needed
+		config.KafkaBrokers,
+		config.ConsumerGroup,
+	)
+	if err := kafkaMQ.Initialize(context.Background(), core.Config{}); err != nil {
+		logger.Error("Failed to initialize WebSocket push Kafka consumer", "error", err.Error())
+		return
+	}
+	if err := kafkaMQ.Start(context.Background()); err != nil {
+		logger.Error("Failed to start WebSocket push Kafka consumer", "error", err.Error())
+		return
 	}
 
-	var authMiddleware *api.AuthMiddleware
-	if config.AuthEnabled {
-		if strings.TrimSpace(config.AuthJWTSecret) == "" {
-			return nil, nil, fmt.Errorf("api service auth is enabled but API_SERVICE_AUTH_JWT_SECRET is empty")
-		}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		defer kafkaMQ.Stop(context.Background()) //nolint:errcheck // deferred stop
 
-		tokenValidator := api.NewTokenValidator(config.AuthJWTSecret, logger, metrics)
-		for _, entry := range config.AuthAPIKeys {
-			apiKey, clientID, ok := parseKeyValuePair(entry)
-			if !ok {
-				return nil, nil, fmt.Errorf("invalid API_SERVICE_AUTH_API_KEYS entry %q; expected key=clientID or key:clientID", entry)
+		topic := "processed-events"
+		err := kafkaMQ.ConsumeMessages(ctx, topic, func(message core.MessageQueueMessage) error {
+			var event core.BlockchainEvent
+			if err := json.Unmarshal(message.Payload, &event); err != nil {
+				logger.Warn("Failed to unmarshal event for WebSocket push", "error", err.Error())
+				return nil // skip malformed messages
 			}
-			if err := tokenValidator.RegisterAPIKey(apiKey, clientID); err != nil {
-				return nil, nil, err
+			if err := subscriptionHandler.BroadcastEvent(ctx, &event); err != nil {
+				logger.Warn("Failed to broadcast event to WebSocket clients", "eventId", event.ID, "error", err.Error())
 			}
-		}
-
-		rbacChecker := api.NewRBACChecker(logger, metrics)
-		auditLogger := api.NewAuditLogger(logger, metrics)
-		authMiddleware = api.NewAuthMiddleware(tokenValidator, rbacChecker, auditLogger, logger, metrics)
-	}
-
-	var rateLimitMiddleware *api.RateLimitMiddleware
-	if config.RateLimitEnabled {
-		rateLimiter := api.NewRateLimiter(logger, metrics, &api.RateLimitConfig{
-			DefaultRequestsPerSecond: api.RequestsPerMinuteToPerSecond(config.RateLimitPerMinute),
-			DefaultBurstSize:         api.BurstSizeFromRequestsPerMinute(config.RateLimitPerMinute),
-			CleanupInterval:          5 * time.Minute,
+			return nil
 		})
-		rateLimitMiddleware = api.NewRateLimitMiddleware(rateLimiter, logger)
-	}
-
-	return authMiddleware, rateLimitMiddleware, nil
-}
-
-func parseCommaSeparatedList(value string) []string {
-	parts := strings.Split(value, ",")
-	result := make([]string, 0, len(parts))
-	for _, part := range parts {
-		trimmed := strings.TrimSpace(part)
-		if trimmed != "" {
-			result = append(result, trimmed)
+		if err != nil && ctx.Err() == nil {
+			logger.Error("WebSocket push consumer stopped with error", "error", err.Error())
 		}
-	}
-	return result
-}
-
-func parseKeyValuePair(entry string) (string, string, bool) {
-	for _, separator := range []string{"=", ":"} {
-		if idx := strings.Index(entry, separator); idx > 0 && idx < len(entry)-1 {
-			key := strings.TrimSpace(entry[:idx])
-			clientID := strings.TrimSpace(entry[idx+1:])
-			if key != "" && clientID != "" {
-				return key, clientID, true
-			}
-		}
-	}
-	return "", "", false
-}
-
-func parseBoolEnv(key string, defaultValue bool) bool {
-	value := strings.TrimSpace(strings.ToLower(os.Getenv(key)))
-	if value == "" {
-		return defaultValue
-	}
-	switch value {
-	case "1", "true", "yes", "on":
-		return true
-	case "0", "false", "no", "off":
-		return false
-	default:
-		return defaultValue
-	}
-}
-
-// getEnv gets an environment variable with a default value
-func getEnv(key, defaultValue string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
-	}
-	return defaultValue
-}
-
-// getEnvInt gets an environment variable as integer with a default value
-func getEnvInt(key string, defaultValue int) int {
-	if value := os.Getenv(key); value != "" {
-		if intVal, err := strconv.Atoi(value); err == nil {
-			return intVal
-		}
-	}
-	return defaultValue
+	}()
 }

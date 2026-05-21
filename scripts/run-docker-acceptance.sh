@@ -18,6 +18,7 @@ API_SERVICE_PORT="${API_SERVICE_PORT:-8081}"
 EVENT_PROCESSOR_PORT="${EVENT_PROCESSOR_PORT:-8082}"
 PULLER_PORT="${PULLER_PORT:-8083}"
 PROM_URL="${PROM_URL:-http://localhost:9090}"
+ANVIL_RPC_URL="${ANVIL_RPC_URL:-http://127.0.0.1:8545}"
 
 usage() {
   cat <<'EOF'
@@ -43,6 +44,7 @@ Environment variables:
   EVENT_PROCESSOR_PORT      default: 8082
   PULLER_PORT               default: 8083
   PROM_URL                  default: http://localhost:9090
+  ANVIL_RPC_URL             default: http://127.0.0.1:8545
 EOF
 }
 
@@ -79,6 +81,7 @@ up_stack() {
     docker_acceptance_compose -f "${COMPOSE_FILE}" up -d --build
   )
 
+  docker_acceptance_wait_for_evm_rpc "anvil rpc" "${ANVIL_RPC_URL}"
   docker_acceptance_wait_for_http "api-service /health" "http://localhost:${API_SERVICE_PORT}/health"
   docker_acceptance_wait_for_http "api-service /runtime/summary" "http://localhost:${API_SERVICE_PORT}/runtime/summary"
   docker_acceptance_wait_for_http "api-gateway /health" "http://localhost:${API_GATEWAY_PORT}/health"

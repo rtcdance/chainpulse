@@ -1,6 +1,6 @@
 # ChainPulse 真实依赖图
 
-> 生成时间: 2026-04-03
+> 生成时间: 2026-04-03 (最后更新: 2026-05-17)
 > 用途: 让 AI 理解当前代码的真实依赖关系，避免被 ARCHITECTURE_v1.md 的理想状态误导
 
 ---
@@ -46,7 +46,7 @@ cmd/microservices/api-service
 cmd/microservices/api-gateway
 ```
 
-## 违反 Clean Architecture 的地方（16 处）
+## 违反 Clean Architecture 的地方（9 处，已修复 7 处）
 
 ### 严重违反（service 层依赖外层）
 
@@ -54,11 +54,16 @@ cmd/microservices/api-gateway
 |---|---|---|---|
 | 1 | `pkg/services/processor/event_processor.go:11` | `pkg/plugins/cache` | service 依赖 plugin 实现 |
 | 2 | `pkg/services/processor/event_processor.go:12` | `pkg/plugins/database` | service 依赖 plugin 实现 |
-| 3 | `pkg/services/query/postgres_event_metadata_store.go:10` | `pkg/infrastructure/database` | service 依赖 infrastructure |
-| 4 | `pkg/services/query/mongodb_adapter.go:10` | `pkg/infrastructure/database` | service 依赖 infrastructure |
-| 5 | `pkg/services/query/postgres_adapter.go:12` | `pkg/infrastructure/database` | service 依赖 infrastructure |
-| 6 | `pkg/services/query/query_service.go:10` | `pkg/infrastructure/database` | service 依赖 infrastructure |
-| 7 | `pkg/services/query/mongodb_event_store.go:14` | `pkg/infrastructure/database` | service 依赖 infrastructure |
+
+### ✅ 已修复（service 层 — query 包依赖 infrastructure）— 2026-05-17
+
+| # | 文件 | 违规 import | 修复方式 |
+|---|---|---|---|
+| 3 | `pkg/services/query/postgres_event_metadata_store.go` | `pkg/infrastructure/database` | ✅ 改为局部窄接口 `postgresConnectionProvider` |
+| 4 | `pkg/services/query/mongodb_adapter.go` | `pkg/infrastructure/database` | ✅ 改为局部窄接口 `mongoClientProvider` |
+| 5 | `pkg/services/query/postgres_adapter.go` | `pkg/infrastructure/database` | ✅ 改为局部窄接口 `postgresConnectionProvider` |
+| 6 | `pkg/services/query/query_service.go` | `pkg/infrastructure/database` | ✅ 删除死字段 `dbManager` |
+| 7 | `pkg/services/query/mongodb_event_store.go` | `pkg/infrastructure/database` | ✅ 共用 `mongoClientProvider` 接口 |
 
 ### 中等违反（plugin 依赖 infrastructure）
 
@@ -82,12 +87,12 @@ cmd/microservices/api-gateway
 | 13 | `pkg/application/bootstrap/runtime_wiring.go:11` | `pkg/infrastructure/database` | bootstrap 依赖 infrastructure |
 | 14 | `pkg/application/bootstrap/runtime_wiring.go:12` | `pkg/plugins/api` | bootstrap 依赖 plugin |
 
-### 架构设计问题（service 依赖 application，方向反了）
+### 架构设计问题（service 依赖 application，方向反了）— ✅ 已全部修复
 
-| # | 文件 | 违规 import | 影响 |
+| # | 文件 | 违规 import | 状态 |
 |---|---|---|---|
-| 15 | `pkg/services/indexing/chain_indexer.go:9` | `pkg/application/indexing` | service 层依赖 application 层 |
-| 16 | `pkg/services/indexing/legacy_runtime_sink.go:8` | `pkg/application/indexing` | service 层依赖 application 层 |
+| 15 | `pkg/services/indexing/chain_indexer.go:9` | `pkg/application/indexing` | ✅ 已修复 (2026-05-16) — 改为直接引用 `pkg/core.EventEnvelope` |
+| 16 | `pkg/services/indexing/legacy_runtime_sink.go:8` | `pkg/application/indexing` | ✅ 已修复 (2026-05-16) — 改为直接引用 `pkg/core.EventEnvelope` |
 
 ---
 
@@ -100,15 +105,15 @@ cmd/* → pkg/plugins/ 或 pkg/infrastructure/ → pkg/services/ → pkg/core/
 ## 当前 vs 理想 对照
 
 | 规则 | 理想状态 | 当前状态 | 差距 |
-|---|---|---|---|
+|---|---|---|---|---|
 | pkg/core 不依赖其他 | ✅ | ✅ | 无 |
-| pkg/services 只依赖 core | ❌ | 依赖 plugins + infrastructure + application | 7 处违反（2 plugins + 5 infrastructure） |
+| pkg/services 只依赖 core | ❌ | 依赖 plugins + infrastructure | 2 处违反（2 plugins） |
 | pkg/plugins 只依赖 core | ❌ | 依赖 infrastructure | 1 处违反 |
 | pkg/infrastructure 只依赖 core + services | ❌ | 依赖 plugins + services | 4 处违反（3 plugins + 1 services） |
 | pkg/application 只依赖 core | ❌ | 依赖 infrastructure + plugins | 2 处违反 |
-| pkg/services 不依赖 pkg/application | ❌ | indexing 依赖 application | 2 处违反 |
+| pkg/services 不依赖 pkg/application | ❌→✅ | indexing 已不再依赖 application | ✅ 已修复 (2 处) |
 
-**总计：16 处跨层依赖违反，涉及 12 个文件。**
+**总计：9 处跨层依赖违反（已修复 7 处），涉及 8 个文件。**
 
 ---
 
@@ -116,7 +121,7 @@ cmd/* → pkg/plugins/ 或 pkg/infrastructure/ → pkg/services/ → pkg/core/
 
 ### 当前是迁移中间态
 
-代码处于从「单体架构」向「Clean Architecture」迁移的中间状态。**不要试图一次性修复所有 16 处违反**。
+代码处于从「单体架构」向「Clean Architecture」迁移的中间状态。**不要试图一次性修复所有 9 处违反**。
 
 ### 新代码规则
 
@@ -127,7 +132,7 @@ cmd/* → pkg/plugins/ 或 pkg/infrastructure/ → pkg/services/ → pkg/core/
 
 ### 为什么不能一次性修复
 
-16 处违反涉及 12 个文件，修改它们会改变 import 路径，可能导致：
+9 处违反涉及 8 个文件，修改它们会改变 import 路径，可能导致：
 - 编译失败
 - 测试失败
 - 运行时行为变化

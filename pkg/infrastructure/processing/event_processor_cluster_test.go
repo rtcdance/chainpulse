@@ -13,6 +13,7 @@ import (
 
 // TestNewEventProcessorClusterDeployment tests cluster creation
 func TestNewEventProcessorClusterDeployment(t *testing.T) {
+	t.Parallel()
 	cluster := NewEventProcessorClusterDeployment("cluster-1")
 
 	assert.NotNil(t, cluster)
@@ -23,6 +24,7 @@ func TestNewEventProcessorClusterDeployment(t *testing.T) {
 
 // TestClusterDeploy tests cluster deployment
 func TestClusterDeploy(t *testing.T) {
+	t.Parallel()
 	cluster := NewEventProcessorClusterDeployment("cluster-1")
 	ctx := context.Background()
 
@@ -36,6 +38,7 @@ func TestClusterDeploy(t *testing.T) {
 
 // TestClusterDeployAlreadyDeployed tests deploying already deployed cluster
 func TestClusterDeployAlreadyDeployed(t *testing.T) {
+	t.Parallel()
 	cluster := NewEventProcessorClusterDeployment("cluster-1")
 	ctx := context.Background()
 
@@ -48,6 +51,7 @@ func TestClusterDeployAlreadyDeployed(t *testing.T) {
 
 // TestClusterDeployInvalidInstanceCount tests invalid instance count
 func TestClusterDeployInvalidInstanceCount(t *testing.T) {
+	t.Parallel()
 	cluster := NewEventProcessorClusterDeployment("cluster-1")
 	ctx := context.Background()
 
@@ -59,6 +63,7 @@ func TestClusterDeployInvalidInstanceCount(t *testing.T) {
 
 // TestClusterUndeploy tests cluster undeployment
 func TestClusterUndeploy(t *testing.T) {
+	t.Parallel()
 	cluster := NewEventProcessorClusterDeployment("cluster-1")
 	ctx := context.Background()
 
@@ -72,6 +77,7 @@ func TestClusterUndeploy(t *testing.T) {
 
 // TestClusterUndeployNotDeployed tests undeploying non-deployed cluster
 func TestClusterUndeployNotDeployed(t *testing.T) {
+	t.Parallel()
 	cluster := NewEventProcessorClusterDeployment("cluster-1")
 	ctx := context.Background()
 
@@ -83,6 +89,7 @@ func TestClusterUndeployNotDeployed(t *testing.T) {
 
 // TestClusterProcessEvent tests event processing
 func TestClusterProcessEvent(t *testing.T) {
+	t.Parallel()
 	cluster := NewEventProcessorClusterDeployment("cluster-1")
 	ctx := context.Background()
 
@@ -97,7 +104,7 @@ func TestClusterProcessEvent(t *testing.T) {
 		TransactionHash: "0xabc",
 		BlockNumber:     100,
 		LogIndex:        0,
-		EventData:       make(map[string]interface{}),
+		EventData:       make(map[string]any),
 	}
 
 	err := cluster.ProcessEvent(ctx, event)
@@ -107,6 +114,7 @@ func TestClusterProcessEvent(t *testing.T) {
 
 // TestClusterProcessEventNotDeployed tests processing on non-deployed cluster
 func TestClusterProcessEventNotDeployed(t *testing.T) {
+	t.Parallel()
 	cluster := NewEventProcessorClusterDeployment("cluster-1")
 	ctx := context.Background()
 
@@ -118,7 +126,7 @@ func TestClusterProcessEventNotDeployed(t *testing.T) {
 		TransactionHash: "0xabc",
 		BlockNumber:     100,
 		LogIndex:        0,
-		EventData:       make(map[string]interface{}),
+		EventData:       make(map[string]any),
 	}
 
 	err := cluster.ProcessEvent(ctx, event)
@@ -129,6 +137,7 @@ func TestClusterProcessEventNotDeployed(t *testing.T) {
 
 // TestClusterProcessBatch tests batch processing
 func TestClusterProcessBatch(t *testing.T) {
+	t.Parallel()
 	cluster := NewEventProcessorClusterDeployment("cluster-1")
 	ctx := context.Background()
 
@@ -143,8 +152,8 @@ func TestClusterProcessBatch(t *testing.T) {
 			EventName:       "Transfer",
 			TransactionHash: fmt.Sprintf("0x%d", i),
 			BlockNumber:     uint64(100 + i),
-			LogIndex:        uint(i),
-			EventData:       make(map[string]interface{}),
+			LogIndex:        uint64(i),
+			EventData:       make(map[string]any),
 		}
 	}
 
@@ -155,6 +164,7 @@ func TestClusterProcessBatch(t *testing.T) {
 
 // TestClusterProcessBatchEmpty tests empty batch processing
 func TestClusterProcessBatchEmpty(t *testing.T) {
+	t.Parallel()
 	cluster := NewEventProcessorClusterDeployment("cluster-1")
 	ctx := context.Background()
 
@@ -167,6 +177,7 @@ func TestClusterProcessBatchEmpty(t *testing.T) {
 
 // TestClusterHealthCheck tests health check
 func TestClusterHealthCheck(t *testing.T) {
+	t.Parallel()
 	cluster := NewEventProcessorClusterDeployment("cluster-1")
 	ctx := context.Background()
 
@@ -178,6 +189,7 @@ func TestClusterHealthCheck(t *testing.T) {
 
 // TestClusterHealthCheckNotDeployed tests health check on non-deployed cluster
 func TestClusterHealthCheckNotDeployed(t *testing.T) {
+	t.Parallel()
 	cluster := NewEventProcessorClusterDeployment("cluster-1")
 	ctx := context.Background()
 
@@ -189,6 +201,7 @@ func TestClusterHealthCheckNotDeployed(t *testing.T) {
 
 // TestClusterScale tests cluster scaling
 func TestClusterScale(t *testing.T) {
+	t.Parallel()
 	cluster := NewEventProcessorClusterDeployment("cluster-1")
 	ctx := context.Background()
 
@@ -201,6 +214,7 @@ func TestClusterScale(t *testing.T) {
 
 // TestClusterScaleDown tests cluster scale down
 func TestClusterScaleDown(t *testing.T) {
+	t.Parallel()
 	cluster := NewEventProcessorClusterDeployment("cluster-1")
 	ctx := context.Background()
 
@@ -213,6 +227,7 @@ func TestClusterScaleDown(t *testing.T) {
 
 // TestClusterScaleInvalidCount tests invalid scale count
 func TestClusterScaleInvalidCount(t *testing.T) {
+	t.Parallel()
 	cluster := NewEventProcessorClusterDeployment("cluster-1")
 	ctx := context.Background()
 
@@ -225,6 +240,7 @@ func TestClusterScaleInvalidCount(t *testing.T) {
 
 // TestClusterScaleNotDeployed tests scaling non-deployed cluster
 func TestClusterScaleNotDeployed(t *testing.T) {
+	t.Parallel()
 	cluster := NewEventProcessorClusterDeployment("cluster-1")
 	ctx := context.Background()
 
@@ -236,6 +252,7 @@ func TestClusterScaleNotDeployed(t *testing.T) {
 
 // TestClusterGetMetrics tests metrics retrieval
 func TestClusterGetMetrics(t *testing.T) {
+	t.Parallel()
 	cluster := NewEventProcessorClusterDeployment("cluster-1")
 	ctx := context.Background()
 
@@ -250,6 +267,7 @@ func TestClusterGetMetrics(t *testing.T) {
 
 // TestClusterGetStatus tests status retrieval
 func TestClusterGetStatus(t *testing.T) {
+	t.Parallel()
 	cluster := NewEventProcessorClusterDeployment("cluster-1")
 	ctx := context.Background()
 
@@ -261,6 +279,7 @@ func TestClusterGetStatus(t *testing.T) {
 
 // TestClusterGetProcessorCount tests processor count
 func TestClusterGetProcessorCount(t *testing.T) {
+	t.Parallel()
 	cluster := NewEventProcessorClusterDeployment("cluster-1")
 	ctx := context.Background()
 
@@ -272,6 +291,7 @@ func TestClusterGetProcessorCount(t *testing.T) {
 
 // TestClusterGetConsumerGroupCount tests consumer group count
 func TestClusterGetConsumerGroupCount(t *testing.T) {
+	t.Parallel()
 	cluster := NewEventProcessorClusterDeployment("cluster-1")
 	ctx := context.Background()
 
@@ -283,6 +303,7 @@ func TestClusterGetConsumerGroupCount(t *testing.T) {
 
 // TestClusterGetDeadLetterQueueSize tests DLQ size
 func TestClusterGetDeadLetterQueueSize(t *testing.T) {
+	t.Parallel()
 	cluster := NewEventProcessorClusterDeployment("cluster-1")
 	ctx := context.Background()
 
@@ -294,6 +315,7 @@ func TestClusterGetDeadLetterQueueSize(t *testing.T) {
 
 // TestClusterGetIdempotencyMetrics tests idempotency metrics
 func TestClusterGetIdempotencyMetrics(t *testing.T) {
+	t.Parallel()
 	cluster := NewEventProcessorClusterDeployment("cluster-1")
 	ctx := context.Background()
 
@@ -307,6 +329,7 @@ func TestClusterGetIdempotencyMetrics(t *testing.T) {
 
 // TestClusterMultipleChains tests cluster with multiple chains
 func TestClusterMultipleChains(t *testing.T) {
+	t.Parallel()
 	cluster := NewEventProcessorClusterDeployment("cluster-1")
 	ctx := context.Background()
 
@@ -318,6 +341,7 @@ func TestClusterMultipleChains(t *testing.T) {
 
 // TestClusterConcurrentProcessing tests concurrent event processing
 func TestClusterConcurrentProcessing(t *testing.T) {
+	t.Parallel()
 	cluster := NewEventProcessorClusterDeployment("cluster-1")
 	ctx := context.Background()
 
@@ -338,8 +362,8 @@ func TestClusterConcurrentProcessing(t *testing.T) {
 				EventName:       "Transfer",
 				TransactionHash: fmt.Sprintf("0x%d", id),
 				BlockNumber:     uint64(100 + id),
-				LogIndex:        uint(id),
-				EventData:       make(map[string]interface{}),
+				LogIndex:        uint64(id),
+				EventData:       make(map[string]any),
 			}
 			if err := cluster.ProcessEvent(ctx, event); err == nil {
 				atomic.AddInt32(&successCount, 1)
@@ -354,6 +378,7 @@ func TestClusterConcurrentProcessing(t *testing.T) {
 
 // TestClusterDeploymentMetrics tests deployment metrics
 func TestClusterDeploymentMetrics(t *testing.T) {
+	t.Parallel()
 	cluster := NewEventProcessorClusterDeployment("cluster-1")
 	ctx := context.Background()
 
@@ -368,6 +393,7 @@ func TestClusterDeploymentMetrics(t *testing.T) {
 
 // TestClusterAutoScalingConfig tests auto-scaling configuration
 func TestClusterAutoScalingConfig(t *testing.T) {
+	t.Parallel()
 	cluster := NewEventProcessorClusterDeployment("cluster-1")
 
 	assert.True(t, cluster.autoScalingEnabled)
@@ -377,6 +403,7 @@ func TestClusterAutoScalingConfig(t *testing.T) {
 
 // TestClusterHealthCheckUpdatesMetrics tests health check updates metrics
 func TestClusterHealthCheckUpdatesMetrics(t *testing.T) {
+	t.Parallel()
 	cluster := NewEventProcessorClusterDeployment("cluster-1")
 	ctx := context.Background()
 
@@ -390,6 +417,7 @@ func TestClusterHealthCheckUpdatesMetrics(t *testing.T) {
 
 // TestClusterProcessEventWithIdempotency tests idempotency check
 func TestClusterProcessEventWithIdempotency(t *testing.T) {
+	t.Parallel()
 	cluster := NewEventProcessorClusterDeployment("cluster-1")
 	ctx := context.Background()
 
@@ -404,7 +432,7 @@ func TestClusterProcessEventWithIdempotency(t *testing.T) {
 		TransactionHash: "0xabc",
 		BlockNumber:     100,
 		LogIndex:        0,
-		EventData:       make(map[string]interface{}),
+		EventData:       make(map[string]any),
 	}
 
 	// First processing should succeed
@@ -419,6 +447,7 @@ func TestClusterProcessEventWithIdempotency(t *testing.T) {
 
 // TestClusterScaleUpAndDown tests scale up then down
 func TestClusterScaleUpAndDown(t *testing.T) {
+	t.Parallel()
 	cluster := NewEventProcessorClusterDeployment("cluster-1")
 	ctx := context.Background()
 
@@ -434,6 +463,7 @@ func TestClusterScaleUpAndDown(t *testing.T) {
 
 // TestClusterDeploymentTimestamp tests deployment timestamp
 func TestClusterDeploymentTimestamp(t *testing.T) {
+	t.Parallel()
 	cluster := NewEventProcessorClusterDeployment("cluster-1")
 	ctx := context.Background()
 
@@ -447,6 +477,7 @@ func TestClusterDeploymentTimestamp(t *testing.T) {
 
 // TestClusterProcessorDistribution tests processor distribution
 func TestClusterProcessorDistribution(t *testing.T) {
+	t.Parallel()
 	cluster := NewEventProcessorClusterDeployment("cluster-1")
 	ctx := context.Background()
 
@@ -459,6 +490,7 @@ func TestClusterProcessorDistribution(t *testing.T) {
 
 // TestClusterHealthCheckInterval tests health check interval
 func TestClusterHealthCheckInterval(t *testing.T) {
+	t.Parallel()
 	cluster := NewEventProcessorClusterDeployment("cluster-1")
 
 	assert.Equal(t, 30*time.Second, cluster.healthCheckInterval)
@@ -466,6 +498,7 @@ func TestClusterHealthCheckInterval(t *testing.T) {
 
 // TestClusterRetryManagerIntegration tests retry manager integration
 func TestClusterRetryManagerIntegration(t *testing.T) {
+	t.Parallel()
 	cluster := NewEventProcessorClusterDeployment("cluster-1")
 	ctx := context.Background()
 
@@ -478,6 +511,7 @@ func TestClusterRetryManagerIntegration(t *testing.T) {
 
 // TestClusterIdempotencyServiceIntegration tests idempotency service integration
 func TestClusterIdempotencyServiceIntegration(t *testing.T) {
+	t.Parallel()
 	cluster := NewEventProcessorClusterDeployment("cluster-1")
 	ctx := context.Background()
 
@@ -488,6 +522,7 @@ func TestClusterIdempotencyServiceIntegration(t *testing.T) {
 
 // TestClusterEventStoreIntegration tests event store integration
 func TestClusterEventStoreIntegration(t *testing.T) {
+	t.Parallel()
 	cluster := NewEventProcessorClusterDeployment("cluster-1")
 	ctx := context.Background()
 

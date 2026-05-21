@@ -2,13 +2,30 @@ package mq
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/bits"
 	"sync"
 	"time"
 
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/observability"
 	"github.com/segmentio/kafka-go"
+	"go.opentelemetry.io/otel"
+)
+
+const (
+	defaultKafkaBatchSize          = 100
+	defaultKafkaMaxRetries         = 3
+	defaultKafkaRetryDelay         = 1 * time.Second
+	defaultKafkaMaxBytes           = 10e6
+	defaultKafkaCommitInterval     = time.Second
+	defaultKafkaStopTimeout        = 10 * time.Second
+	defaultKafkaCommitTimeout      = 5 * time.Second
+	defaultKafkaDLQReadTimeout     = 2 * time.Second
+	kafkaRecreateReaderThreshold   = 10
+	kafkaHealthCheckMaxBytes       = 1024
+	defaultKafkaHealthCheckTimeout = 5 * time.Second
 )
 
 // KafkaProducer represents a Kafka message producer
@@ -27,39 +44,35 @@ type KafkaConsumer struct {
 
 // KafkaMQPlugin represents the Kafka message queue plugin
 type KafkaMQPlugin struct {
-	name                string
-	version             string
-	config              *core.Config
-	logger              core.Logger
-	metricsCollector    core.MetricsCollector
-	eventBus            core.EventBus
-	isInitialized       bool
-	isRunning           bool
-	mu                  sync.RWMutex
-	producer            *KafkaProducer
-	consumers           map[string]*KafkaConsumer
-	messageCount        int64
-	errorCount          int64
-	lastError           error
-	lastErrorTime       time.Time
-	deadLetterQueueSize int64
-	processingTime      int64
-	batchSize           int
-	maxRetries          int
-	retryDelay          time.Duration
-	brokers             []string
-	consumerGroup       string
-	offsetTracking      map[string]int64
-	offsetTrackingMutex sync.RWMutex
-	dlqReasonCounts     map[string]int64
-	dlqReasonMutex      sync.RWMutex
-	// Kafka-specific features
-	brokerFailureCount   int64
-	brokerRecoveryCount  int64
-	consumerGroupMetrics map[string]int64
-	consumerGroupMutex   sync.RWMutex
-	offsetPersistenceMap map[string]map[int32]int64 // topic -> partition -> offset
-	offsetPersistMutex   sync.RWMutex
+	name             string
+	version          string
+	config           *core.Config
+	logger           core.Logger
+	metricsCollector core.MetricsCollector
+	eventBus         core.EventBus
+	isInitialized    bool
+	isRunning        bool
+	mu               sync.RWMutex
+	producer         *KafkaProducer
+	consumers        map[string]*KafkaConsumer
+	batchSize        int
+	maxRetries       int
+	retryDelay       time.Duration
+	brokers          []string
+	consumerGroup    string
+	commitInterval   time.Duration
+	consumerMaxBytes int64
+
+	stats       *kafkaMessageStats
+	offsets     *kafkaOffsetState
+	brokerState *kafkaBrokerState
+	cgState     *kafkaConsumerGroupState
+	dlqState    *kafkaDLQState
+
+	tracer       *observability.DefaultTracer
+	inFlight     sync.WaitGroup
+	shutdownCh   chan struct{}
+	shutdownOnce sync.Once
 }
 
 // NewKafkaMQPlugin creates a new Kafka message queue plugin
@@ -73,35 +86,34 @@ func NewKafkaMQPlugin(
 	consumerGroup string,
 ) *KafkaMQPlugin {
 	return &KafkaMQPlugin{
-		name:                 name,
-		version:              version,
-		config:               config,
-		logger:               logger,
-		metricsCollector:     metricsCollector,
-		eventBus:             eventBus,
-		isInitialized:        false,
-		isRunning:            false,
-		messageCount:         0,
-		errorCount:           0,
-		deadLetterQueueSize:  0,
-		processingTime:       0,
-		batchSize:            100,
-		maxRetries:           3,
-		retryDelay:           1 * time.Second,
-		brokers:              brokers,
-		consumerGroup:        consumerGroup,
-		consumers:            make(map[string]*KafkaConsumer),
-		offsetTracking:       make(map[string]int64),
-		dlqReasonCounts:      make(map[string]int64),
-		brokerFailureCount:   0,
-		brokerRecoveryCount:  0,
-		consumerGroupMetrics: make(map[string]int64),
-		offsetPersistenceMap: make(map[string]map[int32]int64),
+		name:             name,
+		version:          version,
+		config:           config,
+		logger:           logger,
+		metricsCollector: metricsCollector,
+		eventBus:         eventBus,
+		isInitialized:    false,
+		isRunning:        false,
+		batchSize:        defaultKafkaBatchSize,
+		maxRetries:       defaultKafkaMaxRetries,
+		retryDelay:       defaultKafkaRetryDelay,
+		brokers:          brokers,
+		consumerGroup:    consumerGroup,
+		consumers:        make(map[string]*KafkaConsumer),
+
+		stats:       &kafkaMessageStats{},
+		offsets:     newKafkaOffsetState(),
+		brokerState: &kafkaBrokerState{},
+		cgState:     newKafkaConsumerGroupState(),
+		dlqState:    newKafkaDLQState(),
+
+		tracer:     observability.NewDefaultTracer(logger, metricsCollector),
+		shutdownCh: make(chan struct{}),
 	}
 }
 
 // Initialize initializes the Kafka plugin
-func (p *KafkaMQPlugin) Initialize() error {
+func (p *KafkaMQPlugin) Initialize(ctx context.Context, config core.Config) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -109,10 +121,13 @@ func (p *KafkaMQPlugin) Initialize() error {
 		return fmt.Errorf("plugin already initialized")
 	}
 
+	p.config = &config
+
 	// Create Kafka writer (producer)
 	writer := &kafka.Writer{
-		Addr:     kafka.TCP(p.brokers...),
-		Balancer: &kafka.LeastBytes{},
+		Addr:                   kafka.TCP(p.brokers...),
+		Balancer:               &kafka.LeastBytes{},
+		AllowAutoTopicCreation: false,
 	}
 
 	p.producer = &KafkaProducer{
@@ -128,7 +143,7 @@ func (p *KafkaMQPlugin) Initialize() error {
 }
 
 // Start starts the Kafka plugin
-func (p *KafkaMQPlugin) Start() error {
+func (p *KafkaMQPlugin) Start(ctx context.Context) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -147,15 +162,35 @@ func (p *KafkaMQPlugin) Start() error {
 }
 
 // Stop stops the Kafka plugin
-func (p *KafkaMQPlugin) Stop() error {
+func (p *KafkaMQPlugin) Stop(ctx context.Context) error {
 	p.mu.Lock()
-	defer p.mu.Unlock()
-
 	if !p.isRunning {
+		p.mu.Unlock()
 		return nil
+	}
+	p.isRunning = false
+	p.mu.Unlock()
+
+	p.shutdownOnce.Do(func() {
+		close(p.shutdownCh)
+	})
+
+	// Wait for in-flight operations with timeout
+	done := make(chan struct{})
+	go func() {
+		p.inFlight.Wait()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		p.logger.Info("Kafka in-flight operations completed")
+	case <-time.After(defaultKafkaStopTimeout):
+		p.logger.Warn("Kafka stop timed out waiting for in-flight operations")
 	}
 
 	// Close producer
+	p.mu.Lock()
 	if p.producer != nil && p.producer.writer != nil {
 		if err := p.producer.writer.Close(); err != nil {
 			p.logger.Error("failed to close Kafka writer", "error", err)
@@ -170,20 +205,33 @@ func (p *KafkaMQPlugin) Stop() error {
 			}
 		}
 	}
+	p.mu.Unlock()
 
-	p.isRunning = false
 	p.logger.Info("Kafka MQ plugin stopped", "name", p.name)
 
 	return nil
 }
 
-// Health returns the health status of the plugin
-func (p *KafkaMQPlugin) Health() *core.HealthStatus {
+// Health returns a simple error-based health check for the Plugin interface.
+func (p *KafkaMQPlugin) Health(ctx context.Context) error {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+
+	if p.stats.errorCount > 0 {
+		return fmt.Errorf("KafkaMQ degraded: %d errors, last error: %w", p.stats.errorCount, p.stats.lastError)
+	}
+	return nil
+}
+
+// DetailedHealth returns structured health data with operational metrics.
+// This supplements the simple error-based Health() for monitoring systems that
+// need consumer lag, offsets, and other production observability data.
+func (p *KafkaMQPlugin) DetailedHealth(ctx context.Context) core.HealthStatus {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
 	status := "healthy"
-	if p.errorCount > 0 {
+	if p.stats.errorCount > 0 {
 		status = "degraded"
 	}
 
@@ -191,16 +239,16 @@ func (p *KafkaMQPlugin) Health() *core.HealthStatus {
 	consumerGroupLag := consumerGroupMetrics["lag"]
 	maxTrackedOffset := p.maxTrackedOffset()
 
-	return &core.HealthStatus{
+	return core.HealthStatus{
 		Status:    status,
 		Timestamp: time.Now().UTC(),
-		Details: map[string]interface{}{
+		Details: map[string]any{
 			"name":                   p.name,
 			"version":                p.version,
 			"is_running":             p.isRunning,
-			"message_count":          p.messageCount,
-			"error_count":            p.errorCount,
-			"dead_letter_queue_size": p.deadLetterQueueSize,
+			"message_count":          p.stats.messageCount,
+			"error_count":            p.stats.errorCount,
+			"dead_letter_queue_size": p.stats.deadLetterQueueSize,
 			"brokers":                p.brokers,
 			"consumer_group":         p.consumerGroup,
 			"active_consumers":       len(p.consumers),
@@ -209,6 +257,68 @@ func (p *KafkaMQPlugin) Health() *core.HealthStatus {
 			"consumer_group_metrics": consumerGroupMetrics,
 		},
 	}
+}
+
+// SetConsumerConfig overrides default consumer commit interval and max bytes.
+func (p *KafkaMQPlugin) SetConsumerConfig(commitInterval time.Duration, maxBytes int64) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.commitInterval = commitInterval
+	p.consumerMaxBytes = maxBytes
+}
+
+func (p *KafkaMQPlugin) getCommitInterval() time.Duration {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	if p.commitInterval > 0 {
+		return p.commitInterval
+	}
+	return defaultKafkaCommitInterval
+}
+
+func (p *KafkaMQPlugin) getMaxBytes() int64 {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	if p.consumerMaxBytes > 0 {
+		return p.consumerMaxBytes
+	}
+	return defaultKafkaMaxBytes
+}
+
+// Subscribe subscribes to a Kafka topic and calls handler for each message
+func (p *KafkaMQPlugin) Subscribe(ctx context.Context, topic string, handler func([]byte)) error {
+	p.mu.Lock()
+	if _, exists := p.consumers[topic]; exists {
+		p.mu.Unlock()
+		return fmt.Errorf("already subscribed to topic: %s", topic)
+	}
+
+	reader := kafka.NewReader(kafka.ReaderConfig{
+		Brokers: p.brokers,
+		Topic:   topic,
+		GroupID: p.consumerGroup,
+	})
+	consumer := &KafkaConsumer{reader: reader, config: p.config, logger: p.logger}
+	p.consumers[topic] = consumer
+	p.mu.Unlock()
+
+	mqHandler := func(msg core.MessageQueueMessage) error {
+		handler(msg.Payload)
+		return nil
+	}
+	go p.ConsumeMessages(ctx, topic, mqHandler)
+	return nil
+}
+
+// GetQueueDepth returns the approximate queue depth for a topic
+func (p *KafkaMQPlugin) GetQueueDepth(ctx context.Context, topic string) (int64, error) {
+	p.offsets.mu.RLock()
+	offset, exists := p.offsets.tracking[topic]
+	p.offsets.mu.RUnlock()
+	if !exists {
+		return 0, nil
+	}
+	return offset, nil
 }
 
 // Name returns the plugin name
@@ -246,19 +356,27 @@ func (p *KafkaMQPlugin) Publish(ctx context.Context, topic string, message []byt
 
 // PublishMessage publishes a message to a Kafka topic with comprehensive metrics
 func (p *KafkaMQPlugin) PublishMessage(ctx context.Context, message core.MessageQueueMessage) error {
+	ctx, span := p.tracer.StartSpan(ctx, "mq.publish", observability.SpanKindProducer)
+	defer p.tracer.EndSpan(&span)
+	p.tracer.SetAttribute(&span, "topic", message.Topic)
+	p.tracer.SetAttribute(&span, "message_id", message.ID)
+
 	startTime := time.Now()
 
-	p.mu.Lock()
+	p.mu.RLock()
 	if !p.isRunning {
-		p.mu.Unlock()
+		p.mu.RUnlock()
 		return fmt.Errorf("plugin not running")
 	}
 	producer := p.producer
-	p.mu.Unlock()
+	p.mu.RUnlock()
 
 	if producer == nil || producer.writer == nil {
 		return fmt.Errorf("producer not initialized")
 	}
+
+	p.inFlight.Add(1)
+	defer p.inFlight.Done()
 
 	// Generate message ID if not provided
 	if message.ID == "" {
@@ -272,6 +390,7 @@ func (p *KafkaMQPlugin) PublishMessage(ctx context.Context, message core.Message
 
 	// Create Kafka message with partition key routing
 	kafkaMsg := kafka.Message{
+		Topic: message.Topic,
 		Key:   []byte(message.PartitionKey),
 		Value: message.Payload,
 		Headers: []kafka.Header{
@@ -282,13 +401,17 @@ func (p *KafkaMQPlugin) PublishMessage(ctx context.Context, message core.Message
 		},
 	}
 
+	propagator := otel.GetTextMapPropagator()
+	carrier := kafkaHeaderCarrier{headers: &kafkaMsg.Headers}
+	propagator.Inject(ctx, carrier)
+
 	// Write message to Kafka
 	err := producer.writer.WriteMessages(ctx, kafkaMsg)
 	if err != nil {
 		p.mu.Lock()
-		p.errorCount++
-		p.lastError = err
-		p.lastErrorTime = time.Now()
+		p.stats.errorCount++
+		p.stats.lastError = err
+		p.stats.lastErrorTime = time.Now()
 		p.mu.Unlock()
 
 		// Record error metrics
@@ -301,7 +424,7 @@ func (p *KafkaMQPlugin) PublishMessage(ctx context.Context, message core.Message
 
 	// Record success metrics
 	p.mu.Lock()
-	p.messageCount++
+	p.stats.messageCount++
 	p.mu.Unlock()
 
 	latency := time.Since(startTime).Milliseconds()
@@ -343,8 +466,8 @@ func (p *KafkaMQPlugin) ConsumeMessages(ctx context.Context, topic string, handl
 		Topic:          topic,
 		GroupID:        p.consumerGroup,
 		StartOffset:    kafka.LastOffset,
-		CommitInterval: time.Second,
-		MaxBytes:       10e6,
+		CommitInterval: p.getCommitInterval(),
+		MaxBytes:       int(p.getMaxBytes()),
 	})
 
 	// Register consumer for graceful shutdown
@@ -362,6 +485,9 @@ func (p *KafkaMQPlugin) ConsumeMessages(ctx context.Context, topic string, handl
 	// Track in-flight operations for graceful shutdown
 	var inFlightOps sync.WaitGroup
 
+	// Track consecutive read errors for backoff and reader recreation
+	consecutiveErrors := 0
+
 	// Read messages in a loop
 	for {
 		select {
@@ -372,10 +498,7 @@ func (p *KafkaMQPlugin) ConsumeMessages(ctx context.Context, topic string, handl
 			// Wait for in-flight operations to complete
 			inFlightOps.Wait()
 
-			// Close reader
-			if err := reader.Close(); err != nil {
-				p.logger.Error("failed to close Kafka reader", "topic", topic, "error", err)
-			}
+			p.closeKafkaReader(reader, topic)
 
 			// Unregister consumer
 			p.mu.Lock()
@@ -388,31 +511,95 @@ func (p *KafkaMQPlugin) ConsumeMessages(ctx context.Context, topic string, handl
 
 		default:
 			// Read message with timeout
-			readCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+			readCtx, cancel := context.WithTimeout(ctx, defaultKafkaCommitTimeout)
 			msg, err := reader.ReadMessage(readCtx)
 			cancel()
 
 			if err != nil {
-				if err == context.DeadlineExceeded {
-					// Timeout is normal, continue
+				if errors.Is(err, context.DeadlineExceeded) {
+					// Timeout is normal (no new messages), reset error counter
+					consecutiveErrors = 0
 					continue
 				}
-				if err == context.Canceled {
+				if errors.Is(err, context.Canceled) {
 					// Context was cancelled
 					continue
 				}
 
 				// Record read error
 				p.mu.Lock()
-				p.errorCount++
-				p.lastError = err
-				p.lastErrorTime = time.Now()
+				p.stats.errorCount++
+				p.stats.lastError = err
+				p.stats.lastErrorTime = time.Now()
 				p.mu.Unlock()
 
 				p.metricsCollector.RecordCounter("mq_consume_read_errors", 1, map[string]string{"topic": topic})
-				p.logger.Error("failed to read message from Kafka", "topic", topic, "error", err)
+				p.logger.Error("failed to read message from Kafka", "topic", topic, "error", err.Error())
+
+				// Apply exponential backoff to avoid tight spin loop
+				consecutiveErrors++
+				p.RecordBrokerFailure()
+				backoff := p.CalculateExponentialBackoffDelay(consecutiveErrors)
+				p.logger.Warn("backing off after read error", "topic", topic, "consecutive_errors", consecutiveErrors, "backoff_ms", backoff.Milliseconds())
+
+				select {
+				case <-time.After(backoff):
+				case <-ctx.Done():
+					inFlightOps.Wait()
+					p.closeKafkaReader(reader, topic)
+					p.mu.Lock()
+					delete(p.consumers, topic)
+					p.mu.Unlock()
+					return ctx.Err()
+				case <-p.shutdownCh:
+					inFlightOps.Wait()
+					p.closeKafkaReader(reader, topic)
+					p.mu.Lock()
+					delete(p.consumers, topic)
+					p.mu.Unlock()
+					return fmt.Errorf("plugin stopped")
+				}
+
+				// Recreate reader after too many consecutive errors
+				if consecutiveErrors >= kafkaRecreateReaderThreshold {
+				p.logger.Warn("too many consecutive read errors, recreating reader", "topic", topic, "consecutive_errors", consecutiveErrors)
+				if err := reader.Close(); err != nil {
+					p.logger.Warn("failed to close kafka reader", "topic", topic, "error", err.Error())
+				}
+
+					p.mu.RLock()
+					running := p.isRunning
+					p.mu.RUnlock()
+					if !running {
+						p.mu.Lock()
+						delete(p.consumers, topic)
+						p.mu.Unlock()
+						return fmt.Errorf("plugin stopped")
+					}
+
+					reader = kafka.NewReader(kafka.ReaderConfig{
+						Brokers:        p.brokers,
+						Topic:          topic,
+						GroupID:        p.consumerGroup,
+						StartOffset:    kafka.LastOffset,
+						CommitInterval: p.getCommitInterval(),
+						MaxBytes:       int(p.getMaxBytes()),
+					})
+					p.mu.Lock()
+					p.consumers[topic] = &KafkaConsumer{
+						reader: reader,
+						config: p.config,
+						logger: p.logger,
+					}
+					p.mu.Unlock()
+					consecutiveErrors = 0
+				}
+
 				continue
 			}
+
+			// Reset error counter on successful read
+			consecutiveErrors = 0
 
 			// Extract message metadata from headers
 			messageID := ""
@@ -442,15 +629,20 @@ func (p *KafkaMQPlugin) ConsumeMessages(ctx context.Context, topic string, handl
 			// Call handler with exactly-once semantics
 			// Handler is responsible for idempotent processing
 			consumeStartTime := time.Now()
+			_, consumeSpan := p.tracer.StartSpan(ctx, "mq.process_message", observability.SpanKindConsumer)
+			p.tracer.SetAttribute(&consumeSpan, "topic", topic)
+			p.tracer.SetAttribute(&consumeSpan, "message_id", messageID)
 			handlerErr := handler(queueMsg)
+			p.tracer.SetAttribute(&consumeSpan, "error", handlerErr != nil)
+			p.tracer.EndSpan(&consumeSpan)
 			consumeLatency := time.Since(consumeStartTime).Milliseconds()
 
 			if handlerErr != nil {
 				// Handler error - record and continue
 				p.mu.Lock()
-				p.errorCount++
-				p.lastError = handlerErr
-				p.lastErrorTime = time.Now()
+				p.stats.errorCount++
+				p.stats.lastError = handlerErr
+				p.stats.lastErrorTime = time.Now()
 				p.mu.Unlock()
 
 				p.metricsCollector.RecordCounter("mq_handler_errors", int64(1), map[string]string{"topic": topic})
@@ -462,13 +654,13 @@ func (p *KafkaMQPlugin) ConsumeMessages(ctx context.Context, topic string, handl
 			}
 
 			// Track offset for exactly-once semantics
-			p.offsetTrackingMutex.Lock()
-			p.offsetTracking[topic] = msg.Offset
-			p.offsetTrackingMutex.Unlock()
+			p.offsets.mu.Lock()
+			p.offsets.tracking[topic] = msg.Offset
+			p.offsets.mu.Unlock()
 
 			// Record successful consumption
 			p.mu.Lock()
-			p.messageCount++
+			p.stats.messageCount++
 			p.mu.Unlock()
 
 			p.metricsCollector.RecordCounter("mq_messages_consumed", int64(1), map[string]string{"topic": topic})
@@ -478,6 +670,18 @@ func (p *KafkaMQPlugin) ConsumeMessages(ctx context.Context, topic string, handl
 			// Mark operation complete
 			inFlightOps.Done()
 		}
+	}
+}
+
+// closeKafkaReader commits pending offsets and closes the Kafka reader.
+func (p *KafkaMQPlugin) closeKafkaReader(reader *kafka.Reader, topic string) {
+	commitCtx, commitCancel := context.WithTimeout(context.Background(), defaultKafkaCommitTimeout)
+	defer commitCancel()
+	if err := reader.CommitMessages(commitCtx); err != nil {
+		p.logger.Warn("failed to commit offset before close", "topic", topic, "error", err)
+	}
+	if err := reader.Close(); err != nil {
+		p.logger.Error("failed to close Kafka reader", "topic", topic, "error", err)
 	}
 }
 
@@ -505,9 +709,9 @@ func (p *KafkaMQPlugin) AcknowledgeMessage(ctx context.Context, message core.Mes
 	p.mu.Unlock()
 
 	// Update offset tracking for exactly-once semantics
-	p.offsetTrackingMutex.Lock()
-	p.offsetTracking[message.Topic] = message.Offset
-	p.offsetTrackingMutex.Unlock()
+	p.offsets.mu.Lock()
+	p.offsets.tracking[message.Topic] = message.Offset
+	p.offsets.mu.Unlock()
 
 	// Record acknowledgment metrics
 	latency := time.Since(startTime).Milliseconds()
@@ -539,6 +743,7 @@ func (p *KafkaMQPlugin) SendToDeadLetterQueue(ctx context.Context, message core.
 
 	// Create Kafka message for DLQ with all metadata preserved
 	kafkaMsg := kafka.Message{
+		Topic: dlqTopic,
 		Key:   []byte(message.PartitionKey),
 		Value: message.Payload,
 		Headers: []kafka.Header{
@@ -554,9 +759,9 @@ func (p *KafkaMQPlugin) SendToDeadLetterQueue(ctx context.Context, message core.
 	err := producer.writer.WriteMessages(ctx, kafkaMsg)
 	if err != nil {
 		p.mu.Lock()
-		p.errorCount++
-		p.lastError = err
-		p.lastErrorTime = time.Now()
+		p.stats.errorCount++
+		p.stats.lastError = err
+		p.stats.lastErrorTime = time.Now()
 		p.mu.Unlock()
 
 		latency := time.Since(startTime).Milliseconds()
@@ -567,17 +772,17 @@ func (p *KafkaMQPlugin) SendToDeadLetterQueue(ctx context.Context, message core.
 	}
 
 	// Track DLQ reason
-	p.dlqReasonMutex.Lock()
-	p.dlqReasonCounts[reason]++
-	p.dlqReasonMutex.Unlock()
+	p.dlqState.mu.Lock()
+	p.dlqState.reasons[reason]++
+	p.dlqState.mu.Unlock()
 
 	// Update DLQ size and metrics
 	p.mu.Lock()
-	p.deadLetterQueueSize++
+	p.stats.deadLetterQueueSize++
 	p.mu.Unlock()
 
 	latency := time.Since(startTime).Milliseconds()
-	p.metricsCollector.RecordCounter("mq_dead_letter_queue_size", p.deadLetterQueueSize, nil)
+	p.metricsCollector.RecordCounter("mq_dead_letter_queue_size", p.stats.deadLetterQueueSize, nil)
 	p.metricsCollector.RecordCounter("mq_dlq_messages_sent", int64(1), map[string]string{"topic": dlqTopic, "reason": reason})
 	p.metricsCollector.RecordCounter("mq_dlq_send_latency_ms", latency, map[string]string{"topic": dlqTopic})
 	p.logger.Warn("message sent to dead letter queue", "topic", dlqTopic, "reason", reason, "message_id", message.ID, "latency_ms", latency)
@@ -605,22 +810,24 @@ func (p *KafkaMQPlugin) GetDeadLetterQueueMessages(ctx context.Context, limit in
 		Topic:       dlqTopic,
 		GroupID:     p.consumerGroup + "-dlq",
 		StartOffset: kafka.LastOffset,
-		MaxBytes:    10e6,
+		MaxBytes:    defaultKafkaMaxBytes,
 	})
 	defer func() {
-		_ = reader.Close()
+		if err := reader.Close(); err != nil {
+			p.logger.Warn("failed to close dlq reader", "error", err.Error())
+		}
 	}()
 
 	p.logger.Info("retrieving dead letter queue messages", "limit", limit, "dlq_topic", dlqTopic)
 
 	// Read up to limit messages from DLQ
 	for i := 0; i < limit; i++ {
-		readCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+		readCtx, cancel := context.WithTimeout(ctx, defaultKafkaDLQReadTimeout)
 		msg, err := reader.ReadMessage(readCtx)
 		cancel()
 
 		if err != nil {
-			if err == context.DeadlineExceeded {
+			if errors.Is(err, context.DeadlineExceeded) {
 				// No more messages available
 				break
 			}
@@ -689,12 +896,12 @@ func (p *KafkaMQPlugin) GetStats() core.MessageQueueStats {
 	defer p.mu.RUnlock()
 
 	return core.MessageQueueStats{
-		MessageCount:        p.messageCount,
-		ErrorCount:          p.errorCount,
-		DeadLetterQueueSize: p.deadLetterQueueSize,
-		AverageProcessTime:  p.processingTime,
-		LastError:           p.lastError,
-		LastErrorTime:       p.lastErrorTime,
+		MessageCount:        p.stats.messageCount,
+		ErrorCount:          p.stats.errorCount,
+		DeadLetterQueueSize: p.stats.deadLetterQueueSize,
+		AverageProcessTime:  p.stats.processingTime,
+		LastError:           p.stats.lastError,
+		LastErrorTime:       p.stats.lastErrorTime,
 		IsRunning:           p.isRunning,
 	}
 }
@@ -733,39 +940,25 @@ func (p *KafkaMQPlugin) RecordError(err error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	p.errorCount++
-	p.lastError = err
-	p.lastErrorTime = time.Now()
+	p.stats.errorCount++
+	p.stats.lastError = err
+	p.stats.lastErrorTime = time.Now()
 	p.metricsCollector.RecordCounter("mq_errors", int64(1), nil)
-}
-
-// GetLastBlockNumber returns the last block number processed
-func (p *KafkaMQPlugin) GetLastBlockNumber() uint64 {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-	return 0
-}
-
-// SetLastBlockNumber sets the last block number processed
-func (p *KafkaMQPlugin) SetLastBlockNumber(_ uint64) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	// Not used for Kafka MQ
 }
 
 // GetLastOffset returns the last offset for a topic
 func (p *KafkaMQPlugin) GetLastOffset(topic string) int64 {
-	p.offsetTrackingMutex.RLock()
-	defer p.offsetTrackingMutex.RUnlock()
-	return p.offsetTracking[topic]
+	p.offsets.mu.RLock()
+	defer p.offsets.mu.RUnlock()
+	return p.offsets.tracking[topic]
 }
 
 func (p *KafkaMQPlugin) maxTrackedOffset() int64 {
-	p.offsetTrackingMutex.RLock()
-	defer p.offsetTrackingMutex.RUnlock()
+	p.offsets.mu.RLock()
+	defer p.offsets.mu.RUnlock()
 
 	var max int64
-	for _, offset := range p.offsetTracking {
+	for _, offset := range p.offsets.tracking {
 		if offset > max {
 			max = offset
 		}
@@ -775,19 +968,19 @@ func (p *KafkaMQPlugin) maxTrackedOffset() int64 {
 
 // SetLastOffset sets the last offset for a topic
 func (p *KafkaMQPlugin) SetLastOffset(topic string, offset int64) {
-	p.offsetTrackingMutex.Lock()
-	defer p.offsetTrackingMutex.Unlock()
-	p.offsetTracking[topic] = offset
+	p.offsets.mu.Lock()
+	defer p.offsets.mu.Unlock()
+	p.offsets.tracking[topic] = offset
 }
 
 // GetDLQReasonStats returns statistics about DLQ reasons
 func (p *KafkaMQPlugin) GetDLQReasonStats() map[string]int64 {
-	p.dlqReasonMutex.RLock()
-	defer p.dlqReasonMutex.RUnlock()
+	p.dlqState.mu.RLock()
+	defer p.dlqState.mu.RUnlock()
 
 	// Create a copy to avoid external modifications
 	stats := make(map[string]int64)
-	for reason, count := range p.dlqReasonCounts {
+	for reason, count := range p.dlqState.reasons {
 		stats[reason] = count
 	}
 	return stats
@@ -795,9 +988,9 @@ func (p *KafkaMQPlugin) GetDLQReasonStats() map[string]int64 {
 
 // ClearDLQReasonStats clears DLQ reason statistics
 func (p *KafkaMQPlugin) ClearDLQReasonStats() {
-	p.dlqReasonMutex.Lock()
-	defer p.dlqReasonMutex.Unlock()
-	p.dlqReasonCounts = make(map[string]int64)
+	p.dlqState.mu.Lock()
+	defer p.dlqState.mu.Unlock()
+	p.dlqState.reasons = make(map[string]int64)
 }
 
 // AcknowledgeMessageBatch acknowledges multiple messages in a batch for efficiency
@@ -843,11 +1036,11 @@ func (p *KafkaMQPlugin) AcknowledgeMessageBatch(ctx context.Context, messages []
 	}
 
 	// Update offset tracking for each topic with the maximum offset
-	p.offsetTrackingMutex.Lock()
+	p.offsets.mu.Lock()
 	for topic, maxOffset := range maxOffsetByTopic {
-		p.offsetTracking[topic] = maxOffset
+		p.offsets.tracking[topic] = maxOffset
 	}
-	p.offsetTrackingMutex.Unlock()
+	p.offsets.mu.Unlock()
 
 	// Record batch acknowledgment metrics
 	latency := time.Since(startTime).Milliseconds()
@@ -867,14 +1060,14 @@ func (p *KafkaMQPlugin) AcknowledgeMessageBatch(ctx context.Context, messages []
 
 // PersistOffset persists an offset for a topic partition to enable recovery
 func (p *KafkaMQPlugin) PersistOffset(topic string, partition int32, offset int64) error {
-	p.offsetPersistMutex.Lock()
-	defer p.offsetPersistMutex.Unlock()
+	p.offsets.persistMu.Lock()
+	defer p.offsets.persistMu.Unlock()
 
-	if _, exists := p.offsetPersistenceMap[topic]; !exists {
-		p.offsetPersistenceMap[topic] = make(map[int32]int64)
+	if _, exists := p.offsets.persistence[topic]; !exists {
+		p.offsets.persistence[topic] = make(map[int32]int64)
 	}
 
-	p.offsetPersistenceMap[topic][partition] = offset
+	p.offsets.persistence[topic][partition] = offset
 	p.logger.Info("offset persisted", "topic", topic, "partition", partition, "offset", offset)
 	p.metricsCollector.RecordCounter("mq_offset_persisted", int64(1), map[string]string{"topic": topic})
 
@@ -883,10 +1076,10 @@ func (p *KafkaMQPlugin) PersistOffset(topic string, partition int32, offset int6
 
 // GetPersistedOffset retrieves a persisted offset for a topic partition
 func (p *KafkaMQPlugin) GetPersistedOffset(topic string, partition int32) (int64, error) {
-	p.offsetPersistMutex.RLock()
-	defer p.offsetPersistMutex.RUnlock()
+	p.offsets.persistMu.RLock()
+	defer p.offsets.persistMu.RUnlock()
 
-	if partitionOffsets, exists := p.offsetPersistenceMap[topic]; exists {
+	if partitionOffsets, exists := p.offsets.persistence[topic]; exists {
 		if offset, exists := partitionOffsets[partition]; exists {
 			return offset, nil
 		}
@@ -897,12 +1090,12 @@ func (p *KafkaMQPlugin) GetPersistedOffset(topic string, partition int32) (int64
 
 // GetConsumerGroupMetrics returns metrics for the consumer group
 func (p *KafkaMQPlugin) GetConsumerGroupMetrics() map[string]int64 {
-	p.consumerGroupMutex.RLock()
-	defer p.consumerGroupMutex.RUnlock()
+	p.cgState.mu.RLock()
+	defer p.cgState.mu.RUnlock()
 
 	// Create a copy to avoid external modifications
 	metrics := make(map[string]int64)
-	for key, value := range p.consumerGroupMetrics {
+	for key, value := range p.cgState.metrics {
 		metrics[key] = value
 	}
 	return metrics
@@ -910,11 +1103,11 @@ func (p *KafkaMQPlugin) GetConsumerGroupMetrics() map[string]int64 {
 
 // UpdateConsumerGroupMetric updates a consumer group metric
 func (p *KafkaMQPlugin) UpdateConsumerGroupMetric(key string, value int64) {
-	p.consumerGroupMutex.Lock()
-	defer p.consumerGroupMutex.Unlock()
+	p.cgState.mu.Lock()
+	defer p.cgState.mu.Unlock()
 
 	// Replace the value instead of accumulating
-	p.consumerGroupMetrics[key] = value
+	p.cgState.metrics[key] = value
 	p.metricsCollector.RecordCounter("mq_consumer_group_metric", value, map[string]string{"metric": key})
 	p.logger.Info("consumer group metric updated", "metric", key, "value", value)
 }
@@ -924,9 +1117,9 @@ func (p *KafkaMQPlugin) RecordBrokerFailure() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	p.brokerFailureCount++
+	p.brokerState.failures++
 	p.metricsCollector.RecordCounter("mq_broker_failures", int64(1), nil)
-	p.logger.Warn("broker failure recorded", "total_failures", p.brokerFailureCount)
+	p.logger.Warn("broker failure recorded", "total_failures", p.brokerState.failures)
 }
 
 // RecordBrokerRecovery records a broker recovery and increments the recovery counter
@@ -934,23 +1127,23 @@ func (p *KafkaMQPlugin) RecordBrokerRecovery() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	p.brokerRecoveryCount++
+	p.brokerState.recoveries++
 	p.metricsCollector.RecordCounter("mq_broker_recoveries", int64(1), nil)
-	p.logger.Info("broker recovery recorded", "total_recoveries", p.brokerRecoveryCount)
+	p.logger.Info("broker recovery recorded", "total_recoveries", p.brokerState.recoveries)
 }
 
 // GetBrokerFailureCount returns the total number of broker failures
 func (p *KafkaMQPlugin) GetBrokerFailureCount() int64 {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
-	return p.brokerFailureCount
+	return p.brokerState.failures
 }
 
 // GetBrokerRecoveryCount returns the total number of broker recoveries
 func (p *KafkaMQPlugin) GetBrokerRecoveryCount() int64 {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
-	return p.brokerRecoveryCount
+	return p.brokerState.recoveries
 }
 
 // CalculateExponentialBackoffDelay calculates exponential backoff delay for broker failover
@@ -1021,14 +1214,16 @@ func (p *KafkaMQPlugin) testBrokerConnection(ctx context.Context) error {
 		Topic:       "__consumer_offsets", // System topic that always exists
 		GroupID:     p.consumerGroup + "-health-check",
 		StartOffset: kafka.LastOffset,
-		MaxBytes:    1024,
+		MaxBytes:    kafkaHealthCheckMaxBytes,
 	})
 	defer func() {
-		_ = reader.Close()
+		if err := reader.Close(); err != nil {
+			p.logger.Warn("failed to close health check reader", "error", err.Error())
+		}
 	}()
 
 	// Try to read metadata with timeout
-	readCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	readCtx, cancel := context.WithTimeout(ctx, defaultKafkaHealthCheckTimeout)
 	defer cancel()
 
 	_, err := reader.ReadMessage(readCtx)
@@ -1041,29 +1236,29 @@ func (p *KafkaMQPlugin) testBrokerConnection(ctx context.Context) error {
 }
 
 // GetKafkaSpecificMetrics returns comprehensive Kafka-specific metrics
-func (p *KafkaMQPlugin) GetKafkaSpecificMetrics() map[string]interface{} {
+func (p *KafkaMQPlugin) GetKafkaSpecificMetrics() map[string]any {
 	p.mu.RLock()
-	brokerFailures := p.brokerFailureCount
-	brokerRecoveries := p.brokerRecoveryCount
+	brokerFailures := p.brokerState.failures
+	brokerRecoveries := p.brokerState.recoveries
 	p.mu.RUnlock()
 
-	p.offsetTrackingMutex.RLock()
+	p.offsets.mu.RLock()
 	offsetTrackingCopy := make(map[string]int64)
-	for topic, offset := range p.offsetTracking {
+	for topic, offset := range p.offsets.tracking {
 		offsetTrackingCopy[topic] = offset
 	}
-	p.offsetTrackingMutex.RUnlock()
+	p.offsets.mu.RUnlock()
 
-	p.dlqReasonMutex.RLock()
+	p.dlqState.mu.RLock()
 	dlqReasonsCopy := make(map[string]int64)
-	for reason, count := range p.dlqReasonCounts {
+	for reason, count := range p.dlqState.reasons {
 		dlqReasonsCopy[reason] = count
 	}
-	p.dlqReasonMutex.RUnlock()
+	p.dlqState.mu.RUnlock()
 
 	consumerGroupMetrics := p.GetConsumerGroupMetrics()
 
-	return map[string]interface{}{
+	return map[string]any{
 		"brokers":                p.brokers,
 		"consumer_group":         p.consumerGroup,
 		"broker_failures":        brokerFailures,
@@ -1076,16 +1271,16 @@ func (p *KafkaMQPlugin) GetKafkaSpecificMetrics() map[string]interface{} {
 }
 
 // GetConsumerGroupStatus returns the status of the consumer group
-func (p *KafkaMQPlugin) GetConsumerGroupStatus() map[string]interface{} {
+func (p *KafkaMQPlugin) GetConsumerGroupStatus() map[string]any {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
-	return map[string]interface{}{
+	return map[string]any{
 		"consumer_group":     p.consumerGroup,
 		"active_consumers":   len(p.consumers),
 		"is_running":         p.isRunning,
-		"message_count":      p.messageCount,
-		"error_count":        p.errorCount,
+		"message_count":      p.stats.messageCount,
+		"error_count":        p.stats.errorCount,
 		"max_tracked_offset": p.maxTrackedOffset(),
 	}
 }
@@ -1119,19 +1314,44 @@ func (p *KafkaMQPlugin) RebalanceConsumerGroup(ctx context.Context) error {
 }
 
 // GetOffsetPersistenceStats returns statistics about offset persistence
-func (p *KafkaMQPlugin) GetOffsetPersistenceStats() map[string]interface{} {
-	p.offsetPersistMutex.RLock()
-	defer p.offsetPersistMutex.RUnlock()
+func (p *KafkaMQPlugin) GetOffsetPersistenceStats() map[string]any {
+	p.offsets.persistMu.RLock()
+	defer p.offsets.persistMu.RUnlock()
 
-	topicCount := int64(len(p.offsetPersistenceMap))
+	topicCount := int64(len(p.offsets.persistence))
 	totalOffsets := int64(0)
 
-	for _, partitionOffsets := range p.offsetPersistenceMap {
+	for _, partitionOffsets := range p.offsets.persistence {
 		totalOffsets += int64(len(partitionOffsets))
 	}
 
-	return map[string]interface{}{
+	return map[string]any{
 		"topics_with_persisted_offsets": topicCount,
 		"total_persisted_offsets":       totalOffsets,
 	}
+}
+
+type kafkaHeaderCarrier struct {
+	headers *[]kafka.Header
+}
+
+func (c kafkaHeaderCarrier) Get(key string) string {
+	for _, h := range *c.headers {
+		if h.Key == key {
+			return string(h.Value)
+		}
+	}
+	return ""
+}
+
+func (c kafkaHeaderCarrier) Set(key string, value string) {
+	*c.headers = append(*c.headers, kafka.Header{Key: key, Value: []byte(value)})
+}
+
+func (c kafkaHeaderCarrier) Keys() []string {
+	keys := make([]string, 0, len(*c.headers))
+	for _, h := range *c.headers {
+		keys = append(keys, h.Key)
+	}
+	return keys
 }

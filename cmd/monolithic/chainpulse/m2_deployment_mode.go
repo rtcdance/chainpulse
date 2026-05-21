@@ -15,8 +15,8 @@ type deploymentModeProfile struct {
 	ReliabilityHint string
 }
 
-func (c Configuration) deploymentSummary() map[string]interface{} {
-	return map[string]interface{}{
+func (c Configuration) deploymentSummary() map[string]any {
+	return map[string]any{
 		"deployment_mode":    c.DeploymentMode,
 		"deployment_posture": c.DeploymentPosture,
 		"reliability_hint":   c.DeploymentHint,

@@ -1,37 +1,50 @@
 package graphql
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
-	"chainpulse/pkg/plugins/api/core"
+	"github.com/gorilla/websocket"
 	"github.com/graphql-go/graphql"
+	"github.com/rtcdance/chainpulse/pkg/plugins/api/core"
 )
 
 // GraphQLPlugin implements the GraphQL protocol handler
 type GraphQLPlugin struct {
-	name       string
-	port       int
-	apiLayer   *core.APILayer
-	schema     graphql.Schema
-	server     *http.Server
-	processor  core.RequestProcessor
-	mu         sync.RWMutex
-	running    bool
-	middleware []core.Middleware
-	resolvers  map[string]GraphQLResolver
-	router     *core.APIRouter
+	name                string
+	port                int
+	apiLayer            *core.APILayer
+	schema              graphql.Schema
+	server              *http.Server
+	processor           core.RequestProcessor
+	mu                  sync.RWMutex
+	running             bool
+	middleware          []core.Middleware
+	resolvers           map[string]GraphQLResolver
+	router              *core.APIRouter
+	schemaBuilder       *SchemaBuilder
+	subscriptionManager *SubscriptionManager
+	upgrader            websocket.Upgrader
+	allowedOrigins      []string
+
+	// WebSocket safety
+	wsMu sync.Mutex     // protects concurrent WebSocket writes
+	wsWg sync.WaitGroup // tracks subscription goroutines for graceful shutdown
 }
 
 // GraphQLResolver defines a GraphQL resolver function
-type GraphQLResolver func(p graphql.ResolveParams) (interface{}, error)
+type GraphQLResolver func(p graphql.ResolveParams) (any, error)
 
 // NewGraphQLPlugin creates a new GraphQL plugin
 func NewGraphQLPlugin(name string, port int, apiLayer *core.APILayer) *GraphQLPlugin {
 	processor := core.NewDefaultRequestProcessor(apiLayer)
-	return &GraphQLPlugin{
+	p := &GraphQLPlugin{
 		name:       name,
 		port:       port,
 		apiLayer:   apiLayer,
@@ -40,19 +53,59 @@ func NewGraphQLPlugin(name string, port int, apiLayer *core.APILayer) *GraphQLPl
 		resolvers:  make(map[string]GraphQLResolver),
 		router:     core.NewAPIRouter(),
 	}
+	p.upgrader = websocket.Upgrader{CheckOrigin: p.checkOrigin}
+	return p
+}
+
+// SetSchemaBuilder sets the schema builder for building the GraphQL schema
+func (p *GraphQLPlugin) SetSchemaBuilder(sb *SchemaBuilder) {
+	p.schemaBuilder = sb
+}
+
+// SetSubscriptionManager sets the subscription manager for GraphQL subscriptions
+func (p *GraphQLPlugin) SetSubscriptionManager(sm *SubscriptionManager) {
+	p.subscriptionManager = sm
+}
+
+func (p *GraphQLPlugin) WithAllowedOrigins(origins []string) *GraphQLPlugin {
+	p.allowedOrigins = origins
+	return p
+}
+
+func (p *GraphQLPlugin) checkOrigin(r *http.Request) bool {
+	if len(p.allowedOrigins) == 0 {
+		return true
+	}
+
+	origin := r.Header.Get("Origin")
+	if origin == "" {
+		return true
+	}
+
+	for _, allowed := range p.allowedOrigins {
+		if strings.EqualFold(origin, allowed) {
+			return true
+		}
+	}
+	return false
 }
 
 // Start starts the GraphQL server
 func (p *GraphQLPlugin) Start() error {
 	p.mu.Lock()
-	defer p.mu.Unlock()
 
 	if p.running {
+		p.mu.Unlock()
 		return fmt.Errorf("GraphQL plugin already running")
+	}
+
+	if len(p.allowedOrigins) == 0 {
+		slog.Warn("GraphQL WebSocket: no origin restrictions configured — accepting all origins (development mode only)")
 	}
 
 	// Build schema
 	if err := p.buildSchema(); err != nil {
+		p.mu.Unlock()
 		return fmt.Errorf("failed to build GraphQL schema: %w", err)
 	}
 
@@ -60,19 +113,27 @@ func (p *GraphQLPlugin) Start() error {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/graphql", p.handleGraphQL)
 	mux.HandleFunc("/graphql/playground", p.handlePlayground)
+	mux.HandleFunc("/graphql/ws", p.handleWebSocket)
 
 	p.server = &http.Server{
 		Addr:              fmt.Sprintf(":%d", p.port),
 		Handler:           mux,
 		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       15 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       120 * time.Second,
 	}
 
 	p.running = true
 
+	// Capture server reference before spawning goroutine to avoid race
+	srv := p.server
+	p.mu.Unlock()
+
 	// Start server in background
 	go func() {
-		if err := p.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			fmt.Printf("GraphQL server error: %v\n", err)
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			slog.Error("GraphQL server error", "error", err)
 		}
 	}()
 
@@ -89,10 +150,15 @@ func (p *GraphQLPlugin) Stop() error {
 	}
 
 	if p.server != nil {
-		if err := p.server.Close(); err != nil {
-			return err
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if err := p.server.Shutdown(ctx); err != nil {
+			return fmt.Errorf("failed to shutdown GraphQL server: %w", err)
 		}
 	}
+
+	// Wait for subscription goroutines to drain
+	p.wsWg.Wait()
 
 	p.running = false
 	return nil
@@ -149,85 +215,32 @@ func (p *GraphQLPlugin) Use(middleware ...core.Middleware) error {
 	return nil
 }
 
-// buildSchema builds the GraphQL schema
+// buildSchema builds the GraphQL schema using SchemaBuilder
 func (p *GraphQLPlugin) buildSchema() error {
-	// Define query type
+	if p.schemaBuilder != nil {
+		schema, err := p.schemaBuilder.BuildSchema()
+		if err != nil {
+			return err
+		}
+		p.schema = schema
+		return nil
+	}
+
+	// Fallback: minimal schema when no SchemaBuilder is configured
 	queryType := graphql.NewObject(graphql.ObjectConfig{
 		Name: "Query",
 		Fields: graphql.Fields{
-			"event": &graphql.Field{
-				Type: graphql.String,
-				Args: graphql.FieldConfigArgument{
-					"id": &graphql.ArgumentConfig{
-						Type: graphql.NewNonNull(graphql.String),
-					},
-				},
-				Resolve: p.resolveEvent,
-			},
-			"events": &graphql.Field{
-				Type: graphql.String,
-				Args: graphql.FieldConfigArgument{
-					"limit": &graphql.ArgumentConfig{
-						Type: graphql.Int,
-					},
-					"offset": &graphql.ArgumentConfig{
-						Type: graphql.Int,
-					},
-				},
-				Resolve: p.resolveEvents,
-			},
-			"token": &graphql.Field{
-				Type: graphql.String,
-				Args: graphql.FieldConfigArgument{
-					"address": &graphql.ArgumentConfig{
-						Type: graphql.NewNonNull(graphql.String),
-					},
-				},
-				Resolve: p.resolveToken,
-			},
-			"pool": &graphql.Field{
-				Type: graphql.String,
-				Args: graphql.FieldConfigArgument{
-					"address": &graphql.ArgumentConfig{
-						Type: graphql.NewNonNull(graphql.String),
-					},
-				},
-				Resolve: p.resolvePool,
-			},
 			"health": &graphql.Field{
 				Type:    graphql.String,
-				Resolve: p.resolveHealth,
+				Resolve: func(p graphql.ResolveParams) (any, error) { return "healthy", nil },
 			},
 		},
 	})
 
-	// Define mutation type
-	mutationType := graphql.NewObject(graphql.ObjectConfig{
-		Name: "Mutation",
-		Fields: graphql.Fields{
-			"executeQuery": &graphql.Field{
-				Type: graphql.String,
-				Args: graphql.FieldConfigArgument{
-					"query": &graphql.ArgumentConfig{
-						Type: graphql.NewNonNull(graphql.String),
-					},
-				},
-				Resolve: p.resolveExecuteQuery,
-			},
-		},
-	})
-
-	// Create schema
-	schemaConfig := graphql.SchemaConfig{
-		Query:    queryType,
-		Mutation: mutationType,
-	}
-
-	schema, err := graphql.NewSchema(schemaConfig)
+	schema, err := graphql.NewSchema(graphql.SchemaConfig{Query: queryType})
 	if err != nil {
 		return err
 	}
-
 	p.schema = schema
 	return nil
 }
@@ -256,55 +269,104 @@ func (p *GraphQLPlugin) handlePlayground(w http.ResponseWriter, r *http.Request)
 	_, _ = w.Write([]byte(playgroundHTML))
 }
 
-// Resolver functions
-func (p *GraphQLPlugin) resolveEvent(params graphql.ResolveParams) (interface{}, error) {
-	id, ok := params.Args["id"].(string)
-	if !ok {
-		return nil, fmt.Errorf("invalid id parameter")
+// handleWebSocket handles WebSocket connections for GraphQL subscriptions
+func (p *GraphQLPlugin) handleWebSocket(w http.ResponseWriter, r *http.Request) {
+	conn, err := p.upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		return
 	}
-	return fmt.Sprintf(`{"id":"%s","type":"event"}`, id), nil
-}
+	defer conn.Close() //nolint:errcheck // deferred close
 
-func (p *GraphQLPlugin) resolveEvents(params graphql.ResolveParams) (interface{}, error) {
-	limit := 20
-	offset := 0
-
-	if l, ok := params.Args["limit"].(int); ok {
-		limit = l
-	}
-	if o, ok := params.Args["offset"].(int); ok {
-		offset = o
+	// Thread-safe write helper — gorilla/websocket requires serialized writes
+	writeMsg := func(v any) {
+		p.wsMu.Lock()
+		defer p.wsMu.Unlock()
+		_ = conn.WriteJSON(v)
 	}
 
-	return fmt.Sprintf(`{"limit":%d,"offset":%d,"events":[]}`, limit, offset), nil
-}
+	for {
+		_, msg, err := conn.ReadMessage()
+		if err != nil {
+			break
+		}
 
-func (p *GraphQLPlugin) resolveToken(params graphql.ResolveParams) (interface{}, error) {
-	address, ok := params.Args["address"].(string)
-	if !ok {
-		return nil, fmt.Errorf("invalid address parameter")
+		var req struct {
+			ID      string          `json:"id"`
+			Type    string          `json:"type"`
+			Payload json.RawMessage `json:"payload"`
+		}
+		if err := json.Unmarshal(msg, &req); err != nil {
+			writeMsg(map[string]any{
+				"type":    "error",
+				"payload": map[string]string{"message": "invalid message format"},
+			})
+			continue
+		}
+
+		switch req.Type {
+		case "connection_init":
+			writeMsg(map[string]any{
+				"type": "connection_ack",
+			})
+
+		case "start":
+			var payload struct {
+				Query         string         `json:"query"`
+				OperationName string         `json:"operationName"`
+				Variables     map[string]any `json:"variables"`
+			}
+			if err := json.Unmarshal(req.Payload, &payload); err != nil {
+				writeMsg(map[string]any{
+					"id":   req.ID,
+					"type": "error",
+					"payload": map[string]string{
+						"message": "invalid payload",
+					},
+				})
+				continue
+			}
+
+			// Execute subscription query
+			result := graphql.Subscribe(graphql.Params{
+				Schema:         p.schema,
+				RequestString:  payload.Query,
+				OperationName:  payload.OperationName,
+				VariableValues: payload.Variables,
+				Context:        r.Context(),
+			})
+
+			p.wsWg.Add(1)
+			go func(id string, ch chan *graphql.Result) {
+				defer p.wsWg.Done()
+				for {
+					select {
+					case data, ok := <-ch:
+						if !ok {
+							writeMsg(map[string]any{
+								"id":   id,
+								"type": "complete",
+							})
+							return
+						}
+						writeMsg(map[string]any{
+							"id":      id,
+							"type":    "data",
+							"payload": data,
+						})
+					case <-r.Context().Done():
+						return
+					}
+				}
+			}(req.ID, result)
+
+		case "stop":
+			// Client requests stop — the subscription goroutine will
+			// terminate when its context is cancelled on disconnect.
+
+		case "connection_terminate":
+			return
+		}
 	}
-	return fmt.Sprintf(`{"address":"%s","type":"token"}`, address), nil
-}
-
-func (p *GraphQLPlugin) resolvePool(params graphql.ResolveParams) (interface{}, error) {
-	address, ok := params.Args["address"].(string)
-	if !ok {
-		return nil, fmt.Errorf("invalid address parameter")
-	}
-	return fmt.Sprintf(`{"address":"%s","type":"pool"}`, address), nil
-}
-
-func (p *GraphQLPlugin) resolveHealth(params graphql.ResolveParams) (interface{}, error) {
-	return `{"status":"healthy"}`, nil
-}
-
-func (p *GraphQLPlugin) resolveExecuteQuery(params graphql.ResolveParams) (interface{}, error) {
-	query, ok := params.Args["query"].(string)
-	if !ok {
-		return nil, fmt.Errorf("invalid query parameter")
-	}
-	return fmt.Sprintf(`{"query":"%s","result":"executed"}`, query), nil
 }
 
 // GetSchema returns the GraphQL schema

@@ -1,6 +1,6 @@
 package main
 
-import "chainpulse/pkg/core"
+import "github.com/rtcdance/chainpulse/pkg/core"
 
 type ownershipRolloutSurface struct {
 	Summary          ownershipSummary
@@ -12,7 +12,7 @@ type ownershipRolloutSurface struct {
 	CutoverCandidate ownershipCutoverCandidate
 }
 
-func (surface ownershipRolloutSurface) applyReadinessDetails(details map[string]interface{}) {
+func (surface ownershipRolloutSurface) applyReadinessDetails(details map[string]any) {
 	details["service"] = "monolithic"
 	details["ownership_mode"] = surface.Mode
 	details["rollout_ready_for_runtime_owned"] = surface.Advisory.Ready

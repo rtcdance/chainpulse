@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 // ErrorMetricsCollector collects comprehensive error metrics
@@ -253,6 +253,8 @@ func (c *DefaultErrorMetricsCollector) RecordCircuitBreakerStateChange(ctx conte
 		c.circuitBreakerMetrics.OpenCount++
 	case "HalfOpen":
 		c.circuitBreakerMetrics.HalfOpenCount++
+	default:
+		c.metricsCollector.RecordCounter("circuit_breaker_unknown_state", 1, map[string]string{"state": newState})
 	}
 
 	// Record metrics
@@ -329,6 +331,8 @@ func (c *DefaultErrorMetricsCollector) RecordDegradationEvent(ctx context.Contex
 		c.degradationMetrics.CacheUnavailable++
 	case "ReadOnly":
 		c.degradationMetrics.ReadOnlyMode++
+	default:
+		c.metricsCollector.RecordCounter("degradation_unknown_mode", 1, map[string]string{"mode": mode})
 	}
 
 	// Record metrics

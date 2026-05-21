@@ -1,6 +1,7 @@
 package core
 
 import (
+	"context"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -14,31 +15,31 @@ type RegistryTestLogger struct {
 	mu       sync.Mutex
 }
 
-func (ml *RegistryTestLogger) Debug(msg string, fields ...interface{}) {
+func (ml *RegistryTestLogger) Debug(msg string, fields ...any) {
 	ml.mu.Lock()
 	defer ml.mu.Unlock()
 	ml.messages = append(ml.messages, msg)
 }
 
-func (ml *RegistryTestLogger) Info(msg string, fields ...interface{}) {
+func (ml *RegistryTestLogger) Info(msg string, fields ...any) {
 	ml.mu.Lock()
 	defer ml.mu.Unlock()
 	ml.messages = append(ml.messages, msg)
 }
 
-func (ml *RegistryTestLogger) Warn(msg string, fields ...interface{}) {
+func (ml *RegistryTestLogger) Warn(msg string, fields ...any) {
 	ml.mu.Lock()
 	defer ml.mu.Unlock()
 	ml.messages = append(ml.messages, msg)
 }
 
-func (ml *RegistryTestLogger) Error(msg string, fields ...interface{}) {
+func (ml *RegistryTestLogger) Error(msg string, fields ...any) {
 	ml.mu.Lock()
 	defer ml.mu.Unlock()
 	ml.messages = append(ml.messages, msg)
 }
 
-func (ml *RegistryTestLogger) Fatal(msg string, fields ...interface{}) {
+func (ml *RegistryTestLogger) Fatal(msg string, fields ...any) {
 	ml.mu.Lock()
 	defer ml.mu.Unlock()
 	ml.messages = append(ml.messages, msg)
@@ -66,26 +67,31 @@ func (mp *RegistryMockPlugin) Version() string {
 	return mp.version
 }
 
-func (mp *RegistryMockPlugin) Initialize(config Config) error {
+func (mp *RegistryMockPlugin) Initialize(ctx context.Context, config Config) error {
+	_ = ctx
 	return nil
 }
 
-func (mp *RegistryMockPlugin) Start() error {
+func (mp *RegistryMockPlugin) Start(ctx context.Context) error {
+	_ = ctx
 	atomic.AddInt32(&mp.startCalled, 1)
 	return mp.startErr
 }
 
-func (mp *RegistryMockPlugin) Stop() error {
+func (mp *RegistryMockPlugin) Stop(ctx context.Context) error {
+	_ = ctx
 	atomic.AddInt32(&mp.stopCalled, 1)
 	return mp.stopErr
 }
 
-func (mp *RegistryMockPlugin) Health() error {
+func (mp *RegistryMockPlugin) Health(ctx context.Context) error {
+	_ = ctx
 	return nil
 }
 
 // TestNewPluginRegistry tests registry creation
 func TestNewPluginRegistry(t *testing.T) {
+	t.Parallel()
 	logger := &RegistryTestLogger{}
 	registry := NewPluginRegistry(logger)
 
@@ -97,6 +103,7 @@ func TestNewPluginRegistry(t *testing.T) {
 
 // TestNewPluginRegistryWithNilLogger tests registry creation with nil logger
 func TestNewPluginRegistryWithNilLogger(t *testing.T) {
+	t.Parallel()
 	logger := &RegistryTestLogger{}
 	registry := NewPluginRegistry(logger)
 
@@ -107,6 +114,7 @@ func TestNewPluginRegistryWithNilLogger(t *testing.T) {
 
 // TestRegister tests basic plugin registration
 func TestRegister(t *testing.T) {
+	t.Parallel()
 	logger := &RegistryTestLogger{}
 	registry := NewPluginRegistry(logger)
 
@@ -123,6 +131,7 @@ func TestRegister(t *testing.T) {
 
 // TestRegisterNilPlugin tests registering nil plugin
 func TestRegisterNilPlugin(t *testing.T) {
+	t.Parallel()
 	logger := &RegistryTestLogger{}
 	registry := NewPluginRegistry(logger)
 
@@ -136,6 +145,7 @@ func TestRegisterNilPlugin(t *testing.T) {
 
 // TestRegisterEmptyName tests registering plugin with empty name
 func TestRegisterEmptyName(t *testing.T) {
+	t.Parallel()
 	logger := &RegistryTestLogger{}
 	registry := NewPluginRegistry(logger)
 
@@ -154,6 +164,7 @@ func TestRegisterEmptyName(t *testing.T) {
 
 // TestRegisterDuplicate tests registering duplicate plugin
 func TestRegisterDuplicate(t *testing.T) {
+	t.Parallel()
 	logger := &RegistryTestLogger{}
 	registry := NewPluginRegistry(logger)
 
@@ -179,6 +190,7 @@ func TestRegisterDuplicate(t *testing.T) {
 
 // TestMultiplePlugins tests registering multiple plugins
 func TestMultiplePlugins(t *testing.T) {
+	t.Parallel()
 	logger := &RegistryTestLogger{}
 	registry := NewPluginRegistry(logger)
 
@@ -196,6 +208,7 @@ func TestMultiplePlugins(t *testing.T) {
 
 // TestUnregister tests unregistering a plugin
 func TestUnregister(t *testing.T) {
+	t.Parallel()
 	logger := &RegistryTestLogger{}
 	registry := NewPluginRegistry(logger)
 
@@ -215,6 +228,7 @@ func TestUnregister(t *testing.T) {
 
 // TestUnregisterEmptyName tests unregistering with empty name
 func TestUnregisterEmptyName(t *testing.T) {
+	t.Parallel()
 	logger := &RegistryTestLogger{}
 	registry := NewPluginRegistry(logger)
 
@@ -228,6 +242,7 @@ func TestUnregisterEmptyName(t *testing.T) {
 
 // TestUnregisterNonexistent tests unregistering non-existent plugin
 func TestUnregisterNonexistent(t *testing.T) {
+	t.Parallel()
 	logger := &RegistryTestLogger{}
 	registry := NewPluginRegistry(logger)
 
@@ -241,6 +256,7 @@ func TestUnregisterNonexistent(t *testing.T) {
 
 // TestGet tests retrieving a plugin
 func TestGet(t *testing.T) {
+	t.Parallel()
 	logger := &RegistryTestLogger{}
 	registry := NewPluginRegistry(logger)
 
@@ -256,11 +272,14 @@ func TestGet(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, plugin, retrieved)
 	assert.Equal(t, "test-plugin", retrieved.Name())
-	assert.Equal(t, "1.0.0", retrieved.Version())
+	if vp, ok := any(retrieved).(interface{ Version() string }); ok {
+		assert.Equal(t, "1.0.0", vp.Version())
+	}
 }
 
 // TestGetEmptyName tests getting plugin with empty name
 func TestGetEmptyName(t *testing.T) {
+	t.Parallel()
 	logger := &RegistryTestLogger{}
 	registry := NewPluginRegistry(logger)
 
@@ -274,6 +293,7 @@ func TestGetEmptyName(t *testing.T) {
 
 // TestGetNonexistent tests getting non-existent plugin
 func TestGetNonexistent(t *testing.T) {
+	t.Parallel()
 	logger := &RegistryTestLogger{}
 	registry := NewPluginRegistry(logger)
 
@@ -287,6 +307,7 @@ func TestGetNonexistent(t *testing.T) {
 
 // TestList tests listing all plugins
 func TestList(t *testing.T) {
+	t.Parallel()
 	logger := &RegistryTestLogger{}
 	registry := NewPluginRegistry(logger)
 
@@ -309,6 +330,7 @@ func TestList(t *testing.T) {
 
 // TestListEmpty tests listing when no plugins registered
 func TestListEmpty(t *testing.T) {
+	t.Parallel()
 	logger := &RegistryTestLogger{}
 	registry := NewPluginRegistry(logger)
 
@@ -319,6 +341,7 @@ func TestListEmpty(t *testing.T) {
 
 // TestStart tests starting all plugins
 func TestStart(t *testing.T) {
+	t.Parallel()
 	logger := &RegistryTestLogger{}
 	registry := NewPluginRegistry(logger)
 
@@ -335,7 +358,7 @@ func TestStart(t *testing.T) {
 	_ = registry.Register(plugin1)
 	_ = registry.Register(plugin2)
 
-	err := registry.Start()
+	err := registry.Start(context.Background())
 
 	assert.NoError(t, err)
 	assert.Equal(t, int32(1), atomic.LoadInt32(&plugin1.startCalled))
@@ -344,6 +367,7 @@ func TestStart(t *testing.T) {
 
 // TestStartWithError tests starting plugins when one fails
 func TestStartWithError(t *testing.T) {
+	t.Parallel()
 	logger := &RegistryTestLogger{}
 	registry := NewPluginRegistry(logger)
 
@@ -361,7 +385,7 @@ func TestStartWithError(t *testing.T) {
 	_ = registry.Register(plugin1)
 	_ = registry.Register(plugin2)
 
-	err := registry.Start()
+	err := registry.Start(context.Background())
 
 	assert.Error(t, err)
 	assert.IsType(t, &SystemError{}, err)
@@ -369,16 +393,18 @@ func TestStartWithError(t *testing.T) {
 
 // TestStartEmpty tests starting when no plugins registered
 func TestStartEmpty(t *testing.T) {
+	t.Parallel()
 	logger := &RegistryTestLogger{}
 	registry := NewPluginRegistry(logger)
 
-	err := registry.Start()
+	err := registry.Start(context.Background())
 
 	assert.NoError(t, err)
 }
 
 // TestStop tests stopping all plugins
 func TestStop(t *testing.T) {
+	t.Parallel()
 	logger := &RegistryTestLogger{}
 	registry := NewPluginRegistry(logger)
 
@@ -395,7 +421,7 @@ func TestStop(t *testing.T) {
 	_ = registry.Register(plugin1)
 	_ = registry.Register(plugin2)
 
-	err := registry.Stop()
+	err := registry.Stop(context.Background())
 
 	assert.NoError(t, err)
 	assert.Equal(t, int32(1), atomic.LoadInt32(&plugin1.stopCalled))
@@ -404,6 +430,7 @@ func TestStop(t *testing.T) {
 
 // TestStopReverseOrder tests that plugins are stopped in reverse order
 func TestStopReverseOrder(t *testing.T) {
+	t.Parallel()
 	logger := &RegistryTestLogger{}
 	registry := NewPluginRegistry(logger)
 
@@ -420,7 +447,7 @@ func TestStopReverseOrder(t *testing.T) {
 	_ = registry.Register(plugin1)
 	_ = registry.Register(plugin2)
 
-	err := registry.Stop()
+	err := registry.Stop(context.Background())
 
 	assert.NoError(t, err)
 	assert.Equal(t, int32(1), atomic.LoadInt32(&plugin1.stopCalled))
@@ -429,6 +456,7 @@ func TestStopReverseOrder(t *testing.T) {
 
 // TestStopWithError tests stopping when one plugin fails
 func TestStopWithError(t *testing.T) {
+	t.Parallel()
 	logger := &RegistryTestLogger{}
 	registry := NewPluginRegistry(logger)
 
@@ -447,7 +475,7 @@ func TestStopWithError(t *testing.T) {
 	_ = registry.Register(plugin2)
 
 	// Should not return error, continues stopping other plugins
-	err := registry.Stop()
+	err := registry.Stop(context.Background())
 
 	assert.NoError(t, err)
 	assert.Equal(t, int32(1), atomic.LoadInt32(&plugin1.stopCalled))
@@ -456,16 +484,18 @@ func TestStopWithError(t *testing.T) {
 
 // TestStopEmpty tests stopping when no plugins registered
 func TestStopEmpty(t *testing.T) {
+	t.Parallel()
 	logger := &RegistryTestLogger{}
 	registry := NewPluginRegistry(logger)
 
-	err := registry.Stop()
+	err := registry.Stop(context.Background())
 
 	assert.NoError(t, err)
 }
 
 // TestCount tests getting plugin count
 func TestCount(t *testing.T) {
+	t.Parallel()
 	logger := &RegistryTestLogger{}
 	registry := NewPluginRegistry(logger)
 
@@ -483,6 +513,7 @@ func TestCount(t *testing.T) {
 
 // TestClear tests clearing all plugins
 func TestClear(t *testing.T) {
+	t.Parallel()
 	logger := &RegistryTestLogger{}
 	registry := NewPluginRegistry(logger)
 
@@ -504,6 +535,7 @@ func TestClear(t *testing.T) {
 
 // TestConcurrentRegisterUnregister tests concurrent register and unregister operations
 func TestConcurrentRegisterUnregister(t *testing.T) {
+	t.Parallel()
 	logger := &RegistryTestLogger{}
 	registry := NewPluginRegistry(logger)
 
@@ -534,6 +566,7 @@ func TestConcurrentRegisterUnregister(t *testing.T) {
 
 // TestConcurrentGetList tests concurrent get and list operations
 func TestConcurrentGetList(t *testing.T) {
+	t.Parallel()
 	logger := &RegistryTestLogger{}
 	registry := NewPluginRegistry(logger)
 
@@ -580,6 +613,7 @@ func TestConcurrentGetList(t *testing.T) {
 
 // TestPluginVersions tests plugins with different versions
 func TestPluginVersions(t *testing.T) {
+	t.Parallel()
 	logger := &RegistryTestLogger{}
 	registry := NewPluginRegistry(logger)
 
@@ -600,7 +634,9 @@ func TestPluginVersions(t *testing.T) {
 	// Collect versions from list
 	versionMap := make(map[string]bool)
 	for _, plugin := range list {
-		versionMap[plugin.Version()] = true
+		if vp, ok := any(plugin).(interface{ Version() string }); ok {
+			versionMap[vp.Version()] = true
+		}
 	}
 
 	// Verify all expected versions are present
@@ -611,6 +647,7 @@ func TestPluginVersions(t *testing.T) {
 
 // TestRegisterUnregisterCycle tests multiple register/unregister cycles
 func TestRegisterUnregisterCycle(t *testing.T) {
+	t.Parallel()
 	logger := &RegistryTestLogger{}
 	registry := NewPluginRegistry(logger)
 
@@ -632,6 +669,7 @@ func TestRegisterUnregisterCycle(t *testing.T) {
 
 // TestStartStopCycle tests multiple start/stop cycles
 func TestStartStopCycle(t *testing.T) {
+	t.Parallel()
 	logger := &RegistryTestLogger{}
 	registry := NewPluginRegistry(logger)
 
@@ -643,10 +681,10 @@ func TestStartStopCycle(t *testing.T) {
 	_ = registry.Register(plugin)
 
 	for i := 0; i < 3; i++ {
-		err := registry.Start()
+		err := registry.Start(context.Background())
 		assert.NoError(t, err)
 
-		err = registry.Stop()
+		err = registry.Stop(context.Background())
 		assert.NoError(t, err)
 	}
 

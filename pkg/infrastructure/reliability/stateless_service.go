@@ -3,11 +3,12 @@ package reliability
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"sync"
 	"time"
 
-	"chainpulse/pkg/core"
-	"chainpulse/pkg/services/query"
+	"github.com/rtcdance/chainpulse/pkg/core"
+	domainquery "github.com/rtcdance/chainpulse/pkg/domain/query"
 )
 
 // StatelessService represents a service with no local state
@@ -16,7 +17,7 @@ type StatelessService struct {
 	id           string
 	name         string
 	cache        *DistributedCache
-	database     query.EventStore
+	database     domainquery.EventStore
 	stateVersion int64
 	lastSyncTime time.Time
 	metrics      *StatelessMetrics
@@ -40,7 +41,7 @@ type StatelessMetrics struct {
 // DistributedCache represents a distributed cache for state
 type DistributedCache struct {
 	mu      sync.RWMutex
-	data    map[string]interface{}
+	data    map[string]any
 	ttl     map[string]time.Time
 	metrics *CacheMetrics
 }
@@ -57,13 +58,13 @@ type CacheMetrics struct {
 
 // MessageQueueClient represents a message queue client
 type MessageQueueClient interface {
-	Publish(ctx context.Context, topic string, message interface{}) error
-	Subscribe(ctx context.Context, topic string, handler func(interface{}) error) error
-	GetMetrics() map[string]interface{}
+	Publish(ctx context.Context, topic string, message any) error
+	Subscribe(ctx context.Context, topic string, handler func(any) error) error
+	GetMetrics() map[string]any
 }
 
 // NewStatelessService creates a new stateless service
-func NewStatelessService(id, name string, cache *DistributedCache, db query.EventStore) *StatelessService {
+func NewStatelessService(id, name string, cache *DistributedCache, db domainquery.EventStore) *StatelessService {
 	return &StatelessService{
 		id:           id,
 		name:         name,
@@ -78,7 +79,7 @@ func NewStatelessService(id, name string, cache *DistributedCache, db query.Even
 }
 
 // ProcessRequest processes a request without storing local state
-func (ss *StatelessService) ProcessRequest(ctx context.Context, requestID string, data interface{}) (interface{}, error) {
+func (ss *StatelessService) ProcessRequest(ctx context.Context, requestID string, data any) (any, error) {
 	start := time.Now()
 	defer func() {
 		ss.recordLatency(time.Since(start))
@@ -113,7 +114,7 @@ func (ss *StatelessService) ProcessRequest(ctx context.Context, requestID string
 }
 
 // retrieveState retrieves state from external systems
-func (ss *StatelessService) retrieveState(ctx context.Context, requestID string) (interface{}, error) {
+func (ss *StatelessService) retrieveState(ctx context.Context, requestID string) (any, error) {
 	ss.metrics.mu.Lock()
 	ss.metrics.StateRetrievals++
 	ss.metrics.ExternalStateAccesses++
@@ -156,7 +157,7 @@ func (ss *StatelessService) retrieveState(ctx context.Context, requestID string)
 }
 
 // storeState stores state in external systems
-func (ss *StatelessService) storeState(ctx context.Context, requestID string, state interface{}) error {
+func (ss *StatelessService) storeState(ctx context.Context, requestID string, state any) error {
 	ss.metrics.mu.Lock()
 	ss.metrics.ExternalStateAccesses++
 	ss.metrics.mu.Unlock()
@@ -168,7 +169,10 @@ func (ss *StatelessService) storeState(ctx context.Context, requestID string, st
 
 	// Store in database
 	if ss.database != nil && ss.isEvent(state) {
-		event := state.(*core.BlockchainEvent)
+		event, ok := state.(*core.BlockchainEvent)
+		if !ok {
+			return fmt.Errorf("state is not a BlockchainEvent")
+		}
 		if err := ss.database.InsertEvent(ctx, event); err != nil {
 			return err
 		}
@@ -178,17 +182,16 @@ func (ss *StatelessService) storeState(ctx context.Context, requestID string, st
 }
 
 // processWithExternalState processes request using external state
-func (ss *StatelessService) processWithExternalState(ctx context.Context, state interface{}, data interface{}) interface{} {
-	// This is a placeholder for actual business logic
-	// In production, this would contain the actual processing logic
-	return map[string]interface{}{
+func (ss *StatelessService) processWithExternalState(ctx context.Context, state any, data any) any {
+	slog.Warn("processWithExternalState: placeholder — actual business logic not yet implemented, returning raw input")
+	return map[string]any{
 		"state": state,
 		"data":  data,
 	}
 }
 
 // isEvent checks if value is an Event
-func (ss *StatelessService) isEvent(v interface{}) bool {
+func (ss *StatelessService) isEvent(v any) bool {
 	_, ok := v.(*core.BlockchainEvent)
 	return ok
 }
@@ -248,7 +251,7 @@ func (ss *StatelessService) Health() core.HealthStatus {
 	return core.HealthStatus{
 		Status:    ss.healthStatus,
 		Timestamp: time.Now(),
-		Details: map[string]interface{}{
+		Details: map[string]any{
 			"service_id":              ss.id,
 			"service_name":            ss.name,
 			"state_version":           ss.stateVersion,
@@ -262,14 +265,14 @@ func (ss *StatelessService) Health() core.HealthStatus {
 // NewDistributedCache creates a new distributed cache
 func NewDistributedCache() *DistributedCache {
 	return &DistributedCache{
-		data:    make(map[string]interface{}),
+		data:    make(map[string]any),
 		ttl:     make(map[string]time.Time),
 		metrics: &CacheMetrics{},
 	}
 }
 
 // Get retrieves a value from cache
-func (dc *DistributedCache) Get(key string) (interface{}, bool) {
+func (dc *DistributedCache) Get(key string) (any, bool) {
 	dc.mu.RLock()
 	defer dc.mu.RUnlock()
 
@@ -292,7 +295,7 @@ func (dc *DistributedCache) Get(key string) (interface{}, bool) {
 }
 
 // Set stores a value in cache with TTL
-func (dc *DistributedCache) Set(key string, value interface{}, ttl time.Duration) {
+func (dc *DistributedCache) Set(key string, value any, ttl time.Duration) {
 	dc.mu.Lock()
 	defer dc.mu.Unlock()
 
@@ -336,11 +339,11 @@ func (dc *DistributedCache) Cleanup() {
 }
 
 // GetMetrics returns cache metrics
-func (dc *DistributedCache) GetMetrics() map[string]interface{} {
+func (dc *DistributedCache) GetMetrics() map[string]any {
 	dc.metrics.mu.RLock()
 	defer dc.metrics.mu.RUnlock()
 
-	return map[string]interface{}{
+	return map[string]any{
 		"hits":      dc.metrics.Hits,
 		"misses":    dc.metrics.Misses,
 		"sets":      dc.metrics.Sets,
@@ -361,6 +364,6 @@ func (dc *DistributedCache) Clear() {
 	dc.mu.Lock()
 	defer dc.mu.Unlock()
 
-	dc.data = make(map[string]interface{})
+	dc.data = make(map[string]any)
 	dc.ttl = make(map[string]time.Time)
 }

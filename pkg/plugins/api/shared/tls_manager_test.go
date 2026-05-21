@@ -9,6 +9,7 @@ import (
 	"encoding/pem"
 	"math/big"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 )
@@ -79,18 +80,9 @@ func generateTestCertificate(t *testing.T, certFile, keyFile string) {
 }
 
 func TestNewTLSManager(t *testing.T) {
-	certFile := "test_cert.pem"
-	keyFile := "test_key.pem"
-	defer func() {
-		if err := os.Remove(certFile); err != nil {
-			t.Logf("failed to remove cert file: %v", err)
-		}
-	}()
-	defer func() {
-		if err := os.Remove(keyFile); err != nil {
-			t.Logf("failed to remove key file: %v", err)
-		}
-	}()
+	t.Parallel()
+	certFile := filepath.Join(t.TempDir(), "cert.pem")
+	keyFile := filepath.Join(t.TempDir(), "key.pem")
 
 	generateTestCertificate(t, certFile, keyFile)
 
@@ -113,18 +105,9 @@ func TestNewTLSManager(t *testing.T) {
 }
 
 func TestTLSManagerGetConfig(t *testing.T) {
-	certFile := "test_cert.pem"
-	keyFile := "test_key.pem"
-	defer func() {
-		if err := os.Remove(certFile); err != nil {
-			t.Logf("failed to remove cert file: %v", err)
-		}
-	}()
-	defer func() {
-		if err := os.Remove(keyFile); err != nil {
-			t.Logf("failed to remove key file: %v", err)
-		}
-	}()
+	t.Parallel()
+	certFile := filepath.Join(t.TempDir(), "cert.pem")
+	keyFile := filepath.Join(t.TempDir(), "key.pem")
 
 	generateTestCertificate(t, certFile, keyFile)
 
@@ -152,8 +135,9 @@ func TestTLSManagerGetConfig(t *testing.T) {
 }
 
 func TestTLSManagerReloadIfNeeded(t *testing.T) {
-	certFile := "test_cert.pem"
-	keyFile := "test_key.pem"
+	t.Parallel()
+	certFile := filepath.Join(t.TempDir(), "cert.pem")
+	keyFile := filepath.Join(t.TempDir(), "key.pem")
 	defer func() {
 		if err := os.Remove(certFile); err != nil {
 			t.Logf("failed to remove cert file: %v", err)
@@ -192,8 +176,9 @@ func TestTLSManagerReloadIfNeeded(t *testing.T) {
 }
 
 func TestTLSManagerMetrics(t *testing.T) {
-	certFile := "test_cert.pem"
-	keyFile := "test_key.pem"
+	t.Parallel()
+	certFile := filepath.Join(t.TempDir(), "cert.pem")
+	keyFile := filepath.Join(t.TempDir(), "key.pem")
 	defer func() {
 		if err := os.Remove(certFile); err != nil {
 			t.Logf("failed to remove cert file: %v", err)
@@ -237,6 +222,7 @@ func TestTLSManagerMetrics(t *testing.T) {
 }
 
 func TestTLSManagerInvalidCertificate(t *testing.T) {
+	t.Parallel()
 	certFile := "nonexistent_cert.pem"
 	keyFile := "nonexistent_key.pem"
 
@@ -247,8 +233,9 @@ func TestTLSManagerInvalidCertificate(t *testing.T) {
 }
 
 func TestTLSManagerSetReloadTTL(t *testing.T) {
-	certFile := "test_cert.pem"
-	keyFile := "test_key.pem"
+	t.Parallel()
+	certFile := filepath.Join(t.TempDir(), "cert.pem")
+	keyFile := filepath.Join(t.TempDir(), "key.pem")
 	defer func() {
 		if err := os.Remove(certFile); err != nil {
 			t.Logf("failed to remove cert file: %v", err)
@@ -279,8 +266,9 @@ func TestTLSManagerSetReloadTTL(t *testing.T) {
 }
 
 func TestTLSManagerRuntimeMetricsReady(t *testing.T) {
-	certFile := "test_cert.pem"
-	keyFile := "test_key.pem"
+	t.Parallel()
+	certFile := filepath.Join(t.TempDir(), "cert.pem")
+	keyFile := filepath.Join(t.TempDir(), "key.pem")
 	defer func() {
 		if err := os.Remove(certFile); err != nil {
 			t.Logf("failed to remove cert file: %v", err)
@@ -315,8 +303,9 @@ func TestTLSManagerRuntimeMetricsReady(t *testing.T) {
 }
 
 func TestTLSManagerMetricsIncludesPostureFields(t *testing.T) {
-	certFile := "test_cert.pem"
-	keyFile := "test_key.pem"
+	t.Parallel()
+	certFile := filepath.Join(t.TempDir(), "cert.pem")
+	keyFile := filepath.Join(t.TempDir(), "key.pem")
 	defer func() {
 		if err := os.Remove(certFile); err != nil {
 			t.Logf("failed to remove cert file: %v", err)
@@ -351,8 +340,9 @@ func TestTLSManagerMetricsIncludesPostureFields(t *testing.T) {
 }
 
 func TestTLSManagerRuntimeMetricsReloadDue(t *testing.T) {
-	certFile := "test_cert.pem"
-	keyFile := "test_key.pem"
+	t.Parallel()
+	certFile := filepath.Join(t.TempDir(), "cert.pem")
+	keyFile := filepath.Join(t.TempDir(), "key.pem")
 	defer func() {
 		if err := os.Remove(certFile); err != nil {
 			t.Logf("failed to remove cert file: %v", err)
@@ -386,6 +376,7 @@ func TestTLSManagerRuntimeMetricsReloadDue(t *testing.T) {
 }
 
 func TestTLSManagerRuntimeMetricsUnobserved(t *testing.T) {
+	t.Parallel()
 	tm := &TLSManager{
 		reloadTTL: time.Hour,
 		metrics:   &TLSMetrics{},
@@ -407,6 +398,7 @@ func TestTLSManagerRuntimeMetricsUnobserved(t *testing.T) {
 }
 
 func TestTLSManagerRuntimeMetricsDegraded(t *testing.T) {
+	t.Parallel()
 	tm := &TLSManager{
 		config:     &tls.Config{},
 		lastReload: time.Now(),

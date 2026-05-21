@@ -3,6 +3,7 @@ package shared
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"sync"
 	"time"
 )
@@ -30,6 +31,7 @@ type ConnectionPool struct {
 	ctx           context.Context
 	cancel        context.CancelFunc
 	cleanupTicker *time.Ticker
+	closeOnce     sync.Once
 }
 
 // ConnectionFactory creates new connections
@@ -102,19 +104,33 @@ func (p *ConnectionPool) Acquire(ctx context.Context) (Connection, error) {
 	default:
 	}
 
-	// No available connections, check if we can create a new one
-	p.mu.RLock()
-	currentSize := int64(len(p.inUse))
-	p.mu.RUnlock()
+	// No available connections, check if we can create a new one.
+	// Hold write lock for the check + reserve to prevent TOCTOU race:
+	// multiple goroutines could otherwise read the same size and all create.
+	p.mu.Lock()
+	if int64(len(p.inUse)) >= int64(p.maxSize) {
+		p.mu.Unlock()
+	} else {
+		// Reserve a slot with a nil placeholder to prevent over-allocation
+		slotID := fmt.Sprintf("creating-%d", time.Now().UnixNano())
+		p.inUse[slotID] = nil
+		p.mu.Unlock()
 
-	if currentSize < int64(p.maxSize) {
 		conn, err := p.factory.Create(ctx)
 		if err != nil {
+			// Remove the placeholder on failure
+			p.mu.Lock()
+			delete(p.inUse, slotID)
+			p.mu.Unlock()
 			p.recordError()
 			return nil, fmt.Errorf("failed to create connection: %w", err)
 		}
 		p.recordCreated()
-		p.recordInUse(conn)
+		// Replace placeholder with real connection
+		p.mu.Lock()
+		delete(p.inUse, slotID)
+		p.inUse[conn.GetID()] = conn
+		p.mu.Unlock()
 		return conn, nil
 	}
 
@@ -173,31 +189,31 @@ func (p *ConnectionPool) Release(conn Connection) error {
 
 // Close closes all connections in the pool
 func (p *ConnectionPool) Close() error {
-	p.cancel()
-	p.cleanupTicker.Stop()
+	var err error
+	p.closeOnce.Do(func() {
+		p.cancel()
+		p.cleanupTicker.Stop()
 
-	p.mu.Lock()
-	defer p.mu.Unlock()
+		p.mu.Lock()
+		defer p.mu.Unlock()
 
-	// Close all in-use connections
-	for _, conn := range p.inUse {
-		_ = conn.Close()
-		p.recordClosed()
-	}
-	p.inUse = make(map[string]Connection)
+		for _, conn := range p.inUse {
+			_ = conn.Close()
+			p.recordClosed()
+		}
+		p.inUse = make(map[string]Connection)
 
-	// Close all available connections
-	close(p.available)
-	for conn := range p.available {
-		_ = conn.Close()
-		p.recordClosed()
-	}
-
-	return nil
+		close(p.available)
+		for conn := range p.available {
+			_ = conn.Close()
+			p.recordClosed()
+		}
+	})
+	return err
 }
 
 // GetMetrics returns pool metrics
-func (p *ConnectionPool) GetMetrics() map[string]interface{} {
+func (p *ConnectionPool) GetMetrics() map[string]any {
 	p.metrics.mu.RLock()
 	created := p.metrics.created
 	reused := p.metrics.reused
@@ -214,7 +230,7 @@ func (p *ConnectionPool) GetMetrics() map[string]interface{} {
 	capacityPosture := classifyPoolCapacityPosture(currentSize, maxSize, available)
 	runtimePosture := classifyPoolRuntimePosture(created, errors, capacityPosture)
 
-	return map[string]interface{}{
+	return map[string]any{
 		"pool_name":        p.name,
 		"created":          created,
 		"reused":           reused,
@@ -232,18 +248,18 @@ func (p *ConnectionPool) GetMetrics() map[string]interface{} {
 
 // GetRuntimeMetrics returns a compact runtime surface for pool capacity and
 // reliability posture on top of the raw metrics.
-func (p *ConnectionPool) GetRuntimeMetrics() map[string]interface{} {
+func (p *ConnectionPool) GetRuntimeMetrics() map[string]any {
 	metrics := p.GetMetrics()
 
-	created, _ := metrics["created"].(int64)
-	reused, _ := metrics["reused"].(int64)
-	closed, _ := metrics["closed"].(int64)
-	errors, _ := metrics["errors"].(int64)
-	currentSize, _ := metrics["current_size"].(int64)
-	maxSize, _ := metrics["max_size"].(int64)
-	available, _ := metrics["available"].(int64)
+	created := getInt64Metric(metrics, "created")
+	reused := getInt64Metric(metrics, "reused")
+	closed := getInt64Metric(metrics, "closed")
+	errors := getInt64Metric(metrics, "errors")
+	currentSize := getInt64Metric(metrics, "current_size")
+	maxSize := getInt64Metric(metrics, "max_size")
+	available := getInt64Metric(metrics, "available")
 
-	return map[string]interface{}{
+	return map[string]any{
 		"pool_name":        p.name,
 		"created":          created,
 		"reused":           reused,
@@ -305,8 +321,7 @@ func (p *ConnectionPool) cleanupLoop() {
 }
 
 func (p *ConnectionPool) cleanup() {
-	// Cleanup logic for idle connections
-	// This is a placeholder for future implementation
+	slog.Warn("cleanup: placeholder — idle connection cleanup logic not yet implemented")
 }
 
 func classifyPoolCapacityPosture(currentSize int64, maxSize int64, available int64) string {
@@ -355,4 +370,12 @@ func buildPoolReliabilityHint(runtimePosture string, capacityPosture string) str
 	default:
 		return "connection pool has not been exercised yet"
 	}
+}
+
+func getInt64Metric(metrics map[string]any, key string) int64 {
+	v, ok := metrics[key].(int64)
+	if !ok {
+		slog.Warn("connection pool: unexpected metric type", "key", key)
+	}
+	return v
 }

@@ -338,7 +338,7 @@ func (m *MockBlockchainManager) DeployContract(ctx context.Context, contract Con
 }
 
 // EmitEvent triggers a mock event emission
-func (m *MockBlockchainManager) EmitEvent(ctx context.Context, contractAddr string, eventName string, params map[string]interface{}) (*EventEmission, error) {
+func (m *MockBlockchainManager) EmitEvent(ctx context.Context, contractAddr string, eventName string, params map[string]any) (*EventEmission, error) {
 	return &EventEmission{
 		ID:              fmt.Sprintf("event-%s", m.chainID),
 		ContractAddress: contractAddr,

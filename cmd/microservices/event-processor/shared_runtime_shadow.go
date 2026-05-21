@@ -7,10 +7,10 @@ import (
 	"sync"
 	"time"
 
-	"chainpulse/pkg/application/bootstrap"
-	appindexing "chainpulse/pkg/application/indexing"
-	"chainpulse/pkg/core"
-	"chainpulse/pkg/services/processor"
+	"github.com/rtcdance/chainpulse/pkg/application/bootstrap"
+	appindexing "github.com/rtcdance/chainpulse/pkg/application/indexing"
+	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/services/processor"
 )
 
 type eventProcessorSharedRuntimeShadowSnapshot struct {
@@ -56,7 +56,7 @@ func newEventProcessorShadowRuntimeProcessor(
 	}
 }
 
-func (p *eventProcessorShadowRuntimeProcessor) ProcessEvent(event *core.BlockchainEvent) error {
+func (p *eventProcessorShadowRuntimeProcessor) ProcessEvent(ctx context.Context, event *core.BlockchainEvent) error {
 	if p == nil || p.base == nil {
 		return fmt.Errorf("event processor runtime is not configured")
 	}
@@ -70,7 +70,7 @@ func (p *eventProcessorShadowRuntimeProcessor) ProcessEvent(event *core.Blockcha
 		)
 	}
 
-	if err := p.base.ProcessEvent(event); err != nil {
+	if err := p.base.ProcessEvent(ctx, event); err != nil {
 		return err
 	}
 	if event == nil {
@@ -95,7 +95,7 @@ func (p *eventProcessorShadowRuntimeProcessor) ProcessEvent(event *core.Blockcha
 		CheckpointCursor: fmt.Sprintf("%s:%d:%d", chainID, event.BlockNumber, event.LogIndex),
 	}
 
-	if err := runtime.ProcessBatch(context.Background(), chainID, []appindexing.EventEnvelope{envelope}); err != nil {
+	if err := runtime.ProcessBatch(ctx, chainID, []appindexing.EventEnvelope{envelope}); err != nil {
 		p.recordShadowError(fmt.Errorf("process shared runtime shadow for %s event %s: %w", chainID, event.ID, err))
 		if p.metrics != nil {
 			p.metrics.RecordCounter("event_processor_shared_runtime_shadow_errors_total", 1, map[string]string{

@@ -7,6 +7,7 @@ import (
 )
 
 func TestDefaultCriticalErrorHandler_ReportCriticalError(t *testing.T) {
+	t.Parallel()
 	ceh := NewDefaultCriticalErrorHandler(10)
 	ctx := context.Background()
 
@@ -14,7 +15,7 @@ func TestDefaultCriticalErrorHandler_ReportCriticalError(t *testing.T) {
 		Type:        CriticalErrorTypeDataCorruption,
 		Message:     "data corruption detected",
 		Component:   "database",
-		Details:     make(map[string]interface{}),
+		Details:     make(map[string]any),
 		Recoverable: false,
 	}
 
@@ -29,6 +30,7 @@ func TestDefaultCriticalErrorHandler_ReportCriticalError(t *testing.T) {
 }
 
 func TestDefaultCriticalErrorHandler_ReportCriticalError_InvalidError(t *testing.T) {
+	t.Parallel()
 	ceh := NewDefaultCriticalErrorHandler(10)
 	ctx := context.Background()
 
@@ -46,6 +48,7 @@ func TestDefaultCriticalErrorHandler_ReportCriticalError_InvalidError(t *testing
 }
 
 func TestDefaultCriticalErrorHandler_GetCriticalErrors(t *testing.T) {
+	t.Parallel()
 	ceh := NewDefaultCriticalErrorHandler(10)
 	ctx := context.Background()
 
@@ -53,7 +56,7 @@ func TestDefaultCriticalErrorHandler_GetCriticalErrors(t *testing.T) {
 		Type:        CriticalErrorTypeSystemFailure,
 		Message:     "system failure",
 		Component:   "core",
-		Details:     make(map[string]interface{}),
+		Details:     make(map[string]any),
 		Recoverable: true,
 	}
 
@@ -74,6 +77,7 @@ func TestDefaultCriticalErrorHandler_GetCriticalErrors(t *testing.T) {
 }
 
 func TestDefaultCriticalErrorHandler_GetCriticalErrors_NoErrors(t *testing.T) {
+	t.Parallel()
 	ceh := NewDefaultCriticalErrorHandler(10)
 	ctx := context.Background()
 
@@ -88,6 +92,7 @@ func TestDefaultCriticalErrorHandler_GetCriticalErrors_NoErrors(t *testing.T) {
 }
 
 func TestDefaultCriticalErrorHandler_GetAlerts(t *testing.T) {
+	t.Parallel()
 	ceh := NewDefaultCriticalErrorHandler(10)
 	ctx := context.Background()
 
@@ -95,7 +100,7 @@ func TestDefaultCriticalErrorHandler_GetAlerts(t *testing.T) {
 		Type:        CriticalErrorTypeSecurityBreach,
 		Message:     "security breach detected",
 		Component:   "api",
-		Details:     make(map[string]interface{}),
+		Details:     make(map[string]any),
 		Recoverable: false,
 	}
 
@@ -116,6 +121,7 @@ func TestDefaultCriticalErrorHandler_GetAlerts(t *testing.T) {
 }
 
 func TestDefaultCriticalErrorHandler_AcknowledgeAlert(t *testing.T) {
+	t.Parallel()
 	ceh := NewDefaultCriticalErrorHandler(10)
 	ctx := context.Background()
 
@@ -123,7 +129,7 @@ func TestDefaultCriticalErrorHandler_AcknowledgeAlert(t *testing.T) {
 		Type:        CriticalErrorTypeResourceExhaustion,
 		Message:     "resource exhaustion",
 		Component:   "memory",
-		Details:     make(map[string]interface{}),
+		Details:     make(map[string]any),
 		Recoverable: true,
 	}
 
@@ -141,6 +147,7 @@ func TestDefaultCriticalErrorHandler_AcknowledgeAlert(t *testing.T) {
 }
 
 func TestDefaultCriticalErrorHandler_AcknowledgeAlert_InvalidIndex(t *testing.T) {
+	t.Parallel()
 	ceh := NewDefaultCriticalErrorHandler(10)
 	ctx := context.Background()
 
@@ -151,6 +158,7 @@ func TestDefaultCriticalErrorHandler_AcknowledgeAlert_InvalidIndex(t *testing.T)
 }
 
 func TestDefaultCriticalErrorHandler_EnterSafeMode(t *testing.T) {
+	t.Parallel()
 	ceh := NewDefaultCriticalErrorHandler(10)
 	ctx := context.Background()
 
@@ -165,6 +173,7 @@ func TestDefaultCriticalErrorHandler_EnterSafeMode(t *testing.T) {
 }
 
 func TestDefaultCriticalErrorHandler_EnterSafeMode_AlreadyInSafeMode(t *testing.T) {
+	t.Parallel()
 	ceh := NewDefaultCriticalErrorHandler(10)
 	ctx := context.Background()
 
@@ -177,6 +186,7 @@ func TestDefaultCriticalErrorHandler_EnterSafeMode_AlreadyInSafeMode(t *testing.
 }
 
 func TestDefaultCriticalErrorHandler_ExitSafeMode(t *testing.T) {
+	t.Parallel()
 	ceh := NewDefaultCriticalErrorHandler(10)
 	ctx := context.Background()
 
@@ -193,6 +203,7 @@ func TestDefaultCriticalErrorHandler_ExitSafeMode(t *testing.T) {
 }
 
 func TestDefaultCriticalErrorHandler_ExitSafeMode_NotInSafeMode(t *testing.T) {
+	t.Parallel()
 	ceh := NewDefaultCriticalErrorHandler(10)
 	ctx := context.Background()
 
@@ -203,6 +214,7 @@ func TestDefaultCriticalErrorHandler_ExitSafeMode_NotInSafeMode(t *testing.T) {
 }
 
 func TestDefaultCriticalErrorHandler_Health(t *testing.T) {
+	t.Parallel()
 	ceh := NewDefaultCriticalErrorHandler(10)
 	ctx := context.Background()
 
@@ -216,7 +228,7 @@ func TestDefaultCriticalErrorHandler_Health(t *testing.T) {
 		Type:        CriticalErrorTypeDataCorruption,
 		Message:     "data corruption",
 		Component:   "database",
-		Details:     make(map[string]interface{}),
+		Details:     make(map[string]any),
 		Recoverable: false,
 	}
 
@@ -229,6 +241,7 @@ func TestDefaultCriticalErrorHandler_Health(t *testing.T) {
 }
 
 func TestDefaultDataCorruptionDetector_VerifyIntegrity(t *testing.T) {
+	t.Parallel()
 	dcd := NewDefaultDataCorruptionDetector()
 	ctx := context.Background()
 
@@ -246,6 +259,7 @@ func TestDefaultDataCorruptionDetector_VerifyIntegrity(t *testing.T) {
 }
 
 func TestDefaultDataCorruptionDetector_GetCorruptionStats(t *testing.T) {
+	t.Parallel()
 	dcd := NewDefaultDataCorruptionDetector()
 	ctx := context.Background()
 
@@ -269,6 +283,7 @@ func TestDefaultDataCorruptionDetector_GetCorruptionStats(t *testing.T) {
 }
 
 func TestDefaultCriticalErrorAlerter_SendAlert(t *testing.T) {
+	t.Parallel()
 	cea := NewDefaultCriticalErrorAlerter(10)
 	ctx := context.Background()
 
@@ -277,7 +292,7 @@ func TestDefaultCriticalErrorAlerter_SendAlert(t *testing.T) {
 			Type:      CriticalErrorTypeDataCorruption,
 			Message:   "data corruption",
 			Component: "database",
-			Details:   make(map[string]interface{}),
+			Details:   make(map[string]any),
 		},
 		AlertTime: time.Now(),
 		Severity:  "critical",
@@ -292,6 +307,7 @@ func TestDefaultCriticalErrorAlerter_SendAlert(t *testing.T) {
 }
 
 func TestDefaultCriticalErrorAlerter_SendAlert_InvalidAlert(t *testing.T) {
+	t.Parallel()
 	cea := NewDefaultCriticalErrorAlerter(10)
 	ctx := context.Background()
 
@@ -313,6 +329,7 @@ func TestDefaultCriticalErrorAlerter_SendAlert_InvalidAlert(t *testing.T) {
 }
 
 func TestDefaultCriticalErrorAlerter_GetAlertHistory(t *testing.T) {
+	t.Parallel()
 	cea := NewDefaultCriticalErrorAlerter(10)
 	ctx := context.Background()
 
@@ -321,7 +338,7 @@ func TestDefaultCriticalErrorAlerter_GetAlertHistory(t *testing.T) {
 			Type:      CriticalErrorTypeSystemFailure,
 			Message:   "system failure",
 			Component: "core",
-			Details:   make(map[string]interface{}),
+			Details:   make(map[string]any),
 		},
 		AlertTime: time.Now(),
 		Severity:  "critical",
@@ -341,6 +358,7 @@ func TestDefaultCriticalErrorAlerter_GetAlertHistory(t *testing.T) {
 }
 
 func TestDefaultCriticalErrorAlerter_GetAlertStats(t *testing.T) {
+	t.Parallel()
 	cea := NewDefaultCriticalErrorAlerter(10)
 	ctx := context.Background()
 
@@ -349,7 +367,7 @@ func TestDefaultCriticalErrorAlerter_GetAlertStats(t *testing.T) {
 			Type:      CriticalErrorTypeSecurityBreach,
 			Message:   "security breach",
 			Component: "api",
-			Details:   make(map[string]interface{}),
+			Details:   make(map[string]any),
 		},
 		AlertTime: time.Now(),
 		Severity:  "critical",
@@ -369,6 +387,7 @@ func TestDefaultCriticalErrorAlerter_GetAlertStats(t *testing.T) {
 }
 
 func TestCriticalErrorHandler_MultipleErrors(t *testing.T) {
+	t.Parallel()
 	ceh := NewDefaultCriticalErrorHandler(10)
 	ctx := context.Background()
 
@@ -378,7 +397,7 @@ func TestCriticalErrorHandler_MultipleErrors(t *testing.T) {
 			Type:        CriticalErrorTypeSystemFailure,
 			Message:     "system failure",
 			Component:   "core",
-			Details:     make(map[string]interface{}),
+			Details:     make(map[string]any),
 			Recoverable: true,
 		}
 
@@ -392,6 +411,7 @@ func TestCriticalErrorHandler_MultipleErrors(t *testing.T) {
 }
 
 func TestCriticalErrorHandler_ErrorTypeTracking(t *testing.T) {
+	t.Parallel()
 	ceh := NewDefaultCriticalErrorHandler(10)
 	ctx := context.Background()
 
@@ -408,7 +428,7 @@ func TestCriticalErrorHandler_ErrorTypeTracking(t *testing.T) {
 			Type:        errorType,
 			Message:     "test error",
 			Component:   "test",
-			Details:     make(map[string]interface{}),
+			Details:     make(map[string]any),
 			Recoverable: true,
 		}
 
@@ -434,6 +454,7 @@ func TestCriticalErrorHandler_ErrorTypeTracking(t *testing.T) {
 }
 
 func TestCriticalErrorHandler_ConcurrentOperations(t *testing.T) {
+	t.Parallel()
 	ceh := NewDefaultCriticalErrorHandler(100)
 	ctx := context.Background()
 
@@ -443,7 +464,7 @@ func TestCriticalErrorHandler_ConcurrentOperations(t *testing.T) {
 			Type:        CriticalErrorTypeSystemFailure,
 			Message:     "system failure",
 			Component:   "core",
-			Details:     make(map[string]interface{}),
+			Details:     make(map[string]any),
 			Recoverable: true,
 		}
 		result := ceh.ReportCriticalError(ctx, err)

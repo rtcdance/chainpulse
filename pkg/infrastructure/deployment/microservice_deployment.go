@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 // MicroserviceDeployment represents a microservice deployment mode where services run independently
@@ -85,7 +85,8 @@ func (md *MicroserviceDeployment) RegisterService(
 	md.serviceStopper = stopper
 
 	if md.logger != nil {
-		md.logger.Info("microservice registered",
+		md.logger.Info(
+			"microservice registered",
 			"service", md.serviceName,
 			"instance_id", md.instanceID,
 		)
@@ -118,7 +119,8 @@ func (md *MicroserviceDeployment) Initialize(ctx context.Context) error {
 	}
 
 	if md.logger != nil {
-		md.logger.Info("initializing microservice",
+		md.logger.Info(
+			"initializing microservice",
 			"service", md.serviceName,
 			"instance_id", md.instanceID,
 		)
@@ -126,7 +128,8 @@ func (md *MicroserviceDeployment) Initialize(ctx context.Context) error {
 
 	if err := md.serviceInitializer(); err != nil {
 		if md.logger != nil {
-			md.logger.Error("failed to initialize microservice",
+			md.logger.Error(
+				"failed to initialize microservice",
 				"service", md.serviceName,
 				"error", err.Error(),
 			)
@@ -140,7 +143,8 @@ func (md *MicroserviceDeployment) Initialize(ctx context.Context) error {
 	}
 
 	if md.logger != nil {
-		md.logger.Info("microservice initialized",
+		md.logger.Info(
+			"microservice initialized",
 			"service", md.serviceName,
 		)
 	}
@@ -165,7 +169,8 @@ func (md *MicroserviceDeployment) Start(ctx context.Context) error {
 	md.mu.Unlock()
 
 	if md.logger != nil {
-		md.logger.Info("starting microservice",
+		md.logger.Info(
+			"starting microservice",
 			"service", md.serviceName,
 			"instance_id", md.instanceID,
 		)
@@ -182,7 +187,8 @@ func (md *MicroserviceDeployment) Start(ctx context.Context) error {
 
 		if err := md.serviceStarter(); err != nil {
 			if md.logger != nil {
-				md.logger.Error("microservice error",
+				md.logger.Error(
+					"microservice error",
 					"service", md.serviceName,
 					"error", err.Error(),
 				)
@@ -196,7 +202,8 @@ func (md *MicroserviceDeployment) Start(ctx context.Context) error {
 	}()
 
 	if md.logger != nil {
-		md.logger.Info("microservice started",
+		md.logger.Info(
+			"microservice started",
 			"service", md.serviceName,
 		)
 	}
@@ -218,7 +225,8 @@ func (md *MicroserviceDeployment) Stop(ctx context.Context) error {
 	md.mu.Unlock()
 
 	if md.logger != nil {
-		md.logger.Info("stopping microservice",
+		md.logger.Info(
+			"stopping microservice",
 			"service", md.serviceName,
 		)
 	}
@@ -226,7 +234,8 @@ func (md *MicroserviceDeployment) Stop(ctx context.Context) error {
 	if md.serviceStopper != nil {
 		if err := md.serviceStopper(); err != nil {
 			if md.logger != nil {
-				md.logger.Error("failed to stop microservice",
+				md.logger.Error(
+					"failed to stop microservice",
 					"service", md.serviceName,
 					"error", err.Error(),
 				)
@@ -244,7 +253,8 @@ func (md *MicroserviceDeployment) Stop(ctx context.Context) error {
 	select {
 	case <-done:
 		if md.logger != nil {
-			md.logger.Info("microservice stopped",
+			md.logger.Info(
+				"microservice stopped",
 				"service", md.serviceName,
 			)
 		}
@@ -322,7 +332,7 @@ func (md *MicroserviceDeployment) GetHealth(ctx context.Context) (core.HealthSta
 		return core.HealthStatus{
 			Status:    "unhealthy",
 			Timestamp: time.Now(),
-			Details: map[string]interface{}{
+			Details: map[string]any{
 				"reason": "microservice not running",
 			},
 		}, nil
@@ -338,7 +348,7 @@ func (md *MicroserviceDeployment) GetHealth(ctx context.Context) (core.HealthSta
 	return core.HealthStatus{
 		Status:    status,
 		Timestamp: time.Now(),
-		Details: map[string]interface{}{
+		Details: map[string]any{
 			"service":              md.serviceName,
 			"instance_id":          md.instanceID,
 			"time_since_heartbeat": timeSinceHeartbeat.String(),
@@ -347,11 +357,11 @@ func (md *MicroserviceDeployment) GetHealth(ctx context.Context) (core.HealthSta
 }
 
 // GetMetrics returns metrics for the microservice
-func (md *MicroserviceDeployment) GetMetrics() map[string]interface{} {
+func (md *MicroserviceDeployment) GetMetrics() map[string]any {
 	md.mu.RLock()
 	defer md.mu.RUnlock()
 
-	metrics := make(map[string]interface{})
+	metrics := make(map[string]any)
 	metrics["is_running"] = md.isRunning
 	metrics["service_name"] = md.serviceName
 	metrics["instance_id"] = md.instanceID

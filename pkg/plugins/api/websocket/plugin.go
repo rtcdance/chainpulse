@@ -3,49 +3,53 @@ package websocket
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
 
-	"chainpulse/pkg/plugins/api/core"
-	"chainpulse/pkg/plugins/api/shared"
+	"github.com/rtcdance/chainpulse/pkg/plugins/api/core"
+	"github.com/rtcdance/chainpulse/pkg/plugins/api/shared"
 )
 
 // Plugin implements the WebSocket protocol handler.
 type Plugin struct {
-	name       string
-	port       int
-	wssPort    int
-	apiLayer   *core.APILayer
-	upgrader   websocket.Upgrader
-	server     *http.Server
-	wssServer  *http.Server
-	tlsManager *shared.TLSManager
-	processor  core.RequestProcessor
-	mu         sync.RWMutex
-	running    bool
-	middleware []core.Middleware
-	clients    map[*websocket.Conn]bool
-	clientsMu  sync.RWMutex
-	router     *core.APIRouter
+	name           string
+	port           int
+	wssPort        int
+	apiLayer       *core.APILayer
+	upgrader       websocket.Upgrader
+	server         *http.Server
+	wssServer      *http.Server
+	tlsManager     *shared.TLSManager
+	processor      core.RequestProcessor
+	mu             sync.RWMutex
+	running        bool
+	middleware     []core.Middleware
+	clients        map[*websocket.Conn]bool
+	clientsMu      sync.RWMutex
+	router         *core.APIRouter
+	allowedOrigins []string
 }
 
 // NewWebSocketPlugin creates a new WebSocket plugin
 func NewWebSocketPlugin(name string, port int, apiLayer *core.APILayer) *Plugin {
 	processor := core.NewDefaultRequestProcessor(apiLayer)
-	return &Plugin{
+	p := &Plugin{
 		name:       name,
 		port:       port,
 		wssPort:    port + 443, // Default WSS port offset
 		apiLayer:   apiLayer,
-		upgrader:   websocket.Upgrader{CheckOrigin: func(_ *http.Request) bool { return true }},
 		processor:  processor,
 		middleware: make([]core.Middleware, 0),
 		clients:    make(map[*websocket.Conn]bool),
 		router:     core.NewAPIRouter(),
 	}
+	p.upgrader = websocket.Upgrader{CheckOrigin: p.checkOrigin}
+	return p
 }
 
 // NewWebSocketPluginWithTLS creates a new WebSocket plugin with TLS support
@@ -56,18 +60,46 @@ func NewWebSocketPluginWithTLS(name string, port int, wssPort int, certFile, key
 	}
 
 	processor := core.NewDefaultRequestProcessor(apiLayer)
-	return &Plugin{
+	p := &Plugin{
 		name:       name,
 		port:       port,
 		wssPort:    wssPort,
 		apiLayer:   apiLayer,
-		upgrader:   websocket.Upgrader{CheckOrigin: func(_ *http.Request) bool { return true }},
 		tlsManager: tlsManager,
 		processor:  processor,
 		middleware: make([]core.Middleware, 0),
 		clients:    make(map[*websocket.Conn]bool),
 		router:     core.NewAPIRouter(),
-	}, nil
+	}
+	p.upgrader = websocket.Upgrader{CheckOrigin: p.checkOrigin}
+	return p, nil
+}
+
+// WithAllowedOrigins sets the allowed origins for WebSocket connections.
+// If no origins are set, all origins are allowed (useful for development only).
+// In production, specify explicit origins e.g. ["https://app.example.com"].
+func (p *Plugin) WithAllowedOrigins(origins []string) *Plugin {
+	p.allowedOrigins = origins
+	return p
+}
+
+// checkOrigin validates the Origin header against the allowed origins list.
+func (p *Plugin) checkOrigin(r *http.Request) bool {
+	if len(p.allowedOrigins) == 0 {
+		return true // No restriction configured — development mode
+	}
+
+	origin := r.Header.Get("Origin")
+	if origin == "" {
+		return true // Non-browser clients don't send Origin
+	}
+
+	for _, allowed := range p.allowedOrigins {
+		if strings.EqualFold(origin, allowed) {
+			return true
+		}
+	}
+	return false
 }
 
 // Start starts the WebSocket server
@@ -79,6 +111,10 @@ func (p *Plugin) Start() error {
 		return fmt.Errorf("WebSocket plugin already running")
 	}
 
+	if len(p.allowedOrigins) == 0 {
+		slog.Warn("WebSocket plugin: no origin restrictions configured — accepting all origins (development mode only)")
+	}
+
 	// Create HTTP server
 	mux := http.NewServeMux()
 	mux.HandleFunc("/ws", p.handleWebSocket)
@@ -87,6 +123,9 @@ func (p *Plugin) Start() error {
 		Addr:              fmt.Sprintf(":%d", p.port),
 		Handler:           mux,
 		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       15 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       120 * time.Second,
 	}
 
 	p.running = true
@@ -94,14 +133,14 @@ func (p *Plugin) Start() error {
 	// Start WebSocket server in background
 	go func() {
 		if err := p.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			fmt.Printf("WebSocket server error: %v\n", err)
+			slog.Error("WebSocket server error", "error", err)
 		}
 	}()
 
 	// Start WSS server if TLS manager is configured
 	if p.tlsManager != nil {
 		if err := p.startWSS(mux); err != nil {
-			return err
+			return fmt.Errorf("failed to start WSS server: %w", err)
 		}
 	}
 
@@ -115,12 +154,15 @@ func (p *Plugin) startWSS(mux *http.ServeMux) error {
 		Handler:           mux,
 		TLSConfig:         p.tlsManager.GetConfig(),
 		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       15 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       120 * time.Second,
 	}
 
 	// Start WSS server in background
 	go func() {
 		if err := p.wssServer.ListenAndServeTLS("", ""); err != nil && err != http.ErrServerClosed {
-			fmt.Printf("WSS server error: %v\n", err)
+			slog.Error("WSS server error", "error", err)
 		}
 	}()
 
@@ -145,14 +187,18 @@ func (p *Plugin) Stop() error {
 	p.clientsMu.Unlock()
 
 	if p.server != nil {
-		if err := p.server.Close(); err != nil {
-			return err
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if err := p.server.Shutdown(ctx); err != nil {
+			return fmt.Errorf("failed to shutdown WebSocket server: %w", err)
 		}
 	}
 
 	if p.wssServer != nil {
-		if err := p.wssServer.Close(); err != nil {
-			return err
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if err := p.wssServer.Shutdown(ctx); err != nil {
+			return fmt.Errorf("failed to shutdown WSS server: %w", err)
 		}
 	}
 
@@ -181,7 +227,7 @@ func (p *Plugin) IsRunning() bool {
 func (p *Plugin) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	conn, err := p.upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		fmt.Printf("WebSocket upgrade error: %v\n", err)
+		slog.Warn("WebSocket upgrade error", "error", err)
 		return
 	}
 	defer func() { _ = conn.Close() }()
@@ -203,7 +249,7 @@ func (p *Plugin) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		messageType, data, err := conn.ReadMessage()
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-				fmt.Printf("WebSocket error: %v\n", err)
+				slog.Warn("WebSocket error", "error", err)
 			}
 			break
 		}
@@ -225,7 +271,7 @@ func (p *Plugin) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 
 		// Send response back through WebSocket
 		if err := conn.WriteMessage(websocket.TextMessage, result.Body()); err != nil {
-			fmt.Printf("WebSocket write error: %v\n", err)
+			slog.Warn("WebSocket write error", "error", err)
 			break
 		}
 	}
@@ -305,7 +351,7 @@ func (p *Plugin) GetWSSPort() int {
 }
 
 // GetTLSMetrics returns TLS metrics
-func (p *Plugin) GetTLSMetrics() map[string]interface{} {
+func (p *Plugin) GetTLSMetrics() map[string]any {
 	if p.tlsManager == nil {
 		return nil
 	}
@@ -314,13 +360,13 @@ func (p *Plugin) GetTLSMetrics() map[string]interface{} {
 
 // GetConnectionMetrics returns compact runtime connection metrics for the
 // websocket transport surface.
-func (p *Plugin) GetConnectionMetrics() map[string]interface{} {
+func (p *Plugin) GetConnectionMetrics() map[string]any {
 	running := p.IsRunning()
 	clientCount := p.GetClientCount()
 	transportPosture := classifyWebSocketTransportPosture(p.tlsManager != nil)
 	connectionPosture := classifyWebSocketConnectionPosture(running, clientCount)
 
-	return map[string]interface{}{
+	return map[string]any{
 		"running":            running,
 		"client_count":       clientCount,
 		"transport_posture":  transportPosture,

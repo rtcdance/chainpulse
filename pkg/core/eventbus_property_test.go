@@ -54,12 +54,13 @@ func TestPropertyEventPublishingConsistency(t *testing.T) {
 
 			// Subscribe handlers
 			for i := 0; i < tt.subscriberCount; i++ {
-				handler := func(event interface{}) {
-					mu.Lock()
-					count++
-					mu.Unlock()
-				}
-				if err := eb.Subscribe(context.Background(), "test-topic", handler); err != nil {
+		handler := func(_ context.Context, event any) error {
+			mu.Lock()
+			count++
+			mu.Unlock()
+			return nil
+		}
+				if _, err := eb.Subscribe(context.Background(), "test-topic", handler); err != nil {
 					t.Fatalf("failed to subscribe: %v", err)
 				}
 			}
@@ -86,11 +87,11 @@ func TestPropertyEventPublishingConsistency(t *testing.T) {
 // TestPropertySubscriberCountConsistency verifies subscriber count consistency
 func TestPropertySubscriberCountConsistency(t *testing.T) {
 	eb := NewEventBus(nil)
-	handler := func(event interface{}) {}
+	handler := func(_ context.Context, event any) error { return nil }
 
 	// For any sequence of subscriptions, the subscriber count should match
 	for i := 0; i < 10; i++ {
-		if err := eb.Subscribe(context.Background(), "test-topic", handler); err != nil {
+		if _, err := eb.Subscribe(context.Background(), "test-topic", handler); err != nil {
 			t.Fatalf("failed to subscribe: %v", err)
 		}
 
@@ -107,7 +108,7 @@ func TestPropertyEventDataPreservation(t *testing.T) {
 	// For any event data, it should be preserved when published
 	testCases := []struct {
 		name  string
-		event interface{}
+		event any
 	}{
 		{"string-event", "string-event"},
 		{"int-event", 123},
@@ -117,13 +118,14 @@ func TestPropertyEventDataPreservation(t *testing.T) {
 
 	for _, tt := range testCases {
 		t.Run(tt.name, func(t *testing.T) {
-			var receivedEvent interface{}
-			handler := func(event interface{}) {
-				receivedEvent = event
-			}
+			var receivedEvent any
+		handler := func(_ context.Context, event any) error {
+			receivedEvent = event
+			return nil
+		}
 
 			eb.Clear()
-			if err := eb.Subscribe(context.Background(), "test-topic", handler); err != nil {
+			if _, err := eb.Subscribe(context.Background(), "test-topic", handler); err != nil {
 				t.Fatalf("failed to subscribe: %v", err)
 			}
 			if err := eb.PublishSync(context.Background(), "test-topic", tt.event); err != nil {
@@ -156,23 +158,25 @@ func TestPropertyTopicIsolation(t *testing.T) {
 	topic2Count := 0
 	mu := sync.Mutex{}
 
-	handler1 := func(event interface{}) {
+	handler1 := func(_ context.Context, event any) error {
 		mu.Lock()
 		topic1Count++
 		mu.Unlock()
+		return nil
 	}
 
-	handler2 := func(event interface{}) {
+	handler2 := func(_ context.Context, event any) error {
 		mu.Lock()
 		topic2Count++
 		mu.Unlock()
+		return nil
 	}
 
 	// For any two topics, events published to one should not affect the other
-	if err := eb.Subscribe(context.Background(), "topic-1", handler1); err != nil {
+	if _, err := eb.Subscribe(context.Background(), "topic-1", handler1); err != nil {
 		t.Fatalf("failed to subscribe: %v", err)
 	}
-	if err := eb.Subscribe(context.Background(), "topic-2", handler2); err != nil {
+	if _, err := eb.Subscribe(context.Background(), "topic-2", handler2); err != nil {
 		t.Fatalf("failed to subscribe: %v", err)
 	}
 
@@ -210,9 +214,9 @@ func TestPropertyTopicIsolation(t *testing.T) {
 // TestPropertySyncVsAsyncConsistency verifies sync and async publishing consistency
 func TestPropertySyncVsAsyncConsistency(t *testing.T) {
 	// For any event, sync and async publishing should both deliver the event
-	testEvents := []interface{}{
+	testEvents := []any{
 		"event-1",
-		map[string]interface{}{"id": "event-2"},
+		map[string]any{"id": "event-2"},
 		[]int{1, 2, 3},
 	}
 
@@ -221,12 +225,13 @@ func TestPropertySyncVsAsyncConsistency(t *testing.T) {
 		eb1 := NewEventBus(nil)
 		asyncReceived := false
 		mu1 := sync.Mutex{}
-		handler1 := func(event interface{}) {
+		handler1 := func(_ context.Context, event any) error {
 			mu1.Lock()
 			asyncReceived = true
 			mu1.Unlock()
+			return nil
 		}
-		if err := eb1.Subscribe(context.Background(), "test-topic", handler1); err != nil {
+		if _, err := eb1.Subscribe(context.Background(), "test-topic", handler1); err != nil {
 			t.Fatalf("failed to subscribe: %v", err)
 		}
 		if err := eb1.Publish(context.Background(), "test-topic", testEvent); err != nil {
@@ -238,12 +243,13 @@ func TestPropertySyncVsAsyncConsistency(t *testing.T) {
 		eb2 := NewEventBus(nil)
 		syncReceived := false
 		mu2 := sync.Mutex{}
-		handler2 := func(event interface{}) {
+		handler2 := func(_ context.Context, event any) error {
 			mu2.Lock()
 			syncReceived = true
 			mu2.Unlock()
+			return nil
 		}
-		if err := eb2.Subscribe(context.Background(), "test-topic", handler2); err != nil {
+		if _, err := eb2.Subscribe(context.Background(), "test-topic", handler2); err != nil {
 			t.Fatalf("failed to subscribe: %v", err)
 		}
 		if err := eb2.PublishSync(context.Background(), "test-topic", testEvent); err != nil {
@@ -271,11 +277,11 @@ func TestPropertySyncVsAsyncConsistency(t *testing.T) {
 // TestPropertyClearConsistency verifies clear removes all subscribers
 func TestPropertyClearConsistency(t *testing.T) {
 	eb := NewEventBus(nil)
-	handler := func(event interface{}) {}
+	handler := func(_ context.Context, event any) error { return nil }
 
 	// For any set of subscribers, clear should remove all of them
 	for i := 0; i < 5; i++ {
-		if err := eb.Subscribe(context.Background(), fmt.Sprintf("topic-%d", i), handler); err != nil {
+		if _, err := eb.Subscribe(context.Background(), fmt.Sprintf("topic-%d", i), handler); err != nil {
 			t.Fatalf("failed to subscribe: %v", err)
 		}
 	}
@@ -293,13 +299,14 @@ func TestPropertyClearConsistency(t *testing.T) {
 	// Verify no events are delivered after clear
 	count := 0
 	mu := sync.Mutex{}
-	handler2 := func(event interface{}) {
+	handler2 := func(_ context.Context, event any) error {
 		mu.Lock()
 		count++
 		mu.Unlock()
+		return nil
 	}
 
-	if err := eb.Subscribe(context.Background(), "test-topic", handler2); err != nil {
+	if _, err := eb.Subscribe(context.Background(), "test-topic", handler2); err != nil {
 		t.Fatalf("failed to subscribe: %v", err)
 	}
 	eb.Clear()
@@ -318,7 +325,7 @@ func TestPropertyClearConsistency(t *testing.T) {
 // TestPropertyConcurrentOperationsConsistency verifies concurrent operations are consistent
 func TestPropertyConcurrentOperationsConsistency(t *testing.T) {
 	eb := NewEventBus(nil)
-	handler := func(event interface{}) {}
+	handler := func(_ context.Context, event any) error { return nil }
 
 	// For concurrent subscriptions and publications, the system should remain consistent
 	done := make(chan bool, 20)
@@ -326,7 +333,7 @@ func TestPropertyConcurrentOperationsConsistency(t *testing.T) {
 	// Concurrent subscriptions
 	for i := 0; i < 10; i++ {
 		go func(index int) {
-			_ = eb.Subscribe(context.Background(), fmt.Sprintf("topic-%d", index%3), handler)
+			_, _ = eb.Subscribe(context.Background(), fmt.Sprintf("topic-%d", index%3), handler)
 			done <- true
 		}(i)
 	}
@@ -363,19 +370,17 @@ func TestPropertyHandlerPanicRecovery(t *testing.T) {
 	eb := NewEventBus(nil)
 
 	// For any handler that panics, the event bus should recover
-	panicHandler := func(event interface{}) {
+	panicHandler := func(_ context.Context, event any) error {
 		panic("test panic")
 	}
 
-	normalHandler := func(event interface{}) {
-		// This should still be called
-	}
+	normalHandler := func(_ context.Context, event any) error { return nil }
 
-	err := eb.Subscribe(context.Background(), "test-topic", panicHandler)
+	_, err := eb.Subscribe(context.Background(), "test-topic", panicHandler)
 	if err != nil {
 		t.Fatalf("failed to subscribe panic handler: %v", err)
 	}
-	err = eb.Subscribe(context.Background(), "test-topic", normalHandler)
+	_, err = eb.Subscribe(context.Background(), "test-topic", normalHandler)
 	if err != nil {
 		t.Fatalf("failed to subscribe normal handler: %v", err)
 	}

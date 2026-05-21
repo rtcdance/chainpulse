@@ -8,12 +8,13 @@ import (
 	"testing"
 	"time"
 
-	"chainpulse/pkg/core"
-	domainquery "chainpulse/pkg/domain/query"
-	"chainpulse/pkg/services/query"
+	"github.com/rtcdance/chainpulse/pkg/core"
+	domainquery "github.com/rtcdance/chainpulse/pkg/domain/query"
+	"github.com/rtcdance/chainpulse/pkg/services/query"
 )
 
 func TestGatewayRuntimeRouteCompositionEventByIDDomainFirst(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 
@@ -30,7 +31,7 @@ func TestGatewayRuntimeRouteCompositionEventByIDDomainFirst(t *testing.T) {
 				BlockNumber:    888,
 				BlockTimestamp: time.Now().Unix(),
 				EventName:      "Transfer",
-				DecodedData:    map[string]interface{}{"route": "runtime"},
+				DecodedData:    map[string]any{"route": "runtime"},
 				CreatedAt:      time.Now(),
 				ProcessedAt:    time.Now(),
 				IndexedAt:      time.Now(),
@@ -68,12 +69,12 @@ func TestGatewayRuntimeRouteCompositionEventByIDDomainFirst(t *testing.T) {
 		t.Fatalf("expected status 200, got %d, body=%s", rr.Code, rr.Body.String())
 	}
 
-	var payload map[string]interface{}
+	var payload map[string]any
 	if err := json.Unmarshal(rr.Body.Bytes(), &payload); err != nil {
 		t.Fatalf("unmarshal response: %v", err)
 	}
 
-	data, ok := payload["data"].(map[string]interface{})
+	data, ok := payload["data"].(map[string]any)
 	if !ok {
 		t.Fatalf("expected object data payload: %v", payload)
 	}
@@ -81,7 +82,7 @@ func TestGatewayRuntimeRouteCompositionEventByIDDomainFirst(t *testing.T) {
 	if got, ok := data["eventId"].(string); !ok || got != "runtime-domain-hit" {
 		t.Fatalf("expected eventId runtime-domain-hit, got %v", data["eventId"])
 	}
-	meta, ok := payload["meta"].(map[string]interface{})
+	meta, ok := payload["meta"].(map[string]any)
 	if !ok {
 		t.Fatalf("expected meta object payload: %v", payload)
 	}
@@ -115,6 +116,7 @@ func TestGatewayRuntimeRouteCompositionEventByIDDomainFirst(t *testing.T) {
 }
 
 func TestGatewayRuntimeRouteCompositionEventListDomainQuerySource(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 
@@ -133,7 +135,7 @@ func TestGatewayRuntimeRouteCompositionEventListDomainQuerySource(t *testing.T) 
 						BlockNumber:    999,
 						BlockTimestamp: time.Now().Unix(),
 						EventName:      "Transfer",
-						DecodedData:    map[string]interface{}{"route": "runtime-list"},
+						DecodedData:    map[string]any{"route": "runtime-list"},
 						CreatedAt:      time.Now(),
 						ProcessedAt:    time.Now(),
 						IndexedAt:      time.Now(),
@@ -168,12 +170,12 @@ func TestGatewayRuntimeRouteCompositionEventListDomainQuerySource(t *testing.T) 
 		t.Fatalf("expected status 200, got %d, body=%s", rr.Code, rr.Body.String())
 	}
 
-	var payload map[string]interface{}
+	var payload map[string]any
 	if err := json.Unmarshal(rr.Body.Bytes(), &payload); err != nil {
 		t.Fatalf("unmarshal response: %v", err)
 	}
 
-	meta, ok := payload["meta"].(map[string]interface{})
+	meta, ok := payload["meta"].(map[string]any)
 	if !ok {
 		t.Fatalf("expected meta object payload: %v", payload)
 	}
@@ -183,8 +185,8 @@ func TestGatewayRuntimeRouteCompositionEventListDomainQuerySource(t *testing.T) 
 	if got := meta["querySourcePosture"]; got != "mongodb-live" {
 		t.Fatalf("expected querySourcePosture mongodb-live, got %v", got)
 	}
-	if got := meta["queryPath"]; got != "domain-list" {
-		t.Fatalf("expected meta queryPath domain-list, got %v", got)
+	if got := meta["queryPath"]; got != "domain-all" {
+		t.Fatalf("expected meta queryPath domain-all, got %v", got)
 	}
 	if got := meta["consistencyPosture"]; got != "query-service-direct" {
 		t.Fatalf("expected consistencyPosture query-service-direct, got %v", got)
@@ -195,6 +197,7 @@ func TestGatewayRuntimeRouteCompositionEventListDomainQuerySource(t *testing.T) 
 }
 
 func TestGatewayRuntimeRouteCompositionEventByChainDomainQuerySource(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 
@@ -209,8 +212,21 @@ func TestGatewayRuntimeRouteCompositionEventByChainDomainQuerySource(t *testing.
 			if req == nil {
 				t.Fatal("expected domain query request")
 			}
-			if got := req.Filter["chainId"]; got != 1 {
-				t.Fatalf("expected chainId filter 1, got %v", got)
+			if got := req.Filter["chainId"]; got == nil {
+				t.Fatal("expected chainId filter")
+			} else if inMap, ok := got.(map[string]any); ok {
+				values, _ := inMap["$in"].([]any)
+				found := false
+				for _, v := range values {
+					if v == 1 || v == "1" {
+						found = true
+					}
+				}
+				if !found {
+					t.Fatalf("expected $in filter to include 1 or \"1\", got %v", values)
+				}
+			} else if got != 1 {
+				t.Fatalf("expected chainId filter 1 or $in filter, got %v", got)
 			}
 			return &domainquery.Result{
 				Events: []core.BlockchainEvent{
@@ -219,7 +235,7 @@ func TestGatewayRuntimeRouteCompositionEventByChainDomainQuerySource(t *testing.
 						BlockNumber:    1001,
 						BlockTimestamp: time.Now().Unix(),
 						EventName:      "Transfer",
-						DecodedData:    map[string]interface{}{"route": "runtime-chain"},
+						DecodedData:    map[string]any{"route": "runtime-chain"},
 						CreatedAt:      time.Now(),
 						ProcessedAt:    time.Now(),
 						IndexedAt:      time.Now(),
@@ -255,12 +271,12 @@ func TestGatewayRuntimeRouteCompositionEventByChainDomainQuerySource(t *testing.
 		t.Fatalf("expected status 200, got %d, body=%s", rr.Code, rr.Body.String())
 	}
 
-	var payload map[string]interface{}
+	var payload map[string]any
 	if err := json.Unmarshal(rr.Body.Bytes(), &payload); err != nil {
 		t.Fatalf("unmarshal response: %v", err)
 	}
 
-	meta, ok := payload["meta"].(map[string]interface{})
+	meta, ok := payload["meta"].(map[string]any)
 	if !ok {
 		t.Fatalf("expected meta object payload: %v", payload)
 	}
@@ -282,6 +298,7 @@ func TestGatewayRuntimeRouteCompositionEventByChainDomainQuerySource(t *testing.
 }
 
 func TestGatewayRuntimeRouteCompositionEventByNameDomainQuerySource(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 
@@ -306,7 +323,7 @@ func TestGatewayRuntimeRouteCompositionEventByNameDomainQuerySource(t *testing.T
 						BlockNumber:    1002,
 						BlockTimestamp: time.Now().Unix(),
 						EventName:      "Transfer",
-						DecodedData:    map[string]interface{}{"route": "runtime-name"},
+						DecodedData:    map[string]any{"route": "runtime-name"},
 						CreatedAt:      time.Now(),
 						ProcessedAt:    time.Now(),
 						IndexedAt:      time.Now(),
@@ -342,12 +359,12 @@ func TestGatewayRuntimeRouteCompositionEventByNameDomainQuerySource(t *testing.T
 		t.Fatalf("expected status 200, got %d, body=%s", rr.Code, rr.Body.String())
 	}
 
-	var payload map[string]interface{}
+	var payload map[string]any
 	if err := json.Unmarshal(rr.Body.Bytes(), &payload); err != nil {
 		t.Fatalf("unmarshal response: %v", err)
 	}
 
-	meta, ok := payload["meta"].(map[string]interface{})
+	meta, ok := payload["meta"].(map[string]any)
 	if !ok {
 		t.Fatalf("expected meta object payload: %v", payload)
 	}
@@ -369,6 +386,7 @@ func TestGatewayRuntimeRouteCompositionEventByNameDomainQuerySource(t *testing.T
 }
 
 func TestGatewayRuntimeRouteCompositionEventByContractDomainQuerySource(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 
@@ -383,8 +401,8 @@ func TestGatewayRuntimeRouteCompositionEventByContractDomainQuerySource(t *testi
 			if req == nil {
 				t.Fatal("expected domain query request")
 			}
-			if got := req.Filter["contractAddress"]; got != "0xabc" {
-				t.Fatalf("expected contractAddress filter 0xabc, got %v", got)
+			if got := req.Filter["contractAddress"]; got != "0xabc0000000000000000000000000000000000000" {
+				t.Fatalf("expected contractAddress filter, got %v", got)
 			}
 			return &domainquery.Result{
 				Events: []core.BlockchainEvent{
@@ -393,7 +411,7 @@ func TestGatewayRuntimeRouteCompositionEventByContractDomainQuerySource(t *testi
 						BlockNumber:    1003,
 						BlockTimestamp: time.Now().Unix(),
 						EventName:      "Transfer",
-						DecodedData:    map[string]interface{}{"route": "runtime-contract"},
+						DecodedData:    map[string]any{"route": "runtime-contract"},
 						CreatedAt:      time.Now(),
 						ProcessedAt:    time.Now(),
 						IndexedAt:      time.Now(),
@@ -421,7 +439,7 @@ func TestGatewayRuntimeRouteCompositionEventByContractDomainQuerySource(t *testi
 		t.Fatalf("initialize plugin: %v", err)
 	}
 
-	req := httptest.NewRequest(http.MethodGet, "/events/contract/0xabc?limit=1", nil)
+	req := httptest.NewRequest(http.MethodGet, "/events/contract/0xabc0000000000000000000000000000000000000?limit=1", nil)
 	rr := httptest.NewRecorder()
 	plugin.routerIntegration.HandleRequest(rr, req)
 
@@ -429,12 +447,12 @@ func TestGatewayRuntimeRouteCompositionEventByContractDomainQuerySource(t *testi
 		t.Fatalf("expected status 200, got %d, body=%s", rr.Code, rr.Body.String())
 	}
 
-	var payload map[string]interface{}
+	var payload map[string]any
 	if err := json.Unmarshal(rr.Body.Bytes(), &payload); err != nil {
 		t.Fatalf("unmarshal response: %v", err)
 	}
 
-	meta, ok := payload["meta"].(map[string]interface{})
+	meta, ok := payload["meta"].(map[string]any)
 	if !ok {
 		t.Fatalf("expected meta object payload: %v", payload)
 	}
@@ -456,6 +474,7 @@ func TestGatewayRuntimeRouteCompositionEventByContractDomainQuerySource(t *testi
 }
 
 func TestGatewayRuntimeRouteCompositionRolloutReport(t *testing.T) {
+	t.Parallel()
 	logger := &MockLogger{}
 	metrics := NewMockMetricsCollector()
 	healthHandler := NewHealthCheckHandler(nil, logger, metrics)

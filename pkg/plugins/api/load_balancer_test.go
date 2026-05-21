@@ -12,6 +12,7 @@ import (
 
 // TestNewLoadBalancer tests load balancer initialization
 func TestNewLoadBalancer(t *testing.T) {
+	t.Parallel()
 	lb := NewLoadBalancer("round-robin")
 
 	require.NotNil(t, lb)
@@ -21,6 +22,7 @@ func TestNewLoadBalancer(t *testing.T) {
 
 // TestNewLoadBalancerDefaultAlgorithm tests default algorithm
 func TestNewLoadBalancerDefaultAlgorithm(t *testing.T) {
+	t.Parallel()
 	lb := NewLoadBalancer("")
 
 	require.NotNil(t, lb)
@@ -29,6 +31,7 @@ func TestNewLoadBalancerDefaultAlgorithm(t *testing.T) {
 
 // TestAddHandler tests adding a handler
 func TestAddHandler(t *testing.T) {
+	t.Parallel()
 	lb := NewLoadBalancer("round-robin")
 	handler := NewHandler("h1", "Handler 1", "http://localhost:8001")
 
@@ -40,6 +43,7 @@ func TestAddHandler(t *testing.T) {
 
 // TestAddHandlerNil tests adding nil handler
 func TestAddHandlerNil(t *testing.T) {
+	t.Parallel()
 	lb := NewLoadBalancer("round-robin")
 
 	err := lb.AddHandler(nil)
@@ -50,6 +54,7 @@ func TestAddHandlerNil(t *testing.T) {
 
 // TestAddHandlerDuplicate tests adding duplicate handler
 func TestAddHandlerDuplicate(t *testing.T) {
+	t.Parallel()
 	lb := NewLoadBalancer("round-robin")
 	handler := NewHandler("h1", "Handler 1", "http://localhost:8001")
 
@@ -63,6 +68,7 @@ func TestAddHandlerDuplicate(t *testing.T) {
 
 // TestRemoveHandler tests removing a handler
 func TestRemoveHandler(t *testing.T) {
+	t.Parallel()
 	lb := NewLoadBalancer("round-robin")
 	handler := NewHandler("h1", "Handler 1", "http://localhost:8001")
 
@@ -76,6 +82,7 @@ func TestRemoveHandler(t *testing.T) {
 
 // TestRemoveHandlerNotFound tests removing nonexistent handler
 func TestRemoveHandlerNotFound(t *testing.T) {
+	t.Parallel()
 	lb := NewLoadBalancer("round-robin")
 
 	err := lb.RemoveHandler("nonexistent")
@@ -86,6 +93,7 @@ func TestRemoveHandlerNotFound(t *testing.T) {
 
 // TestSelectHandlerNoHandlers tests selecting with no handlers
 func TestSelectHandlerNoHandlers(t *testing.T) {
+	t.Parallel()
 	lb := NewLoadBalancer("round-robin")
 
 	handler, err := lb.SelectHandler()
@@ -97,6 +105,7 @@ func TestSelectHandlerNoHandlers(t *testing.T) {
 
 // TestSelectHandlerRoundRobin tests round-robin selection
 func TestSelectHandlerRoundRobin(t *testing.T) {
+	t.Parallel()
 	lb := NewLoadBalancer("round-robin")
 
 	h1 := NewHandler("h1", "Handler 1", "http://localhost:8001")
@@ -126,6 +135,7 @@ func TestSelectHandlerRoundRobin(t *testing.T) {
 
 // TestSelectHandlerWeighted tests weighted selection
 func TestSelectHandlerWeighted(t *testing.T) {
+	t.Parallel()
 	lb := NewLoadBalancer("weighted")
 
 	h1 := NewHandler("h1", "Handler 1", "http://localhost:8001")
@@ -161,6 +171,7 @@ func TestSelectHandlerWeighted(t *testing.T) {
 
 // TestSelectHandlerLeastConnections tests least connections selection
 func TestSelectHandlerLeastConnections(t *testing.T) {
+	t.Parallel()
 	lb := NewLoadBalancer("least-connections")
 
 	h1 := NewHandler("h1", "Handler 1", "http://localhost:8001")
@@ -190,6 +201,7 @@ func TestSelectHandlerLeastConnections(t *testing.T) {
 
 // TestSelectHandlerUnavailable tests selecting with unavailable handlers
 func TestSelectHandlerUnavailable(t *testing.T) {
+	t.Parallel()
 	lb := NewLoadBalancer("round-robin")
 
 	h1 := NewHandler("h1", "Handler 1", "http://localhost:8001")
@@ -211,6 +223,7 @@ func TestSelectHandlerUnavailable(t *testing.T) {
 
 // TestSelectHandlerAllUnavailable tests selecting when all handlers unavailable
 func TestSelectHandlerAllUnavailable(t *testing.T) {
+	t.Parallel()
 	lb := NewLoadBalancer("round-robin")
 
 	h1 := NewHandler("h1", "Handler 1", "http://localhost:8001")
@@ -233,6 +246,7 @@ func TestSelectHandlerAllUnavailable(t *testing.T) {
 
 // TestGetMetrics tests getting load balancer metrics
 func TestGetMetrics(t *testing.T) {
+	t.Parallel()
 	lb := NewLoadBalancer("round-robin")
 
 	h1 := NewHandler("h1", "Handler 1", "http://localhost:8001")
@@ -258,6 +272,7 @@ func TestGetMetrics(t *testing.T) {
 
 // TestGetHandlers tests getting handlers list
 func TestGetHandlers(t *testing.T) {
+	t.Parallel()
 	lb := NewLoadBalancer("round-robin")
 
 	h1 := NewHandler("h1", "Handler 1", "http://localhost:8001")
@@ -277,6 +292,7 @@ func TestGetHandlers(t *testing.T) {
 
 // TestGetAvailableHandlers tests getting available handlers
 func TestGetAvailableHandlers(t *testing.T) {
+	t.Parallel()
 	lb := NewLoadBalancer("round-robin")
 
 	h1 := NewHandler("h1", "Handler 1", "http://localhost:8001")
@@ -301,6 +317,7 @@ func TestGetAvailableHandlers(t *testing.T) {
 
 // TestSetAlgorithm tests setting algorithm
 func TestSetAlgorithm(t *testing.T) {
+	t.Parallel()
 	lb := NewLoadBalancer("round-robin")
 
 	lb.SetAlgorithm("weighted")
@@ -310,6 +327,7 @@ func TestSetAlgorithm(t *testing.T) {
 
 // TestGetAlgorithm tests getting algorithm
 func TestGetAlgorithm(t *testing.T) {
+	t.Parallel()
 	lb := NewLoadBalancer("least-connections")
 
 	algorithm := lb.GetAlgorithm()
@@ -319,6 +337,7 @@ func TestGetAlgorithm(t *testing.T) {
 
 // TestConcurrentSelection tests concurrent handler selection
 func TestConcurrentSelection(t *testing.T) {
+	t.Parallel()
 	lb := NewLoadBalancer("round-robin")
 
 	h1 := NewHandler("h1", "Handler 1", "http://localhost:8001")
@@ -361,6 +380,7 @@ func TestConcurrentSelection(t *testing.T) {
 
 // TestConcurrentAddRemove tests concurrent add/remove operations
 func TestConcurrentAddRemove(t *testing.T) {
+	t.Parallel()
 	lb := NewLoadBalancer("round-robin")
 
 	var wg sync.WaitGroup
@@ -395,6 +415,7 @@ func TestConcurrentAddRemove(t *testing.T) {
 
 // TestDistributionMetrics tests distribution metrics calculation
 func TestDistributionMetrics(t *testing.T) {
+	t.Parallel()
 	lb := NewLoadBalancer("round-robin")
 
 	h1 := NewHandler("h1", "Handler 1", "http://localhost:8001")
@@ -422,6 +443,7 @@ func TestDistributionMetrics(t *testing.T) {
 
 // TestWeightedWithZeroWeights tests weighted algorithm with zero weights
 func TestWeightedWithZeroWeights(t *testing.T) {
+	t.Parallel()
 	lb := NewLoadBalancer("weighted")
 
 	h1 := NewHandler("h1", "Handler 1", "http://localhost:8001")
@@ -443,6 +465,7 @@ func TestWeightedWithZeroWeights(t *testing.T) {
 
 // TestMultipleAlgorithms tests switching between algorithms
 func TestMultipleAlgorithms(t *testing.T) {
+	t.Parallel()
 	lb := NewLoadBalancer("round-robin")
 
 	h1 := NewHandler("h1", "Handler 1", "http://localhost:8001")
@@ -471,6 +494,7 @@ func TestMultipleAlgorithms(t *testing.T) {
 
 // TestHandlerMetricsRecording tests handler metrics recording
 func TestHandlerMetricsRecording(t *testing.T) {
+	t.Parallel()
 	handler := NewHandler("h1", "Handler 1", "http://localhost:8001")
 
 	handler.RecordRequest(10*time.Millisecond, true)
@@ -487,6 +511,7 @@ func TestHandlerMetricsRecording(t *testing.T) {
 
 // TestHandlerSuccessRate tests handler success rate calculation
 func TestHandlerSuccessRate(t *testing.T) {
+	t.Parallel()
 	handler := NewHandler("h1", "Handler 1", "http://localhost:8001")
 
 	handler.RecordRequest(10*time.Millisecond, true)
@@ -500,6 +525,7 @@ func TestHandlerSuccessRate(t *testing.T) {
 
 // TestHandlerAvailability tests handler availability
 func TestHandlerAvailability(t *testing.T) {
+	t.Parallel()
 	handler := NewHandler("h1", "Handler 1", "http://localhost:8001")
 
 	assert.True(t, handler.IsAvailable())
@@ -513,6 +539,7 @@ func TestHandlerAvailability(t *testing.T) {
 
 // TestLoadBalancerMetricsAccuracy tests metrics accuracy
 func TestLoadBalancerMetricsAccuracy(t *testing.T) {
+	t.Parallel()
 	lb := NewLoadBalancer("round-robin")
 
 	h1 := NewHandler("h1", "Handler 1", "http://localhost:8001")
@@ -539,6 +566,7 @@ func TestLoadBalancerMetricsAccuracy(t *testing.T) {
 
 // TestHandlerString tests handler string representation
 func TestHandlerString(t *testing.T) {
+	t.Parallel()
 	handler := NewHandler("h1", "Handler 1", "http://localhost:8001")
 
 	str := handler.String()
@@ -550,6 +578,7 @@ func TestHandlerString(t *testing.T) {
 
 // TestLoadBalancerWithSingleHandler tests load balancer with single handler
 func TestLoadBalancerWithSingleHandler(t *testing.T) {
+	t.Parallel()
 	lb := NewLoadBalancer("round-robin")
 
 	h1 := NewHandler("h1", "Handler 1", "http://localhost:8001")
@@ -566,6 +595,7 @@ func TestLoadBalancerWithSingleHandler(t *testing.T) {
 
 // TestHandlerErrorRecording tests handler error recording
 func TestHandlerErrorRecording(t *testing.T) {
+	t.Parallel()
 	handler := NewHandler("h1", "Handler 1", "http://localhost:8001")
 
 	handler.RecordError("connection timeout")
@@ -578,6 +608,7 @@ func TestHandlerErrorRecording(t *testing.T) {
 
 // TestLoadBalancerMetricsReset tests metrics after handler removal
 func TestLoadBalancerMetricsReset(t *testing.T) {
+	t.Parallel()
 	lb := NewLoadBalancer("round-robin")
 
 	h1 := NewHandler("h1", "Handler 1", "http://localhost:8001")

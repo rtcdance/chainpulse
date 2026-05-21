@@ -1,6 +1,7 @@
 package core
 
 import (
+	"context"
 	"fmt"
 	"testing"
 )
@@ -177,12 +178,12 @@ func TestPropertyRegistryStartStopConsistency(t *testing.T) {
 		}
 	}
 
-	err := registry.Start()
+	err := registry.Start(context.Background())
 	if err != nil {
 		t.Errorf("expected Start() to succeed, got error %v", err)
 	}
 
-	err = registry.Stop()
+	err = registry.Stop(context.Background())
 	if err != nil {
 		t.Errorf("expected Stop() to succeed, got error %v", err)
 	}

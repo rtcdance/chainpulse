@@ -3,6 +3,7 @@ package core
 import "testing"
 
 func TestRequestMetadataRuntimeMetricsUnobserved(t *testing.T) {
+	t.Parallel()
 	metadata := RequestMetadata{
 		Protocol: ProtocolUnknown,
 	}
@@ -17,6 +18,7 @@ func TestRequestMetadataRuntimeMetricsUnobserved(t *testing.T) {
 }
 
 func TestRequestMetadataRuntimeMetricsReady(t *testing.T) {
+	t.Parallel()
 	metadata := RequestMetadata{
 		Protocol:      ProtocolHTTP,
 		ClientIP:      "127.0.0.1",
@@ -36,6 +38,7 @@ func TestRequestMetadataRuntimeMetricsReady(t *testing.T) {
 }
 
 func TestResponseMetadataRuntimeMetricsWatch(t *testing.T) {
+	t.Parallel()
 	metadata := ResponseMetadata{
 		Protocol:      ProtocolHTTP,
 		ContentLength: 128,
@@ -53,6 +56,7 @@ func TestResponseMetadataRuntimeMetricsWatch(t *testing.T) {
 }
 
 func TestResponseMetadataRuntimeMetricsReady(t *testing.T) {
+	t.Parallel()
 	metadata := ResponseMetadata{
 		Protocol:      ProtocolGRPC,
 		ContentLength: 512,
