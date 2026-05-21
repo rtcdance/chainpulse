@@ -245,7 +245,7 @@ func buildAPIServiceSkeletonApprovalFlowInput() api.RolloutReportApprovalFlowInp
 }
 
 func buildAPIServiceSkeletonApprovalWorkItemInput() api.RolloutReportApprovalWorkItemInput {
-	state := api.BuildRouteOwnershipParityStateFromSource("api-service", buildAPIServiceOwnershipParitySource(false), "rollout_effective_state", "rollout_cutover_candidate")
+	state := api.BuildRouteOwnershipParityStateFromSource("api-service", buildAPIServiceOwnershipParitySource(/* runtimeSignalsPresent= */ false), "rollout_effective_state", "rollout_cutover_candidate")
 	return api.BuildOwnershipParityApprovalWorkItem(api.OwnershipParityApprovalWorkItemInput{
 		State:  state,
 		Status: "investigate",

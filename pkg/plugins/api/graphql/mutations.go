@@ -227,14 +227,18 @@ func (mb *MutationBuilder) resolveRefreshEventCache(p graphql.ResolveParams) (an
 }
 
 // resolveWarmCache warms cache with recent events
+const (
+	defaultWarmCacheLimit = 100
+	maxWarmCacheLimit     = 1000
+)
+
 func (mb *MutationBuilder) resolveWarmCache(p graphql.ResolveParams) (any, error) {
 	// Limit maximum warm cache size
-	limit := 100
-	if l, ok := p.Args["limit"].(int); ok && l > 0 {
+	limit := defaultWarmCacheLimit
+	if l, ok := p.Args["limit"].(int); ok && l > 0 && l <= maxWarmCacheLimit {
 		limit = l
-	}
-	if limit > 1000 {
-		limit = 1000
+	} else if ok && l > maxWarmCacheLimit {
+		limit = maxWarmCacheLimit
 	}
 
 	start := time.Now()

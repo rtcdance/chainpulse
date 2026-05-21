@@ -10,9 +10,6 @@ import (
 	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
-// Ensure atomic types are properly imported
-var _ atomic.Int64
-
 // CriticalErrorType represents the type of critical error
 type CriticalErrorType string
 
@@ -142,6 +139,8 @@ func (ceh *DefaultCriticalErrorHandler) ReportCriticalError(ctx context.Context,
 		atomic.AddInt64(&ceh.securityBreachDetected, 1)
 	case CriticalErrorTypeResourceExhaustion:
 		atomic.AddInt64(&ceh.resourceExhaustionCount, 1)
+	default:
+		atomic.AddInt64(&ceh.unknownErrorsDetected, 1)
 	}
 
 	// Store error
