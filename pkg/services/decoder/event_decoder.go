@@ -56,7 +56,7 @@ func (ed *EventDecoder) DecodeEvent(
 	eventSig := rawEvent.Topics[0]
 	event, err := ed.lookupEvent(contractABI, eventSig)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("lookup event by signature %s: %w", eventSig.Hex(), err)
 	}
 
 	// Decode indexed and non-indexed parameters

@@ -45,7 +45,7 @@ func (s *LegacyRuntimeSink) Persist(ctx context.Context, events []core.EventEnve
 	for _, envelope := range events {
 		event, err := eventFromEnvelope(envelope)
 		if err != nil {
-			return err
+			return fmt.Errorf("convert envelope to event: %w", err)
 		}
 
 		if event.IndexedAt.IsZero() {

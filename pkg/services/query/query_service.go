@@ -81,7 +81,7 @@ func (qs *DefaultQueryService) Initialize(ctx context.Context) error {
 	}
 
 	if err := qs.postgresAdapter.Initialize(ctx); err != nil {
-		return fmt.Errorf("failed to initialize PostgreSQL adapter: %w", err)
+		qs.logger.Warn("failed to initialize PostgreSQL adapter, falling back to MongoDB only", "error", err.Error())
 	}
 
 	if err := qs.cacheService.Initialize(ctx); err != nil {
@@ -358,7 +358,7 @@ func (qs *DefaultQueryService) InvalidateCache(ctx context.Context, key string) 
 
 	if err := qs.cacheService.Delete(ctx, key); err != nil {
 		qs.logger.Error("Failed to invalidate cache", core.LogKeyKey, key, core.LogKeyError, err)
-		return err
+		return fmt.Errorf("invalidate cache key %s: %w", key, err)
 	}
 
 	qs.logger.Info("Cache invalidated", core.LogKeyKey, key)

@@ -144,6 +144,11 @@ func (p *RedisMQPlugin) Stop(ctx context.Context) error {
 
 	done := make(chan struct{})
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				p.logger.Error("goroutine panic recovered", "panic", r)
+			}
+		}()
 		p.inFlight.Wait()
 		close(done)
 	}()
@@ -254,7 +259,7 @@ func (p *RedisMQPlugin) Subscribe(ctx context.Context, topic string, handler fun
 		return fmt.Errorf("already subscribed to topic: %s", topic)
 	}
 
-	subCtx, cancel := context.WithCancel(context.Background())
+	subCtx, cancel := context.WithCancel(ctx)
 	p.subCancellers[topic] = cancel
 	client := p.client
 	p.mu.Unlock()
@@ -266,6 +271,11 @@ func (p *RedisMQPlugin) Subscribe(ctx context.Context, topic string, handler fun
 
 	go func() {
 		defer cancel()
+		defer func() {
+			if r := recover(); r != nil {
+				p.logger.Error("goroutine panic recovered", "panic", r)
+			}
+		}()
 		queueKey := fmt.Sprintf("queue:%s", topic)
 		p.logger.Info("subscribing to Redis queue", "topic", topic)
 

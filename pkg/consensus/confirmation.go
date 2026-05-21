@@ -177,6 +177,11 @@ func (t *ConfirmationTracker) AdvanceBlock(blockNumber uint64) []core.EventStatu
 		t.wg.Add(1)
 		go func() {
 			defer t.wg.Done()
+			defer func() {
+				if r := recover(); r != nil {
+					slog.Error("goroutine panic recovered", "panic", r)
+				}
+			}()
 			defer func() { <-t.reconcileSem }()
 			select {
 			case <-t.done:

@@ -164,7 +164,7 @@ func (f *rpcFinalityChecker) GetFinalizedBlockNumber(ctx context.Context, chainI
 func (f *rpcFinalityChecker) IsBlockFinalized(ctx context.Context, chainID string, blockNumber uint64) (bool, error) {
 	result, err := f.IsBlockFinalizedWithStatus(ctx, chainID, blockNumber)
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("check block %d finality for chain %s: %w", blockNumber, chainID, err)
 	}
 	return result.IsFinalized, nil
 }
@@ -176,7 +176,7 @@ func (f *rpcFinalityChecker) IsBlockFinalized(ctx context.Context, chainID strin
 func (f *rpcFinalityChecker) IsBlockFinalizedWithStatus(ctx context.Context, chainID string, blockNumber uint64) (*FinalityResult, error) {
 	finalized, err := f.GetFinalizedBlockNumber(ctx, chainID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("get finalized block number for chain %s: %w", chainID, err)
 	}
 	return &FinalityResult{
 		IsFinalized: blockNumber <= finalized,

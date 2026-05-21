@@ -383,7 +383,7 @@ func (cm *CachingMiddleware) GetCached(query string) (any, error) {
 	result, err := cm.cache.Get(context.Background(), cacheKey)
 	if err != nil {
 		cm.metrics.RecordCounter("graphql_cache_miss", 1, nil)
-		return nil, err
+		return nil, fmt.Errorf("cache get failed: %w", err)
 	}
 
 	cm.logger.Debug("Query result cached", "query", query)

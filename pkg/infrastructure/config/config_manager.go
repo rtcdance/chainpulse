@@ -101,7 +101,7 @@ func (cm *ConfigManager) SetConfig(ctx context.Context, key, value string) error
 
 	// Store in Consul
 	if err := cm.consul.SetConfig(ctx, key, value); err != nil {
-		return err
+		return fmt.Errorf("failed to set config in Consul: %w", err)
 	}
 
 	// Update cache
@@ -171,6 +171,11 @@ func (cm *ConfigManager) notifyWatchers(key, value string) {
 		cm.watcherWg.Add(1)
 		go func(fn func(string)) {
 			defer cm.watcherWg.Done()
+			defer func() {
+				if r := recover(); r != nil {
+					slog.Error("goroutine panic recovered", "panic", r)
+				}
+			}()
 			fn(value)
 		}(watcher)
 	}
@@ -314,7 +319,7 @@ func NewVersionedConfigManager(cm *ConfigManager) *VersionedConfigManager {
 // SetConfigWithVersion sets a configuration value with versioning
 func (vcm *VersionedConfigManager) SetConfigWithVersion(ctx context.Context, key, value, author string) error {
 	if err := vcm.cm.SetConfig(ctx, key, value); err != nil {
-		return err
+		return fmt.Errorf("failed to set config with versioning: %w", err)
 	}
 
 	vcm.vMutex.Lock()
@@ -365,7 +370,7 @@ func (vcm *VersionedConfigManager) GetConfigHistory(key string) ([]*ConfigVersio
 func (vcm *VersionedConfigManager) RollbackConfig(ctx context.Context, key string, version int, author string) error {
 	configVersion, err := vcm.GetConfigVersion(key, version)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to get config version %d for key %s: %w", version, key, err)
 	}
 
 	return vcm.SetConfigWithVersion(ctx, key, configVersion.Value, author)

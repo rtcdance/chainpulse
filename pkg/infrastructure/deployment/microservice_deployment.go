@@ -396,7 +396,9 @@ func (md *MicroserviceDeployment) heartbeatLoop() {
 					md.serviceName, md.instanceID, time.Now().Unix()))
 
 				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-				_ = md.mqPlugin.Publish(ctx, md.coordinationTopic, msgBytes)
+				if err := md.mqPlugin.Publish(ctx, md.coordinationTopic, msgBytes); err != nil {
+					md.logger.Error("Failed to publish heartbeat", core.LogKeyError, err)
+				}
 				cancel()
 			}
 

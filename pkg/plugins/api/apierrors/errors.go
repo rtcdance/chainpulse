@@ -46,7 +46,8 @@ func (ae *APIError) WriteHTTP(w http.ResponseWriter) {
 
 // IsAPIError checks if an error is an APIError.
 func IsAPIError(err error) (*APIError, bool) {
-	if ae, ok := err.(*APIError); ok {
+	var ae *APIError
+	if errors.As(err, &ae) {
 		return ae, true
 	}
 	return nil, false
@@ -62,7 +63,8 @@ func MapErrorToAPIError(err error) *APIError {
 	}
 
 	// Already an APIError — return as-is
-	if ae, ok := err.(*APIError); ok {
+	var ae *APIError
+	if errors.As(err, &ae) {
 		return ae
 	}
 

@@ -951,6 +951,7 @@ func (gri *GatewayRouterIntegration) tryForwardQueryRequest(w http.ResponseWrite
 
 	var bodyBytes []byte
 	if r != nil && r.Body != nil {
+		r.Body = http.MaxBytesReader(w, r.Body, 10<<20)
 		consumedBody, err := io.ReadAll(r.Body)
 		if err != nil {
 			gri.logger.Error("Failed to read gateway request body", "routeId", route.ID, "error", err.Error())

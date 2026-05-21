@@ -150,7 +150,7 @@ func (cc *ConsistencyChecker) getEventCount(ctx context.Context) (int64, error) 
 	// This is a simplified implementation - in production, you'd want a dedicated count method
 	events, err := cc.eventStore.GetEventsByChain(ctx, 0, 1000000, 0)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("get event count: %w", err)
 	}
 	return int64(len(events)), nil
 }
@@ -161,7 +161,7 @@ func (cc *ConsistencyChecker) getMetadataCount(ctx context.Context) (int64, erro
 	// This is a simplified implementation - in production, you'd want a dedicated count method
 	metadata, err := cc.metadataStore.GetMetadataByChain(ctx, 0, 1000000, 0)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("get metadata count: %w", err)
 	}
 	return int64(len(metadata)), nil
 }
@@ -171,7 +171,7 @@ func (cc *ConsistencyChecker) checkOrphanedMetadata(ctx context.Context) (int64,
 	// Get all metadata
 	metadata, err := cc.metadataStore.GetMetadataByChain(ctx, 0, 1000000, 0)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("check orphaned metadata: %w", err)
 	}
 
 	var orphanedCount int64
@@ -191,7 +191,7 @@ func (cc *ConsistencyChecker) checkMissingMetadata(ctx context.Context) (int64, 
 	// Get all events
 	events, err := cc.eventStore.GetEventsByChain(ctx, 0, 1000000, 0)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("check missing metadata: %w", err)
 	}
 
 	var missingCount int64
@@ -211,7 +211,7 @@ func (cc *ConsistencyChecker) checkEventIntegrity(ctx context.Context) (int64, e
 	// Get all events
 	events, err := cc.eventStore.GetEventsByChain(ctx, 0, 1000000, 0)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("check event integrity: %w", err)
 	}
 
 	var corruptedCount int64

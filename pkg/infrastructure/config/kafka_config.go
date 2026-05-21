@@ -182,7 +182,7 @@ func (k *KafkaCluster) Close() error {
 func WaitForKafka(ctx context.Context, cfg *KafkaConfig, timeout time.Duration) error {
 	cluster, err := NewKafkaCluster(cfg)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to create Kafka cluster: %w", err)
 	}
 	defer func() {
 		if err := cluster.Close(); err != nil {

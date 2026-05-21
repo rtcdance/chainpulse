@@ -175,7 +175,7 @@ func (c *ConsulClient) Close() error {
 func WaitForConsul(ctx context.Context, cfg *ConsulConfig, timeout time.Duration) error {
 	client, err := NewConsulClient(cfg)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to create Consul client: %w", err)
 	}
 	defer func() {
 		if err := client.Close(); err != nil {

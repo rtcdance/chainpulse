@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"sync"
@@ -98,7 +99,7 @@ func (r *GraphQLRequest) GetGraphQLQuery() (string, error) {
 func (r *GraphQLRequest) GetGraphQLVariables() (map[string]any, error) {
 	var payload map[string]any
 	if err := json.Unmarshal(r.body, &payload); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to unmarshal GraphQL request body: %w", err)
 	}
 
 	variables, ok := payload["variables"].(map[string]any)

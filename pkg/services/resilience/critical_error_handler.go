@@ -451,7 +451,7 @@ func (cea *DefaultCriticalErrorAlerter) SendAlert(ctx context.Context, alert Cri
 		err := fmt.Errorf("alert error message is empty")
 		cea.lastAlertError = err
 		cea.lastAlertTime = time.Now()
-		return err
+		return fmt.Errorf("send alert: %w", err)
 	}
 
 	// Store alert in history

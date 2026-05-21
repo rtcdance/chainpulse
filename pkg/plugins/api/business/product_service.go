@@ -56,7 +56,7 @@ func NewProductService(backend ProductBackend, cache ServiceCache) *ProductServi
 func (s *ProductService) CreateProduct(ctx context.Context, product *Product) (*Product, error) {
 	entity, err := s.Create(ctx, product)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create product: %w", err)
 	}
 	product, ok := entity.(*Product)
 	if !ok {
@@ -69,7 +69,7 @@ func (s *ProductService) CreateProduct(ctx context.Context, product *Product) (*
 func (s *ProductService) GetProduct(ctx context.Context, id string) (*Product, error) {
 	entity, err := s.Read(ctx, id)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get product: %w", err)
 	}
 	product, ok := entity.(*Product)
 	if !ok {
@@ -82,7 +82,7 @@ func (s *ProductService) GetProduct(ctx context.Context, id string) (*Product, e
 func (s *ProductService) UpdateProduct(ctx context.Context, product *Product) (*Product, error) {
 	entity, err := s.Update(ctx, product)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to update product: %w", err)
 	}
 	p, ok := entity.(*Product)
 	if !ok {
@@ -100,7 +100,7 @@ func (s *ProductService) DeleteProduct(ctx context.Context, id string) error {
 func (s *ProductService) ListProducts(ctx context.Context, limit, offset int) ([]*Product, error) {
 	entities, err := s.List(ctx, limit, offset)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to list products: %w", err)
 	}
 
 	products := make([]*Product, len(entities))
@@ -118,7 +118,7 @@ func (s *ProductService) ListProducts(ctx context.Context, limit, offset int) ([
 func (s *ProductService) QueryProducts(ctx context.Context, filter map[string]any, limit, offset int) ([]*Product, error) {
 	entities, err := s.Query(ctx, filter, limit, offset)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to query products: %w", err)
 	}
 
 	products := make([]*Product, len(entities))
@@ -149,7 +149,7 @@ func (s *ProductService) GetProductsByCategory(ctx context.Context, category str
 	// Query backend
 	products, err := s.backend.GetByCategory(ctx, category, limit, offset)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get products by category: %w", err)
 	}
 
 	// Cache result
@@ -167,7 +167,7 @@ func (s *ProductService) UpdateProductStock(ctx context.Context, id string, quan
 	// Update in backend
 	err := s.backend.UpdateStock(ctx, id, quantity)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to update product stock: %w", err)
 	}
 
 	// Invalidate cache for this product
@@ -213,7 +213,7 @@ func (a *productServiceAdapter) Delete(ctx context.Context, id string) error {
 func (a *productServiceAdapter) List(ctx context.Context, limit, offset int) ([]Entity, error) {
 	products, err := a.backend.List(ctx, limit, offset)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to list products from backend: %w", err)
 	}
 
 	entities := make([]Entity, len(products))
@@ -226,7 +226,7 @@ func (a *productServiceAdapter) List(ctx context.Context, limit, offset int) ([]
 func (a *productServiceAdapter) Query(ctx context.Context, filter map[string]any, limit, offset int) ([]Entity, error) {
 	products, err := a.backend.Query(ctx, filter, limit, offset)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to query products from backend: %w", err)
 	}
 
 	entities := make([]Entity, len(products))

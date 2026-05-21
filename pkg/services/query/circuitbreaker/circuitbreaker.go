@@ -81,12 +81,12 @@ func (cb *CircuitBreaker) Call(fn func() error) error {
 
 func (cb *CircuitBreaker) CallWithContext(ctx context.Context, fn func() error) error {
 	if err := ctx.Err(); err != nil {
-		return err
+		return fmt.Errorf("circuit breaker context error: %w", err)
 	}
 	cb.mu.Lock()
 	if err := ctx.Err(); err != nil {
 		cb.mu.Unlock()
-		return err
+		return fmt.Errorf("circuit breaker context error after lock: %w", err)
 	}
 	if cb.state == StateOpen {
 		if time.Since(cb.lastFailureTime) > cb.config.Timeout {
@@ -116,13 +116,13 @@ func (cb *CircuitBreaker) CallWithContext(ctx context.Context, fn func() error) 
 		defer cb.mu.Unlock()
 		if err != nil {
 			if ctx.Err() != nil {
-				return ctx.Err()
+				return fmt.Errorf("circuit breaker half-open context error: %w", ctx.Err())
 			}
 			cb.recordFailure()
 		} else {
 			cb.recordSuccess()
 		}
-		return err
+		return fmt.Errorf("circuit breaker half-open call failed: %w", err)
 	}
 	cb.mu.Unlock()
 	err := fn()
@@ -130,13 +130,13 @@ func (cb *CircuitBreaker) CallWithContext(ctx context.Context, fn func() error) 
 	defer cb.mu.Unlock()
 	if err != nil {
 		if ctx.Err() != nil {
-			return ctx.Err()
+			return fmt.Errorf("circuit breaker closed context error: %w", ctx.Err())
 		}
 		cb.recordFailure()
 	} else {
 		cb.recordSuccess()
 	}
-	return err
+	return fmt.Errorf("circuit breaker call failed: %w", err)
 }
 
 func (cb *CircuitBreaker) recordFailure() {

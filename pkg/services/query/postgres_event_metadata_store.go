@@ -559,7 +559,7 @@ func scanEventMetadataRow(scanner metadataRowScanner) (*EventMetadata, error) {
 		&metadata.CreatedAt, &metadata.UpdatedAt,
 	)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("scan metadata row: %w", err)
 	}
 	if processingError.Valid {
 		metadata.ProcessingError = processingError.String

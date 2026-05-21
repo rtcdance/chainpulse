@@ -622,7 +622,11 @@ func (p *HTTPSJSONRPCPuller) getLatestBlockNumber(ctx context.Context) (uint64, 
 		return 0, err
 	}
 
-	blockNumber := result.(uint64)
+	blockNumber, ok := result.(uint64)
+	if !ok {
+		p.LogError("getLatestBlockNumber: unexpected block number type", "type", fmt.Sprintf("%T", result))
+		return 0, fmt.Errorf("unexpected block number type: %T", result)
+	}
 	p.LogInfo("getLatestBlockNumber: success", "block", blockNumber)
 	return blockNumber, nil
 }

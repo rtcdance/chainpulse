@@ -77,7 +77,7 @@ func (sb *SchemaBuilder) subscribeEventCreated(p graphql.ResolveParams) (any, er
 
 	sub, err := sb.subscriptionManager.Subscribe("event:created")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to subscribe to event:created: %w", err)
 	}
 
 	filtered := make(chan any, 100)
@@ -121,7 +121,7 @@ func (sb *SchemaBuilder) subscribeEventConfirmed(p graphql.ResolveParams) (any, 
 
 	sub, err := sb.subscriptionManager.Subscribe("event:confirmed")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to subscribe to event:confirmed: %w", err)
 	}
 
 	ch := make(chan any, 100)
@@ -159,7 +159,7 @@ func (sb *SchemaBuilder) subscribeEventFailed(p graphql.ResolveParams) (any, err
 
 	sub, err := sb.subscriptionManager.Subscribe("event:failed")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to subscribe to event:failed: %w", err)
 	}
 
 	ch := make(chan any, 100)
@@ -890,7 +890,7 @@ func (sb *SchemaBuilder) resolveEventsByName(p graphql.ResolveParams) (any, erro
 
 func (sb *SchemaBuilder) resolveInvalidateCache(p graphql.ResolveParams) (any, error) {
 	if err := sb.requireMutationAuth(p); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("mutation auth failed: %w", err)
 	}
 
 	eventID, ok := p.Args["eventId"].(string)
@@ -912,7 +912,7 @@ func (sb *SchemaBuilder) resolveInvalidateCache(p graphql.ResolveParams) (any, e
 
 func (sb *SchemaBuilder) resolveClearCache(p graphql.ResolveParams) (any, error) {
 	if err := sb.requireMutationAuth(p); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("mutation auth failed: %w", err)
 	}
 
 	if sb.cache != nil {

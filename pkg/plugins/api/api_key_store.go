@@ -142,11 +142,16 @@ func (s *APIKeyStore) ValidateAPIKey(ctx context.Context, plainKey string) (*API
 	s.wg.Add(1)
 	go func() {
 		defer s.wg.Done()
+		defer func() {
+			if r := recover(); r != nil {
+				s.logger.Error("goroutine panic recovered", "panic", r)
+			}
+		}()
 		select {
 		case <-s.done:
 			return
 		default:
-			updateCtx, updateCancel := context.WithTimeout(context.Background(), 5*time.Second)
+			updateCtx, updateCancel := context.WithTimeout(ctx, 5*time.Second)
 			_, err := s.db.ExecContext(updateCtx,
 				`UPDATE api_keys SET last_used_at = NOW(), request_count = request_count + 1 WHERE id = $1`, id)
 			updateCancel()
@@ -298,7 +303,9 @@ func (s *APIKeyStore) getKeyByID(ctx context.Context, id string) (*APIKeyRecord,
 	if err != nil {
 		return nil, err
 	}
-	json.Unmarshal([]byte(permsJSON), &k.Permissions) //nolint:errcheck
+	if err := json.Unmarshal([]byte(permsJSON), &k.Permissions); err != nil {
+		k.Permissions = []string{}
+	}
 	return &k, nil
 }
 

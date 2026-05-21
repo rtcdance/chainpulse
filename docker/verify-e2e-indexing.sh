@@ -67,7 +67,7 @@ get_chains() {
 get_api_base() {
     local stack=$(detect_stack)
     if [ "$stack" = "microservices" ]; then
-        echo "http://localhost:18080"
+        echo "http://localhost:28080"
     elif [ "$stack" = "monolithic" ]; then
         echo "http://localhost:8080"
     else

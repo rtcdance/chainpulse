@@ -315,6 +315,11 @@ func (h *WebSocketHandler) manageConnection(wsConn *WSConnection) {
 
 	// Start a dedicated blocking read goroutine
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("goroutine panic recovered", "panic", r)
+			}
+		}()
 		for {
 			wsConn.mu.Lock()
 			if err := wsConn.conn.SetReadDeadline(time.Now().Add(h.connectionTimeout)); err != nil {
@@ -479,6 +484,11 @@ func (h *WebSocketHandler) AddSubscription(connID string, subID string, topic st
 		afterSeq := wsConn.lastEventSeq[topic]
 		if entries := h.hub.GetReplayEvents(topic, afterSeq); len(entries) > 0 {
 			go func() {
+				defer func() {
+					if r := recover(); r != nil {
+						slog.Error("goroutine panic recovered", "panic", r)
+					}
+				}()
 				for _, entry := range entries {
 					msg, _ := json.Marshal(map[string]any{
 						"type":         "data",

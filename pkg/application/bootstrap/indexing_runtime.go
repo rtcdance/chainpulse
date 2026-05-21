@@ -313,7 +313,7 @@ func (s *monolithicMemoryFailureJournal) ReplayRange(
 ) ([]appindexing.EventEnvelope, error) {
 	replayed, err := s.Replay(ctx, chainID, from)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to replay events for chain %s: %w", chainID, err)
 	}
 
 	filtered := make([]appindexing.EventEnvelope, 0, len(replayed))

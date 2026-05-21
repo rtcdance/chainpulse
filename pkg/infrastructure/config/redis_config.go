@@ -69,7 +69,7 @@ func (r *RedisCluster) Close() error {
 func WaitForRedis(ctx context.Context, cfg *RedisConfig, timeout time.Duration) error {
 	cluster, err := NewRedisCluster(cfg)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to create Redis cluster: %w", err)
 	}
 	defer func() {
 		if err := cluster.Close(); err != nil {

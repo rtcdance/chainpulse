@@ -108,6 +108,13 @@ func (b *ChannelEventBus) SubscribeNamed(ctx context.Context, topic, name string
 	b.mu.Unlock()
 
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				if b.logger != nil {
+					b.logger.Error("goroutine panic recovered", "panic", r)
+				}
+			}
+		}()
 		for {
 			select {
 			case event, ok := <-sub.ch:

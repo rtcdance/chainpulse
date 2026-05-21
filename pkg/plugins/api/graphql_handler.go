@@ -375,6 +375,7 @@ func (h *GraphQLHandler) handlePost(w http.ResponseWriter, r *http.Request) {
 
 	if strings.Contains(contentType, "application/json") {
 		var gqlReq GraphQLRequest
+		r.Body = http.MaxBytesReader(w, r.Body, 2<<20)
 		if err := json.NewDecoder(r.Body).Decode(&gqlReq); err != nil {
 			h.writeError(w, http.StatusBadRequest, "invalid JSON in request body")
 			return

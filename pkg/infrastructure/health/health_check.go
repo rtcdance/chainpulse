@@ -233,6 +233,11 @@ func (hcs *HealthCheckSystem) performAllHealthChecks(ctx context.Context) {
 		hcs.wg.Add(1)
 		go func(sid string, ep *HealthCheckEndpoint) {
 			defer hcs.wg.Done()
+			defer func() {
+				if r := recover(); r != nil {
+					slog.Error("goroutine panic recovered", "panic", r)
+				}
+			}()
 			hcs.performHealthCheck(ctx, sid, ep)
 		}(serviceID, endpoint)
 	}

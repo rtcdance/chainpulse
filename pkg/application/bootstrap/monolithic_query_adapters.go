@@ -108,7 +108,7 @@ func (s *MonolithicIndexingEventStore) GetEventsPaginated(ctx context.Context, c
 			// Find the offset by locating the event with matching block+logIndex
 			allEvents, err := s.loadAllEvents(ctx)
 			if err != nil {
-				return nil, false, err
+				return nil, false, fmt.Errorf("load all events for cursor pagination: %w", err)
 			}
 			for i, e := range allEvents {
 				if e.BlockNumber == pc.BlockNumber && e.LogIndex == pc.LogIndex {
@@ -130,12 +130,12 @@ func (s *MonolithicIndexingEventStore) GetEventsPaginated(ctx context.Context, c
 		return event != nil
 	})
 	if err != nil {
-		return nil, false, err
+		return nil, false, fmt.Errorf("filter events for pagination: %w", err)
 	}
 
 	allEvents, err := s.loadAllEvents(ctx)
 	if err != nil {
-		return nil, false, err
+		return nil, false, fmt.Errorf("load all events for pagination: %w", err)
 	}
 
 	hasMore := offset+len(events) < len(allEvents)
@@ -145,7 +145,7 @@ func (s *MonolithicIndexingEventStore) GetEventsPaginated(ctx context.Context, c
 func (s *MonolithicIndexingEventStore) GetEventsByCorrelationID(ctx context.Context, correlationID string, limit int, offset int) ([]*core.BlockchainEvent, error) {
 	allEvents, err := s.loadAllEvents(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("load all events for correlation ID: %w", err)
 	}
 
 	var matched []*core.BlockchainEvent
@@ -171,7 +171,7 @@ func (s *MonolithicIndexingEventStore) GetEventsByCorrelationID(ctx context.Cont
 func (s *MonolithicIndexingEventStore) CountEvents(ctx context.Context) (int64, error) {
 	allEvents, err := s.loadAllEvents(ctx)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("count events: %w", err)
 	}
 	return int64(len(allEvents)), nil
 }
@@ -214,7 +214,7 @@ func (s *MonolithicIndexingEventStore) filterEvents(
 
 	allEvents, err := s.loadAllEvents(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("filter events: %w", err)
 	}
 
 	filtered := make([]*core.BlockchainEvent, 0, len(allEvents))
@@ -234,7 +234,7 @@ func (s *MonolithicIndexingEventStore) filterEvents(
 func (s *MonolithicIndexingEventStore) loadAllEvents(ctx context.Context) ([]*core.BlockchainEvent, error) {
 	events, err := s.database.GetAllEvents(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("load all events from database: %w", err)
 	}
 
 	sort.SliceStable(events, func(i, j int) bool {
@@ -287,7 +287,10 @@ func (s *MonolithicIndexingMetadataStore) GetMetadata(ctx context.Context, event
 
 	event, err := s.database.GetEvent(ctx, eventID)
 	if err != nil || event == nil {
-		return nil, err
+		if err != nil {
+			return nil, fmt.Errorf("get event %s: %w", eventID, err)
+		}
+		return nil, nil
 	}
 
 	return buildSyntheticMetadata(event), nil
@@ -300,7 +303,7 @@ func (s *MonolithicIndexingMetadataStore) GetMetadataByChain(ctx context.Context
 
 	events, err := s.database.GetAllEvents(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("get metadata by chain: %w", err)
 	}
 
 	metadata := make([]*query.EventMetadata, 0)
@@ -379,7 +382,7 @@ func (s *MonolithicIndexingDomainQueryService) Query(ctx context.Context, req *d
 
 	events, err := s.database.GetAllEvents(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("query events: %w", err)
 	}
 
 	filtered := make([]core.BlockchainEvent, 0, len(events))
@@ -422,7 +425,7 @@ func (s *MonolithicIndexingDomainQueryService) QueryByHash(ctx context.Context, 
 
 	events, err := s.database.GetAllEvents(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("query by hash: %w", err)
 	}
 
 	for _, event := range events {

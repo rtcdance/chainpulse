@@ -46,7 +46,13 @@ func (h priorityFeeHeap) Less(i, j int) bool {
 	return h[i].SubmittedAt.Before(h[j].SubmittedAt)
 }
 func (h priorityFeeHeap) Swap(i, j int) { h[i], h[j] = h[j], h[i] }
-func (h *priorityFeeHeap) Push(x any)   { *h = append(*h, x.(*AAMempoolEntry)) }
+func (h *priorityFeeHeap) Push(x any) {
+	entry, ok := x.(*AAMempoolEntry)
+	if !ok {
+		return
+	}
+	*h = append(*h, entry)
+}
 func (h *priorityFeeHeap) Pop() any {
 	old := *h
 	n := len(old)
@@ -137,7 +143,9 @@ func (m *AAMempool) GetPendingOps(n int) []*AAMempoolEntry {
 
 	result := make([]*AAMempoolEntry, n)
 	for i := 0; i < n; i++ {
-		result[i] = heap.Pop(&cp).(*AAMempoolEntry)
+		if entry, ok := heap.Pop(&cp).(*AAMempoolEntry); ok {
+			result[i] = entry
+		}
 	}
 	return result
 }
@@ -175,8 +183,9 @@ func (m *AAMempool) evictOldest() {
 			minIdx = i
 		}
 	}
-	removed := heap.Remove(&m.ordered, minIdx).(*AAMempoolEntry)
-	delete(m.entries, removed.Hash)
+	if removed, ok := heap.Remove(&m.ordered, minIdx).(*AAMempoolEntry); ok {
+		delete(m.entries, removed.Hash)
+	}
 }
 
 func (m *AAMempool) evictExpired() {

@@ -3,6 +3,7 @@ package query
 import (
 	"context"
 	"crypto/rand"
+	"fmt"
 	"math"
 	"math/big"
 	"time"
@@ -127,7 +128,7 @@ func (rh *RetryHandler) Execute(ctx context.Context, fn RetryFunc) error {
 
 		// Check if we should retry
 		if !rh.policy.ShouldRetry(err, attempt) {
-			return err
+			return fmt.Errorf("retry policy exhausted after %d attempts: %w", attempt+1, err)
 		}
 
 		// Calculate backoff

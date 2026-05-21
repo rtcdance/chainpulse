@@ -25,11 +25,14 @@ build_images() {
     mkdir -p "$PROJECT_ROOT/build/bin/linux"
     CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -a -installsuffix cgo \
         -o "$PROJECT_ROOT/build/bin/linux/chainpulse" ./cmd/monolithic/chainpulse
+    # Dockerfile.prebuilt expects the binary at project root as chainpulse-linux
+    cp "$PROJECT_ROOT/build/bin/linux/chainpulse" "$PROJECT_ROOT/chainpulse-linux"
     info "Binary built: $(ls -lh "$PROJECT_ROOT/build/bin/linux/chainpulse" | awk '{print $5}')"
 
     info "Building ChainPulse Docker image..."
     DOCKER_BUILDKIT=0 docker build -f "$SCRIPT_DIR/Dockerfile.prebuilt" \
         -t chainpulse-acceptance:latest "$PROJECT_ROOT"
+    rm -f "$PROJECT_ROOT/chainpulse-linux"
 
     info "Building frontend static files..."
     cd "$PROJECT_ROOT/frontend"

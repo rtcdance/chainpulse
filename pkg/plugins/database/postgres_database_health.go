@@ -43,6 +43,11 @@ func (hc *HealthChecker) Start(interval time.Duration) {
 	hc.ticker = time.NewTicker(interval)
 
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				hc.db.logger.Error("goroutine panic recovered", "panic", r)
+			}
+		}()
 		for {
 			select {
 			case <-hc.stopChan:

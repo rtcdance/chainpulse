@@ -381,7 +381,9 @@ func (r *pullerExecutionRuntime) detectAndPublishReorg(ctx context.Context, chai
 			}
 			if payload, err := json.Marshal(reorgMsg); err == nil {
 				if r.publisher != nil {
-					_ = r.publisher.Publish(ctx, "reorg-events", payload)
+					if err := r.publisher.Publish(ctx, "reorg-events", payload); err != nil {
+						r.logger.Error("Failed to publish reorg event", core.LogKeyError, err, "chainID", chainID)
+					}
 				}
 			}
 

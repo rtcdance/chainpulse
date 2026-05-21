@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"log/slog"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -130,6 +131,11 @@ func (cca *CrossChainAPI) Query(ctx context.Context, query *CrossChainQuery) (*C
 
 	// Wait for all queries to complete
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("goroutine panic recovered", "panic", r)
+			}
+		}()
 		wg.Wait()
 		close(resultsChan)
 		close(errorsChan)

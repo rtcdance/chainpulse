@@ -324,7 +324,7 @@ func (s *EventRetrievalService) attachMetadata(ctx context.Context, events []*co
 
 	metadataMap, err := s.metadataStore.GetMetadataBatch(ctx, eventIDs)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("get metadata batch for %d events: %w", len(eventIDs), err)
 	}
 
 	result := make([]*EventWithMetadata, 0, len(events))

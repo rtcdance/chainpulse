@@ -105,6 +105,11 @@ func (h *ShutdownHandler) ListenForShutdownSignals() {
 	h.wg.Add(1)
 	go func() {
 		defer h.wg.Done()
+		defer func() {
+			if r := recover(); r != nil {
+				h.logger.Error("goroutine panic recovered", "panic", r)
+			}
+		}()
 		defer signal.Stop(sigChan)
 
 		select {

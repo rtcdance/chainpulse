@@ -193,6 +193,11 @@ func run() error {
 	}
 	if monolithicQuerySurface.domainQuery != nil {
 		runtimeWiring.DomainQueryService = monolithicQuerySurface.domainQuery
+		// Propagate domain query to the event query handler so it bypasses
+		// the fallback path and reads directly from indexed storage.
+		if runtimeWiring.EventQueryHandler != nil {
+			runtimeWiring.EventQueryHandler.SetDomainQueryService(monolithicQuerySurface.domainQuery)
+		}
 	}
 	if monolithicQuerySurface.adminKeyHandler == nil {
 		if pgRaw, pgErr := runtimeWiring.DBManager.GetPostgresDB(ctx); pgErr == nil {
@@ -399,7 +404,7 @@ func run() error {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		if err := core.StartPlugin(ctx, gateway); err != nil {
+		if err := gateway.Start(); err != nil {
 			logger.Error("API Gateway error", "error", err.Error())
 		}
 	}()
@@ -606,6 +611,7 @@ func loadConfiguration() Configuration {
 		CacheConnectionURL:       env.Get("CACHE_CONNECTION_URL", "localhost:6379"),
 		MQConnectionURL:          env.Get("MQ_CONNECTION_URL", "localhost:9092"),
 		DatabaseURL:              env.Get("DATABASE_URL", "postgres://localhost/chainpulse"),
+		DatabaseType:             env.Get("DATABASE_TYPE", "postgres"),
 		DatabaseSSLMode:          env.Get("DATABASE_SSLMODE", "prefer"),
 		DLQRetention:             env.Get("MONOLITHIC_DLQ_RETENTION", "168h"),
 		RateLimitEnabled:         env.GetBool("GATEWAY_RATE_LIMIT_ENABLED", false),

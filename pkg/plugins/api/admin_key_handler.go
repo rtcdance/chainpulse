@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"math/big"
 	"net/http"
 	"time"
@@ -95,6 +96,7 @@ func (h *AdminKeyHandler) HandleListKeys(w http.ResponseWriter, r *http.Request)
 
 func (h *AdminKeyHandler) HandleCreateKey(w http.ResponseWriter, r *http.Request) {
 	var req createKeyRequest
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		(&APIError{Code: "INVALID_REQUEST", Message: "Invalid request body", Status: http.StatusBadRequest}).WriteHTTP(w)
 		return
@@ -182,6 +184,7 @@ func (h *AdminKeyHandler) HandleToggleKey(w http.ResponseWriter, r *http.Request
 	var body struct {
 		Enabled bool `json:"enabled"`
 	}
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		(&APIError{Code: "INVALID_REQUEST", Message: "Invalid request body", Status: http.StatusBadRequest}).WriteHTTP(w)
 		return
@@ -226,7 +229,7 @@ func (h *AdminKeyHandler) HandleGetKeyByID(w http.ResponseWriter, r *http.Reques
 		Scan(&row.ID, &row.ClientID, &row.Name, &row.KeyHash,
 			&row.KeyPrefix, &row.Permissions, &row.Enabled,
 			&row.CreatedAt, &row.UpdatedAt, &expiresAt, &lastUsedAt)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		(&APIError{Code: "NOT_FOUND", Message: "API key not found", Status: http.StatusNotFound}).WriteHTTP(w)
 		return
 	}

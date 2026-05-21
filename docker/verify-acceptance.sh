@@ -233,9 +233,8 @@ fi
 echo ""
 echo "--- Multi-Chain Indexing ---"
 
-chain_count=$(curl -sf http://localhost:8080/metrics 2>/dev/null \
-    | grep "chainpulse_indexing_runtime_chain_count" | grep -v "#" \
-    | awk '{print $2}' | head -1 || echo "0")
+chain_count=$(curl -sf http://localhost:8080/runtime/summary 2>/dev/null \
+    | python3 -c "import sys,json; d=json.load(sys.stdin); ro=d.get('rollout',{}); print(ro.get('ownership_chains',0))" 2>/dev/null || echo "0")
 if [ "$chain_count" = "7" ]; then
     pass "Chains registered: $chain_count"
 else

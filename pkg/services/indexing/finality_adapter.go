@@ -220,7 +220,7 @@ func (r *FinalityStrategyRegistry) IsBlockSafeForChain(ctx context.Context, chai
 func (r *FinalityStrategyRegistry) IsBlockFinalizedForChain(ctx context.Context, chainID string, blockNumber uint64) (bool, error) {
 	strategy, err := r.GetStrategy(chainID)
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("get finality strategy for chain %s: %w", chainID, err)
 	}
 	return strategy.IsBlockFinalized(ctx, blockNumber)
 }

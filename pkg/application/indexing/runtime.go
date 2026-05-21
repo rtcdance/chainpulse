@@ -544,7 +544,7 @@ func (rt *SharedRuntime) loadReplayRange(
 
 	replayed, err := rt.replay.Replay(ctx, chainID, from)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("replay events for chain %s: %w", chainID, err)
 	}
 
 	filtered := make([]EventEnvelope, 0, len(replayed))

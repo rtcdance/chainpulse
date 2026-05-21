@@ -74,7 +74,7 @@ func (cs *ConfigurationService) SetConfig(ctx context.Context, key, value, autho
 
 	// Set configuration with versioning
 	if err := cs.versionedCM.SetConfigWithVersion(ctx, key, value, author); err != nil {
-		return err
+		return fmt.Errorf("failed to set config with version: %w", err)
 	}
 
 	// Call update hooks
@@ -212,7 +212,7 @@ func (cb *ConfigurationBuilder) SetBool(key string, value bool) *ConfigurationBu
 func (cb *ConfigurationBuilder) Apply() error {
 	for key, value := range cb.configs {
 		if err := cb.service.SetConfig(cb.ctx, key, value, cb.author); err != nil {
-			return err
+			return fmt.Errorf("failed to apply config %s: %w", key, err)
 		}
 	}
 	return nil
@@ -278,7 +278,7 @@ func (csm *ConfigurationSnapshotManager) GetSnapshot(name string) (*Configuratio
 func (csm *ConfigurationSnapshotManager) RestoreSnapshot(ctx context.Context, name, author string) error {
 	snapshot, err := csm.GetSnapshot(name)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to get snapshot %s: %w", name, err)
 	}
 
 	for key, value := range snapshot.Configs {

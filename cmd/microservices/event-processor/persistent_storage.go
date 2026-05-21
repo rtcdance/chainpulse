@@ -35,9 +35,6 @@ func (s *persistentEventProcessorStorage) WriteEvent(ctx context.Context, event 
 	if s.eventStore == nil {
 		return fmt.Errorf("event store is required")
 	}
-	if s.metadataStore == nil {
-		return fmt.Errorf("metadata store is required")
-	}
 	if event == nil {
 		return fmt.Errorf("event is required")
 	}
@@ -60,19 +57,21 @@ func (s *persistentEventProcessorStorage) WriteEvent(ctx context.Context, event 
 		return err
 	}
 
-	metadata := &query.EventMetadata{
-		EventID:          event.ID,
-		ChainID:          chainid.ResolveChainID(event.ChainID),
-		BlockNumber:      int64(event.BlockNumber),
-		TransactionHash:  event.TransactionHash.Hex(),
-		LogIndex:         int64(event.LogIndex),
-		ContractAddress:  event.ContractAddress.Hex(),
-		EventName:        event.EventName,
-		ProcessedAt:      event.ProcessedAt,
-		ProcessingStatus: string(core.EventStatusConfirmed),
-	}
-	if err := s.metadataStore.InsertMetadata(ctx, metadata); err != nil && !isPersistentDuplicate(err) {
-		return err
+	if s.metadataStore != nil {
+		metadata := &query.EventMetadata{
+			EventID:          event.ID,
+			ChainID:          chainid.ResolveChainID(event.ChainID),
+			BlockNumber:      int64(event.BlockNumber),
+			TransactionHash:  event.TransactionHash.Hex(),
+			LogIndex:         int64(event.LogIndex),
+			ContractAddress:  event.ContractAddress.Hex(),
+			EventName:        event.EventName,
+			ProcessedAt:      event.ProcessedAt,
+			ProcessingStatus: string(core.EventStatusConfirmed),
+		}
+		if err := s.metadataStore.InsertMetadata(ctx, metadata); err != nil && !isPersistentDuplicate(err) {
+			return err
+		}
 	}
 
 	return nil
@@ -113,26 +112,28 @@ func (s *persistentEventProcessorStorage) WriteBatch(ctx context.Context, events
 		return err
 	}
 
-	// Metadata is written individually since the batch API doesn't guarantee
-	// metadata atomicity across both stores. Duplicates are handled by the
-	// unique constraint and on-conflict logic.
-	for _, event := range events {
-		if event == nil {
-			continue
-		}
-		metadata := &query.EventMetadata{
-			EventID:          event.ID,
-			ChainID:          chainid.ResolveChainID(event.ChainID),
-			BlockNumber:      int64(event.BlockNumber),
-			TransactionHash:  event.TransactionHash.Hex(),
-			LogIndex:         int64(event.LogIndex),
-			ContractAddress:  event.ContractAddress.Hex(),
-			EventName:        event.EventName,
-			ProcessedAt:      event.ProcessedAt,
-			ProcessingStatus: string(core.EventStatusConfirmed),
-		}
-		if err := s.metadataStore.InsertMetadata(ctx, metadata); err != nil && !isPersistentDuplicate(err) {
-			return err
+	if s.metadataStore != nil {
+		// Metadata is written individually since the batch API doesn't guarantee
+		// metadata atomicity across both stores. Duplicates are handled by the
+		// unique constraint and on-conflict logic.
+		for _, event := range events {
+			if event == nil {
+				continue
+			}
+			metadata := &query.EventMetadata{
+				EventID:          event.ID,
+				ChainID:          chainid.ResolveChainID(event.ChainID),
+				BlockNumber:      int64(event.BlockNumber),
+				TransactionHash:  event.TransactionHash.Hex(),
+				LogIndex:         int64(event.LogIndex),
+				ContractAddress:  event.ContractAddress.Hex(),
+				EventName:        event.EventName,
+				ProcessedAt:      event.ProcessedAt,
+				ProcessingStatus: string(core.EventStatusConfirmed),
+			}
+			if err := s.metadataStore.InsertMetadata(ctx, metadata); err != nil && !isPersistentDuplicate(err) {
+				return err
+			}
 		}
 	}
 

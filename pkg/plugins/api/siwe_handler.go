@@ -73,6 +73,7 @@ func (h *SIWEHandler) HandleChallenge(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req challengeRequest
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		WriteErrorEnvelope(w, ErrInvalidRequest("invalid JSON body"))
 		return
@@ -108,6 +109,7 @@ func (h *SIWEHandler) HandleVerify(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req verifyRequest
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		WriteErrorEnvelope(w, ErrInvalidRequest("invalid JSON body"))
 		return

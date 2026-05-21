@@ -12,6 +12,9 @@ coverage/
 
 # IDE
 .vscode/
+.claude/
+.codex/
+.dlv/
 .idea/
 *.swp
 *.swo
@@ -56,6 +59,7 @@ docs/ARCHITECTURE_REVIEW_REPORT.md
 # Chainpulse generated
 /chainpulse
 /chainpulse-docker
+/playground
 
 # Node modules
 node_modules/

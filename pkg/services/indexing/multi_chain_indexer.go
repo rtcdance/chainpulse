@@ -144,7 +144,7 @@ func (mci *MultiChainIndexer) IndexEventsFromChain(
 
 	if err := indexer.IndexEvents(ctx, events); err != nil {
 		mci.logger.Error("failed to index events", "chain_id", chainID, "error", err.Error())
-		return err
+		return fmt.Errorf("index events for chain %s: %w", chainID, err)
 	}
 
 	return nil

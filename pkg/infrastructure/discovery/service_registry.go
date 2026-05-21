@@ -162,6 +162,7 @@ type HealthChecker struct {
 	timeout  time.Duration
 	mutex    sync.RWMutex
 	running  bool
+	wg       sync.WaitGroup
 }
 
 // NewHealthChecker creates a new health checker
@@ -187,11 +188,12 @@ func (hc *HealthChecker) Start(ctx context.Context) error {
 	return nil
 }
 
-// Stop stops the health checker
+// Stop stops the health checker and waits for in-flight checks to complete.
 func (hc *HealthChecker) Stop() {
 	hc.mutex.Lock()
-	defer hc.mutex.Unlock()
 	hc.running = false
+	hc.mutex.Unlock()
+	hc.wg.Wait()
 }
 
 // checkLoop performs periodic health checks
@@ -214,12 +216,14 @@ func (hc *HealthChecker) checkAllServices(ctx context.Context) {
 	services := hc.registry.ListServices(ctx)
 
 	for _, service := range services {
+		hc.wg.Add(1)
 		go hc.checkService(ctx, service)
 	}
 }
 
 // checkService checks the health of a single service
 func (hc *HealthChecker) checkService(ctx context.Context, service *ServiceInfo) {
+	defer hc.wg.Done()
 	checkCtx, cancel := context.WithTimeout(ctx, hc.timeout)
 	defer cancel()
 

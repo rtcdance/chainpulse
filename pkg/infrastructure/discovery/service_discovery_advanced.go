@@ -3,6 +3,7 @@ package discovery
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"sync"
 	"time"
 )
@@ -116,6 +117,11 @@ func (asdc *AdvancedServiceDiscoveryClient) notifyListeners(serviceName string, 
 		asdc.listenerWg.Add(1)
 		go func(l RoutingUpdateListener) {
 			defer asdc.listenerWg.Done()
+			defer func() {
+				if r := recover(); r != nil {
+					slog.Error("goroutine panic recovered", "panic", r)
+				}
+			}()
 			l(update)
 		}(listener)
 	}

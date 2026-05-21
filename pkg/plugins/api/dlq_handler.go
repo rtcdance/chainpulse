@@ -146,6 +146,7 @@ func (h *DLQHandler) HandleReplayDLQEvents(w http.ResponseWriter, r *http.Reques
 		All     bool     `json:"all"`
 	}
 
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeJSONError(w, http.StatusBadRequest, "invalid request body")
 		return

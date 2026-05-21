@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/hmac"
+	"crypto/rand"
 	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
@@ -347,6 +348,7 @@ func (h *AdminWebhookHandler) HandleCreateWebhook(w http.ResponseWriter, r *http
 		Secret   string   `json:"secret"`
 		Events   []string `json:"events"`
 	}
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeJSONError(w, http.StatusBadRequest, "invalid request body")
 		return
@@ -356,8 +358,13 @@ func (h *AdminWebhookHandler) HandleCreateWebhook(w http.ResponseWriter, r *http
 		return
 	}
 	if req.Secret == "" {
-		// Generate a random secret
-		req.Secret = fmt.Sprintf("whsec_%d%s", time.Now().UnixNano(), strings.Repeat("x", 32))
+		// Generate a cryptographically random secret
+		buf := make([]byte, 32)
+		if _, err := rand.Read(buf); err != nil {
+			writeJSONError(w, http.StatusInternalServerError, "failed to generate secret")
+			return
+		}
+		req.Secret = "whsec_" + hex.EncodeToString(buf)
 	}
 	if req.Events == nil {
 		req.Events = []string{"event:created", "event:confirmed", "event:failed"}
@@ -424,7 +431,7 @@ func (h *AdminWebhookHandler) HandleDeleteWebhook(w http.ResponseWriter, r *http
 
 	id := r.PathValue("id")
 	if id == "" {
-		parts := stringsSplit(r.URL.Path, "/")
+		parts := strings.Split(r.URL.Path, "/")
 		for i, p := range parts {
 			if p == "webhooks" && i+1 < len(parts) {
 				id = parts[i+1]

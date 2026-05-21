@@ -173,7 +173,7 @@ func (rm *DefaultRecoveryManager) VerifyCheckpoint(ctx context.Context, checkpoi
 		atomic.AddInt64(&rm.errorCount, 1)
 		rm.lastError = err
 		rm.lastErrorTime = time.Now()
-		return err
+		return fmt.Errorf("verify checkpoint internal: %w", err)
 	}
 
 	atomic.AddInt64(&rm.successCount, 1)
@@ -348,7 +348,7 @@ func (re *DefaultRecoveryExecutor) RecoverFromCheckpoint(ctx context.Context, ch
 		re.lastRecoveryError = err
 		re.lastRecoveryTime = time.Now()
 		re.mu.Unlock()
-		return err
+		return fmt.Errorf("recover from checkpoint: %w", err)
 	}
 
 	// Verify checkpoint
@@ -372,7 +372,7 @@ func (re *DefaultRecoveryExecutor) RecoverFromCheckpoint(ctx context.Context, ch
 		re.lastRecoveryError = err
 		re.lastRecoveryTime = time.Now()
 		re.mu.Unlock()
-		return err
+		return fmt.Errorf("recover from checkpoint: %w", err)
 	}
 
 	// Verify data consistency (without holding lock to avoid deadlock)

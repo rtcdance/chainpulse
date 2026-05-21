@@ -178,6 +178,11 @@ func (p *KafkaMQPlugin) Stop(ctx context.Context) error {
 	// Wait for in-flight operations with timeout
 	done := make(chan struct{})
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				p.logger.Error("goroutine panic recovered", "panic", r)
+			}
+		}()
 		p.inFlight.Wait()
 		close(done)
 	}()
@@ -498,7 +503,7 @@ func (p *KafkaMQPlugin) ConsumeMessages(ctx context.Context, topic string, handl
 			// Wait for in-flight operations to complete
 			inFlightOps.Wait()
 
-			p.closeKafkaReader(reader, topic)
+			p.closeKafkaReader(ctx, reader, topic)
 
 			// Unregister consumer
 			p.mu.Lock()
@@ -546,14 +551,14 @@ func (p *KafkaMQPlugin) ConsumeMessages(ctx context.Context, topic string, handl
 				case <-time.After(backoff):
 				case <-ctx.Done():
 					inFlightOps.Wait()
-					p.closeKafkaReader(reader, topic)
+					p.closeKafkaReader(ctx, reader, topic)
 					p.mu.Lock()
 					delete(p.consumers, topic)
 					p.mu.Unlock()
 					return ctx.Err()
 				case <-p.shutdownCh:
 					inFlightOps.Wait()
-					p.closeKafkaReader(reader, topic)
+					p.closeKafkaReader(ctx, reader, topic)
 					p.mu.Lock()
 					delete(p.consumers, topic)
 					p.mu.Unlock()
@@ -674,8 +679,8 @@ func (p *KafkaMQPlugin) ConsumeMessages(ctx context.Context, topic string, handl
 }
 
 // closeKafkaReader commits pending offsets and closes the Kafka reader.
-func (p *KafkaMQPlugin) closeKafkaReader(reader *kafka.Reader, topic string) {
-	commitCtx, commitCancel := context.WithTimeout(context.Background(), defaultKafkaCommitTimeout)
+func (p *KafkaMQPlugin) closeKafkaReader(ctx context.Context, reader *kafka.Reader, topic string) {
+	commitCtx, commitCancel := context.WithTimeout(ctx, defaultKafkaCommitTimeout)
 	defer commitCancel()
 	if err := reader.CommitMessages(commitCtx); err != nil {
 		p.logger.Warn("failed to commit offset before close", "topic", topic, "error", err)

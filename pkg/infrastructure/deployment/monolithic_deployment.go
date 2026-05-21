@@ -363,7 +363,7 @@ func (md *MonolithicDeployment) GetHealth(ctx context.Context) (core.HealthStatu
 
 	for _, plugin := range plugins {
 		if hp, ok := plugin.(ports.HealthPlugin); ok {
-			if err := hp.Health(context.Background()); err != nil {
+			if err := hp.Health(ctx); err != nil {
 				unhealthyServices = append(unhealthyServices, plugin.Name())
 			} else {
 				healthyCount++

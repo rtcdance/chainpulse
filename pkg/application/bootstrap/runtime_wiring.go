@@ -119,8 +119,7 @@ func defaultRuntimeWiringDeps() runtimeWiringDeps {
 
 			initCtx, cancel = context.WithTimeout(ctx, cfg.GetTimeout())
 			if err := metadataStore.Initialize(initCtx); err != nil {
-				cancel()
-				return nil, nil, nil, nil, nil, fmt.Errorf("initialize metadata store: %w", err)
+				logger.Warn("failed to initialize metadata store, continuing without it", "error", err.Error())
 			}
 			cancel()
 
@@ -197,7 +196,7 @@ func buildRuntimeWiringWithDeps(
 
 	queryService, domainService, err := deps.buildQuery(ctx, dbManager, dbConfig, logger, metrics)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to build query services: %w", err)
 	}
 
 	eventRetrievalService, eventQueryHandler, eventSubscriptionHandler, healthCheckHandler, graphqlHandler, err := deps.buildEvent(
@@ -209,7 +208,7 @@ func buildRuntimeWiringWithDeps(
 		metrics,
 	)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to build event services: %w", err)
 	}
 
 	return &RuntimeWiring{

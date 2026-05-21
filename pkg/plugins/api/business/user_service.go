@@ -53,7 +53,7 @@ func NewUserService(backend UserBackend, cache ServiceCache) *UserService {
 func (s *UserService) CreateUser(ctx context.Context, user *User) (*User, error) {
 	entity, err := s.Create(ctx, user)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create user: %w", err)
 	}
 	u, ok := entity.(*User)
 	if !ok {
@@ -66,7 +66,7 @@ func (s *UserService) CreateUser(ctx context.Context, user *User) (*User, error)
 func (s *UserService) GetUser(ctx context.Context, id string) (*User, error) {
 	entity, err := s.Read(ctx, id)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get user: %w", err)
 	}
 	u, ok := entity.(*User)
 	if !ok {
@@ -79,7 +79,7 @@ func (s *UserService) GetUser(ctx context.Context, id string) (*User, error) {
 func (s *UserService) UpdateUser(ctx context.Context, user *User) (*User, error) {
 	entity, err := s.Update(ctx, user)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to update user: %w", err)
 	}
 	u, ok := entity.(*User)
 	if !ok {
@@ -97,7 +97,7 @@ func (s *UserService) DeleteUser(ctx context.Context, id string) error {
 func (s *UserService) ListUsers(ctx context.Context, limit, offset int) ([]*User, error) {
 	entities, err := s.List(ctx, limit, offset)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to list users: %w", err)
 	}
 
 	users := make([]*User, len(entities))
@@ -115,7 +115,7 @@ func (s *UserService) ListUsers(ctx context.Context, limit, offset int) ([]*User
 func (s *UserService) QueryUsers(ctx context.Context, filter map[string]any, limit, offset int) ([]*User, error) {
 	entities, err := s.Query(ctx, filter, limit, offset)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to query users: %w", err)
 	}
 
 	users := make([]*User, len(entities))
@@ -146,7 +146,7 @@ func (s *UserService) GetUserByEmail(ctx context.Context, email string) (*User, 
 	// Query backend
 	user, err := s.backend.GetByEmail(ctx, email)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get user by email: %w", err)
 	}
 
 	// Cache result
@@ -191,7 +191,7 @@ func (a *userServiceAdapter) Delete(ctx context.Context, id string) error {
 func (a *userServiceAdapter) List(ctx context.Context, limit, offset int) ([]Entity, error) {
 	users, err := a.backend.List(ctx, limit, offset)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to list users from backend: %w", err)
 	}
 
 	entities := make([]Entity, len(users))
@@ -204,7 +204,7 @@ func (a *userServiceAdapter) List(ctx context.Context, limit, offset int) ([]Ent
 func (a *userServiceAdapter) Query(ctx context.Context, filter map[string]any, limit, offset int) ([]Entity, error) {
 	users, err := a.backend.Query(ctx, filter, limit, offset)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to query users from backend: %w", err)
 	}
 
 	entities := make([]Entity, len(users))

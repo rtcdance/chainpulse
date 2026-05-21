@@ -116,7 +116,7 @@ func main() {
 		IndexTimeout:   10 * time.Second,
 	}
 	eventStore := query.NewMongoDBEventStore(dbManager, logger, metrics, eventStoreConfig)
-	metadataStore := query.NewPostgreSQLEventMetadataStore(dbManager, logger, metrics)
+	pgMetadataStore := query.NewPostgreSQLEventMetadataStore(dbManager, logger, metrics)
 
 	initCtx, cancel = context.WithTimeout(context.Background(), dbConfig.GetTimeout())
 	if err := eventStore.Initialize(initCtx); err != nil {
@@ -128,13 +128,16 @@ func main() {
 	fmt.Println("  [1/2] Event store initialized")
 
 	initCtx, cancel = context.WithTimeout(context.Background(), dbConfig.GetTimeout())
-	if err := metadataStore.Initialize(initCtx); err != nil {
-		cancel()
-		logger.Error("Failed to initialize metadata store", "error", err.Error())
-		os.Exit(1)
+	var metadataStore eventProcessorComponentHealthProvider
+	var storageMetadataStore query.EventMetadataStore
+	if err := pgMetadataStore.Initialize(initCtx); err != nil {
+		logger.Warn("Failed to initialize metadata store, continuing without it", "error", err.Error())
+	} else {
+		fmt.Println("  [2/2] Metadata store initialized")
+		metadataStore = pgMetadataStore
+		storageMetadataStore = pgMetadataStore
 	}
 	cancel()
-	fmt.Println("  [2/2] Metadata store initialized")
 	fmt.Println()
 
 	// Initialize Kafka Message Queue Plugin
@@ -164,7 +167,7 @@ func main() {
 		config,
 		logger,
 		metrics,
-		newPersistentEventProcessorStorage(eventStore, metadataStore),
+		newPersistentEventProcessorStorage(eventStore, storageMetadataStore),
 	)
 	if err != nil {
 		logger.Error("Failed to initialize processor runtime", "error", err.Error())
@@ -304,7 +307,7 @@ func main() {
 	fmt.Println("  [2.2/3] DLQ retry service started")
 
 	reorgHandler := reorg.NewReorgHandler(
-		newReorgEventProcessorDatabaseAdapter(eventStore, metadataStore, getDB(dbManager)),
+		newReorgEventProcessorDatabaseAdapter(eventStore, pgMetadataStore, getDB(dbManager)),
 		logger,
 		12,  // reorg threshold
 		120, // max rollback
@@ -392,8 +395,10 @@ func main() {
 	fmt.Println("  [4/6] Event store closed")
 
 	// Close Metadata Store
-	if err := metadataStore.Close(shutdownCtx); err != nil {
-		logger.Error("Error closing metadata store", "error", err.Error())
+	if pgMetadataStore != nil {
+		if err := pgMetadataStore.Close(shutdownCtx); err != nil {
+			logger.Error("Error closing metadata store", "error", err.Error())
+		}
 	}
 	fmt.Println("  [5/6] Metadata store closed")
 

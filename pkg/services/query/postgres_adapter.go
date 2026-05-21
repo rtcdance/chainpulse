@@ -31,6 +31,192 @@ initialized      atomic.Bool
 
 var postgresIdentifierPattern = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_]*$`)
 
+// camelCase to snake_case column mapping for the events table
+var pgColumnMap = map[string]string{
+	"id":               "id",
+	"chainId":          "chain_id",
+	"chain_id":         "chain_id",
+	"blockNumber":      "block_number",
+	"block_number":     "block_number",
+	"blockHash":        "block_hash",
+	"block_hash":       "block_hash",
+	"transactionHash":  "transaction_hash",
+	"transaction_hash": "transaction_hash",
+	"logIndex":         "log_index",
+	"log_index":        "log_index",
+	"contractAddress":  "contract_address",
+	"contract_address": "contract_address",
+	"eventName":        "event_name",
+	"event_name":       "event_name",
+	"eventSignature":   "event_name",
+	"eventData":        "event_data",
+	"event_data":       "event_data",
+	"timestamp":        "timestamp",
+	"createdAt":        "created_at",
+	"created_at":       "created_at",
+	"status":           "status",
+	"eventTopic":       "event_name",
+	"eventHash":        "id",
+}
+
+func resolveColumn(key string) string {
+	if col, ok := pgColumnMap[key]; ok {
+		return col
+	}
+	return key
+}
+
+// buildPostgresFilter recursively builds a WHERE clause from a filter map,
+// supporting MongoDB-style operators ($or, $gte, $lte, $gt, $lt, $in, $regex, $ne).
+func buildPostgresFilter(filter map[string]any) (string, []any, error) {
+	idx := 1
+	clause, args, err := buildPostgresFilterHelper(filter, &idx)
+	if err != nil {
+		return "", nil, err
+	}
+	return clause, args, nil
+}
+
+// buildPostgresFilterHelper builds filter conditions with shared arg indexing.
+// Returns clause with $1..$N placeholders and the corresponding args slice.
+// The idx pointer tracks the next available arg number across recursive calls.
+func buildPostgresFilterHelper(filter map[string]any, idx *int) (string, []any, error) {
+	var conditions []string
+	var args []any
+
+	var buildCond func(key string, val any) (string, []any, error)
+	buildCond = func(key string, val any) (string, []any, error) {
+		col := resolveColumn(key)
+		if !isSafePostgresIdentifier(col) {
+			return "", nil, fmt.Errorf("invalid filter field %q", key)
+		}
+
+		switch v := val.(type) {
+		case map[string]any:
+			var subConds []string
+			var subArgs []any
+			for op, opVal := range v {
+				switch op {
+				case "$gte":
+					subConds = append(subConds, col+" >= $"+strconv.Itoa(*idx))
+					subArgs = append(subArgs, opVal)
+					*idx++
+				case "$gt":
+					subConds = append(subConds, col+" > $"+strconv.Itoa(*idx))
+					subArgs = append(subArgs, opVal)
+					*idx++
+				case "$lte":
+					subConds = append(subConds, col+" <= $"+strconv.Itoa(*idx))
+					subArgs = append(subArgs, opVal)
+					*idx++
+				case "$lt":
+					subConds = append(subConds, col+" < $"+strconv.Itoa(*idx))
+					subArgs = append(subArgs, opVal)
+					*idx++
+				case "$in":
+					arr, ok := opVal.([]any)
+					if !ok {
+						return "", nil, fmt.Errorf("$in requires an array for field %q", key)
+					}
+					placeholders := make([]string, len(arr))
+					for i, elem := range arr {
+						placeholders[i] = "$" + strconv.Itoa(*idx)
+						subArgs = append(subArgs, elem)
+						*idx++
+					}
+					subConds = append(subConds, col+" IN ("+strings.Join(placeholders, ",")+")")
+				case "$regex":
+					subConds = append(subConds, col+" ~* $"+strconv.Itoa(*idx))
+					subArgs = append(subArgs, opVal)
+					*idx++
+				case "$options":
+					continue
+				case "$ne":
+					subConds = append(subConds, col+" != $"+strconv.Itoa(*idx))
+					subArgs = append(subArgs, opVal)
+					*idx++
+				default:
+					subConds = append(subConds, col+" = $"+strconv.Itoa(*idx))
+					subArgs = append(subArgs, opVal)
+					*idx++
+				}
+			}
+			return strings.Join(subConds, " AND "), subArgs, nil
+
+		case []any:
+			return "", nil, fmt.Errorf("unexpected array value for field %q", key)
+
+		default:
+			clause := col + " = $" + strconv.Itoa(*idx)
+			*idx++
+			return clause, []any{val}, nil
+		}
+	}
+
+	for k, v := range filter {
+		switch k {
+		case "$or":
+			arr, ok := v.([]any)
+			if !ok {
+				return "", nil, fmt.Errorf("$or requires an array")
+			}
+			var orConds []string
+			for _, elem := range arr {
+				elemMap, ok := elem.(map[string]any)
+				if !ok {
+					return "", nil, fmt.Errorf("$or element must be a filter object")
+				}
+				subClause, subArgs, err := buildPostgresFilterHelper(elemMap, idx)
+				if err != nil {
+					return "", nil, err
+				}
+				orConds = append(orConds, "("+subClause+")")
+				args = append(args, subArgs...)
+			}
+			conditions = append(conditions, "("+strings.Join(orConds, " OR ")+")")
+
+		case "$and":
+			arr, ok := v.([]any)
+			if !ok {
+				return "", nil, fmt.Errorf("$and requires an array")
+			}
+			var andConds []string
+			for _, elem := range arr {
+				elemMap, ok := elem.(map[string]any)
+				if !ok {
+					return "", nil, fmt.Errorf("$and element must be a filter object")
+				}
+				subClause, subArgs, err := buildPostgresFilterHelper(elemMap, idx)
+				if err != nil {
+					return "", nil, err
+				}
+				andConds = append(andConds, "("+subClause+")")
+				args = append(args, subArgs...)
+			}
+			conditions = append(conditions, "("+strings.Join(andConds, " AND ")+")")
+
+		default:
+			if strings.HasPrefix(k, "$") {
+				continue
+			}
+			if !isSafePostgresIdentifier(k) {
+				return "", nil, fmt.Errorf("invalid filter field %q", k)
+			}
+			cond, subArgs, err := buildCond(k, v)
+			if err != nil {
+				return "", nil, err
+			}
+			conditions = append(conditions, cond)
+			args = append(args, subArgs...)
+		}
+	}
+
+	if len(conditions) == 0 {
+		return "", nil, nil
+	}
+	return strings.Join(conditions, " AND "), args, nil
+}
+
 // NewPostgreSQLAdapter creates a new PostgreSQL adapter
 func NewPostgreSQLAdapter(
 	dbManager postgresConnectionProvider,
@@ -75,6 +261,13 @@ func (pa *DefaultPostgreSQLAdapter) Initialize(ctx context.Context) error {
 	return nil
 }
 
+// pgSelectColumns maps PostgreSQL table columns to Scan parameter positions.
+// Table: id, chain_id, block_number, block_hash, transaction_hash, log_index,
+//        contract_address, event_name, event_data, timestamp, created_at
+// Scan:  EventHash, BlockNumber, TransactionHash, LogIndex, ContractAddress,
+//        EventTopic, EventData, BlockTimestamp, ChainID
+const pgSelectColumns = "id AS event_hash, block_number, transaction_hash, log_index, contract_address, event_name AS event_topic, event_data, timestamp AS block_timestamp, chain_id"
+
 // Query executes a query against PostgreSQL
 func (pa *DefaultPostgreSQLAdapter) Query(ctx context.Context, req *QueryRequest) (*QueryResult, error) {
 
@@ -99,22 +292,18 @@ func (pa *DefaultPostgreSQLAdapter) Query(ctx context.Context, req *QueryRequest
 
 	start := time.Now()
 
-	// Build WHERE clause from filter
 	whereClause := ""
 	args := []any{}
-	argIndex := 1
 
 	if req.Filter != nil {
-		conditions := []string{}
-		for k, v := range req.Filter {
-			if !isSafePostgresIdentifier(k) {
-				return nil, fmt.Errorf("invalid filter field %q", k)
-			}
-			conditions = append(conditions, k+" = $"+strconv.Itoa(argIndex))
-			args = append(args, v)
-			argIndex++
+		clause, filterArgs, err := buildPostgresFilter(req.Filter)
+		if err != nil {
+			return nil, fmt.Errorf("PostgreSQL filter build failed: %w", err)
 		}
-		whereClause = "WHERE " + strings.Join(conditions, " AND ")
+		if clause != "" {
+			whereClause = "WHERE " + clause
+			args = filterArgs
+		}
 	}
 
 	// Build ORDER BY clause
@@ -122,14 +311,15 @@ func (pa *DefaultPostgreSQLAdapter) Query(ctx context.Context, req *QueryRequest
 	if req.Sort != nil {
 		orders := []string{}
 		for k, v := range req.Sort {
-			if !isSafePostgresIdentifier(k) {
+			col := resolveColumn(k)
+			if !isSafePostgresIdentifier(col) {
 				return nil, fmt.Errorf("invalid sort field %q", k)
 			}
 			direction := "ASC"
 			if v < 0 {
 				direction = "DESC"
 			}
-			orders = append(orders, k+" "+direction)
+			orders = append(orders, col+" "+direction)
 		}
 		orderClause = "ORDER BY " + strings.Join(orders, ", ")
 	}
@@ -145,7 +335,7 @@ func (pa *DefaultPostgreSQLAdapter) Query(ctx context.Context, req *QueryRequest
 
 	// Build query
 	query := strings.TrimSpace(strings.Join([]string{
-		"SELECT * FROM " + req.Collection,
+		"SELECT " + pgSelectColumns + " FROM " + req.Collection,
 		whereClause,
 		orderClause,
 		limitClause,

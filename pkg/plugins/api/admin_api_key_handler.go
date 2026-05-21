@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
@@ -39,6 +40,7 @@ func (h *AdminAPIKeyHandler) HandleCreateAPIKey(w http.ResponseWriter, r *http.R
 		Permissions []string `json:"permissions"`
 		ExpiresIn   string   `json:"expiresIn,omitempty"` // e.g. "720h" (30 days)
 	}
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeJSONError(w, http.StatusBadRequest, "invalid request body")
 		return
@@ -129,7 +131,7 @@ func (h *AdminAPIKeyHandler) HandleDeleteAPIKey(w http.ResponseWriter, r *http.R
 	id := r.PathValue("id")
 	if id == "" {
 		// Fallback for older Go versions
-		parts := stringsSplit(r.URL.Path, "/")
+		parts := strings.Split(r.URL.Path, "/")
 		if len(parts) > 0 {
 			id = parts[len(parts)-1]
 		}
@@ -164,7 +166,7 @@ func (h *AdminAPIKeyHandler) HandleToggleAPIKey(w http.ResponseWriter, r *http.R
 
 	id := r.PathValue("id")
 	if id == "" {
-		parts := stringsSplit(r.URL.Path, "/")
+		parts := strings.Split(r.URL.Path, "/")
 		for i, p := range parts {
 			if p == "api-keys" && i+1 < len(parts) {
 				id = parts[i+1]
@@ -180,6 +182,7 @@ func (h *AdminAPIKeyHandler) HandleToggleAPIKey(w http.ResponseWriter, r *http.R
 	var req struct {
 		Enabled bool `json:"enabled"`
 	}
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeJSONError(w, http.StatusBadRequest, "invalid request body")
 		return
@@ -198,27 +201,6 @@ func (h *AdminAPIKeyHandler) HandleToggleAPIKey(w http.ResponseWriter, r *http.R
 		"message":   fmt.Sprintf("api key %s", map[bool]string{true: "enabled", false: "disabled"}[req.Enabled]),
 		"timestamp": time.Now().UTC().Format(time.RFC3339),
 	})
-}
-
-// stringsSplit splits a string — avoids importing strings package just for this
-func stringsSplit(s, sep string) []string {
-	if s == "" {
-		return nil
-	}
-	// Trim leading /
-	if len(s) > 0 && s[0] == '/' {
-		s = s[1:]
-	}
-	var result []string
-	start := 0
-	for i := 0; i < len(s); i++ {
-		if s[i] == sep[0] {
-			result = append(result, s[start:i])
-			start = i + 1
-		}
-	}
-	result = append(result, s[start:])
-	return result
 }
 
 // EnsureAdminTables ensures the api_keys table exists (for non-migration environments)

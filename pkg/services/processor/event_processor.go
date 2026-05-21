@@ -156,10 +156,10 @@ func (p *DefaultEventProcessor) Start() error {
 
 	if p.idempotencyService != nil {
 		if err := p.idempotencyService.Initialize(p.config); err != nil {
-			return err
+			return fmt.Errorf("initialize idempotency service: %w", err)
 		}
 		if err := p.idempotencyService.Start(); err != nil {
-			return err
+			return fmt.Errorf("start idempotency service: %w", err)
 		}
 	}
 
@@ -232,7 +232,7 @@ func (p *DefaultEventProcessor) ProcessEvent(ctx context.Context, event *core.Bl
 	p.tracer.SetAttribute(&span, "chain_id", event.ChainID)
 
 	if err := ctx.Err(); err != nil {
-		return err
+		return fmt.Errorf("context cancelled during event processing: %w", err)
 	}
 
 	if !p.isRunning() {
@@ -243,14 +243,14 @@ func (p *DefaultEventProcessor) ProcessEvent(ctx context.Context, event *core.Bl
 	if err := p.validateEvent(event); err != nil {
 		p.recordFailureMetric("event_processor_validation_failed", "network", event.Network)
 		p.logger.Error("Event validation failed", core.LogKeyError, err, core.LogKeyNetwork, event.Network)
-		return err
+		return fmt.Errorf("validate event %s: %w", event.ID, err)
 	}
 
 	hash, err := p.idempotencyService.GenerateHash(event)
 	if err != nil {
 		p.recordFailureMetric("event_processor_hash_generation_failed", "network", event.Network)
 		p.logger.Error("Hash generation failed", core.LogKeyError, err, core.LogKeyNetwork, event.Network, core.LogKeyEventID, event.ID)
-		return err
+		return fmt.Errorf("generate hash for event %s: %w", event.ID, err)
 	}
 
 	if p.isDuplicateEvent(ctx, hash, event.Network) {
@@ -260,7 +260,7 @@ func (p *DefaultEventProcessor) ProcessEvent(ctx context.Context, event *core.Bl
 	if err := p.storeEventWithRetry(ctx, event); err != nil {
 		p.recordFailureMetric("event_processor_storage_failed", "network", event.Network)
 		p.logger.Error("Event storage failed", core.LogKeyError, err, core.LogKeyNetwork, event.Network)
-		return err
+		return fmt.Errorf("store event %s with retry: %w", event.ID, err)
 	}
 
 	p.markProcessedWithRollback(ctx, hash, event)
@@ -310,7 +310,7 @@ func (p *DefaultEventProcessor) markProcessedWithRollback(ctx context.Context, h
 		}
 		select {
 		case <-ctx.Done():
-			break
+			return
 		case <-time.After(p.retryDelay):
 		}
 		err = p.idempotencyService.MarkProcessed(ctx, hash)
@@ -422,7 +422,7 @@ func (p *DefaultEventProcessor) ProcessBatch(ctx context.Context, events []*core
 			if err := p.ProcessEvent(gCtx, event); err != nil {
 				failureCount.Add(1)
 				firstErr.CompareAndSwap(nil, err)
-				return err
+				return fmt.Errorf("process event in batch: %w", err)
 			}
 			successCount.Add(1)
 			return nil
@@ -439,11 +439,15 @@ func (p *DefaultEventProcessor) ProcessBatch(ctx context.Context, events []*core
 	failure := failureCount.Load()
 	if failure > 0 {
 		if errVal := firstErr.Load(); errVal != nil {
+			firstErrMsg := "unknown error"
+			if e, ok := errVal.(error); ok {
+				firstErrMsg = e.Error()
+			}
 			p.logger.Error("batch processing completed with failures",
 				"total", len(events),
 				"success", successCount.Load(),
 				"failure", failure,
-				"first_error", errVal.(error).Error(),
+				"first_error", firstErrMsg,
 			)
 		}
 		if batchErr != nil {
@@ -471,13 +475,13 @@ func (p *DefaultEventProcessor) markBatchProcessed(ctx context.Context, events [
 			if err != nil {
 				failureCount.Add(1)
 				firstErr.CompareAndSwap(nil, err)
-				return err
+				return fmt.Errorf("generate hash for batch mark: %w", err)
 			}
 
 			if err := p.idempotencyService.MarkProcessed(gCtx, hash); err != nil {
 				failureCount.Add(1)
 				firstErr.CompareAndSwap(nil, err)
-				return err
+				return fmt.Errorf("mark processed in batch: %w", err)
 			}
 
 			// Update cache
@@ -506,7 +510,7 @@ func (p *DefaultEventProcessor) markBatchProcessed(ctx context.Context, events [
 			"batch_size", len(events),
 			"failures", failureCount.Load(),
 		)
-		return err
+		return fmt.Errorf("batch idempotency marking: %w", err)
 	}
 
 	p.mu.Lock()

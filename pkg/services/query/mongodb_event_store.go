@@ -890,7 +890,7 @@ func (s *MongoDBEventStore) CountEvents(ctx context.Context) (int64, error) {
 func decodeMongoEventCursor(ctx context.Context, cursor *mongo.Cursor) ([]*core.BlockchainEvent, error) {
 	var docs []bson.M
 	if err := cursor.All(ctx, &docs); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("decode mongo cursor: %w", err)
 	}
 
 	events := make([]*core.BlockchainEvent, 0, len(docs))

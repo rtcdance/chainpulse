@@ -840,7 +840,7 @@ func (p *PostgreSQLDatabase) GetBlock(ctx context.Context, blockNumber uint64) (
 		&block.Miner, &block.Difficulty, &block.GasUsed, &block.GasLimit,
 	)
 
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {
@@ -955,7 +955,7 @@ func (p *PostgreSQLDatabase) GetReorgStats(ctx context.Context) (*core.ReorgStat
 		&stats.LastReorgTime, &stats.LastReorgBlock,
 	)
 
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return &core.ReorgStats{}, nil
 	}
 	if err != nil {

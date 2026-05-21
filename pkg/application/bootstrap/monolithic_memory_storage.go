@@ -72,6 +72,9 @@ func (db *MonolithicMemoryDatabase) StoreEvent(ctx context.Context, event any) e
 	}
 
 	db.events[blockchainEvent.ID] = blockchainEvent
+	if db.logger != nil {
+		db.logger.Info("MonolithicMemoryDatabase stored event", "id", blockchainEvent.ID, "total", len(db.events))
+	}
 	return nil
 }
 
@@ -95,7 +98,7 @@ func (db *MonolithicMemoryDatabase) QueryEvents(ctx context.Context, filter any)
 func (db *MonolithicMemoryDatabase) BatchStoreEvents(ctx context.Context, events []any) error {
 	for _, event := range events {
 		if err := db.StoreEvent(ctx, event); err != nil {
-			return err
+			return fmt.Errorf("batch store event: %w", err)
 		}
 	}
 	return nil
@@ -108,6 +111,9 @@ func (db *MonolithicMemoryDatabase) GetAllEvents(ctx context.Context) ([]*core.B
 	results := make([]*core.BlockchainEvent, 0, len(db.events))
 	for _, event := range db.events {
 		results = append(results, event)
+	}
+	if db.logger != nil {
+		db.logger.Info("MonolithicMemoryDatabase.GetAllEvents", "returning", len(results), "total_in_map", len(db.events))
 	}
 	return results, nil
 }

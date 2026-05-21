@@ -166,7 +166,7 @@ func (e *RetryExecutor) Execute(ctx context.Context, operation func() error, sou
 				"source": source,
 			})
 			e.logger.Warn("Operation failed with non-retryable error", "attempts", attempt+1, "source", source, "error", err)
-			return err
+			return fmt.Errorf("non-retryable error from %s: %w", source, err)
 		}
 
 		// Check if we've exhausted retries
@@ -175,7 +175,7 @@ func (e *RetryExecutor) Execute(ctx context.Context, operation func() error, sou
 				"source": source,
 			})
 			e.logger.Warn("Operation failed after max retries", "attempts", attempt+1, "source", source, "error", err)
-			return err
+			return fmt.Errorf("retries exhausted for %s after %d attempts: %w", source, attempt+1, err)
 		}
 
 		// Calculate backoff
@@ -200,9 +200,12 @@ func (e *RetryExecutor) ExecuteWithFallback(ctx context.Context, operation func(
 	err := e.Execute(ctx, operation, source)
 	if err != nil && fallback != nil {
 		e.logger.Info("Executing fallback operation", "source", source)
-		return fallback()
+		return fmt.Errorf("fallback for %s: %w", source, fallback())
 	}
-	return err
+	if err != nil {
+		return fmt.Errorf("execute operation %s: %w", source, err)
+	}
+	return nil
 }
 
 // RetryableOperation wraps an operation with retry configuration
