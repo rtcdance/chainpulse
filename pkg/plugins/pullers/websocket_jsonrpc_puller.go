@@ -517,11 +517,17 @@ func (p *WebSocketJSONRPCPuller) connect() error {
 		// Per gorilla/websocket docs, resp may be non-nil even on error
 		// (e.g., HTTP 403, 404). Close the body to avoid resource leak.
 		if resp != nil && resp.Body != nil {
-			_ = resp.Body.Close()
+			if cerr := resp.Body.Close(); cerr != nil {
+				p.LogWarn("failed to close WebSocket response body on error", "error", cerr.Error())
+			}
 		}
 		return fmt.Errorf("failed to connect to WebSocket: %w", err)
 	}
-	defer func() { _ = resp.Body.Close() }()
+	defer func() {
+		if cerr := resp.Body.Close(); cerr != nil {
+			p.LogWarn("failed to close WebSocket response body", "error", cerr.Error())
+		}
+	}()
 
 	p.conn = conn
 	p.reconnectCount.Store(0)

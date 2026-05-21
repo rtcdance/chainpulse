@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
-t"github.com/rtcdance/chainpulse/pkg/testhelpers"
+	"github.com/rtcdance/chainpulse/pkg/testhelpers"
 
 	"github.com/ethereum/go-ethereum/common"
 )

@@ -22,7 +22,8 @@ type SystemError struct {
 	Err     error          `json:"-"`
 }
 
-// Types aliased to ports — these move to pkg/ports for new code.
+// Deprecated: Type aliases for backward compatibility. New code should import
+// pkg/ports directly. These aliases will be removed in a future major version.
 type (
 	CacheEntry        = ports.CacheEntry
 	QueryRequest      = ports.QueryRequest

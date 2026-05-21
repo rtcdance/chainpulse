@@ -131,8 +131,7 @@ func TestRPCTxTypeResolver_ReceiptNotFound(t *testing.T) {
 func TestRPCTxTypeResolver_ContextCancellation(t *testing.T) {
 	t.Parallel()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		// Never respond
-		select {}
+		<-req.Context().Done()
 	}))
 	defer server.Close()
 

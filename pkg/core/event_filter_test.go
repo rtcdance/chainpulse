@@ -436,6 +436,16 @@ func TestEventFilterBuilderBuildInvalid(t *testing.T) {
 	assert.Nil(t, filter)
 }
 
+// MustBuild builds the filter and panics on error.
+// Deprecated: Use Build() instead and handle the error explicitly in production code.
+func (efb *EventFilterBuilder) MustBuild() *EventFilter {
+	filter, err := efb.Build()
+	if err != nil {
+		panic(err)
+	}
+	return filter
+}
+
 // TestEventFilterBuilderMustBuild tests MustBuild with valid filter
 func TestEventFilterBuilderMustBuild(t *testing.T) {
 	t.Parallel()

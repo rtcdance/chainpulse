@@ -764,49 +764,6 @@ func TestKafkaMQPluginMaxRetriesExceeded(t *testing.T) {
 	}
 }
 
-// TestKafkaMQPluginGetLastBlockNumber tests getting last block number
-func TestKafkaMQPluginGetLastBlockNumber(t *testing.T) {
-	t.Parallel()
-	config := &core.Config{
-		BlockchainNodeURL: "localhost:50051",
-		StartBlock:        0,
-	}
-	logger := core.NewDefaultLogger(core.LogLevelInfo)
-	metrics := core.NewDefaultMetricsCollector()
-	eventBus := core.NewEventBus(logger)
-	brokers := []string{"localhost:9092"}
-	consumerGroup := "test-group"
-
-	plugin := NewKafkaMQPlugin("kafka", "1.0.0", config, logger, metrics, eventBus, brokers, consumerGroup)
-
-	blockNumber := plugin.GetLastBlockNumber()
-	if blockNumber != 0 {
-		t.Errorf("expected block number 0, got %d", blockNumber)
-	}
-}
-
-// TestKafkaMQPluginSetLastBlockNumber tests setting last block number
-func TestKafkaMQPluginSetLastBlockNumber(t *testing.T) {
-	t.Parallel()
-	config := &core.Config{
-		BlockchainNodeURL: "localhost:50051",
-		StartBlock:        0,
-	}
-	logger := core.NewDefaultLogger(core.LogLevelInfo)
-	metrics := core.NewDefaultMetricsCollector()
-	eventBus := core.NewEventBus(logger)
-	brokers := []string{"localhost:9092"}
-	consumerGroup := "test-group"
-
-	plugin := NewKafkaMQPlugin("kafka", "1.0.0", config, logger, metrics, eventBus, brokers, consumerGroup)
-
-	blockNumber := uint64(12345)
-	plugin.SetLastBlockNumber(blockNumber)
-
-	// Note: SetLastBlockNumber doesn't actually store for Kafka MQ
-	// This is expected behavior as Kafka uses offset tracking instead
-}
-
 // TestKafkaMQPluginHealthDegraded tests health status when errors occur
 func TestKafkaMQPluginHealthDegraded(t *testing.T) {
 	t.Parallel()

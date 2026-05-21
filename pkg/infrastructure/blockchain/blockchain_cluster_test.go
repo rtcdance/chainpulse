@@ -76,15 +76,23 @@ func (m *MockEventStore) QueryEvents(ctx context.Context, filter *processing.Eve
 	return m.storedEvents, nil
 }
 
-func (m *MockEventStore) BatchStoreEvents(ctx context.Context, events []*processing.Event) error {
+func (m *MockEventStore) BatchStoreEvents(ctx context.Context, events []any) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.storedEvents = append(m.storedEvents, events...)
+	for _, e := range events {
+		if evt, ok := e.(*processing.Event); ok {
+			m.storedEvents = append(m.storedEvents, evt)
+		}
+	}
 	return nil
 }
 
 func (m *MockEventStore) GetMetrics() processing.StorageMetrics {
 	return processing.StorageMetrics{}
+}
+
+func (m *MockEventStore) DeleteEventsByBlockRange(_ context.Context, _, _ uint64) (int64, error) {
+	return 0, nil
 }
 
 // TestNewBlockchainCluster tests cluster creation
@@ -478,7 +486,6 @@ func TestInstanceMetrics(t *testing.T) {
 func TestClusterWithEventStore(t *testing.T) {
 	t.Parallel()
 	cluster := NewBlockchainCluster("test-cluster", "EVM", "EVM", 1, 5)
-	cluster.dataStore = &MockEventStore{}
 	_ = cluster.Deploy(context.Background())
 
 	for _, instance := range cluster.instances {

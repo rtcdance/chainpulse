@@ -99,7 +99,7 @@ func (dci *DefaultChainIndexer) IndexEvents(
 			if dci.metrics != nil {
 				dci.metrics.RecordCounter("indexing_runtime_shadow_owned_events_total", 1, map[string]string{
 					"chain_id":  dci.chainID,
-					"service":   "monolithic",
+					"service":   core.DeploymentMonolithic,
 					"operation": "shadow_owned_write",
 				})
 			}
@@ -174,7 +174,7 @@ func (dci *DefaultChainIndexer) forwardShadowBatch(ctx context.Context, events [
 		if dci.metrics != nil {
 			dci.metrics.RecordCounter("indexing_runtime_shadow_batch_errors_total", 1, map[string]string{
 				"chain_id":  dci.chainID,
-				"service":   "monolithic",
+				"service":   core.DeploymentMonolithic,
 				"operation": "shadow_batch",
 			})
 		}

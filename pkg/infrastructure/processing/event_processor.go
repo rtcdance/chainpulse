@@ -217,12 +217,7 @@ func (ep *EventProcessor) normalizeEvent(event *Event) {
 		event.Timestamp = time.Now()
 	}
 
-	// Normalize event name
-	if event.EventName != "" {
-		// Event names are typically kept as-is, but could be normalized here
-		_ = event.EventName
 	}
-}
 
 // generateEventHash generates a deterministic hash for the event using the
 // canonical natural key (chain_id, block_number, transaction_hash, log_index).

@@ -456,7 +456,9 @@ func (rh *ReorgHandler) UpdateBlockHash(blockNumber uint64, blockHash common.Has
 
 	// Persist latest hash every checkpointInterval blocks (single write, not batch loop)
 	if rh.checkpointStore != nil && blockNumber > rh.lastPersistedBlock+rh.checkpointInterval {
-		_ = rh.checkpointStore.SaveLastIndexedBlock(context.Background(), rh.chainID, blockNumber, blockHash.Hex())
+		if err := rh.checkpointStore.SaveLastIndexedBlock(context.Background(), rh.chainID, blockNumber, blockHash.Hex()); err != nil {
+			rh.logger.Error("failed to save checkpoint", "chain_id", rh.chainID, "block_number", blockNumber, "error", err.Error())
+		}
 		rh.lastPersistedBlock = blockNumber
 	}
 

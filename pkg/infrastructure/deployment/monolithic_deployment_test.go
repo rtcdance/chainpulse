@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/ports"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -66,11 +67,11 @@ func (m *MonoMockEventBus) Publish(ctx context.Context, topic string, event any)
 	return nil
 }
 
-func (m *MonoMockEventBus) Subscribe(ctx context.Context, topic string, handler func(context.Context, any) error) (uint64, error) {
+func (m *MonoMockEventBus) Subscribe(ctx context.Context, topic string, handler ports.EventHandler) (uint64, error) {
 	return 0, nil
 }
 
-func (m *MonoMockEventBus) SubscribeNamed(ctx context.Context, topic, name string, handler func(context.Context, any) error) (uint64, error) {
+func (m *MonoMockEventBus) SubscribeNamed(ctx context.Context, topic, name string, handler ports.EventHandler) (uint64, error) {
 	return 0, nil
 }
 

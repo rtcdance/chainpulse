@@ -27,6 +27,10 @@ func (s *persistentStorageEventStoreStub) InsertEventBatch(ctx context.Context, 
 	return nil
 }
 
+func (s *persistentStorageEventStoreStub) GetEventsByCorrelationID(_ context.Context, _ string, _, _ int) ([]*core.BlockchainEvent, error) {
+	return nil, nil
+}
+
 func (s *persistentStorageEventStoreStub) GetEvent(ctx context.Context, eventID string) (*core.BlockchainEvent, error) {
 	return nil, nil
 }

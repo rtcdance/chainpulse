@@ -37,7 +37,7 @@ func TestMonolithicMemoryDatabase_Lifecycle(t *testing.T) {
 	if err := db.Start(context.Background()); err != nil {
 		t.Fatalf("Start() error: %v", err)
 	}
-	if err := db.Health(); err != nil {
+	if err := db.Health(context.Background()); err != nil {
 		t.Fatalf("Health() error: %v", err)
 	}
 	if err := db.Stop(context.Background()); err != nil {
@@ -48,7 +48,7 @@ func TestMonolithicMemoryDatabase_Lifecycle(t *testing.T) {
 func TestMonolithicMemoryDatabase_HealthNotStarted(t *testing.T) {
 	t.Parallel()
 	db := NewMonolithicMemoryDatabase(nil)
-	if err := db.Health(); err == nil {
+	if err := db.Health(context.Background()); err == nil {
 		t.Error("expected error from Health() when not started")
 	}
 }
@@ -315,7 +315,7 @@ func TestMonolithicMemoryCache_Lifecycle(t *testing.T) {
 	if err := c.Start(context.Background()); err != nil {
 		t.Fatalf("Start() error: %v", err)
 	}
-	if err := c.Health(); err != nil {
+	if err := c.Health(context.Background()); err != nil {
 		t.Fatalf("Health() error: %v", err)
 	}
 	if err := c.HealthCheck(context.Background()); err != nil {

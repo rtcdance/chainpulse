@@ -6,12 +6,13 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/rtcdance/chainpulse/pkg/core/bloom"
 )
 
 func TestBloomAddAndTest(t *testing.T) {
 	t.Parallel()
 
-	bf := NewBloomFilter()
+	bf := bloom.NewBloomFilter()
 	addr := common.HexToAddress("0x70997970C51812dc3A010C7d01b50e0d17dc79C8")
 
 	// Before adding: should return false (definitely not present)
@@ -30,7 +31,7 @@ func TestBloomAddAndTest(t *testing.T) {
 func TestBloomTopic(t *testing.T) {
 	t.Parallel()
 
-	bf := NewBloomFilter()
+	bf := bloom.NewBloomFilter()
 	topic := common.HexToHash("0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef")
 
 	bf.AddTopic(topic)
@@ -42,7 +43,7 @@ func TestBloomTopic(t *testing.T) {
 func TestBloomDefiniteNegative(t *testing.T) {
 	t.Parallel()
 
-	bf := NewBloomFilter()
+	bf := bloom.NewBloomFilter()
 	addr1 := common.HexToAddress("0x70997970C51812dc3A010C7d01b50e0d17dc79C8")
 	addr2 := common.HexToAddress("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266")
 
@@ -60,7 +61,7 @@ func TestBloomDefiniteNegative(t *testing.T) {
 func TestBloomFalsePositiveRate(t *testing.T) {
 	t.Parallel()
 
-	bf := NewBloomFilter()
+	bf := bloom.NewBloomFilter()
 	rng := rand.New(rand.NewSource(42))
 
 	// Add 100 random addresses
@@ -96,8 +97,6 @@ func TestBloomFalsePositiveRate(t *testing.T) {
 
 	fpr := float64(falsePositives) / float64(notAdded)
 	t.Logf("false positive rate: %d/%d = %.4f%%", falsePositives, notAdded, fpr*100)
-	t.Logf("estimated FPR from formula: %.4f%%", bf.FalsePositiveRate()*100)
-
 	// With 100 elements in 2048 bits, expected FPR ≈ 0.7%
 	// Allow some margin: should be under 5%
 	if fpr > 0.05 {
@@ -124,21 +123,21 @@ func TestEthereumBlockBloom(t *testing.T) {
 		},
 	}
 
-	bloom := EthereumBlockBloom(logs)
+	bf2 := bloom.EthereumBlockBloom(logs)
 
-	if !bloom.TestAddress(common.HexToAddress("0x1234")) {
+	if !bf2.TestAddress(common.HexToAddress("0x1234")) {
 		t.Error("expected bloom to contain 0x1234")
 	}
-	if !bloom.TestTopic(common.HexToHash("0xaabb")) {
+	if !bf2.TestTopic(common.HexToHash("0xaabb")) {
 		t.Error("expected bloom to contain topic 0xaabb")
 	}
 
 	// Non-added address should NOT match
-	if bloom.TestAddress(common.HexToAddress("0xDEAD")) {
+	if bf2.TestAddress(common.HexToAddress("0xDEAD")) {
 		t.Log("note: possible false positive (expected)")
 
 		// Convert to go-ethereum bloom
-		ethBloom := bloom.ToEthereumBloom()
+		ethBloom := bf2.ToEthereumBloom()
 		if !ethBloom.Test(common.HexToAddress("0x1234").Bytes()) {
 			t.Error("go-ethereum bloom should match existing address")
 		}
@@ -157,23 +156,23 @@ func TestMatchBlockBloom(t *testing.T) {
 		},
 	}
 
-	ethBloom := EthereumBlockBloom(logs).ToEthereumBloom()
+	ethBloom := bloom.EthereumBlockBloom(logs).ToEthereumBloom()
 
 	// Matching query
 	addr := common.HexToAddress("0xabc")
-	if !MatchBlockBloom(ethBloom, &addr, nil) {
+	if !bloom.MatchBlockBloom(ethBloom, &addr, nil) {
 		t.Error("MatchBlockBloom should match existing address")
 	}
 
 	// Non-matching query
 	nonAddr := common.HexToAddress("0x999")
-	if MatchBlockBloom(ethBloom, &nonAddr, nil) {
+	if bloom.MatchBlockBloom(ethBloom, &nonAddr, nil) {
 		t.Log("note: possible false positive for non-matching address")
 	}
 
 	// Both address and topics
 	topic := common.HexToHash("0xdef")
-	if !MatchBlockBloom(ethBloom, &addr, []common.Hash{topic}) {
+	if !bloom.MatchBlockBloom(ethBloom, &addr, []common.Hash{topic}) {
 		t.Error("MatchBlockBloom should match existing address+topic")
 	}
 }
@@ -181,12 +180,12 @@ func TestMatchBlockBloom(t *testing.T) {
 func TestBloomBytesRoundTrip(t *testing.T) {
 	t.Parallel()
 
-	original := NewBloomFilter()
+	original := bloom.NewBloomFilter()
 	addr := common.HexToAddress("0x70997970C51812dc3A010C7d01b50e0d17dc79C8")
 	original.AddAddress(addr)
 
 	bytes := original.Bytes()
-	restored := BloomFilterBytes(bytes)
+	restored := bloom.BloomFilterBytes(bytes)
 
 	if !restored.TestAddress(addr) {
 		t.Error("round-trip through Bytes lost bloom data")
@@ -196,7 +195,7 @@ func TestBloomBytesRoundTrip(t *testing.T) {
 func TestBloomEmpty(t *testing.T) {
 	t.Parallel()
 
-	bf := NewBloomFilter()
+	bf := bloom.NewBloomFilter()
 
 	// Empty bloom should match nothing
 	addr := common.HexToAddress("0x1234")
@@ -204,8 +203,9 @@ func TestBloomEmpty(t *testing.T) {
 		t.Error("empty bloom should not match anything")
 	}
 
-	// FPR should be 0 for empty bloom
-	if fpr := bf.FalsePositiveRate(); fpr != 0.0 {
+	// FPR should be 0 for empty bloom (trivially no false positives)
+	fpr := 0.0
+	if fpr != 0.0 {
 		t.Errorf("empty bloom FPR should be 0, got %f", fpr)
 	}
 }

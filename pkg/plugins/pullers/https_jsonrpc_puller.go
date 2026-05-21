@@ -675,7 +675,7 @@ func (p *HTTPSJSONRPCPuller) executeWithFailover(ctx context.Context, fn func(cl
 			}
 			failurePenalty := float64(s.failureCount) * 50_000 // 50ms penalty per failure
 			recencyBonus := 0.0
-			if !s.lastFailure.IsZero() && time.Since(s.lastFailure) < 30*time.Second {
+			if !s.lastFailure.IsZero() && time.Since(s.lastFailure) < core.DefaultTimeout {
 				recencyBonus = 200_000 // 200ms penalty for recent failure
 			}
 			score = latencyScore + failurePenalty + recencyBonus

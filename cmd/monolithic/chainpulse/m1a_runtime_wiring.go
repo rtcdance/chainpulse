@@ -626,7 +626,7 @@ func subscribeMonolithicIndexer(
 		}
 
 		logger.Info("monolithic event received", "event_name", event.EventName, "block", event.BlockNumber)
-		err := multiChainIndexer.ProcessEvent(ctx, &event)
+		err := multiChainIndexer.IndexEventsFromChain(ctx, event.ChainID, []*core.BlockchainEvent{&event})
 		if err != nil {
 			logger.Error("failed to process monolithic event", "error", err)
 		}

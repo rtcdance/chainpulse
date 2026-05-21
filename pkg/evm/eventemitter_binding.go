@@ -28,6 +28,7 @@ const eventEmitterABIJSON = `[
 func parseEventEmitterABI() abi.ABI {
 	parsed, err := abi.JSON(strings.NewReader(eventEmitterABIJSON))
 	if err != nil {
+		// panic is acceptable here: the ABI JSON is a compile-time constant. If it fails to parse, it indicates a developer bug in the source code that must be fixed at build time.
 		panic("failed to parse EventEmitter ABI: " + err.Error())
 	}
 	return parsed

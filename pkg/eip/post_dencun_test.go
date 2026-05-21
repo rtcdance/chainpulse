@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/rtcdance/chainpulse/pkg/gas"
 )
 
 func TestWithdrawalRequestIsFullExit(t *testing.T) {
@@ -72,7 +73,7 @@ func TestEIP6110DepositContractAddress(t *testing.T) {
 
 func TestTransientStorageGasCost(t *testing.T) {
 	// 3 TLOADs + 2 TSTOREs = 3*100 + 2*100 = 500
-	cost := TransientStorageGasCost(3, 2)
+	cost := gas.TransientStorageGasCost(3, 2)
 	if cost != 500 {
 		t.Errorf("TransientStorageGasCost(3, 2) = %d, want 500", cost)
 	}
@@ -83,7 +84,7 @@ func TestTransientVsPermanentSavings(t *testing.T) {
 	// Permanent: 20000 + 0 + 100 = 20100
 	// Transient: 100 + 0 + 100 = 200
 	// Savings: 19900
-	savings := TransientVsPermanentSavings(1, 0, 1)
+	savings := gas.TransientVsPermanentSavings(1, 0, 1)
 	if savings != 19900 {
 		t.Errorf("TransientVsPermanentSavings(1, 0, 1) = %d, want 19900", savings)
 	}
@@ -92,7 +93,7 @@ func TestTransientVsPermanentSavings(t *testing.T) {
 	// Permanent: 0 + 2900 + 100 = 3000
 	// Transient: 100 + 100 = 200
 	// Savings: 2800
-	savings2 := TransientVsPermanentSavings(0, 1, 1)
+	savings2 := gas.TransientVsPermanentSavings(0, 1, 1)
 	if savings2 != 2800 {
 		t.Errorf("TransientVsPermanentSavings(0, 1, 1) = %d, want 2800", savings2)
 	}

@@ -10,7 +10,7 @@ import (
 
 	"github.com/rtcdance/chainpulse/pkg/application/bootstrap"
 	"github.com/rtcdance/chainpulse/pkg/core"
-t"github.com/rtcdance/chainpulse/pkg/testhelpers"
+	"github.com/rtcdance/chainpulse/pkg/testhelpers"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
@@ -22,8 +22,8 @@ func TestMonolithicIndexingBackedQuerySurfaceServesEventsFromIndexingDatabase(t 
 	logger := testhelpers.NewTestLogger()
 	metrics := core.NewDefaultMetricsCollector()
 	indexingDatabase := indexingadapter.NewMonolithicMemoryDatabase(logger)
-	require.NoError(t, indexingDatabase.Initialize(core.Config{}))
-	require.NoError(t, indexingDatabase.Start())
+	require.NoError(t, indexingDatabase.Initialize(context.Background(), core.Config{}))
+	require.NoError(t, indexingDatabase.Start(context.Background()))
 
 	event := &core.BlockchainEvent{
 		ID:              "evt-monolithic-1",
@@ -64,8 +64,8 @@ func TestMonolithicIndexingBackedQuerySurfaceServesStringChainRouteFromIndexingD
 	logger := testhelpers.NewTestLogger()
 	metrics := core.NewDefaultMetricsCollector()
 	indexingDatabase := indexingadapter.NewMonolithicMemoryDatabase(logger)
-	require.NoError(t, indexingDatabase.Initialize(core.Config{}))
-	require.NoError(t, indexingDatabase.Start())
+	require.NoError(t, indexingDatabase.Initialize(context.Background(), core.Config{}))
+	require.NoError(t, indexingDatabase.Start(context.Background()))
 
 	event := &core.BlockchainEvent{
 		ID:              "evt-monolithic-chain-1",

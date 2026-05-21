@@ -7,7 +7,8 @@ import (
 	"github.com/rtcdance/chainpulse/pkg/ports"
 )
 
-// Type aliases preserving backward compatibility for code importing pkg/core.
+// Deprecated: Type aliases for backward compatibility. New code should import
+// pkg/ports directly. These aliases will be removed in a future major version.
 type (
 	Plugin               = ports.Plugin
 	LeveledLogger        = ports.LeveledLogger
@@ -38,37 +39,6 @@ type (
 
 // Config is defined in pkg/configmodel. This type alias preserves callers.
 type Config = configmodel.Config
-
-// Deprecated: Use typed Config struct fields directly instead.
-func ConfigString(c *Config, key, defaultValue string) string {
-	switch key {
-	case "POSTGRES_HOST":
-		if c.PostgresHost != "" {
-			return c.PostgresHost
-		}
-	case "POSTGRES_PORT":
-		if c.PostgresPort != "" {
-			return c.PostgresPort
-		}
-	case "POSTGRES_USER":
-		if c.PostgresUser != "" {
-			return c.PostgresUser
-		}
-	case "POSTGRES_PASSWORD":
-		if c.PostgresPassword != "" {
-			return c.PostgresPassword.Value()
-		}
-	case "POSTGRES_DB":
-		if c.PostgresDB != "" {
-			return c.PostgresDB
-		}
-	case "POSTGRES_CONNECTION_STRING":
-		if c.DatabaseURL != "" {
-			return c.DatabaseURL
-		}
-	}
-	return defaultValue
-}
 
 // StartPlugin starts a plugin with context propagation if it implements LifecyclePlugin.
 func StartPlugin(ctx context.Context, p Plugin) error {

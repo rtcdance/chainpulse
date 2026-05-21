@@ -9,15 +9,15 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
-t"github.com/rtcdance/chainpulse/pkg/testhelpers"
+	"github.com/rtcdance/chainpulse/pkg/testhelpers"
 	domainquery "github.com/rtcdance/chainpulse/pkg/domain/query"
 )
 
 func TestMonolithicIndexingEventStoreFiltersByContractAndName(t *testing.T) {
 	t.Parallel()
 	db := NewMonolithicMemoryDatabase(testhelpers.NewTestLogger())
-	require.NoError(t, db.Initialize(core.Config{}))
-	require.NoError(t, db.Start())
+	require.NoError(t, db.Initialize(context.Background(), core.Config{}))
+	require.NoError(t, db.Start(context.Background()))
 
 	first := &core.BlockchainEvent{
 		ID:              "evt-1",
@@ -59,8 +59,8 @@ func TestMonolithicIndexingEventStoreFiltersByContractAndName(t *testing.T) {
 func TestMonolithicIndexingDomainQueryServiceReadsFromIndexingDatabase(t *testing.T) {
 	t.Parallel()
 	db := NewMonolithicMemoryDatabase(testhelpers.NewTestLogger())
-	require.NoError(t, db.Initialize(core.Config{}))
-	require.NoError(t, db.Start())
+	require.NoError(t, db.Initialize(context.Background(), core.Config{}))
+	require.NoError(t, db.Start(context.Background()))
 
 	event := &core.BlockchainEvent{
 		ID:              "evt-3",

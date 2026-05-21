@@ -18,7 +18,8 @@ func TestNewDatabaseManager(t *testing.T) {
 	assert.Equal(t, "postgres://localhost:5432", manager.postgresURL)
 	assert.Equal(t, 10, manager.poolSize)
 	assert.Equal(t, 5*time.Second, manager.mongoTimeout)
-	assert.False(t, manager.initialized)
+	assert.False(t, manager.mongoInit)
+	assert.False(t, manager.postgresInit)
 	assert.False(t, manager.closed)
 }
 
@@ -27,7 +28,8 @@ func TestDatabaseManagerInitializeNotInitialized(t *testing.T) {
 	t.Parallel()
 	manager := NewDatabaseManager("mongodb://localhost:27017", "postgres://localhost:5432", "disable", 10, 5*time.Second)
 
-	assert.False(t, manager.initialized)
+	assert.False(t, manager.mongoInit)
+	assert.False(t, manager.postgresInit)
 	assert.False(t, manager.closed)
 }
 
@@ -203,7 +205,6 @@ func TestDatabaseManagerInitializeAlreadyInitialized(t *testing.T) {
 
 	// First initialization will fail due to connection issues, but set initialized flag
 	_ = manager.Initialize(ctx)
-	manager.initialized = true
 
 	// Second initialization should fail
 	err := manager.Initialize(ctx)
@@ -281,7 +282,8 @@ func TestDatabaseManagerInitializeState(t *testing.T) {
 	t.Parallel()
 	manager := NewDatabaseManager("mongodb://localhost:27017", "postgres://localhost:5432", "disable", 10, 5*time.Second)
 
-	assert.False(t, manager.initialized)
+	assert.False(t, manager.mongoInit)
+	assert.False(t, manager.postgresInit)
 	assert.False(t, manager.closed)
 
 	// Attempt initialization (will fail due to connection issues)

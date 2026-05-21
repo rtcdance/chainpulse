@@ -7,10 +7,10 @@ import (
 	"time"
 )
 
-// Ensure atomic types are properly imported
-var _ atomic.Int64
-
-// BaseMQPlugin provides base implementation for message queue plugins
+// BaseMQPlugin provides base implementation for message queue plugins.
+// NOTE: MQ interfaces and base implementations reside in pkg/core/ for
+// historical reasons. Long-term, interfaces should move to pkg/ports/
+// alongside other port definitions, and implementations to pkg/plugins/mq/base/.
 type BaseMQPlugin struct {
 	name                string
 	version             string

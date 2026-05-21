@@ -191,7 +191,7 @@ func TestDatabaseManagerStateTransitions(t *testing.T) {
 			)
 
 			// Initially not initialized
-			if manager.initialized {
+			if manager.mongoInit || manager.postgresInit {
 				return false
 			}
 
@@ -208,7 +208,7 @@ func TestDatabaseManagerStateTransitions(t *testing.T) {
 
 			// After failed initialization, initialized should still be false
 			// because the Initialize method only sets it to true on success
-			if manager.initialized {
+			if manager.mongoInit || manager.postgresInit {
 				return false
 			}
 

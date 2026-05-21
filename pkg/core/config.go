@@ -72,7 +72,7 @@ func (cm *DefaultConfigManager) Load() (Config, error) {
 		RetryBackoff:   env.GetInt("RETRY_BACKOFF", DefaultRetryBackoff),
 
 		// Deployment Configuration
-		DeploymentMode: env.Get("DEPLOYMENT_MODE", "monolithic"),
+		DeploymentMode: env.Get("DEPLOYMENT_MODE", DeploymentModeMonolithic),
 		ServiceName:    env.Get("SERVICE_NAME", "chainpulse"),
 		ChainID:        env.Get("CHAIN_ID", ""),
 

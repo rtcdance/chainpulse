@@ -1,4 +1,4 @@
-package core
+package evm
 
 import (
 	"math/big"
@@ -15,8 +15,8 @@ func FuzzDecodeTypedEvent(f *testing.F) {
 	to := common.HexToAddress("0x2222222222222222222222222222222222222222")
 	topics := []common.Hash{
 		topic0ForName("Transfer"),
-		padAddressToTopicHelper(from),
-		padAddressToTopicHelper(to),
+		common.BytesToHash(from.Bytes()),
+		common.BytesToHash(to.Bytes()),
 	}
 	data := encodeUint256Helper(big.NewInt(100))
 	f.Add(topics[0][:], topics[1][:], topics[2][:], data)
@@ -82,14 +82,6 @@ func FuzzDecodeEventData(f *testing.F) {
 		result := DecodeEventData(eventName, topics, data)
 		_ = result
 	})
-}
-
-// Helpers for fuzz test — prefixed to avoid collision with typed_events_test.go
-
-func padAddressToTopicHelper(addr common.Address) common.Hash {
-	var h common.Hash
-	copy(h[12:], addr[:])
-	return h
 }
 
 func encodeUint256Helper(v *big.Int) []byte {

@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/rtcdance/chainpulse/pkg/core/eventsig"
+	"github.com/rtcdance/chainpulse/pkg/evm"
 )
 
 func TestDeFiEventSignaturesRegistered(t *testing.T) {
@@ -22,8 +24,8 @@ func TestDeFiEventSignaturesRegistered(t *testing.T) {
 	}
 
 	for hash, expectedName := range expectedSigs {
-		name, ok := ResolveEventNameFromTopic(hash), true
-		if !ok {
+		name := eventsig.ResolveEventNameFromTopic(hash)
+		if name == "" {
 			t.Errorf("signature %s not found in knownEventSignatureNames", hash)
 		}
 		if name != expectedName {
@@ -45,7 +47,7 @@ func TestDeFiABIDefinitionsParse(t *testing.T) {
 	}
 
 	for _, name := range defiEvents {
-		abi := GetABIForEventName(name)
+		abi := evm.GetABIForEventName(name)
 		if abi == nil {
 			t.Errorf("GetABIForEventName(%q) returned nil — ABI failed to parse", name)
 		}

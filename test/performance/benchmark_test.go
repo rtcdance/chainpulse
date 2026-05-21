@@ -78,9 +78,9 @@ func BenchmarkInMemoryCache_Get(b *testing.B) {
 
 func BenchmarkMockDB_StoreEvent(b *testing.B) {
 	db := database.NewMockDB()
-	_ = db.Initialize(core.Config{})
-	_ = db.Start()
-	defer func() { _ = db.Stop() }()
+	_ = db.Initialize(context.Background(), core.Config{})
+	_ = db.Start(context.Background())
+	defer func() { _ = db.Stop(context.Background()) }()
 
 	ctx := context.Background()
 	event := &core.BlockchainEvent{
@@ -96,9 +96,9 @@ func BenchmarkMockDB_StoreEvent(b *testing.B) {
 
 func BenchmarkMockDB_GetEvent(b *testing.B) {
 	db := database.NewMockDB()
-	_ = db.Initialize(core.Config{})
-	_ = db.Start()
-	defer func() { _ = db.Stop() }()
+	_ = db.Initialize(context.Background(), core.Config{})
+	_ = db.Start(context.Background())
+	defer func() { _ = db.Stop(context.Background()) }()
 
 	ctx := context.Background()
 	event := &core.BlockchainEvent{
@@ -115,9 +115,9 @@ func BenchmarkMockDB_GetEvent(b *testing.B) {
 
 func BenchmarkMockDB_BatchStore(b *testing.B) {
 	db := database.NewMockDB()
-	_ = db.Initialize(core.Config{})
-	_ = db.Start()
-	defer func() { _ = db.Stop() }()
+	_ = db.Initialize(context.Background(), core.Config{})
+	_ = db.Start(context.Background())
+	defer func() { _ = db.Stop(context.Background()) }()
 
 	ctx := context.Background()
 	events := make([]any, 100)

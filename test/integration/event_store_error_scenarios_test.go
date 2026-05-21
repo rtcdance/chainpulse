@@ -14,11 +14,10 @@ import (
 // TestMongoDBConnectionFailure tests MongoDB connection failure handling
 func TestMongoDBConnectionFailure(t *testing.T) {
 	classifier := query.NewErrorClassifier()
-	logger := &MockLogger{}
 
 	// Classify the error
 	err := fmt.Errorf("connection refused")
-	errorType := classifier.ClassifyError(err)
+	errorType := classifier.Classify(err)
 
 	if errorType != query.ErrorTypeTransient {
 		t.Errorf("Error classification = %v, want %v", errorType, query.ErrorTypeTransient)
@@ -28,8 +27,6 @@ func TestMongoDBConnectionFailure(t *testing.T) {
 	if !classifier.IsTransient(err) {
 		t.Errorf("Error should be classified as transient")
 	}
-
-	logger.Info("MongoDB connection failure test passed")
 }
 
 // TestPostgreSQLConnectionFailure tests PostgreSQL connection failure handling
@@ -38,7 +35,7 @@ func TestPostgreSQLConnectionFailure(t *testing.T) {
 
 	// Create a PostgreSQL connection error
 	err := fmt.Errorf("connection refused")
-	errorType := classifier.ClassifyError(err)
+	errorType := classifier.Classify(err)
 
 	if errorType != query.ErrorTypeTransient {
 		t.Errorf("Error classification = %v, want %v", errorType, query.ErrorTypeTransient)
@@ -55,7 +52,7 @@ func TestTimeoutDuringQuery(t *testing.T) {
 
 	// Create a timeout error
 	err := fmt.Errorf("context deadline exceeded")
-	errorType := classifier.ClassifyError(err)
+	errorType := classifier.Classify(err)
 
 	if errorType != query.ErrorTypeTransient {
 		t.Errorf("Error classification = %v, want %v", errorType, query.ErrorTypeTransient)
@@ -72,7 +69,7 @@ func TestDuplicateKeyError(t *testing.T) {
 
 	// Create a duplicate key error
 	err := fmt.Errorf("duplicate key error")
-	errorType := classifier.ClassifyError(err)
+	errorType := classifier.Classify(err)
 
 	if errorType != query.ErrorTypePermanent {
 		t.Errorf("Error classification = %v, want %v", errorType, query.ErrorTypePermanent)
@@ -89,7 +86,7 @@ func TestConstraintViolation(t *testing.T) {
 
 	// Create a constraint violation error
 	err := fmt.Errorf("unique constraint violation")
-	errorType := classifier.ClassifyError(err)
+	errorType := classifier.Classify(err)
 
 	if errorType != query.ErrorTypePermanent {
 		t.Errorf("Error classification = %v, want %v", errorType, query.ErrorTypePermanent)
@@ -106,7 +103,7 @@ func TestNetworkPartition(t *testing.T) {
 
 	// Create a network partition error
 	err := fmt.Errorf("network unreachable")
-	errorType := classifier.ClassifyError(err)
+	errorType := classifier.Classify(err)
 
 	if errorType != query.ErrorTypeTransient {
 		t.Errorf("Error classification = %v, want %v", errorType, query.ErrorTypeTransient)

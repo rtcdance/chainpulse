@@ -32,7 +32,11 @@ const (
 	TxStatusSuccess = blockchain.TxStatusSuccess
 )
 
-// BlockchainEvent type alias
+// BlockchainEvent is the canonical event structure used across the entire system.
+// NOTE: This type and its siblings (Block, Transaction, etc.) technically belong
+// in a domain model package (e.g. pkg/domain/model/) rather than pkg/core/.
+// They remain here for now because moving them would require updating 30+ import
+// paths — a future, planned refactoring.
 type BlockchainEvent = blockchain.BlockchainEvent
 
 // TxTypeResolver type alias

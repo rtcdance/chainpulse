@@ -231,7 +231,9 @@ func (hc *HealthChecker) checkService(ctx context.Context, service *ServiceInfo)
 		status = "healthy"
 	}
 
-	_ = hc.registry.UpdateServiceStatus(ctx, service.ID, status)
+	if err := hc.registry.UpdateServiceStatus(ctx, service.ID, status); err != nil {
+		slog.Warn("failed to update service status", "service_id", service.ID, "status", status, "error", err)
+	}
 }
 
 // performHealthCheck probes the service's HealthCheckURL with an HTTP GET.

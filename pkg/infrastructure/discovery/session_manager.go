@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"log/slog"
 	"sync"
 	"time"
 )
@@ -108,7 +109,9 @@ func (sm *SessionManager) GetSession(ctx context.Context, sessionID string) (*Se
 
 	// Check expiration
 	if time.Now().After(session.ExpiresAt) {
-		_ = sm.DeleteSession(ctx, sessionID)
+		if err := sm.DeleteSession(ctx, sessionID); err != nil {
+			slog.Warn("failed to delete expired session", "session_id", sessionID, "error", err)
+		}
 		return nil, fmt.Errorf("session expired: %s", sessionID)
 	}
 

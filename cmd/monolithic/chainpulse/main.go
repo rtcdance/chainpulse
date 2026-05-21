@@ -216,6 +216,7 @@ func run() error {
 
 	// Bridge EventBus "event:created" → push-based subscription handlers
 	// This enables real-time WebSocket/GraphQL event push + webhook delivery.
+	var webhookStore *api.WebhookStore
 	if runtimeWiring.EventSubscriptionHandler != nil {
 		_, subErr := monolithicPullerRuntime.EventBus().SubscribeNamed(
 			ctx, "event:created", "monolithic-subscription-bridge",
@@ -275,7 +276,6 @@ func run() error {
 		gateway.SetAdminKeyHandler(monolithicQuerySurface.adminKeyHandler)
 	}
 	// Wire store-backed AdminAPIKeyHandler for CRUD at /admin/api-keys (if postgres is available)
-	var webhookStore *api.WebhookStore
 	if runtimeWiring.DBManager != nil {
 		if pgRaw, pgErr := runtimeWiring.DBManager.GetPostgresDB(ctx); pgErr == nil {
 			if sqlDB, ok := pgRaw.(*sql.DB); ok {

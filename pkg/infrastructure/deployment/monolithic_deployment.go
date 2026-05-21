@@ -395,7 +395,7 @@ func (md *MonolithicDeployment) GetMetrics() map[string]any {
 	metrics := make(map[string]any)
 	metrics["is_running"] = md.isRunning
 	metrics["service_count"] = len(md.serviceInitializers)
-	metrics["deployment_mode"] = "monolithic"
+	metrics["deployment_mode"] = core.DeploymentModeMonolithic
 
 	if md.metricsCollector != nil {
 		exported := md.metricsCollector.GetMetrics()

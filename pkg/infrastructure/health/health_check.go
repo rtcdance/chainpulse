@@ -3,6 +3,7 @@ package health
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"sync"
 	"time"
@@ -268,7 +269,9 @@ func (hcs *HealthCheckSystem) performHealthCheck(ctx context.Context, serviceID 
 	if !healthy {
 		status = "unhealthy"
 	}
-	_ = hcs.registry.UpdateServiceStatus(ctx, serviceID, status)
+	if err := hcs.registry.UpdateServiceStatus(ctx, serviceID, status); err != nil {
+		slog.Warn("failed to update service status in registry", "service_id", serviceID, "status", status, "error", err)
+	}
 
 	// Deregister if unhealthy for too long
 	if !healthy {
@@ -313,7 +316,9 @@ func (hcs *HealthCheckSystem) handleUnhealthyService(ctx context.Context, servic
 
 	// If unhealthy for more than 30 seconds, deregister
 	if time.Since(result.Timestamp) > unhealthyThreshold {
-		_ = hcs.registry.DeregisterService(ctx, serviceID)
+		if err := hcs.registry.DeregisterService(ctx, serviceID); err != nil {
+			slog.Warn("failed to deregister unhealthy service", "service_id", serviceID, "error", err)
+		}
 	}
 }
 
@@ -458,9 +463,11 @@ func (ad *AutomaticDeregistration) deregistrationLoop(ctx context.Context) {
 			return
 		case <-ticker.C:
 			failedServices := ad.failureDetector.DetectFailures(ctx)
-			for _, serviceID := range failedServices {
-				_ = ad.registry.DeregisterService(ctx, serviceID)
+		for _, serviceID := range failedServices {
+			if err := ad.registry.DeregisterService(ctx, serviceID); err != nil {
+				slog.Warn("failed to deregister failed service", "service_id", serviceID, "error", err)
 			}
+		}
 		}
 	}
 }

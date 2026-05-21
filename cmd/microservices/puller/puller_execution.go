@@ -283,7 +283,7 @@ func (r *pullerExecutionRuntime) shadowEvents(ctx context.Context, chainID strin
 		return nil
 	}
 
-	runtime, err := r.runtimeForChain(chainID)
+	runtime, err := r.runtimeForChain(ctx, chainID)
 	if err != nil {
 		return err
 	}
@@ -313,7 +313,7 @@ func (r *pullerExecutionRuntime) shadowEvents(ctx context.Context, chainID strin
 	return runtime.ProcessBatch(ctx, chainID, envelopes)
 }
 
-func (r *pullerExecutionRuntime) runtimeForChain(chainID string) (*appindexing.SharedRuntime, error) {
+func (r *pullerExecutionRuntime) runtimeForChain(ctx context.Context, chainID string) (*appindexing.SharedRuntime, error) {
 	r.mu.RLock()
 	existing := r.runtimes[chainID]
 	r.mu.RUnlock()

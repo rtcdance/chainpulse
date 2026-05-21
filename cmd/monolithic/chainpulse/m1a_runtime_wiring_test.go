@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
-t"github.com/rtcdance/chainpulse/pkg/testhelpers"
+	"github.com/rtcdance/chainpulse/pkg/testhelpers"
 	"github.com/rtcdance/chainpulse/pkg/services/indexing"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -126,10 +126,10 @@ func TestNewMonolithicPullerRuntimeRequiresAlignedChainsAndNodeURLs(t *testing.T
 	metrics := core.NewDefaultMetricsCollector()
 	indexer := indexing.NewMultiChainIndexer(logger, nil)
 	db := appindexingadapter.NewMonolithicMemoryDatabase(logger)
-	if err := db.Initialize(core.Config{}); err != nil {
+	if err := db.Initialize(context.Background(), core.Config{}); err != nil {
 		t.Fatalf("init db: %v", err)
 	}
-	if err := db.Start(); err != nil {
+	if err := db.Start(context.Background()); err != nil {
 		t.Fatalf("start db: %v", err)
 	}
 
@@ -144,10 +144,10 @@ func TestMonolithicPullerRuntimeObserveEventDetectsAndHandlesReorg(t *testing.T)
 	metrics := core.NewDefaultMetricsCollector()
 	indexer := indexing.NewMultiChainIndexer(logger, nil)
 	db := appindexingadapter.NewMonolithicMemoryDatabase(logger)
-	if err := db.Initialize(core.Config{}); err != nil {
+	if err := db.Initialize(context.Background(), core.Config{}); err != nil {
 		t.Fatalf("init db: %v", err)
 	}
-	if err := db.Start(); err != nil {
+	if err := db.Start(context.Background()); err != nil {
 		t.Fatalf("start db: %v", err)
 	}
 
@@ -236,8 +236,8 @@ type stubMonolithicPollingPuller struct {
 	poll   func(context.Context) error
 }
 
-func (s *stubMonolithicPollingPuller) Start() error { return nil }
-func (s *stubMonolithicPollingPuller) Stop() error  { return nil }
+func (s *stubMonolithicPollingPuller) Start(_ context.Context) error { return nil }
+func (s *stubMonolithicPollingPuller) Stop(_ context.Context) error  { return nil }
 func (s *stubMonolithicPollingPuller) Poll(ctx context.Context) error {
 	return s.poll(ctx)
 }

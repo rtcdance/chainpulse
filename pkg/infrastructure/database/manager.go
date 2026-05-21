@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log/slog"
 	"math"
 	"strings"
 	"sync"
@@ -220,7 +221,9 @@ func (m *DefaultDatabaseManager) initPostgres(ctx context.Context) error {
 	defer cancel()
 
 	if err := db.PingContext(pingCtx); err != nil {
-		_ = db.Close()
+		if cerr := db.Close(); cerr != nil {
+			slog.Warn("failed to close PostgreSQL connection after ping failure", "error", cerr)
+		}
 		return fmt.Errorf("failed to ping PostgreSQL: %w", err)
 	}
 

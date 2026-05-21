@@ -118,7 +118,9 @@ func (p *RedisCachePlugin) Get(key string) (*CacheEntry, error) {
 					return &entry, nil
 				}
 				// Expired — delete from Redis
-				_ = p.client.Del(ctx, key)
+			if err := p.client.Del(ctx, key); err != nil {
+				p.logger.Warn("failed to delete expired key from Redis", "key", key, "error", err.Err())
+			}
 			}
 		} else if err != redis.Nil {
 			// Redis error — log and fall through to in-memory

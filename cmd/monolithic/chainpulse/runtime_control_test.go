@@ -18,10 +18,10 @@ func TestMonolithicRuntimeControlRoute(t *testing.T) {
 	logger := core.NewDefaultLogger(core.LogLevelError)
 	metrics := core.NewDefaultMetricsCollector()
 	db := appindexingadapter.NewMonolithicMemoryDatabase(logger)
-	if err := db.Initialize(core.Config{}); err != nil {
+	if err := db.Initialize(context.Background(), core.Config{}); err != nil {
 		t.Fatalf("initialize db: %v", err)
 	}
-	if err := db.Start(); err != nil {
+	if err := db.Start(context.Background()); err != nil {
 		t.Fatalf("start db: %v", err)
 	}
 

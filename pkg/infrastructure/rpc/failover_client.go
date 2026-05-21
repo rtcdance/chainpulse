@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"sync"
@@ -126,7 +127,9 @@ func (f *FailoverRPCClient) Do(req *http.Request) (*http.Response, error) {
 	var err error
 	if req.Body != nil {
 		bodyBytes, err = io.ReadAll(req.Body)
-		_ = req.Body.Close()
+		if cerr := req.Body.Close(); cerr != nil {
+			slog.Warn("failed to close request body after buffering", "error", cerr)
+		}
 		if err != nil {
 			return nil, fmt.Errorf("failed to read request body: %w", err)
 		}

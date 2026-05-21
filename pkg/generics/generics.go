@@ -24,6 +24,8 @@ func (r Result[T]) Unwrap() (T, error) {
 	return r.Val, r.Err
 }
 
+// Must returns the value or panics.
+// Deprecated: prefer Unwrap() with explicit error handling in production code.
 func (r Result[T]) Must() T {
 	if r.Err != nil {
 		panic("Result.Must called on error: " + r.Err.Error())
@@ -63,6 +65,8 @@ func None[T any]() Optional[T]      { return Optional[T]{present: false} }
 func (o Optional[T]) IsSome() bool      { return o.present }
 func (o Optional[T]) IsNone() bool      { return !o.present }
 func (o Optional[T]) Unwrap() (T, bool) { return o.val, o.present }
+// Must returns the value or panics.
+// Deprecated: prefer Unwrap() with explicit error handling in production code.
 func (o Optional[T]) Must() T {
 	if !o.present {
 		panic("Optional.Must called on None")

@@ -6,6 +6,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/rtcdance/chainpulse/pkg/ports"
 )
 
 // Default worker pool size for event bus
@@ -41,7 +43,7 @@ type DefaultEventBus struct {
 }
 
 // EventHandler is a function that handles events
-type EventHandler func(context.Context, any) error
+type EventHandler = ports.EventHandler
 
 // SubscribeTyped subscribes to topic with a type-safe handler function.
 // It wraps the underlying EventBus.Subscribe, performing the type assertion

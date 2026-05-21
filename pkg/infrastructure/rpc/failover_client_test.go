@@ -1,6 +1,7 @@
 package rpc
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"sync/atomic"
@@ -177,11 +178,13 @@ func TestFailoverRPCClientRateLimiting(t *testing.T) {
 
 	// Drain the bucket
 	for i := 0; i < 10; i++ {
-		client.acquireToken()
+		client.acquireTokenWithWait(context.Background())
 	}
 
 	// Next should fail
-	if err := client.acquireToken(); err == nil {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond)
+	defer cancel()
+	if err := client.acquireTokenWithWait(ctx); err == nil {
 		t.Error("expected rate limit error after draining token bucket")
 	}
 }

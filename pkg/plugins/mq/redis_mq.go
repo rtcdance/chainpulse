@@ -474,17 +474,6 @@ func (p *RedisMQPlugin) RecordError(err error) {
 	p.metricsCollector.RecordCounter("mq_errors", 1, nil)
 }
 
-func (p *RedisMQPlugin) GetLastBlockNumber() uint64 {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-	return 0
-}
-
-func (p *RedisMQPlugin) SetLastBlockNumber(_ uint64) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-}
-
 func (p *RedisMQPlugin) GetQueueDepth(ctx context.Context, topic string) (int64, error) {
 	p.mu.Lock()
 	if !p.isRunning {

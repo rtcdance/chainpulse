@@ -1,4 +1,4 @@
-package core
+package consensus
 
 import (
 	"testing"
@@ -66,22 +66,18 @@ func TestEpochFirstSlot(t *testing.T) {
 func TestTimestampToSlot(t *testing.T) {
 	genesis := MainnetGenesisTime
 
-	// At genesis time, slot = 0
 	if s := TimestampToSlot(genesis, genesis); s != 0 {
 		t.Errorf("TimestampToSlot(genesis) = %d, want 0", s)
 	}
 
-	// 12 seconds after genesis = slot 1
 	if s := TimestampToSlot(genesis+12, genesis); s != 1 {
 		t.Errorf("TimestampToSlot(genesis+12) = %d, want 1", s)
 	}
 
-	// 384 seconds after genesis = slot 32 (epoch 1)
 	if s := TimestampToSlot(genesis+384, genesis); s != 32 {
 		t.Errorf("TimestampToSlot(genesis+384) = %d, want 32", s)
 	}
 
-	// Before genesis = 0
 	if s := TimestampToSlot(genesis-1, genesis); s != 0 {
 		t.Errorf("TimestampToSlot(genesis-1) = %d, want 0", s)
 	}
@@ -90,17 +86,14 @@ func TestTimestampToSlot(t *testing.T) {
 func TestSlotToTimestamp(t *testing.T) {
 	genesis := MainnetGenesisTime
 
-	// Slot 0 = genesis time
 	if ts := SlotToTimestamp(0, genesis); ts != genesis {
 		t.Errorf("SlotToTimestamp(0) = %d, want %d", ts, genesis)
 	}
 
-	// Slot 1 = genesis + 12
 	if ts := SlotToTimestamp(1, genesis); ts != genesis+12 {
 		t.Errorf("SlotToTimestamp(1) = %d, want %d", ts, genesis+12)
 	}
 
-	// Slot 32 = genesis + 384
 	if ts := SlotToTimestamp(32, genesis); ts != genesis+384 {
 		t.Errorf("SlotToTimestamp(32) = %d, want %d", ts, genesis+384)
 	}
@@ -136,7 +129,6 @@ func TestDetectMissedSlots(t *testing.T) {
 				t.Errorf("DetectMissedSlots(%d, %d) = %d missed, want %d",
 					tt.parentSlot, tt.current, len(missed), tt.wantCount)
 			}
-			// Verify missed slots are correct
 			if tt.wantCount > 0 {
 				first := tt.parentSlot + 1
 				if missed[0] != first {
@@ -149,7 +141,7 @@ func TestDetectMissedSlots(t *testing.T) {
 
 func TestNewBeaconBlockInfo(t *testing.T) {
 	genesis := MainnetGenesisTime
-	ts := genesis + 120 // slot 10
+	ts := genesis + 120
 
 	info := NewBeaconBlockInfo(ts, genesis, 9)
 	if info.Slot != 10 {
@@ -162,7 +154,6 @@ func TestNewBeaconBlockInfo(t *testing.T) {
 		t.Error("IsMissedSlot should be false for consecutive slots")
 	}
 
-	// Missed slot: parent at slot 8, current at slot 10
 	info2 := NewBeaconBlockInfo(ts, genesis, 8)
 	if !info2.IsMissedSlot {
 		t.Error("IsMissedSlot should be true when slot 9 is missed")
@@ -189,13 +180,11 @@ func TestSlotsUntilNextEpoch(t *testing.T) {
 }
 
 func TestTimeUntilNextEpoch(t *testing.T) {
-	// Slot 0: 32 slots * 12s = 384s until next epoch
 	d := TimeUntilNextEpoch(0)
 	if d != 384*time.Second {
 		t.Errorf("TimeUntilNextEpoch(0) = %v, want 384s", d)
 	}
 
-	// Slot 31: 1 slot * 12s = 12s until next epoch
 	d = TimeUntilNextEpoch(31)
 	if d != 12*time.Second {
 		t.Errorf("TimeUntilNextEpoch(31) = %v, want 12s", d)
