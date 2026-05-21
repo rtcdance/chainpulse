@@ -140,7 +140,7 @@ func (ceh *DefaultCriticalErrorHandler) ReportCriticalError(ctx context.Context,
 	case CriticalErrorTypeResourceExhaustion:
 		atomic.AddInt64(&ceh.resourceExhaustionCount, 1)
 	default:
-		atomic.AddInt64(&ceh.unknownErrorsDetected, 1)
+		// Unknown error type — no metrics counter available
 	}
 
 	// Store error
