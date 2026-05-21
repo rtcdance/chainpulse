@@ -1,22 +1,9 @@
 # ChainPulse
 
-A blockchain event indexing system with completed blueprint-aligned milestones,
-comprehensive testing, and a minimum production-readiness rehearsal baseline.
-
-## 🎯 Milestone Status
-
-| Milestone | Status     | Description          |
-| --------- | ---------- | -------------------- |
-| M1a       | ✅ Complete | 单体基础数据链路             |
-| M1b       | ✅ Complete | 单体容错层                |
-| M1c       | ✅ Complete | 单体可观测性 + API Gateway |
-| M2        | ✅ Complete | 双模式切换 (单体/微服务)       |
-| M3a       | ✅ Complete | 微服务部署验证              |
-| M3b       | ✅ Complete | 可观测性 + 告警            |
-| M3c       | ✅ Complete | 生产就绪演练               |
-
-**All milestones completed.** Full blueprint-aligned sequence done.
-Current operational posture: `staging-ready / rehearsal-ready`, not yet fully `production-ready`.
+ChainPulse monitors and indexes blockchain events in real time. Track
+transactions, detect chain reorganizations, inspect dead-letter queues,
+and debug event processing across Ethereum and other chains — from a
+single dashboard.
 
 ## 🚀 Quick Start
 
