@@ -1,4 +1,4 @@
-package api
+package rollout
 
 // RolloutPollProgressSnapshot captures lightweight execution progress for
 // poll-loop driven services such as the puller.

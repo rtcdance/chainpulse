@@ -106,7 +106,7 @@ func NewHealthCheckHandler(
 		logger:              logger,
 		metrics:             metrics,
 		initialized:         false,
-		healthCheckInterval: 30 * time.Second,
+		healthCheckInterval: core.DefaultTimeout,
 	}
 }
 
@@ -185,7 +185,7 @@ func (h *HealthCheckHandler) HandleHealth(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), core.DefaultTimeout)
 	defer cancel()
 
 	response := h.performHealthCheck(ctx)
@@ -329,7 +329,7 @@ func (h *HealthCheckHandler) HandleComponents(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), core.DefaultTimeout)
 	defer cancel()
 
 	response := h.performHealthCheck(ctx)

@@ -15,7 +15,7 @@ import (
 )
 
 var sharedHTTPClient = &http.Client{
-	Timeout: 30 * time.Second,
+	Timeout: core.DefaultTimeout,
 	Transport: &http.Transport{
 		MaxIdleConns:        100,
 		MaxIdleConnsPerHost: 20,
@@ -76,7 +76,7 @@ func NewRequestRouter(logger core.Logger, metrics core.MetricsCollector) *Reques
 		metrics:         metrics,
 		httpClient:      sharedHTTPClient,
 		initialized:     false,
-		defaultTimeout:  30 * time.Second,
+		defaultTimeout:  core.DefaultTimeout,
 		circuitBreakers: make(map[string]*CircuitBreaker),
 	}
 }
@@ -138,7 +138,7 @@ func (rr *RequestRouter) RegisterRoute(route *Route) error {
 	rr.loadBalancers[route.ID] = NewLoadBalancer("round-robin")
 
 	// Create circuit breaker for this route
-	rr.circuitBreakers[route.ID] = NewCircuitBreaker(5, 30*time.Second)
+	rr.circuitBreakers[route.ID] = NewCircuitBreaker(5, core.DefaultTimeout)
 
 	rr.logger.Info("Route registered", "routeId", route.ID, "pattern", route.Pattern)
 	rr.metrics.RecordCounter("router_route_registered", 1, nil)

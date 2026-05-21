@@ -262,7 +262,7 @@ func TestGetClientIP(t *testing.T) {
 				req.Header.Set(key, value)
 			}
 
-			ip := getClientIP(req)
+			ip := getClientIP(req, nil)
 			assert.Equal(t, tt.expected, ip)
 		})
 	}

@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/rtcdance/chainpulse/pkg/chainid"
-	"github.com/rtcdance/chainpulse/pkg/chainid"
 	"github.com/rtcdance/chainpulse/pkg/core"
 	"github.com/rtcdance/chainpulse/pkg/core/eventsig"
 	domainquery "github.com/rtcdance/chainpulse/pkg/domain/query"
@@ -149,7 +148,7 @@ func (h *EventQueryHandler) executeListQuery(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), core.DefaultTimeout)
 	defer cancel()
 
 	if h.domainQuery != nil {
@@ -247,7 +246,7 @@ func (h *EventQueryHandler) HandleGetEventByID(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), core.DefaultTimeout)
 	defer cancel()
 
 	if h.domainQuery != nil && looksLikeHash(eventID) {

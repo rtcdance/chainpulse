@@ -14,6 +14,8 @@ import (
 	"github.com/rtcdance/chainpulse/pkg/plugins/api/shared"
 )
 
+const defaultWriteTimeout = 30 * time.Second
+
 // HTTPPlugin implements the HTTP protocol handler
 type HTTPPlugin struct {
 	name          string
@@ -248,7 +250,9 @@ func (p *HTTPPlugin) handleRequestCore(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(result.Status())
-	_, _ = w.Write(result.Body())
+	if _, err := w.Write(result.Body()); err != nil {
+		slog.Warn("failed to write HTTP response body", "error", err)
+	}
 }
 
 // SetNativeHandler sets an optional native HTTP request handler override.

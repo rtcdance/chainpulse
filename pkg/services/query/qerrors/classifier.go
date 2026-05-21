@@ -1,6 +1,11 @@
 package qerrors
 
-import "strings"
+import (
+	"fmt"
+	"strings"
+
+	"go.mongodb.org/mongo-driver/mongo"
+)
 
 type Type int
 
@@ -54,16 +59,16 @@ func (ec *Classifier) Classify(err error) Type {
 		return TypeUnknown
 	}
 	errStr := strings.ToLower(err.Error())
-	switch {
-	case ec.matchesPattern(errStr, ec.criticalPatterns):
+	if ec.matchesPattern(errStr, ec.criticalPatterns) {
 		return TypeCritical
-	case ec.matchesPattern(errStr, ec.transientPatterns):
-		return TypeTransient
-	case ec.matchesPattern(errStr, ec.permanentPatterns):
-		return TypePermanent
-	default:
-		return TypeUnknown
 	}
+	if ec.matchesPattern(errStr, ec.transientPatterns) {
+		return TypeTransient
+	}
+	if ec.matchesPattern(errStr, ec.permanentPatterns) {
+		return TypePermanent
+	}
+	return TypeUnknown
 }
 
 func (ec *Classifier) IsTransient(err error) bool { return ec.Classify(err) == TypeTransient }
@@ -75,16 +80,30 @@ func (ec *Classifier) ClassifyWithContext(err error, context string) Type {
 		return TypeUnknown
 	}
 	combined := strings.ToLower(err.Error() + " " + context)
-	switch {
-	case ec.matchesPattern(combined, ec.criticalPatterns):
+	if ec.matchesPattern(combined, ec.criticalPatterns) {
 		return TypeCritical
-	case ec.matchesPattern(combined, ec.transientPatterns):
-		return TypeTransient
-	case ec.matchesPattern(combined, ec.permanentPatterns):
-		return TypePermanent
-	default:
-		return TypeUnknown
 	}
+	if ec.matchesPattern(combined, ec.transientPatterns) {
+		return TypeTransient
+	}
+	if ec.matchesPattern(combined, ec.permanentPatterns) {
+		return TypePermanent
+	}
+	return TypeUnknown
+}
+
+func (ec *Classifier) IsMongoErrorTransient(err error) bool {
+	if err == nil {
+		return false
+	}
+	var mongoErr mongo.ServerError
+	if !errorsAs(err, &mongoErr) {
+		return ec.IsTransient(err)
+	}
+	if mongoErr.HasErrorCode(91) || mongoErr.HasErrorCode(134) || mongoErr.HasErrorCode(189) {
+		return true
+	}
+	return false
 }
 
 func (ec *Classifier) matchesPattern(s string, patterns []string) bool {
@@ -94,4 +113,19 @@ func (ec *Classifier) matchesPattern(s string, patterns []string) bool {
 		}
 	}
 	return false
+}
+
+func errorsAs(err error, target interface{}) bool {
+	for {
+		if err == nil {
+			return false
+		}
+		if e, ok := err.(interface{ As(interface{}) bool }); ok {
+			if e.As(target) {
+				return true
+			}
+		}
+		err = fmt.Errorf("wrapped: %w", err)
+		return false
+	}
 }
