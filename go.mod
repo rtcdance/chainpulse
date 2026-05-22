@@ -3,7 +3,7 @@ module github.com/rtcdance/chainpulse
 go 1.25.0
 
 require (
-	github.com/ethereum/go-ethereum v1.16.8
+	github.com/ethereum/go-ethereum v1.17.0
 	github.com/golang-migrate/migrate/v4 v4.18.3
 	github.com/google/uuid v1.6.0
 	github.com/google/wire v0.7.0
@@ -14,6 +14,13 @@ require (
 	github.com/leanovate/gopter v0.2.11
 	github.com/lib/pq v1.10.9
 	github.com/redis/go-redis/v9 v9.17.2
+	github.com/rtcdance/chainpulse/pkg/blockchain v0.0.0-20260522082730-ccbcddf342a5
+	github.com/rtcdance/chainpulse/pkg/chainid v0.0.0-20260522082730-ccbcddf342a5
+	github.com/rtcdance/chainpulse/pkg/configmodel v0.0.0-20260522082730-ccbcddf342a5
+	github.com/rtcdance/chainpulse/pkg/generics v0.0.0-20260522082730-ccbcddf342a5
+	github.com/rtcdance/chainpulse/pkg/histogram v0.0.0-20260522082730-ccbcddf342a5
+	github.com/rtcdance/chainpulse/pkg/logkeys v0.0.0-20260522082730-ccbcddf342a5
+	github.com/rtcdance/chainpulse/pkg/runtimetypes v0.0.0-20260522082730-ccbcddf342a5
 	github.com/segmentio/kafka-go v0.4.48
 	github.com/stretchr/testify v1.11.1
 	go.mongodb.org/mongo-driver v1.14.0
@@ -38,13 +45,11 @@ require (
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/consensys/gnark-crypto v0.19.2 // indirect
 	github.com/crate-crypto/go-eth-kzg v1.4.0 // indirect
-	github.com/crate-crypto/go-ipa v0.0.0-20240724233137-53bbb0ceb27a // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/deckarep/golang-set/v2 v2.6.0 // indirect
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.4.0 // indirect
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/ethereum/c-kzg-4844/v2 v2.1.5 // indirect
-	github.com/ethereum/go-verkle v0.2.2 // indirect
 	github.com/fsnotify/fsnotify v1.6.0 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
@@ -63,7 +68,7 @@ require (
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
 	github.com/jackc/puddle/v2 v2.2.2 // indirect
-	github.com/klauspost/compress v1.16.0 // indirect
+	github.com/klauspost/compress v1.17.8 // indirect
 	github.com/mitchellh/go-homedir v1.0.0 // indirect
 	github.com/mitchellh/mapstructure v1.4.1 // indirect
 	github.com/montanaflynn/stats v0.0.0-20171201202039-1bf9dbcd8cbe // indirect
