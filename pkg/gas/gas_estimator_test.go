@@ -47,18 +47,18 @@ func TestEffectiveGasPrice(t *testing.T) {
 			expected:             big.NewInt(100),
 		},
 		{
-			name:         "eip1559 no base fee",
-			maxFeePerGas: big.NewInt(120),
+			name:                 "eip1559 no base fee",
+			maxFeePerGas:         big.NewInt(120),
 			maxPriorityFeePerGas: big.NewInt(5),
-			expected:     big.NewInt(120),
+			expected:             big.NewInt(120),
 		},
 		{
 			name:     "all nil",
 			expected: big.NewInt(0),
 		},
 		{
-			name:    "base fee only, no gas price",
-			baseFee: big.NewInt(50),
+			name:     "base fee only, no gas price",
+			baseFee:  big.NewInt(50),
 			expected: big.NewInt(50),
 		},
 	}
