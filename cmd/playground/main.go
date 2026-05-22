@@ -14,7 +14,9 @@ import (
 	"net/http"
 	_ "net/http/pprof"
 	"os"
+	"os/exec"
 	"os/signal"
+	"runtime"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -435,8 +437,10 @@ func jsonError(w http.ResponseWriter, code int, msg string) {
 	writeJSON(w, map[string]string{"error": msg})
 }
 
+const defaultPort = "9099"
+
 func main() {
-	port := "9099"
+	port := defaultPort
 	if p := os.Getenv("PLAYGROUND_PORT"); p != "" {
 		port = p
 	}
@@ -470,6 +474,16 @@ func main() {
 	fmt.Println("  → /events    — view all indexed events")
 	fmt.Println("  → /stats     — see event statistics")
 	fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+	fmt.Println("  Quick start:")
+	fmt.Printf("    curl http://localhost:%s/generate\n", port)
+	fmt.Printf("    curl http://localhost:%s/events?network=ethereum | jq\n", port)
+	fmt.Printf("    curl http://localhost:%s/events?network=polygon | jq\n", port)
+	fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+
+	// Auto-open browser on supported platforms
+	if port == defaultPort {
+		_ = openBrowser("http://localhost:" + port)
+	}
 
 	go func() {
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
@@ -507,11 +521,24 @@ func main() {
 	if err := server.Shutdown(shutdownCtx); err != nil {
 		slog.Warn("shutdown API server forced close", "error", err)
 	}
-	if err := pprofSrv.Shutdown(shutdownCtx); err != nil {
+if err := pprofSrv.Shutdown(shutdownCtx); err != nil {
 		slog.Warn("shutdown pprof server forced close", "error", err)
 	}
+}
 
-	slog.Info("shutdown all connections drained — goodbye")
+// openBrowser opens the given URL in the default browser.
+// Silently ignores errors (e.g., no browser available in headless environments).
+func openBrowser(url string) error {
+	switch runtime.GOOS {
+	case "darwin":
+		return exec.Command("open", url).Start()
+	case "linux":
+		return exec.Command("xdg-open", url).Start()
+	case "windows":
+		return exec.Command("rundll32", "url.dll,FileProtocolHandler", url).Start()
+	default:
+		return fmt.Errorf("unsupported platform: %s", runtime.GOOS)
+	}
 }
 
 

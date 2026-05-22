@@ -9,6 +9,7 @@ Tech stack: go-ethereum, PostgreSQL/MongoDB, Kafka/ZeroMQ, Redis, Consul, OpenTe
 | 用途 | 命令 |
 |---|---|
 | 编译 | `make build` |
+| Playground（零依赖） | `make playground` |
 | 提交前检查 | `make check` (vet + fmt) |
 | 快速测试 | `make test-short` |
 | DI 生成 | `make wire` |
@@ -25,9 +26,17 @@ Tech stack: go-ethereum, PostgreSQL/MongoDB, Kafka/ZeroMQ, Redis, Consul, OpenTe
 
 ## Project Roots
 
-- `pkg/core/` — 核心抽象（Logger, Metrics, Config, Plugin interfaces）
+- `pkg/core/` — 核心抽象 + 子包: topics, correlation, dedup, eventsig, replay, reorgprofile, bloom, crypto, batch, eventbus, config, metrics, logger
 - `pkg/domain/` — 纯领域逻辑
-- `pkg/infrastructure/` — DB, RPC 等基础设施
+- `pkg/services/` — 业务逻辑（query, processor, indexing, reorg, decoder, consistency）
+- `pkg/plugins/` — 适配器实现（pullers, database, cache, mq, api）
+- `pkg/infrastructure/` — DB, RPC, gateway, config, deployment, reliability
+- `pkg/observability/` — OpenTelemetry, Prometheus, alerts
+- `pkg/ports/` — Hexagonal 架构 port 定义（28+ interfaces）
+- `pkg/evm/` — EVM 事件解码（chained_decoder, event_decoder）
+- `pkg/gas/` — Gas 估算（EIP-1559, EIP-4844 blob base fee）
+- `pkg/mev/` — MEV 构建与 Flashbots 集成
+- `cmd/playground/` — 零依赖内存模式入口
 - `cmd/playground/` — 零依赖内存 playground
 - `.codex/skills/` — AI 技能定义（按需引用）
 
