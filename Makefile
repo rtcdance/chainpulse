@@ -1,5 +1,5 @@
 # Development and Build Tooling
-.PHONY: all build test lint fmt clean help repo-hygiene k8s-verify k8s-acceptance k8s-acceptance-strict k8s-up k8s-down k8s-status k8s-oneclick deploy-event-acceptance multichain-e2e-acceptance multichain-e2e-acceptance-strict multichain-e2e-fork-acceptance multichain-e2e-fork-acceptance-strict deployed-real-event-acceptance check-policy-contract check-migration-manifest export-migration-kpi compare-migration-kpi compare-ticket-registry-health smoke-baseline-governance-scope compare-baseline-scope-smoke preflight-migration-baseline-update test-baseline-update-resolver compare-baseline-resolver-test check-migration-baseline update-migration-baseline check-migration-changelog-quality export-migration-owner-drift check test-short test-anvil learn benchmark-baseline benchmark-regression
+.PHONY: all build playground build-monolithic build-microservices test lint fmt clean help k8s-verify k8s-acceptance k8s-acceptance-strict k8s-up k8s-down k8s-status k8s-oneclick deploy-event-acceptance multichain-e2e-acceptance multichain-e2e-acceptance-strict multichain-e2e-fork-acceptance multichain-e2e-fork-acceptance-strict deployed-real-event-acceptance check-policy-contract check-migration-manifest export-migration-kpi compare-migration-kpi compare-ticket-registry-health smoke-baseline-governance-scope compare-baseline-scope-smoke preflight-migration-baseline-update test-baseline-update-resolver compare-baseline-resolver-test check-migration-baseline update-migration-baseline check-migration-changelog-quality export-migration-owner-drift check test-short test-anvil learn benchmark-baseline benchmark-regression
 
 # Force-clear stale GOROOT (homebrew Go self-detects; stale value breaks builds)
 unexport GOROOT
@@ -40,6 +40,10 @@ build-monolithic:
 	@echo "Building monolithic binary..."
 	@mkdir -p $(BIN_DIR)
 	$(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BIN_DIR)/$(PROJECT_NAME) $(CMD_DIR)/monolithic/chainpulse
+
+playground:
+	@echo "Starting ChainPulse Playground (zero-dependency mode)..."
+	$(GO) run ./cmd/playground/main.go
 
 build-microservices:
 	@echo "Building microservices..."
