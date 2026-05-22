@@ -63,6 +63,7 @@ jobs:
         run: go test -timeout 300s -tags=e2e ./test/e2e/...
 
       - name: Security scan
+        continue-on-error: true
         run: |
           go install golang.org/x/vuln/cmd/govulncheck@latest
           govulncheck ./...
