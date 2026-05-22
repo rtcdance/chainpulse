@@ -628,3 +628,332 @@ func TestVersionedConfigManagerNoHistory(t *testing.T) {
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "no history found")
 }
+
+// TestSetConfigEmptyKey tests setting a config with empty key
+func TestSetConfigEmptyKey(t *testing.T) {
+	t.Parallel()
+	consul := NewMockConsulClient()
+	cm := NewConfigManager(consul, generateTestEncryptionKey())
+
+	ctx := context.Background()
+	err := cm.SetConfig(ctx, "", "value")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "must not be empty")
+}
+
+// TestSetConfigReadbackMismatch tests config validation with readback mismatch
+func TestSetConfigReadbackMismatch(t *testing.T) {
+	t.Parallel()
+	consul := NewMockConsulClient()
+	cm := NewConfigManager(consul, generateTestEncryptionKey())
+
+	ctx := context.Background()
+	err := cm.SetConfig(ctx, "mismatch_key", "value_v1")
+	assert.NoError(t, err)
+
+	// Manually change Consul value to simulate mismatch
+	_ = consul.SetConfig(ctx, "mismatch_key", "different_value")
+
+	// Now SetConfig will read back the different value and should error
+	err = cm.SetConfig(ctx, "mismatch_key", "value_v2")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "read-back value mismatch")
+}
+
+// TestSetConfigReadbackError tests when readback fails entirely
+func TestSetConfigReadbackError(t *testing.T) {
+	t.Parallel()
+	consul := NewMockConsulClient()
+	cm := NewConfigManager(consul, generateTestEncryptionKey())
+
+	ctx := context.Background()
+	// First set works normally
+	err := cm.SetConfig(ctx, "rb_key", "value_v1")
+	assert.NoError(t, err)
+
+	// Cause subsequent GetConfig to fail
+	consul.getConfigErr = fmt.Errorf("readback failed")
+
+	err = cm.SetConfig(ctx, "rb_key", "value_v2")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "read-back error")
+
+	// Reset for other tests
+	consul.getConfigErr = nil
+}
+
+// TestSetConfigRollbackCache tests cache rollback on readback failure
+func TestSetConfigRollbackCache(t *testing.T) {
+	t.Parallel()
+	consul := NewMockConsulClient()
+	cm := NewConfigManager(consul, generateTestEncryptionKey())
+
+	ctx := context.Background()
+	// Set initial value
+	err := cm.SetConfig(ctx, "rollback_cache_key", "initial")
+	assert.NoError(t, err)
+
+	// Cause readback to fail
+	consul.getConfigErr = fmt.Errorf("readback fail")
+	err = cm.SetConfig(ctx, "rollback_cache_key", "updated")
+	assert.Error(t, err)
+
+	// Reset error
+	consul.getConfigErr = nil
+
+	// Cache should be rolled back to initial value
+	cm.ClearCache()
+	value, err := cm.GetConfig(ctx, "rollback_cache_key")
+	assert.NoError(t, err)
+	assert.Equal(t, "initial", value)
+}
+
+// TestWatchConfigWithSensitiveKey tests watching a sensitive config key
+func TestWatchConfigWithSensitiveKey(t *testing.T) {
+	t.Parallel()
+	skipConfigWatchTestsInShortMode(t)
+
+	consul := NewMockConsulClient()
+	key := generateTestEncryptionKey()
+	cm := NewConfigManager(consul, key)
+
+	// Set an encrypted value in Consul
+	plaintext := "super_secret_password"
+	cm2 := NewConfigManager(consul, key)
+	_ = cm2.SetConfig(context.Background(), "password_db", plaintext)
+	cm2.ClearCache()
+
+	ctx := context.Background()
+	var received atomic.Pointer[string]
+
+	err := cm.WatchConfig(ctx, "password_db", func(value string) {
+		received.Store(&value)
+	})
+	assert.NoError(t, err)
+
+	time.Sleep(50 * time.Millisecond)
+	consul.TriggerWatch("password_db", "new_secret_value")
+
+	cm.WaitWatchers()
+
+	stored := received.Load()
+	if stored != nil {
+		assert.NotEqual(t, "new_secret_value", *stored)
+	}
+}
+
+// TestNotifyWatchersMultiple tests notifying multiple watchers
+func TestNotifyWatchersMultiple(t *testing.T) {
+	t.Parallel()
+	skipConfigWatchTestsInShortMode(t)
+
+	consul := NewMockConsulClient()
+	cm := NewConfigManager(consul, generateTestEncryptionKey())
+
+	ctx := context.Background()
+	var count1 atomic.Int32
+	var count2 atomic.Int32
+
+	_ = cm.WatchConfig(ctx, "multi_watch_key", func(value string) {
+		count1.Add(1)
+	})
+	_ = cm.WatchConfig(ctx, "multi_watch_key", func(value string) {
+		count2.Add(1)
+	})
+
+	time.Sleep(50 * time.Millisecond)
+	consul.TriggerWatch("multi_watch_key", "new_value")
+
+	cm.WaitWatchers()
+
+	assert.Greater(t, int(count1.Load()), 0)
+	assert.Greater(t, int(count2.Load()), 0)
+}
+
+// TestRollbackInvalidVersion tests rolling back to a non-existent version
+func TestRollbackInvalidVersion(t *testing.T) {
+	t.Parallel()
+	consul := NewMockConsulClient()
+	cm := NewConfigManager(consul, generateTestEncryptionKey())
+	vcm := NewVersionedConfigManager(cm)
+
+	ctx := context.Background()
+	err := vcm.SetConfigWithVersion(ctx, "test_key", "value", "author")
+	assert.NoError(t, err)
+
+	err = vcm.RollbackConfig(ctx, "test_key", 99, "author")
+	assert.Error(t, err)
+}
+
+// TestRollbackNonexistentKey tests rolling back a key with no history
+func TestRollbackNonexistentKey(t *testing.T) {
+	t.Parallel()
+	consul := NewMockConsulClient()
+	cm := NewConfigManager(consul, generateTestEncryptionKey())
+	vcm := NewVersionedConfigManager(cm)
+
+	ctx := context.Background()
+	err := vcm.RollbackConfig(ctx, "nonexistent_key", 1, "author")
+	assert.Error(t, err)
+}
+
+// TestEncryptDecryptMultiple tests encrypt/decrypt with various data
+func TestEncryptDecryptMultiple(t *testing.T) {
+	t.Parallel()
+	key := generateTestEncryptionKey()
+	cm := NewConfigManager(NewMockConsulClient(), key)
+
+	tests := []string{
+		"",
+		"short",
+		"this is a longer string with various characters !@#$%^&*()",
+		"unicode data: 你好世界 🌍",
+	}
+
+	for _, plaintext := range tests {
+		t.Run("roundtrip", func(t *testing.T) {
+			encrypted, err := cm.encrypt(plaintext)
+			assert.NoError(t, err)
+			decrypted, err := cm.decrypt(encrypted)
+			assert.NoError(t, err)
+			assert.Equal(t, plaintext, decrypted)
+		})
+	}
+}
+
+// TestGetConfigCachesAfterFetch tests that fetched values are cached
+func TestGetConfigCachesAfterFetch(t *testing.T) {
+	t.Parallel()
+	consul := NewMockConsulClient()
+	_ = consul.SetConfig(context.Background(), "cache_test", "original")
+	cm := NewConfigManager(consul, generateTestEncryptionKey())
+
+	ctx := context.Background()
+	_, _ = cm.GetConfig(ctx, "cache_test")
+
+	// Change the value in Consul directly
+	_ = consul.SetConfig(context.Background(), "cache_test", "changed")
+
+	// Get again — should return cached value
+	value, err := cm.GetConfig(ctx, "cache_test")
+	assert.NoError(t, err)
+	assert.Equal(t, "original", value)
+}
+
+// TestEncryptWithInvalidKey tests encryption with wrong-size key
+func TestEncryptWithInvalidKey(t *testing.T) {
+	t.Parallel()
+	cm := NewConfigManager(NewMockConsulClient(), []byte("short_key"))
+
+	_, err := cm.encrypt("data")
+	assert.Error(t, err)
+}
+
+// TestDecryptWithInvalidKey tests decryption with wrong-size key
+func TestDecryptWithInvalidKey(t *testing.T) {
+	t.Parallel()
+	cm := NewConfigManager(NewMockConsulClient(), []byte("short_key"))
+
+	_, err := cm.decrypt("dGVzdA==")
+	assert.Error(t, err)
+}
+
+// TestDecryptInvalidBase64Content tests decrypt with valid base64 but invalid encrypted content
+func TestDecryptInvalidBase64Content(t *testing.T) {
+	t.Parallel()
+	key := generateTestEncryptionKey()
+	cm := NewConfigManager(NewMockConsulClient(), key)
+
+	// Valid base64 but not valid GCM encrypted data
+	result, err := cm.decrypt("dGVzdGRhdGE=")
+	assert.Error(t, err)
+	_ = result
+}
+
+// TestGetConfigSensitiveDecryptionFailure tests handling when sensitive config fails to decrypt
+func TestGetConfigSensitiveDecryptionFailure(t *testing.T) {
+	t.Parallel()
+	consul := NewMockConsulClient()
+	key := generateTestEncryptionKey()
+	cm := NewConfigManager(consul, key)
+
+	// Store invalid base64 as a sensitive config value
+	_ = consul.SetConfig(context.Background(), "api_key_db", "not-valid-base64!!!")
+
+	ctx := context.Background()
+	_, err := cm.GetConfig(ctx, "api_key_db")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to decrypt config")
+}
+
+// TestWatchConfigDecryptFailure tests watch handler with decryption failure
+func TestWatchConfigDecryptFailure(t *testing.T) {
+	t.Parallel()
+	skipConfigWatchTestsInShortMode(t)
+
+	consul := NewMockConsulClient()
+	key := generateTestEncryptionKey()
+	cm := NewConfigManager(consul, key)
+
+	ctx := context.Background()
+	var called atomic.Int32
+
+	_ = cm.WatchConfig(ctx, "api_secret", func(value string) {
+		called.Add(1)
+	})
+
+	time.Sleep(50 * time.Millisecond)
+
+	// Trigger with invalid encrypted data
+	consul.TriggerWatch("api_secret", "not-valid-base64")
+
+	cm.WaitWatchers()
+
+	assert.Equal(t, int32(0), called.Load())
+}
+
+// TestEncryptEmptyKey tests encryption with empty key - returns plaintext
+func TestEncryptEmptyKey(t *testing.T) {
+	t.Parallel()
+	cm := NewConfigManager(NewMockConsulClient(), nil)
+	encrypted, err := cm.encrypt("test")
+	assert.NoError(t, err)
+	assert.Equal(t, "test", encrypted)
+}
+
+// TestDecryptEmptyKey tests decryption with empty key - returns plaintext
+func TestDecryptEmptyKey(t *testing.T) {
+	t.Parallel()
+	cm := NewConfigManager(NewMockConsulClient(), nil)
+	decrypted, err := cm.decrypt("test")
+	assert.NoError(t, err)
+	assert.Equal(t, "test", decrypted)
+}
+
+// TestIsSensitiveSubstring tests substring matching variations
+func TestIsSensitiveSubstring(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		key      string
+		expected bool
+	}{
+		// Short keys
+		{"pass", false},
+		{"tok", false},
+		{"", false},
+		// Case sensitive
+		{"PASSWORD", false},
+		{"Password", false},
+		// At boundaries
+		{"password", true},
+		{"mypassword", true},
+		{"passwordmy", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.key, func(t *testing.T) {
+			result := isSensitive(tt.key)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}

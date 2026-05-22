@@ -149,8 +149,6 @@ func (mdp *MockDatabasePlugin) Stop(ctx context.Context) error {
 func (mdp *MockDatabasePlugin) Close() error { return nil }
 
 func TestNewConsistencyChecker(t *testing.T) {
-	t.Skip("regression: pre-existing failure")
-	t.Parallel()
 	db := &MockDatabasePlugin{}
 	logger := &MockLogger{}
 
@@ -162,8 +160,6 @@ func TestNewConsistencyChecker(t *testing.T) {
 }
 
 func TestCheckConsistencyHealthy(t *testing.T) {
-	t.Skip("regression: pre-existing failure")
-	t.Parallel()
 	if testing.Short() {
 		t.Skip("Skipping consistency check test in short mode")
 	}
@@ -204,8 +200,6 @@ func TestCheckConsistencyHealthy(t *testing.T) {
 }
 
 func TestCheckConsistencyWithDuplicates(t *testing.T) {
-	t.Skip("regression: pre-existing failure")
-	t.Parallel()
 	db := &MockDatabasePlugin{}
 	logger := &MockLogger{}
 	cc := NewConsistencyChecker(db, logger)
@@ -241,8 +235,6 @@ func TestCheckConsistencyWithDuplicates(t *testing.T) {
 }
 
 func TestVerifyEventSequence(t *testing.T) {
-	t.Skip("regression: pre-existing failure")
-	t.Parallel()
 	db := &MockDatabasePlugin{}
 	logger := &MockLogger{}
 	cc := NewConsistencyChecker(db, logger)
@@ -276,8 +268,6 @@ func TestVerifyEventSequence(t *testing.T) {
 }
 
 func TestVerifyBlockSequence(t *testing.T) {
-	t.Skip("regression: pre-existing failure")
-	t.Parallel()
 	db := &MockDatabasePlugin{}
 	logger := &MockLogger{}
 	cc := NewConsistencyChecker(db, logger)
@@ -307,8 +297,6 @@ func TestVerifyBlockSequence(t *testing.T) {
 }
 
 func TestRepairInconsistencies(t *testing.T) {
-	t.Skip("regression: pre-existing failure")
-	t.Parallel()
 	db := &MockDatabasePlugin{}
 	logger := &MockLogger{}
 	cc := NewConsistencyChecker(db, logger)
@@ -344,8 +332,6 @@ func TestRepairInconsistencies(t *testing.T) {
 }
 
 func TestGetEventConsistency(t *testing.T) {
-	t.Skip("regression: pre-existing failure")
-	t.Parallel()
 	db := &MockDatabasePlugin{}
 	logger := &MockLogger{}
 	cc := NewConsistencyChecker(db, logger)
@@ -379,8 +365,6 @@ func TestGetEventConsistency(t *testing.T) {
 }
 
 func TestGetEventConsistencyNotFound(t *testing.T) {
-	t.Skip("regression: pre-existing failure")
-	t.Parallel()
 	db := &MockDatabasePlugin{}
 	logger := &MockLogger{}
 	cc := NewConsistencyChecker(db, logger)
@@ -397,8 +381,6 @@ func TestGetEventConsistencyNotFound(t *testing.T) {
 }
 
 func TestGetBlockConsistency(t *testing.T) {
-	t.Skip("regression: pre-existing failure")
-	t.Parallel()
 	db := &MockDatabasePlugin{}
 	logger := &MockLogger{}
 	cc := NewConsistencyChecker(db, logger)
@@ -423,8 +405,6 @@ func TestGetBlockConsistency(t *testing.T) {
 }
 
 func TestGetBlockConsistencyNotFound(t *testing.T) {
-	t.Skip("regression: pre-existing failure")
-	t.Parallel()
 	db := &MockDatabasePlugin{}
 	logger := &MockLogger{}
 	cc := NewConsistencyChecker(db, logger)
@@ -440,8 +420,6 @@ func TestGetBlockConsistencyNotFound(t *testing.T) {
 }
 
 func TestGetBlockConsistencyParentMismatch(t *testing.T) {
-	t.Skip("regression: pre-existing failure")
-	t.Parallel()
 	db := &MockDatabasePlugin{}
 	logger := &MockLogger{}
 	cc := NewConsistencyChecker(db, logger)
@@ -472,8 +450,6 @@ func TestGetBlockConsistencyParentMismatch(t *testing.T) {
 }
 
 func TestConsistencyReportStructure(t *testing.T) {
-	t.Skip("regression: pre-existing failure")
-	t.Parallel()
 	db := &MockDatabasePlugin{}
 	logger := &MockLogger{}
 	cc := NewConsistencyChecker(db, logger)
@@ -492,8 +468,6 @@ func TestConsistencyReportStructure(t *testing.T) {
 }
 
 func TestEventConsistencyStructure(t *testing.T) {
-	t.Skip("regression: pre-existing failure")
-	t.Parallel()
 	db := &MockDatabasePlugin{}
 	logger := &MockLogger{}
 	cc := NewConsistencyChecker(db, logger)
@@ -520,8 +494,6 @@ func TestEventConsistencyStructure(t *testing.T) {
 }
 
 func TestBlockConsistencyStructure(t *testing.T) {
-	t.Skip("regression: pre-existing failure")
-	t.Parallel()
 	db := &MockDatabasePlugin{}
 	logger := &MockLogger{}
 	cc := NewConsistencyChecker(db, logger)
