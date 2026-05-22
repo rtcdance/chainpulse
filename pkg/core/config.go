@@ -171,8 +171,8 @@ func (cm *DefaultConfigManager) Load() (Config, error) {
 	return config, nil
 }
 
-// Validate checks the loaded configuration for minimum correctness.
-func (cm *DefaultConfigManager) Validate() error {
+// ValidateLoaded validates the internally stored config.
+func (cm *DefaultConfigManager) ValidateLoaded() error {
 	cm.mu.RLock()
 	config := cm.config
 	cm.mu.RUnlock()

@@ -18,7 +18,7 @@ This guide covers deploying ChainPulse in various environments: local developmen
 ### 1. Clone Repository
 
 ```bash
-git clone https://github.com/chainpulse/chainpulse.git
+git clone https://github.com/rtcdance/chainpulse.git
 cd chainpulse
 ```
 
@@ -46,11 +46,11 @@ DATABASE_MAX_CONNECTIONS=20
 
 # Cache Configuration
 CACHE_TYPE=redis
-REDIS_URL=redis://localhost:6379
+CACHE_CONNECTION_URL=redis://localhost:6379
 
 # Message Queue Configuration
-MESSAGE_QUEUE_TYPE=kafka
-KAFKA_BROKERS=localhost:9092
+MQ_TYPE=kafka
+MQ_CONNECTION_URL=localhost:9092
 
 # API Configuration
 API_PORT=8080
@@ -90,10 +90,9 @@ go run cmd/monolithic/chainpulse/main.go
 
 ```bash
 # Check health
-curl http://localhost:8080/api/v1/health
+curl http://localhost:8080/health
 
-# Query events
-curl http://localhost:8080/api/v1/events?network=ethereum&limit=10
+curl http://localhost:8080/events?network=ethereum&limit=10
 ```
 
 ## Docker Deployment
@@ -107,7 +106,11 @@ docker build -t chainpulse:latest .
 ### 2. Run with Docker Compose
 
 ```bash
-docker-compose up -d
+# Quick start (1 chain + essential infra)
+docker compose -f docker/docker-compose.quickstart.yml up -d
+
+# Full stack (7 chains + full observability)
+docker compose -f docker/docker-compose.yml up -d
 ```
 
 This starts:
@@ -135,7 +138,7 @@ docker-compose ps
 docker-compose logs -f chainpulse
 
 # Health check
-curl http://localhost:8080/api/v1/health
+curl http://localhost:8080/health
 ```
 
 ### 5. Scaling
@@ -419,10 +422,10 @@ Logs are output in JSON format:
 
 ```bash
 # Liveness probe
-curl http://localhost:8080/api/v1/health
+curl http://localhost:8080/health
 
 # Readiness probe
-curl http://localhost:8080/api/v1/ready
+curl http://localhost:8080/health/ready
 ```
 
 ## Troubleshooting
@@ -450,7 +453,7 @@ kubectl set resources deployment chainpulse -n chainpulse --limits=memory=4Gi
 **Issue**: High latency
 ```bash
 # Check cache hit rate
-curl http://localhost:8080/api/v1/stats
+curl http://localhost:8080/runtime/summary
 
 # Increase cache size
 CACHE_MAX_SIZE=5000000
@@ -540,4 +543,4 @@ mongorestore --uri="mongodb://user:password@host:27017" backup/
 For deployment issues:
 - Check logs: `docker-compose logs` or `kubectl logs`
 - Review configuration: Verify all environment variables
-- Contact support: https://github.com/chainpulse/chainpulse/issues
+- Contact support: https://github.com/rtcdance/chainpulse/issues

@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"fmt"
 	"log/slog"
+	"regexp"
+	"strings"
 	"sync"
 	"time"
 )
@@ -150,7 +152,19 @@ func (pam *PostgresAdvancedManager) SetupBackupStrategy(ctx context.Context, bac
 		return fmt.Errorf("failed to enable archive mode: %w", err)
 	}
 
-	// Set archive command
+	// Set archive command with validated path (ALTER SYSTEM SET does not support parameterized queries)
+	if backupPath == "" {
+		return fmt.Errorf("backup path must not be empty")
+	}
+	if strings.Contains(backupPath, "'") {
+		return fmt.Errorf("backup path must not contain single quotes")
+	}
+	// Restrict to safe characters: alphanumeric, underscore, dot, slash, hyphen
+	// Prevents shell metacharacter injection into PostgreSQL archive_command
+	safePathRE := regexp.MustCompile(`^[a-zA-Z0-9_./\-]+$`)
+	if !safePathRE.MatchString(backupPath) {
+		return fmt.Errorf("backup path contains unsafe characters")
+	}
 	archiveCmd := fmt.Sprintf("cp %%p %s/%%f", backupPath)
 	query = fmt.Sprintf("ALTER SYSTEM SET archive_command = '%s'", archiveCmd)
 	if _, err := pam.cluster.DB.ExecContext(ctx, query); err != nil {

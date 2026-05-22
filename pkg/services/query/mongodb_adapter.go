@@ -92,7 +92,14 @@ func (ma *DefaultMongoDBAdapter) Query(ctx context.Context, req *QueryRequest) (
 	// Build filter
 	filter := bson.M{}
 	if req.Filter != nil {
+		// Reject dangerous MongoDB operators that enable NoSQL injection
+		dangerousOps := map[string]bool{
+			"$where": true, "$accumulator": true, "$function": true,
+		}
 		for k, v := range req.Filter {
+			if dangerousOps[k] {
+				return nil, fmt.Errorf("rejected dangerous filter operator %q", k)
+			}
 			filter[k] = v
 		}
 	}

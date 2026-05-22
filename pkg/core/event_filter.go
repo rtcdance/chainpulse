@@ -83,77 +83,97 @@ func (ef *EventFilter) Validate() error {
 	return nil
 }
 
-// ToQuery converts filter to SQL query string.
-// All user-supplied string values are validated against safeIdentifierRE
-// before interpolation to prevent SQL injection. ContractAddress and
-// EventSignature use .Hex() which produces only [0-9a-fA-Fx] characters.
-func (ef *EventFilter) ToQuery() string {
+// ToQuery converts filter to a parameterized SQL query string and args slice.
+// All user-supplied string values use parameterized placeholders ($1, $2, …)
+// to prevent SQL injection. ContractAddress and EventSignature use .Hex()
+// which produces only [0-9a-fA-Fx] characters.
+func (ef *EventFilter) ToQuery() (string, []any) {
 	var conditions []string
-	var sb strings.Builder
+	var args []any
+	argIdx := 1
 
 	// Network filter
 	if ef.Network != "" {
 		if !safeIdentifierRE.MatchString(ef.Network) {
-			sb.WriteString("-- WARNING: invalid network filtered out; returning empty result")
-			return sb.String()
+			return "-- WARNING: invalid network filtered out; returning empty result", nil
 		}
-		conditions = append(conditions, fmt.Sprintf("network = '%s'", ef.Network))
+		conditions = append(conditions, fmt.Sprintf("network = $%d", argIdx))
+		args = append(args, ef.Network)
+		argIdx++
 	}
 
 	// Contract address filter — Hex() produces only 0x[0-9a-fA-F]+, inherently safe
 	if len(ef.ContractAddress) > 0 {
-		addresses := make([]string, len(ef.ContractAddress))
+		placeholders := make([]string, len(ef.ContractAddress))
 		for i, addr := range ef.ContractAddress {
-			addresses[i] = fmt.Sprintf("'%s'", addr.Hex())
+			placeholders[i] = fmt.Sprintf("$%d", argIdx)
+			args = append(args, addr.Hex())
+			argIdx++
 		}
-		conditions = append(conditions, fmt.Sprintf("contract_address IN (%s)", strings.Join(addresses, ",")))
+		conditions = append(conditions, fmt.Sprintf("contract_address IN (%s)", strings.Join(placeholders, ",")))
 	}
 
 	// Event signature filter — Hex() produces only 0x[0-9a-fA-F]+, inherently safe
 	if len(ef.EventSignature) > 0 {
-		signatures := make([]string, len(ef.EventSignature))
+		placeholders := make([]string, len(ef.EventSignature))
 		for i, sig := range ef.EventSignature {
-			signatures[i] = fmt.Sprintf("'%s'", sig.Hex())
+			placeholders[i] = fmt.Sprintf("$%d", argIdx)
+			args = append(args, sig.Hex())
+			argIdx++
 		}
-		conditions = append(conditions, fmt.Sprintf("event_signature IN (%s)", strings.Join(signatures, ",")))
+		conditions = append(conditions, fmt.Sprintf("event_signature IN (%s)", strings.Join(placeholders, ",")))
 	}
 
-	// Block range filter
+	// Block range filter — uint64, safe but use parameterized for consistency
 	if ef.FromBlock > 0 {
-		conditions = append(conditions, fmt.Sprintf("block_number >= %d", ef.FromBlock))
+		conditions = append(conditions, fmt.Sprintf("block_number >= $%d", argIdx))
+		args = append(args, ef.FromBlock)
+		argIdx++
 	}
 	if ef.ToBlock > 0 {
-		conditions = append(conditions, fmt.Sprintf("block_number <= %d", ef.ToBlock))
+		conditions = append(conditions, fmt.Sprintf("block_number <= $%d", argIdx))
+		args = append(args, ef.ToBlock)
+		argIdx++
 	}
 
 	// Timestamp range filter
 	if ef.FromTimestamp > 0 {
-		conditions = append(conditions, fmt.Sprintf("block_timestamp >= %d", ef.FromTimestamp))
+		conditions = append(conditions, fmt.Sprintf("block_timestamp >= $%d", argIdx))
+		args = append(args, ef.FromTimestamp)
+		argIdx++
 	}
 	if ef.ToTimestamp > 0 {
-		conditions = append(conditions, fmt.Sprintf("block_timestamp <= %d", ef.ToTimestamp))
+		conditions = append(conditions, fmt.Sprintf("block_timestamp <= $%d", argIdx))
+		args = append(args, ef.ToTimestamp)
+		argIdx++
 	}
 
 	// Status filter
 	if len(ef.Status) > 0 {
-		statuses := make([]string, 0, len(ef.Status))
+		placeholders := make([]string, 0, len(ef.Status))
 		for _, status := range ef.Status {
 			if !safeIdentifierRE.MatchString(status) {
 				continue
 			}
-			statuses = append(statuses, fmt.Sprintf("'%s'", status))
+			placeholders = append(placeholders, fmt.Sprintf("$%d", argIdx))
+			args = append(args, status)
+			argIdx++
 		}
-		if len(statuses) > 0 {
-			conditions = append(conditions, fmt.Sprintf("status IN (%s)", strings.Join(statuses, ",")))
+		if len(placeholders) > 0 {
+			conditions = append(conditions, fmt.Sprintf("status IN (%s)", strings.Join(placeholders, ",")))
 		}
 	}
 
 	// Value range filter — *big.Int.String() produces only [0-9-], safe for numeric column
 	if ef.MinValue != nil {
-		conditions = append(conditions, fmt.Sprintf("value >= %s", ef.MinValue.String()))
+		conditions = append(conditions, fmt.Sprintf("value >= $%d", argIdx))
+		args = append(args, ef.MinValue.String())
+		argIdx++
 	}
 	if ef.MaxValue != nil {
-		conditions = append(conditions, fmt.Sprintf("value <= %s", ef.MaxValue.String()))
+		conditions = append(conditions, fmt.Sprintf("value <= $%d", argIdx))
+		args = append(args, ef.MaxValue.String())
+		argIdx++
 	}
 
 	// Build WHERE clause
@@ -165,15 +185,19 @@ func (ef *EventFilter) ToQuery() string {
 	// Add ordering
 	query += " ORDER BY block_number DESC, log_index DESC"
 
-	// Add pagination
+	// Add pagination — uint64, safe but use parameterized for consistency
 	if ef.Limit > 0 {
-		query += fmt.Sprintf(" LIMIT %d", ef.Limit)
+		query += fmt.Sprintf(" LIMIT $%d", argIdx)
+		args = append(args, ef.Limit)
+		argIdx++
 	}
 	if ef.Offset > 0 {
-		query += fmt.Sprintf(" OFFSET %d", ef.Offset)
+		query += fmt.Sprintf(" OFFSET $%d", argIdx)
+		args = append(args, ef.Offset)
+		argIdx++
 	}
 
-	return query
+	return query, args
 }
 
 // GetCacheKey generates a cache key for this filter

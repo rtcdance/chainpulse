@@ -61,6 +61,12 @@ func NewDefaultHealthChecker(
 
 // Check performs a health check on the system
 func (h *DefaultHealthChecker) Check(ctx context.Context) (HealthStatus, error) {
+	// Load config outside the lock to avoid deadlock: Check() holds h.mu
+	// while checkConfiguration calls configManager.Load() which holds cm.mu.
+	// If another goroutine holds cm.mu while waiting on h.mu.RLock() (via
+	// GetLastCheckStatus), the lock ordering is inverted and both deadlock.
+	configHealth := h.checkConfiguration(ctx)
+
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
@@ -74,8 +80,7 @@ func (h *DefaultHealthChecker) Check(ctx context.Context) (HealthStatus, error) 
 	pluginHealth := h.checkPlugins(ctx)
 	status.Details["plugins"] = pluginHealth
 
-	// Check configuration
-	configHealth := h.checkConfiguration(ctx)
+	// Check configuration (loaded above, outside the lock)
 	status.Details["configuration"] = configHealth
 
 	// Check event bus

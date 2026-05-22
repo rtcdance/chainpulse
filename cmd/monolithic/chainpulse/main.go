@@ -143,7 +143,7 @@ func run() error {
 	// Validate the resolved core configuration
 	configManager := core.NewConfigManager(logger)
 	configManager.Load()
-	if err := configManager.Validate(); err != nil {
+	if err := configManager.ValidateLoaded(); err != nil {
 		return fmt.Errorf("core configuration validation failed: %w", err)
 	}
 

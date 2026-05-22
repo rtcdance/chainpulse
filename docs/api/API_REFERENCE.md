@@ -40,6 +40,25 @@ curl http://localhost:8080/health
 curl 'http://localhost:8080/events?limit=5'
 ```
 
+**Filtering Examples:**
+
+```bash
+# By contract address
+curl 'http://localhost:8080/events?contract=0xa95267dB6d3E14b6eA5a06a091c1B3AEdf4BA346'
+
+# By event name
+curl 'http://localhost:8080/events?eventName=Transfer'
+
+# By block range
+curl 'http://localhost:8080/events?fromBlock=100&toBlock=200'
+
+# Combined filters
+curl 'http://localhost:8080/events?contract=0x...&eventName=Transfer&fromBlock=100&limit=10'
+
+# Pagination (offset-based)
+curl 'http://localhost:8080/events?limit=10&offset=20'
+```
+
 **Query Parameters:**
 - `contract` (string): Filter by contract address
 - `fromBlock` (integer): Start block number
@@ -118,6 +137,21 @@ Send subscribe message:
 {"action":"subscribe","topic":"events"}
 ```
 
+Expected response:
+```json
+{"type":"subscribed","topic":"events"}
+```
+
+Receiving events:
+```json
+{"type":"event","topic":"events","data":{"id":"evt_xxx","eventName":"Transfer"}}
+```
+
+Unsubscribing:
+```json
+{"action":"unsubscribe","topic":"events"}
+```
+
 ## Error Responses
 
 All errors return structured JSON:
@@ -126,7 +160,24 @@ All errors return structured JSON:
 {"error":"NOT_FOUND","message":"Event not found","statusCode":404}
 ```
 
-**Common Codes:** `VALIDATION_ERROR` (400), `NOT_FOUND` (404), `RATE_LIMITED` (429), `INTERNAL_ERROR` (500)
+**Common Error Codes:**
+
+| Code | Status | Meaning | Recovery |
+|------|--------|---------|----------|
+| `VALIDATION_ERROR` | 400 | Invalid request params | Check parameter format and types |
+| `NOT_FOUND` | 404 | Resource not found | Verify the ID or filter values |
+| `RATE_LIMITED` | 429 | Too many requests | Wait for `Retry-After` header duration |
+| `INTERNAL_ERROR` | 500 | Server-side failure | Retry; if persistent, check logs |
+
+**Example: Handling a validation error**
+
+```bash
+# Request with invalid block range
+curl 'http://localhost:8080/events?fromBlock=200&toBlock=100'
+
+# Response
+# {"error":"VALIDATION_ERROR","message":"fromBlock (200) must be <= toBlock (100)","statusCode":400}
+```
 
 ## Rate Limiting
 

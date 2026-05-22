@@ -5,21 +5,18 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"sync"
+	"sync/atomic"
 	"time"
 )
 
-// DefaultLogger provides structured logging with correlation IDs
 type DefaultLogger struct {
-	mu              sync.RWMutex
-	level           LogLevel
+	level           atomic.Int32
 	correlationID   string
 	output          io.Writer
 	fields          map[string]any
 	enableTimestamp bool
 }
 
-// LogEntry represents a structured log entry
 type LogEntry struct {
 	Timestamp     string         `json:"timestamp,omitempty"`
 	Level         string         `json:"level"`
@@ -28,158 +25,114 @@ type LogEntry struct {
 	Fields        map[string]any `json:"fields,omitempty"`
 }
 
-// NewProductionLogger returns a slog-backed Logger (Go 1.21+ standard).
-// This is the recommended constructor for production deployments.
 func NewProductionLogger() Logger {
 	return NewSlogLogger(LogLevelInfo, "json")
 }
 
-// NewProductionLoggerWithLevel returns a slog-backed Logger with the specified level.
 func NewProductionLoggerWithLevel(level LogLevel) Logger {
 	return NewSlogLogger(level, "json")
 }
 
-// NewDefaultLogger creates a new logger instance.
-// Deprecated: Use NewProductionLogger or NewSlogLogger for slog-backed logging.
 func NewDefaultLogger(level LogLevel) *DefaultLogger {
-	return &DefaultLogger{
-		level:           level,
+	l := &DefaultLogger{
 		output:          os.Stdout,
 		fields:          make(map[string]any),
 		enableTimestamp: true,
 	}
+	l.level.Store(int32(level))
+	return l
 }
 
-// NewDefaultLoggerWithOutput creates a logger with custom output
 func NewDefaultLoggerWithOutput(level LogLevel, output io.Writer) *DefaultLogger {
-	return &DefaultLogger{
-		level:           level,
+	l := &DefaultLogger{
 		output:          output,
 		fields:          make(map[string]any),
 		enableTimestamp: true,
 	}
+	l.level.Store(int32(level))
+	return l
 }
 
-// Debug logs a debug message
 func (l *DefaultLogger) Debug(msg string, fields ...any) {
 	l.log(LogLevelDebug, msg, fields...)
 }
 
-// Info logs an info message
 func (l *DefaultLogger) Info(msg string, fields ...any) {
 	l.log(LogLevelInfo, msg, fields...)
 }
 
-// Warn logs a warning message
 func (l *DefaultLogger) Warn(msg string, fields ...any) {
 	l.log(LogLevelWarn, msg, fields...)
 }
 
-// Error logs an error message
 func (l *DefaultLogger) Error(msg string, fields ...any) {
 	l.log(LogLevelError, msg, fields...)
 }
 
-// Fatal logs a fatal message and exits
 func (l *DefaultLogger) Fatal(msg string, fields ...any) {
 	l.log(LogLevelFatal, msg, fields...)
 	os.Exit(1)
 }
 
-// WithCorrelationID returns a new logger with correlation ID
 func (l *DefaultLogger) WithCorrelationID(id string) Logger {
-	l.mu.RLock()
-	defer l.mu.RUnlock()
-
 	newLogger := &DefaultLogger{
-		level:           l.level,
 		correlationID:   id,
 		output:          l.output,
 		fields:          make(map[string]any),
 		enableTimestamp: l.enableTimestamp,
 	}
-
-	// Copy existing fields
+	newLogger.level.Store(l.level.Load())
 	for k, v := range l.fields {
 		newLogger.fields[k] = v
 	}
-
 	return newLogger
 }
 
-// WithField adds a field to the logger
 func (l *DefaultLogger) WithField(key string, value any) *DefaultLogger {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-
 	newLogger := &DefaultLogger{
-		level:           l.level,
 		correlationID:   l.correlationID,
 		output:          l.output,
 		fields:          make(map[string]any),
 		enableTimestamp: l.enableTimestamp,
 	}
-
-	// Copy existing fields
+	newLogger.level.Store(l.level.Load())
 	for k, v := range l.fields {
 		newLogger.fields[k] = v
 	}
-
 	newLogger.fields[key] = value
 	return newLogger
 }
 
-// WithFields adds multiple fields to the logger
 func (l *DefaultLogger) WithFields(fields map[string]any) *DefaultLogger {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-
 	newLogger := &DefaultLogger{
-		level:           l.level,
 		correlationID:   l.correlationID,
 		output:          l.output,
 		fields:          make(map[string]any),
 		enableTimestamp: l.enableTimestamp,
 	}
-
-	// Copy existing fields
+	newLogger.level.Store(l.level.Load())
 	for k, v := range l.fields {
 		newLogger.fields[k] = v
 	}
-
-	// Add new fields
 	for k, v := range fields {
 		newLogger.fields[k] = v
 	}
-
 	return newLogger
 }
 
-// SetLevel sets the log level
 func (l *DefaultLogger) SetLevel(level LogLevel) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	l.level = level
+	l.level.Store(int32(level))
 }
 
-// GetLevel returns the current log level
 func (l *DefaultLogger) GetLevel() LogLevel {
-	l.mu.RLock()
-	defer l.mu.RUnlock()
-	return l.level
+	return LogLevel(l.level.Load())
 }
 
-// log is the internal logging function
 func (l *DefaultLogger) log(level LogLevel, msg string, fields ...any) {
-	l.mu.RLock()
-	defer l.mu.RUnlock()
-
-	// Check if we should log this level
-	if level < l.level {
+	if level < l.GetLevel() {
 		return
 	}
 
-	// Parse fields
 	fieldMap := make(map[string]any)
 	for i := 0; i < len(fields); i += 2 {
 		if i+1 < len(fields) {
@@ -190,14 +143,12 @@ func (l *DefaultLogger) log(level LogLevel, msg string, fields ...any) {
 		}
 	}
 
-	// Merge with existing fields
 	for k, v := range l.fields {
 		if _, exists := fieldMap[k]; !exists {
 			fieldMap[k] = v
 		}
 	}
 
-	// Create log entry
 	entry := LogEntry{
 		Level:   level.String(),
 		Message: msg,
@@ -212,7 +163,6 @@ func (l *DefaultLogger) log(level LogLevel, msg string, fields ...any) {
 		entry.CorrelationID = l.correlationID
 	}
 
-	// Marshal to JSON
 	data, err := json.Marshal(entry)
 	if err != nil {
 		if l.output != os.Stderr {
@@ -221,7 +171,6 @@ func (l *DefaultLogger) log(level LogLevel, msg string, fields ...any) {
 		return
 	}
 
-	// Write to output
 	if _, err := fmt.Fprintf(l.output, "%s\n", string(data)); err != nil {
 		if l.output != os.Stderr {
 			_, _ = fmt.Fprintf(os.Stderr, "logger: failed to write to output: %v\n", err)
@@ -229,7 +178,6 @@ func (l *DefaultLogger) log(level LogLevel, msg string, fields ...any) {
 	}
 }
 
-// LogLevel represents the log level
 type LogLevel int
 
 const (
@@ -240,7 +188,6 @@ const (
 	LogLevelFatal
 )
 
-// String returns the string representation of the log level
 func (l LogLevel) String() string {
 	switch l {
 	case LogLevelDebug:
@@ -258,7 +205,6 @@ func (l LogLevel) String() string {
 	}
 }
 
-// ParseLogLevel parses a string to LogLevel
 func ParseLogLevel(s string) LogLevel {
 	switch s {
 	case "DEBUG":

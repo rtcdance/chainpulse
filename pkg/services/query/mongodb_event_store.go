@@ -698,7 +698,6 @@ func (s *MongoDBEventStore) DeleteEventsByBlockRange(ctx context.Context, fromBl
 			"$lte": toBlock,
 		},
 	}
-
 	result, err := s.collection.DeleteMany(ctx, filter)
 	if err != nil {
 		return 0, fmt.Errorf("failed to delete events by block range: %w", err)
@@ -707,6 +706,36 @@ func (s *MongoDBEventStore) DeleteEventsByBlockRange(ctx context.Context, fromBl
 	s.logger.Info("Deleted events by block range", core.LogKeyFromBlock, fromBlock, core.LogKeyToBlock, toBlock, core.LogKeyCount, result.DeletedCount)
 
 	return result.DeletedCount, nil
+}
+
+// MarkEventsAsReorged marks events in the given block range as reorged (soft-delete)
+// instead of permanently deleting them. Returns the count of affected events.
+func (s *MongoDBEventStore) MarkEventsAsReorged(ctx context.Context, fromBlock, toBlock uint64) (int64, error) {
+	if !s.initialized {
+		return 0, fmt.Errorf("event store not initialized")
+	}
+
+	if s.collection == nil {
+		return 0, fmt.Errorf("MongoDB collection not initialized")
+	}
+
+	filter := bson.M{
+		"blockNumber": bson.M{
+			"$gte": fromBlock,
+			"$lte": toBlock,
+		},
+	}
+	update := bson.M{
+		"$set": bson.M{
+			"status":    "reorged",
+			"reorgedAt": time.Now(),
+		},
+	}
+	result, err := s.collection.UpdateMany(ctx, filter, update)
+	if err != nil {
+		return 0, fmt.Errorf("failed to mark events as reorged: %w", err)
+	}
+	return result.ModifiedCount, nil
 }
 
 // GetEventsByAddress retrieves events by contract address with limit

@@ -325,12 +325,13 @@ func (pa *DefaultPostgreSQLAdapter) Query(ctx context.Context, req *QueryRequest
 	}
 
 	// Build LIMIT and OFFSET
-	limitClause := ""
-	if req.Limit > 0 {
-		limitClause = "LIMIT " + strconv.FormatInt(req.Limit, 10)
-		if req.Offset > 0 {
-			limitClause += " OFFSET " + strconv.FormatInt(req.Offset, 10)
-		}
+	limit := req.Limit
+	if limit <= 0 {
+		limit = 1000 // default limit to prevent unbounded result sets
+	}
+	limitClause := "LIMIT " + strconv.FormatInt(limit, 10)
+	if req.Offset > 0 {
+		limitClause += " OFFSET " + strconv.FormatInt(req.Offset, 10)
 	}
 
 	// Build query

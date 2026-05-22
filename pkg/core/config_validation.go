@@ -88,7 +88,8 @@ func checkMinLength(val string, minLen int, name string) error {
 	return nil
 }
 
-func (cm *DefaultConfigManager) ValidateConfig(config Config) error {
+// Validate validates the given config against business rules.
+func (cm *DefaultConfigManager) Validate(config Config) error {
 	checks := []func() error{
 		// Data puller
 		func() error { return checkRequired(config.DataPullerType, "DataPullerType") },

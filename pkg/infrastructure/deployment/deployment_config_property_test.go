@@ -83,7 +83,7 @@ func TestPropertyConfigurationValidation(t *testing.T) {
 	}
 
 	for i := range validConfigs {
-		err := cm.Validate()
+		err := cm.ValidateLoaded()
 		if err != nil {
 			t.Errorf("valid config %d failed validation: %v", i, err)
 		}
@@ -528,7 +528,7 @@ func TestPropertyConfigurationValidationErrorMessages(t *testing.T) {
 	cm := core.NewConfigManager(logger)
 
 	// Validate the default (empty) config — should fail since config is unset
-	err := cm.Validate()
+	err := cm.ValidateLoaded()
 	if err != nil {
 		t.Logf("default (empty) config validation correctly fails: %v", err)
 	} else {

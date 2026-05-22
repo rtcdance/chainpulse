@@ -4,14 +4,13 @@ import (
 	"fmt"
 	"math/big"
 	"sync"
-	"sync/atomic"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
-// unknownEventSignatures counts events whose signature could not be resolved.
+// eventDecoderLog is set once during initialization by SetEventDecoderLogger.
 var (
 	eventDecoderOnce sync.Once
 	eventDecoderLog  core.Logger
@@ -24,16 +23,18 @@ func getEventDecoderLogger() core.Logger {
 	return eventDecoderLog
 }
 
-var unknownEventSignatures atomic.Int64
-
-// GetUnknownEventSignatureCount returns the total number of unresolved event signatures.
+// GetUnknownEventSignatureCount delegates to the shared core counter.
 func GetUnknownEventSignatureCount() int64 {
-	return unknownEventSignatures.Load()
+	return core.GetUnknownEventSignatureCount()
 }
 
-// ResetUnknownEventSignatureCount resets the counter (useful for testing).
+// ResetUnknownEventSignatureCount delegates to the shared core counter.
 func ResetUnknownEventSignatureCount() {
-	unknownEventSignatures.Store(0)
+	core.ResetUnknownEventSignatureCount()
+}
+
+func incrementUnknownSignatures() {
+	core.IncrementUnknownEventSignatures()
 }
 
 // DecodeEventData decodes event parameters using the known ABI for the event name.
@@ -54,7 +55,7 @@ func DecodeEventData(eventName string, topics []common.Hash, data []byte) map[st
 	}
 
 	if parsedABI == nil {
-		unknownEventSignatures.Add(1)
+		incrementUnknownSignatures()
 		return nil
 	}
 

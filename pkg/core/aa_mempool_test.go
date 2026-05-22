@@ -6,13 +6,14 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/rtcdance/chainpulse/pkg/mempool"
 )
 
 // --- AAMempool tests ---
 
 func TestAAMempoolAddAndRemove(t *testing.T) {
 	t.Parallel()
-	pool := NewAAMempool(100, 5*time.Minute)
+	pool := mempool.NewAAMempool(100, 5*time.Minute)
 
 	op := &UserOperation{
 		Sender:               common.HexToAddress("0x1234"),
@@ -23,7 +24,7 @@ func TestAAMempoolAddAndRemove(t *testing.T) {
 		MaxPriorityFeePerGas: big.NewInt(1e9),
 	}
 
-	entry := &AAMempoolEntry{
+	entry := &mempool.AAMempoolEntry{
 		UserOp:         op,
 		EntryPointAddr: EntryPointAddresses[EntryPointV06],
 		SubmittedAt:    time.Now(),
@@ -44,7 +45,7 @@ func TestAAMempoolAddAndRemove(t *testing.T) {
 	}
 
 	// Dedup
-	dup := &AAMempoolEntry{
+	dup := &mempool.AAMempoolEntry{
 		UserOp:      op,
 		SubmittedAt: time.Now(),
 		PriorityFee: big.NewInt(2e9),
@@ -63,10 +64,10 @@ func TestAAMempoolAddAndRemove(t *testing.T) {
 
 func TestAAMempoolPriorityOrdering(t *testing.T) {
 	t.Parallel()
-	pool := NewAAMempool(100, 5*time.Minute)
+	pool := mempool.NewAAMempool(100, 5*time.Minute)
 
 	for i := 0; i < 5; i++ {
-		entry := &AAMempoolEntry{
+		entry := &mempool.AAMempoolEntry{
 			UserOp: &UserOperation{
 				Sender:               common.HexToAddress("0x1234"),
 				MaxPriorityFeePerGas: big.NewInt(int64((i + 1) * 1e9)),
@@ -95,10 +96,10 @@ func TestAAMempoolPriorityOrdering(t *testing.T) {
 
 func TestAAMempoolCapacityEviction(t *testing.T) {
 	t.Parallel()
-	pool := NewAAMempool(3, 5*time.Minute)
+	pool := mempool.NewAAMempool(3, 5*time.Minute)
 
 	for i := 0; i < 5; i++ {
-		entry := &AAMempoolEntry{
+		entry := &mempool.AAMempoolEntry{
 			UserOp: &UserOperation{
 				Sender:               common.HexToAddress("0x1234"),
 				MaxPriorityFeePerGas: big.NewInt(int64((i + 1) * 1e9)),
@@ -119,7 +120,7 @@ func TestAAMempoolCapacityEviction(t *testing.T) {
 
 func TestAAMempoolNilEntry(t *testing.T) {
 	t.Parallel()
-	pool := NewAAMempool(100, 5*time.Minute)
+	pool := mempool.NewAAMempool(100, 5*time.Minute)
 	if pool.AddEntry(nil) {
 		t.Error("nil entry should not be added")
 	}
@@ -127,9 +128,9 @@ func TestAAMempoolNilEntry(t *testing.T) {
 
 func TestAAMempoolExpiredEntry(t *testing.T) {
 	t.Parallel()
-	pool := NewAAMempool(100, 100*time.Millisecond)
+	pool := mempool.NewAAMempool(100, 100*time.Millisecond)
 
-	entry := &AAMempoolEntry{
+	entry := &mempool.AAMempoolEntry{
 		UserOp:        &UserOperation{Sender: common.HexToAddress("0x1234")},
 		SubmittedAt:   time.Now().Add(-200 * time.Millisecond), // already expired
 		PriorityFee:   big.NewInt(1e9),

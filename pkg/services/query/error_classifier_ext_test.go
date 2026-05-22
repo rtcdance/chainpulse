@@ -33,10 +33,10 @@ func TestNewErrorClassifier(t *testing.T) {
 	}
 }
 
-func TestErrorClassifier_ClassifyError(t *testing.T) {
+func TestErrorClassifier_Classify(t *testing.T) {
 	t.Parallel()
 	ec := NewErrorClassifier()
-	et := ec.ClassifyError(errors.New("connection refused"))
+	et := ec.Classify(errors.New("connection refused"))
 	_ = et
 }
 

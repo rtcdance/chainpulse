@@ -126,7 +126,7 @@ This document provides operational runbooks for ChainPulse alerts.
 - Block numbers don't match between chains
 
 ### Investigation
-1. Compare indexed block count with RPC: `curl http://localhost:8080/api/v1/events?chainId=1` vs RPC `eth_blockNumber`
+1. Compare indexed block count with RPC: `curl http://localhost:8080/events?chainId=1` vs RPC `eth_blockNumber`
 2. Check for gaps: `SELECT MIN(block_number), MAX(block_number), COUNT(*) FROM events WHERE chain_id = '1'`
 3. Check reorg counter: `chainpulse_reorg_detected` metric
 

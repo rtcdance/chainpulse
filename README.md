@@ -5,6 +5,30 @@ transactions, detect chain reorganizations, inspect dead-letter queues,
 and debug event processing across Ethereum and other chains — from a
 single dashboard.
 
+## 5-Minute Happy Path
+
+See blockchain events indexed and queried in under 5 minutes:
+
+```bash
+# 1. Start the in-memory playground (no Docker, no DB)
+go run cmd/playground/main.go
+
+# 2. Generate mock blockchain events
+curl http://localhost:9099/generate
+
+# 3. View the events
+curl http://localhost:9099/events | head -100
+
+# 4. Subscribe to live events via SSE
+curl http://localhost:9099/subscribe?topic=events
+
+# 5. Open the web UI
+open http://localhost:9099
+```
+
+No Docker, no database, no config file. The playground runs entirely
+in-memory with mock data — perfect for learning the Web3 to Go event flow.
+
 ## 🚀 Quick Start
 
 ### 🎮 Playground (Zero Setup, 10 Seconds)
@@ -23,11 +47,14 @@ the Web3 → Go event flow without any infrastructure.
 ### 3-Step Docker Launch
 
 ```bash
-# 1. Configure environment
+# 1. Create environment configuration
 cp docker/.env.example docker/.env
 # Edit docker/.env — set POSTGRES_PASSWORD, JWT_SECRET, etc.
 
-# 2. Launch the full stack (backend + 7 blockchains)
+# 2a. Quickstart (1 chain + essential infra, recommended for development)
+docker compose -f docker/docker-compose.quickstart.yml up -d
+
+# 2b. Full stack (7 blockchains + full observability)
 docker compose -f docker/docker-compose.yml up -d
 
 # 3. Verify it's running
@@ -325,7 +352,7 @@ wscat -c ws://localhost:8080/ws
 
 ## 🛠️ Development
 
-See [Developer Guide](docs/guides/DEPLOYMENT_GUIDE.md) for detailed guidelines.
+See [Developer Guide](docs/guides/DEVELOPER_GUIDE.md) for detailed guidelines.
 
 ### Project Organization (DDD)
 
@@ -376,7 +403,7 @@ See LICENSE file for details.
 
 For questions or issues:
 
-1. Check [Developer Guide](docs/guides/DEPLOYMENT_GUIDE.md)
+1. Check [Developer Guide](docs/guides/DEVELOPER_GUIDE.md)
 2. Review [Operations Guide](docs/guides/OPERATIONS_GUIDE.md)
 3. Open an issue on GitHub
 

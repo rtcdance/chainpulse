@@ -195,11 +195,11 @@ func (hs *HorizontalScaler) scaleUp(ctx context.Context) error {
 			hs.mu.Lock()
 			inst.Status = "running"
 			inst.StartedAt = time.Now()
+			hs.currentInstances++
 			hs.mu.Unlock()
 		}(instance)
 	}
 
-	hs.currentInstances = targetCount
 	hs.lastScalingTime = time.Now()
 
 	hs.metrics.mu.Lock()
@@ -246,6 +246,7 @@ func (hs *HorizontalScaler) scaleDown(ctx context.Context) error {
 					inst.Status = "stopped"
 					inst.StoppedAt = time.Now()
 					delete(hs.instances, id)
+					hs.currentInstances--
 				}
 				hs.mu.Unlock()
 			}(instanceID)
@@ -254,7 +255,6 @@ func (hs *HorizontalScaler) scaleDown(ctx context.Context) error {
 		}
 	}
 
-	hs.currentInstances = targetCount
 	hs.lastScalingTime = time.Now()
 
 	hs.metrics.mu.Lock()

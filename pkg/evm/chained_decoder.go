@@ -122,7 +122,7 @@ func (d *ChainedDecoder) decodeFromRegistered(eventName string, topics []common.
 // rawHexFallback preserves event data as hex strings when no ABI is available.
 // This ensures no data is silently lost — clients can decode client-side.
 func (d *ChainedDecoder) rawHexFallback(eventName string, topics []common.Hash, data []byte) map[string]any {
-	unknownEventSignatures.Add(1)
+	incrementUnknownSignatures()
 
 	result := make(map[string]any)
 

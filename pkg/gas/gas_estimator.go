@@ -197,16 +197,43 @@ const (
 )
 
 // CalculateBlobBaseFee computes the blob base fee using EIP-4844 formula.
+// Implements fake_exponential(MIN_BLOB_GAS_PRICE, excess_blob_gas, BLOB_GAS_PRICE_UPDATE_FRACTION)
+// as specified in the EIP-4844 spec.
 func CalculateBlobBaseFee(excessBlobGas uint64) *big.Int {
-	if excessBlobGas == 0 {
-		return big.NewInt(int64(BlobTxMinBlobGasPrice))
+	minPrice := big.NewInt(int64(BlobTxMinBlobGasPrice))
+	denom := big.NewInt(int64(BlobTxBlobGasPriceUpdateFraction))
+	numer := big.NewInt(int64(excessBlobGas))
+
+	// fake_exponential(factor, numerator, denominator):
+	//   output = 0
+	//   accum = factor * denominator
+	//   for i = 1; accum > 0; i++:
+	//     output += accum / denominator
+	//     accum = (accum * numerator) / denominator / i
+	output := new(big.Int)
+	accum := new(big.Int).Mul(minPrice, denom)
+	one := big.NewInt(1)
+	i := big.NewInt(1)
+
+	for accum.Sign() > 0 {
+		// output += accum / denominator
+		term := new(big.Int).Div(accum, denom)
+		output.Add(output, term)
+
+		// accum = accum * numerator / denominator / i
+		accum.Mul(accum, numer)
+		accum.Div(accum, denom)
+		accum.Div(accum, i)
+
+		i.Add(i, one)
+
+		// Safety: prevent infinite loop on pathological inputs
+		if i.BitLen() > 256 {
+			break
+		}
 	}
-	var output, accum uint64 = 0, BlobTxMinBlobGasPrice
-	for i := uint64(1); accum > 0; i++ {
-		output += accum
-		accum = accum * excessBlobGas / BlobTxBlobGasPriceUpdateFraction / i
-	}
-	return new(big.Int).SetUint64(output)
+
+	return output
 }
 
 // PredictNextExcessBlobGas computes the expected excess blob gas for the next block.

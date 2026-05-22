@@ -67,8 +67,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - Initial bug fixes
 
-[Unreleased]: https://github.com/chainpulse/indexer/compare/v1.0.0...HEAD
-[1.0.0]: https://github.com/chainpulse/indexer/releases/tag/v1.0.0
+[Unreleased]: https://github.com/rtcdance/chainpulse/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/rtcdance/chainpulse/releases/tag/v1.0.0
 ```
 
 ### 自动化变更日志更新
@@ -186,7 +186,7 @@ cp -r config config_backup_v{PREVIOUS_VERSION}
 #### Step 2: Update Application
 ```bash
 # Download new version
-wget https://github.com/chainpulse/indexer/releases/download/v{VERSION}/chainpulse-v{VERSION}.tar.gz
+wget https://github.com/rtcdance/chainpulse/releases/download/v{VERSION}/chainpulse-v{VERSION}.tar.gz
 
 # Extract
 tar -xzf chainpulse-v{VERSION}.tar.gz
@@ -267,15 +267,15 @@ Thank you to all contributors:
 
 ## Download
 
-- [Source Code](https://github.com/chainpulse/indexer/archive/v{VERSION}.tar.gz)
+- [Source Code](https://github.com/rtcdance/chainpulse/archive/v{VERSION}.tar.gz)
 - [Docker Image](https://hub.docker.com/r/chainpulse/indexer:v{VERSION})
-- [Binary Releases](https://github.com/chainpulse/indexer/releases/tag/v{VERSION})
+- [Binary Releases](https://github.com/rtcdance/chainpulse/releases/tag/v{VERSION})
 
 ## Support
 
 - [Documentation](https://docs.chainpulse.io)
-- [Issue Tracker](https://github.com/chainpulse/indexer/issues)
-- [Discussions](https://github.com/chainpulse/indexer/discussions)
+- [Issue Tracker](https://github.com/rtcdance/chainpulse/issues)
+- [Discussions](https://github.com/rtcdance/chainpulse/discussions)
 - [Discord](https://discord.gg/chainpulse)
 
 ## What's Next

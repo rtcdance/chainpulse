@@ -18,13 +18,11 @@ import (
 	"github.com/rtcdance/chainpulse/pkg/env"
 	"github.com/rtcdance/chainpulse/pkg/infrastructure/database"
 	"github.com/rtcdance/chainpulse/pkg/plugins/mq"
+	"github.com/rtcdance/chainpulse/pkg/services/eventproc"
 	"github.com/rtcdance/chainpulse/pkg/services/query"
 	"github.com/rtcdance/chainpulse/pkg/services/reorg"
-
-	"github.com/ethereum/go-ethereum/common"
 )
 
-//nolint:wsl,nlreturn // Command entrypoint is intentionally verbose.
 func main() {
 	fmt.Println("╔════════════════════════════════════════════════════════════╗")
 	fmt.Println("║      ChainPulse - Event Processor Service                  ║")
@@ -81,8 +79,8 @@ func main() {
 		logger.Error("Failed to load database configuration", "error", err.Error())
 		os.Exit(1)
 	}
-	fmt.Printf("  MongoDB URI:        %s\n", dbConfig.MongoDBURI)
-	fmt.Printf("  PostgreSQL URL:     %s\n", dbConfig.PostgresURL)
+	fmt.Printf("  MongoDB URI:        %s\n", core.RedactURL(dbConfig.MongoDBURI))
+	fmt.Printf("  PostgreSQL URL:     %s\n", core.RedactURL(dbConfig.PostgresURL))
 	fmt.Printf("  Pool Size:          %d\n", dbConfig.PoolSize)
 	fmt.Printf("  Timeout:            %dms\n", dbConfig.TimeoutMS)
 	fmt.Println()
@@ -307,7 +305,7 @@ func main() {
 	fmt.Println("  [2.2/3] DLQ retry service started")
 
 	reorgHandler := reorg.NewReorgHandler(
-		newReorgEventProcessorDatabaseAdapter(eventStore, pgMetadataStore, getDB(dbManager)),
+		eventproc.NewReorgDBAdapter(eventStore, pgMetadataStore, getDB(dbManager)),
 		logger,
 		12,  // reorg threshold
 		120, // max rollback
@@ -487,104 +485,7 @@ func validateEventProcessorProductionSecurity(c EventProcessorConfig, runtimePro
 	if c.RateLimitPerMinute <= 0 {
 		return fmt.Errorf("production event processor requires EVENT_PROCESSOR_RATE_LIMIT > 0")
 	}
-	return nil
-}
-
-// reorgEventProcessorDatabaseAdapter adapts existing stores to core.DatabasePlugin
-// for use by ReorgHandler in the event-processor microservice.
-type reorgEventProcessorDatabaseAdapter struct {
-	eventStore    *query.MongoDBEventStore
-	metadataStore *query.PostgreSQLEventMetadataStore
-	db            *sql.DB
-}
-
-func newReorgEventProcessorDatabaseAdapter(
-	eventStore *query.MongoDBEventStore,
-	metadataStore *query.PostgreSQLEventMetadataStore,
-	db *sql.DB,
-) *reorgEventProcessorDatabaseAdapter {
-	return &reorgEventProcessorDatabaseAdapter{eventStore: eventStore, metadataStore: metadataStore, db: db}
-}
-
-func (a *reorgEventProcessorDatabaseAdapter) Name() string                   { return "reorg-adapter" }
-func (a *reorgEventProcessorDatabaseAdapter) Version() string                { return "1.0.0" }
-func (a *reorgEventProcessorDatabaseAdapter) Initialize(_ core.Config) error { return nil }
-func (a *reorgEventProcessorDatabaseAdapter) Start() error                   { return nil }
-func (a *reorgEventProcessorDatabaseAdapter) Stop() error                    { return nil }
-func (a *reorgEventProcessorDatabaseAdapter) Health() error                  { return nil }
-
-// EventReader
-func (a *reorgEventProcessorDatabaseAdapter) GetEvent(_ context.Context, _ string) (*core.BlockchainEvent, error) {
-	return nil, fmt.Errorf("not implemented in reorg adapter")
-}
-
-func (a *reorgEventProcessorDatabaseAdapter) QueryEvents(_ context.Context, _ any) ([]any, error) {
-	return nil, fmt.Errorf("not implemented in reorg adapter")
-}
-
-func (a *reorgEventProcessorDatabaseAdapter) GetAllEvents(_ context.Context) ([]*core.BlockchainEvent, error) {
-	return nil, fmt.Errorf("not implemented in reorg adapter")
-}
-
-func (a *reorgEventProcessorDatabaseAdapter) GetEventsByBlockRange(ctx context.Context, fromBlock, toBlock uint64) ([]*core.BlockchainEvent, error) {
-	return a.eventStore.GetEventsByBlockRange(ctx, fromBlock, toBlock)
-}
-
-// EventWriter
-func (a *reorgEventProcessorDatabaseAdapter) StoreEvent(_ context.Context, _ any) error {
-	return fmt.Errorf("not implemented in reorg adapter")
-}
-
-func (a *reorgEventProcessorDatabaseAdapter) BatchStoreEvents(_ context.Context, _ []any) error {
-	return fmt.Errorf("not implemented in reorg adapter")
-}
-
-func (a *reorgEventProcessorDatabaseAdapter) DeleteEvent(_ context.Context, _ string) error {
-	return fmt.Errorf("not implemented in reorg adapter")
-}
-
-func (a *reorgEventProcessorDatabaseAdapter) DeleteEventsByBlockRange(ctx context.Context, fromBlock, toBlock uint64) (int64, error) {
-	return a.eventStore.DeleteEventsByBlockRange(ctx, fromBlock, toBlock)
-}
-
-func (a *reorgEventProcessorDatabaseAdapter) MarkEventsAsReorged(ctx context.Context, fromBlock, toBlock uint64) (int64, error) {
-	// Delegate to DeleteEventsByBlockRange as fallback if the store doesn't support soft-delete
-	return a.eventStore.DeleteEventsByBlockRange(ctx, fromBlock, toBlock)
-}
-
-// BlockReader
-func (a *reorgEventProcessorDatabaseAdapter) GetBlock(_ context.Context, blockNum uint64) (*core.Block, error) {
-	if a.db == nil {
-		return nil, fmt.Errorf("reorg adapter: no database connection")
-	}
-	row := a.db.QueryRow("SELECT block_hash, block_number FROM blockchain_events WHERE block_number = $1 LIMIT 1", blockNum)
-	var hash string
-	var number uint64
-	if err := row.Scan(&hash, &number); err != nil {
-		return nil, fmt.Errorf("reorg adapter: block %d not found: %w", blockNum, err)
-	}
-	return &core.Block{Number: number, Hash: common.HexToHash(hash)}, nil
-}
-
-func (a *reorgEventProcessorDatabaseAdapter) GetLatestBlock(_ context.Context) (uint64, error) {
-	if a.db == nil {
-		return 0, fmt.Errorf("reorg adapter: no database connection")
-	}
-	var maxBlock uint64
-	err := a.db.QueryRow("SELECT COALESCE(MAX(block_number), 0) FROM blockchain_events").Scan(&maxBlock)
-	if err != nil {
-		return 0, fmt.Errorf("reorg adapter: failed to query latest block: %w", err)
-	}
-	return maxBlock, nil
-}
-
-func (a *reorgEventProcessorDatabaseAdapter) GetAllBlocks(_ context.Context) ([]*core.Block, error) {
-	return nil, fmt.Errorf("not implemented in reorg adapter")
-}
-
-// ReorgStatsProvider
-func (a *reorgEventProcessorDatabaseAdapter) GetReorgStats(_ context.Context) (*core.ReorgStats, error) {
-	return &core.ReorgStats{}, nil
+return nil
 }
 
 // kafkaHealthAdapter wraps *mq.KafkaMQPlugin to implement eventProcessorKafkaHealthProvider.

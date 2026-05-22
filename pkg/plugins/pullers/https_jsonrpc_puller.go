@@ -246,6 +246,7 @@ func (p *HTTPSJSONRPCPuller) PullEvents(ctx context.Context, fromBlock, toBlock 
 	p.tracer.SetAttribute(&span, "from_block", fromBlock)
 	p.tracer.SetAttribute(&span, "to_block", toBlock)
 	p.tracer.SetAttribute(&span, "chain_id", p.ChainID())
+	p.RecordRequest()
 
 	if cb := p.CircuitBreaker(); cb != nil {
 		if err := cb.Allow(); err != nil {

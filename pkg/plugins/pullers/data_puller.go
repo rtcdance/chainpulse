@@ -36,6 +36,7 @@ type BaseDataPullerPlugin struct {
 	shutdownTimeout    time.Duration   // max wait for in-flight ops on Stop()
 	lifecycleCtx       context.Context // context for async operations like checkpoint persistence
 	errorCounter       int64
+	requestCounter     int64
 	lastError          error
 	lastErrorTime      time.Time
 	lastSuccessfulPull time.Time // zero = never pulled
@@ -287,12 +288,19 @@ func (p *BaseDataPullerPlugin) RecordError(err error) {
 	}
 }
 
+// RecordRequest records a successful request attempt for stats.
+func (p *BaseDataPullerPlugin) RecordRequest() {
+	p.mu.Lock()
+	p.requestCounter++
+	p.mu.Unlock()
+}
+
 // BaseStats returns common puller statistics
 func (p *BaseDataPullerPlugin) BaseStats() map[string]any {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 	return map[string]any{
-		"request_count":   p.errorCounter,
+		"request_count":   p.requestCounter,
 		"error_count":     p.errorCounter,
 		"last_error":      p.lastError,
 		"last_error_time": p.lastErrorTime,

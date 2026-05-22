@@ -83,7 +83,7 @@ tar -C /usr/local -xzf go1.25.5.linux-amd64.tar.gz
 ### 2. Clone Repository
 
 ```bash
-git clone https://github.com/chainpulse/chainpulse.git
+git clone https://github.com/rtcdance/chainpulse.git
 cd chainpulse
 ```
 
@@ -538,5 +538,5 @@ Each package should have a README explaining:
 - [Go Documentation](https://golang.org/doc/)
 - [Effective Go](https://golang.org/doc/effective_go)
 - [Go Code Review Comments](https://github.com/golang/go/wiki/CodeReviewComments)
-- [ChainPulse GitHub](https://github.com/chainpulse/chainpulse)
+- [ChainPulse GitHub](https://github.com/rtcdance/chainpulse)
 - [Community Discord](https://discord.gg/chainpulse)

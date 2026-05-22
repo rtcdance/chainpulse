@@ -29,7 +29,7 @@ Before running E2E tests, ensure you have:
 
 1. **Clone the repository:**
    ```bash
-   git clone https://github.com/chainpulse/indexer.git
+   git clone https://github.com/rtcdance/chainpulse.git
    cd indexer
    ```
 

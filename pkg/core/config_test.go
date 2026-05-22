@@ -91,7 +91,7 @@ func TestValidateConfigurationValid(t *testing.T) {
 	}
 
 	cm := NewConfigManager(nil)
-	err := cm.ValidateConfig(config)
+	err := cm.Validate(config)
 	if err != nil {
 		t.Errorf("expected valid configuration to pass validation, got error %v", err)
 	}
@@ -122,7 +122,7 @@ func TestValidateConfigurationInvalidDataPullerType(t *testing.T) {
 	}
 
 	cm := NewConfigManager(nil)
-	err := cm.ValidateConfig(config)
+	err := cm.Validate(config)
 
 	if err == nil {
 		t.Errorf("expected validation to fail for invalid DataPullerType")
@@ -154,7 +154,7 @@ func TestValidateConfigurationMissingBlockchainNodeURL(t *testing.T) {
 	}
 
 	cm := NewConfigManager(nil)
-	err := cm.ValidateConfig(config)
+	err := cm.Validate(config)
 
 	if err == nil {
 		t.Errorf("expected validation to fail for missing BlockchainNodeURL")
@@ -186,7 +186,7 @@ func TestValidateConfigurationInvalidAPIPort(t *testing.T) {
 	}
 
 	cm := NewConfigManager(nil)
-	err := cm.ValidateConfig(config)
+	err := cm.Validate(config)
 
 	if err == nil {
 		t.Errorf("expected validation to fail for invalid APIPort")

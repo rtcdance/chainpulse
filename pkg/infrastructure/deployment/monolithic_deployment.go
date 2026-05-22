@@ -198,8 +198,12 @@ func (md *MonolithicDeployment) Start(ctx context.Context) error {
 		}
 	}
 
-	// Wait for shutdown signal
-	<-md.shutdownChan
+	// Wait for shutdown signal or context cancellation
+	select {
+	case <-md.shutdownChan:
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 
 	return md.Stop(ctx)
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math/rand/v2"
 	"syscall"
 	"time"
 )
@@ -258,6 +259,14 @@ func ClassifyError(err error) ErrorType {
 		}
 	}
 
+	// RPCErr with rate-limit or transient status codes should be retried
+	var rpcErr *RPCErr
+	if errors.As(err, &rpcErr) {
+		if rpcErr.StatusCode == 429 || (rpcErr.StatusCode >= 500 && rpcErr.StatusCode < 600) {
+			return ErrorTypeTransient
+		}
+	}
+
 	return ErrorTypePermanent
 }
 
@@ -301,7 +310,7 @@ func (e *RPCErr) IsServerError() bool {
 }
 
 func (e *RPCErr) IsClientError() bool {
-	return e.StatusCode >= 400 && e.StatusCode < 500
+	return e.StatusCode >= 400 && e.StatusCode < 500 && e.StatusCode != 429
 }
 
 func NewRPCErr(statusCode int, endpoint, method, requestID string, retryAfter time.Duration, err error) *RPCErr {
@@ -315,7 +324,8 @@ func NewRPCErr(statusCode int, endpoint, method, requestID string, retryAfter ti
 	}
 }
 
-// RetryWithBackoff retries a function with exponential backoff
+// RetryWithBackoff retries a function with exponential backoff and jitter.
+// Jitter is added to avoid thundering herd when multiple instances retry simultaneously.
 func RetryWithBackoff(ctx context.Context, config RetryConfig, fn func() error) error {
 	var err error
 	delay := config.InitialDelay
@@ -332,7 +342,6 @@ func RetryWithBackoff(ctx context.Context, config RetryConfig, fn func() error) 
 			return nil
 		}
 
-		// Permanent or critical errors are not retryable
 		var sysErr *SystemError
 		if errors.As(err, &sysErr) {
 			if sysErr.Type == ErrorTypePermanent || sysErr.Type == ErrorTypeCritical {
@@ -344,10 +353,11 @@ func RetryWithBackoff(ctx context.Context, config RetryConfig, fn func() error) 
 			return err
 		}
 
+		jittered := time.Duration(rand.Int64N(int64(delay)))
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-time.After(delay):
+		case <-time.After(jittered):
 		}
 
 		delay = time.Duration(float64(delay) * config.Multiplier)

@@ -67,8 +67,8 @@ func main() {
 		logger.Error("Failed to build runtime wiring", "error", err.Error())
 		os.Exit(1)
 	}
-	fmt.Printf("  MongoDB URI:        %s\n", runtimeWiring.DBConfig.MongoDBURI)
-	fmt.Printf("  PostgreSQL URL:     %s\n", runtimeWiring.DBConfig.PostgresURL)
+	fmt.Printf("  MongoDB URI:        %s\n", core.RedactURL(runtimeWiring.DBConfig.MongoDBURI))
+	fmt.Printf("  PostgreSQL URL:     %s\n", core.RedactURL(runtimeWiring.DBConfig.PostgresURL))
 	fmt.Printf("  Pool Size:          %d\n", runtimeWiring.DBConfig.PoolSize)
 	fmt.Printf("  Timeout:            %dms\n", runtimeWiring.DBConfig.TimeoutMS)
 	fmt.Println("  ✓ Query service initialized")

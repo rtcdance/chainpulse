@@ -171,11 +171,12 @@ func (s *DefaultIdempotencyService) Stop() error {
 	if s.stopCh != nil {
 		close(s.stopCh)
 	}
+	totalStored := len(s.processedHashes)
 	s.mu.Unlock()
 
 	s.logger.Info("Idempotency service stopped",
 		core.LogKeyComponent, "idempotency",
-		"total_stored", len(s.processedHashes),
+		"total_stored", totalStored,
 	)
 	return nil
 }

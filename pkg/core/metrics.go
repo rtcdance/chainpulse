@@ -660,6 +660,24 @@ func SetDBPoolStats(stats DBPoolStats) {
 	dbPoolStats.Store(stats)
 }
 
+var unknownEventSignatures atomic.Int64
+
+// GetUnknownEventSignatureCount returns the count of unknown event signatures seen.
+func GetUnknownEventSignatureCount() int64 {
+	return unknownEventSignatures.Load()
+}
+
+// IncrementUnknownEventSignatures increments the unknown event signature counter.
+// Called by pkg/evm which cannot be imported by core (would create a cycle).
+func IncrementUnknownEventSignatures() {
+	unknownEventSignatures.Add(1)
+}
+
+// ResetUnknownEventSignatureCount resets the counter (useful for testing).
+func ResetUnknownEventSignatureCount() {
+	unknownEventSignatures.Store(0)
+}
+
 func writePrometheusRuntimeMetrics(builder *strings.Builder) {
 	var memStats runtime.MemStats
 
@@ -672,9 +690,7 @@ func writePrometheusRuntimeMetrics(builder *strings.Builder) {
 	writePrometheusHeader(builder, "go_memstats_sys_bytes", "gauge")
 	writePrometheusSample(builder, "go_memstats_sys_bytes", nil, strconv.FormatUint(memStats.Sys, 10))
 	writePrometheusHeader(builder, "chainpulse_unknown_event_signatures_total", "counter")
-	writePrometheusSample(builder, "chainpulse_unknown_event_signatures_total", nil, "0")
-	// TODO: GetUnknownEventSignatureCount() was in pkg/evm which core cannot import.
-	// Wire this through an injected callback or move the counter into core.
+	writePrometheusSample(builder, "chainpulse_unknown_event_signatures_total", nil, strconv.FormatInt(GetUnknownEventSignatureCount(), 10))
 
 	// Database connection pool stats
 	if val := dbPoolStats.Load(); val != nil {

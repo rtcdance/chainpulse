@@ -1,0 +1,117 @@
+# ChainPulse Quickstart Stack
+# Lightweight version with 1 blockchain node + essential infrastructure.
+# Use for local development and quick testing.
+# Usage: docker compose -f docker-compose.quickstart.yml up -d
+
+services:
+  # Single Anvil blockchain node (Ethereum)
+  anvil-ethereum:
+    image: ghcr.io/foundry-rs/foundry:latest
+    container_name: chainpulse-anvil-ethereum
+    ports:
+      - "8545:8545"
+    command: anvil --host 0.0.0.0 --port 8545 --chain-id 1 --accounts 10 --balance 10000
+    healthcheck:
+      test: ["CMD-SHELL", "cast chain --rpc-url http://localhost:8545 2>/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - chainpulse-network
+
+  # PostgreSQL for persistent storage
+  postgres:
+    image: postgres:15-alpine
+    container_name: chainpulse-postgres
+    environment:
+      POSTGRES_USER: chainpulse
+      POSTGRES_PASSWORD: chainpulse_dev
+      POSTGRES_DB: chainpulse
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U chainpulse -d chainpulse"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - chainpulse-network
+
+  # Redis for caching
+  redis:
+    image: redis:7-alpine
+    container_name: chainpulse-redis
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - chainpulse-network
+
+  # MongoDB for event store
+  mongodb:
+    image: mongo:7
+    container_name: chainpulse-mongodb
+    ports:
+      - "27017:27017"
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - chainpulse-network
+
+  # ChainPulse monolithic application
+  chainpulse:
+    image: chainpulse-acceptance:latest
+    container_name: chainpulse-app
+    depends_on:
+      anvil-ethereum:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+    environment:
+      CHAINS: ethereum
+      BLOCKCHAIN_NODE_URLS: http://anvil-ethereum:8545
+      DATA_PULLER_TYPE: https-jsonrpc
+      DEPLOYMENT_MODE: monolithic
+      LOG_LEVEL: info
+      API_PORT: "8080"
+      CACHE_TYPE: redis
+      CACHE_CONNECTION_URL: redis://redis:6379
+      DATABASE_URL: postgres://chainpulse:chainpulse_dev@postgres:5432/chainpulse?sslmode=disable
+      MONGODB_URI: mongodb://mongodb:27017
+      MQ_TYPE: redis
+      WORKER_POOL_SIZE: "4"
+      BATCH_SIZE: "10"
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8080/health"]
+      interval: 15s
+      timeout: 5s
+      start_period: 30s
+      retries: 10
+    networks:
+      - chainpulse-network
+
+volumes:
+  postgres_data:
+
+networks:
+  chainpulse-network:
+    driver: bridge

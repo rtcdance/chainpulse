@@ -23,13 +23,13 @@ Adopt URL-based versioning for REST, header-based for gRPC, with a unified respo
 #### REST Versioning
 
 ```
-Current (migration phase):  /events, /health, /runtime/summary
+Current (final decision):   /events, /health, /runtime/summary
 Target (post-migration):    /api/v1/events, /api/v1/health, /api/v1/runtime/summary
-
-Version lifecycle:
-  v1: current stable (never remove fields, only add optional ones)
-  v2: future (when backward-incompatible changes are needed)
 ```
+
+**Actual implementation note (2026-05):** The final decision was to keep unprefixed routes.
+No `/api/v1/` migration was performed. All API routes use clean paths without version
+prefixes. See `docs/api/API_REFERENCE.md` for the current API surface.
 
 All responses use the standard envelope:
 
@@ -74,7 +74,7 @@ GraphQL is inherently evolvable (field addition is non-breaking). Deprecate fiel
 ### Migration Plan
 
 ```
-Phase 1 (current): dual routes — /events 301 redirects to /api/v1/events
+Phase 1 (current): unprefixed routes — /events, /health, /runtime/summary
 Phase 2 (next release): remove unversioned routes, document v1 as stable
 Phase 3 (future): v2 when needed, with 12-month deprecation window for v1
 ```

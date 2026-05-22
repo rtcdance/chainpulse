@@ -76,7 +76,7 @@ func main() {
 		logger.Error("Failed to load database configuration", "error", err.Error())
 		os.Exit(1)
 	}
-	fmt.Printf("  PostgreSQL URL:     %s\n", dbConfig.PostgresURL)
+	fmt.Printf("  PostgreSQL URL:     %s\n", core.RedactURL(dbConfig.PostgresURL))
 	fmt.Printf("  Pool Size:          %d\n", dbConfig.PoolSize)
 	fmt.Printf("  Timeout:            %dms\n", dbConfig.TimeoutMS)
 	fmt.Println()

@@ -30,7 +30,7 @@ LINT_CHANGED_FILES := $(shell if [ -n "$(LINT_BASE_REF)" ]; then git diff --name
 LINT_DIRS := $(shell if [ -n "$(LINT_CHANGED_FILES)" ]; then printf '%s\n' $(LINT_CHANGED_FILES) | xargs -n1 dirname | sort -u; fi)
 
 # 默认目标
-all: fmt lint test build
+all: check test-short build
 
 # ========== 构建 ==========
 
@@ -283,6 +283,19 @@ pprof-heap:
 
 # ========== 本地开发 ==========
 
+dev: ## Start development environment (lightweight: infra + playground)
+	@echo "Starting ChainPulse development environment..."
+	@echo ""
+	@echo "Option 1: In-memory playground (fastest, zero deps)"
+	@echo "  make playground"
+	@echo ""
+	@echo "Option 2: Docker quickstart (1 chain + postgres + redis)"
+	@echo "  docker compose -f docker/docker-compose.quickstart.yml up -d"
+	@echo "  Then: DEPLOYMENT_MODE=monolithic $(GO) run $(CMD_DIR)/monolithic/chainpulse"
+	@echo ""
+	@echo "Option 3: Full acceptance stack (7 chains + full observability)"
+	@echo "  bash docker/acceptance.sh up"
+
 run-monolithic:
 	@echo "Running monolithic mode..."
 	DEPLOYMENT_MODE=monolithic $(GO) run $(CMD_DIR)/monolithic/chainpulse
@@ -508,8 +521,10 @@ help:
 	@echo "  fmt                  - Format code with gofumpt"
 	@echo "  fmt-check            - Check code formatting"
 	@echo ""
-	@echo "Development:"
-	@echo "  run-monolithic       - Run monolithic mode"
+@echo "Development:"
+	@echo "  dev                 - Show available dev environment options"
+	@echo "  playground          - Start in-memory playground (zero deps)"
+	@echo "  run-monolithic      - Run monolithic mode"
 	@echo "  run-puller           - Run puller service"
 	@echo "  run-indexer          - Run indexer service"
 	@echo "  dev-setup            - Install development tools"
