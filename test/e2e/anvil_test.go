@@ -17,7 +17,7 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/rtcdance/chainpulse/pkg/core"
 	"github.com/rtcdance/chainpulse/pkg/plugins/pullers"
-	t "github.com/rtcdance/chainpulse/pkg/testhelpers"
+	th "github.com/rtcdance/chainpulse/pkg/testhelpers"
 )
 
 // startAnvil launches a local Anvil instance on a random available port.
@@ -174,7 +174,7 @@ func TestAnvil_PullerIntegration(t *testing.T) {
 	cmd, rpcURL := startAnvil(t)
 	defer func() { _ = cmd.Process.Kill() }()
 
-	logger := testhelpers.NewTestLogger()
+	logger := th.NewTestLogger()
 	metrics := core.NewDefaultMetricsCollector()
 
 	puller := pullers.NewHTTPSJSONRPCPuller(core.Config{
@@ -188,10 +188,10 @@ func TestAnvil_PullerIntegration(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
-	if err := puller.Start(); err != nil {
+	if err := puller.Start(context.Background()); err != nil {
 		t.Fatalf("puller start failed: %v", err)
 	}
-	defer func() { _ = puller.Stop() }()
+	defer func() { _ = puller.Stop(context.Background()) }()
 
 	// Verify chain ID was checked
 	latestBlock, err := puller.GetLatestBlock(ctx)

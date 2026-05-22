@@ -303,11 +303,11 @@ jobs:
             echo "Total coverage: ${COVERAGE}%"
             if [ -z "$COVERAGE" ] || [ "$COVERAGE" = "0" ]; then
               echo "⚠ Could not calculate coverage, skipping threshold check"
-            elif (( $(echo "$COVERAGE < 49" | bc -l) )); then
-              echo "✗ Coverage ${COVERAGE}% is below minimum 49%"
+            elif (( $(echo "$COVERAGE < $MIN_COVERAGE" | bc -l) )); then
+              echo "✗ Coverage ${COVERAGE}% is below minimum ${MIN_COVERAGE}%"
               exit 1
             else
-              echo "✓ Coverage ${COVERAGE}% meets minimum 49%"
+              echo "✓ Coverage ${COVERAGE}% meets minimum ${MIN_COVERAGE}%"
             fi
           else
             echo "⚠ No coverage data available, skipping threshold check"
@@ -405,7 +405,7 @@ jobs:
       - name: Install golangci-lint via go install
         run: |
           echo "Installing golangci-lint v1.63.0..."
-          go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.63.0
+          go install github.com/golangci/golangci-lint/cmd/golangci-lint@v2.0.2
           "$(go env GOPATH)/bin/golangci-lint" --version
           echo "✓ golangci-lint v1.63.0 installed successfully"
       
