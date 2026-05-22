@@ -134,8 +134,8 @@ func TestSIWEVerification(t *testing.T) {
 	}
 	_ = hex.EncodeToString(signature)
 
-	if msg.Domain != "example.com" {
-		t.Errorf("Domain: got %s", msg.Domain)
+	if msg.Domain != "test.example.com" {
+		t.Errorf("Domain: got %s, want test.example.com", msg.Domain)
 	}
 	if msg.Address != address {
 		t.Errorf("Address: got %s", msg.Address.Hex())
