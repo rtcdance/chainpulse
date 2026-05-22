@@ -17,6 +17,22 @@ import (
 	"github.com/rtcdance/chainpulse/pkg/observability"
 )
 
+const (
+	metricValidationFailed     = "event_processor_validation_failed"
+	metricHashGenFailed        = "event_processor_hash_generation_failed"
+	metricDuplicateCheckFailed = "event_processor_duplicate_check_failed"
+	metricDuplicateDetected    = "event_processor_duplicate_detected"
+	metricStorageFailed        = "event_processor_storage_failed"
+	metricEventProcessed       = "event_processor_event_processed"
+	metricBatchProcessed       = "event_processor_batch_processed"
+	metricBatchAtomic          = "event_processor_batch_atomic"
+
+	tagNetwork = "network"
+	tagSuccess = "success"
+	tagFailure = "failure"
+	tagSize    = "size"
+)
+
 // EventStorage persists processed events.
 // Deprecated: Use domain/query.EventStore for full event storage capabilities.
 // EventStorage provides write access to blockchain events for the processor.
@@ -241,14 +257,14 @@ func (p *DefaultEventProcessor) ProcessEvent(ctx context.Context, event *core.Bl
 	}
 
 	if err := p.validateEvent(event); err != nil {
-		p.recordFailureMetric("event_processor_validation_failed", "network", event.Network)
+		p.recordFailureMetric(metricValidationFailed, tagNetwork, event.Network)
 		p.logger.Error("Event validation failed", core.LogKeyError, err, core.LogKeyNetwork, event.Network)
 		return fmt.Errorf("validate event %s: %w", event.ID, err)
 	}
 
 	hash, err := p.idempotencyService.GenerateHash(event)
 	if err != nil {
-		p.recordFailureMetric("event_processor_hash_generation_failed", "network", event.Network)
+		p.recordFailureMetric(metricHashGenFailed, tagNetwork, event.Network)
 		p.logger.Error("Hash generation failed", core.LogKeyError, err, core.LogKeyNetwork, event.Network, core.LogKeyEventID, event.ID)
 		return fmt.Errorf("generate hash for event %s: %w", event.ID, err)
 	}
@@ -258,7 +274,7 @@ func (p *DefaultEventProcessor) ProcessEvent(ctx context.Context, event *core.Bl
 	}
 
 	if err := p.storeEventWithRetry(ctx, event); err != nil {
-		p.recordFailureMetric("event_processor_storage_failed", "network", event.Network)
+		p.recordFailureMetric(metricStorageFailed, tagNetwork, event.Network)
 		p.logger.Error("Event storage failed", core.LogKeyError, err, core.LogKeyNetwork, event.Network)
 		return fmt.Errorf("store event %s with retry: %w", event.ID, err)
 	}
@@ -287,14 +303,14 @@ func (p *DefaultEventProcessor) isRunning() bool {
 func (p *DefaultEventProcessor) isDuplicateEvent(ctx context.Context, hash, network string) bool {
 	isDup, err := p.idempotencyService.IsDuplicate(ctx, hash)
 	if err != nil {
-		p.recordFailureMetric("event_processor_duplicate_check_failed", "network", network)
+		p.recordFailureMetric(metricDuplicateCheckFailed, tagNetwork, network)
 		return false
 	}
 	if isDup {
 		p.mu.Lock()
 		p.duplicateCount++
 		p.mu.Unlock()
-		p.metricsCollector.RecordCounter("event_processor_duplicate_detected", 1, map[string]string{"network": network})
+		p.metricsCollector.RecordCounter(metricDuplicateDetected, 1, map[string]string{tagNetwork: network})
 		p.logger.Info("Duplicate event detected", core.LogKeyHash, hash, core.LogKeyNetwork, network)
 	}
 	return isDup
@@ -327,8 +343,7 @@ func (p *DefaultEventProcessor) markProcessedWithRollback(ctx context.Context, h
 	}
 }
 
-// updateCache writes the event to the cache if a cache plugin is configured.
-func (p *DefaultEventProcessor) updateCache(ctx context.Context, event *core.BlockchainEvent) {
+func (p *DefaultEventProcessor) writeCacheEntry(event *core.BlockchainEvent) {
 	if p.cachePlugin == nil {
 		return
 	}
@@ -348,14 +363,21 @@ func (p *DefaultEventProcessor) updateCache(ctx context.Context, event *core.Blo
 	}
 }
 
+func (p *DefaultEventProcessor) updateCache(_ context.Context, event *core.BlockchainEvent) {
+	if p.cachePlugin == nil {
+		return
+	}
+	p.writeCacheEntry(event)
+}
+
 // recordProcessedMetrics updates counters for a successfully processed event.
 func (p *DefaultEventProcessor) recordProcessedMetrics(event *core.BlockchainEvent) {
 	p.mu.Lock()
 	p.processedCount++
 	p.mu.Unlock()
 
-	p.metricsCollector.RecordCounter("event_processor_event_processed", 1, map[string]string{
-		"network": event.Network,
+	p.metricsCollector.RecordCounter(metricEventProcessed, 1, map[string]string{
+		tagNetwork: event.Network,
 	})
 }
 
@@ -431,9 +453,9 @@ func (p *DefaultEventProcessor) ProcessBatch(ctx context.Context, events []*core
 
 	batchErr := g.Wait()
 
-	p.metricsCollector.RecordCounter("event_processor_batch_processed", 1, map[string]string{
-		"success": fmt.Sprintf("%d", successCount.Load()),
-		"failure": fmt.Sprintf("%d", failureCount.Load()),
+	p.metricsCollector.RecordCounter(metricBatchProcessed, 1, map[string]string{
+		tagSuccess: fmt.Sprintf("%d", successCount.Load()),
+		tagFailure: fmt.Sprintf("%d", failureCount.Load()),
 	})
 
 	failure := failureCount.Load()
@@ -486,18 +508,7 @@ func (p *DefaultEventProcessor) markBatchProcessed(ctx context.Context, events [
 
 			// Update cache
 			if p.cachePlugin != nil {
-				cacheKey := "event:" + event.Network + ":" + strconv.FormatUint(event.BlockNumber, 10) + ":" + event.TransactionHash.Hex()
-				eventBytes := []byte(fmt.Sprintf("%v", event))
-				cacheEntry := p.cacheEntryPool.Get().(*core.CacheEntry)
-				cacheEntry.Key = cacheKey
-				cacheEntry.Value = eventBytes
-				cacheEntry.TTL = 3600
-				if err := p.cachePlugin.Set(cacheEntry); err != nil {
-					p.logger.Error("Failed to update cache after batch write", core.LogKeyError, err)
-				}
-				cacheEntry.Key = ""
-				cacheEntry.Value = nil
-				p.cacheEntryPool.Put(cacheEntry)
+				p.writeCacheEntry(event)
 			}
 
 			return nil
@@ -517,8 +528,8 @@ func (p *DefaultEventProcessor) markBatchProcessed(ctx context.Context, events [
 	p.processedCount += int64(len(events))
 	p.mu.Unlock()
 
-	p.metricsCollector.RecordCounter("event_processor_batch_atomic", 1, map[string]string{
-		"size": fmt.Sprintf("%d", len(events)),
+	p.metricsCollector.RecordCounter(metricBatchAtomic, 1, map[string]string{
+		tagSize: fmt.Sprintf("%d", len(events)),
 	})
 
 	return nil

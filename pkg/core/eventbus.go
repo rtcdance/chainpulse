@@ -12,6 +12,7 @@ import (
 
 // Default worker pool size for event bus
 const defaultEventBusWorkers = 16
+const defaultPublishTimeout = 5 * time.Second
 
 // eventBusJob wraps a handler call for the worker pool
 type eventBusJob struct {
@@ -33,6 +34,8 @@ type DefaultEventBus struct {
 
 	jobCh     chan eventBusJob
 	workersWg sync.WaitGroup
+
+	publishTimeout atomic.Int64
 
 	stopped atomic.Bool
 	done    chan struct{}
@@ -87,6 +90,7 @@ func NewEventBus(logger Logger) *DefaultEventBus {
 		jobCh:           jobCh,
 		done:            make(chan struct{}),
 	}
+	eb.publishTimeout.Store(int64(defaultPublishTimeout))
 
 	// Start fixed worker goroutines
 	for i := 0; i < defaultEventBusWorkers; i++ {
@@ -214,7 +218,7 @@ func (eb *DefaultEventBus) Publish(ctx context.Context, topic string, event any)
 		default:
 			// Channel is full — use a bounded wait to avoid deadlock
 			// when context has no deadline.
-			waitTimer := time.NewTimer(5 * time.Second)
+			waitTimer := time.NewTimer(time.Duration(eb.publishTimeout.Load()))
 			select {
 			case <-ctx.Done():
 				waitTimer.Stop()
@@ -247,6 +251,12 @@ func (eb *DefaultEventBus) Publish(ctx context.Context, topic string, event any)
 	}
 
 	return nil
+}
+
+// SetPublishTimeout sets the maximum time Publish waits for a busy worker
+// before dropping the job. Default is 5 seconds.
+func (eb *DefaultEventBus) SetPublishTimeout(timeout time.Duration) {
+	eb.publishTimeout.Store(int64(timeout))
 }
 
 // Subscribe subscribes to a topic and returns a subscription ID for later unsubscription
