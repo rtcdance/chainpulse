@@ -71,8 +71,8 @@ jobs:
       - name: Frontend build
         run: |
           cd frontend
-          npm install
-          npm run build
+          npm install --ignore-scripts
+          npx vite build
 
       - name: Docker build (all targets)
         run: |
