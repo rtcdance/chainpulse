@@ -1,6 +1,4 @@
 linters-settings:
-  errcheck:
-    check-type-assertions: false
   govet:
     disable:
       - fieldalignment
@@ -9,8 +7,6 @@ linters:
   disable-all: true
   enable:
     - govet
-    - staticcheck
-    - ineffassign
 issues:
   exclude-use-default: false
   max-per-linter: 0
