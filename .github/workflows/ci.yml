@@ -71,8 +71,8 @@ jobs:
       - name: Frontend build
         run: |
           cd frontend
-          npm install
-          node -e "try{require('@rollup/rollup-linux-x64-gnu')}catch(e){process.exit(1)}" || npm install @rollup/rollup-linux-x64-gnu
+          npm install --no-optional
+          node -e "try{require('@rollup/rollup-linux-x64-gnu')}catch(e){process.exit(1)}" || npm install @rollup/rollup-linux-x64-gnu --save-dev
           npm run build
 
       - name: Docker build (all targets)
