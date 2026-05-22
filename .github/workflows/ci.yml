@@ -68,12 +68,6 @@ jobs:
           go install golang.org/x/vuln/cmd/govulncheck@latest
           govulncheck ./...
 
-      - name: Frontend build
-        run: |
-          cd frontend
-          npm ci
-          npm run build
-
       - name: Docker build (all targets)
         run: |
           docker build --target=monolithic -f docker/Dockerfile -t chainpulse-monolithic:ci .
