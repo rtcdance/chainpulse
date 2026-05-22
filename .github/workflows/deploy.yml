@@ -383,6 +383,7 @@ jobs:
           bash scripts/verify-production.sh 2>/dev/null || true
 
       - name: Create release notes
+        if: steps.check-kube.outputs.available == 'true'
         uses: actions/github-script@v7
         with:
           script: |
@@ -396,7 +397,7 @@ jobs:
             
             ## Deployment Status
             
-            ${{ steps.check-kube.outputs.available == 'true' && '✅ Successfully deployed to production' || '⏭️ Skipped (KUBECONFIG_PRODUCTION not configured)' }}
+            ✅ Successfully deployed to production
             `;
             
             github.rest.repos.createRelease({
