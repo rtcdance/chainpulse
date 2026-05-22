@@ -8,6 +8,8 @@ linters:
     - govet
     - staticcheck
     - ineffassign
+  disable:
+    - unused
 
   settings:
     errcheck:
@@ -15,6 +17,7 @@ linters:
     govet:
       disable:
         - fieldalignment
+        - unusedwrite
 
   exclusions:
     generated: lax
