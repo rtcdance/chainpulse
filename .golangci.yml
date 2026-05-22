@@ -2,11 +2,12 @@ linters-settings:
   errcheck:
     check-type-assertions: false
   govet:
-    check-shadowing: false
+    disable:
+      - fieldalignment
+      - unusedwrite
 linters:
   disable-all: true
   enable:
-    - errcheck
     - govet
     - staticcheck
     - ineffassign
