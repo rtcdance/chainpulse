@@ -3,8 +3,8 @@ package core
 import (
 	"testing"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/rtcdance/chainpulse/pkg/chainid"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestResolveChainID(t *testing.T) {

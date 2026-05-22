@@ -5,8 +5,8 @@ import "context"
 type LeaderRole string
 
 const (
-	LeaderRolePuller   LeaderRole = "puller"
-	LeaderRoleIndexer  LeaderRole = "indexer"
+	LeaderRolePuller       LeaderRole = "puller"
+	LeaderRoleIndexer      LeaderRole = "indexer"
 	LeaderRoleConsolidator LeaderRole = "consolidator"
 )
 

@@ -16,7 +16,7 @@ import (
 )
 
 type (
-	MetricsCollector       = ports.MetricsCollector
+	MetricsCollector          = ports.MetricsCollector
 	PrometheusMetricsExporter = ports.PrometheusMetricsExporter
 )
 

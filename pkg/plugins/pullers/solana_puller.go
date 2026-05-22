@@ -17,15 +17,15 @@ import (
 )
 
 var knownProgramLabels = map[string]string{
-	core.TokenProgramID:                  "SPL Token",
-	core.Token2022ProgramID:              "SPL Token-2022",
-	core.AssociatedTokenProgramID:        "SPL Associated Token Account",
-	core.MetaplexTokenMetadataProgramID:  "Metaplex Token Metadata",
-	core.JupiterV6ProgramID:              "Jupiter V6 Aggregator",
-	core.RaydiumV4ProgramID:              "Raydium V4 AMM",
-	core.OrcaWhirlpoolProgramID:          "Orca Whirlpool",
-	"11111111111111111111111111111111":   "System Program",
-	"Vote111111111111111111111111111111111111": "Vote Program",
+	core.TokenProgramID:                           "SPL Token",
+	core.Token2022ProgramID:                       "SPL Token-2022",
+	core.AssociatedTokenProgramID:                 "SPL Associated Token Account",
+	core.MetaplexTokenMetadataProgramID:           "Metaplex Token Metadata",
+	core.JupiterV6ProgramID:                       "Jupiter V6 Aggregator",
+	core.RaydiumV4ProgramID:                       "Raydium V4 AMM",
+	core.OrcaWhirlpoolProgramID:                   "Orca Whirlpool",
+	"11111111111111111111111111111111":            "System Program",
+	"Vote111111111111111111111111111111111111":    "Vote Program",
 	"Stake11111111111111111111111111111111111111": "Stake Program",
 	"BPFLoaderUpgradeab1e11111111111111111111111": "BPF Loader",
 	"ComputeBudget111111111111111111111111111111": "Compute Budget",
@@ -243,7 +243,7 @@ type solanaTransaction struct {
 	Transaction struct {
 		Signatures []string `json:"signatures"`
 		Message    struct {
-			AccountKeys  []string           `json:"accountKeys"`
+			AccountKeys  []string            `json:"accountKeys"`
 			Instructions []solanaInstruction `json:"instructions"`
 		} `json:"message"`
 	} `json:"transaction"`

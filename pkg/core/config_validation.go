@@ -153,8 +153,6 @@ func (cm *DefaultConfigManager) Validate(config Config) error {
 			}
 			return nil
 		},
-
-
 	}
 
 	for _, c := range checks {

@@ -270,9 +270,9 @@ func main() {
 				r.Context(),
 				dbManager,
 				eventStore,
-		metadataStore,
-		kafkaHealth,
-		processorRuntime.Processor(),
+				metadataStore,
+				kafkaHealth,
+				processorRuntime.Processor(),
 				consumeRuntime,
 			)
 			return buildEventProcessorRuntimeSummary(state, metrics, time.Now(), config.AuthEnabled, config.RateLimitEnabled)
@@ -485,7 +485,7 @@ func validateEventProcessorProductionSecurity(c EventProcessorConfig, runtimePro
 	if c.RateLimitPerMinute <= 0 {
 		return fmt.Errorf("production event processor requires EVENT_PROCESSOR_RATE_LIMIT > 0")
 	}
-return nil
+	return nil
 }
 
 // kafkaHealthAdapter wraps *mq.KafkaMQPlugin to implement eventProcessorKafkaHealthProvider.

@@ -31,7 +31,7 @@ func (s *stubDatabasePlugin) Start(_ context.Context) error {
 	}
 	return s.startErr
 }
-func (s *stubDatabasePlugin) Stop(_ context.Context) error { s.stopped = true; return nil }
+func (s *stubDatabasePlugin) Stop(_ context.Context) error   { s.stopped = true; return nil }
 func (s *stubDatabasePlugin) Health(_ context.Context) error { return nil }
 func (s *stubDatabasePlugin) StoreEvent(ctx context.Context, event any) error {
 	return nil
@@ -96,8 +96,8 @@ func (s *stubCachePlugin) Start(_ context.Context) error {
 	}
 	return s.startErr
 }
-func (s *stubCachePlugin) Stop(_ context.Context) error                                          { return nil }
-func (s *stubCachePlugin) Health(_ context.Context) error                                        { return nil }
+func (s *stubCachePlugin) Stop(_ context.Context) error                        { return nil }
+func (s *stubCachePlugin) Health(_ context.Context) error                      { return nil }
 func (s *stubCachePlugin) HealthCheck(ctx context.Context) error               { return nil }
 func (s *stubCachePlugin) Get(ctx context.Context, key string) ([]byte, error) { return nil, nil }
 func (s *stubCachePlugin) Set(ctx context.Context, key string, value []byte, ttl int) error {

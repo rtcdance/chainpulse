@@ -74,12 +74,12 @@ func NewReorgHandler(
 	maxRollback uint64,
 ) *ReorgHandler {
 	rh := &ReorgHandler{
-		database:          database,
-		logger:            logger,
-		lastKnownBlocks:   make(map[uint64]common.Hash),
-		reorgThreshold:    reorgThreshold,
-		maxRollback:       maxRollback,
-		blockHashProvider: &DatabaseBlockHashProvider{db: database},
+		database:           database,
+		logger:             logger,
+		lastKnownBlocks:    make(map[uint64]common.Hash),
+		reorgThreshold:     reorgThreshold,
+		maxRollback:        maxRollback,
+		blockHashProvider:  &DatabaseBlockHashProvider{db: database},
 		checkpointInterval: 10,
 	}
 	return rh

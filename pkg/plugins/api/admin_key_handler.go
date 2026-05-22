@@ -28,15 +28,15 @@ func NewAdminKeyHandler(db *sql.DB, logger core.Logger) *AdminKeyHandler {
 }
 
 type apiKeyRow struct {
-	ID          string `json:"id"`
-	ClientID    string `json:"clientId"`
-	Name        string `json:"name"`
-	KeyHash     string `json:"-"`
-	KeyPrefix   string `json:"keyPrefix"`
-	Permissions string `json:"permissions"`
-	Enabled     bool   `json:"enabled"`
-	CreatedAt   string `json:"createdAt"`
-	UpdatedAt   string `json:"updatedAt"`
+	ID          string  `json:"id"`
+	ClientID    string  `json:"clientId"`
+	Name        string  `json:"name"`
+	KeyHash     string  `json:"-"`
+	KeyPrefix   string  `json:"keyPrefix"`
+	Permissions string  `json:"permissions"`
+	Enabled     bool    `json:"enabled"`
+	CreatedAt   string  `json:"createdAt"`
+	UpdatedAt   string  `json:"updatedAt"`
 	ExpiresAt   *string `json:"expiresAt"`
 	LastUsedAt  *string `json:"lastUsedAt"`
 }

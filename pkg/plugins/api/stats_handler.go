@@ -23,10 +23,10 @@ func NewStatsHandler(logger core.Logger, eventStore domainquery.EventReader) *St
 }
 
 type eventStatsResponse struct {
-	Total      int64                    `json:"total"`
-	ByChain    map[string]int64         `json:"byChain"`
-	ByEventName map[string]int64        `json:"byEventName"`
-	Reorged    int64                    `json:"reorged"`
+	Total       int64            `json:"total"`
+	ByChain     map[string]int64 `json:"byChain"`
+	ByEventName map[string]int64 `json:"byEventName"`
+	Reorged     int64            `json:"reorged"`
 }
 
 func (h *StatsHandler) HandleGetStats(w http.ResponseWriter, r *http.Request) {
@@ -118,10 +118,10 @@ func (h *StatsHandler) HandleGetStats(w http.ResponseWriter, r *http.Request) {
 	}
 
 	resp := eventStatsResponse{
-		Total:      total,
-		ByChain:    byChain,
+		Total:       total,
+		ByChain:     byChain,
 		ByEventName: byEventName,
-		Reorged:    reorged,
+		Reorged:     reorged,
 	}
 
 	w.Header().Set("Content-Type", "application/json")

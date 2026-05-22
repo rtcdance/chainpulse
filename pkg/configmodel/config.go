@@ -61,6 +61,7 @@ func (c *Config) activeChainFields() *BlockchainConfig {
 		ConfirmationBlocks: c.ConfirmationDepth,
 	}
 }
+
 type BlockchainConfig struct {
 	ChainID            string
 	NodeURL            string

@@ -96,11 +96,11 @@ func (l *TestLogger) GetMessages() []string {
 	return messages
 }
 
-func (l *TestLogger) LogDebug(msg string, fields ...any)  { l.Debug(msg, fields...) }
-func (l *TestLogger) LogInfo(msg string, fields ...any)   { l.Info(msg, fields...) }
-func (l *TestLogger) LogWarn(msg string, fields ...any)   { l.Warn(msg, fields...) }
-func (l *TestLogger) LogError(msg string, fields ...any)  { l.Error(msg, fields...) }
-func (l *TestLogger) LogFatal(msg string, fields ...any)  { l.Fatal(msg, fields...) }
+func (l *TestLogger) LogDebug(msg string, fields ...any) { l.Debug(msg, fields...) }
+func (l *TestLogger) LogInfo(msg string, fields ...any)  { l.Info(msg, fields...) }
+func (l *TestLogger) LogWarn(msg string, fields ...any)  { l.Warn(msg, fields...) }
+func (l *TestLogger) LogError(msg string, fields ...any) { l.Error(msg, fields...) }
+func (l *TestLogger) LogFatal(msg string, fields ...any) { l.Fatal(msg, fields...) }
 
 // TestMetricsCollector is a metrics collector for testing
 type TestMetricsCollector struct {

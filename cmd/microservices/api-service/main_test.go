@@ -62,7 +62,7 @@ func TestBuildAPIServiceSecurityControlsEnabled(t *testing.T) {
 	authMiddleware, rateLimitMiddleware, err := buildAPIServiceSecurityControls(APIServiceConfig{
 		AuthEnabled:        true,
 		AuthJWTSecret:      "secret-123",
-		AuthAPIKeys: []core.SecretString{core.SecretString("svc-key=client-1")},
+		AuthAPIKeys:        []core.SecretString{core.SecretString("svc-key=client-1")},
 		RateLimitEnabled:   true,
 		RateLimitPerMinute: 120,
 	}, logger, metrics)

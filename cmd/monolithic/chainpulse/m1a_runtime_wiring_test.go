@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
-	"github.com/rtcdance/chainpulse/pkg/testhelpers"
 	"github.com/rtcdance/chainpulse/pkg/services/indexing"
+	"github.com/rtcdance/chainpulse/pkg/testhelpers"
 
 	"github.com/ethereum/go-ethereum/common"
 

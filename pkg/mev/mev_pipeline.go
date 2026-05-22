@@ -13,11 +13,11 @@ import (
 
 // PayloadAttributes represents the data needed to construct an execution payload.
 type PayloadAttributes struct {
-	Timestamp             uint64            `json:"timestamp"`
-	PrevRandao            common.Hash       `json:"prev_randao"`
-	SuggestedFeeRecipient common.Address    `json:"suggested_fee_recipient"`
+	Timestamp             uint64                  `json:"timestamp"`
+	PrevRandao            common.Hash             `json:"prev_randao"`
+	SuggestedFeeRecipient common.Address          `json:"suggested_fee_recipient"`
 	Withdrawals           []blockchain.Withdrawal `json:"withdrawals"`
-	ParentBeaconBlockRoot *common.Hash      `json:"parent_beacon_block_root,omitempty"`
+	ParentBeaconBlockRoot *common.Hash            `json:"parent_beacon_block_root,omitempty"`
 }
 
 // SlotAuctionPhase represents the phase of a slot auction.

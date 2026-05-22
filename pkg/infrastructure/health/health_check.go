@@ -468,11 +468,11 @@ func (ad *AutomaticDeregistration) deregistrationLoop(ctx context.Context) {
 			return
 		case <-ticker.C:
 			failedServices := ad.failureDetector.DetectFailures(ctx)
-		for _, serviceID := range failedServices {
-			if err := ad.registry.DeregisterService(ctx, serviceID); err != nil {
-				slog.Warn("failed to deregister failed service", "service_id", serviceID, "error", err)
+			for _, serviceID := range failedServices {
+				if err := ad.registry.DeregisterService(ctx, serviceID); err != nil {
+					slog.Warn("failed to deregister failed service", "service_id", serviceID, "error", err)
+				}
 			}
-		}
 		}
 	}
 }

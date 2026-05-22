@@ -37,19 +37,19 @@ type QueryMetrics struct {
 }
 
 type AggregatedMetrics struct {
-	TotalQueries        int64
-	TotalExecutions     int64
-	TotalDuration       time.Duration
-	AverageDuration     time.Duration
-	MinDuration         time.Duration
-	MaxDuration         time.Duration
-	P50Duration         time.Duration
-	P95Duration         time.Duration
-	P99Duration         time.Duration
-	TotalRowsReturned   int64
-	TotalRowsScanned    int64
-	CacheHitRate        float64
-	CacheMissRate       float64
+	TotalQueries      int64
+	TotalExecutions   int64
+	TotalDuration     time.Duration
+	AverageDuration   time.Duration
+	MinDuration       time.Duration
+	MaxDuration       time.Duration
+	P50Duration       time.Duration
+	P95Duration       time.Duration
+	P99Duration       time.Duration
+	TotalRowsReturned int64
+	TotalRowsScanned  int64
+	CacheHitRate      float64
+	CacheMissRate     float64
 }
 
 func NewStatsCollector(aggregationWindow time.Duration) *StatsCollector {

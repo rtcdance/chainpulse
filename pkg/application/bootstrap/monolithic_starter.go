@@ -14,15 +14,15 @@ import (
 // MonolithicStarter bundles all assembled components for the monolithic mode.
 // main.go calls BuildMonolithicStarter then manages the lifecycle (Start/Wait/Stop).
 type MonolithicStarter struct {
-	Config               *core.Config
-	Logger               core.Logger
-	MetricsCollector     core.MetricsCollector
-	RuntimeWiring        *RuntimeWiring
+	Config           *core.Config
+	Logger           core.Logger
+	MetricsCollector core.MetricsCollector
+	RuntimeWiring    *RuntimeWiring
 
 	// Indexing
-	IndexingDatabase core.DatabasePlugin
-	IndexingCache    core.CachePlugin
-	SharedRuntime    *appindexing.SharedRuntime
+	IndexingDatabase  core.DatabasePlugin
+	IndexingCache     core.CachePlugin
+	SharedRuntime     *appindexing.SharedRuntime
 	MultiChainIndexer *indexing.MultiChainIndexer
 
 	// API Gateway

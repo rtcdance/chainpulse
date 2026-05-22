@@ -17,12 +17,12 @@ func (m *benchMockDB) GetBlock(_ context.Context, blockNumber uint64) (*core.Blo
 }
 
 // Stub out the remaining DatabasePlugin methods
-func (m *benchMockDB) Name() string                   { return "bench" }
-func (m *benchMockDB) Version() string                { return "1.0" }
+func (m *benchMockDB) Name() string                                      { return "bench" }
+func (m *benchMockDB) Version() string                                   { return "1.0" }
 func (m *benchMockDB) Initialize(_ context.Context, _ core.Config) error { return nil }
-func (m *benchMockDB) Start(_ context.Context) error                   { return nil }
-func (m *benchMockDB) Stop(_ context.Context) error                    { return nil }
-func (m *benchMockDB) Health(_ context.Context) error                  { return nil }
+func (m *benchMockDB) Start(_ context.Context) error                     { return nil }
+func (m *benchMockDB) Stop(_ context.Context) error                      { return nil }
+func (m *benchMockDB) Health(_ context.Context) error                    { return nil }
 func (m *benchMockDB) GetEvent(_ context.Context, _ string) (*core.BlockchainEvent, error) {
 	return nil, nil
 }

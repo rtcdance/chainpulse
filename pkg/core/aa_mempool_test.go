@@ -31,7 +31,7 @@ func TestAAMempoolAddAndRemove(t *testing.T) {
 		PriorityFee:    big.NewInt(1e9),
 		Sender:         op.Sender,
 		Hash:           "test-hash-1",
-		PreValidation:  &PreValidationResult{Success: true},
+		PreValidation:  &mempool.PreValidationResult{Success: true},
 	}
 
 	if !pool.AddEntry(entry) {
@@ -75,7 +75,7 @@ func TestAAMempoolPriorityOrdering(t *testing.T) {
 			SubmittedAt:   time.Now(),
 			PriorityFee:   big.NewInt(int64((i + 1) * 1e9)),
 			Hash:          string(rune('a' + i)),
-			PreValidation: &PreValidationResult{Success: true},
+			PreValidation: &mempool.PreValidationResult{Success: true},
 		}
 		pool.AddEntry(entry)
 	}
@@ -107,7 +107,7 @@ func TestAAMempoolCapacityEviction(t *testing.T) {
 			SubmittedAt:   time.Now(),
 			PriorityFee:   big.NewInt(int64((i + 1) * 1e9)),
 			Hash:          string(rune('a' + i)),
-			PreValidation: &PreValidationResult{Success: true},
+			PreValidation: &mempool.PreValidationResult{Success: true},
 		}
 		pool.AddEntry(entry)
 	}
@@ -135,7 +135,7 @@ func TestAAMempoolExpiredEntry(t *testing.T) {
 		SubmittedAt:   time.Now().Add(-200 * time.Millisecond), // already expired
 		PriorityFee:   big.NewInt(1e9),
 		Hash:          "expired",
-		PreValidation: &PreValidationResult{Success: true},
+		PreValidation: &mempool.PreValidationResult{Success: true},
 	}
 	pool.AddEntry(entry)
 

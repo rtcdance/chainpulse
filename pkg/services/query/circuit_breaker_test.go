@@ -15,8 +15,8 @@ func TestCircuitBreakerInitialState(t *testing.T) {
 	t.Parallel()
 	cb := NewCircuitBreaker(DefaultCircuitBreakerConfig())
 
-	if 	cb.State() != StateClosed {
-		t.Errorf("Expected initial state to be closed, got %s", 	cb.State().String())
+	if cb.State() != StateClosed {
+		t.Errorf("Expected initial state to be closed, got %s", cb.State().String())
 	}
 }
 
@@ -32,8 +32,8 @@ func TestCircuitBreakerSuccessfulCall(t *testing.T) {
 		t.Errorf("Expected no error, got %v", err)
 	}
 
-	if 	cb.State() != StateClosed {
-		t.Errorf("Expected state to remain closed, got %s", 	cb.State().String())
+	if cb.State() != StateClosed {
+		t.Errorf("Expected state to remain closed, got %s", cb.State().String())
 	}
 }
 
@@ -50,8 +50,8 @@ func TestCircuitBreakerFailedCall(t *testing.T) {
 		t.Error("Expected error, got nil")
 	}
 
-	if 	cb.State() != StateClosed {
-		t.Errorf("Expected state to remain closed, got %s", 	cb.State().String())
+	if cb.State() != StateClosed {
+		t.Errorf("Expected state to remain closed, got %s", cb.State().String())
 	}
 }
 
@@ -72,8 +72,8 @@ func TestCircuitBreakerTransitionToOpen(t *testing.T) {
 		})
 	}
 
-	if 	cb.State() != StateOpen {
-		t.Errorf("Expected state to be open, got %s", 	cb.State().String())
+	if cb.State() != StateOpen {
+		t.Errorf("Expected state to be open, got %s", cb.State().String())
 	}
 }
 
@@ -117,8 +117,8 @@ func TestCircuitBreakerTransitionToHalfOpen(t *testing.T) {
 		return errors.New("test error")
 	})
 
-	if 	cb.State() != StateOpen {
-		t.Errorf("Expected state to be open, got %s", 	cb.State().String())
+	if cb.State() != StateOpen {
+		t.Errorf("Expected state to be open, got %s", cb.State().String())
 	}
 
 	// Wait for timeout
@@ -129,8 +129,8 @@ func TestCircuitBreakerTransitionToHalfOpen(t *testing.T) {
 		return nil
 	})
 
-	if 	cb.State() != StateHalfOpen {
-		t.Errorf("Expected state to be half-open, got %s", 	cb.State().String())
+	if cb.State() != StateHalfOpen {
+		t.Errorf("Expected state to be half-open, got %s", cb.State().String())
 	}
 }
 
@@ -159,8 +159,8 @@ func TestCircuitBreakerTransitionToClosed(t *testing.T) {
 		})
 	}
 
-	if 	cb.State() != StateClosed {
-		t.Errorf("Expected state to be closed, got %s", 	cb.State().String())
+	if cb.State() != StateClosed {
+		t.Errorf("Expected state to be closed, got %s", cb.State().String())
 	}
 }
 
@@ -187,8 +187,8 @@ func TestCircuitBreakerTransitionBackToOpen(t *testing.T) {
 		return nil
 	})
 
-	if 	cb.State() != StateHalfOpen {
-		t.Errorf("Expected state to be half-open, got %s", 	cb.State().String())
+	if cb.State() != StateHalfOpen {
+		t.Errorf("Expected state to be half-open, got %s", cb.State().String())
 	}
 
 	// Fail in half-open state to transition back to open
@@ -196,8 +196,8 @@ func TestCircuitBreakerTransitionBackToOpen(t *testing.T) {
 		return errors.New("test error")
 	})
 
-	if 	cb.State() != StateOpen {
-		t.Errorf("Expected state to be open, got %s", 	cb.State().String())
+	if cb.State() != StateOpen {
+		t.Errorf("Expected state to be open, got %s", cb.State().String())
 	}
 }
 
@@ -216,15 +216,15 @@ func TestCircuitBreakerReset(t *testing.T) {
 		return errors.New("test error")
 	})
 
-	if 	cb.State() != StateOpen {
-		t.Errorf("Expected state to be open, got %s", 	cb.State().String())
+	if cb.State() != StateOpen {
+		t.Errorf("Expected state to be open, got %s", cb.State().String())
 	}
 
 	// Reset
 	cb.Reset()
 
-	if 	cb.State() != StateClosed {
-		t.Errorf("Expected state to be closed after reset, got %s", 	cb.State().String())
+	if cb.State() != StateClosed {
+		t.Errorf("Expected state to be closed after reset, got %s", cb.State().String())
 	}
 }
 
@@ -610,7 +610,7 @@ func TestCircuitBreaker_HalfOpenProbeLimit(t *testing.T) {
 
 	// After the probe succeeds and circuit closes, calls should work
 	time.Sleep(10 * time.Millisecond)
-	if 	cb.State() != StateClosed {
+	if cb.State() != StateClosed {
 		// The first probe succeeded, but SuccessThreshold=2, so might still be half-open
 		// Make one more successful call
 		err = cb.Call(func() error { return nil })
@@ -694,7 +694,7 @@ func TestCircuitBreaker_HalfOpenProbeCounterResetOnClose(t *testing.T) {
 	}
 
 	// Circuit should now be closed
-	if 	cb.State() != StateClosed {
-		t.Errorf("state = %v, want Closed", 	cb.State())
+	if cb.State() != StateClosed {
+		t.Errorf("state = %v, want Closed", cb.State())
 	}
 }

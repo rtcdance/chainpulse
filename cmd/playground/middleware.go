@@ -39,10 +39,10 @@ func loggingMiddleware(next http.Handler) http.Handler {
 		start := time.Now()
 		next.ServeHTTP(w, r)
 		slog.Info("middleware request",
-		"method", r.Method,
-		"path", r.URL.Path,
-		"duration", time.Since(start),
-	)
+			"method", r.Method,
+			"path", r.URL.Path,
+			"duration", time.Since(start),
+		)
 	})
 }
 

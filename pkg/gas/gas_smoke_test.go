@@ -41,10 +41,10 @@ func TestCongestionSmoke(t *testing.T) {
 func TestGasHistorySmoke(t *testing.T) {
 	stats := NewRollingGasStats(10)
 	block := &blockchain.Block{
-		Number:  100,
-		Hash:    common.HexToHash("0xabc"),
-		BaseFee: big.NewInt(50e9),
-		GasUsed: 10_000_000,
+		Number:   100,
+		Hash:     common.HexToHash("0xabc"),
+		BaseFee:  big.NewInt(50e9),
+		GasUsed:  10_000_000,
 		GasLimit: 30_000_000,
 	}
 	stats.RecordBlock(block)

@@ -9,8 +9,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
-	"github.com/rtcdance/chainpulse/pkg/testhelpers"
 	domainquery "github.com/rtcdance/chainpulse/pkg/domain/query"
+	"github.com/rtcdance/chainpulse/pkg/testhelpers"
 )
 
 func TestMonolithicIndexingEventStoreFiltersByContractAndName(t *testing.T) {

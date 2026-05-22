@@ -517,5 +517,3 @@ func (m *MongoDBDatabase) GetReorgStats(ctx context.Context) (*core.ReorgStats, 
 	m.RecordRead(0)
 	return &core.ReorgStats{}, nil
 }
-
-

@@ -14,19 +14,19 @@ type AccessListEntry = gas.AccessListEntry
 
 // Gas constants forwarded to pkg/gas
 const (
-	BlobTxTargetBlobCount              = gas.BlobTxTargetBlobCount
-	BlobTxMaxBlobCount                 = gas.BlobTxMaxBlobCount
-	BlobTxBlobGasPerBlob               = gas.BlobTxBlobGasPerBlob
-	BlobTxMinBlobGasPrice       uint64 = gas.BlobTxMinBlobGasPrice
-	BlobTxBlobGasPriceUpdateFraction   = gas.BlobTxBlobGasPriceUpdateFraction
-	ColdSloadCost                      = gas.ColdSloadCost
-	WarmStorageReadCost                = gas.WarmStorageReadCost
-	ColdAccountAccessCost              = gas.ColdAccountAccessCost
-	WarmStorageReadCostEIP2930         = gas.WarmStorageReadCostEIP2930
-	AccessListAddressCost              = gas.AccessListAddressCost
-	AccessListStorageKeyCost           = gas.AccessListStorageKeyCost
-	TransientSloadCost                 = gas.TransientSloadCost
-	TransientSstoreCost                = gas.TransientSstoreCost
+	BlobTxTargetBlobCount                   = gas.BlobTxTargetBlobCount
+	BlobTxMaxBlobCount                      = gas.BlobTxMaxBlobCount
+	BlobTxBlobGasPerBlob                    = gas.BlobTxBlobGasPerBlob
+	BlobTxMinBlobGasPrice            uint64 = gas.BlobTxMinBlobGasPrice
+	BlobTxBlobGasPriceUpdateFraction        = gas.BlobTxBlobGasPriceUpdateFraction
+	ColdSloadCost                           = gas.ColdSloadCost
+	WarmStorageReadCost                     = gas.WarmStorageReadCost
+	ColdAccountAccessCost                   = gas.ColdAccountAccessCost
+	WarmStorageReadCostEIP2930              = gas.WarmStorageReadCostEIP2930
+	AccessListAddressCost                   = gas.AccessListAddressCost
+	AccessListStorageKeyCost                = gas.AccessListStorageKeyCost
+	TransientSloadCost                      = gas.TransientSloadCost
+	TransientSstoreCost                     = gas.TransientSstoreCost
 )
 
 func EffectiveGasPrice(baseFee, gasPrice, maxFeePerGas, maxPriorityFeePerGas *big.Int) *big.Int {

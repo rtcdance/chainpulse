@@ -17,9 +17,9 @@ type depPlugin struct {
 	stopErr      error
 }
 
-func (p *depPlugin) Name() string            { return p.name }
-func (p *depPlugin) Version() string         { return p.version }
-func (p *depPlugin) Dependencies() []string  { return p.dependencies }
+func (p *depPlugin) Name() string                                 { return p.name }
+func (p *depPlugin) Version() string                              { return p.version }
+func (p *depPlugin) Dependencies() []string                       { return p.dependencies }
 func (p *depPlugin) Initialize(_ context.Context, _ Config) error { return nil }
 func (p *depPlugin) Start(_ context.Context) error {
 	atomic.AddInt32(&p.startCalled, 1)

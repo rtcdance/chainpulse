@@ -187,7 +187,7 @@ func buildAPIGatewayRuntimeDerivedSurfaceInput(completeness apiGatewayRolloutWir
 }
 
 func buildAPIGatewaySkeletonApprovalInput() api.RolloutReportApprovalInput {
-	state := api.BuildRouteOwnershipParityStateFromSource("api-gateway", buildAPIGatewayOwnershipParitySource(/* runtimeSignalsPresent= */ false), strings.Split(apiGatewayOwnershipParityReviewFields, ",")...)
+	state := api.BuildRouteOwnershipParityStateFromSource("api-gateway", buildAPIGatewayOwnershipParitySource( /* runtimeSignalsPresent= */ false), strings.Split(apiGatewayOwnershipParityReviewFields, ",")...)
 	return api.BuildRolloutReportApprovalInput(
 		api.RolloutReportApprovalFlowInput{
 			ManualApprovalCheckpoint: api.RolloutReportStateReason{

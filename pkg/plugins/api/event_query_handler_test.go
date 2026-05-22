@@ -102,7 +102,9 @@ func (m *mockEventStore) Health(ctx context.Context) *core.HealthStatus {
 	return &core.HealthStatus{Status: "healthy", Message: "ok"}
 }
 func (m *mockEventStore) Close(ctx context.Context) error { return nil }
-func (m *mockEventStore) GetEventsByCorrelationID(ctx context.Context, correlationID string, limit int, offset int) ([]*core.BlockchainEvent, error) { return nil, nil }
+func (m *mockEventStore) GetEventsByCorrelationID(ctx context.Context, correlationID string, limit int, offset int) ([]*core.BlockchainEvent, error) {
+	return nil, nil
+}
 
 type mockMetadataStore struct {
 	getMetadata func(ctx context.Context, eventID string) (*query.EventMetadata, error)

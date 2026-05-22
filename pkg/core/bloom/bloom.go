@@ -26,7 +26,7 @@ func (bf *BloomFilter) Add(element []byte) {
 }
 
 func (bf *BloomFilter) AddAddress(addr common.Address) { bf.Add(addr.Bytes()) }
-func (bf *BloomFilter) AddTopic(topic common.Hash)      { bf.Add(topic.Bytes()) }
+func (bf *BloomFilter) AddTopic(topic common.Hash)     { bf.Add(topic.Bytes()) }
 
 func (bf *BloomFilter) Test(element []byte) bool {
 	hash := keccak256ForBloom(element)

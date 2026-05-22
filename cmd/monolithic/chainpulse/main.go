@@ -31,7 +31,7 @@ func run() error {
 	fmt.Println("╚════════════════════════════════════════════════════════════╝")
 	fmt.Println()
 
-// Load configuration from environment
+	// Load configuration from environment
 	config := loadConfiguration()
 
 	// Convert configuration to core.Config and apply overrides

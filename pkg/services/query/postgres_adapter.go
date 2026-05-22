@@ -22,7 +22,7 @@ type postgresConnectionProvider interface {
 // DefaultPostgreSQLAdapter provides PostgreSQL query operations
 type DefaultPostgreSQLAdapter struct {
 	initMu           sync.Mutex
-initialized      atomic.Bool
+	initialized      atomic.Bool
 	dbManager        postgresConnectionProvider
 	db               *sql.DB
 	logger           core.Logger
@@ -263,9 +263,12 @@ func (pa *DefaultPostgreSQLAdapter) Initialize(ctx context.Context) error {
 
 // pgSelectColumns maps PostgreSQL table columns to Scan parameter positions.
 // Table: id, chain_id, block_number, block_hash, transaction_hash, log_index,
-//        contract_address, event_name, event_data, timestamp, created_at
+//
+//	contract_address, event_name, event_data, timestamp, created_at
+//
 // Scan:  EventHash, BlockNumber, TransactionHash, LogIndex, ContractAddress,
-//        EventTopic, EventData, BlockTimestamp, ChainID
+//
+//	EventTopic, EventData, BlockTimestamp, ChainID
 const pgSelectColumns = "id AS event_hash, block_number, transaction_hash, log_index, contract_address, event_name AS event_topic, event_data, timestamp AS block_timestamp, chain_id"
 
 // Query executes a query against PostgreSQL

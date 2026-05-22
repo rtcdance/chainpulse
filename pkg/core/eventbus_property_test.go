@@ -54,12 +54,12 @@ func TestPropertyEventPublishingConsistency(t *testing.T) {
 
 			// Subscribe handlers
 			for i := 0; i < tt.subscriberCount; i++ {
-		handler := func(_ context.Context, event any) error {
-			mu.Lock()
-			count++
-			mu.Unlock()
-			return nil
-		}
+				handler := func(_ context.Context, event any) error {
+					mu.Lock()
+					count++
+					mu.Unlock()
+					return nil
+				}
 				if _, err := eb.Subscribe(context.Background(), "test-topic", handler); err != nil {
 					t.Fatalf("failed to subscribe: %v", err)
 				}
@@ -119,10 +119,10 @@ func TestPropertyEventDataPreservation(t *testing.T) {
 	for _, tt := range testCases {
 		t.Run(tt.name, func(t *testing.T) {
 			var receivedEvent any
-		handler := func(_ context.Context, event any) error {
-			receivedEvent = event
-			return nil
-		}
+			handler := func(_ context.Context, event any) error {
+				receivedEvent = event
+				return nil
+			}
 
 			eb.Clear()
 			if _, err := eb.Subscribe(context.Background(), "test-topic", handler); err != nil {

@@ -11,11 +11,11 @@ import (
 func TestBlockchainTypesSmoke(t *testing.T) {
 	// BlockchainEvent construction and method calls
 	evt := BlockchainEvent{
-		ID:             "evt-1",
-		BlockNumber:    100,
+		ID:              "evt-1",
+		BlockNumber:     100,
 		TransactionHash: common.HexToHash("0xabc"),
-		Status:         EventStatusPending,
-		CreatedAt:      time.Now(),
+		Status:          EventStatusPending,
+		CreatedAt:       time.Now(),
 	}
 	if !evt.IsPending() {
 		t.Error("expected pending")

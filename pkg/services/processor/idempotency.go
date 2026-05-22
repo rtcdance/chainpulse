@@ -55,6 +55,7 @@ type IdempotencyService interface {
 // Config provides:
 //   - IdempotencyRecordTTL: how long a hash is kept in memory (default 24h)
 //   - IdempotencyCleanupInterval: how often expired entries are purged (default 10m)
+//
 // A hard cap (defaultMaxIdempotencySize) prevents unbounded memory growth.
 // Database-level unique constraints provide the ultimate dedup guarantee.
 type DefaultIdempotencyService struct {

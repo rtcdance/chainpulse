@@ -16,11 +16,11 @@ import (
 )
 
 type cosmosPullerMetrics struct {
-	mu                      sync.RWMutex
-	blocksProcessed         int64
-	transactionsProcessed   int64
-	eventsEmitted           int64
-	messageTypesSeen        map[string]int64
+	mu                    sync.RWMutex
+	blocksProcessed       int64
+	transactionsProcessed int64
+	eventsEmitted         int64
+	messageTypesSeen      map[string]int64
 }
 
 func newCosmosPullerMetrics() *cosmosPullerMetrics {

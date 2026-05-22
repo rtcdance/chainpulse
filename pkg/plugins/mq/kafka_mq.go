@@ -567,10 +567,10 @@ func (p *KafkaMQPlugin) ConsumeMessages(ctx context.Context, topic string, handl
 
 				// Recreate reader after too many consecutive errors
 				if consecutiveErrors >= kafkaRecreateReaderThreshold {
-				p.logger.Warn("too many consecutive read errors, recreating reader", "topic", topic, "consecutive_errors", consecutiveErrors)
-				if err := reader.Close(); err != nil {
-					p.logger.Warn("failed to close kafka reader", "topic", topic, "error", err.Error())
-				}
+					p.logger.Warn("too many consecutive read errors, recreating reader", "topic", topic, "consecutive_errors", consecutiveErrors)
+					if err := reader.Close(); err != nil {
+						p.logger.Warn("failed to close kafka reader", "topic", topic, "error", err.Error())
+					}
 
 					p.mu.RLock()
 					running := p.isRunning

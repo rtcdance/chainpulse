@@ -42,16 +42,16 @@ type Statistics struct {
 }
 
 type PendingIndex struct {
-	Name         string
-	TableName    string
-	Columns      []string
-	Type         string
-	Unique       bool
-	CreatedAt    time.Time
-	Priority     int
-	Error        string
-	RetryCount   int
-	MaxRetries   int
+	Name       string
+	TableName  string
+	Columns    []string
+	Type       string
+	Unique     bool
+	CreatedAt  time.Time
+	Priority   int
+	Error      string
+	RetryCount int
+	MaxRetries int
 }
 
 func NewManager() *Manager {

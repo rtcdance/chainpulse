@@ -65,6 +65,7 @@ func None[T any]() Optional[T]      { return Optional[T]{present: false} }
 func (o Optional[T]) IsSome() bool      { return o.present }
 func (o Optional[T]) IsNone() bool      { return !o.present }
 func (o Optional[T]) Unwrap() (T, bool) { return o.val, o.present }
+
 // Must returns the value or panics.
 // Deprecated: prefer Unwrap() with explicit error handling in production code.
 func (o Optional[T]) Must() T {

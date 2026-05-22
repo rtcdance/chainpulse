@@ -140,10 +140,10 @@ func (eb *DefaultEventBus) executeJob(j eventBusJob) {
 		}
 	}()
 	if err := j.handler(j.ctx, j.event); err != nil {
-			if eb.logger != nil {
-				eb.logger.Warn("handler returned error", "topic", j.topic, "subscriber", j.subscriberName, "error", err)
-			}
+		if eb.logger != nil {
+			eb.logger.Warn("handler returned error", "topic", j.topic, "subscriber", j.subscriberName, "error", err)
 		}
+	}
 }
 
 // Publish publishes an event to a topic

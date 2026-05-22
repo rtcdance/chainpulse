@@ -20,11 +20,11 @@ const SPLCloseAccount = "SPL:CloseAccount"
 
 type SolanaEvent struct {
 	BlockchainEvent
-	Slot                    uint64   `json:"slot"`
-	ProgramID               string   `json:"program_id"`
-	AccountKeys             []string `json:"account_keys"`
+	Slot                     uint64   `json:"slot"`
+	ProgramID                string   `json:"program_id"`
+	AccountKeys              []string `json:"account_keys"`
 	InstructionDiscriminator string   `json:"instruction_discriminator"`
-	SPLTokenProgram         bool     `json:"spl_token_program"`
+	SPLTokenProgram          bool     `json:"spl_token_program"`
 }
 
 func NewSolanaEvent() *SolanaEvent {

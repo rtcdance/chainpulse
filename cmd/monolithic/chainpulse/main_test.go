@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
-	"github.com/rtcdance/chainpulse/pkg/testhelpers"
 	"github.com/rtcdance/chainpulse/pkg/plugins/api"
+	"github.com/rtcdance/chainpulse/pkg/testhelpers"
 )
 
 func TestResolveDeploymentModeProfile(t *testing.T) {

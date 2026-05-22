@@ -28,7 +28,7 @@ func TestErrorClassifierTransientErrors(t *testing.T) {
 	}
 
 	for _, err := range transientErrors {
-		errType := classifier.ClassifyError(err)
+		errType := classifier.Classify(err)
 		if errType != ErrorTypeTransient {
 			t.Errorf("Expected transient error for %q, got %s", err.Error(), errType.String())
 		}
@@ -62,7 +62,7 @@ func TestErrorClassifierPermanentErrors(t *testing.T) {
 	}
 
 	for _, err := range permanentErrors {
-		errType := classifier.ClassifyError(err)
+		errType := classifier.Classify(err)
 		if errType != ErrorTypePermanent {
 			t.Errorf("Expected permanent error for %q, got %s", err.Error(), errType.String())
 		}
@@ -90,7 +90,7 @@ func TestErrorClassifierCriticalErrors(t *testing.T) {
 	}
 
 	for _, err := range criticalErrors {
-		errType := classifier.ClassifyError(err)
+		errType := classifier.Classify(err)
 		if errType != ErrorTypeCritical {
 			t.Errorf("Expected critical error for %q, got %s", err.Error(), errType.String())
 		}
@@ -105,7 +105,7 @@ func TestErrorClassifierCriticalErrors(t *testing.T) {
 func TestErrorClassifierNilError(t *testing.T) {
 	classifier := NewErrorClassifier()
 
-	errType := classifier.ClassifyError(nil)
+	errType := classifier.Classify(nil)
 	if errType != ErrorTypeUnknown {
 		t.Errorf("Expected unknown error type for nil, got %s", errType.String())
 	}
@@ -116,7 +116,7 @@ func TestErrorClassifierUnknownError(t *testing.T) {
 	classifier := NewErrorClassifier()
 
 	unknownErr := errors.New("some random error message")
-	errType := classifier.ClassifyError(unknownErr)
+	errType := classifier.Classify(unknownErr)
 	if errType != ErrorTypeUnknown {
 		t.Errorf("Expected unknown error type for random error, got %s", errType.String())
 	}
@@ -140,7 +140,7 @@ func TestErrorClassifierCaseInsensitive(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		errType := classifier.ClassifyError(tc.err)
+		errType := classifier.Classify(tc.err)
 		if errType != tc.expected {
 			t.Errorf("Expected %s for %q, got %s", tc.expected.String(), tc.err.Error(), errType.String())
 		}
@@ -213,27 +213,15 @@ func TestErrorClassifierIsCritical(t *testing.T) {
 	}
 }
 
-// TestErrorClassifierClassifyErrorWithContext tests ClassifyErrorWithContext method
-func TestErrorClassifierClassifyErrorWithContext(t *testing.T) {
+// TestErrorClassifierClassifyWithContext tests ClassifyWithContext method
+func TestErrorClassifierClassifyWithContext(t *testing.T) {
 	classifier := NewErrorClassifier()
 
 	err := errors.New("connection refused")
-	errType, context := classifier.ClassifyErrorWithContext(err, "insert_event")
+	errType := classifier.ClassifyWithContext(err, "insert_event")
 
 	if errType != ErrorTypeTransient {
 		t.Errorf("Expected transient error type, got %s", errType.String())
-	}
-
-	if !contains(context, "operation=insert_event") {
-		t.Errorf("Context should contain operation, got %s", context)
-	}
-
-	if !contains(context, "error_type=transient") {
-		t.Errorf("Context should contain error_type, got %s", context)
-	}
-
-	if !contains(context, "connection refused") {
-		t.Errorf("Context should contain error message, got %s", context)
 	}
 }
 
@@ -264,7 +252,7 @@ func TestErrorClassifierMultiplePatterns(t *testing.T) {
 
 	// Error with multiple keywords - should match first applicable pattern
 	err := errors.New("connection refused: temporary failure")
-	errType := classifier.ClassifyError(err)
+	errType := classifier.Classify(err)
 	if errType != ErrorTypeTransient {
 		t.Errorf("Expected transient error, got %s", errType.String())
 	}
@@ -284,7 +272,7 @@ func TestErrorClassifierPartialMatches(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		errType := classifier.ClassifyError(tc.err)
+		errType := classifier.Classify(tc.err)
 		if errType != tc.expected {
 			t.Errorf("Expected %s for %q, got %s", tc.expected.String(), tc.err.Error(), errType.String())
 		}

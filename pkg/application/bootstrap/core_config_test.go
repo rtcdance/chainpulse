@@ -451,9 +451,9 @@ func TestParseCoreConfigOverridesFromCLITable(t *testing.T) {
 
 func TestRuntimeProfileFromEnv(t *testing.T) {
 	tests := []struct {
-		name    string
-		envVal  string
-		want    string
+		name   string
+		envVal string
+		want   string
 	}{
 		{name: "empty defaults to development", envVal: "", want: "development"},
 		{name: "production", envVal: "production", want: "production"},

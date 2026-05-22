@@ -25,10 +25,10 @@ type SystemError struct {
 // Deprecated: Type aliases for backward compatibility. New code should import
 // pkg/ports directly. These aliases will be removed in a future major version.
 type (
-	CacheEntry        = ports.CacheEntry
-	QueryRequest      = ports.QueryRequest
-	QueryResult       = ports.QueryResult
-	ReorgStats        = ports.ReorgStats
+	CacheEntry         = ports.CacheEntry
+	QueryRequest       = ports.QueryRequest
+	QueryResult        = ports.QueryResult
+	ReorgStats         = ports.ReorgStats
 	ReorgRollbackEvent = ports.ReorgRollbackEvent
-	QueryService      = ports.QueryService
+	QueryService       = ports.QueryService
 )

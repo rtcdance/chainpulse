@@ -25,7 +25,7 @@ type SolanaWebSocketStream struct {
 	nodeURL         string
 	wsURL           string
 	conn            *websocket.Conn
-	subscriptions   map[string]string    // subID -> filter description
+	subscriptions   map[string]string // subID -> filter description
 	pendingRequests map[uint64]chan *solanaWSResponse
 	writeMu         sync.Mutex
 	readMu          sync.Mutex
@@ -58,22 +58,22 @@ type solanaWSRequest struct {
 }
 
 type solanaWSResponse struct {
-	JSONRPC string           `json:"jsonrpc"`
-	ID      uint64           `json:"id,omitempty"`
-	Result  json.RawMessage  `json:"result,omitempty"`
-	Method  string           `json:"method,omitempty"`
-	Params  *solanaWSParams  `json:"params,omitempty"`
-	Error   *solanaWSError   `json:"error,omitempty"`
+	JSONRPC string          `json:"jsonrpc"`
+	ID      uint64          `json:"id,omitempty"`
+	Result  json.RawMessage `json:"result,omitempty"`
+	Method  string          `json:"method,omitempty"`
+	Params  *solanaWSParams `json:"params,omitempty"`
+	Error   *solanaWSError  `json:"error,omitempty"`
 }
 
 type solanaWSParams struct {
-	Subscription int64          `json:"subscription"`
+	Subscription int64              `json:"subscription"`
 	Result       *solanaWSLogResult `json:"result"`
 }
 
 type solanaWSLogResult struct {
-	Signature string   `json:"signature"`
-	Logs      []string `json:"logs"`
+	Signature string      `json:"signature"`
+	Logs      []string    `json:"logs"`
 	Err       interface{} `json:"err"`
 }
 
@@ -365,15 +365,15 @@ func (s *SolanaWebSocketStream) handleLogsNotification(resp *solanaWSResponse) {
 	}
 
 	event := core.BlockchainEvent{
-			ChainID:        s.config.ChainID,
-			EventName:      fmt.Sprintf("solana.logs.%s", label),
-			BlockTimestamp: time.Now().Unix(),
-			NativeAddress:  programID,
-			DecodedData: map[string]interface{}{
-			"program":     programID,
-			"label":       label,
-			"signature":   result.Signature,
-			"logs":        result.Logs,
+		ChainID:        s.config.ChainID,
+		EventName:      fmt.Sprintf("solana.logs.%s", label),
+		BlockTimestamp: time.Now().Unix(),
+		NativeAddress:  programID,
+		DecodedData: map[string]interface{}{
+			"program":      programID,
+			"label":        label,
+			"signature":    result.Signature,
+			"logs":         result.Logs,
 			"subscription": subID,
 		},
 		CreatedAt:   time.Now(),

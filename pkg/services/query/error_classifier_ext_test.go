@@ -58,11 +58,8 @@ func TestErrorClassifier_IsCritical(t *testing.T) {
 	_ = ec.IsCritical(errors.New("fatal"))
 }
 
-func TestErrorClassifier_ClassifyErrorWithContext(t *testing.T) {
+func TestErrorClassifier_ClassifyWithContext(t *testing.T) {
 	t.Parallel()
 	ec := NewErrorClassifier()
-	_, op := ec.ClassifyErrorWithContext(errors.New("connection reset"), "fetch_block")
-	if op == "" {
-		t.Error("expected non-empty operation string")
-	}
+	_ = ec.ClassifyWithContext(errors.New("connection reset"), "fetch_block")
 }

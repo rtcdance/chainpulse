@@ -171,34 +171,34 @@ func (t *ConfirmationTracker) AdvanceBlock(blockNumber uint64) []core.EventStatu
 	if t.finalityChecker != nil && t.blocksSinceCheck >= t.reconcileInterval {
 		t.blocksSinceCheck = 0
 		// Reconcile in background to avoid blocking AdvanceBlock.
-	// Rate-limited to at most one in-flight RPC by the reconcileSem channel.
-	select {
-	case t.reconcileSem <- struct{}{}:
-		t.wg.Add(1)
-		go func() {
-			defer t.wg.Done()
-			defer func() {
-				if r := recover(); r != nil {
-					slog.Error("goroutine panic recovered", "panic", r)
+		// Rate-limited to at most one in-flight RPC by the reconcileSem channel.
+		select {
+		case t.reconcileSem <- struct{}{}:
+			t.wg.Add(1)
+			go func() {
+				defer t.wg.Done()
+				defer func() {
+					if r := recover(); r != nil {
+						slog.Error("goroutine panic recovered", "panic", r)
+					}
+				}()
+				defer func() { <-t.reconcileSem }()
+				select {
+				case <-t.done:
+					return
+				default:
+					if _, err := t.ReconcileFinality(); err != nil {
+						// Log but don't fail — local depth gates still work
+						slog.Warn("on-chain finality reconciliation failed, local depth gates still apply",
+							"chain_id", t.chainID, "error", err)
+					}
 				}
 			}()
-			defer func() { <-t.reconcileSem }()
-			select {
-			case <-t.done:
-				return
-			default:
-				if _, err := t.ReconcileFinality(); err != nil {
-					// Log but don't fail — local depth gates still work
-					slog.Warn("on-chain finality reconciliation failed, local depth gates still apply",
-						"chain_id", t.chainID, "error", err)
-				}
-			}
-		}()
-	default:
-		// A reconciliation is already in-flight; skip this round.
-		// This prevents unbounded goroutine accumulation when blocks
-		// advance faster than the RPC round-trip time.
-	}
+		default:
+			// A reconciliation is already in-flight; skip this round.
+			// This prevents unbounded goroutine accumulation when blocks
+			// advance faster than the RPC round-trip time.
+		}
 	}
 
 	for hash, pe := range t.pending {
@@ -270,11 +270,11 @@ func (t *ConfirmationTracker) ReconcileFinality() (uint64, error) {
 
 // pendingEventJSON is the JSON representation of a pendingEvent for persistence.
 type pendingEventJSON struct {
-	EventHash   string      `json:"event_hash"`
-	BlockNumber uint64      `json:"block_number"`
-	BlockHash   string      `json:"block_hash"`
+	EventHash   string           `json:"event_hash"`
+	BlockNumber uint64           `json:"block_number"`
+	BlockHash   string           `json:"block_hash"`
 	Status      core.EventStatus `json:"status"`
-	QueuedAt    time.Time   `json:"queued_at"`
+	QueuedAt    time.Time        `json:"queued_at"`
 }
 
 // Persist serializes the tracker's pending events to JSON bytes.

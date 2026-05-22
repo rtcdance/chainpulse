@@ -141,7 +141,9 @@ func (s *persistentEventProcessorStorage) WriteBatch(ctx context.Context, events
 }
 
 func (s *persistentEventProcessorStorage) DeleteEvent(ctx context.Context, eventID string) error {
-	if d, ok := s.eventStore.(interface{ DeleteEvent(context.Context, string) error }); ok {
+	if d, ok := s.eventStore.(interface {
+		DeleteEvent(context.Context, string) error
+	}); ok {
 		return d.DeleteEvent(ctx, eventID)
 	}
 	return fmt.Errorf("delete not supported by underlying event store")

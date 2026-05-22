@@ -16,8 +16,8 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/rtcdance/chainpulse/pkg/core"
-t"github.com/rtcdance/chainpulse/pkg/testhelpers"
 	"github.com/rtcdance/chainpulse/pkg/plugins/pullers"
+	t "github.com/rtcdance/chainpulse/pkg/testhelpers"
 )
 
 // startAnvil launches a local Anvil instance on a random available port.

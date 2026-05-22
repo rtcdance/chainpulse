@@ -156,7 +156,7 @@ func (s *kafkaConsumerGroupState) snapshot() map[string]int64 {
 }
 
 type kafkaDLQState struct {
-	mu     sync.RWMutex
+	mu      sync.RWMutex
 	reasons map[string]int64
 }
 

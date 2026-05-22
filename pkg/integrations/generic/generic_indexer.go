@@ -10,7 +10,7 @@ import (
 
 	"github.com/rtcdance/chainpulse/pkg/core"
 	"github.com/rtcdance/chainpulse/pkg/core/batch"
-	
+
 	"github.com/rtcdance/chainpulse/pkg/services/decoder"
 )
 

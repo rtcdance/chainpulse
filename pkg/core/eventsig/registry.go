@@ -76,7 +76,7 @@ var knownEventSignatureNames = map[string]string{
 	"0x0915899468dc9b80020e1ab1aae70b1564db08ba1d4151ad4116bbfe20712069": "AfterExecution",
 
 	// Cross-Chain Bridge Events
-	"0x7904e91da6835a7ca49ba15e27ff92991d80f921780362f400ff6ff616a52": "PacketSent",
+	"0x7904e91da6835a7ca49ba15e27ff92991d80f921780362f400ff6ff616a52":    "PacketSent",
 	"0xff3f87a0e0ed53b98bca6f7518f772269fac51bc6a121527a80061a9bea063f9": "PacketDelivered",
 	"0xb93c37389233beb85a3a726c3f15c2d15533ee74cb602f20f490dfffef775937": "LogMessagePublished",
 	"0xcb0f7ffd78f9aee47a248fae8db181db6eee833039123e026dcbff529522e52a": "SentMessage",

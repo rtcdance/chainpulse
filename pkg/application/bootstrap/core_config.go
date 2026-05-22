@@ -106,9 +106,10 @@ type OverridePolicyEvaluation struct {
 // + policy + metrics system with a single function.
 //
 // Supported env vars:
-//   CHAINPULSE_CORE_API_TYPE       — override API type (rest, grpc, graphql, etc.)
-//   CHAINPULSE_CORE_API_PORT       — override API port (1..65535)
-//   CHAINPULSE_CORE_FEATURE_FLAGS  — comma-separated key=bool pairs
+//
+//	CHAINPULSE_CORE_API_TYPE       — override API type (rest, grpc, graphql, etc.)
+//	CHAINPULSE_CORE_API_PORT       — override API port (1..65535)
+//	CHAINPULSE_CORE_FEATURE_FLAGS  — comma-separated key=bool pairs
 func ApplyConfigOverrides(cfg *core.Config) {
 	if cfg == nil {
 		return
@@ -382,7 +383,8 @@ func ResolvePolicyMetricSchemaModeFromEnv() string {
 
 // EmitPolicyOverrideMetrics is a no-op.
 // Deprecated: Part of the old policy system.
-func EmitPolicyOverrideMetrics(core.MetricsCollector, string, CoreConfigOverrides, CoreConfigOverrides, CoreConfigOverrides, OverridePolicyRuntime, OverridePolicyEvaluation, string) {}
+func EmitPolicyOverrideMetrics(core.MetricsCollector, string, CoreConfigOverrides, CoreConfigOverrides, CoreConfigOverrides, OverridePolicyRuntime, OverridePolicyEvaluation, string) {
+}
 
 // =============================================================================
 // Internal helpers

@@ -33,7 +33,7 @@ type WebSocketJSONRPCPuller struct {
 	requestCounter    int64
 	reconnectDelay    time.Duration // initial reconnect delay
 	maxReconnects     int
-	reconnectCount    atomic.Int32  // race-safe reconnect counter
+	reconnectCount    atomic.Int32 // race-safe reconnect counter
 	readTimeout       time.Duration
 	writeTimeout      time.Duration
 	pingInterval      time.Duration // how often to send ping frames (default 30s)

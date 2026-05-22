@@ -9,8 +9,8 @@ import (
 const DefaultMaxResponseSize = 50 * 1024 * 1024
 
 type ResponseSizeLimitRoundTripper struct {
-	Proxied       http.RoundTripper
-	MaxSizeBytes  int64
+	Proxied      http.RoundTripper
+	MaxSizeBytes int64
 }
 
 func (rt *ResponseSizeLimitRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {

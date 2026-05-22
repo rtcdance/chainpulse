@@ -15,11 +15,11 @@ type MockPlugin struct {
 	err     error
 }
 
-func (m *MockPlugin) Name() string                              { return m.name }
-func (m *MockPlugin) Version() string                           { return m.version }
+func (m *MockPlugin) Name() string                                        { return m.name }
+func (m *MockPlugin) Version() string                                     { return m.version }
 func (m *MockPlugin) Initialize(ctx context.Context, config Config) error { _ = ctx; return nil }
-func (m *MockPlugin) Start(ctx context.Context) error            { _ = ctx; return nil }
-func (m *MockPlugin) Stop(ctx context.Context) error             { _ = ctx; return nil }
+func (m *MockPlugin) Start(ctx context.Context) error                     { _ = ctx; return nil }
+func (m *MockPlugin) Stop(ctx context.Context) error                      { _ = ctx; return nil }
 func (m *MockPlugin) Health(ctx context.Context) error {
 	_ = ctx
 	if !m.healthy {

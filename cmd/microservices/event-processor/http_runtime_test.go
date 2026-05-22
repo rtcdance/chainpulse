@@ -355,7 +355,7 @@ func TestBuildEventProcessorRuntimeHTTPHandlerSecuritySurfaceProtectsControlRout
 	authMiddleware, rateLimitMiddleware, err := buildEventProcessorSecurityControls(EventProcessorConfig{
 		AuthEnabled:   true,
 		AuthJWTSecret: "secret-123",
-		AuthAPIKeys: []core.SecretString{core.SecretString("svc-key=client-1")},
+		AuthAPIKeys:   []core.SecretString{core.SecretString("svc-key=client-1")},
 	}, logger, metrics)
 	if err != nil {
 		t.Fatalf("build security controls: %v", err)

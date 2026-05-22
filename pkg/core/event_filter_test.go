@@ -97,7 +97,7 @@ func TestEventFilterToQuery(t *testing.T) {
 		Network: "ethereum",
 	}
 
-query := filter.ToQuery()
+	query := filter.ToQuery()
 
 	assert.Contains(t, query, "SELECT * FROM events")
 	assert.Contains(t, query, "network = 'ethereum'")

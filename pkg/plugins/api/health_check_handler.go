@@ -562,7 +562,9 @@ func (h *HealthCheckHandler) checkKafkaHealth(ctx context.Context) *ComponentSta
 	}
 
 	// Structured details via optional DetailedHealth method
-	if dh, ok := h.mqPlugin.(interface{ DetailedHealth(context.Context) core.HealthStatus }); ok {
+	if dh, ok := h.mqPlugin.(interface {
+		DetailedHealth(context.Context) core.HealthStatus
+	}); ok {
 		detailed := dh.DetailedHealth(ctx)
 		status.Details = detailed.Details
 		if detailed.Status != "healthy" && status.Status == "healthy" {

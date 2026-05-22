@@ -521,7 +521,7 @@ func main() {
 	if err := server.Shutdown(shutdownCtx); err != nil {
 		slog.Warn("shutdown API server forced close", "error", err)
 	}
-if err := pprofSrv.Shutdown(shutdownCtx); err != nil {
+	if err := pprofSrv.Shutdown(shutdownCtx); err != nil {
 		slog.Warn("shutdown pprof server forced close", "error", err)
 	}
 }
@@ -540,5 +540,3 @@ func openBrowser(url string) error {
 		return fmt.Errorf("unsupported platform: %s", runtime.GOOS)
 	}
 }
-
-

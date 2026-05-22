@@ -27,9 +27,9 @@ const (
 
 // RateLimiter implements rate limiting for API requests
 type RateLimiter struct {
-	clientLimiters  map[string]*TokenBucket
+	clientLimiters   map[string]*TokenBucket
 	endpointLimiters map[string]*TokenBucket
-	ipLimiters      map[string]*TokenBucket
+	ipLimiters       map[string]*TokenBucket
 
 	logger  core.Logger
 	metrics core.MetricsCollector

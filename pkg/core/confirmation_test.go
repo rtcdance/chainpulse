@@ -2,11 +2,13 @@ package core
 
 import (
 	"testing"
+
+	"github.com/rtcdance/chainpulse/pkg/consensus"
 )
 
 func TestConfirmationConfig_Defaults(t *testing.T) {
 	t.Parallel()
-	cfg := DefaultConfirmationConfig()
+	cfg := consensus.DefaultConfirmationConfig()
 	if cfg.ConfirmBlocks != 12 {
 		t.Errorf("ConfirmBlocks = %d, want 12", cfg.ConfirmBlocks)
 	}
@@ -20,12 +22,12 @@ func TestConfirmationConfig_Defaults(t *testing.T) {
 
 func TestConfirmationTracker_PendingToConfirmed(t *testing.T) {
 	t.Parallel()
-	cfg := ConfirmationConfig{
+	cfg := consensus.ConfirmationConfig{
 		ConfirmBlocks:  3,
 		FinalizeEpochs: 2,
 		SlotsPerEpoch:  32,
 	}
-	tracker := NewConfirmationTracker(cfg, "ethereum")
+	tracker := consensus.NewConfirmationTracker(cfg, "ethereum")
 
 	// Track event at block 100
 	tracker.Track("hash1", 100, "blockhash100")
@@ -58,12 +60,12 @@ func TestConfirmationTracker_PendingToConfirmed(t *testing.T) {
 
 func TestConfirmationTracker_ConfirmedToFinalized(t *testing.T) {
 	t.Parallel()
-	cfg := ConfirmationConfig{
+	cfg := consensus.ConfirmationConfig{
 		ConfirmBlocks:  3,
 		FinalizeEpochs: 2,
 		SlotsPerEpoch:  32,
 	}
-	tracker := NewConfirmationTracker(cfg, "ethereum")
+	tracker := consensus.NewConfirmationTracker(cfg, "ethereum")
 
 	tracker.Track("hash1", 100, "blockhash100")
 
@@ -88,12 +90,12 @@ func TestConfirmationTracker_ConfirmedToFinalized(t *testing.T) {
 
 func TestConfirmationTracker_Callbacks(t *testing.T) {
 	t.Parallel()
-	cfg := ConfirmationConfig{
+	cfg := consensus.ConfirmationConfig{
 		ConfirmBlocks:  2,
 		FinalizeEpochs: 1,
 		SlotsPerEpoch:  32,
 	}
-	tracker := NewConfirmationTracker(cfg, "ethereum")
+	tracker := consensus.NewConfirmationTracker(cfg, "ethereum")
 
 	var confirmedHashes []string
 	var finalizedHashes []string
@@ -116,12 +118,12 @@ func TestConfirmationTracker_Callbacks(t *testing.T) {
 
 func TestConfirmationTracker_Counts(t *testing.T) {
 	t.Parallel()
-	cfg := ConfirmationConfig{
+	cfg := consensus.ConfirmationConfig{
 		ConfirmBlocks:  5,
 		FinalizeEpochs: 2,
 		SlotsPerEpoch:  32,
 	}
-	tracker := NewConfirmationTracker(cfg, "ethereum")
+	tracker := consensus.NewConfirmationTracker(cfg, "ethereum")
 
 	tracker.Track("h1", 100, "b1")
 	tracker.Track("h2", 101, "b1")
@@ -146,12 +148,12 @@ func TestConfirmationTracker_Counts(t *testing.T) {
 
 func TestConfirmationTracker_RemoveFinalized(t *testing.T) {
 	t.Parallel()
-	cfg := ConfirmationConfig{
+	cfg := consensus.ConfirmationConfig{
 		ConfirmBlocks:  2,
 		FinalizeEpochs: 1,
 		SlotsPerEpoch:  32,
 	}
-	tracker := NewConfirmationTracker(cfg, "ethereum")
+	tracker := consensus.NewConfirmationTracker(cfg, "ethereum")
 
 	tracker.Track("h1", 100, "b1")
 	tracker.Track("h2", 100, "b1")
@@ -174,12 +176,12 @@ func TestConfirmationTracker_RemoveFinalized(t *testing.T) {
 
 func TestConfirmationTracker_MarkReorged(t *testing.T) {
 	t.Parallel()
-	cfg := ConfirmationConfig{
+	cfg := consensus.ConfirmationConfig{
 		ConfirmBlocks:  5,
 		FinalizeEpochs: 2,
 		SlotsPerEpoch:  32,
 	}
-	tracker := NewConfirmationTracker(cfg, "ethereum")
+	tracker := consensus.NewConfirmationTracker(cfg, "ethereum")
 
 	tracker.Track("h1", 100, "blockA")
 	tracker.Track("h2", 100, "blockA")
@@ -199,12 +201,12 @@ func TestConfirmationTracker_MarkReorged(t *testing.T) {
 
 func TestConfirmationTracker_BlocksUntilConfirmed(t *testing.T) {
 	t.Parallel()
-	cfg := ConfirmationConfig{
+	cfg := consensus.ConfirmationConfig{
 		ConfirmBlocks:  12,
 		FinalizeEpochs: 2,
 		SlotsPerEpoch:  32,
 	}
-	tracker := NewConfirmationTracker(cfg, "ethereum")
+	tracker := consensus.NewConfirmationTracker(cfg, "ethereum")
 
 	tracker.Track("h1", 100, "b1")
 	tracker.AdvanceBlock(105)
@@ -237,8 +239,8 @@ func TestConfirmationTracker_BlocksUntilConfirmed(t *testing.T) {
 
 func TestConfirmationTracker_DuplicateTrack(t *testing.T) {
 	t.Parallel()
-	cfg := ConfirmationConfig{ConfirmBlocks: 5, FinalizeEpochs: 2, SlotsPerEpoch: 32}
-	tracker := NewConfirmationTracker(cfg, "ethereum")
+	cfg := consensus.ConfirmationConfig{ConfirmBlocks: 5, FinalizeEpochs: 2, SlotsPerEpoch: 32}
+	tracker := consensus.NewConfirmationTracker(cfg, "ethereum")
 
 	tracker.Track("h1", 100, "b1")
 	tracker.Track("h1", 100, "b1") // duplicate should be no-op
@@ -250,8 +252,8 @@ func TestConfirmationTracker_DuplicateTrack(t *testing.T) {
 
 func TestConfirmationTracker_GetStatus_Untracked(t *testing.T) {
 	t.Parallel()
-	cfg := ConfirmationConfig{ConfirmBlocks: 5, FinalizeEpochs: 2, SlotsPerEpoch: 32}
-	tracker := NewConfirmationTracker(cfg, "ethereum")
+	cfg := consensus.ConfirmationConfig{ConfirmBlocks: 5, FinalizeEpochs: 2, SlotsPerEpoch: 32}
+	tracker := consensus.NewConfirmationTracker(cfg, "ethereum")
 
 	if status := tracker.GetStatus("unknown"); status != EventStatusPending {
 		t.Errorf("untracked status = %s, want pending", status)
@@ -276,8 +278,8 @@ func TestConfirmationTracker_Uint64UnderflowOnReorg(t *testing.T) {
 	// If the chain head moves backward (reorg), blockNumber < pe.BlockNumber.
 	// Without the underflow guard, subtraction wraps to ~2^64 and instantly
 	// satisfies the confirmation threshold, promoting events to Finalized.
-	cfg := ConfirmationConfig{ConfirmBlocks: 12, FinalizeEpochs: 2, SlotsPerEpoch: 32}
-	tracker := NewConfirmationTracker(cfg, "ethereum")
+	cfg := consensus.ConfirmationConfig{ConfirmBlocks: 12, FinalizeEpochs: 2, SlotsPerEpoch: 32}
+	tracker := consensus.NewConfirmationTracker(cfg, "ethereum")
 
 	// Track an event at block 100, then advance to 105
 	tracker.Track("h1", 100, "b1")
@@ -301,8 +303,8 @@ func TestConfirmationTracker_BlocksUntilConfirmed_UnderflowOnReorg(t *testing.T)
 	// After reorg, currentBlock < event.BlockNumber.
 	// BlocksUntilConfirmed must not underflow and must return ConfirmBlocks
 	// (full wait still needed, not 0).
-	cfg := ConfirmationConfig{ConfirmBlocks: 12, FinalizeEpochs: 2, SlotsPerEpoch: 32}
-	tracker := NewConfirmationTracker(cfg, "ethereum")
+	cfg := consensus.ConfirmationConfig{ConfirmBlocks: 12, FinalizeEpochs: 2, SlotsPerEpoch: 32}
+	tracker := consensus.NewConfirmationTracker(cfg, "ethereum")
 
 	tracker.Track("h1", 100, "b1")
 	tracker.AdvanceBlock(105)

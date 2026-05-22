@@ -189,11 +189,11 @@ func IsCancunBlock(block *blockchain.Block) bool {
 
 // EIP-4844 blob gas constants
 const (
-	BlobTxTargetBlobCount              = 3
-	BlobTxMaxBlobCount                 = 6
-	BlobTxBlobGasPerBlob               = 131072
-	BlobTxMinBlobGasPrice       uint64 = 1
-	BlobTxBlobGasPriceUpdateFraction   = 3338477
+	BlobTxTargetBlobCount                   = 3
+	BlobTxMaxBlobCount                      = 6
+	BlobTxBlobGasPerBlob                    = 131072
+	BlobTxMinBlobGasPrice            uint64 = 1
+	BlobTxBlobGasPriceUpdateFraction        = 3338477
 )
 
 // CalculateBlobBaseFee computes the blob base fee using EIP-4844 formula.
@@ -274,12 +274,12 @@ func BlobCountFromGas(blobGasUsed uint64) int {
 
 // EIP-2930 access list gas constants
 const (
-	ColdSloadCost             uint64 = 2100
-	WarmStorageReadCost       uint64 = 100
-	ColdAccountAccessCost     uint64 = 2600
+	ColdSloadCost              uint64 = 2100
+	WarmStorageReadCost        uint64 = 100
+	ColdAccountAccessCost      uint64 = 2600
 	WarmStorageReadCostEIP2930 uint64 = 100
-	AccessListAddressCost     uint64 = 2400
-	AccessListStorageKeyCost  uint64 = 1900
+	AccessListAddressCost      uint64 = 2400
+	AccessListStorageKeyCost   uint64 = 1900
 )
 
 // AccessListEntry represents a single entry in an EIP-2930 access list.
@@ -333,7 +333,7 @@ func BuildAccessListForTransfer(from, to common.Address, includeBalanceSlot bool
 
 // EIP-1153 transient storage gas constants
 const (
-	TransientSloadCost uint64 = 100
+	TransientSloadCost  uint64 = 100
 	TransientSstoreCost uint64 = 100
 )
 

@@ -287,7 +287,7 @@ func (p *DefaultEventProcessor) ProcessEvent(ctx context.Context, event *core.Bl
 
 	p.publishToEventBus(ctx, event)
 
-p.logger.Info("Event processed successfully", core.LogKeyNetwork, event.Network, core.LogKeyBlockNumber, event.BlockNumber)
+	p.logger.Info("Event processed successfully", core.LogKeyNetwork, event.Network, core.LogKeyBlockNumber, event.BlockNumber)
 	return nil
 }
 
