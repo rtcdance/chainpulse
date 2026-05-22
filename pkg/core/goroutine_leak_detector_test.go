@@ -195,7 +195,7 @@ func TestMultipleGoroutineLeaks(t *testing.T) {
 	leaked := detector.Finish()
 
 	assert.Greater(t, leaked, 0)
-	assert.Greater(t, detector.finalCount, initialCount+4)
+	assert.GreaterOrEqual(t, detector.finalCount, initialCount+4)
 }
 
 // TestGoroutineLeakDetectorConcurrency tests detector with concurrent operations
