@@ -10,7 +10,9 @@ import (
 
 // TestMQPluginConsumeMessagesNoGoroutineLeaks tests that ConsumeMessages doesn't leak goroutines
 func TestMQPluginConsumeMessagesNoGoroutineLeaks(t *testing.T) {
-	if testing.Short() { t.Skip("skipping goroutine leak test in short mode") }
+	if testing.Short() {
+		t.Skip("skipping goroutine leak test in short mode")
+	}
 	WithGoroutineLeakDetection(t, func() {
 		config := Config{
 			BlockchainNodeURL: "localhost:50051",
@@ -63,7 +65,9 @@ func TestMQPluginConsumeMessagesNoGoroutineLeaks(t *testing.T) {
 
 // TestMQPluginPublishMessageNoGoroutineLeaks tests that PublishMessage doesn't leak goroutines
 func TestMQPluginPublishMessageNoGoroutineLeaks(t *testing.T) {
-	if testing.Short() { t.Skip("skipping goroutine leak test in short mode") }
+	if testing.Short() {
+		t.Skip("skipping goroutine leak test in short mode")
+	}
 	WithGoroutineLeakDetection(t, func() {
 		config := Config{
 			BlockchainNodeURL: "localhost:50051",
@@ -109,7 +113,9 @@ func TestMQPluginPublishMessageNoGoroutineLeaks(t *testing.T) {
 
 // TestMQPluginRetryMessageNoGoroutineLeaks tests that RetryMessage doesn't leak goroutines
 func TestMQPluginRetryMessageNoGoroutineLeaks(t *testing.T) {
-	if testing.Short() { t.Skip("skipping goroutine leak test in short mode") }
+	if testing.Short() {
+		t.Skip("skipping goroutine leak test in short mode")
+	}
 	WithGoroutineLeakDetection(t, func() {
 		config := Config{
 			BlockchainNodeURL: "localhost:50051",
@@ -151,7 +157,9 @@ func TestMQPluginRetryMessageNoGoroutineLeaks(t *testing.T) {
 
 // TestMQPluginRetryMessageContextCancellationNoGoroutineLeaks tests that RetryMessage properly handles context cancellation
 func TestMQPluginRetryMessageContextCancellationNoGoroutineLeaks(t *testing.T) {
-	if testing.Short() { t.Skip("skipping goroutine leak test in short mode") }
+	if testing.Short() {
+		t.Skip("skipping goroutine leak test in short mode")
+	}
 	WithGoroutineLeakDetection(t, func() {
 		config := Config{
 			BlockchainNodeURL: "localhost:50051",
@@ -208,7 +216,9 @@ func TestMQPluginRetryMessageContextCancellationNoGoroutineLeaks(t *testing.T) {
 
 // TestMQPluginProcessBatchNoGoroutineLeaks tests that ProcessBatch doesn't leak goroutines
 func TestMQPluginProcessBatchNoGoroutineLeaks(t *testing.T) {
-	if testing.Short() { t.Skip("skipping goroutine leak test in short mode") }
+	if testing.Short() {
+		t.Skip("skipping goroutine leak test in short mode")
+	}
 	WithGoroutineLeakDetection(t, func() {
 		config := Config{
 			BlockchainNodeURL: "localhost:50051",
@@ -257,7 +267,9 @@ func TestMQPluginProcessBatchNoGoroutineLeaks(t *testing.T) {
 
 // TestMQPluginConcurrentPublishNoGoroutineLeaks tests concurrent publish operations don't leak goroutines
 func TestMQPluginConcurrentPublishNoGoroutineLeaks(t *testing.T) {
-	if testing.Short() { t.Skip("skipping goroutine leak test in short mode") }
+	if testing.Short() {
+		t.Skip("skipping goroutine leak test in short mode")
+	}
 	WithGoroutineLeakDetection(t, func() {
 		config := Config{
 			BlockchainNodeURL: "localhost:50051",
@@ -309,7 +321,9 @@ func TestMQPluginConcurrentPublishNoGoroutineLeaks(t *testing.T) {
 
 // TestMQPluginLifecycleNoGoroutineLeaks tests full lifecycle doesn't leak goroutines
 func TestMQPluginLifecycleNoGoroutineLeaks(t *testing.T) {
-	if testing.Short() { t.Skip("skipping goroutine leak test in short mode") }
+	if testing.Short() {
+		t.Skip("skipping goroutine leak test in short mode")
+	}
 	WithGoroutineLeakDetection(t, func() {
 		config := Config{
 			BlockchainNodeURL: "localhost:50051",
@@ -369,7 +383,9 @@ func TestMQPluginLifecycleNoGoroutineLeaks(t *testing.T) {
 
 // TestMQPluginMultipleStartStopNoGoroutineLeaks tests multiple start/stop cycles don't leak goroutines
 func TestMQPluginMultipleStartStopNoGoroutineLeaks(t *testing.T) {
-	if testing.Short() { t.Skip("skipping goroutine leak test in short mode") }
+	if testing.Short() {
+		t.Skip("skipping goroutine leak test in short mode")
+	}
 	WithGoroutineLeakDetection(t, func() {
 		config := Config{
 			BlockchainNodeURL: "localhost:50051",
