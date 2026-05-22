@@ -1,12 +1,9 @@
 # Auto-Activated Skills
 
-**Generated**: 2026-05-21 23:13:14
-**Changed Files**:       69
+**Generated**: 2026-05-22 15:21:29
+**Changed Files**:        1
 
-## Active Skills (5)
+## Active Skills (2)
 
-- `concurrency-safety`
 - `design-review-gate`
-- `go-concurrency-patterns`
-- `indexer-state-consistency`
-- `web3-reorg-idempotency`
+- `deterministic-testing`

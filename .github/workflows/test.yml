@@ -412,7 +412,7 @@ jobs:
       - name: Run golangci-lint
         run: |
           echo "Running golangci-lint checks..."
-          "$(go env GOPATH)/bin/golangci-lint" run --timeout=5m --out-format=colored-line-number ./...
+          GODEBUG=gotypesalias=1 "$(go env GOPATH)/bin/golangci-lint" run --timeout=5m --out-format=colored-line-number ./...
           echo "✓ golangci-lint completed successfully"
       
       - name: Report Lint Status
