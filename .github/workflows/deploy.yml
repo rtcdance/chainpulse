@@ -276,7 +276,6 @@ jobs:
         run: |
           mkdir -p "${HOME}/.kube"
           echo "${{ secrets.KUBECONFIG_STAGING }}" | base64 -d > "${HOME}/.kube/config"
-        continue-on-error: true
 
       - name: Deploy to staging
         run: |
