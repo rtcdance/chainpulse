@@ -23,23 +23,25 @@ func skipConfigWatchTestsInShortMode(t *testing.T) {
 
 // MockConsulClient is a mock implementation of ConsulClient for testing
 type MockConsulClient struct {
-	mu             sync.RWMutex
-	data           map[string]string
-	getConfigErr   error
-	setConfigErr   error
-	watchConfigErr error
-	watchHandlers  map[string][]func(string)
-	watchContexts  map[string]context.Context
-	watchCancels   map[string]context.CancelFunc
+	mu                sync.RWMutex
+	data              map[string]string
+	getConfigErr      error
+	setConfigErr      error
+	watchConfigErr    error
+	watchHandlers     map[string][]func(string)
+	watchContexts     map[string]context.Context
+	watchCancels      map[string]context.CancelFunc
+	readbackOverrides map[string]string
 }
 
 // NewMockConsulClient creates a new mock Consul client
 func NewMockConsulClient() *MockConsulClient {
 	return &MockConsulClient{
-		data:          make(map[string]string),
-		watchHandlers: make(map[string][]func(string)),
-		watchContexts: make(map[string]context.Context),
-		watchCancels:  make(map[string]context.CancelFunc),
+		data:              make(map[string]string),
+		watchHandlers:     make(map[string][]func(string)),
+		watchContexts:     make(map[string]context.Context),
+		watchCancels:      make(map[string]context.CancelFunc),
+		readbackOverrides: make(map[string]string),
 	}
 }
 
@@ -51,6 +53,10 @@ func (m *MockConsulClient) GetConfig(ctx context.Context, key string) (string, e
 
 	m.mu.RLock()
 	defer m.mu.RUnlock()
+
+	if override, exists := m.readbackOverrides[key]; exists {
+		return override, nil
+	}
 
 	val, exists := m.data[key]
 	if !exists {
@@ -651,8 +657,10 @@ func TestSetConfigReadbackMismatch(t *testing.T) {
 	err := cm.SetConfig(ctx, "mismatch_key", "value_v1")
 	assert.NoError(t, err)
 
-	// Manually change Consul value to simulate mismatch
-	_ = consul.SetConfig(ctx, "mismatch_key", "different_value")
+	// Set a readback override so GetConfig returns a different value than stored
+	consul.mu.Lock()
+	consul.readbackOverrides["mismatch_key"] = "different_value"
+	consul.mu.Unlock()
 
 	// Now SetConfig will read back the different value and should error
 	err = cm.SetConfig(ctx, "mismatch_key", "value_v2")
@@ -701,8 +709,7 @@ func TestSetConfigRollbackCache(t *testing.T) {
 	// Reset error
 	consul.getConfigErr = nil
 
-	// Cache should be rolled back to initial value
-	cm.ClearCache()
+	// Cache should be rolled back to initial value (don't clear cache)
 	value, err := cm.GetConfig(ctx, "rollback_cache_key")
 	assert.NoError(t, err)
 	assert.Equal(t, "initial", value)

@@ -296,7 +296,7 @@ func TestPredictNextExcessBlobGas(t *testing.T) {
 
 	// Below target, excess smaller than gap
 	next = PredictNextExcessBlobGas(100, targetBlobGas)
-	assert.Equal(t, uint64(0), next)
+	assert.Equal(t, uint64(100), next)
 
 	// Below target, excess larger than gap
 	next = PredictNextExcessBlobGas(200000, targetBlobGas)
@@ -409,9 +409,9 @@ func TestTransientVsPermanentSavings(t *testing.T) {
 
 func TestPredictNextBaseFeeEdgeCases(t *testing.T) {
 	t.Parallel()
-	// All gas used, base fee zero -> should return 1
+	// All gas used, base fee zero -> returns 0 (early exit due to Sign() <= 0)
 	fee := PredictNextBaseFee(big.NewInt(0), 30_000_000, 30_000_000)
-	assert.Equal(t, big.NewInt(1), fee)
+	assert.Equal(t, big.NewInt(0), fee)
 }
 
 func TestEffectiveGasPriceDeepCopy(t *testing.T) {

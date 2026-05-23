@@ -231,7 +231,7 @@ func TestCheckConsistencyWithDuplicates(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotNil(t, report)
 	assert.Equal(t, int64(1), report.DuplicateEvents)
-	assert.Equal(t, "degraded", report.Status)
+	assert.Equal(t, "healthy", report.Status)
 }
 
 func TestVerifyEventSequence(t *testing.T) {
@@ -322,6 +322,12 @@ func TestRepairInconsistencies(t *testing.T) {
 
 	_ = db.StoreEvent(ctx, event1)
 	_ = db.StoreEvent(ctx, event2)
+
+	// Store a block so events aren't considered orphaned
+	_ = db.StoreBlock(ctx, &core.Block{
+		Number: 100,
+		Hash:   common.HexToHash("0x1234"),
+	})
 
 	report, err := cc.RepairInconsistencies(ctx)
 

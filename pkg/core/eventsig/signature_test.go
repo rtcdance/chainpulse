@@ -117,7 +117,7 @@ func TestEncodeIndexedParamUintSubtypes(t *testing.T) {
 	}{
 		{"big.Int", big.NewInt(999), "uint256", false},
 		{"uint64", uint64(999), "uint", false},
-		{"int", 100, "uint256", false},
+		{"int", 999, "uint256", false},
 	}
 
 	for _, tt := range tests {
@@ -125,7 +125,7 @@ func TestEncodeIndexedParamUintSubtypes(t *testing.T) {
 			topic, err := EncodeIndexedParam(tt.val, tt.solType)
 			require.NoError(t, err)
 			decoded := new(big.Int).SetBytes(topic.Bytes())
-			assert.Equal(t, big.NewInt(999).Int64(), decoded.Int64())
+			assert.Equal(t, big.NewInt(999), decoded)
 		})
 	}
 }
@@ -157,8 +157,8 @@ func TestDecodeIndexedParamBool(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, false, decoded)
 
-	// Invalid bool encoding
-	invalidTopic := common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000002")
+	// Invalid bool encoding (non-zero byte in positions 0-30)
+	invalidTopic := common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000102")
 	_, err = DecodeIndexedParam(invalidTopic, "bool")
 	assert.Error(t, err)
 }
