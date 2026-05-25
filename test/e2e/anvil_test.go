@@ -35,7 +35,8 @@ func startAnvil(t *testing.T) (*exec.Cmd, string) {
 
 	rpcURL := fmt.Sprintf("http://127.0.0.1:%d", port)
 
-	cmd := exec.Command("anvil", "--host", "127.0.0.1", "--port", fmt.Sprintf("%d", port),
+	cmd := exec.Command(
+		"anvil", "--host", "127.0.0.1", "--port", fmt.Sprintf("%d", port),
 		"--accounts", "10",
 		"--balance", "10000",
 	)

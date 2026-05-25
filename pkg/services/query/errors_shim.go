@@ -21,8 +21,10 @@ var (
 	ErrFilterOptimizationFailed         = qerrors.ErrFilterOptimizationFailed
 )
 
-type ErrorType = qerrors.Type
-type ErrorClassifier = qerrors.Classifier
+type (
+	ErrorType       = qerrors.Type
+	ErrorClassifier = qerrors.Classifier
+)
 
 const (
 	ErrorTypeTransient = qerrors.TypeTransient

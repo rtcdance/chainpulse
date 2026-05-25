@@ -771,3 +771,127 @@ func TestGatewayRouterIntegrationUninitialized(t *testing.T) {
 		t.Errorf("Expected status 500, got %d", w.Code)
 	}
 }
+
+func TestGatewayRouterIntegration_SetGraphQLHandler(t *testing.T) {
+	t.Parallel()
+	logger := &MockLogger{}
+	metrics := NewMockMetricsCollector()
+	queryHandler := NewEventQueryHandler(nil, logger, metrics)
+	subscriptionHandler := NewEventSubscriptionHandler(nil, logger, metrics)
+	healthHandler := NewHealthCheckHandler(nil, logger, metrics)
+
+	integration := NewGatewayRouterIntegration(logger, metrics, queryHandler, subscriptionHandler, healthHandler)
+	h := &GraphQLHandler{}
+	integration.SetGraphQLHandler(h)
+	if integration.graphqlHandler != h {
+		t.Fatal("expected GraphQL handler to be set")
+	}
+}
+
+func TestGatewayRouterIntegration_SetDLQHandler(t *testing.T) {
+	t.Parallel()
+	logger := &MockLogger{}
+	metrics := NewMockMetricsCollector()
+	queryHandler := NewEventQueryHandler(nil, logger, metrics)
+	subscriptionHandler := NewEventSubscriptionHandler(nil, logger, metrics)
+	healthHandler := NewHealthCheckHandler(nil, logger, metrics)
+
+	integration := NewGatewayRouterIntegration(logger, metrics, queryHandler, subscriptionHandler, healthHandler)
+	h := &DLQHandler{}
+	integration.SetDLQHandler(h)
+	if integration.dlqHandler != h {
+		t.Fatal("expected DLQ handler to be set")
+	}
+}
+
+func TestGatewayRouterIntegration_SetExportHandler(t *testing.T) {
+	t.Parallel()
+	logger := &MockLogger{}
+	metrics := NewMockMetricsCollector()
+	queryHandler := NewEventQueryHandler(nil, logger, metrics)
+	subscriptionHandler := NewEventSubscriptionHandler(nil, logger, metrics)
+	healthHandler := NewHealthCheckHandler(nil, logger, metrics)
+
+	integration := NewGatewayRouterIntegration(logger, metrics, queryHandler, subscriptionHandler, healthHandler)
+	h := &ExportHandler{}
+	integration.SetExportHandler(h)
+	if integration.exportHandler != h {
+		t.Fatal("expected export handler to be set")
+	}
+}
+
+func TestGatewayRouterIntegration_SetStatsHandler(t *testing.T) {
+	t.Parallel()
+	logger := &MockLogger{}
+	metrics := NewMockMetricsCollector()
+	queryHandler := NewEventQueryHandler(nil, logger, metrics)
+	subscriptionHandler := NewEventSubscriptionHandler(nil, logger, metrics)
+	healthHandler := NewHealthCheckHandler(nil, logger, metrics)
+
+	integration := NewGatewayRouterIntegration(logger, metrics, queryHandler, subscriptionHandler, healthHandler)
+	h := &StatsHandler{}
+	integration.SetStatsHandler(h)
+	if integration.statsHandler != h {
+		t.Fatal("expected stats handler to be set")
+	}
+}
+
+func TestGatewayRouterIntegration_SetAdminKeyHandler(t *testing.T) {
+	t.Parallel()
+	logger := &MockLogger{}
+	metrics := NewMockMetricsCollector()
+	queryHandler := NewEventQueryHandler(nil, logger, metrics)
+	subscriptionHandler := NewEventSubscriptionHandler(nil, logger, metrics)
+	healthHandler := NewHealthCheckHandler(nil, logger, metrics)
+
+	integration := NewGatewayRouterIntegration(logger, metrics, queryHandler, subscriptionHandler, healthHandler)
+	h := &AdminKeyHandler{}
+	integration.SetAdminKeyHandler(h)
+	if integration.adminKeyHandler != h {
+		t.Fatal("expected admin key handler to be set")
+	}
+}
+
+func TestGatewayRouterIntegration_SetAdminAPIKeyHandler(t *testing.T) {
+	t.Parallel()
+	logger := &MockLogger{}
+	metrics := NewMockMetricsCollector()
+	queryHandler := NewEventQueryHandler(nil, logger, metrics)
+	subscriptionHandler := NewEventSubscriptionHandler(nil, logger, metrics)
+	healthHandler := NewHealthCheckHandler(nil, logger, metrics)
+
+	integration := NewGatewayRouterIntegration(logger, metrics, queryHandler, subscriptionHandler, healthHandler)
+	h := &AdminAPIKeyHandler{}
+	integration.SetAdminAPIKeyHandler(h)
+	if integration.adminAPIKeyHandler != h {
+		t.Fatal("expected admin API key handler to be set")
+	}
+}
+
+func TestGatewayRouterIntegration_SetSIWEHandler(t *testing.T) {
+	t.Parallel()
+	logger := &MockLogger{}
+	metrics := NewMockMetricsCollector()
+	queryHandler := NewEventQueryHandler(nil, logger, metrics)
+	subscriptionHandler := NewEventSubscriptionHandler(nil, logger, metrics)
+	healthHandler := NewHealthCheckHandler(nil, logger, metrics)
+
+	integration := NewGatewayRouterIntegration(logger, metrics, queryHandler, subscriptionHandler, healthHandler)
+	h := &SIWEHandler{}
+	integration.SetSIWEHandler(h)
+	if integration.siweHandler != h {
+		t.Fatal("expected SIWE handler to be set")
+	}
+}
+
+func TestGatewayRouterIntegration_SetREDRecorder(t *testing.T) {
+	t.Parallel()
+	logger := &MockLogger{}
+	metrics := NewMockMetricsCollector()
+	queryHandler := NewEventQueryHandler(nil, logger, metrics)
+	subscriptionHandler := NewEventSubscriptionHandler(nil, logger, metrics)
+	healthHandler := NewHealthCheckHandler(nil, logger, metrics)
+
+	integration := NewGatewayRouterIntegration(logger, metrics, queryHandler, subscriptionHandler, healthHandler)
+	integration.SetREDRecorder(nil)
+}

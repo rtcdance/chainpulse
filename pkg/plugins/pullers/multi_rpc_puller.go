@@ -52,7 +52,8 @@ func NewMultiRPCPuller(
 			RequestsPerSecond:      10,
 		}
 		puller.failover = rpc.NewFailoverRPCClient(cfg)
-		logger.Info("RPC failover configured",
+		logger.Info(
+			"RPC failover configured",
 			"endpoints", len(urls),
 			"primary", urls[0],
 		)

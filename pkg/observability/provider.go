@@ -73,7 +73,8 @@ func NewObservabilityProvider(cfg ObservabilityConfig, logger core.Logger) (*Obs
 	var provider *sdktrace.TracerProvider
 
 	if otlpEndpoint != "" {
-		exporter, err := otlptracegrpc.New(context.Background(),
+		exporter, err := otlptracegrpc.New(
+			context.Background(),
 			otlptracegrpc.WithEndpoint(otlpEndpoint),
 			otlptracegrpc.WithInsecure(),
 		)

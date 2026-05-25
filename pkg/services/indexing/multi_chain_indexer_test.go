@@ -445,3 +445,55 @@ func (mcm *MockConfigManager) GetBool(key string) bool {
 func (mcm *MockConfigManager) Close() error {
 	return nil
 }
+
+type MockReorgConfirmationChecker struct {
+	confirmed bool
+	head      uint64
+}
+
+func (m *MockReorgConfirmationChecker) IsConfirmed(blockNumber uint64) bool {
+	return m.confirmed
+}
+
+func (m *MockReorgConfirmationChecker) UpdateChainHead(head uint64) {
+	m.head = head
+}
+
+func TestSetReorgHandler(t *testing.T) {
+	t.Parallel()
+	logger := &MockLogger{}
+	config := &MockConfigManager{}
+	indexer := NewMultiChainIndexer(logger, config)
+
+	handler := &MockReorgConfirmationChecker{confirmed: true}
+	indexer.SetReorgHandler(handler)
+
+	assert.NotNil(t, indexer.reorgHandler)
+	assert.NotNil(t, indexer.chainHeads)
+}
+
+func TestUpdateChainHead(t *testing.T) {
+	t.Parallel()
+	logger := &MockLogger{}
+	config := &MockConfigManager{}
+	indexer := NewMultiChainIndexer(logger, config)
+
+	handler := &MockReorgConfirmationChecker{}
+	indexer.SetReorgHandler(handler)
+
+	indexer.UpdateChainHead("ethereum", 200)
+
+	assert.Equal(t, uint64(200), handler.head)
+	assert.Equal(t, uint64(200), indexer.chainHeads["ethereum"])
+}
+
+func TestUpdateChainHead_NoReorgHandler(t *testing.T) {
+	t.Parallel()
+	logger := &MockLogger{}
+	config := &MockConfigManager{}
+	indexer := NewMultiChainIndexer(logger, config)
+
+	indexer.UpdateChainHead("polygon", 100)
+
+	assert.Equal(t, uint64(100), indexer.chainHeads["polygon"])
+}

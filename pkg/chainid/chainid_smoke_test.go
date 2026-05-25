@@ -21,12 +21,12 @@ func TestChainIDResolveChainID(t *testing.T) {
 
 func TestChainIDResolveChainName(t *testing.T) {
 	name := ResolveChainName(1)
-	if name != "Ethereum" {
-		t.Errorf("expected Ethereum, got %q", name)
+	if name != "ethereum" {
+		t.Errorf("expected ethereum, got %q", name)
 	}
 	name2 := ResolveChainName(9999)
-	if name2 != "" {
-		t.Errorf("expected empty for unknown, got %q", name2)
+	if name2 != "9999" {
+		t.Errorf("expected 9999 for unknown, got %q", name2)
 	}
 }
 

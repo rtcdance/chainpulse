@@ -617,3 +617,46 @@ func TestConcurrentTokenGeneration(t *testing.T) {
 		assert.True(t, result.Valid)
 	}
 }
+
+func TestTokenValidator_SetAPIKeyStore(t *testing.T) {
+	t.Parallel()
+	logger := &MockLogger{}
+	metrics := NewMockMetricsCollector()
+	validator := NewTokenValidator("secret", logger, metrics)
+
+	store := &APIKeyStore{}
+	validator.SetAPIKeyStore(store)
+
+	if validator.apiKeyStore != store {
+		t.Error("expected apiKeyStore to be set")
+	}
+}
+
+func TestTokenValidator_LoadAPIKeysFromDB_NilStore(t *testing.T) {
+	t.Parallel()
+	logger := &MockLogger{}
+	metrics := NewMockMetricsCollector()
+	validator := NewTokenValidator("secret", logger, metrics)
+
+	err := validator.LoadAPIKeysFromDB(context.Background())
+	if err == nil {
+		t.Error("expected error when API key store is not configured")
+	}
+}
+
+func TestTokenValidator_RevokeToken(t *testing.T) {
+	t.Parallel()
+	logger := &MockLogger{}
+	metrics := NewMockMetricsCollector()
+	validator := NewTokenValidator("secret", logger, metrics)
+
+	validator.RevokeToken("test-jti", time.Now().Add(1*time.Hour))
+
+	validator.revokeMu.RLock()
+	_, exists := validator.revokedTokens["test-jti"]
+	validator.revokeMu.RUnlock()
+
+	if !exists {
+		t.Error("expected token to be revoked")
+	}
+}

@@ -463,3 +463,29 @@ func TestCacheMaxSizeEnforcement(t *testing.T) {
 
 	assert.LessOrEqual(t, len(cm.cache), 3)
 }
+
+func TestCacheMiddleware_cleanup(t *testing.T) {
+	t.Parallel()
+
+	config := DefaultCacheConfig()
+	config.DefaultTTL = 1 * time.Millisecond
+	logger := &MockLogger{}
+	metrics := NewMockMetricsCollector()
+	cm := NewCacheMiddleware(config, logger, metrics)
+	defer cm.Close()
+
+	headers := http.Header{}
+	cm.Set("key1", []byte("value1"), headers, http.StatusOK)
+	cm.Set("key2", []byte("value2"), headers, http.StatusOK)
+
+	time.Sleep(10 * time.Millisecond)
+
+	cm.cleanup()
+
+	if _, ok := cm.cache["key1"]; ok {
+		t.Error("expected key1 to be cleaned up")
+	}
+	if _, ok := cm.cache["key2"]; ok {
+		t.Error("expected key2 to be cleaned up")
+	}
+}

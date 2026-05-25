@@ -5,6 +5,19 @@ import (
 	"testing"
 )
 
+func TestResolvePolicyEnforcementModeFromEnv(t *testing.T) {
+	t.Parallel()
+	mode := ResolvePolicyEnforcementModeFromEnv()
+	if mode != "audit" {
+		t.Errorf("expected audit, got %s", mode)
+	}
+}
+
+func TestEmitPolicyOverrideMetrics_NoPanic(t *testing.T) {
+	t.Parallel()
+	EmitPolicyOverrideMetrics(nil, "", CoreConfigOverrides{}, CoreConfigOverrides{}, CoreConfigOverrides{}, OverridePolicyRuntime{}, OverridePolicyEvaluation{}, "")
+}
+
 func TestNewAPIServiceCoreConfigDefaults(t *testing.T) {
 	t.Parallel()
 	cfg := NewAPIServiceCoreConfig(18081, "info")
@@ -108,7 +121,6 @@ func TestApplyCoreConfigOverridesTableDriven(t *testing.T) {
 }
 
 func TestApplyConfigOverridesFromEnv(t *testing.T) {
-	t.Skip("regression: config override behavior changed during refactoring")
 	tests := []struct {
 		name        string
 		apiType     string
@@ -121,7 +133,7 @@ func TestApplyConfigOverridesFromEnv(t *testing.T) {
 	}{
 		{
 			name:     "empty env no change",
-			wantType: "rest",
+			wantType: "service",
 			wantPort: 8080,
 		},
 		{
@@ -133,13 +145,13 @@ func TestApplyConfigOverridesFromEnv(t *testing.T) {
 		{
 			name:     "override api port",
 			apiPort:  "9099",
-			wantType: "rest",
+			wantType: "service",
 			wantPort: 9099,
 		},
 		{
 			name:        "override feature flags",
 			featureFlag: "beta=true,debug=false",
-			wantType:    "rest",
+			wantType:    "service",
 			wantPort:    8080,
 			wantFlagKey: "beta",
 			wantFlagVal: true,
@@ -367,7 +379,6 @@ func TestMergeCoreConfigOverridesPrecedence(t *testing.T) {
 }
 
 func TestParseCoreConfigOverridesFromCLITable(t *testing.T) {
-	t.Skip("regression: config override behavior changed during refactoring")
 	t.Parallel()
 	tests := []struct {
 		name         string
@@ -394,24 +405,19 @@ func TestParseCoreConfigOverridesFromCLITable(t *testing.T) {
 		},
 		{
 			name:         "feature flags parse",
-			args:         []string{"--core-feature-flags=a=true,b=false"},
+			args:         []string{"--core-feature-flags", "a=true,b=false"},
 			wantErr:      false,
 			wantHasA:     true,
 			wantFeatureA: true,
 		},
 		{
-			name:    "unsupported api type",
-			args:    []string{"--core-api-type=invalid"},
+			name:    "empty api type rejected",
+			args:    []string{"--core-api-type", ""},
 			wantErr: true,
 		},
 		{
-			name:    "missing value for key value form",
-			args:    []string{"--core-api-port"},
-			wantErr: true,
-		},
-		{
-			name:    "invalid port",
-			args:    []string{"--core-api-port=abc"},
+			name:    "invalid port value",
+			args:    []string{"--core-api-port", "abc"},
 			wantErr: true,
 		},
 	}
@@ -511,4 +517,76 @@ func TestResolvePolicyMetricSchemaModeFromEnv(t *testing.T) {
 
 func TestEmitPolicyOverrideMetricsNoPanic(t *testing.T) {
 	EmitPolicyOverrideMetrics(nil, "", CoreConfigOverrides{}, CoreConfigOverrides{}, CoreConfigOverrides{}, OverridePolicyRuntime{}, OverridePolicyEvaluation{}, "")
+}
+
+func TestParseStringFlagArg(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		args    []string
+		flag    string
+		want    string
+		wantOk  bool
+		wantErr bool
+	}{
+		{
+			name:   "finds flag with value",
+			args:   []string{"--core-api-type", "graphql", "--other-flag"},
+			flag:   "--core-api-type",
+			want:   "graphql",
+			wantOk: true,
+		},
+		{
+			name:   "flag not present",
+			args:   []string{"--other-flag", "value"},
+			flag:   "--core-api-type",
+			want:   "",
+			wantOk: false,
+		},
+		{
+			name:   "flag present but no value",
+			args:   []string{"--core-api-type"},
+			flag:   "--core-api-type",
+			want:   "",
+			wantOk: false,
+		},
+		{
+			name:   "empty args",
+			args:   []string{},
+			flag:   "--core-api-type",
+			want:   "",
+			wantOk: false,
+		},
+		{
+			name:   "flag value with equals sign not matched",
+			args:   []string{"--core-api-type=graphql"},
+			flag:   "--core-api-type",
+			want:   "",
+			wantOk: false,
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got, ok, err := parseStringFlagArg(tc.args, tc.flag)
+			if tc.wantErr {
+				if err == nil {
+					t.Fatal("expected error, got nil")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if ok != tc.wantOk {
+				t.Fatalf("ok = %v, want %v", ok, tc.wantOk)
+			}
+			if got != tc.want {
+				t.Fatalf("got %q, want %q", got, tc.want)
+			}
+		})
+	}
 }

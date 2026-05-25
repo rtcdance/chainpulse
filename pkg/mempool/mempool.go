@@ -53,6 +53,7 @@ func (h *priorityFeeHeap) Push(x any) {
 	}
 	*h = append(*h, entry)
 }
+
 func (h *priorityFeeHeap) Pop() any {
 	old := *h
 	n := len(old)

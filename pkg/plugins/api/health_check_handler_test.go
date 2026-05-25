@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/rtcdance/chainpulse/pkg/core"
 	"github.com/rtcdance/chainpulse/pkg/infrastructure/database"
 	"go.mongodb.org/mongo-driver/mongo"
 )
@@ -330,5 +331,218 @@ func TestHealthCheckHandlerHandleRolloutWithProducer(t *testing.T) {
 	}
 	if got := response.Details.ReportSource; got != "producer" {
 		t.Fatalf("expected producer source, got %q", got)
+	}
+}
+
+func TestHealthCheckHandler_Health_NotInitialized(t *testing.T) {
+	t.Parallel()
+	logger := core.NewDefaultLogger(core.LogLevelInfo)
+	metrics := core.NewDefaultMetricsCollector()
+	dbManager := &mockHealthDatabaseManager{}
+	handler := NewHealthCheckHandler(dbManager, logger, metrics)
+
+	status := handler.Health(t.Context())
+	if status == nil {
+		t.Fatal("expected non-nil health status")
+	}
+	if status.Status != "unhealthy" {
+		t.Fatalf("expected unhealthy status, got %q", status.Status)
+	}
+}
+
+func TestHealthCheckHandler_Health_Initialized(t *testing.T) {
+	t.Parallel()
+	logger := core.NewDefaultLogger(core.LogLevelInfo)
+	metrics := core.NewDefaultMetricsCollector()
+	dbManager := &mockHealthDatabaseManager{}
+	handler := NewHealthCheckHandler(dbManager, logger, metrics)
+
+	if err := handler.Initialize(t.Context()); err != nil {
+		t.Fatalf("Initialize failed: %v", err)
+	}
+
+	status := handler.Health(t.Context())
+	if status == nil {
+		t.Fatal("expected non-nil health status")
+	}
+	if status.Status != "healthy" {
+		t.Fatalf("expected healthy status, got %q", status.Status)
+	}
+}
+
+func TestHealthCheckHandler_Close_NotInitialized(t *testing.T) {
+	t.Parallel()
+	logger := core.NewDefaultLogger(core.LogLevelInfo)
+	metrics := core.NewDefaultMetricsCollector()
+	dbManager := &mockHealthDatabaseManager{}
+	handler := NewHealthCheckHandler(dbManager, logger, metrics)
+
+	if err := handler.Close(t.Context()); err != nil {
+		t.Fatalf("Close should not error: %v", err)
+	}
+}
+
+func TestHealthCheckHandler_Close_Initialized(t *testing.T) {
+	t.Parallel()
+	logger := core.NewDefaultLogger(core.LogLevelInfo)
+	metrics := core.NewDefaultMetricsCollector()
+	dbManager := &mockHealthDatabaseManager{}
+	handler := NewHealthCheckHandler(dbManager, logger, metrics)
+
+	if err := handler.Initialize(t.Context()); err != nil {
+		t.Fatalf("Initialize failed: %v", err)
+	}
+	if err := handler.Close(t.Context()); err != nil {
+		t.Fatalf("Close failed: %v", err)
+	}
+	if handler.initialized {
+		t.Fatal("expected handler to be marked as not initialized after close")
+	}
+}
+
+func TestHealthCheckHandler_CheckLiveness_NotInitialized(t *testing.T) {
+	t.Parallel()
+	logger := core.NewDefaultLogger(core.LogLevelInfo)
+	metrics := core.NewDefaultMetricsCollector()
+	dbManager := &mockHealthDatabaseManager{}
+	handler := NewHealthCheckHandler(dbManager, logger, metrics)
+
+	if handler.checkLiveness(t.Context()) {
+		t.Fatal("expected not alive when not initialized")
+	}
+}
+
+func TestHealthCheckHandler_CheckLiveness_Initialized(t *testing.T) {
+	t.Parallel()
+	logger := core.NewDefaultLogger(core.LogLevelInfo)
+	metrics := core.NewDefaultMetricsCollector()
+	dbManager := &mockHealthDatabaseManager{}
+	handler := NewHealthCheckHandler(dbManager, logger, metrics)
+
+	if err := handler.Initialize(t.Context()); err != nil {
+		t.Fatalf("Initialize failed: %v", err)
+	}
+	if !handler.checkLiveness(t.Context()) {
+		t.Fatal("expected alive when initialized")
+	}
+}
+
+func TestHealthCheckHandler_ReadinessDetails_NilProvider(t *testing.T) {
+	t.Parallel()
+	logger := core.NewDefaultLogger(core.LogLevelInfo)
+	metrics := core.NewDefaultMetricsCollector()
+	dbManager := &mockHealthDatabaseManager{}
+	handler := NewHealthCheckHandler(dbManager, logger, metrics)
+
+	details := handler.readinessDetails(t.Context())
+	if details != nil {
+		t.Fatal("expected nil when no provider is set")
+	}
+}
+
+func TestHealthCheckHandler_ReadinessDetails_WithProvider(t *testing.T) {
+	t.Parallel()
+	logger := core.NewDefaultLogger(core.LogLevelInfo)
+	metrics := core.NewDefaultMetricsCollector()
+	dbManager := &mockHealthDatabaseManager{}
+	handler := NewHealthCheckHandler(dbManager, logger, metrics)
+
+	expected := map[string]any{"key": "value"}
+	handler.SetReadinessDetailsProvider(func(ctx context.Context) map[string]any {
+		return expected
+	})
+
+	details := handler.readinessDetails(t.Context())
+	if details == nil {
+		t.Fatal("expected non-nil details with provider")
+	}
+	if details["key"] != "value" {
+		t.Fatalf("expected 'value', got %v", details["key"])
+	}
+}
+
+func TestHealthCheckHandler_InitializedForTests(t *testing.T) {
+	t.Parallel()
+	logger := core.NewDefaultLogger(core.LogLevelInfo)
+	metrics := core.NewDefaultMetricsCollector()
+	dbManager := &mockHealthDatabaseManager{}
+	handler := NewHealthCheckHandler(dbManager, logger, metrics)
+
+	if handler.initialized {
+		t.Fatal("expected handler to not be initialized initially")
+	}
+
+	handler.InitializedForTests()
+
+	if !handler.initialized {
+		t.Fatal("expected handler to be initialized after InitializedForTests")
+	}
+}
+
+func TestHealthCheckHandler_WithMQPlugin(t *testing.T) {
+	t.Parallel()
+	logger := core.NewDefaultLogger(core.LogLevelInfo)
+	metrics := core.NewDefaultMetricsCollector()
+	dbManager := &mockHealthDatabaseManager{}
+	handler := NewHealthCheckHandler(dbManager, logger, metrics)
+
+	if handler.mqPlugin != nil {
+		t.Fatal("expected nil mq plugin initially")
+	}
+
+	result := handler.WithMQPlugin(nil)
+	if result != handler {
+		t.Fatal("expected WithMQPlugin to return the same handler")
+	}
+}
+
+func TestHealthCheckHandler_HandleLive_NotInitialized(t *testing.T) {
+	t.Parallel()
+	logger := core.NewDefaultLogger(core.LogLevelInfo)
+	metrics := core.NewDefaultMetricsCollector()
+	dbManager := &mockHealthDatabaseManager{}
+	handler := NewHealthCheckHandler(dbManager, logger, metrics)
+
+	req := httptest.NewRequest(http.MethodGet, "/health/live", nil)
+	w := httptest.NewRecorder()
+	handler.HandleLive(w, req)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 503, got %d", w.Code)
+	}
+}
+
+func TestHealthCheckHandler_HandleComponents_NotInitialized(t *testing.T) {
+	t.Parallel()
+	logger := core.NewDefaultLogger(core.LogLevelInfo)
+	metrics := core.NewDefaultMetricsCollector()
+	dbManager := &mockHealthDatabaseManager{}
+	handler := NewHealthCheckHandler(dbManager, logger, metrics)
+
+	req := httptest.NewRequest(http.MethodGet, "/health/components", nil)
+	w := httptest.NewRecorder()
+	handler.HandleComponents(w, req)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 503, got %d", w.Code)
+	}
+}
+
+func TestHealthCheckHandler_HandleLive_Initialized(t *testing.T) {
+	t.Parallel()
+	logger := core.NewDefaultLogger(core.LogLevelInfo)
+	metrics := core.NewDefaultMetricsCollector()
+	dbManager := &mockHealthDatabaseManager{}
+	handler := NewHealthCheckHandler(dbManager, logger, metrics)
+	if err := handler.Initialize(t.Context()); err != nil {
+		t.Fatalf("Initialize failed: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/health/live", nil)
+	w := httptest.NewRecorder()
+	handler.HandleLive(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
 	}
 }

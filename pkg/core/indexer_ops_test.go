@@ -145,6 +145,13 @@ func TestBackfillCoordinator_ConcurrencySemaphore(t *testing.T) {
 	bc.ReleaseSlot()
 }
 
+func TestBackfillCoordinator_AcquireSlot(t *testing.T) {
+	t.Parallel()
+	bc := NewBackfillCoordinator(BackfillConfig{MaxConcurrency: 1})
+	bc.AcquireSlot()
+	bc.ReleaseSlot()
+}
+
 func TestBackfillJob_PercentComplete(t *testing.T) {
 	t.Parallel()
 	job := &BackfillJob{

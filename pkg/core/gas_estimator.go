@@ -9,8 +9,10 @@ import (
 	"github.com/rtcdance/chainpulse/pkg/gas"
 )
 
-type BlockCongestion = gas.BlockCongestion
-type AccessListEntry = gas.AccessListEntry
+type (
+	BlockCongestion = gas.BlockCongestion
+	AccessListEntry = gas.AccessListEntry
+)
 
 // Gas constants forwarded to pkg/gas
 const (

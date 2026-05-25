@@ -186,6 +186,39 @@ func TestDecodeEventBatchWithABI(t *testing.T) {
 	assert.Equal(t, 0, len(decoded))
 }
 
+func TestDecodeEventBatchWithABINotFound(t *testing.T) {
+	t.Parallel()
+	logger := &MockLogger{}
+	contractManager := NewContractManager(logger)
+	decoder := NewEventDecoder(contractManager, logger)
+
+	_, err := decoder.DecodeEventBatchWithABI("NonExistent", []*types.Log{})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to get ABI")
+}
+
+func TestDecodeEventDataTooShort(t *testing.T) {
+	t.Parallel()
+	logger := &MockLogger{}
+	contractManager := NewContractManager(logger)
+	decoder := NewEventDecoder(contractManager, logger)
+
+	abiJSON := []byte(`[{"type":"event","name":"Transfer","inputs":[{"name":"value","type":"uint256","indexed":false}]}]`)
+	_ = contractManager.LoadContractABI("ERC20", abiJSON)
+	contractABI, _ := contractManager.GetABI("ERC20")
+
+	transferEvent, _ := contractManager.GetEvent("ERC20", "Transfer")
+
+	rawEvent := &types.Log{
+		Topics: []common.Hash{transferEvent.ID},
+		Data:   make([]byte, 10),
+	}
+
+	_, err := decoder.DecodeEvent(rawEvent, contractABI)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "too short")
+}
+
 func TestEventDecoderGetEventSignature(t *testing.T) {
 	t.Parallel()
 	logger := &MockLogger{}
@@ -256,6 +289,69 @@ func TestEventDecoderGetEventSignatures(t *testing.T) {
 	assert.Equal(t, 2, len(sigs))
 	assert.Contains(t, sigs, "Transfer")
 	assert.Contains(t, sigs, "Approval")
+}
+
+func TestEventDecoderGetEventSignatureContractNotFound(t *testing.T) {
+	t.Parallel()
+	logger := &MockLogger{}
+	contractManager := NewContractManager(logger)
+	decoder := NewEventDecoder(contractManager, logger)
+
+	_, err := decoder.GetEventSignature("NonExistent", "Transfer")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to get ABI")
+}
+
+func TestEventDecoderGetEventSignaturesContractNotFound(t *testing.T) {
+	t.Parallel()
+	logger := &MockLogger{}
+	contractManager := NewContractManager(logger)
+	decoder := NewEventDecoder(contractManager, logger)
+
+	_, err := decoder.GetEventSignatures("NonExistent")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to get ABI")
+}
+
+func TestDecodeEventBatchWithValidEvents(t *testing.T) {
+	t.Parallel()
+	logger := &MockLogger{}
+	contractManager := NewContractManager(logger)
+	decoder := NewEventDecoder(contractManager, logger)
+
+	abiJSON := []byte(`[{"type":"event","name":"Transfer","inputs":[]}]`)
+	_ = contractManager.LoadContractABI("ERC20", abiJSON)
+	contractABI, _ := contractManager.GetABI("ERC20")
+
+	transferEvent, _ := contractManager.GetEvent("ERC20", "Transfer")
+
+	rawEvents := []*types.Log{
+		{Topics: []common.Hash{transferEvent.ID}},
+		{Topics: []common.Hash{transferEvent.ID}},
+	}
+
+	decoded, err := decoder.DecodeEventBatch(rawEvents, contractABI)
+	require.NoError(t, err)
+	assert.Equal(t, 2, len(decoded))
+}
+
+func TestDecodeEventBatchPartialFailure(t *testing.T) {
+	t.Parallel()
+	logger := &MockLogger{}
+	contractManager := NewContractManager(logger)
+	decoder := NewEventDecoder(contractManager, logger)
+
+	abiJSON := []byte(`[{"type":"event","name":"Transfer","inputs":[]}]`)
+	_ = contractManager.LoadContractABI("ERC20", abiJSON)
+	contractABI, _ := contractManager.GetABI("ERC20")
+
+	rawEvents := []*types.Log{
+		{Topics: []common.Hash{}}, // no valid event signature
+	}
+
+	decoded, err := decoder.DecodeEventBatch(rawEvents, contractABI)
+	require.NoError(t, err)
+	assert.Equal(t, 0, len(decoded))
 }
 
 func TestDecodedEventStructure(t *testing.T) {
@@ -383,4 +479,29 @@ func TestDecodeEventWithNonIndexedData(t *testing.T) {
 
 	assert.NotNil(t, decoded)
 	assert.Equal(t, 2, len(decoded.Indexed))
+}
+
+func TestHasDynamicType(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		jsonABI  string
+		expected bool
+	}{
+		{"string_type", `[{"name":"name","type":"string"}]`, true},
+		{"bytes_type", `[{"name":"data","type":"bytes"}]`, true},
+		{"dynamic_array", `[{"name":"items","type":"uint256[]"}]`, true},
+		{"fixed_types", `[{"name":"addr","type":"address"},{"name":"val","type":"uint256"},{"name":"ok","type":"bool"}]`, false},
+		{"fixed_array", `[{"name":"arr","type":"uint256[3]"}]`, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var args abi.Arguments
+			err := json.Unmarshal([]byte(tt.jsonABI), &args)
+			require.NoError(t, err)
+			assert.Equal(t, tt.expected, hasDynamicType(args))
+		})
+	}
 }

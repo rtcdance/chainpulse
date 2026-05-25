@@ -1,9 +1,11 @@
 package observability
 
 import (
+	"math"
 	"testing"
 	"time"
 
+	"github.com/rtcdance/chainpulse/pkg/core"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -411,4 +413,107 @@ func TestPropertyMetricsLatencyBounds(t *testing.T) {
 	assert.Equal(t, 30*time.Millisecond, avg)
 	assert.Equal(t, 50*time.Millisecond, max)
 	assert.LessOrEqual(t, avg, max)
+}
+
+func TestRecordDLQDepth(t *testing.T) {
+	t.Parallel()
+	metrics := NewIndexerMetrics()
+
+	metrics.RecordDLQDepth(42)
+
+	assert.Equal(t, int64(42), metrics.DLQDepth)
+}
+
+func TestRecordConsistencyMismatch(t *testing.T) {
+	t.Parallel()
+	metrics := NewIndexerMetrics()
+
+	metrics.RecordConsistencyMismatch()
+	metrics.RecordConsistencyMismatch()
+
+	assert.Equal(t, int64(2), metrics.ConsistencyMismatches)
+}
+
+func TestRecordReorgRecoveryTime(t *testing.T) {
+	t.Parallel()
+	metrics := NewIndexerMetrics()
+
+	metrics.RecordReorgRecoveryTime(1500)
+
+	assert.Equal(t, int64(1500), metrics.ReorgRecoveryTimeMs)
+}
+
+func TestRecordRPCLatency(t *testing.T) {
+	t.Parallel()
+	metrics := NewIndexerMetrics()
+
+	metrics.RecordRPCLatency(100 * time.Millisecond)
+	metrics.RecordRPCLatency(200 * time.Millisecond)
+
+	assert.True(t, metrics.RPCLatencyP50 > 0)
+	assert.True(t, metrics.RPCLatencyP95 > 0)
+	assert.True(t, metrics.RPCLatencyP99 > 0)
+}
+
+func TestRecordBlockDelay(t *testing.T) {
+	t.Parallel()
+	metrics := NewIndexerMetrics()
+
+	metrics.RecordBlockDelay(500 * time.Millisecond)
+
+	assert.NotNil(t, metrics.BlockDelayLatencies)
+	assert.Equal(t, 1, metrics.BlockDelayLatencies.Len())
+}
+
+func TestRecordEventQueueDepth(t *testing.T) {
+	t.Parallel()
+	metrics := NewIndexerMetrics()
+
+	metrics.RecordEventQueueDepth(100)
+
+	assert.Equal(t, int64(100), metrics.EventQueueDepth)
+}
+
+func TestRecordProcessingDepth(t *testing.T) {
+	t.Parallel()
+	metrics := NewIndexerMetrics()
+
+	metrics.RecordProcessingDepth(50)
+
+	assert.Equal(t, int64(50), metrics.ProcessingDepth)
+}
+
+func TestSaturatingUint64ToInt64(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, int64(42), saturatingUint64ToInt64(42))
+	assert.Equal(t, int64(math.MaxInt64), saturatingUint64ToInt64(math.MaxUint64))
+}
+
+func TestSyncToMetricsCollector(t *testing.T) {
+	t.Parallel()
+	metrics := NewIndexerMetrics()
+	mc := core.NewDefaultMetricsCollector()
+
+	metrics.RecordIndexingProgress(1000, 1100)
+	metrics.RecordEventIndexed(50 * time.Millisecond)
+	metrics.RecordEventProcessed()
+	metrics.RecordEventFailed("decode_error")
+	metrics.RecordCacheHit()
+	metrics.RecordDLQDepth(5)
+	metrics.RecordConsistencyMismatch()
+	metrics.RecordReorg(10)
+	metrics.RecordReorgRecoveryTime(500)
+
+	metrics.SyncToMetricsCollector(mc)
+
+	result := mc.GetMetrics()
+	require.NotNil(t, result)
+}
+
+func TestSyncToMetricsCollectorNil(t *testing.T) {
+	t.Parallel()
+	metrics := NewIndexerMetrics()
+
+	metrics.SyncToMetricsCollector(nil)
 }

@@ -27,6 +27,7 @@ func (m *mockStorage) WriteEvent(_ context.Context, event *core.BlockchainEvent)
 func (m *mockStorage) WriteBatch(_ context.Context, events []*core.BlockchainEvent) error {
 	return nil
 }
+
 func (m *mockStorage) DeleteEvent(_ context.Context, eventID string) error {
 	return nil
 }
@@ -336,7 +337,7 @@ func TestEventProcessor_ProcessBatchSuccess(t *testing.T) {
 }
 
 func TestEventProcessor_ProcessBatchPartialFailure(t *testing.T) {
-	t.Skip("regression: pre-existing failure")
+	t.Skip("regression: pre-existing failure - batch partial failure handling")
 	storage := &mockStorage{}
 	logger := core.NewDefaultLogger(core.LogLevelError)
 	metrics := core.NewDefaultMetricsCollector()
@@ -364,7 +365,7 @@ func TestEventProcessor_ProcessBatchPartialFailure(t *testing.T) {
 }
 
 func TestEventProcessor_ProcessBatchContextCancelled(t *testing.T) {
-	t.Skip("regression: pre-existing failure")
+	t.Skip("regression: pre-existing failure - context cancellation not propagated")
 	p := newTestProcessor()
 	_ = p.Initialize(&core.Config{ServiceName: "test"})
 	_ = p.Start()
@@ -424,6 +425,7 @@ func TestBoundedRetryMultiplier(t *testing.T) {
 		{4, 8},
 		{5, 16},
 		{-5, 1},
+		{100, 1 << 62},
 	}
 
 	for _, tc := range tests {
@@ -457,5 +459,18 @@ func TestEventProcessor_ConcurrentProcess(t *testing.T) {
 
 	if p.GetProcessedCount()+p.GetFailedCount()+p.GetDuplicateCount() < 10 {
 		t.Fatalf("expected at least 10 total operations")
+	}
+}
+
+func TestDefaultEventProcessor_deleteEvent_NoDatabase(t *testing.T) {
+	logger := core.NewDefaultLogger(core.LogLevelError)
+	metrics := core.NewDefaultMetricsCollector()
+	idempotency := NewDefaultIdempotencyService(logger, metrics)
+	p := NewDefaultEventProcessor(logger, metrics, idempotency, nil, nil, nil)
+
+	event := makeValidEvent()
+	err := p.deleteEvent(context.Background(), event)
+	if err == nil {
+		t.Fatal("expected error from deleteEvent when database is nil")
 	}
 }

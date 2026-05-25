@@ -125,7 +125,8 @@ func run() error {
 			maskedDBURL = coreConfig.DatabaseURL[:idx+3] + "***" + rest[atIdx:]
 		}
 	}
-	logger.Info("Core config resolved",
+	logger.Info(
+		"Core config resolved",
 		"deployment_mode", coreConfig.DeploymentMode,
 		"data_puller_type", coreConfig.DataPullerType,
 		"blockchain_node_url", coreConfig.BlockchainNodeURL,

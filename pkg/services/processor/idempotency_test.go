@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
 	"github.com/rtcdance/chainpulse/pkg/testhelpers"
@@ -317,6 +318,115 @@ func TestIdempotency_Clear(t *testing.T) {
 	}
 }
 
+func TestIdempotency_WarmUp(t *testing.T) {
+	svc := NewDefaultIdempotencyService(testhelpers.NewTestLogger(), newTestMetricsCollector())
+	_ = svc.Initialize(&core.Config{})
+	_ = svc.Start()
+	defer svc.Stop()
+
+	ctx := context.Background()
+	hashes := []string{"hash1", "hash2", "hash3"}
+
+	err := svc.WarmUp(ctx, hashes)
+	if err != nil {
+		t.Fatalf("WarmUp failed: %v", err)
+	}
+
+	for _, hash := range hashes {
+		isDup, err := svc.IsDuplicate(ctx, hash)
+		if err != nil {
+			t.Fatalf("IsDuplicate failed: %v", err)
+		}
+		if !isDup {
+			t.Fatalf("hash %s should be duplicate after WarmUp", hash)
+		}
+	}
+}
+
+func TestIdempotency_WarmUpEmpty(t *testing.T) {
+	svc := NewDefaultIdempotencyService(testhelpers.NewTestLogger(), newTestMetricsCollector())
+	_ = svc.Initialize(&core.Config{})
+	_ = svc.Start()
+	defer svc.Stop()
+
+	err := svc.WarmUp(context.Background(), nil)
+	if err != nil {
+		t.Fatalf("WarmUp with nil should succeed: %v", err)
+	}
+
+	err = svc.WarmUp(context.Background(), []string{})
+	if err != nil {
+		t.Fatalf("WarmUp with empty should succeed: %v", err)
+	}
+}
+
+func TestIdempotency_WarmUpNotRunning(t *testing.T) {
+	svc := NewDefaultIdempotencyService(testhelpers.NewTestLogger(), newTestMetricsCollector())
+	_ = svc.Initialize(&core.Config{})
+
+	err := svc.WarmUp(context.Background(), []string{"hash1"})
+	if err == nil {
+		t.Fatal("WarmUp on not-running service should fail")
+	}
+}
+
+func TestIdempotency_MarkProcessedAtCapacity(t *testing.T) {
+	svc := NewDefaultIdempotencyService(testhelpers.NewTestLogger(), newTestMetricsCollector())
+	svc.maxSize = 1
+	_ = svc.Initialize(&core.Config{})
+	_ = svc.Start()
+	defer svc.Stop()
+
+	ctx := context.Background()
+
+	err := svc.MarkProcessed(ctx, "hash1")
+	if err != nil {
+		t.Fatalf("MarkProcessed failed: %v", err)
+	}
+
+	err = svc.MarkProcessed(ctx, "hash2")
+	if err != nil {
+		t.Fatalf("MarkProcessed failed: %v", err)
+	}
+
+	isDup, _ := svc.IsDuplicate(ctx, "hash1")
+	if isDup {
+		t.Fatal("hash1 should have been evicted when at capacity")
+	}
+
+	if svc.GetProcessedCount() != 2 {
+		t.Fatalf("processed count: want 2, got %d", svc.GetProcessedCount())
+	}
+}
+
+func TestIdempotency_EvictExpired(t *testing.T) {
+	svc := NewDefaultIdempotencyService(testhelpers.NewTestLogger(), newTestMetricsCollector())
+	_ = svc.Initialize(&core.Config{
+		IdempotencyRecordTTL: 86400,
+	})
+	svc.config.IdempotencyRecordTTL = 1
+
+	pastTime := time.Now().Add(-2 * time.Hour)
+	svc.processedHashes["expired"] = pastTime
+	svc.processedHashes["recent"] = time.Now()
+	svc.processedCount = 2
+
+	svc.evictExpired()
+
+	_, expiredExists := svc.processedHashes["expired"]
+	_, recentExists := svc.processedHashes["recent"]
+
+	if expiredExists {
+		t.Fatal("expired entry should be evicted")
+	}
+	if !recentExists {
+		t.Fatal("recent entry should not be evicted")
+	}
+	if svc.processedCount != 2 {
+		t.Fatalf("processedCount should not change on eviction")
+	}
+}
+
 func TestIdempotency_ClearNotRunning(t *testing.T) {
 	svc := NewDefaultIdempotencyService(testhelpers.NewTestLogger(), newTestMetricsCollector())
 	_ = svc.Initialize(&core.Config{})
@@ -453,8 +563,6 @@ func TestIdempotency_MultiChainIsolation(t *testing.T) {
 	defer svc.Stop()
 
 	ctx := context.Background()
-	chains := []int64{1, 137, 42161}
-	_ = chains
 	type chainEvent struct {
 		chain int64
 		block uint64
@@ -469,7 +577,6 @@ func TestIdempotency_MultiChainIsolation(t *testing.T) {
 		{137, 1001, 2},
 	}
 
-	hashes := make(map[int64]string)
 	for _, e := range events {
 		event := &core.BlockchainEvent{
 			ID:              fmt.Sprintf("evt_%d_%d", e.chain, e.id),
@@ -479,7 +586,6 @@ func TestIdempotency_MultiChainIsolation(t *testing.T) {
 			LogIndex:        0,
 		}
 		hash, _ := svc.GenerateHash(event)
-		hashes[e.chain] = hash
 		_ = svc.MarkProcessed(ctx, hash)
 	}
 
@@ -487,3 +593,5 @@ func TestIdempotency_MultiChainIsolation(t *testing.T) {
 		t.Fatalf("all events across chains should be unique: want %d, got %d", len(events), svc.GetProcessedCount())
 	}
 }
+
+

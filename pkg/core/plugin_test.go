@@ -241,3 +241,24 @@ func TestStopPluginPropagatesContext(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
+
+// basicPlugin implements Plugin but NOT LifecyclePlugin (no Start/Stop).
+type basicPlugin struct{}
+
+func (b *basicPlugin) Name() string { return "basic" }
+
+func TestStartPluginNonLifecycleReturnsNil(t *testing.T) {
+	t.Parallel()
+	err := StartPlugin(context.Background(), &basicPlugin{})
+	if err != nil {
+		t.Fatalf("expected nil for non-lifecycle plugin, got %v", err)
+	}
+}
+
+func TestStopPluginNonLifecycleReturnsNil(t *testing.T) {
+	t.Parallel()
+	err := StopPlugin(context.Background(), &basicPlugin{})
+	if err != nil {
+		t.Fatalf("expected nil for non-lifecycle plugin, got %v", err)
+	}
+}

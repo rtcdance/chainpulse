@@ -400,3 +400,77 @@ func TestAbstractServiceErrorHandling(t *testing.T) {
 		t.Errorf("Expected at least 1 error, got %d", errors)
 	}
 }
+
+func TestValidateLimit(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		limit int
+		want  int
+	}{
+		{"zero_returns_default", 0, 20},
+		{"negative_returns_default", -1, 20},
+		{"normal_value", 50, 50},
+		{"max_value", 100, 100},
+		{"exceeds_max", 101, 100},
+		{"large_exceeds_max", 9999, 100},
+		{"positive_one", 1, 1},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			s := &AbstractService{}
+			got := s.validateLimit(tt.limit)
+			if got != tt.want {
+				t.Errorf("validateLimit(%d) = %d, want %d", tt.limit, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestValidateOffset(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		offset int
+		want   int
+	}{
+		{"zero", 0, 0},
+		{"positive", 10, 10},
+		{"negative", -1, 0},
+		{"large_negative", -100, 0},
+		{"large_positive", 10000, 10000},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			s := &AbstractService{}
+			got := s.validateOffset(tt.offset)
+			if got != tt.want {
+				t.Errorf("validateOffset(%d) = %d, want %d", tt.offset, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestGetCacheKey(t *testing.T) {
+	t.Parallel()
+
+	s := &AbstractService{name: "test-service"}
+	key := s.getCacheKey("read", "entity-123")
+	if key != "test-service:read:entity-123" {
+		t.Errorf("getCacheKey = %q, want %q", key, "test-service:read:entity-123")
+	}
+
+	s2 := &AbstractService{name: "another"}
+	key2 := s2.getCacheKey("list", "")
+	if key2 != "another:list:" {
+		t.Errorf("getCacheKey = %q, want %q", key2, "another:list:")
+	}
+}

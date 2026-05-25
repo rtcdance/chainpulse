@@ -576,3 +576,158 @@ func TestConcurrentIndexing(t *testing.T) {
 		<-done
 	}
 }
+
+func TestGetEventsByNameWithCache(t *testing.T) {
+	t.Parallel()
+	db := &MockDatabasePlugin{}
+	cache := NewMockCachePlugin()
+	logger := &MockLogger{}
+	eventDecoder := decoder.NewEventDecoder(nil, logger)
+	contractManager := decoder.NewContractManager(logger)
+
+	indexer := NewGenericContractIndexer(db, cache, logger, eventDecoder, contractManager)
+
+	var contractABI abi.ABI
+	_ = indexer.RegisterContractABI("ERC20", contractABI)
+
+	events := []*core.BlockchainEvent{
+		{
+			ID:              "event1",
+			BlockNumber:     100,
+			TransactionHash: common.HexToHash("0x1234"),
+			ContractAddress: common.HexToAddress("0x1111"),
+		},
+	}
+	_ = indexer.IndexEvents(context.Background(), "ERC20", events)
+
+	result := indexer.GetEventsByName("Transfer")
+	assert.Equal(t, 0, len(result))
+
+	result = indexer.GetEventsByName("NonExistentEvent")
+	assert.Equal(t, 0, len(result))
+}
+
+func TestGetEventsByContractWithCache(t *testing.T) {
+	t.Parallel()
+	db := &MockDatabasePlugin{}
+	cache := NewMockCachePlugin()
+	logger := &MockLogger{}
+	eventDecoder := decoder.NewEventDecoder(nil, logger)
+	contractManager := decoder.NewContractManager(logger)
+
+	indexer := NewGenericContractIndexer(db, cache, logger, eventDecoder, contractManager)
+
+	var contractABI abi.ABI
+	_ = indexer.RegisterContractABI("ERC20", contractABI)
+
+	events := []*core.BlockchainEvent{
+		{
+			ID:              "event1",
+			BlockNumber:     100,
+			TransactionHash: common.HexToHash("0x1234"),
+			ContractAddress: common.HexToAddress("0x1111"),
+		},
+	}
+	_ = indexer.IndexEvents(context.Background(), "ERC20", events)
+
+	knownAddr := common.HexToAddress("0x1111")
+	result := indexer.GetEventsByContract(knownAddr)
+	assert.GreaterOrEqual(t, len(result), 0)
+
+	unknownAddr := common.HexToAddress("0x9999")
+	result = indexer.GetEventsByContract(unknownAddr)
+	assert.Equal(t, 0, len(result))
+}
+
+func TestIndexEventNilEvent(t *testing.T) {
+	t.Parallel()
+	db := &MockDatabasePlugin{}
+	cache := NewMockCachePlugin()
+	logger := &MockLogger{}
+	eventDecoder := decoder.NewEventDecoder(nil, logger)
+	contractManager := decoder.NewContractManager(logger)
+
+	indexer := NewGenericContractIndexer(db, cache, logger, eventDecoder, contractManager)
+
+	var contractABI abi.ABI
+	err := indexer.indexEvent(context.Background(), "ERC20", &contractABI, nil)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "event is nil")
+}
+
+func TestIndexEventWithHandler(t *testing.T) {
+	t.Parallel()
+	db := &MockDatabasePlugin{}
+	cache := NewMockCachePlugin()
+	logger := &MockLogger{}
+	eventDecoder := decoder.NewEventDecoder(nil, logger)
+	contractManager := decoder.NewContractManager(logger)
+
+	indexer := NewGenericContractIndexer(db, cache, logger, eventDecoder, contractManager)
+
+	eventSig := common.HexToHash("0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef")
+
+	contractABI := abi.ABI{
+		Events: map[string]abi.Event{
+			"Transfer": {
+				Name: "Transfer",
+				ID:   eventSig,
+			},
+		},
+	}
+	_ = indexer.RegisterContractABI("ERC20", contractABI)
+
+	handler := &MockEventHandler{eventName: "Transfer"}
+	_ = indexer.RegisterEventHandler("Transfer", handler)
+
+	events := []*core.BlockchainEvent{
+		{
+			ID:              "event1",
+			BlockNumber:     100,
+			BlockTimestamp:  1234567890,
+			TransactionHash: common.HexToHash("0x1234"),
+			ContractAddress: common.HexToAddress("0x1111"),
+			EventTopic:      []common.Hash{eventSig},
+		},
+	}
+
+	err := indexer.IndexEvents(context.Background(), "ERC20", events)
+	require.NoError(t, err)
+
+	result := indexer.GetEventsByName("Transfer")
+	assert.Equal(t, 1, len(result))
+}
+
+func TestIndexEventNoEventTopic(t *testing.T) {
+	t.Parallel()
+	db := &MockDatabasePlugin{}
+	cache := NewMockCachePlugin()
+	logger := &MockLogger{}
+	eventDecoder := decoder.NewEventDecoder(nil, logger)
+	contractManager := decoder.NewContractManager(logger)
+
+	indexer := NewGenericContractIndexer(db, cache, logger, eventDecoder, contractManager)
+
+	contractABI := abi.ABI{
+		Events: map[string]abi.Event{
+			"Transfer": {
+				Name: "Transfer",
+				ID:   common.HexToHash("0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"),
+			},
+		},
+	}
+	_ = indexer.RegisterContractABI("ERC20", contractABI)
+
+	events := []*core.BlockchainEvent{
+		{
+			ID:              "event1",
+			BlockNumber:     100,
+			TransactionHash: common.HexToHash("0x1234"),
+			ContractAddress: common.HexToAddress("0x1111"),
+			EventTopic:      []common.Hash{},
+		},
+	}
+
+	err := indexer.IndexEvents(context.Background(), "ERC20", events)
+	require.NoError(t, err)
+}

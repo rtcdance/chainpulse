@@ -267,6 +267,74 @@ func TestLendingPositionMaxBorrowAtLimit(t *testing.T) {
 
 // ─── Liquidation Bonus Tests ────────────────────────────────────────────────
 
+func TestSqrt(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name string
+		x    float64
+		want float64
+	}{
+		{"positive", 4.0, 2.0},
+		{"zero", 0.0, 0.0},
+		{"negative", -1.0, 0.0},
+	}
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got := sqrt(tc.x)
+			diff := got - tc.want
+			if diff < 0 {
+				diff = -diff
+			}
+			if diff > 1e-9 {
+				t.Errorf("sqrt(%f) = %f, want %f", tc.x, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestAbs(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name string
+		x    float64
+		want float64
+	}{
+		{"negative", -5.0, 5.0},
+		{"positive", 3.0, 3.0},
+		{"zero", 0.0, 0.0},
+	}
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got := abs(tc.x)
+			if got != tc.want {
+				t.Errorf("abs(%f) = %f, want %f", tc.x, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestConstantProductAMMPriceImpactZeroForOneFalse(t *testing.T) {
+	t.Parallel()
+	amm := NewConstantProductAMM(big.NewInt(1000000), big.NewInt(1000000), 30)
+	impact := amm.PriceImpact(big.NewInt(100), false)
+	if impact < 0 || impact > 1 {
+		t.Errorf("PriceImpact for small swap (false direction) should be near 0, got %f", impact)
+	}
+}
+
+func TestConstantProductAMMPriceImpactLargeFalseDirection(t *testing.T) {
+	t.Parallel()
+	amm := NewConstantProductAMM(big.NewInt(1000000), big.NewInt(1000000), 30)
+	impact := amm.PriceImpact(big.NewInt(500000), false)
+	if impact < 20 {
+		t.Errorf("PriceImpact for large swap (false direction) should be significant, got %f", impact)
+	}
+}
+
 func TestLiquidationBonus(t *testing.T) {
 	t.Parallel()
 	lb := LiquidationBonus{

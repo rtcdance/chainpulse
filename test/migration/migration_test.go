@@ -97,7 +97,8 @@ func TestMigrationIdempotency(t *testing.T) {
 }
 
 func runMigrate(dsn, migrationsPath, direction string) error {
-	cmd := exec.Command("go", "run", "./cmd/migrate/",
+	cmd := exec.Command(
+		"go", "run", "./cmd/migrate/",
 		"-db", dsn,
 		"-path", migrationsPath,
 		direction,

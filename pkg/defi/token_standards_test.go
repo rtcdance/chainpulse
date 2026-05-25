@@ -10,6 +10,7 @@ import (
 // ─── ERC-4626 Vault Tests ───────────────────────────────────────────────────
 
 func TestVaultShareMathFirstDeposit(t *testing.T) {
+	t.Parallel()
 	v := NewVaultShareMath(big.NewInt(0), big.NewInt(0), 18)
 
 	// First deposit: 1:1 ratio
@@ -21,6 +22,24 @@ func TestVaultShareMathFirstDeposit(t *testing.T) {
 	assets := v.PreviewMint(big.NewInt(500))
 	if assets.Cmp(big.NewInt(500)) != 0 {
 		t.Errorf("first mint: PreviewMint(500) = %d, want 500", assets)
+	}
+}
+
+func TestVaultShareMathFirstRedeem(t *testing.T) {
+	t.Parallel()
+	v := NewVaultShareMath(big.NewInt(10000), big.NewInt(0), 18)
+	assets := v.PreviewRedeem(big.NewInt(500))
+	if assets.Cmp(big.NewInt(500)) != 0 {
+		t.Errorf("first redeem: PreviewRedeem(500) = %d, want 500", assets)
+	}
+}
+
+func TestVaultShareMathFirstWithdraw(t *testing.T) {
+	t.Parallel()
+	v := NewVaultShareMath(big.NewInt(0), big.NewInt(0), 18)
+	shares := v.PreviewWithdraw(big.NewInt(1000))
+	if shares.Cmp(big.NewInt(1000)) != 0 {
+		t.Errorf("first withdraw: PreviewWithdraw(1000) = %d, want 1000", shares)
 	}
 }
 
@@ -92,6 +111,9 @@ func TestVaultFeeConfig(t *testing.T) {
 	zeroCfg := VaultFeeConfig{}
 	if f := zeroCfg.CalculateEntryFee(big.NewInt(10000)); f.Sign() != 0 {
 		t.Errorf("zero entry fee should be 0, got %d", f)
+	}
+	if f := zeroCfg.CalculateExitFee(big.NewInt(10000)); f.Sign() != 0 {
+		t.Errorf("zero exit fee should be 0, got %d", f)
 	}
 }
 
@@ -183,6 +205,33 @@ func TestBatchTransferValidate(t *testing.T) {
 	if err := negID.Validate(); err == nil {
 		t.Error("negative token ID should fail validation")
 	}
+
+	// Nil token ID
+	nilID := &BatchTransfer{
+		TokenIDs: []*big.Int{nil},
+		Amounts:  []*big.Int{big.NewInt(10)},
+	}
+	if err := nilID.Validate(); err == nil {
+		t.Error("nil token ID should fail validation")
+	}
+
+	// Nil amount
+	nilAmt := &BatchTransfer{
+		TokenIDs: []*big.Int{big.NewInt(1)},
+		Amounts:  []*big.Int{nil},
+	}
+	if err := nilAmt.Validate(); err == nil {
+		t.Error("nil amount should fail validation")
+	}
+
+	// Negative amount
+	negAmt := &BatchTransfer{
+		TokenIDs: []*big.Int{big.NewInt(1)},
+		Amounts:  []*big.Int{big.NewInt(-1)},
+	}
+	if err := negAmt.Validate(); err == nil {
+		t.Error("negative amount should fail validation")
+	}
 }
 
 func TestBatchTransferTotalValue(t *testing.T) {
@@ -231,5 +280,23 @@ func TestERC721BatchMintValidate(t *testing.T) {
 	}
 	if err := empty.Validate(); err == nil {
 		t.Error("empty batch mint should fail")
+	}
+
+	// Nil token ID
+	nilID := &ERC721BatchMint{
+		Recipients: []common.Address{common.HexToAddress("0x1")},
+		TokenIDs:   []*big.Int{nil},
+	}
+	if err := nilID.Validate(); err == nil {
+		t.Error("nil token ID should fail validation")
+	}
+
+	// Negative token ID
+	negID := &ERC721BatchMint{
+		Recipients: []common.Address{common.HexToAddress("0x1")},
+		TokenIDs:   []*big.Int{big.NewInt(-1)},
+	}
+	if err := negID.Validate(); err == nil {
+		t.Error("negative token ID should fail validation")
 	}
 }

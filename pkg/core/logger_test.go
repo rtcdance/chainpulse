@@ -20,6 +20,22 @@ func (lw *lockedWriter) Write(p []byte) (n int, err error) {
 	return lw.w.Write(p)
 }
 
+func TestNewProductionLogger(t *testing.T) {
+	t.Parallel()
+	l := NewProductionLogger()
+	if l == nil {
+		t.Fatal("expected non-nil logger")
+	}
+}
+
+func TestNewProductionLoggerWithLevel(t *testing.T) {
+	t.Parallel()
+	l := NewProductionLoggerWithLevel(LogLevelDebug)
+	if l == nil {
+		t.Fatal("expected non-nil logger")
+	}
+}
+
 // TestNewDefaultLogger tests logger creation
 func TestNewDefaultLogger(t *testing.T) {
 	t.Parallel()

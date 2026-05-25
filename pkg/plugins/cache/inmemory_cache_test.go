@@ -220,6 +220,16 @@ func TestInMemoryCache_HealthAfterStop(t *testing.T) {
 	}
 }
 
+func TestInMemoryCache_HealthCheckStarted(t *testing.T) {
+	c := NewInMemoryCache()
+	_ = c.Start()
+	defer c.Stop()
+
+	if err := c.HealthCheck(context.Background()); err != nil {
+		t.Fatalf("HealthCheck after Start should be nil: %v", err)
+	}
+}
+
 func TestInMemoryCache_EvictionByCleanup(t *testing.T) {
 	c := NewInMemoryCache()
 	_ = c.Start()

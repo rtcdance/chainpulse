@@ -24,6 +24,7 @@ func (m *mockLogger) Info(msg string, fields ...any)  {}
 func (m *mockLogger) Warn(msg string, fields ...any) {
 	m.warns = append(m.warns, msg)
 }
+
 func (m *mockLogger) Error(msg string, fields ...any) {
 	m.errors = append(m.errors, msg)
 }

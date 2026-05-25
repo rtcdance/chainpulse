@@ -320,7 +320,8 @@ func (p *BaseDataPullerPlugin) GetLastBlockNumber() uint64 {
 func handlePullerPanic(logger core.Logger, source string) {
 	if r := recover(); r != nil {
 		if logger != nil {
-			logger.Error("puller goroutine panicked",
+			logger.Error(
+				"puller goroutine panicked",
 				"source", source,
 				"panic", fmt.Sprintf("%v", r),
 			)
@@ -370,7 +371,8 @@ func (p *BaseDataPullerPlugin) SetLastBlockNumberWithHash(blockNumber uint64, bl
 			return // success
 		}
 		if p.logger != nil {
-			p.logger.Error("checkpoint persist failed after retries",
+			p.logger.Error(
+				"checkpoint persist failed after retries",
 				"chainID", chainID,
 				"block", blockNumber,
 				"error", lastErr,

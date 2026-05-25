@@ -369,3 +369,240 @@ func TestHandleReorgNoEventBus(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
+
+func TestIsConfirmed(t *testing.T) {
+	t.Parallel()
+
+	handler := newTestHandler(newMockReorgDatabase())
+	handler.WithConfirmationDepth(0)
+	if !handler.IsConfirmed(100) {
+		t.Error("depth 0 should always confirm")
+	}
+
+	handler.WithConfirmationDepth(12)
+	handler.UpdateChainHead(120)
+	if !handler.IsConfirmed(100) {
+		t.Error("block 100 with head 120 and depth 12 should be confirmed")
+	}
+	if handler.IsConfirmed(110) {
+		t.Error("block 110 with head 120 and depth 12 should NOT be confirmed")
+	}
+}
+
+func TestConfirmationDepth(t *testing.T) {
+	t.Parallel()
+
+	handler := newTestHandler(newMockReorgDatabase())
+	if d := handler.ConfirmationDepth(); d != 0 {
+		t.Errorf("expected default depth 0, got %d", d)
+	}
+
+	handler.WithConfirmationDepth(15)
+	if d := handler.ConfirmationDepth(); d != 15 {
+		t.Errorf("expected depth 15, got %d", d)
+	}
+}
+
+func TestUpdateChainHead(t *testing.T) {
+	t.Parallel()
+
+	handler := newTestHandler(newMockReorgDatabase())
+	handler.WithConfirmationDepth(12)
+
+	handler.UpdateChainHead(50)
+	if handler.IsConfirmed(40) {
+		t.Error("block 40 with head 50 and depth 12 should NOT be confirmed")
+	}
+
+	handler.UpdateChainHead(100)
+	if !handler.IsConfirmed(80) {
+		t.Error("block 80 with head 100 and depth 12 should be confirmed")
+	}
+}
+
+func TestSetBlockHashProvider(t *testing.T) {
+	t.Parallel()
+
+	handler := newTestHandler(newMockReorgDatabase())
+	provider := &DatabaseBlockHashProvider{db: newMockReorgDatabase()}
+	handler.SetBlockHashProvider(provider)
+
+	if handler.blockHashProvider != provider {
+		t.Error("block hash provider was not set")
+	}
+}
+
+func TestSetIdempotencyInvalidator(t *testing.T) {
+	t.Parallel()
+
+	handler := newTestHandler(newMockReorgDatabase())
+	handler.SetIdempotencyInvalidator(nil)
+	if handler.idempotencyInvalidator != nil {
+		t.Error("invalidator should be set to nil")
+	}
+}
+
+func TestWithChainID(t *testing.T) {
+	t.Parallel()
+
+	handler := newTestHandler(newMockReorgDatabase())
+	handler.WithChainID("ethereum")
+	if handler.chainID != "ethereum" {
+		t.Errorf("expected chainID ethereum, got %s", handler.chainID)
+	}
+}
+
+func TestWithCheckpointStore(t *testing.T) {
+	t.Parallel()
+
+	handler := newTestHandler(newMockReorgDatabase())
+	handler.WithCheckpointStore(nil)
+	if handler.checkpointStore != nil {
+		t.Error("checkpoint store should be set to nil")
+	}
+}
+
+func TestNewReorgHandlerDefaults(t *testing.T) {
+	t.Parallel()
+
+	db := newMockReorgDatabase()
+	handler := NewReorgHandler(db, core.NewDefaultLogger(core.LogLevelError), 10, 100)
+
+	if handler.reorgThreshold != 10 {
+		t.Errorf("expected reorgThreshold 10, got %d", handler.reorgThreshold)
+	}
+	if handler.maxRollback != 100 {
+		t.Errorf("expected maxRollback 100, got %d", handler.maxRollback)
+	}
+	if handler.checkpointInterval != 10 {
+		t.Errorf("expected checkpointInterval 10, got %d", handler.checkpointInterval)
+	}
+	if handler.lastKnownBlocks == nil {
+		t.Error("lastKnownBlocks should be initialized")
+	}
+	if handler.blockHashProvider == nil {
+		t.Error("blockHashProvider should be initialized")
+	}
+}
+
+type mockBlockHashProvider struct {
+	hashes map[uint64]common.Hash
+}
+
+func (m *mockBlockHashProvider) GetBlockHash(_ context.Context, blockNumber uint64) (common.Hash, error) {
+	h, ok := m.hashes[blockNumber]
+	if !ok {
+		return common.Hash{}, nil
+	}
+	return h, nil
+}
+
+func TestLinearScanReorg_Found(t *testing.T) {
+	t.Parallel()
+	handler := newTestHandler(newMockReorgDatabase())
+
+	hash := common.HexToHash("0xabc")
+	knownBlocks := map[uint64]common.Hash{
+		100: hash,
+		99:  common.HexToHash("0xdef"),
+		98:  common.HexToHash("0xghi"),
+	}
+
+	provider := &mockBlockHashProvider{
+		hashes: map[uint64]common.Hash{
+			100: hash,
+		},
+	}
+
+	block, err := handler.linearScanReorg(context.Background(), 100, 50, knownBlocks, provider)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if block != 100 {
+		t.Errorf("expected block 100, got %d", block)
+	}
+}
+
+func TestLinearScanReorg_NotFound(t *testing.T) {
+	t.Parallel()
+	handler := newTestHandler(newMockReorgDatabase())
+
+	hash := common.HexToHash("0xabc")
+	knownBlocks := map[uint64]common.Hash{
+		100: hash,
+	}
+
+	provider := &mockBlockHashProvider{
+		hashes: map[uint64]common.Hash{
+			100: common.HexToHash("0xdifferent"),
+		},
+	}
+
+	_, err := handler.linearScanReorg(context.Background(), 100, 50, knownBlocks, provider)
+	if err == nil {
+		t.Fatal("expected error when no matching block found")
+	}
+}
+
+func TestLinearScanReorg_CtxCancel(t *testing.T) {
+	t.Parallel()
+	handler := newTestHandler(newMockReorgDatabase())
+
+	hash := common.HexToHash("0xabc")
+	knownBlocks := map[uint64]common.Hash{
+		100: hash,
+	}
+
+	provider := &mockBlockHashProvider{
+		hashes: map[uint64]common.Hash{
+			100: hash,
+		},
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, err := handler.linearScanReorg(ctx, 100, 50, knownBlocks, provider)
+	if err == nil {
+		t.Fatal("expected error from cancelled context")
+	}
+}
+
+func TestLinearScanReorg_MaxDepthLimit(t *testing.T) {
+	t.Parallel()
+	handler := newTestHandler(newMockReorgDatabase())
+
+	hash := common.HexToHash("0xabc")
+	knownBlocks := map[uint64]common.Hash{
+		100: hash,
+		90:  common.HexToHash("0xdef"),
+	}
+
+	provider := &mockBlockHashProvider{
+		hashes: map[uint64]common.Hash{
+			100: hash,
+		},
+	}
+
+	block, err := handler.linearScanReorg(context.Background(), 100, 5, knownBlocks, provider)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if block != 100 {
+		t.Errorf("expected block 100, got %d", block)
+	}
+}
+
+func TestGetReorgStats(t *testing.T) {
+	t.Parallel()
+	db := newMockReorgDatabase()
+	handler := newTestHandler(db)
+
+	stats, err := handler.GetReorgStats(context.Background())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if stats == nil {
+		t.Fatal("expected non-nil stats")
+	}
+}

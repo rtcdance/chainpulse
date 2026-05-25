@@ -213,3 +213,42 @@ func TestSizeOnlyKZGVerifier_InvalidBlobSize(t *testing.T) {
 		t.Fatal("expected error for wrong blob size")
 	}
 }
+
+func TestGethKZGVerifier_InvalidCommitmentSize(t *testing.T) {
+	verifier := &GethKZGVerifier{}
+
+	err := verifier.VerifyBlobProof(
+		make([]byte, 32),
+		make([]byte, KZGProofSize),
+		make([]byte, BlobSize),
+	)
+	if err == nil {
+		t.Fatal("expected error for wrong commitment size")
+	}
+}
+
+func TestGethKZGVerifier_InvalidProofSize(t *testing.T) {
+	verifier := &GethKZGVerifier{}
+
+	err := verifier.VerifyBlobProof(
+		make([]byte, KZGCommitmentSize),
+		make([]byte, 16),
+		make([]byte, BlobSize),
+	)
+	if err == nil {
+		t.Fatal("expected error for wrong proof size")
+	}
+}
+
+func TestGethKZGVerifier_InvalidBlobSize(t *testing.T) {
+	verifier := &GethKZGVerifier{}
+
+	err := verifier.VerifyBlobProof(
+		make([]byte, KZGCommitmentSize),
+		make([]byte, KZGProofSize),
+		make([]byte, 100),
+	)
+	if err == nil {
+		t.Fatal("expected error for wrong blob size")
+	}
+}

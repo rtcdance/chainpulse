@@ -50,7 +50,7 @@ func TestCall_Success(t *testing.T) {
 		callCount++
 		return nil
 	})
-	assert.Error(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, 1, callCount)
 	assert.Equal(t, StateClosed, cb.State())
 }

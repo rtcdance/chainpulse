@@ -619,3 +619,44 @@ func TestBuildRolloutReportSections(t *testing.T) {
 		t.Fatalf("expected guarded overview hold, got %q", got)
 	}
 }
+
+func TestRolloutReportDetails_IsEmpty_Nil(t *testing.T) {
+	t.Parallel()
+	var d *RolloutReportDetails
+	if !d.IsEmpty() {
+		t.Fatal("expected nil details to be empty")
+	}
+}
+
+func TestRolloutReportDetails_IsEmpty_NoReportID(t *testing.T) {
+	t.Parallel()
+	d := &RolloutReportDetails{}
+	if !d.IsEmpty() {
+		t.Fatal("expected empty ReportID details to be empty")
+	}
+}
+
+func TestRolloutReportDetails_IsEmpty_HasReportID(t *testing.T) {
+	t.Parallel()
+	d := &RolloutReportDetails{ReportID: "r1"}
+	if d.IsEmpty() {
+		t.Fatal("expected details with ReportID to not be empty")
+	}
+}
+
+func TestApplyRolloutReportSurfaceSection_Nil(t *testing.T) {
+	t.Parallel()
+	ApplyRolloutReportSurfaceSection(nil, RolloutReportSurfaceSection{
+		Mode: "shadow",
+	})
+}
+
+func TestApplyRolloutReportApprovalSection_Nil(t *testing.T) {
+	t.Parallel()
+	ApplyRolloutReportApprovalSection(nil, RolloutReportApproval{})
+}
+
+func TestApplyRolloutReportGuardedSection_Nil(t *testing.T) {
+	t.Parallel()
+	ApplyRolloutReportGuardedSection(nil, RolloutReportGuarded{})
+}

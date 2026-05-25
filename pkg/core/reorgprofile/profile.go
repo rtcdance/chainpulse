@@ -25,16 +25,20 @@ type ChainReorgProfile struct {
 var MainnetReorgProfile = ChainReorgProfile{
 	ChainID: 1, Name: "Ethereum Mainnet", MaxExpectedDepth: 64, ShallowThreshold: 4, DeepThreshold: 64,
 }
+
 var BSReorgProfile = ChainReorgProfile{
 	ChainID: 56, Name: "BSC", MaxExpectedDepth: 20, ShallowThreshold: 5, DeepThreshold: 15,
 }
+
 var PolygonReorgProfile = ChainReorgProfile{
 	ChainID: 137, Name: "Polygon", MaxExpectedDepth: 128, ShallowThreshold: 10, DeepThreshold: 64,
 }
+
 var ArbitrumReorgProfile = ChainReorgProfile{
 	ChainID: 42161, Name: "Arbitrum One", MaxExpectedDepth: 0, ShallowThreshold: 0, DeepThreshold: 0,
 	IsL2: true, L2SequencerFinality: true,
 }
+
 var OptimismReorgProfile = ChainReorgProfile{
 	ChainID: 10, Name: "Optimism", MaxExpectedDepth: 5, ShallowThreshold: 2, DeepThreshold: 5, IsL2: true,
 }

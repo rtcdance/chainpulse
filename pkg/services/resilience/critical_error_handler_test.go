@@ -491,3 +491,18 @@ func TestCriticalErrorHandler_ConcurrentOperations(t *testing.T) {
 	}
 	close(done)
 }
+
+func TestDefaultDataCorruptionDetector_DetectCorruption(t *testing.T) {
+	t.Parallel()
+	detector := NewDefaultDataCorruptionDetector()
+
+	err := detector.DetectCorruption(context.Background(), nil)
+	if err == nil {
+		t.Fatal("expected error for nil data")
+	}
+
+	err = detector.DetectCorruption(context.Background(), "valid data")
+	if err != nil {
+		t.Fatalf("unexpected error for valid data: %v", err)
+	}
+}

@@ -137,9 +137,11 @@ type KZGVerifier interface {
 
 type SizeOnlyKZGVerifier struct{}
 
-const KZGCommitmentSize = 48
-const KZGProofSize = 48
-const BlobSize = 131072
+const (
+	KZGCommitmentSize = 48
+	KZGProofSize      = 48
+	BlobSize          = 131072
+)
 
 func (d *SizeOnlyKZGVerifier) VerifyBlobProof(commitment []byte, proof []byte, blob []byte) error {
 	if len(commitment) != KZGCommitmentSize {

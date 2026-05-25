@@ -567,3 +567,23 @@ func TestPermissionMatching(t *testing.T) {
 	// Test full wildcard
 	assert.True(t, checker.CheckPermission([]string{"*"}, []string{"anything:anything"}))
 }
+
+func TestRBACChecker_RegisterDefaultRoles(t *testing.T) {
+	t.Parallel()
+
+	logger := &MockLogger{}
+	metrics := NewMockMetricsCollector()
+	checker := NewRBACChecker(logger, metrics)
+
+	err := checker.RegisterDefaultRoles()
+	require.NoError(t, err)
+
+	adminPerms := checker.GetRolePermissions("admin")
+	assert.Equal(t, []string{"*"}, adminPerms)
+
+	operatorPerms := checker.GetRolePermissions("operator")
+	assert.Contains(t, operatorPerms, "events:*")
+
+	viewerPerms := checker.GetRolePermissions("viewer")
+	assert.Contains(t, viewerPerms, "events:read")
+}

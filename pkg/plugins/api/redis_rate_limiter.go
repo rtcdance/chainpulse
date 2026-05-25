@@ -196,10 +196,10 @@ func (rl *RedisRateLimiter) checkSlidingWindow(ctx context.Context, namespace, k
 		maxRequests = 1
 	}
 
-	result, err := slidingWindowLua.Run(ctx, rl.client, []string{currentKey, previousKey},
+	result, err := slidingWindowLua.Run(
+		ctx, rl.client, []string{currentKey, previousKey},
 		windowMs, nowMs, maxRequests,
 	).Int64()
-
 	if err != nil {
 		rl.metrics.RecordCounter("rate_limit_redis_error", 1, nil)
 		rl.logger.Warn("Redis rate limit check failed, falling back to in-memory limiter", "error", err.Error())

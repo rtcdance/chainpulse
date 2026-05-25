@@ -60,7 +60,6 @@ func requirePostgres(t *testing.T) {
 	t.Helper()
 	if os.Getenv("DATABASE_URL") == "" {
 		t.Skip("set DATABASE_URL (e.g. postgres://localhost:5432/chainpulse_test) to run this test")
-
 	}
 }
 

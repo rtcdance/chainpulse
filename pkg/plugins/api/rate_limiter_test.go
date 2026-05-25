@@ -13,6 +13,31 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestRateLimitMiddleware_SetTrustedProxies(t *testing.T) {
+	t.Parallel()
+
+	logger := &MockLogger{}
+	config := &RateLimitConfig{
+		DefaultRequestsPerSecond: 100.0,
+		DefaultBurstSize:         10,
+	}
+	limiter := NewRateLimiter(logger, NewMockMetricsCollector(), config)
+	middleware := NewRateLimitMiddleware(limiter, logger)
+
+	proxies := []string{"10.0.0.1", "10.0.0.2"}
+	middleware.SetTrustedProxies(proxies)
+
+	if len(middleware.trustedProxies) != 2 {
+		t.Errorf("expected 2 trusted proxies, got %d", len(middleware.trustedProxies))
+	}
+	if !middleware.trustedProxies["10.0.0.1"] {
+		t.Error("expected 10.0.0.1 to be trusted")
+	}
+	if !limiter.trustedProxies["10.0.0.1"] {
+		t.Error("expected limiter to also have trusted proxies set")
+	}
+}
+
 // TestNewRateLimiter tests rate limiter initialization
 func TestNewRateLimiter(t *testing.T) {
 	t.Parallel()
@@ -227,16 +252,16 @@ func TestRateLimiterGetStats(t *testing.T) {
 func TestGetClientIP(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		name     string
-		headers  map[string]string
-		remoteIP string
-		expected string
+		name           string
+		headers        map[string]string
+		remoteIP       string
+		trustedProxies map[string]bool
+		expected       string
 	}{
 		{
-			name:     "X-Forwarded-For",
+			name:     "X-Forwarded-For without trusted proxies",
 			headers:  map[string]string{"X-Forwarded-For": "192.168.1.1, 10.0.0.1"},
 			remoteIP: "127.0.0.1:8080",
-			// Without trustedProxies, X-Forwarded-For is ignored; falls back to RemoteAddr
 			expected: "127.0.0.1",
 		},
 		{
@@ -251,6 +276,20 @@ func TestGetClientIP(t *testing.T) {
 			remoteIP: "192.168.1.3:8080",
 			expected: "192.168.1.3",
 		},
+		{
+			name:           "X-Forwarded-For with trusted proxy",
+			headers:        map[string]string{"X-Forwarded-For": "10.0.0.1, 172.16.0.1"},
+			remoteIP:       "127.0.0.1:8080",
+			trustedProxies: map[string]bool{"127.0.0.1": true},
+			expected:       "10.0.0.1",
+		},
+		{
+			name:           "Trusted proxy no X-Forwarded-For falls back to X-Real-IP",
+			headers:        map[string]string{"X-Real-IP": "192.168.2.1"},
+			remoteIP:       "127.0.0.1:8080",
+			trustedProxies: map[string]bool{"127.0.0.1": true},
+			expected:       "192.168.2.1",
+		},
 	}
 
 	for _, tt := range tests {
@@ -262,7 +301,7 @@ func TestGetClientIP(t *testing.T) {
 				req.Header.Set(key, value)
 			}
 
-			ip := getClientIP(req, nil)
+			ip := getClientIP(req, tt.trustedProxies)
 			assert.Equal(t, tt.expected, ip)
 		})
 	}
@@ -270,26 +309,20 @@ func TestGetClientIP(t *testing.T) {
 
 // TestExtractClientID tests extracting client ID
 func TestExtractClientID(t *testing.T) {
-	t.Skip("regression: pre-existing failure")
 	t.Parallel()
 	tests := []struct {
 		name     string
-		headers  map[string]string
+		clientID string
 		expected string
 	}{
 		{
-			name:     "Authorization header",
-			headers:  map[string]string{"Authorization": "Bearer token123"},
-			expected: "Bearer token123",
+			name:     "client ID in context",
+			clientID: "client-abc-123",
+			expected: "client-abc-123",
 		},
 		{
-			name:     "X-API-Key header",
-			headers:  map[string]string{"X-API-Key": "api-key-123"},
-			expected: "api-key-123",
-		},
-		{
-			name:     "No headers",
-			headers:  map[string]string{},
+			name:     "no client ID in context",
+			clientID: "",
 			expected: "",
 		},
 	}
@@ -297,9 +330,9 @@ func TestExtractClientID(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			req := httptest.NewRequest("GET", "/test", nil)
-
-			for key, value := range tt.headers {
-				req.Header.Set(key, value)
+			if tt.clientID != "" {
+				ctx := context.WithValue(req.Context(), "clientID", tt.clientID)
+				req = req.WithContext(ctx)
 			}
 
 			clientID := extractClientID(req)
@@ -668,4 +701,29 @@ func TestBurstSizeFromRequestsPerMinute(t *testing.T) {
 	assert.Equal(t, 10, BurstSizeFromRequestsPerMinute(1))
 	assert.Equal(t, 10, BurstSizeFromRequestsPerMinute(42))
 	assert.Equal(t, 20, BurstSizeFromRequestsPerMinute(120))
+}
+
+func TestRateLimiter_SetTrustedProxies(t *testing.T) {
+	t.Parallel()
+
+	logger := &MockLogger{}
+	metrics := NewMockMetricsCollector()
+	config := &RateLimitConfig{
+		DefaultRequestsPerSecond: 100.0,
+		DefaultBurstSize:         10,
+		CleanupInterval:          5 * time.Minute,
+	}
+	limiter := NewRateLimiter(logger, metrics, config)
+
+	proxies := []string{"10.0.0.1", "10.0.0.2"}
+	limiter.SetTrustedProxies(proxies)
+
+	limiter.mu.RLock()
+	defer limiter.mu.RUnlock()
+	if len(limiter.trustedProxies) != 2 {
+		t.Errorf("expected 2 trusted proxies, got %d", len(limiter.trustedProxies))
+	}
+	if !limiter.trustedProxies["10.0.0.1"] {
+		t.Error("expected 10.0.0.1 to be trusted")
+	}
 }

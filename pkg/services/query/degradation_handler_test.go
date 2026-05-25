@@ -398,3 +398,515 @@ func TestDegradationHandlerTimeout(t *testing.T) {
 		t.Errorf("Expected no error, got %v", err)
 	}
 }
+
+func TestDegradationModeString(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		mode     DegradationMode
+		expected string
+	}{
+		{DegradationModeNormal, "Normal"},
+		{DegradationModeMongoDBAnavailable, "MongoDBUnavailable"},
+		{DegradationModePostgreSQLUnavailable, "PostgreSQLUnavailable"},
+		{DegradationModeBothUnavailable, "BothUnavailable"},
+		{DegradationModeCacheUnavailable, "CacheUnavailable"},
+		{DegradationModeReadOnly, "ReadOnly"},
+		{DegradationMode(99), "Unknown"},
+	}
+
+	for _, tt := range tests {
+		if got := tt.mode.String(); got != tt.expected {
+			t.Errorf("DegradationMode(%d).String() = %q, want %q", tt.mode, got, tt.expected)
+		}
+	}
+}
+
+func TestCacheOnlyStrategy(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Name", func(t *testing.T) {
+		t.Parallel()
+		s := NewCacheOnlyStrategy(nil)
+		if s.Name() != "CacheOnly" {
+			t.Errorf("Expected CacheOnly, got %s", s.Name())
+		}
+	})
+
+	t.Run("CanRetrieveEvent nil", func(t *testing.T) {
+		t.Parallel()
+		s := NewCacheOnlyStrategy(nil)
+		if s.CanRetrieveEvent(context.Background()) {
+			t.Error("Expected false with nil cache")
+		}
+	})
+
+	t.Run("CanRetrieveEvent non-nil", func(t *testing.T) {
+		t.Parallel()
+		s := NewCacheOnlyStrategy(&MockCacheService{healthy: true})
+		if !s.CanRetrieveEvent(context.Background()) {
+			t.Error("Expected true with non-nil cache")
+		}
+	})
+
+	t.Run("CanRetrieveMetadata", func(t *testing.T) {
+		t.Parallel()
+		s := NewCacheOnlyStrategy(nil)
+		if s.CanRetrieveMetadata(context.Background()) {
+			t.Error("Expected false")
+		}
+	})
+
+	t.Run("CanWrite", func(t *testing.T) {
+		t.Parallel()
+		s := NewCacheOnlyStrategy(nil)
+		if s.CanWrite(context.Background()) {
+			t.Error("Expected false")
+		}
+	})
+}
+
+func TestMongoDBOnlyStrategy(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Name", func(t *testing.T) {
+		t.Parallel()
+		s := NewMongoDBOnlyStrategy(nil)
+		if s.Name() != "MongoDBOnly" {
+			t.Errorf("Expected MongoDBOnly, got %s", s.Name())
+		}
+	})
+
+	t.Run("CanRetrieveEvent nil", func(t *testing.T) {
+		t.Parallel()
+		s := NewMongoDBOnlyStrategy(nil)
+		if s.CanRetrieveEvent(context.Background()) {
+			t.Error("Expected false with nil store")
+		}
+	})
+
+	t.Run("CanRetrieveEvent non-nil", func(t *testing.T) {
+		t.Parallel()
+		s := NewMongoDBOnlyStrategy(&mockEventStoreDegradation{healthy: true})
+		if !s.CanRetrieveEvent(context.Background()) {
+			t.Error("Expected true with non-nil store")
+		}
+	})
+
+	t.Run("CanRetrieveMetadata", func(t *testing.T) {
+		t.Parallel()
+		s := NewMongoDBOnlyStrategy(nil)
+		if s.CanRetrieveMetadata(context.Background()) {
+			t.Error("Expected false")
+		}
+	})
+
+	t.Run("CanWrite nil", func(t *testing.T) {
+		t.Parallel()
+		s := NewMongoDBOnlyStrategy(nil)
+		if s.CanWrite(context.Background()) {
+			t.Error("Expected false with nil store")
+		}
+	})
+
+	t.Run("CanWrite non-nil", func(t *testing.T) {
+		t.Parallel()
+		s := NewMongoDBOnlyStrategy(&mockEventStoreDegradation{healthy: true})
+		if !s.CanWrite(context.Background()) {
+			t.Error("Expected true with non-nil store")
+		}
+	})
+}
+
+func TestPostgreSQLOnlyStrategy(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Name", func(t *testing.T) {
+		t.Parallel()
+		s := NewPostgreSQLOnlyStrategy(nil, nil)
+		if s.Name() != "PostgreSQLOnly" {
+			t.Errorf("Expected PostgreSQLOnly, got %s", s.Name())
+		}
+	})
+
+	t.Run("CanRetrieveEvent nil cache", func(t *testing.T) {
+		t.Parallel()
+		s := NewPostgreSQLOnlyStrategy(nil, nil)
+		if s.CanRetrieveEvent(context.Background()) {
+			t.Error("Expected false with nil cache")
+		}
+	})
+
+	t.Run("CanRetrieveEvent non-nil cache", func(t *testing.T) {
+		t.Parallel()
+		s := NewPostgreSQLOnlyStrategy(nil, &MockCacheService{healthy: true})
+		if !s.CanRetrieveEvent(context.Background()) {
+			t.Error("Expected true with non-nil cache")
+		}
+	})
+
+	t.Run("CanRetrieveMetadata nil", func(t *testing.T) {
+		t.Parallel()
+		s := NewPostgreSQLOnlyStrategy(nil, nil)
+		if s.CanRetrieveMetadata(context.Background()) {
+			t.Error("Expected false with nil metadata store")
+		}
+	})
+
+	t.Run("CanRetrieveMetadata non-nil", func(t *testing.T) {
+		t.Parallel()
+		s := NewPostgreSQLOnlyStrategy(&mockMetadataStoreDegradation{healthy: true}, nil)
+		if !s.CanRetrieveMetadata(context.Background()) {
+			t.Error("Expected true with non-nil metadata store")
+		}
+	})
+
+	t.Run("CanWrite nil", func(t *testing.T) {
+		t.Parallel()
+		s := NewPostgreSQLOnlyStrategy(nil, nil)
+		if s.CanWrite(context.Background()) {
+			t.Error("Expected false with nil metadata store")
+		}
+	})
+
+	t.Run("CanWrite non-nil", func(t *testing.T) {
+		t.Parallel()
+		s := NewPostgreSQLOnlyStrategy(&mockMetadataStoreDegradation{healthy: true}, nil)
+		if !s.CanWrite(context.Background()) {
+			t.Error("Expected true with non-nil metadata store")
+		}
+	})
+}
+
+func TestHybridStrategy(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Name", func(t *testing.T) {
+		t.Parallel()
+		s := NewHybridStrategy(nil, nil, nil)
+		if s.Name() != "Hybrid" {
+			t.Errorf("Expected Hybrid, got %s", s.Name())
+		}
+	})
+
+	t.Run("CanRetrieveEvent all nil", func(t *testing.T) {
+		t.Parallel()
+		s := NewHybridStrategy(nil, nil, nil)
+		if s.CanRetrieveEvent(context.Background()) {
+			t.Error("Expected false with all nil")
+		}
+	})
+
+	t.Run("CanRetrieveEvent with event store", func(t *testing.T) {
+		t.Parallel()
+		s := NewHybridStrategy(&mockEventStoreDegradation{healthy: true}, nil, nil)
+		if !s.CanRetrieveEvent(context.Background()) {
+			t.Error("Expected true with event store")
+		}
+	})
+
+	t.Run("CanRetrieveEvent with cache", func(t *testing.T) {
+		t.Parallel()
+		s := NewHybridStrategy(nil, nil, &MockCacheService{healthy: true})
+		if !s.CanRetrieveEvent(context.Background()) {
+			t.Error("Expected true with cache service")
+		}
+	})
+
+	t.Run("CanRetrieveMetadata nil", func(t *testing.T) {
+		t.Parallel()
+		s := NewHybridStrategy(nil, nil, nil)
+		if s.CanRetrieveMetadata(context.Background()) {
+			t.Error("Expected false with nil metadata store")
+		}
+	})
+
+	t.Run("CanRetrieveMetadata non-nil", func(t *testing.T) {
+		t.Parallel()
+		s := NewHybridStrategy(nil, &mockMetadataStoreDegradation{healthy: true}, nil)
+		if !s.CanRetrieveMetadata(context.Background()) {
+			t.Error("Expected true with non-nil metadata store")
+		}
+	})
+
+	t.Run("CanWrite all nil", func(t *testing.T) {
+		t.Parallel()
+		s := NewHybridStrategy(nil, nil, nil)
+		if s.CanWrite(context.Background()) {
+			t.Error("Expected false with all nil")
+		}
+	})
+
+	t.Run("CanWrite with event store", func(t *testing.T) {
+		t.Parallel()
+		s := NewHybridStrategy(&mockEventStoreDegradation{healthy: true}, nil, nil)
+		if !s.CanWrite(context.Background()) {
+			t.Error("Expected true with event store")
+		}
+	})
+
+	t.Run("CanWrite with metadata store", func(t *testing.T) {
+		t.Parallel()
+		s := NewHybridStrategy(nil, &mockMetadataStoreDegradation{healthy: true}, nil)
+		if !s.CanWrite(context.Background()) {
+			t.Error("Expected true with metadata store")
+		}
+	})
+}
+
+func TestReadOnlyStrategy(t *testing.T) {
+	t.Parallel()
+
+	s := NewReadOnlyStrategy()
+
+	if s.Name() != "ReadOnly" {
+		t.Errorf("Expected ReadOnly, got %s", s.Name())
+	}
+
+	if s.CanRetrieveEvent(context.Background()) {
+		t.Error("Expected false for CanRetrieveEvent")
+	}
+
+	if s.CanRetrieveMetadata(context.Background()) {
+		t.Error("Expected false for CanRetrieveMetadata")
+	}
+
+	if s.CanWrite(context.Background()) {
+		t.Error("Expected false for CanWrite")
+	}
+}
+
+func TestSelectStrategy(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name            string
+		mongoHealthy    bool
+		postgresHealthy bool
+		cacheHealthy    bool
+		expectedName    string
+	}{
+		{"Normal", true, true, true, "Hybrid"},
+		{"MongoDBUnavailable", false, true, true, "PostgreSQLOnly"},
+		{"PostgreSQLUnavailable", true, false, true, "MongoDBOnly"},
+		{"BothUnavailable", false, false, true, "CacheOnly"},
+		{"CacheUnavailable", true, true, false, "Hybrid"},
+		{"ReadOnly", false, false, false, "ReadOnly"},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := context.Background()
+			eventStore := &mockEventStoreDegradation{healthy: tt.mongoHealthy}
+			metadataStore := &mockMetadataStoreDegradation{healthy: tt.postgresHealthy}
+			cacheService := &MockCacheService{healthy: tt.cacheHealthy}
+			logger := &MockLogger{}
+			metrics := NewMockMetricsCollector()
+
+			handler := NewDegradationHandler(eventStore, metadataStore, cacheService, logger, metrics)
+			_ = handler.Initialize(ctx)
+
+			strategy := handler.SelectStrategy(ctx)
+			if strategy.Name() != tt.expectedName {
+				t.Errorf("Expected strategy %s, got %s", tt.expectedName, strategy.Name())
+			}
+		})
+	}
+}
+
+func TestDegradationHandlerUninitializedMode(t *testing.T) {
+	t.Parallel()
+
+	eventStore := &mockEventStoreDegradation{healthy: true}
+	metadataStore := &mockMetadataStoreDegradation{healthy: true}
+	cacheService := &MockCacheService{healthy: true}
+	logger := &MockLogger{}
+	metrics := NewMockMetricsCollector()
+
+	handler := NewDegradationHandler(eventStore, metadataStore, cacheService, logger, metrics)
+	// Don't initialize
+
+	mode := handler.GetDegradationMode(context.Background())
+	if mode != DegradationModeReadOnly {
+		t.Errorf("Expected DegradationModeReadOnly for uninitialized handler, got %v", mode)
+	}
+}
+
+func TestDegradationHandlerClose(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	eventStore := &mockEventStoreDegradation{healthy: true}
+	metadataStore := &mockMetadataStoreDegradation{healthy: true}
+	cacheService := &MockCacheService{healthy: true}
+	logger := &MockLogger{}
+	metrics := NewMockMetricsCollector()
+
+	handler := NewDegradationHandler(eventStore, metadataStore, cacheService, logger, metrics)
+	_ = handler.Initialize(ctx)
+
+	if err := handler.Close(ctx); err != nil {
+		t.Errorf("Expected no error on close, got %v", err)
+	}
+
+	mode := handler.GetDegradationMode(ctx)
+	if mode != DegradationModeReadOnly {
+		t.Errorf("Expected DegradationModeReadOnly after close, got %v", mode)
+	}
+}
+
+func TestDegradationHandlerHealth(t *testing.T) {
+	t.Parallel()
+
+	t.Run("uninitialized", func(t *testing.T) {
+		t.Parallel()
+		ctx := context.Background()
+		handler := NewDegradationHandler(nil, nil, nil, &MockLogger{}, NewMockMetricsCollector())
+		health := handler.Health(ctx)
+		if health.Status != "unhealthy" {
+			t.Errorf("Expected unhealthy, got %s", health.Status)
+		}
+	})
+
+	t.Run("healthy", func(t *testing.T) {
+		t.Parallel()
+		ctx := context.Background()
+		eventStore := &mockEventStoreDegradation{healthy: true}
+		metadataStore := &mockMetadataStoreDegradation{healthy: true}
+		cacheService := &MockCacheService{healthy: true}
+		handler := NewDegradationHandler(eventStore, metadataStore, cacheService, &MockLogger{}, NewMockMetricsCollector())
+		_ = handler.Initialize(ctx)
+		health := handler.Health(ctx)
+		if health.Status != "healthy" {
+			t.Errorf("Expected healthy, got %s", health.Status)
+		}
+	})
+
+	t.Run("readonly", func(t *testing.T) {
+		t.Parallel()
+		ctx := context.Background()
+		eventStore := &mockEventStoreDegradation{healthy: false}
+		metadataStore := &mockMetadataStoreDegradation{healthy: false}
+		cacheService := &MockCacheService{healthy: false}
+		handler := NewDegradationHandler(eventStore, metadataStore, cacheService, &MockLogger{}, NewMockMetricsCollector())
+		_ = handler.Initialize(ctx)
+		health := handler.Health(ctx)
+		if health.Status != "unhealthy" {
+			t.Errorf("Expected unhealthy, got %s", health.Status)
+		}
+	})
+
+	t.Run("degraded", func(t *testing.T) {
+		t.Parallel()
+		ctx := context.Background()
+		eventStore := &mockEventStoreDegradation{healthy: false}
+		metadataStore := &mockMetadataStoreDegradation{healthy: true}
+		cacheService := &MockCacheService{healthy: true}
+		handler := NewDegradationHandler(eventStore, metadataStore, cacheService, &MockLogger{}, NewMockMetricsCollector())
+		_ = handler.Initialize(ctx)
+		health := handler.Health(ctx)
+		if health.Status != "degraded" {
+			t.Errorf("Expected degraded, got %s", health.Status)
+		}
+	})
+}
+
+func TestCanUseMongoDB(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+
+	t.Run("nil event store", func(t *testing.T) {
+		t.Parallel()
+		handler := NewDegradationHandler(nil, nil, nil, &MockLogger{}, NewMockMetricsCollector())
+		_ = handler.Initialize(ctx)
+		if handler.CanUseMongoDB(ctx) {
+			t.Error("Expected false with nil event store")
+		}
+	})
+
+	t.Run("unhealthy event store", func(t *testing.T) {
+		t.Parallel()
+		handler := NewDegradationHandler(&mockEventStoreDegradation{healthy: false}, nil, nil, &MockLogger{}, NewMockMetricsCollector())
+		_ = handler.Initialize(ctx)
+		if handler.CanUseMongoDB(ctx) {
+			t.Error("Expected false with unhealthy event store")
+		}
+	})
+
+	t.Run("healthy event store", func(t *testing.T) {
+		t.Parallel()
+		handler := NewDegradationHandler(&mockEventStoreDegradation{healthy: true}, nil, nil, &MockLogger{}, NewMockMetricsCollector())
+		_ = handler.Initialize(ctx)
+		if !handler.CanUseMongoDB(ctx) {
+			t.Error("Expected true with healthy event store")
+		}
+	})
+}
+
+func TestCanUsePostgreSQL(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+
+	t.Run("nil metadata store", func(t *testing.T) {
+		t.Parallel()
+		handler := NewDegradationHandler(nil, nil, nil, &MockLogger{}, NewMockMetricsCollector())
+		_ = handler.Initialize(ctx)
+		if handler.CanUsePostgreSQL(ctx) {
+			t.Error("Expected false with nil metadata store")
+		}
+	})
+
+	t.Run("unhealthy metadata store", func(t *testing.T) {
+		t.Parallel()
+		handler := NewDegradationHandler(nil, &mockMetadataStoreDegradation{healthy: false}, nil, &MockLogger{}, NewMockMetricsCollector())
+		_ = handler.Initialize(ctx)
+		if handler.CanUsePostgreSQL(ctx) {
+			t.Error("Expected false with unhealthy metadata store")
+		}
+	})
+
+	t.Run("healthy metadata store", func(t *testing.T) {
+		t.Parallel()
+		handler := NewDegradationHandler(nil, &mockMetadataStoreDegradation{healthy: true}, nil, &MockLogger{}, NewMockMetricsCollector())
+		_ = handler.Initialize(ctx)
+		if !handler.CanUsePostgreSQL(ctx) {
+			t.Error("Expected true with healthy metadata store")
+		}
+	})
+}
+
+func TestCanUseCache(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+
+	t.Run("nil cache service", func(t *testing.T) {
+		t.Parallel()
+		handler := NewDegradationHandler(nil, nil, nil, &MockLogger{}, NewMockMetricsCollector())
+		_ = handler.Initialize(ctx)
+		if handler.CanUseCache(ctx) {
+			t.Error("Expected false with nil cache service")
+		}
+	})
+
+	t.Run("unhealthy cache service", func(t *testing.T) {
+		t.Parallel()
+		handler := NewDegradationHandler(nil, nil, &MockCacheService{healthy: false}, &MockLogger{}, NewMockMetricsCollector())
+		_ = handler.Initialize(ctx)
+		if handler.CanUseCache(ctx) {
+			t.Error("Expected false with unhealthy cache")
+		}
+	})
+
+	t.Run("healthy cache service", func(t *testing.T) {
+		t.Parallel()
+		handler := NewDegradationHandler(nil, nil, &MockCacheService{healthy: true}, &MockLogger{}, NewMockMetricsCollector())
+		_ = handler.Initialize(ctx)
+		if !handler.CanUseCache(ctx) {
+			t.Error("Expected true with healthy cache")
+		}
+	})
+}

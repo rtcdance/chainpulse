@@ -103,6 +103,16 @@ func TestHTTPRequestContext(t *testing.T) {
 	}
 }
 
+func TestHTTPRequestPathParam(t *testing.T) {
+	t.Parallel()
+	req, _ := http.NewRequest("GET", "/api/users/123", nil)
+	httpReq := NewHTTPRequest(req)
+
+	if httpReq.PathParam("id") != "" {
+		t.Error("expected empty path param")
+	}
+}
+
 func TestHTTPRequestQuery(t *testing.T) {
 	t.Parallel()
 	req, _ := http.NewRequest("GET", "/api/users?page=1&limit=10", nil)

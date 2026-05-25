@@ -131,6 +131,14 @@ func TestBaseRequestQueryParams(t *testing.T) {
 	if req.QueryParam("non-existent") != "" {
 		t.Error("expected empty string for non-existent param")
 	}
+
+	query := req.Query()
+	if len(query) != 2 {
+		t.Errorf("expected 2 query params, got %d", len(query))
+	}
+	if query["page"] != "1" {
+		t.Error("expected page=1 in Query()")
+	}
 }
 
 func TestBaseRequestPathParams(t *testing.T) {

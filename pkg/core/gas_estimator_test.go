@@ -536,6 +536,22 @@ func TestBlobCountFromGas(t *testing.T) {
 	}
 }
 
+func TestTransientStorageGasCost(t *testing.T) {
+	t.Parallel()
+	cost := TransientStorageGasCost(5, 3)
+	if cost == 0 {
+		t.Error("expected non-zero gas cost")
+	}
+}
+
+func TestTransientVsPermanentSavings(t *testing.T) {
+	t.Parallel()
+	savings := TransientVsPermanentSavings(10, 5, 3)
+	if savings == 0 {
+		t.Error("expected non-zero savings")
+	}
+}
+
 // --- EIP-2930 Access List Gas Tests ---
 
 func TestAccessListGasCost(t *testing.T) {

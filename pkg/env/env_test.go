@@ -91,6 +91,20 @@ func TestGetUint64(t *testing.T) {
 		t.Fatalf("expected default for negative, got %d", val)
 	}
 	os.Unsetenv("TEST_UINT64")
+
+	os.Setenv("CHAINPULSE_TEST_UINT64", "42")
+	val = GetUint64("TEST_UINT64", 999)
+	if val != 42 {
+		t.Fatalf("expected 42 from prefix, got %d", val)
+	}
+	os.Unsetenv("CHAINPULSE_TEST_UINT64")
+
+	os.Setenv("CHAINPULSE_TEST_UINT64", "not-a-number")
+	val = GetUint64("TEST_UINT64", 999)
+	if val != 999 {
+		t.Fatalf("expected default for invalid prefix value, got %d", val)
+	}
+	os.Unsetenv("CHAINPULSE_TEST_UINT64")
 }
 
 func TestGetBool(t *testing.T) {

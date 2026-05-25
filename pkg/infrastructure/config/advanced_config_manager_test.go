@@ -8,12 +8,13 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// TestAdvancedConfigurationServiceNew tests creating a new configuration service
-func TestAdvancedConfigurationServiceNew(t *testing.T) {
-	t.Skip("regression: pre-existing failure")
-	t.Parallel()
-	cm := &ConfigManager{}
+func newTestConfigManager() *ConfigManager {
+	return NewConfigManager(NewMockConsulClient(), generateTestEncryptionKey())
+}
 
+func TestNewConfigurationService(t *testing.T) {
+	t.Parallel()
+	cm := newTestConfigManager()
 	service := NewConfigurationService(cm)
 
 	assert.NotNil(t, service)
@@ -23,77 +24,234 @@ func TestAdvancedConfigurationServiceNew(t *testing.T) {
 	assert.NotNil(t, service.updateHooks)
 }
 
-// TestAdvancedRegisterValidator tests registering a validator
-func TestAdvancedRegisterValidator(t *testing.T) {
-	t.Skip("regression: pre-existing failure")
+func TestConfigurationService_RegisterValidator(t *testing.T) {
 	t.Parallel()
-	cm := &ConfigManager{}
+	cm := newTestConfigManager()
 	service := NewConfigurationService(cm)
 
-	validator := func(key, value string) error {
-		return nil
-	}
-
+	validator := func(key, value string) error { return nil }
 	service.RegisterValidator("test-key", validator)
 
 	assert.NotNil(t, service.validators["test-key"])
 }
 
-// TestAdvancedRegisterUpdateHook tests registering an update hook
-func TestAdvancedRegisterUpdateHook(t *testing.T) {
-	t.Skip("regression: pre-existing failure")
+func TestConfigurationService_RegisterUpdateHook(t *testing.T) {
 	t.Parallel()
-	cm := &ConfigManager{}
+	cm := newTestConfigManager()
 	service := NewConfigurationService(cm)
 
-	hook := func(key, oldValue, newValue string) error {
-		return nil
-	}
-
+	hook := func(key, oldValue, newValue string) error { return nil }
 	service.RegisterUpdateHook("test-key", hook)
 
 	assert.Equal(t, 1, len(service.updateHooks["test-key"]))
 }
 
-// TestAdvancedSetConfigWithValidationFailure tests validation failure
-func TestAdvancedSetConfigWithValidationFailure(t *testing.T) {
-	t.Skip("regression: pre-existing failure")
+func TestConfigurationService_GetConfig(t *testing.T) {
 	t.Parallel()
-	cm := &ConfigManager{}
+	consul := NewMockConsulClient()
+	_ = consul.SetConfig(context.Background(), "test-key", "test-value")
+	cm := NewConfigManager(consul, generateTestEncryptionKey())
 	service := NewConfigurationService(cm)
 
-	validator := func(key, value string) error {
-		return assert.AnError
-	}
+	val, err := service.GetConfig(context.Background(), "test-key")
+	assert.NoError(t, err)
+	assert.Equal(t, "test-value", val)
+}
 
-	service.RegisterValidator("test-key", validator)
+func TestConfigurationService_SetConfig(t *testing.T) {
+	t.Parallel()
+	cm := newTestConfigManager()
+	service := NewConfigurationService(cm)
 
-	// Verify validator is registered
-	service.validatorMutex.RLock()
-	v := service.validators["test-key"]
-	service.validatorMutex.RUnlock()
+	err := service.SetConfig(context.Background(), "cfg-key", "cfg-value", "author1")
+	assert.NoError(t, err)
 
-	assert.NotNil(t, v)
-	err := v("test-key", "invalid")
+	val, err := service.GetConfig(context.Background(), "cfg-key")
+	assert.NoError(t, err)
+	assert.Equal(t, "cfg-value", val)
+}
+
+func TestConfigurationService_SetConfigWithValidator(t *testing.T) {
+	t.Parallel()
+	cm := newTestConfigManager()
+	service := NewConfigurationService(cm)
+
+	service.RegisterValidator("validated-key", func(key, value string) error {
+		if value == "bad" {
+			return assert.AnError
+		}
+		return nil
+	})
+
+	err := service.SetConfig(context.Background(), "validated-key", "good", "author")
+	assert.NoError(t, err)
+
+	err = service.SetConfig(context.Background(), "validated-key", "bad", "author")
 	assert.Error(t, err)
 }
 
-// TestAdvancedGetConfigWithDefault tests retrieving config with default
-func TestAdvancedGetConfigWithDefault(t *testing.T) {
-	t.Skip("regression: pre-existing failure")
+func TestConfigurationService_SetConfigWithHook(t *testing.T) {
 	t.Parallel()
-	cm := &ConfigManager{}
+	cm := newTestConfigManager()
 	service := NewConfigurationService(cm)
 
-	// Just verify the service is created properly
-	assert.NotNil(t, service)
+	var hookCalled bool
+	service.RegisterUpdateHook("hook-key", func(key, oldValue, newValue string) error {
+		hookCalled = true
+		assert.Equal(t, "", oldValue)
+		assert.Equal(t, "new-val", newValue)
+		return nil
+	})
+
+	err := service.SetConfig(context.Background(), "hook-key", "new-val", "author")
+	assert.NoError(t, err)
+	assert.True(t, hookCalled)
 }
 
-// TestAdvancedNewConfigurationBuilder tests creating a configuration builder
-func TestAdvancedNewConfigurationBuilder(t *testing.T) {
-	t.Skip("regression: pre-existing failure")
+func TestConfigurationService_SetConfigHookError(t *testing.T) {
 	t.Parallel()
-	cm := &ConfigManager{}
+	cm := newTestConfigManager()
+	service := NewConfigurationService(cm)
+
+	service.RegisterUpdateHook("hook-key", func(key, oldValue, newValue string) error {
+		return assert.AnError
+	})
+
+	err := service.SetConfig(context.Background(), "hook-key", "value", "author")
+	assert.Error(t, err)
+}
+
+func TestConfigurationService_GetConfigWithDefault(t *testing.T) {
+	t.Parallel()
+	cm := newTestConfigManager()
+	service := NewConfigurationService(cm)
+
+	val := service.GetConfigWithDefault(context.Background(), "nonexistent", "default-val")
+	assert.Equal(t, "default-val", val)
+
+	_ = service.SetConfig(context.Background(), "real-key", "real-val", "author")
+	val = service.GetConfigWithDefault(context.Background(), "real-key", "default-val")
+	assert.Equal(t, "real-val", val)
+}
+
+func TestConfigurationService_GetConfigInt(t *testing.T) {
+	t.Parallel()
+	cm := newTestConfigManager()
+	service := NewConfigurationService(cm)
+
+	_ = service.SetConfig(context.Background(), "int-key", "42", "author")
+	val, err := service.GetConfigInt(context.Background(), "int-key")
+	assert.NoError(t, err)
+	assert.Equal(t, 42, val)
+
+	_, err = service.GetConfigInt(context.Background(), "nonexistent")
+	assert.Error(t, err)
+
+	_ = service.SetConfig(context.Background(), "bad-int", "not-a-number", "author")
+	_, err = service.GetConfigInt(context.Background(), "bad-int")
+	assert.Error(t, err)
+}
+
+func TestConfigurationService_GetConfigDuration(t *testing.T) {
+	t.Parallel()
+	cm := newTestConfigManager()
+	service := NewConfigurationService(cm)
+
+	_ = service.SetConfig(context.Background(), "dur-key", "5s", "author")
+	val, err := service.GetConfigDuration(context.Background(), "dur-key")
+	assert.NoError(t, err)
+	assert.Equal(t, 5*time.Second, val)
+
+	_, err = service.GetConfigDuration(context.Background(), "nonexistent")
+	assert.Error(t, err)
+
+	_ = service.SetConfig(context.Background(), "bad-dur", "xyz", "author")
+	_, err = service.GetConfigDuration(context.Background(), "bad-dur")
+	assert.Error(t, err)
+}
+
+func TestConfigurationService_GetConfigBool(t *testing.T) {
+	t.Parallel()
+	cm := newTestConfigManager()
+	service := NewConfigurationService(cm)
+
+	tests := []struct {
+		value    string
+		expected bool
+		err      bool
+	}{
+		{"true", true, false},
+		{"1", true, false},
+		{"yes", true, false},
+		{"on", true, false},
+		{"false", false, false},
+		{"0", false, false},
+		{"no", false, false},
+		{"off", false, false},
+		{"invalid", false, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.value, func(t *testing.T) {
+			svc := NewConfigurationService(newTestConfigManager())
+			_ = svc.SetConfig(context.Background(), "bool-key", tt.value, "author")
+			val, err := svc.GetConfigBool(context.Background(), "bool-key")
+			if tt.err {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tt.expected, val)
+			}
+		})
+	}
+
+	_, err := service.GetConfigBool(context.Background(), "nonexistent")
+	assert.Error(t, err)
+}
+
+func TestConfigurationService_WatchConfig(t *testing.T) {
+	t.Parallel()
+	cm := newTestConfigManager()
+	service := NewConfigurationService(cm)
+
+	err := service.WatchConfig(context.Background(), "watch-key", func(value string) {})
+	assert.NoError(t, err)
+}
+
+func TestConfigurationService_GetConfigHistory(t *testing.T) {
+	t.Parallel()
+	cm := newTestConfigManager()
+	service := NewConfigurationService(cm)
+
+	_ = service.SetConfig(context.Background(), "hist-key", "v1", "author1")
+	_ = service.SetConfig(context.Background(), "hist-key", "v2", "author2")
+
+	history, err := service.GetConfigHistory(context.Background(), "hist-key")
+	assert.NoError(t, err)
+	assert.Equal(t, 2, len(history))
+
+	_, err = service.GetConfigHistory(context.Background(), "nonexistent")
+	assert.Error(t, err)
+}
+
+func TestConfigurationService_RollbackConfig(t *testing.T) {
+	t.Parallel()
+	cm := newTestConfigManager()
+	service := NewConfigurationService(cm)
+
+	_ = service.SetConfig(context.Background(), "rb-key", "v1", "author1")
+	_ = service.SetConfig(context.Background(), "rb-key", "v2", "author2")
+
+	err := service.RollbackConfig(context.Background(), "rb-key", 1, "rollback-author")
+	assert.NoError(t, err)
+
+	val, _ := service.GetConfig(context.Background(), "rb-key")
+	assert.Equal(t, "v1", val)
+}
+
+func TestNewConfigurationBuilder(t *testing.T) {
+	t.Parallel()
+	cm := newTestConfigManager()
 	service := NewConfigurationService(cm)
 	ctx := context.Background()
 
@@ -103,329 +261,140 @@ func TestAdvancedNewConfigurationBuilder(t *testing.T) {
 	assert.Equal(t, service, builder.service)
 	assert.Equal(t, ctx, builder.ctx)
 	assert.Equal(t, "test-author", builder.author)
-	assert.NotNil(t, builder.configs)
 }
 
-// TestAdvancedConfigurationBuilderSet tests setting a configuration value
-func TestAdvancedConfigurationBuilderSet(t *testing.T) {
-	t.Skip("regression: pre-existing failure")
+func TestConfigurationBuilder_Set(t *testing.T) {
 	t.Parallel()
-	cm := &ConfigManager{}
-	service := NewConfigurationService(cm)
-	ctx := context.Background()
-
-	builder := NewConfigurationBuilder(service, ctx, "test-author")
+	builder := NewConfigurationBuilder(nil, context.Background(), "author")
 	result := builder.Set("key1", "value1")
 
 	assert.Equal(t, builder, result)
 	assert.Equal(t, "value1", builder.configs["key1"])
 }
 
-// TestAdvancedConfigurationBuilderSetInt tests setting an integer value
-func TestAdvancedConfigurationBuilderSetInt(t *testing.T) {
-	t.Skip("regression: pre-existing failure")
+func TestConfigurationBuilder_SetInt(t *testing.T) {
 	t.Parallel()
-	cm := &ConfigManager{}
-	service := NewConfigurationService(cm)
-	ctx := context.Background()
-
-	builder := NewConfigurationBuilder(service, ctx, "test-author")
+	builder := NewConfigurationBuilder(nil, context.Background(), "author")
 	result := builder.SetInt("int-key", 42)
 
 	assert.Equal(t, builder, result)
 	assert.Equal(t, "42", builder.configs["int-key"])
 }
 
-// TestAdvancedConfigurationBuilderSetDuration tests setting a duration value
-func TestAdvancedConfigurationBuilderSetDuration(t *testing.T) {
-	t.Skip("regression: pre-existing failure")
+func TestConfigurationBuilder_SetDuration(t *testing.T) {
 	t.Parallel()
-	cm := &ConfigManager{}
-	service := NewConfigurationService(cm)
-	ctx := context.Background()
-
-	builder := NewConfigurationBuilder(service, ctx, "test-author")
-	result := builder.SetDuration("duration-key", 5*time.Second)
+	builder := NewConfigurationBuilder(nil, context.Background(), "author")
+	result := builder.SetDuration("dur-key", 5*time.Second)
 
 	assert.Equal(t, builder, result)
-	assert.Equal(t, "5s", builder.configs["duration-key"])
+	assert.Equal(t, "5s", builder.configs["dur-key"])
 }
 
-// TestAdvancedConfigurationBuilderSetBool tests setting a boolean value
-func TestAdvancedConfigurationBuilderSetBool(t *testing.T) {
-	t.Skip("regression: pre-existing failure")
+func TestConfigurationBuilder_SetBool(t *testing.T) {
 	t.Parallel()
-	cm := &ConfigManager{}
-	service := NewConfigurationService(cm)
-	ctx := context.Background()
-
-	builder := NewConfigurationBuilder(service, ctx, "test-author")
+	builder := NewConfigurationBuilder(nil, context.Background(), "author")
 	result := builder.SetBool("bool-key", true)
-
-	assert.Equal(t, builder, result)
 	assert.Equal(t, "true", builder.configs["bool-key"])
+
+	result = builder.SetBool("bool-key2", false)
+	assert.Equal(t, "false", builder.configs["bool-key2"])
+	_ = result
 }
 
-// TestAdvancedConfigurationBuilderChaining tests method chaining
-func TestAdvancedConfigurationBuilderChaining(t *testing.T) {
-	t.Skip("regression: pre-existing failure")
+func TestConfigurationBuilder_Apply(t *testing.T) {
 	t.Parallel()
-	cm := &ConfigManager{}
+	cm := newTestConfigManager()
 	service := NewConfigurationService(cm)
 	ctx := context.Background()
 
 	builder := NewConfigurationBuilder(service, ctx, "test-author").
-		Set("key1", "value1").
-		SetInt("key2", 42).
-		SetBool("key3", true)
+		Set("k1", "v1").
+		Set("k2", "v2")
 
-	assert.Equal(t, 3, len(builder.configs))
-	assert.Equal(t, "value1", builder.configs["key1"])
-	assert.Equal(t, "42", builder.configs["key2"])
-	assert.Equal(t, "true", builder.configs["key3"])
+	err := builder.Apply()
+	assert.NoError(t, err)
+
+	val1, _ := service.GetConfig(ctx, "k1")
+	val2, _ := service.GetConfig(ctx, "k2")
+	assert.Equal(t, "v1", val1)
+	assert.Equal(t, "v2", val2)
 }
 
-// TestAdvancedMultipleValidators tests registering multiple validators
-func TestAdvancedMultipleValidators(t *testing.T) {
-	t.Skip("regression: pre-existing failure")
+func TestNewConfigurationSnapshotManager(t *testing.T) {
 	t.Parallel()
-	cm := &ConfigManager{}
+	cm := newTestConfigManager()
 	service := NewConfigurationService(cm)
+	csm := NewConfigurationSnapshotManager(service)
 
-	validator1 := func(key, value string) error { return nil }
-	validator2 := func(key, value string) error { return nil }
-
-	service.RegisterValidator("key1", validator1)
-	service.RegisterValidator("key2", validator2)
-
-	assert.Equal(t, 2, len(service.validators))
+	assert.NotNil(t, csm)
+	assert.Equal(t, service, csm.service)
+	assert.NotNil(t, csm.snapshots)
 }
 
-// TestAdvancedMultipleUpdateHooks tests registering multiple update hooks
-func TestAdvancedMultipleUpdateHooks(t *testing.T) {
-	t.Skip("regression: pre-existing failure")
+func TestConfigurationSnapshotManager_CreateAndGetSnapshot(t *testing.T) {
 	t.Parallel()
-	cm := &ConfigManager{}
+	cm := newTestConfigManager()
 	service := NewConfigurationService(cm)
+	_ = service.SetConfig(context.Background(), "snap-k1", "snap-v1", "author")
+	_ = service.SetConfig(context.Background(), "snap-k2", "snap-v2", "author")
 
-	hook1 := func(key, oldValue, newValue string) error { return nil }
-	hook2 := func(key, oldValue, newValue string) error { return nil }
+	csm := NewConfigurationSnapshotManager(service)
+	err := csm.CreateSnapshot(context.Background(), "my-snap", []string{"snap-k1", "snap-k2"})
+	assert.NoError(t, err)
 
-	service.RegisterUpdateHook("key1", hook1)
-	service.RegisterUpdateHook("key1", hook2)
+	snapshot, err := csm.GetSnapshot("my-snap")
+	assert.NoError(t, err)
+	assert.Equal(t, "snap-v1", snapshot.Configs["snap-k1"])
+	assert.Equal(t, "snap-v2", snapshot.Configs["snap-k2"])
 
-	assert.Equal(t, 2, len(service.updateHooks["key1"]))
+	_, err = csm.GetSnapshot("nonexistent")
+	assert.Error(t, err)
 }
 
-// TestAdvancedConcurrentValidatorAccess tests concurrent validator access
-func TestAdvancedConcurrentValidatorAccess(t *testing.T) {
-	t.Skip("regression: pre-existing failure")
+func TestConfigurationSnapshotManager_RestoreSnapshot(t *testing.T) {
 	t.Parallel()
-	cm := &ConfigManager{}
+	cm := newTestConfigManager()
 	service := NewConfigurationService(cm)
+	_ = service.SetConfig(context.Background(), "restore-key", "original", "author")
 
-	done := make(chan bool, 10)
-	for i := 0; i < 10; i++ {
-		go func(index int) {
-			defer func() { done <- true }()
-			validator := func(key, value string) error { return nil }
-			service.RegisterValidator("key"+string(rune(index)), validator)
-		}(i)
-	}
+	csm := NewConfigurationSnapshotManager(service)
+	_ = csm.CreateSnapshot(context.Background(), "restore-snap", []string{"restore-key"})
 
-	for i := 0; i < 10; i++ {
-		<-done
-	}
+	_ = service.SetConfig(context.Background(), "restore-key", "modified", "author")
+	val, _ := service.GetConfig(context.Background(), "restore-key")
+	assert.Equal(t, "modified", val)
 
-	assert.GreaterOrEqual(t, len(service.validators), 1)
+	err := csm.RestoreSnapshot(context.Background(), "restore-snap", "restore-author")
+	assert.NoError(t, err)
+
+	val, _ = service.GetConfig(context.Background(), "restore-key")
+	assert.Equal(t, "original", val)
 }
 
-// TestAdvancedConcurrentUpdateHookAccess tests concurrent update hook access
-func TestAdvancedConcurrentUpdateHookAccess(t *testing.T) {
-	t.Skip("regression: pre-existing failure")
+func TestConfigurationSnapshotManager_ListSnapshots(t *testing.T) {
 	t.Parallel()
-	cm := &ConfigManager{}
+	cm := newTestConfigManager()
 	service := NewConfigurationService(cm)
+	_ = service.SetConfig(context.Background(), "k1", "v1", "author")
 
-	done := make(chan bool, 10)
-	for i := 0; i < 10; i++ {
-		go func(index int) {
-			defer func() { done <- true }()
-			hook := func(key, oldValue, newValue string) error { return nil }
-			service.RegisterUpdateHook("key", hook)
-		}(i)
-	}
+	csm := NewConfigurationSnapshotManager(service)
+	_ = csm.CreateSnapshot(context.Background(), "snap1", []string{"k1"})
+	_ = csm.CreateSnapshot(context.Background(), "snap2", []string{"k1"})
 
-	for i := 0; i < 10; i++ {
-		<-done
-	}
-
-	assert.GreaterOrEqual(t, len(service.updateHooks["key"]), 1)
+	names := csm.ListSnapshots()
+	assert.Equal(t, 2, len(names))
 }
 
-// TestAdvancedGetConfigWithDefaultSuccess tests getting existing config with default
-func TestAdvancedGetConfigWithDefaultSuccess(t *testing.T) {
-	t.Skip("regression: pre-existing failure")
+func TestConfigurationSnapshotManager_DeleteSnapshot(t *testing.T) {
 	t.Parallel()
-	cm := &ConfigManager{}
+	cm := newTestConfigManager()
 	service := NewConfigurationService(cm)
+	_ = service.SetConfig(context.Background(), "k1", "v1", "author")
 
-	// Just verify the service is created properly
-	assert.NotNil(t, service)
-}
+	csm := NewConfigurationSnapshotManager(service)
+	_ = csm.CreateSnapshot(context.Background(), "del-snap", []string{"k1"})
 
-// TestAdvancedConfigurationBuilderMultipleTypes tests builder with multiple types
-func TestAdvancedConfigurationBuilderMultipleTypes(t *testing.T) {
-	t.Skip("regression: pre-existing failure")
-	t.Parallel()
-	cm := &ConfigManager{}
-	service := NewConfigurationService(cm)
-	ctx := context.Background()
-
-	builder := NewConfigurationBuilder(service, ctx, "test-author").
-		Set("string-key", "string-value").
-		SetInt("int-key", 100).
-		SetDuration("duration-key", 10*time.Second).
-		SetBool("bool-key", false)
-
-	assert.Equal(t, "string-value", builder.configs["string-key"])
-	assert.Equal(t, "100", builder.configs["int-key"])
-	assert.Equal(t, "10s", builder.configs["duration-key"])
-	assert.Equal(t, "false", builder.configs["bool-key"])
-}
-
-// TestAdvancedValidatorRegistration tests validator registration and retrieval
-func TestAdvancedValidatorRegistration(t *testing.T) {
-	t.Skip("regression: pre-existing failure")
-	t.Parallel()
-	cm := &ConfigManager{}
-	service := NewConfigurationService(cm)
-
-	called := false
-	validator := func(key, value string) error {
-		called = true
-		return nil
-	}
-
-	service.RegisterValidator("test-key", validator)
-
-	service.validatorMutex.RLock()
-	v := service.validators["test-key"]
-	service.validatorMutex.RUnlock()
-
-	assert.NotNil(t, v)
-	_ = v("test-key", "test-value")
-	assert.True(t, called)
-}
-
-// TestAdvancedUpdateHookRegistration tests update hook registration
-func TestAdvancedUpdateHookRegistration(t *testing.T) {
-	t.Skip("regression: pre-existing failure")
-	t.Parallel()
-	cm := &ConfigManager{}
-	service := NewConfigurationService(cm)
-
-	called := false
-	hook := func(key, oldValue, newValue string) error {
-		called = true
-		return nil
-	}
-
-	service.RegisterUpdateHook("test-key", hook)
-
-	service.hookMutex.RLock()
-	hooks := service.updateHooks["test-key"]
-	service.hookMutex.RUnlock()
-
-	assert.Equal(t, 1, len(hooks))
-	_ = hooks[0]("test-key", "old", "new")
-	assert.True(t, called)
-}
-
-// TestAdvancedBuilderEmptyConfigs tests builder with empty configs
-func TestAdvancedBuilderEmptyConfigs(t *testing.T) {
-	t.Skip("regression: pre-existing failure")
-	t.Parallel()
-	cm := &ConfigManager{}
-	service := NewConfigurationService(cm)
-	ctx := context.Background()
-
-	builder := NewConfigurationBuilder(service, ctx, "test-author")
-
-	assert.Equal(t, 0, len(builder.configs))
-}
-
-// TestAdvancedBuilderSetBoolFalse tests setting boolean to false
-func TestAdvancedBuilderSetBoolFalse(t *testing.T) {
-	t.Skip("regression: pre-existing failure")
-	t.Parallel()
-	cm := &ConfigManager{}
-	service := NewConfigurationService(cm)
-	ctx := context.Background()
-
-	builder := NewConfigurationBuilder(service, ctx, "test-author")
-	result := builder.SetBool("bool-key", false)
-
-	assert.Equal(t, builder, result)
-	assert.Equal(t, "false", builder.configs["bool-key"])
-}
-
-// TestAdvancedBuilderSetZeroInt tests setting integer to zero
-func TestAdvancedBuilderSetZeroInt(t *testing.T) {
-	t.Skip("regression: pre-existing failure")
-	t.Parallel()
-	cm := &ConfigManager{}
-	service := NewConfigurationService(cm)
-	ctx := context.Background()
-
-	builder := NewConfigurationBuilder(service, ctx, "test-author")
-	result := builder.SetInt("int-key", 0)
-
-	assert.Equal(t, builder, result)
-	assert.Equal(t, "0", builder.configs["int-key"])
-}
-
-// TestAdvancedBuilderSetNegativeInt tests setting negative integer
-func TestAdvancedBuilderSetNegativeInt(t *testing.T) {
-	t.Skip("regression: pre-existing failure")
-	t.Parallel()
-	cm := &ConfigManager{}
-	service := NewConfigurationService(cm)
-	ctx := context.Background()
-
-	builder := NewConfigurationBuilder(service, ctx, "test-author")
-	result := builder.SetInt("int-key", -100)
-
-	assert.Equal(t, builder, result)
-	assert.Equal(t, "-100", builder.configs["int-key"])
-}
-
-// TestAdvancedBuilderSetZeroDuration tests setting zero duration
-func TestAdvancedBuilderSetZeroDuration(t *testing.T) {
-	t.Skip("regression: pre-existing failure")
-	t.Parallel()
-	cm := &ConfigManager{}
-	service := NewConfigurationService(cm)
-	ctx := context.Background()
-
-	builder := NewConfigurationBuilder(service, ctx, "test-author")
-	result := builder.SetDuration("duration-key", 0)
-
-	assert.Equal(t, builder, result)
-	assert.Equal(t, "0s", builder.configs["duration-key"])
-}
-
-// TestAdvancedServiceStructure tests service structure initialization
-func TestAdvancedServiceStructure(t *testing.T) {
-	t.Skip("regression: pre-existing failure")
-	t.Parallel()
-	cm := &ConfigManager{}
-	service := NewConfigurationService(cm)
-
-	assert.NotNil(t, service.configManager)
-	assert.NotNil(t, service.versionedCM)
-	assert.NotNil(t, service.validators)
-	assert.NotNil(t, service.updateHooks)
-	assert.Equal(t, 0, len(service.validators))
-	assert.Equal(t, 0, len(service.updateHooks))
+	csm.DeleteSnapshot("del-snap")
+	_, err := csm.GetSnapshot("del-snap")
+	assert.Error(t, err)
 }

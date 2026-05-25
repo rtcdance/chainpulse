@@ -890,3 +890,876 @@ func TestEventQueryHandlerGetByContractDomainQueryMeta(t *testing.T) {
 		t.Fatalf("expected queryExecutionSummary domain-contract:mongodb:coverage-missing, got %v", got)
 	}
 }
+
+func TestEventQueryHandlerParseInt64Param(t *testing.T) {
+	t.Parallel()
+
+	handler := &EventQueryHandler{}
+
+	tests := []struct {
+		name         string
+		queryString  string
+		paramName    string
+		defaultValue int64
+		want         int64
+	}{
+		{
+			name:         "valid positive int64",
+			queryString:  "value=12345",
+			paramName:    "value",
+			defaultValue: 0,
+			want:         12345,
+		},
+		{
+			name:         "valid negative int64",
+			queryString:  "value=-9999",
+			paramName:    "value",
+			defaultValue: 0,
+			want:         -9999,
+		},
+		{
+			name:         "valid zero",
+			queryString:  "value=0",
+			paramName:    "value",
+			defaultValue: 100,
+			want:         0,
+		},
+		{
+			name:         "empty value returns default",
+			queryString:  "value=",
+			paramName:    "value",
+			defaultValue: 42,
+			want:         42,
+		},
+		{
+			name:         "missing param returns default",
+			queryString:  "other=1",
+			paramName:    "value",
+			defaultValue: 42,
+			want:         42,
+		},
+		{
+			name:         "non-numeric returns default",
+			queryString:  "value=abc",
+			paramName:    "value",
+			defaultValue: 10,
+			want:         10,
+		},
+		{
+			name:         "float string returns default",
+			queryString:  "value=3.14",
+			paramName:    "value",
+			defaultValue: 99,
+			want:         99,
+		},
+		{
+			name:         "max int64",
+			queryString:  "value=9223372036854775807",
+			paramName:    "value",
+			defaultValue: 0,
+			want:         9223372036854775807,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			req := httptest.NewRequest(http.MethodGet, "/test?"+tt.queryString, nil)
+			got := handler.parseInt64Param(req, tt.paramName, tt.defaultValue)
+			if got != tt.want {
+				t.Errorf("parseInt64Param() = %d, want %d", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestEventQueryHandlerParseUint64Param(t *testing.T) {
+	t.Parallel()
+
+	handler := &EventQueryHandler{}
+
+	tests := []struct {
+		name         string
+		queryString  string
+		paramName    string
+		defaultValue uint64
+		want         uint64
+	}{
+		{
+			name:         "valid positive uint64",
+			queryString:  "block=12345",
+			paramName:    "block",
+			defaultValue: 0,
+			want:         12345,
+		},
+		{
+			name:         "valid zero",
+			queryString:  "block=0",
+			paramName:    "block",
+			defaultValue: 100,
+			want:         0,
+		},
+		{
+			name:         "empty value returns default",
+			queryString:  "block=",
+			paramName:    "block",
+			defaultValue: 42,
+			want:         42,
+		},
+		{
+			name:         "missing param returns default",
+			queryString:  "other=1",
+			paramName:    "block",
+			defaultValue: 42,
+			want:         42,
+		},
+		{
+			name:         "negative returns default",
+			queryString:  "block=-1",
+			paramName:    "block",
+			defaultValue: 10,
+			want:         10,
+		},
+		{
+			name:         "non-numeric returns default",
+			queryString:  "block=xyz",
+			paramName:    "block",
+			defaultValue: 5,
+			want:         5,
+		},
+		{
+			name:         "float string returns default",
+			queryString:  "block=2.5",
+			paramName:    "block",
+			defaultValue: 99,
+			want:         99,
+		},
+		{
+			name:         "max uint64",
+			queryString:  "block=18446744073709551615",
+			paramName:    "block",
+			defaultValue: 0,
+			want:         18446744073709551615,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			req := httptest.NewRequest(http.MethodGet, "/test?"+tt.queryString, nil)
+			got := handler.parseUint64Param(req, tt.paramName, tt.defaultValue)
+			if got != tt.want {
+				t.Errorf("parseUint64Param() = %d, want %d", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestValidateFilterParams(t *testing.T) {
+	t.Parallel()
+
+	handler := &EventQueryHandler{}
+
+	tests := []struct {
+		name string
+		fp   *filterParams
+		want string
+	}{
+		{
+			name: "valid defaults",
+			fp:   &filterParams{Limit: 20, Offset: 0},
+			want: "",
+		},
+		{
+			name: "valid with filters",
+			fp: &filterParams{
+				FromBlock: 100,
+				ToBlock:   200,
+				Limit:     50,
+				Offset:    0,
+				Status:    "confirmed",
+			},
+			want: "",
+		},
+		{
+			name: "from_block greater than to_block",
+			fp: &filterParams{
+				FromBlock: 200,
+				ToBlock:   100,
+				Limit:     20,
+			},
+			want: "from_block must be less than or equal to to_block",
+		},
+		{
+			name: "from_time greater than to_time",
+			fp: &filterParams{
+				FromTime: 2000,
+				ToTime:   1000,
+				Limit:    20,
+			},
+			want: "from_time must be less than or equal to to_time",
+		},
+		{
+			name: "limit zero",
+			fp: &filterParams{
+				Limit: 0,
+			},
+			want: "limit must be between 1 and 1000",
+		},
+		{
+			name: "limit negative",
+			fp: &filterParams{
+				Limit: -5,
+			},
+			want: "limit must be between 1 and 1000",
+		},
+		{
+			name: "limit exceeds max",
+			fp: &filterParams{
+				Limit: 1001,
+			},
+			want: "limit must be between 1 and 1000",
+		},
+		{
+			name: "limit at max boundary valid",
+			fp: &filterParams{
+				Limit: 1000,
+			},
+			want: "",
+		},
+		{
+			name: "limit at min boundary valid",
+			fp: &filterParams{
+				Limit: 1,
+			},
+			want: "",
+		},
+		{
+			name: "negative offset",
+			fp: &filterParams{
+				Limit:  20,
+				Offset: -1,
+			},
+			want: "offset must be greater than or equal to 0",
+		},
+		{
+			name: "invalid status",
+			fp: &filterParams{
+				Limit:  20,
+				Status: "unknown",
+			},
+			want: "status must be one of: pending, confirmed, failed, reorged",
+		},
+		{
+			name: "valid status pending",
+			fp: &filterParams{
+				Limit:  20,
+				Status: "pending",
+			},
+			want: "",
+		},
+		{
+			name: "valid status failed",
+			fp: &filterParams{
+				Limit:  20,
+				Status: "failed",
+			},
+			want: "",
+		},
+		{
+			name: "valid status reorged",
+			fp: &filterParams{
+				Limit:  20,
+				Status: "reorged",
+			},
+			want: "",
+		},
+		{
+			name: "empty status valid",
+			fp: &filterParams{
+				Limit:  20,
+				Status: "",
+			},
+			want: "",
+		},
+		{
+			name: "from_block equals to_block valid",
+			fp: &filterParams{
+				FromBlock: 100,
+				ToBlock:   100,
+				Limit:     20,
+			},
+			want: "",
+		},
+		{
+			name: "from_time equals to_time valid",
+			fp: &filterParams{
+				FromTime: 1000,
+				ToTime:   1000,
+				Limit:    20,
+			},
+			want: "",
+		},
+		{
+			name: "to_block only valid",
+			fp: &filterParams{
+				ToBlock: 200,
+				Limit:   20,
+			},
+			want: "",
+		},
+		{
+			name: "from_block only valid",
+			fp: &filterParams{
+				FromBlock: 100,
+				Limit:     20,
+			},
+			want: "",
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := handler.validateFilterParams(tt.fp)
+			if got != tt.want {
+				t.Errorf("validateFilterParams() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestClassifyEventQueryMetadataCoveragePosture(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name          string
+		resultCount   int
+		attachedCount int
+		want          string
+	}{
+		{
+			name:          "zero result count",
+			resultCount:   0,
+			attachedCount: 0,
+			want:          "coverage-empty",
+		},
+		{
+			name:          "negative result count",
+			resultCount:   -1,
+			attachedCount: 0,
+			want:          "coverage-empty",
+		},
+		{
+			name:          "no metadata attached",
+			resultCount:   10,
+			attachedCount: 0,
+			want:          "coverage-missing",
+		},
+		{
+			name:          "negative attached count",
+			resultCount:   10,
+			attachedCount: -1,
+			want:          "coverage-missing",
+		},
+		{
+			name:          "all attached",
+			resultCount:   5,
+			attachedCount: 5,
+			want:          "coverage-complete",
+		},
+		{
+			name:          "more attached than results",
+			resultCount:   5,
+			attachedCount: 10,
+			want:          "coverage-complete",
+		},
+		{
+			name:          "partial coverage",
+			resultCount:   10,
+			attachedCount: 3,
+			want:          "coverage-partial",
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := classifyEventQueryMetadataCoveragePosture(tt.resultCount, tt.attachedCount)
+			if got != tt.want {
+				t.Errorf("classifyEventQueryMetadataCoveragePosture(%d, %d) = %q, want %q", tt.resultCount, tt.attachedCount, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestClassifyEventQueryConsistencyPosture(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name            string
+		source          string
+		queryPath       string
+		fallbackUsed    bool
+		coveragePosture string
+		want            string
+	}{
+		{
+			name:            "domain direct",
+			source:          "domain-query",
+			queryPath:       "domain-first",
+			fallbackUsed:    false,
+			coveragePosture: "coverage-missing",
+			want:            "domain-direct",
+		},
+		{
+			name:            "domain-first with fallback",
+			source:          "domain-query",
+			queryPath:       "domain-first",
+			fallbackUsed:    true,
+			coveragePosture: "",
+			want:            "fallback-served",
+		},
+		{
+			name:            "query-service-direct",
+			source:          "mongodb",
+			queryPath:       "domain-chain",
+			fallbackUsed:    false,
+			coveragePosture: "coverage-missing",
+			want:            "query-service-direct",
+		},
+		{
+			name:            "query-service-direct with domain-all",
+			source:          "cache",
+			queryPath:       "domain-all",
+			fallbackUsed:    false,
+			coveragePosture: "coverage-missing",
+			want:            "query-service-direct",
+		},
+		{
+			name:            "fallback served",
+			source:          "event-retrieval",
+			queryPath:       "retrieval-chain",
+			fallbackUsed:    true,
+			coveragePosture: "",
+			want:            "fallback-served",
+		},
+		{
+			name:            "retrieval complete",
+			source:          "event-retrieval",
+			queryPath:       "retrieval-list",
+			fallbackUsed:    false,
+			coveragePosture: "coverage-complete",
+			want:            "retrieval-complete",
+		},
+		{
+			name:            "retrieval partial",
+			source:          "event-retrieval",
+			queryPath:       "retrieval-chain",
+			fallbackUsed:    false,
+			coveragePosture: "coverage-partial",
+			want:            "retrieval-partial",
+		},
+		{
+			name:            "retrieval metadata missing",
+			source:          "event-retrieval",
+			queryPath:       "retrieval-list",
+			fallbackUsed:    false,
+			coveragePosture: "coverage-missing",
+			want:            "retrieval-metadata-missing",
+		},
+		{
+			name:            "empty result",
+			source:          "event-retrieval",
+			queryPath:       "retrieval-list",
+			fallbackUsed:    false,
+			coveragePosture: "coverage-empty",
+			want:            "empty-result",
+		},
+		{
+			name:            "unknown consistency",
+			source:          "unknown-source",
+			queryPath:       "unknown-path",
+			fallbackUsed:    false,
+			coveragePosture: "something-else",
+			want:            "consistency-unknown",
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := classifyEventQueryConsistencyPosture(tt.source, tt.queryPath, tt.fallbackUsed, tt.coveragePosture)
+			if got != tt.want {
+				t.Errorf("classifyEventQueryConsistencyPosture() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestClassifyEventQuerySourcePosture(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		source       string
+		fallbackUsed bool
+		cacheHit     bool
+		want         string
+	}{
+		{
+			name:         "cache hit via boolean",
+			source:       "mongodb",
+			fallbackUsed: false,
+			cacheHit:     true,
+			want:         "cache-hit",
+		},
+		{
+			name:         "cache hit via source string",
+			source:       "cache",
+			fallbackUsed: false,
+			cacheHit:     false,
+			want:         "cache-hit",
+		},
+		{
+			name:         "retrieval fallback",
+			source:       "event-retrieval",
+			fallbackUsed: true,
+			cacheHit:     false,
+			want:         "retrieval-fallback",
+		},
+		{
+			name:         "domain service",
+			source:       "domain-query",
+			fallbackUsed: false,
+			cacheHit:     false,
+			want:         "domain-service",
+		},
+		{
+			name:         "retrieval service",
+			source:       "event-retrieval",
+			fallbackUsed: false,
+			cacheHit:     false,
+			want:         "retrieval-service",
+		},
+		{
+			name:         "mongodb live",
+			source:       "mongodb",
+			fallbackUsed: false,
+			cacheHit:     false,
+			want:         "mongodb-live",
+		},
+		{
+			name:         "postgres fallback",
+			source:       "postgresql",
+			fallbackUsed: false,
+			cacheHit:     false,
+			want:         "postgres-fallback",
+		},
+		{
+			name:         "unknown source",
+			source:       "something-random",
+			fallbackUsed: false,
+			cacheHit:     false,
+			want:         "source-unknown",
+		},
+		{
+			name:         "cache hit overrides fallback",
+			source:       "event-retrieval",
+			fallbackUsed: true,
+			cacheHit:     true,
+			want:         "cache-hit",
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := classifyEventQuerySourcePosture(tt.source, tt.fallbackUsed, tt.cacheHit)
+			if got != tt.want {
+				t.Errorf("classifyEventQuerySourcePosture() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestClassifyDomainListQuerySourcePosture(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		result *domainquery.Result
+		want   string
+	}{
+		{
+			name:   "nil result",
+			result: nil,
+			want:   "domain-service",
+		},
+		{
+			name: "mongodb source no cache",
+			result: &domainquery.Result{
+				Source:   "mongodb",
+				CacheHit: false,
+			},
+			want: "mongodb-live",
+		},
+		{
+			name: "cache hit result",
+			result: &domainquery.Result{
+				Source:   "mongodb",
+				CacheHit: true,
+			},
+			want: "cache-hit",
+		},
+		{
+			name: "postgresql source",
+			result: &domainquery.Result{
+				Source:   "postgresql",
+				CacheHit: false,
+			},
+			want: "postgres-fallback",
+		},
+		{
+			name: "unknown source",
+			result: &domainquery.Result{
+				Source:   "some-custom-source",
+				CacheHit: false,
+			},
+			want: "source-unknown",
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := classifyDomainListQuerySourcePosture(tt.result)
+			if got != tt.want {
+				t.Errorf("classifyDomainListQuerySourcePosture() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestBuildEventQueryReliabilityHint(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name               string
+		sourcePosture      string
+		consistencyPosture string
+		want               string
+	}{
+		{
+			name:               "cache-hit query-service-direct",
+			sourcePosture:      "cache-hit",
+			consistencyPosture: "query-service-direct",
+			want:               "served from query-service cache; verify freshness expectations before treating as latest",
+		},
+		{
+			name:               "mongodb-live query-service-direct",
+			sourcePosture:      "mongodb-live",
+			consistencyPosture: "query-service-direct",
+			want:               "served directly from query-service live store path",
+		},
+		{
+			name:               "domain-service domain-direct",
+			sourcePosture:      "domain-service",
+			consistencyPosture: "domain-direct",
+			want:               "served directly from domain query path without fallback",
+		},
+		{
+			name:               "retrieval-fallback with any consistency",
+			sourcePosture:      "retrieval-fallback",
+			consistencyPosture: "anything",
+			want:               "served through fallback path; verify query-service availability if this persists",
+		},
+		{
+			name:               "fallback-served consistency",
+			sourcePosture:      "retrieval-service",
+			consistencyPosture: "fallback-served",
+			want:               "served through fallback path; verify query-service availability if this persists",
+		},
+		{
+			name:               "retrieval-partial",
+			sourcePosture:      "retrieval-service",
+			consistencyPosture: "retrieval-partial",
+			want:               "served with partial metadata coverage; verify metadata completeness before relying on full event context",
+		},
+		{
+			name:               "retrieval-metadata-missing",
+			sourcePosture:      "retrieval-service",
+			consistencyPosture: "retrieval-metadata-missing",
+			want:               "served without attached metadata; verify metadata pipeline before relying on enriched fields",
+		},
+		{
+			name:               "empty-result",
+			sourcePosture:      "retrieval-service",
+			consistencyPosture: "empty-result",
+			want:               "query returned no results; verify filters and upstream indexing freshness if unexpected",
+		},
+		{
+			name:               "unknown combination",
+			sourcePosture:      "source-unknown",
+			consistencyPosture: "consistency-unknown",
+			want:               "verify query source and metadata coverage before relying on this response",
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := buildEventQueryReliabilityHint(tt.sourcePosture, tt.consistencyPosture)
+			if got != tt.want {
+				t.Errorf("buildEventQueryReliabilityHint(%q, %q) = %q, want %q", tt.sourcePosture, tt.consistencyPosture, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestEventQueryHandler_Health(t *testing.T) {
+	t.Parallel()
+	logger := core.NewDefaultLogger(core.LogLevelError)
+	metrics := core.NewDefaultMetricsCollector()
+
+	t.Run("not initialized", func(t *testing.T) {
+		t.Parallel()
+		h := NewEventQueryHandler(nil, logger, metrics)
+		status := h.Health(context.Background())
+		if status.Status != "unhealthy" {
+			t.Errorf("expected unhealthy, got %q", status.Status)
+		}
+	})
+
+	t.Run("initialized nil retrieval service", func(t *testing.T) {
+		t.Parallel()
+		h := NewEventQueryHandler(nil, logger, metrics)
+		h.initialized = true
+		status := h.Health(context.Background())
+		if status.Status != "unhealthy" {
+			t.Errorf("expected unhealthy for nil service, got %q", status.Status)
+		}
+	})
+}
+
+func TestEventQueryHandler_Close(t *testing.T) {
+	t.Parallel()
+	logger := core.NewDefaultLogger(core.LogLevelError)
+	metrics := core.NewDefaultMetricsCollector()
+
+	t.Run("not initialized", func(t *testing.T) {
+		t.Parallel()
+		h := NewEventQueryHandler(nil, logger, metrics)
+		if err := h.Close(context.Background()); err != nil {
+			t.Errorf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("initialized", func(t *testing.T) {
+		t.Parallel()
+		h := NewEventQueryHandler(nil, logger, metrics)
+		h.initialized = true
+		if err := h.Close(context.Background()); err != nil {
+			t.Errorf("unexpected error: %v", err)
+		}
+		if h.initialized {
+			t.Error("expected handler to be marked as not initialized")
+		}
+	})
+}
+
+func TestEventQueryHandler_respondError(t *testing.T) {
+	t.Parallel()
+	logger := core.NewDefaultLogger(core.LogLevelError)
+	metrics := core.NewDefaultMetricsCollector()
+	h := NewEventQueryHandler(nil, logger, metrics)
+
+	w := httptest.NewRecorder()
+	h.respondError(w, http.StatusBadRequest, "INVALID_PARAM", "correlationId is required")
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected status %d, got %d", http.StatusBadRequest, w.Code)
+	}
+
+	var body map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if body["error"] != "INVALID_PARAM" {
+		t.Errorf("expected error INVALID_PARAM, got %v", body["error"])
+	}
+}
+
+func TestEventQueryHandler_HandleGetCorrelatedEvents_EmptyID(t *testing.T) {
+	t.Parallel()
+	logger := core.NewDefaultLogger(core.LogLevelError)
+	metrics := core.NewDefaultMetricsCollector()
+	h := NewEventQueryHandler(nil, logger, metrics)
+
+	req := httptest.NewRequest(http.MethodGet, "/events/correlated/", nil)
+	w := httptest.NewRecorder()
+
+	h.HandleGetCorrelatedEvents(w, req, "")
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected status %d, got %d", http.StatusBadRequest, w.Code)
+	}
+}
+
+func TestEventQueryHandler_HandleGetCorrelatedEvents_NoService(t *testing.T) {
+	t.Parallel()
+	logger := core.NewDefaultLogger(core.LogLevelError)
+	metrics := core.NewDefaultMetricsCollector()
+	h := NewEventQueryHandler(nil, logger, metrics)
+
+	req := httptest.NewRequest(http.MethodGet, "/events/correlated/abc123", nil)
+	w := httptest.NewRecorder()
+
+	h.HandleGetCorrelatedEvents(w, req, "abc123")
+
+	if w.Code != http.StatusInternalServerError {
+		t.Errorf("expected status %d, got %d", http.StatusInternalServerError, w.Code)
+	}
+}
+
+func TestBuildDomainListQueryMeta_nilResult(t *testing.T) {
+	t.Parallel()
+	meta := buildDomainListQueryMeta(nil)
+	if meta == nil {
+		t.Fatal("expected non-nil meta")
+	}
+}
+
+func TestBuildDomainListQueryMeta_withResult(t *testing.T) {
+	t.Parallel()
+	result := &domainquery.Result{
+		Events: []core.BlockchainEvent{
+			{ID: "evt-1", ChainID: "1"},
+		},
+		Total:  1,
+		Source: "mongo",
+	}
+	meta := buildDomainListQueryMeta(result)
+	if meta == nil {
+		t.Fatal("expected non-nil meta")
+	}
+	if meta.ResultCount != 1 {
+		t.Errorf("expected ResultCount=1, got %d", meta.ResultCount)
+	}
+}
+
+func TestBuildDomainQueryListMeta_nil(t *testing.T) {
+	t.Parallel()
+	meta := buildDomainQueryListMeta(nil, "test-path")
+	if meta == nil {
+		t.Fatal("expected non-nil meta")
+	}
+}

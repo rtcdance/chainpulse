@@ -535,3 +535,188 @@ func TestClusterMetricsAggregation(t *testing.T) {
 	assert.Equal(t, int64(6), metrics["total_errors"])
 	assert.Equal(t, 3, metrics["gateway_count"])
 }
+
+func TestAPIGatewayRegisterHandler(t *testing.T) {
+	t.Parallel()
+	config := APIGatewayConfig{Port: 8080}
+	gateway := NewAPIGateway(config, nil, nil)
+
+	handler := func(ctx context.Context, req *APIRequest) (*APIResponse, error) {
+		return &APIResponse{Status: 200}, nil
+	}
+
+	gateway.RegisterHandler("GET /api/test", handler)
+
+	patterns := gateway.ListHandlers()
+	assert.Contains(t, patterns, "GET /api/test")
+}
+
+func TestRegisterMiddleware(t *testing.T) {
+	t.Parallel()
+	config := APIGatewayConfig{Port: 8080}
+	gateway := NewAPIGateway(config, nil, nil)
+
+	mw := func(next RequestHandler) RequestHandler {
+		return func(ctx context.Context, req *APIRequest) (*APIResponse, error) {
+			return next(ctx, req)
+		}
+	}
+
+	gateway.RegisterMiddleware(mw)
+
+	gateway.mu.RLock()
+	assert.Len(t, gateway.middlewareChain, 1)
+	gateway.mu.RUnlock()
+}
+
+func TestListHandlers(t *testing.T) {
+	t.Parallel()
+	config := APIGatewayConfig{Port: 8080}
+	gateway := NewAPIGateway(config, nil, nil)
+
+	handler := func(ctx context.Context, req *APIRequest) (*APIResponse, error) {
+		return &APIResponse{Status: 200}, nil
+	}
+
+	gateway.RegisterHandler("GET /api/a", handler)
+	gateway.RegisterHandler("POST /api/b", handler)
+	gateway.RegisterHandler("DELETE /api/c", handler)
+
+	patterns := gateway.ListHandlers()
+	assert.Len(t, patterns, 3)
+
+	for i := 0; i < len(patterns)-1; i++ {
+		assert.True(t, patterns[i] < patterns[i+1], "handlers should be sorted")
+	}
+}
+
+func TestFindHandler(t *testing.T) {
+	t.Parallel()
+	config := APIGatewayConfig{Port: 8080}
+	gateway := NewAPIGateway(config, nil, nil)
+
+	customHandler := func(ctx context.Context, req *APIRequest) (*APIResponse, error) {
+		return &APIResponse{Status: 201, Body: []byte("custom")}, nil
+	}
+	gateway.RegisterHandler("POST /api/custom", customHandler)
+
+	h := gateway.findHandler(&APIRequest{Method: "POST", Path: "/api/custom"})
+	assert.NotNil(t, h)
+
+	ctx := context.Background()
+	resp, err := h(ctx, &APIRequest{Method: "POST", Path: "/api/custom"})
+	assert.NoError(t, err)
+	assert.Equal(t, 201, resp.Status)
+}
+
+func TestWrapWithMiddleware(t *testing.T) {
+	t.Parallel()
+	config := APIGatewayConfig{Port: 8080}
+	gateway := NewAPIGateway(config, nil, nil)
+
+	var called []string
+
+	mw1 := func(next RequestHandler) RequestHandler {
+		return func(ctx context.Context, req *APIRequest) (*APIResponse, error) {
+			called = append(called, "mw1")
+			return next(ctx, req)
+		}
+	}
+	mw2 := func(next RequestHandler) RequestHandler {
+		return func(ctx context.Context, req *APIRequest) (*APIResponse, error) {
+			called = append(called, "mw2")
+			return next(ctx, req)
+		}
+	}
+
+	gateway.RegisterMiddleware(mw1)
+	gateway.RegisterMiddleware(mw2)
+
+	baseHandler := func(ctx context.Context, req *APIRequest) (*APIResponse, error) {
+		called = append(called, "handler")
+		return &APIResponse{Status: 200}, nil
+	}
+
+	wrapped := gateway.wrapWithMiddleware(baseHandler)
+	ctx := context.Background()
+	_, err := wrapped(ctx, &APIRequest{Method: "GET", Path: "/test"})
+	assert.NoError(t, err)
+
+	assert.Equal(t, []string{"mw1", "mw2", "handler"}, called)
+}
+
+func TestExecuteWithRecoveryPanic(t *testing.T) {
+	t.Parallel()
+	config := APIGatewayConfig{Port: 8080}
+	gateway := NewAPIGateway(config, nil, nil)
+
+	panicHandler := func(ctx context.Context, req *APIRequest) (*APIResponse, error) {
+		panic("test panic")
+	}
+
+	resp, err := gateway.executeWithRecovery(context.Background(), &APIRequest{}, panicHandler)
+	assert.Nil(t, resp)
+	assert.Nil(t, err)
+}
+
+func TestExecuteWithRecoveryError(t *testing.T) {
+	t.Parallel()
+	config := APIGatewayConfig{Port: 8080}
+	gateway := NewAPIGateway(config, nil, nil)
+
+	errHandler := func(ctx context.Context, req *APIRequest) (*APIResponse, error) {
+		return nil, fmt.Errorf("handler error")
+	}
+
+	resp, err := gateway.executeWithRecovery(context.Background(), &APIRequest{}, errHandler)
+	assert.Nil(t, resp)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "handler error")
+}
+
+func TestFindHandlerFallback(t *testing.T) {
+	t.Parallel()
+	cache := discovery.NewServiceEndpointCache(5 * time.Minute)
+	cache.Set("test-service", []*discovery.ServiceInfo{
+		{Name: "test-service", Address: "localhost", Port: 9999},
+	})
+	lb := discovery.NewServiceLoadBalancer(nil, cache, &discovery.RoundRobinStrategy{})
+
+	config := APIGatewayConfig{Port: 8080}
+	gateway := NewAPIGateway(config, nil, lb)
+
+	h := gateway.findHandler(&APIRequest{Method: "GET", Path: "/api/nonexistent", ServiceName: "test-service"})
+	assert.NotNil(t, h)
+
+	ctx := context.Background()
+	resp, err := h(ctx, &APIRequest{Method: "GET", Path: "/api/nonexistent", ServiceName: "test-service"})
+	assert.NoError(t, err)
+	assert.NotNil(t, resp)
+	assert.Equal(t, "test-service", resp.ServiceName)
+}
+
+func TestHandleRequestWithRegisteredHandler(t *testing.T) {
+	t.Parallel()
+	config := APIGatewayConfig{Port: 8080}
+	gateway := NewAPIGateway(config, nil, nil)
+
+	ctx := context.Background()
+	_ = gateway.Start(ctx)
+
+	gateway.RegisterHandler("GET /api/hello", func(ctx context.Context, req *APIRequest) (*APIResponse, error) {
+		return &APIResponse{
+			Status:  200,
+			Body:    []byte("hello"),
+			Headers: map[string]string{"X-Custom": "value"},
+		}, nil
+	})
+
+	resp, err := gateway.HandleRequest(ctx, &APIRequest{
+		Method: "GET",
+		Path:   "/api/hello",
+	})
+	assert.NoError(t, err)
+	assert.NotNil(t, resp)
+	assert.Equal(t, 200, resp.Status)
+	assert.Equal(t, "hello", string(resp.Body))
+}

@@ -186,7 +186,7 @@ func TestGovernanceVoteEvent(t *testing.T) {
 	event := GovernanceVoteEvent{
 		Voter:      common.HexToAddress("0xVoter"),
 		ProposalID: big.NewInt(42),
-		Support:    1, // For
+		Support:    1,
 		Weight:     big.NewInt(100),
 		Reason:     "I support this proposal",
 	}
@@ -196,5 +196,111 @@ func TestGovernanceVoteEvent(t *testing.T) {
 	}
 	if event.ProposalID.Int64() != 42 {
 		t.Errorf("ProposalID = %d, want 42", event.ProposalID)
+	}
+}
+
+func TestUserOperationEventIsSuccessful(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name    string
+		success bool
+		want    bool
+	}{
+		{"successful", true, true},
+		{"failed", false, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			e := &UserOperationEvent{Success: tt.success}
+			if got := e.IsSuccessful(); got != tt.want {
+				t.Errorf("IsSuccessful() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestUserOperationEventGasEfficiency(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name       string
+		actualUsed uint64
+		gasLimit   uint64
+		want       float64
+	}{
+		{"normal", 50000, 100000, 0.5},
+		{"full_usage", 100000, 100000, 1.0},
+		{"zero_limit", 50000, 0, 0},
+		{"zero_used", 0, 100000, 0},
+		{"both_zero", 0, 0, 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			e := &UserOperationEvent{ActualGasUsed: tt.actualUsed}
+			if got := e.GasEfficiency(tt.gasLimit); got != tt.want {
+				t.Errorf("GasEfficiency(%d) = %f, want %f", tt.gasLimit, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestBridgeTransferEventIsCrossChain(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name        string
+		sourceChain uint64
+		destChain   uint64
+		want        bool
+	}{
+		{"cross_chain", 1, 56, true},
+		{"same_chain", 1, 1, false},
+		{"both_zero", 0, 0, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			e := &BridgeTransferEvent{SourceChain: tt.sourceChain, DestChain: tt.destChain}
+			if got := e.IsCrossChain(); got != tt.want {
+				t.Errorf("IsCrossChain() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestNFTTransferEventIsMint(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name string
+		from common.Address
+		want bool
+	}{
+		{"mint", common.Address{}, true},
+		{"not_mint", common.HexToAddress("0x1234"), false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			e := &NFTTransferEvent{From: tt.from}
+			if got := e.IsMint(); got != tt.want {
+				t.Errorf("IsMint() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestNFTTransferEventIsBurn(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name string
+		to   common.Address
+		want bool
+	}{
+		{"burn", common.Address{}, true},
+		{"not_burn", common.HexToAddress("0x1234"), false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			e := &NFTTransferEvent{To: tt.to}
+			if got := e.IsBurn(); got != tt.want {
+				t.Errorf("IsBurn() = %v, want %v", got, tt.want)
+			}
+		})
 	}
 }

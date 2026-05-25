@@ -24,7 +24,8 @@ func ComputeEventHash(event *BlockchainEvent) string {
 	// Format: chain_id:block_number:tx_hash:log_index
 	// Using Hex() for TransactionHash ensures consistent representation
 	// regardless of whether the hash was set as a common.Hash or a string.
-	hashInput := fmt.Sprintf("%s:%d:%s:%d",
+	hashInput := fmt.Sprintf(
+		"%s:%d:%s:%d",
 		event.ChainID,
 		event.BlockNumber,
 		event.TransactionHash.Hex(),
@@ -41,7 +42,8 @@ func EventNaturalKey(event *BlockchainEvent) string {
 	if event == nil {
 		return ""
 	}
-	return fmt.Sprintf("%s:%d:%s:%d",
+	return fmt.Sprintf(
+		"%s:%d:%s:%d",
 		event.ChainID,
 		event.BlockNumber,
 		event.TransactionHash.Hex(),

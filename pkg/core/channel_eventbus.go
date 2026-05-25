@@ -73,7 +73,8 @@ func (b *ChannelEventBus) Publish(ctx context.Context, topic string, event any) 
 	if dropped > 0 {
 		b.droppedCount.Add(uint64(dropped))
 		if b.logger != nil {
-			b.logger.Warn("ChannelEventBus: events dropped due to full subscriber buffer",
+			b.logger.Warn(
+				"ChannelEventBus: events dropped due to full subscriber buffer",
 				"topic", topic,
 				"dropped", dropped,
 				"total_dropped", b.droppedCount.Load(),

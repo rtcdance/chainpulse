@@ -543,3 +543,36 @@ func TestClose(t *testing.T) {
 		_ = err // It's okay if Redis is not available
 	}
 }
+
+func TestMatchPattern(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name    string
+		key     string
+		pattern string
+		want    bool
+	}{
+		{"wildcard matches any key", "any_key", "*", true},
+		{"prefix match with suffix", "prefix:value", "prefix:*", true},
+		{"prefix match exact prefix length", "pr", "pr*", true},
+		{"prefix does not match different prefix", "other:value", "prefix:*", false},
+		{"prefix shorter than key length required", "pr", "prefix:*", false},
+		{"exact key match", "exact_key", "exact_key", true},
+		{"exact key mismatch", "exact_key", "different_key", false},
+		{"empty key matches empty pattern", "", "", true},
+		{"empty key with wildcard", "", "*", true},
+		{"prefix pattern matches key with same chars", "abc:123", "abc*", true},
+		{"prefix does not match if key too short", "ab", "abc*", false},
+		{"pattern with only star character as prefix", "hello", "h*l*o", false},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := matchPattern(tt.key, tt.pattern)
+			if got != tt.want {
+				t.Errorf("matchPattern(%q, %q) = %v, want %v", tt.key, tt.pattern, got, tt.want)
+			}
+		})
+	}
+}

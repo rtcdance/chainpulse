@@ -113,6 +113,217 @@ func TestStartAdvancedServiceDiscoveryClient(t *testing.T) {
 	client.Stop()
 }
 
+func TestNewServiceEndpointCache(t *testing.T) {
+	t.Parallel()
+
+	cache := NewServiceEndpointCache(5 * time.Minute)
+	if cache == nil {
+		t.Fatal("NewServiceEndpointCache returned nil")
+	}
+	if cache.cache == nil {
+		t.Error("cache map is nil")
+	}
+	if cache.cacheTTL != 5*time.Minute {
+		t.Errorf("cacheTTL = %v, want 5m", cache.cacheTTL)
+	}
+}
+
+func TestServiceEndpointCache_SetAndGet(t *testing.T) {
+	t.Parallel()
+
+	cache := NewServiceEndpointCache(5 * time.Minute)
+	services := []*ServiceInfo{
+		{ID: "svc-1", Name: "api", Port: 8080},
+		{ID: "svc-2", Name: "api", Port: 8081},
+	}
+
+	cache.Set("api", services)
+
+	got, ok := cache.Get("api")
+	if !ok {
+		t.Fatal("expected to find cached services")
+	}
+	if len(got) != 2 {
+		t.Errorf("expected 2 services, got %d", len(got))
+	}
+}
+
+func TestServiceEndpointCache_Get_NotFound(t *testing.T) {
+	t.Parallel()
+
+	cache := NewServiceEndpointCache(5 * time.Minute)
+	_, ok := cache.Get("nonexistent")
+	if ok {
+		t.Error("expected not found")
+	}
+}
+
+func TestServiceEndpointCache_Get_Expired(t *testing.T) {
+	t.Parallel()
+
+	cache := NewServiceEndpointCache(1 * time.Millisecond)
+	cache.Set("api", []*ServiceInfo{{ID: "svc-1"}})
+
+	time.Sleep(5 * time.Millisecond)
+
+	_, ok := cache.Get("api")
+	if ok {
+		t.Error("expected expired entry not to be returned")
+	}
+}
+
+func TestServiceEndpointCache_Invalidate(t *testing.T) {
+	t.Parallel()
+
+	cache := NewServiceEndpointCache(5 * time.Minute)
+	cache.Set("api", []*ServiceInfo{{ID: "svc-1"}})
+	cache.Invalidate("api")
+
+	_, ok := cache.Get("api")
+	if ok {
+		t.Error("expected entry to be invalidated")
+	}
+}
+
+func TestServiceEndpointCache_InvalidateAll(t *testing.T) {
+	t.Parallel()
+
+	cache := NewServiceEndpointCache(5 * time.Minute)
+	cache.Set("api", []*ServiceInfo{{ID: "svc-1"}})
+	cache.Set("web", []*ServiceInfo{{ID: "svc-2"}})
+
+	cache.InvalidateAll()
+
+	_, ok := cache.Get("api")
+	if ok {
+		t.Error("expected all entries to be invalidated")
+	}
+}
+
+func TestRoundRobinStrategy_SelectService_Empty(t *testing.T) {
+	t.Parallel()
+
+	strategy := &RoundRobinStrategy{}
+	svc := strategy.SelectService(nil)
+	if svc != nil {
+		t.Error("expected nil for empty services")
+	}
+
+	svc = strategy.SelectService([]*ServiceInfo{})
+	if svc != nil {
+		t.Error("expected nil for empty slice")
+	}
+}
+
+func TestRoundRobinStrategy_SelectService(t *testing.T) {
+	strategy := &RoundRobinStrategy{}
+	services := []*ServiceInfo{
+		{ID: "svc-1"},
+		{ID: "svc-2"},
+		{ID: "svc-3"},
+	}
+
+	first := strategy.SelectService(services)
+	if first.ID != "svc-1" {
+		t.Errorf("expected svc-1, got %s", first.ID)
+	}
+
+	second := strategy.SelectService(services)
+	if second.ID != "svc-2" {
+		t.Errorf("expected svc-2, got %s", second.ID)
+	}
+
+	third := strategy.SelectService(services)
+	if third.ID != "svc-3" {
+		t.Errorf("expected svc-3, got %s", third.ID)
+	}
+
+	fourth := strategy.SelectService(services)
+	if fourth.ID != "svc-1" {
+		t.Errorf("expected svc-1 (wrapped), got %s", fourth.ID)
+	}
+}
+
+func TestNewServiceConnectionPool(t *testing.T) {
+	t.Parallel()
+
+	pool := NewServiceConnectionPool(10)
+	if pool == nil {
+		t.Fatal("NewServiceConnectionPool returned nil")
+	}
+	if pool.maxConnections != 10 {
+		t.Errorf("maxConnections = %d, want 10", pool.maxConnections)
+	}
+}
+
+func TestServiceConnectionPool_SetAndGet(t *testing.T) {
+	t.Parallel()
+
+	pool := NewServiceConnectionPool(10)
+	err := pool.SetConnection("svc-1", "conn-1")
+	if err != nil {
+		t.Fatalf("SetConnection failed: %v", err)
+	}
+
+	conn, err := pool.GetConnection("svc-1")
+	if err != nil {
+		t.Fatalf("GetConnection failed: %v", err)
+	}
+	if conn != "conn-1" {
+		t.Errorf("expected conn-1, got %v", conn)
+	}
+}
+
+func TestServiceConnectionPool_Get_NotFound(t *testing.T) {
+	t.Parallel()
+
+	pool := NewServiceConnectionPool(10)
+	_, err := pool.GetConnection("nonexistent")
+	if err == nil {
+		t.Error("expected error for nonexistent connection")
+	}
+}
+
+func TestServiceConnectionPool_Set_PoolFull(t *testing.T) {
+	t.Parallel()
+
+	pool := NewServiceConnectionPool(2)
+	pool.SetConnection("svc-1", "conn-1")
+	pool.SetConnection("svc-2", "conn-2")
+
+	err := pool.SetConnection("svc-3", "conn-3")
+	if err == nil {
+		t.Error("expected error for full pool")
+	}
+}
+
+func TestServiceConnectionPool_RemoveConnection(t *testing.T) {
+	t.Parallel()
+
+	pool := NewServiceConnectionPool(10)
+	pool.SetConnection("svc-1", "conn-1")
+	pool.RemoveConnection("svc-1")
+
+	_, err := pool.GetConnection("svc-1")
+	if err == nil {
+		t.Error("expected error after removal")
+	}
+}
+
+func TestServiceConnectionPool_ClearConnections(t *testing.T) {
+	t.Parallel()
+
+	pool := NewServiceConnectionPool(10)
+	pool.SetConnection("svc-1", "conn-1")
+	pool.SetConnection("svc-2", "conn-2")
+	pool.ClearConnections()
+
+	_, err := pool.GetConnection("svc-1")
+	if err == nil {
+		t.Error("expected error after clear")
+	}
+}
+
 // TestStartAlreadyRunning tests starting when already running
 func TestStartAlreadyRunning(t *testing.T) {
 	t.Parallel()
@@ -286,6 +497,46 @@ func TestAdvancedServiceDiscoveryClientStopWhenNotRunning(t *testing.T) {
 	client.runningMutex.RLock()
 	assert.False(t, client.running)
 	client.runningMutex.RUnlock()
+}
+
+// TestRoundRobinStrategySelectService returns nil for empty list
+func TestRoundRobinStrategySelectService_Empty(t *testing.T) {
+	t.Parallel()
+	rrs := &RoundRobinStrategy{}
+	got := rrs.SelectService(nil)
+	assert.Nil(t, got)
+	got = rrs.SelectService([]*ServiceInfo{})
+	assert.Nil(t, got)
+}
+
+// TestRoundRobinStrategySelectService returns service and increments counter
+func TestRoundRobinStrategySelectService_RoundRobin(t *testing.T) {
+	t.Parallel()
+	rrs := &RoundRobinStrategy{}
+	svc1 := &ServiceInfo{ID: "svc1", Name: "test"}
+	svc2 := &ServiceInfo{ID: "svc2", Name: "test"}
+
+	s1 := rrs.SelectService([]*ServiceInfo{svc1, svc2})
+	assert.Equal(t, "svc1", s1.ID)
+
+	s2 := rrs.SelectService([]*ServiceInfo{svc1, svc2})
+	assert.Equal(t, "svc2", s2.ID)
+
+	s3 := rrs.SelectService([]*ServiceInfo{svc1, svc2})
+	assert.Equal(t, "svc1", s3.ID)
+}
+
+// TestNewServiceLoadBalancer creates a load balancer
+func TestNewServiceLoadBalancer(t *testing.T) {
+	t.Parallel()
+	sdc := &ServiceDiscoveryClient{}
+	cache := &ServiceEndpointCache{}
+	strategy := &RoundRobinStrategy{}
+	lb := NewServiceLoadBalancer(sdc, cache, strategy)
+	assert.NotNil(t, lb)
+	assert.Equal(t, sdc, lb.discoveryClient)
+	assert.Equal(t, cache, lb.cache)
+	assert.Equal(t, strategy, lb.strategy)
 }
 
 // TestAdvancedServiceDiscoveryClientMultipleStarts tests multiple starts and stops

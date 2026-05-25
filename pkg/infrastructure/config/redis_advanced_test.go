@@ -9,7 +9,6 @@ import (
 
 // TestRedisReplicationConfigStructure tests RedisReplicationConfig structure
 func TestRedisReplicationConfigStructure(t *testing.T) {
-	t.Skip("regression: pre-existing failure")
 	t.Parallel()
 	config := RedisReplicationConfig{
 		MasterAddress:  "localhost:6379",
@@ -26,7 +25,6 @@ func TestRedisReplicationConfigStructure(t *testing.T) {
 
 // TestNewRedisAdvancedManager tests creating a new advanced Redis manager
 func TestNewRedisAdvancedManager(t *testing.T) {
-	t.Skip("regression: pre-existing failure")
 	t.Parallel()
 	cluster := &RedisCluster{}
 	manager := NewRedisAdvancedManager(cluster)
@@ -37,7 +35,6 @@ func TestNewRedisAdvancedManager(t *testing.T) {
 
 // TestRedisReplicationConfigSingleSlave tests single slave configuration
 func TestRedisReplicationConfigSingleSlave(t *testing.T) {
-	t.Skip("regression: pre-existing failure")
 	t.Parallel()
 	config := RedisReplicationConfig{
 		MasterAddress:  "master:6379",
@@ -49,7 +46,6 @@ func TestRedisReplicationConfigSingleSlave(t *testing.T) {
 
 // TestRedisReplicationConfigMultipleSlaves tests multiple slaves configuration
 func TestRedisReplicationConfigMultipleSlaves(t *testing.T) {
-	t.Skip("regression: pre-existing failure")
 	t.Parallel()
 	config := RedisReplicationConfig{
 		MasterAddress: "master:6379",
@@ -65,7 +61,6 @@ func TestRedisReplicationConfigMultipleSlaves(t *testing.T) {
 
 // TestRedisReplicationConfigNoSlaves tests no slaves configuration
 func TestRedisReplicationConfigNoSlaves(t *testing.T) {
-	t.Skip("regression: pre-existing failure")
 	t.Parallel()
 	config := RedisReplicationConfig{
 		MasterAddress:  "master:6379",
@@ -77,7 +72,6 @@ func TestRedisReplicationConfigNoSlaves(t *testing.T) {
 
 // TestRedisReplicationConfigSyncInterval tests sync interval
 func TestRedisReplicationConfigSyncInterval(t *testing.T) {
-	t.Skip("regression: pre-existing failure")
 	t.Parallel()
 	tests := []struct {
 		name         string
@@ -101,7 +95,6 @@ func TestRedisReplicationConfigSyncInterval(t *testing.T) {
 
 // TestRedisReplicationConfigMaxSyncRetries tests max sync retries
 func TestRedisReplicationConfigMaxSyncRetries(t *testing.T) {
-	t.Skip("regression: pre-existing failure")
 	t.Parallel()
 	tests := []struct {
 		name           string
@@ -124,7 +117,6 @@ func TestRedisReplicationConfigMaxSyncRetries(t *testing.T) {
 
 // TestRedisAdvancedManagerMutex tests mutex protection
 func TestRedisAdvancedManagerMutex(t *testing.T) {
-	t.Skip("regression: pre-existing failure")
 	t.Parallel()
 	cluster := &RedisCluster{}
 	manager := NewRedisAdvancedManager(cluster)
@@ -136,7 +128,6 @@ func TestRedisAdvancedManagerMutex(t *testing.T) {
 
 // TestRedisAdvancedManagerClusterReference tests cluster reference
 func TestRedisAdvancedManagerClusterReference(t *testing.T) {
-	t.Skip("regression: pre-existing failure")
 	t.Parallel()
 	cluster := &RedisCluster{}
 	manager := NewRedisAdvancedManager(cluster)
@@ -148,7 +139,6 @@ func TestRedisAdvancedManagerClusterReference(t *testing.T) {
 
 // TestRedisReplicationConfigDefaults tests default values
 func TestRedisReplicationConfigDefaults(t *testing.T) {
-	t.Skip("regression: pre-existing failure")
 	t.Parallel()
 	config := RedisReplicationConfig{}
 
@@ -160,7 +150,6 @@ func TestRedisReplicationConfigDefaults(t *testing.T) {
 
 // TestRedisReplicationConfigAddressFormats tests various address formats
 func TestRedisReplicationConfigAddressFormats(t *testing.T) {
-	t.Skip("regression: pre-existing failure")
 	t.Parallel()
 	addresses := []string{
 		"localhost:6379",
@@ -179,7 +168,6 @@ func TestRedisReplicationConfigAddressFormats(t *testing.T) {
 
 // TestRedisReplicationConfigHighSlaveCount tests high slave count
 func TestRedisReplicationConfigHighSlaveCount(t *testing.T) {
-	t.Skip("regression: pre-existing failure")
 	t.Parallel()
 	slaveAddresses := make([]string, 10)
 	for i := 0; i < 10; i++ {
@@ -196,7 +184,6 @@ func TestRedisReplicationConfigHighSlaveCount(t *testing.T) {
 
 // TestRedisAdvancedManagerConcurrentAccess tests concurrent access
 func TestRedisAdvancedManagerConcurrentAccess(t *testing.T) {
-	t.Skip("regression: pre-existing failure")
 	t.Parallel()
 	cluster := &RedisCluster{}
 	manager := NewRedisAdvancedManager(cluster)
@@ -218,7 +205,6 @@ func TestRedisAdvancedManagerConcurrentAccess(t *testing.T) {
 
 // TestRedisReplicationConfigZeroSyncInterval tests zero sync interval
 func TestRedisReplicationConfigZeroSyncInterval(t *testing.T) {
-	t.Skip("regression: pre-existing failure")
 	t.Parallel()
 	config := RedisReplicationConfig{
 		SyncInterval: 0,
@@ -229,7 +215,6 @@ func TestRedisReplicationConfigZeroSyncInterval(t *testing.T) {
 
 // TestRedisReplicationConfigLargeSyncInterval tests large sync interval
 func TestRedisReplicationConfigLargeSyncInterval(t *testing.T) {
-	t.Skip("regression: pre-existing failure")
 	t.Parallel()
 	config := RedisReplicationConfig{
 		SyncInterval: 1 * time.Hour,
@@ -240,7 +225,6 @@ func TestRedisReplicationConfigLargeSyncInterval(t *testing.T) {
 
 // TestRedisReplicationConfigZeroMaxRetries tests zero max retries
 func TestRedisReplicationConfigZeroMaxRetries(t *testing.T) {
-	t.Skip("regression: pre-existing failure")
 	t.Parallel()
 	config := RedisReplicationConfig{
 		MaxSyncRetries: 0,
@@ -251,11 +235,78 @@ func TestRedisReplicationConfigZeroMaxRetries(t *testing.T) {
 
 // TestRedisReplicationConfigHighMaxRetries tests high max retries
 func TestRedisReplicationConfigHighMaxRetries(t *testing.T) {
-	t.Skip("regression: pre-existing failure")
 	t.Parallel()
 	config := RedisReplicationConfig{
 		MaxSyncRetries: 100,
 	}
 
 	assert.Equal(t, 100, config.MaxSyncRetries)
+}
+
+func TestNewRedisClusterMonitor(t *testing.T) {
+	t.Parallel()
+	cluster := &RedisCluster{}
+	monitor := NewRedisClusterMonitor(cluster)
+
+	assert.NotNil(t, monitor)
+	assert.Equal(t, cluster, monitor.cluster)
+}
+
+func TestRedisClusterStatusStructure(t *testing.T) {
+	t.Parallel()
+	now := time.Now()
+	status := RedisClusterStatus{
+		Timestamp:    now,
+		Healthy:      true,
+		HealthyNodes: 2,
+		TotalNodes:   3,
+	}
+
+	assert.True(t, status.Healthy)
+	assert.Equal(t, 2, status.HealthyNodes)
+	assert.Equal(t, 3, status.TotalNodes)
+	assert.Equal(t, now, status.Timestamp)
+}
+
+func TestRedisNodeHealthStructure(t *testing.T) {
+	t.Parallel()
+	health := RedisNodeHealth{
+		Address: "redis1:6379",
+		Healthy: true,
+		Error:   "",
+	}
+
+	assert.Equal(t, "redis1:6379", health.Address)
+	assert.True(t, health.Healthy)
+	assert.Empty(t, health.Error)
+}
+
+func TestRedisClusterMonitorMutex(t *testing.T) {
+	t.Parallel()
+	cluster := &RedisCluster{}
+	monitor := NewRedisClusterMonitor(cluster)
+
+	monitor.mutex.Lock()
+	assert.NotNil(t, monitor.cluster)
+	monitor.mutex.Unlock()
+}
+
+func TestRedisClusterMonitorConcurrentAccess(t *testing.T) {
+	t.Parallel()
+	cluster := &RedisCluster{}
+	monitor := NewRedisClusterMonitor(cluster)
+
+	done := make(chan bool, 10)
+	for i := 0; i < 10; i++ {
+		go func() {
+			defer func() { done <- true }()
+			monitor.mutex.RLock()
+			_ = monitor.cluster
+			monitor.mutex.RUnlock()
+		}()
+	}
+
+	for i := 0; i < 10; i++ {
+		<-done
+	}
 }

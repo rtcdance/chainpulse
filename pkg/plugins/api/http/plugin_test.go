@@ -268,3 +268,12 @@ func TestHTTPPluginPreservesHijackerForWebSocketNativeHandler(t *testing.T) {
 		t.Fatalf("expected status %d, got %d", http.StatusSwitchingProtocols, rr.Code)
 	}
 }
+
+func TestNewHTTPPluginWithTLS_MissingCerts(t *testing.T) {
+	t.Parallel()
+	apiLayer := core.NewAPILayer()
+	_, err := NewHTTPPluginWithTLS("https", 443, 8443, "/nonexistent/cert.pem", "/nonexistent/key.pem", apiLayer)
+	if err == nil {
+		t.Fatal("expected error when cert files are missing")
+	}
+}

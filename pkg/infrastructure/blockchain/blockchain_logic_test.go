@@ -9,8 +9,16 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/services/query"
 	"github.com/stretchr/testify/assert"
 )
+
+// MockTxTypeResolver implements core.TxTypeResolver for testing
+type MockTxTypeResolver struct{}
+
+func (m *MockTxTypeResolver) ResolveTxType(_ context.Context, _ string) (uint8, uint8, error) {
+	return 0, 0, nil
+}
 
 // MockEventValidator for testing
 type MockEventValidator struct {
@@ -251,7 +259,6 @@ func TestFilterEventFiltered(t *testing.T) {
 
 // TestProcessEvent tests full event processing
 func TestProcessEvent(t *testing.T) {
-	t.Skip("regression: pre-existing failure")
 	t.Parallel()
 	bl := NewBlockchainLogic("ethereum")
 	validator := &MockEventValidator{blockchainType: "ethereum"}
@@ -326,6 +333,22 @@ func TestGetMetrics(t *testing.T) {
 	assert.Greater(t, metrics["events_validated"].(int64), int64(0))
 }
 
+func TestSetCircuitBreaker(t *testing.T) {
+	t.Parallel()
+	bl := NewBlockchainLogic("ethereum")
+	cb := query.NewCircuitBreaker(nil)
+	bl.SetCircuitBreaker(cb)
+	assert.NotNil(t, bl.circuitBreaker)
+}
+
+func TestSetTxTypeResolver(t *testing.T) {
+	t.Parallel()
+	bl := NewBlockchainLogic("ethereum")
+	resolver := &MockTxTypeResolver{}
+	bl.SetTxTypeResolver(resolver)
+	assert.NotNil(t, bl.txTypeResolver)
+}
+
 // TestNewBlockchainLogicManager tests manager creation
 func TestNewBlockchainLogicManager(t *testing.T) {
 	t.Parallel()
@@ -387,7 +410,6 @@ func TestGetLogicNotFound(t *testing.T) {
 
 // TestManagerProcessEvent tests processing event through manager
 func TestManagerProcessEvent(t *testing.T) {
-	t.Skip("regression: pre-existing failure")
 	t.Parallel()
 	manager := NewBlockchainLogicManager()
 	logic := NewBlockchainLogic("ethereum")

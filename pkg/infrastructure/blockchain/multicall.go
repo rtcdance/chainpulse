@@ -127,7 +127,8 @@ func (m *Multicall3Client) BatchERC20Metadata(ctx context.Context, tokenAddresse
 	// Build 3 calls per token: name(), symbol(), decimals()
 	var calls []Multicall3Call
 	for _, addr := range uncached {
-		calls = append(calls,
+		calls = append(
+			calls,
 			Multicall3Call{Target: addr, AllowFailure: true, CallData: erc20NameSelector},
 			Multicall3Call{Target: addr, AllowFailure: true, CallData: erc20SymbolSelector},
 			Multicall3Call{Target: addr, AllowFailure: true, CallData: erc20DecimalsSelector},

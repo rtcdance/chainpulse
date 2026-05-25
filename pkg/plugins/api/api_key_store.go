@@ -77,7 +77,8 @@ func (s *APIKeyStore) CreateAPIKey(ctx context.Context, clientID, name string, p
 		expiresAtVal = expiresAt.UTC()
 	}
 
-	_, err := s.db.ExecContext(ctx,
+	_, err := s.db.ExecContext(
+		ctx,
 		`INSERT INTO api_keys (id, client_id, name, key_hash, key_prefix, permissions, enabled, expires_at)
 		 VALUES ($1, $2, $3, $4, $5, $6, true, $7)`,
 		id, clientID, name, keyHash, prefix, string(permsJSON), expiresAtVal,
@@ -104,7 +105,8 @@ func (s *APIKeyStore) ValidateAPIKey(ctx context.Context, plainKey string) (*API
 	hash := sha256.Sum256([]byte(plainKey))
 	keyHash := hex.EncodeToString(hash[:])
 
-	row := s.db.QueryRowContext(ctx,
+	row := s.db.QueryRowContext(
+		ctx,
 		`SELECT id, client_id, name, key_prefix, permissions, enabled, expires_at
 		 FROM api_keys WHERE key_hash = $1`,
 		keyHash,
@@ -174,14 +176,16 @@ func (s *APIKeyStore) ValidateAPIKey(ctx context.Context, plainKey string) (*API
 
 func (s *APIKeyStore) ListAPIKeys(ctx context.Context, clientID string, limit, offset int) ([]*APIKeyRecord, int, error) {
 	var total int
-	err := s.db.QueryRowContext(ctx,
+	err := s.db.QueryRowContext(
+		ctx,
 		`SELECT COUNT(*) FROM api_keys WHERE client_id = $1`, clientID,
 	).Scan(&total)
 	if err != nil {
 		return nil, 0, err
 	}
 
-	rows, err := s.db.QueryContext(ctx,
+	rows, err := s.db.QueryContext(
+		ctx,
 		`SELECT id, client_id, name, key_prefix, permissions, enabled, created_at, updated_at, expires_at, last_used_at, request_count
 		 FROM api_keys WHERE client_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3`,
 		clientID, limit, offset,
@@ -242,7 +246,8 @@ func (s *APIKeyStore) DeleteAPIKey(ctx context.Context, id string) error {
 }
 
 func (s *APIKeyStore) ToggleAPIKey(ctx context.Context, id string, enabled bool) error {
-	result, err := s.db.ExecContext(ctx,
+	result, err := s.db.ExecContext(
+		ctx,
 		`UPDATE api_keys SET enabled = $1, updated_at = NOW() WHERE id = $2`,
 		enabled, id,
 	)
@@ -296,7 +301,8 @@ func (s *APIKeyStore) ListExpiringKeys(ctx context.Context, before time.Time) ([
 func (s *APIKeyStore) getKeyByID(ctx context.Context, id string) (*APIKeyRecord, error) {
 	var k APIKeyRecord
 	var permsJSON string
-	err := s.db.QueryRowContext(ctx,
+	err := s.db.QueryRowContext(
+		ctx,
 		`SELECT id, client_id, name, key_prefix, permissions, enabled FROM api_keys WHERE id = $1`,
 		id,
 	).Scan(&k.ID, &k.ClientID, &k.Name, &k.KeyPrefix, &permsJSON, &k.Enabled)
@@ -317,7 +323,8 @@ func (s *APIKeyStore) extendKeyExpiry(ctx context.Context, id string, newExpiry 
 }
 
 func (s *APIKeyStore) LoadAllKeys(ctx context.Context) (map[string]string, error) {
-	rows, err := s.db.QueryContext(ctx,
+	rows, err := s.db.QueryContext(
+		ctx,
 		`SELECT key_hash, client_id FROM api_keys WHERE enabled = true AND (expires_at IS NULL OR expires_at > NOW())`,
 	)
 	if err != nil {

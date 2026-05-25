@@ -26,12 +26,15 @@ func (m *benchMockDB) Health(_ context.Context) error                    { retur
 func (m *benchMockDB) GetEvent(_ context.Context, _ string) (*core.BlockchainEvent, error) {
 	return nil, nil
 }
+
 func (m *benchMockDB) QueryEvents(_ context.Context, _ any) ([]any, error) {
 	return nil, nil
 }
+
 func (m *benchMockDB) GetAllEvents(_ context.Context) ([]*core.BlockchainEvent, error) {
 	return nil, nil
 }
+
 func (m *benchMockDB) GetEventsByBlockRange(_ context.Context, _, _ uint64) ([]*core.BlockchainEvent, error) {
 	return nil, nil
 }
@@ -46,6 +49,7 @@ func (m *benchMockDB) DeleteEvent(_ context.Context, _ string) error     { retur
 func (m *benchMockDB) DeleteEventsByBlockRange(_ context.Context, _, _ uint64) (int64, error) {
 	return 0, nil
 }
+
 func (m *benchMockDB) MarkEventsAsReorged(_ context.Context, _, _ uint64) (int64, error) {
 	return 0, nil
 }

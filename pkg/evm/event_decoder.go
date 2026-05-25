@@ -88,7 +88,8 @@ func DecodeEventData(eventName string, topics []common.Hash, data []byte) map[st
 		if err != nil {
 			// Log the decode failure — complex types (structs, nested arrays)
 			// may not decode correctly, but indexed params are still valid.
-			getEventDecoderLogger().Warn("ABI Unpack failed",
+			getEventDecoderLogger().Warn(
+				"ABI Unpack failed",
 				"event_name", eventName,
 				"data_len", len(data),
 				"error", err,
@@ -128,6 +129,7 @@ func FormatIndexedTopicValue(solidityType string, topic common.Hash) any {
 		return topic.Hex()
 	}
 }
+
 func FormatDecodedValue(v any) any {
 	switch val := v.(type) {
 	case *big.Int:

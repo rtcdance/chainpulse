@@ -364,6 +364,16 @@ func TestSessionMultipleUpdates(t *testing.T) {
 	assert.Equal(t, 4, retrieved.Data["iteration"])
 }
 
+// TestSessionStartStop tests starting and stopping the session manager.
+func TestSessionStartStop(t *testing.T) {
+	t.Parallel()
+	sm := NewSessionManager()
+	sm.Start()
+	sm.Stop()
+	// Calling Stop twice should not panic (sync.Once).
+	sm.Stop()
+}
+
 // TestSessionContextCancellation tests session operations with cancelled context
 func TestSessionContextCancellation(t *testing.T) {
 	t.Parallel()

@@ -25,6 +25,7 @@ func (p *depPlugin) Start(_ context.Context) error {
 	atomic.AddInt32(&p.startCalled, 1)
 	return p.startErr
 }
+
 func (p *depPlugin) Stop(_ context.Context) error {
 	atomic.AddInt32(&p.stopCalled, 1)
 	return p.stopErr

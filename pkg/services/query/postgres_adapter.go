@@ -273,7 +273,6 @@ const pgSelectColumns = "id AS event_hash, block_number, transaction_hash, log_i
 
 // Query executes a query against PostgreSQL
 func (pa *DefaultPostgreSQLAdapter) Query(ctx context.Context, req *QueryRequest) (*QueryResult, error) {
-
 	if !pa.initialized.Load() {
 		return nil, fmt.Errorf("PostgreSQL adapter not initialized")
 	}
@@ -416,7 +415,6 @@ func isSafePostgresIdentifier(identifier string) bool {
 
 // QueryByHash retrieves a single item by hash
 func (pa *DefaultPostgreSQLAdapter) QueryByHash(ctx context.Context, hash string) (*core.BlockchainEvent, error) {
-
 	if !pa.initialized.Load() {
 		return nil, fmt.Errorf("PostgreSQL adapter not initialized")
 	}
@@ -471,7 +469,6 @@ func (pa *DefaultPostgreSQLAdapter) QueryByHash(ctx context.Context, hash string
 
 // Health returns the health status
 func (pa *DefaultPostgreSQLAdapter) Health(ctx context.Context) *core.HealthStatus {
-
 	if !pa.initialized.Load() {
 		return &core.HealthStatus{
 			Status:  "unhealthy",

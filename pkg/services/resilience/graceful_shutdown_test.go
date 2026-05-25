@@ -494,3 +494,24 @@ func TestStopSignalListenerCleansUpGoroutine(t *testing.T) {
 		t.Fatal("StopSignalListener() hung — goroutine leak not fixed")
 	}
 }
+
+func TestGracefulShutdownContext_Cancel(t *testing.T) {
+	t.Parallel()
+	logger := core.NewDefaultLogger(core.LogLevelInfo)
+	metricsCollector := core.NewDefaultMetricsCollector()
+	handler := NewShutdownHandler(logger, metricsCollector)
+	gsc := NewGracefulShutdownContext(handler)
+
+	cancelled := false
+	go func() {
+		<-gsc.GetContext().Done()
+		cancelled = true
+	}()
+
+	gsc.Cancel()
+
+	time.Sleep(50 * time.Millisecond)
+	if !cancelled {
+		t.Fatal("expected context to be cancelled after Cancel()")
+	}
+}

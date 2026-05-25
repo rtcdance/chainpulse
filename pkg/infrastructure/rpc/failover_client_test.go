@@ -188,3 +188,125 @@ func TestFailoverRPCClientRateLimiting(t *testing.T) {
 		t.Error("expected rate limit error after draining token bucket")
 	}
 }
+
+func TestNewFailoverRPCClientDefaults(t *testing.T) {
+	t.Parallel()
+	client := NewFailoverRPCClient(FailoverConfig{
+		PrimaryURL: "http://localhost:8545",
+	})
+	if client.maxConsecutiveFailures != 5 {
+		t.Errorf("expected default maxConsecutiveFailures=5, got %d", client.maxConsecutiveFailures)
+	}
+	if client.requestsPerSecond != 50 {
+		t.Errorf("expected default requestsPerSecond=50, got %f", client.requestsPerSecond)
+	}
+	if client.client == nil {
+		t.Error("expected default http client")
+	}
+	if len(client.endpoints) != 1 {
+		t.Errorf("expected 1 endpoint, got %d", len(client.endpoints))
+	}
+}
+
+func TestFailoverRPCClientCurrentEndpoint(t *testing.T) {
+	t.Parallel()
+	client := NewFailoverRPCClient(FailoverConfig{
+		PrimaryURL: "http://primary:8545",
+	})
+	ep := client.CurrentEndpoint()
+	if ep != "http://primary:8545" {
+		t.Errorf("expected primary URL, got %s", ep)
+	}
+}
+
+func TestFailoverRPCClientCallbacks(t *testing.T) {
+	t.Parallel()
+	client := NewFailoverRPCClient(FailoverConfig{
+		PrimaryURL: "http://localhost:8545",
+	})
+
+	var switched bool
+	client.OnEndpointSwitch(func(from, to string) {
+		switched = true
+	})
+	_ = switched // callback is stored, tested via integration
+
+	var circuitOpened bool
+	client.OnCircuitOpen(func(url string) {
+		circuitOpened = true
+	})
+	_ = circuitOpened // callback is stored, tested via integration
+}
+
+func TestParseRetryAfter_EmptyHeader(t *testing.T) {
+	t.Parallel()
+	client := &FailoverRPCClient{}
+	resp := &http.Response{Header: http.Header{}}
+	d := client.parseRetryAfter(resp)
+	if d != 0 {
+		t.Errorf("expected 0 for empty header, got %v", d)
+	}
+}
+
+func TestParseRetryAfter_Seconds(t *testing.T) {
+	t.Parallel()
+	client := &FailoverRPCClient{}
+	resp := &http.Response{Header: http.Header{"Retry-After": []string{"30"}}}
+	d := client.parseRetryAfter(resp)
+	if d != 30*time.Second {
+		t.Errorf("expected 30s, got %v", d)
+	}
+}
+
+func TestParseRetryAfter_HTTPDate(t *testing.T) {
+	t.Parallel()
+	client := &FailoverRPCClient{}
+	future := time.Now().Add(2 * time.Minute).UTC().Format(http.TimeFormat)
+	resp := &http.Response{Header: http.Header{"Retry-After": []string{future}}}
+	d := client.parseRetryAfter(resp)
+	if d <= 0 {
+		t.Errorf("expected positive duration, got %v", d)
+	}
+}
+
+func TestParseRetryAfter_PastDate(t *testing.T) {
+	t.Parallel()
+	client := &FailoverRPCClient{}
+	past := time.Now().Add(-1 * time.Hour).UTC().Format(http.TimeFormat)
+	resp := &http.Response{Header: http.Header{"Retry-After": []string{past}}}
+	d := client.parseRetryAfter(resp)
+	if d != 0 {
+		t.Errorf("expected 0 for past date, got %v", d)
+	}
+}
+
+func TestParseRetryAfter_InvalidValue(t *testing.T) {
+	t.Parallel()
+	client := &FailoverRPCClient{}
+	resp := &http.Response{Header: http.Header{"Retry-After": []string{"not-a-number"}}}
+	d := client.parseRetryAfter(resp)
+	if d != 0 {
+		t.Errorf("expected 0 for invalid value, got %v", d)
+	}
+}
+
+func TestReadBody(t *testing.T) {
+	t.Parallel()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("hello world"))
+	}))
+	defer server.Close()
+
+	resp, err := http.Get(server.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	body, err := ReadBody(resp)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(body) != "hello world" {
+		t.Errorf("expected 'hello world', got %q", string(body))
+	}
+}

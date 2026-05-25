@@ -118,6 +118,16 @@ func TestWebSocketPluginGetName(t *testing.T) {
 	}
 }
 
+func TestWebSocketPluginGetProtocolName(t *testing.T) {
+	t.Parallel()
+	apiLayer := core.NewAPILayer()
+	plugin := NewWebSocketPlugin("ws-proto", 8095, apiLayer)
+
+	if plugin.GetProtocolName() != "ws-proto" {
+		t.Errorf("expected protocol name 'ws-proto', got %s", plugin.GetProtocolName())
+	}
+}
+
 func TestWebSocketPluginIsRunning(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {

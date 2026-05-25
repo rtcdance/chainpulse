@@ -522,3 +522,85 @@ func TestBlockConsistencyStructure(t *testing.T) {
 	assert.Equal(t, uint64(100), consistency.BlockNumber)
 	assert.NotNil(t, consistency.Issues)
 }
+
+func TestFindEventSequenceGapsEmpty(t *testing.T) {
+	t.Parallel()
+	issues := findEventSequenceGaps(map[uint64]bool{})
+	assert.Nil(t, issues)
+}
+
+func TestFindEventSequenceGapsNoGaps(t *testing.T) {
+	t.Parallel()
+	blockSet := map[uint64]bool{1: true, 2: true, 3: true}
+	issues := findEventSequenceGaps(blockSet)
+	assert.Empty(t, issues)
+}
+
+func TestFindEventSequenceGapsSingleBlockGap(t *testing.T) {
+	t.Parallel()
+	blockSet := map[uint64]bool{1: true, 3: true}
+	issues := findEventSequenceGaps(blockSet)
+	assert.Len(t, issues, 1)
+	assert.Contains(t, issues[0], "block 2")
+}
+
+func TestFindEventSequenceGapsMultiBlockGap(t *testing.T) {
+	t.Parallel()
+	blockSet := map[uint64]bool{1: true, 5: true}
+	issues := findEventSequenceGaps(blockSet)
+	assert.Len(t, issues, 1)
+	assert.Contains(t, issues[0], "blocks 2-4")
+}
+
+func TestFindBlockSequenceGapsEmpty(t *testing.T) {
+	t.Parallel()
+	issues := findBlockSequenceGaps(nil)
+	assert.Nil(t, issues)
+}
+
+func TestFindBlockSequenceGapsNoGaps(t *testing.T) {
+	t.Parallel()
+	blocks := []*core.Block{
+		{Number: 1, Hash: common.HexToHash("0x1"), ParentHash: common.HexToHash("0x0")},
+		{Number: 2, Hash: common.HexToHash("0x2"), ParentHash: common.HexToHash("0x1")},
+	}
+	issues := findBlockSequenceGaps(blocks)
+	assert.Empty(t, issues)
+}
+
+func TestFindBlockSequenceGapsWithGap(t *testing.T) {
+	t.Parallel()
+	blocks := []*core.Block{
+		{Number: 1, Hash: common.HexToHash("0x1"), ParentHash: common.HexToHash("0x0")},
+		{Number: 3, Hash: common.HexToHash("0x3"), ParentHash: common.HexToHash("0x1")},
+	}
+	issues := findBlockSequenceGaps(blocks)
+	assert.Len(t, issues, 1)
+	assert.Contains(t, issues[0], "block 2")
+}
+
+func TestFindDuplicates(t *testing.T) {
+	t.Parallel()
+	hash := common.HexToHash("0x1234")
+	sig := common.HexToHash("0x5678")
+
+	event1 := &core.BlockchainEvent{TransactionHash: hash, LogIndex: 0, EventSignature: sig}
+	event2 := &core.BlockchainEvent{TransactionHash: hash, LogIndex: 0, EventSignature: sig}
+	event3 := &core.BlockchainEvent{TransactionHash: hash, LogIndex: 1, EventSignature: sig}
+
+	dups := findDuplicates([]*core.BlockchainEvent{event1, event2, event3})
+	assert.Len(t, dups, 1)
+}
+
+func TestBuildBlockSetFromEvents(t *testing.T) {
+	t.Parallel()
+	events := []*core.BlockchainEvent{
+		{BlockNumber: 1},
+		{BlockNumber: 2},
+		{BlockNumber: 1},
+	}
+	blockSet := buildBlockSetFromEvents(events)
+	assert.Len(t, blockSet, 2)
+	assert.True(t, blockSet[1])
+	assert.True(t, blockSet[2])
+}

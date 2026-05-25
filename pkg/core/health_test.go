@@ -541,3 +541,20 @@ func TestHealthCheckConcurrency(t *testing.T) {
 		t.Error("expected status to be set after concurrent checks")
 	}
 }
+
+func TestWatchHealth(t *testing.T) {
+	t.Parallel()
+	registry := NewMockPluginRegistry()
+	config := NewMockConfigManager()
+	bus := NewEventBus(nil)
+	metrics := NewDefaultMetricsCollector()
+	logger := NewDefaultLogger(LogLevelInfo)
+
+	checker := NewDefaultHealthChecker(registry, config, bus, metrics, logger)
+	checker.SetCheckInterval(10 * time.Millisecond)
+
+	ctx, cancel := context.WithCancel(t.Context())
+	go checker.WatchHealth(ctx)
+	time.Sleep(30 * time.Millisecond)
+	cancel()
+}

@@ -12,9 +12,11 @@ import (
 // mockBenchStorage is a no-op storage for benchmarking processor logic.
 type mockBenchStorage struct{}
 
-func (m *mockBenchStorage) WriteEvent(_ context.Context, _ *core.BlockchainEvent) error   { return nil }
+func (m *mockBenchStorage) WriteEvent(_ context.Context, _ *core.BlockchainEvent) error { return nil }
+
 func (m *mockBenchStorage) WriteBatch(_ context.Context, _ []*core.BlockchainEvent) error { return nil }
-func (m *mockBenchStorage) DeleteEvent(_ context.Context, _ string) error                 { return nil }
+
+func (m *mockBenchStorage) DeleteEvent(_ context.Context, _ string) error { return nil }
 
 func BenchmarkProcessEvent(b *testing.B) {
 	logger := core.NewDefaultLogger(core.LogLevelError)

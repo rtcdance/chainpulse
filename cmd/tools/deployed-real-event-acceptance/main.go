@@ -139,7 +139,8 @@ func run(cfg config) error {
 		return err
 	}
 
-	slog.Info("chain event emitted",
+	slog.Info(
+		"chain event emitted",
 		"contract", contractAddress.Hex(),
 		"tx", tx.Hash().Hex(),
 		"logs", len(receipt.Logs),

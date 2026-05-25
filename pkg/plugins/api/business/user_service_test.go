@@ -301,3 +301,118 @@ func TestUserServiceMetrics(t *testing.T) {
 		t.Errorf("expected total_operations >= 1, got %v", metrics["total_operations"])
 	}
 }
+
+func TestUserServiceList(t *testing.T) {
+	t.Parallel()
+	backend := NewMockUserBackend()
+	cache := NewMockServiceCache()
+	service := NewUserService(backend, cache)
+
+	for i := 1; i <= 3; i++ {
+		user := &User{
+			ID:     fmt.Sprintf("user-%d", i),
+			Email:  fmt.Sprintf("user%d@example.com", i),
+			Name:   fmt.Sprintf("User %d", i),
+			Role:   "user",
+			Active: true,
+		}
+		if _, err := backend.Create(context.Background(), user); err != nil {
+			t.Fatalf("failed to create user: %v", err)
+		}
+	}
+
+	users, err := service.ListUsers(context.Background(), 10, 0)
+	if err != nil {
+		t.Fatalf("failed to list users: %v", err)
+	}
+
+	if len(users) != 3 {
+		t.Errorf("expected 3 users, got %d", len(users))
+	}
+}
+
+func TestUserServiceQuery(t *testing.T) {
+	t.Parallel()
+	backend := NewMockUserBackend()
+	cache := NewMockServiceCache()
+	service := NewUserService(backend, cache)
+
+	user := &User{
+		ID:     "user-1",
+		Email:  "test@example.com",
+		Name:   "Test User",
+		Role:   "user",
+		Active: true,
+	}
+	if _, err := backend.Create(context.Background(), user); err != nil {
+		t.Fatalf("failed to create user: %v", err)
+	}
+
+	filter := map[string]any{"role": "user"}
+	users, err := service.QueryUsers(context.Background(), filter, 10, 0)
+	if err != nil {
+		t.Fatalf("failed to query users: %v", err)
+	}
+
+	if len(users) != 1 {
+		t.Errorf("expected 1 user, got %d", len(users))
+	}
+}
+
+func TestUserServiceGetByEmail_Caching(t *testing.T) {
+	t.Parallel()
+	backend := NewMockUserBackend()
+	cache := NewMockServiceCache()
+	service := NewUserService(backend, cache)
+
+	user := &User{
+		ID:     "user-1",
+		Email:  "test@example.com",
+		Name:   "Test User",
+		Role:   "user",
+		Active: true,
+	}
+	if _, err := backend.Create(context.Background(), user); err != nil {
+		t.Fatalf("failed to create user: %v", err)
+	}
+
+	_, err := service.GetUserByEmail(context.Background(), "test@example.com")
+	if err != nil {
+		t.Fatalf("first call failed: %v", err)
+	}
+
+	retrieved, err := service.GetUserByEmail(context.Background(), "test@example.com")
+	if err != nil {
+		t.Fatalf("cached call failed: %v", err)
+	}
+
+	if retrieved.Email != user.Email {
+		t.Errorf("expected email %s, got %s", user.Email, retrieved.Email)
+	}
+}
+
+func TestUserServiceGetByEmail_NoCache(t *testing.T) {
+	t.Parallel()
+	backend := NewMockUserBackend()
+	service := NewUserService(backend, nil)
+
+	user := &User{
+		ID:     "user-1",
+		Email:  "test@example.com",
+		Name:   "Test User",
+		Role:   "user",
+		Active: true,
+	}
+	if _, err := backend.Create(context.Background(), user); err != nil {
+		t.Fatalf("failed to create user: %v", err)
+	}
+
+	retrieved, err := service.GetUserByEmail(context.Background(), "test@example.com")
+	if err != nil {
+		t.Fatalf("failed to get user by email: %v", err)
+	}
+
+	if retrieved.Email != user.Email {
+		t.Errorf("expected email %s, got %s", user.Email, retrieved.Email)
+	}
+}

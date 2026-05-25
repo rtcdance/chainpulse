@@ -368,3 +368,105 @@ func TestCrossChainAPIResultAggregation(t *testing.T) {
 	totalEvents := len(result.BlockchainMap["ethereum"]) + len(result.BlockchainMap["polygon"])
 	assert.Equal(t, 8, totalEvents)
 }
+
+func TestCrossChainAPI_AggregateResults(t *testing.T) {
+	t.Parallel()
+	cache := &MockDistributedCache{data: make(map[string]any)}
+	api := NewCrossChainAPI(nil, cache)
+
+	results := map[string][]core.BlockchainEvent{
+		"ethereum": {{ID: "evm-1"}, {ID: "evm-2"}},
+		"polygon":  {{ID: "poly-1"}},
+	}
+
+	aggregated := api.AggregateResults(results)
+
+	assert.Equal(t, 3, len(aggregated))
+}
+
+func TestCrossChainAPI_AggregateResults_Empty(t *testing.T) {
+	t.Parallel()
+	cache := &MockDistributedCache{data: make(map[string]any)}
+	api := NewCrossChainAPI(nil, cache)
+
+	aggregated := api.AggregateResults(map[string][]core.BlockchainEvent{})
+
+	assert.Equal(t, 0, len(aggregated))
+}
+
+func TestCrossChainAPI_MergeResults(t *testing.T) {
+	t.Parallel()
+	cache := &MockDistributedCache{data: make(map[string]any)}
+	api := NewCrossChainAPI(nil, cache)
+
+	results := map[string][]core.BlockchainEvent{
+		"ethereum": {{ID: "evm-1"}, {ID: "evm-2"}},
+	}
+
+	merged, err := api.MergeResults(context.Background(), results)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, merged)
+	assert.Equal(t, 2, merged.TotalCount)
+	assert.Equal(t, 2, len(merged.BlockchainMap["ethereum"]))
+}
+
+func TestCrossChainAPI_PaginateResults(t *testing.T) {
+	t.Parallel()
+	cache := &MockDistributedCache{data: make(map[string]any)}
+	api := NewCrossChainAPI(nil, cache)
+
+	events := make([]core.BlockchainEvent, 10)
+	for i := range events {
+		events[i] = core.BlockchainEvent{ID: "evt"}
+	}
+
+	page := api.PaginateResults(events, 3, 0)
+	assert.Equal(t, 3, len(page))
+
+	page = api.PaginateResults(events, 3, 8)
+	assert.Equal(t, 2, len(page))
+
+	page = api.PaginateResults(events, 3, 15)
+	assert.Equal(t, 0, len(page))
+}
+
+func TestCrossChainAPI_GetMetrics(t *testing.T) {
+	t.Parallel()
+	cache := &MockDistributedCache{data: make(map[string]any)}
+	api := NewCrossChainAPI(nil, cache)
+
+	api.metrics.mu.Lock()
+	api.metrics.TotalQueries = 10
+	api.metrics.SuccessfulQueries = 8
+	api.metrics.mu.Unlock()
+
+	m := api.GetMetrics()
+
+	assert.Equal(t, int64(10), m["total_queries"])
+	assert.Equal(t, int64(8), m["successful_queries"])
+}
+
+func TestCrossChainAPI_InvalidateCache(t *testing.T) {
+	t.Parallel()
+	cache := &MockDistributedCache{data: make(map[string]any)}
+	api := NewCrossChainAPI(nil, cache)
+
+	ctx := context.Background()
+	_ = cache.Set(ctx, "cross-chain-query:q1", "cached", time.Minute)
+
+	err := api.InvalidateCache(ctx, "q1")
+	assert.NoError(t, err)
+
+	val, _ := cache.Get(ctx, "cross-chain-query:q1")
+	assert.Nil(t, val)
+}
+
+func TestCrossChainAPI_InvalidateCacheForBlockchain(t *testing.T) {
+	t.Parallel()
+	cache := &MockDistributedCache{data: make(map[string]any)}
+	api := NewCrossChainAPI(nil, cache)
+
+	err := api.InvalidateCacheForBlockchain(context.Background(), "ethereum")
+	assert.NoError(t, err)
+}

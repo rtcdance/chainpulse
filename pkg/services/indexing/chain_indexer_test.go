@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/rtcdance/chainpulse/pkg/consensus"
 	"github.com/rtcdance/chainpulse/pkg/core"
 	"github.com/rtcdance/chainpulse/pkg/integrations/generic"
 )
@@ -471,6 +472,20 @@ func TestGetStatus(t *testing.T) {
 	assert.Equal(t, int64(1), status["total_events_indexed"])
 	assert.Equal(t, int64(0), status["shadow_owned_events"])
 	assert.Equal(t, int64(1), status["legacy_owned_events"])
+}
+
+func TestSetConfirmationTracker(t *testing.T) {
+	t.Parallel()
+	db := NewMockDatabasePlugin()
+	cache := NewMockCachePlugin()
+	logger := NewMockLogger()
+	genericIndexer := generic.NewGenericContractIndexer(db, cache, logger, nil, nil)
+
+	indexer := NewDefaultChainIndexer("ethereum", db, cache, logger, genericIndexer)
+
+	tracker := consensus.NewConfirmationTracker(consensus.DefaultConfirmationConfig(), "ethereum")
+	indexer.SetConfirmationTracker(tracker)
+	assert.NotNil(t, indexer.confirmationTracker)
 }
 
 func TestClose(t *testing.T) {

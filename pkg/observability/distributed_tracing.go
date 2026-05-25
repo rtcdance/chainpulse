@@ -158,7 +158,8 @@ func NewDefaultTracer(logger core.Logger, metrics core.MetricsCollector) *Defaul
 	// Configure OTLP exporter if endpoint is set
 	otlpEndpoint := os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
 	if otlpEndpoint != "" {
-		exporter, err := otlptracegrpc.New(context.Background(),
+		exporter, err := otlptracegrpc.New(
+			context.Background(),
 			otlptracegrpc.WithEndpoint(otlpEndpoint),
 			otlptracegrpc.WithInsecure(),
 		)

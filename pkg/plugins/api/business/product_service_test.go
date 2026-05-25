@@ -320,3 +320,150 @@ func TestProductServiceMetrics(t *testing.T) {
 		t.Errorf("expected total_operations >= 1, got %v", metrics["total_operations"])
 	}
 }
+
+func TestProductServiceList(t *testing.T) {
+	t.Parallel()
+	backend := NewMockProductBackend()
+	cache := NewMockServiceCache()
+	service := NewProductService(backend, cache)
+
+	for i := 1; i <= 3; i++ {
+		product := &Product{
+			ID:          fmt.Sprintf("product-%d", i),
+			Name:        fmt.Sprintf("Test Product %d", i),
+			Price:       float64(i) * 10.0,
+			Stock:       100,
+			Category:    "electronics",
+			Active:      true,
+		}
+		if _, err := backend.Create(context.Background(), product); err != nil {
+			t.Fatalf("failed to create product: %v", err)
+		}
+	}
+
+	products, err := service.ListProducts(context.Background(), 10, 0)
+	if err != nil {
+		t.Fatalf("failed to list products: %v", err)
+	}
+
+	if len(products) != 3 {
+		t.Errorf("expected 3 products, got %d", len(products))
+	}
+}
+
+func TestProductServiceQuery(t *testing.T) {
+	t.Parallel()
+	backend := NewMockProductBackend()
+	cache := NewMockServiceCache()
+	service := NewProductService(backend, cache)
+
+	product := &Product{
+		ID:          "product-1",
+		Name:        "Test Product",
+		Price:       99.99,
+		Stock:       100,
+		Category:    "electronics",
+		Active:      true,
+	}
+	if _, err := backend.Create(context.Background(), product); err != nil {
+		t.Fatalf("failed to create product: %v", err)
+	}
+
+	filter := map[string]any{"category": "electronics"}
+	products, err := service.QueryProducts(context.Background(), filter, 10, 0)
+	if err != nil {
+		t.Fatalf("failed to query products: %v", err)
+	}
+
+	if len(products) != 1 {
+		t.Errorf("expected 1 product, got %d", len(products))
+	}
+}
+
+func TestProductServiceGetByCategory_Caching(t *testing.T) {
+	t.Parallel()
+	backend := NewMockProductBackend()
+	cache := NewMockServiceCache()
+	service := NewProductService(backend, cache)
+
+	product := &Product{
+		ID:          "product-1",
+		Name:        "Test Product",
+		Price:       99.99,
+		Stock:       100,
+		Category:    "electronics",
+		Active:      true,
+	}
+	if _, err := backend.Create(context.Background(), product); err != nil {
+		t.Fatalf("failed to create product: %v", err)
+	}
+
+	_, err := service.GetProductsByCategory(context.Background(), "electronics", 10, 0)
+	if err != nil {
+		t.Fatalf("first call failed: %v", err)
+	}
+
+	products, err := service.GetProductsByCategory(context.Background(), "electronics", 10, 0)
+	if err != nil {
+		t.Fatalf("cached call failed: %v", err)
+	}
+
+	if len(products) != 1 {
+		t.Errorf("expected 1 product, got %d", len(products))
+	}
+}
+
+func TestProductServiceUpdateStock_NoCache(t *testing.T) {
+	t.Parallel()
+	backend := NewMockProductBackend()
+	service := NewProductService(backend, nil)
+
+	product := &Product{
+		ID:          "product-1",
+		Name:        "Test Product",
+		Price:       99.99,
+		Stock:       100,
+		Category:    "electronics",
+		Active:      true,
+	}
+	if _, err := backend.Create(context.Background(), product); err != nil {
+		t.Fatalf("failed to create product: %v", err)
+	}
+
+	err := service.UpdateProductStock(context.Background(), "product-1", -10)
+	if err != nil {
+		t.Fatalf("failed to update stock: %v", err)
+	}
+
+	updated, _ := backend.Read(context.Background(), "product-1")
+	if updated.Stock != 90 {
+		t.Errorf("expected stock 90, got %d", updated.Stock)
+	}
+}
+
+func TestProductServiceGetByCategory_NoCache(t *testing.T) {
+	t.Parallel()
+	backend := NewMockProductBackend()
+	service := NewProductService(backend, nil)
+
+	product := &Product{
+		ID:          "product-1",
+		Name:        "Test Product",
+		Price:       99.99,
+		Stock:       100,
+		Category:    "electronics",
+		Active:      true,
+	}
+	if _, err := backend.Create(context.Background(), product); err != nil {
+		t.Fatalf("failed to create product: %v", err)
+	}
+
+	products, err := service.GetProductsByCategory(context.Background(), "electronics", 10, 0)
+	if err != nil {
+		t.Fatalf("failed to get products by category: %v", err)
+	}
+
+	if len(products) != 1 {
+		t.Errorf("expected 1 product, got %d", len(products))
+	}
+}

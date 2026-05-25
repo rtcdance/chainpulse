@@ -2,6 +2,7 @@ package erc20
 
 import (
 	"context"
+	"fmt"
 	"math/big"
 	"testing"
 
@@ -27,7 +28,9 @@ func (ml *MockLogger) WithCorrelationID(id string) core.Logger {
 
 // MockDatabasePlugin for testing
 type MockDatabasePlugin struct {
-	events []*core.BlockchainEvent
+	events      []*core.BlockchainEvent
+	queryEvents []any
+	queryErr    error
 }
 
 func (mdp *MockDatabasePlugin) StoreEvent(ctx context.Context, event any) error {
@@ -50,7 +53,10 @@ func (mdp *MockDatabasePlugin) GetEventsByBlockRange(ctx context.Context, from, 
 }
 
 func (mdp *MockDatabasePlugin) QueryEvents(ctx context.Context, filter any) ([]any, error) {
-	return nil, nil
+	if mdp.queryErr != nil {
+		return nil, mdp.queryErr
+	}
+	return mdp.queryEvents, nil
 }
 
 func (mdp *MockDatabasePlugin) DeleteEvent(ctx context.Context, id string) error {
@@ -514,4 +520,226 @@ func TestConcurrentIndexing(t *testing.T) {
 	for i := 0; i < 5; i++ {
 		<-done
 	}
+}
+
+func TestGetTransferHistoryEmptyToken(t *testing.T) {
+	t.Parallel()
+	db := &MockDatabasePlugin{}
+	cache := NewMockCachePlugin()
+	logger := &MockLogger{}
+	eventDecoder := decoder.NewEventDecoder(nil, logger)
+	contractManager := decoder.NewContractManager(logger)
+
+	indexer := NewERC20Indexer(db, cache, logger, eventDecoder, contractManager)
+
+	_, err := indexer.GetTransferHistory(context.Background(), common.Address{}, common.HexToAddress("0x1111111111111111111111111111111111111111"), 0, 100)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "token address is empty")
+}
+
+func TestGetTransferHistoryEmptyAccount(t *testing.T) {
+	t.Parallel()
+	db := &MockDatabasePlugin{}
+	cache := NewMockCachePlugin()
+	logger := &MockLogger{}
+	eventDecoder := decoder.NewEventDecoder(nil, logger)
+	contractManager := decoder.NewContractManager(logger)
+
+	indexer := NewERC20Indexer(db, cache, logger, eventDecoder, contractManager)
+
+	_, err := indexer.GetTransferHistory(context.Background(), common.HexToAddress("0x1111111111111111111111111111111111111111"), common.Address{}, 0, 100)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "account address is empty")
+}
+
+func TestGetTransferHistoryInvalidBlockRange(t *testing.T) {
+	t.Parallel()
+	db := &MockDatabasePlugin{}
+	cache := NewMockCachePlugin()
+	logger := &MockLogger{}
+	eventDecoder := decoder.NewEventDecoder(nil, logger)
+	contractManager := decoder.NewContractManager(logger)
+
+	indexer := NewERC20Indexer(db, cache, logger, eventDecoder, contractManager)
+
+	_, err := indexer.GetTransferHistory(context.Background(), common.HexToAddress("0x1111111111111111111111111111111111111111"), common.HexToAddress("0x2222222222222222222222222222222222222222"), 200, 100)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "from_block must be <= to_block")
+}
+
+func TestValidateTransferEventValid(t *testing.T) {
+	t.Parallel()
+	db := &MockDatabasePlugin{}
+	cache := NewMockCachePlugin()
+	logger := &MockLogger{}
+	eventDecoder := decoder.NewEventDecoder(nil, logger)
+	contractManager := decoder.NewContractManager(logger)
+
+	indexer := NewERC20Indexer(db, cache, logger, eventDecoder, contractManager)
+
+	transferEvent := &TransferEvent{
+		Token: common.HexToAddress("0x1111"),
+		Value: big.NewInt(1000),
+	}
+
+	err := indexer.validateTransferEvent(transferEvent)
+	assert.NoError(t, err)
+}
+
+func TestValidateTransferEventNilValue(t *testing.T) {
+	t.Parallel()
+	db := &MockDatabasePlugin{}
+	cache := NewMockCachePlugin()
+	logger := &MockLogger{}
+	eventDecoder := decoder.NewEventDecoder(nil, logger)
+	contractManager := decoder.NewContractManager(logger)
+
+	indexer := NewERC20Indexer(db, cache, logger, eventDecoder, contractManager)
+
+	transferEvent := &TransferEvent{
+		Token: common.HexToAddress("0x1111"),
+		Value: nil,
+	}
+
+	err := indexer.validateTransferEvent(transferEvent)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "value is nil")
+}
+
+func TestValidateTransferEventNegativeValue(t *testing.T) {
+	t.Parallel()
+	db := &MockDatabasePlugin{}
+	cache := NewMockCachePlugin()
+	logger := &MockLogger{}
+	eventDecoder := decoder.NewEventDecoder(nil, logger)
+	contractManager := decoder.NewContractManager(logger)
+
+	indexer := NewERC20Indexer(db, cache, logger, eventDecoder, contractManager)
+
+	transferEvent := &TransferEvent{
+		Token: common.HexToAddress("0x1111"),
+		Value: big.NewInt(-1),
+	}
+
+	err := indexer.validateTransferEvent(transferEvent)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "value cannot be negative")
+}
+
+func TestDecodeTransferEventNilEvent(t *testing.T) {
+	t.Parallel()
+	db := &MockDatabasePlugin{}
+	cache := NewMockCachePlugin()
+	logger := &MockLogger{}
+	eventDecoder := decoder.NewEventDecoder(nil, logger)
+	contractManager := decoder.NewContractManager(logger)
+
+	indexer := NewERC20Indexer(db, cache, logger, eventDecoder, contractManager)
+
+	_, err := indexer.decodeTransferEvent(nil)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "event is nil")
+}
+
+func TestIndexTransferEventNilEvent(t *testing.T) {
+	t.Parallel()
+	db := &MockDatabasePlugin{}
+	cache := NewMockCachePlugin()
+	logger := &MockLogger{}
+	eventDecoder := decoder.NewEventDecoder(nil, logger)
+	contractManager := decoder.NewContractManager(logger)
+
+	indexer := NewERC20Indexer(db, cache, logger, eventDecoder, contractManager)
+
+	err := indexer.indexTransferEvent(context.Background(), nil)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "event is nil")
+}
+
+func TestGetTransferHistoryQueryError(t *testing.T) {
+	t.Parallel()
+	db := &MockDatabasePlugin{
+		queryErr: fmt.Errorf("database connection failed"),
+	}
+	cache := NewMockCachePlugin()
+	logger := &MockLogger{}
+	eventDecoder := decoder.NewEventDecoder(nil, logger)
+	contractManager := decoder.NewContractManager(logger)
+
+	indexer := NewERC20Indexer(db, cache, logger, eventDecoder, contractManager)
+
+	_, err := indexer.GetTransferHistory(context.Background(),
+		common.HexToAddress("0x1111111111111111111111111111111111111111"),
+		common.HexToAddress("0x2222222222222222222222222222222222222222"),
+		0, 100)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "database connection failed")
+}
+
+func TestGetTransferHistoryWithEvents(t *testing.T) {
+	t.Parallel()
+	db := &MockDatabasePlugin{
+		queryEvents: []any{
+			&core.BlockchainEvent{
+				ID:              "event1",
+				BlockNumber:     100,
+				BlockTimestamp:  1234567890,
+				LogIndex:        0,
+				TransactionHash: common.HexToHash("0x1234"),
+				ContractAddress: common.HexToAddress("0x1111111111111111111111111111111111111111"),
+				DecodedData: map[string]any{
+					"from":  common.HexToAddress("0x2222222222222222222222222222222222222222"),
+					"to":    common.HexToAddress("0x3333333333333333333333333333333333333333"),
+					"value": big.NewInt(1000),
+				},
+			},
+		},
+	}
+	cache := NewMockCachePlugin()
+	logger := &MockLogger{}
+	eventDecoder := decoder.NewEventDecoder(nil, logger)
+	contractManager := decoder.NewContractManager(logger)
+
+	indexer := NewERC20Indexer(db, cache, logger, eventDecoder, contractManager)
+
+	history, err := indexer.GetTransferHistory(context.Background(),
+		common.HexToAddress("0x1111111111111111111111111111111111111111"),
+		common.HexToAddress("0x2222222222222222222222222222222222222222"),
+		0, 100)
+	require.NoError(t, err)
+	assert.NotNil(t, history)
+}
+
+func TestGetTransferHistoryToBlockZero(t *testing.T) {
+	t.Parallel()
+	db := &MockDatabasePlugin{
+		queryEvents: []any{
+			&core.BlockchainEvent{
+				ID:              "event1",
+				BlockNumber:     100,
+				BlockTimestamp:  1234567890,
+				LogIndex:        0,
+				TransactionHash: common.HexToHash("0x1234"),
+				ContractAddress: common.HexToAddress("0x1111111111111111111111111111111111111111"),
+				DecodedData: map[string]any{
+					"from":  common.HexToAddress("0x2222222222222222222222222222222222222222"),
+					"to":    common.HexToAddress("0x3333333333333333333333333333333333333333"),
+					"value": big.NewInt(1000),
+				},
+			},
+		},
+	}
+	cache := NewMockCachePlugin()
+	logger := &MockLogger{}
+	eventDecoder := decoder.NewEventDecoder(nil, logger)
+	contractManager := decoder.NewContractManager(logger)
+
+	indexer := NewERC20Indexer(db, cache, logger, eventDecoder, contractManager)
+
+	history, err := indexer.GetTransferHistory(context.Background(),
+		common.HexToAddress("0x1111111111111111111111111111111111111111"),
+		common.HexToAddress("0x2222222222222222222222222222222222222222"),
+		100, 0)
+	require.NoError(t, err)
+	assert.NotNil(t, history)
 }

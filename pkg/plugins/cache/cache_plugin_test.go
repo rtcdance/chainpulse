@@ -253,3 +253,326 @@ func TestCachePluginExpiration(t *testing.T) {
 		t.Fatal("Expected value to be expired")
 	}
 }
+
+func TestNewBaseCachePlugin(t *testing.T) {
+	t.Parallel()
+	logger := core.NewDefaultLogger(core.LogLevelInfo)
+	metrics := core.NewDefaultMetricsCollector()
+	p := NewBaseCachePlugin("test", "2.0.0", logger, metrics)
+
+	if p == nil {
+		t.Fatal("Expected non-nil plugin")
+	}
+	if p.Name() != "test" {
+		t.Fatalf("Expected name 'test', got '%s'", p.Name())
+	}
+	if p.Version() != "2.0.0" {
+		t.Fatalf("Expected version '2.0.0', got '%s'", p.Version())
+	}
+}
+
+func TestBaseCachePluginName(t *testing.T) {
+	t.Parallel()
+	p := NewBaseCachePlugin("my-plugin", "1.0.0", nil, nil)
+	if p.Name() != "my-plugin" {
+		t.Fatalf("Expected 'my-plugin', got '%s'", p.Name())
+	}
+}
+
+func TestBaseCachePluginVersion(t *testing.T) {
+	t.Parallel()
+	p := NewBaseCachePlugin("test", "3.1.4", nil, nil)
+	if p.Version() != "3.1.4" {
+		t.Fatalf("Expected '3.1.4', got '%s'", p.Version())
+	}
+}
+
+func TestBaseCachePluginRecordHit(t *testing.T) {
+	t.Parallel()
+	metrics := core.NewDefaultMetricsCollector()
+	p := NewBaseCachePlugin("test", "1.0.0", nil, metrics)
+	p.RecordHit()
+	if p.hitCount != 1 {
+		t.Fatalf("Expected hitCount 1, got %d", p.hitCount)
+	}
+}
+
+func TestBaseCachePluginRecordMiss(t *testing.T) {
+	t.Parallel()
+	metrics := core.NewDefaultMetricsCollector()
+	p := NewBaseCachePlugin("test", "1.0.0", nil, metrics)
+	p.RecordMiss()
+	if p.missCount != 1 {
+		t.Fatalf("Expected missCount 1, got %d", p.missCount)
+	}
+}
+
+func TestBaseCachePluginRecordEviction(t *testing.T) {
+	t.Parallel()
+	metrics := core.NewDefaultMetricsCollector()
+	p := NewBaseCachePlugin("test", "1.0.0", nil, metrics)
+	p.RecordEviction()
+	if p.evictionCount != 1 {
+		t.Fatalf("Expected evictionCount 1, got %d", p.evictionCount)
+	}
+}
+
+func TestBaseCachePluginRecordHitCount(t *testing.T) {
+	t.Parallel()
+	p := NewBaseCachePlugin("test", "1.0.0", nil, nil)
+	p.RecordHit()
+	p.RecordHit()
+	if p.recordHitCount() != 2 {
+		t.Fatalf("Expected hitCount 2, got %d", p.recordHitCount())
+	}
+}
+
+func TestBaseCachePluginRecordMissCount(t *testing.T) {
+	t.Parallel()
+	p := NewBaseCachePlugin("test", "1.0.0", nil, nil)
+	p.RecordMiss()
+	if p.recordMissCount() != 1 {
+		t.Fatalf("Expected missCount 1, got %d", p.recordMissCount())
+	}
+}
+
+func TestBaseCachePluginRecordEvictionCount(t *testing.T) {
+	t.Parallel()
+	p := NewBaseCachePlugin("test", "1.0.0", nil, nil)
+	p.RecordEviction()
+	p.RecordEviction()
+	p.RecordEviction()
+	if p.recordEvictionCount() != 3 {
+		t.Fatalf("Expected evictionCount 3, got %d", p.recordEvictionCount())
+	}
+}
+
+func TestBaseCachePluginStartNotInitialized(t *testing.T) {
+	t.Parallel()
+	p := NewBaseCachePlugin("test", "1.0.0", nil, nil)
+	err := p.Start(context.Background())
+	if err == nil {
+		t.Fatal("Expected error starting uninitialized plugin")
+	}
+}
+
+func TestBaseCachePluginStartAlreadyRunning(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	p := NewBaseCachePlugin("test", "1.0.0", nil, nil)
+	cfg := core.Config{}
+	if err := p.Initialize(ctx, cfg); err != nil {
+		t.Fatalf("Initialize failed: %v", err)
+	}
+	if err := p.Start(ctx); err != nil {
+		t.Fatalf("Start failed: %v", err)
+	}
+	err := p.Start(ctx)
+	if err == nil {
+		t.Fatal("Expected error starting already running plugin")
+	}
+}
+
+func TestBaseCachePluginStopNotRunning(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	p := NewBaseCachePlugin("test", "1.0.0", nil, nil)
+	cfg := core.Config{}
+	if err := p.Initialize(ctx, cfg); err != nil {
+		t.Fatalf("Initialize failed: %v", err)
+	}
+	err := p.Stop(ctx)
+	if err == nil {
+		t.Fatal("Expected error stopping not-running plugin")
+	}
+}
+
+func TestBaseCachePluginHealthNotInitialized(t *testing.T) {
+	t.Parallel()
+	p := NewBaseCachePlugin("test", "1.0.0", nil, nil)
+	err := p.Health(context.Background())
+	if err == nil {
+		t.Fatal("Expected error for Health on uninitialized plugin")
+	}
+}
+
+func TestBaseCachePluginHealthNotRunning(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	p := NewBaseCachePlugin("test", "1.0.0", nil, nil)
+	cfg := core.Config{}
+	if err := p.Initialize(ctx, cfg); err != nil {
+		t.Fatalf("Initialize failed: %v", err)
+	}
+	err := p.Health(ctx)
+	if err == nil {
+		t.Fatal("Expected error for Health on not-running plugin")
+	}
+}
+
+func TestBaseCachePluginHealthCheck(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	p := NewBaseCachePlugin("test", "1.0.0", nil, nil)
+	cfg := core.Config{}
+	if err := p.Initialize(ctx, cfg); err != nil {
+		t.Fatalf("Initialize failed: %v", err)
+	}
+	if err := p.Start(ctx); err != nil {
+		t.Fatalf("Start failed: %v", err)
+	}
+	if err := p.HealthCheck(ctx); err != nil {
+		t.Fatalf("HealthCheck failed: %v", err)
+	}
+}
+
+func TestNewDefaultInMemoryCachePlugin(t *testing.T) {
+	t.Parallel()
+	logger := core.NewDefaultLogger(core.LogLevelInfo)
+	metrics := core.NewDefaultMetricsCollector()
+	cache := NewDefaultInMemoryCachePlugin("inmem", "1.0.0", logger, metrics)
+	if cache == nil {
+		t.Fatal("Expected non-nil cache")
+	}
+	if cache.Name() != "inmem" {
+		t.Fatalf("Expected name 'inmem', got '%s'", cache.Name())
+	}
+}
+
+func TestDefaultInMemoryCachePluginGetEmptyKey(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	logger := core.NewDefaultLogger(core.LogLevelInfo)
+	metrics := core.NewDefaultMetricsCollector()
+	cache := NewDefaultInMemoryCachePlugin("test", "1.0.0", logger, metrics)
+	cfg := core.Config{}
+	if err := cache.Initialize(ctx, cfg); err != nil {
+		t.Fatalf("Initialize failed: %v", err)
+	}
+	if err := cache.Start(ctx); err != nil {
+		t.Fatalf("Start failed: %v", err)
+	}
+	_, err := cache.Get(ctx, "")
+	if err == nil {
+		t.Fatal("Expected error for empty key")
+	}
+}
+
+func TestDefaultInMemoryCachePluginSetEmptyKey(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	logger := core.NewDefaultLogger(core.LogLevelInfo)
+	metrics := core.NewDefaultMetricsCollector()
+	cache := NewDefaultInMemoryCachePlugin("test", "1.0.0", logger, metrics)
+	cfg := core.Config{}
+	if err := cache.Initialize(ctx, cfg); err != nil {
+		t.Fatalf("Initialize failed: %v", err)
+	}
+	if err := cache.Start(ctx); err != nil {
+		t.Fatalf("Start failed: %v", err)
+	}
+	err := cache.Set(ctx, "", []byte("value"), 3600)
+	if err == nil {
+		t.Fatal("Expected error for empty key")
+	}
+}
+
+func TestDefaultInMemoryCachePluginDeleteEmptyKey(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	logger := core.NewDefaultLogger(core.LogLevelInfo)
+	metrics := core.NewDefaultMetricsCollector()
+	cache := NewDefaultInMemoryCachePlugin("test", "1.0.0", logger, metrics)
+	cfg := core.Config{}
+	if err := cache.Initialize(ctx, cfg); err != nil {
+		t.Fatalf("Initialize failed: %v", err)
+	}
+	if err := cache.Start(ctx); err != nil {
+		t.Fatalf("Start failed: %v", err)
+	}
+	err := cache.Delete(ctx, "")
+	if err == nil {
+		t.Fatal("Expected error for empty key")
+	}
+}
+
+func TestDefaultInMemoryCachePluginClearNotRunning(t *testing.T) {
+	t.Parallel()
+	logger := core.NewDefaultLogger(core.LogLevelInfo)
+	metrics := core.NewDefaultMetricsCollector()
+	cache := NewDefaultInMemoryCachePlugin("test", "1.0.0", logger, metrics)
+	err := cache.Clear()
+	if err == nil {
+		t.Fatal("Expected error clearing not-running cache")
+	}
+}
+
+func TestDefaultInMemoryCachePluginGetNotRunning(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	logger := core.NewDefaultLogger(core.LogLevelInfo)
+	metrics := core.NewDefaultMetricsCollector()
+	cache := NewDefaultInMemoryCachePlugin("test", "1.0.0", logger, metrics)
+	cfg := core.Config{}
+	if err := cache.Initialize(ctx, cfg); err != nil {
+		t.Fatalf("Initialize failed: %v", err)
+	}
+	_, err := cache.Get(ctx, "key")
+	if err == nil {
+		t.Fatal("Expected error for Get on not-running cache")
+	}
+}
+
+func TestDefaultInMemoryCachePluginSetNotRunning(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	logger := core.NewDefaultLogger(core.LogLevelInfo)
+	metrics := core.NewDefaultMetricsCollector()
+	cache := NewDefaultInMemoryCachePlugin("test", "1.0.0", logger, metrics)
+	cfg := core.Config{}
+	if err := cache.Initialize(ctx, cfg); err != nil {
+		t.Fatalf("Initialize failed: %v", err)
+	}
+	err := cache.Set(ctx, "key", []byte("value"), 3600)
+	if err == nil {
+		t.Fatal("Expected error for Set on not-running cache")
+	}
+}
+
+func TestDefaultInMemoryCachePluginDeleteNotRunning(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	logger := core.NewDefaultLogger(core.LogLevelInfo)
+	metrics := core.NewDefaultMetricsCollector()
+	cache := NewDefaultInMemoryCachePlugin("test", "1.0.0", logger, metrics)
+	cfg := core.Config{}
+	if err := cache.Initialize(ctx, cfg); err != nil {
+		t.Fatalf("Initialize failed: %v", err)
+	}
+	err := cache.Delete(ctx, "key")
+	if err == nil {
+		t.Fatal("Expected error for Delete on not-running cache")
+	}
+}
+
+func TestDefaultInMemoryCacheZeroTTLUsesDefault(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	logger := core.NewDefaultLogger(core.LogLevelInfo)
+	metrics := core.NewDefaultMetricsCollector()
+	cache := NewDefaultInMemoryCachePlugin("test", "1.0.0", logger, metrics)
+	cfg := core.Config{}
+	if err := cache.Initialize(ctx, cfg); err != nil {
+		t.Fatalf("Initialize failed: %v", err)
+	}
+	if err := cache.Start(ctx); err != nil {
+		t.Fatalf("Start failed: %v", err)
+	}
+	if err := cache.Set(ctx, "zero_ttl", []byte("data"), 0); err != nil {
+		t.Fatalf("Set failed: %v", err)
+	}
+	retrieved, _ := cache.Get(ctx, "zero_ttl")
+	if retrieved == nil {
+		t.Fatal("Expected value to exist with default TTL")
+	}
+}

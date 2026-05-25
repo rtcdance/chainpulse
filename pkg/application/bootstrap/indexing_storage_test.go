@@ -68,6 +68,7 @@ func (s *stubDatabasePlugin) GetLatestBlock(ctx context.Context) (uint64, error)
 func (s *stubDatabasePlugin) DeleteEventsByBlockRange(ctx context.Context, fromBlock, toBlock uint64) (int64, error) {
 	return 0, nil
 }
+
 func (s *stubDatabasePlugin) MarkEventsAsReorged(ctx context.Context, fromBlock, toBlock uint64) (int64, error) {
 	return 0, nil
 }
@@ -161,6 +162,55 @@ func TestSnapshotCompatibleDatabaseStoresBlockSnapshots(t *testing.T) {
 	}
 	if got == nil || got.Hash != hash {
 		t.Fatalf("expected block hash 0xabc, got %+v", got)
+	}
+}
+
+func TestSnapshotCompatibleDatabase_GetAllBlocks_FallbackToLocal(t *testing.T) {
+	t.Parallel()
+	sdb := newSnapshotCompatibleDatabase(&stubDatabasePlugin{})
+
+	// Store blocks to local cache (delegate returns nil)
+	for i := uint64(1); i <= 3; i++ {
+		err := sdb.StoreBlockSnapshot(context.Background(), &core.Block{Number: i})
+		if err != nil {
+			t.Fatalf("store block %d: %v", i, err)
+		}
+	}
+
+	blocks, err := sdb.GetAllBlocks(context.Background())
+	if err != nil {
+		t.Fatalf("get all blocks: %v", err)
+	}
+	if len(blocks) != 3 {
+		t.Fatalf("expected 3 blocks, got %d", len(blocks))
+	}
+}
+
+type stubDatabasePluginWithBlocks struct {
+	stubDatabasePlugin
+	blocks []*core.Block
+}
+
+func (s *stubDatabasePluginWithBlocks) GetAllBlocks(_ context.Context) ([]*core.Block, error) {
+	return s.blocks, nil
+}
+
+func TestSnapshotCompatibleDatabase_GetAllBlocks_FromDelegate(t *testing.T) {
+	t.Parallel()
+	delegate := &stubDatabasePluginWithBlocks{
+		blocks: []*core.Block{{Number: 42}, {Number: 99}},
+	}
+	sdb := newSnapshotCompatibleDatabase(delegate)
+
+	blocks, err := sdb.GetAllBlocks(context.Background())
+	if err != nil {
+		t.Fatalf("get all blocks: %v", err)
+	}
+	if len(blocks) != 2 {
+		t.Fatalf("expected 2 blocks from delegate, got %d", len(blocks))
+	}
+	if blocks[0].Number != 42 {
+		t.Fatalf("expected block 42 first, got %d", blocks[0].Number)
 	}
 }
 

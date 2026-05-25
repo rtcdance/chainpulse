@@ -1,7 +1,9 @@
 package config
 
 import (
+	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -298,4 +300,174 @@ func TestKafkaTopicConfigNegativeRetention(t *testing.T) {
 	}
 
 	assert.Equal(t, int64(-1), config.RetentionMs)
+}
+
+func TestNewConsumerGroupManager(t *testing.T) {
+	t.Parallel()
+	cluster := &KafkaCluster{}
+	manager := NewConsumerGroupManager(cluster)
+
+	assert.NotNil(t, manager)
+	assert.Equal(t, cluster, manager.cluster)
+}
+
+func TestConsumerGroupManager_CreateConsumerGroup(t *testing.T) {
+	t.Parallel()
+	cluster := &KafkaCluster{}
+	manager := NewConsumerGroupManager(cluster)
+
+	err := manager.CreateConsumerGroup(context.Background(), "test-group", "test-topic", 3)
+	assert.NoError(t, err)
+}
+
+func TestConsumerGroupManager_GetConsumerGroupStatus(t *testing.T) {
+	t.Parallel()
+	cluster := &KafkaCluster{}
+	manager := NewConsumerGroupManager(cluster)
+
+	status, err := manager.GetConsumerGroupStatus(context.Background(), "test-group")
+	assert.NoError(t, err)
+	assert.Equal(t, "test-group", status.GroupID)
+	assert.False(t, status.Timestamp.IsZero())
+}
+
+func TestNewKafkaClusterMonitor(t *testing.T) {
+	t.Parallel()
+	cluster := &KafkaCluster{}
+	monitor := NewKafkaClusterMonitor(cluster)
+
+	assert.NotNil(t, monitor)
+	assert.Equal(t, cluster, monitor.cluster)
+}
+
+func TestKafkaClusterMonitor_GetClusterStatus(t *testing.T) {
+	t.Parallel()
+	monitor := NewKafkaClusterMonitor(&KafkaCluster{brokers: []string{"localhost:9092"}})
+
+	status, err := monitor.GetClusterStatus(context.Background())
+	assert.NoError(t, err)
+	assert.NotNil(t, status)
+	assert.False(t, status.Timestamp.IsZero())
+}
+
+func TestConsumerGroupManager_Mutex(t *testing.T) {
+	t.Parallel()
+	cluster := &KafkaCluster{}
+	manager := NewConsumerGroupManager(cluster)
+
+	manager.mutex.Lock()
+	assert.NotNil(t, manager.cluster)
+	manager.mutex.Unlock()
+}
+
+func TestKafkaClusterMonitor_Mutex(t *testing.T) {
+	t.Parallel()
+	cluster := &KafkaCluster{}
+	monitor := NewKafkaClusterMonitor(cluster)
+
+	monitor.mutex.Lock()
+	assert.NotNil(t, monitor.cluster)
+	monitor.mutex.Unlock()
+}
+
+func TestKafkaTopicMetricsStructure(t *testing.T) {
+	t.Parallel()
+	now := time.Now()
+	metrics := TopicMetrics{
+		Topic:             "test-topic",
+		PartitionCount:    3,
+		ReplicationFactor: 2,
+		Timestamp:         now,
+	}
+
+	assert.Equal(t, "test-topic", metrics.Topic)
+	assert.Equal(t, 3, metrics.PartitionCount)
+	assert.Equal(t, 2, metrics.ReplicationFactor)
+	assert.Equal(t, now, metrics.Timestamp)
+}
+
+func TestConsumerGroupStatusStructure(t *testing.T) {
+	t.Parallel()
+	now := time.Now()
+	status := ConsumerGroupStatus{
+		GroupID:   "test-group",
+		Members:   3,
+		Topics:    []string{"topic-1", "topic-2"},
+		Lag:       100,
+		Timestamp: now,
+	}
+
+	assert.Equal(t, "test-group", status.GroupID)
+	assert.Equal(t, 3, status.Members)
+	assert.Equal(t, 2, len(status.Topics))
+	assert.Equal(t, int64(100), status.Lag)
+	assert.Equal(t, now, status.Timestamp)
+}
+
+func TestBrokerHealthStructure(t *testing.T) {
+	t.Parallel()
+	health := BrokerHealth{
+		Address: "broker1:9092",
+		Healthy: true,
+		Error:   "",
+	}
+
+	assert.Equal(t, "broker1:9092", health.Address)
+	assert.True(t, health.Healthy)
+	assert.Empty(t, health.Error)
+}
+
+func TestClusterStatusStructure(t *testing.T) {
+	t.Parallel()
+	now := time.Now()
+	status := ClusterStatus{
+		Timestamp:      now,
+		Healthy:        true,
+		HealthyBrokers: 3,
+		TotalBrokers:   3,
+	}
+
+	assert.True(t, status.Healthy)
+	assert.Equal(t, 3, status.HealthyBrokers)
+	assert.Equal(t, 3, status.TotalBrokers)
+	assert.Equal(t, now, status.Timestamp)
+}
+
+func TestConsumerGroupManager_ConcurrentAccess(t *testing.T) {
+	t.Parallel()
+	cluster := &KafkaCluster{}
+	manager := NewConsumerGroupManager(cluster)
+
+	done := make(chan bool, 10)
+	for i := 0; i < 5; i++ {
+		go func() {
+			_ = manager.CreateConsumerGroup(context.Background(), "g", "t", 1)
+			done <- true
+		}()
+	}
+	for i := 0; i < 5; i++ {
+		go func() {
+			_, _ = manager.GetConsumerGroupStatus(context.Background(), "g")
+			done <- true
+		}()
+	}
+	for i := 0; i < 10; i++ {
+		<-done
+	}
+}
+
+func TestKafkaClusterMonitor_ConcurrentAccess(t *testing.T) {
+	t.Parallel()
+	monitor := NewKafkaClusterMonitor(&KafkaCluster{brokers: []string{}})
+
+	done := make(chan bool, 10)
+	for i := 0; i < 10; i++ {
+		go func() {
+			_, _ = monitor.GetClusterStatus(context.Background())
+			done <- true
+		}()
+	}
+	for i := 0; i < 10; i++ {
+		<-done
+	}
 }

@@ -243,7 +243,6 @@ func (bl *BlockchainLogic) ProcessEvent(ctx context.Context, event *core.Blockch
 		result = transformed
 		return nil
 	})
-
 	if err != nil {
 		return nil, err
 	}

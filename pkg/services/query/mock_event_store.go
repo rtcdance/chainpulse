@@ -190,6 +190,21 @@ func (mr *MockEventStoreMockRecorder) GetEventsByName(ctx, eventName, limit any)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetEventsByName", reflect.TypeOf((*MockEventStore)(nil).GetEventsByName), ctx, eventName, limit)
 }
 
+// GetEventsByCorrelationID mocks base method.
+func (m *MockEventStore) GetEventsByCorrelationID(ctx context.Context, correlationID string, limit, offset int) ([]*core.BlockchainEvent, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetEventsByCorrelationID", ctx, correlationID, limit, offset)
+	ret0, _ := ret[0].([]*core.BlockchainEvent)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetEventsByCorrelationID indicates an expected call of GetEventsByCorrelationID.
+func (mr *MockEventStoreMockRecorder) GetEventsByCorrelationID(ctx, correlationID, limit, offset any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetEventsByCorrelationID", reflect.TypeOf((*MockEventStore)(nil).GetEventsByCorrelationID), ctx, correlationID, limit, offset)
+}
+
 // GetEventsPaginated mocks base method.
 func (m *MockEventStore) GetEventsPaginated(ctx context.Context, cursor string, limit int) ([]*core.BlockchainEvent, bool, error) {
 	m.ctrl.T.Helper()

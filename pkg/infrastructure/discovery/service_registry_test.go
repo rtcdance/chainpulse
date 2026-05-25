@@ -427,6 +427,50 @@ func TestServiceDiscoveryClientGetServices(t *testing.T) {
 	assert.Equal(t, 2, len(retrieved))
 }
 
+// TestDeregisterServiceConsulError tests deregistering with consul error
+func TestDeregisterServiceConsulError(t *testing.T) {
+	t.Parallel()
+	consul := &MockConsulClient{
+		registeredServices: make(map[string]bool),
+		deregisterError:    assert.AnError,
+	}
+	registry := NewServiceRegistry(consul)
+	ctx := context.Background()
+
+	service := ServiceInfo{
+		ID:      "service-1",
+		Name:    "api-service",
+		Address: "localhost",
+		Port:    8080,
+	}
+	_ = registry.RegisterService(ctx, service)
+	err := registry.DeregisterService(ctx, "service-1")
+	assert.Error(t, err)
+}
+
+// TestServiceDiscoveryClientGetServicesCacheHit tests cache hit returns cached result
+func TestServiceDiscoveryClientGetServicesCacheHit(t *testing.T) {
+	t.Parallel()
+	consul := &MockConsulClient{registeredServices: make(map[string]bool)}
+	registry := NewServiceRegistry(consul)
+	sdc := NewServiceDiscoveryClient(registry, 5*time.Minute)
+	ctx := context.Background()
+
+	service := ServiceInfo{
+		ID:      "service-1",
+		Name:    "api-service",
+		Address: "localhost",
+		Port:    8080,
+	}
+	_ = registry.RegisterService(ctx, service)
+	// First call populates cache
+	_, _ = sdc.GetServices(ctx, "api-service")
+	// Second call hits cache
+	got, err := sdc.GetServices(ctx, "api-service")
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(got))
+}
+
 // TestServiceDiscoveryClientCaching tests service caching
 func TestServiceDiscoveryClientCaching(t *testing.T) {
 	t.Parallel()
@@ -441,7 +485,6 @@ func TestServiceDiscoveryClientCaching(t *testing.T) {
 		Address: "localhost",
 		Port:    8080,
 	}
-
 	_ = registry.RegisterService(ctx, service)
 
 	// First call
@@ -548,6 +591,57 @@ func TestLoadBalancerSelectService(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, selected)
 	assert.Equal(t, "api-service", selected.Name)
+}
+
+// TestLoadBalancerSelectServiceLeastConnections tests least-connections strategy
+func TestLoadBalancerSelectServiceLeastConnections(t *testing.T) {
+	t.Parallel()
+	consul := &MockConsulClient{registeredServices: make(map[string]bool)}
+	registry := NewServiceRegistry(consul)
+	sdc := NewServiceDiscoveryClient(registry, 5*time.Minute)
+	lb := NewLoadBalancer(sdc, "least-connections")
+	ctx := context.Background()
+
+	service := ServiceInfo{ID: "service-1", Name: "api-service", Address: "localhost", Port: 8080}
+	_ = registry.RegisterService(ctx, service)
+
+	selected, err := lb.SelectService(ctx, "api-service")
+	assert.NoError(t, err)
+	assert.NotNil(t, selected)
+}
+
+// TestLoadBalancerSelectServiceRandom tests random strategy
+func TestLoadBalancerSelectServiceRandom(t *testing.T) {
+	t.Parallel()
+	consul := &MockConsulClient{registeredServices: make(map[string]bool)}
+	registry := NewServiceRegistry(consul)
+	sdc := NewServiceDiscoveryClient(registry, 5*time.Minute)
+	lb := NewLoadBalancer(sdc, "random")
+	ctx := context.Background()
+
+	service := ServiceInfo{ID: "service-1", Name: "api-service", Address: "localhost", Port: 8080}
+	_ = registry.RegisterService(ctx, service)
+
+	selected, err := lb.SelectService(ctx, "api-service")
+	assert.NoError(t, err)
+	assert.NotNil(t, selected)
+}
+
+// TestLoadBalancerSelectServiceDefaultStrategy tests default strategy (unknown name)
+func TestLoadBalancerSelectServiceDefaultStrategy(t *testing.T) {
+	t.Parallel()
+	consul := &MockConsulClient{registeredServices: make(map[string]bool)}
+	registry := NewServiceRegistry(consul)
+	sdc := NewServiceDiscoveryClient(registry, 5*time.Minute)
+	lb := NewLoadBalancer(sdc, "unknown-strategy")
+	ctx := context.Background()
+
+	service := ServiceInfo{ID: "service-1", Name: "api-service", Address: "localhost", Port: 8080}
+	_ = registry.RegisterService(ctx, service)
+
+	selected, err := lb.SelectService(ctx, "api-service")
+	assert.NoError(t, err)
+	assert.NotNil(t, selected)
 }
 
 // TestLoadBalancerSelectServiceNotFound tests selecting non-existent service

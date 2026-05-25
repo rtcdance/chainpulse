@@ -2,10 +2,12 @@ package core
 
 import "github.com/rtcdance/chainpulse/pkg/generics"
 
-type Result[T any] = generics.Result[T]
-type Optional[T any] = generics.Optional[T]
-type Set[T comparable] = generics.Set[T]
-type Stack[T any] = generics.Stack[T]
+type (
+	Result[T any]     = generics.Result[T]
+	Optional[T any]   = generics.Optional[T]
+	Set[T comparable] = generics.Set[T]
+	Stack[T any]      = generics.Stack[T]
+)
 
 func Ok[T any](val T) Result[T]                    { return generics.Ok(val) }
 func Err[T any](err error) Result[T]               { return generics.Err[T](err) }

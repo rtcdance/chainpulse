@@ -198,7 +198,6 @@ func (tv *TokenValidator) ValidateJWT(token string) ValidationResult {
 		}
 		return []byte(tv.jwtSecret), nil
 	}, jwt.WithIssuer("chainpulse"), jwt.WithAudience("chainpulse-api"))
-
 	if err != nil {
 		tv.metrics.RecordCounter("auth.jwt_validation_failed", 1, nil)
 		return ValidationResult{

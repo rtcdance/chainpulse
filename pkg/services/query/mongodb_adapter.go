@@ -168,7 +168,6 @@ func (ma *DefaultMongoDBAdapter) Query(ctx context.Context, req *QueryRequest) (
 
 // QueryByHash retrieves a single item by hash
 func (ma *DefaultMongoDBAdapter) QueryByHash(ctx context.Context, hash string) (*core.BlockchainEvent, error) {
-
 	if !ma.initialized.Load() {
 		return nil, fmt.Errorf("MongoDB adapter not initialized")
 	}
@@ -212,7 +211,6 @@ func (ma *DefaultMongoDBAdapter) QueryByHash(ctx context.Context, hash string) (
 
 // Health returns the health status
 func (ma *DefaultMongoDBAdapter) Health(ctx context.Context) *core.HealthStatus {
-
 	if !ma.initialized.Load() {
 		return &core.HealthStatus{
 			Status:  "unhealthy",

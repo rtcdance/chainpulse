@@ -11,8 +11,10 @@ import (
 )
 
 // Default worker pool size for event bus
-const defaultEventBusWorkers = 16
-const defaultPublishTimeout = 5 * time.Second
+const (
+	defaultEventBusWorkers = 16
+	defaultPublishTimeout  = 5 * time.Second
+)
 
 // eventBusJob wraps a handler call for the worker pool
 type eventBusJob struct {
@@ -237,7 +239,8 @@ func (eb *DefaultEventBus) Publish(ctx context.Context, topic string, event any)
 			case <-waitTimer.C:
 				eb.droppedJobs.Add(1)
 				if eb.logger != nil {
-					eb.logger.Warn("event bus worker pool saturated, dropping job",
+					eb.logger.Warn(
+						"event bus worker pool saturated, dropping job",
 						"topic", topic, "subscriber", entry.name,
 						"total_dropped", eb.droppedJobs.Load(),
 					)

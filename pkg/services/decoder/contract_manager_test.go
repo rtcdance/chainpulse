@@ -479,3 +479,56 @@ func TestLoadContractABIWithMethods(t *testing.T) {
 	abi, _ := cm.GetABI("ERC20")
 	assert.Equal(t, 2, len(abi.Methods))
 }
+
+func TestGetEventSignatureContractNotFound(t *testing.T) {
+	t.Parallel()
+	logger := &MockLogger{}
+	cm := NewContractManager(logger)
+
+	_, err := cm.GetEventSignature("NonExistent", "Transfer")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "not found")
+}
+
+func TestGetEventSignaturesContractNotFound(t *testing.T) {
+	t.Parallel()
+	logger := &MockLogger{}
+	cm := NewContractManager(logger)
+
+	_, err := cm.GetEventSignatures("NonExistent")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "not found")
+}
+
+func TestGetEventContractNotFound(t *testing.T) {
+	t.Parallel()
+	logger := &MockLogger{}
+	cm := NewContractManager(logger)
+
+	_, err := cm.GetEvent("NonExistent", "Transfer")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "not found")
+}
+
+func TestGetMethodContractNotFound(t *testing.T) {
+	t.Parallel()
+	logger := &MockLogger{}
+	cm := NewContractManager(logger)
+
+	_, err := cm.GetMethod("NonExistent", "transfer")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "not found")
+}
+
+func TestGetMethodNotFound(t *testing.T) {
+	t.Parallel()
+	logger := &MockLogger{}
+	cm := NewContractManager(logger)
+
+	abiJSON := []byte(`[{"type":"event","name":"Transfer","inputs":[]}]`)
+	_ = cm.LoadContractABI("ERC20", abiJSON)
+
+	_, err := cm.GetMethod("ERC20", "nonExistentMethod")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "not found")
+}

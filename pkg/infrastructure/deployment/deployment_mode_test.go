@@ -2,6 +2,7 @@ package deployment
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 )
@@ -344,5 +345,95 @@ func TestMicroserviceInitializer_Shutdown(t *testing.T) {
 	services := initializer.GetRegisteredServices()
 	if len(services) != 0 {
 		t.Error("Expected no services after shutdown")
+	}
+}
+
+func TestDeploymentModeManager_GetMetrics(t *testing.T) {
+	t.Parallel()
+	config := &DeploymentConfig{
+		Mode:                    MonolithicMode,
+		ServiceName:             "test-service",
+		GracefulShutdownTimeout: 5 * time.Second,
+	}
+
+	manager := NewDeploymentModeManager(config)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	err := manager.Initialize(ctx)
+	if err != nil {
+		t.Fatalf("Initialize failed: %v", err)
+	}
+
+	metrics := manager.GetMetrics()
+
+	requiredKeys := []string{"initialization_time", "components_initialized", "components_failed", "last_initialized_time"}
+	for _, key := range requiredKeys {
+		if _, exists := metrics[key]; !exists {
+			t.Errorf("expected metrics key %q not found", key)
+		}
+	}
+
+	if v, ok := metrics["components_initialized"].(int); !ok || v <= 0 {
+		t.Error("expected components_initialized > 0")
+	}
+}
+
+func TestDeploymentModeManager_GetMetrics_Uninitialized(t *testing.T) {
+	t.Parallel()
+	config := &DeploymentConfig{
+		Mode:                    MonolithicMode,
+		ServiceName:             "test-service",
+		GracefulShutdownTimeout: 5 * time.Second,
+	}
+
+	manager := NewDeploymentModeManager(config)
+
+	metrics := manager.GetMetrics()
+
+	if v, ok := metrics["components_initialized"].(int); !ok || v != 0 {
+		t.Errorf("expected components_initialized == 0, got %v", metrics["components_initialized"])
+	}
+}
+
+func TestDeploymentModeManager_ValidateFeatureParity_Uninitialized(t *testing.T) {
+	t.Parallel()
+	config := &DeploymentConfig{
+		Mode:                    MonolithicMode,
+		ServiceName:             "test-service",
+		GracefulShutdownTimeout: 5 * time.Second,
+	}
+
+	manager := NewDeploymentModeManager(config)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	err := manager.ValidateFeatureParity(ctx)
+	if err == nil {
+		t.Fatal("expected error for uninitialized manager")
+	}
+	if !strings.Contains(err.Error(), "not initialized") {
+		t.Errorf("expected error to contain 'not initialized', got: %v", err)
+	}
+}
+
+func TestDeploymentModeManager_Shutdown_Uninitialized(t *testing.T) {
+	t.Parallel()
+	config := &DeploymentConfig{
+		Mode:                    MonolithicMode,
+		ServiceName:             "test-service",
+		GracefulShutdownTimeout: 5 * time.Second,
+	}
+
+	manager := NewDeploymentModeManager(config)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	err := manager.Shutdown(ctx)
+	if err == nil {
+		t.Fatal("expected error for uninitialized manager")
+	}
+	if !strings.Contains(err.Error(), "not initialized") {
+		t.Errorf("expected error to contain 'not initialized', got: %v", err)
 	}
 }

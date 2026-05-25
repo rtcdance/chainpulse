@@ -250,3 +250,53 @@ func TestResponseCompressorRuntimeMetricsEfficient(t *testing.T) {
 		t.Fatalf("expected compression-efficient, got %v", metrics["efficiency_posture"])
 	}
 }
+
+func TestResponseCompressorDecompressNoCompression(t *testing.T) {
+	t.Parallel()
+	compressor := NewResponseCompressor(CompressionNone)
+
+	data := []byte(`{"id":"123"}`)
+	decompressed, err := compressor.Decompress(data)
+	if err != nil {
+		t.Fatalf("failed to decompress: %v", err)
+	}
+	if string(decompressed) != `{"id":"123"}` {
+		t.Errorf("unexpected decompressed data: %s", string(decompressed))
+	}
+}
+
+func TestResponseCompressorCompressFast(t *testing.T) {
+	t.Parallel()
+	compressor := NewResponseCompressor(CompressionFast)
+
+	data := make(map[string]any)
+	for i := 0; i < 50; i++ {
+		data[string(rune(i))] = "test value"
+	}
+
+	compressed, err := compressor.Compress(data)
+	if err != nil {
+		t.Fatalf("failed to compress with fast level: %v", err)
+	}
+	if compressed == nil {
+		t.Fatal("compressed data is nil")
+	}
+}
+
+func TestResponseCompressorCompressBest(t *testing.T) {
+	t.Parallel()
+	compressor := NewResponseCompressor(CompressionBest)
+
+	data := make(map[string]any)
+	for i := 0; i < 50; i++ {
+		data[string(rune(i))] = "test value"
+	}
+
+	compressed, err := compressor.Compress(data)
+	if err != nil {
+		t.Fatalf("failed to compress with best level: %v", err)
+	}
+	if compressed == nil {
+		t.Fatal("compressed data is nil")
+	}
+}

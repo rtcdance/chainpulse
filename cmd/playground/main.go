@@ -134,7 +134,8 @@ func newPlayground(logger core.Logger) *playground {
 
 	pg.eventBus.SubscribeNamed(context.Background(), "events", "printer", func(_ context.Context, event any) error {
 		if ev, ok := event.(core.BlockchainEvent); ok {
-			slog.Info("eventbus received",
+			slog.Info(
+				"eventbus received",
 				"event", ev.EventName,
 				"block", ev.BlockNumber,
 				"network", ev.Network,

@@ -5,539 +5,309 @@ import (
 	"testing"
 )
 
-// TestNewCacheKeyGenerator tests creating a new cache key generator
+func newTestCacheKeyGenerator() *CacheKeyGenerator {
+	return NewCacheKeyGenerator("test")
+}
+
 func TestNewCacheKeyGenerator(t *testing.T) {
 	t.Parallel()
-	prefix := "test"
-	ckg := NewCacheKeyGenerator(prefix)
 
-	if ckg == nil {
-		t.Fatal("expected non-nil CacheKeyGenerator")
-	}
-
-	if ckg.prefix != prefix {
-		t.Fatalf("expected prefix %s, got %s", prefix, ckg.prefix)
+	c := NewCacheKeyGenerator("myapp")
+	if c.prefix != "myapp" {
+		t.Errorf("prefix = %q", c.prefix)
 	}
 }
 
-// TestGenerateEventKey tests generating event cache keys
-func TestGenerateEventKey(t *testing.T) {
+func TestCacheKeyGenerator_GenerateEventKey(t *testing.T) {
 	t.Parallel()
-	ckg := NewCacheKeyGenerator("test")
-	eventID := "event123"
-
-	key := ckg.GenerateEventKey(eventID)
-
-	if !strings.Contains(key, "test") {
-		t.Fatal("expected key to contain prefix")
-	}
-
-	if !strings.Contains(key, "event") {
-		t.Fatal("expected key to contain 'event'")
-	}
-
-	if !strings.Contains(key, eventID) {
-		t.Fatal("expected key to contain event ID")
+	c := newTestCacheKeyGenerator()
+	key := c.GenerateEventKey("evt-123")
+	if key != "test:event:evt-123" {
+		t.Errorf("key = %q", key)
 	}
 }
 
-// TestGenerateEventsByAddressKey tests generating events by address cache keys
-func TestGenerateEventsByAddressKey(t *testing.T) {
+func TestCacheKeyGenerator_GenerateEventsByAddressKey(t *testing.T) {
 	t.Parallel()
-	ckg := NewCacheKeyGenerator("test")
-	address := "0x123abc"
-	offset := 0
-	limit := 10
-
-	key := ckg.GenerateEventsByAddressKey(address, offset, limit)
-
-	if !strings.Contains(key, "address") {
-		t.Fatal("expected key to contain 'address'")
-	}
-
-	if !strings.Contains(key, address) {
-		t.Fatal("expected key to contain address")
-	}
-
-	if !strings.Contains(key, "offset") {
-		t.Fatal("expected key to contain 'offset'")
-	}
-
-	if !strings.Contains(key, "limit") {
-		t.Fatal("expected key to contain 'limit'")
+	c := newTestCacheKeyGenerator()
+	key := c.GenerateEventsByAddressKey("0xabc", 0, 20)
+	if key != "test:events:address:0xabc:offset:0:limit:20" {
+		t.Errorf("key = %q", key)
 	}
 }
 
-// TestGenerateEventsByBlockKey tests generating events by block cache keys
-func TestGenerateEventsByBlockKey(t *testing.T) {
+func TestCacheKeyGenerator_GenerateEventsByBlockKey(t *testing.T) {
 	t.Parallel()
-	ckg := NewCacheKeyGenerator("test")
-	blockNumber := int64(12345)
-	offset := 0
-	limit := 10
-
-	key := ckg.GenerateEventsByBlockKey(blockNumber, offset, limit)
-
-	if !strings.Contains(key, "block") {
-		t.Fatal("expected key to contain 'block'")
-	}
-
-	if !strings.Contains(key, "12345") {
-		t.Fatal("expected key to contain block number")
+	c := newTestCacheKeyGenerator()
+	key := c.GenerateEventsByBlockKey(100, 0, 50)
+	if key != "test:events:block:100:offset:0:limit:50" {
+		t.Errorf("key = %q", key)
 	}
 }
 
-// TestGenerateEventsByTopicKey tests generating events by topic cache keys
-func TestGenerateEventsByTopicKey(t *testing.T) {
+func TestCacheKeyGenerator_GenerateEventsByTopicKey(t *testing.T) {
 	t.Parallel()
-	ckg := NewCacheKeyGenerator("test")
-	topic := "Transfer"
-	offset := 0
-	limit := 10
-
-	key := ckg.GenerateEventsByTopicKey(topic, offset, limit)
-
-	if !strings.Contains(key, "topic") {
-		t.Fatal("expected key to contain 'topic'")
-	}
-
-	if !strings.Contains(key, topic) {
-		t.Fatal("expected key to contain topic")
+	c := newTestCacheKeyGenerator()
+	key := c.GenerateEventsByTopicKey("0xdef", 10, 30)
+	if key != "test:events:topic:0xdef:offset:10:limit:30" {
+		t.Errorf("key = %q", key)
 	}
 }
 
-// TestGenerateEventCountKey tests generating event count cache keys
-func TestGenerateEventCountKey(t *testing.T) {
+func TestCacheKeyGenerator_GenerateEventCountKey(t *testing.T) {
 	t.Parallel()
-	ckg := NewCacheKeyGenerator("test")
-	filters := map[string]any{
-		"address": "0x123abc",
-		"status":  "confirmed",
-	}
+	c := newTestCacheKeyGenerator()
 
-	key := ckg.GenerateEventCountKey(filters)
+	t.Run("with_filters", func(t *testing.T) {
+		t.Parallel()
+		key := c.GenerateEventCountKey(map[string]any{"chain": "ethereum", "status": "confirmed"})
+		if !strings.HasPrefix(key, "test:event:count:") {
+			t.Errorf("key = %q", key)
+		}
+	})
 
-	if !strings.Contains(key, "count") {
-		t.Fatal("expected key to contain 'count'")
-	}
+	t.Run("empty_filters", func(t *testing.T) {
+		t.Parallel()
+		key := c.GenerateEventCountKey(map[string]any{})
+		if !strings.Contains(key, ":empty") {
+			t.Errorf("expected empty hash, got = %q", key)
+		}
+	})
+}
 
-	// Hash should be consistent
-	key2 := ckg.GenerateEventCountKey(filters)
-	if key != key2 {
-		t.Fatal("expected consistent hash for same filters")
+func TestCacheKeyGenerator_GenerateAggregationKey(t *testing.T) {
+	t.Parallel()
+	c := newTestCacheKeyGenerator()
+	key := c.GenerateAggregationKey("sum", "1h", map[string]any{"metric": "value"})
+	if !strings.HasPrefix(key, "test:aggregation:sum:1h:") {
+		t.Errorf("key = %q", key)
 	}
 }
 
-// TestGenerateAggregationKey tests generating aggregation cache keys
-func TestGenerateAggregationKey(t *testing.T) {
+func TestCacheKeyGenerator_GenerateQueryKey(t *testing.T) {
 	t.Parallel()
-	ckg := NewCacheKeyGenerator("test")
-	aggregationType := "sum"
-	timeWindow := "1h"
-	filters := map[string]any{
-		"address": "0x123abc",
-	}
-
-	key := ckg.GenerateAggregationKey(aggregationType, timeWindow, filters)
-
-	if !strings.Contains(key, "aggregation") {
-		t.Fatal("expected key to contain 'aggregation'")
-	}
-
-	if !strings.Contains(key, aggregationType) {
-		t.Fatal("expected key to contain aggregation type")
-	}
-
-	if !strings.Contains(key, timeWindow) {
-		t.Fatal("expected key to contain time window")
+	c := newTestCacheKeyGenerator()
+	key := c.GenerateQueryKey("search", map[string]any{"term": "DeFi"})
+	if !strings.HasPrefix(key, "test:query:search:") {
+		t.Errorf("key = %q", key)
 	}
 }
 
-// TestGenerateQueryKey tests generating query cache keys
-func TestGenerateQueryKey(t *testing.T) {
+func TestCacheKeyGenerator_GenerateGraphQLKey(t *testing.T) {
 	t.Parallel()
-	ckg := NewCacheKeyGenerator("test")
-	queryType := "events"
-	params := map[string]any{
-		"limit":  10,
-		"offset": 0,
-	}
-
-	key := ckg.GenerateQueryKey(queryType, params)
-
-	if !strings.Contains(key, "query") {
-		t.Fatal("expected key to contain 'query'")
-	}
-
-	if !strings.Contains(key, queryType) {
-		t.Fatal("expected key to contain query type")
+	c := newTestCacheKeyGenerator()
+	key := c.GenerateGraphQLKey("{events{id}}", map[string]any{"chain": "eth"})
+	if !strings.HasPrefix(key, "test:graphql:") {
+		t.Errorf("key = %q", key)
 	}
 }
 
-// TestGenerateGraphQLKey tests generating GraphQL cache keys
-func TestGenerateGraphQLKey(t *testing.T) {
+func TestCacheKeyGenerator_GenerateSubscriptionKey(t *testing.T) {
 	t.Parallel()
-	ckg := NewCacheKeyGenerator("test")
-	query := "{ events { id name } }"
-	variables := map[string]any{
-		"limit": 10,
-	}
-
-	key := ckg.GenerateGraphQLKey(query, variables)
-
-	if !strings.Contains(key, "graphql") {
-		t.Fatal("expected key to contain 'graphql'")
+	c := newTestCacheKeyGenerator()
+	key := c.GenerateSubscriptionKey("sub-456")
+	if key != "test:subscription:sub-456" {
+		t.Errorf("key = %q", key)
 	}
 }
 
-// TestGenerateSubscriptionKey tests generating subscription cache keys
-func TestGenerateSubscriptionKey(t *testing.T) {
+func TestCacheKeyGenerator_GenerateMetadataKey(t *testing.T) {
 	t.Parallel()
-	ckg := NewCacheKeyGenerator("test")
-	subscriptionID := "sub123"
-
-	key := ckg.GenerateSubscriptionKey(subscriptionID)
-
-	if !strings.Contains(key, "subscription") {
-		t.Fatal("expected key to contain 'subscription'")
-	}
-
-	if !strings.Contains(key, subscriptionID) {
-		t.Fatal("expected key to contain subscription ID")
+	c := newTestCacheKeyGenerator()
+	key := c.GenerateMetadataKey("block", "100")
+	if key != "test:metadata:block:100" {
+		t.Errorf("key = %q", key)
 	}
 }
 
-// TestGenerateMetadataKey tests generating metadata cache keys
-func TestGenerateMetadataKey(t *testing.T) {
+func TestCacheKeyGenerator_GenerateIndexKey(t *testing.T) {
 	t.Parallel()
-	ckg := NewCacheKeyGenerator("test")
-	metadataType := "contract"
-	id := "0x123abc"
-
-	key := ckg.GenerateMetadataKey(metadataType, id)
-
-	if !strings.Contains(key, "metadata") {
-		t.Fatal("expected key to contain 'metadata'")
-	}
-
-	if !strings.Contains(key, metadataType) {
-		t.Fatal("expected key to contain metadata type")
-	}
-
-	if !strings.Contains(key, id) {
-		t.Fatal("expected key to contain ID")
+	c := newTestCacheKeyGenerator()
+	key := c.GenerateIndexKey("events_by_address")
+	if key != "test:index:events_by_address" {
+		t.Errorf("key = %q", key)
 	}
 }
 
-// TestGenerateIndexKey tests generating index cache keys
-func TestGenerateIndexKey(t *testing.T) {
+func TestCacheKeyGenerator_GenerateStatsKey(t *testing.T) {
 	t.Parallel()
-	ckg := NewCacheKeyGenerator("test")
-	indexName := "events_address_idx"
-
-	key := ckg.GenerateIndexKey(indexName)
-
-	if !strings.Contains(key, "index") {
-		t.Fatal("expected key to contain 'index'")
-	}
-
-	if !strings.Contains(key, indexName) {
-		t.Fatal("expected key to contain index name")
+	c := newTestCacheKeyGenerator()
+	key := c.GenerateStatsKey("daily_volume")
+	if key != "test:stats:daily_volume" {
+		t.Errorf("key = %q", key)
 	}
 }
 
-// TestGenerateStatsKey tests generating stats cache keys
-func TestGenerateStatsKey(t *testing.T) {
+func TestCacheKeyGenerator_GenerateHealthKey(t *testing.T) {
 	t.Parallel()
-	ckg := NewCacheKeyGenerator("test")
-	statsType := "daily"
-
-	key := ckg.GenerateStatsKey(statsType)
-
-	if !strings.Contains(key, "stats") {
-		t.Fatal("expected key to contain 'stats'")
-	}
-
-	if !strings.Contains(key, statsType) {
-		t.Fatal("expected key to contain stats type")
+	c := newTestCacheKeyGenerator()
+	key := c.GenerateHealthKey()
+	if key != "test:health" {
+		t.Errorf("key = %q", key)
 	}
 }
 
-// TestGenerateHealthKey tests generating health cache keys
-func TestGenerateHealthKey(t *testing.T) {
+func TestCacheKeyGenerator_GenerateConfigKey(t *testing.T) {
 	t.Parallel()
-	ckg := NewCacheKeyGenerator("test")
-
-	key := ckg.GenerateHealthKey()
-
-	if !strings.Contains(key, "health") {
-		t.Fatal("expected key to contain 'health'")
+	c := newTestCacheKeyGenerator()
+	key := c.GenerateConfigKey("network")
+	if key != "test:config:network" {
+		t.Errorf("key = %q", key)
 	}
 }
 
-// TestGenerateConfigKey tests generating config cache keys
-func TestGenerateConfigKey(t *testing.T) {
+func TestCacheKeyGenerator_GenerateSessionKey(t *testing.T) {
 	t.Parallel()
-	ckg := NewCacheKeyGenerator("test")
-	configType := "api"
-
-	key := ckg.GenerateConfigKey(configType)
-
-	if !strings.Contains(key, "config") {
-		t.Fatal("expected key to contain 'config'")
-	}
-
-	if !strings.Contains(key, configType) {
-		t.Fatal("expected key to contain config type")
+	c := newTestCacheKeyGenerator()
+	key := c.GenerateSessionKey("sess-789")
+	if key != "test:session:sess-789" {
+		t.Errorf("key = %q", key)
 	}
 }
 
-// TestGenerateSessionKey tests generating session cache keys
-func TestGenerateSessionKey(t *testing.T) {
+func TestCacheKeyGenerator_GenerateUserKey(t *testing.T) {
 	t.Parallel()
-	ckg := NewCacheKeyGenerator("test")
-	sessionID := "sess123"
-
-	key := ckg.GenerateSessionKey(sessionID)
-
-	if !strings.Contains(key, "session") {
-		t.Fatal("expected key to contain 'session'")
-	}
-
-	if !strings.Contains(key, sessionID) {
-		t.Fatal("expected key to contain session ID")
+	c := newTestCacheKeyGenerator()
+	key := c.GenerateUserKey("user-1")
+	if key != "test:user:user-1" {
+		t.Errorf("key = %q", key)
 	}
 }
 
-// TestGenerateUserKey tests generating user cache keys
-func TestGenerateUserKey(t *testing.T) {
+func TestCacheKeyGenerator_GeneratePermissionKey(t *testing.T) {
 	t.Parallel()
-	ckg := NewCacheKeyGenerator("test")
-	userID := "user123"
-
-	key := ckg.GenerateUserKey(userID)
-
-	if !strings.Contains(key, "user") {
-		t.Fatal("expected key to contain 'user'")
-	}
-
-	if !strings.Contains(key, userID) {
-		t.Fatal("expected key to contain user ID")
+	c := newTestCacheKeyGenerator()
+	key := c.GeneratePermissionKey("user-1", "admin")
+	if key != "test:permission:user-1:admin" {
+		t.Errorf("key = %q", key)
 	}
 }
 
-// TestGeneratePermissionKey tests generating permission cache keys
-func TestGeneratePermissionKey(t *testing.T) {
+func TestCacheKeyGenerator_GenerateRateLimitKey(t *testing.T) {
 	t.Parallel()
-	ckg := NewCacheKeyGenerator("test")
-	userID := "user123"
-	resource := "events"
-
-	key := ckg.GeneratePermissionKey(userID, resource)
-
-	if !strings.Contains(key, "permission") {
-		t.Fatal("expected key to contain 'permission'")
-	}
-
-	if !strings.Contains(key, userID) {
-		t.Fatal("expected key to contain user ID")
-	}
-
-	if !strings.Contains(key, resource) {
-		t.Fatal("expected key to contain resource")
+	c := newTestCacheKeyGenerator()
+	key := c.GenerateRateLimitKey("client-42")
+	if key != "test:ratelimit:client-42" {
+		t.Errorf("key = %q", key)
 	}
 }
 
-// TestGenerateRateLimitKey tests generating rate limit cache keys
-func TestGenerateRateLimitKey(t *testing.T) {
+func TestCacheKeyGenerator_GenerateEventsByTimeRangeKey(t *testing.T) {
 	t.Parallel()
-	ckg := NewCacheKeyGenerator("test")
-	clientID := "client123"
-
-	key := ckg.GenerateRateLimitKey(clientID)
-
-	if !strings.Contains(key, "ratelimit") {
-		t.Fatal("expected key to contain 'ratelimit'")
-	}
-
-	if !strings.Contains(key, clientID) {
-		t.Fatal("expected key to contain client ID")
+	c := newTestCacheKeyGenerator()
+	key := c.GenerateEventsByTimeRangeKey(1700000000, 1700086400, 0, 100)
+	if key != "test:events:time:1700000000:1700086400:offset:0:limit:100" {
+		t.Errorf("key = %q", key)
 	}
 }
 
-// TestGenerateEventsByTimeRangeKey tests generating events by time range cache keys
-func TestGenerateEventsByTimeRangeKey(t *testing.T) {
+func TestCacheKeyGenerator_GenerateEventsByTypeKey(t *testing.T) {
 	t.Parallel()
-	ckg := NewCacheKeyGenerator("test")
-	startTime := int64(1000000)
-	endTime := int64(2000000)
-	offset := 0
-	limit := 10
-
-	key := ckg.GenerateEventsByTimeRangeKey(startTime, endTime, offset, limit)
-
-	if !strings.Contains(key, "time") {
-		t.Fatal("expected key to contain 'time'")
-	}
-
-	if !strings.Contains(key, "1000000") {
-		t.Fatal("expected key to contain start time")
-	}
-
-	if !strings.Contains(key, "2000000") {
-		t.Fatal("expected key to contain end time")
+	c := newTestCacheKeyGenerator()
+	key := c.GenerateEventsByTypeKey("Transfer", 0, 25)
+	if key != "test:events:type:Transfer:offset:0:limit:25" {
+		t.Errorf("key = %q", key)
 	}
 }
 
-// TestGenerateEventsByTypeKey tests generating events by type cache keys
-func TestGenerateEventsByTypeKey(t *testing.T) {
+func TestCacheKeyGenerator_GenerateEventsByStatusKey(t *testing.T) {
 	t.Parallel()
-	ckg := NewCacheKeyGenerator("test")
-	eventType := "Transfer"
-	offset := 0
-	limit := 10
-
-	key := ckg.GenerateEventsByTypeKey(eventType, offset, limit)
-
-	if !strings.Contains(key, "type") {
-		t.Fatal("expected key to contain 'type'")
-	}
-
-	if !strings.Contains(key, eventType) {
-		t.Fatal("expected key to contain event type")
+	c := newTestCacheKeyGenerator()
+	key := c.GenerateEventsByStatusKey("confirmed", 0, 10)
+	if key != "test:events:status:confirmed:offset:0:limit:10" {
+		t.Errorf("key = %q", key)
 	}
 }
 
-// TestGenerateEventsByStatusKey tests generating events by status cache keys
-func TestGenerateEventsByStatusKey(t *testing.T) {
+func TestCacheKeyGenerator_GenerateEventSearchKey(t *testing.T) {
 	t.Parallel()
-	ckg := NewCacheKeyGenerator("test")
-	status := "confirmed"
-	offset := 0
-	limit := 10
-
-	key := ckg.GenerateEventsByStatusKey(status, offset, limit)
-
-	if !strings.Contains(key, "status") {
-		t.Fatal("expected key to contain 'status'")
+	c := newTestCacheKeyGenerator()
+	key := c.GenerateEventSearchKey("transfer large", 0, 50)
+	if !strings.HasPrefix(key, "test:events:search:") {
+		t.Errorf("key = %q", key)
 	}
-
-	if !strings.Contains(key, status) {
-		t.Fatal("expected key to contain status")
+	if !strings.Contains(key, ":offset:0:limit:50") {
+		t.Errorf("expected pagination in key: %q", key)
 	}
 }
 
-// TestGenerateEventSearchKey tests generating event search cache keys
-func TestGenerateEventSearchKey(t *testing.T) {
+func TestCacheKeyGenerator_GenerateRelatedEventsKey(t *testing.T) {
 	t.Parallel()
-	ckg := NewCacheKeyGenerator("test")
-	searchQuery := "Transfer from 0x123"
-	offset := 0
-	limit := 10
-
-	key := ckg.GenerateEventSearchKey(searchQuery, offset, limit)
-
-	if !strings.Contains(key, "search") {
-		t.Fatal("expected key to contain 'search'")
+	c := newTestCacheKeyGenerator()
+	key := c.GenerateRelatedEventsKey("evt-999")
+	if key != "test:events:related:evt-999" {
+		t.Errorf("key = %q", key)
 	}
 }
 
-// TestGenerateRelatedEventsKey tests generating related events cache keys
-func TestGenerateRelatedEventsKey(t *testing.T) {
+func TestCacheKeyGenerator_GenerateEventChainKey(t *testing.T) {
 	t.Parallel()
-	ckg := NewCacheKeyGenerator("test")
-	eventID := "event123"
-
-	key := ckg.GenerateRelatedEventsKey(eventID)
-
-	if !strings.Contains(key, "related") {
-		t.Fatal("expected key to contain 'related'")
-	}
-
-	if !strings.Contains(key, eventID) {
-		t.Fatal("expected key to contain event ID")
+	c := newTestCacheKeyGenerator()
+	key := c.GenerateEventChainKey("evt-555")
+	if key != "test:events:chain:evt-555" {
+		t.Errorf("key = %q", key)
 	}
 }
 
-// TestGenerateEventChainKey tests generating event chain cache keys
-func TestGenerateEventChainKey(t *testing.T) {
+func TestCacheKeyGenerator_GenerateEventHistoryKey(t *testing.T) {
 	t.Parallel()
-	ckg := NewCacheKeyGenerator("test")
-	eventID := "event123"
-
-	key := ckg.GenerateEventChainKey(eventID)
-
-	if !strings.Contains(key, "chain") {
-		t.Fatal("expected key to contain 'chain'")
-	}
-
-	if !strings.Contains(key, eventID) {
-		t.Fatal("expected key to contain event ID")
+	c := newTestCacheKeyGenerator()
+	key := c.GenerateEventHistoryKey("evt-111")
+	if key != "test:events:history:evt-111" {
+		t.Errorf("key = %q", key)
 	}
 }
 
-// TestGenerateEventHistoryKey tests generating event history cache keys
-func TestGenerateEventHistoryKey(t *testing.T) {
+func TestCacheKeyGenerator_GenerateEventDependenciesKey(t *testing.T) {
 	t.Parallel()
-	ckg := NewCacheKeyGenerator("test")
-	eventID := "event123"
-
-	key := ckg.GenerateEventHistoryKey(eventID)
-
-	if !strings.Contains(key, "history") {
-		t.Fatal("expected key to contain 'history'")
-	}
-
-	if !strings.Contains(key, eventID) {
-		t.Fatal("expected key to contain event ID")
+	c := newTestCacheKeyGenerator()
+	key := c.GenerateEventDependenciesKey("evt-222")
+	if key != "test:events:dependencies:evt-222" {
+		t.Errorf("key = %q", key)
 	}
 }
 
-// TestGenerateEventDependenciesKey tests generating event dependencies cache keys
-func TestGenerateEventDependenciesKey(t *testing.T) {
+func TestCacheKeyGenerator_hashFilters(t *testing.T) {
 	t.Parallel()
-	ckg := NewCacheKeyGenerator("test")
-	eventID := "event123"
+	c := newTestCacheKeyGenerator()
 
-	key := ckg.GenerateEventDependenciesKey(eventID)
+	t.Run("empty", func(t *testing.T) {
+		t.Parallel()
+		h := c.hashFilters(map[string]any{})
+		if h != "empty" {
+			t.Errorf("hash = %q, want empty", h)
+		}
+	})
 
-	if !strings.Contains(key, "dependencies") {
-		t.Fatal("expected key to contain 'dependencies'")
-	}
+	t.Run("single", func(t *testing.T) {
+		t.Parallel()
+		h := c.hashFilters(map[string]any{"key": "val"})
+		if h == "" || h == "empty" {
+			t.Error("expected non-empty hash")
+		}
+	})
 
-	if !strings.Contains(key, eventID) {
-		t.Fatal("expected key to contain event ID")
-	}
+	t.Run("deterministic", func(t *testing.T) {
+		t.Parallel()
+		h1 := c.hashFilters(map[string]any{"a": 1, "b": 2})
+		h2 := c.hashFilters(map[string]any{"b": 2, "a": 1})
+		if h1 != h2 {
+			t.Error("hash should be deterministic regardless of map iteration order")
+		}
+	})
 }
 
-// TestConsistentHashing tests that hashing is consistent
-func TestConsistentHashing(t *testing.T) {
+func TestCacheKeyGenerator_hashString(t *testing.T) {
 	t.Parallel()
-	ckg := NewCacheKeyGenerator("test")
+	c := newTestCacheKeyGenerator()
 
-	filters := map[string]any{
-		"address": "0x123abc",
-		"status":  "confirmed",
+	h := c.hashString("hello")
+	if len(h) != 16 {
+		t.Errorf("hash length = %d, want 16", len(h))
 	}
 
-	key1 := ckg.GenerateEventCountKey(filters)
-	key2 := ckg.GenerateEventCountKey(filters)
-
-	if key1 != key2 {
-		t.Fatal("expected consistent hashing for same filters")
-	}
-}
-
-// TestEmptyFiltersHashing tests hashing with empty filters
-func TestEmptyFiltersHashing(t *testing.T) {
-	t.Parallel()
-	ckg := NewCacheKeyGenerator("test")
-
-	filters := make(map[string]any)
-
-	key := ckg.GenerateEventCountKey(filters)
-
-	if !strings.Contains(key, "empty") {
-		t.Fatal("expected key to contain 'empty' for empty filters")
+	h2 := c.hashString("hello")
+	if h != h2 {
+		t.Error("hashString should be deterministic")
 	}
 }

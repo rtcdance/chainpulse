@@ -294,7 +294,8 @@ func (p *HTTPSJSONRPCPuller) PullEvents(ctx context.Context, fromBlock, toBlock 
 		// (valid for the blocks covered) and continue from the last block
 		// in the returned set with a smaller chunk size.
 		if len(logs) >= maxEventsPerChunk {
-			p.LogWarn("eth_getLogs result hit provider truncation limit, processing partial results",
+			p.LogWarn(
+				"eth_getLogs result hit provider truncation limit, processing partial results",
 				"result_count", len(logs),
 				"from_block", chunkFrom,
 				"to_block", chunkTo,
@@ -709,7 +710,8 @@ func (p *HTTPSJSONRPCPuller) executeWithFailover(ctx context.Context, fn func(cl
 			p.updateEndpointStats(ep.idx, elapsed, true)
 			if ep.idx != startIdx {
 				p.failoverClientIdx.Store(uint64(ep.idx))
-				p.LogInfo("RPC failover: latency-weighted switch",
+				p.LogInfo(
+					"RPC failover: latency-weighted switch",
 					"from", nodeURLs[startIdx],
 					"to", nodeURLs[ep.idx],
 					"score", ranked[i].score,
@@ -721,7 +723,8 @@ func (p *HTTPSJSONRPCPuller) executeWithFailover(ctx context.Context, fn func(cl
 
 		p.updateEndpointStats(ep.idx, elapsed, false)
 		lastErr = err
-		p.LogWarn("RPC endpoint failed, trying next",
+		p.LogWarn(
+			"RPC endpoint failed, trying next",
 			"url", nodeURLs[ep.idx],
 			"attempt", i+1,
 			"total_endpoints", len(ranked),

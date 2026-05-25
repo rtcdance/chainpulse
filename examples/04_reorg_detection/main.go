@@ -76,8 +76,12 @@ func main() {
 
 	fmt.Println("=== Step 1: Index blocks 100-105 ===")
 	oldChain := []BlockInfo{
-		{100, "0xaaa"}, {101, "0xbbb"}, {102, "0xccc"},
-		{103, "0xddd"}, {104, "0xeee"}, {105, "0xfff"},
+		{100, "0xaaa"},
+		{101, "0xbbb"},
+		{102, "0xccc"},
+		{103, "0xddd"},
+		{104, "0xeee"},
+		{105, "0xfff"},
 	}
 	for _, block := range oldChain {
 		rh.IndexBlock(block.Number, block.Hash)

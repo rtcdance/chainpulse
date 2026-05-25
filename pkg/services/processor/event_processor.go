@@ -425,7 +425,8 @@ func (p *DefaultEventProcessor) ProcessBatch(ctx context.Context, events []*core
 			return p.markBatchProcessed(ctx, events)
 		}
 		// Batch write failed; log and fall through to per-event processing
-		p.logger.Warn("WriteBatch failed, falling back to per-event processing",
+		p.logger.Warn(
+			"WriteBatch failed, falling back to per-event processing",
 			"batch_size", len(events),
 			"error", batchErr.Error(),
 		)
@@ -465,7 +466,8 @@ func (p *DefaultEventProcessor) ProcessBatch(ctx context.Context, events []*core
 			if e, ok := errVal.(error); ok {
 				firstErrMsg = e.Error()
 			}
-			p.logger.Error("batch processing completed with failures",
+			p.logger.Error(
+				"batch processing completed with failures",
 				"total", len(events),
 				"success", successCount.Load(),
 				"failure", failure,
@@ -517,7 +519,8 @@ func (p *DefaultEventProcessor) markBatchProcessed(ctx context.Context, events [
 
 	err := g.Wait()
 	if err != nil {
-		p.logger.Error("batch idempotency marking completed with failures",
+		p.logger.Error(
+			"batch idempotency marking completed with failures",
 			"batch_size", len(events),
 			"failures", failureCount.Load(),
 		)

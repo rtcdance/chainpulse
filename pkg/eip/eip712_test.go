@@ -326,3 +326,91 @@ func TestEncodeValueBool(t *testing.T) {
 		assert.NotEqual(t, [32]byte{}, hash)
 	})
 }
+
+func TestEncodeFixedBytesValue(t *testing.T) {
+	t.Parallel()
+
+	t.Run("bytes", func(t *testing.T) {
+		result, err := encodeFixedBytesValue([]byte("hello"))
+		require.NoError(t, err)
+		assert.Equal(t, 32, len(result))
+	})
+
+	t.Run("string", func(t *testing.T) {
+		result, err := encodeFixedBytesValue("world")
+		require.NoError(t, err)
+		assert.Equal(t, 32, len(result))
+	})
+
+	t.Run("invalid type", func(t *testing.T) {
+		_, err := encodeFixedBytesValue(42)
+		assert.Error(t, err)
+	})
+}
+
+func TestEncodeIntValue(t *testing.T) {
+	t.Parallel()
+
+	t.Run("int", func(t *testing.T) {
+		result, err := encodeIntValue(int(42))
+		require.NoError(t, err)
+		assert.Equal(t, 32, len(result))
+	})
+
+	t.Run("int64", func(t *testing.T) {
+		result, err := encodeIntValue(int64(99))
+		require.NoError(t, err)
+		assert.Equal(t, 32, len(result))
+	})
+
+	t.Run("invalid string", func(t *testing.T) {
+		_, err := encodeIntValue("not_a_number")
+		assert.Error(t, err)
+	})
+
+	t.Run("invalid type", func(t *testing.T) {
+		_, err := encodeIntValue(true)
+		assert.Error(t, err)
+	})
+}
+
+func TestEncodeValueFixedBytes(t *testing.T) {
+	t.Parallel()
+	types := apitypes.Types{
+		"Test": {
+			{Name: "data", Type: "bytes32"},
+		},
+	}
+
+	data := map[string]any{
+		"data": []byte("fixed-32-byte-data-here!!!!!!!"),
+	}
+
+	hash, err := HashStruct("Test", types, data)
+	require.NoError(t, err)
+	assert.NotEqual(t, [32]byte{}, hash)
+}
+
+func TestHashStructMissingField(t *testing.T) {
+	t.Parallel()
+	types := apitypes.Types{
+		"Test": {
+			{Name: "field1", Type: "string"},
+		},
+	}
+
+	_, err := HashStruct("Test", types, map[string]any{})
+	assert.Error(t, err)
+}
+
+func TestTypeHashUnknownType(t *testing.T) {
+	t.Parallel()
+	types := apitypes.Types{
+		"Test": {
+			{Name: "field", Type: "NonExistent"},
+		},
+	}
+
+	_, err := TypeHash("NonExistent", types)
+	assert.Error(t, err)
+}

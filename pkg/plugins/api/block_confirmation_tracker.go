@@ -138,7 +138,8 @@ func (t *BlockConfirmationTracker) runLoop(ctx context.Context) {
 // checkConfirmations queries pending events and transitions them based on chain depth
 func (t *BlockConfirmationTracker) checkConfirmations(ctx context.Context) {
 	// Get current chain heads from indexing_state
-	rows, err := t.db.QueryContext(ctx,
+	rows, err := t.db.QueryContext(
+		ctx,
 		`SELECT chain_id, last_indexed_block FROM indexing_state`,
 	)
 	if err != nil {
@@ -226,7 +227,8 @@ func (t *BlockConfirmationTracker) transitionPendingEvents(ctx context.Context, 
 		return
 	}
 
-	result, err := t.db.ExecContext(ctx,
+	result, err := t.db.ExecContext(
+		ctx,
 		`UPDATE events SET status = 'confirmed' 
 		 WHERE chain_id = $1 AND status = 'pending' AND block_number <= $2`,
 		chainID, cutoffBlock,
@@ -252,7 +254,8 @@ func (t *BlockConfirmationTracker) transitionPendingEvents(ctx context.Context, 
 
 // notifyConfirmedEvents fetches newly confirmed events and buffers them for replay
 func (t *BlockConfirmationTracker) notifyConfirmedEvents(ctx context.Context, chainID string, cutoffBlock int64) {
-	rows, err := t.db.QueryContext(ctx,
+	rows, err := t.db.QueryContext(
+		ctx,
 		`SELECT id, block_number, contract_address, event_name, event_data 
 		 FROM events WHERE chain_id = $1 AND status = 'confirmed' AND block_number <= $2
 		 ORDER BY block_number DESC LIMIT 100`,
@@ -302,7 +305,8 @@ func (t *BlockConfirmationTracker) detectReorgs(ctx context.Context, chainID str
 	// Get the latest block number and hash from the blocks table
 	var headBlock uint64
 	var headHash string
-	err := t.db.QueryRowContext(ctx,
+	err := t.db.QueryRowContext(
+		ctx,
 		`SELECT number, hash FROM blocks WHERE chain_id = $1 ORDER BY number DESC LIMIT 1`,
 		chainID,
 	).Scan(&headBlock, &headHash)
@@ -356,7 +360,8 @@ func (t *BlockConfirmationTracker) GetConfirmationStats(ctx context.Context) (ma
 
 	// Count pending events
 	var pendingCount int64
-	if err := t.db.QueryRowContext(ctx,
+	if err := t.db.QueryRowContext(
+		ctx,
 		`SELECT COUNT(*) FROM events WHERE status = 'pending'`,
 	).Scan(&pendingCount); err != nil {
 		return nil, fmt.Errorf("count pending events: %w", err)
@@ -365,7 +370,8 @@ func (t *BlockConfirmationTracker) GetConfirmationStats(ctx context.Context) (ma
 
 	// Count confirmed events
 	var confirmedCount int64
-	if err := t.db.QueryRowContext(ctx,
+	if err := t.db.QueryRowContext(
+		ctx,
 		`SELECT COUNT(*) FROM events WHERE status = 'confirmed'`,
 	).Scan(&confirmedCount); err != nil {
 		return nil, fmt.Errorf("count confirmed events: %w", err)
@@ -374,7 +380,8 @@ func (t *BlockConfirmationTracker) GetConfirmationStats(ctx context.Context) (ma
 
 	// Count reorged events
 	var reorgedCount int64
-	if err := t.db.QueryRowContext(ctx,
+	if err := t.db.QueryRowContext(
+		ctx,
 		`SELECT COUNT(*) FROM events WHERE status = 'reorged'`,
 	).Scan(&reorgedCount); err != nil {
 		return nil, fmt.Errorf("count reorged events: %w", err)

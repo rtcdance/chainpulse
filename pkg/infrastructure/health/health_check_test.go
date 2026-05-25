@@ -613,3 +613,24 @@ func TestAutomaticDeregistrationStopWaitsForGoroutine(t *testing.T) {
 
 	assert.False(t, ad.running)
 }
+
+func TestHealthCheckSystemStopWhenNotRunning(t *testing.T) {
+	t.Parallel()
+	registry := NewMockServiceRegistry()
+	hcs := NewHealthCheckSystem(registry)
+
+	// Stop without Start — must not panic
+	hcs.Stop()
+	assert.False(t, hcs.running)
+}
+
+func TestAutomaticDeregistrationStopWhenNotRunning(t *testing.T) {
+	t.Parallel()
+	registry := NewMockServiceRegistry()
+	fd := NewFailureDetector(NewHealthCheckSystem(registry), 3)
+	ad := NewAutomaticDeregistration(registry, fd, 30*time.Second)
+
+	// Stop without Start — must not panic
+	ad.Stop()
+	assert.False(t, ad.running)
+}

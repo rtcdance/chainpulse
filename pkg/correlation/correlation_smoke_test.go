@@ -28,9 +28,9 @@ func TestCorrelationNoID(t *testing.T) {
 		t.Errorf("expected empty, got %q", got)
 	}
 
-	ctx2, newID := FromContextOrNew(ctx, "")
-	if newID == "" {
-		t.Error("expected non-empty new ID")
+	ctx2, newID := FromContextOrNew(ctx, "generated-id")
+	if newID != "generated-id" {
+		t.Errorf("expected generated-id, got %q", newID)
 	}
 	if FromContext(ctx2) != newID {
 		t.Error("FromContext should return the new ID")

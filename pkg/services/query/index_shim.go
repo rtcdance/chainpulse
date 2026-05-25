@@ -8,17 +8,19 @@ import (
 
 // Backward-compatible shims for types moved to query/qindex.
 
-type IndexManager = qindex.Manager
-type IndexInfo = qindex.IndexInfo
-type IndexStatistics = qindex.Statistics
-type PendingIndex = qindex.PendingIndex
-type QueryOptimizer = qindex.Optimizer
-type QueryStatistics = qindex.QueryStats
-type IndexRecommendation = qindex.IndexRecommendation
-type OptimizedQuery = qindex.OptimizedQuery
-type QueryStatisticsCollector = qindex.StatsCollector
-type QueryMetrics = qindex.QueryMetrics
-type AggregatedMetrics = qindex.AggregatedMetrics
+type (
+	IndexManager             = qindex.Manager
+	IndexInfo                = qindex.IndexInfo
+	IndexStatistics          = qindex.Statistics
+	PendingIndex             = qindex.PendingIndex
+	QueryOptimizer           = qindex.Optimizer
+	QueryStatistics          = qindex.QueryStats
+	IndexRecommendation      = qindex.IndexRecommendation
+	OptimizedQuery           = qindex.OptimizedQuery
+	QueryStatisticsCollector = qindex.StatsCollector
+	QueryMetrics             = qindex.QueryMetrics
+	AggregatedMetrics        = qindex.AggregatedMetrics
+)
 
 func NewIndexManager() *IndexManager {
 	return qindex.NewManager()

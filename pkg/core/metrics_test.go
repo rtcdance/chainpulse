@@ -358,6 +358,85 @@ func TestConcurrentRecording(t *testing.T) {
 	}
 }
 
+func TestExportAlias(t *testing.T) {
+	t.Parallel()
+	collector := NewDefaultMetricsCollector()
+	tags := map[string]string{"service": "api"}
+	collector.RecordCounter("requests", 5, tags)
+
+	exported := collector.Export()
+	if exported["counters"] == nil {
+		t.Error("expected counters in export")
+	}
+}
+
+func TestSetDBPoolStats(t *testing.T) {
+	t.Parallel()
+	stats := DBPoolStats{
+		MaxOpenConnections: 25,
+		OpenConnections:    10,
+		InUse:              5,
+		Idle:               5,
+		WaitCount:          100,
+		WaitDuration:       0,
+	}
+	SetDBPoolStats(stats)
+
+	val := dbPoolStats.Load()
+	if val == nil {
+		t.Fatal("expected db pool stats to be set")
+	}
+	loaded, ok := val.(DBPoolStats)
+	if !ok {
+		t.Fatal("expected DBPoolStats type")
+	}
+	if loaded.MaxOpenConnections != 25 {
+		t.Errorf("MaxOpenConnections = %d, want 25", loaded.MaxOpenConnections)
+	}
+}
+
+func TestIncrementUnknownEventSignatures(t *testing.T) {
+	ResetUnknownEventSignatureCount()
+	if GetUnknownEventSignatureCount() != 0 {
+		t.Fatal("expected 0 after reset")
+	}
+	IncrementUnknownEventSignatures()
+	IncrementUnknownEventSignatures()
+	if GetUnknownEventSignatureCount() != 2 {
+		t.Errorf("expected 2, got %d", GetUnknownEventSignatureCount())
+	}
+	ResetUnknownEventSignatureCount()
+	if GetUnknownEventSignatureCount() != 0 {
+		t.Errorf("expected 0 after reset, got %d", GetUnknownEventSignatureCount())
+	}
+}
+
+func TestExportPrometheusIncludesDBPoolStats(t *testing.T) {
+	t.Parallel()
+	stats := DBPoolStats{
+		MaxOpenConnections: 25,
+		OpenConnections:    10,
+		InUse:              5,
+		Idle:               5,
+	}
+	SetDBPoolStats(stats)
+
+	collector := NewDefaultMetricsCollector()
+	output := collector.ExportPrometheus()
+
+	for _, expected := range []string{
+		`# TYPE chainpulse_db_pool_max_open_connections gauge`,
+		`chainpulse_db_pool_max_open_connections 25`,
+		`chainpulse_db_pool_open_connections 10`,
+		`chainpulse_db_pool_in_use 5`,
+		`chainpulse_db_pool_idle 5`,
+	} {
+		if !strings.Contains(output, expected) {
+			t.Fatalf("expected output to contain %q, got:\n%s", expected, output)
+		}
+	}
+}
+
 // TestCounterAccumulation tests counter accumulation
 func TestCounterAccumulation(t *testing.T) {
 	t.Parallel()
@@ -542,4 +621,56 @@ func TestZeroValues(t *testing.T) {
 	if histStats.Count != 1 {
 		t.Errorf("expected histogram count 1, got %d", histStats.Count)
 	}
+}
+
+func TestExportMetricsPrometheus_NilInput(t *testing.T) {
+	t.Parallel()
+	output := ExportMetricsPrometheus(nil)
+	if output != "" {
+		t.Errorf("expected empty string for nil input, got %s", output)
+	}
+}
+
+func TestExportMetricsPrometheus_WithExporter(t *testing.T) {
+	t.Parallel()
+	collector := NewDefaultMetricsCollector()
+	collector.RecordCounter("test", 1, nil)
+	output := ExportMetricsPrometheus(collector)
+	if output == "" {
+		t.Fatal("expected non-empty output")
+	}
+	if !strings.Contains(output, "chainpulse_test") {
+		t.Errorf("expected prometheus format output, got: %s", output)
+	}
+}
+
+func TestExportMetricsPrometheus_WithoutExporter(t *testing.T) {
+	t.Parallel()
+	collector := &plainMetricsCollector{
+		metrics: map[string]any{
+			"counters": map[string]any{
+				"test_counter:": map[string]any{
+					"value": int64(5),
+					"tags":  map[string]any{},
+				},
+			},
+			"gauges":   map[string]any{},
+			"histograms": map[string]any{},
+		},
+	}
+	output := ExportMetricsPrometheus(collector)
+	if !strings.Contains(output, "# TYPE chainpulse_test_counter counter") {
+		t.Errorf("expected fallback prometheus format, got: %s", output)
+	}
+}
+
+type plainMetricsCollector struct {
+	metrics map[string]any
+}
+
+func (p *plainMetricsCollector) RecordCounter(name string, value int64, tags map[string]string) {}
+func (p *plainMetricsCollector) RecordGauge(name string, value float64, tags map[string]string)  {}
+func (p *plainMetricsCollector) RecordHistogram(name string, value float64, tags map[string]string) {}
+func (p *plainMetricsCollector) GetMetrics() map[string]any {
+	return p.metrics
 }

@@ -477,7 +477,7 @@ func instProgramIDToAddress(programID string) common.Address {
 	if len(programID) >= 40 {
 		return common.HexToAddress(programID[:40])
 	}
-	return common.HexToAddress("0x" + programID[:len(programID)])
+	return common.HexToAddress("0x" + programID[:])
 }
 
 // solanaRPCRequest represents a JSON-RPC request to Solana

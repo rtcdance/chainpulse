@@ -122,7 +122,10 @@ func (cb *CircuitBreaker) CallWithContext(ctx context.Context, fn func() error) 
 		} else {
 			cb.recordSuccess()
 		}
-		return fmt.Errorf("circuit breaker half-open call failed: %w", err)
+		if err != nil {
+			return fmt.Errorf("circuit breaker half-open call failed: %w", err)
+		}
+		return nil
 	}
 	cb.mu.Unlock()
 	err := fn()
@@ -133,10 +136,11 @@ func (cb *CircuitBreaker) CallWithContext(ctx context.Context, fn func() error) 
 			return fmt.Errorf("circuit breaker closed context error: %w", ctx.Err())
 		}
 		cb.recordFailure()
+		return fmt.Errorf("circuit breaker call failed: %w", err)
 	} else {
 		cb.recordSuccess()
 	}
-	return fmt.Errorf("circuit breaker call failed: %w", err)
+	return nil
 }
 
 func (cb *CircuitBreaker) recordFailure() {

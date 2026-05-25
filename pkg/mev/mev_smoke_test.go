@@ -146,3 +146,299 @@ func TestKnownBuilders(t *testing.T) {
 		t.Error("expected known builders")
 	}
 }
+
+func TestSortEventsByTxIndex(t *testing.T) {
+	t.Parallel()
+
+	events := []blockchain.BlockchainEvent{
+		{TransactionIndex: 3, BlockNumber: 100, ContractAddress: common.HexToAddress("0x1")},
+		{TransactionIndex: 1, BlockNumber: 100, ContractAddress: common.HexToAddress("0x1")},
+		{TransactionIndex: 2, BlockNumber: 100, ContractAddress: common.HexToAddress("0x1")},
+	}
+
+	sortEventsByTxIndex(events)
+
+	for i := 1; i < len(events); i++ {
+		if events[i].TransactionIndex < events[i-1].TransactionIndex {
+			t.Errorf("events not sorted: index %d < index %d", events[i].TransactionIndex, events[i-1].TransactionIndex)
+		}
+	}
+}
+
+func TestSortEventsByTxIndexAlreadySorted(t *testing.T) {
+	t.Parallel()
+
+	events := []blockchain.BlockchainEvent{
+		{TransactionIndex: 1, BlockNumber: 100, ContractAddress: common.HexToAddress("0x1")},
+		{TransactionIndex: 2, BlockNumber: 100, ContractAddress: common.HexToAddress("0x1")},
+	}
+
+	sortEventsByTxIndex(events)
+
+	if events[0].TransactionIndex != 1 || events[1].TransactionIndex != 2 {
+		t.Error("already sorted events were modified")
+	}
+}
+
+func TestSortEventsByTxIndexEmpty(t *testing.T) {
+	t.Parallel()
+
+	var events []blockchain.BlockchainEvent
+	sortEventsByTxIndex(events)
+
+	if len(events) != 0 {
+		t.Error("empty slice should remain empty")
+	}
+}
+
+func TestCalculateSandwichConfidence(t *testing.T) {
+	t.Parallel()
+
+	addr := common.HexToAddress("0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D")
+
+	frontrun := blockchain.BlockchainEvent{
+		TransactionIndex: 1,
+		ContractAddress:  addr,
+		EventName:        "Swap",
+	}
+	victim := blockchain.BlockchainEvent{
+		TransactionIndex: 2,
+		ContractAddress:  addr,
+		EventName:        "Swap",
+	}
+	backrun := blockchain.BlockchainEvent{
+		TransactionIndex: 3,
+		ContractAddress:  addr,
+		EventName:        "Swap",
+	}
+
+	confidence := calculateSandwichConfidence(frontrun, victim, backrun)
+
+	if confidence < 0.7 {
+		t.Errorf("expected high confidence, got %f", confidence)
+	}
+}
+
+func TestCalculateSandwichConfidenceDifferentContracts(t *testing.T) {
+	t.Parallel()
+
+	frontrun := blockchain.BlockchainEvent{
+		TransactionIndex: 1,
+		ContractAddress:  common.HexToAddress("0x1111111111111111111111111111111111111111"),
+		EventName:        "Transfer",
+	}
+	victim := blockchain.BlockchainEvent{
+		TransactionIndex: 20,
+		ContractAddress:  common.HexToAddress("0x2222222222222222222222222222222222222222"),
+		EventName:        "Transfer",
+	}
+	backrun := blockchain.BlockchainEvent{
+		TransactionIndex: 50,
+		ContractAddress:  common.HexToAddress("0x3333333333333333333333333333333333333333"),
+		EventName:        "Transfer",
+	}
+
+	confidence := calculateSandwichConfidence(frontrun, victim, backrun)
+
+	if confidence != 0.0 {
+		t.Errorf("expected 0.0 confidence for different contracts with wide gaps and non-swap events, got %f", confidence)
+	}
+}
+
+func TestCalculateSandwichConfidenceWideGap(t *testing.T) {
+	t.Parallel()
+
+	addr := common.HexToAddress("0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D")
+
+	frontrun := blockchain.BlockchainEvent{
+		TransactionIndex: 1,
+		ContractAddress:  addr,
+		EventName:        "Transfer",
+	}
+	victim := blockchain.BlockchainEvent{
+		TransactionIndex: 20,
+		ContractAddress:  addr,
+		EventName:        "Transfer",
+	}
+	backrun := blockchain.BlockchainEvent{
+		TransactionIndex: 50,
+		ContractAddress:  addr,
+		EventName:        "Transfer",
+	}
+
+	confidence := calculateSandwichConfidence(frontrun, victim, backrun)
+
+	if confidence != 0.3 {
+		t.Errorf("expected 0.3 confidence (only same-contract bonus), got %f", confidence)
+	}
+}
+
+func TestDetectSandwichAttack(t *testing.T) {
+	t.Parallel()
+
+	addr := common.HexToAddress("0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D")
+
+	events := []blockchain.BlockchainEvent{
+		{
+			BlockNumber:      100,
+			TransactionIndex: 1,
+			ContractAddress:  addr,
+			EventName:        "Swap",
+			TransactionHash:  common.HexToHash("0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
+		},
+		{
+			BlockNumber:      100,
+			TransactionIndex: 2,
+			ContractAddress:  addr,
+			EventName:        "Swap",
+			TransactionHash:  common.HexToHash("0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"),
+		},
+		{
+			BlockNumber:      100,
+			TransactionIndex: 3,
+			ContractAddress:  addr,
+			EventName:        "Swap",
+			TransactionHash:  common.HexToHash("0xcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"),
+		},
+	}
+
+	detections := DetectSandwichAttack(events)
+
+	if len(detections) == 0 {
+		t.Fatal("expected at least one sandwich detection")
+	}
+
+	d := detections[0]
+	if d.Confidence < 0.7 {
+		t.Errorf("expected high confidence, got %f", d.Confidence)
+	}
+}
+
+func TestDetectSandwichAttackTooFewEvents(t *testing.T) {
+	t.Parallel()
+
+	events := []blockchain.BlockchainEvent{
+		{BlockNumber: 100, TransactionIndex: 1, ContractAddress: common.HexToAddress("0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D")},
+		{BlockNumber: 100, TransactionIndex: 2, ContractAddress: common.HexToAddress("0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D")},
+	}
+
+	detections := DetectSandwichAttack(events)
+
+	if len(detections) != 0 {
+		t.Error("expected no detections with fewer than 3 events")
+	}
+}
+
+func TestDetectSandwichAttackEmpty(t *testing.T) {
+	t.Parallel()
+
+	detections := DetectSandwichAttack(nil)
+
+	if len(detections) != 0 {
+		t.Error("expected no detections for nil input")
+	}
+}
+
+func TestDetectSandwichAttackDifferentBlocks(t *testing.T) {
+	t.Parallel()
+
+	addr := common.HexToAddress("0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D")
+
+	events := []blockchain.BlockchainEvent{
+		{
+			BlockNumber:      100,
+			TransactionIndex: 1,
+			ContractAddress:  addr,
+			EventName:        "Swap",
+		},
+		{
+			BlockNumber:      101,
+			TransactionIndex: 1,
+			ContractAddress:  addr,
+			EventName:        "Swap",
+		},
+		{
+			BlockNumber:      102,
+			TransactionIndex: 1,
+			ContractAddress:  addr,
+			EventName:        "Swap",
+		},
+	}
+
+	detections := DetectSandwichAttack(events)
+
+	if len(detections) != 0 {
+		t.Error("expected no detections across different blocks")
+	}
+}
+
+func TestDurationUnknownPhase(t *testing.T) {
+	t.Parallel()
+
+	now := time.Now()
+	tl := SlotAuctionTimeline{
+		Slot:          100,
+		BidSubmission: now,
+		Cutoff:        now.Add(4 * time.Second),
+	}
+
+	_, err := tl.Duration("invalid", PhaseCutoff)
+	if err == nil {
+		t.Error("expected error for unknown 'from' phase")
+	}
+
+	_, err = tl.Duration(PhaseBidSubmission, "invalid")
+	if err == nil {
+		t.Error("expected error for unknown 'to' phase")
+	}
+}
+
+func TestDurationPhaseNotSet(t *testing.T) {
+	t.Parallel()
+
+	tl := SlotAuctionTimeline{
+		Slot:   100,
+		Cutoff: time.Now(),
+	}
+
+	_, err := tl.Duration(PhaseBidSubmission, PhaseCutoff)
+	if err == nil {
+		t.Error("expected error when 'from' phase is not set")
+	}
+}
+
+func TestPBSLatencyIsUnhealthy(t *testing.T) {
+	t.Parallel()
+
+	pl := NewPBSLatency(100)
+	pl.Record(500*time.Millisecond, 300*time.Millisecond)
+
+	if pl.IsLatencyHealthy(100 * time.Millisecond) {
+		t.Error("expected unhealthy latency")
+	}
+}
+
+func TestPercentileDurationEdgeCases(t *testing.T) {
+	t.Parallel()
+
+	if d := percentileDuration(nil, 0.99); d != 0 {
+		t.Error("expected 0 for nil durations")
+	}
+
+	durations := []time.Duration{10 * time.Millisecond}
+	if d := percentileDuration(durations, 0.50); d != 10*time.Millisecond {
+		t.Errorf("expected 10ms, got %v", d)
+	}
+}
+
+func TestAvgDurationEdgeCases(t *testing.T) {
+	t.Parallel()
+
+	if d := avgDuration(nil); d != 0 {
+		t.Error("expected 0 for nil durations")
+	}
+
+	if d := avgDuration([]time.Duration{}); d != 0 {
+		t.Error("expected 0 for empty durations")
+	}
+}

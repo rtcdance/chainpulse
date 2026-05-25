@@ -85,7 +85,8 @@ func (s *WebhookStore) CreateWebhook(ctx context.Context, clientID, name, url, s
 		eventsJSON = []byte(`["event:created","event:confirmed","event:failed"]`)
 	}
 
-	_, err := s.db.ExecContext(ctx,
+	_, err := s.db.ExecContext(
+		ctx,
 		`INSERT INTO webhooks (id, client_id, name, url, secret, events, enabled)
 		 VALUES ($1, $2, $3, $4, $5, $6, true)`,
 		id, clientID, name, url, secret, string(eventsJSON),
@@ -107,7 +108,8 @@ func (s *WebhookStore) CreateWebhook(ctx context.Context, clientID, name, url, s
 // GetWebhooksByEvent returns all enabled webhooks subscribed to a given event type
 func (s *WebhookStore) GetWebhooksByEvent(ctx context.Context, eventType string) ([]*WebhookRecord, error) {
 	// Use JSONB contains operator
-	rows, err := s.db.QueryContext(ctx,
+	rows, err := s.db.QueryContext(
+		ctx,
 		`SELECT id, client_id, name, url, secret, events, enabled, failure_count
 		 FROM webhooks 
 		 WHERE enabled = true AND events @> $1`,
@@ -141,7 +143,8 @@ func (s *WebhookStore) ListWebhooks(ctx context.Context, clientID string, limit,
 		return nil, 0, err
 	}
 
-	rows, err := s.db.QueryContext(ctx,
+	rows, err := s.db.QueryContext(
+		ctx,
 		`SELECT id, client_id, name, url, events, enabled, created_at, updated_at, 
 		        last_delivery_at, last_delivery_status, failure_count
 		 FROM webhooks WHERE client_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3`,
@@ -287,7 +290,8 @@ func (s *WebhookStore) NotifyEvent(ctx context.Context, eventType string, payloa
 }
 
 func (s *WebhookStore) recordDelivery(ctx context.Context, webhookID, status string) {
-	if _, err := s.db.ExecContext(ctx,
+	if _, err := s.db.ExecContext(
+		ctx,
 		`UPDATE webhooks SET last_delivery_at = NOW(), last_delivery_status = $1,
 		 failure_count = CASE WHEN $1 = 'failed' THEN failure_count + 1 ELSE 0 END,
 		 updated_at = NOW()

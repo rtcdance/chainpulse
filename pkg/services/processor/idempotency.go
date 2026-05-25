@@ -113,7 +113,8 @@ func (s *DefaultIdempotencyService) Initialize(config *core.Config) error {
 	}
 
 	s.initialized = true
-	s.logger.Info("Idempotency service initialized",
+	s.logger.Info(
+		"Idempotency service initialized",
 		core.LogKeyComponent, "idempotency",
 		"record_ttl_seconds", s.config.IdempotencyRecordTTL,
 		"cleanup_interval_seconds", s.config.IdempotencyCleanupInterval,
@@ -148,7 +149,8 @@ func (s *DefaultIdempotencyService) Start() error {
 	if s.config != nil && s.config.IdempotencyCleanupInterval > 0 {
 		cleanupInterval := time.Duration(s.config.IdempotencyCleanupInterval) * time.Second
 		go s.cleanupLoop(cleanupInterval)
-		s.logger.Info("Idempotency cleanup goroutine started",
+		s.logger.Info(
+			"Idempotency cleanup goroutine started",
 			"cleanup_interval", cleanupInterval.String(),
 			"record_ttl", time.Duration(s.config.IdempotencyRecordTTL)*time.Second,
 		)
@@ -175,7 +177,8 @@ func (s *DefaultIdempotencyService) Stop() error {
 	totalStored := len(s.processedHashes)
 	s.mu.Unlock()
 
-	s.logger.Info("Idempotency service stopped",
+	s.logger.Info(
+		"Idempotency service stopped",
 		core.LogKeyComponent, "idempotency",
 		"total_stored", totalStored,
 	)
@@ -215,7 +218,8 @@ func (s *DefaultIdempotencyService) evictExpired() {
 
 	evicted := before - len(s.processedHashes)
 	if evicted > 0 {
-		s.logger.Debug("idempotency expired entries evicted",
+		s.logger.Debug(
+			"idempotency expired entries evicted",
 			"evicted", evicted,
 			"remaining", len(s.processedHashes),
 			"ttl_seconds", s.config.IdempotencyRecordTTL,

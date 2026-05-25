@@ -4,11 +4,13 @@ import "github.com/rtcdance/chainpulse/pkg/services/query/circuitbreaker"
 
 // Backward-compatible shims for types moved to query/circuitbreaker.
 
-type CircuitBreaker = circuitbreaker.CircuitBreaker
-type CircuitBreakerConfig = circuitbreaker.Config
-type CircuitBreakerStats = circuitbreaker.Stats
-type CircuitBreakerPool = circuitbreaker.Pool
-type CircuitBreakerState = circuitbreaker.State
+type (
+	CircuitBreaker       = circuitbreaker.CircuitBreaker
+	CircuitBreakerConfig = circuitbreaker.Config
+	CircuitBreakerStats  = circuitbreaker.Stats
+	CircuitBreakerPool   = circuitbreaker.Pool
+	CircuitBreakerState  = circuitbreaker.State
+)
 
 const (
 	StateClosed   = circuitbreaker.StateClosed

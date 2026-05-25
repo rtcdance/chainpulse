@@ -38,7 +38,8 @@ func (s *PostgresCheckpointStore) GetLastIndexedBlock(ctx context.Context, chain
 
 	var blockNum uint64
 	var blockHash string
-	row := sqlDB.QueryRowContext(ctx,
+	row := sqlDB.QueryRowContext(
+		ctx,
 		"SELECT last_indexed_block, COALESCE(last_indexed_hash, '') FROM indexing_state WHERE chain_id = $1",
 		chainID,
 	)
@@ -65,7 +66,8 @@ func (s *PostgresCheckpointStore) SaveLastIndexedBlock(ctx context.Context, chai
 		return fmt.Errorf("unexpected postgres db type")
 	}
 
-	_, err = sqlDB.ExecContext(ctx,
+	_, err = sqlDB.ExecContext(
+		ctx,
 		`INSERT INTO indexing_state (chain_id, last_indexed_block, last_indexed_hash, updated_at)
 		 VALUES ($1, $2, $3, $4)
 		 ON CONFLICT (chain_id) DO UPDATE SET last_indexed_block = $2, last_indexed_hash = $3, updated_at = $4`,
@@ -94,7 +96,8 @@ func (s *PostgresCheckpointStore) GetBlockHash(ctx context.Context, chainID stri
 	}
 
 	var hash string
-	row := sqlDB.QueryRowContext(ctx,
+	row := sqlDB.QueryRowContext(
+		ctx,
 		"SELECT hash FROM blocks WHERE chain_id = $1 AND number = $2",
 		chainID, blockNumber,
 	)

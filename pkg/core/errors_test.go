@@ -381,3 +381,102 @@ func TestSystemErrorChaining(t *testing.T) {
 	assert.Equal(t, 8080, sysErr.Details["port"])
 	assert.Equal(t, 3, sysErr.Details["retry"])
 }
+
+func TestSystemErrorUnwrap(t *testing.T) {
+	originalErr := errors.New("original")
+	sysErr := NewSystemError(ErrorTypeTransient, ErrorCodeNetworkError, "msg", originalErr)
+	assert.Equal(t, originalErr, sysErr.Unwrap())
+
+	sysErrNoWrap := NewSystemError(ErrorTypePermanent, ErrorCodeValidation, "msg", nil)
+	assert.Nil(t, sysErrNoWrap.Unwrap())
+}
+
+func TestSystemErrorIs(t *testing.T) {
+	sysErr := NewSystemError(ErrorTypeTransient, ErrorCodeTimeout, "timeout", nil)
+
+	assert.True(t, sysErr.Is(ErrTimeout))
+	assert.False(t, sysErr.Is(ErrNotFound))
+	assert.False(t, sysErr.Is(errors.New("plain error")))
+}
+
+func TestClassifyErrorCode(t *testing.T) {
+	assert.Equal(t, "OK", ClassifyErrorCode(nil))
+
+	sysErr := NewSystemError(ErrorTypeTransient, ErrorCodeNetworkError, "msg", nil)
+	assert.Equal(t, ErrorCodeNetworkError, ClassifyErrorCode(sysErr))
+
+	assert.Equal(t, ErrorCodeTimeout, ClassifyErrorCode(ErrTimeout))
+	assert.Equal(t, ErrorCodeNetworkError, ClassifyErrorCode(ErrConnectionRefused))
+	assert.Equal(t, ErrorCodeNotFound, ClassifyErrorCode(ErrNotFound))
+	assert.Equal(t, "BLOCK_NOT_FOUND", ClassifyErrorCode(ErrBlockNotFound))
+	assert.Equal(t, ErrorCodeValidation, ClassifyErrorCode(ErrUnauthorized))
+	assert.Equal(t, ErrorCodeTimeout, ClassifyErrorCode(context.DeadlineExceeded))
+	assert.Equal(t, ErrorCodeTimeout, ClassifyErrorCode(context.Canceled))
+
+	assert.Equal(t, "EVENT_NOT_FOUND", ClassifyErrorCode(ErrEventNotFound))
+	assert.Equal(t, "TRANSACTION_NOT_FOUND", ClassifyErrorCode(ErrTxNotFound))
+	assert.Equal(t, "CONTRACT_NOT_FOUND", ClassifyErrorCode(ErrContractNotFound))
+
+	assert.Equal(t, "UNKNOWN", ClassifyErrorCode(errors.New("random error")))
+}
+
+func TestNewRPCErr(t *testing.T) {
+	inner := errors.New("connection failed")
+	rpcErr := NewRPCErr(503, "https://rpc.example.com", "eth_call", "req-123", 5*time.Second, inner)
+
+	assert.Equal(t, 503, rpcErr.StatusCode)
+	assert.Equal(t, "https://rpc.example.com", rpcErr.Endpoint)
+	assert.Equal(t, "eth_call", rpcErr.Method)
+	assert.Equal(t, "req-123", rpcErr.RequestID)
+	assert.Equal(t, 5*time.Second, rpcErr.RetryAfter)
+	assert.Equal(t, inner, rpcErr.Err)
+}
+
+func TestRPCErrError(t *testing.T) {
+	rpcErr := NewRPCErr(503, "https://rpc.example.com", "eth_call", "req-123", 0, errors.New("connection failed"))
+	msg := rpcErr.Error()
+	assert.Contains(t, msg, "503")
+	assert.Contains(t, msg, "eth_call")
+	assert.Contains(t, msg, "connection failed")
+
+	rpcErrNoInner := NewRPCErr(200, "endpoint", "method", "id", 0, nil)
+	msg2 := rpcErrNoInner.Error()
+	assert.Contains(t, msg2, "200")
+}
+
+func TestRPCErrUnwrap(t *testing.T) {
+	inner := errors.New("inner")
+	rpcErr := NewRPCErr(500, "ep", "m", "id", 0, inner)
+	assert.Equal(t, inner, rpcErr.Unwrap())
+}
+
+func TestRPCErrIsRateLimited(t *testing.T) {
+	assert.True(t, NewRPCErr(429, "ep", "m", "id", 0, nil).IsRateLimited())
+	assert.False(t, NewRPCErr(200, "ep", "m", "id", 0, nil).IsRateLimited())
+	assert.False(t, NewRPCErr(500, "ep", "m", "id", 0, nil).IsRateLimited())
+}
+
+func TestRPCErrIsServerError(t *testing.T) {
+	assert.True(t, NewRPCErr(500, "ep", "m", "id", 0, nil).IsServerError())
+	assert.True(t, NewRPCErr(503, "ep", "m", "id", 0, nil).IsServerError())
+	assert.False(t, NewRPCErr(200, "ep", "m", "id", 0, nil).IsServerError())
+	assert.False(t, NewRPCErr(400, "ep", "m", "id", 0, nil).IsServerError())
+}
+
+func TestRPCErrIsClientError(t *testing.T) {
+	assert.True(t, NewRPCErr(400, "ep", "m", "id", 0, nil).IsClientError())
+	assert.True(t, NewRPCErr(404, "ep", "m", "id", 0, nil).IsClientError())
+	assert.False(t, NewRPCErr(429, "ep", "m", "id", 0, nil).IsClientError())
+	assert.False(t, NewRPCErr(500, "ep", "m", "id", 0, nil).IsClientError())
+}
+
+func TestClassifyErrorRPCErr(t *testing.T) {
+	rateLimited := NewRPCErr(429, "ep", "m", "id", 0, nil)
+	assert.Equal(t, ErrorTypeTransient, ClassifyError(rateLimited))
+
+	serverErr := NewRPCErr(503, "ep", "m", "id", 0, nil)
+	assert.Equal(t, ErrorTypeTransient, ClassifyError(serverErr))
+
+	clientErr := NewRPCErr(400, "ep", "m", "id", 0, nil)
+	assert.Equal(t, ErrorTypePermanent, ClassifyError(clientErr))
+}

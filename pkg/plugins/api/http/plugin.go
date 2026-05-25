@@ -216,7 +216,8 @@ func (p *HTTPPlugin) handleRequestCore(w http.ResponseWriter, r *http.Request) {
 	// crashing the HTTP server goroutine.
 	defer func() {
 		if rec := recover(); rec != nil {
-			slog.Error("HTTP handler panicked, returning 500",
+			slog.Error(
+				"HTTP handler panicked, returning 500",
 				slog.String("method", r.Method),
 				slog.String("path", r.URL.Path),
 				slog.Any("panic", rec),

@@ -99,6 +99,24 @@ func TestMonitoringAggregateRuntimeMetricsHealthy(t *testing.T) {
 	}
 }
 
+func TestMonitoring_GetAllMetrics(t *testing.T) {
+	t.Parallel()
+	monitoring := NewMonitoring()
+	monitoring.RecordRequest("http", 50*time.Millisecond, true)
+	monitoring.RecordRequest("grpc", 100*time.Millisecond, true)
+
+	all := monitoring.GetAllMetrics()
+	if len(all) != 2 {
+		t.Fatalf("expected 2 protocols, got %d", len(all))
+	}
+	if _, ok := all["http"]; !ok {
+		t.Fatal("expected http protocol in all metrics")
+	}
+	if _, ok := all["grpc"]; !ok {
+		t.Fatal("expected grpc protocol in all metrics")
+	}
+}
+
 func TestMonitoringAggregateRuntimeMetricsDegraded(t *testing.T) {
 	t.Parallel()
 	monitoring := NewMonitoring()

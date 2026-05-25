@@ -108,3 +108,12 @@ func TestSharedHTTPClientCloseIdleConnections(t *testing.T) {
 	client.CloseIdleConnections()
 	client.CloseIdleConnections()
 }
+
+func TestWithTimeout(t *testing.T) {
+	opt := WithTimeout(10 * time.Second)
+	if opt == nil {
+		t.Fatal("expected non-nil option")
+	}
+	transport := &http.Transport{}
+	opt(transport)
+}

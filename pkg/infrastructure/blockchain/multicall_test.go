@@ -241,6 +241,14 @@ func TestDecodeUint8(t *testing.T) {
 	}
 }
 
+func TestDecodeUint8TooShort(t *testing.T) {
+	t.Parallel()
+	got := decodeUint8([]byte{0x01, 0x02, 0x03})
+	if got != 0 {
+		t.Errorf("decodeUint8(short) = %d, want 0", got)
+	}
+}
+
 func TestNewMulticall3Client_DefaultClient(t *testing.T) {
 	t.Parallel()
 	client := NewMulticall3Client("http://localhost:8545", nil)

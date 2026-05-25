@@ -332,7 +332,8 @@ func (s *PostgreSQLEventMetadataStore) insertBatchChunk(ctx context.Context, bat
 		valueClauses = append(valueClauses, clause)
 		paramIdx += insertColumnsCount
 
-		args = append(args,
+		args = append(
+			args,
 			m.EventID, m.ChainID, m.BlockNumber, m.TransactionHash,
 			m.LogIndex, m.ContractAddress, m.EventName, status,
 			m.ProcessedAt, now, now,

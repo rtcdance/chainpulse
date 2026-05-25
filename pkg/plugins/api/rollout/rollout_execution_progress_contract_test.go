@@ -90,3 +90,134 @@ func TestBuildRolloutExecutionProgressPosture(t *testing.T) {
 		t.Fatalf("expected consumer posture consumer-backlog, got %q", posture.Consumer)
 	}
 }
+
+func TestClassifyRolloutPollProgressPosture_ReorgRisk(t *testing.T) {
+	t.Parallel()
+	got := classifyRolloutPollProgressPosture(RolloutPollProgressSnapshot{
+		ReorgCheckpointState: "reorg-risk",
+	})
+	if got != "poll-risk" {
+		t.Fatalf("expected poll-risk, got %q", got)
+	}
+}
+
+func TestClassifyRolloutPollProgressPosture_PollAdvancing(t *testing.T) {
+	t.Parallel()
+	got := classifyRolloutPollProgressPosture(RolloutPollProgressSnapshot{
+		ActivityState:  "active",
+		ProcessedBlock: 100,
+	})
+	if got != "poll-advancing" {
+		t.Fatalf("expected poll-advancing, got %q", got)
+	}
+}
+
+func TestClassifyRolloutPollProgressPosture_PollIdle(t *testing.T) {
+	t.Parallel()
+	got := classifyRolloutPollProgressPosture(RolloutPollProgressSnapshot{
+		ActivityState: "no-polls-yet",
+	})
+	if got != "poll-idle" {
+		t.Fatalf("expected poll-idle, got %q", got)
+	}
+}
+
+func TestClassifyRolloutPollProgressPosture_PollStalled(t *testing.T) {
+	t.Parallel()
+	got := classifyRolloutPollProgressPosture(RolloutPollProgressSnapshot{
+		ActivityState: "stale",
+	})
+	if got != "poll-stalled" {
+		t.Fatalf("expected poll-stalled, got %q", got)
+	}
+}
+
+func TestClassifyRolloutPollProgressPosture_PollMonitoring(t *testing.T) {
+	t.Parallel()
+	got := classifyRolloutPollProgressPosture(RolloutPollProgressSnapshot{
+		ActivityState: "unknown-state",
+	})
+	if got != "poll-monitoring" {
+		t.Fatalf("expected poll-monitoring, got %q", got)
+	}
+}
+
+func TestClassifyRolloutPollProgressPosture_Empty(t *testing.T) {
+	t.Parallel()
+	got := classifyRolloutPollProgressPosture(RolloutPollProgressSnapshot{})
+	if got != "" {
+		t.Fatalf("expected empty string, got %q", got)
+	}
+}
+
+func TestClassifyRolloutPollProgressPosture_CheckpointDue(t *testing.T) {
+	t.Parallel()
+	got := classifyRolloutPollProgressPosture(RolloutPollProgressSnapshot{
+		CheckpointState: "checkpoint-due",
+	})
+	if got != "poll-catchup" {
+		t.Fatalf("expected poll-catchup, got %q", got)
+	}
+}
+
+func TestClassifyRolloutConsumerProgressPosture_Idle(t *testing.T) {
+	t.Parallel()
+	got := classifyRolloutConsumerProgressPosture(RolloutConsumerProgressSnapshot{
+		ProgressState: "idle",
+	})
+	if got != "consumer-idle" {
+		t.Fatalf("expected consumer-idle, got %q", got)
+	}
+}
+
+func TestClassifyRolloutConsumerProgressPosture_Advancing(t *testing.T) {
+	t.Parallel()
+	got := classifyRolloutConsumerProgressPosture(RolloutConsumerProgressSnapshot{
+		ProgressState: "active",
+		CurrentOffset: 10,
+	})
+	if got != "consumer-advancing" {
+		t.Fatalf("expected consumer-advancing, got %q", got)
+	}
+}
+
+func TestClassifyRolloutConsumerProgressPosture_ActiveNoOffset(t *testing.T) {
+	t.Parallel()
+	got := classifyRolloutConsumerProgressPosture(RolloutConsumerProgressSnapshot{
+		ProgressState: "active",
+		CurrentOffset: 0,
+	})
+	if got != "consumer-active" {
+		t.Fatalf("expected consumer-active, got %q", got)
+	}
+}
+
+func TestClassifyRolloutConsumerProgressPosture_Watch(t *testing.T) {
+	t.Parallel()
+	got := classifyRolloutConsumerProgressPosture(RolloutConsumerProgressSnapshot{
+		ProgressState: "monitoring",
+		Lag:           5,
+	})
+	if got != "consumer-watch" {
+		t.Fatalf("expected consumer-watch, got %q", got)
+	}
+}
+
+func TestClassifyRolloutConsumerProgressPosture_MonitoringNoLag(t *testing.T) {
+	t.Parallel()
+	got := classifyRolloutConsumerProgressPosture(RolloutConsumerProgressSnapshot{
+		ProgressState: "monitoring",
+		Lag:           0,
+	})
+	if got != "consumer-monitoring" {
+		t.Fatalf("expected consumer-monitoring, got %q", got)
+	}
+}
+
+func TestClassifyRolloutConsumerProgressPosture_Empty(t *testing.T) {
+	t.Parallel()
+	got := classifyRolloutConsumerProgressPosture(RolloutConsumerProgressSnapshot{})
+	if got != "" {
+		t.Fatalf("expected empty string, got %q", got)
+	}
+}

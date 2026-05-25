@@ -274,3 +274,71 @@ func TestPostgresReplicationConfigLargeSyncInterval(t *testing.T) {
 
 	assert.Equal(t, 1*time.Hour, config.SyncInterval)
 }
+
+func TestNewPostgresClusterMonitor(t *testing.T) {
+	t.Parallel()
+	cluster := &PostgresCluster{}
+	monitor := NewPostgresClusterMonitor(cluster)
+
+	assert.NotNil(t, monitor)
+	assert.Equal(t, cluster, monitor.cluster)
+}
+
+func TestPostgresClusterStatusStructure(t *testing.T) {
+	t.Parallel()
+	now := time.Now()
+	status := PostgresClusterStatus{
+		Timestamp:    now,
+		Healthy:      true,
+		HealthyNodes: 3,
+		TotalNodes:   3,
+	}
+
+	assert.True(t, status.Healthy)
+	assert.Equal(t, 3, status.HealthyNodes)
+	assert.Equal(t, 3, status.TotalNodes)
+	assert.Equal(t, now, status.Timestamp)
+}
+
+func TestPostgresNodeHealthStructure(t *testing.T) {
+	t.Parallel()
+	health := PostgresNodeHealth{
+		Address: "primary:5432",
+		Healthy: true,
+		Error:   "",
+	}
+
+	assert.Equal(t, "primary:5432", health.Address)
+	assert.True(t, health.Healthy)
+	assert.Empty(t, health.Error)
+}
+
+func TestPostgresClusterMonitorMutex(t *testing.T) {
+	t.Parallel()
+	cluster := &PostgresCluster{}
+	monitor := NewPostgresClusterMonitor(cluster)
+
+	monitor.mutex.Lock()
+	assert.NotNil(t, monitor.cluster)
+	monitor.mutex.Unlock()
+}
+
+func TestPostgresClusterMonitorConcurrentAccess(t *testing.T) {
+	t.Parallel()
+	cluster := &PostgresCluster{}
+	monitor := NewPostgresClusterMonitor(cluster)
+
+	done := make(chan bool, 10)
+	for i := 0; i < 10; i++ {
+		go func() {
+			defer func() { done <- true }()
+			monitor.mutex.RLock()
+			_ = monitor.cluster
+			monitor.mutex.RUnlock()
+		}()
+	}
+
+	for i := 0; i < 10; i++ {
+		<-done
+	}
+}

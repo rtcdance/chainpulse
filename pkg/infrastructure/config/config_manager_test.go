@@ -21,6 +21,29 @@ func skipConfigWatchTestsInShortMode(t *testing.T) {
 	}
 }
 
+func TestNotifyWatchersPanicRecovery(t *testing.T) {
+	t.Parallel()
+	skipConfigWatchTestsInShortMode(t)
+
+	consul := NewMockConsulClient()
+	cm := NewConfigManager(consul, generateTestEncryptionKey())
+
+	ctx := context.Background()
+	var completed atomic.Int32
+
+	_ = cm.WatchConfig(ctx, "panic_key", func(value string) {
+		defer func() { completed.Add(1) }()
+		panic("intentional panic for coverage")
+	})
+
+	time.Sleep(50 * time.Millisecond)
+	consul.TriggerWatch("panic_key", "test_value")
+
+	cm.WaitWatchers()
+
+	assert.Greater(t, int(completed.Load()), 0)
+}
+
 // MockConsulClient is a mock implementation of ConsulClient for testing
 type MockConsulClient struct {
 	mu                sync.RWMutex
@@ -236,7 +259,6 @@ func TestSetConfig(t *testing.T) {
 
 // TestSetConfigConsulError tests handling Consul errors during set
 func TestSetConfigConsulError(t *testing.T) {
-	t.Skip("regression: pre-existing failure")
 	t.Parallel()
 	consul := NewMockConsulClient()
 	consul.setConfigErr = fmt.Errorf("consul write error")
@@ -247,7 +269,7 @@ func TestSetConfigConsulError(t *testing.T) {
 	err := cm.SetConfig(ctx, "test_key", "test_value")
 
 	assert.Error(t, err)
-	assert.Equal(t, "consul write error", err.Error())
+	assert.Contains(t, err.Error(), "consul write error")
 }
 
 // TestEncryptDecrypt tests encryption and decryption

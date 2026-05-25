@@ -532,3 +532,15 @@ func TestConcurrentAuthRequests(t *testing.T) {
 		<-done
 	}
 }
+
+func TestAuthMiddleware_respondForbidden(t *testing.T) {
+	t.Parallel()
+
+	am := &AuthMiddleware{}
+	rec := httptest.NewRecorder()
+	am.respondForbidden(rec, "access denied")
+
+	if rec.Code != http.StatusForbidden {
+		t.Errorf("expected status 403, got %d", rec.Code)
+	}
+}

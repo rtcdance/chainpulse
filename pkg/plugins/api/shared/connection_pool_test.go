@@ -365,3 +365,9 @@ func TestConnectionPoolRuntimeMetricsDegraded(t *testing.T) {
 		t.Fatalf("unexpected reliability hint: %v", metrics["reliability_hint"])
 	}
 }
+
+func TestConnectionPool_Cleanup(t *testing.T) {
+	factory := &MockConnectionFactory{}
+	pool := NewConnectionPool("test", factory, 10, 1*time.Minute)
+	pool.cleanup()
+}
