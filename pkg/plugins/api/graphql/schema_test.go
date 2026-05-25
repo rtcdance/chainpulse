@@ -24,10 +24,10 @@ func TestApplyEventFilter(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name     string
-		events   []*core.BlockchainEvent
-		filter   map[string]any
-		wantIDs  []string
+		name    string
+		events  []*core.BlockchainEvent
+		filter  map[string]any
+		wantIDs []string
 	}{
 		{
 			name: "filter by status matches one",
@@ -35,7 +35,7 @@ func TestApplyEventFilter(t *testing.T) {
 				makeEvent("1", "0xA", "Transfer", core.EventStatusConfirmed, 100, 0, false, 1000),
 				makeEvent("1", "0xB", "Approve", core.EventStatusPending, 101, 0, false, 1001),
 			},
-			filter: map[string]any{"status": "confirmed"},
+			filter:  map[string]any{"status": "confirmed"},
 			wantIDs: []string{"confirmed"},
 		},
 		{
@@ -44,7 +44,7 @@ func TestApplyEventFilter(t *testing.T) {
 				makeEvent("1", "0xA", "Transfer", core.EventStatusConfirmed, 100, 0, false, 1000),
 				makeEvent("137", "0xB", "Approve", core.EventStatusConfirmed, 101, 0, false, 1001),
 			},
-			filter: map[string]any{"chainId": "137"},
+			filter:  map[string]any{"chainId": "137"},
 			wantIDs: []string{"137"},
 		},
 		{
@@ -53,7 +53,7 @@ func TestApplyEventFilter(t *testing.T) {
 				makeEvent("1", "0x1111111111111111111111111111111111111111", "Transfer", core.EventStatusConfirmed, 100, 0, false, 1000),
 				makeEvent("1", "0x2222222222222222222222222222222222222222", "Approve", core.EventStatusConfirmed, 101, 0, false, 1001),
 			},
-			filter: map[string]any{"contractAddress": common.HexToAddress("0x2222222222222222222222222222222222222222").Hex()},
+			filter:  map[string]any{"contractAddress": common.HexToAddress("0x2222222222222222222222222222222222222222").Hex()},
 			wantIDs: []string{"matched_addr"},
 		},
 		{
@@ -62,7 +62,7 @@ func TestApplyEventFilter(t *testing.T) {
 				makeEvent("1", "0xA", "Transfer", core.EventStatusConfirmed, 100, 0, false, 1000),
 				makeEvent("1", "0xA", "Swap", core.EventStatusConfirmed, 101, 0, false, 1001),
 			},
-			filter: map[string]any{"eventName": "Swap"},
+			filter:  map[string]any{"eventName": "Swap"},
 			wantIDs: []string{"Swap"},
 		},
 		{
@@ -72,7 +72,7 @@ func TestApplyEventFilter(t *testing.T) {
 				makeEvent("1", "0xA", "Transfer", core.EventStatusConfirmed, 200, 0, false, 1001),
 				makeEvent("1", "0xA", "Transfer", core.EventStatusConfirmed, 300, 0, false, 1002),
 			},
-			filter: map[string]any{"blockNumberGte": 200},
+			filter:  map[string]any{"blockNumberGte": 200},
 			wantIDs: []string{"gte200", "gte300"},
 		},
 		{
@@ -82,7 +82,7 @@ func TestApplyEventFilter(t *testing.T) {
 				makeEvent("1", "0xA", "Transfer", core.EventStatusConfirmed, 200, 0, false, 1001),
 				makeEvent("1", "0xA", "Transfer", core.EventStatusConfirmed, 300, 0, false, 1002),
 			},
-			filter: map[string]any{"blockNumberLte": 200},
+			filter:  map[string]any{"blockNumberLte": 200},
 			wantIDs: []string{"lte100", "lte200"},
 		},
 		{
@@ -91,7 +91,7 @@ func TestApplyEventFilter(t *testing.T) {
 				makeEvent("1", "0xA", "Transfer", core.EventStatusConfirmed, 100, 0, true, 1000),
 				makeEvent("1", "0xA", "Transfer", core.EventStatusConfirmed, 101, 0, false, 1001),
 			},
-			filter: map[string]any{"removed": true},
+			filter:  map[string]any{"removed": true},
 			wantIDs: []string{"removed"},
 		},
 		{
@@ -101,7 +101,7 @@ func TestApplyEventFilter(t *testing.T) {
 				makeEvent("1", "0xA", "Transfer", core.EventStatusPending, 100, 0, false, 1001),
 				makeEvent("137", "0xA", "Transfer", core.EventStatusConfirmed, 100, 0, false, 1002),
 			},
-			filter: map[string]any{"chainId": "1", "status": "confirmed"},
+			filter:  map[string]any{"chainId": "1", "status": "confirmed"},
 			wantIDs: []string{"combined"},
 		},
 		{
@@ -284,9 +284,9 @@ func TestApplyEventSort(t *testing.T) {
 	}
 
 	tests := []struct {
-		name     string
-		sort     map[string]any
-		wantIDs  []uint64
+		name    string
+		sort    map[string]any
+		wantIDs []uint64
 	}{
 		{
 			name:    "sort by blockNumber ascending",

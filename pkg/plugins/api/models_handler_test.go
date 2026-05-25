@@ -102,8 +102,8 @@ func TestModelsHandler_respondError_Internal(t *testing.T) {
 func TestModelsHandler_Health(t *testing.T) {
 	t.Parallel()
 	h := &ModelsHandler{
-		logger:  core.NewDefaultLoggerWithOutput(core.LogLevelInfo, io.Discard),
-		metrics: core.NewDefaultMetricsCollector(),
+		logger:      core.NewDefaultLoggerWithOutput(core.LogLevelInfo, io.Discard),
+		metrics:     core.NewDefaultMetricsCollector(),
 		initialized: true,
 	}
 	health := h.Health(context.Background())
@@ -171,8 +171,8 @@ func TestModelsHandler_listModels(t *testing.T) {
 func TestModelsHandler_Health_NotInitialized(t *testing.T) {
 	t.Parallel()
 	h := &ModelsHandler{
-		logger:  core.NewDefaultLoggerWithOutput(core.LogLevelInfo, io.Discard),
-		metrics: core.NewDefaultMetricsCollector(),
+		logger:      core.NewDefaultLoggerWithOutput(core.LogLevelInfo, io.Discard),
+		metrics:     core.NewDefaultMetricsCollector(),
 		initialized: false,
 	}
 	health := h.Health(context.Background())

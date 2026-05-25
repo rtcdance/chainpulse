@@ -654,7 +654,7 @@ func TestExportMetricsPrometheus_WithoutExporter(t *testing.T) {
 					"tags":  map[string]any{},
 				},
 			},
-			"gauges":   map[string]any{},
+			"gauges":     map[string]any{},
 			"histograms": map[string]any{},
 		},
 	}
@@ -668,8 +668,8 @@ type plainMetricsCollector struct {
 	metrics map[string]any
 }
 
-func (p *plainMetricsCollector) RecordCounter(name string, value int64, tags map[string]string) {}
-func (p *plainMetricsCollector) RecordGauge(name string, value float64, tags map[string]string)  {}
+func (p *plainMetricsCollector) RecordCounter(name string, value int64, tags map[string]string)     {}
+func (p *plainMetricsCollector) RecordGauge(name string, value float64, tags map[string]string)     {}
 func (p *plainMetricsCollector) RecordHistogram(name string, value float64, tags map[string]string) {}
 func (p *plainMetricsCollector) GetMetrics() map[string]any {
 	return p.metrics

@@ -593,5 +593,3 @@ func TestIdempotency_MultiChainIsolation(t *testing.T) {
 		t.Fatalf("all events across chains should be unique: want %d, got %d", len(events), svc.GetProcessedCount())
 	}
 }
-
-

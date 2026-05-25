@@ -95,40 +95,40 @@ func TestBuildHTTPReliabilityHint(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name            string
+		name             string
 		transportPosture string
-		runtimePosture  string
-		expected        string
+		runtimePosture   string
+		expected         string
 	}{
 		{
-			name:            "tls serving",
+			name:             "tls serving",
 			transportPosture: "http-tls-enabled",
-			runtimePosture:  "http-serving",
-			expected:        "http runtime is serving registered routes with a TLS-capable transport",
+			runtimePosture:   "http-serving",
+			expected:         "http runtime is serving registered routes with a TLS-capable transport",
 		},
 		{
-			name:            "plaintext serving",
+			name:             "plaintext serving",
 			transportPosture: "http-plaintext-only",
-			runtimePosture:  "http-serving",
-			expected:        "http runtime is serving registered routes on a plaintext transport",
+			runtimePosture:   "http-serving",
+			expected:         "http runtime is serving registered routes on a plaintext transport",
 		},
 		{
-			name:            "running unrouted",
+			name:             "running unrouted",
 			transportPosture: "http-plaintext-only",
-			runtimePosture:  "http-running-unrouted",
-			expected:        "http runtime is running but no routes are registered yet",
+			runtimePosture:   "http-running-unrouted",
+			expected:         "http runtime is running but no routes are registered yet",
 		},
 		{
-			name:            "tls stopped",
+			name:             "tls stopped",
 			transportPosture: "http-tls-enabled",
-			runtimePosture:  "http-stopped",
-			expected:        "http runtime is stopped; restart before relying on TLS-capable route serving",
+			runtimePosture:   "http-stopped",
+			expected:         "http runtime is stopped; restart before relying on TLS-capable route serving",
 		},
 		{
-			name:            "plaintext stopped",
+			name:             "plaintext stopped",
 			transportPosture: "http-plaintext-only",
-			runtimePosture:  "http-stopped",
-			expected:        "http runtime is stopped; restart before relying on route serving",
+			runtimePosture:   "http-stopped",
+			expected:         "http runtime is stopped; restart before relying on route serving",
 		},
 	}
 

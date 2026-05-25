@@ -117,9 +117,9 @@ func TestGetConnectionInfo_Exists(t *testing.T) {
 	h := newTestWebSocketHandler()
 	now := time.Now()
 	h.activeConnections["conn-3"] = &WSConnection{
-		id:           "conn-3",
-		remoteAddr:   "192.168.1.1:8080",
-		tlsEnabled:   true,
+		id:         "conn-3",
+		remoteAddr: "192.168.1.1:8080",
+		tlsEnabled: true,
 		subscriptions: map[string]*WSSubscription{
 			"sub-1": {id: "sub-1", topic: "test"},
 		},
@@ -580,8 +580,8 @@ func TestGetSubscriptionCount(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		handler.activeConnections["conn-1"] = &WSConnection{
-			id:   "conn-1",
-			ctx:  ctx,
+			id:     "conn-1",
+			ctx:    ctx,
 			cancel: cancel,
 			subscriptions: map[string]*WSSubscription{
 				"sub-1": {id: "sub-1", topic: "topic-a", done: make(chan struct{})},
@@ -612,11 +612,11 @@ func TestCloseConnection(t *testing.T) {
 		handler := newTestWebSocketHandler()
 		ctx, cancel := context.WithCancel(context.Background())
 		handler.activeConnections["conn-1"] = &WSConnection{
-			id:      "conn-1",
-			ctx:     ctx,
-			cancel:  cancel,
+			id:            "conn-1",
+			ctx:           ctx,
+			cancel:        cancel,
 			subscriptions: map[string]*WSSubscription{},
-			lastEventSeq: map[string]uint64{},
+			lastEventSeq:  map[string]uint64{},
 		}
 		err := handler.CloseConnection("conn-1")
 		if err != nil {
@@ -648,8 +648,8 @@ func TestBroadcastToConnection(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		handler.activeConnections["conn-1"] = &WSConnection{
-			id:   "conn-1",
-			ctx:  ctx,
+			id:     "conn-1",
+			ctx:    ctx,
 			cancel: cancel,
 			subscriptions: map[string]*WSSubscription{
 				"sub-1": {id: "sub-1", topic: "topic-a", done: make(chan struct{})},
@@ -743,8 +743,8 @@ func TestRemoveSubscription(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		handler.activeConnections["conn-1"] = &WSConnection{
-			id:   "conn-1",
-			ctx:  ctx,
+			id:     "conn-1",
+			ctx:    ctx,
 			cancel: cancel,
 			subscriptions: map[string]*WSSubscription{
 				"sub-1": {id: "sub-1", topic: "topic-a", done: make(chan struct{})},

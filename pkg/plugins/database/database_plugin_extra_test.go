@@ -61,9 +61,6 @@ func TestBaseDatabasePlugin_Health_NotRunning(t *testing.T) {
 	}
 }
 
-
-
-
 func TestDefaultInMemoryDatabasePlugin_WriteBatch(t *testing.T) {
 	t.Parallel()
 	db := newStartedDB(t)
@@ -129,8 +126,6 @@ func TestDefaultInMemoryDatabasePlugin_WriteBatch_NotRunning(t *testing.T) {
 		t.Fatal("expected error when plugin not running")
 	}
 }
-
-
 
 func TestDefaultInMemoryDatabasePlugin_GetAllEvents(t *testing.T) {
 	t.Parallel()

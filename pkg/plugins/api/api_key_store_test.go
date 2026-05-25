@@ -8,9 +8,9 @@ func TestKeyHash(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name        string
-		plainKey    string
-		wantEmpty   bool
+		name      string
+		plainKey  string
+		wantEmpty bool
 	}{
 		{"valid cp_ prefix", "cp_abc123", false},
 		{"empty string", "", true},

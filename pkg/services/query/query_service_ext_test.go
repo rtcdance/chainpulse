@@ -333,8 +333,8 @@ func TestQueryService_Query_CacheHit(t *testing.T) {
 	t.Parallel()
 	event := core.BlockchainEvent{ID: "cached-event"}
 	cache := &queryServiceCacheMock{
-		healthStatus:   "healthy",
-		queryCacheData: []core.BlockchainEvent{event},
+		healthStatus:    "healthy",
+		queryCacheData:  []core.BlockchainEvent{event},
 		queryCacheTotal: 1,
 	}
 	svc := newQueryServiceForTest(t, nil, nil, cache)
@@ -624,9 +624,9 @@ func TestQueryService_ClassifyCachePosture_NilHealth(t *testing.T) {
 
 type cacheWithNilHealth struct{}
 
-func (c *cacheWithNilHealth) Initialize(ctx context.Context) error         { return nil }
-func (c *cacheWithNilHealth) Start(ctx context.Context) error              { return nil }
-func (c *cacheWithNilHealth) Stop(ctx context.Context) error               { return nil }
+func (c *cacheWithNilHealth) Initialize(ctx context.Context) error { return nil }
+func (c *cacheWithNilHealth) Start(ctx context.Context) error      { return nil }
+func (c *cacheWithNilHealth) Stop(ctx context.Context) error       { return nil }
 func (c *cacheWithNilHealth) Get(ctx context.Context, key string) ([]core.BlockchainEvent, error) {
 	return nil, nil
 }

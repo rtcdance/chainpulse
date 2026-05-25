@@ -329,12 +329,12 @@ func TestProductServiceList(t *testing.T) {
 
 	for i := 1; i <= 3; i++ {
 		product := &Product{
-			ID:          fmt.Sprintf("product-%d", i),
-			Name:        fmt.Sprintf("Test Product %d", i),
-			Price:       float64(i) * 10.0,
-			Stock:       100,
-			Category:    "electronics",
-			Active:      true,
+			ID:       fmt.Sprintf("product-%d", i),
+			Name:     fmt.Sprintf("Test Product %d", i),
+			Price:    float64(i) * 10.0,
+			Stock:    100,
+			Category: "electronics",
+			Active:   true,
 		}
 		if _, err := backend.Create(context.Background(), product); err != nil {
 			t.Fatalf("failed to create product: %v", err)
@@ -358,12 +358,12 @@ func TestProductServiceQuery(t *testing.T) {
 	service := NewProductService(backend, cache)
 
 	product := &Product{
-		ID:          "product-1",
-		Name:        "Test Product",
-		Price:       99.99,
-		Stock:       100,
-		Category:    "electronics",
-		Active:      true,
+		ID:       "product-1",
+		Name:     "Test Product",
+		Price:    99.99,
+		Stock:    100,
+		Category: "electronics",
+		Active:   true,
 	}
 	if _, err := backend.Create(context.Background(), product); err != nil {
 		t.Fatalf("failed to create product: %v", err)
@@ -387,12 +387,12 @@ func TestProductServiceGetByCategory_Caching(t *testing.T) {
 	service := NewProductService(backend, cache)
 
 	product := &Product{
-		ID:          "product-1",
-		Name:        "Test Product",
-		Price:       99.99,
-		Stock:       100,
-		Category:    "electronics",
-		Active:      true,
+		ID:       "product-1",
+		Name:     "Test Product",
+		Price:    99.99,
+		Stock:    100,
+		Category: "electronics",
+		Active:   true,
 	}
 	if _, err := backend.Create(context.Background(), product); err != nil {
 		t.Fatalf("failed to create product: %v", err)
@@ -419,12 +419,12 @@ func TestProductServiceUpdateStock_NoCache(t *testing.T) {
 	service := NewProductService(backend, nil)
 
 	product := &Product{
-		ID:          "product-1",
-		Name:        "Test Product",
-		Price:       99.99,
-		Stock:       100,
-		Category:    "electronics",
-		Active:      true,
+		ID:       "product-1",
+		Name:     "Test Product",
+		Price:    99.99,
+		Stock:    100,
+		Category: "electronics",
+		Active:   true,
 	}
 	if _, err := backend.Create(context.Background(), product); err != nil {
 		t.Fatalf("failed to create product: %v", err)
@@ -447,12 +447,12 @@ func TestProductServiceGetByCategory_NoCache(t *testing.T) {
 	service := NewProductService(backend, nil)
 
 	product := &Product{
-		ID:          "product-1",
-		Name:        "Test Product",
-		Price:       99.99,
-		Stock:       100,
-		Category:    "electronics",
-		Active:      true,
+		ID:       "product-1",
+		Name:     "Test Product",
+		Price:    99.99,
+		Stock:    100,
+		Category: "electronics",
+		Active:   true,
 	}
 	if _, err := backend.Create(context.Background(), product); err != nil {
 		t.Fatalf("failed to create product: %v", err)
