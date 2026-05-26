@@ -335,6 +335,14 @@ func run() error {
 		logger.Info("JWT secret not set, auth disabled")
 	}
 
+	// Wire SIWE challenge handler (works without JWT for challenge generation)
+	siweDomain := fmt.Sprintf("localhost:%d", coreConfig.APIPort)
+	siweURI := "http://" + siweDomain + "/login"
+	siweHandler := api.NewSIWEHandler(nil, siweDomain, siweURI, nil, logger, metrics)
+	gateway.SetSIWEHandler(siweHandler)
+	logger.Info("SIWE challenge handler wired")
+	fmt.Println("  ✓ SIWE challenge handler wired to API Gateway")
+
 	// Build and inject auth middleware if authentication is enabled
 	var tokenValidator *api.TokenValidator
 	if config.JWTSecret != "" {
@@ -362,9 +370,7 @@ func run() error {
 			fmt.Println("  ✓ Auth middleware wired to API Gateway")
 		}
 
-		// Wire SIWE handler
-		siweDomain := fmt.Sprintf("localhost:%d", coreConfig.APIPort)
-		siweURI := "http://" + siweDomain + "/login"
+		// Re-wire SIWE handler with token validator for verify endpoint
 		siweHandler := api.NewSIWEHandler(tokenValidator, siweDomain, siweURI, nil, logger, metrics)
 		gateway.SetSIWEHandler(siweHandler)
 		logger.Info("SIWE auth handler wired")

@@ -103,6 +103,11 @@ func (h *SIWEHandler) HandleChallenge(w http.ResponseWriter, r *http.Request) {
 
 // HandleVerify handles POST /api/v1/auth/siwe/verify.
 func (h *SIWEHandler) HandleVerify(w http.ResponseWriter, r *http.Request) {
+	if h.tokenValidator == nil {
+		WriteErrorEnvelope(w, ErrUnauthorized("JWT authentication is not configured on this server"))
+		return
+	}
+
 	if r.Method != http.MethodPost {
 		WriteErrorEnvelope(w, ErrInvalidRequest("method not allowed"))
 		return
