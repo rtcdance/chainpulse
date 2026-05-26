@@ -306,6 +306,14 @@ func run() error {
 		gateway.SetRateLimitMiddleware(rateLimitMiddleware)
 		logger.Info("Rate limit middleware enabled", "requests_per_minute", config.RateLimitPerMinute)
 	}
+
+	// Wire SIWE challenge handler before gateway initialize so routes are registered
+	siweDomain := fmt.Sprintf("localhost:%d", coreConfig.APIPort)
+	siweURI := "http://" + siweDomain + "/login"
+	siweHandler := api.NewSIWEHandler(nil, siweDomain, siweURI, nil, logger, metrics)
+	gateway.SetSIWEHandler(siweHandler)
+	logger.Info("SIWE challenge handler wired")
+
 	if err := gateway.Initialize(*coreConfig); err != nil {
 		return fmt.Errorf("failed to initialize API Gateway: %w", err)
 	}
@@ -334,14 +342,6 @@ func run() error {
 	} else {
 		logger.Info("JWT secret not set, auth disabled")
 	}
-
-	// Wire SIWE challenge handler (works without JWT for challenge generation)
-	siweDomain := fmt.Sprintf("localhost:%d", coreConfig.APIPort)
-	siweURI := "http://" + siweDomain + "/login"
-	siweHandler := api.NewSIWEHandler(nil, siweDomain, siweURI, nil, logger, metrics)
-	gateway.SetSIWEHandler(siweHandler)
-	logger.Info("SIWE challenge handler wired")
-	fmt.Println("  ✓ SIWE challenge handler wired to API Gateway")
 
 	// Build and inject auth middleware if authentication is enabled
 	var tokenValidator *api.TokenValidator
