@@ -307,12 +307,37 @@ func run() error {
 		logger.Info("Rate limit middleware enabled", "requests_per_minute", config.RateLimitPerMinute)
 	}
 
-	// Wire SIWE challenge handler before gateway initialize so routes are registered
+	// Build token validator early so SIWE handler can be wired with JWT support
+	// before gateway.Initialize() registers the routes.
+	var tokenValidator *api.TokenValidator
+	if config.JWTSecret != "" {
+		if len(config.JWTSecret.Value()) < 32 {
+			logger.Warn("JWT secret too short, minimum 32 characters recommended")
+		}
+		tokenValidator = api.NewTokenValidator(config.JWTSecret.Value(), logger, metrics)
+		for _, entry := range config.AuthAPIKeys {
+			apiKey, clientID, ok := parseMonolithicKeyPair(entry.Value())
+			if !ok {
+				logger.Warn("invalid CHAINPULSE_AUTH_API_KEYS entry; expected key=clientID or key:clientID", "entry", entry)
+				continue
+			}
+			if err := tokenValidator.RegisterAPIKey(apiKey, clientID, "operator"); err != nil {
+				logger.Warn("failed to register API key", "error", err.Error())
+			}
+		}
+		fmt.Println("  ✓ JWT authentication configured")
+	} else {
+		logger.Info("JWT secret not set, SIWE verify will be unavailable")
+	}
+
+	// Wire SIWE handler with tokenValidator (nil is OK — challenge works, verify returns 401).
+	// This must happen before gateway.Initialize() so the integration captures
+	// the correct tokenValidator in the route handlers.
 	siweDomain := fmt.Sprintf("localhost:%d", coreConfig.APIPort)
 	siweURI := "http://" + siweDomain + "/login"
-	siweHandler := api.NewSIWEHandler(nil, siweDomain, siweURI, nil, logger, metrics)
+	siweHandler := api.NewSIWEHandler(tokenValidator, siweDomain, siweURI, nil, logger, metrics)
 	gateway.SetSIWEHandler(siweHandler)
-	logger.Info("SIWE challenge handler wired")
+	logger.Info("SIWE handler wired", "jwt_enabled", tokenValidator != nil)
 
 	if err := gateway.Initialize(*coreConfig); err != nil {
 		return fmt.Errorf("failed to initialize API Gateway: %w", err)
@@ -334,46 +359,20 @@ func run() error {
 		fmt.Println("  ✓ TLS configured")
 	}
 
-	if config.JWTSecret != "" {
-		if len(config.JWTSecret.Value()) < 32 {
-			logger.Warn("JWT secret too short, minimum 32 characters recommended")
+	// Build and inject auth middleware if authentication is enabled
+	if tokenValidator != nil && config.AuthEnabled {
+		rbacChecker := api.NewRBACChecker(logger, metrics)
+		if err := rbacChecker.RegisterDefaultRoles(); err != nil {
+			logger.Warn("failed to register default RBAC roles", "error", err.Error())
 		}
-		fmt.Println("  ✓ JWT authentication configured")
-	} else {
-		logger.Info("JWT secret not set, auth disabled")
+		auditLogger := api.NewAuditLogger(logger, metrics)
+		authMiddleware := api.NewAuthMiddleware(tokenValidator, rbacChecker, auditLogger, logger, metrics)
+		gateway.SetAuthMiddleware(authMiddleware)
+		logger.Info("Auth middleware enabled for monolithic mode")
+		fmt.Println("  ✓ Auth middleware wired to API Gateway")
 	}
 
-	// Build and inject auth middleware if authentication is enabled
-	var tokenValidator *api.TokenValidator
-	if config.JWTSecret != "" {
-		tokenValidator = api.NewTokenValidator(config.JWTSecret.Value(), logger, metrics)
-		for _, entry := range config.AuthAPIKeys {
-			apiKey, clientID, ok := parseMonolithicKeyPair(entry.Value())
-			if !ok {
-				logger.Warn("invalid CHAINPULSE_AUTH_API_KEYS entry; expected key=clientID or key:clientID", "entry", entry)
-				continue
-			}
-			if err := tokenValidator.RegisterAPIKey(apiKey, clientID, "operator"); err != nil {
-				logger.Warn("failed to register API key", "error", err.Error())
-			}
-		}
-
-		if config.AuthEnabled {
-			rbacChecker := api.NewRBACChecker(logger, metrics)
-			if err := rbacChecker.RegisterDefaultRoles(); err != nil {
-				logger.Warn("failed to register default RBAC roles", "error", err.Error())
-			}
-			auditLogger := api.NewAuditLogger(logger, metrics)
-			authMiddleware := api.NewAuthMiddleware(tokenValidator, rbacChecker, auditLogger, logger, metrics)
-			gateway.SetAuthMiddleware(authMiddleware)
-			logger.Info("Auth middleware enabled for monolithic mode")
-			fmt.Println("  ✓ Auth middleware wired to API Gateway")
-		}
-
-		// Re-wire SIWE handler with token validator for verify endpoint
-		siweHandler := api.NewSIWEHandler(tokenValidator, siweDomain, siweURI, nil, logger, metrics)
-		gateway.SetSIWEHandler(siweHandler)
-		logger.Info("SIWE auth handler wired")
+	if tokenValidator != nil {
 		fmt.Println("  ✓ SIWE authentication wired to API Gateway")
 	}
 

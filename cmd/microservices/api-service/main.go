@@ -155,6 +155,13 @@ func main() {
 	service.SetHealthCheckHandler(runtimeWiring.HealthCheckHandler)
 	service.SetGraphQLHandler(runtimeWiring.GraphQLHandler)
 
+	// Wire stats handler for event statistics dashboard
+	if runtimeWiring.EventRetrievalService != nil {
+		eventReader := runtimeWiring.EventRetrievalService.GetEventReader()
+		statsHandler := api.NewStatsHandler(logger, eventReader)
+		service.SetStatsHandler(statsHandler)
+	}
+
 	// Wire DLQ handler using PostgreSQL
 	if runtimeWiring.DBManager != nil {
 		if pgDB, err := runtimeWiring.DBManager.GetPostgresDB(context.Background()); err == nil {

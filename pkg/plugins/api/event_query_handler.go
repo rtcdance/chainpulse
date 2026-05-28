@@ -249,7 +249,7 @@ func (h *EventQueryHandler) HandleGetEventByID(w http.ResponseWriter, r *http.Re
 	ctx, cancel := context.WithTimeout(r.Context(), core.DefaultTimeout)
 	defer cancel()
 
-	if h.domainQuery != nil && looksLikeHash(eventID) {
+	if h.domainQuery != nil {
 		event, domainErr := h.domainQuery.QueryByHash(ctx, eventID)
 		if domainErr == nil && event != nil {
 			domainResult := &query.EventWithMetadata{Event: event, Metadata: nil}

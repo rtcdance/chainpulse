@@ -480,6 +480,12 @@ func registerConfiguredPullers(
 			}, logger, metrics, nil)
 		}
 
+		if starter, ok := puller.(core.LifecyclePlugin); ok {
+			if err := starter.Start(context.Background()); err != nil {
+				return registered, fmt.Errorf("failed to start puller for chain %s: %w", chainID, err)
+			}
+		}
+
 		if err := multi.RegisterPuller(chainID, puller); err != nil {
 			return registered, err
 		}

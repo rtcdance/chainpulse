@@ -59,7 +59,22 @@ func DecodeEventData(eventName string, topics []common.Hash, data []byte) map[st
 		return nil
 	}
 
-	eventABI, exists := parsedABI.Events[eventName]
+	// Find event by topic0 first (handles disambiguated event names like
+	// "CometSupply" where ABI event name is "Supply" but map key is different).
+	var eventABI abi.Event
+	var exists bool
+	if len(topics) > 0 {
+		for _, ev := range parsedABI.Events {
+			if ev.ID == topics[0] {
+				eventABI = ev
+				exists = true
+				break
+			}
+		}
+	}
+	if !exists {
+		eventABI, exists = parsedABI.Events[eventName]
+	}
 	if !exists {
 		return nil
 	}

@@ -497,6 +497,7 @@ func (g *APIGatewayPlugin) shouldInitializeRuntimeIntegration() bool {
 		g.runtimeSummaryProvider != nil ||
 		g.runtimeMetricsProvider != nil ||
 		g.runtimeControlProvider != nil ||
+		g.siweHandler != nil ||
 		len(g.upstreamQueryEndpoints) > 0
 }
 

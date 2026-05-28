@@ -96,6 +96,32 @@ func main() {
 	if rateLimitMiddleware != nil {
 		gateway.SetRateLimitMiddleware(rateLimitMiddleware)
 	}
+
+	// Build token validator early so SIWE handler can be wired with JWT support
+	// before gateway.Initialize() registers the routes.
+	var tokenValidator *api.TokenValidator
+	if config.AuthJWTSecret.Value() != "" {
+		if len(config.AuthJWTSecret.Value()) < 32 {
+			logger.Warn("JWT secret too short, minimum 32 characters recommended")
+		}
+		tokenValidator = api.NewTokenValidator(config.AuthJWTSecret.Value(), logger, metrics)
+		for _, apiKey := range config.AuthAPIKeys {
+			if err := tokenValidator.RegisterAPIKey(apiKey.Value(), "gateway", "operator"); err != nil {
+				logger.Warn("failed to register API key", "error", err.Error())
+			}
+		}
+		fmt.Println("  ✓ JWT authentication configured")
+	} else {
+		logger.Info("JWT secret not set, SIWE verify will be unavailable")
+	}
+
+	// Wire SIWE handler with tokenValidator (nil is OK — challenge works, verify returns 401).
+	siweDomain := fmt.Sprintf("localhost:%d", config.Port)
+	siweURI := "http://" + siweDomain + "/login"
+	siweHandler := api.NewSIWEHandler(tokenValidator, siweDomain, siweURI, nil, logger, metrics)
+	gateway.SetSIWEHandler(siweHandler)
+	logger.Info("SIWE handler wired", "jwt_enabled", tokenValidator != nil)
+
 	if _, _, _, err := buildAPIGatewayRuntimeRolloutComponents(context.Background(), config.InstanceID, logger, metrics, gateway); err != nil {
 		logger.Error("Failed to build API Gateway rollout runtime components", "error", err.Error())
 		os.Exit(1)

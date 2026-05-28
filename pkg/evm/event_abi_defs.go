@@ -27,12 +27,37 @@ var knownEventABIs = map[string]string{
 	// ChainPulse EventEmitter Ping(address sender, uint256 value)
 	"Ping": `[{"type":"event","name":"Ping","inputs":[{"name":"sender","type":"address","indexed":false},{"name":"value","type":"uint256","indexed":false}]}]`,
 
+	// --- MultiEventEmitter (Simulator: Swap, Mint, Burn, VoteCast, Deposit, Withdrawal, Stake, Unstake) ---
+
+	// MultiEventEmitter Swap(address indexed sender, address tokenIn, address tokenOut, uint256 amountIn, uint256 amountOut)
+	"SimSwap": `[{"type":"event","name":"Swap","inputs":[{"name":"sender","type":"address","indexed":true},{"name":"tokenIn","type":"address","indexed":false},{"name":"tokenOut","type":"address","indexed":false},{"name":"amountIn","type":"uint256","indexed":false},{"name":"amountOut","type":"uint256","indexed":false}]}]`,
+	// MultiEventEmitter Mint(address indexed sender, uint256 amount0, uint256 amount1)
+	"Mint": `[{"type":"event","name":"Mint","inputs":[{"name":"sender","type":"address","indexed":true},{"name":"amount0","type":"uint256","indexed":false},{"name":"amount1","type":"uint256","indexed":false}]}]`,
+	// MultiEventEmitter Burn(address indexed sender, uint256 amount0, uint256 amount1, address indexed to)
+	"Burn": `[{"type":"event","name":"Burn","inputs":[{"name":"sender","type":"address","indexed":true},{"name":"amount0","type":"uint256","indexed":false},{"name":"amount1","type":"uint256","indexed":false},{"name":"to","type":"address","indexed":true}]}]`,
+	// MultiEventEmitter VoteCast(address indexed voter, uint256 proposalId, bool support, uint256 votes)
+	"SimVoteCast": `[{"type":"event","name":"VoteCast","inputs":[{"name":"voter","type":"address","indexed":true},{"name":"proposalId","type":"uint256","indexed":false},{"name":"support","type":"bool","indexed":false},{"name":"votes","type":"uint256","indexed":false}]}]`,
+	// MultiEventEmitter Deposit(address indexed sender, uint256 amount)
+	"Deposit": `[{"type":"event","name":"Deposit","inputs":[{"name":"sender","type":"address","indexed":true},{"name":"amount","type":"uint256","indexed":false}]}]`,
+	// MultiEventEmitter Withdrawal(address indexed sender, uint256 amount)
+	"Withdrawal": `[{"type":"event","name":"Withdrawal","inputs":[{"name":"sender","type":"address","indexed":true},{"name":"amount","type":"uint256","indexed":false}]}]`,
+	// MultiEventEmitter Stake(address indexed user, uint256 amount)
+	"Stake": `[{"type":"event","name":"Stake","inputs":[{"name":"user","type":"address","indexed":true},{"name":"amount","type":"uint256","indexed":false}]}]`,
+	// MultiEventEmitter Unstake(address indexed user, uint256 amount)
+	"Unstake": `[{"type":"event","name":"Unstake","inputs":[{"name":"user","type":"address","indexed":true},{"name":"amount","type":"uint256","indexed":false}]}]`,
+	// MultiEventEmitter Batch(uint256 indexed batchId, string description) — per-cycle correlation tracing
+	"Batch": `[{"type":"event","name":"Batch","inputs":[{"name":"batchId","type":"uint256","indexed":true},{"name":"description","type":"string","indexed":false}]}]`,
+
+	// Simulated Bridge event from RealEventEmitter
+	// Bridge(address indexed token, address indexed sender, uint256 amount, uint256 indexed destChainId)
+	"Bridge": `[{"type":"event","name":"Bridge","inputs":[{"name":"token","type":"address","indexed":true},{"name":"sender","type":"address","indexed":true},{"name":"amount","type":"uint256","indexed":false},{"name":"destChainId","type":"uint256","indexed":true}]}]`,
+
 	// --- DeFi: Lending Protocols ---
 
 	// Aave V3 Supply(address indexed reserve, address user, address indexed onBehalfOf, uint256 amount, bool indexed referral)
 	"Supply": `[{"type":"event","name":"Supply","inputs":[{"name":"reserve","type":"address","indexed":true},{"name":"user","type":"address","indexed":false},{"name":"onBehalfOf","type":"address","indexed":true},{"name":"amount","type":"uint256","indexed":false},{"name":"referral","type":"bool","indexed":true}]}]`,
 	// Aave V3 Withdraw(address indexed reserve, address indexed user, address indexed to, uint256 amount)
-	"DeFiWithdraw": `[{"type":"event","name":"Withdraw","inputs":[{"name":"reserve","type":"address","indexed":true},{"name":"user","type":"address","indexed":true},{"name":"to","type":"address","indexed":true},{"name":"amount","type":"uint256","indexed":false}]}]`,
+	"WithdrawAave": `[{"type":"event","name":"Withdraw","inputs":[{"name":"reserve","type":"address","indexed":true},{"name":"user","type":"address","indexed":true},{"name":"to","type":"address","indexed":true},{"name":"amount","type":"uint256","indexed":false}]}]`,
 	// Aave V3 Borrow(address indexed reserve, address user, address indexed onBehalfOf, uint256 amount, uint8 interestRateMode, bool indexed referral)
 	"Borrow": `[{"type":"event","name":"Borrow","inputs":[{"name":"reserve","type":"address","indexed":true},{"name":"user","type":"address","indexed":false},{"name":"onBehalfOf","type":"address","indexed":true},{"name":"amount","type":"uint256","indexed":false},{"name":"interestRateMode","type":"uint8","indexed":false},{"name":"referral","type":"bool","indexed":true}]}]`,
 	// Aave V3 Repay(address indexed reserve, address indexed user, address indexed repayer, uint256 amount, bool useATokens)
@@ -142,7 +167,9 @@ func ensureEventABIsInitialized() {
 			parsed, err := abi.JSON(strings.NewReader(jsonStr))
 			if err == nil {
 				parsedEventABIs[name] = &parsed
-				if event, ok := parsed.Events[name]; ok {
+				// Register ALL events in the ABI (not just those matching the map key,
+				// since keys like "WithdrawAave" differ from the ABI event name "Withdraw").
+				for _, event := range parsed.Events {
 					topic0Registry[event.ID.Hex()] = name
 				}
 			}

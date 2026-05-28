@@ -468,7 +468,7 @@ func (gri *GatewayRouterIntegration) registerStatsRoutes() error {
 	if gri.statsHandler == nil {
 		return nil
 	}
-	return gri.registerRoute("stats", "/events/stats", "GET", 0)
+	return gri.registerRoute("stats", "/events/stats", "GET", 60)
 }
 
 func (gri *GatewayRouterIntegration) registerAdminKeyRoutes() error {
