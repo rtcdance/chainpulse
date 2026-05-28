@@ -17,7 +17,7 @@ const defaultSteps: DataFlowStep[] = [
 export default function DataFlow({ steps = defaultSteps }: { steps?: DataFlowStep[] }) {
   return (
     <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
-      <p className="mb-4 text-xs uppercase tracking-[0.2em] text-mist">数据流路径</p>
+      <p className="mb-4 text-xs uppercase tracking-[0.2em] text-mist">Data Flow Path</p>
       <div className="flex flex-wrap gap-1.5">
         {steps.map((s, i) => (
           <div key={s.step} className="flex items-center gap-1.5">
@@ -30,7 +30,7 @@ export default function DataFlow({ steps = defaultSteps }: { steps?: DataFlowSte
         ))}
       </div>
       <p className="mt-3 text-[11px] text-mist">
-        在 delve 中: 按路径顺序设置断点 → continue → 观察每步数据变化
+        In delve: set breakpoints in path order → continue → observe data at each step
       </p>
     </div>
   )

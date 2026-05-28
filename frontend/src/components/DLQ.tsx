@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { AlertTriangle, Download, Loader2, RefreshCw, RotateCcw } from 'lucide-react'
 import { fetchDLQEvents, exportToCSV, exportToJSON, formatTimestamp, replayDLQEvents, type DLQEventList } from '../lib/chainpulse'
 import { useToast } from '../lib/toast'
@@ -12,8 +12,7 @@ export default function DLQ() {
   const [replayingIds, setReplayingIds] = useState<Set<string>>(new Set())
   const { addToast } = useToast()
 
-  async function loadDLQ(): Promise<void> {
-    setLoading(true)
+  async function doFetch(): Promise<void> {
     try {
       const data = await fetchDLQEvents({ limit: 50, offset: 0 })
       setResult(data)
@@ -23,6 +22,11 @@ export default function DLQ() {
     } finally {
       setLoading(false)
     }
+  }
+
+  async function loadDLQ(): Promise<void> {
+    setLoading(true)
+    await doFetch()
   }
 
   async function replayOne(eventId: string): Promise<void> {
@@ -64,9 +68,9 @@ export default function DLQ() {
     }
   }
 
-  useEffect(() => {
-    void loadDLQ()
-  }, [])
+  if (loading && !result && !error) {
+    doFetch().catch(() => {/* handled */})
+  }
 
   const events = result?.events || []
 

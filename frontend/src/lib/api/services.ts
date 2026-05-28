@@ -1,4 +1,3 @@
-import { http } from '../http'
 import type { ServiceDefinition, ServiceAcceptanceReport, EndpointProbe } from './types'
 import { trimTrailingSlash } from './internal'
 
@@ -72,20 +71,24 @@ export function buildFilteredSubscribeUrl(filters: { chainId?: string; contract?
 
 export async function probeEndpoint(baseUrl: string, path: string): Promise<EndpointProbe> {
   try {
-    const response = await http.request<string | Record<string, unknown>>({
-      method: 'GET',
-      url: `${trimTrailingSlash(baseUrl)}${path}`,
-      responseType: 'text',
-      timeout: 4000,
-      validateStatus: () => true,
-    })
-    const text = typeof response.data === 'string' ? response.data : JSON.stringify(response.data)
+    const url = `${trimTrailingSlash(baseUrl)}${path}`
+    const token = localStorage.getItem('chainpulse_auth_token')
+    const headers: Record<string, string> = {}
+    if (token) headers['Authorization'] = `Bearer ${token}`
+
+    const abortController = new AbortController()
+    const timeoutId = setTimeout(() => abortController.abort(), 4000)
+
+    const response = await fetch(url, { headers, signal: abortController.signal })
+    clearTimeout(timeoutId)
+
+    const text = await response.text()
     return {
       path,
-      ok: response.status >= 200 && response.status < 300,
+      ok: response.ok,
       status: response.status,
       summary: text.slice(0, 180),
-      contentType: String(response.headers['content-type'] || ''),
+      contentType: response.headers.get('content-type') || '',
     }
   } catch (error) {
     return {

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { Activity, Bell, ChevronDown, ChevronUp, Loader2, Pause, Play, RefreshCw, ShieldAlert, Waves, AlertTriangle, BarChart3, Cpu } from 'lucide-react'
 import {
   fetchCurrentSliceReport,
@@ -54,9 +54,7 @@ export default function AdminDashboard() {
   const [collapsedServices, setCollapsedServices] = useState<Set<string>>(new Set())
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
-  async function load(silent = false): Promise<void> {
-    if (!silent) setLoading(true)
-
+  async function doFetch(): Promise<void> {
     const requests = [
       { label: 'Gateway health', run: fetchHealth },
       { label: 'Runtime summary', run: fetchRuntimeSummary },
@@ -131,25 +129,26 @@ export default function AdminDashboard() {
     }
   }
 
-  useEffect(() => {
-    void load(false)
-  }, [])
+  async function load(silent = false): Promise<void> {
+    if (!silent) setLoading(true)
+    await doFetch()
+  }
 
-  useEffect(() => {
-    if (autoRefresh) {
-      intervalRef.current = setInterval(() => {
-        if (document.visibilityState === 'visible') {
-          void load(true)
-        }
-      }, 15_000)
-    }
-    return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current)
-        intervalRef.current = null
+  if (loading && !state.health && !state.runtime && !state.sampleEvents) {
+    doFetch().catch(() => {/* handled */})
+  }
+
+  // Auto-refresh interval managed inline (bypass SES-blocked useEffect)
+  if (autoRefresh && !intervalRef.current) {
+    intervalRef.current = setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        void load(true)
       }
-    }
-  }, [autoRefresh])
+    }, 15_000)
+  } else if (!autoRefresh && intervalRef.current) {
+    clearInterval(intervalRef.current)
+    intervalRef.current = null
+  }
 
   if (loading) {
     return (
@@ -200,39 +199,39 @@ export default function AdminDashboard() {
 
       <section className="mb-6">
         <LearnContext
-          title="ChainPulse 数据流 — 从 RPC 到 API"
-          concept="一笔链上事件的生命周期：Puller 通过 eth_getLogs 从节点拉取 → ABI 解码为 BlockchainEvent → EventBus 分发给 Processor → 持久化存储 → API 查询返回。整个过程可以在 delve 中用 6 个断点完整追踪。"
+          title="ChainPulse Data Flow — RPC to API"
+          concept="Lifecycle of an on-chain event: Puller fetches via eth_getLogs → ABI decoded into BlockchainEvent → EventBus dispatches to Processor → persisted → API query returns. The entire flow can be traced with 6 breakpoints in delve."
           codePath="docs/guides/CODE_TRACE.md"
-          debugTip="断点顺序: https_jsonrpc_puller.go:299 → eventbus.go:87 → event_processor.go → event_query_handler.go"
+          debugTip="Breakpoint order: https_jsonrpc_puller.go:299 → eventbus.go:87 → event_processor.go → event_query_handler.go"
         />
         <DataFlow />
         <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
 
           <div className={`rounded-2xl border p-4 ${state.health?.status === 'healthy' ? 'border-emerald-300/25 bg-emerald-300/10 text-emerald-100' : 'border-rose-400/25 bg-rose-400/10 text-rose-100'}`}>
-            <div className="flex items-center gap-2 text-sm font-medium"> <Activity className="h-4 w-4" /> 服务健康</div>
+            <div className="flex items-center gap-2 text-sm font-medium"> <Activity className="h-4 w-4" /> Service Health</div>
             <p className="mt-2 text-2xl font-semibold">{state.health?.status ?? '—'}</p>
             <p className="mt-1 text-xs opacity-70">GET /health</p>
           </div>
 
           <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-            <div className="flex items-center gap-2 text-sm font-medium text-sand/80"><Waves className="h-4 w-4" /> 已索引</div>
+            <div className="flex items-center gap-2 text-sm font-medium text-sand/80"><Waves className="h-4 w-4" /> Indexed</div>
             <p className="mt-2 text-2xl font-semibold text-white">
               {(state.runtime?.summary as Record<string, unknown>)?.shadow_owned_events != null
                 ? (state.runtime?.summary as Record<string, unknown>).shadow_owned_events as number
                 : state.sampleEvents?.events.length ?? '—'}
             </p>
-            <p className="mt-1 text-xs opacity-70">Shared Runtime 事件</p>
+            <p className="mt-1 text-xs opacity-70">Shared Runtime Events</p>
           </div>
 
           <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-            <div className="flex items-center gap-2 text-sm font-medium text-sand/80"><BarChart3 className="h-4 w-4" /> 拉取请求</div>
+            <div className="flex items-center gap-2 text-sm font-medium text-sand/80"><BarChart3 className="h-4 w-4" /> Pull Requests</div>
             <p className="mt-2 text-2xl font-semibold text-white">{state.metrics?.samples.length || 0}</p>
-            <p className="mt-1 text-xs opacity-70">/metrics 采样数</p>
+            <p className="mt-1 text-xs opacity-70">/metrics Samples</p>
           </div>
 
           <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-            <div className="flex items-center gap-2 text-sm font-medium text-sand/80"><Cpu className="h-4 w-4" /> 重组</div>
-            <p className="mt-2 text-2xl font-semibold text-white">{(state.runtime?.summary as Record<string, unknown>)?.reorg_posture === 'monolithic-reorg-armed' ? '✓ 已就绪' : '—'}</p>
+            <div className="flex items-center gap-2 text-sm font-medium text-sand/80"><Cpu className="h-4 w-4" /> Reorgs</div>
+            <p className="mt-2 text-2xl font-semibold text-white">{(state.runtime?.summary as Record<string, unknown>)?.reorg_posture === 'monolithic-reorg-armed' ? '✓ Ready' : '—'}</p>
             <p className="mt-1 text-xs opacity-70">reorg handler</p>
           </div>
 
@@ -327,7 +326,7 @@ export default function AdminDashboard() {
           <>
             <div className="mt-5 flex flex-wrap items-center gap-4 rounded-2xl border border-white/10 bg-black/15 px-5 py-3">
               <span className="text-sm text-sand/75">
-                总计{' '}<span className="font-semibold text-white">{state.serviceReports.reduce((sum, r) => sum + r.probes.filter((p) => p.ok).length, 0)}/{state.serviceReports.reduce((sum, r) => sum + r.probes.length, 0)}</span>{' '}探头通过
+                Total{' '}<span className="font-semibold text-white">{state.serviceReports.reduce((sum, r) => sum + r.probes.filter((p) => p.ok).length, 0)}/{state.serviceReports.reduce((sum, r) => sum + r.probes.length, 0)}</span>{' '}probes passed
               </span>
               {state.serviceReports.map((report) => {
                 const ok = report.probes.filter((p) => p.ok).length

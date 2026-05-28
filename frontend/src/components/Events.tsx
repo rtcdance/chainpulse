@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Database, Download, Layers, Loader2, RefreshCw, Search, ArrowDown, ArrowUp, X } from 'lucide-react'
 import { fetchEventDetail, fetchEvents, exportToCSV, exportToJSON, formatTimestamp, type NormalizedEvent, type NormalizedEventsResponse } from '../lib/chainpulse'
 
@@ -28,8 +28,7 @@ export default function Events() {
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc')
   const [density, setDensity] = useState<ViewDensity>('normal')
 
-  async function loadEvents(nextOffset = offset, nextFilters: Filters = filters): Promise<void> {
-    setLoading(true)
+  async function fetchData(nextOffset: number, nextFilters: Filters): Promise<void> {
     try {
       const payload = await fetchEvents({
         limit,
@@ -51,6 +50,11 @@ export default function Events() {
     }
   }
 
+  async function loadEvents(nextOffset = offset, nextFilters: Filters = filters): Promise<void> {
+    setLoading(true)
+    await fetchData(nextOffset, nextFilters)
+  }
+
   async function loadDetail(eventId: string): Promise<void> {
     setDetailLoading(true)
     try {
@@ -65,9 +69,9 @@ export default function Events() {
     }
   }
 
-  useEffect(() => {
-    void loadEvents(0)
-  }, [])
+  if (loading && !result && !error) {
+    fetchData(0, filters).catch(() => {/* handled */})
+  }
 
   const canGoPrevious = offset > 0
   const canGoNext = Boolean(result) && offset + limit < (result?.pagination.total ?? 0)

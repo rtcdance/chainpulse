@@ -7,7 +7,7 @@ export async function fetchDLQEvents(params?: { limit?: number; offset?: number 
   if (params?.offset) search.set('offset', String(params.offset))
   const qs = search.toString()
 
-  return requestFirstMatch<Record<string, unknown>, DLQEventList>(
+  return requestFirstMatch<DLQEventList>(
     [`/dlq/events${qs ? `?${qs}` : ''}`, `/api/v1/dlq/events${qs ? `?${qs}` : ''}`],
     { method: 'GET' },
     (response, candidate) => {
@@ -38,12 +38,12 @@ export async function fetchDLQEvents(params?: { limit?: number; offset?: number 
 export async function replayDLQEvents(eventIDs?: string[]): Promise<ControlResult> {
   const body = eventIDs?.length ? { event_ids: eventIDs } : {}
 
-  return requestFirstMatch<Record<string, unknown>, ControlResult>(
+  return requestFirstMatch<ControlResult>(
     ['/dlq/replay', '/api/v1/dlq/replay', '/runtime/indexing/dlq/replay'],
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      data: body,
+      body,
     },
     (response, candidate) => {
       const resBody = toRecord(response.data)

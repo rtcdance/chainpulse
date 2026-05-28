@@ -1,5 +1,3 @@
-import { type AxiosRequestConfig, type AxiosResponse } from 'axios'
-import { http } from '../http'
 import type { NormalizedEvent } from './types'
 
 const DEFAULT_HTTP_BASE = 'http://localhost:8080'
@@ -96,33 +94,53 @@ export function normalizeEvent(value: unknown): NormalizedEvent {
   }
 }
 
-export async function requestFirstMatch<TResponse, TResult>(
+export interface FetchOptions {
+  method?: string
+  headers?: Record<string, string>
+  body?: unknown
+  responseType?: 'json' | 'text'
+}
+
+export async function requestFirstMatch<TResult>(
   candidates: string[],
-  config: AxiosRequestConfig,
-  transform: (response: AxiosResponse<TResponse>, candidate: string) => TResult,
+  options: FetchOptions,
+  transform: (response: { status: number; data: unknown }, candidate: string) => TResult,
   signal?: AbortSignal,
 ): Promise<TResult> {
   let lastError: unknown = null
 
   for (const candidate of candidates) {
     try {
-      const response = await http.request<TResponse>({
-        ...config,
-        url: `${getHttpBaseUrl()}${candidate}`,
-        validateStatus: () => true,
-        signal,
-      })
-
-      if (response.status >= 200 && response.status < 300) {
-        return transform(response, candidate)
+      const url = `${getHttpBaseUrl()}${candidate}`
+      const token = localStorage.getItem('chainpulse_auth_token')
+      const headers: Record<string, string> = { ...options.headers }
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`
       }
 
-      if (response.status === 404 || response.status === 405) {
+      const fetchInit: RequestInit = {
+        method: options.method || 'GET',
+        headers,
+        signal,
+      }
+      if (options.body !== undefined) {
+        fetchInit.body = JSON.stringify(options.body)
+      }
+
+      const resp = await fetch(url, fetchInit)
+
+      const data: unknown = options.responseType === 'text' ? await resp.text() : await resp.json()
+
+      if (resp.status >= 200 && resp.status < 300) {
+        return transform({ status: resp.status, data }, candidate)
+      }
+
+      if (resp.status === 404 || resp.status === 405) {
         lastError = new Error(`endpoint unavailable: ${candidate}`)
         continue
       }
 
-      throw new Error(`request failed ${response.status} on ${candidate}`)
+      throw new Error(`request failed ${resp.status} on ${candidate}`)
     } catch (error) {
       lastError = error
     }
