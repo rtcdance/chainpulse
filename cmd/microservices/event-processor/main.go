@@ -297,7 +297,7 @@ func main() {
 	}
 	fmt.Println("  [1/3] Kafka Message Queue started")
 
-	consumeCtx, consumeCancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	consumeCtx, consumeCancel := context.WithCancel(context.Background())
 	consumeRuntime.Start(consumeCtx, &wg)
 	fmt.Println("  [2/3] Consume/process seam started")
 
