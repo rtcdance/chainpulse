@@ -42,5 +42,4 @@ Tech stack: go-ethereum, PostgreSQL/MongoDB, Kafka/ZeroMQ, Redis, Consul, OpenTe
 
 ## Communication
 
-- **Be concise**: 除非被问到，不要主动解释代码。直接给答案、给代码，不加说明。
-
+- **Be concise**: 除非被问到，不要主动解释代码。直接给答案、给代码，不加说明
