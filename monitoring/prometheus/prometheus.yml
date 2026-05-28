@@ -45,6 +45,16 @@ scrape_configs:
     static_configs:
       - targets: ['kafka-exporter:9308']
 
+  # Simulator metrics — written as Prometheus plaintext to /tmp/chainpulse-sim/metrics.prom
+  # To scrape, run node_exporter with --collector.textfile.directory=/tmp/chainpulse-sim
+  # or add a simple HTTP sidecar serving that directory:
+  #   docker run -d -v /tmp/chainpulse-sim:/data:ro -p 9101:80 nginx:alpine
+  # Then uncomment below:
+  # - job_name: 'chainpulse-simulator'
+  #   static_configs:
+  #     - targets: ['host.docker.internal:9101']
+  #   metrics_path: '/metrics.prom'
+
 alerting:
   alertmanagers:
     - static_configs:

@@ -7,9 +7,12 @@ services:
   anvil-ethereum:
     image: ghcr.io/foundry-rs/foundry:latest
     container_name: chainpulse-anvil-ethereum
-    entrypoint: ["anvil", "--host", "0.0.0.0", "--port", "8545", "--chain-id", "1", "--accounts", "10", "--balance", "10000", "--timestamp", "0"]
+    user: root
+    entrypoint: ["anvil", "--host", "0.0.0.0", "--port", "8545", "--chain-id", "1", "--accounts", "10", "--balance", "10000", "--state", "/data/state.json"]
     ports:
       - "8545:8545"
+    volumes:
+      - anvil_ethereum_data:/data
     healthcheck:
       test: ["CMD-SHELL", "cast chain --rpc-url http://localhost:8545 2>/dev/null || exit 1"]
       interval: 10s
@@ -23,9 +26,12 @@ services:
   anvil-polygon:
     image: ghcr.io/foundry-rs/foundry:latest
     container_name: chainpulse-anvil-polygon
-    entrypoint: ["anvil", "--host", "0.0.0.0", "--port", "8545", "--chain-id", "137", "--accounts", "10", "--balance", "10000", "--timestamp", "0"]
+    user: root
+    entrypoint: ["anvil", "--host", "0.0.0.0", "--port", "8545", "--chain-id", "137", "--accounts", "10", "--balance", "10000", "--state", "/data/state.json"]
     ports:
       - "8546:8545"
+    volumes:
+      - anvil_polygon_data:/data
     healthcheck:
       test: ["CMD-SHELL", "cast chain --rpc-url http://localhost:8545 2>/dev/null || exit 1"]
       interval: 10s
@@ -39,9 +45,12 @@ services:
   anvil-bsc:
     image: ghcr.io/foundry-rs/foundry:latest
     container_name: chainpulse-anvil-bsc
-    entrypoint: ["anvil", "--host", "0.0.0.0", "--port", "8545", "--chain-id", "97", "--accounts", "10", "--balance", "10000", "--timestamp", "0"]
+    user: root
+    entrypoint: ["anvil", "--host", "0.0.0.0", "--port", "8545", "--chain-id", "97", "--accounts", "10", "--balance", "10000", "--state", "/data/state.json"]
     ports:
       - "8547:8545"
+    volumes:
+      - anvil_bsc_data:/data
     healthcheck:
       test: ["CMD-SHELL", "cast chain --rpc-url http://localhost:8545 2>/dev/null || exit 1"]
       interval: 10s
@@ -55,9 +64,12 @@ services:
   anvil-arbitrum:
     image: ghcr.io/foundry-rs/foundry:latest
     container_name: chainpulse-anvil-arbitrum
-    entrypoint: ["anvil", "--host", "0.0.0.0", "--port", "8545", "--chain-id", "421614", "--accounts", "10", "--balance", "10000", "--timestamp", "0"]
+    user: root
+    entrypoint: ["anvil", "--host", "0.0.0.0", "--port", "8545", "--chain-id", "421614", "--accounts", "10", "--balance", "10000", "--state", "/data/state.json"]
     ports:
       - "8548:8545"
+    volumes:
+      - anvil_arbitrum_data:/data
     healthcheck:
       test: ["CMD-SHELL", "cast chain --rpc-url http://localhost:8545 2>/dev/null || exit 1"]
       interval: 10s
@@ -71,9 +83,12 @@ services:
   anvil-optimism:
     image: ghcr.io/foundry-rs/foundry:latest
     container_name: chainpulse-anvil-optimism
-    entrypoint: ["anvil", "--host", "0.0.0.0", "--port", "8545", "--chain-id", "11155420", "--accounts", "10", "--balance", "10000", "--timestamp", "0"]
+    user: root
+    entrypoint: ["anvil", "--host", "0.0.0.0", "--port", "8545", "--chain-id", "11155420", "--accounts", "10", "--balance", "10000", "--state", "/data/state.json"]
     ports:
       - "8549:8545"
+    volumes:
+      - anvil_optimism_data:/data
     healthcheck:
       test: ["CMD-SHELL", "cast chain --rpc-url http://localhost:8545 2>/dev/null || exit 1"]
       interval: 10s
@@ -87,25 +102,19 @@ services:
   anvil-base:
     image: ghcr.io/foundry-rs/foundry:latest
     container_name: chainpulse-anvil-base
-    entrypoint: ["anvil", "--host", "0.0.0.0", "--port", "8545", "--chain-id", "84532", "--accounts", "10", "--balance", "10000", "--timestamp", "0"]
-    ports:
-      - "8550:8545"
-    healthcheck:
-      test: ["CMD-SHELL", "cast chain --rpc-url http://localhost:8545 2>/dev/null || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 10s
-    networks:
-      - chainpulse-network
+    user: root
+    entrypoint: ["anvil", "--host", "0.0.0.0", "--port", "8545", "--chain-id", "84532", "--accounts", "10", "--balance", "10000", "--state", "/data/state.json"]
 
   # Avalanche (Chain ID: 43113 - Fuji testnet)
   anvil-avalanche:
     image: ghcr.io/foundry-rs/foundry:latest
     container_name: chainpulse-anvil-avalanche
-    entrypoint: ["anvil", "--host", "0.0.0.0", "--port", "8545", "--chain-id", "43113", "--accounts", "10", "--balance", "10000", "--timestamp", "0"]
+    user: root
+    entrypoint: ["anvil", "--host", "0.0.0.0", "--port", "8545", "--chain-id", "43113", "--accounts", "10", "--balance", "10000", "--state", "/data/state.json"]
     ports:
       - "8551:8545"
+    volumes:
+      - anvil_avalanche_data:/data
     healthcheck:
       test: ["CMD-SHELL", "cast chain --rpc-url http://localhost:8545 2>/dev/null || exit 1"]
       interval: 10s
@@ -257,6 +266,7 @@ services:
       MQ_TYPE: kafka
       MQ_CONNECTION_URL: kafka:29092
       MONOLITHIC_DLQ_RETENTION: 168h
+      API_JWT_SECRET: ${API_JWT_SECRET}
     ports:
       - "8080:8080"
       - "50051:50051"
@@ -268,13 +278,22 @@ services:
       start_period: 30s
       retries: 10
     networks:
-      - chainpulse-network
+      chainpulse-network:
+        aliases:
+          - api-gateway
     restart: unless-stopped
 
 volumes:
   postgres_data:
   redis_data:
   mongodb_data:
+  anvil_ethereum_data:
+  anvil_polygon_data:
+  anvil_bsc_data:
+  anvil_arbitrum_data:
+  anvil_optimism_data:
+  anvil_base_data:
+  anvil_avalanche_data:
 
 networks:
   chainpulse-network:

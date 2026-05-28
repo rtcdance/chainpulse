@@ -1,10 +1,11 @@
 # ChainPulse Microservice - Pre-built Binary (Offline-Friendly)
 # Build locally first:
-#   CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -a -installsuffix cgo \
+#   CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
 #     -o build/bin/linux/microservices/<service> ./cmd/microservices/<service>
 #
-# Uses postgres:15-alpine as runtime base for offline friendliness.
-FROM postgres:15-alpine
+# Uses alpine:3.19 as minimal runtime base (~7MB vs postgres:15-alpine ~200MB).
+# No service needs postgres binaries locally — they connect over the network.
+FROM alpine:3.19
 
 ARG SERVICE
 RUN apk add --no-cache ca-certificates curl

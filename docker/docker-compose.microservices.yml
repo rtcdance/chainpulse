@@ -79,8 +79,11 @@ services:
 
   anvil:
     image: ${ANVIL_IMAGE:-ghcr.io/foundry-rs/foundry:latest}
+    platform: linux/amd64
     container_name: chainpulse-anvil
     entrypoint: ["anvil"]
+    volumes:
+      - anvil_svm_cache:/root/.svm
     ports:
       - "8545:8545"
     command:
@@ -103,7 +106,88 @@ services:
       chainpulse:
         aliases:
           - ethereum-rpc
-          - polygon-rpc
+
+  # ── Multi-chain Anvil nodes ──
+  # Each node runs as a separate anvil instance on a different port/chain-id
+  anvil-base:
+    image: ${ANVIL_IMAGE:-ghcr.io/foundry-rs/foundry:latest}
+    platform: linux/amd64
+    container_name: chainpulse-anvil-base
+    entrypoint: ["anvil"]
+    ports: ["8549:8549"]
+    command: ["--host","0.0.0.0","--port","8549","--chain-id","8453","--accounts","10","--balance","10000"]
+    healthcheck:
+      test: ["CMD","cast","rpc","--rpc-url","http://127.0.0.1:8549","eth_chainId"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      chainpulse:
+        aliases: [base-rpc]
+
+  anvil-avalanche:
+    image: ${ANVIL_IMAGE:-ghcr.io/foundry-rs/foundry:latest}
+    platform: linux/amd64
+    container_name: chainpulse-anvil-avalanche
+    entrypoint: ["anvil"]
+    ports: ["8550:8550"]
+    command: ["--host","0.0.0.0","--port","8550","--chain-id","43114","--accounts","10","--balance","10000"]
+    healthcheck:
+      test: ["CMD","cast","rpc","--rpc-url","http://127.0.0.1:8550","eth_chainId"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      chainpulse:
+        aliases: [avalanche-rpc]
+
+  anvil-bsc:
+    image: ${ANVIL_IMAGE:-ghcr.io/foundry-rs/foundry:latest}
+    platform: linux/amd64
+    container_name: chainpulse-anvil-bsc
+    entrypoint: ["anvil"]
+    ports: ["8546:8546"]
+    command: ["--host","0.0.0.0","--port","8546","--chain-id","56","--accounts","10","--balance","10000"]
+    healthcheck:
+      test: ["CMD","cast","rpc","--rpc-url","http://127.0.0.1:8546","eth_chainId"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      chainpulse:
+        aliases: [bsc-rpc]
+
+  anvil-polygon:
+    image: ${ANVIL_IMAGE:-ghcr.io/foundry-rs/foundry:latest}
+    platform: linux/amd64
+    container_name: chainpulse-anvil-polygon
+    entrypoint: ["anvil"]
+    ports: ["8547:8547"]
+    command: ["--host","0.0.0.0","--port","8547","--chain-id","137","--accounts","10","--balance","10000"]
+    healthcheck:
+      test: ["CMD","cast","rpc","--rpc-url","http://127.0.0.1:8547","eth_chainId"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      chainpulse:
+        aliases: [polygon-rpc-alt]
+
+  anvil-arbitrum:
+    image: ${ANVIL_IMAGE:-ghcr.io/foundry-rs/foundry:latest}
+    platform: linux/amd64
+    container_name: chainpulse-anvil-arbitrum
+    entrypoint: ["anvil"]
+    ports: ["8548:8548"]
+    command: ["--host","0.0.0.0","--port","8548","--chain-id","42161","--accounts","10","--balance","10000"]
+    healthcheck:
+      test: ["CMD","cast","rpc","--rpc-url","http://127.0.0.1:8548","eth_chainId"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      chainpulse:
+        aliases: [arbitrum-rpc]
 
   mongodb:
     image: mongo:7
@@ -125,12 +209,27 @@ services:
     volumes:
       - ../monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus_data:/prometheus
+      - /tmp/chainpulse-sim:/tmp/chainpulse-sim:ro
     command:
       - "--config.file=/etc/prometheus/prometheus.yml"
       - "--storage.tsdb.path=/prometheus"
       - "--web.enable-lifecycle"
     networks:
       - chainpulse
+
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile.microservices
+    container_name: chainpulse-ms-frontend
+    depends_on:
+      api-gateway:
+        condition: service_healthy
+    ports:
+      - "13000:3000"
+    networks:
+      - chainpulse
+    restart: unless-stopped
 
   grafana:
     image: grafana/grafana:10.1.0
@@ -163,11 +262,7 @@ services:
       - chainpulse
 
   api-service:
-    build:
-      context: ..
-      dockerfile: docker/Dockerfile.microservices
-      args:
-        SERVICE: api-service
+    image: chainpulse-api-service:latest
     container_name: chainpulse-api-service
     depends_on:
       postgres:
@@ -197,11 +292,7 @@ services:
       - chainpulse
 
   api-gateway:
-    build:
-      context: ..
-      dockerfile: docker/Dockerfile.microservices
-      args:
-        SERVICE: api-gateway
+    image: chainpulse-api-gateway:latest
     container_name: chainpulse-api-gateway
     depends_on:
       api-service:
@@ -210,6 +301,7 @@ services:
       GATEWAY_PORT: 8080
       INSTANCE_ID: api-gateway-1
       GATEWAY_UPSTREAM_SERVICES: http://api-service:8081
+      GATEWAY_AUTH_JWT_SECRET: ${JWT_SECRET:-}
       LOG_LEVEL: info
     ports:
       - "8080:8080"
@@ -222,11 +314,7 @@ services:
       - chainpulse
 
   event-processor:
-    build:
-      context: ..
-      dockerfile: docker/Dockerfile.microservices
-      args:
-        SERVICE: event-processor
+    image: chainpulse-event-processor:latest
     container_name: chainpulse-event-processor
     depends_on:
       postgres:
@@ -256,19 +344,19 @@ services:
       - chainpulse
 
   puller:
-    build:
-      context: ..
-      dockerfile: docker/Dockerfile.microservices
-      args:
-        SERVICE: puller
+    image: chainpulse-puller:latest
     container_name: chainpulse-puller
     depends_on:
       postgres:
         condition: service_healthy
       kafka:
         condition: service_healthy
-      anvil:
-        condition: service_healthy
+      anvil:            { condition: service_healthy }
+      anvil-bsc:        { condition: service_healthy }
+      anvil-polygon:    { condition: service_healthy }
+      anvil-arbitrum:   { condition: service_healthy }
+      anvil-base:       { condition: service_healthy }
+      anvil-avalanche:  { condition: service_healthy }
     environment:
       PULLER_PORT: 8083
       INSTANCE_ID: puller-1
@@ -277,9 +365,9 @@ services:
       KAFKA_BROKERS: kafka-1:9092,kafka-2:9092,kafka-3:9092
       KAFKA_PRODUCER_GROUP: data-puller-producers
       KAFKA_OUTPUT_TOPICS: raw-events,blockchain-events
-      BLOCKCHAIN_RPCS: http://ethereum-rpc:8545,http://polygon-rpc:8545
+      BLOCKCHAIN_RPCS: ethereum=http://chainpulse-anvil:8545,bsc=http://chainpulse-anvil-bsc:8546,polygon=http://chainpulse-anvil-polygon:8547,arbitrum=http://chainpulse-anvil-arbitrum:8548,base=http://chainpulse-anvil-base:8549,avalanche=http://chainpulse-anvil-avalanche:8550
       POLL_INTERVAL: 12
-      BLOCK_CONFIRMATION: 0
+      BLOCK_CONFIRMATION: 1
       STATE_BACKEND: memory
       LOG_LEVEL: info
     ports:
@@ -292,10 +380,53 @@ services:
     networks:
       - chainpulse
 
+  simulator:
+    image: ${ANVIL_IMAGE:-ghcr.io/foundry-rs/foundry:latest}
+    platform: linux/amd64
+    container_name: chainpulse-simulator
+    depends_on:
+      anvil:            { condition: service_healthy }
+      anvil-bsc:        { condition: service_healthy }
+      anvil-polygon:    { condition: service_healthy }
+      anvil-arbitrum:   { condition: service_healthy }
+      anvil-base:       { condition: service_healthy }
+      anvil-avalanche:  { condition: service_healthy }
+    volumes:
+      - ./simulator-entrypoint.sh:/entrypoint.sh:ro
+    entrypoint: ["/bin/bash", "/entrypoint.sh"]
+    environment:
+      ANVIL_RPC:          http://chainpulse-anvil:8545
+      ANVIL_RPC_BSC:      http://chainpulse-anvil-bsc:8546
+      ANVIL_RPC_POLYGON:  http://chainpulse-anvil-polygon:8547
+      ANVIL_RPC_ARBITRUM: http://chainpulse-anvil-arbitrum:8548
+      ANVIL_RPC_BASE:     http://chainpulse-anvil-base:8549
+      ANVIL_RPC_AVALANCHE: http://chainpulse-anvil-avalanche:8550
+      CHAINS: ethereum,bsc,polygon,arbitrum,base,avalanche
+      # Traffic control
+      SIM_EVENTS_MIN: 1
+      SIM_EVENTS_MAX: 5
+      SIM_POISSON_MEAN: 4
+      SIM_REORG_CHANCE: 10
+      # Burst mode
+      SIM_BURST_ENABLED: "true"
+      SIM_BURST_MIN_TPS: 15
+      SIM_BURST_MAX_TPS: 50
+      SIM_BURST_DURATION_SEC: 8
+      SIM_BURST_PROBABILITY: 15
+      # Edge cases
+      SIM_REORG_MIN_DEPTH: 2
+      SIM_REORG_MAX_DEPTH: 6
+      SIM_TIMESTAMP_ANOMALY_CHANCE: 5
+      SIM_DUPLICATE_CHANCE: 3
+    networks:
+      - chainpulse
+    restart: unless-stopped
+
 volumes:
   postgres_data:
   prometheus_data:
   grafana_data:
+  anvil_svm_cache:
 
 networks:
   chainpulse:
