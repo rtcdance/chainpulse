@@ -4,9 +4,11 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/rtcdance/chainpulse/pkg/chainid"
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core/eventsig"
 	domainquery "github.com/rtcdance/chainpulse/pkg/domain/query"
 )
 
@@ -104,10 +106,17 @@ func (h *StatsHandler) HandleGetStats(w http.ResponseWriter, r *http.Request) {
 			if event == nil {
 				continue
 			}
-			if _, exists := byEventName[event.EventName]; !exists {
-				byEventName[event.EventName] = 1
+			// Resolve hex topic0 hash to human-readable event name at query time
+			eventName := event.EventName
+			if strings.HasPrefix(eventName, "0x") {
+				if resolved := eventsig.ResolveEventNameFromTopic(eventName); resolved != eventName {
+					eventName = resolved
+				}
+			}
+			if _, exists := byEventName[eventName]; !exists {
+				byEventName[eventName] = 1
 			} else {
-				byEventName[event.EventName]++
+				byEventName[eventName]++
 			}
 		}
 		batchCount += len(batch)

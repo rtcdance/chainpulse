@@ -434,6 +434,15 @@ func (h *EventQueryHandler) convertEventToResponse(eventWithMetadata *query.Even
 		resolvedChainID = strconv.Itoa(id)
 	}
 
+	// Resolve hex topic0 hash to human-readable event name at query time.
+	// This handles events indexed before the signature was registered in eventsig registry.
+	eventName := event.EventName
+	if strings.HasPrefix(eventName, "0x") {
+		if resolved := eventsig.ResolveEventNameFromTopic(eventName); resolved != eventName {
+			eventName = resolved
+		}
+	}
+
 	return &EventResponse{
 		EventID:         event.ID,
 		ChainID:         resolvedChainID,
@@ -441,7 +450,7 @@ func (h *EventQueryHandler) convertEventToResponse(eventWithMetadata *query.Even
 		TransactionHash: event.TransactionHash.Hex(),
 		LogIndex:        int64(event.LogIndex),
 		ContractAddress: event.ContractAddress.Hex(),
-		EventName:       event.EventName,
+		EventName:       eventName,
 		EventSignature:  event.EventSignature.Hex(),
 		EventData:       event.DecodedData,
 		Timestamp:       event.BlockTimestamp,
