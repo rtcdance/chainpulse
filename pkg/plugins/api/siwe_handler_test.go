@@ -207,7 +207,8 @@ func TestSIWEHandler_HandleVerify(t *testing.T) {
 	logger := core.NewDefaultLogger(core.LogLevelError)
 	metrics := core.NewDefaultMetricsCollector()
 	chainID := big.NewInt(1)
-	h := NewSIWEHandler(nil, "example.com", "https://example.com", chainID, logger, metrics)
+	tokenValidator := NewTokenValidator("test-secret", logger, metrics)
+	h := NewSIWEHandler(tokenValidator, "example.com", "https://example.com", chainID, logger, metrics)
 
 	t.Run("GET method not allowed", func(t *testing.T) {
 		t.Parallel()
