@@ -118,6 +118,30 @@ var knownEventSignatureNames = map[string]string{
 	"0x1e55aec951b70d2fce6d30fa2f2dfc3c3d280c2a85c04b7060ee6194f7526103": "WithdrawalRequested",
 	// EIP-6110 DepositEvent(bytes pubkey, bytes withdrawal_credentials, bytes amount, bytes signature, bytes index)
 	"0x649bbc62d0e31342afea4e5cd82d4049e7e1ee912fc0889aa790803be39038c5": "DepositEvent",
+
+	// --- RealEventEmitter V2 (extended signatures from deployed contract) ---
+	// V2 Batch(uint256,string) — per-cycle correlation tracing (different version)
+	"0x133f3468467b7e43644e15c439b0d724c90d27ca7ea2a770fa2e40bd4abe2f31": "Batch",
+	// V2 Repay(address,address,address,uint256,bool) — Aave Repay (different version)
+	"0xa534c8dbe71f871f9f3530e97a74601fea17b426cae02e1c5aee42c96c784051": "Repay",
+	// V2 Swap(address,uint256,uint256,uint256,uint256,address) — Uniswap V2 Swap (different version)
+	"0x3545b9d64efaf896bc7dd7d2262043a6bc59101c283f84886d950aaa7de18391": "Swap",
+	// V2 Withdraw(address,address,uint256) — Compound Withdraw (different version)
+	"0x9f37b07742c284c91df0990b2a4c30361e5e7834eecc27f429d720b2df19d8ed": "Withdraw",
+	// V2 Repay(address,address,uint256) — Compound Repay (different version)
+	"0x9c6711f7c0aff65da4629450f93a361c8e9ecc121bbdba6e0add3071ee486f7c": "Repay",
+	// V2 Borrow(address,uint256,uint256) — Compound Borrow (different version)
+	"0x51d14dca120d57af2dac33774b79e9976886fb967bfdfb633910cd9c60c65d3e": "Borrow",
+	// V2 Swap(address,address,uint256,uint256) — Balancer Swap (different version)
+	"0x7e4b8ff710ecd29c1911cfd5ac6a62a0bbd666edbe992e064a1ff63ff82be711": "Swap",
+	// V2 SentMessage(address,address,uint256,uint256,uint256) — L2 message (different params)
+	"0xfc41e3a5850ef5263e56312d459595ffc75f57b6fb653409b262403fe4e2eab1": "SentMessage",
+	// V2 TokenExchange(address,int128,int128,uint256,uint256) — Curve (different version)
+	"0x12eda31a348f31093ffd309ccf5e5e40e039bf461dbbd1678d4fbe143f123890": "TokenExchange",
+	// V2 Liquidate(address,address,uint256,address,bool) — Compound Liquidate (different version)
+	"0x77bfcfadcbbca824ea20cb8a97333575329c16b1df87011370eaf6deaf39f0eb": "Liquidate",
+	// V2 TxToL2(uint256,address,address,uint256,uint256,uint256) — Arbitrum (different params)
+	"0xf02b6b8b38494aab9bdeed9b28253376a0a94a4cec956a1c644d9a013edb9280": "TxToL2",
 }
 
 // knownNameToSignatures provides reverse lookup from event name to canonical signature hash.
