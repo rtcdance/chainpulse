@@ -189,6 +189,31 @@ services:
       chainpulse:
         aliases: [arbitrum-rpc]
 
+  solana-validator:
+    image: ${SOLANA_VALIDATOR_IMAGE:-tchambard/solana-test-validator:latest}
+    platform: linux/amd64
+    container_name: chainpulse-solana
+    entrypoint: ["solana-test-validator"]
+    ports:
+      - "8899:8899"
+      - "8900:8900"
+    command:
+      - "--bind-address=0.0.0.0"
+      - "--rpc-port=8899"
+      - "--faucet-sol=1000000"
+      - "--reset"
+    volumes:
+      - solana_ledger:/root/.config/solana/test-ledger
+    healthcheck:
+      test: ["CMD", "solana", "cluster-version", "--url", "http://127.0.0.1:8899"]
+      interval: 15s
+      timeout: 10s
+      retries: 8
+      start_period: 30s
+    networks:
+      chainpulse:
+        aliases: [solana-rpc]
+
   mongodb:
     image: mongo:7
     healthcheck:
@@ -253,7 +278,7 @@ services:
     image: jaegertracing/all-in-one:1.49
     container_name: chainpulse-jaeger
     ports:
-      - "16686:16686"
+      - "16687:16686"
       - "4317:4317"
       - "4318:4318"
     environment:
@@ -264,6 +289,7 @@ services:
   api-service:
     image: chainpulse-api-service:latest
     container_name: chainpulse-api-service
+    restart: on-failure:3
     depends_on:
       postgres:
         condition: service_healthy
@@ -276,7 +302,7 @@ services:
     environment:
       API_SERVICE_PORT: 8081
       INSTANCE_ID: api-service-1
-      API_SERVICE_DB_HOST: postgres-primary
+      API_SERVICE_DB_HOST: postgres
       API_SERVICE_DB_PORT: 5432
       DATABASE_URL: ${DATABASE_URL}
       MONGODB_URI: mongodb://mongodb:27017
@@ -284,10 +310,11 @@ services:
     ports:
       - "8081:8081"
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8081/health"]
+      test: ["CMD-SHELL", "nc -z localhost 8081 || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 5
+      start_period: 30s
     networks:
       - chainpulse
 
@@ -296,7 +323,7 @@ services:
     container_name: chainpulse-api-gateway
     depends_on:
       api-service:
-        condition: service_healthy
+        condition: service_started
     environment:
       GATEWAY_PORT: 8080
       INSTANCE_ID: api-gateway-1
@@ -306,10 +333,11 @@ services:
     ports:
       - "8080:8080"
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/health"]
+      test: ["CMD-SHELL", "nc -z localhost 8080 || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 5
+      start_period: 15s
     networks:
       - chainpulse
 
@@ -336,10 +364,11 @@ services:
     ports:
       - "8082:8082"
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8082/health"]
+      test: ["CMD-SHELL", "nc -z localhost 8082 || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 5
+      start_period: 15s
     networks:
       - chainpulse
 
@@ -357,6 +386,7 @@ services:
       anvil-arbitrum:   { condition: service_healthy }
       anvil-base:       { condition: service_healthy }
       anvil-avalanche:  { condition: service_healthy }
+      solana-validator: { condition: service_healthy }
     environment:
       PULLER_PORT: 8083
       INSTANCE_ID: puller-1
@@ -365,7 +395,7 @@ services:
       KAFKA_BROKERS: kafka-1:9092,kafka-2:9092,kafka-3:9092
       KAFKA_PRODUCER_GROUP: data-puller-producers
       KAFKA_OUTPUT_TOPICS: raw-events,blockchain-events
-      BLOCKCHAIN_RPCS: ethereum=http://chainpulse-anvil:8545,bsc=http://chainpulse-anvil-bsc:8546,polygon=http://chainpulse-anvil-polygon:8547,arbitrum=http://chainpulse-anvil-arbitrum:8548,base=http://chainpulse-anvil-base:8549,avalanche=http://chainpulse-anvil-avalanche:8550
+      BLOCKCHAIN_RPCS: ethereum=http://chainpulse-anvil:8545,bsc=http://chainpulse-anvil-bsc:8546,polygon=http://chainpulse-anvil-polygon:8547,arbitrum=http://chainpulse-anvil-arbitrum:8548,base=http://chainpulse-anvil-base:8549,avalanche=http://chainpulse-anvil-avalanche:8550,solana=http://chainpulse-solana:8899
       POLL_INTERVAL: 12
       BLOCK_CONFIRMATION: 1
       STATE_BACKEND: memory
@@ -373,10 +403,11 @@ services:
     ports:
       - "8083:8083"
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8083/health"]
+      test: ["CMD-SHELL", "nc -z localhost 8083 || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 5
+      start_period: 15s
     networks:
       - chainpulse
 
@@ -422,11 +453,30 @@ services:
       - chainpulse
     restart: unless-stopped
 
+  solana-simulator:
+    image: ${SOLANA_VALIDATOR_IMAGE:-tchambard/solana-test-validator:latest}
+    platform: linux/amd64
+    container_name: chainpulse-solana-simulator
+    depends_on:
+      solana-validator: { condition: service_healthy }
+    volumes:
+      - ./solana-simulator-entrypoint.sh:/entrypoint.sh:ro
+    entrypoint: ["/bin/bash", "/entrypoint.sh"]
+    environment:
+      SOLANA_RPC_URL: http://chainpulse-solana:8899
+      SIM_EVENTS_MIN: 1
+      SIM_EVENTS_MAX: 3
+      SIM_POISSON_MEAN: 6
+    networks:
+      - chainpulse
+    restart: unless-stopped
+
 volumes:
   postgres_data:
   prometheus_data:
   grafana_data:
   anvil_svm_cache:
+  solana_ledger:
 
 networks:
   chainpulse:

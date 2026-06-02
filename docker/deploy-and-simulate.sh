@@ -140,7 +140,7 @@ contract RealEventEmitterV2 {
 
     // --- L2 cross-chain messages ---
     event SentMessage(address indexed target, address indexed sender, uint256 value, uint256 gasLimit, uint256 nonce);
-    event TxToL2(address indexed callValue, address indexed destination, address indexed sender, uint256 amount, uint256 maxSubmissionCost, uint256 maxGas);
+    event TxToL2(uint256 callValue, address indexed destination, address indexed sender, uint256 amount, uint256 maxSubmissionCost, uint256 maxGas);
 
     // --- Batch correlation (same pattern as V1) ---
     event Batch(uint256 indexed batchId, string description);
@@ -192,7 +192,8 @@ build_images() {
             info "  Binary $svc already built, skipping compilation"
         else
             info "  Compiling $svc..."
-            CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -a -installsuffix cgo \
+            local arch="${GOARCH:-$(go env GOARCH 2>/dev/null || echo "amd64")}"
+            CGO_ENABLED=0 GOOS=linux GOARCH="$arch" go build -a -installsuffix cgo \
                 -o "$PROJECT_ROOT/build/bin/linux/microservices/$svc" \
                 "$PROJECT_ROOT/cmd/microservices/$svc"
         fi
@@ -212,6 +213,19 @@ build_images() {
 start_stack() {
     info "===== Step 2/3: Starting microservices stack ====="
 
+    # Pre-flight port conflict check (best-effort, skip if lsof unavailable)
+    if command -v lsof &>/dev/null; then
+        local ports=(5432 6379 9092 9090 3000 4317 4318 8080 8081 8082 8083 13000 16687 8545 8546 8547 8548 8549 8550 8899 8900)
+        local conflicts=0
+        for p in "${ports[@]}"; do
+            if lsof -ti :"$p" 2>/dev/null | xargs ps -p 2>/dev/null | grep -qvi docker; then
+                warn "Port $p is in use by a non-Docker process — chainpulse may fail to bind"
+                conflicts=$((conflicts + 1))
+            fi
+        done
+        [ "$conflicts" -gt 0 ] && warn "Found $conflicts potential port conflict(s)"
+    fi
+
     # Clean up any previous chainpulse containers
     local existing
     existing=$(docker ps -a --filter "name=chainpulse" --format "{{.Names}}" 2>/dev/null || true)
@@ -224,11 +238,18 @@ start_stack() {
     rm -rf "$STATE_DIR"
 
     info "Starting Docker Compose microservices stack..."
-    docker compose -f "$COMPOSE_FILE" up -d 2>&1
+    local env_file="$SCRIPT_DIR/.env"
+    if [ ! -f "$env_file" ]; then
+        warn ".env file not found at $env_file, copying from .env.example"
+        cp "$SCRIPT_DIR/.env.example" "$env_file"
+        warn "Review $env_file and set production secrets before deploying to production"
+    fi
+    docker compose --env-file "$env_file" -f "$COMPOSE_FILE" pull --ignore-pull-failures 2>&1 | grep -v "Pulling" || true
+    docker compose --env-file "$env_file" -f "$COMPOSE_FILE" up -d 2>&1
 
     # Wait for infrastructure
     info "Waiting for infrastructure to become healthy..."
-    for svc in chainpulse-postgres chainpulse-redis chainpulse-kafka chainpulse-anvil; do
+    for svc in chainpulse-postgres chainpulse-redis chainpulse-kafka chainpulse-anvil chainpulse-solana; do
         local n=0
         while [ $n -lt 60 ]; do
             n=$((n + 1))
@@ -308,7 +329,7 @@ EOF"
 $REAL_EMITTER_V2_SOL
 EOF"
         local e2addr
-        e2addr=$(docker exec "$ctr" forge create --rpc-url http://localhost:"$port" --private-key "$deployer_key" --broadcast --out /tmp/forge-out --cache-path /tmp/forge-cache /tmp/RealEventEmitterV2.sol:RealEventEmitterV2 2>&1 | grep "Deployed to:" | awk '{print $3}')
+        e2addr=$(docker exec "$ctr" forge create --via-ir --rpc-url http://localhost:"$port" --private-key "$deployer_key" --broadcast --out /tmp/forge-out --cache-path /tmp/forge-cache /tmp/RealEventEmitterV2.sol:RealEventEmitterV2 2>&1 | grep "Deployed to:" | awk '{print $3}')
         [ -n "$e2addr" ] && echo "$e2addr" > "$STATE_DIR/${chain}.emitter-v2" && info "    RealEventEmitterV2: $e2addr" || error "    RealEventEmitterV2 deploy failed on $chain"
     fi
 }
@@ -386,8 +407,11 @@ start_simulation() {
     echo "║  Events (V2): ERC-1155, Aave Repay, Uniswap V2 Swap,      ║"
     echo "║          Curve, Balancer, CometWithdraw/Borrow/Liquidate,  ║"
     echo "║          OZ Governance lifecycle, ERC-4337 UserOp          ║"
+    echo "║  Solana:   SPL Token Transfer, MintTo, Burn,              ║"
+    echo "║          CreateAccount, InitializeMint                    ║"
     echo "║  Burst: ON (15-50 TPS)   Reorg: depth 2-12                ║"
     echo "║  Timestamp Anomaly: 5%   Duplicate: 3%                    ║"
+    echo "║  Chains:  Ethereum + Solana (7 chains total)               ║"
     echo "║                                                              ║"
     echo "║  API Gateway:    http://localhost:8080          ║"
     echo "║  Live Events:    http://localhost:8080/events   ║"

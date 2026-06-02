@@ -560,6 +560,7 @@ SIM_REORG_MIN_DEPTH="${SIM_REORG_MIN_DEPTH:-2}"
 SIM_REORG_MAX_DEPTH="${SIM_REORG_MAX_DEPTH:-12}"
 SIM_TIMESTAMP_ANOMALY_CHANCE="${SIM_TIMESTAMP_ANOMALY_CHANCE:-5}"
 SIM_DUPLICATE_CHANCE="${SIM_DUPLICATE_CHANCE:-3}"
+SIM_REORG_CHANCE="${SIM_REORG_CHANCE:-10}"
 
 # ============================================
 # Burst spike — simulate sudden high TPS (whale move, popular mint)
