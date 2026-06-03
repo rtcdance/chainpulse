@@ -42,6 +42,7 @@ services:
   zookeeper:
     image: confluentinc/cp-zookeeper:7.5.0
     container_name: chainpulse-zookeeper
+    init: true
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
@@ -51,6 +52,7 @@ services:
   kafka:
     image: confluentinc/cp-kafka:7.5.0
     container_name: chainpulse-kafka
+    init: true
     depends_on:
       - zookeeper
     ports:
@@ -66,10 +68,11 @@ services:
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
     restart: on-failure
     healthcheck:
-      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      test: ["CMD-SHELL", "nc -z localhost 9092"]
       interval: 10s
       timeout: 5s
-      retries: 5
+      retries: 10
+      start_period: 120s
     networks:
       chainpulse:
         aliases:
@@ -219,8 +222,9 @@ services:
     healthcheck:
       test: ["CMD", "mongosh", "--quiet", "--eval", "db.runCommand({ ping: 1 })"]
       interval: 10s
-      timeout: 5s
-      retries: 5
+      timeout: 30s
+      retries: 10
+      start_period: 30s
     networks:
       chainpulse:
         aliases:
