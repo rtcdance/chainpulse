@@ -46,6 +46,9 @@ func (m *mockEventReader) CountEvents(ctx context.Context) (int64, error) {
 	}
 	return 0, nil
 }
+func (m *mockEventReader) GetEventStats(ctx context.Context) (map[string]int64, map[string]int64, int64, error) {
+	return nil, nil, 0, nil
+}
 func (m *mockEventReader) Health(ctx context.Context) *core.HealthStatus {
 	return nil
 }

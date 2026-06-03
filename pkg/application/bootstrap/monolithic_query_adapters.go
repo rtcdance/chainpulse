@@ -176,6 +176,27 @@ func (s *MonolithicIndexingEventStore) CountEvents(ctx context.Context) (int64, 
 	return int64(len(allEvents)), nil
 }
 
+func (s *MonolithicIndexingEventStore) GetEventStats(ctx context.Context) (map[string]int64, map[string]int64, int64, error) {
+	allEvents, err := s.loadAllEvents(ctx)
+	if err != nil {
+		return nil, nil, 0, fmt.Errorf("get event stats: %w", err)
+	}
+	byChain := make(map[string]int64)
+	byEventName := make(map[string]int64)
+	var reorged int64
+	for _, event := range allEvents {
+		if event == nil {
+			continue
+		}
+		byChain[event.ChainID]++
+		byEventName[event.EventName]++
+		if event.IsReorged() {
+			reorged++
+		}
+	}
+	return byChain, byEventName, reorged, nil
+}
+
 func (s *MonolithicIndexingEventStore) DeleteExpiredEvents(_ context.Context) (int64, error) {
 	return 0, nil
 }

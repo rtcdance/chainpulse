@@ -71,6 +71,9 @@ func (s *persistentStorageEventStoreStub) DeleteExpiredEvents(ctx context.Contex
 	return 0, nil
 }
 
+func (s *persistentStorageEventStoreStub) GetEventStats(ctx context.Context) (map[string]int64, map[string]int64, int64, error) {
+	return nil, nil, 0, nil
+}
 func (s *persistentStorageEventStoreStub) Health(ctx context.Context) *core.HealthStatus {
 	return &core.HealthStatus{Status: "healthy"}
 }
