@@ -110,88 +110,6 @@ services:
         aliases:
           - ethereum-rpc
 
-  # ── Multi-chain Anvil nodes ──
-  # Each node runs as a separate anvil instance on a different port/chain-id
-  anvil-base:
-    image: ${ANVIL_IMAGE:-ghcr.io/foundry-rs/foundry:latest}
-    platform: linux/amd64
-    container_name: chainpulse-anvil-base
-    entrypoint: ["anvil"]
-    ports: ["8549:8549"]
-    command: ["--host","0.0.0.0","--port","8549","--chain-id","8453","--accounts","10","--balance","10000"]
-    healthcheck:
-      test: ["CMD","cast","rpc","--rpc-url","http://127.0.0.1:8549","eth_chainId"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    networks:
-      chainpulse:
-        aliases: [base-rpc]
-
-  anvil-avalanche:
-    image: ${ANVIL_IMAGE:-ghcr.io/foundry-rs/foundry:latest}
-    platform: linux/amd64
-    container_name: chainpulse-anvil-avalanche
-    entrypoint: ["anvil"]
-    ports: ["8550:8550"]
-    command: ["--host","0.0.0.0","--port","8550","--chain-id","43114","--accounts","10","--balance","10000"]
-    healthcheck:
-      test: ["CMD","cast","rpc","--rpc-url","http://127.0.0.1:8550","eth_chainId"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    networks:
-      chainpulse:
-        aliases: [avalanche-rpc]
-
-  anvil-bsc:
-    image: ${ANVIL_IMAGE:-ghcr.io/foundry-rs/foundry:latest}
-    platform: linux/amd64
-    container_name: chainpulse-anvil-bsc
-    entrypoint: ["anvil"]
-    ports: ["8546:8546"]
-    command: ["--host","0.0.0.0","--port","8546","--chain-id","56","--accounts","10","--balance","10000"]
-    healthcheck:
-      test: ["CMD","cast","rpc","--rpc-url","http://127.0.0.1:8546","eth_chainId"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    networks:
-      chainpulse:
-        aliases: [bsc-rpc]
-
-  anvil-polygon:
-    image: ${ANVIL_IMAGE:-ghcr.io/foundry-rs/foundry:latest}
-    platform: linux/amd64
-    container_name: chainpulse-anvil-polygon
-    entrypoint: ["anvil"]
-    ports: ["8547:8547"]
-    command: ["--host","0.0.0.0","--port","8547","--chain-id","137","--accounts","10","--balance","10000"]
-    healthcheck:
-      test: ["CMD","cast","rpc","--rpc-url","http://127.0.0.1:8547","eth_chainId"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    networks:
-      chainpulse:
-        aliases: [polygon-rpc-alt]
-
-  anvil-arbitrum:
-    image: ${ANVIL_IMAGE:-ghcr.io/foundry-rs/foundry:latest}
-    platform: linux/amd64
-    container_name: chainpulse-anvil-arbitrum
-    entrypoint: ["anvil"]
-    ports: ["8548:8548"]
-    command: ["--host","0.0.0.0","--port","8548","--chain-id","42161","--accounts","10","--balance","10000"]
-    healthcheck:
-      test: ["CMD","cast","rpc","--rpc-url","http://127.0.0.1:8548","eth_chainId"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    networks:
-      chainpulse:
-        aliases: [arbitrum-rpc]
-
   solana-validator:
     image: ${SOLANA_VALIDATOR_IMAGE:-tchambard/solana-test-validator:latest}
     platform: linux/amd64
@@ -385,11 +303,6 @@ services:
       kafka:
         condition: service_healthy
       anvil:            { condition: service_healthy }
-      anvil-bsc:        { condition: service_healthy }
-      anvil-polygon:    { condition: service_healthy }
-      anvil-arbitrum:   { condition: service_healthy }
-      anvil-base:       { condition: service_healthy }
-      anvil-avalanche:  { condition: service_healthy }
       solana-validator: { condition: service_healthy }
     environment:
       PULLER_PORT: 8083
@@ -399,7 +312,7 @@ services:
       KAFKA_BROKERS: kafka-1:9092,kafka-2:9092,kafka-3:9092
       KAFKA_PRODUCER_GROUP: data-puller-producers
       KAFKA_OUTPUT_TOPICS: raw-events,blockchain-events
-      BLOCKCHAIN_RPCS: ethereum=http://chainpulse-anvil:8545,bsc=http://chainpulse-anvil-bsc:8546,polygon=http://chainpulse-anvil-polygon:8547,arbitrum=http://chainpulse-anvil-arbitrum:8548,base=http://chainpulse-anvil-base:8549,avalanche=http://chainpulse-anvil-avalanche:8550,solana=http://chainpulse-solana:8899
+      BLOCKCHAIN_RPCS: ethereum=http://chainpulse-anvil:8545,bsc=http://chainpulse-anvil:8545,polygon=http://chainpulse-anvil:8545,arbitrum=http://chainpulse-anvil:8545,base=http://chainpulse-anvil:8545,avalanche=http://chainpulse-anvil:8545,solana=http://chainpulse-solana:8899
       POLL_INTERVAL: 12
       BLOCK_CONFIRMATION: 1
       STATE_BACKEND: memory
@@ -414,67 +327,6 @@ services:
       start_period: 15s
     networks:
       - chainpulse
-
-  simulator:
-    image: ${ANVIL_IMAGE:-ghcr.io/foundry-rs/foundry:latest}
-    platform: linux/amd64
-    container_name: chainpulse-simulator
-    depends_on:
-      anvil:            { condition: service_healthy }
-      anvil-bsc:        { condition: service_healthy }
-      anvil-polygon:    { condition: service_healthy }
-      anvil-arbitrum:   { condition: service_healthy }
-      anvil-base:       { condition: service_healthy }
-      anvil-avalanche:  { condition: service_healthy }
-    volumes:
-      - ./simulator-entrypoint.sh:/entrypoint.sh:ro
-    entrypoint: ["/bin/bash", "/entrypoint.sh"]
-    environment:
-      ANVIL_RPC:          http://chainpulse-anvil:8545
-      ANVIL_RPC_BSC:      http://chainpulse-anvil-bsc:8546
-      ANVIL_RPC_POLYGON:  http://chainpulse-anvil-polygon:8547
-      ANVIL_RPC_ARBITRUM: http://chainpulse-anvil-arbitrum:8548
-      ANVIL_RPC_BASE:     http://chainpulse-anvil-base:8549
-      ANVIL_RPC_AVALANCHE: http://chainpulse-anvil-avalanche:8550
-      CHAINS: ethereum,bsc,polygon,arbitrum,base,avalanche
-      # Traffic control
-      SIM_EVENTS_MIN: 1
-      SIM_EVENTS_MAX: 5
-      SIM_POISSON_MEAN: 4
-      SIM_REORG_CHANCE: 10
-      # Burst mode
-      SIM_BURST_ENABLED: "true"
-      SIM_BURST_MIN_TPS: 15
-      SIM_BURST_MAX_TPS: 50
-      SIM_BURST_DURATION_SEC: 8
-      SIM_BURST_PROBABILITY: 15
-      # Edge cases
-      SIM_REORG_MIN_DEPTH: 2
-      SIM_REORG_MAX_DEPTH: 6
-      SIM_TIMESTAMP_ANOMALY_CHANCE: 5
-      SIM_DUPLICATE_CHANCE: 3
-    networks:
-      - chainpulse
-    restart: unless-stopped
-
-  solana-simulator:
-    image: ${SOLANA_VALIDATOR_IMAGE:-tchambard/solana-test-validator:latest}
-    platform: linux/amd64
-    container_name: chainpulse-solana-simulator
-    depends_on:
-      solana-validator: { condition: service_healthy }
-    volumes:
-      - ./solana-simulator-entrypoint.sh:/entrypoint.sh:ro
-    entrypoint: ["/bin/bash", "/entrypoint.sh"]
-    environment:
-      SOLANA_RPC_URL: http://chainpulse-solana:8899
-      SIM_EVENTS_MIN: 1
-      SIM_EVENTS_MAX: 3
-      SIM_POISSON_MEAN: 6
-    networks:
-      - chainpulse
-    restart: unless-stopped
-
 volumes:
   postgres_data:
   prometheus_data:
