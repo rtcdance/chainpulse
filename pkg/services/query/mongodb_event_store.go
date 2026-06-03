@@ -16,6 +16,7 @@ import (
 
 	"github.com/rtcdance/chainpulse/pkg/chainid"
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core/eventsig"
 	domainquery "github.com/rtcdance/chainpulse/pkg/domain/query"
 	"github.com/rtcdance/chainpulse/pkg/observability"
 )
@@ -166,6 +167,7 @@ func (s *MongoDBEventStore) InsertEvent(ctx context.Context, event *core.Blockch
 		"id":              event.ID,
 		"eventHash":       event.EventHash,
 		"chainId":         normalizeChainIDForStorage(event.ChainID),
+		"network":         event.Network,
 		"blockNumber":     int64(event.BlockNumber),
 		"blockTimestamp":  event.BlockTimestamp,
 		"transactionHash": event.TransactionHash.Hex(),
@@ -228,6 +230,7 @@ func (s *MongoDBEventStore) InsertEventBatch(ctx context.Context, events []*core
 			"id":              event.ID,
 			"eventHash":       event.EventHash,
 			"chainId":         normalizeChainIDForStorage(event.ChainID),
+			"network":         event.Network,
 			"blockNumber":     int64(event.BlockNumber),
 			"blockTimestamp":  event.BlockTimestamp,
 			"transactionHash": event.TransactionHash.Hex(),
@@ -916,6 +919,86 @@ func (s *MongoDBEventStore) CountEvents(ctx context.Context) (int64, error) {
 	return count, nil
 }
 
+func (s *MongoDBEventStore) GetEventStats(ctx context.Context) (map[string]int64, map[string]int64, int64, error) {
+	if !s.initialized || s.collection == nil {
+		return nil, nil, 0, fmt.Errorf("event store not initialized")
+	}
+
+	byChain := make(map[string]int64)
+	byEventName := make(map[string]int64)
+	var reorged int64
+
+	// Aggregate by chainId
+	chainPipeline := mongo.Pipeline{
+		bson.D{{Key: "$group", Value: bson.D{
+			{Key: "_id", Value: "$chainId"},
+			{Key: "count", Value: bson.D{{Key: "$sum", Value: 1}}},
+		}}},
+	}
+	chainCursor, err := s.collection.Aggregate(ctx, chainPipeline)
+	if err == nil {
+		var chainResults []struct {
+			ID    string `bson:"_id"`
+			Count int64  `bson:"count"`
+		}
+		if err := chainCursor.All(ctx, &chainResults); err == nil {
+			for _, r := range chainResults {
+				if r.ID == "" {
+					continue
+				}
+				// Resolve numeric chain IDs to names
+				if name := chainid.ResolveChainName(func() int {
+					if id := chainid.ResolveChainID(r.ID); id != 0 {
+						return id
+					}
+					return 0
+				}()); name != "" && name != r.ID {
+					byChain[name] = r.Count
+				} else {
+					byChain[r.ID] = r.Count
+				}
+			}
+		}
+		chainCursor.Close(ctx)
+	}
+
+	// Aggregate by eventName
+	eventPipeline := mongo.Pipeline{
+		bson.D{{Key: "$group", Value: bson.D{
+			{Key: "_id", Value: "$eventName"},
+			{Key: "count", Value: bson.D{{Key: "$sum", Value: 1}}},
+		}}},
+	}
+	eventCursor, err := s.collection.Aggregate(ctx, eventPipeline)
+	if err == nil {
+		var eventResults []struct {
+			ID    string `bson:"_id"`
+			Count int64  `bson:"count"`
+		}
+		if err := eventCursor.All(ctx, &eventResults); err == nil {
+			for _, r := range eventResults {
+				name := r.ID
+				// Resolve hex topic0 to human-readable name
+				if strings.HasPrefix(name, "0x") {
+					if resolved := eventsig.ResolveEventNameFromTopic(name); resolved != name {
+						name = resolved
+					}
+				}
+				byEventName[name] += r.Count
+			}
+		}
+		eventCursor.Close(ctx)
+	}
+
+	// Count reorged events
+	reorgedCount, _ := s.collection.CountDocuments(ctx, bson.M{"status": "reorged"})
+	if reorgedCount > 0 {
+		reorged = reorgedCount
+	}
+
+	return byChain, byEventName, reorged, nil
+}
+
 func decodeMongoEventCursor(ctx context.Context, cursor *mongo.Cursor) ([]*core.BlockchainEvent, error) {
 	var docs []bson.M
 	if err := cursor.All(ctx, &docs); err != nil {
@@ -938,6 +1021,7 @@ func decodeMongoEventDocument(doc bson.M) *core.BlockchainEvent {
 		ID:              bsonString(doc["id"]),
 		EventHash:       bsonString(doc["eventHash"]),
 		ChainID:         bsonString(doc["chainId"]),
+		Network:         bsonString(doc["network"]),
 		BlockNumber:     bsonUint64(doc["blockNumber"]),
 		BlockTimestamp:  bsonInt64(doc["blockTimestamp"]),
 		TransactionHash: common.HexToHash(bsonString(doc["transactionHash"])),

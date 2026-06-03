@@ -136,13 +136,22 @@ func (ma *DefaultMongoDBAdapter) Query(ctx context.Context, req *QueryRequest) (
 	}
 	defer func() { _ = cursor.Close(ctx) }()
 
-	// Decode results
-	var events []core.BlockchainEvent
-	if err := cursor.All(ctx, &events); err != nil {
+	// Decode results using manual bson.M decoding (same approach as MongoDBEventStore)
+	// This is required because BlockchainEvent has no bson tags and contains types like
+	// common.Hash ([32]byte) that can't directly decode from BSON hex strings.
+	decodedEvents, err := decodeMongoEventCursor(ctx, cursor)
+	if err != nil {
 		duration := time.Since(start).Milliseconds()
 		ma.metricsCollector.RecordCounter("mongodb_decode_error", 1, map[string]string{})
 		ma.logger.Error("Failed to decode MongoDB results", "collection", req.Collection, core.LogKeyError, err, core.LogKeyDuration, duration)
 		return nil, fmt.Errorf("failed to decode results: %w", err)
+	}
+
+	events := make([]core.BlockchainEvent, len(decodedEvents))
+	for i, e := range decodedEvents {
+		if e != nil {
+			events[i] = *e
+		}
 	}
 
 	// Get total count
@@ -184,9 +193,9 @@ func (ma *DefaultMongoDBAdapter) QueryByHash(ctx context.Context, hash string) (
 	// Build filter
 	filter := bson.M{"hash": hash}
 
-	// Execute query
-	var event core.BlockchainEvent
-	err := collection.FindOne(ctx, filter).Decode(&event)
+	// Execute query — decode to bson.M first, then convert manually (same reason as Query)
+	var result bson.M
+	err := collection.FindOne(ctx, filter).Decode(&result)
 	if err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
 			duration := time.Since(start).Milliseconds()
@@ -200,13 +209,15 @@ func (ma *DefaultMongoDBAdapter) QueryByHash(ctx context.Context, hash string) (
 		return nil, fmt.Errorf("MongoDB query failed: %w", err)
 	}
 
+	event := decodeMongoEventDocument(result)
+
 	duration := time.Since(start).Milliseconds()
 	ma.metricsCollector.RecordHistogram("mongodb_query_by_hash_time_ms", float64(duration), map[string]string{})
 	ma.metricsCollector.RecordCounter("mongodb_query_by_hash_success", 1, map[string]string{})
 
 	ma.logger.Info("MongoDB query by hash successful", core.LogKeyHash, hash, core.LogKeyDuration, duration)
 
-	return &event, nil
+	return event, nil
 }
 
 // Health returns the health status
