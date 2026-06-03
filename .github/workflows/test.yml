@@ -46,10 +46,10 @@ jobs:
     
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: true
@@ -345,7 +345,7 @@ jobs:
           echo "- Test logs available in artifacts" >> $GITHUB_STEP_SUMMARY
       
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v6
         with:
           files: ./coverage.out
           flags: unittests,integration
@@ -354,7 +354,7 @@ jobs:
         continue-on-error: true
       
       - name: Upload coverage reports
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-reports
           path: |
@@ -366,7 +366,7 @@ jobs:
       
       - name: Upload test logs
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: test-logs
           path: |
@@ -394,10 +394,10 @@ jobs:
     
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: true
@@ -434,10 +434,10 @@ jobs:
     
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: true
@@ -454,7 +454,7 @@ jobs:
           go build -v -o bin/api-gateway ./cmd/microservices/api-gateway
       
       - name: Upload binaries
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: binaries
           path: bin/

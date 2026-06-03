@@ -45,10 +45,10 @@ jobs:
     
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
           cache: true
@@ -277,7 +277,7 @@ jobs:
           EOF
       
       - name: Upload metrics artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: performance-metrics
           path: |
@@ -287,7 +287,7 @@ jobs:
       
       - name: Comment PR with metrics
         if: github.event_name == 'pull_request'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const fs = require('fs');
@@ -322,10 +322,10 @@ jobs:
     
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       
       - name: Download metrics
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: performance-metrics
           path: metrics/

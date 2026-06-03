@@ -43,10 +43,10 @@ jobs:
     
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
           cache: true
@@ -703,7 +703,7 @@ jobs:
           echo "✓ Coverage summary generated successfully"
       
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v6
         with:
           files: ./coverage.out
           flags: pkg
@@ -712,7 +712,7 @@ jobs:
         continue-on-error: true
       
       - name: Upload coverage reports
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-reports
           path: |
@@ -729,7 +729,7 @@ jobs:
       
       - name: Comment PR with coverage
         if: github.event_name == 'pull_request'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const fs = require('fs');
@@ -761,21 +761,21 @@ jobs:
     
     steps:
       - name: Checkout PR branch
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       
       - name: Checkout base branch
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: ${{ github.base_ref }}
           path: base
       
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
       
       - name: Download PR coverage
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: coverage-reports
           path: pr-coverage/
@@ -814,7 +814,7 @@ jobs:
           cat coverage-diff.md
       
       - name: Comment PR with diff
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const fs = require('fs');

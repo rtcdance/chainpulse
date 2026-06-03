@@ -77,10 +77,10 @@ jobs:
           - 9092:9092
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
 
     - name: Set up Go
-      uses: actions/setup-go@v5
+      uses: actions/setup-go@v6
       with:
         go-version-file: go.mod
         cache: true
@@ -101,7 +101,7 @@ jobs:
 
     - name: Upload integration test results
       if: always()
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: integration-results-${{ github.sha }}
         path: |
@@ -123,10 +123,10 @@ jobs:
         ports:
           - 6379:6379
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
 
     - name: Set up Go
-      uses: actions/setup-go@v5
+      uses: actions/setup-go@v6
       with:
         go-version-file: go.mod
         cache: true
@@ -173,10 +173,10 @@ jobs:
           - 6379:6379
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
 
     - name: Set up Go
-      uses: actions/setup-go@v5
+      uses: actions/setup-go@v6
       with:
         go-version-file: go.mod
         cache: true
@@ -196,7 +196,7 @@ jobs:
 
     - name: Upload E2E test results
       if: always()
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: e2e-results-${{ github.sha }}
         path: |
@@ -211,7 +211,7 @@ jobs:
     if: failure() && github.event_name == 'schedule'
     steps:
     - name: Create GitHub Issue on nightly failure
-      uses: actions/github-script@v7
+      uses: actions/github-script@v9
       with:
         script: |
           const date = new Date().toISOString().split('T')[0];
