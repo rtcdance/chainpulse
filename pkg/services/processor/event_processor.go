@@ -583,11 +583,13 @@ func (p *DefaultEventProcessor) validateEvent(event *core.BlockchainEvent) error
 		return fmt.Errorf("block number is required")
 	}
 
-	if event.TransactionHash == (common.Hash{}) {
+	isNonEVM := event.NativeAddress != ""
+
+	if !isNonEVM && event.TransactionHash == (common.Hash{}) {
 		return fmt.Errorf("transaction hash is required")
 	}
 
-	if event.ContractAddress == (common.Address{}) {
+	if !isNonEVM && event.ContractAddress == (common.Address{}) {
 		return fmt.Errorf("contract address is required")
 	}
 

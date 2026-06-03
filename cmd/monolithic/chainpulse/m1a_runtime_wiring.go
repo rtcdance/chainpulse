@@ -120,7 +120,7 @@ func newMonolithicPullerRuntime(
 		if chainid.IsCosmosChain(chainID) {
 			puller = pullers.NewCosmosPuller(pullerConfig, logger, metrics)
 		} else if chainid.IsSolanaChain(chainID) {
-			puller = pullers.NewSolanaPuller(pullerConfig, logger, metrics)
+			puller = pullers.NewSolanaPuller(pullerConfig, logger, metrics, eventBus)
 		} else {
 			puller = pullers.NewHTTPSJSONRPCPuller(pullerConfig, logger, metrics, eventBus)
 		}
