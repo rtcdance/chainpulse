@@ -95,6 +95,13 @@ func (m *MockEventStoreForRecovery) GetEventsByCorrelationID(ctx context.Context
 	return []*core.BlockchainEvent{}, nil
 }
 
+func (m *MockEventStoreForRecovery) GetEventStats(ctx context.Context) (map[string]int64, map[string]int64, int64, error) {
+	if !m.healthy {
+		return nil, nil, 0, m.err
+	}
+	return make(map[string]int64), make(map[string]int64), 0, nil
+}
+
 func (m *MockEventStoreForRecovery) CountEvents(ctx context.Context) (int64, error) {
 	if !m.healthy {
 		return 0, m.err

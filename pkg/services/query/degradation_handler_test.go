@@ -80,6 +80,10 @@ func (m *mockEventStoreDegradation) GetEventsByCorrelationID(ctx context.Context
 	return nil, nil
 }
 
+func (m *mockEventStoreDegradation) GetEventStats(ctx context.Context) (map[string]int64, map[string]int64, int64, error) {
+	return make(map[string]int64), make(map[string]int64), 0, nil
+}
+
 // MockEventMetadataStore for testing
 type mockMetadataStoreDegradation struct {
 	healthy bool

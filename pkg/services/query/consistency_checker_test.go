@@ -118,6 +118,13 @@ func (m *mockEventStore) GetEventsByCorrelationID(ctx context.Context, correlati
 	return nil, nil
 }
 
+func (m *mockEventStore) GetEventStats(ctx context.Context) (map[string]int64, map[string]int64, int64, error) {
+	if m.shouldFail {
+		return nil, nil, 0, errors.New("get event stats failed")
+	}
+	return make(map[string]int64), make(map[string]int64), 0, nil
+}
+
 // mockMetadataStore is a mock implementation of EventMetadataStore for testing
 type mockMetadataStore struct {
 	shouldFail bool

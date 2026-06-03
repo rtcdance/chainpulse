@@ -126,6 +126,14 @@ func (m *MockEventStore) Close(ctx context.Context) error {
 	return args.Error(0)
 }
 
+func (m *MockEventStore) GetEventStats(ctx context.Context) (map[string]int64, map[string]int64, int64, error) {
+	args := m.Called(ctx)
+	if args.Get(0) == nil {
+		return nil, nil, 0, args.Error(3)
+	}
+	return args.Get(0).(map[string]int64), args.Get(1).(map[string]int64), args.Get(2).(int64), args.Error(3)
+}
+
 // TestNewStatelessService tests creating a new stateless service
 func TestNewStatelessService(t *testing.T) {
 	t.Parallel()
