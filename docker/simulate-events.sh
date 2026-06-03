@@ -355,196 +355,272 @@ generate_event() {
     local one_ether=$((10**18))
     local rpc_url="http://localhost:8545"
 
-    # Weighted random pick 0-99 — real DeFi + NFT + L2 distribution
-    # 22% Transfer, 8% Approval, 10% UniV3Swap, 8% Supply, 8% Withdraw, 8% Borrow,
-    # 5% Liquidation, 5% CometSupply, 5% VoteCast, 5% Bridge,
-    # 5% ERC-1155 [V2], 2% AaveRepay [V2], 2% UniV2Swap [V2], 2% CometWithdraw [V2],
-    # 1% CometBorrow [V2], 1% ProposalCreated [V2], 1% L2 SentMessage [V2], 1% L2 TxToL2 [V2],
-    # 2% NFT Transfer, 1% NFT Approve, 1% NFT AFA, 2% Edge cases
+    # Weighted event distribution — thresholds loaded from sim-event-weights.conf
     local pick=$((RANDOM % 100))
-
-    # ─── ERC-20 Token operations (30% total) ───
-    if [ $pick -lt 22 ]; then
-        sim "$chain: Transfer ${from_addr:0:10}... -> ${to_addr:0:10}... ($(( amount / one_ether )) TTK)"
-        docker exec "$container" cast send --rpc-url "$rpc_url" --private-key "$from_key" \
-            "$token_addr" "transfer(address,uint256)" "$to_addr" "$amount" \
-            2>&1 | grep -E "blockNumber|transactionHash" || true
-
-    elif [ $pick -lt 30 ]; then
-        sim "$chain: Approval ${from_addr:0:10}... -> ${to_addr:0:10}... ($(( amount / one_ether )) TTK)"
-        docker exec "$container" cast send --rpc-url "$rpc_url" --private-key "$from_key" \
-            "$token_addr" "approve(address,uint256)" "$to_addr" "$amount" \
-            2>&1 | grep -E "blockNumber|transactionHash" || true
-
-    # ─── RealEventEmitter DeFi events (44% total) ───
-    elif [ $pick -lt 40 ]; then
-        local amount_in=$(random_amount)
-        local amount_out=$(( amount_in * (80 + RANDOM % 40) / 100 ))
-        sim "$chain: Swap ($(( amount_in / 10**17 )) -> $(( amount_out / 10**17 )))"
-        docker exec "$container" cast send --rpc-url "$rpc_url" --private-key "$from_key" \
-            "$emitter_addr" "emitUniSwap(int256,int256,uint160,uint128,int24)" \
-            "$(( RANDOM % 1000 * -1 ))" "$(( RANDOM % 1000 ))" "0" "0" "0" \
-            2>&1 | grep -E "blockNumber|transactionHash" || true
-
-    elif [ $pick -lt 48 ]; then
-        sim "$chain: Aave Supply ${from_addr:0:10}... ($(( amount / one_ether )))"
-        docker exec "$container" cast send --rpc-url "$rpc_url" --private-key "$from_key" \
-            "$emitter_addr" "emitSupply(address,address,address,uint256,bool)" \
-            "$token_addr" "$from_addr" "$from_addr" "$amount" "true" \
-            2>&1 | grep -E "blockNumber|transactionHash" || true
-
-    elif [ $pick -lt 56 ]; then
-        sim "$chain: Aave Withdraw ${from_addr:0:10}... ($(( amount / one_ether )))"
-        docker exec "$container" cast send --rpc-url "$rpc_url" --private-key "$from_key" \
-            "$emitter_addr" "emitWithdraw(address,address,address,uint256)" \
-            "$token_addr" "$from_addr" "$to_addr" "$amount" \
-            2>&1 | grep -E "blockNumber|transactionHash" || true
-
-    elif [ $pick -lt 64 ]; then
-        sim "$chain: Aave Borrow ${from_addr:0:10}... ($(( amount / one_ether )))"
-        docker exec "$container" cast send --rpc-url "$rpc_url" --private-key "$from_key" \
-            "$emitter_addr" "emitBorrow(address,address,address,uint256,uint8,bool)" \
-            "$token_addr" "$from_addr" "$from_addr" "$amount" "2" "false" \
-            2>&1 | grep -E "blockNumber|transactionHash" || true
-
-    elif [ $pick -lt 69 ]; then
-        sim "$chain: LiquidationCall ${from_addr:0:10}... ($(( amount / one_ether )))"
-        docker exec "$container" cast send --rpc-url "$rpc_url" --private-key "$from_key" \
-            "$emitter_addr" "emitLiquidation(address,address,address,uint256,uint256,bool)" \
-            "$token_addr" "$token_addr" "$to_addr" "$amount" "$(( amount * 80 / 100 ))" "true" \
-            2>&1 | grep -E "blockNumber|transactionHash" || true
-
-    elif [ $pick -lt 74 ]; then
-        sim "$chain: CometSupply ${from_addr:0:10}... ($(( amount / one_ether )))"
-        docker exec "$container" cast send --rpc-url "$rpc_url" --private-key "$from_key" \
-            "$emitter_addr" "emitCometSupply(address,address,uint256)" \
-            "$from_addr" "$to_addr" "$amount" \
-            2>&1 | grep -E "blockNumber|transactionHash" || true
-
-    elif [ $pick -lt 79 ]; then
-        local pid=$((RANDOM % 50 + 1))
-        local support=$((RANDOM % 3))
-        local support_str="AGAINST"
-        [ "$support" = "1" ] && support_str="FOR"
-        [ "$support" = "2" ] && support_str="ABSTAIN"
-        local reason_str="sim-cycle-$(date +%s)"
-        sim "$chain: VoteCast proposal #$pid $support_str"
-        docker exec "$container" cast send --rpc-url "$rpc_url" --private-key "$from_key" \
-            "$emitter_addr" "emitVoteCast(uint256,uint8,uint256,string)" "$pid" "$support" "$amount" "$reason_str" \
-            2>&1 | grep -E "blockNumber|transactionHash" || true
-
-    elif [ $pick -lt 84 ]; then
-        local dest_chain=$((RANDOM % 5 + 1))
-        sim "$chain: Bridge -> chain $dest_chain ($(( amount / one_ether )))"
-        docker exec "$container" cast send --rpc-url "$rpc_url" --private-key "$from_key" \
-            "$emitter_addr" "emitBridge(address,uint256,uint256)" \
-            "$token_addr" "$amount" "$dest_chain" \
-            2>&1 | grep -E "blockNumber|transactionHash" || true
-
-    # ─── RealEventEmitter V2 extended protocol events (16% total, needs emitter2_addr) ───
-    elif [ $pick -lt 89 ] && [ -n "$emitter2_addr" ]; then
-        # 5% ERC-1155 TransferSingle
-        local erc1155_id=$((RANDOM % 1000 + 1))
-        sim "$chain: ERC1155 TransferSingle #$erc1155_id"
-        docker exec "$container" cast send --rpc-url "$rpc_url" --private-key "$from_key" \
-            "$emitter2_addr" "emitTransferSingle(address,address,address,uint256,uint256)" \
-            "$from_addr" "$from_addr" "$to_addr" "$erc1155_id" "$amount" \
-            2>&1 | grep -E "blockNumber|transactionHash" || true
-
-    elif [ $pick -lt 91 ] && [ -n "$emitter2_addr" ]; then
-        # 2% Aave Repay
-        sim "$chain: AaveRepay ${from_addr:0:10}... ($(( amount / one_ether )))"
-        docker exec "$container" cast send --rpc-url "$rpc_url" --private-key "$from_key" \
-            "$emitter2_addr" "emitRepay(address,address,address,uint256,bool)" \
-            "$token_addr" "$from_addr" "$to_addr" "$amount" "false" \
-            2>&1 | grep -E "blockNumber|transactionHash" || true
-
-    elif [ $pick -lt 93 ] && [ -n "$emitter2_addr" ]; then
-        # 2% Uniswap V2 Swap
-        sim "$chain: UniV2Swap ${from_addr:0:10}..."
-        docker exec "$container" cast send --rpc-url "$rpc_url" --private-key "$from_key" \
-            "$emitter2_addr" "emitUniV2Swap(uint256,uint256,uint256,uint256,address)" \
-            "$amount" "$((amount / 10 + 1))" "$((amount * 9 / 10))" "$amount" "$to_addr" \
-            2>&1 | grep -E "blockNumber|transactionHash" || true
-
-    elif [ $pick -lt 94 ] && [ -n "$emitter2_addr" ]; then
-        # 1% CometWithdraw
-        sim "$chain: CometWithdraw ${from_addr:0:10}... ($(( amount / one_ether )))"
-        docker exec "$container" cast send --rpc-url "$rpc_url" --private-key "$from_key" \
-            "$emitter2_addr" "emitCometWithdraw(address,address,uint256)" \
-            "$from_addr" "$to_addr" "$amount" \
-            2>&1 | grep -E "blockNumber|transactionHash" || true
-
-    elif [ $pick -lt 95 ] && [ -n "$emitter2_addr" ]; then
-        # 1% CometBorrow
-        sim "$chain: CometBorrow ${from_addr:0:10}... ($(( amount / one_ether )))"
-        docker exec "$container" cast send --rpc-url "$rpc_url" --private-key "$from_key" \
-            "$emitter2_addr" "emitCometBorrow(address,uint256,uint256)" \
-            "$from_addr" "$amount" "$((RANDOM % 100 + 1))" \
-            2>&1 | grep -E "blockNumber|transactionHash" || true
-
-    elif [ $pick -lt 96 ] && [ -n "$emitter2_addr" ]; then
-        # 1% ProposalCreated (Governance lifecycle)
-        local gpid=$((RANDOM % 1000 + 1))
-        sim "$chain: ProposalCreated #$gpid"
-        docker exec "$container" cast send --rpc-url "$rpc_url" --private-key "$from_key" \
-            "$emitter2_addr" "emitProposalCreated(uint256,address,address[],uint256[],string[],bytes[],uint256,uint256,string)" \
-            "$gpid" "$from_addr" "[]" "[]" "[]" "[]" "$((RANDOM % 1000))" "$((RANDOM % 1000 + 1000))" "sim-cycle-$(date +%s)" \
-            2>&1 | grep -E "blockNumber|transactionHash" || true
-
-    elif [ $pick -lt 97 ] && [ -n "$emitter2_addr" ]; then
-        # 1% L2: OP SentMessage (cross-chain message to L2)
-        sim "$chain: L2 SentMessage ${from_addr:0:10}... -> L2"
-        docker exec "$container" cast send --rpc-url "$rpc_url" --private-key "$from_key" \
-            "$emitter2_addr" "emitSentMessage(address,address,uint256,uint256,uint256)" \
-            "$from_addr" "$to_addr" "$amount" "21000" "$((RANDOM % 1000000 + 100000))" \
-            2>&1 | grep -E "blockNumber|transactionHash" || true
-
-    elif [ $pick -lt 98 ] && [ -n "$emitter2_addr" ]; then
-        # 1% L2: Arbitrum TxToL2 (cross-chain message to L2)
-        sim "$chain: L2 TxToL2 ${from_addr:0:10}... -> Arbitrum"
-        docker exec "$container" cast send --rpc-url "$rpc_url" --private-key "$from_key" \
-            "$emitter2_addr" "emitTxToL2(uint256,address,address,uint256,uint256,uint256)" \
-            "$((RANDOM % 10000 + 1))" "$from_addr" "$to_addr" "$amount" "$((RANDOM % 100000 + 10000))" "$((RANDOM % 1000000 + 100000))" \
-            2>&1 | grep -E "blockNumber|transactionHash" || true
-
-    # ─── NFT operations (4% total) ───
-    elif [ $pick -lt 99 ] && [ -n "$nft_addr" ]; then
-        if [ $((RANDOM % 2)) -eq 0 ]; then
-            sim "$chain: NFT Transfer token #$((RANDOM % 100 + 1)) -> ${to_addr:0:10}..."
-            docker exec "$container" cast send --rpc-url "$rpc_url" --private-key "$from_key" \
-                "$nft_addr" "transferFrom(address,address,uint256)" \
-                "${ACCOUNTS[0]}" "$to_addr" "$((RANDOM % 100 + 1))" \
-                2>&1 | grep -E "blockNumber|transactionHash" || true
-        else
-            sim "$chain: NFT ApprovalForAll ${from_addr:0:10}... -> ${to_addr:0:10}..."
-            docker exec "$container" cast send --rpc-url "$rpc_url" --private-key "$from_key" \
-                "$nft_addr" "setApprovalForAll(address,bool)" "$to_addr" "true" \
-                2>&1 | grep -E "blockNumber|transactionHash" || true
+    local ev_type=""
+    for ((__wi=0; __wi<${#WEIGHT_THRESHOLDS[@]}; __wi++)); do
+        if [ $pick -lt ${WEIGHT_THRESHOLDS[$__wi]} ]; then
+            ev_type="${WEIGHT_NAMES[$__wi]}"
+            break
         fi
+    done
 
-    else
-        # Edge case events (~2%)
-        local edge_case=$((RANDOM % 3))
-        case $edge_case in
-            0)
-                sim "$chain: EDGE Zero-value Transfer"
+    case "$ev_type" in
+        Transfer)
+            sim "$chain: Transfer ${from_addr:0:10}... -> ${to_addr:0:10}... ($(( amount / one_ether )) TTK)"
+            docker exec "$container" cast send --rpc-url "$rpc_url" --private-key "$from_key" \
+                "$token_addr" "transfer(address,uint256)" "$to_addr" "$amount" \
+                2>&1 | grep -E "blockNumber|transactionHash" || true
+            ;;
+        Approval)
+            sim "$chain: Approval ${from_addr:0:10}... -> ${to_addr:0:10}... ($(( amount / one_ether )) TTK)"
+            docker exec "$container" cast send --rpc-url "$rpc_url" --private-key "$from_key" \
+                "$token_addr" "approve(address,uint256)" "$to_addr" "$amount" \
+                2>&1 | grep -E "blockNumber|transactionHash" || true
+            ;;
+        UniV3Swap)
+            local amount_in=$(random_amount)
+            local amount_out=$(( amount_in * (80 + RANDOM % 40) / 100 ))
+            sim "$chain: Swap ($(( amount_in / 10**17 )) -> $(( amount_out / 10**17 )))"
+            docker exec "$container" cast send --rpc-url "$rpc_url" --private-key "$from_key" \
+                "$emitter_addr" "emitUniSwap(int256,int256,uint160,uint128,int24)" \
+                "$(( RANDOM % 1000 * -1 ))" "$(( RANDOM % 1000 ))" "0" "0" "0" \
+                2>&1 | grep -E "blockNumber|transactionHash" || true
+            ;;
+        AaveSupply)
+            sim "$chain: Aave Supply ${from_addr:0:10}... ($(( amount / one_ether )))"
+            docker exec "$container" cast send --rpc-url "$rpc_url" --private-key "$from_key" \
+                "$emitter_addr" "emitSupply(address,address,address,uint256,bool)" \
+                "$token_addr" "$from_addr" "$from_addr" "$amount" "true" \
+                2>&1 | grep -E "blockNumber|transactionHash" || true
+            ;;
+        AaveWithdraw)
+            sim "$chain: Aave Withdraw ${from_addr:0:10}... ($(( amount / one_ether )))"
+            docker exec "$container" cast send --rpc-url "$rpc_url" --private-key "$from_key" \
+                "$emitter_addr" "emitWithdraw(address,address,address,uint256)" \
+                "$token_addr" "$from_addr" "$to_addr" "$amount" \
+                2>&1 | grep -E "blockNumber|transactionHash" || true
+            ;;
+        AaveBorrow)
+            sim "$chain: Aave Borrow ${from_addr:0:10}... ($(( amount / one_ether )))"
+            docker exec "$container" cast send --rpc-url "$rpc_url" --private-key "$from_key" \
+                "$emitter_addr" "emitBorrow(address,address,address,uint256,uint8,bool)" \
+                "$token_addr" "$from_addr" "$from_addr" "$amount" "2" "false" \
+                2>&1 | grep -E "blockNumber|transactionHash" || true
+            ;;
+        LiquidationCall)
+            sim "$chain: LiquidationCall ${from_addr:0:10}... ($(( amount / one_ether )))"
+            docker exec "$container" cast send --rpc-url "$rpc_url" --private-key "$from_key" \
+                "$emitter_addr" "emitLiquidation(address,address,address,uint256,uint256,bool)" \
+                "$token_addr" "$token_addr" "$to_addr" "$amount" "$(( amount * 80 / 100 ))" "true" \
+                2>&1 | grep -E "blockNumber|transactionHash" || true
+            ;;
+        CometSupply)
+            sim "$chain: CometSupply ${from_addr:0:10}... ($(( amount / one_ether )))"
+            docker exec "$container" cast send --rpc-url "$rpc_url" --private-key "$from_key" \
+                "$emitter_addr" "emitCometSupply(address,address,uint256)" \
+                "$from_addr" "$to_addr" "$amount" \
+                2>&1 | grep -E "blockNumber|transactionHash" || true
+            ;;
+        VoteCast)
+            local pid=$((RANDOM % 50 + 1))
+            local support=$((RANDOM % 3))
+            local support_str="AGAINST"
+            [ "$support" = "1" ] && support_str="FOR"
+            [ "$support" = "2" ] && support_str="ABSTAIN"
+            local reason_str="sim-cycle-$(date +%s)"
+            sim "$chain: VoteCast proposal #$pid $support_str"
+            docker exec "$container" cast send --rpc-url "$rpc_url" --private-key "$from_key" \
+                "$emitter_addr" "emitVoteCast(uint256,uint8,uint256,string)" "$pid" "$support" "$amount" "$reason_str" \
+                2>&1 | grep -E "blockNumber|transactionHash" || true
+            ;;
+        BridgeEvent)
+            local dest_chain=$((RANDOM % 5 + 1))
+            sim "$chain: Bridge -> chain $dest_chain ($(( amount / one_ether )))"
+            docker exec "$container" cast send --rpc-url "$rpc_url" --private-key "$from_key" \
+                "$emitter_addr" "emitBridge(address,uint256,uint256)" \
+                "$token_addr" "$amount" "$dest_chain" \
+                2>&1 | grep -E "blockNumber|transactionHash" || true
+            ;;
+        ERC1155)
+            if [ -z "$emitter2_addr" ]; then
+                sim "$chain: Transfer ${from_addr:0:10}... -> ${to_addr:0:10}... ($(( amount / one_ether )) TTK)"
                 docker exec "$container" cast send --rpc-url "$rpc_url" --private-key "$from_key" \
-                    "$token_addr" "transfer(address,uint256)" "$to_addr" 0 \
-                    2>&1 | grep -E "blockNumber|transactionHash" || true ;;
-            1)
-                sim "$chain: EDGE Gas-exhaustion (gas-limit=5000)"
+                    "$token_addr" "transfer(address,uint256)" "$to_addr" "$amount" \
+                    2>&1 | grep -E "blockNumber|transactionHash" || true
+            else
+                local erc1155_id=$((RANDOM % 1000 + 1))
+                sim "$chain: ERC1155 TransferSingle #$erc1155_id"
                 docker exec "$container" cast send --rpc-url "$rpc_url" --private-key "$from_key" \
-                    --gas-limit 5000 "$emitter_addr" "emitDeposit(uint256)" "$amount" \
-                    2>&1 | grep -E "blockNumber|transactionHash|reverted|out of gas" || true ;;
-            2)
-                sim "$chain: EDGE Max-value Approval"
+                    "$emitter2_addr" "emitTransferSingle(address,address,address,uint256,uint256)" \
+                    "$from_addr" "$from_addr" "$to_addr" "$erc1155_id" "$amount" \
+                    2>&1 | grep -E "blockNumber|transactionHash" || true
+            fi
+            ;;
+        AaveRepayV2)
+            if [ -z "$emitter2_addr" ]; then
+                sim "$chain: Transfer ${from_addr:0:10}... -> ${to_addr:0:10}... ($(( amount / one_ether )) TTK)"
                 docker exec "$container" cast send --rpc-url "$rpc_url" --private-key "$from_key" \
-                    "$token_addr" "approve(address,uint256)" "$to_addr" "$((2**256 - 1))" \
-                    2>&1 | grep -E "blockNumber|transactionHash" || true ;;
-        esac
-    fi
+                    "$token_addr" "transfer(address,uint256)" "$to_addr" "$amount" \
+                    2>&1 | grep -E "blockNumber|transactionHash" || true
+            else
+                sim "$chain: AaveRepay ${from_addr:0:10}... ($(( amount / one_ether )))"
+                docker exec "$container" cast send --rpc-url "$rpc_url" --private-key "$from_key" \
+                    "$emitter2_addr" "emitRepay(address,address,address,uint256,bool)" \
+                    "$token_addr" "$from_addr" "$to_addr" "$amount" "false" \
+                    2>&1 | grep -E "blockNumber|transactionHash" || true
+            fi
+            ;;
+        UniV2SwapV2)
+            if [ -z "$emitter2_addr" ]; then
+                sim "$chain: Transfer ${from_addr:0:10}... -> ${to_addr:0:10}... ($(( amount / one_ether )) TTK)"
+                docker exec "$container" cast send --rpc-url "$rpc_url" --private-key "$from_key" \
+                    "$token_addr" "transfer(address,uint256)" "$to_addr" "$amount" \
+                    2>&1 | grep -E "blockNumber|transactionHash" || true
+            else
+                sim "$chain: UniV2Swap ${from_addr:0:10}..."
+                docker exec "$container" cast send --rpc-url "$rpc_url" --private-key "$from_key" \
+                    "$emitter2_addr" "emitUniV2Swap(uint256,uint256,uint256,uint256,address)" \
+                    "$amount" "$((amount / 10 + 1))" "$((amount * 9 / 10))" "$amount" "$to_addr" \
+                    2>&1 | grep -E "blockNumber|transactionHash" || true
+            fi
+            ;;
+        CometWithdrawV2)
+            if [ -z "$emitter2_addr" ]; then
+                sim "$chain: Transfer ${from_addr:0:10}... -> ${to_addr:0:10}... ($(( amount / one_ether )) TTK)"
+                docker exec "$container" cast send --rpc-url "$rpc_url" --private-key "$from_key" \
+                    "$token_addr" "transfer(address,uint256)" "$to_addr" "$amount" \
+                    2>&1 | grep -E "blockNumber|transactionHash" || true
+            else
+                sim "$chain: CometWithdraw ${from_addr:0:10}... ($(( amount / one_ether )))"
+                docker exec "$container" cast send --rpc-url "$rpc_url" --private-key "$from_key" \
+                    "$emitter2_addr" "emitCometWithdraw(address,address,uint256)" \
+                    "$from_addr" "$to_addr" "$amount" \
+                    2>&1 | grep -E "blockNumber|transactionHash" || true
+            fi
+            ;;
+        CometBorrowV2)
+            if [ -z "$emitter2_addr" ]; then
+                sim "$chain: Transfer ${from_addr:0:10}... -> ${to_addr:0:10}... ($(( amount / one_ether )) TTK)"
+                docker exec "$container" cast send --rpc-url "$rpc_url" --private-key "$from_key" \
+                    "$token_addr" "transfer(address,uint256)" "$to_addr" "$amount" \
+                    2>&1 | grep -E "blockNumber|transactionHash" || true
+            else
+                sim "$chain: CometBorrow ${from_addr:0:10}... ($(( amount / one_ether )))"
+                docker exec "$container" cast send --rpc-url "$rpc_url" --private-key "$from_key" \
+                    "$emitter2_addr" "emitCometBorrow(address,uint256,uint256)" \
+                    "$from_addr" "$amount" "$((RANDOM % 100 + 1))" \
+                    2>&1 | grep -E "blockNumber|transactionHash" || true
+            fi
+            ;;
+        ProposalCreatedV2)
+            if [ -z "$emitter2_addr" ]; then
+                sim "$chain: Transfer ${from_addr:0:10}... -> ${to_addr:0:10}... ($(( amount / one_ether )) TTK)"
+                docker exec "$container" cast send --rpc-url "$rpc_url" --private-key "$from_key" \
+                    "$token_addr" "transfer(address,uint256)" "$to_addr" "$amount" \
+                    2>&1 | grep -E "blockNumber|transactionHash" || true
+            else
+                local gpid=$((RANDOM % 1000 + 1))
+                sim "$chain: ProposalCreated #$gpid"
+                docker exec "$container" cast send --rpc-url "$rpc_url" --private-key "$from_key" \
+                    "$emitter2_addr" "emitProposalCreated(uint256,address,address[],uint256[],string[],bytes[],uint256,uint256,string)" \
+                    "$gpid" "$from_addr" "[]" "[]" "[]" "[]" "$((RANDOM % 1000))" "$((RANDOM % 1000 + 1000))" "sim-cycle-$(date +%s)" \
+                    2>&1 | grep -E "blockNumber|transactionHash" || true
+            fi
+            ;;
+        L2SentMessage)
+            if [ -z "$emitter2_addr" ]; then
+                sim "$chain: Transfer ${from_addr:0:10}... -> ${to_addr:0:10}... ($(( amount / one_ether )) TTK)"
+                docker exec "$container" cast send --rpc-url "$rpc_url" --private-key "$from_key" \
+                    "$token_addr" "transfer(address,uint256)" "$to_addr" "$amount" \
+                    2>&1 | grep -E "blockNumber|transactionHash" || true
+            else
+                sim "$chain: L2 SentMessage ${from_addr:0:10}... -> L2"
+                docker exec "$container" cast send --rpc-url "$rpc_url" --private-key "$from_key" \
+                    "$emitter2_addr" "emitSentMessage(address,address,uint256,uint256,uint256)" \
+                    "$from_addr" "$to_addr" "$amount" "21000" "$((RANDOM % 1000000 + 100000))" \
+                    2>&1 | grep -E "blockNumber|transactionHash" || true
+            fi
+            ;;
+        L2TxToL2)
+            if [ -z "$emitter2_addr" ]; then
+                sim "$chain: Transfer ${from_addr:0:10}... -> ${to_addr:0:10}... ($(( amount / one_ether )) TTK)"
+                docker exec "$container" cast send --rpc-url "$rpc_url" --private-key "$from_key" \
+                    "$token_addr" "transfer(address,uint256)" "$to_addr" "$amount" \
+                    2>&1 | grep -E "blockNumber|transactionHash" || true
+            else
+                sim "$chain: L2 TxToL2 ${from_addr:0:10}... -> Arbitrum"
+                docker exec "$container" cast send --rpc-url "$rpc_url" --private-key "$from_key" \
+                    "$emitter2_addr" "emitTxToL2(uint256,address,address,uint256,uint256,uint256)" \
+                    "$((RANDOM % 10000 + 1))" "$from_addr" "$to_addr" "$amount" "$((RANDOM % 100000 + 10000))" "$((RANDOM % 1000000 + 100000))" \
+                    2>&1 | grep -E "blockNumber|transactionHash" || true
+            fi
+            ;;
+        NFTTransfer|NFTApproval|NFTApprovalForAll)
+            if [ -z "$nft_addr" ]; then
+                sim "$chain: Transfer ${from_addr:0:10}... -> ${to_addr:0:10}... ($(( amount / one_ether )) TTK)"
+                docker exec "$container" cast send --rpc-url "$rpc_url" --private-key "$from_key" \
+                    "$token_addr" "transfer(address,uint256)" "$to_addr" "$amount" \
+                    2>&1 | grep -E "blockNumber|transactionHash" || true
+            else
+                if [ "$ev_type" = "NFTTransfer" ]; then
+                    sim "$chain: NFT Transfer token #$((RANDOM % 100 + 1)) -> ${to_addr:0:10}..."
+                    docker exec "$container" cast send --rpc-url "$rpc_url" --private-key "$from_key" \
+                        "$nft_addr" "transferFrom(address,address,uint256)" \
+                        "${ACCOUNTS[0]}" "$to_addr" "$((RANDOM % 100 + 1))" \
+                        2>&1 | grep -E "blockNumber|transactionHash" || true
+                else
+                    sim "$chain: NFT ApprovalForAll ${from_addr:0:10}... -> ${to_addr:0:10}..."
+                    docker exec "$container" cast send --rpc-url "$rpc_url" --private-key "$from_key" \
+                        "$nft_addr" "setApprovalForAll(address,bool)" "$to_addr" "true" \
+                        2>&1 | grep -E "blockNumber|transactionHash" || true
+                fi
+            fi
+            ;;
+        *)
+            # Edge case events (residual)
+            local edge_case=$((RANDOM % 3))
+            case $edge_case in
+                0)
+                    sim "$chain: EDGE Zero-value Transfer"
+                    docker exec "$container" cast send --rpc-url "$rpc_url" --private-key "$from_key" \
+                        "$token_addr" "transfer(address,uint256)" "$to_addr" 0 \
+                        2>&1 | grep -E "blockNumber|transactionHash" || true ;;
+                1)
+                    sim "$chain: EDGE Gas-exhaustion (gas-limit=5000)"
+                    docker exec "$container" cast send --rpc-url "$rpc_url" --private-key "$from_key" \
+                        --gas-limit 5000 "$emitter_addr" "emitDeposit(uint256)" "$amount" \
+                        2>&1 | grep -E "blockNumber|transactionHash|reverted|out of gas" || true ;;
+                2)
+                    sim "$chain: EDGE Max-value Approval"
+                    docker exec "$container" cast send --rpc-url "$rpc_url" --private-key "$from_key" \
+                        "$token_addr" "approve(address,uint256)" "$to_addr" "$((2**256 - 1))" \
+                        2>&1 | grep -E "blockNumber|transactionHash" || true ;;
+            esac
+            ;;
+    esac
 }
+
+# Load event type weights from config (fallback to hardcoded defaults)
+__SIMDIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+__wconf="$__SIMDIR/sim-event-weights.conf"
+if [ -f "$__wconf" ]; then
+    source "$__wconf"
+fi
+: "${WEIGHT_Transfer:=22}" "${WEIGHT_Approval:=8}" "${WEIGHT_UniV3Swap:=10}"
+: "${WEIGHT_AaveSupply:=8}" "${WEIGHT_AaveWithdraw:=8}" "${WEIGHT_AaveBorrow:=8}"
+: "${WEIGHT_LiquidationCall:=5}" "${WEIGHT_CometSupply:=5}" "${WEIGHT_VoteCast:=5}"
+: "${WEIGHT_BridgeEvent:=5}" "${WEIGHT_ERC1155:=5}" "${WEIGHT_AaveRepayV2:=2}"
+: "${WEIGHT_UniV2SwapV2:=2}" "${WEIGHT_CometWithdrawV2:=2}" "${WEIGHT_CometBorrowV2:=1}"
+: "${WEIGHT_ProposalCreatedV2:=1}" "${WEIGHT_L2SentMessage:=1}" "${WEIGHT_L2TxToL2:=1}"
+: "${WEIGHT_NFTTransfer:=2}" "${WEIGHT_NFTApproval:=1}" "${WEIGHT_NFTApprovalForAll:=1}"
+WEIGHT_NAMES=(Transfer Approval UniV3Swap AaveSupply AaveWithdraw AaveBorrow LiquidationCall CometSupply VoteCast BridgeEvent ERC1155 AaveRepayV2 UniV2SwapV2 CometWithdrawV2 CometBorrowV2 ProposalCreatedV2 L2SentMessage L2TxToL2 NFTTransfer NFTApproval NFTApprovalForAll)
+__wacc=0 __wi=0
+for __w in $WEIGHT_Transfer $WEIGHT_Approval $WEIGHT_UniV3Swap $WEIGHT_AaveSupply $WEIGHT_AaveWithdraw $WEIGHT_AaveBorrow $WEIGHT_LiquidationCall $WEIGHT_CometSupply $WEIGHT_VoteCast $WEIGHT_BridgeEvent $WEIGHT_ERC1155 $WEIGHT_AaveRepayV2 $WEIGHT_UniV2SwapV2 $WEIGHT_CometWithdrawV2 $WEIGHT_CometBorrowV2 $WEIGHT_ProposalCreatedV2 $WEIGHT_L2SentMessage $WEIGHT_L2TxToL2 $WEIGHT_NFTTransfer $WEIGHT_NFTApproval $WEIGHT_NFTApprovalForAll; do
+    __wacc=$((__wacc + __w))
+    WEIGHT_THRESHOLDS[__wi]=$__wacc
+    __wi=$((__wi + 1))
+done
 
 # Metrics & stats files
 METRICS_FILE="$STATE_DIR/metrics.prom"

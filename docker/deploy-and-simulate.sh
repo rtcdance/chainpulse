@@ -18,8 +18,13 @@ error() { echo -e "${RED}[ERROR]${NC} $*"; }
 sim()   { echo -e "${CYAN}[SIM]${NC} $*"; }
 
 # ── Chain configurations (indexed arrays — bash 3 compat) ──
-CHAIN_CONTAINERS=("chainpulse-anvil" "chainpulse-anvil-bsc" "chainpulse-anvil-polygon" "chainpulse-anvil-arbitrum" "chainpulse-anvil-base" "chainpulse-anvil-avalanche")
-CHAIN_CONFIGS=("ethereum:8545" "bsc:8546" "polygon:8547" "arbitrum:8548" "base:8549" "avalanche:8550")
+# Single Anvil instance handles all EVM chains (chain-id switched per cycle)
+CHAIN_CONTAINERS=("chainpulse-anvil" "chainpulse-anvil" "chainpulse-anvil" "chainpulse-anvil" "chainpulse-anvil" "chainpulse-anvil")
+CHAIN_CONFIGS=("ethereum:8545" "bsc:8545" "polygon:8545" "arbitrum:8545" "base:8545" "avalanche:8545")
+
+# Solana configuration (separate from EVM — uses spl-token CLI, not cast send)
+SOLANA_CONTAINER="chainpulse-solana"
+SOLANA_RPC_PORT=8899
 
 METRICS_FILE="$STATE_DIR/metrics.prom"
 STATS_FILE="$STATE_DIR/sim.stats"
@@ -215,7 +220,7 @@ start_stack() {
 
     # Pre-flight port conflict check (best-effort, skip if lsof unavailable)
     if command -v lsof &>/dev/null; then
-        local ports=(5432 6379 9092 9090 3000 4317 4318 8080 8081 8082 8083 13000 16687 8545 8546 8547 8548 8549 8550 8899 8900)
+        local ports=(5432 6379 9092 9090 3000 4317 4318 8080 8081 8082 8083 13000 16687 8545 8899 8900)
         local conflicts=0
         for p in "${ports[@]}"; do
             if lsof -ti :"$p" 2>/dev/null | xargs ps -p 2>/dev/null | grep -qvi docker; then
@@ -334,6 +339,86 @@ EOF"
     fi
 }
 
+# ── Solana setup: keypairs, airdrop, SPL token, token accounts ──
+setup_solana() {
+    local sol_ctr="$SOLANA_CONTAINER"
+    local sol_rpc="http://localhost:${SOLANA_RPC_PORT}"
+
+    # Idempotency: if already set up and token file exists, skip
+    if [ -f "$STATE_DIR/solana.token" ]; then
+        local existing_token
+        existing_token=$(cat "$STATE_DIR/solana.token")
+        if docker exec "$sol_ctr" spl-token account --url "$sol_rpc" "$existing_token" >/dev/null 2>&1; then
+            info "Solana already set up (token $existing_token), skipping"
+            return 0
+        fi
+        warn "solana.token exists but token account check failed, will re-setup"
+    fi
+
+    info "Setting up Solana validator at $sol_rpc..."
+
+    local n=0
+    while [ $n -lt 60 ]; do
+        if docker exec "$sol_ctr" solana cluster-version --url "$sol_rpc" >/dev/null 2>&1; then
+            break
+        fi
+        n=$((n + 1))
+        info "  Waiting for Solana validator... (${n}s)"
+        sleep 2
+    done
+    if [ $n -ge 60 ]; then
+        error "Solana validator not ready after 120s"
+        return 1
+    fi
+    info "  Solana validator ready (${n}s)"
+
+    local key_dir="/tmp/chainpulse-sol-keys"
+    docker exec "$sol_ctr" mkdir -p "$key_dir" 2>/dev/null || true
+
+    info "  Generating keypairs..."
+    for i in $(seq 0 4); do
+        docker exec "$sol_ctr" solana-keygen new --no-bip39-passphrase --outfile "$key_dir/key${i}.json" --force --silent 2>/dev/null || true
+    done
+
+    info "  Airdropping SOL..."
+    for i in $(seq 0 4); do
+        docker exec "$sol_ctr" solana airdrop 100 --url "$sol_rpc" --keypair "$key_dir/key${i}.json" >/dev/null 2>>"$STATE_DIR/errors.log" || true
+        sleep 0.3
+    done
+
+    info "  Creating SPL Token..."
+    local spl_token=""
+    for i in $(seq 1 10); do
+        spl_token=$(docker exec "$sol_ctr" spl-token create-token --url "$sol_rpc" --fee-payer "$key_dir/key0.json" --mint-authority "$key_dir/key0.json" 2>>"$STATE_DIR/errors.log" | grep "Creating token" | awk '{print $3}' || true)
+        if [ -n "$spl_token" ]; then break; fi
+        sleep 2
+    done
+    if [ -z "$spl_token" ]; then
+        error "Failed to create SPL Token"
+        return 1
+    fi
+    info "  SPL Token: $spl_token"
+
+    info "  Creating token accounts..."
+    local sol_atas=()
+    for i in $(seq 0 4); do
+        local acc
+        acc=$(docker exec "$sol_ctr" spl-token create-account --url "$sol_rpc" --fee-payer "$key_dir/key${i}.json" --owner "$key_dir/key${i}.json" "$spl_token" 2>>"$STATE_DIR/errors.log" | grep "Creating account" | awk '{print $3}' || true)
+        if [ -n "$acc" ]; then
+            sol_atas[$i]="$acc"
+            echo "$acc" > "$STATE_DIR/solana.ata${i}"
+            info "    account $i: $acc"
+        fi
+        sleep 0.5
+    done
+
+    info "  Minting initial tokens..."
+    docker exec "$sol_ctr" spl-token mint --url "$sol_rpc" --fee-payer "$key_dir/key0.json" --mint-authority "$key_dir/key0.json" "$spl_token" 1000000 >/dev/null 2>>"$STATE_DIR/errors.log" || true
+
+    echo "$spl_token" > "$STATE_DIR/solana.token"
+    info "Solana setup complete"
+}
+
 start_simulation() {
     info "===== Step 3/3: Deploying contracts and starting event simulation ====="
 
@@ -356,7 +441,7 @@ start_simulation() {
         "0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65"
     )
 
-    # Deploy on each available chain
+    # Deploy EVM contracts on each available Anvil
     local any_deployed=false
     for ((__i=0; __i<${#CHAIN_CONTAINERS[@]}; __i++)); do
         local ctr="${CHAIN_CONTAINERS[$__i]}" cfg="${CHAIN_CONFIGS[$__i]}"
@@ -367,12 +452,18 @@ start_simulation() {
         fi
     done
 
+    # Setup Solana (keypairs, SPL token, accounts)
+    if docker ps --format "{{.Names}}" 2>/dev/null | grep -q "$SOLANA_CONTAINER"; then
+        setup_solana
+        any_deployed=true
+    fi
+
     if [ "$any_deployed" = false ]; then
-        error "No Anvil containers found! Is Docker Compose running?"
+        error "No Anvil or Solana containers found! Is Docker Compose running?"
         return 1
     fi
 
-    # Build comma-separated arg lists for sim_loop
+    # Build comma-separated arg lists for sim_loop (EVM chains)
     local chains_list="" tokens_list="" nfts_list="" emitters_list="" emitters2_list=""
     for ((__i=0; __i<${#CHAIN_CONTAINERS[@]}; __i++)); do
         local ctr="${CHAIN_CONTAINERS[$__i]}" cfg="${CHAIN_CONFIGS[$__i]}"
@@ -388,6 +479,8 @@ start_simulation() {
         fi
     done
     tokens_list="${tokens_list#,}"; nfts_list="${nfts_list#,}"; emitters_list="${emitters_list#,}"; emitters2_list="${emitters2_list#,}"
+
+    # Solana is handled inside sim_loop via STATE_DIR — not passed through CSV
 
     # Background event generation loop
     nohup bash "$SCRIPT_DIR/deploy-and-simulate.sh" loop "$chains_list" "$tokens_list" "$nfts_list" "$emitters_list" "$emitters2_list" > "$STATE_DIR/sim.log" 2>&1 &
@@ -437,6 +530,20 @@ sim_loop() {
     IFS=',' read -ra EMITTERS_V2 <<< "$emitters_v2_csv"
     local num_chains=${#CHAINS[@]}
 
+    # Retry wrapper for cast send — 3 attempts, logs to errors.log
+    _cs() {
+        local c="$1" r="$2" k="$3" a="$4" s="$5"; shift 5
+        local n=0
+        while [ $n -lt 3 ]; do
+            if docker exec "$c" cast send --rpc-url "$r" --private-key "$k" "$a" "$s" "$@" >/dev/null 2>>"$STATE_DIR/errors.log"; then
+                return 0
+            fi
+            n=$((n + 1)); [ $n -lt 3 ] && sleep 0.3
+        done
+        echo "cast_send fail: $a.$s" >> "$STATE_DIR/errors.log"
+        return 1
+    }
+
     local KEYS=(
         "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
         "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d"
@@ -456,20 +563,63 @@ sim_loop() {
     local _ev_Transfer=0 _ev_Approval=0 _ev_UniV3Swap=0 _ev_AaveSupply=0 _ev_AaveWithdraw=0 _ev_AaveBorrow=0
     local _ev_Liquidation=0 _ev_CometSupply=0 _ev_VoteCast=0 _ev_Bridge=0 _ev_NFTTransfer=0 _ev_NFTApproval=0 _ev_NFTApprovalAll=0
     local _ev_1155Single=0 _ev_AaveRepay=0 _ev_UniV2Swap=0 _ev_CometWithdraw=0 _ev_CometBorrow=0 _ev_ProposalCreated=0 _ev_ReserveDataUpdated=0 _ev_SentMessage=0 _ev_TxToL2=0
+    # Solana counters
+    local _ev_SPLTransfer=0 _ev_SPLMintTo=0 _ev_SPLBurn=0
     local total_gen=0 burst_count=0 start_sec
     start_sec=$(date +%s)
     local cycle=0 nft_next_id=101
 
-    info "Simulation started: $num_chains chains, real DeFi + extended protocol event signatures"
+    local sol_status="no"
+    [ "$solana_available" = true ] && sol_status="yes"
+    info "Simulation started: $num_chains EVM chains + Solana, real DeFi + extended protocol event signatures"
     info "Performance baseline:"
-    info "  Chains:      ${CHAINS[*]}"
+    info "  Chains:      ${CHAINS[*]} (EVM)${solana_available:+, solana (SPL)}"
     info "  Events/sec:  ~5-12 (Poisson mean 2s, 3-5 events/cycle now includes V2)"
     info "  Burst:       15-50 TPS for 8s (15% chance)"
-    info "  Reorg:       depth 2-12 blocks (10% chance)"
-    info "  Anomalies:   timestamp (5%), duplicate (3%)"
+    info "  Reorg:       depth 2-12 blocks (10% chance) — EVM only"
+    info "  Timestamp anomaly:  5% — EVM only"
+    info "  Duplicate:   3% (EVM + Solana)"
     info "  Edge cases:  zero-value, gas-exhaustion, max-approval"
     info "  V2 events:   ERC-1155, Aave Repay, Curve, Balancer, Uniswap V2,"
     info "               Compound V3 complete, Governance lifecycle, ERC-4337"
+    info "  Solana:      SPL Transfer, MintTo, Burn, CreateAccount — controlled from sim_loop"
+
+    # Load event type weights from config (fallback to hardcoded defaults)
+    local -a WEIGHT_THRESHOLDS WEIGHT_NAMES
+    local __wconf="$SCRIPT_DIR/sim-event-weights.conf"
+    if [ -f "$__wconf" ]; then
+        source "$__wconf"
+    fi
+    : "${WEIGHT_Transfer:=22}" "${WEIGHT_Approval:=8}" "${WEIGHT_UniV3Swap:=10}"
+    : "${WEIGHT_AaveSupply:=8}" "${WEIGHT_AaveWithdraw:=8}" "${WEIGHT_AaveBorrow:=8}"
+    : "${WEIGHT_LiquidationCall:=5}" "${WEIGHT_CometSupply:=5}" "${WEIGHT_VoteCast:=5}"
+    : "${WEIGHT_BridgeEvent:=5}" "${WEIGHT_ERC1155:=5}" "${WEIGHT_AaveRepayV2:=2}"
+    : "${WEIGHT_UniV2SwapV2:=2}" "${WEIGHT_CometWithdrawV2:=2}" "${WEIGHT_CometBorrowV2:=1}"
+    : "${WEIGHT_ProposalCreatedV2:=1}" "${WEIGHT_L2SentMessage:=1}" "${WEIGHT_L2TxToL2:=1}"
+    : "${WEIGHT_NFTTransfer:=2}" "${WEIGHT_NFTApproval:=1}" "${WEIGHT_NFTApprovalForAll:=1}"
+    WEIGHT_NAMES=(Transfer Approval UniV3Swap AaveSupply AaveWithdraw AaveBorrow LiquidationCall CometSupply VoteCast BridgeEvent ERC1155 AaveRepayV2 UniV2SwapV2 CometWithdrawV2 CometBorrowV2 ProposalCreatedV2 L2SentMessage L2TxToL2 NFTTransfer NFTApproval NFTApprovalForAll)
+    local __wacc=0 __wi=0
+    for __w in $WEIGHT_Transfer $WEIGHT_Approval $WEIGHT_UniV3Swap $WEIGHT_AaveSupply $WEIGHT_AaveWithdraw $WEIGHT_AaveBorrow $WEIGHT_LiquidationCall $WEIGHT_CometSupply $WEIGHT_VoteCast $WEIGHT_BridgeEvent $WEIGHT_ERC1155 $WEIGHT_AaveRepayV2 $WEIGHT_UniV2SwapV2 $WEIGHT_CometWithdrawV2 $WEIGHT_CometBorrowV2 $WEIGHT_ProposalCreatedV2 $WEIGHT_L2SentMessage $WEIGHT_L2TxToL2 $WEIGHT_NFTTransfer $WEIGHT_NFTApproval $WEIGHT_NFTApprovalForAll; do
+        __wacc=$((__wacc + __w))
+        WEIGHT_THRESHOLDS[__wi]=$__wacc
+        __wi=$((__wi + 1))
+    done
+
+    # Read Solana state (set up by setup_solana() before sim_loop was launched)
+    local solana_available=false sol_token="" sol_key_dir="/tmp/chainpulse-sol-keys"
+    local sol_container="$SOLANA_CONTAINER" sol_rpc="http://localhost:${SOLANA_RPC_PORT}"
+    local sol_atas=()
+    if [ -f "$STATE_DIR/solana.token" ]; then
+        sol_token=$(cat "$STATE_DIR/solana.token")
+        for __si in 0 1 2 3 4; do
+            if [ -f "$STATE_DIR/solana.ata${__si}" ]; then
+                sol_atas[$__si]=$(cat "$STATE_DIR/solana.ata${__si}")
+            fi
+        done
+        if [ -n "$sol_token" ] && docker ps --format "{{.Names}}" 2>/dev/null | grep -q "$sol_container"; then
+            solana_available=true
+        fi
+    fi
 
     while true; do
         cycle=$((cycle + 1))
@@ -484,170 +634,301 @@ sim_loop() {
                 fi
             done
         done
+        if [ "$any_alive" = false ] && [ "$solana_available" = true ]; then
+            # If Solana state was read, check the Solana container too
+            if docker ps --format "{{.Names}}" 2>/dev/null | grep -q "$sol_container"; then
+                any_alive=true
+            fi
+        fi
         if [ "$any_alive" = false ]; then
-            warn "No Anvil containers detected. Stopping."
+            warn "No chain containers detected. Stopping."
             rm -f "$pid_file"; exit 0
         fi
 
-        # Pick a random chain this cycle
-        local ci=$((RANDOM % num_chains))
-        local chain="${CHAINS[$ci]}"
-        local token_addr="${TOKENS[$ci]}"
-        local nft_addr="${NFTS[$ci]}"
-        local emitter_addr="${EMITTERS[$ci]}"
-        local emitter2_addr="${EMITTERS_V2[$ci]}"
-        [ -z "$token_addr" ] || [ -z "$emitter_addr" ] && continue
-
-        # Get container name + RPC port for this chain
-        local container="" anvil_port="8545"
-        for ((__i=0; __i<${#CHAIN_CONTAINERS[@]}; __i++)); do
-            local ctr="${CHAIN_CONTAINERS[$__i]}" ccfg="${CHAIN_CONFIGS[$__i]}"
-            if [ "${ccfg%%:*}" = "$chain" ]; then
-                container="$ctr"
-                anvil_port="${ccfg##*:}"
-                break
-            fi
-        done
-        [ -z "$container" ] && continue
-        local RPC="http://localhost:${anvil_port}"
-
-        # Batch event for correlation tracing
+        # Cross-chain correlation ID (shared between EVM and Solana events this cycle)
         local batch_num
         batch_num=$(date +%s)
-        docker exec "$container" cast send --rpc-url $RPC --private-key "${KEYS[0]}" "$emitter_addr" "emitBatch(uint256,string)" "$batch_num" "Cycle-$cycle" >/dev/null 2>&1 || true
+        echo "$batch_num" > "$STATE_DIR/last_solana_corr_id"
 
-        # Generate 1-3 events
-        local batch=$((RANDOM % 3 + 1))
-        for ((i=0; i<batch; i++)); do
-            local pick=$((RANDOM % 100))
-            local from_idx=$((RANDOM % ${#KEYS[@]}))
-            local to_idx=$(( (from_idx + 1 + RANDOM % ((${#KEYS[@]} - 1))) % ${#KEYS[@]} ))
-            local from_key="${KEYS[$from_idx]}"
-            local from_addr="${ACCOUNTS[$from_idx]}"
-            local to_addr="${ACCOUNTS[$to_idx]}"
-            local amt=$((RANDOM % 1000 + 1))
-            local big_amt=$((RANDOM % 100 + 1))
+        # Decide: EVM chain or Solana this cycle?
+        local use_solana=false
+        if [ "$solana_available" = true ] && [ $((RANDOM % 100)) -lt 15 ]; then
+            use_solana=true
+        fi
 
-            # Weighted event distribution (V1 events + V2 extended protocol events)
-            if [ $pick -lt 22 ]; then
-                # 22% ERC-20 Transfer
-                sim "$chain: Transfer ${from_addr:0:8}...->${to_addr:0:8}..."
-                docker exec "$container" cast send --rpc-url $RPC --private-key "$from_key" "$token_addr" "transfer(address,uint256)" "$to_addr" "$amt" >/dev/null 2>&1 || true
-                _ev_Transfer=$((_ev_Transfer + 1))
-            elif [ $pick -lt 30 ]; then
-                # 8% ERC-20 Approval
-                sim "$chain: Approval ${from_addr:0:8}...->${to_addr:0:8}..."
-                docker exec "$container" cast send --rpc-url $RPC --private-key "$from_key" "$token_addr" "approve(address,uint256)" "$to_addr" "$amt" >/dev/null 2>&1 || true
-                _ev_Approval=$((_ev_Approval + 1))
-            elif [ $pick -lt 38 ]; then
-                # 8% Uniswap V3 Swap
-                sim "$chain: UniV3Swap ${from_addr:0:8}..."
-                local sp="250679566756032337290868763570861567304210"
-                local liq="519831781696124571544378"
-                local tk="194280"
-                docker exec "$container" cast send --rpc-url $RPC --private-key "$from_key" "$emitter_addr" "emitUniSwap(int256,int256,uint160,uint128,int24)" "$big_amt" "-$((big_amt / 2))" "$sp" "$liq" "$tk" >/dev/null 2>&1 || true
-                _ev_UniV3Swap=$((_ev_UniV3Swap + 1))
-            elif [ $pick -lt 46 ]; then
-                # 8% Aave Supply
-                sim "$chain: AaveSupply ${from_addr:0:8}..."
-                docker exec "$container" cast send --rpc-url $RPC --private-key "$from_key" "$emitter_addr" "emitSupply(address,address,address,uint256,bool)" "$token_addr" "$from_addr" "$from_addr" "$amt" "false" >/dev/null 2>&1 || true
-                _ev_AaveSupply=$((_ev_AaveSupply + 1))
-            elif [ $pick -lt 53 ]; then
-                # 7% Aave Withdraw
-                sim "$chain: AaveWithdraw ${from_addr:0:8}..."
-                docker exec "$container" cast send --rpc-url $RPC --private-key "$from_key" "$emitter_addr" "emitWithdraw(address,address,address,uint256)" "$token_addr" "$from_addr" "$to_addr" "$amt" >/dev/null 2>&1 || true
-                _ev_AaveWithdraw=$((_ev_AaveWithdraw + 1))
-            elif [ $pick -lt 60 ]; then
-                # 7% Aave Borrow
-                sim "$chain: AaveBorrow ${from_addr:0:8}..."
-                docker exec "$container" cast send --rpc-url $RPC --private-key "$from_key" "$emitter_addr" "emitBorrow(address,address,address,uint256,uint8,bool)" "$token_addr" "$from_addr" "$from_addr" "$amt" "2" "false" >/dev/null 2>&1 || true
-                _ev_AaveBorrow=$((_ev_AaveBorrow + 1))
-            elif [ $pick -lt 65 ]; then
-                # 5% Liquidation
-                sim "$chain: Liquidation ${from_addr:0:8}..."
-                docker exec "$container" cast send --rpc-url $RPC --private-key "$from_key" "$emitter_addr" "emitLiquidation(address,address,address,uint256,uint256,bool)" "$token_addr" "$to_addr" "$from_addr" "$amt" "$((amt * 12 / 10))" "true" >/dev/null 2>&1 || true
-                _ev_Liquidation=$((_ev_Liquidation + 1))
-            elif [ $pick -lt 70 ]; then
-                # 5% CometSupply
-                sim "$chain: CometSupply ${from_addr:0:8}..."
-                docker exec "$container" cast send --rpc-url $RPC --private-key "$from_key" "$emitter_addr" "emitCometSupply(address,address,uint256)" "$from_addr" "$to_addr" "$amt" >/dev/null 2>&1 || true
-                _ev_CometSupply=$((_ev_CometSupply + 1))
-            elif [ $pick -lt 75 ]; then
-                # 5% VoteCast
-                local support=$((RANDOM % 3))
-                local sstr="AGAINST"
-                [ "$support" = "1" ] && sstr="FOR"
-                [ "$support" = "2" ] && sstr="ABSTAIN"
-                sim "$chain: VoteCast ${from_addr:0:8}... $sstr"
-                local reason="Cycle $(date +%s)"; docker exec "$container" cast send --rpc-url $RPC --private-key "$from_key" "$emitter_addr" "emitVoteCast(uint256,uint8,uint256,string)" "$((RANDOM % 50))" "$support" "$amt" "$reason" >/dev/null 2>&1 || true
-                _ev_VoteCast=$((_ev_VoteCast + 1))
-            elif [ $pick -lt 80 ] && [ -n "$nft_addr" ]; then
-                # 5% Bridge
-                sim "$chain: Bridge ${from_addr:0:8}... -> chain 56"
-                docker exec "$container" cast send --rpc-url $RPC --private-key "$from_key" "$emitter_addr" "emitBridge(address,uint256,uint256)" "$token_addr" "$amt" "56" >/dev/null 2>&1 || true
-                _ev_Bridge=$((_ev_Bridge + 1))
-            elif [ $pick -lt 85 ] && [ -n "$emitter2_addr" ]; then
-                # 5% ERC-1155 TransferSingle
-                local erc1155_id=$((RANDOM % 1000 + 1))
-                sim "$chain: ERC1155 TransferSingle #$erc1155_id"
-                docker exec "$container" cast send --rpc-url $RPC --private-key "$from_key" "$emitter2_addr" "emitTransferSingle(address,address,address,uint256,uint256)" "$from_addr" "$from_addr" "$to_addr" "$erc1155_id" "$amt" >/dev/null 2>&1 || true
-                _ev_1155Single=$((_ev_1155Single + 1))
-            elif [ $pick -lt 87 ] && [ -n "$emitter2_addr" ]; then
-                # 2% Aave Repay
-                sim "$chain: AaveRepay ${from_addr:0:8}..."
-                docker exec "$container" cast send --rpc-url $RPC --private-key "$from_key" "$emitter2_addr" "emitRepay(address,address,address,uint256,bool)" "$token_addr" "$from_addr" "$to_addr" "$amt" "false" >/dev/null 2>&1 || true
-                _ev_AaveRepay=$((_ev_AaveRepay + 1))
-            elif [ $pick -lt 89 ] && [ -n "$emitter2_addr" ]; then
-                # 2% Uniswap V2 Swap
-                sim "$chain: UniV2Swap ${from_addr:0:8}..."
-                docker exec "$container" cast send --rpc-url $RPC --private-key "$from_key" "$emitter2_addr" "emitUniV2Swap(uint256,uint256,uint256,uint256,address)" "$amt" "$((amt / 10 + 1))" "$((amt * 9 / 10))" "$amt" "$to_addr" >/dev/null 2>&1 || true
-                _ev_UniV2Swap=$((_ev_UniV2Swap + 1))
-            elif [ $pick -lt 91 ] && [ -n "$emitter2_addr" ]; then
-                # 2% CometWithdraw
-                sim "$chain: CometWithdraw ${from_addr:0:8}..."
-                docker exec "$container" cast send --rpc-url $RPC --private-key "$from_key" "$emitter2_addr" "emitCometWithdraw(address,address,uint256)" "$from_addr" "$to_addr" "$amt" >/dev/null 2>&1 || true
-                _ev_CometWithdraw=$((_ev_CometWithdraw + 1))
-            elif [ $pick -lt 92 ] && [ -n "$emitter2_addr" ]; then
-                # 1% CometBorrow
-                sim "$chain: CometBorrow ${from_addr:0:8}..."
-                docker exec "$container" cast send --rpc-url $RPC --private-key "$from_key" "$emitter2_addr" "emitCometBorrow(address,uint256,uint256)" "$from_addr" "$amt" "$((RANDOM % 100 + 1))" >/dev/null 2>&1 || true
-                _ev_CometBorrow=$((_ev_CometBorrow + 1))
-            elif [ $pick -lt 93 ] && [ -n "$emitter2_addr" ]; then
-                # 1% ProposalCreated (Governance lifecycle)
-                local pid=$((RANDOM % 1000 + 1))
-                sim "$chain: ProposalCreated #$pid"
-                docker exec "$container" cast send --rpc-url $RPC --private-key "$from_key" "$emitter2_addr" "emitProposalCreated(uint256,address,address[],uint256[],string[],bytes[],uint256,uint256,string)" "$pid" "$from_addr" "[]" "[]" "[]" "[]" "$((RANDOM % 1000))" "$((RANDOM % 1000 + 1000))" "Cycle-$cycle" >/dev/null 2>&1 || true
-                _ev_ProposalCreated=$((_ev_ProposalCreated + 1))
-            elif [ $pick -lt 94 ] && [ -n "$emitter2_addr" ]; then
-                # 1% L2: OP SentMessage (cross-chain message)
-                sim "$chain: L2 SentMessage ${from_addr:0:8}... -> L2"
-                docker exec "$container" cast send --rpc-url $RPC --private-key "$from_key" "$emitter2_addr" "emitSentMessage(address,address,uint256,uint256,uint256)" "$from_addr" "$to_addr" "$amt" "21000" "$((RANDOM % 1000000 + 100000))" >/dev/null 2>&1 || true
-                _ev_SentMessage=$((_ev_SentMessage + 1))
-            elif [ $pick -lt 95 ] && [ -n "$emitter2_addr" ]; then
-                # 1% L2: Arbitrum TxToL2 (cross-chain message)
-                sim "$chain: L2 TxToL2 ${from_addr:0:8}... -> Arbitrum"
-                docker exec "$container" cast send --rpc-url $RPC --private-key "$from_key" "$emitter2_addr" "emitTxToL2(uint256,address,address,uint256,uint256,uint256)" "$((RANDOM % 10000 + 1))" "$from_addr" "$to_addr" "$amt" "$((RANDOM % 100000 + 10000))" "$((RANDOM % 1000000 + 100000))" >/dev/null 2>&1 || true
-                _ev_TxToL2=$((_ev_TxToL2 + 1))
-            elif [ $pick -lt 97 ] && [ -n "$nft_addr" ]; then
-                # 2% NFT Transfer (ERC-721)
-                local tid=$((RANDOM % 100 + 1))
-                sim "$chain: NFT Transfer #$tid ${from_addr:0:8}...->${to_addr:0:8}..."
-                docker exec "$container" cast send --rpc-url $RPC --private-key "$from_key" "$nft_addr" "transferFrom(address,address,uint256)" "$from_addr" "$to_addr" "$tid" >/dev/null 2>&1 || true
-                _ev_NFTTransfer=$((_ev_NFTTransfer + 1))
-            elif [ $pick -lt 98 ] && [ -n "$nft_addr" ]; then
-                # 1% NFT Approval
-                local tid=$((RANDOM % 100 + 1))
-                sim "$chain: NFT Approve #$tid ${from_addr:0:8}...->${to_addr:0:8}..."
-                docker exec "$container" cast send --rpc-url $RPC --private-key "$from_key" "$nft_addr" "approve(address,uint256)" "$to_addr" "$tid" >/dev/null 2>&1 || true
-                _ev_NFTApproval=$((_ev_NFTApproval + 1))
-            elif [ -n "$nft_addr" ]; then
-                # NFT ApprovalForAll
-                sim "$chain: NFT ApproveAll ${from_addr:0:8}...->${to_addr:0:8}..."
-                docker exec "$container" cast send --rpc-url $RPC --private-key "$from_key" "$nft_addr" "setApprovalForAll(address,bool)" "$to_addr" "true" >/dev/null 2>&1 || true
-                _ev_NFTApprovalAll=$((_ev_NFTApprovalAll + 1))
+        if [ "$use_solana" = true ]; then
+            # ── Solana event generation ──
+            local sol_from=$((RANDOM % 5))
+            local sol_to=$(( (sol_from + 1 + RANDOM % 4) % 5 ))
+            local sol_amt=$((RANDOM % 100 + 1))
+            local sol_pick=$((RANDOM % 100))
+
+            if [ $sol_pick -lt 55 ]; then
+                sim "solana: SPL Transfer ${sol_amt} tokens account${sol_from}->account${sol_to}"
+                docker exec "$sol_container" spl-token transfer --url "$sol_rpc" --fee-payer "$sol_key_dir/key${sol_from}.json" --owner "$sol_key_dir/key${sol_from}.json" "$sol_token" "$sol_amt" "${sol_atas[$sol_to]}" --allow-unfunded-recipient >/dev/null 2>>"$STATE_DIR/errors.log" || true
+                _ev_SPLTransfer=$((_ev_SPLTransfer + 1))
+            elif [ $sol_pick -lt 75 ]; then
+                sim "solana: SPL MintTo ${sol_amt} tokens -> account${sol_to}"
+                docker exec "$sol_container" spl-token mint --url "$sol_rpc" --fee-payer "$sol_key_dir/key0.json" --mint-authority "$sol_key_dir/key0.json" "$sol_token" "$sol_amt" "${sol_atas[$sol_to]}" >/dev/null 2>>"$STATE_DIR/errors.log" || true
+                _ev_SPLMintTo=$((_ev_SPLMintTo + 1))
+            elif [ $sol_pick -lt 90 ]; then
+                sim "solana: SPL Burn ${sol_amt} tokens account${sol_from}"
+                docker exec "$sol_container" spl-token burn --url "$sol_rpc" --fee-payer "$sol_key_dir/key${sol_from}.json" --owner "$sol_key_dir/key${sol_from}.json" "${sol_atas[$sol_from]}" "$sol_amt" >/dev/null 2>>"$STATE_DIR/errors.log" || true
+                _ev_SPLBurn=$((_ev_SPLBurn + 1))
+            else
+                sim "solana: SPL Transfer (new acct) ${sol_amt} tokens"
+                local sol_new_acct
+                sol_new_acct=$(docker exec "$sol_container" spl-token create-account --url "$sol_rpc" --fee-payer "$sol_key_dir/key${sol_from}.json" --owner "$sol_key_dir/key${sol_from}.json" "$sol_token" 2>/dev/null | grep "Creating account" | awk '{print $3}' || true)
+                if [ -n "$sol_new_acct" ]; then
+                    docker exec "$sol_container" spl-token transfer --url "$sol_rpc" --fee-payer "$sol_key_dir/key${sol_from}.json" --owner "$sol_key_dir/key${sol_from}.json" "$sol_token" "$sol_amt" "$sol_new_acct" --allow-unfunded-recipient >/dev/null 2>>"$STATE_DIR/errors.log" || true
+                fi
+                _ev_SPLTransfer=$((_ev_SPLTransfer + 1))
             fi
             total_gen=$((total_gen + 1))
-        done
+            sim "solana: cycle $cycle corr_id=$batch_num (shared with EVM)"
+
+        else
+            # ── EVM event generation ──
+            local ci=$((RANDOM % num_chains))
+            [ "$num_chains" -eq 0 ] && continue
+            local chain="${CHAINS[$ci]}"
+            local token_addr="${TOKENS[$ci]}"
+            local nft_addr="${NFTS[$ci]}"
+            local emitter_addr="${EMITTERS[$ci]}"
+            local emitter2_addr="${EMITTERS_V2[$ci]}"
+            [ -z "$token_addr" ] || [ -z "$emitter_addr" ] && continue
+
+            # Get container name + RPC port for this chain
+            local container="" anvil_port="8545"
+            for ((__i=0; __i<${#CHAIN_CONTAINERS[@]}; __i++)); do
+                local ctr="${CHAIN_CONTAINERS[$__i]}" ccfg="${CHAIN_CONFIGS[$__i]}"
+                if [ "${ccfg%%:*}" = "$chain" ]; then
+                    container="$ctr"
+                    anvil_port="${ccfg##*:}"
+                    break
+                fi
+            done
+            [ -z "$container" ] && continue
+            local RPC="http://localhost:${anvil_port}"
+
+            # Emit Batch event with shared correlation ID
+            _cs "$container" "$RPC" "${KEYS[0]}" "$emitter_addr" "emitBatch(uint256,string)" "$batch_num" "Cycle-$cycle"
+
+            # Generate 1-3 events
+            local batch=$((RANDOM % 3 + 1))
+            for ((i=0; i<batch; i++)); do
+                local pick=$((RANDOM % 100))
+                local from_idx=$((RANDOM % ${#KEYS[@]}))
+                local to_idx=$(( (from_idx + 1 + RANDOM % ((${#KEYS[@]} - 1))) % ${#KEYS[@]} ))
+                local from_key="${KEYS[$from_idx]}"
+                local from_addr="${ACCOUNTS[$from_idx]}"
+                local to_addr="${ACCOUNTS[$to_idx]}"
+                local amt=$((RANDOM % 1000 + 1))
+                local big_amt=$((RANDOM % 100 + 1))
+
+                # Weighted event distribution — thresholds loaded from sim-event-weights.conf
+                local ev_type=""
+                for ((wi=0; wi<${#WEIGHT_THRESHOLDS[@]}; wi++)); do
+                    if [ $pick -lt ${WEIGHT_THRESHOLDS[$wi]} ]; then
+                        ev_type="${WEIGHT_NAMES[$wi]}"
+                        break
+                    fi
+                done
+
+                case "$ev_type" in
+                    Transfer)
+                        sim "$chain: Transfer ${from_addr:0:8}...->${to_addr:0:8}..."
+                        _cs "$container" "$RPC" "$from_key" "$token_addr" "transfer(address,uint256)" "$to_addr" "$amt"
+                        _ev_Transfer=$((_ev_Transfer + 1))
+                        ;;
+                    Approval)
+                        sim "$chain: Approval ${from_addr:0:8}...->${to_addr:0:8}..."
+                        _cs "$container" "$RPC" "$from_key" "$token_addr" "approve(address,uint256)" "$to_addr" "$amt"
+                        _ev_Approval=$((_ev_Approval + 1))
+                        ;;
+                    UniV3Swap)
+                        sim "$chain: UniV3Swap ${from_addr:0:8}..."
+                        local sp="250679566756032337290868763570861567304210"
+                        local liq="519831781696124571544378"
+                        local tk="194280"
+                        _cs "$container" "$RPC" "$from_key" "$emitter_addr" "emitUniSwap(int256,int256,uint160,uint128,int24)" "$big_amt" "-$((big_amt / 2))" "$sp" "$liq" "$tk"
+                        _ev_UniV3Swap=$((_ev_UniV3Swap + 1))
+                        ;;
+                    AaveSupply)
+                        sim "$chain: AaveSupply ${from_addr:0:8}..."
+                        _cs "$container" "$RPC" "$from_key" "$emitter_addr" "emitSupply(address,address,address,uint256,bool)" "$token_addr" "$from_addr" "$from_addr" "$amt" "false"
+                        _ev_AaveSupply=$((_ev_AaveSupply + 1))
+                        ;;
+                    AaveWithdraw)
+                        sim "$chain: AaveWithdraw ${from_addr:0:8}..."
+                        _cs "$container" "$RPC" "$from_key" "$emitter_addr" "emitWithdraw(address,address,address,uint256)" "$token_addr" "$from_addr" "$to_addr" "$amt"
+                        _ev_AaveWithdraw=$((_ev_AaveWithdraw + 1))
+                        ;;
+                    AaveBorrow)
+                        sim "$chain: AaveBorrow ${from_addr:0:8}..."
+                        _cs "$container" "$RPC" "$from_key" "$emitter_addr" "emitBorrow(address,address,address,uint256,uint8,bool)" "$token_addr" "$from_addr" "$from_addr" "$amt" "2" "false"
+                        _ev_AaveBorrow=$((_ev_AaveBorrow + 1))
+                        ;;
+                    LiquidationCall)
+                        sim "$chain: Liquidation ${from_addr:0:8}..."
+                        _cs "$container" "$RPC" "$from_key" "$emitter_addr" "emitLiquidation(address,address,address,uint256,uint256,bool)" "$token_addr" "$to_addr" "$from_addr" "$amt" "$((amt * 12 / 10))" "true"
+                        _ev_Liquidation=$((_ev_Liquidation + 1))
+                        ;;
+                    CometSupply)
+                        sim "$chain: CometSupply ${from_addr:0:8}..."
+                        _cs "$container" "$RPC" "$from_key" "$emitter_addr" "emitCometSupply(address,address,uint256)" "$from_addr" "$to_addr" "$amt"
+                        _ev_CometSupply=$((_ev_CometSupply + 1))
+                        ;;
+                    VoteCast)
+                        local support=$((RANDOM % 3))
+                        local sstr="AGAINST"
+                        [ "$support" = "1" ] && sstr="FOR"
+                        [ "$support" = "2" ] && sstr="ABSTAIN"
+                        sim "$chain: VoteCast ${from_addr:0:8}... $sstr"
+                        local reason="Cycle $(date +%s)"; docker exec "$container" cast send --rpc-url $RPC --private-key "$from_key" "$emitter_addr" "emitVoteCast(uint256,uint8,uint256,string)" "$((RANDOM % 50))" "$support" "$amt" "$reason" >/dev/null 2>>"$STATE_DIR/errors.log" || true
+                        _ev_VoteCast=$((_ev_VoteCast + 1))
+                        ;;
+                    BridgeEvent)
+                        sim "$chain: Bridge ${from_addr:0:8}... -> chain 56"
+                        _cs "$container" "$RPC" "$from_key" "$emitter_addr" "emitBridge(address,uint256,uint256)" "$token_addr" "$amt" "56"
+                        _ev_Bridge=$((_ev_Bridge + 1))
+                        ;;
+                    ERC1155)
+                        if [ -z "$emitter2_addr" ]; then
+                            # fallback: just do Transfer
+                            sim "$chain: Transfer ${from_addr:0:8}...->${to_addr:0:8}..."
+                            _cs "$container" "$RPC" "$from_key" "$token_addr" "transfer(address,uint256)" "$to_addr" "$amt"
+                            _ev_Transfer=$((_ev_Transfer + 1))
+                        else
+                            local erc1155_id=$((RANDOM % 1000 + 1))
+                            sim "$chain: ERC1155 TransferSingle #$erc1155_id"
+                            _cs "$container" "$RPC" "$from_key" "$emitter2_addr" "emitTransferSingle(address,address,address,uint256,uint256)" "$from_addr" "$from_addr" "$to_addr" "$erc1155_id" "$amt"
+                            _ev_1155Single=$((_ev_1155Single + 1))
+                        fi
+                        ;;
+                    AaveRepayV2)
+                        if [ -z "$emitter2_addr" ]; then
+                            sim "$chain: Transfer ${from_addr:0:8}...->${to_addr:0:8}..."
+                            _cs "$container" "$RPC" "$from_key" "$token_addr" "transfer(address,uint256)" "$to_addr" "$amt"
+                            _ev_Transfer=$((_ev_Transfer + 1))
+                        else
+                            sim "$chain: AaveRepay ${from_addr:0:8}..."
+                            _cs "$container" "$RPC" "$from_key" "$emitter2_addr" "emitRepay(address,address,address,uint256,bool)" "$token_addr" "$from_addr" "$to_addr" "$amt" "false"
+                            _ev_AaveRepay=$((_ev_AaveRepay + 1))
+                        fi
+                        ;;
+                    UniV2SwapV2)
+                        if [ -z "$emitter2_addr" ]; then
+                            sim "$chain: Transfer ${from_addr:0:8}...->${to_addr:0:8}..."
+                            _cs "$container" "$RPC" "$from_key" "$token_addr" "transfer(address,uint256)" "$to_addr" "$amt"
+                            _ev_Transfer=$((_ev_Transfer + 1))
+                        else
+                            sim "$chain: UniV2Swap ${from_addr:0:8}..."
+                            _cs "$container" "$RPC" "$from_key" "$emitter2_addr" "emitUniV2Swap(uint256,uint256,uint256,uint256,address)" "$amt" "$((amt / 10 + 1))" "$((amt * 9 / 10))" "$amt" "$to_addr"
+                            _ev_UniV2Swap=$((_ev_UniV2Swap + 1))
+                        fi
+                        ;;
+                    CometWithdrawV2)
+                        if [ -z "$emitter2_addr" ]; then
+                            sim "$chain: Transfer ${from_addr:0:8}...->${to_addr:0:8}..."
+                            _cs "$container" "$RPC" "$from_key" "$token_addr" "transfer(address,uint256)" "$to_addr" "$amt"
+                            _ev_Transfer=$((_ev_Transfer + 1))
+                        else
+                            sim "$chain: CometWithdraw ${from_addr:0:8}..."
+                            _cs "$container" "$RPC" "$from_key" "$emitter2_addr" "emitCometWithdraw(address,address,uint256)" "$from_addr" "$to_addr" "$amt"
+                            _ev_CometWithdraw=$((_ev_CometWithdraw + 1))
+                        fi
+                        ;;
+                    CometBorrowV2)
+                        if [ -z "$emitter2_addr" ]; then
+                            sim "$chain: Transfer ${from_addr:0:8}...->${to_addr:0:8}..."
+                            _cs "$container" "$RPC" "$from_key" "$token_addr" "transfer(address,uint256)" "$to_addr" "$amt"
+                            _ev_Transfer=$((_ev_Transfer + 1))
+                        else
+                            sim "$chain: CometBorrow ${from_addr:0:8}..."
+                            _cs "$container" "$RPC" "$from_key" "$emitter2_addr" "emitCometBorrow(address,uint256,uint256)" "$from_addr" "$amt" "$((RANDOM % 100 + 1))"
+                            _ev_CometBorrow=$((_ev_CometBorrow + 1))
+                        fi
+                        ;;
+                    ProposalCreatedV2)
+                        if [ -z "$emitter2_addr" ]; then
+                            sim "$chain: Transfer ${from_addr:0:8}...->${to_addr:0:8}..."
+                            _cs "$container" "$RPC" "$from_key" "$token_addr" "transfer(address,uint256)" "$to_addr" "$amt"
+                            _ev_Transfer=$((_ev_Transfer + 1))
+                        else
+                            local pid=$((RANDOM % 1000 + 1))
+                            sim "$chain: ProposalCreated #$pid"
+                            _cs "$container" "$RPC" "$from_key" "$emitter2_addr" "emitProposalCreated(uint256,address,address[],uint256[],string[],bytes[],uint256,uint256,string)" "$pid" "$from_addr" "[]" "[]" "[]" "[]" "$((RANDOM % 1000))" "$((RANDOM % 1000 + 1000))" "Cycle-$cycle"
+                            _ev_ProposalCreated=$((_ev_ProposalCreated + 1))
+                        fi
+                        ;;
+                    L2SentMessage)
+                        if [ -z "$emitter2_addr" ]; then
+                            sim "$chain: Transfer ${from_addr:0:8}...->${to_addr:0:8}..."
+                            _cs "$container" "$RPC" "$from_key" "$token_addr" "transfer(address,uint256)" "$to_addr" "$amt"
+                            _ev_Transfer=$((_ev_Transfer + 1))
+                        else
+                            sim "$chain: L2 SentMessage ${from_addr:0:8}... -> L2"
+                            _cs "$container" "$RPC" "$from_key" "$emitter2_addr" "emitSentMessage(address,address,uint256,uint256,uint256)" "$from_addr" "$to_addr" "$amt" "21000" "$((RANDOM % 1000000 + 100000))"
+                            _ev_SentMessage=$((_ev_SentMessage + 1))
+                        fi
+                        ;;
+                    L2TxToL2)
+                        if [ -z "$emitter2_addr" ]; then
+                            sim "$chain: Transfer ${from_addr:0:8}...->${to_addr:0:8}..."
+                            _cs "$container" "$RPC" "$from_key" "$token_addr" "transfer(address,uint256)" "$to_addr" "$amt"
+                            _ev_Transfer=$((_ev_Transfer + 1))
+                        else
+                            sim "$chain: L2 TxToL2 ${from_addr:0:8}... -> Arbitrum"
+                            _cs "$container" "$RPC" "$from_key" "$emitter2_addr" "emitTxToL2(uint256,address,address,uint256,uint256,uint256)" "$((RANDOM % 10000 + 1))" "$from_addr" "$to_addr" "$amt" "$((RANDOM % 100000 + 10000))" "$((RANDOM % 1000000 + 100000))"
+                            _ev_TxToL2=$((_ev_TxToL2 + 1))
+                        fi
+                        ;;
+                    NFTTransfer)
+                        if [ -z "$nft_addr" ]; then
+                            sim "$chain: Transfer ${from_addr:0:8}...->${to_addr:0:8}..."
+                            _cs "$container" "$RPC" "$from_key" "$token_addr" "transfer(address,uint256)" "$to_addr" "$amt"
+                            _ev_Transfer=$((_ev_Transfer + 1))
+                        else
+                            local tid=$((RANDOM % 100 + 1))
+                            sim "$chain: NFT Transfer #$tid ${from_addr:0:8}...->${to_addr:0:8}..."
+                            _cs "$container" "$RPC" "$from_key" "$nft_addr" "transferFrom(address,address,uint256)" "$from_addr" "$to_addr" "$tid"
+                            _ev_NFTTransfer=$((_ev_NFTTransfer + 1))
+                        fi
+                        ;;
+                    NFTApproval)
+                        if [ -z "$nft_addr" ]; then
+                            sim "$chain: Transfer ${from_addr:0:8}...->${to_addr:0:8}..."
+                            _cs "$container" "$RPC" "$from_key" "$token_addr" "transfer(address,uint256)" "$to_addr" "$amt"
+                            _ev_Transfer=$((_ev_Transfer + 1))
+                        else
+                            local tid=$((RANDOM % 100 + 1))
+                            sim "$chain: NFT Approve #$tid ${from_addr:0:8}...->${to_addr:0:8}..."
+                            _cs "$container" "$RPC" "$from_key" "$nft_addr" "approve(address,uint256)" "$to_addr" "$tid"
+                            _ev_NFTApproval=$((_ev_NFTApproval + 1))
+                        fi
+                        ;;
+                    NFTApprovalForAll)
+                        if [ -z "$nft_addr" ]; then
+                            sim "$chain: Transfer ${from_addr:0:8}...->${to_addr:0:8}..."
+                            _cs "$container" "$RPC" "$from_key" "$token_addr" "transfer(address,uint256)" "$to_addr" "$amt"
+                            _ev_Transfer=$((_ev_Transfer + 1))
+                        else
+                            sim "$chain: NFT ApproveAll ${from_addr:0:8}...->${to_addr:0:8}..."
+                            _cs "$container" "$RPC" "$from_key" "$nft_addr" "setApprovalForAll(address,bool)" "$to_addr" "true"
+                            _ev_NFTApprovalAll=$((_ev_NFTApprovalAll + 1))
+                        fi
+                        ;;
+                    *)
+                        # Edge case events (residual)
+                        sim "$chain: Transfer ${from_addr:0:8}...->${to_addr:0:8}..."
+                        _cs "$container" "$RPC" "$from_key" "$token_addr" "transfer(address,uint256)" "$to_addr" "$amt"
+                        _ev_Transfer=$((_ev_Transfer + 1))
+                        ;;
+                esac
+                total_gen=$((total_gen + 1))
+            done
+        fi
 
         # Causal chain: Supply → Borrow → Liquidation (12% chance per cycle)
         # Emits correlated events with realistic amounts: borrow ≤ 75% LTV, then
@@ -660,15 +941,15 @@ sim_loop() {
             local _brw_amt=$((_col_amt * (RANDOM % 26 + 50) / 100))  # 50-75% LTV
             sim "$chain: CAUSAL Supply($_col_amt) -> Borrow($_brw_amt) ${_col_addr:0:8}..."
             # 1. Supply collateral
-            docker exec "$container" cast send --rpc-url $RPC --private-key "$_col_key" "$emitter_addr" "emitSupply(address,address,address,uint256,bool)" "$token_addr" "$_col_addr" "$_col_addr" "$_col_amt" "false" >/dev/null 2>&1 || true
+            _cs "$container" "$RPC" "$_col_key" "$emitter_addr" "emitSupply(address,address,address,uint256,bool)" "$token_addr" "$_col_addr" "$_col_addr" "$_col_amt" "false"
             _ev_AaveSupply=$((_ev_AaveSupply + 1))
             total_gen=$((total_gen + 1))
             # 2. Borrow against it
-            docker exec "$container" cast send --rpc-url $RPC --private-key "$_col_key" "$emitter_addr" "emitBorrow(address,address,address,uint256,uint8,bool)" "$token_addr" "$_col_addr" "$_col_addr" "$_brw_amt" "2" "false" >/dev/null 2>&1 || true
+            _cs "$container" "$RPC" "$_col_key" "$emitter_addr" "emitBorrow(address,address,address,uint256,uint8,bool)" "$token_addr" "$_col_addr" "$_col_addr" "$_brw_amt" "2" "false"
             _ev_AaveBorrow=$((_ev_AaveBorrow + 1))
             total_gen=$((total_gen + 1))
             # 3. Emit ReserveDataUpdated (reflects health change)
-            docker exec "$container" cast send --rpc-url $RPC --private-key "$_col_key" "$emitter2_addr" "emitReserveDataUpdated(address,uint256,uint256,uint256,uint256,uint256)" "$token_addr" "$((RANDOM % 10 + 5))" "$((RANDOM % 5 + 2))" "$((RANDOM % 8 + 3))" "$((RANDOM % 100 + 100))" "$((RANDOM % 100 + 100))" >/dev/null 2>&1 || true
+            _cs "$container" "$RPC" "$_col_key" "$emitter2_addr" "emitReserveDataUpdated(address,uint256,uint256,uint256,uint256,uint256)" "$token_addr" "$((RANDOM % 10 + 5))" "$((RANDOM % 5 + 2))" "$((RANDOM % 8 + 3))" "$((RANDOM % 100 + 100))" "$((RANDOM % 100 + 100))"
             _ev_ReserveDataUpdated=$((_ev_ReserveDataUpdated + 1))
             total_gen=$((total_gen + 1))
             # 4. 40% chance: price drop → liquidation
@@ -676,7 +957,7 @@ sim_loop() {
                 local _liq_debt=$((_brw_amt * 95 / 100))
                 local _liq_collateral=$((_col_amt * 12 / 10))
                 sim "$chain: CAUSAL Liquidation ($_liq_debt debt, $_liq_collateral collat liquidated)"
-                docker exec "$container" cast send --rpc-url $RPC --private-key "${KEYS[$(( (_col_idx + 1) % ${#KEYS[@]} ))]}" "$emitter_addr" "emitLiquidation(address,address,address,uint256,uint256,bool)" "$token_addr" "$token_addr" "$_col_addr" "$_liq_debt" "$_liq_collateral" "true" >/dev/null 2>&1 || true
+                _cs "$container" "$RPC" "${KEYS[$(( (_col_idx + 1) % ${#KEYS[@]} ))]}" "$emitter_addr" "emitLiquidation(address,address,address,uint256,uint256,bool)" "$token_addr" "$token_addr" "$_col_addr" "$_liq_debt" "$_liq_collateral" "true"
                 _ev_Liquidation=$((_ev_Liquidation + 1))
                 total_gen=$((total_gen + 1))
             fi
@@ -688,61 +969,77 @@ sim_loop() {
             local dur=8
             local total_spike=$((tps * dur))
             burst_count=$((burst_count + 1))
-            sim "$chain: BURST ${tps} TPS for ${dur}s (${total_spike} events)..."
-            local spike_start
+            local burst_label="solana"
+            [ "$use_solana" = false ] && burst_label="$chain"
+            sim "$burst_label: BURST ${tps} TPS for ${dur}s (${total_spike} events)..."
+            local spike_start sent=0
             spike_start=$(date +%s)
-            local sent=0
-            while [ $(( $(date +%s) - spike_start )) -lt "$dur" ]; do
-                local sp_from=$((RANDOM % ${#KEYS[@]}))
-                local sp_to=$(( (sp_from + 1 + RANDOM % ((${#KEYS[@]} - 1))) % ${#KEYS[@]} ))
-                local sp_key="${KEYS[$sp_from]}"
-                # Use --async for burst throughput (no need to wait for receipt)
-                docker exec "$container" cast send --async --rpc-url $RPC --private-key "$sp_key" "$token_addr" "transfer(address,uint256)" "${ACCOUNTS[$sp_to]}" "$((RANDOM % 1000 + 1))" >/dev/null 2>&1 || true
-                sent=$((sent + 1))
-                total_gen=$((total_gen + 1))
-                _ev_Transfer=$((_ev_Transfer + 1))
-            done
-            sim "$chain: BURST ${sent} events sent in ${dur}s"
+            if [ "$use_solana" = true ]; then
+                while [ $(( $(date +%s) - spike_start )) -lt "$dur" ]; do
+                    local sbf=$((RANDOM % 5)) sbt=$(( (RANDOM + 1) % 5 ))
+                    docker exec "$sol_container" spl-token transfer --url "$sol_rpc" --fee-payer "$sol_key_dir/key${sbf}.json" --owner "$sol_key_dir/key${sbf}.json" "$sol_token" "$((RANDOM % 100 + 1))" "${sol_atas[$sbt]}" --allow-unfunded-recipient >/dev/null 2>>"$STATE_DIR/errors.log" || true
+                    sent=$((sent + 1)); total_gen=$((total_gen + 1)); _ev_SPLTransfer=$((_ev_SPLTransfer + 1))
+                done
+            else
+                while [ $(( $(date +%s) - spike_start )) -lt "$dur" ]; do
+                    local sp_from=$((RANDOM % ${#KEYS[@]}))
+                    local sp_to=$(( (sp_from + 1 + RANDOM % ((${#KEYS[@]} - 1))) % ${#KEYS[@]} ))
+                    local sp_key="${KEYS[$sp_from]}"
+                    # Run synchronous cast send in background so events get indexed (receipts are generated)
+                    (docker exec "$container" cast send --rpc-url $RPC --private-key "$sp_key" "$token_addr" "transfer(address,uint256)" "${ACCOUNTS[$sp_to]}" "$((RANDOM % 1000 + 1))" >/dev/null 2>>"$STATE_DIR/errors.log" || true) &
+                    sent=$((sent + 1)); total_gen=$((total_gen + 1)); _ev_Transfer=$((_ev_Transfer + 1))
+                done
+                wait  # await all background sends to complete
+            fi
+            sim "$burst_label: BURST ${sent} events sent in ${dur}s"
         fi
 
-        # Reorg (10% chance)
-        if [ $((RANDOM % 100)) -lt 10 ]; then
+        # Reorg (10% chance — EVM only, Solana does not support snapshot/revert)
+        if [ "$use_solana" = false ] && [ $((RANDOM % 100)) -lt 10 ]; then
             local depth=$((RANDOM % 11 + 2))
             sim "$chain: REORG ${depth}-block..."
             local snap
             snap=$(docker exec "$container" cast rpc evm_snapshot --rpc-url $RPC 2>/dev/null | tail -1 || echo "")
             if [ -n "$snap" ]; then
                 for ((r=0; r<depth; r++)); do
-                    docker exec "$container" cast send --rpc-url $RPC --private-key "${KEYS[0]}" "$emitter_addr" "emitUniSwap(int256,int256,uint160,uint128,int24)" "1" "-1" "250679566756032337290868763570861567304210" "519831781696124571544378" "194280" >/dev/null 2>&1 || true
+                    _cs "$container" "$RPC" "${KEYS[0]}" "$emitter_addr" "emitUniSwap(int256,int256,uint160,uint128,int24)" "1" "-1" "250679566756032337290868763570861567304210" "519831781696124571544378" "194280"
                 done
                 docker exec "$container" cast rpc evm_revert "$snap" --rpc-url $RPC 2>/dev/null || true
                 for ((r=0; r<depth; r++)); do
-                    docker exec "$container" cast send --rpc-url $RPC --private-key "${KEYS[0]}" "$emitter_addr" "emitSupply(address,address,address,uint256,bool)" "$token_addr" "${ACCOUNTS[0]}" "${ACCOUNTS[0]}" "500" "false" >/dev/null 2>&1 || true
+                    _cs "$container" "$RPC" "${KEYS[0]}" "$emitter_addr" "emitSupply(address,address,address,uint256,bool)" "$token_addr" "${ACCOUNTS[0]}" "${ACCOUNTS[0]}" "500" "false"
                 done
                 sim "$chain: REORG ${depth}-block done"
             fi
         fi
 
-        # Timestamp anomaly (5% chance)
-        if [ $((RANDOM % 100)) -lt 5 ]; then
+        # Timestamp anomaly (5% chance — EVM only)
+        if [ "$use_solana" = false ] && [ $((RANDOM % 100)) -lt 5 ]; then
             local current_ts
             current_ts=$(docker exec "$container" cast rpc --rpc-url $RPC eth_blockNumber 2>/dev/null | xargs -I{} docker exec "$container" cast block --rpc-url $RPC {} 2>/dev/null | grep "timestamp" | awk '{print $2}' | tr -d ',' || echo "")
             if [ -n "$current_ts" ] && [ "$current_ts" -gt 100 ]; then
                 local past_ts=$((current_ts - 3600))
                 sim "$chain: TS ANOMALY setting block time to ${past_ts}s"
-                docker exec "$container" cast rpc --rpc-url $RPC evm_setNextBlockTimestamp "$past_ts" >/dev/null 2>&1 || true
-                docker exec "$container" cast send --rpc-url $RPC --private-key "${KEYS[0]}" "$emitter_addr" "emitSupply(address,address,address,uint256,bool)" "$token_addr" "${ACCOUNTS[0]}" "${ACCOUNTS[0]}" "100" "false" >/dev/null 2>&1 || true
+                docker exec "$container" cast rpc --rpc-url $RPC evm_setNextBlockTimestamp "$past_ts" >/dev/null 2>>"$STATE_DIR/errors.log" || true
+                _cs "$container" "$RPC" "${KEYS[0]}" "$emitter_addr" "emitSupply(address,address,address,uint256,bool)" "$token_addr" "${ACCOUNTS[0]}" "${ACCOUNTS[0]}" "100" "false"
             fi
         fi
 
-        # Duplicate event (3% chance)
+        # Duplicate event (3% chance — both EVM and Solana)
         if [ $((RANDOM % 100)) -lt 3 ]; then
-            local dup_key="${KEYS[$((RANDOM % ${#KEYS[@]}))]}"
-            local dup_to="${ACCOUNTS[$((RANDOM % ${#ACCOUNTS[@]}))]}"
-            local dup_amt=$((RANDOM % 500 + 1))
-            sim "$chain: DUPLICATE sending identical Transfer twice (amt=$dup_amt)"
-            docker exec "$container" cast send --rpc-url $RPC --private-key "$dup_key" "$token_addr" "transfer(address,uint256)" "$dup_to" "$dup_amt" >/dev/null 2>&1 || true
-            docker exec "$container" cast send --rpc-url $RPC --private-key "$dup_key" "$token_addr" "transfer(address,uint256)" "$dup_to" "$dup_amt" >/dev/null 2>&1 || true
+            if [ "$use_solana" = true ]; then
+                local dup_sf=$((RANDOM % 5)) dup_st=$(( (RANDOM + 1) % 5 ))
+                local dup_samt=$((RANDOM % 100 + 1))
+                sim "solana: DUPLICATE SPL Transfer ${dup_samt} tokens (x2)"
+                docker exec "$sol_container" spl-token transfer --url "$sol_rpc" --fee-payer "$sol_key_dir/key${dup_sf}.json" --owner "$sol_key_dir/key${dup_sf}.json" "$sol_token" "$dup_samt" "${sol_atas[$dup_st]}" --allow-unfunded-recipient >/dev/null 2>>"$STATE_DIR/errors.log" || true
+                docker exec "$sol_container" spl-token transfer --url "$sol_rpc" --fee-payer "$sol_key_dir/key${dup_sf}.json" --owner "$sol_key_dir/key${dup_sf}.json" "$sol_token" "$dup_samt" "${sol_atas[$dup_st]}" --allow-unfunded-recipient >/dev/null 2>>"$STATE_DIR/errors.log" || true
+            else
+                local dup_key="${KEYS[$((RANDOM % ${#KEYS[@]}))]}"
+                local dup_to="${ACCOUNTS[$((RANDOM % ${#ACCOUNTS[@]}))]}"
+                local dup_amt=$((RANDOM % 500 + 1))
+                sim "$chain: DUPLICATE sending identical Transfer twice (amt=$dup_amt)"
+                _cs "$container" "$RPC" "$dup_key" "$token_addr" "transfer(address,uint256)" "$dup_to" "$dup_amt"
+                _cs "$container" "$RPC" "$dup_key" "$token_addr" "transfer(address,uint256)" "$dup_to" "$dup_amt"
+            fi
         fi
 
         # Write metrics (Prometheus format)
@@ -773,6 +1070,9 @@ sim_loop() {
             echo "chainpulse_sim_events_total{chain=\"$chain\",type=\"ReserveDataUpdated\"} $_ev_ReserveDataUpdated"
             echo "chainpulse_sim_events_total{chain=\"$chain\",type=\"SentMessage\"} $_ev_SentMessage"
             echo "chainpulse_sim_events_total{chain=\"$chain\",type=\"TxToL2\"} $_ev_TxToL2"
+            echo "chainpulse_sim_events_total{chain=\"solana\",type=\"SPLTransfer\"} $_ev_SPLTransfer"
+            echo "chainpulse_sim_events_total{chain=\"solana\",type=\"SPLMintTo\"} $_ev_SPLMintTo"
+            echo "chainpulse_sim_events_total{chain=\"solana\",type=\"SPLBurn\"} $_ev_SPLBurn"
             echo "# HELP chainpulse_sim_total_events Total events across all types"
             echo "# TYPE chainpulse_sim_total_events gauge"
             echo "chainpulse_sim_total_events $total_gen"
