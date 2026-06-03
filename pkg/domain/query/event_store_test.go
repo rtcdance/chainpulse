@@ -180,6 +180,16 @@ func (m *mockEventStoreDomain) CountEvents(ctx context.Context) (int64, error) {
 	return int64(len(m.events)), nil
 }
 
+func (m *mockEventStoreDomain) GetEventStats(ctx context.Context) (map[string]int64, map[string]int64, int64, error) {
+	byChain := make(map[string]int64)
+	byEventName := make(map[string]int64)
+	for _, e := range m.events {
+		byChain[e.ChainID]++
+		byEventName[e.EventName]++
+	}
+	return byChain, byEventName, 0, nil
+}
+
 func (m *mockEventStoreDomain) Health(ctx context.Context) *core.HealthStatus {
 	return &core.HealthStatus{Status: "healthy", Timestamp: time.Now()}
 }

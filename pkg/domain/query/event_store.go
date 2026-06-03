@@ -33,6 +33,9 @@ type EventReader interface {
 	// transfers, multi-chain contract interactions, and other linked events.
 	GetEventsByCorrelationID(ctx context.Context, correlationID string, limit int, offset int) ([]*core.BlockchainEvent, error)
 	CountEvents(ctx context.Context) (int64, error)
+	// GetEventStats returns aggregated event counts by chain and by event name,
+	// plus the total reorged count. Uses MongoDB aggregation for efficiency.
+	GetEventStats(ctx context.Context) (byChain map[string]int64, byEventName map[string]int64, reorged int64, err error)
 	Health(ctx context.Context) *core.HealthStatus
 }
 

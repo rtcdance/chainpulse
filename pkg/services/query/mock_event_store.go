@@ -277,6 +277,23 @@ func (mr *MockEventStoreMockRecorder) InsertEventBatch(ctx, events any) *gomock.
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertEventBatch", reflect.TypeOf((*MockEventStore)(nil).InsertEventBatch), ctx, events)
 }
 
+// GetEventStats mocks base method.
+func (m *MockEventStore) GetEventStats(ctx context.Context) (map[string]int64, map[string]int64, int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetEventStats", ctx)
+	ret0, _ := ret[0].(map[string]int64)
+	ret1, _ := ret[1].(map[string]int64)
+	ret2, _ := ret[2].(int64)
+	ret3, _ := ret[3].(error)
+	return ret0, ret1, ret2, ret3
+}
+
+// GetEventStats indicates an expected call of GetEventStats.
+func (mr *MockEventStoreMockRecorder) GetEventStats(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetEventStats", reflect.TypeOf((*MockEventStore)(nil).GetEventStats), ctx)
+}
+
 // MockEventMetadataStore is a mock of EventMetadataStore interface.
 type MockEventMetadataStore struct {
 	ctrl     *gomock.Controller
