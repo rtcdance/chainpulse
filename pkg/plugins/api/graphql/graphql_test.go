@@ -119,6 +119,10 @@ func (m *MockEventStore) InsertEventBatch(ctx context.Context, events []*core.Bl
 	return nil
 }
 
+func (m *MockEventStore) GetEventStats(ctx context.Context) (map[string]int64, map[string]int64, int64, error) {
+	return make(map[string]int64), make(map[string]int64), 0, nil
+}
+
 // MockLogger implements core.Logger for testing
 type MockLogger struct {
 	messages []string
