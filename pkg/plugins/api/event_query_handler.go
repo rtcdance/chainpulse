@@ -110,6 +110,7 @@ type Pagination struct {
 type EventResponse struct {
 	EventID         string         `json:"eventId"`
 	ChainID         string         `json:"chainId"`
+	Network         string         `json:"network,omitempty"`
 	BlockNumber     int64          `json:"blockNumber"`
 	TransactionHash string         `json:"transactionHash"`
 	LogIndex        int64          `json:"logIndex"`
@@ -184,7 +185,28 @@ func (h *EventQueryHandler) executeListQuery(w http.ResponseWriter, r *http.Requ
 	if fp.hasFilters() {
 		fetchLimit = 1000
 	}
-	events, err := spec.fetchRetrieval(ctx, fetchLimit, 0)
+
+	var events []*query.EventWithMetadata
+	var err error
+
+	// When chain filter is set, use chain-specific query to avoid fetching events
+	// from all chains and filtering in-memory — the in-memory filter can miss target
+	// chain events because GetAllEvents sorts by blockNumber desc, and EVM chains
+	// have much lower block numbers than Solana.
+	if fp.Chain != "" {
+		chainID, parseErr := strconv.Atoi(fp.Chain)
+		if parseErr != nil {
+			chainID = chainid.ResolveChainID(fp.Chain)
+		}
+		if chainID > 0 {
+			events, err = h.retrievalService.GetEventsByChainWithMetadata(ctx, chainID, fetchLimit, 0)
+		} else {
+			events, err = spec.fetchRetrieval(ctx, fetchLimit, 0)
+		}
+	} else {
+		events, err = spec.fetchRetrieval(ctx, fetchLimit, 0)
+	}
+
 	if err != nil {
 		h.logger.Error("Failed to get events", "path", spec.metricsPrefix, "error", err.Error())
 		h.metrics.RecordGauge("event_query_"+spec.metricsPrefix+"_error", 1, nil)
@@ -429,9 +451,15 @@ func (h *EventQueryHandler) convertEventToResponse(eventWithMetadata *query.Even
 	// Resolve chainID to numeric string for API consistency.
 	// Internally ChainID may be stored as a name ("ethereum"),
 	// but consumers expect the canonical numeric ID ("1").
+	// For non-EVM chains (e.g., "solana"), keep the original chainId.
 	resolvedChainID := event.ChainID
-	if id := chainid.ResolveChainID(event.ChainID); id != 0 {
-		resolvedChainID = strconv.Itoa(id)
+	isNonEVM := event.Network != "" && event.Network != "mainnet" && event.Network != "ethereum" &&
+		event.Network != "bsc" && event.Network != "polygon" && event.Network != "arbitrum" &&
+		event.Network != "base" && event.Network != "avalanche"
+	if !isNonEVM {
+		if id := chainid.ResolveChainID(event.ChainID); id != 0 {
+			resolvedChainID = strconv.Itoa(id)
+		}
 	}
 
 	// Resolve hex topic0 hash to human-readable event name at query time.
@@ -446,6 +474,7 @@ func (h *EventQueryHandler) convertEventToResponse(eventWithMetadata *query.Even
 	return &EventResponse{
 		EventID:         event.ID,
 		ChainID:         resolvedChainID,
+		Network:         event.Network,
 		BlockNumber:     safeUint64ToInt64(event.BlockNumber),
 		TransactionHash: event.TransactionHash.Hex(),
 		LogIndex:        int64(event.LogIndex),
@@ -545,6 +574,7 @@ type filterParams struct {
 	EventSignature  string
 	ContractAddress string
 	Chain           string
+	Network         string
 	EventName       string
 	Status          string
 	Search          string
@@ -562,6 +592,7 @@ func (h *EventQueryHandler) parseFilterParams(r *http.Request) *filterParams {
 		EventSignature:  strings.TrimSpace(r.URL.Query().Get("event_signature")),
 		ContractAddress: strings.TrimSpace(r.URL.Query().Get("contract")),
 		Chain:           strings.TrimSpace(r.URL.Query().Get("chain")),
+		Network:         strings.TrimSpace(r.URL.Query().Get("network")),
 		EventName:       strings.TrimSpace(r.URL.Query().Get("event_name")),
 		Status:          strings.TrimSpace(r.URL.Query().Get("status")),
 		Search:          strings.TrimSpace(r.URL.Query().Get("search")),
@@ -596,7 +627,7 @@ func (h *EventQueryHandler) validateFilterParams(fp *filterParams) string {
 // hasFilters returns true if any non-pagination filter is active
 func (fp *filterParams) hasFilters() bool {
 	return fp.FromBlock > 0 || fp.ToBlock > 0 || fp.FromTime > 0 || fp.ToTime > 0 ||
-		fp.EventSignature != "" || fp.ContractAddress != "" || fp.Chain != "" || fp.EventName != "" || fp.Status != ""
+		fp.EventSignature != "" || fp.ContractAddress != "" || fp.Chain != "" || fp.Network != "" || fp.EventName != "" || fp.Status != ""
 }
 
 // applyFilterToResponses applies filter parameters to event responses (for retrieval fallback path)
@@ -651,6 +682,11 @@ func (h *EventQueryHandler) applyFilterToResponses(fp *filterParams, responses [
 			if e.ChainID != fp.Chain && strconv.Itoa(resolvedID) != e.ChainID && resolvedName != e.ChainID {
 				continue
 			}
+		}
+
+		// Network filter
+		if fp.Network != "" && e.Network != fp.Network {
+			continue
 		}
 
 		// Event name filter
@@ -721,7 +757,7 @@ func (h *EventQueryHandler) buildMongoFilter(fp *filterParams, baseFilter map[st
 	if fp.Chain != "" {
 		chainID, err := strconv.Atoi(fp.Chain)
 		if err != nil {
-			// String chain identifier (e.g., "ethereum", "arbitrum")
+			// String chain identifier (e.g., "ethereum", "arbitrum", "solana")
 			filter["chainId"] = fp.Chain
 		} else {
 			// Numeric chain ID — match integer, string form, and canonical name
@@ -730,6 +766,10 @@ func (h *EventQueryHandler) buildMongoFilter(fp *filterParams, baseFilter map[st
 				"$in": []any{chainID, strconv.Itoa(chainID), chainName},
 			}
 		}
+	}
+
+	if fp.Network != "" {
+		filter["network"] = fp.Network
 	}
 
 	if fp.EventName != "" {
