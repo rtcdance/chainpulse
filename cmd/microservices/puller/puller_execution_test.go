@@ -80,7 +80,7 @@ func TestRegisterConfiguredPullersParsesOverridesAndInfersChains(t *testing.T) {
 		},
 		MaxRetries: 3,
 		LogLevel:   "info",
-	}, logger, metrics)
+	}, logger, metrics, nil)
 	if err != nil {
 		t.Fatalf("register configured pullers: %v", err)
 	}

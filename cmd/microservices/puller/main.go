@@ -195,7 +195,8 @@ func main() {
 	// Initialize Multi-Chain Data Puller
 	fmt.Println("Initializing Multi-Chain Data Puller:")
 	multiChainPuller := pullers.NewMultiChainDataPuller(logger)
-	registeredPullers, err := registerConfiguredPullers(multiChainPuller, config, logger, metrics)
+	solanaEventBus := newKafkaEventBus(kafkaMQ)
+	registeredPullers, err := registerConfiguredPullers(multiChainPuller, config, logger, metrics, solanaEventBus)
 	if err != nil {
 		logger.Error("Failed to register configured pullers", "error", err.Error())
 		os.Exit(1)

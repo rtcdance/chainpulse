@@ -24,6 +24,34 @@ type pullerMessagePublisher interface {
 	Publish(context.Context, string, []byte) error
 }
 
+type kafkaEventBus struct {
+	publisher pullerMessagePublisher
+}
+
+func newKafkaEventBus(publisher pullerMessagePublisher) *kafkaEventBus {
+	return &kafkaEventBus{publisher: publisher}
+}
+
+func (b *kafkaEventBus) Publish(ctx context.Context, topic string, event any) error {
+	payload, err := json.Marshal(event)
+	if err != nil {
+		return fmt.Errorf("kafkaEventBus: marshal failed: %w", err)
+	}
+	return b.publisher.Publish(ctx, topic, payload)
+}
+
+func (b *kafkaEventBus) Subscribe(ctx context.Context, topic string, handler core.EventHandler) (uint64, error) {
+	return 0, fmt.Errorf("kafkaEventBus: Subscribe not supported")
+}
+
+func (b *kafkaEventBus) SubscribeNamed(ctx context.Context, topic, name string, handler core.EventHandler) (uint64, error) {
+	return 0, fmt.Errorf("kafkaEventBus: SubscribeNamed not supported")
+}
+
+func (b *kafkaEventBus) Unsubscribe(subscriptionID uint64) error {
+	return fmt.Errorf("kafkaEventBus: Unsubscribe not supported")
+}
+
 type pullerExecutionRuntimeSnapshot struct {
 	Enabled              bool
 	ConfiguredPullers    int
@@ -432,6 +460,7 @@ func registerConfiguredPullers(
 	config PullerConfig,
 	logger core.Logger,
 	metrics core.MetricsCollector,
+	eventBus core.EventBus,
 ) (int, error) {
 	if multi == nil {
 		return 0, fmt.Errorf("multi-chain puller is required")
@@ -455,7 +484,7 @@ func registerConfiguredPullers(
 				MaxRetries:        config.MaxRetries,
 				RetryBackoff:      1000,
 				LogLevel:          config.LogLevel,
-			}, logger, metrics)
+			}, logger, metrics, eventBus)
 		} else if isCosmosChain(chainID) {
 			puller = pullers.NewCosmosPuller(core.Config{
 				DataPullerType:    "cosmos",

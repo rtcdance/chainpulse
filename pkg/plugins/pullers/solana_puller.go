@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -24,12 +26,17 @@ var knownProgramLabels = map[string]string{
 	core.JupiterV6ProgramID:                       "Jupiter V6 Aggregator",
 	core.RaydiumV4ProgramID:                       "Raydium V4 AMM",
 	core.OrcaWhirlpoolProgramID:                   "Orca Whirlpool",
-	"11111111111111111111111111111111":            "System Program",
-	"Vote111111111111111111111111111111111111":    "Vote Program",
-	"Stake11111111111111111111111111111111111111": "Stake Program",
-	"BPFLoaderUpgradeab1e11111111111111111111111": "BPF Loader",
-	"ComputeBudget111111111111111111111111111111": "Compute Budget",
-	"AddressLookupTab1e1111111111111111111111111": "Address Lookup Table",
+	"11111111111111111111111111111111":             "System Program",
+	"Vote111111111111111111111111111111111111111":  "Vote Program",
+	"Stake11111111111111111111111111111111111111":  "Stake Program",
+	"Config1111111111111111111111111111111111111":  "Config Program",
+	"BPFLoaderUpgradeab1e11111111111111111111111":  "BPF Loader",
+	"BPFLoader2111111111111111111111111111111111":  "BPF Loader 2",
+	"ComputeBudget111111111111111111111111111111":  "Compute Budget",
+	"AddressLookupTab1e1111111111111111111111111":  "Address Lookup Table",
+	"Ed25519SigVerify111111111111111111111111111":  "Ed25519 SigVerify",
+	"KeccakSecp256k11111111111111111111111111111":  "Secp256k1 SigVerify",
+	"NativeLoader1111111111111111111111111111111":  "Native Loader",
 }
 
 var splTokenProgramIDs = map[string]bool{
@@ -93,8 +100,8 @@ type SolanaPuller struct {
 }
 
 // NewSolanaPuller creates a new Solana puller
-func NewSolanaPuller(config core.Config, logger core.Logger, metrics core.MetricsCollector) *SolanaPuller {
-	base := NewBaseDataPullerPlugin("solana", "1.0.0", config, logger, metrics, nil)
+func NewSolanaPuller(config core.Config, logger core.Logger, metrics core.MetricsCollector, eventBus core.EventBus) *SolanaPuller {
+	base := NewBaseDataPullerPlugin("solana", "1.0.0", config, logger, metrics, eventBus)
 
 	return &SolanaPuller{
 		BaseDataPullerPlugin: base,
@@ -110,17 +117,48 @@ func NewSolanaPuller(config core.Config, logger core.Logger, metrics core.Metric
 func (p *SolanaPuller) PullEvents(ctx context.Context, fromSlot, toSlot uint64) ([]core.BlockchainEvent, error) {
 	var events []core.BlockchainEvent
 
+	originalToSlot := toSlot
+
+	batchSize := uint64(p.GetConfig().BatchSize)
+	if batchSize == 0 {
+		batchSize = 100
+	}
+	if toSlot-fromSlot+1 > batchSize {
+		toSlot = fromSlot + batchSize - 1
+	}
+
+	consecutiveFailures := 0
+	const skipProbe = 3
+
 	for slot := fromSlot; slot <= toSlot; slot++ {
 		blockEvents, err := p.getEventsFromSlot(ctx, slot)
 		if err != nil {
-			p.RecordError(err)
-			p.LogWarn("failed to get events from slot",
-				"slot", slot, "from_slot", fromSlot, "to_slot", toSlot, "error", err)
+			consecutiveFailures++
+			if consecutiveFailures <= skipProbe || consecutiveFailures%10 == 0 {
+				p.LogWarn("failed to get events from slot",
+					"slot", slot, "from_slot", fromSlot, "to_slot", toSlot, "error", err)
+			}
 			if p.metricsCollector != nil {
 				p.metricsCollector.RecordCounter("solana_puller_slot_errors", 1, map[string]string{})
 			}
+			if firstAvailable := parseFirstAvailableBlock(err.Error()); firstAvailable > 0 && firstAvailable > slot {
+				slot = firstAvailable - 1
+				newToSlot := firstAvailable + batchSize - 1
+				if newToSlot > originalToSlot {
+					newToSlot = originalToSlot
+				}
+				if newToSlot > toSlot {
+					toSlot = newToSlot
+				}
+				consecutiveFailures = 0
+				continue
+			}
+			if consecutiveFailures >= skipProbe && len(events) == 0 {
+				return events, nil
+			}
 			continue
 		}
+		consecutiveFailures = 0
 		events = append(events, blockEvents...)
 	}
 
@@ -151,6 +189,26 @@ func (p *SolanaPuller) SubscribeToEvents(ctx context.Context, handler func(core.
 	p.eventHandlers = append(p.eventHandlers, handler)
 	p.mu.Unlock()
 	return nil
+}
+
+func parseFirstAvailableBlock(errMsg string) uint64 {
+	const prefix = "First available block: "
+	idx := strings.Index(errMsg, prefix)
+	if idx < 0 {
+		return 0
+	}
+	numStr := errMsg[idx+len(prefix):]
+	end := strings.IndexFunc(numStr, func(r rune) bool {
+		return r < '0' || r > '9'
+	})
+	if end > 0 {
+		numStr = numStr[:end]
+	}
+	n, err := strconv.ParseUint(numStr, 10, 64)
+	if err != nil {
+		return 0
+	}
+	return n
 }
 
 // GetStats returns puller statistics
@@ -232,7 +290,7 @@ type solanaInstruction struct {
 
 // solanaBlock represents a simplified Solana block
 type solanaBlock struct {
-	Slot         uint64              `json:"slot"`
+	Slot         uint64              `json:"blockHeight"`
 	Blockhash    string              `json:"blockhash"`
 	BlockTime    int64               `json:"blockTime"`
 	Transactions []solanaTransaction `json:"transactions"`
