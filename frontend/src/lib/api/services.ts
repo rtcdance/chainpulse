@@ -77,7 +77,7 @@ export async function probeEndpoint(baseUrl: string, path: string): Promise<Endp
     if (token) headers['Authorization'] = `Bearer ${token}`
 
     const abortController = new AbortController()
-    const timeoutId = setTimeout(() => abortController.abort(), 4000)
+    const timeoutId = setTimeout(() => abortController.abort(), 8000)
 
     const response = await fetch(url, { headers, signal: abortController.signal })
     clearTimeout(timeoutId)

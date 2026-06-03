@@ -129,7 +129,22 @@ export async function requestFirstMatch<TResult>(
 
       const resp = await fetch(url, fetchInit)
 
-      const data: unknown = options.responseType === 'text' ? await resp.text() : await resp.json()
+      let data: unknown
+      if (options.responseType === 'text') {
+        data = await resp.text()
+      } else {
+        const contentType = resp.headers.get('content-type') || ''
+        if (contentType.includes('application/json')) {
+          data = await resp.json()
+        } else {
+          const text = await resp.text()
+          if (resp.status >= 200 && resp.status < 300) {
+            try { data = JSON.parse(text) } catch { data = {} }
+          } else {
+            throw new Error(`request failed ${resp.status} on ${candidate}`)
+          }
+        }
+      }
 
       if (resp.status >= 200 && resp.status < 300) {
         return transform({ status: resp.status, data }, candidate)
