@@ -1163,6 +1163,12 @@ case "${1:-deploy}" in
         build_images
         start_stack
         start_simulation
+        info "Waiting 30s for events to accumulate..."
+        sleep 30
+        run_verification
+        show_status
+        info "ChainPulse is running. Use '$0 status' to check later."
+        info "Use '$0 stop' to shut down."
         ;;
     stop)
         stop_simulation
