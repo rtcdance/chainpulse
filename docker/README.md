@@ -1,222 +1,116 @@
-# Docker Configuration
+# Docker 部署
 
-This directory contains Docker-related configuration files for ChainPulse.
+## 一键部署
 
-## Files
+支持两种模式：**单体（monolith）** 包含所有路由，**微服务（microservices）** 4 个独立服务。
 
-- **Dockerfile** - Multi-stage Docker image build configuration
-- **Dockerfile.microservices** - Multi-stage Docker image build configuration for microservice commands
-- **docker-compose.yml** - Complete local development environment with all services
-- **docker-compose.microservices.yml** - Four-foreground-service microservice profile with shared infra and observability
-- **README.md** - This file
-
-## Quick Start
-
-### Using Docker Compose (Recommended for Development)
+### 单体模式
 
 ```bash
-# Start all services
-docker-compose up -d
-
-# View logs
-docker-compose logs -f
-
-# Stop services
-docker-compose down
-
-# Clean up volumes
-docker-compose down -v
+bash docker/deploy-monolith.sh
 ```
 
-Before running compose readiness scripts, make sure the Docker daemon is
-actually reachable from the current Docker context. On local macOS setups this
-usually means Docker Desktop must already be running.
+部署后访问：
+- H5 前端：[http://localhost:3000](http://localhost:3000)
+- REST API：[http://localhost:8080](http://localhost:8080)
 
-If Docker CLI is present but the daemon cannot be reached, see:
+| 服务名 | 端口 | 说明 |
+|--------|------|------|
+| `chainpulse-app` | 8080, 50051 | 单体应用（REST + WS + gRPC） |
+| `chainpulse-frontend` | 3000 | H5 前端 |
+| `chainpulse-anvil-ethereum` | 8545 | Anvil Ethereum 链 |
+| `chainpulse-anvil-polygon` | 8547 | Anvil Polygon 链 |
+| `chainpulse-anvil-bsc` | 8546 | Anvil BSC 链 |
+| `chainpulse-anvil-optimism` | 8549 | Anvil Optimism 链 |
+| `chainpulse-anvil-arbitrum` | 8548 | Anvil Arbitrum 链 |
+| `chainpulse-anvil-base` | 8550 | Anvil Base 链 |
+| `chainpulse-anvil-avalanche` | 8551 | Anvil Avalanche 链 |
+| `chainpulse-postgres` | 5432 | PostgreSQL |
+| `chainpulse-redis` | 6379 | Redis |
+| `chainpulse-mongodb` | 27017 | MongoDB |
+| `chainpulse-kafka` | 9092 | Kafka |
+| `chainpulse-prometheus` | 9090 | Prometheus |
+| `chainpulse-grafana` | 3001 | Grafana |
 
-- [`DOCKER_RUNTIME_RECOVERY.md`](/Users/mingo/Applications/workspace/web3/project/chainpulse/docs/DOCKER_RUNTIME_RECOVERY.md)
-
-### Building Docker Image Manually
+### 微服务模式
 
 ```bash
-# Build image
-docker build -t chainpulse:latest -f docker/Dockerfile .
-
-# Run container
-docker run -p 8080:8080 -p 50051:50051 -p 8081:8081 chainpulse:latest
+bash docker/deploy-microservices.sh
 ```
 
-## Services Included
+部署后访问：
+- H5 前端：[http://localhost:13000](http://localhost:13000)
+- API 网关：[http://localhost:8080](http://localhost:8080)
 
-The `docker-compose.yml` includes:
+| 服务名 | 端口 | 说明 |
+|--------|------|------|
+| `chainpulse-api-gateway` | 8080 | API 网关（入口） |
+| `chainpulse-api-service` | 8081 | 事件查询 / 统计 |
+| `chainpulse-event-processor` | 8082 | Kafka 消费 + 存储 |
+| `chainpulse-puller` | 8083 | 链事件主动拉取 |
+| `chainpulse-ms-frontend` | 13000 | H5 前端 |
+| `chainpulse-anvil` | 8545 | Anvil（多链合用一个节点） |
+| `chainpulse-solana-validator` | 8899, 8900 | Solana 验证节点 |
+| `chainpulse-postgres` | 5432 | PostgreSQL |
+| `chainpulse-redis` | 6379 | Redis |
+| `chainpulse-kafka` | 9092 | Kafka |
+| `chainpulse-prometheus` | 9090 | Prometheus |
+| `chainpulse-grafana` | 3000 | Grafana |
 
-1. **PostgreSQL** (port 5432)
-   - Database for event storage
-   - Credentials: `chainpulse` / `chainpulse_password`
-   - Database: `chainpulse`
+### 调度入口
 
-2. **Redis** (port 6379)
-   - Cache backend
-   - Used for event caching and session storage
-
-3. **Kafka** (port 9092)
-   - Message queue for event processing
-   - Includes Zookeeper (port 2181)
-
-4. **ChainPulse Application** (ports 8080, 50051, 8081)
-   - REST API: http://localhost:8080
-   - gRPC API: localhost:50051
-   - Metrics: http://localhost:8081/metrics
-
-### Microservice Profile
-
-The `docker-compose.microservices.yml` profile includes:
-
-1. **Infrastructure**
-   - PostgreSQL
-   - Redis
-   - Kafka + Zookeeper
-   - Anvil
-2. **Observability**
-   - Prometheus
-   - Grafana
-   - Jaeger
-3. **Foreground Microservices**
-   - `api-gateway`
-   - `api-service`
-   - `event-processor`
-   - `puller`
-
-### Grafana Provisioning
-
-Both `docker-compose.yml` variants that include observability support mount the same
-local Grafana provisioning directories:
-
-- `monitoring/grafana/datasources`
-- `monitoring/grafana/dashboards`
-
-That means the dev and microservices compose stacks load the same Prometheus
-datasource and the same blueprint `8.1` local debug monitor dashboard.
-
-## Environment Variables
-
-The docker-compose configuration sets these environment variables:
-
-```
-CHAINPULSE_LOG_LEVEL=INFO
-CHAINPULSE_DEPLOYMENT_MODE=monolithic
-CHAINPULSE_BLOCKCHAIN_NODE_URL=http://localhost:8545
-CHAINPULSE_API_PORT=8080
-CHAINPULSE_GRPC_PORT=50051
-CHAINPULSE_METRICS_PORT=8081
-CHAINPULSE_DATA_PULLER_TYPE=https_jsonrpc
-CHAINPULSE_PULLER_POLL_INTERVAL_MS=1000
-CHAINPULSE_CACHE_TYPE=redis
-CHAINPULSE_CACHE_TTL_SECONDS=3600
-CHAINPULSE_DATABASE_TYPE=postgres
-CHAINPULSE_DATABASE_URL=postgres://chainpulse:chainpulse_password@postgres:5432/chainpulse
-CHAINPULSE_MQ_TYPE=kafka
-CHAINPULSE_MQ_BROKERS=kafka:29092
-```
-
-## Health Checks
-
-All services include health checks:
-
-- **PostgreSQL**: Checks if database is ready
-- **Redis**: Checks if Redis responds to PING
-- **Kafka**: Checks broker API versions
-- **ChainPulse**: Checks `/health` endpoint
-
-## Volumes
-
-Persistent data is stored in Docker volumes:
-
-- `postgres_data` - PostgreSQL database files
-- `redis_data` - Redis data files
-
-## Networking
-
-All services are connected via the `chainpulse-network` bridge network, allowing service-to-service communication using service names.
-
-## Development Workflow
-
-1. **Start services**:
-   ```bash
-   docker-compose up -d
-   ```
-
-2. **Check service status**:
-   ```bash
-   docker-compose ps
-   ```
-
-3. **View logs**:
-   ```bash
-   docker-compose logs -f chainpulse
-   ```
-
-4. **Access services**:
-   - REST API: `curl http://localhost:8080/health`
-   - PostgreSQL: `psql -h localhost -U chainpulse -d chainpulse`
-   - Redis: `redis-cli -h localhost`
-
-5. **Stop services**:
-   ```bash
-   docker-compose down
-   ```
-
-## Production Deployment
-
-For production deployment, see the [Deployment Guide](../docs/guides/DEPLOYMENT_GUIDE.md).
-
-Key considerations:
-- Use environment-specific configuration
-- Set strong passwords for databases
-- Use external database services (RDS, Cloud SQL)
-- Configure proper resource limits
-- Set up monitoring and logging
-- Use container orchestration (Kubernetes)
-
-## Troubleshooting
-
-### Services won't start
 ```bash
-# Check logs
-docker-compose logs
-
-# Verify Docker daemon is running
-docker ps
+bash docker/deploy-and-simulate.sh monolith       # 单体模式
+bash docker/deploy-and-simulate.sh microservices  # 微服务模式（默认）
+bash docker/deploy-and-simulate.sh status         # 查看状态
+bash docker/deploy-and-simulate.sh stop           # 停止
 ```
 
-### Port conflicts
-```bash
-# Change ports in docker-compose.yml
-# Or stop conflicting services
-docker ps
-docker stop <container_id>
+## 能力对比
+
+| 特性 | 单体 | 微服务 |
+|------|:----:|:------:|
+| REST API | ✅ | ✅ |
+| WebSocket 实时监听 | ✅ | ✅ |
+| SIWE 认证 | ✅ | ✅ |
+| 事件名解析 | ✅ | ✅ |
+| Rate Limiter | ✅ | ✅ |
+| Admin API Key CRUD | ✅ | ❌ |
+| Webhook 注册 | ✅ | ❌ |
+| Export 导出 | ✅ | ❌ |
+| Solana 拉取 | ❌ | ✅ |
+| 可伸缩部署 | ❌ | ✅ |
+
+## 架构
+
+```
+单体模式                        微服务模式
+┌──────────────┐               ┌──────────────┐  8080
+│ chainpulse   │ 8080          │ api-gateway  │──────▶ H5
+│ (所有功能)    │──────▶ H5     │ (路由/鉴权)  │
+│              │               └──────┬───────┘
+│ REST API     │                      │
+│ WS           │              ┌───────┴────────┐  8081
+│ Admin Key    │              │ api-service     │
+│ Webhook      │              │ 事件查询/统计    │
+│ Export       │              └───────┬────────┘
+│ Reorg        │                      │
+└──────────────┘              ┌───────┴────────┐  8082
+                              │ event-processor│
+                              │ Kafka 消费      │
+                              └───────┬────────┘
+                                      │
+                              ┌───────┴────────┐  8083
+                              │ puller          │
+                              │ 链事件拉取       │
+                              └────────────────┘
 ```
 
-### Database connection issues
-```bash
-# Verify PostgreSQL is running
-docker-compose exec postgres pg_isready
+## 部署脚本
 
-# Check connection string
-echo $CHAINPULSE_DATABASE_URL
-```
-
-### Kafka issues
-```bash
-# Check Kafka broker
-docker-compose exec kafka kafka-broker-api-versions.sh --bootstrap-server localhost:9092
-
-# List topics
-docker-compose exec kafka kafka-topics.sh --list --bootstrap-server localhost:9092
-```
-
-## See Also
-
-- [Deployment Guide](../docs/guides/DEPLOYMENT_GUIDE.md)
-- [Operations Guide](../docs/guides/OPERATIONS_GUIDE.md)
-- [Developer Guide](../docs/guides/DEVELOPER_GUIDE.md)
+| 脚本 | 用途 |
+|------|------|
+| `deploy-monolith.sh` | 单体构建 + 部署 + 模拟 + 验证 |
+| `deploy-microservices.sh` | 微服务构建 + 部署 + 模拟 + 验证 |
+| `deploy-and-simulate.sh` | 调度入口 |
+| `acceptance.sh` | 单体镜像构建 |
