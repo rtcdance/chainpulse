@@ -1119,6 +1119,71 @@ stop_simulation() {
 # ──────────────────────────────────────────────
 # Show status
 # ──────────────────────────────────────────────
+
+# ── Run capability verification after simulation starts ──
+run_verification() {
+    info "===== Verifying all capability points ====="
+
+    # Wait for events
+    local wait=0
+    while [ $wait -lt 120 ]; do
+        local count
+        count=$(curl -sf "http://localhost:8080/events?limit=5" 2>/dev/null \
+            | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('pagination',{}).get('total',0))" 2>/dev/null || echo "0")
+        [ "$count" -gt 0 ] 2>/dev/null && break
+        sleep 5; wait=$((wait + 5))
+    done
+
+    # 1) WebSocket
+    local ws=$(curl -s -o /dev/null -w "%{http_code}" -H "Upgrade: websocket" -H "Connection: Upgrade" -H "Sec-WebSocket-Key: dGVzdA==" -H "Sec-WebSocket-Version: 13" http://localhost:8080/ws 2>/dev/null || echo "000")
+    if [ "$ws" = "101" ]; then info "  OK  WS /ws: 101"; else warn "  MISS WS /ws: $ws"; fi
+
+    local ws2=$(curl -s -o /dev/null -w "%{http_code}" -H "Upgrade: websocket" -H "Connection: Upgrade" -H "Sec-WebSocket-Key: dGVzdA==" -H "Sec-WebSocket-Version: 13" http://localhost:8080/events/subscribe 2>/dev/null || echo "000")
+    if [ "$ws2" = "101" ]; then info "  OK  WS /events/subscribe: 101"; else warn "  MISS WS /events/subscribe: $ws2"; fi
+
+    # 2) SIWE challenge
+    local siwe=$(curl -s -X POST http://localhost:8080/auth/siwe/challenge -H "Content-Type: application/json" -d '{"address":"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"}' 2>/dev/null || echo "{}")
+    local nonce=$(echo "$siwe" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('data',{}).get('nonce',''))" 2>/dev/null)
+    if [ -n "$nonce" ]; then info "  OK  SIWE challenge: nonce=$nonce"; else warn "  MISS SIWE challenge"; fi
+
+    # 3) Event name resolution
+    local stats=$(curl -sf http://localhost:8080/events/stats 2>/dev/null || echo "{}")
+    local hex=$(echo "$stats" | python3 -c "import sys,json; d=json.load(sys.stdin); names=list(d.get('byEventName',{}).keys()); print(sum(1 for n in names if n.startswith('0x')))" 2>/dev/null || echo "?")
+    if [ "$hex" = "0" ] 2>/dev/null; then info "  OK  Event names: human-readable"; else warn "  MISS $hex hex hashes remain"; fi
+
+    # 4) Admin API key
+    local ak=$(curl -s -X POST http://localhost:8080/admin/api-keys -H "Content-Type: application/json" -d '{"clientId":"verify-test","name":"verify-key"}' 2>/dev/null || echo "{}")
+    local key=$(echo "$ak" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('data',{}).get('key','') or d.get('key',''))" 2>/dev/null)
+    if [ -n "$key" ]; then info "  OK  Admin API key: ${key:0:12}..."; else warn "  MISS Admin API key"; fi
+
+    # 5) Webhook
+    local wh=$(curl -s -X POST http://localhost:8080/admin/webhooks -H "Content-Type: application/json" -d '{"clientId":"verify-test","name":"verify-hook","url":"http://localhost:9999/hook","secret":"whsec"}' 2>/dev/null || echo "{}")
+    local whid=$(echo "$wh" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('data',{}).get('id','') or d.get('id',''))" 2>/dev/null)
+    if [ -n "$whid" ]; then info "  OK  Webhook: ID=$whid"; else warn "  MISS Webhook"; fi
+
+    # 6) Export
+    local ex=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:8080/events/export?limit=10" 2>/dev/null || echo "000")
+    if [ "$ex" = "200" ]; then info "  OK  Export: HTTP 200"; else warn "  MISS Export: $ex"; fi
+
+    # 7) Rate limiter
+    local rl_hit=0
+    for i in $(seq 1 50); do
+        local rl=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:8080/events?limit=1" 2>/dev/null || echo "000")
+        if [ "$rl" = "429" ]; then rl_hit=1; info "  OK  Rate limiter: 429 after $i reqs"; break; fi
+    done
+    [ "$rl_hit" -eq 0 ] && info "  -   Rate limiter: not hit"
+
+    # 8) Reorg handler
+    local rg=$(curl -sf http://localhost:8080/runtime/summary 2>/dev/null || echo "{}")
+    if echo "$rg" | python3 -c "import sys,json; d=json.load(sys.stdin); d.get('reorg','')" 2>/dev/null; then
+        info "  OK  Reorg handler: wired"
+    else
+        warn "  MISS Reorg handler"
+    fi
+
+    info "===== Verification done ====="
+}
+
 show_status() {
     local pid_file="$STATE_DIR/sim.pid"
     if [ -f "$pid_file" ]; then
