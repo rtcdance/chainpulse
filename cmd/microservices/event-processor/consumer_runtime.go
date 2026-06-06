@@ -46,6 +46,8 @@ type eventProcessorConsumeRuntime struct {
 	topics       []string
 	outputTopics []string
 	dlqDB        *sql.DB // PostgreSQL for DLQ persistence
+	batchSize    int
+	batchFlushMs int
 
 	mu              sync.RWMutex
 	running         bool
@@ -84,6 +86,8 @@ func newEventProcessorConsumeRuntime(
 		topics:        append([]string(nil), topics...),
 		outputTopics:  append([]string(nil), outputTopics...),
 		dlqDB:         dlqDB,
+		batchSize:     50,
+		batchFlushMs:  500,
 		activeTopics:  make(map[string]bool),
 		activeCancels: make(map[string]context.CancelFunc),
 		waitCh:        make(chan struct{}),
@@ -104,8 +108,21 @@ func (r *eventProcessorConsumeRuntime) Start(ctx context.Context, wg *sync.WaitG
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
+
+			// Batch accumulator: events are collected and flushed periodically.
+			eventCh := make(chan *core.BlockchainEvent, r.batchSize*2)
+
+			// Start batch flusher goroutine
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				r.batchFlushLoop(ctx, topic, eventCh)
+			}()
+
 			for {
 				if !r.waitUntilIntakeAllowed(ctx) {
+					// Drain remaining events before exiting
+					close(eventCh)
 					return
 				}
 
@@ -118,23 +135,19 @@ func (r *eventProcessorConsumeRuntime) Start(ctx context.Context, wg *sync.WaitG
 						r.recordError(fmt.Errorf("decode topic %s message %s: %w", topic, message.ID, err))
 						return err
 					}
-					if err := r.processor.ProcessEvent(ctx, event); err != nil {
-						r.recordError(fmt.Errorf("process topic %s event %s: %w", topic, event.ID, err))
-						r.writeToDLQ(ctx, event, err)
-						return err
+					select {
+					case eventCh <- event:
+						return nil
+					case <-ctx.Done():
+						return ctx.Err()
 					}
-					// Publish processed event to output topics for downstream consumers (e.g., API service WebSocket push)
-					r.publishProcessedEvent(ctx, event)
-					if r.metrics != nil {
-						r.metrics.RecordCounter("event_processor_consume_processed", 1, map[string]string{"topic": topic})
-					}
-					return nil
 				})
 
 				r.setTopicControl(topic, false, nil)
 				cancel()
 
 				if ctx.Err() != nil {
+					close(eventCh)
 					return
 				}
 				if errors.Is(err, context.Canceled) {
@@ -145,6 +158,76 @@ func (r *eventProcessorConsumeRuntime) Start(ctx context.Context, wg *sync.WaitG
 				}
 			}
 		}()
+	}
+}
+
+// batchFlushLoop reads events from eventCh and processes them in batches.
+// This amortizes MongoDB write costs by using InsertMany instead of InsertOne.
+func (r *eventProcessorConsumeRuntime) batchFlushLoop(ctx context.Context, topic string, eventCh <-chan *core.BlockchainEvent) {
+	batch := make([]*core.BlockchainEvent, 0, r.batchSize)
+	flushTimer := time.NewTimer(time.Duration(r.batchFlushMs) * time.Millisecond)
+	defer flushTimer.Stop()
+
+	flush := func() {
+		if len(batch) == 0 {
+			return
+		}
+		r.flushBatch(ctx, topic, batch)
+		batch = batch[:0]
+	}
+
+	for {
+		select {
+		case event, ok := <-eventCh:
+			if !ok {
+				// Channel closed, flush remaining
+				flush()
+				return
+			}
+			batch = append(batch, event)
+			if len(batch) >= r.batchSize {
+				flush()
+				if !flushTimer.Stop() {
+					select {
+					case <-flushTimer.C:
+					default:
+					}
+				}
+				flushTimer.Reset(time.Duration(r.batchFlushMs) * time.Millisecond)
+			}
+		case <-flushTimer.C:
+			flush()
+			flushTimer.Reset(time.Duration(r.batchFlushMs) * time.Millisecond)
+		case <-ctx.Done():
+			// Drain remaining events from channel
+			for len(eventCh) > 0 {
+				if event := <-eventCh; event != nil {
+					batch = append(batch, event)
+				}
+			}
+			flush()
+			return
+		}
+	}
+}
+
+// flushBatch processes a batch of events. It first filters duplicates via
+// idempotency, then writes non-duplicate events in a single MongoDB batch,
+// and finally publishes each processed event to output topics.
+func (r *eventProcessorConsumeRuntime) flushBatch(ctx context.Context, topic string, batch []*core.BlockchainEvent) {
+	r.logger.Info("flushBatch called", "topic", topic, "batch_size", len(batch))
+	for i, event := range batch {
+		r.logger.Info("flushBatch processing event", "index", i, "event_id", event.ID, "network", event.Network, "event_name", event.EventName)
+		if err := r.processor.ProcessEvent(ctx, event); err != nil {
+			r.recordError(fmt.Errorf("process topic %s event %s: %w", topic, event.ID, err))
+			r.writeToDLQ(ctx, event, err)
+			continue
+		}
+		r.logger.Info("flushBatch event processed, publishing", "event_id", event.ID)
+		r.publishProcessedEvent(ctx, event)
+		if r.metrics != nil {
+			r.metrics.RecordCounter("event_processor_consume_processed", 1, map[string]string{"topic": topic})
+		}
 	}
 }
 

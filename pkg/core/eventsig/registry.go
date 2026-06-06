@@ -142,6 +142,12 @@ var knownEventSignatureNames = map[string]string{
 	"0x77bfcfadcbbca824ea20cb8a97333575329c16b1df87011370eaf6deaf39f0eb": "Liquidate",
 	// V2 TxToL2(uint256,address,address,uint256,uint256,uint256) — Arbitrum (different params)
 	"0xf02b6b8b38494aab9bdeed9b28253376a0a94a4cec956a1c644d9a013edb9280": "TxToL2",
+	// V3 Swap(address,uint256,uint256,uint256,uint256) — EventEmitter simulator
+	"0x49926bbebe8474393f434dfa4f78694c0923efa07d19f2284518bfabd06eb737": "Swap",
+	// V3 Supply(address,uint256) — EventEmitter simulator
+	"0xcbc04eca7e9da35cb1393a6135a199ca52e450d5e9251cbd99f7847d33a36750": "Supply",
+	// V3 Borrow(address,uint256) — EventEmitter simulator
+	"0xadacf827efe383160192c092d8658471945c074229a9746679b5e2b74adff191": "Borrow",
 }
 
 // knownNameToSignatures provides reverse lookup from event name to canonical signature hash.

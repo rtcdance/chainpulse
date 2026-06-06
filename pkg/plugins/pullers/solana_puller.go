@@ -491,9 +491,11 @@ func (p *SolanaPuller) getEventsFromSlot(ctx context.Context, slot uint64) ([]co
 		eventID := fmt.Sprintf("sol-%d-%d-0", slot, i)
 
 		var eventSig common.Hash
+		var txHash common.Hash
 		if sig != "" {
 			hash := crypto.Keccak256Hash([]byte(sig))
 			copy(eventSig[:], hash[:32])
+			txHash = hash
 		}
 
 		eventName := parseInstructionType(programID)
@@ -507,9 +509,9 @@ func (p *SolanaPuller) getEventsFromSlot(ctx context.Context, slot uint64) ([]co
 			ChainID:          "solana",
 			Network:          "solana",
 			BlockNumber:      slot,
-			BlockHash:        common.HexToHash(block.Blockhash),
+			BlockHash:        crypto.Keccak256Hash([]byte(block.Blockhash)),
 			BlockTimestamp:   block.BlockTime,
-			TransactionHash:  common.HexToHash(sig),
+			TransactionHash:  txHash,
 			TransactionIndex: uint64(i),
 			LogIndex:         uint64(i),
 			ContractAddress:  instProgramIDToAddress(programID),
@@ -532,10 +534,10 @@ func instProgramIDToAddress(programID string) common.Address {
 	if programID == "" {
 		return common.HexToAddress("0x0")
 	}
-	if len(programID) >= 40 {
-		return common.HexToAddress(programID[:40])
-	}
-	return common.HexToAddress("0x" + programID[:])
+	// Solana program IDs are base58-encoded 32-byte keys, not valid hex.
+	// Hash the program ID and take first 20 bytes for a deterministic non-zero address.
+	hash := crypto.Keccak256Hash([]byte(programID))
+	return common.BytesToAddress(hash[:20])
 }
 
 // solanaRPCRequest represents a JSON-RPC request to Solana

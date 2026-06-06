@@ -128,6 +128,8 @@ func (p *KafkaMQPlugin) Initialize(ctx context.Context, config core.Config) erro
 		Addr:                   kafka.TCP(p.brokers...),
 		Balancer:               &kafka.LeastBytes{},
 		AllowAutoTopicCreation: false,
+		BatchTimeout:           10 * time.Millisecond,
+		BatchSize:              100,
 	}
 
 	p.producer = &KafkaProducer{
@@ -470,7 +472,7 @@ func (p *KafkaMQPlugin) ConsumeMessages(ctx context.Context, topic string, handl
 		Brokers:        p.brokers,
 		Topic:          topic,
 		GroupID:        p.consumerGroup,
-		StartOffset:    kafka.LastOffset,
+		StartOffset:    kafka.FirstOffset,
 		CommitInterval: p.getCommitInterval(),
 		MaxBytes:       int(p.getMaxBytes()),
 	})
@@ -586,7 +588,7 @@ func (p *KafkaMQPlugin) ConsumeMessages(ctx context.Context, topic string, handl
 						Brokers:        p.brokers,
 						Topic:          topic,
 						GroupID:        p.consumerGroup,
-						StartOffset:    kafka.LastOffset,
+						StartOffset:    kafka.FirstOffset,
 						CommitInterval: p.getCommitInterval(),
 						MaxBytes:       int(p.getMaxBytes()),
 					})

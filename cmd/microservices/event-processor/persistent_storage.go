@@ -24,7 +24,7 @@ func newPersistentEventProcessorStorage(
 	return &persistentEventProcessorStorage{
 		eventStore:    eventStore,
 		metadataStore: metadataStore,
-		timeout:       10 * time.Second,
+		timeout:       30 * time.Second,
 	}
 }
 
@@ -113,9 +113,6 @@ func (s *persistentEventProcessorStorage) WriteBatch(ctx context.Context, events
 	}
 
 	if s.metadataStore != nil {
-		// Metadata is written individually since the batch API doesn't guarantee
-		// metadata atomicity across both stores. Duplicates are handled by the
-		// unique constraint and on-conflict logic.
 		for _, event := range events {
 			if event == nil {
 				continue

@@ -20,8 +20,8 @@ var sharedHTTPClient = &http.Client{
 		MaxIdleConns:        100,
 		MaxIdleConnsPerHost: 20,
 		MaxConnsPerHost:     50,
-		IdleConnTimeout:     90 * time.Second,
-		DisableKeepAlives:   false,
+		IdleConnTimeout:     30 * time.Second,
+		DisableKeepAlives:   true,
 	},
 }
 
