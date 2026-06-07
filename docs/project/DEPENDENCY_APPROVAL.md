@@ -1,5 +1,7 @@
 # Dependency Approval Log
 
+Approved by: mingo (2026-06-07) — in-flight refactor (massive dead code removal across pkg/)
+
 **Purpose**: Track and approve all external dependencies before adding to go.mod
 
 ## Approval Process

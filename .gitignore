@@ -46,6 +46,10 @@ Thumbs.db
 .ai-archive/
 .kiro/
 .trae/
+.omo/
+.opencode/
+.comate/
+.crush/
 
 # MCP config (contains local tokens, do not commit)
 .mcp.json

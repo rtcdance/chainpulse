@@ -35,8 +35,6 @@ Tech stack: go-ethereum, PostgreSQL/MongoDB, Kafka/ZeroMQ, Redis, Consul, OpenTe
 - `pkg/ports/` — Hexagonal 架构 port 定义（28+ interfaces）
 - `pkg/evm/` — EVM 事件解码（chained\_decoder, event\_decoder）
 - `pkg/gas/` — Gas 估算（EIP-1559, EIP-4844 blob base fee）
-- `pkg/mev/` — MEV 构建与 Flashbots 集成
-- `cmd/playground/` — 零依赖内存模式入口
 - `cmd/playground/` — 零依赖内存 playground
 - `.codex/skills/` — AI 技能定义（按需引用）
 
