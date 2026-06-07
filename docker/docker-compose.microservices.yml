@@ -1,3 +1,5 @@
+name: chainpulse
+
 services:
   postgres:
     image: postgres:15-alpine
@@ -102,9 +104,11 @@ services:
       - "--chain-id"
       - "31337"
       - "--accounts"
-      - "10"
+      - "5"
       - "--balance"
-      - "10000"
+      - "1000"
+      - "--block-time"
+      - "5"
     healthcheck:
       test: ["CMD", "cast", "rpc", "--rpc-url", "http://127.0.0.1:8545", "eth_chainId"]
       interval: 10s
@@ -114,6 +118,11 @@ services:
       chainpulse:
         aliases:
           - ethereum-rpc
+    deploy:
+      resources:
+        limits:
+          cpus: '0.40'
+          memory: 512M
 
   solana-validator:
     image: ${SOLANA_VALIDATOR_IMAGE:-tchambard/solana-test-validator:latest}
@@ -140,6 +149,11 @@ services:
     networks:
       chainpulse:
         aliases: [solana-rpc]
+    deploy:
+      resources:
+        limits:
+          cpus: '0.20'
+          memory: 1536M
 
   mongodb:
     image: mongo:7
@@ -232,6 +246,7 @@ services:
       mongodb:
         condition: service_healthy
     environment:
+      GOMAXPROCS: "1"
       API_SERVICE_PORT: 8081
       INSTANCE_ID: api-service-1
       API_SERVICE_DB_HOST: postgres
@@ -257,6 +272,7 @@ services:
       api-service:
         condition: service_started
     environment:
+      GOMAXPROCS: "1"
       GATEWAY_PORT: 8080
       INSTANCE_ID: api-gateway-1
       GATEWAY_UPSTREAM_SERVICES: http://api-service:8081
@@ -284,6 +300,7 @@ services:
       kafka:
         condition: service_healthy
     environment:
+      GOMAXPROCS: "1"
       PROCESSOR_PORT: 8082
       INSTANCE_ID: event-processor-1
       DATABASE_URL: ${DATABASE_URL}
@@ -315,6 +332,7 @@ services:
       anvil:            { condition: service_healthy }
       solana-validator: { condition: service_healthy }
     environment:
+      GOMAXPROCS: "1"
       PULLER_PORT: 8083
       INSTANCE_ID: puller-1
       DATABASE_URL: ${DATABASE_URL}
