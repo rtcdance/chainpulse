@@ -6,32 +6,33 @@ import (
 	"context"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 )
 
 // EventWriter defines write-only contract for event persistence at the domain boundary.
 type EventWriter interface {
 	Initialize(ctx context.Context) error
 	Close(ctx context.Context) error
-	InsertEvent(ctx context.Context, event *core.BlockchainEvent) error
-	InsertEventBatch(ctx context.Context, events []*core.BlockchainEvent) error
+	InsertEvent(ctx context.Context, event *blockchain.BlockchainEvent) error
+	InsertEventBatch(ctx context.Context, events []*blockchain.BlockchainEvent) error
 	DeleteExpiredEvents(ctx context.Context) (int64, error)
 	Health(ctx context.Context) *core.HealthStatus
 }
 
 // EventReader defines read-only contract for event retrieval at the domain boundary.
 type EventReader interface {
-	GetEvent(ctx context.Context, eventID string) (*core.BlockchainEvent, error)
-	GetEventsByChain(ctx context.Context, chainID int, limit int, offset int) ([]*core.BlockchainEvent, error)
-	GetEventsByContract(ctx context.Context, contractAddress string, limit int, offset int) ([]*core.BlockchainEvent, error)
-	GetEventsByEventName(ctx context.Context, eventName string, limit int, offset int) ([]*core.BlockchainEvent, error)
-	GetEventsByBlock(ctx context.Context, blockNumber int64) ([]*core.BlockchainEvent, error)
-	GetEventsByAddress(ctx context.Context, address string, limit int) ([]*core.BlockchainEvent, error)
-	GetEventsByName(ctx context.Context, eventName string, limit int) ([]*core.BlockchainEvent, error)
-	GetEventsPaginated(ctx context.Context, cursor string, limit int) ([]*core.BlockchainEvent, bool, error)
+	GetEvent(ctx context.Context, eventID string) (*blockchain.BlockchainEvent, error)
+	GetEventsByChain(ctx context.Context, chainID int, limit int, offset int) ([]*blockchain.BlockchainEvent, error)
+	GetEventsByContract(ctx context.Context, contractAddress string, limit int, offset int) ([]*blockchain.BlockchainEvent, error)
+	GetEventsByEventName(ctx context.Context, eventName string, limit int, offset int) ([]*blockchain.BlockchainEvent, error)
+	GetEventsByBlock(ctx context.Context, blockNumber int64) ([]*blockchain.BlockchainEvent, error)
+	GetEventsByAddress(ctx context.Context, address string, limit int) ([]*blockchain.BlockchainEvent, error)
+	GetEventsByName(ctx context.Context, eventName string, limit int) ([]*blockchain.BlockchainEvent, error)
+	GetEventsPaginated(ctx context.Context, cursor string, limit int) ([]*blockchain.BlockchainEvent, bool, error)
 	// GetEventsByCorrelationID returns events across all chains that share a
 	// correlation ID, enabling cross-chain event correlation for bridge
 	// transfers, multi-chain contract interactions, and other linked events.
-	GetEventsByCorrelationID(ctx context.Context, correlationID string, limit int, offset int) ([]*core.BlockchainEvent, error)
+	GetEventsByCorrelationID(ctx context.Context, correlationID string, limit int, offset int) ([]*blockchain.BlockchainEvent, error)
 	CountEvents(ctx context.Context) (int64, error)
 	// GetEventStats returns aggregated event counts by chain and by event name,
 	// plus the total reorged count. Uses MongoDB aggregation for efficiency.

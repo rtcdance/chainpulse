@@ -17,7 +17,6 @@ require (
 	github.com/rtcdance/chainpulse/pkg/blockchain v0.0.0-20260522082730-ccbcddf342a5
 	github.com/rtcdance/chainpulse/pkg/chainid v0.0.0-20260522082730-ccbcddf342a5
 	github.com/rtcdance/chainpulse/pkg/configmodel v0.0.0-20260522082730-ccbcddf342a5
-	github.com/rtcdance/chainpulse/pkg/generics v0.0.0-20260522082730-ccbcddf342a5
 	github.com/rtcdance/chainpulse/pkg/histogram v0.0.0-20260522082730-ccbcddf342a5
 	github.com/rtcdance/chainpulse/pkg/logkeys v0.0.0-20260522082730-ccbcddf342a5
 	github.com/rtcdance/chainpulse/pkg/runtimetypes v0.0.0-20260522082730-ccbcddf342a5
@@ -31,8 +30,12 @@ require (
 	go.uber.org/mock v0.6.0
 	golang.org/x/crypto v0.49.0
 	golang.org/x/sync v0.20.0
-	google.golang.org/grpc v1.80.0
 	pgregory.net/rapid v1.2.0
+)
+
+require (
+	github.com/prometheus/client_model v0.6.2 // indirect
+	google.golang.org/grpc v1.80.0 // indirect
 )
 
 require (

@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 )
 
 // MonolithicMemoryDatabase provides a debug-friendly in-memory implementation
@@ -13,16 +14,16 @@ import (
 type MonolithicMemoryDatabase struct {
 	mu      sync.RWMutex
 	started bool
-	events  map[string]*core.BlockchainEvent
-	blocks  map[uint64]*core.Block
+	events  map[string]*blockchain.BlockchainEvent
+	blocks  map[uint64]*blockchain.Block
 	logger  core.Logger
 }
 
 // NewMonolithicMemoryDatabase creates a new in-memory database adapter.
 func NewMonolithicMemoryDatabase(logger core.Logger) *MonolithicMemoryDatabase {
 	return &MonolithicMemoryDatabase{
-		events: make(map[string]*core.BlockchainEvent),
-		blocks: make(map[uint64]*core.Block),
+		events: make(map[string]*blockchain.BlockchainEvent),
+		blocks: make(map[uint64]*blockchain.Block),
 		logger: logger,
 	}
 }
@@ -44,8 +45,8 @@ func (db *MonolithicMemoryDatabase) Stop(_ context.Context) error {
 	db.mu.Lock()
 	defer db.mu.Unlock()
 	db.started = false
-	db.events = make(map[string]*core.BlockchainEvent)
-	db.blocks = make(map[uint64]*core.Block)
+	db.events = make(map[string]*blockchain.BlockchainEvent)
+	db.blocks = make(map[uint64]*blockchain.Block)
 	return nil
 }
 
@@ -66,9 +67,9 @@ func (db *MonolithicMemoryDatabase) StoreEvent(ctx context.Context, event any) e
 		return fmt.Errorf("database not started")
 	}
 
-	blockchainEvent, ok := event.(*core.BlockchainEvent)
+	blockchainEvent, ok := event.(*blockchain.BlockchainEvent)
 	if !ok || blockchainEvent == nil {
-		return fmt.Errorf("event must be *core.BlockchainEvent")
+		return fmt.Errorf("event must be *blockchain.BlockchainEvent")
 	}
 
 	db.events[blockchainEvent.ID] = blockchainEvent
@@ -78,7 +79,7 @@ func (db *MonolithicMemoryDatabase) StoreEvent(ctx context.Context, event any) e
 	return nil
 }
 
-func (db *MonolithicMemoryDatabase) GetEvent(ctx context.Context, id string) (*core.BlockchainEvent, error) {
+func (db *MonolithicMemoryDatabase) GetEvent(ctx context.Context, id string) (*blockchain.BlockchainEvent, error) {
 	db.mu.RLock()
 	defer db.mu.RUnlock()
 	return db.events[id], nil
@@ -104,11 +105,11 @@ func (db *MonolithicMemoryDatabase) BatchStoreEvents(ctx context.Context, events
 	return nil
 }
 
-func (db *MonolithicMemoryDatabase) GetAllEvents(ctx context.Context) ([]*core.BlockchainEvent, error) {
+func (db *MonolithicMemoryDatabase) GetAllEvents(ctx context.Context) ([]*blockchain.BlockchainEvent, error) {
 	db.mu.RLock()
 	defer db.mu.RUnlock()
 
-	results := make([]*core.BlockchainEvent, 0, len(db.events))
+	results := make([]*blockchain.BlockchainEvent, 0, len(db.events))
 	for _, event := range db.events {
 		results = append(results, event)
 	}
@@ -118,11 +119,11 @@ func (db *MonolithicMemoryDatabase) GetAllEvents(ctx context.Context) ([]*core.B
 	return results, nil
 }
 
-func (db *MonolithicMemoryDatabase) GetAllBlocks(ctx context.Context) ([]*core.Block, error) {
+func (db *MonolithicMemoryDatabase) GetAllBlocks(ctx context.Context) ([]*blockchain.Block, error) {
 	db.mu.RLock()
 	defer db.mu.RUnlock()
 
-	results := make([]*core.Block, 0, len(db.blocks))
+	results := make([]*blockchain.Block, 0, len(db.blocks))
 	for _, block := range db.blocks {
 		results = append(results, block)
 	}
@@ -136,11 +137,11 @@ func (db *MonolithicMemoryDatabase) DeleteEvent(ctx context.Context, eventID str
 	return nil
 }
 
-func (db *MonolithicMemoryDatabase) GetEventsByBlockRange(ctx context.Context, fromBlock, toBlock uint64) ([]*core.BlockchainEvent, error) {
+func (db *MonolithicMemoryDatabase) GetEventsByBlockRange(ctx context.Context, fromBlock, toBlock uint64) ([]*blockchain.BlockchainEvent, error) {
 	db.mu.RLock()
 	defer db.mu.RUnlock()
 
-	results := make([]*core.BlockchainEvent, 0)
+	results := make([]*blockchain.BlockchainEvent, 0)
 	for _, event := range db.events {
 		if event.BlockNumber >= fromBlock && event.BlockNumber <= toBlock {
 			results = append(results, event)
@@ -149,7 +150,7 @@ func (db *MonolithicMemoryDatabase) GetEventsByBlockRange(ctx context.Context, f
 	return results, nil
 }
 
-func (db *MonolithicMemoryDatabase) GetBlock(ctx context.Context, blockNumber uint64) (*core.Block, error) {
+func (db *MonolithicMemoryDatabase) GetBlock(ctx context.Context, blockNumber uint64) (*blockchain.Block, error) {
 	db.mu.RLock()
 	defer db.mu.RUnlock()
 	return db.blocks[blockNumber], nil
@@ -194,7 +195,7 @@ func (db *MonolithicMemoryDatabase) MarkEventsAsReorged(ctx context.Context, fro
 	var count int64
 	for id, event := range db.events {
 		if event.BlockNumber >= fromBlock && event.BlockNumber <= toBlock {
-			event.Status = core.EventStatusReorged
+			event.Status = blockchain.EventStatusReorged
 			db.events[id] = event
 			count++
 		}
@@ -208,7 +209,7 @@ func (db *MonolithicMemoryDatabase) GetReorgStats(ctx context.Context) (*core.Re
 
 // StoreBlockSnapshot records a minimal canonical block snapshot for monolithic
 // runtime reorg detection.
-func (db *MonolithicMemoryDatabase) StoreBlockSnapshot(ctx context.Context, block *core.Block) error {
+func (db *MonolithicMemoryDatabase) StoreBlockSnapshot(ctx context.Context, block *blockchain.Block) error {
 	db.mu.Lock()
 	defer db.mu.Unlock()
 

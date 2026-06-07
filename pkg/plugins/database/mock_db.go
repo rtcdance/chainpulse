@@ -5,13 +5,14 @@ import (
 	"sync"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 )
 
 type MockDB struct {
 	name    string
 	version string
-	events  map[string]*core.BlockchainEvent
-	blocks  map[uint64]*core.Block
+	events  map[string]*blockchain.BlockchainEvent
+	blocks  map[uint64]*blockchain.Block
 	mu      sync.RWMutex
 	started bool
 }
@@ -20,8 +21,8 @@ func NewMockDB() *MockDB {
 	return &MockDB{
 		name:    "mock-db",
 		version: "1.0.0",
-		events:  make(map[string]*core.BlockchainEvent),
-		blocks:  make(map[uint64]*core.Block),
+		events:  make(map[string]*blockchain.BlockchainEvent),
+		blocks:  make(map[uint64]*blockchain.Block),
 	}
 }
 
@@ -43,8 +44,8 @@ func (m *MockDB) Stop(_ context.Context) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.started = false
-	m.events = make(map[string]*core.BlockchainEvent)
-	m.blocks = make(map[uint64]*core.Block)
+	m.events = make(map[string]*blockchain.BlockchainEvent)
+	m.blocks = make(map[uint64]*blockchain.Block)
 	return nil
 }
 
@@ -61,13 +62,13 @@ func (m *MockDB) StoreEvent(ctx context.Context, event any) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if e, ok := event.(*core.BlockchainEvent); ok {
+	if e, ok := event.(*blockchain.BlockchainEvent); ok {
 		m.events[e.ID] = e
 	}
 	return nil
 }
 
-func (m *MockDB) GetEvent(ctx context.Context, id string) (*core.BlockchainEvent, error) {
+func (m *MockDB) GetEvent(ctx context.Context, id string) (*blockchain.BlockchainEvent, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -94,29 +95,29 @@ func (m *MockDB) BatchStoreEvents(ctx context.Context, events []any) error {
 	defer m.mu.Unlock()
 
 	for _, event := range events {
-		if e, ok := event.(*core.BlockchainEvent); ok {
+		if e, ok := event.(*blockchain.BlockchainEvent); ok {
 			m.events[e.ID] = e
 		}
 	}
 	return nil
 }
 
-func (m *MockDB) GetAllEvents(ctx context.Context) ([]*core.BlockchainEvent, error) {
+func (m *MockDB) GetAllEvents(ctx context.Context) ([]*blockchain.BlockchainEvent, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	events := make([]*core.BlockchainEvent, 0, len(m.events))
+	events := make([]*blockchain.BlockchainEvent, 0, len(m.events))
 	for _, event := range m.events {
 		events = append(events, event)
 	}
 	return events, nil
 }
 
-func (m *MockDB) GetAllBlocks(ctx context.Context) ([]*core.Block, error) {
+func (m *MockDB) GetAllBlocks(ctx context.Context) ([]*blockchain.Block, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	blocks := make([]*core.Block, 0, len(m.blocks))
+	blocks := make([]*blockchain.Block, 0, len(m.blocks))
 	for _, block := range m.blocks {
 		blocks = append(blocks, block)
 	}
@@ -130,11 +131,11 @@ func (m *MockDB) DeleteEvent(ctx context.Context, eventID string) error {
 	return nil
 }
 
-func (m *MockDB) GetEventsByBlockRange(ctx context.Context, fromBlock, toBlock uint64) ([]*core.BlockchainEvent, error) {
+func (m *MockDB) GetEventsByBlockRange(ctx context.Context, fromBlock, toBlock uint64) ([]*blockchain.BlockchainEvent, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	events := make([]*core.BlockchainEvent, 0)
+	events := make([]*blockchain.BlockchainEvent, 0)
 	for _, event := range m.events {
 		if event.BlockNumber >= fromBlock && event.BlockNumber <= toBlock {
 			events = append(events, event)
@@ -143,7 +144,7 @@ func (m *MockDB) GetEventsByBlockRange(ctx context.Context, fromBlock, toBlock u
 	return events, nil
 }
 
-func (m *MockDB) GetBlock(ctx context.Context, blockNumber uint64) (*core.Block, error) {
+func (m *MockDB) GetBlock(ctx context.Context, blockNumber uint64) (*blockchain.Block, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -188,7 +189,7 @@ func (m *MockDB) MarkEventsAsReorged(ctx context.Context, fromBlock, toBlock uin
 	var count int64
 	for id, event := range m.events {
 		if event.BlockNumber >= fromBlock && event.BlockNumber <= toBlock {
-			event.Status = core.EventStatusReorged
+			event.Status = blockchain.EventStatusReorged
 			m.events[id] = event
 			count++
 		}

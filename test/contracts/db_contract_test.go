@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 )
 
 // DatabaseContractTest defines the contract that all database implementations must satisfy
@@ -18,7 +19,7 @@ func DatabaseContractTest(t *testing.T, factory func(t *testing.T) core.Database
 		db := factory(t)
 		ctx := context.Background()
 
-		event := &core.BlockchainEvent{
+		event := &blockchain.BlockchainEvent{
 			ID:          "test-event-1",
 			ChainID:     "ethereum",
 			BlockNumber: 100,
@@ -39,9 +40,9 @@ func DatabaseContractTest(t *testing.T, factory func(t *testing.T) core.Database
 		ctx := context.Background()
 
 		events := []any{
-			&core.BlockchainEvent{ID: "batch-1", ChainID: "ethereum", BlockNumber: 1},
-			&core.BlockchainEvent{ID: "batch-2", ChainID: "ethereum", BlockNumber: 2},
-			&core.BlockchainEvent{ID: "batch-3", ChainID: "ethereum", BlockNumber: 3},
+			&blockchain.BlockchainEvent{ID: "batch-1", ChainID: "ethereum", BlockNumber: 1},
+			&blockchain.BlockchainEvent{ID: "batch-2", ChainID: "ethereum", BlockNumber: 2},
+			&blockchain.BlockchainEvent{ID: "batch-3", ChainID: "ethereum", BlockNumber: 3},
 		}
 
 		err := db.BatchStoreEvents(ctx, events)
@@ -49,7 +50,7 @@ func DatabaseContractTest(t *testing.T, factory func(t *testing.T) core.Database
 
 		// Verify all events stored
 		for _, e := range events {
-			event := e.(*core.BlockchainEvent)
+			event := e.(*blockchain.BlockchainEvent)
 			retrieved, err := db.GetEvent(ctx, event.ID)
 			require.NoError(t, err)
 			assert.Equal(t, event.ID, retrieved.ID)
@@ -68,7 +69,7 @@ func DatabaseContractTest(t *testing.T, factory func(t *testing.T) core.Database
 		db := factory(t)
 		ctx := context.Background()
 
-		event := &core.BlockchainEvent{
+		event := &blockchain.BlockchainEvent{
 			ID:          "delete-test",
 			ChainID:     "ethereum",
 			BlockNumber: 100,
@@ -90,7 +91,7 @@ func DatabaseContractTest(t *testing.T, factory func(t *testing.T) core.Database
 
 		// Store events at different blocks
 		for i := uint64(10); i <= 20; i++ {
-			event := &core.BlockchainEvent{
+			event := &blockchain.BlockchainEvent{
 				ID:          "range-event-" + string(rune(i)),
 				ChainID:     "ethereum",
 				BlockNumber: i,

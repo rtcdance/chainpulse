@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
+"github.com/rtcdance/chainpulse/pkg/logkeys"
 	"github.com/rtcdance/chainpulse/pkg/evm"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
@@ -102,7 +103,7 @@ func (ed *EventDecoder) DecodeEvent(
 
 			values, err := nonIndexedInputs.Unpack(rawEvent.Data)
 			if err != nil {
-				ed.logger.Error("failed to unpack event data", core.LogKeyError, err, core.LogKeyEventName, event.Name, "data_len", len(rawEvent.Data))
+				ed.logger.Error("failed to unpack event data", logkeys.LogKeyError, err, logkeys.LogKeyEventName, event.Name, "data_len", len(rawEvent.Data))
 				return nil, fmt.Errorf("failed to unpack event data: %w", err)
 			}
 
@@ -173,7 +174,7 @@ func (ed *EventDecoder) DecodeEventBatch(
 	for _, rawEvent := range rawEvents {
 		decodedEvent, err := ed.DecodeEvent(rawEvent, contractABI)
 		if err != nil {
-			ed.logger.Warn("failed to decode event", core.LogKeyError, err)
+			ed.logger.Warn("failed to decode event", logkeys.LogKeyError, err)
 			continue
 		}
 		decoded = append(decoded, decodedEvent)

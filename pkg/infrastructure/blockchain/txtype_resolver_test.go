@@ -9,7 +9,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 
-	core "github.com/rtcdance/chainpulse/pkg/core"
+	blockchainmodels "github.com/rtcdance/chainpulse/pkg/blockchain"
 )
 
 func TestNewRPCTxTypeResolver(t *testing.T) {
@@ -32,14 +32,14 @@ func TestRPCTxTypeResolver_CacheHit(t *testing.T) {
 
 	// Pre-populate cache
 	hash := common.HexToHash("0xabc123")
-	r.addToCache(hash, txTypeCacheEntry{txType: core.TxEIP1559, txStatus: core.TxStatusSuccess})
+	r.addToCache(hash, txTypeCacheEntry{txType: blockchainmodels.TxEIP1559, txStatus: blockchainmodels.TxStatusSuccess})
 
 	typ, _, err := r.ResolveTxType(context.Background(), "0xabc123")
 	if err != nil {
 		t.Fatalf("ResolveTxType() error = %v", err)
 	}
-	if typ != core.TxEIP1559 {
-		t.Errorf("ResolveTxType() = %d, want %d", typ, core.TxEIP1559)
+	if typ != blockchainmodels.TxEIP1559 {
+		t.Errorf("ResolveTxType() = %d, want %d", typ, blockchainmodels.TxEIP1559)
 	}
 }
 
@@ -57,11 +57,11 @@ func TestRPCTxTypeResolver_RPCSuccess(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ResolveTxType() error = %v", err)
 	}
-	if typ != core.TxEIP1559 {
-		t.Errorf("ResolveTxType() type = %d, want %d", typ, core.TxEIP1559)
+	if typ != blockchainmodels.TxEIP1559 {
+		t.Errorf("ResolveTxType() type = %d, want %d", typ, blockchainmodels.TxEIP1559)
 	}
-	if status != core.TxStatusSuccess {
-		t.Errorf("ResolveTxType() status = %d, want %d", status, core.TxStatusSuccess)
+	if status != blockchainmodels.TxStatusSuccess {
+		t.Errorf("ResolveTxType() status = %d, want %d", status, blockchainmodels.TxStatusSuccess)
 	}
 
 	// Should be cached now
@@ -84,8 +84,8 @@ func TestRPCTxTypeResolver_RPCBlobTx(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ResolveTxType() error = %v", err)
 	}
-	if typ != core.TxBlob {
-		t.Errorf("ResolveTxType() = %d, want %d", typ, core.TxBlob)
+	if typ != blockchainmodels.TxBlob {
+		t.Errorf("ResolveTxType() = %d, want %d", typ, blockchainmodels.TxBlob)
 	}
 }
 
@@ -104,8 +104,8 @@ func TestRPCTxTypeResolver_RPCError(t *testing.T) {
 		t.Fatal("expected error for RPC error response")
 	}
 	// Should fall back to TxLegacy
-	if typ != core.TxLegacy {
-		t.Errorf("ResolveTxType() on error = %d, want %d (TxLegacy)", typ, core.TxLegacy)
+	if typ != blockchainmodels.TxLegacy {
+		t.Errorf("ResolveTxType() on error = %d, want %d (TxLegacy)", typ, blockchainmodels.TxLegacy)
 	}
 }
 
@@ -123,8 +123,8 @@ func TestRPCTxTypeResolver_ReceiptNotFound(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for null result")
 	}
-	if typ != core.TxLegacy {
-		t.Errorf("ResolveTxType() on null = %d, want %d", typ, core.TxLegacy)
+	if typ != blockchainmodels.TxLegacy {
+		t.Errorf("ResolveTxType() on null = %d, want %d", typ, blockchainmodels.TxLegacy)
 	}
 }
 
@@ -144,8 +144,8 @@ func TestRPCTxTypeResolver_ContextCancellation(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for cancelled context")
 	}
-	if typ != core.TxLegacy {
-		t.Errorf("ResolveTxType() on cancelled ctx = %d, want %d", typ, core.TxLegacy)
+	if typ != blockchainmodels.TxLegacy {
+		t.Errorf("ResolveTxType() on cancelled ctx = %d, want %d", typ, blockchainmodels.TxLegacy)
 	}
 }
 
@@ -157,7 +157,7 @@ func TestRPCTxTypeResolver_CacheEviction(t *testing.T) {
 	// Fill cache beyond capacity
 	for i := 0; i < 15; i++ {
 		hash := common.BigToHash(big.NewInt(int64(i)))
-		r.addToCache(hash, txTypeCacheEntry{txType: core.TxEIP1559, txStatus: core.TxStatusSuccess})
+		r.addToCache(hash, txTypeCacheEntry{txType: blockchainmodels.TxEIP1559, txStatus: blockchainmodels.TxStatusSuccess})
 	}
 
 	// Cache should not exceed maxCache by much (eviction removes 10%)
@@ -169,8 +169,8 @@ func TestRPCTxTypeResolver_CacheEviction(t *testing.T) {
 func TestRPCTxTypeResolver_ClearCache(t *testing.T) {
 	t.Parallel()
 	r := NewRPCTxTypeResolver("http://localhost:8545", nil)
-	r.addToCache(common.HexToHash("0x1"), txTypeCacheEntry{txType: core.TxEIP1559, txStatus: core.TxStatusSuccess})
-	r.addToCache(common.HexToHash("0x2"), txTypeCacheEntry{txType: core.TxBlob, txStatus: core.TxStatusSuccess})
+	r.addToCache(common.HexToHash("0x1"), txTypeCacheEntry{txType: blockchainmodels.TxEIP1559, txStatus: blockchainmodels.TxStatusSuccess})
+	r.addToCache(common.HexToHash("0x2"), txTypeCacheEntry{txType: blockchainmodels.TxBlob, txStatus: blockchainmodels.TxStatusSuccess})
 
 	if r.CacheSize() != 2 {
 		t.Fatalf("CacheSize() = %d, want 2", r.CacheSize())
@@ -197,11 +197,11 @@ func TestRPCTxTypeResolver_FailedTransaction(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ResolveTxType() error = %v", err)
 	}
-	if typ != core.TxEIP1559 {
-		t.Errorf("ResolveTxType() type = %d, want %d", typ, core.TxEIP1559)
+	if typ != blockchainmodels.TxEIP1559 {
+		t.Errorf("ResolveTxType() type = %d, want %d", typ, blockchainmodels.TxEIP1559)
 	}
-	if status != core.TxStatusFailed {
-		t.Errorf("ResolveTxType() status = %d, want %d (failed)", status, core.TxStatusFailed)
+	if status != blockchainmodels.TxStatusFailed {
+		t.Errorf("ResolveTxType() status = %d, want %d (failed)", status, blockchainmodels.TxStatusFailed)
 	}
 }
 

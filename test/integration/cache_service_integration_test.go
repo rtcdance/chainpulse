@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"github.com/rtcdance/chainpulse/pkg/services/query"
 )
 
@@ -30,7 +30,7 @@ func TestCacheService_Set_Get_Basic(t *testing.T) {
 	defer func() { _ = cacheService.Stop(ctx) }()
 
 	// Create test events
-	testEvents := []core.BlockchainEvent{
+	testEvents := []blockchain.BlockchainEvent{
 		{
 			ID:              "event1",
 			ChainID:         "ethereum",
@@ -90,7 +90,7 @@ func TestCacheService_SetSingle_GetSingle_Basic(t *testing.T) {
 	defer func() { _ = cacheService.Stop(ctx) }()
 
 	// Create test event
-	testEvent := &core.BlockchainEvent{
+	testEvent := &blockchain.BlockchainEvent{
 		ID:              "event1",
 		ChainID:         "ethereum",
 		BlockNumber:     100,
@@ -166,7 +166,7 @@ func TestCacheService_Invalidate(t *testing.T) {
 	defer func() { _ = cacheService.Stop(ctx) }()
 
 	// Set cache
-	testEvents := []core.BlockchainEvent{
+	testEvents := []blockchain.BlockchainEvent{
 		{
 			ID:              "event1",
 			ChainID:         "ethereum",
@@ -217,7 +217,7 @@ func TestCacheService_Expiration(t *testing.T) {
 	defer func() { _ = cacheService.Stop(ctx) }()
 
 	// Set cache with short TTL
-	testEvents := []core.BlockchainEvent{
+	testEvents := []blockchain.BlockchainEvent{
 		{
 			ID:              "event1",
 			ChainID:         "ethereum",
@@ -283,7 +283,7 @@ func TestCacheService_ConcurrentAccess(t *testing.T) {
 
 			for op := 0; op < operationsPerGoroutine; op++ {
 				cacheKey := fmt.Sprintf("test:concurrent:%d:%d", goroutineID, op)
-				testEvents := []core.BlockchainEvent{
+				testEvents := []blockchain.BlockchainEvent{
 					{
 						ID:              fmt.Sprintf("event-%d-%d", goroutineID, op),
 						ChainID:         "ethereum",
@@ -354,7 +354,7 @@ func TestCacheService_InvalidKey(t *testing.T) {
 	}
 	defer func() { _ = cacheService.Stop(ctx) }()
 
-	testEvents := []core.BlockchainEvent{
+	testEvents := []blockchain.BlockchainEvent{
 		{
 			ID:              "event1",
 			ChainID:         "ethereum",
@@ -434,7 +434,7 @@ func TestCacheService_NotRunning(t *testing.T) {
 		t.Fatalf("failed to initialize cache service: %v", err)
 	}
 
-	testEvents := []core.BlockchainEvent{
+	testEvents := []blockchain.BlockchainEvent{
 		{
 			ID:              "event1",
 			ChainID:         "ethereum",
@@ -538,7 +538,7 @@ func TestCacheService_ContextCancellation(t *testing.T) {
 	cancelledCtx, cancelFunc := context.WithCancel(context.Background())
 	cancelFunc()
 
-	testEvents := []core.BlockchainEvent{
+	testEvents := []blockchain.BlockchainEvent{
 		{
 			ID:              "event1",
 			ChainID:         "ethereum",
@@ -576,9 +576,9 @@ func TestCacheService_LargeDataSet(t *testing.T) {
 
 	// Create large dataset
 	numEvents := 1000
-	testEvents := make([]core.BlockchainEvent, numEvents)
+	testEvents := make([]blockchain.BlockchainEvent, numEvents)
 	for i := 0; i < numEvents; i++ {
-		testEvents[i] = core.BlockchainEvent{
+		testEvents[i] = blockchain.BlockchainEvent{
 			ID:              fmt.Sprintf("event-%d", i),
 			ChainID:         "ethereum",
 			BlockNumber:     uint64(i),
@@ -634,7 +634,7 @@ func TestCacheService_Lifecycle(t *testing.T) {
 	}
 
 	// Use service
-	testEvents := []core.BlockchainEvent{
+	testEvents := []blockchain.BlockchainEvent{
 		{
 			ID:              "event1",
 			ChainID:         "ethereum",

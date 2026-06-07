@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"github.com/rtcdance/chainpulse/pkg/services/decoder"
 )
 
@@ -27,25 +28,25 @@ func (ml *MockLogger) WithCorrelationID(id string) core.Logger {
 
 // MockDatabasePlugin for testing
 type MockDatabasePlugin struct {
-	events []*core.BlockchainEvent
+	events []*blockchain.BlockchainEvent
 }
 
 func (mdp *MockDatabasePlugin) StoreEvent(ctx context.Context, event any) error {
-	if e, ok := event.(*core.BlockchainEvent); ok {
+	if e, ok := event.(*blockchain.BlockchainEvent); ok {
 		mdp.events = append(mdp.events, e)
 	}
 	return nil
 }
 
-func (mdp *MockDatabasePlugin) GetEvent(ctx context.Context, id string) (*core.BlockchainEvent, error) {
+func (mdp *MockDatabasePlugin) GetEvent(ctx context.Context, id string) (*blockchain.BlockchainEvent, error) {
 	return nil, nil
 }
 
-func (mdp *MockDatabasePlugin) GetAllEvents(ctx context.Context) ([]*core.BlockchainEvent, error) {
+func (mdp *MockDatabasePlugin) GetAllEvents(ctx context.Context) ([]*blockchain.BlockchainEvent, error) {
 	return mdp.events, nil
 }
 
-func (mdp *MockDatabasePlugin) GetEventsByBlockRange(ctx context.Context, from, to uint64) ([]*core.BlockchainEvent, error) {
+func (mdp *MockDatabasePlugin) GetEventsByBlockRange(ctx context.Context, from, to uint64) ([]*blockchain.BlockchainEvent, error) {
 	return nil, nil
 }
 
@@ -57,17 +58,17 @@ func (mdp *MockDatabasePlugin) DeleteEvent(ctx context.Context, id string) error
 	return nil
 }
 
-func (mdp *MockDatabasePlugin) GetBlock(ctx context.Context, number uint64) (*core.Block, error) {
+func (mdp *MockDatabasePlugin) GetBlock(ctx context.Context, number uint64) (*blockchain.Block, error) {
 	return nil, nil
 }
 
-func (mdp *MockDatabasePlugin) GetAllBlocks(ctx context.Context) ([]*core.Block, error) {
+func (mdp *MockDatabasePlugin) GetAllBlocks(ctx context.Context) ([]*blockchain.Block, error) {
 	return nil, nil
 }
 
 func (mdp *MockDatabasePlugin) BatchStoreEvents(ctx context.Context, events []any) error {
 	for _, event := range events {
-		if e, ok := event.(*core.BlockchainEvent); ok {
+		if e, ok := event.(*blockchain.BlockchainEvent); ok {
 			mdp.events = append(mdp.events, e)
 		}
 	}
@@ -219,7 +220,7 @@ func TestIndexSwapEvents(t *testing.T) {
 
 	indexer := NewUniswapIndexer(db, cache, logger, eventDecoder, contractManager)
 
-	events := []*core.BlockchainEvent{
+	events := []*blockchain.BlockchainEvent{
 		{
 			ID:              "event1",
 			BlockNumber:     100,
@@ -254,7 +255,7 @@ func TestIndexSwapEventsEmpty(t *testing.T) {
 
 	indexer := NewUniswapIndexer(db, cache, logger, eventDecoder, contractManager)
 
-	err := indexer.IndexSwapEvents(context.Background(), []*core.BlockchainEvent{})
+	err := indexer.IndexSwapEvents(context.Background(), []*blockchain.BlockchainEvent{})
 	require.NoError(t, err)
 }
 
@@ -474,7 +475,7 @@ func TestConcurrentSwapIndexing(t *testing.T) {
 	for i := 0; i < 5; i++ {
 		go func(id int) {
 			defer func() { done <- struct{}{} }()
-			events := []*core.BlockchainEvent{
+			events := []*blockchain.BlockchainEvent{
 				{
 					ID:              "event" + string(rune(id)),
 					BlockNumber:     uint64(100 + id),

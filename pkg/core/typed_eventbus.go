@@ -11,9 +11,9 @@ import "context"
 // Usage:
 //
 //	bus := core.NewChannelEventBus()
-//	typed := core.NewTypedEventBus[BlockchainEvent](bus)
+//	typed := core.NewTypedEventBus[blockchain.BlockchainEvent](bus)
 //
-//	typed.Subscribe(ctx, "Transfer", func(evt BlockchainEvent) {
+//	typed.Subscribe(ctx, "Transfer", func(evt blockchain.BlockchainEvent) {
 //	    fmt.Println(evt.BlockNumber) // full IDE autocomplete
 //	})
 //

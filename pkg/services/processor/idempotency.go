@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
+"github.com/rtcdance/chainpulse/pkg/logkeys"
 )
 
 // defaultMaxIdempotencySize is the safety limit for in-memory dedup entries.
@@ -28,7 +30,7 @@ type IdempotencyService interface {
 	Health() *core.HealthStatus
 
 	// GenerateHash generates a deterministic hash for an event
-	GenerateHash(event *core.BlockchainEvent) (string, error)
+	GenerateHash(event *blockchain.BlockchainEvent) (string, error)
 
 	// IsDuplicate checks if an event has been processed before
 	IsDuplicate(ctx context.Context, hash string) (bool, error)
@@ -115,7 +117,7 @@ func (s *DefaultIdempotencyService) Initialize(config *core.Config) error {
 	s.initialized = true
 	s.logger.Info(
 		"Idempotency service initialized",
-		core.LogKeyComponent, "idempotency",
+		logkeys.LogKeyComponent, "idempotency",
 		"record_ttl_seconds", s.config.IdempotencyRecordTTL,
 		"cleanup_interval_seconds", s.config.IdempotencyCleanupInterval,
 		"max_size", s.maxSize,
@@ -156,7 +158,7 @@ func (s *DefaultIdempotencyService) Start() error {
 		)
 	}
 
-	s.logger.Info("Idempotency service started", core.LogKeyComponent, "idempotency")
+	s.logger.Info("Idempotency service started", logkeys.LogKeyComponent, "idempotency")
 
 	return nil
 }
@@ -179,7 +181,7 @@ func (s *DefaultIdempotencyService) Stop() error {
 
 	s.logger.Info(
 		"Idempotency service stopped",
-		core.LogKeyComponent, "idempotency",
+		logkeys.LogKeyComponent, "idempotency",
 		"total_stored", totalStored,
 	)
 	return nil
@@ -256,7 +258,7 @@ func (s *DefaultIdempotencyService) Health() *core.HealthStatus {
 
 // GenerateHash generates a deterministic hash for an event using the
 // canonical ComputeEventHash function from pkg/core.
-func (s *DefaultIdempotencyService) GenerateHash(event *core.BlockchainEvent) (string, error) {
+func (s *DefaultIdempotencyService) GenerateHash(event *blockchain.BlockchainEvent) (string, error) {
 	if event == nil {
 		return "", fmt.Errorf("event is required")
 	}

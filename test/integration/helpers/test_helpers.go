@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"github.com/rtcdance/chainpulse/pkg/services/query"
 	"github.com/rtcdance/chainpulse/pkg/testhelpers"
 )
@@ -226,8 +227,8 @@ func RetryWithBackoff(ctx context.Context, fn func() error, maxRetries int, init
 }
 
 // CreateTestEvent creates a test blockchain event
-func CreateTestEvent(chainID string, blockNum uint64, eventID string) *core.BlockchainEvent {
-	return &core.BlockchainEvent{
+func CreateTestEvent(chainID string, blockNum uint64, eventID string) *blockchain.BlockchainEvent {
+	return &blockchain.BlockchainEvent{
 		ID:              eventID,
 		ChainID:         chainID,
 		BlockNumber:     blockNum,
@@ -237,8 +238,8 @@ func CreateTestEvent(chainID string, blockNum uint64, eventID string) *core.Bloc
 }
 
 // CreateTestEvents creates multiple test blockchain events
-func CreateTestEvents(chainID string, count int) []*core.BlockchainEvent {
-	events := make([]*core.BlockchainEvent, count)
+func CreateTestEvents(chainID string, count int) []*blockchain.BlockchainEvent {
+	events := make([]*blockchain.BlockchainEvent, count)
 	for i := 0; i < count; i++ {
 		blockNumber, ok := safePositiveIntToUint64(i + 1)
 		if !ok {
@@ -309,13 +310,13 @@ func (tfm *TestFixtureManager) CleanupAll() error {
 
 // TestEventBuilder builds test events with fluent API
 type TestEventBuilder struct {
-	event *core.BlockchainEvent
+	event *blockchain.BlockchainEvent
 }
 
 // NewTestEventBuilder creates a new test event builder
 func NewTestEventBuilder() *TestEventBuilder {
 	return &TestEventBuilder{
-		event: &core.BlockchainEvent{
+		event: &blockchain.BlockchainEvent{
 			ID:          "test-event",
 			ChainID:     "ethereum",
 			BlockNumber: 1,
@@ -349,7 +350,7 @@ func (teb *TestEventBuilder) WithEventName(name string) *TestEventBuilder {
 }
 
 // Build builds the event
-func (teb *TestEventBuilder) Build() *core.BlockchainEvent {
+func (teb *TestEventBuilder) Build() *blockchain.BlockchainEvent {
 	return teb.event
 }
 

@@ -19,7 +19,7 @@ var tutorialSteps = []tutorialStep{
 		Title:       "1. Hello, Blockchain Event",
 		Description: "Generate mock ERC-20 Transfer events in memory. No blockchain needed!",
 		Curl:        "curl http://localhost:PORT/generate",
-		Concept:     "Go struct mapping: Solidity event → Go core.BlockchainEvent",
+		Concept:     "Go struct mapping: Solidity event → Go blockchain.BlockchainEvent",
 		Category:    "Web3 Basics",
 	},
 	{

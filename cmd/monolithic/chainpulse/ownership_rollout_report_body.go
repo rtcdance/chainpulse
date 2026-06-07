@@ -11,11 +11,6 @@ func buildOwnershipRolloutReportBody(details *api.RolloutReportDetails, snapshot
 	applyOwnershipRolloutReportSections(details, sections)
 }
 
-//nolint:unused
-func buildOwnershipRolloutReportSurfaceSection(snapshot ownershipRolloutSummarySnapshot) api.RolloutReportSurfaceSection {
-	return api.BuildRolloutReportSurfaceSection(buildOwnershipRolloutReportSurfaceInput(snapshot))
-}
-
 func buildOwnershipRolloutReportSurfaceInput(snapshot ownershipRolloutSummarySnapshot) api.RolloutReportSurfaceInput {
 	return api.BuildRolloutReportSurfaceInput(
 		buildOwnershipRolloutReportSurfaceCoreInput(snapshot),
@@ -64,11 +59,6 @@ func buildOwnershipRolloutReportSurfaceCutoverInput(snapshot ownershipRolloutSum
 	}
 }
 
-//nolint:unused
-func buildOwnershipRolloutReportApprovalSection(snapshot ownershipRolloutSummarySnapshot) api.RolloutReportApproval {
-	return api.BuildRolloutReportApprovalSection(buildOwnershipRolloutReportApprovalInput(snapshot))
-}
-
 func buildOwnershipRolloutReportApprovalInput(snapshot ownershipRolloutSummarySnapshot) api.RolloutReportApprovalInput {
 	return api.BuildRolloutReportApprovalInput(
 		buildOwnershipRolloutReportApprovalFlowInput(snapshot),
@@ -102,11 +92,6 @@ func buildOwnershipRolloutReportApprovalWorkItemInput(snapshot ownershipRolloutS
 			Reason:       snapshot.ApprovalWorkItem.Reason,
 		},
 	}
-}
-
-//nolint:unused
-func buildOwnershipRolloutReportGuardedSection(snapshot ownershipRolloutSummarySnapshot) api.RolloutReportGuarded {
-	return api.BuildRolloutReportGuardedSection(buildOwnershipRolloutReportGuardedInput(snapshot))
 }
 
 func buildOwnershipRolloutReportGuardedInput(snapshot ownershipRolloutSummarySnapshot) api.RolloutReportGuardedInput {

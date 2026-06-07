@@ -10,6 +10,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 )
 
 type eventProcessorTestMessageConsumer struct {
@@ -43,7 +44,7 @@ type eventProcessorTestMessageProcessor struct {
 	processed atomic.Int64
 }
 
-func (p *eventProcessorTestMessageProcessor) ProcessEvent(ctx context.Context, event *core.BlockchainEvent) error {
+func (p *eventProcessorTestMessageProcessor) ProcessEvent(ctx context.Context, event *blockchain.BlockchainEvent) error {
 	p.processed.Add(1)
 	return nil
 }
@@ -57,7 +58,7 @@ func (p *eventProcessorTestMessageProcessor) GetFailedCount() int64    { return 
 func (p *eventProcessorTestMessageProcessor) GetDuplicateCount() int64 { return 0 }
 
 func TestDecodeEventProcessorQueueMessage(t *testing.T) {
-	event := core.BlockchainEvent{
+	event := blockchain.BlockchainEvent{
 		ID:              "evt-1",
 		BlockNumber:     123,
 		TransactionHash: common.HexToHash("0x1"),
@@ -84,7 +85,7 @@ func TestEventProcessorConsumeRuntimeProcessesMessages(t *testing.T) {
 	metrics := core.NewDefaultMetricsCollector()
 	processorRuntime := &eventProcessorTestMessageProcessor{}
 
-	event := core.BlockchainEvent{
+	event := blockchain.BlockchainEvent{
 		ID:              "evt-1",
 		BlockNumber:     123,
 		TransactionHash: common.HexToHash("0x1"),

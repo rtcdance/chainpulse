@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"github.com/rtcdance/chainpulse/pkg/testhelpers"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -51,8 +52,8 @@ func (m *testMetricsCollector) getCounter(name string) int64 {
 	return m.counters[name]
 }
 
-func makeTestEvent(id int, chainID int64) *core.BlockchainEvent {
-	return &core.BlockchainEvent{
+func makeTestEvent(id int, chainID int64) *blockchain.BlockchainEvent {
+	return &blockchain.BlockchainEvent{
 		ID:              fmt.Sprintf("evt_%d", id),
 		ChainID:         fmt.Sprintf("%d", chainID),
 		BlockNumber:     uint64(1000 + id),
@@ -578,7 +579,7 @@ func TestIdempotency_MultiChainIsolation(t *testing.T) {
 	}
 
 	for _, e := range events {
-		event := &core.BlockchainEvent{
+		event := &blockchain.BlockchainEvent{
 			ID:              fmt.Sprintf("evt_%d_%d", e.chain, e.id),
 			ChainID:         fmt.Sprintf("%d", e.chain),
 			BlockNumber:     e.block,

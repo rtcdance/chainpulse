@@ -1,6 +1,7 @@
 package core
 
 import (
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"math/big"
 	"testing"
 	"time"
@@ -15,7 +16,7 @@ func TestAAMempoolAddAndRemove(t *testing.T) {
 	t.Parallel()
 	pool := mempool.NewAAMempool(100, 5*time.Minute)
 
-	op := &UserOperation{
+	op := &blockchain.UserOperation{
 		Sender:               common.HexToAddress("0x1234"),
 		Nonce:                big.NewInt(1),
 		CallGasLimit:         50000,
@@ -26,7 +27,7 @@ func TestAAMempoolAddAndRemove(t *testing.T) {
 
 	entry := &mempool.AAMempoolEntry{
 		UserOp:         op,
-		EntryPointAddr: EntryPointAddresses[EntryPointV06],
+		EntryPointAddr: blockchain.EntryPointAddresses[blockchain.EntryPointV06],
 		SubmittedAt:    time.Now(),
 		PriorityFee:    big.NewInt(1e9),
 		Sender:         op.Sender,
@@ -68,7 +69,7 @@ func TestAAMempoolPriorityOrdering(t *testing.T) {
 
 	for i := 0; i < 5; i++ {
 		entry := &mempool.AAMempoolEntry{
-			UserOp: &UserOperation{
+			UserOp: &blockchain.UserOperation{
 				Sender:               common.HexToAddress("0x1234"),
 				MaxPriorityFeePerGas: big.NewInt(int64((i + 1) * 1e9)),
 			},
@@ -100,7 +101,7 @@ func TestAAMempoolCapacityEviction(t *testing.T) {
 
 	for i := 0; i < 5; i++ {
 		entry := &mempool.AAMempoolEntry{
-			UserOp: &UserOperation{
+			UserOp: &blockchain.UserOperation{
 				Sender:               common.HexToAddress("0x1234"),
 				MaxPriorityFeePerGas: big.NewInt(int64((i + 1) * 1e9)),
 			},
@@ -131,7 +132,7 @@ func TestAAMempoolExpiredEntry(t *testing.T) {
 	pool := mempool.NewAAMempool(100, 100*time.Millisecond)
 
 	entry := &mempool.AAMempoolEntry{
-		UserOp:        &UserOperation{Sender: common.HexToAddress("0x1234")},
+		UserOp:        &blockchain.UserOperation{Sender: common.HexToAddress("0x1234")},
 		SubmittedAt:   time.Now().Add(-200 * time.Millisecond), // already expired
 		PriorityFee:   big.NewInt(1e9),
 		Hash:          "expired",
@@ -150,17 +151,17 @@ func TestAAMempoolExpiredEntry(t *testing.T) {
 
 func TestEntryPointVersionForAddress(t *testing.T) {
 	t.Parallel()
-	v06 := EntryPointVersionForAddress(EntryPointAddresses[EntryPointV06])
-	if v06 != EntryPointV06 {
+	v06 := blockchain.EntryPointVersionForAddress(blockchain.EntryPointAddresses[blockchain.EntryPointV06])
+	if v06 != blockchain.EntryPointV06 {
 		t.Errorf("expected v0.6, got %s", v06)
 	}
 
-	v07 := EntryPointVersionForAddress(EntryPointAddresses[EntryPointV07])
-	if v07 != EntryPointV07 {
+	v07 := blockchain.EntryPointVersionForAddress(blockchain.EntryPointAddresses[blockchain.EntryPointV07])
+	if v07 != blockchain.EntryPointV07 {
 		t.Errorf("expected v0.7, got %s", v07)
 	}
 
-	unknown := EntryPointVersionForAddress(common.HexToAddress("0x0000"))
+	unknown := blockchain.EntryPointVersionForAddress(common.HexToAddress("0x0000"))
 	if unknown != "" {
 		t.Errorf("expected empty string for unknown address, got %s", unknown)
 	}
@@ -168,7 +169,7 @@ func TestEntryPointVersionForAddress(t *testing.T) {
 
 func TestUserOperationV07DecodeGasLimits(t *testing.T) {
 	t.Parallel()
-	op := &UserOperationV07{
+	op := &blockchain.UserOperationV07{
 		AccountGasLimits: make([]byte, 32),
 	}
 
@@ -191,7 +192,7 @@ func TestUserOperationV07DecodeGasLimits(t *testing.T) {
 
 func TestUserOperationV07DecodeFeePerGas(t *testing.T) {
 	t.Parallel()
-	op := &UserOperationV07{
+	op := &blockchain.UserOperationV07{
 		MaxFeePerGas: make([]byte, 32),
 	}
 
@@ -212,7 +213,7 @@ func TestUserOperationV07DecodeFeePerGas(t *testing.T) {
 
 func TestUserOperationV07ToUserOperation(t *testing.T) {
 	t.Parallel()
-	op := &UserOperationV07{
+	op := &blockchain.UserOperationV07{
 		Sender:             common.HexToAddress("0x1234"),
 		Nonce:              big.NewInt(1),
 		AccountGasLimits:   make([]byte, 32),

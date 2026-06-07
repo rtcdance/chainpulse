@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	domainquery "github.com/rtcdance/chainpulse/pkg/domain/query"
 
 	"github.com/graphql-go/graphql"
@@ -974,7 +975,7 @@ func (sb *SchemaBuilder) requireMutationAuth(p graphql.ResolveParams) error {
 }
 
 // Helper function to convert event to GraphQL response format
-func eventToGraphQLResponse(event *core.BlockchainEvent) map[string]any {
+func eventToGraphQLResponse(event *blockchain.BlockchainEvent) map[string]any {
 	decodedData := event.DecodedData
 	if decodedData == nil {
 		decodedData = map[string]any{}
@@ -1005,13 +1006,13 @@ func eventToGraphQLResponse(event *core.BlockchainEvent) map[string]any {
 }
 
 // applyEventFilter applies structured filter criteria to a list of events.
-func applyEventFilter(events []*core.BlockchainEvent, filterRaw any) []*core.BlockchainEvent {
+func applyEventFilter(events []*blockchain.BlockchainEvent, filterRaw any) []*blockchain.BlockchainEvent {
 	filter, ok := filterRaw.(map[string]any)
 	if !ok {
 		return events
 	}
 
-	var result []*core.BlockchainEvent
+	var result []*blockchain.BlockchainEvent
 	for _, event := range events {
 		if matchesFilter(event, filter) {
 			result = append(result, event)
@@ -1021,7 +1022,7 @@ func applyEventFilter(events []*core.BlockchainEvent, filterRaw any) []*core.Blo
 }
 
 // matchesFilter checks if a single event matches all provided filter criteria.
-func matchesFilter(event *core.BlockchainEvent, filter map[string]any) bool {
+func matchesFilter(event *blockchain.BlockchainEvent, filter map[string]any) bool {
 	if v, ok := filter["chainId"].(string); ok && v != "" {
 		if event.ChainID != v {
 			return false
@@ -1061,7 +1062,7 @@ func matchesFilter(event *core.BlockchainEvent, filter map[string]any) bool {
 }
 
 // applyEventSort sorts events based on the structured sort input.
-func applyEventSort(events []*core.BlockchainEvent, sortRaw any) []*core.BlockchainEvent {
+func applyEventSort(events []*blockchain.BlockchainEvent, sortRaw any) []*blockchain.BlockchainEvent {
 	sortInput, ok := sortRaw.(map[string]any)
 	if !ok {
 		return events
@@ -1075,7 +1076,7 @@ func applyEventSort(events []*core.BlockchainEvent, sortRaw any) []*core.Blockch
 
 	ascending := strings.EqualFold(order, "ASC")
 
-	sorted := make([]*core.BlockchainEvent, len(events))
+	sorted := make([]*blockchain.BlockchainEvent, len(events))
 	copy(sorted, events)
 
 	sort.Slice(sorted, func(i, j int) bool {

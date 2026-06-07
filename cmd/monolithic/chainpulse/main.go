@@ -14,6 +14,7 @@ import (
 
 	"github.com/rtcdance/chainpulse/pkg/application/bootstrap"
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"github.com/rtcdance/chainpulse/pkg/env"
 	sharedhttp "github.com/rtcdance/chainpulse/pkg/infrastructure/http"
 	"github.com/rtcdance/chainpulse/pkg/observability"
@@ -227,7 +228,7 @@ func run() error {
 		_, subErr := monolithicPullerRuntime.EventBus().SubscribeNamed(
 			ctx, "event:created", "monolithic-subscription-bridge",
 			func(_ context.Context, payload any) error {
-				if event, ok := payload.(*core.BlockchainEvent); ok && event != nil {
+				if event, ok := payload.(*blockchain.BlockchainEvent); ok && event != nil {
 					runtimeWiring.EventSubscriptionHandler.BroadcastEvent(ctx, event)
 					// Deliver webhooks for this event
 					if webhookStore != nil {

@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/assert"
@@ -18,7 +19,7 @@ func TestMonolithicMemoryDatabaseLifecycleAndStore(t *testing.T) {
 	require.NoError(t, db.Initialize(context.Background(), core.Config{}))
 	require.NoError(t, db.Start(context.Background()))
 
-	event := &core.BlockchainEvent{
+	event := &blockchain.BlockchainEvent{
 		ID:              "event1",
 		ChainID:         "ethereum",
 		BlockNumber:     100,
@@ -43,7 +44,7 @@ func TestMonolithicMemoryDatabaseStoreBlockSnapshot(t *testing.T) {
 	require.NoError(t, db.Initialize(context.Background(), core.Config{}))
 	require.NoError(t, db.Start(context.Background()))
 
-	block := &core.Block{
+	block := &blockchain.Block{
 		Number: 88,
 		Hash:   common.HexToHash("0xabcd"),
 	}

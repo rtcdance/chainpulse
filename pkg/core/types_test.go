@@ -1,6 +1,7 @@
 package core
 
 import (
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"testing"
 	"time"
 
@@ -99,7 +100,7 @@ func TestCacheEntryExpiration(t *testing.T) {
 
 // TestQueryResultCreation tests QueryResult creation
 func TestQueryResultCreation(t *testing.T) {
-	events := []BlockchainEvent{
+	events := []blockchain.BlockchainEvent{
 		{
 			ID:        "event-1",
 			EventName: "Transfer",
@@ -126,7 +127,7 @@ func TestQueryResultCreation(t *testing.T) {
 // TestQueryResultEmpty tests empty QueryResult
 func TestQueryResultEmpty(t *testing.T) {
 	result := &QueryResult{
-		Events:       []BlockchainEvent{},
+		Events:       []blockchain.BlockchainEvent{},
 		Total:        0,
 		CacheHit:     false,
 		ResponseTime: 50,

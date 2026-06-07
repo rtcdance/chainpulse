@@ -16,6 +16,8 @@ import (
 
 	"github.com/rtcdance/chainpulse/pkg/chainid"
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
+"github.com/rtcdance/chainpulse/pkg/logkeys"
 	"github.com/rtcdance/chainpulse/pkg/core/eventsig"
 	domainquery "github.com/rtcdance/chainpulse/pkg/domain/query"
 	"github.com/rtcdance/chainpulse/pkg/observability"
@@ -137,7 +139,7 @@ func (s *MongoDBEventStore) createIndexes(ctx context.Context) error {
 }
 
 // InsertEvent inserts a single event into the store
-func (s *MongoDBEventStore) InsertEvent(ctx context.Context, event *core.BlockchainEvent) error {
+func (s *MongoDBEventStore) InsertEvent(ctx context.Context, event *blockchain.BlockchainEvent) error {
 	ctx, span := s.tracer.StartSpan(ctx, "storage.insert_event", observability.SpanKindInternal)
 	defer s.tracer.EndSpan(&span)
 
@@ -200,7 +202,7 @@ func (s *MongoDBEventStore) InsertEvent(ctx context.Context, event *core.Blockch
 }
 
 // InsertEventBatch inserts multiple events in a batch operation
-func (s *MongoDBEventStore) InsertEventBatch(ctx context.Context, events []*core.BlockchainEvent) error {
+func (s *MongoDBEventStore) InsertEventBatch(ctx context.Context, events []*blockchain.BlockchainEvent) error {
 	if !s.initialized {
 		return fmt.Errorf("event store not initialized")
 	}
@@ -268,7 +270,7 @@ func (s *MongoDBEventStore) InsertEventBatch(ctx context.Context, events []*core
 }
 
 // GetEvent retrieves a single event by ID
-func (s *MongoDBEventStore) GetEvent(ctx context.Context, eventID string) (*core.BlockchainEvent, error) {
+func (s *MongoDBEventStore) GetEvent(ctx context.Context, eventID string) (*blockchain.BlockchainEvent, error) {
 	if !s.initialized {
 		return nil, fmt.Errorf("event store not initialized")
 	}
@@ -347,7 +349,7 @@ func bsonNumericToUint64(value any) (uint64, error) {
 }
 
 // GetEventsByChain retrieves events for a specific chain
-func (s *MongoDBEventStore) GetEventsByChain(ctx context.Context, chainID int, limit int, offset int) ([]*core.BlockchainEvent, error) {
+func (s *MongoDBEventStore) GetEventsByChain(ctx context.Context, chainID int, limit int, offset int) ([]*blockchain.BlockchainEvent, error) {
 	if !s.initialized {
 		return nil, fmt.Errorf("event store not initialized")
 	}
@@ -413,7 +415,7 @@ func buildChainLookupFilter(chainID int) bson.M {
 }
 
 // GetEventsByContract retrieves events for a specific contract
-func (s *MongoDBEventStore) GetEventsByContract(ctx context.Context, contractAddress string, limit int, offset int) ([]*core.BlockchainEvent, error) {
+func (s *MongoDBEventStore) GetEventsByContract(ctx context.Context, contractAddress string, limit int, offset int) ([]*blockchain.BlockchainEvent, error) {
 	if !s.initialized {
 		return nil, fmt.Errorf("event store not initialized")
 	}
@@ -457,7 +459,7 @@ func (s *MongoDBEventStore) GetEventsByContract(ctx context.Context, contractAdd
 }
 
 // GetEventsByEventName retrieves events by event name
-func (s *MongoDBEventStore) GetEventsByEventName(ctx context.Context, eventName string, limit int, offset int) ([]*core.BlockchainEvent, error) {
+func (s *MongoDBEventStore) GetEventsByEventName(ctx context.Context, eventName string, limit int, offset int) ([]*blockchain.BlockchainEvent, error) {
 	if !s.initialized {
 		return nil, fmt.Errorf("event store not initialized")
 	}
@@ -501,7 +503,7 @@ func (s *MongoDBEventStore) GetEventsByEventName(ctx context.Context, eventName 
 }
 
 // GetEventsByCorrelationID retrieves events across all chains that share a correlation ID.
-func (s *MongoDBEventStore) GetEventsByCorrelationID(ctx context.Context, correlationID string, limit int, offset int) ([]*core.BlockchainEvent, error) {
+func (s *MongoDBEventStore) GetEventsByCorrelationID(ctx context.Context, correlationID string, limit int, offset int) ([]*blockchain.BlockchainEvent, error) {
 	if !s.initialized {
 		return nil, fmt.Errorf("event store not initialized")
 	}
@@ -532,7 +534,7 @@ func (s *MongoDBEventStore) GetEventsByCorrelationID(ctx context.Context, correl
 	}
 	defer cursor.Close(ctx)
 
-	events := make([]*core.BlockchainEvent, 0, limit)
+	events := make([]*blockchain.BlockchainEvent, 0, limit)
 	if err := cursor.All(ctx, &events); err != nil {
 		s.logger.Error("Failed to decode correlated events", "error", err)
 		return nil, fmt.Errorf("failed to decode correlated events: %w", err)
@@ -622,7 +624,7 @@ func (s *MongoDBEventStore) Close(ctx context.Context) error {
 }
 
 // GetEventsByBlock retrieves events by block number
-func (s *MongoDBEventStore) GetEventsByBlock(ctx context.Context, blockNumber int64) ([]*core.BlockchainEvent, error) {
+func (s *MongoDBEventStore) GetEventsByBlock(ctx context.Context, blockNumber int64) ([]*blockchain.BlockchainEvent, error) {
 	if !s.initialized {
 		return nil, fmt.Errorf("event store not initialized")
 	}
@@ -659,7 +661,7 @@ func (s *MongoDBEventStore) GetEventsByBlock(ctx context.Context, blockNumber in
 }
 
 // GetEventsByBlockRange retrieves events from fromBlock to toBlock (inclusive)
-func (s *MongoDBEventStore) GetEventsByBlockRange(ctx context.Context, fromBlock, toBlock uint64) ([]*core.BlockchainEvent, error) {
+func (s *MongoDBEventStore) GetEventsByBlockRange(ctx context.Context, fromBlock, toBlock uint64) ([]*blockchain.BlockchainEvent, error) {
 	if !s.initialized {
 		return nil, fmt.Errorf("event store not initialized")
 	}
@@ -706,7 +708,7 @@ func (s *MongoDBEventStore) DeleteEventsByBlockRange(ctx context.Context, fromBl
 		return 0, fmt.Errorf("failed to delete events by block range: %w", err)
 	}
 
-	s.logger.Info("Deleted events by block range", core.LogKeyFromBlock, fromBlock, core.LogKeyToBlock, toBlock, core.LogKeyCount, result.DeletedCount)
+	s.logger.Info("Deleted events by block range", logkeys.LogKeyFromBlock, fromBlock, logkeys.LogKeyToBlock, toBlock, logkeys.LogKeyCount, result.DeletedCount)
 
 	return result.DeletedCount, nil
 }
@@ -742,7 +744,7 @@ func (s *MongoDBEventStore) MarkEventsAsReorged(ctx context.Context, fromBlock, 
 }
 
 // GetEventsByAddress retrieves events by contract address with limit
-func (s *MongoDBEventStore) GetEventsByAddress(ctx context.Context, address string, limit int) ([]*core.BlockchainEvent, error) {
+func (s *MongoDBEventStore) GetEventsByAddress(ctx context.Context, address string, limit int) ([]*blockchain.BlockchainEvent, error) {
 	if !s.initialized {
 		return nil, fmt.Errorf("event store not initialized")
 	}
@@ -785,7 +787,7 @@ func (s *MongoDBEventStore) GetEventsByAddress(ctx context.Context, address stri
 }
 
 // GetEventsByName retrieves events by event name with limit
-func (s *MongoDBEventStore) GetEventsByName(ctx context.Context, eventName string, limit int) ([]*core.BlockchainEvent, error) {
+func (s *MongoDBEventStore) GetEventsByName(ctx context.Context, eventName string, limit int) ([]*blockchain.BlockchainEvent, error) {
 	if !s.initialized {
 		return nil, fmt.Errorf("event store not initialized")
 	}
@@ -828,7 +830,7 @@ func (s *MongoDBEventStore) GetEventsByName(ctx context.Context, eventName strin
 }
 
 // GetEventsPaginated retrieves events with cursor-based pagination
-func (s *MongoDBEventStore) GetEventsPaginated(ctx context.Context, cursor string, limit int) ([]*core.BlockchainEvent, bool, error) {
+func (s *MongoDBEventStore) GetEventsPaginated(ctx context.Context, cursor string, limit int) ([]*blockchain.BlockchainEvent, bool, error) {
 	if !s.initialized {
 		return nil, false, fmt.Errorf("event store not initialized")
 	}
@@ -999,25 +1001,25 @@ func (s *MongoDBEventStore) GetEventStats(ctx context.Context) (map[string]int64
 	return byChain, byEventName, reorged, nil
 }
 
-func decodeMongoEventCursor(ctx context.Context, cursor *mongo.Cursor) ([]*core.BlockchainEvent, error) {
+func decodeMongoEventCursor(ctx context.Context, cursor *mongo.Cursor) ([]*blockchain.BlockchainEvent, error) {
 	var docs []bson.M
 	if err := cursor.All(ctx, &docs); err != nil {
 		return nil, fmt.Errorf("decode mongo cursor: %w", err)
 	}
 
-	events := make([]*core.BlockchainEvent, 0, len(docs))
+	events := make([]*blockchain.BlockchainEvent, 0, len(docs))
 	for _, doc := range docs {
 		events = append(events, decodeMongoEventDocument(doc))
 	}
 	return events, nil
 }
 
-func decodeMongoEventDocument(doc bson.M) *core.BlockchainEvent {
+func decodeMongoEventDocument(doc bson.M) *blockchain.BlockchainEvent {
 	eventSig := common.Hash{}
 	if sigStr := bsonString(doc["eventSignature"]); sigStr != "" {
 		eventSig = common.HexToHash(sigStr)
 	}
-	return &core.BlockchainEvent{
+	return &blockchain.BlockchainEvent{
 		ID:              bsonString(doc["id"]),
 		EventHash:       bsonString(doc["eventHash"]),
 		ChainID:         bsonString(doc["chainId"]),

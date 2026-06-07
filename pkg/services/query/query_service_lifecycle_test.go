@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 )
 
 type lifecycleCacheService struct {
@@ -31,19 +32,19 @@ func (m *lifecycleCacheService) Stop(ctx context.Context) error {
 	return nil
 }
 
-func (m *lifecycleCacheService) Get(ctx context.Context, key string) ([]core.BlockchainEvent, error) {
+func (m *lifecycleCacheService) Get(ctx context.Context, key string) ([]blockchain.BlockchainEvent, error) {
 	_ = ctx
 	_ = key
 	return nil, nil
 }
 
-func (m *lifecycleCacheService) GetSingle(ctx context.Context, key string) (*core.BlockchainEvent, error) {
+func (m *lifecycleCacheService) GetSingle(ctx context.Context, key string) (*blockchain.BlockchainEvent, error) {
 	_ = ctx
 	_ = key
 	return nil, nil
 }
 
-func (m *lifecycleCacheService) Set(ctx context.Context, key string, value []core.BlockchainEvent, ttl time.Duration) error {
+func (m *lifecycleCacheService) Set(ctx context.Context, key string, value []blockchain.BlockchainEvent, ttl time.Duration) error {
 	_ = ctx
 	_ = key
 	_ = value
@@ -51,7 +52,7 @@ func (m *lifecycleCacheService) Set(ctx context.Context, key string, value []cor
 	return nil
 }
 
-func (m *lifecycleCacheService) SetSingle(ctx context.Context, key string, value *core.BlockchainEvent, ttl time.Duration) error {
+func (m *lifecycleCacheService) SetSingle(ctx context.Context, key string, value *blockchain.BlockchainEvent, ttl time.Duration) error {
 	_ = ctx
 	_ = key
 	_ = value
@@ -59,7 +60,7 @@ func (m *lifecycleCacheService) SetSingle(ctx context.Context, key string, value
 	return nil
 }
 
-func (m *lifecycleCacheService) SetQueryResult(ctx context.Context, key string, events []core.BlockchainEvent, total int64, ttl time.Duration) error {
+func (m *lifecycleCacheService) SetQueryResult(ctx context.Context, key string, events []blockchain.BlockchainEvent, total int64, ttl time.Duration) error {
 	_ = ctx
 	_ = key
 	_ = events
@@ -68,7 +69,7 @@ func (m *lifecycleCacheService) SetQueryResult(ctx context.Context, key string, 
 	return nil
 }
 
-func (m *lifecycleCacheService) GetQueryResult(ctx context.Context, key string) ([]core.BlockchainEvent, int64, error) {
+func (m *lifecycleCacheService) GetQueryResult(ctx context.Context, key string) ([]blockchain.BlockchainEvent, int64, error) {
 	_ = ctx
 	_ = key
 	return nil, 0, nil

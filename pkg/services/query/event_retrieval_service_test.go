@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"go.uber.org/mock/gomock"
 )
 
@@ -145,7 +146,7 @@ func TestGetEventWithMetadata_NotFound(t *testing.T) {
 func TestGetEventWithMetadata_MetadataError(t *testing.T) {
 	t.Parallel()
 	s, es, ms := newInitService(t)
-	event := &core.BlockchainEvent{ID: "evt-1"}
+	event := &blockchain.BlockchainEvent{ID: "evt-1"}
 	es.EXPECT().GetEvent(gomock.Any(), "evt-1").Return(event, nil)
 	ms.EXPECT().GetMetadata(gomock.Any(), "evt-1").Return(nil, fmt.Errorf("meta error"))
 	_, err := s.GetEventWithMetadata(context.Background(), "evt-1")
@@ -157,7 +158,7 @@ func TestGetEventWithMetadata_MetadataError(t *testing.T) {
 func TestGetEventWithMetadata_Success(t *testing.T) {
 	t.Parallel()
 	s, es, ms := newInitService(t)
-	event := &core.BlockchainEvent{ID: "evt-1"}
+	event := &blockchain.BlockchainEvent{ID: "evt-1"}
 	metadata := &EventMetadata{EventID: "evt-1"}
 	es.EXPECT().GetEvent(gomock.Any(), "evt-1").Return(event, nil)
 	ms.EXPECT().GetMetadata(gomock.Any(), "evt-1").Return(metadata, nil)
@@ -192,7 +193,7 @@ func TestGetEventsByChainWithMetadata_StoreError(t *testing.T) {
 func TestGetEventsByChainWithMetadata_EmptyResult(t *testing.T) {
 	t.Parallel()
 	s, es, _ := newInitService(t)
-	es.EXPECT().GetEventsByChain(gomock.Any(), 1, 10, 0).Return([]*core.BlockchainEvent{}, nil)
+	es.EXPECT().GetEventsByChain(gomock.Any(), 1, 10, 0).Return([]*blockchain.BlockchainEvent{}, nil)
 	result, err := s.GetEventsByChainWithMetadata(context.Background(), 1, 10, 0)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -205,7 +206,7 @@ func TestGetEventsByChainWithMetadata_EmptyResult(t *testing.T) {
 func TestGetEventsByChainWithMetadata_AttachError(t *testing.T) {
 	t.Parallel()
 	s, es, ms := newInitService(t)
-	events := []*core.BlockchainEvent{{ID: "evt-1"}}
+	events := []*blockchain.BlockchainEvent{{ID: "evt-1"}}
 	es.EXPECT().GetEventsByChain(gomock.Any(), 1, 10, 0).Return(events, nil)
 	ms.EXPECT().GetMetadataBatch(gomock.Any(), gomock.Any()).Return(nil, fmt.Errorf("batch error"))
 	_, err := s.GetEventsByChainWithMetadata(context.Background(), 1, 10, 0)
@@ -217,7 +218,7 @@ func TestGetEventsByChainWithMetadata_AttachError(t *testing.T) {
 func TestGetEventsByChainWithMetadata_Success(t *testing.T) {
 	t.Parallel()
 	s, es, ms := newInitService(t)
-	events := []*core.BlockchainEvent{{ID: "evt-1"}}
+	events := []*blockchain.BlockchainEvent{{ID: "evt-1"}}
 	metaMap := map[string]*EventMetadata{"evt-1": {EventID: "evt-1"}}
 	es.EXPECT().GetEventsByChain(gomock.Any(), 1, 10, 0).Return(events, nil)
 	ms.EXPECT().GetMetadataBatch(gomock.Any(), gomock.Any()).Return(metaMap, nil)
@@ -251,7 +252,7 @@ func TestGetEventsByContractWithMetadata_EmptyAddress(t *testing.T) {
 func TestGetEventsByContractWithMetadata_Success(t *testing.T) {
 	t.Parallel()
 	s, es, ms := newInitService(t)
-	events := []*core.BlockchainEvent{{ID: "evt-1"}}
+	events := []*blockchain.BlockchainEvent{{ID: "evt-1"}}
 	metaMap := map[string]*EventMetadata{"evt-1": {EventID: "evt-1"}}
 	es.EXPECT().GetEventsByContract(gomock.Any(), "0x123", 10, 0).Return(events, nil)
 	ms.EXPECT().GetMetadataBatch(gomock.Any(), gomock.Any()).Return(metaMap, nil)
@@ -285,7 +286,7 @@ func TestGetEventsByEventNameWithMetadata_EmptyName(t *testing.T) {
 func TestGetEventsByEventNameWithMetadata_Success(t *testing.T) {
 	t.Parallel()
 	s, es, ms := newInitService(t)
-	events := []*core.BlockchainEvent{{ID: "evt-1"}}
+	events := []*blockchain.BlockchainEvent{{ID: "evt-1"}}
 	metaMap := map[string]*EventMetadata{"evt-1": {EventID: "evt-1"}}
 	es.EXPECT().GetEventsByEventName(gomock.Any(), "Transfer", 10, 0).Return(events, nil)
 	ms.EXPECT().GetMetadataBatch(gomock.Any(), gomock.Any()).Return(metaMap, nil)
@@ -319,7 +320,7 @@ func TestGetEventsByCorrelationID_EmptyID(t *testing.T) {
 func TestGetEventsByCorrelationID_Success(t *testing.T) {
 	t.Parallel()
 	s, es, ms := newInitService(t)
-	events := []*core.BlockchainEvent{{ID: "evt-1"}}
+	events := []*blockchain.BlockchainEvent{{ID: "evt-1"}}
 	metaMap := map[string]*EventMetadata{"evt-1": {EventID: "evt-1"}}
 	es.EXPECT().GetEventsByCorrelationID(gomock.Any(), "corr-1", 10, 0).Return(events, nil)
 	ms.EXPECT().GetMetadataBatch(gomock.Any(), gomock.Any()).Return(metaMap, nil)

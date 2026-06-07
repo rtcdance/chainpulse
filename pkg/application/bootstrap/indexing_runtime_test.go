@@ -9,6 +9,7 @@ import (
 
 	appindexing "github.com/rtcdance/chainpulse/pkg/application/indexing"
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 )
 
 func TestBuildMonolithicIndexingRuntimeRequiresLogger(t *testing.T) {
@@ -419,7 +420,7 @@ func (d *runtimeTestDatabasePlugin) StoreEvent(ctx context.Context, event any) e
 	return nil
 }
 
-func (d *runtimeTestDatabasePlugin) GetEvent(ctx context.Context, id string) (*core.BlockchainEvent, error) {
+func (d *runtimeTestDatabasePlugin) GetEvent(ctx context.Context, id string) (*blockchain.BlockchainEvent, error) {
 	return nil, nil
 }
 
@@ -431,11 +432,11 @@ func (d *runtimeTestDatabasePlugin) BatchStoreEvents(ctx context.Context, events
 	return nil
 }
 
-func (d *runtimeTestDatabasePlugin) GetAllEvents(ctx context.Context) ([]*core.BlockchainEvent, error) {
+func (d *runtimeTestDatabasePlugin) GetAllEvents(ctx context.Context) ([]*blockchain.BlockchainEvent, error) {
 	return nil, nil
 }
 
-func (d *runtimeTestDatabasePlugin) GetAllBlocks(ctx context.Context) ([]*core.Block, error) {
+func (d *runtimeTestDatabasePlugin) GetAllBlocks(ctx context.Context) ([]*blockchain.Block, error) {
 	return nil, nil
 }
 
@@ -443,11 +444,11 @@ func (d *runtimeTestDatabasePlugin) DeleteEvent(ctx context.Context, eventID str
 	return nil
 }
 
-func (d *runtimeTestDatabasePlugin) GetEventsByBlockRange(ctx context.Context, fromBlock, toBlock uint64) ([]*core.BlockchainEvent, error) {
+func (d *runtimeTestDatabasePlugin) GetEventsByBlockRange(ctx context.Context, fromBlock, toBlock uint64) ([]*blockchain.BlockchainEvent, error) {
 	return nil, nil
 }
 
-func (d *runtimeTestDatabasePlugin) GetBlock(ctx context.Context, blockNumber uint64) (*core.Block, error) {
+func (d *runtimeTestDatabasePlugin) GetBlock(ctx context.Context, blockNumber uint64) (*blockchain.Block, error) {
 	return nil, nil
 }
 

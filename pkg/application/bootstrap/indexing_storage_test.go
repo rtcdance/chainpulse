@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 
 	"github.com/ethereum/go-ethereum/common"
 )
@@ -37,7 +38,7 @@ func (s *stubDatabasePlugin) StoreEvent(ctx context.Context, event any) error {
 	return nil
 }
 
-func (s *stubDatabasePlugin) GetEvent(ctx context.Context, id string) (*core.BlockchainEvent, error) {
+func (s *stubDatabasePlugin) GetEvent(ctx context.Context, id string) (*blockchain.BlockchainEvent, error) {
 	return nil, nil
 }
 
@@ -49,19 +50,19 @@ func (s *stubDatabasePlugin) BatchStoreEvents(ctx context.Context, events []any)
 	return nil
 }
 
-func (s *stubDatabasePlugin) GetAllEvents(ctx context.Context) ([]*core.BlockchainEvent, error) {
+func (s *stubDatabasePlugin) GetAllEvents(ctx context.Context) ([]*blockchain.BlockchainEvent, error) {
 	return nil, nil
 }
 
-func (s *stubDatabasePlugin) GetAllBlocks(ctx context.Context) ([]*core.Block, error) {
+func (s *stubDatabasePlugin) GetAllBlocks(ctx context.Context) ([]*blockchain.Block, error) {
 	return nil, nil
 }
 func (s *stubDatabasePlugin) DeleteEvent(ctx context.Context, eventID string) error { return nil }
-func (s *stubDatabasePlugin) GetEventsByBlockRange(ctx context.Context, fromBlock, toBlock uint64) ([]*core.BlockchainEvent, error) {
+func (s *stubDatabasePlugin) GetEventsByBlockRange(ctx context.Context, fromBlock, toBlock uint64) ([]*blockchain.BlockchainEvent, error) {
 	return nil, nil
 }
 
-func (s *stubDatabasePlugin) GetBlock(ctx context.Context, blockNumber uint64) (*core.Block, error) {
+func (s *stubDatabasePlugin) GetBlock(ctx context.Context, blockNumber uint64) (*blockchain.Block, error) {
 	return nil, nil
 }
 func (s *stubDatabasePlugin) GetLatestBlock(ctx context.Context) (uint64, error) { return 0, nil }
@@ -151,7 +152,7 @@ func TestSnapshotCompatibleDatabaseStoresBlockSnapshots(t *testing.T) {
 	db := newSnapshotCompatibleDatabase(&stubDatabasePlugin{})
 
 	hash := common.HexToHash("0xabc")
-	block := &core.Block{Number: 12, Hash: hash}
+	block := &blockchain.Block{Number: 12, Hash: hash}
 	if err := db.StoreBlockSnapshot(context.Background(), block); err != nil {
 		t.Fatalf("store block snapshot: %v", err)
 	}
@@ -171,7 +172,7 @@ func TestSnapshotCompatibleDatabase_GetAllBlocks_FallbackToLocal(t *testing.T) {
 
 	// Store blocks to local cache (delegate returns nil)
 	for i := uint64(1); i <= 3; i++ {
-		err := sdb.StoreBlockSnapshot(context.Background(), &core.Block{Number: i})
+		err := sdb.StoreBlockSnapshot(context.Background(), &blockchain.Block{Number: i})
 		if err != nil {
 			t.Fatalf("store block %d: %v", i, err)
 		}
@@ -188,17 +189,17 @@ func TestSnapshotCompatibleDatabase_GetAllBlocks_FallbackToLocal(t *testing.T) {
 
 type stubDatabasePluginWithBlocks struct {
 	stubDatabasePlugin
-	blocks []*core.Block
+	blocks []*blockchain.Block
 }
 
-func (s *stubDatabasePluginWithBlocks) GetAllBlocks(_ context.Context) ([]*core.Block, error) {
+func (s *stubDatabasePluginWithBlocks) GetAllBlocks(_ context.Context) ([]*blockchain.Block, error) {
 	return s.blocks, nil
 }
 
 func TestSnapshotCompatibleDatabase_GetAllBlocks_FromDelegate(t *testing.T) {
 	t.Parallel()
 	delegate := &stubDatabasePluginWithBlocks{
-		blocks: []*core.Block{{Number: 42}, {Number: 99}},
+		blocks: []*blockchain.Block{{Number: 42}, {Number: 99}},
 	}
 	sdb := newSnapshotCompatibleDatabase(delegate)
 

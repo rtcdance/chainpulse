@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 
 	"github.com/ethereum/go-ethereum/common"
 )
@@ -90,7 +91,7 @@ func TestDatabasePluginWriteEvent(t *testing.T) {
 	}
 
 	// Write event
-	event := &core.BlockchainEvent{
+	event := &blockchain.BlockchainEvent{
 		EventHash:       "0xabc123",
 		BlockNumber:     12345,
 		TransactionHash: common.HexToHash("0xdef456"),
@@ -135,9 +136,9 @@ func TestDatabasePluginWriteEvents(t *testing.T) {
 	}
 
 	// Write multiple events
-	events := make([]core.BlockchainEvent, 5)
+	events := make([]blockchain.BlockchainEvent, 5)
 	for i := 0; i < 5; i++ {
-		events[i] = core.BlockchainEvent{
+		events[i] = blockchain.BlockchainEvent{
 			EventHash:       fmt.Sprintf("0xhash%d", i),
 			BlockNumber:     uint64(12345 + i),
 			TransactionHash: common.HexToHash(fmt.Sprintf("0xtx%d", i)),
@@ -184,7 +185,7 @@ func TestDatabasePluginQueryEvents(t *testing.T) {
 
 	// Write events
 	for i := 0; i < 10; i++ {
-		event := &core.BlockchainEvent{
+		event := &blockchain.BlockchainEvent{
 			EventHash:       fmt.Sprintf("0xhash%d", i),
 			BlockNumber:     uint64(12345 + i),
 			TransactionHash: common.HexToHash(fmt.Sprintf("0xtx%d", i)),
@@ -243,7 +244,7 @@ func TestDatabasePluginQueryEventsWithFilter(t *testing.T) {
 
 	// Write events with different contract addresses
 	for i := 0; i < 5; i++ {
-		event := &core.BlockchainEvent{
+		event := &blockchain.BlockchainEvent{
 			EventHash:       fmt.Sprintf("0xhash%d", i),
 			BlockNumber:     uint64(12345 + i),
 			TransactionHash: common.HexToHash(fmt.Sprintf("0xtx%d", i)),
@@ -259,7 +260,7 @@ func TestDatabasePluginQueryEventsWithFilter(t *testing.T) {
 	}
 
 	for i := 5; i < 10; i++ {
-		event := &core.BlockchainEvent{
+		event := &blockchain.BlockchainEvent{
 			EventHash:       fmt.Sprintf("0xhash%d", i),
 			BlockNumber:     uint64(12345 + i),
 			TransactionHash: common.HexToHash(fmt.Sprintf("0xtx%d", i)),
@@ -314,7 +315,7 @@ func TestDatabasePluginGetEventByHash(t *testing.T) {
 	}
 
 	// Write event
-	event := &core.BlockchainEvent{
+	event := &blockchain.BlockchainEvent{
 		EventHash:       "0xabc123",
 		BlockNumber:     12345,
 		TransactionHash: common.HexToHash("0xdef456"),
@@ -368,7 +369,7 @@ func TestDatabasePluginDeleteEvent(t *testing.T) {
 	}
 
 	// Write event
-	event := &core.BlockchainEvent{
+	event := &blockchain.BlockchainEvent{
 		EventHash:       "0xabc123",
 		BlockNumber:     12345,
 		TransactionHash: common.HexToHash("0xdef456"),
@@ -426,7 +427,7 @@ func TestDatabasePluginStats(t *testing.T) {
 
 	// Write events
 	for i := 0; i < 5; i++ {
-		event := &core.BlockchainEvent{
+		event := &blockchain.BlockchainEvent{
 			EventHash:       fmt.Sprintf("0xhash%d", i),
 			BlockNumber:     uint64(12345 + i),
 			TransactionHash: common.HexToHash(fmt.Sprintf("0xtx%d", i)),
@@ -500,7 +501,7 @@ func TestDatabasePluginConcurrentOperations(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		go func(idx int) {
 			for j := 0; j < 10; j++ {
-				event := &core.BlockchainEvent{
+				event := &blockchain.BlockchainEvent{
 					EventHash:       fmt.Sprintf("0xhash_%d_%d", idx, j),
 					BlockNumber:     uint64(12345 + idx*10 + j),
 					TransactionHash: common.HexToHash(fmt.Sprintf("0xtx_%d_%d", idx, j)),
@@ -569,7 +570,7 @@ func TestDatabasePluginErrorHandling(t *testing.T) {
 	}
 
 	// Test write with empty hash
-	event := &core.BlockchainEvent{
+	event := &blockchain.BlockchainEvent{
 		BlockNumber: 12345,
 	}
 	err = db.WriteEvent(context.Background(), event)
@@ -621,7 +622,7 @@ func TestDatabasePluginQueryWithPagination(t *testing.T) {
 
 	// Write 20 events
 	for i := 0; i < 20; i++ {
-		event := &core.BlockchainEvent{
+		event := &blockchain.BlockchainEvent{
 			EventHash:       fmt.Sprintf("0xhash%d", i),
 			BlockNumber:     uint64(12345 + i),
 			TransactionHash: common.HexToHash(fmt.Sprintf("0xtx%d", i)),

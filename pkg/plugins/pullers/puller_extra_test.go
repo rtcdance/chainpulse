@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 
 	"github.com/ethereum/go-ethereum/common"
 )
@@ -198,8 +199,8 @@ func TestBaseDataPullerPlugin_BuildBlockchainEvent(t *testing.T) {
 	if event.EventHash == "" {
 		t.Error("expected non-empty EventHash")
 	}
-	if event.Status != core.EventStatusPending {
-		t.Errorf("Status = %v", core.EventStatusPending)
+	if event.Status != blockchain.EventStatusPending {
+		t.Errorf("Status = %v", blockchain.EventStatusPending)
 	}
 }
 
@@ -225,7 +226,7 @@ func TestBaseDataPullerPlugin_ValidateEvent_ContractAddressFilter(t *testing.T) 
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ev := core.BlockchainEvent{
+			ev := blockchain.BlockchainEvent{
 				BlockNumber:     100,
 				TransactionHash: txHash,
 				ContractAddress: tt.address,

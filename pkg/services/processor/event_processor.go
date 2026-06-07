@@ -12,6 +12,8 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
+"github.com/rtcdance/chainpulse/pkg/logkeys"
 	"github.com/rtcdance/chainpulse/pkg/core/eventsig"
 	"github.com/rtcdance/chainpulse/pkg/observability"
 )
@@ -19,7 +21,7 @@ import (
 // EventStorage persists processed events.
 // Deprecated: Use domain/query.EventStore for full event storage capabilities.
 type EventStorage interface {
-	WriteEvent(ctx context.Context, event *core.BlockchainEvent) error
+	WriteEvent(ctx context.Context, event *blockchain.BlockchainEvent) error
 }
 
 // CacheWriter is the minimal cache interface needed by the event processor.
@@ -45,11 +47,11 @@ type EventProcessor interface {
 	// ProcessEvent processes a single event.
 	// The context.Context parameter enables cancellation during graceful shutdown
 	// and timeout for long-running storage operations.
-	ProcessEvent(ctx context.Context, event *core.BlockchainEvent) error
+	ProcessEvent(ctx context.Context, event *blockchain.BlockchainEvent) error
 
 	// ProcessBatch processes a batch of events.
 	// The context.Context parameter enables cancellation of the entire batch.
-	ProcessBatch(ctx context.Context, events []*core.BlockchainEvent) error
+	ProcessBatch(ctx context.Context, events []*blockchain.BlockchainEvent) error
 
 	// GetProcessedCount returns the count of processed events
 	GetProcessedCount() int64
@@ -122,7 +124,7 @@ func (p *DefaultEventProcessor) Initialize(config *core.Config) error {
 	p.config = config
 	p.initialized = true
 
-	p.logger.Info("Event processor initialized", core.LogKeyComponent, "event_processor")
+	p.logger.Info("Event processor initialized", logkeys.LogKeyComponent, "event_processor")
 
 	return nil
 }
@@ -155,7 +157,7 @@ func (p *DefaultEventProcessor) Start() error {
 		Message: "Event processor started",
 	}
 
-	p.logger.Info("Event processor started", core.LogKeyComponent, "event_processor")
+	p.logger.Info("Event processor started", logkeys.LogKeyComponent, "event_processor")
 
 	return nil
 }
@@ -175,7 +177,7 @@ func (p *DefaultEventProcessor) Stop() error {
 		Message: "Event processor stopped",
 	}
 
-	p.logger.Info("Event processor stopped", core.LogKeyComponent, "event_processor")
+	p.logger.Info("Event processor stopped", logkeys.LogKeyComponent, "event_processor")
 
 	return nil
 }
@@ -214,7 +216,7 @@ func (p *DefaultEventProcessor) Health() *core.HealthStatus {
 // guarantees are needed, use a state machine.
 //
 //nolint:funlen // ProcessEvent has many statements for validation and processing steps.
-func (p *DefaultEventProcessor) ProcessEvent(ctx context.Context, event *core.BlockchainEvent) error {
+func (p *DefaultEventProcessor) ProcessEvent(ctx context.Context, event *blockchain.BlockchainEvent) error {
 	if event == nil {
 		return fmt.Errorf("event is required")
 	}
@@ -232,7 +234,7 @@ func (p *DefaultEventProcessor) ProcessEvent(ctx context.Context, event *core.Bl
 	p.mu.RLock()
 	if !p.running {
 		p.mu.RUnlock()
-		p.logger.Warn("ProcessEvent rejected: processor not running", core.LogKeyEventID, event.ID)
+		p.logger.Warn("ProcessEvent rejected: processor not running", logkeys.LogKeyEventID, event.ID)
 		return fmt.Errorf("event processor not running")
 	}
 	p.mu.RUnlock()
@@ -254,7 +256,7 @@ func (p *DefaultEventProcessor) ProcessEvent(ctx context.Context, event *core.Bl
 			"network": event.Network,
 		})
 
-		p.logger.Error("Event validation failed", core.LogKeyError, err, core.LogKeyNetwork, event.Network)
+		p.logger.Error("Event validation failed", logkeys.LogKeyError, err, logkeys.LogKeyNetwork, event.Network)
 
 		return err
 	}
@@ -270,7 +272,7 @@ func (p *DefaultEventProcessor) ProcessEvent(ctx context.Context, event *core.Bl
 			"network": event.Network,
 		})
 
-		p.logger.Error("Hash generation failed", core.LogKeyError, err, core.LogKeyNetwork, event.Network, core.LogKeyEventID, event.ID)
+		p.logger.Error("Hash generation failed", logkeys.LogKeyError, err, logkeys.LogKeyNetwork, event.Network, logkeys.LogKeyEventID, event.ID)
 
 		return err
 	}
@@ -294,7 +296,7 @@ func (p *DefaultEventProcessor) ProcessEvent(ctx context.Context, event *core.Bl
 			"network": event.Network,
 		})
 
-		p.logger.Info("Duplicate event detected", core.LogKeyHash, hash, core.LogKeyNetwork, event.Network)
+		p.logger.Info("Duplicate event detected", logkeys.LogKeyHash, hash, logkeys.LogKeyNetwork, event.Network)
 
 		return nil
 	}
@@ -310,7 +312,7 @@ func (p *DefaultEventProcessor) ProcessEvent(ctx context.Context, event *core.Bl
 			"network": event.Network,
 		})
 
-		p.logger.Error("Event storage failed", core.LogKeyError, err, core.LogKeyNetwork, event.Network)
+		p.logger.Error("Event storage failed", logkeys.LogKeyError, err, logkeys.LogKeyNetwork, event.Network)
 
 		return err
 	}
@@ -330,7 +332,7 @@ func (p *DefaultEventProcessor) ProcessEvent(ctx context.Context, event *core.Bl
 	}
 	if err != nil {
 		p.logger.Error("Failed to mark event as processed after retries",
-			core.LogKeyError, err, "attempts", p.maxRetries)
+			logkeys.LogKeyError, err, "attempts", p.maxRetries)
 	}
 
 	// Update cache
@@ -345,7 +347,7 @@ func (p *DefaultEventProcessor) ProcessEvent(ctx context.Context, event *core.Bl
 
 		err = p.cachePlugin.Set(cacheEntry)
 		if err != nil {
-			p.logger.Error("Failed to update cache", core.LogKeyError, err)
+			p.logger.Error("Failed to update cache", logkeys.LogKeyError, err)
 		}
 	}
 
@@ -357,13 +359,13 @@ func (p *DefaultEventProcessor) ProcessEvent(ctx context.Context, event *core.Bl
 		"network": event.Network,
 	})
 
-	p.logger.Info("Event processed successfully", core.LogKeyNetwork, event.Network, core.LogKeyBlockNumber, event.BlockNumber)
+	p.logger.Info("Event processed successfully", logkeys.LogKeyNetwork, event.Network, logkeys.LogKeyBlockNumber, event.BlockNumber)
 
 	return nil
 }
 
 // ProcessBatch processes a batch of events
-func (p *DefaultEventProcessor) ProcessBatch(ctx context.Context, events []*core.BlockchainEvent) error {
+func (p *DefaultEventProcessor) ProcessBatch(ctx context.Context, events []*blockchain.BlockchainEvent) error {
 	if len(events) == 0 {
 		return nil
 	}
@@ -381,7 +383,7 @@ func (p *DefaultEventProcessor) ProcessBatch(ctx context.Context, events []*core
 	for _, event := range events {
 		// Check context cancellation between events in the batch
 		if err := ctx.Err(); err != nil {
-			p.logger.Warn("Batch cancelled", core.LogKeyError, err, core.LogKeyBatchSize, len(events), core.LogKeyProcessed, successCount+failureCount)
+			p.logger.Warn("Batch cancelled", logkeys.LogKeyError, err, logkeys.LogKeyBatchSize, len(events), logkeys.LogKeyProcessed, successCount+failureCount)
 			return fmt.Errorf("batch processing cancelled: %w", err)
 		}
 
@@ -430,7 +432,7 @@ func (p *DefaultEventProcessor) GetDuplicateCount() int64 {
 }
 
 // validateEvent validates event structure
-func (p *DefaultEventProcessor) validateEvent(event *core.BlockchainEvent) error {
+func (p *DefaultEventProcessor) validateEvent(event *blockchain.BlockchainEvent) error {
 	if event.Network == "" {
 		return fmt.Errorf("network is required")
 	}
@@ -455,9 +457,9 @@ func (p *DefaultEventProcessor) validateEvent(event *core.BlockchainEvent) error
 
 // storeEventWithRetry stores event with retry logic.
 // Uses context-aware backoff instead of time.Sleep for graceful shutdown support.
-func (p *DefaultEventProcessor) storeEventWithRetry(ctx context.Context, event *core.BlockchainEvent) error {
+func (p *DefaultEventProcessor) storeEventWithRetry(ctx context.Context, event *blockchain.BlockchainEvent) error {
 	if p.databasePlugin == nil {
-		p.logger.Error("database plugin is required for event storage", core.LogKeyEventID, event.ID)
+		p.logger.Error("database plugin is required for event storage", logkeys.LogKeyEventID, event.ID)
 		return fmt.Errorf("database plugin is required")
 	}
 
@@ -485,7 +487,7 @@ func (p *DefaultEventProcessor) storeEventWithRetry(ctx context.Context, event *
 
 		lastErr = err
 
-		p.logger.Warn("Event storage attempt failed", core.LogKeyAttempt, attempt+1, core.LogKeyError, err)
+		p.logger.Warn("Event storage attempt failed", logkeys.LogKeyAttempt, attempt+1, logkeys.LogKeyError, err)
 	}
 
 	return lastErr

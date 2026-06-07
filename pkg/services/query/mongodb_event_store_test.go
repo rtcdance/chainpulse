@@ -9,6 +9,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 )
 
 // TestMongoDBEventStoreInitialize tests event store initialization
@@ -49,7 +50,7 @@ func TestMongoDBEventStoreInsertEvent(t *testing.T) {
 	dbManager := &mockDatabaseManager{}
 	store := NewMongoDBEventStore(dbManager, logger, metrics, config)
 
-	event := &core.BlockchainEvent{
+	event := &blockchain.BlockchainEvent{
 		ID:              "event-1",
 		ChainID:         "1",
 		BlockNumber:     100,
@@ -87,7 +88,7 @@ func TestMongoDBEventStoreInsertEventBatch(t *testing.T) {
 	dbManager := &mockDatabaseManager{}
 	store := NewMongoDBEventStore(dbManager, logger, metrics, config)
 
-	events := []*core.BlockchainEvent{
+	events := []*blockchain.BlockchainEvent{
 		{
 			ID:              "event-1",
 			ChainID:         "1",
@@ -123,7 +124,7 @@ func TestMongoDBEventStoreInsertEventBatch(t *testing.T) {
 
 	// Test with empty batch
 	store.initialized = true
-	err = store.InsertEventBatch(ctx, []*core.BlockchainEvent{})
+	err = store.InsertEventBatch(ctx, []*blockchain.BlockchainEvent{})
 	if err != nil {
 		t.Errorf("InsertEventBatch should succeed with empty batch: %v", err)
 	}
@@ -389,7 +390,7 @@ func TestMongoDBEventStoreMetricsCollection(t *testing.T) {
 	ctx := context.Background()
 
 	// Try to insert event (will fail but should record metrics)
-	event := &core.BlockchainEvent{
+	event := &blockchain.BlockchainEvent{
 		ID:          "event-1",
 		ChainID:     "1",
 		BlockNumber: 100,

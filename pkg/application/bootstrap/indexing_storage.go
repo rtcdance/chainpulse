@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"github.com/rtcdance/chainpulse/pkg/core"
 
 	plugindatabase "github.com/rtcdance/chainpulse/pkg/plugins/database"
@@ -27,17 +28,17 @@ func defaultMonolithicIndexingStorageDeps() monolithicIndexingStorageDeps {
 type snapshotCompatibleDatabase struct {
 	core.DatabasePlugin
 	mu     sync.RWMutex
-	blocks map[uint64]*core.Block
+	blocks map[uint64]*blockchain.Block
 }
 
 func newSnapshotCompatibleDatabase(db core.DatabasePlugin) *snapshotCompatibleDatabase {
 	return &snapshotCompatibleDatabase{
 		DatabasePlugin: db,
-		blocks:         make(map[uint64]*core.Block),
+		blocks:         make(map[uint64]*blockchain.Block),
 	}
 }
 
-func (d *snapshotCompatibleDatabase) StoreBlockSnapshot(_ context.Context, block *core.Block) error {
+func (d *snapshotCompatibleDatabase) StoreBlockSnapshot(_ context.Context, block *blockchain.Block) error {
 	if block == nil {
 		return fmt.Errorf("block is nil")
 	}
@@ -48,21 +49,21 @@ func (d *snapshotCompatibleDatabase) StoreBlockSnapshot(_ context.Context, block
 	return nil
 }
 
-func (d *snapshotCompatibleDatabase) GetAllBlocks(ctx context.Context) ([]*core.Block, error) {
+func (d *snapshotCompatibleDatabase) GetAllBlocks(ctx context.Context) ([]*blockchain.Block, error) {
 	if blocks, err := d.DatabasePlugin.GetAllBlocks(ctx); err == nil && len(blocks) > 0 {
 		return blocks, nil
 	}
 
 	d.mu.RLock()
 	defer d.mu.RUnlock()
-	results := make([]*core.Block, 0, len(d.blocks))
+	results := make([]*blockchain.Block, 0, len(d.blocks))
 	for _, block := range d.blocks {
 		results = append(results, block)
 	}
 	return results, nil
 }
 
-func (d *snapshotCompatibleDatabase) GetBlock(ctx context.Context, blockNumber uint64) (*core.Block, error) {
+func (d *snapshotCompatibleDatabase) GetBlock(ctx context.Context, blockNumber uint64) (*blockchain.Block, error) {
 	if block, err := d.DatabasePlugin.GetBlock(ctx, blockNumber); err == nil && block != nil {
 		return block, nil
 	}

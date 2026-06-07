@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"github.com/rtcdance/chainpulse/pkg/plugins/cache"
 	"github.com/rtcdance/chainpulse/pkg/plugins/database"
 	"github.com/rtcdance/chainpulse/pkg/plugins/mq"
@@ -83,7 +84,7 @@ func BenchmarkMockDB_StoreEvent(b *testing.B) {
 	defer func() { _ = db.Stop(context.Background()) }()
 
 	ctx := context.Background()
-	event := &core.BlockchainEvent{
+	event := &blockchain.BlockchainEvent{
 		ID:          "bench-event",
 		BlockNumber: 1000,
 	}
@@ -101,7 +102,7 @@ func BenchmarkMockDB_GetEvent(b *testing.B) {
 	defer func() { _ = db.Stop(context.Background()) }()
 
 	ctx := context.Background()
-	event := &core.BlockchainEvent{
+	event := &blockchain.BlockchainEvent{
 		ID:          "bench-event",
 		BlockNumber: 1000,
 	}
@@ -122,7 +123,7 @@ func BenchmarkMockDB_BatchStore(b *testing.B) {
 	ctx := context.Background()
 	events := make([]any, 100)
 	for i := 0; i < 100; i++ {
-		events[i] = &core.BlockchainEvent{
+		events[i] = &blockchain.BlockchainEvent{
 			ID:          "event-" + string(rune(i)),
 			BlockNumber: uint64(i),
 		}

@@ -15,10 +15,10 @@ import (
 
 	"github.com/rtcdance/chainpulse/pkg/application/bootstrap"
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"github.com/rtcdance/chainpulse/pkg/env"
 	"github.com/rtcdance/chainpulse/pkg/infrastructure/database"
 	"github.com/rtcdance/chainpulse/pkg/plugins/mq"
-	"github.com/rtcdance/chainpulse/pkg/services/eventproc"
 	"github.com/rtcdance/chainpulse/pkg/services/query"
 	"github.com/rtcdance/chainpulse/pkg/services/reorg"
 )
@@ -305,7 +305,7 @@ func main() {
 	fmt.Println("  [2.2/3] DLQ retry service started")
 
 	reorgHandler := reorg.NewReorgHandler(
-		eventproc.NewReorgDBAdapter(eventStore, pgMetadataStore, getDB(dbManager)),
+		newReorgDBAdapter(eventStore, pgMetadataStore, getDB(dbManager)),
 		logger,
 		12,  // reorg threshold
 		120, // max rollback
@@ -314,7 +314,7 @@ func main() {
 	go func() {
 		defer wg.Done()
 		reorgErr := kafkaMQ.ConsumeMessages(consumeCtx, "reorg-events", func(msg core.MessageQueueMessage) error {
-			var reorgMsg core.ReorgDetectedMessage
+			var reorgMsg blockchain.ReorgDetectedMessage
 			if err := json.Unmarshal(msg.Payload, &reorgMsg); err != nil {
 				logger.Error("Failed to unmarshal reorg message", "error", err.Error())
 				return fmt.Errorf("failed to unmarshal reorg message: %w", err)

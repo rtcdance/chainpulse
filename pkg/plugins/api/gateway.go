@@ -11,6 +11,7 @@ import (
 
 	corelib "github.com/rtcdance/chainpulse/pkg/core"
 	domainquery "github.com/rtcdance/chainpulse/pkg/domain/query"
+	"github.com/rtcdance/chainpulse/pkg/logkeys"
 	"github.com/rtcdance/chainpulse/pkg/observability"
 	apicore "github.com/rtcdance/chainpulse/pkg/plugins/api/core"
 	httpapi "github.com/rtcdance/chainpulse/pkg/plugins/api/http"
@@ -485,7 +486,7 @@ func (g *APIGatewayPlugin) Initialize(config corelib.Config) error {
 
 	g.initialized = true
 
-	g.logger.Info("API gateway initialized", corelib.LogKeyComponent, "api_gateway", "domain_bridge_enabled", g.domainBridgeEnabled, "event_query_handler_set", g.eventQueryEnabled, "runtime_routes_enabled", g.runtimeRoutesEnabled)
+	g.logger.Info("API gateway initialized", logkeys.LogKeyComponent, "api_gateway", "domain_bridge_enabled", g.domainBridgeEnabled, "event_query_handler_set", g.eventQueryEnabled, "runtime_routes_enabled", g.runtimeRoutesEnabled)
 
 	return nil
 }
@@ -568,7 +569,7 @@ func (g *APIGatewayPlugin) Start() error {
 
 	g.running = true
 
-	g.logger.Info("API gateway started", corelib.LogKeyComponent, "api_gateway", corelib.LogKeyPort, g.port, "domain_bridge_enabled", g.domainBridgeEnabled, "event_query_handler_set", g.eventQueryEnabled, "runtime_routes_enabled", g.runtimeRoutesEnabled)
+	g.logger.Info("API gateway started", logkeys.LogKeyComponent, "api_gateway", logkeys.LogKeyPort, g.port, "domain_bridge_enabled", g.domainBridgeEnabled, "event_query_handler_set", g.eventQueryEnabled, "runtime_routes_enabled", g.runtimeRoutesEnabled)
 
 	return nil
 }
@@ -596,7 +597,7 @@ func (g *APIGatewayPlugin) ShutdownWithContext(ctx context.Context) error {
 
 	g.running = false
 
-	g.logger.Info("API gateway stopped", corelib.LogKeyComponent, "api_gateway")
+	g.logger.Info("API gateway stopped", logkeys.LogKeyComponent, "api_gateway")
 
 	return nil
 }

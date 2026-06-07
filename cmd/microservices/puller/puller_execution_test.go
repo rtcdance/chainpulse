@@ -7,6 +7,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"github.com/rtcdance/chainpulse/pkg/plugins/pullers"
 )
 
@@ -31,7 +32,7 @@ type pullerExecutionTestPlugin struct {
 	name        string
 	latestBlock uint64
 	lastBlock   uint64
-	events      []core.BlockchainEvent
+	events      []blockchain.BlockchainEvent
 }
 
 func (p *pullerExecutionTestPlugin) Name() string                        { return p.name }
@@ -40,15 +41,15 @@ func (p *pullerExecutionTestPlugin) Initialize(config core.Config) error { retur
 func (p *pullerExecutionTestPlugin) Start() error                        { return nil }
 func (p *pullerExecutionTestPlugin) Stop() error                         { return nil }
 func (p *pullerExecutionTestPlugin) Health() error                       { return nil }
-func (p *pullerExecutionTestPlugin) PullEvents(ctx context.Context, fromBlock, toBlock uint64) ([]core.BlockchainEvent, error) {
-	return append([]core.BlockchainEvent(nil), p.events...), nil
+func (p *pullerExecutionTestPlugin) PullEvents(ctx context.Context, fromBlock, toBlock uint64) ([]blockchain.BlockchainEvent, error) {
+	return append([]blockchain.BlockchainEvent(nil), p.events...), nil
 }
 
 func (p *pullerExecutionTestPlugin) GetLatestBlock(ctx context.Context) (uint64, error) {
 	return p.latestBlock, nil
 }
 
-func (p *pullerExecutionTestPlugin) SubscribeToEvents(ctx context.Context, handler func(core.BlockchainEvent)) error {
+func (p *pullerExecutionTestPlugin) SubscribeToEvents(ctx context.Context, handler func(blockchain.BlockchainEvent)) error {
 	return nil
 }
 
@@ -102,7 +103,7 @@ func TestPullerExecutionRuntimePollPublishesAndShadows(t *testing.T) {
 		name:        "eth",
 		latestBlock: 120,
 		lastBlock:   100,
-		events: []core.BlockchainEvent{
+		events: []blockchain.BlockchainEvent{
 			{
 				ID:              "evt-1",
 				BlockNumber:     120,
@@ -135,7 +136,7 @@ func TestPullerExecutionRuntimePollPublishesAndShadows(t *testing.T) {
 		t.Fatalf("expected 2 published messages, got %d", len(publisher.messages))
 	}
 
-	var event core.BlockchainEvent
+	var event blockchain.BlockchainEvent
 	if err := json.Unmarshal(publisher.messages[0].payload, &event); err != nil {
 		t.Fatalf("unmarshal published payload: %v", err)
 	}

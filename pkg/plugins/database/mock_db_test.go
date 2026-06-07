@@ -5,6 +5,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 )
 
 func TestNewMockDB(t *testing.T) {
@@ -99,7 +100,7 @@ func TestMockDB_Health_Started(t *testing.T) {
 func TestMockDB_StoreEvent(t *testing.T) {
 	t.Parallel()
 	db := NewMockDB()
-	event := &core.BlockchainEvent{ID: "evt-1", BlockNumber: 100}
+	event := &blockchain.BlockchainEvent{ID: "evt-1", BlockNumber: 100}
 	if err := db.StoreEvent(t.Context(), event); err != nil {
 		t.Fatalf("StoreEvent failed: %v", err)
 	}
@@ -122,7 +123,7 @@ func TestMockDB_StoreEvent_NonEvent(t *testing.T) {
 func TestMockDB_GetEvent_Exists(t *testing.T) {
 	t.Parallel()
 	db := NewMockDB()
-	event := &core.BlockchainEvent{ID: "evt-1", BlockNumber: 100}
+	event := &blockchain.BlockchainEvent{ID: "evt-1", BlockNumber: 100}
 	_ = db.StoreEvent(t.Context(), event)
 
 	result, err := db.GetEvent(t.Context(), "evt-1")
@@ -152,8 +153,8 @@ func TestMockDB_GetEvent_NotFound(t *testing.T) {
 func TestMockDB_QueryEvents(t *testing.T) {
 	t.Parallel()
 	db := NewMockDB()
-	_ = db.StoreEvent(t.Context(), &core.BlockchainEvent{ID: "evt-1", BlockNumber: 100})
-	_ = db.StoreEvent(t.Context(), &core.BlockchainEvent{ID: "evt-2", BlockNumber: 200})
+	_ = db.StoreEvent(t.Context(), &blockchain.BlockchainEvent{ID: "evt-1", BlockNumber: 100})
+	_ = db.StoreEvent(t.Context(), &blockchain.BlockchainEvent{ID: "evt-2", BlockNumber: 200})
 
 	results, err := db.QueryEvents(t.Context(), nil)
 	if err != nil {
@@ -180,8 +181,8 @@ func TestMockDB_BatchStoreEvents(t *testing.T) {
 	t.Parallel()
 	db := NewMockDB()
 	events := []any{
-		&core.BlockchainEvent{ID: "evt-1", BlockNumber: 100},
-		&core.BlockchainEvent{ID: "evt-2", BlockNumber: 200},
+		&blockchain.BlockchainEvent{ID: "evt-1", BlockNumber: 100},
+		&blockchain.BlockchainEvent{ID: "evt-2", BlockNumber: 200},
 	}
 	if err := db.BatchStoreEvents(t.Context(), events); err != nil {
 		t.Fatalf("BatchStoreEvents failed: %v", err)
@@ -195,7 +196,7 @@ func TestMockDB_BatchStoreEvents_WithNonEvent(t *testing.T) {
 	t.Parallel()
 	db := NewMockDB()
 	events := []any{
-		&core.BlockchainEvent{ID: "evt-1", BlockNumber: 100},
+		&blockchain.BlockchainEvent{ID: "evt-1", BlockNumber: 100},
 		"not-an-event",
 	}
 	if err := db.BatchStoreEvents(t.Context(), events); err != nil {
@@ -209,8 +210,8 @@ func TestMockDB_BatchStoreEvents_WithNonEvent(t *testing.T) {
 func TestMockDB_GetAllEvents(t *testing.T) {
 	t.Parallel()
 	db := NewMockDB()
-	_ = db.StoreEvent(t.Context(), &core.BlockchainEvent{ID: "evt-1", BlockNumber: 100})
-	_ = db.StoreEvent(t.Context(), &core.BlockchainEvent{ID: "evt-2", BlockNumber: 200})
+	_ = db.StoreEvent(t.Context(), &blockchain.BlockchainEvent{ID: "evt-1", BlockNumber: 100})
+	_ = db.StoreEvent(t.Context(), &blockchain.BlockchainEvent{ID: "evt-2", BlockNumber: 200})
 
 	events, err := db.GetAllEvents(t.Context())
 	if err != nil {
@@ -237,7 +238,7 @@ func TestMockDB_GetAllBlocks(t *testing.T) {
 	t.Parallel()
 	db := NewMockDB()
 	db.mu.Lock()
-	db.blocks[100] = &core.Block{Number: 100, Hash: common.HexToHash("0xabc")}
+	db.blocks[100] = &blockchain.Block{Number: 100, Hash: common.HexToHash("0xabc")}
 	db.mu.Unlock()
 
 	blocks, err := db.GetAllBlocks(t.Context())
@@ -264,7 +265,7 @@ func TestMockDB_GetAllBlocks_Empty(t *testing.T) {
 func TestMockDB_DeleteEvent(t *testing.T) {
 	t.Parallel()
 	db := NewMockDB()
-	_ = db.StoreEvent(t.Context(), &core.BlockchainEvent{ID: "evt-1", BlockNumber: 100})
+	_ = db.StoreEvent(t.Context(), &blockchain.BlockchainEvent{ID: "evt-1", BlockNumber: 100})
 	if err := db.DeleteEvent(t.Context(), "evt-1"); err != nil {
 		t.Fatalf("DeleteEvent failed: %v", err)
 	}
@@ -284,9 +285,9 @@ func TestMockDB_DeleteEvent_NonExistent(t *testing.T) {
 func TestMockDB_GetEventsByBlockRange(t *testing.T) {
 	t.Parallel()
 	db := NewMockDB()
-	_ = db.StoreEvent(t.Context(), &core.BlockchainEvent{ID: "evt-1", BlockNumber: 100})
-	_ = db.StoreEvent(t.Context(), &core.BlockchainEvent{ID: "evt-2", BlockNumber: 150})
-	_ = db.StoreEvent(t.Context(), &core.BlockchainEvent{ID: "evt-3", BlockNumber: 200})
+	_ = db.StoreEvent(t.Context(), &blockchain.BlockchainEvent{ID: "evt-1", BlockNumber: 100})
+	_ = db.StoreEvent(t.Context(), &blockchain.BlockchainEvent{ID: "evt-2", BlockNumber: 150})
+	_ = db.StoreEvent(t.Context(), &blockchain.BlockchainEvent{ID: "evt-3", BlockNumber: 200})
 
 	events, err := db.GetEventsByBlockRange(t.Context(), 100, 150)
 	if err != nil {
@@ -313,7 +314,7 @@ func TestMockDB_GetBlock_Exists(t *testing.T) {
 	t.Parallel()
 	db := NewMockDB()
 	db.mu.Lock()
-	db.blocks[42] = &core.Block{Number: 42, Hash: common.HexToHash("0xdef")}
+	db.blocks[42] = &blockchain.Block{Number: 42, Hash: common.HexToHash("0xdef")}
 	db.mu.Unlock()
 
 	block, err := db.GetBlock(t.Context(), 42)
@@ -356,9 +357,9 @@ func TestMockDB_GetLatestBlock_WithBlocks(t *testing.T) {
 	t.Parallel()
 	db := NewMockDB()
 	db.mu.Lock()
-	db.blocks[10] = &core.Block{Number: 10}
-	db.blocks[50] = &core.Block{Number: 50}
-	db.blocks[30] = &core.Block{Number: 30}
+	db.blocks[10] = &blockchain.Block{Number: 10}
+	db.blocks[50] = &blockchain.Block{Number: 50}
+	db.blocks[30] = &blockchain.Block{Number: 30}
 	db.mu.Unlock()
 
 	latest, err := db.GetLatestBlock(t.Context())
@@ -373,9 +374,9 @@ func TestMockDB_GetLatestBlock_WithBlocks(t *testing.T) {
 func TestMockDB_DeleteEventsByBlockRange(t *testing.T) {
 	t.Parallel()
 	db := NewMockDB()
-	_ = db.StoreEvent(t.Context(), &core.BlockchainEvent{ID: "evt-1", BlockNumber: 100})
-	_ = db.StoreEvent(t.Context(), &core.BlockchainEvent{ID: "evt-2", BlockNumber: 150})
-	_ = db.StoreEvent(t.Context(), &core.BlockchainEvent{ID: "evt-3", BlockNumber: 200})
+	_ = db.StoreEvent(t.Context(), &blockchain.BlockchainEvent{ID: "evt-1", BlockNumber: 100})
+	_ = db.StoreEvent(t.Context(), &blockchain.BlockchainEvent{ID: "evt-2", BlockNumber: 150})
+	_ = db.StoreEvent(t.Context(), &blockchain.BlockchainEvent{ID: "evt-3", BlockNumber: 200})
 
 	count, err := db.DeleteEventsByBlockRange(t.Context(), 100, 150)
 	if err != nil {
@@ -404,8 +405,8 @@ func TestMockDB_DeleteEventsByBlockRange_EmptyRange(t *testing.T) {
 func TestMockDB_MarkEventsAsReorged(t *testing.T) {
 	t.Parallel()
 	db := NewMockDB()
-	_ = db.StoreEvent(t.Context(), &core.BlockchainEvent{ID: "evt-1", BlockNumber: 100})
-	_ = db.StoreEvent(t.Context(), &core.BlockchainEvent{ID: "evt-2", BlockNumber: 200})
+	_ = db.StoreEvent(t.Context(), &blockchain.BlockchainEvent{ID: "evt-1", BlockNumber: 100})
+	_ = db.StoreEvent(t.Context(), &blockchain.BlockchainEvent{ID: "evt-2", BlockNumber: 200})
 
 	count, err := db.MarkEventsAsReorged(t.Context(), 100, 150)
 	if err != nil {
@@ -416,7 +417,7 @@ func TestMockDB_MarkEventsAsReorged(t *testing.T) {
 	}
 
 	event, _ := db.GetEvent(t.Context(), "evt-1")
-	if event.Status != core.EventStatusReorged {
+	if event.Status != blockchain.EventStatusReorged {
 		t.Fatalf("expected event status reorged, got %q", event.Status)
 	}
 }

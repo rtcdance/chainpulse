@@ -8,21 +8,22 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"github.com/rtcdance/chainpulse/pkg/services/reorg"
 )
 
 // mockReorgIntegrationDB implements core.DatabasePlugin for reorg integration testing.
 type mockReorgIntegrationDB struct {
-	events      []*core.BlockchainEvent
+	events      []*blockchain.BlockchainEvent
 	latestBlock uint64
 }
 
 func newMockReorgIntegrationDB() *mockReorgIntegrationDB {
-	return &mockReorgIntegrationDB{events: make([]*core.BlockchainEvent, 0)}
+	return &mockReorgIntegrationDB{events: make([]*blockchain.BlockchainEvent, 0)}
 }
 
 func (m *mockReorgIntegrationDB) addEvent(blockNumber uint64, eventName string) {
-	m.events = append(m.events, &core.BlockchainEvent{
+	m.events = append(m.events, &blockchain.BlockchainEvent{
 		ID:              string(rune(len(m.events) + 1)),
 		BlockNumber:     blockNumber,
 		TransactionHash: common.HexToHash("0xtx"),
@@ -49,7 +50,7 @@ func (m *mockReorgIntegrationDB) Stop() error { return nil }
 func (m *mockReorgIntegrationDB) Health() error { return nil }
 
 // EventReader
-func (m *mockReorgIntegrationDB) GetEvent(ctx context.Context, id string) (*core.BlockchainEvent, error) {
+func (m *mockReorgIntegrationDB) GetEvent(ctx context.Context, id string) (*blockchain.BlockchainEvent, error) {
 	return nil, nil
 }
 
@@ -57,12 +58,12 @@ func (m *mockReorgIntegrationDB) QueryEvents(ctx context.Context, filter any) ([
 	return nil, nil
 }
 
-func (m *mockReorgIntegrationDB) GetAllEvents(ctx context.Context) ([]*core.BlockchainEvent, error) {
+func (m *mockReorgIntegrationDB) GetAllEvents(ctx context.Context) ([]*blockchain.BlockchainEvent, error) {
 	return m.events, nil
 }
 
-func (m *mockReorgIntegrationDB) GetEventsByBlockRange(ctx context.Context, fromBlock, toBlock uint64) ([]*core.BlockchainEvent, error) {
-	var result []*core.BlockchainEvent
+func (m *mockReorgIntegrationDB) GetEventsByBlockRange(ctx context.Context, fromBlock, toBlock uint64) ([]*blockchain.BlockchainEvent, error) {
+	var result []*blockchain.BlockchainEvent
 	for _, e := range m.events {
 		if e.BlockNumber >= fromBlock && e.BlockNumber <= toBlock {
 			result = append(result, e)
@@ -81,7 +82,7 @@ func (m *mockReorgIntegrationDB) BatchStoreEvents(ctx context.Context, events []
 func (m *mockReorgIntegrationDB) DeleteEvent(ctx context.Context, eventID string) error { return nil }
 
 func (m *mockReorgIntegrationDB) DeleteEventsByBlockRange(ctx context.Context, fromBlock, toBlock uint64) (int64, error) {
-	var remaining []*core.BlockchainEvent
+	var remaining []*blockchain.BlockchainEvent
 	deleted := int64(0)
 	for _, e := range m.events {
 		if e.BlockNumber >= fromBlock && e.BlockNumber <= toBlock {
@@ -102,7 +103,7 @@ func (m *mockReorgIntegrationDB) DeleteEventsByBlockRange(ctx context.Context, f
 }
 
 func (m *mockReorgIntegrationDB) MarkEventsAsReorged(ctx context.Context, fromBlock, toBlock uint64) (int64, error) {
-	var remaining []*core.BlockchainEvent
+	var remaining []*blockchain.BlockchainEvent
 	var count int64
 	for _, e := range m.events {
 		if e.BlockNumber >= fromBlock && e.BlockNumber <= toBlock {
@@ -123,7 +124,7 @@ func (m *mockReorgIntegrationDB) MarkEventsAsReorged(ctx context.Context, fromBl
 }
 
 // BlockReader
-func (m *mockReorgIntegrationDB) GetBlock(ctx context.Context, blockNumber uint64) (*core.Block, error) {
+func (m *mockReorgIntegrationDB) GetBlock(ctx context.Context, blockNumber uint64) (*blockchain.Block, error) {
 	return nil, nil
 }
 
@@ -131,7 +132,7 @@ func (m *mockReorgIntegrationDB) GetLatestBlock(ctx context.Context) (uint64, er
 	return m.latestBlock, nil
 }
 
-func (m *mockReorgIntegrationDB) GetAllBlocks(ctx context.Context) ([]*core.Block, error) {
+func (m *mockReorgIntegrationDB) GetAllBlocks(ctx context.Context) ([]*blockchain.Block, error) {
 	return nil, nil
 }
 

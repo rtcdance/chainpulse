@@ -11,6 +11,8 @@ import (
 	"github.com/graphql-go/graphql/language/ast"
 	"github.com/rtcdance/chainpulse/pkg/chainid"
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
+"github.com/rtcdance/chainpulse/pkg/logkeys"
 	domainquery "github.com/rtcdance/chainpulse/pkg/domain/query"
 )
 
@@ -246,7 +248,7 @@ func eventToMap(evt any) map[string]any {
 		return nil
 	}
 
-	if e, ok := evt.(*core.BlockchainEvent); ok {
+	if e, ok := evt.(*blockchain.BlockchainEvent); ok {
 		return map[string]any{
 			"id":               e.ID,
 			"eventHash":        e.EventHash,
@@ -266,7 +268,7 @@ func eventToMap(evt any) map[string]any {
 		}
 	}
 
-	if e, ok := evt.(core.BlockchainEvent); ok {
+	if e, ok := evt.(blockchain.BlockchainEvent); ok {
 		return map[string]any{
 			"id":               e.ID,
 			"eventHash":        e.EventHash,
@@ -307,7 +309,7 @@ func (h *GraphQLHandler) Initialize(config *core.Config) error {
 
 	h.initialized = true
 
-	h.logger.Info("GraphQL handler initialized", core.LogKeyComponent, "graphql_handler")
+	h.logger.Info("GraphQL handler initialized", logkeys.LogKeyComponent, "graphql_handler")
 
 	return nil
 }
@@ -460,7 +462,7 @@ func (h *GraphQLHandler) Stop() error {
 
 	h.initialized = false
 
-	h.logger.Info("GraphQL handler stopped", core.LogKeyComponent, "graphql_handler")
+	h.logger.Info("GraphQL handler stopped", logkeys.LogKeyComponent, "graphql_handler")
 
 	return nil
 }

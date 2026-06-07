@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -100,7 +101,7 @@ func TestValidateAddressChecksum(t *testing.T) {
 
 func TestBlockchainEventValidateWithChecksum(t *testing.T) {
 	t.Run("valid contract address passes", func(t *testing.T) {
-		event := &BlockchainEvent{
+		event := &blockchain.BlockchainEvent{
 			BlockNumber:     1,
 			TransactionHash: common.HexToHash("0x01"),
 			ContractAddress: common.HexToAddress("0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"),
@@ -110,7 +111,7 @@ func TestBlockchainEventValidateWithChecksum(t *testing.T) {
 	})
 
 	t.Run("zero contract address still fails", func(t *testing.T) {
-		event := &BlockchainEvent{
+		event := &blockchain.BlockchainEvent{
 			BlockNumber:     1,
 			TransactionHash: common.HexToHash("0x01"),
 			ContractAddress: common.Address{},

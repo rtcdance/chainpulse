@@ -6,13 +6,14 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 )
 
 type benchMockDB struct {
-	block *core.Block
+	block *blockchain.Block
 }
 
-func (m *benchMockDB) GetBlock(_ context.Context, blockNumber uint64) (*core.Block, error) {
+func (m *benchMockDB) GetBlock(_ context.Context, blockNumber uint64) (*blockchain.Block, error) {
 	return m.block, nil
 }
 
@@ -23,7 +24,7 @@ func (m *benchMockDB) Initialize(_ context.Context, _ core.Config) error { retur
 func (m *benchMockDB) Start(_ context.Context) error                     { return nil }
 func (m *benchMockDB) Stop(_ context.Context) error                      { return nil }
 func (m *benchMockDB) Health(_ context.Context) error                    { return nil }
-func (m *benchMockDB) GetEvent(_ context.Context, _ string) (*core.BlockchainEvent, error) {
+func (m *benchMockDB) GetEvent(_ context.Context, _ string) (*blockchain.BlockchainEvent, error) {
 	return nil, nil
 }
 
@@ -31,15 +32,15 @@ func (m *benchMockDB) QueryEvents(_ context.Context, _ any) ([]any, error) {
 	return nil, nil
 }
 
-func (m *benchMockDB) GetAllEvents(_ context.Context) ([]*core.BlockchainEvent, error) {
+func (m *benchMockDB) GetAllEvents(_ context.Context) ([]*blockchain.BlockchainEvent, error) {
 	return nil, nil
 }
 
-func (m *benchMockDB) GetEventsByBlockRange(_ context.Context, _, _ uint64) ([]*core.BlockchainEvent, error) {
+func (m *benchMockDB) GetEventsByBlockRange(_ context.Context, _, _ uint64) ([]*blockchain.BlockchainEvent, error) {
 	return nil, nil
 }
 func (m *benchMockDB) GetLatestBlock(_ context.Context) (uint64, error)      { return 0, nil }
-func (m *benchMockDB) GetAllBlocks(_ context.Context) ([]*core.Block, error) { return nil, nil }
+func (m *benchMockDB) GetAllBlocks(_ context.Context) ([]*blockchain.Block, error) { return nil, nil }
 func (m *benchMockDB) GetReorgStats(_ context.Context) (*core.ReorgStats, error) {
 	return nil, nil
 }
@@ -69,7 +70,7 @@ func (l *benchMockLogger) WithCorrelationID(_ string) core.Logger { return l }
 func BenchmarkBinarySearchReorg(b *testing.B) {
 	blockHash := common.HexToHash("0xabc123")
 	mockDB := &benchMockDB{
-		block: &core.Block{Number: 1, Hash: blockHash},
+		block: &blockchain.Block{Number: 1, Hash: blockHash},
 	}
 	logger := &benchMockLogger{}
 	rh := NewReorgHandler(mockDB, logger, 1000, 500)
@@ -93,7 +94,7 @@ func BenchmarkBinarySearchReorg_WithReorg(b *testing.B) {
 	goodHash := common.HexToHash("0xabc123")
 	badHash := common.HexToHash("0xdef456")
 	mockDB := &benchMockDB{
-		block: &core.Block{Number: 1, Hash: goodHash},
+		block: &blockchain.Block{Number: 1, Hash: goodHash},
 	}
 	logger := &benchMockLogger{}
 	rh := NewReorgHandler(mockDB, logger, 1000, 500)

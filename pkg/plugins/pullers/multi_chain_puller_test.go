@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 )
 
 type multiChainPullerTestPlugin struct {
@@ -22,7 +23,7 @@ func (p *multiChainPullerTestPlugin) Initialize(ctx context.Context, config core
 func (p *multiChainPullerTestPlugin) Start(ctx context.Context) error  { _ = ctx; return nil }
 func (p *multiChainPullerTestPlugin) Stop(ctx context.Context) error   { _ = ctx; return nil }
 func (p *multiChainPullerTestPlugin) Health(ctx context.Context) error { _ = ctx; return nil }
-func (p *multiChainPullerTestPlugin) PullEvents(ctx context.Context, fromBlock, toBlock uint64) ([]core.BlockchainEvent, error) {
+func (p *multiChainPullerTestPlugin) PullEvents(ctx context.Context, fromBlock, toBlock uint64) ([]blockchain.BlockchainEvent, error) {
 	return nil, nil
 }
 
@@ -30,7 +31,7 @@ func (p *multiChainPullerTestPlugin) GetLatestBlock(ctx context.Context) (uint64
 	return p.latestBlock, nil
 }
 
-func (p *multiChainPullerTestPlugin) SubscribeToEvents(ctx context.Context, handler func(core.BlockchainEvent)) error {
+func (p *multiChainPullerTestPlugin) SubscribeToEvents(ctx context.Context, handler func(blockchain.BlockchainEvent)) error {
 	return nil
 }
 

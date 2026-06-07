@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 )
 
 type testMQPlugin struct{}
@@ -40,16 +41,16 @@ func (t *testCachePlugin) Health(ctx context.Context) error                     
 type testDatabasePlugin struct{}
 
 func (t *testDatabasePlugin) Name() string { return "test-db" }
-func (t *testDatabasePlugin) GetEvent(ctx context.Context, id string) (*core.BlockchainEvent, error) {
+func (t *testDatabasePlugin) GetEvent(ctx context.Context, id string) (*blockchain.BlockchainEvent, error) {
 	return nil, nil
 }
 func (t *testDatabasePlugin) QueryEvents(ctx context.Context, filter any) ([]any, error) {
 	return nil, nil
 }
-func (t *testDatabasePlugin) GetAllEvents(ctx context.Context) ([]*core.BlockchainEvent, error) {
+func (t *testDatabasePlugin) GetAllEvents(ctx context.Context) ([]*blockchain.BlockchainEvent, error) {
 	return nil, nil
 }
-func (t *testDatabasePlugin) GetEventsByBlockRange(ctx context.Context, fromBlock, toBlock uint64) ([]*core.BlockchainEvent, error) {
+func (t *testDatabasePlugin) GetEventsByBlockRange(ctx context.Context, fromBlock, toBlock uint64) ([]*blockchain.BlockchainEvent, error) {
 	return nil, nil
 }
 func (t *testDatabasePlugin) StoreEvent(ctx context.Context, event any) error          { return nil }
@@ -61,11 +62,11 @@ func (t *testDatabasePlugin) DeleteEventsByBlockRange(ctx context.Context, fromB
 func (t *testDatabasePlugin) MarkEventsAsReorged(ctx context.Context, fromBlock, toBlock uint64) (int64, error) {
 	return 0, nil
 }
-func (t *testDatabasePlugin) GetBlock(ctx context.Context, blockNumber uint64) (*core.Block, error) {
+func (t *testDatabasePlugin) GetBlock(ctx context.Context, blockNumber uint64) (*blockchain.Block, error) {
 	return nil, nil
 }
 func (t *testDatabasePlugin) GetLatestBlock(ctx context.Context) (uint64, error) { return 0, nil }
-func (t *testDatabasePlugin) GetAllBlocks(ctx context.Context) ([]*core.Block, error) {
+func (t *testDatabasePlugin) GetAllBlocks(ctx context.Context) ([]*blockchain.Block, error) {
 	return nil, nil
 }
 func (t *testDatabasePlugin) GetReorgStats(ctx context.Context) (*core.ReorgStats, error) {

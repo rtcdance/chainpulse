@@ -10,6 +10,7 @@ import (
 	"github.com/rtcdance/chainpulse/pkg/application/bootstrap"
 	appindexing "github.com/rtcdance/chainpulse/pkg/application/indexing"
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"github.com/rtcdance/chainpulse/pkg/services/processor"
 )
 
@@ -56,7 +57,7 @@ func newEventProcessorShadowRuntimeProcessor(
 	}
 }
 
-func (p *eventProcessorShadowRuntimeProcessor) ProcessEvent(ctx context.Context, event *core.BlockchainEvent) error {
+func (p *eventProcessorShadowRuntimeProcessor) ProcessEvent(ctx context.Context, event *blockchain.BlockchainEvent) error {
 	if p == nil || p.base == nil {
 		return fmt.Errorf("event processor runtime is not configured")
 	}
@@ -231,7 +232,7 @@ func (p *eventProcessorShadowRuntimeProcessor) recordShadowError(err error) {
 	p.lastErrorAtUnix = time.Now().Unix()
 }
 
-func eventProcessorShadowRuntimeChainID(event *core.BlockchainEvent) string {
+func eventProcessorShadowRuntimeChainID(event *blockchain.BlockchainEvent) string {
 	if event == nil {
 		return "unknown"
 	}
@@ -244,7 +245,7 @@ func eventProcessorShadowRuntimeChainID(event *core.BlockchainEvent) string {
 	return "unknown"
 }
 
-func eventProcessorShadowReceivedAt(event *core.BlockchainEvent) time.Time {
+func eventProcessorShadowReceivedAt(event *blockchain.BlockchainEvent) time.Time {
 	if event == nil {
 		return time.Now()
 	}

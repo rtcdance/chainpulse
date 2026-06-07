@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -102,7 +103,7 @@ func (m *MultiChainDataPuller) PullEventsFromChain(
 	ctx context.Context,
 	chainID string,
 	fromBlock, toBlock uint64,
-) ([]core.BlockchainEvent, error) {
+) ([]blockchain.BlockchainEvent, error) {
 	m.mu.RLock()
 	puller, exists := m.pullers[chainID]
 	m.mu.RUnlock()
@@ -143,7 +144,7 @@ func (m *MultiChainDataPuller) PullEventsFromChain(
 func (m *MultiChainDataPuller) PullEventsFromAllChains(
 	ctx context.Context,
 	fromBlock, toBlock uint64,
-) (map[string][]core.BlockchainEvent, error) {
+) (map[string][]blockchain.BlockchainEvent, error) {
 	m.mu.RLock()
 	chains := make([]string, 0, len(m.pullers))
 	for chainID := range m.pullers {
@@ -151,7 +152,7 @@ func (m *MultiChainDataPuller) PullEventsFromAllChains(
 	}
 	m.mu.RUnlock()
 
-	results := make(map[string][]core.BlockchainEvent)
+	results := make(map[string][]blockchain.BlockchainEvent)
 	resultsMu := sync.Mutex{}
 
 	g, gCtx := errgroup.WithContext(ctx)

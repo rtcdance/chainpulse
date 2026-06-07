@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	domainquery "github.com/rtcdance/chainpulse/pkg/domain/query"
 	"github.com/rtcdance/chainpulse/pkg/infrastructure/database"
 	"github.com/rtcdance/chainpulse/pkg/plugins/api"
@@ -34,7 +35,7 @@ func (f *fakeQueryRuntimeService) Query(ctx context.Context, req *query.QueryReq
 	return nil, nil
 }
 
-func (f *fakeQueryRuntimeService) QueryByHash(ctx context.Context, hash string) (*core.BlockchainEvent, error) {
+func (f *fakeQueryRuntimeService) QueryByHash(ctx context.Context, hash string) (*blockchain.BlockchainEvent, error) {
 	return nil, nil
 }
 

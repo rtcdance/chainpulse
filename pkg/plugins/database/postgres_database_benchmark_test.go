@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 
 	"github.com/ethereum/go-ethereum/common"
 )
@@ -43,9 +44,9 @@ func BenchmarkBatchInsert(b *testing.B) {
 	}()
 
 	// Create test events
-	events := make([]core.BlockchainEvent, 1000)
+	events := make([]blockchain.BlockchainEvent, 1000)
 	for i := 0; i < 1000; i++ {
-		events[i] = core.BlockchainEvent{
+		events[i] = blockchain.BlockchainEvent{
 			EventHash:       fmt.Sprintf("bench-hash-%d", i),
 			BlockNumber:     uint64(i),
 			TransactionHash: common.HexToHash(fmt.Sprintf("bench-tx-%d", i)),
@@ -97,9 +98,9 @@ func TestBatchInsertPerformance(t *testing.T) {
 
 	// Create test events
 	batchSize := 1000
-	events := make([]core.BlockchainEvent, batchSize)
+	events := make([]blockchain.BlockchainEvent, batchSize)
 	for i := 0; i < batchSize; i++ {
-		events[i] = core.BlockchainEvent{
+		events[i] = blockchain.BlockchainEvent{
 			EventHash:       fmt.Sprintf("perf-hash-%d-%d", time.Now().UnixNano(), i),
 			BlockNumber:     uint64(i),
 			TransactionHash: common.HexToHash(fmt.Sprintf("perf-tx-%d", i)),
@@ -163,9 +164,9 @@ func TestBatchInsertVariousSizes(t *testing.T) {
 	batchSizes := []int{100, 500, 1000, 5000}
 
 	for _, batchSize := range batchSizes {
-		events := make([]core.BlockchainEvent, batchSize)
+		events := make([]blockchain.BlockchainEvent, batchSize)
 		for i := 0; i < batchSize; i++ {
-			events[i] = core.BlockchainEvent{
+			events[i] = blockchain.BlockchainEvent{
 				EventHash:       fmt.Sprintf("batch-size-test-%d-%d-%d", batchSize, time.Now().UnixNano(), i),
 				BlockNumber:     uint64(i),
 				TransactionHash: common.HexToHash(fmt.Sprintf("batch-tx-%d", i)),
@@ -222,7 +223,7 @@ func TestSingleEventPerformance(t *testing.T) {
 	start := time.Now()
 
 	for i := 0; i < numEvents; i++ {
-		event := &core.BlockchainEvent{
+		event := &blockchain.BlockchainEvent{
 			EventHash:       fmt.Sprintf("single-event-%d-%d", time.Now().UnixNano(), i),
 			BlockNumber:     uint64(i),
 			TransactionHash: common.HexToHash(fmt.Sprintf("single-tx-%d", i)),
@@ -278,9 +279,9 @@ func TestQueryPerformance(t *testing.T) {
 
 	// Write test events
 	numEvents := 1000
-	events := make([]core.BlockchainEvent, numEvents)
+	events := make([]blockchain.BlockchainEvent, numEvents)
 	for i := 0; i < numEvents; i++ {
-		events[i] = core.BlockchainEvent{
+		events[i] = blockchain.BlockchainEvent{
 			EventHash:       fmt.Sprintf("query-perf-%d-%d", time.Now().UnixNano(), i),
 			BlockNumber:     uint64(i),
 			TransactionHash: common.HexToHash(fmt.Sprintf("query-tx-%d", i)),

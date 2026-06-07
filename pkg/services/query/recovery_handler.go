@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/logkeys"
+	"github.com/rtcdance/chainpulse/pkg/services/query/qerrors"
 )
 
 // RecoveryState represents the state of recovery
@@ -113,7 +115,7 @@ type DefaultRecoveryHandler struct {
 	eventStore             EventStore
 	metadataStore          EventMetadataStore
 	cacheService           CacheService
-	errorClassifier        *ErrorClassifier
+	errorClassifier        *qerrors.Classifier
 	logger                 core.Logger
 	metricsCollector       core.MetricsCollector
 	initialized            bool
@@ -135,7 +137,7 @@ func NewRecoveryHandler(
 	eventStore EventStore,
 	metadataStore EventMetadataStore,
 	cacheService CacheService,
-	errorClassifier *ErrorClassifier,
+	errorClassifier *qerrors.Classifier,
 	logger core.Logger,
 	metricsCollector core.MetricsCollector,
 ) RecoveryHandler {
@@ -267,7 +269,7 @@ func (rh *DefaultRecoveryHandler) RecoverConnection(ctx context.Context, store s
 			return nil
 		}
 
-		rh.logger.Warn("Connection recovery attempt failed", "store", store, core.LogKeyAttempt, attempt+1, core.LogKeyError, err, "backoff", backoff.String())
+		rh.logger.Warn("Connection recovery attempt failed", "store", store, logkeys.LogKeyAttempt, attempt+1, logkeys.LogKeyError, err, "backoff", backoff.String())
 
 		// Wait before retry
 		if attempt < rh.config.MaxRetries-1 {
@@ -370,13 +372,13 @@ func (rh *DefaultRecoveryHandler) RecoverState(ctx context.Context) error {
 	// Attempt to recover individual stores
 	if eventStoreHealth.Status != "healthy" {
 		if err := rh.RecoverConnection(ctx, "mongodb"); err != nil {
-			rh.logger.Error("Failed to recover event store", core.LogKeyError, err)
+			rh.logger.Error("Failed to recover event store", logkeys.LogKeyError, err)
 		}
 	}
 
 	if metadataStoreHealth.Status != "healthy" {
 		if err := rh.RecoverConnection(ctx, "postgresql"); err != nil {
-			rh.logger.Error("Failed to recover metadata store", core.LogKeyError, err)
+			rh.logger.Error("Failed to recover metadata store", logkeys.LogKeyError, err)
 		}
 	}
 
@@ -475,7 +477,7 @@ func (rh *DefaultRecoveryHandler) SyncData(ctx context.Context, store string) er
 		rh.failedRecoveries++
 		rh.mu.Unlock()
 
-		rh.logger.Error("Data sync failed", "store", store, core.LogKeyError, err)
+		rh.logger.Error("Data sync failed", "store", store, logkeys.LogKeyError, err)
 
 		rh.metricsCollector.RecordCounter("recovery_data_sync_failed", 1, nil)
 		return fmt.Errorf("data sync failed for store %s: %w", store, err)

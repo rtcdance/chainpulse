@@ -11,6 +11,7 @@ import (
 	"github.com/graphql-go/graphql/language/parser"
 	"github.com/graphql-go/graphql/language/source"
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	domainquery "github.com/rtcdance/chainpulse/pkg/domain/query"
 )
 
@@ -433,7 +434,7 @@ func (r *CacheResolver) ResolveClearCache(p graphql.ResolveParams) (any, error) 
 }
 
 // Helper function to convert event to GraphQL response format
-func eventToGraphQL(event *core.BlockchainEvent) map[string]any {
+func eventToGraphQL(event *blockchain.BlockchainEvent) map[string]any {
 	decodedData := ""
 	if event.DecodedData != nil {
 		if data, err := json.Marshal(event.DecodedData); err == nil {

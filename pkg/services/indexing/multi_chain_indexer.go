@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -54,7 +55,7 @@ func (mci *MultiChainIndexer) UpdateChainHead(chainID string, head uint64) {
 
 // ChainIndexer defines the interface for chain-specific indexing
 type ChainIndexer interface {
-	IndexEvents(ctx context.Context, events []*core.BlockchainEvent) error
+	IndexEvents(ctx context.Context, events []*blockchain.BlockchainEvent) error
 	GetChainID() string
 	GetStatus() map[string]any
 	Close() error
@@ -99,7 +100,7 @@ func (mci *MultiChainIndexer) RegisterChainIndexer(chainID string, indexer Chain
 func (mci *MultiChainIndexer) IndexEventsFromChain(
 	ctx context.Context,
 	chainID string,
-	events []*core.BlockchainEvent,
+	events []*blockchain.BlockchainEvent,
 ) error {
 	if chainID == "" {
 		return fmt.Errorf("chain ID cannot be empty")
@@ -120,7 +121,7 @@ func (mci *MultiChainIndexer) IndexEventsFromChain(
 
 	// Filter events by confirmation depth if reorg handler is configured
 	if rh != nil {
-		confirmed := make([]*core.BlockchainEvent, 0, len(events))
+		confirmed := make([]*blockchain.BlockchainEvent, 0, len(events))
 		skipped := 0
 		for _, evt := range events {
 			if rh.IsConfirmed(evt.BlockNumber) {
@@ -153,7 +154,7 @@ func (mci *MultiChainIndexer) IndexEventsFromChain(
 // IndexEventsFromAllChains indexes events from all registered blockchains in parallel
 func (mci *MultiChainIndexer) IndexEventsFromAllChains(
 	ctx context.Context,
-	eventsByChain map[string][]*core.BlockchainEvent,
+	eventsByChain map[string][]*blockchain.BlockchainEvent,
 ) error {
 	if len(eventsByChain) == 0 {
 		return nil

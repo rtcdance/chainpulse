@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	domainquery "github.com/rtcdance/chainpulse/pkg/domain/query"
 )
 
@@ -169,7 +170,7 @@ func (ss *StatelessService) storeState(ctx context.Context, requestID string, st
 
 	// Store in database
 	if ss.database != nil && ss.isEvent(state) {
-		event, ok := state.(*core.BlockchainEvent)
+		event, ok := state.(*blockchain.BlockchainEvent)
 		if !ok {
 			return fmt.Errorf("state is not a BlockchainEvent")
 		}
@@ -192,7 +193,7 @@ func (ss *StatelessService) processWithExternalState(ctx context.Context, state 
 
 // isEvent checks if value is an Event
 func (ss *StatelessService) isEvent(v any) bool {
-	_, ok := v.(*core.BlockchainEvent)
+	_, ok := v.(*blockchain.BlockchainEvent)
 	return ok
 }
 

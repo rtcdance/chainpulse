@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 )
 
 type eventProcessorMessageConsumer interface {
@@ -17,7 +18,7 @@ type eventProcessorMessageConsumer interface {
 }
 
 type eventProcessorMessageProcessor interface {
-	ProcessEvent(context.Context, *core.BlockchainEvent) error
+	ProcessEvent(context.Context, *blockchain.BlockchainEvent) error
 	Health() *core.HealthStatus
 	GetProcessedCount() int64
 	GetFailedCount() int64
@@ -110,7 +111,7 @@ func (r *eventProcessorConsumeRuntime) Start(ctx context.Context, wg *sync.WaitG
 			defer wg.Done()
 
 			// Batch accumulator: events are collected and flushed periodically.
-			eventCh := make(chan *core.BlockchainEvent, r.batchSize*2)
+			eventCh := make(chan *blockchain.BlockchainEvent, r.batchSize*2)
 
 			// Start batch flusher goroutine
 			wg.Add(1)
@@ -163,8 +164,8 @@ func (r *eventProcessorConsumeRuntime) Start(ctx context.Context, wg *sync.WaitG
 
 // batchFlushLoop reads events from eventCh and processes them in batches.
 // This amortizes MongoDB write costs by using InsertMany instead of InsertOne.
-func (r *eventProcessorConsumeRuntime) batchFlushLoop(ctx context.Context, topic string, eventCh <-chan *core.BlockchainEvent) {
-	batch := make([]*core.BlockchainEvent, 0, r.batchSize)
+func (r *eventProcessorConsumeRuntime) batchFlushLoop(ctx context.Context, topic string, eventCh <-chan *blockchain.BlockchainEvent) {
+	batch := make([]*blockchain.BlockchainEvent, 0, r.batchSize)
 	flushTimer := time.NewTimer(time.Duration(r.batchFlushMs) * time.Millisecond)
 	defer flushTimer.Stop()
 
@@ -214,7 +215,7 @@ func (r *eventProcessorConsumeRuntime) batchFlushLoop(ctx context.Context, topic
 // flushBatch processes a batch of events. It first filters duplicates via
 // idempotency, then writes non-duplicate events in a single MongoDB batch,
 // and finally publishes each processed event to output topics.
-func (r *eventProcessorConsumeRuntime) flushBatch(ctx context.Context, topic string, batch []*core.BlockchainEvent) {
+func (r *eventProcessorConsumeRuntime) flushBatch(ctx context.Context, topic string, batch []*blockchain.BlockchainEvent) {
 	r.logger.Info("flushBatch called", "topic", topic, "batch_size", len(batch))
 	for i, event := range batch {
 		r.logger.Info("flushBatch processing event", "index", i, "event_id", event.ID, "network", event.Network, "event_name", event.EventName)
@@ -353,19 +354,19 @@ func (r *eventProcessorConsumeRuntime) waitUntilIntakeAllowed(ctx context.Contex
 	}
 }
 
-func decodeEventProcessorQueueMessage(message core.MessageQueueMessage) (*core.BlockchainEvent, error) {
+func decodeEventProcessorQueueMessage(message core.MessageQueueMessage) (*blockchain.BlockchainEvent, error) {
 	if len(message.Payload) == 0 {
 		return nil, fmt.Errorf("empty payload")
 	}
 
-	var event core.BlockchainEvent
+	var event blockchain.BlockchainEvent
 	if err := json.Unmarshal(message.Payload, &event); err != nil {
 		return nil, err
 	}
 	return &event, nil
 }
 
-func (r *eventProcessorConsumeRuntime) publishProcessedEvent(ctx context.Context, event *core.BlockchainEvent) {
+func (r *eventProcessorConsumeRuntime) publishProcessedEvent(ctx context.Context, event *blockchain.BlockchainEvent) {
 	if r.publisher == nil || len(r.outputTopics) == 0 {
 		return
 	}
@@ -381,7 +382,7 @@ func (r *eventProcessorConsumeRuntime) publishProcessedEvent(ctx context.Context
 	}
 }
 
-func (r *eventProcessorConsumeRuntime) writeToDLQ(ctx context.Context, event *core.BlockchainEvent, processErr error) {
+func (r *eventProcessorConsumeRuntime) writeToDLQ(ctx context.Context, event *blockchain.BlockchainEvent, processErr error) {
 	if r.dlqDB == nil {
 		return
 	}

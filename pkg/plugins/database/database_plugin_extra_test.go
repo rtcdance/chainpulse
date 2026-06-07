@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 
 	"github.com/ethereum/go-ethereum/common"
 )
@@ -65,7 +66,7 @@ func TestDefaultInMemoryDatabasePlugin_WriteBatch(t *testing.T) {
 	t.Parallel()
 	db := newStartedDB(t)
 
-	events := []*core.BlockchainEvent{
+	events := []*blockchain.BlockchainEvent{
 		{EventHash: "0xhash1", BlockNumber: 1, ContractAddress: common.HexToAddress("0x1111"), ChainID: "1"},
 		{EventHash: "0xhash2", BlockNumber: 2, ContractAddress: common.HexToAddress("0x2222"), ChainID: "1"},
 	}
@@ -84,7 +85,7 @@ func TestDefaultInMemoryDatabasePlugin_WriteBatch_Empty(t *testing.T) {
 	if err != nil {
 		t.Fatalf("WriteBatch(nil) should succeed: %v", err)
 	}
-	err = db.WriteBatch(context.Background(), []*core.BlockchainEvent{})
+	err = db.WriteBatch(context.Background(), []*blockchain.BlockchainEvent{})
 	if err != nil {
 		t.Fatalf("WriteBatch(empty) should succeed: %v", err)
 	}
@@ -93,7 +94,7 @@ func TestDefaultInMemoryDatabasePlugin_WriteBatch_Empty(t *testing.T) {
 func TestDefaultInMemoryDatabasePlugin_WriteBatch_NilElements(t *testing.T) {
 	t.Parallel()
 	db := newStartedDB(t)
-	events := []*core.BlockchainEvent{
+	events := []*blockchain.BlockchainEvent{
 		{EventHash: "0xvalid", BlockNumber: 1, ChainID: "1"},
 		nil,
 		{EventHash: "0xvalid2", BlockNumber: 2, ChainID: "1"},
@@ -109,7 +110,7 @@ func TestDefaultInMemoryDatabasePlugin_WriteBatch_NilElements(t *testing.T) {
 func TestDefaultInMemoryDatabasePlugin_WriteBatch_MissingHash(t *testing.T) {
 	t.Parallel()
 	db := newStartedDB(t)
-	events := []*core.BlockchainEvent{
+	events := []*blockchain.BlockchainEvent{
 		{BlockNumber: 1},
 	}
 	err := db.WriteBatch(context.Background(), events)
@@ -121,7 +122,7 @@ func TestDefaultInMemoryDatabasePlugin_WriteBatch_MissingHash(t *testing.T) {
 func TestDefaultInMemoryDatabasePlugin_WriteBatch_NotRunning(t *testing.T) {
 	t.Parallel()
 	db := newInitedDB(t)
-	err := db.WriteBatch(context.Background(), []*core.BlockchainEvent{{EventHash: "0xh"}})
+	err := db.WriteBatch(context.Background(), []*blockchain.BlockchainEvent{{EventHash: "0xh"}})
 	if err == nil {
 		t.Fatal("expected error when plugin not running")
 	}
@@ -187,7 +188,7 @@ func TestDefaultInMemoryDatabasePlugin_GetEventsByBlockRange(t *testing.T) {
 	db := newStartedDB(t)
 	// Write events at blocks 10, 20, 30, 40, 50
 	for i := 0; i < 5; i++ {
-		ev := &core.BlockchainEvent{
+		ev := &blockchain.BlockchainEvent{
 			EventHash:   fmt.Sprintf("0xbev%d", i),
 			BlockNumber: uint64(10 + i*10),
 			ChainID:     "1",
@@ -350,13 +351,13 @@ func TestDefaultInMemoryDatabasePlugin_MarkEventsAsReorged(t *testing.T) {
 	if ev == nil {
 		t.Fatal("expected event to exist")
 	}
-	if ev.Status != core.EventStatusReorged {
+	if ev.Status != blockchain.EventStatusReorged {
 		t.Fatalf("expected reorged status, got %v", ev.Status)
 	}
 
 	// Verify unmarked event still has default status
 	ev2, _ := db.GetEventByHash("0xev_10")
-	if ev2.Status == core.EventStatusReorged {
+	if ev2.Status == blockchain.EventStatusReorged {
 		t.Fatal("expected event 10 to NOT be reorged")
 	}
 }
@@ -402,7 +403,7 @@ func TestDefaultInMemoryDatabasePlugin_GetReorgStats_NotRunning(t *testing.T) {
 func TestDefaultInMemoryDatabasePlugin_WriteEvents_Empty(t *testing.T) {
 	t.Parallel()
 	db := newStartedDB(t)
-	err := db.WriteEvents(context.Background(), []core.BlockchainEvent{})
+	err := db.WriteEvents(context.Background(), []blockchain.BlockchainEvent{})
 	if err == nil {
 		t.Fatal("expected error for empty list")
 	}
@@ -411,7 +412,7 @@ func TestDefaultInMemoryDatabasePlugin_WriteEvents_Empty(t *testing.T) {
 func TestDefaultInMemoryDatabasePlugin_WriteEvents_NotRunning(t *testing.T) {
 	t.Parallel()
 	db := newInitedDB(t)
-	err := db.WriteEvents(context.Background(), []core.BlockchainEvent{{EventHash: "0xh"}})
+	err := db.WriteEvents(context.Background(), []blockchain.BlockchainEvent{{EventHash: "0xh"}})
 	if err == nil {
 		t.Fatal("expected error when not running")
 	}
@@ -420,7 +421,7 @@ func TestDefaultInMemoryDatabasePlugin_WriteEvents_NotRunning(t *testing.T) {
 func TestDefaultInMemoryDatabasePlugin_WriteEvents_MissingHash(t *testing.T) {
 	t.Parallel()
 	db := newStartedDB(t)
-	events := []core.BlockchainEvent{
+	events := []blockchain.BlockchainEvent{
 		{BlockNumber: 1},
 	}
 	err := db.WriteEvents(context.Background(), events)
@@ -475,7 +476,7 @@ func TestDefaultInMemoryDatabasePlugin_QueryEvents_WithOffsetAndBlockRange(t *te
 	t.Parallel()
 	db := newStartedDB(t)
 	for i := 0; i < 10; i++ {
-		ev := &core.BlockchainEvent{
+		ev := &blockchain.BlockchainEvent{
 			EventHash:       fmt.Sprintf("0xq%d", i),
 			BlockNumber:     uint64(100 + i),
 			ContractAddress: common.HexToAddress("0xabc"),
@@ -607,7 +608,7 @@ func newInitedDB(t *testing.T) *DefaultInMemoryDatabasePlugin {
 func writeNEvents(t *testing.T, db *DefaultInMemoryDatabasePlugin, n int) {
 	t.Helper()
 	for i := 0; i < n; i++ {
-		ev := &core.BlockchainEvent{
+		ev := &blockchain.BlockchainEvent{
 			EventHash:   fmt.Sprintf("0xh%d", i),
 			BlockNumber: uint64(i),
 			ChainID:     "1",
@@ -621,7 +622,7 @@ func writeNEvents(t *testing.T, db *DefaultInMemoryDatabasePlugin, n int) {
 func writeNEventRange(t *testing.T, db *DefaultInMemoryDatabasePlugin, blocks []uint64) {
 	t.Helper()
 	for _, b := range blocks {
-		ev := &core.BlockchainEvent{
+		ev := &blockchain.BlockchainEvent{
 			EventHash:   fmt.Sprintf("0xev_%d", b),
 			BlockNumber: b,
 			ChainID:     "1",
@@ -634,7 +635,7 @@ func writeNEventRange(t *testing.T, db *DefaultInMemoryDatabasePlugin, blocks []
 
 func writeEvent(t *testing.T, db *DefaultInMemoryDatabasePlugin, hash string, block uint64, addr common.Address) {
 	t.Helper()
-	ev := &core.BlockchainEvent{
+	ev := &blockchain.BlockchainEvent{
 		EventHash:       hash,
 		BlockNumber:     block,
 		ContractAddress: addr,

@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/rtcdance/chainpulse/pkg/core"
+	blockchainmodels "github.com/rtcdance/chainpulse/pkg/blockchain"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -52,7 +52,7 @@ func TestClusterProcessEvent(t *testing.T) {
 		instance.Status = "running"
 	}
 
-	event := &core.BlockchainEvent{
+	event := &blockchainmodels.BlockchainEvent{
 		ID:              "test-event",
 		ChainID:         "EVM",
 		ContractAddress: common.Address{0x1},
@@ -69,7 +69,7 @@ func TestProcessEventNoInstances(t *testing.T) {
 	t.Parallel()
 	cluster := NewBlockchainCluster("test-cluster", "EVM", "EVM", 0, 5)
 
-	event := &core.BlockchainEvent{
+	event := &blockchainmodels.BlockchainEvent{
 		ID:      "test-event",
 		ChainID: "EVM",
 	}
@@ -85,7 +85,7 @@ func TestProcessEventNoRunningInstances(t *testing.T) {
 	cluster := NewBlockchainCluster("test-cluster", "EVM", "EVM", 1, 5)
 	_ = cluster.Deploy(context.Background())
 
-	event := &core.BlockchainEvent{
+	event := &blockchainmodels.BlockchainEvent{
 		ID:      "test-event",
 		ChainID: "EVM",
 	}
@@ -186,7 +186,7 @@ func TestManagerProcessEventWithCluster(t *testing.T) {
 
 	_ = manager.RegisterCluster(cluster)
 
-	event := &core.BlockchainEvent{
+	event := &blockchainmodels.BlockchainEvent{
 		ID:              "test-event",
 		ChainID:         "EVM",
 		ContractAddress: common.Address{0x1},
@@ -203,7 +203,7 @@ func TestManagerProcessEventNoCluster(t *testing.T) {
 	t.Parallel()
 	manager := NewMultiBlockchainClusterManager()
 
-	event := &core.BlockchainEvent{
+	event := &blockchainmodels.BlockchainEvent{
 		ID:      "test-event",
 		ChainID: "EVM",
 	}
@@ -281,7 +281,7 @@ func TestConcurrentProcessing(t *testing.T) {
 		wg.Add(1)
 		go func(idx int) {
 			defer wg.Done()
-			event := &core.BlockchainEvent{
+			event := &blockchainmodels.BlockchainEvent{
 				ID:              fmt.Sprintf("event-%d", idx),
 				ChainID:         "EVM",
 				ContractAddress: common.Address{0x1},
@@ -318,7 +318,7 @@ func TestMultipleBlockchains(t *testing.T) {
 	_ = manager.RegisterCluster(evmCluster)
 	_ = manager.RegisterCluster(cosmosCluster)
 
-	evmEvent := &core.BlockchainEvent{
+	evmEvent := &blockchainmodels.BlockchainEvent{
 		ID:              "evm-event",
 		ChainID:         "EVM",
 		ContractAddress: common.Address{0x1},
@@ -326,7 +326,7 @@ func TestMultipleBlockchains(t *testing.T) {
 		CreatedAt:       time.Now(),
 	}
 
-	cosmosEvent := &core.BlockchainEvent{
+	cosmosEvent := &blockchainmodels.BlockchainEvent{
 		ID:        "cosmos-event",
 		ChainID:   "Cosmos",
 		EventName: "Transfer",
@@ -350,7 +350,7 @@ func TestInstanceMetrics(t *testing.T) {
 	}
 
 	for i := 0; i < 5; i++ {
-		event := &core.BlockchainEvent{
+		event := &blockchainmodels.BlockchainEvent{
 			ID:              fmt.Sprintf("event-%d", i),
 			ChainID:         "EVM",
 			ContractAddress: common.Address{0x1},
@@ -374,7 +374,7 @@ func TestClusterWithEventStore(t *testing.T) {
 		instance.Status = "running"
 	}
 
-	event := &core.BlockchainEvent{
+	event := &blockchainmodels.BlockchainEvent{
 		ID:              "test-event",
 		ChainID:         "EVM",
 		ContractAddress: common.Address{0x1},

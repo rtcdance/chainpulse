@@ -7,6 +7,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 )
 
 // mockDatabaseManager is a mock implementation of DatabaseManager for testing
@@ -69,7 +70,7 @@ func (m *MockMongoDBAdapter) Query(ctx context.Context, req *QueryRequest) (*Que
 	return nil, nil
 }
 
-func (m *MockMongoDBAdapter) QueryByHash(ctx context.Context, hash string) (*core.BlockchainEvent, error) {
+func (m *MockMongoDBAdapter) QueryByHash(ctx context.Context, hash string) (*blockchain.BlockchainEvent, error) {
 	return nil, nil
 }
 
@@ -99,7 +100,7 @@ func (m *MockPostgreSQLAdapter) Query(ctx context.Context, req *QueryRequest) (*
 	return nil, nil
 }
 
-func (m *MockPostgreSQLAdapter) QueryByHash(ctx context.Context, hash string) (*core.BlockchainEvent, error) {
+func (m *MockPostgreSQLAdapter) QueryByHash(ctx context.Context, hash string) (*blockchain.BlockchainEvent, error) {
 	return nil, nil
 }
 

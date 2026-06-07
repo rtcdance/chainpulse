@@ -10,6 +10,8 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
+"github.com/rtcdance/chainpulse/pkg/logkeys"
 	"github.com/rtcdance/chainpulse/pkg/core/batch"
 
 	"github.com/rtcdance/chainpulse/pkg/services/decoder"
@@ -94,13 +96,13 @@ func NewUniswapIndexer(
 // IndexSwapEvents indexes Uniswap swap events
 func (ui *UniswapIndexer) IndexSwapEvents(
 	ctx context.Context,
-	events []*core.BlockchainEvent,
+	events []*blockchain.BlockchainEvent,
 ) error {
 	if len(events) == 0 {
 		return nil
 	}
 
-	ui.logger.Debug("indexing swap events", core.LogKeyCount, len(events))
+	ui.logger.Debug("indexing swap events", logkeys.LogKeyCount, len(events))
 
 	return batch.Index(ctx, events, ui.indexSwapEvent)
 }
@@ -108,7 +110,7 @@ func (ui *UniswapIndexer) IndexSwapEvents(
 // indexSwapEvent indexes a single swap event
 func (ui *UniswapIndexer) indexSwapEvent(
 	_ context.Context,
-	event *core.BlockchainEvent,
+	event *blockchain.BlockchainEvent,
 ) error {
 	if event == nil {
 		return fmt.Errorf("event is nil")
@@ -135,17 +137,17 @@ func (ui *UniswapIndexer) indexSwapEvent(
 	ui.updatePoolMetadata(swapEvent)
 
 	ui.logger.Debug("indexed swap event",
-		core.LogKeyPool, swapEvent.Pool.Hex(),
-		core.LogKeySender, swapEvent.Sender.Hex(),
-		core.LogKeyRecipient, swapEvent.Recipient.Hex(),
-		core.LogKeySwapAmount0In, swapEvent.Amount0In.String(),
-		core.LogKeySwapAmount1In, swapEvent.Amount1In.String())
+		logkeys.LogKeyPool, swapEvent.Pool.Hex(),
+		logkeys.LogKeySender, swapEvent.Sender.Hex(),
+		logkeys.LogKeyRecipient, swapEvent.Recipient.Hex(),
+		logkeys.LogKeySwapAmount0In, swapEvent.Amount0In.String(),
+		logkeys.LogKeySwapAmount1In, swapEvent.Amount1In.String())
 
 	return nil
 }
 
 // decodeSwapEvent decodes a raw event into a SwapEvent
-func (ui *UniswapIndexer) decodeSwapEvent(event *core.BlockchainEvent) (*SwapEvent, error) {
+func (ui *UniswapIndexer) decodeSwapEvent(event *blockchain.BlockchainEvent) (*SwapEvent, error) {
 	if event == nil {
 		return nil, fmt.Errorf("event is nil")
 	}
@@ -272,9 +274,9 @@ func (ui *UniswapIndexer) GetSwapHistory(
 	}
 
 	ui.logger.Debug("getting swap history",
-		core.LogKeyPool, pool.Hex(),
-		core.LogKeyFromBlock, fromBlock,
-		core.LogKeyToBlock, toBlock)
+		logkeys.LogKeyPool, pool.Hex(),
+		logkeys.LogKeyFromBlock, fromBlock,
+		logkeys.LogKeyToBlock, toBlock)
 
 	// Create filter for swap events
 	filter := &core.EventFilter{
@@ -289,8 +291,8 @@ func (ui *UniswapIndexer) GetSwapHistory(
 	events, err := ui.database.QueryEvents(ctx, filter)
 	if err != nil {
 		ui.logger.Error("failed to query swap events",
-			core.LogKeyError, err.Error(),
-			core.LogKeyPool, pool.Hex())
+			logkeys.LogKeyError, err.Error(),
+			logkeys.LogKeyPool, pool.Hex())
 		return nil, err
 	}
 
@@ -301,7 +303,7 @@ func (ui *UniswapIndexer) GetSwapHistory(
 	var firstSwapTime, lastSwapTime int64
 
 	for i, eventInterface := range events {
-		event, ok := eventInterface.(*core.BlockchainEvent)
+		event, ok := eventInterface.(*blockchain.BlockchainEvent)
 		if !ok {
 			ui.logger.Warn("failed to cast event to BlockchainEvent", "index", i)
 			continue
@@ -310,8 +312,8 @@ func (ui *UniswapIndexer) GetSwapHistory(
 		swapEvent, err := ui.decodeSwapEvent(event)
 		if err != nil {
 			ui.logger.Warn("failed to decode swap event",
-				core.LogKeyError, err.Error(),
-				core.LogKeyEventID, event.ID)
+				logkeys.LogKeyError, err.Error(),
+				logkeys.LogKeyEventID, event.ID)
 			continue
 		}
 
@@ -351,7 +353,7 @@ func (ui *UniswapIndexer) GetSwapHistory(
 	}
 
 	ui.logger.Debug("retrieved swap history",
-		core.LogKeyPool, pool.Hex(),
+		logkeys.LogKeyPool, pool.Hex(),
 		"swap_count", len(swaps),
 		"volume0", totalVolume0.String(),
 		"volume1", totalVolume1.String())

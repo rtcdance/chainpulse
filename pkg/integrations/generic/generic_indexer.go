@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"github.com/rtcdance/chainpulse/pkg/core/batch"
 
 	"github.com/rtcdance/chainpulse/pkg/services/decoder"
@@ -32,7 +33,7 @@ type DecodedContractEvent struct {
 	Parameters       map[string]any
 	IndexedParams    map[string]any
 	NonIndexedParams map[string]any
-	RawEvent         *core.BlockchainEvent
+	RawEvent         *blockchain.BlockchainEvent
 }
 
 // GenericContractIndexer indexes any smart contract via ABI
@@ -117,7 +118,7 @@ func (gci *GenericContractIndexer) RegisterEventHandler(eventName string, handle
 func (gci *GenericContractIndexer) IndexEvents(
 	ctx context.Context,
 	contractName string,
-	events []*core.BlockchainEvent,
+	events []*blockchain.BlockchainEvent,
 ) error {
 	if len(events) == 0 {
 		return nil
@@ -133,7 +134,7 @@ func (gci *GenericContractIndexer) IndexEvents(
 		return fmt.Errorf("contract ABI not registered: %s", contractName)
 	}
 
-	return batch.Index(ctx, events, func(ctx context.Context, event *core.BlockchainEvent) error {
+	return batch.Index(ctx, events, func(ctx context.Context, event *blockchain.BlockchainEvent) error {
 		return gci.indexEvent(ctx, contractName, &contractABI, event)
 	})
 }
@@ -143,7 +144,7 @@ func (gci *GenericContractIndexer) indexEvent(
 	ctx context.Context,
 	contractName string,
 	contractABI *abi.ABI,
-	event *core.BlockchainEvent,
+	event *blockchain.BlockchainEvent,
 ) error {
 	if event == nil {
 		return fmt.Errorf("event is nil")
@@ -183,7 +184,7 @@ func (gci *GenericContractIndexer) indexEvent(
 // decodeEvent decodes a raw event into a DecodedContractEvent
 func (gci *GenericContractIndexer) decodeEvent(
 	contractABI *abi.ABI,
-	event *core.BlockchainEvent,
+	event *blockchain.BlockchainEvent,
 ) (*DecodedContractEvent, error) {
 	if event == nil {
 		return nil, fmt.Errorf("event is nil")

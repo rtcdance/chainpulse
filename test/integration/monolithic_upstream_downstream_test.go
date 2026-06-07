@@ -31,13 +31,15 @@ func (suite *UpstreamDownstreamTestSuite) SetupSuite() {
 	// 初始化消息队列 (下游)
 	logger := NewDefaultLogger(LogLevelInfo)
 	metricsCollector := NewDefaultMetricsCollector()
+	_ = logger // logger field commented out in MockMQPlugin literal
+	_ = metricsCollector // metrics field commented out in MockMQPlugin literal due to pre-existing unknown field
 	_ = NewDefaultEventBus() // eventBus not used in this test
 	config := core.Config{}
 
 	// Create a simple mock MQ plugin for testing
 	suite.mqPlugin = &MockMQPlugin{
-		logger:  logger,
-		metrics: metricsCollector,
+		// logger:  logger,             // pre-existing vet error: unknown field (not on MockMQPlugin)
+		// metrics: metricsCollector,   // pre-existing vet error: unknown field (not on MockMQPlugin)
 	}
 
 	// 初始化消息队列

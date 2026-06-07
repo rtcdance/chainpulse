@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	domainquery "github.com/rtcdance/chainpulse/pkg/domain/query"
 	"github.com/rtcdance/chainpulse/pkg/services/query"
 )
@@ -42,11 +43,11 @@ func (s *MonolithicIndexingEventStore) Initialize(_ context.Context) error {
 	return nil
 }
 
-func (s *MonolithicIndexingEventStore) InsertEvent(ctx context.Context, event *core.BlockchainEvent) error {
+func (s *MonolithicIndexingEventStore) InsertEvent(ctx context.Context, event *blockchain.BlockchainEvent) error {
 	return s.database.StoreEvent(ctx, event)
 }
 
-func (s *MonolithicIndexingEventStore) InsertEventBatch(ctx context.Context, events []*core.BlockchainEvent) error {
+func (s *MonolithicIndexingEventStore) InsertEventBatch(ctx context.Context, events []*blockchain.BlockchainEvent) error {
 	batch := make([]any, 0, len(events))
 	for _, event := range events {
 		batch = append(batch, event)
@@ -54,7 +55,7 @@ func (s *MonolithicIndexingEventStore) InsertEventBatch(ctx context.Context, eve
 	return s.database.BatchStoreEvents(ctx, batch)
 }
 
-func (s *MonolithicIndexingEventStore) GetEvent(ctx context.Context, eventID string) (*core.BlockchainEvent, error) {
+func (s *MonolithicIndexingEventStore) GetEvent(ctx context.Context, eventID string) (*blockchain.BlockchainEvent, error) {
 	if !s.initialized {
 		return nil, fmt.Errorf("event store not initialized")
 	}
@@ -62,8 +63,8 @@ func (s *MonolithicIndexingEventStore) GetEvent(ctx context.Context, eventID str
 	return s.database.GetEvent(ctx, eventID)
 }
 
-func (s *MonolithicIndexingEventStore) GetEventsByChain(ctx context.Context, chainID int, limit int, offset int) ([]*core.BlockchainEvent, error) {
-	return s.filterEvents(ctx, limit, offset, func(event *core.BlockchainEvent) bool {
+func (s *MonolithicIndexingEventStore) GetEventsByChain(ctx context.Context, chainID int, limit int, offset int) ([]*blockchain.BlockchainEvent, error) {
+	return s.filterEvents(ctx, limit, offset, func(event *blockchain.BlockchainEvent) bool {
 		if chainID == 0 {
 			return true
 		}
@@ -72,35 +73,35 @@ func (s *MonolithicIndexingEventStore) GetEventsByChain(ctx context.Context, cha
 	})
 }
 
-func (s *MonolithicIndexingEventStore) GetEventsByContract(ctx context.Context, contractAddress string, limit int, offset int) ([]*core.BlockchainEvent, error) {
+func (s *MonolithicIndexingEventStore) GetEventsByContract(ctx context.Context, contractAddress string, limit int, offset int) ([]*blockchain.BlockchainEvent, error) {
 	normalized := strings.ToLower(contractAddress)
 
-	return s.filterEvents(ctx, limit, offset, func(event *core.BlockchainEvent) bool {
+	return s.filterEvents(ctx, limit, offset, func(event *blockchain.BlockchainEvent) bool {
 		return strings.ToLower(event.ContractAddress.Hex()) == normalized
 	})
 }
 
-func (s *MonolithicIndexingEventStore) GetEventsByEventName(ctx context.Context, eventName string, limit int, offset int) ([]*core.BlockchainEvent, error) {
-	return s.filterEvents(ctx, limit, offset, func(event *core.BlockchainEvent) bool {
+func (s *MonolithicIndexingEventStore) GetEventsByEventName(ctx context.Context, eventName string, limit int, offset int) ([]*blockchain.BlockchainEvent, error) {
+	return s.filterEvents(ctx, limit, offset, func(event *blockchain.BlockchainEvent) bool {
 		return strings.EqualFold(event.EventName, eventName)
 	})
 }
 
-func (s *MonolithicIndexingEventStore) GetEventsByBlock(ctx context.Context, blockNumber int64) ([]*core.BlockchainEvent, error) {
-	return s.filterEvents(ctx, 0, 0, func(event *core.BlockchainEvent) bool {
+func (s *MonolithicIndexingEventStore) GetEventsByBlock(ctx context.Context, blockNumber int64) ([]*blockchain.BlockchainEvent, error) {
+	return s.filterEvents(ctx, 0, 0, func(event *blockchain.BlockchainEvent) bool {
 		return saturatingUint64ToInt64(event.BlockNumber) == blockNumber
 	})
 }
 
-func (s *MonolithicIndexingEventStore) GetEventsByAddress(ctx context.Context, address string, limit int) ([]*core.BlockchainEvent, error) {
+func (s *MonolithicIndexingEventStore) GetEventsByAddress(ctx context.Context, address string, limit int) ([]*blockchain.BlockchainEvent, error) {
 	return s.GetEventsByContract(ctx, address, limit, 0)
 }
 
-func (s *MonolithicIndexingEventStore) GetEventsByName(ctx context.Context, eventName string, limit int) ([]*core.BlockchainEvent, error) {
+func (s *MonolithicIndexingEventStore) GetEventsByName(ctx context.Context, eventName string, limit int) ([]*blockchain.BlockchainEvent, error) {
 	return s.GetEventsByEventName(ctx, eventName, limit, 0)
 }
 
-func (s *MonolithicIndexingEventStore) GetEventsPaginated(ctx context.Context, cursor string, limit int) ([]*core.BlockchainEvent, bool, error) {
+func (s *MonolithicIndexingEventStore) GetEventsPaginated(ctx context.Context, cursor string, limit int) ([]*blockchain.BlockchainEvent, bool, error) {
 	offset := 0
 	if cursor != "" {
 		// Try decoding as opaque PageCursor first
@@ -126,7 +127,7 @@ func (s *MonolithicIndexingEventStore) GetEventsPaginated(ctx context.Context, c
 		}
 	}
 
-	events, err := s.filterEvents(ctx, limit, offset, func(event *core.BlockchainEvent) bool {
+	events, err := s.filterEvents(ctx, limit, offset, func(event *blockchain.BlockchainEvent) bool {
 		return event != nil
 	})
 	if err != nil {
@@ -142,13 +143,13 @@ func (s *MonolithicIndexingEventStore) GetEventsPaginated(ctx context.Context, c
 	return events, hasMore, nil
 }
 
-func (s *MonolithicIndexingEventStore) GetEventsByCorrelationID(ctx context.Context, correlationID string, limit int, offset int) ([]*core.BlockchainEvent, error) {
+func (s *MonolithicIndexingEventStore) GetEventsByCorrelationID(ctx context.Context, correlationID string, limit int, offset int) ([]*blockchain.BlockchainEvent, error) {
 	allEvents, err := s.loadAllEvents(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("load all events for correlation ID: %w", err)
 	}
 
-	var matched []*core.BlockchainEvent
+	var matched []*blockchain.BlockchainEvent
 	for _, event := range allEvents {
 		if event.CorrelationID == correlationID {
 			matched = append(matched, event)
@@ -227,8 +228,8 @@ func (s *MonolithicIndexingEventStore) filterEvents(
 	ctx context.Context,
 	limit int,
 	offset int,
-	match func(*core.BlockchainEvent) bool,
-) ([]*core.BlockchainEvent, error) {
+	match func(*blockchain.BlockchainEvent) bool,
+) ([]*blockchain.BlockchainEvent, error) {
 	if !s.initialized {
 		return nil, fmt.Errorf("event store not initialized")
 	}
@@ -238,7 +239,7 @@ func (s *MonolithicIndexingEventStore) filterEvents(
 		return nil, fmt.Errorf("filter events: %w", err)
 	}
 
-	filtered := make([]*core.BlockchainEvent, 0, len(allEvents))
+	filtered := make([]*blockchain.BlockchainEvent, 0, len(allEvents))
 	for _, event := range allEvents {
 		if event == nil {
 			continue
@@ -252,7 +253,7 @@ func (s *MonolithicIndexingEventStore) filterEvents(
 	return paginateEvents(filtered, limit, offset), nil
 }
 
-func (s *MonolithicIndexingEventStore) loadAllEvents(ctx context.Context) ([]*core.BlockchainEvent, error) {
+func (s *MonolithicIndexingEventStore) loadAllEvents(ctx context.Context) ([]*blockchain.BlockchainEvent, error) {
 	events, err := s.database.GetAllEvents(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("load all events from database: %w", err)
@@ -406,7 +407,7 @@ func (s *MonolithicIndexingDomainQueryService) Query(ctx context.Context, req *d
 		return nil, fmt.Errorf("query events: %w", err)
 	}
 
-	filtered := make([]core.BlockchainEvent, 0, len(events))
+	filtered := make([]blockchain.BlockchainEvent, 0, len(events))
 	for _, event := range events {
 		if event == nil {
 			continue
@@ -439,7 +440,7 @@ func (s *MonolithicIndexingDomainQueryService) Query(ctx context.Context, req *d
 	}, nil
 }
 
-func (s *MonolithicIndexingDomainQueryService) QueryByHash(ctx context.Context, hash string) (*core.BlockchainEvent, error) {
+func (s *MonolithicIndexingDomainQueryService) QueryByHash(ctx context.Context, hash string) (*blockchain.BlockchainEvent, error) {
 	if hash == "" {
 		return nil, fmt.Errorf("hash is required")
 	}
@@ -489,7 +490,7 @@ func (s *MonolithicIndexingDomainQueryService) Health(ctx context.Context) *core
 	}
 }
 
-func matchesDomainQueryFilter(event *core.BlockchainEvent, filter map[string]any) bool {
+func matchesDomainQueryFilter(event *blockchain.BlockchainEvent, filter map[string]any) bool {
 	if len(filter) == 0 {
 		return true
 	}
@@ -525,9 +526,9 @@ func matchesDomainQueryFilter(event *core.BlockchainEvent, filter map[string]any
 	return true
 }
 
-func paginateEvents(events []*core.BlockchainEvent, limit int, offset int) []*core.BlockchainEvent {
+func paginateEvents(events []*blockchain.BlockchainEvent, limit int, offset int) []*blockchain.BlockchainEvent {
 	if offset >= len(events) {
-		return []*core.BlockchainEvent{}
+		return []*blockchain.BlockchainEvent{}
 	}
 
 	end := len(events)
@@ -535,13 +536,13 @@ func paginateEvents(events []*core.BlockchainEvent, limit int, offset int) []*co
 		end = offset + limit
 	}
 
-	return append([]*core.BlockchainEvent(nil), events[offset:end]...)
+	return append([]*blockchain.BlockchainEvent(nil), events[offset:end]...)
 }
 
-func paginateDomainEvents(events []core.BlockchainEvent, limit int64, offset int64) []core.BlockchainEvent {
+func paginateDomainEvents(events []blockchain.BlockchainEvent, limit int64, offset int64) []blockchain.BlockchainEvent {
 	start, ok := safeInt64ToSliceIndex(offset, len(events))
 	if !ok {
-		return []core.BlockchainEvent{}
+		return []blockchain.BlockchainEvent{}
 	}
 
 	end := len(events)
@@ -554,10 +555,10 @@ func paginateDomainEvents(events []core.BlockchainEvent, limit int64, offset int
 		}
 	}
 
-	return append([]core.BlockchainEvent(nil), events[start:end]...)
+	return append([]blockchain.BlockchainEvent(nil), events[start:end]...)
 }
 
-func buildSyntheticMetadata(event *core.BlockchainEvent) *query.EventMetadata {
+func buildSyntheticMetadata(event *blockchain.BlockchainEvent) *query.EventMetadata {
 	chainID := 0
 	if parsed, err := strconv.Atoi(event.ChainID); err == nil {
 		chainID = parsed

@@ -6,10 +6,11 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 )
 
-func makeTestEvent(id string, block uint64) *core.BlockchainEvent {
-	return &core.BlockchainEvent{
+func makeTestEvent(id string, block uint64) *blockchain.BlockchainEvent {
+	return &blockchain.BlockchainEvent{
 		ID:              id,
 		EventName:       "Transfer",
 		ChainID:         "1",
@@ -209,7 +210,7 @@ func TestMonolithicMemoryDatabase_MarkEventsAsReorged(t *testing.T) {
 		t.Errorf("expected 1 reorged, got %d", count)
 	}
 	event, _ := db.GetEvent(ctx, "re1")
-	if event == nil || event.Status != core.EventStatusReorged {
+	if event == nil || event.Status != blockchain.EventStatusReorged {
 		t.Error("expected event status to be Reorged")
 	}
 }
@@ -222,7 +223,7 @@ func TestMonolithicMemoryDatabase_StoreAndGetBlock(t *testing.T) {
 	_ = db.Start(context.Background())
 	defer db.Stop(context.Background())
 
-	block := &core.Block{Number: 42, Hash: common.HexToHash("0xbeef")}
+	block := &blockchain.Block{Number: 42, Hash: common.HexToHash("0xbeef")}
 	if err := db.StoreBlockSnapshot(ctx, block); err != nil {
 		t.Fatalf("StoreBlockSnapshot() error: %v", err)
 	}
@@ -257,8 +258,8 @@ func TestMonolithicMemoryDatabase_GetLatestBlock(t *testing.T) {
 	_ = db.Start(context.Background())
 	defer db.Stop(context.Background())
 
-	_ = db.StoreBlockSnapshot(ctx, &core.Block{Number: 100})
-	_ = db.StoreBlockSnapshot(ctx, &core.Block{Number: 200})
+	_ = db.StoreBlockSnapshot(ctx, &blockchain.Block{Number: 100})
+	_ = db.StoreBlockSnapshot(ctx, &blockchain.Block{Number: 200})
 	_ = db.StoreEvent(ctx, makeTestEvent("latevt", 150))
 
 	latest, err := db.GetLatestBlock(ctx)
@@ -392,8 +393,8 @@ func TestMonolithicMemoryDatabase_GetAllBlocks(t *testing.T) {
 	_ = db.Start(context.Background())
 	defer db.Stop(context.Background())
 
-	_ = db.StoreBlockSnapshot(ctx, &core.Block{Number: 1})
-	_ = db.StoreBlockSnapshot(ctx, &core.Block{Number: 2})
+	_ = db.StoreBlockSnapshot(ctx, &blockchain.Block{Number: 1})
+	_ = db.StoreBlockSnapshot(ctx, &blockchain.Block{Number: 2})
 
 	blocks, err := db.GetAllBlocks(ctx)
 	if err != nil {

@@ -10,6 +10,7 @@ import (
 
 	"github.com/rtcdance/chainpulse/pkg/chainid"
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"github.com/rtcdance/chainpulse/pkg/core/topics"
 	pluginapi "github.com/rtcdance/chainpulse/pkg/plugins/api"
 	"github.com/rtcdance/chainpulse/pkg/plugins/pullers"
@@ -37,7 +38,7 @@ type monolithicPullerRuntime struct {
 }
 
 type monolithicBlockSnapshotStore interface {
-	StoreBlockSnapshot(ctx context.Context, block *core.Block) error
+	StoreBlockSnapshot(ctx context.Context, block *blockchain.Block) error
 }
 
 type monolithicPollingPuller interface {
@@ -308,7 +309,7 @@ func (m *monolithicPullerRuntime) recordLoopRestart(chainID string) {
 	loop.state = "restarting"
 }
 
-func (m *monolithicPullerRuntime) observeEvent(event core.BlockchainEvent) {
+func (m *monolithicPullerRuntime) observeEvent(event blockchain.BlockchainEvent) {
 	m.reorgMu.RLock()
 	chainRuntime, ok := m.reorgChains[event.ChainID]
 	m.reorgMu.RUnlock()
@@ -348,13 +349,13 @@ func (m *monolithicPullerRuntime) observeEvent(event core.BlockchainEvent) {
 	chainRuntime.clearError()
 }
 
-func (m *monolithicPullerRuntime) storeBlockSnapshot(ctx context.Context, event *core.BlockchainEvent) error {
+func (m *monolithicPullerRuntime) storeBlockSnapshot(ctx context.Context, event *blockchain.BlockchainEvent) error {
 	store, ok := m.database.(monolithicBlockSnapshotStore)
 	if !ok {
 		return fmt.Errorf("monolithic database does not support block snapshots")
 	}
 
-	return store.StoreBlockSnapshot(ctx, &core.Block{
+	return store.StoreBlockSnapshot(ctx, &blockchain.Block{
 		Number: event.BlockNumber,
 		Hash:   event.BlockHash,
 	})
@@ -618,7 +619,7 @@ func subscribeMonolithicIndexer(
 	logger core.Logger,
 ) error {
 	_, err := eventBus.SubscribeNamed(ctx, monolithicEventTopic, "monolithic-indexer", func(_ context.Context, payload any) error {
-		event, ok := payload.(core.BlockchainEvent)
+		event, ok := payload.(blockchain.BlockchainEvent)
 		if !ok {
 			logger.Warn("ignored unexpected monolithic event payload", "topic", monolithicEventTopic)
 
@@ -626,7 +627,7 @@ func subscribeMonolithicIndexer(
 		}
 
 		logger.Info("monolithic event received", "event_name", event.EventName, "block", event.BlockNumber)
-		err := multiChainIndexer.IndexEventsFromChain(ctx, event.ChainID, []*core.BlockchainEvent{&event})
+		err := multiChainIndexer.IndexEventsFromChain(ctx, event.ChainID, []*blockchain.BlockchainEvent{&event})
 		if err != nil {
 			logger.Error("failed to process monolithic event", "error", err)
 		}

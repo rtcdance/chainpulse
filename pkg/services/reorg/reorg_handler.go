@@ -9,6 +9,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/rtcdance/chainpulse/pkg/core"
+"github.com/rtcdance/chainpulse/pkg/logkeys"
 	"github.com/rtcdance/chainpulse/pkg/core/topics"
 )
 
@@ -212,7 +213,7 @@ func (rh *ReorgHandler) DetectReorg(
 
 	reorgBlock, err := rh.findReorgBlock(ctx, currentBlock, knownBlocks, provider, maxRollback)
 	if err != nil {
-		rh.logger.Warn("reorg scan failed", core.LogKeyError, err)
+		rh.logger.Warn("reorg scan failed", logkeys.LogKeyError, err)
 		return true, currentBlock, nil
 	}
 	if reorgBlock == 0 {
@@ -221,9 +222,9 @@ func (rh *ReorgHandler) DetectReorg(
 
 	rh.logger.Warn(
 		"Reorg detected",
-		core.LogKeyReorgBlock, reorgBlock,
-		core.LogKeyCurrentBlock, currentBlock,
-		core.LogKeyBlocksAffected, currentBlock-reorgBlock+1,
+		logkeys.LogKeyReorgBlock, reorgBlock,
+		logkeys.LogKeyCurrentBlock, currentBlock,
+		logkeys.LogKeyBlocksAffected, currentBlock-reorgBlock+1,
 	)
 
 	return true, reorgBlock, nil
@@ -271,7 +272,7 @@ func (rh *ReorgHandler) HandleReorg(ctx context.Context, reorgBlock uint64) erro
 			EventsRolledBack: eventsRolledBack,
 		}
 		if err := eventBus.Publish(ctx, topics.TopicReorgDetected, reorgEvt); err != nil {
-			rh.logger.Error("Failed to publish reorg event", core.LogKeyError, err)
+			rh.logger.Error("Failed to publish reorg event", logkeys.LogKeyError, err)
 		}
 
 		reindexEvt := &core.ReorgRollbackEvent{
@@ -281,15 +282,15 @@ func (rh *ReorgHandler) HandleReorg(ctx context.Context, reorgBlock uint64) erro
 			DetectedAt: time.Now(),
 		}
 		if err := eventBus.Publish(ctx, topics.TopicReorgRollback, reindexEvt); err != nil {
-			rh.logger.Error("Failed to publish reorg rollback event", core.LogKeyError, err)
+			rh.logger.Error("Failed to publish reorg rollback event", logkeys.LogKeyError, err)
 		}
 	}
 
 	rh.logger.Info(
 		"Reorg handled successfully",
-		core.LogKeyReorgBlock, reorgBlock,
-		core.LogKeyBlocksRolledBack, blocksToRollback,
-		core.LogKeyEventsRolledBack, eventsRolledBack,
+		logkeys.LogKeyReorgBlock, reorgBlock,
+		logkeys.LogKeyBlocksRolledBack, blocksToRollback,
+		logkeys.LogKeyEventsRolledBack, eventsRolledBack,
 	)
 
 	return nil
@@ -314,17 +315,17 @@ func (rh *ReorgHandler) rollbackWithSnapshots(ctx context.Context, fromBlock, cu
 		invalidated := invalidator.InvalidateRange(fromBlock, currentBlock)
 		rh.logger.Info(
 			"Idempotency entries invalidated for reorged range",
-			core.LogKeyFromBlock, fromBlock,
-			core.LogKeyCurrentBlock, currentBlock,
-			core.LogKeyInvalidated, invalidated,
+			logkeys.LogKeyFromBlock, fromBlock,
+			logkeys.LogKeyCurrentBlock, currentBlock,
+			logkeys.LogKeyInvalidated, invalidated,
 		)
 	}
 
 	rh.logger.Info(
 		"Events marked as reorged",
-		core.LogKeyFromBlock, fromBlock,
-		core.LogKeyCurrentBlock, currentBlock,
-		core.LogKeyCount, count,
+		logkeys.LogKeyFromBlock, fromBlock,
+		logkeys.LogKeyCurrentBlock, currentBlock,
+		logkeys.LogKeyCount, count,
 	)
 
 	return count, nil
@@ -414,7 +415,7 @@ func (rh *ReorgHandler) linearScanReorg(ctx context.Context, currentBlock, maxSc
 
 		canonicalHash, err := provider.GetBlockHash(ctx, block)
 		if err != nil {
-			rh.logger.Warn("block hash lookup failed during reorg scan", core.LogKeyBlockNumber, block, core.LogKeyError, err)
+			rh.logger.Warn("block hash lookup failed during reorg scan", logkeys.LogKeyBlockNumber, block, logkeys.LogKeyError, err)
 			continue
 		}
 

@@ -22,7 +22,7 @@ type EventFilter struct {
 	// Topic filters (indexed parameters)
 	Topics [][]common.Hash
 
-	// Block range
+	// blockchain.Block range
 	FromBlock uint64
 	ToBlock   uint64
 
@@ -124,7 +124,7 @@ func (ef *EventFilter) ToQuery() (string, []any) {
 		conditions = append(conditions, fmt.Sprintf("event_signature IN (%s)", strings.Join(placeholders, ",")))
 	}
 
-	// Block range filter — uint64, safe but use parameterized for consistency
+	// blockchain.Block range filter — uint64, safe but use parameterized for consistency
 	if ef.FromBlock > 0 {
 		conditions = append(conditions, fmt.Sprintf("block_number >= $%d", argIdx))
 		args = append(args, ef.FromBlock)

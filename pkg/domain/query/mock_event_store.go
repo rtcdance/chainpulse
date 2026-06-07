@@ -12,6 +12,7 @@ package query
 import (
 	context "context"
 	core "github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	reflect "reflect"
 
 	gomock "go.uber.org/mock/gomock"
@@ -70,23 +71,6 @@ func (mr *MockEventStoreMockRecorder) CountEvents(ctx any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountEvents", reflect.TypeOf((*MockEventStore)(nil).CountEvents), ctx)
 }
 
-// GetEventStats mocks base method.
-func (m *MockEventStore) GetEventStats(ctx context.Context) (map[string]int64, map[string]int64, int64, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetEventStats", ctx)
-	ret0, _ := ret[0].(map[string]int64)
-	ret1, _ := ret[1].(map[string]int64)
-	ret2, _ := ret[2].(int64)
-	ret3, _ := ret[3].(error)
-	return ret0, ret1, ret2, ret3
-}
-
-// GetEventStats indicates an expected call of GetEventStats.
-func (mr *MockEventStoreMockRecorder) GetEventStats(ctx any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetEventStats", reflect.TypeOf((*MockEventStore)(nil).GetEventStats), ctx)
-}
-
 // DeleteExpiredEvents mocks base method.
 func (m *MockEventStore) DeleteExpiredEvents(ctx context.Context) (int64, error) {
 	m.ctrl.T.Helper()
@@ -103,10 +87,10 @@ func (mr *MockEventStoreMockRecorder) DeleteExpiredEvents(ctx any) *gomock.Call 
 }
 
 // GetEvent mocks base method.
-func (m *MockEventStore) GetEvent(ctx context.Context, eventID string) (*core.BlockchainEvent, error) {
+func (m *MockEventStore) GetEvent(ctx context.Context, eventID string) (*blockchain.BlockchainEvent, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetEvent", ctx, eventID)
-	ret0, _ := ret[0].(*core.BlockchainEvent)
+	ret0, _ := ret[0].(*blockchain.BlockchainEvent)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -118,10 +102,10 @@ func (mr *MockEventStoreMockRecorder) GetEvent(ctx, eventID any) *gomock.Call {
 }
 
 // GetEventsByAddress mocks base method.
-func (m *MockEventStore) GetEventsByAddress(ctx context.Context, address string, limit int) ([]*core.BlockchainEvent, error) {
+func (m *MockEventStore) GetEventsByAddress(ctx context.Context, address string, limit int) ([]*blockchain.BlockchainEvent, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetEventsByAddress", ctx, address, limit)
-	ret0, _ := ret[0].([]*core.BlockchainEvent)
+	ret0, _ := ret[0].([]*blockchain.BlockchainEvent)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -133,10 +117,10 @@ func (mr *MockEventStoreMockRecorder) GetEventsByAddress(ctx, address, limit any
 }
 
 // GetEventsByBlock mocks base method.
-func (m *MockEventStore) GetEventsByBlock(ctx context.Context, blockNumber int64) ([]*core.BlockchainEvent, error) {
+func (m *MockEventStore) GetEventsByBlock(ctx context.Context, blockNumber int64) ([]*blockchain.BlockchainEvent, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetEventsByBlock", ctx, blockNumber)
-	ret0, _ := ret[0].([]*core.BlockchainEvent)
+	ret0, _ := ret[0].([]*blockchain.BlockchainEvent)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -148,10 +132,10 @@ func (mr *MockEventStoreMockRecorder) GetEventsByBlock(ctx, blockNumber any) *go
 }
 
 // GetEventsByChain mocks base method.
-func (m *MockEventStore) GetEventsByChain(ctx context.Context, chainID, limit, offset int) ([]*core.BlockchainEvent, error) {
+func (m *MockEventStore) GetEventsByChain(ctx context.Context, chainID, limit, offset int) ([]*blockchain.BlockchainEvent, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetEventsByChain", ctx, chainID, limit, offset)
-	ret0, _ := ret[0].([]*core.BlockchainEvent)
+	ret0, _ := ret[0].([]*blockchain.BlockchainEvent)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -163,10 +147,10 @@ func (mr *MockEventStoreMockRecorder) GetEventsByChain(ctx, chainID, limit, offs
 }
 
 // GetEventsByContract mocks base method.
-func (m *MockEventStore) GetEventsByContract(ctx context.Context, contractAddress string, limit, offset int) ([]*core.BlockchainEvent, error) {
+func (m *MockEventStore) GetEventsByContract(ctx context.Context, contractAddress string, limit, offset int) ([]*blockchain.BlockchainEvent, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetEventsByContract", ctx, contractAddress, limit, offset)
-	ret0, _ := ret[0].([]*core.BlockchainEvent)
+	ret0, _ := ret[0].([]*blockchain.BlockchainEvent)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -178,10 +162,10 @@ func (mr *MockEventStoreMockRecorder) GetEventsByContract(ctx, contractAddress, 
 }
 
 // GetEventsByEventName mocks base method.
-func (m *MockEventStore) GetEventsByEventName(ctx context.Context, eventName string, limit, offset int) ([]*core.BlockchainEvent, error) {
+func (m *MockEventStore) GetEventsByEventName(ctx context.Context, eventName string, limit, offset int) ([]*blockchain.BlockchainEvent, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetEventsByEventName", ctx, eventName, limit, offset)
-	ret0, _ := ret[0].([]*core.BlockchainEvent)
+	ret0, _ := ret[0].([]*blockchain.BlockchainEvent)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -193,10 +177,10 @@ func (mr *MockEventStoreMockRecorder) GetEventsByEventName(ctx, eventName, limit
 }
 
 // GetEventsByName mocks base method.
-func (m *MockEventStore) GetEventsByName(ctx context.Context, eventName string, limit int) ([]*core.BlockchainEvent, error) {
+func (m *MockEventStore) GetEventsByName(ctx context.Context, eventName string, limit int) ([]*blockchain.BlockchainEvent, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetEventsByName", ctx, eventName, limit)
-	ret0, _ := ret[0].([]*core.BlockchainEvent)
+	ret0, _ := ret[0].([]*blockchain.BlockchainEvent)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -207,26 +191,11 @@ func (mr *MockEventStoreMockRecorder) GetEventsByName(ctx, eventName, limit any)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetEventsByName", reflect.TypeOf((*MockEventStore)(nil).GetEventsByName), ctx, eventName, limit)
 }
 
-// GetEventsByCorrelationID mocks base method.
-func (m *MockEventStore) GetEventsByCorrelationID(ctx context.Context, correlationID string, limit, offset int) ([]*core.BlockchainEvent, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetEventsByCorrelationID", ctx, correlationID, limit, offset)
-	ret0, _ := ret[0].([]*core.BlockchainEvent)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetEventsByCorrelationID indicates an expected call of GetEventsByCorrelationID.
-func (mr *MockEventStoreMockRecorder) GetEventsByCorrelationID(ctx, correlationID, limit, offset any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetEventsByCorrelationID", reflect.TypeOf((*MockEventStore)(nil).GetEventsByCorrelationID), ctx, correlationID, limit, offset)
-}
-
 // GetEventsPaginated mocks base method.
-func (m *MockEventStore) GetEventsPaginated(ctx context.Context, cursor string, limit int) ([]*core.BlockchainEvent, bool, error) {
+func (m *MockEventStore) GetEventsPaginated(ctx context.Context, cursor string, limit int) ([]*blockchain.BlockchainEvent, bool, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetEventsPaginated", ctx, cursor, limit)
-	ret0, _ := ret[0].([]*core.BlockchainEvent)
+	ret0, _ := ret[0].([]*blockchain.BlockchainEvent)
 	ret1, _ := ret[1].(bool)
 	ret2, _ := ret[2].(error)
 	return ret0, ret1, ret2
@@ -267,7 +236,7 @@ func (mr *MockEventStoreMockRecorder) Initialize(ctx any) *gomock.Call {
 }
 
 // InsertEvent mocks base method.
-func (m *MockEventStore) InsertEvent(ctx context.Context, event *core.BlockchainEvent) error {
+func (m *MockEventStore) InsertEvent(ctx context.Context, event *blockchain.BlockchainEvent) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "InsertEvent", ctx, event)
 	ret0, _ := ret[0].(error)
@@ -281,7 +250,7 @@ func (mr *MockEventStoreMockRecorder) InsertEvent(ctx, event any) *gomock.Call {
 }
 
 // InsertEventBatch mocks base method.
-func (m *MockEventStore) InsertEventBatch(ctx context.Context, events []*core.BlockchainEvent) error {
+func (m *MockEventStore) InsertEventBatch(ctx context.Context, events []*blockchain.BlockchainEvent) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "InsertEventBatch", ctx, events)
 	ret0, _ := ret[0].(error)

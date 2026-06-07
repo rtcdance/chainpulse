@@ -15,6 +15,7 @@ import (
 
 	"github.com/rtcdance/chainpulse/pkg/chainid"
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"github.com/rtcdance/chainpulse/pkg/core/eventsig"
 	domainquery "github.com/rtcdance/chainpulse/pkg/domain/query"
 	"github.com/rtcdance/chainpulse/pkg/observability"
@@ -505,7 +506,7 @@ func (h *EventQueryHandler) convertEventsToResponse(eventsWithMetadata []*query.
 	return responses
 }
 
-func (h *EventQueryHandler) convertDomainEventsToResponse(events []core.BlockchainEvent) []*EventResponse {
+func (h *EventQueryHandler) convertDomainEventsToResponse(events []blockchain.BlockchainEvent) []*EventResponse {
 	if len(events) == 0 {
 		return []*EventResponse{}
 	}

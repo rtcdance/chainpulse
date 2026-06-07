@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
+"github.com/rtcdance/chainpulse/pkg/logkeys"
 
 	"github.com/redis/go-redis/v9"
 )
@@ -48,7 +49,7 @@ func (p *RedisCachePlugin) Initialize(config *core.Config) error {
 
 	p.initialized = true
 
-	p.logger.Info("Redis cache plugin initialized", core.LogKeyComponent, "redis_cache", "connectionURL", p.connectionURL)
+	p.logger.Info("Redis cache plugin initialized", logkeys.LogKeyComponent, "redis_cache", "connectionURL", p.connectionURL)
 
 	return nil
 }
@@ -207,7 +208,7 @@ func (p *RedisCachePlugin) Set(entry *CacheEntry) error {
 	p.metricsCollector.RecordCounter("redis_cache_set", 1, map[string]string{})
 	p.metricsCollector.RecordGauge("redis_cache_size", float64(len(p.data)), map[string]string{})
 
-	p.logger.Debug("Redis cache set", core.LogKeyKey, entry.Key, "ttl", entry.TTL)
+	p.logger.Debug("Redis cache set", logkeys.LogKeyKey, entry.Key, "ttl", entry.TTL)
 
 	return nil
 }

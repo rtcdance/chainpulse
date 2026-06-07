@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/mock"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 )
 
 // MockEventStore is a mock implementation of EventStore
@@ -21,86 +22,86 @@ func (m *MockEventStore) Initialize(ctx context.Context) error {
 	return args.Error(0)
 }
 
-func (m *MockEventStore) InsertEvent(ctx context.Context, event *core.BlockchainEvent) error {
+func (m *MockEventStore) InsertEvent(ctx context.Context, event *blockchain.BlockchainEvent) error {
 	args := m.Called(ctx, event)
 	return args.Error(0)
 }
 
-func (m *MockEventStore) InsertEventBatch(ctx context.Context, events []*core.BlockchainEvent) error {
+func (m *MockEventStore) InsertEventBatch(ctx context.Context, events []*blockchain.BlockchainEvent) error {
 	args := m.Called(ctx, events)
 	return args.Error(0)
 }
 
-func (m *MockEventStore) GetEvent(ctx context.Context, id string) (*core.BlockchainEvent, error) {
+func (m *MockEventStore) GetEvent(ctx context.Context, id string) (*blockchain.BlockchainEvent, error) {
 	args := m.Called(ctx, id)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).(*core.BlockchainEvent), args.Error(1)
+	return args.Get(0).(*blockchain.BlockchainEvent), args.Error(1)
 }
 
-func (m *MockEventStore) GetEventsByChain(ctx context.Context, chainID int, limit int, offset int) ([]*core.BlockchainEvent, error) {
+func (m *MockEventStore) GetEventsByChain(ctx context.Context, chainID int, limit int, offset int) ([]*blockchain.BlockchainEvent, error) {
 	args := m.Called(ctx, chainID, limit, offset)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).([]*core.BlockchainEvent), args.Error(1)
+	return args.Get(0).([]*blockchain.BlockchainEvent), args.Error(1)
 }
 
-func (m *MockEventStore) GetEventsByContract(ctx context.Context, contractAddress string, limit int, offset int) ([]*core.BlockchainEvent, error) {
+func (m *MockEventStore) GetEventsByContract(ctx context.Context, contractAddress string, limit int, offset int) ([]*blockchain.BlockchainEvent, error) {
 	args := m.Called(ctx, contractAddress, limit, offset)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).([]*core.BlockchainEvent), args.Error(1)
+	return args.Get(0).([]*blockchain.BlockchainEvent), args.Error(1)
 }
 
-func (m *MockEventStore) GetEventsByEventName(ctx context.Context, eventName string, limit int, offset int) ([]*core.BlockchainEvent, error) {
+func (m *MockEventStore) GetEventsByEventName(ctx context.Context, eventName string, limit int, offset int) ([]*blockchain.BlockchainEvent, error) {
 	args := m.Called(ctx, eventName, limit, offset)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).([]*core.BlockchainEvent), args.Error(1)
+	return args.Get(0).([]*blockchain.BlockchainEvent), args.Error(1)
 }
 
-func (m *MockEventStore) GetEventsByBlock(ctx context.Context, blockNumber int64) ([]*core.BlockchainEvent, error) {
+func (m *MockEventStore) GetEventsByBlock(ctx context.Context, blockNumber int64) ([]*blockchain.BlockchainEvent, error) {
 	args := m.Called(ctx, blockNumber)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).([]*core.BlockchainEvent), args.Error(1)
+	return args.Get(0).([]*blockchain.BlockchainEvent), args.Error(1)
 }
 
-func (m *MockEventStore) GetEventsByAddress(ctx context.Context, address string, limit int) ([]*core.BlockchainEvent, error) {
+func (m *MockEventStore) GetEventsByAddress(ctx context.Context, address string, limit int) ([]*blockchain.BlockchainEvent, error) {
 	args := m.Called(ctx, address, limit)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).([]*core.BlockchainEvent), args.Error(1)
+	return args.Get(0).([]*blockchain.BlockchainEvent), args.Error(1)
 }
 
-func (m *MockEventStore) GetEventsByName(ctx context.Context, eventName string, limit int) ([]*core.BlockchainEvent, error) {
+func (m *MockEventStore) GetEventsByName(ctx context.Context, eventName string, limit int) ([]*blockchain.BlockchainEvent, error) {
 	args := m.Called(ctx, eventName, limit)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).([]*core.BlockchainEvent), args.Error(1)
+	return args.Get(0).([]*blockchain.BlockchainEvent), args.Error(1)
 }
 
-func (m *MockEventStore) GetEventsByCorrelationID(ctx context.Context, correlationID string, limit, offset int) ([]*core.BlockchainEvent, error) {
+func (m *MockEventStore) GetEventsByCorrelationID(ctx context.Context, correlationID string, limit, offset int) ([]*blockchain.BlockchainEvent, error) {
 	args := m.Called(ctx, correlationID, limit, offset)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).([]*core.BlockchainEvent), args.Error(1)
+	return args.Get(0).([]*blockchain.BlockchainEvent), args.Error(1)
 }
 
-func (m *MockEventStore) GetEventsPaginated(ctx context.Context, cursor string, limit int) ([]*core.BlockchainEvent, bool, error) {
+func (m *MockEventStore) GetEventsPaginated(ctx context.Context, cursor string, limit int) ([]*blockchain.BlockchainEvent, bool, error) {
 	args := m.Called(ctx, cursor, limit)
 	if args.Get(0) == nil {
 		return nil, args.Bool(1), args.Error(2)
 	}
-	return args.Get(0).([]*core.BlockchainEvent), args.Bool(1), args.Error(2)
+	return args.Get(0).([]*blockchain.BlockchainEvent), args.Bool(1), args.Error(2)
 }
 
 func (m *MockEventStore) CountEvents(ctx context.Context) (int64, error) {
@@ -156,7 +157,7 @@ func TestStatelessServiceProcessRequest(t *testing.T) {
 	cache := NewDistributedCache()
 	db := &MockEventStore{}
 
-	db.On("GetEvent", mock.Anything, "req-1").Return(&core.BlockchainEvent{}, nil)
+	db.On("GetEvent", mock.Anything, "req-1").Return(&blockchain.BlockchainEvent{}, nil)
 	db.On("InsertEvent", mock.Anything, mock.Anything).Return(nil)
 
 	service := NewStatelessService("service-1", "my-service", cache, db)
@@ -365,7 +366,7 @@ func TestStatelessServiceMetricsTracking(t *testing.T) {
 	cache := NewDistributedCache()
 	db := &MockEventStore{}
 
-	db.On("GetEvent", mock.Anything, mock.Anything).Return(&core.BlockchainEvent{}, nil)
+	db.On("GetEvent", mock.Anything, mock.Anything).Return(&blockchain.BlockchainEvent{}, nil)
 	db.On("InsertEvent", mock.Anything, mock.Anything).Return(nil)
 
 	service := NewStatelessService("service-1", "my-service", cache, db)
@@ -494,7 +495,7 @@ func TestStatelessServiceConcurrentRequests(t *testing.T) {
 	cache := NewDistributedCache()
 	db := &MockEventStore{}
 
-	db.On("GetEvent", mock.Anything, mock.Anything).Return(&core.BlockchainEvent{}, nil)
+	db.On("GetEvent", mock.Anything, mock.Anything).Return(&blockchain.BlockchainEvent{}, nil)
 	db.On("InsertEvent", mock.Anything, mock.Anything).Return(nil)
 
 	service := NewStatelessService("service-1", "my-service", cache, db)

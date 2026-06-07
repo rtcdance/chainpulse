@@ -14,6 +14,8 @@ import (
 	"github.com/rtcdance/chainpulse/pkg/application/bootstrap"
 	appindexing "github.com/rtcdance/chainpulse/pkg/application/indexing"
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
+"github.com/rtcdance/chainpulse/pkg/logkeys"
 	"github.com/rtcdance/chainpulse/pkg/plugins/pullers"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -250,7 +252,7 @@ func safePositiveIntToUint64(value int) (uint64, bool) {
 	return uint64(value), true
 }
 
-func (r *pullerExecutionRuntime) publishEvents(ctx context.Context, instanceID string, events []core.BlockchainEvent) (uint64, error) {
+func (r *pullerExecutionRuntime) publishEvents(ctx context.Context, instanceID string, events []blockchain.BlockchainEvent) (uint64, error) {
 	if r == nil || r.publisher == nil || len(r.outputTopics) == 0 || len(events) == 0 {
 		return 0, nil
 	}
@@ -306,7 +308,7 @@ func (r *pullerExecutionRuntime) publishEvents(ctx context.Context, instanceID s
 	return lastPublishedBlock, nil
 }
 
-func (r *pullerExecutionRuntime) shadowEvents(ctx context.Context, chainID string, events []core.BlockchainEvent) error {
+func (r *pullerExecutionRuntime) shadowEvents(ctx context.Context, chainID string, events []blockchain.BlockchainEvent) error {
 	if r == nil || len(events) == 0 {
 		return nil
 	}
@@ -371,7 +373,7 @@ func (r *pullerExecutionRuntime) runtimeForChain(ctx context.Context, chainID st
 
 // detectAndPublishReorg checks if any block hash has changed compared to previously seen hashes.
 // If a reorg is detected, it publishes a ReorgDetected message to the "reorg-events" Kafka topic.
-func (r *pullerExecutionRuntime) detectAndPublishReorg(ctx context.Context, chainID string, events []core.BlockchainEvent) {
+func (r *pullerExecutionRuntime) detectAndPublishReorg(ctx context.Context, chainID string, events []blockchain.BlockchainEvent) {
 	if len(events) == 0 {
 		return
 	}
@@ -391,16 +393,16 @@ func (r *pullerExecutionRuntime) detectAndPublishReorg(ctx context.Context, chai
 			// Reorg detected: same block number, different hash
 			r.reorgDetected++
 			r.logger.Warn("Reorg detected in puller",
-				core.LogKeyChainID, chainID,
-				core.LogKeyBlockNumber, event.BlockNumber,
-				core.LogKeyOldBlockHash, storedHash.Hex(),
-				core.LogKeyNewBlockHash, event.BlockHash.Hex())
+				logkeys.LogKeyChainID, chainID,
+				logkeys.LogKeyBlockNumber, event.BlockNumber,
+				logkeys.LogKeyOldBlockHash, storedHash.Hex(),
+				logkeys.LogKeyNewBlockHash, event.BlockHash.Hex())
 			if r.metrics != nil {
 				r.metrics.RecordCounter("puller_reorg_detected_total", 1, map[string]string{"chain_id": chainID})
 			}
 
 			// Publish reorg event to Kafka
-			reorgMsg := core.ReorgDetectedMessage{
+			reorgMsg := blockchain.ReorgDetectedMessage{
 				ChainID:    chainID,
 				ReorgBlock: event.BlockNumber,
 				OldHash:    storedHash.Hex(),
@@ -410,7 +412,7 @@ func (r *pullerExecutionRuntime) detectAndPublishReorg(ctx context.Context, chai
 			if payload, err := json.Marshal(reorgMsg); err == nil {
 				if r.publisher != nil {
 					if err := r.publisher.Publish(ctx, "reorg-events", payload); err != nil {
-						r.logger.Error("Failed to publish reorg event", core.LogKeyError, err, "chainID", chainID)
+						r.logger.Error("Failed to publish reorg event", logkeys.LogKeyError, err, "chainID", chainID)
 					}
 				}
 			}
@@ -439,7 +441,7 @@ func (r *pullerExecutionRuntime) detectAndPublishReorg(ctx context.Context, chai
 	}
 }
 
-func pullerShadowReceivedAt(event core.BlockchainEvent) time.Time {
+func pullerShadowReceivedAt(event blockchain.BlockchainEvent) time.Time {
 	if !event.CreatedAt.IsZero() {
 		return event.CreatedAt
 	}

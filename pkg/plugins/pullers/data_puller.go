@@ -11,6 +11,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"github.com/rtcdance/chainpulse/pkg/core/topics"
 	"github.com/rtcdance/chainpulse/pkg/evm"
 )
@@ -436,7 +437,7 @@ func (p *BaseDataPullerPlugin) LoadCheckpointWithHash(ctx context.Context) (uint
 }
 
 // PublishEvent publishes an event to the event bus
-func (p *BaseDataPullerPlugin) PublishEvent(ctx context.Context, event core.BlockchainEvent) error {
+func (p *BaseDataPullerPlugin) PublishEvent(ctx context.Context, event blockchain.BlockchainEvent) error {
 	if p.eventBus == nil {
 		return fmt.Errorf("event bus not available")
 	}
@@ -459,7 +460,7 @@ func (p *BaseDataPullerPlugin) PublishEvent(ctx context.Context, event core.Bloc
 }
 
 // PublishEvents publishes multiple events to the event bus
-func (p *BaseDataPullerPlugin) PublishEvents(ctx context.Context, events []core.BlockchainEvent) error {
+func (p *BaseDataPullerPlugin) PublishEvents(ctx context.Context, events []blockchain.BlockchainEvent) error {
 	for _, event := range events {
 		if err := p.PublishEvent(ctx, event); err != nil {
 			return err
@@ -681,7 +682,7 @@ func (p *BaseDataPullerPlugin) GetConnectionTimeout() time.Duration {
 }
 
 // ValidateEvent validates a blockchain event
-func (p *BaseDataPullerPlugin) ValidateEvent(event core.BlockchainEvent) error {
+func (p *BaseDataPullerPlugin) ValidateEvent(event blockchain.BlockchainEvent) error {
 	if event.BlockNumber == 0 {
 		return fmt.Errorf("invalid block number")
 	}
@@ -717,11 +718,11 @@ func (p *BaseDataPullerPlugin) ValidateEvent(event core.BlockchainEvent) error {
 
 // GenerateEventHash generates a deterministic hash for an event using the
 // canonical ComputeEventHash function from pkg/core.
-func (p *BaseDataPullerPlugin) GenerateEventHash(event core.BlockchainEvent) string {
+func (p *BaseDataPullerPlugin) GenerateEventHash(event blockchain.BlockchainEvent) string {
 	return core.ComputeEventHash(&event)
 }
 
-// BuildBlockchainEvent constructs a core.BlockchainEvent from parsed log fields.
+// BuildBlockchainEvent constructs a blockchain.BlockchainEvent from parsed log fields.
 // Both grpc and websocket pullers use this after converting their hex-encoded
 // Log struct fields into native Go types.
 func (p *BaseDataPullerPlugin) BuildBlockchainEvent(
@@ -736,8 +737,8 @@ func (p *BaseDataPullerPlugin) BuildBlockchainEvent(
 	eventSig common.Hash,
 	blockTimestamp int64,
 	removed bool,
-) core.BlockchainEvent {
-	event := core.BlockchainEvent{
+) blockchain.BlockchainEvent {
+	event := blockchain.BlockchainEvent{
 		ID:              chainID + "-" + txHash.Hex() + "-" + strconv.FormatUint(logIndex, 10),
 		BlockNumber:     blockNumber,
 		TransactionHash: txHash,
@@ -750,7 +751,7 @@ func (p *BaseDataPullerPlugin) BuildBlockchainEvent(
 		ChainID:         chainID,
 		Network:         network,
 		BlockTimestamp:  blockTimestamp,
-		Status:          core.EventStatusPending,
+		Status:          blockchain.EventStatusPending,
 		Removed:         removed,
 	}
 	event.EventHash = p.GenerateEventHash(event)

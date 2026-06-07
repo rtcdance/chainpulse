@@ -9,6 +9,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"github.com/rtcdance/chainpulse/pkg/services/query"
 	"pgregory.net/rapid"
 )
@@ -50,9 +51,9 @@ func TestProperty_CacheService_ResourceCleanup(t *testing.T) {
 		}
 
 		// Create test events
-		testEvents := make([]core.BlockchainEvent, numEvents)
+		testEvents := make([]blockchain.BlockchainEvent, numEvents)
 		for i := 0; i < numEvents; i++ {
-			testEvents[i] = core.BlockchainEvent{
+			testEvents[i] = blockchain.BlockchainEvent{
 				ID:              fmt.Sprintf("event-%d", i),
 				BlockNumber:     uint64(i),
 				TransactionHash: hashFromString(fmt.Sprintf("0x%d", i)),
@@ -73,7 +74,7 @@ func TestProperty_CacheService_ResourceCleanup(t *testing.T) {
 					cacheKey := fmt.Sprintf("cache-key-%d-%d", opID, i)
 
 					// Set operation
-					_ = cacheService.Set(ctx, cacheKey, []core.BlockchainEvent{testEvents[eventIdx]}, 5*time.Minute)
+					_ = cacheService.Set(ctx, cacheKey, []blockchain.BlockchainEvent{testEvents[eventIdx]}, 5*time.Minute)
 
 					// Get operation
 					_, _ = cacheService.Get(ctx, cacheKey)
@@ -120,7 +121,7 @@ func TestProperty_CacheService_NoLeaksAfterErrors(t *testing.T) {
 		// Execute operations with some errors
 		for i := 0; i < numOperations; i++ {
 			cacheKey := fmt.Sprintf("key-%d", i)
-			event := core.BlockchainEvent{
+			event := blockchain.BlockchainEvent{
 				ID:              fmt.Sprintf("event-%d", i),
 				BlockNumber:     uint64(i),
 				TransactionHash: hashFromString(fmt.Sprintf("0x%d", i)),
@@ -130,9 +131,9 @@ func TestProperty_CacheService_NoLeaksAfterErrors(t *testing.T) {
 				// Simulate error by using invalid context
 				invalidCtx, cancel := context.WithCancel(context.Background())
 				cancel()
-				_ = cacheService.Set(invalidCtx, cacheKey, []core.BlockchainEvent{event}, 5*time.Minute)
+				_ = cacheService.Set(invalidCtx, cacheKey, []blockchain.BlockchainEvent{event}, 5*time.Minute)
 			} else {
-				_ = cacheService.Set(ctx, cacheKey, []core.BlockchainEvent{event}, 5*time.Minute)
+				_ = cacheService.Set(ctx, cacheKey, []blockchain.BlockchainEvent{event}, 5*time.Minute)
 			}
 		}
 
@@ -169,12 +170,12 @@ func TestProperty_CacheService_ContextCancellationCleanup(t *testing.T) {
 		// Execute operations
 		for i := 0; i < cancelAfterOps; i++ {
 			cacheKey := fmt.Sprintf("key-%d", i)
-			event := core.BlockchainEvent{
+			event := blockchain.BlockchainEvent{
 				ID:              fmt.Sprintf("event-%d", i),
 				BlockNumber:     uint64(i),
 				TransactionHash: hashFromString(fmt.Sprintf("0x%d", i)),
 			}
-			_ = cacheService.Set(opCtx, cacheKey, []core.BlockchainEvent{event}, 5*time.Minute)
+			_ = cacheService.Set(opCtx, cacheKey, []blockchain.BlockchainEvent{event}, 5*time.Minute)
 		}
 
 		// Cancel context
@@ -217,14 +218,14 @@ func TestProperty_CacheService_ConcurrentCleanup(t *testing.T) {
 
 				for op := 0; op < operationsPerGoroutine; op++ {
 					cacheKey := fmt.Sprintf("key-%d-%d", goroutineID, op)
-					event := core.BlockchainEvent{
+					event := blockchain.BlockchainEvent{
 						ID:              fmt.Sprintf("event-%d-%d", goroutineID, op),
 						BlockNumber:     uint64(goroutineID*operationsPerGoroutine + op),
 						TransactionHash: hashFromString(fmt.Sprintf("0x%d-%d", goroutineID, op)),
 					}
 
 					// Cache operation
-					_ = cacheService.Set(ctx, cacheKey, []core.BlockchainEvent{event}, 5*time.Minute)
+					_ = cacheService.Set(ctx, cacheKey, []blockchain.BlockchainEvent{event}, 5*time.Minute)
 
 					// Get operation
 					_, _ = cacheService.Get(ctx, cacheKey)
@@ -268,12 +269,12 @@ func TestProperty_CacheService_InvalidationCleanup(t *testing.T) {
 		// Create and cache events
 		for i := 0; i < numEvents; i++ {
 			cacheKey := fmt.Sprintf("key-%d", i)
-			event := core.BlockchainEvent{
+			event := blockchain.BlockchainEvent{
 				ID:              fmt.Sprintf("event-%d", i),
 				BlockNumber:     uint64(i),
 				TransactionHash: hashFromString(fmt.Sprintf("0x%d", i)),
 			}
-			_ = cacheService.Set(ctx, cacheKey, []core.BlockchainEvent{event}, 5*time.Minute)
+			_ = cacheService.Set(ctx, cacheKey, []blockchain.BlockchainEvent{event}, 5*time.Minute)
 		}
 
 		// Invalidate entries based on pattern

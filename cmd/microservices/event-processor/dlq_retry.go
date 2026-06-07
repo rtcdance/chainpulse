@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 )
 
 const (
@@ -120,7 +121,7 @@ func (s *dlqRetryService) retryPendingEvents(ctx context.Context) {
 			continue
 		}
 
-		var event core.BlockchainEvent
+		var event blockchain.BlockchainEvent
 		if err := json.Unmarshal([]byte(payload), &event); err != nil {
 			s.logger.Warn("DLQ retry: failed to unmarshal event payload",
 				"eventId", id, "error", err.Error())

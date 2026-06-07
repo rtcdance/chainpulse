@@ -1,6 +1,7 @@
 package core
 
 import (
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
@@ -16,7 +17,7 @@ import (
 // The hash input does NOT include derived fields like EventName, Network, or
 // ContractAddress — those can change across reorgs or contract upgrades but the
 // natural key is immutable on-chain.
-func ComputeEventHash(event *BlockchainEvent) string {
+func ComputeEventHash(event *blockchain.BlockchainEvent) string {
 	if event == nil {
 		return ""
 	}
@@ -38,7 +39,7 @@ func ComputeEventHash(event *BlockchainEvent) string {
 
 // EventNaturalKey returns the human-readable natural key tuple for an event.
 // Useful for logging and debugging.
-func EventNaturalKey(event *BlockchainEvent) string {
+func EventNaturalKey(event *blockchain.BlockchainEvent) string {
 	if event == nil {
 		return ""
 	}

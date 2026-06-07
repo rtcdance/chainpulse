@@ -9,7 +9,9 @@ import (
 	"time"
 
 	_ "github.com/lib/pq" // PostgreSQL driver for database/sql
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/logkeys"
 )
 
 const (
@@ -26,7 +28,7 @@ type PostgreSQLDatabase struct {
 	maxConnections int
 	queryTimeout   time.Duration
 	mu             sync.RWMutex
-	events         map[string]*core.BlockchainEvent // in-memory cache for testing
+	events         map[string]*blockchain.BlockchainEvent // in-memory cache for testing
 	eventsMu       sync.RWMutex
 }
 
@@ -36,7 +38,7 @@ func NewPostgreSQLDatabase(logger core.Logger, metricsCollector core.MetricsColl
 		BaseDatabasePlugin: NewBaseDatabasePlugin(logger, metricsCollector),
 		maxConnections:     defaultPostgresMaxConnections,
 		queryTimeout:       defaultPostgresQueryTimeout,
-		events:             make(map[string]*core.BlockchainEvent),
+		events:             make(map[string]*blockchain.BlockchainEvent),
 	}
 }
 
@@ -68,7 +70,7 @@ func (p *PostgreSQLDatabase) Initialize(ctx context.Context, config core.Config)
 	db, err := sql.Open("postgres", connStr)
 	if err != nil {
 		p.RecordError()
-		p.logger.Error("Failed to open PostgreSQL connection", core.LogKeyError, err)
+		p.logger.Error("Failed to open PostgreSQL connection", logkeys.LogKeyError, err)
 		return fmt.Errorf("failed to open PostgreSQL connection: %w", err)
 	}
 
@@ -143,7 +145,7 @@ func (p *PostgreSQLDatabase) Start(ctx context.Context) error {
 		return fmt.Errorf("failed to verify PostgreSQL connection: %w", err)
 	}
 
-	p.logger.Info("PostgreSQL database started", core.LogKeyComponent, "postgres_database")
+	p.logger.Info("PostgreSQL database started", logkeys.LogKeyComponent, "postgres_database")
 
 	return nil
 }
@@ -160,18 +162,18 @@ func (p *PostgreSQLDatabase) Stop(ctx context.Context) error {
 	if p.db != nil {
 		if err := p.db.Close(); err != nil {
 			p.RecordError()
-			p.logger.Error("Failed to close PostgreSQL connection", core.LogKeyError, err)
+			p.logger.Error("Failed to close PostgreSQL connection", logkeys.LogKeyError, err)
 			return fmt.Errorf("failed to close PostgreSQL connection: %w", err)
 		}
 	}
 
-	p.logger.Info("PostgreSQL database stopped", core.LogKeyComponent, "postgres_database")
+	p.logger.Info("PostgreSQL database stopped", logkeys.LogKeyComponent, "postgres_database")
 
 	return nil
 }
 
 // WriteEvent writes a blockchain event to the database
-func (p *PostgreSQLDatabase) WriteEvent(ctx context.Context, event *core.BlockchainEvent) error {
+func (p *PostgreSQLDatabase) WriteEvent(ctx context.Context, event *blockchain.BlockchainEvent) error {
 	if event == nil {
 		return fmt.Errorf("event is required")
 	}
@@ -213,7 +215,7 @@ INSERT INTO blockchain_events (event_hash, chain_id, block_number, transaction_h
 
 	if err != nil {
 		p.RecordError()
-		p.logger.Error("Failed to write event to PostgreSQL", core.LogKeyError, err, core.LogKeyHash, event.EventHash)
+		p.logger.Error("Failed to write event to PostgreSQL", logkeys.LogKeyError, err, logkeys.LogKeyHash, event.EventHash)
 		return fmt.Errorf("failed to write event: %w", err)
 	}
 
@@ -231,7 +233,7 @@ INSERT INTO blockchain_events (event_hash, chain_id, block_number, transaction_h
 }
 
 // WriteEvents writes multiple blockchain events to the database (batch)
-func (p *PostgreSQLDatabase) WriteEvents(ctx context.Context, events []core.BlockchainEvent) error {
+func (p *PostgreSQLDatabase) WriteEvents(ctx context.Context, events []blockchain.BlockchainEvent) error {
 	if len(events) == 0 {
 		return nil
 	}
@@ -265,14 +267,14 @@ func (p *PostgreSQLDatabase) WriteEvents(ctx context.Context, events []core.Bloc
 	stmt, err := tx.PrepareContext(ctx, insertSQL)
 	if err != nil {
 		if rbErr := tx.Rollback(); rbErr != nil {
-			p.logger.Error("failed to rollback transaction", core.LogKeyError, rbErr)
+			p.logger.Error("failed to rollback transaction", logkeys.LogKeyError, rbErr)
 		}
 		p.RecordError()
 		return fmt.Errorf("failed to prepare statement: %w", err)
 	}
 	defer func() {
 		if err := stmt.Close(); err != nil {
-			p.logger.Error("failed to close statement", core.LogKeyError, err)
+			p.logger.Error("failed to close statement", logkeys.LogKeyError, err)
 		}
 	}()
 
@@ -291,10 +293,10 @@ func (p *PostgreSQLDatabase) WriteEvents(ctx context.Context, events []core.Bloc
 		)
 		if err != nil {
 			if rbErr := tx.Rollback(); rbErr != nil {
-				p.logger.Error("failed to rollback transaction", core.LogKeyError, rbErr)
+				p.logger.Error("failed to rollback transaction", logkeys.LogKeyError, rbErr)
 			}
 			p.RecordError()
-			p.logger.Error("Failed to write event in batch", core.LogKeyError, err, core.LogKeyHash, event.EventHash)
+			p.logger.Error("Failed to write event in batch", logkeys.LogKeyError, err, logkeys.LogKeyHash, event.EventHash)
 			return fmt.Errorf("failed to write event in batch: %w", err)
 		}
 
@@ -319,7 +321,7 @@ func (p *PostgreSQLDatabase) WriteEvents(ctx context.Context, events []core.Bloc
 }
 
 // WriteBatch writes multiple blockchain events atomically using a single DB transaction.
-func (p *PostgreSQLDatabase) WriteBatch(ctx context.Context, events []*core.BlockchainEvent) error {
+func (p *PostgreSQLDatabase) WriteBatch(ctx context.Context, events []*blockchain.BlockchainEvent) error {
 	if len(events) == 0 {
 		return nil
 	}
@@ -353,14 +355,14 @@ func (p *PostgreSQLDatabase) WriteBatch(ctx context.Context, events []*core.Bloc
 	stmt, err := tx.PrepareContext(ctx, insertSQL)
 	if err != nil {
 		if rbErr := tx.Rollback(); rbErr != nil {
-			p.logger.Error("failed to rollback transaction", core.LogKeyError, rbErr)
+			p.logger.Error("failed to rollback transaction", logkeys.LogKeyError, rbErr)
 		}
 		p.RecordError()
 		return fmt.Errorf("failed to prepare statement: %w", err)
 	}
 	defer func() {
 		if closeErr := stmt.Close(); closeErr != nil {
-			p.logger.Error("failed to close statement", core.LogKeyError, closeErr)
+			p.logger.Error("failed to close statement", logkeys.LogKeyError, closeErr)
 		}
 	}()
 
@@ -382,10 +384,10 @@ func (p *PostgreSQLDatabase) WriteBatch(ctx context.Context, events []*core.Bloc
 		)
 		if err != nil {
 			if rbErr := tx.Rollback(); rbErr != nil {
-				p.logger.Error("failed to rollback transaction", core.LogKeyError, rbErr)
+				p.logger.Error("failed to rollback transaction", logkeys.LogKeyError, rbErr)
 			}
 			p.RecordError()
-			p.logger.Error("Failed to write event in batch", core.LogKeyError, err, core.LogKeyHash, event.EventHash)
+			p.logger.Error("Failed to write event in batch", logkeys.LogKeyError, err, logkeys.LogKeyHash, event.EventHash)
 			return fmt.Errorf("failed to write event in batch: %w", err)
 		}
 
@@ -464,18 +466,18 @@ func (p *PostgreSQLDatabase) QueryEvents(filter *core.EventFilter) (*core.QueryR
 	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
 		p.RecordError()
-		p.logger.Error("Failed to query events from PostgreSQL", core.LogKeyError, err)
+		p.logger.Error("Failed to query events from PostgreSQL", logkeys.LogKeyError, err)
 		return nil, fmt.Errorf("failed to query events: %w", err)
 	}
 	defer func() {
 		if err := rows.Close(); err != nil {
-			p.logger.Error("failed to close rows", core.LogKeyError, err)
+			p.logger.Error("failed to close rows", logkeys.LogKeyError, err)
 		}
 	}()
 
-	events := []core.BlockchainEvent{}
+	events := []blockchain.BlockchainEvent{}
 	for rows.Next() {
-		var event core.BlockchainEvent
+		var event blockchain.BlockchainEvent
 		err := rows.Scan(
 			&event.EventHash,
 			&event.BlockNumber,
@@ -511,7 +513,7 @@ func (p *PostgreSQLDatabase) QueryEvents(filter *core.EventFilter) (*core.QueryR
 }
 
 // GetEventByHash retrieves an event by its hash
-func (p *PostgreSQLDatabase) GetEventByHash(hash string) (*core.BlockchainEvent, error) {
+func (p *PostgreSQLDatabase) GetEventByHash(hash string) (*blockchain.BlockchainEvent, error) {
 	if hash == "" {
 		return nil, fmt.Errorf("hash is required")
 	}
@@ -542,7 +544,7 @@ func (p *PostgreSQLDatabase) GetEventByHash(hash string) (*core.BlockchainEvent,
 
 	query := "SELECT event_hash, block_number, transaction_hash, log_index, contract_address, event_name, event_data, timestamp FROM blockchain_events WHERE event_hash = $1"
 
-	var event core.BlockchainEvent
+	var event blockchain.BlockchainEvent
 	err := db.QueryRowContext(ctx, query, hash).Scan(
 		&event.EventHash,
 		&event.BlockNumber,
@@ -560,7 +562,7 @@ func (p *PostgreSQLDatabase) GetEventByHash(hash string) (*core.BlockchainEvent,
 			return nil, nil
 		}
 		p.RecordError()
-		p.logger.Error("Failed to get event by hash from PostgreSQL", core.LogKeyError, err, core.LogKeyHash, hash)
+		p.logger.Error("Failed to get event by hash from PostgreSQL", logkeys.LogKeyError, err, logkeys.LogKeyHash, hash)
 		return nil, fmt.Errorf("failed to get event by hash: %w", err)
 	}
 
@@ -595,7 +597,7 @@ func (p *PostgreSQLDatabase) DeleteEvent(ctx context.Context, eventID string) er
 	result, err := db.ExecContext(ctx, query, eventID)
 	if err != nil {
 		p.RecordError()
-		p.logger.Error("Failed to delete event from PostgreSQL", core.LogKeyError, err, core.LogKeyEventID, eventID)
+		p.logger.Error("Failed to delete event from PostgreSQL", logkeys.LogKeyError, err, logkeys.LogKeyEventID, eventID)
 		return fmt.Errorf("failed to delete event: %w", err)
 	}
 
@@ -660,7 +662,7 @@ func (p *PostgreSQLDatabase) updateEventCount() {
 	var count int64
 	err := db.QueryRowContext(ctx, "SELECT COUNT(*) FROM blockchain_events").Scan(&count)
 	if err != nil {
-		p.logger.Error("Failed to update event count", core.LogKeyError, err)
+		p.logger.Error("Failed to update event count", logkeys.LogKeyError, err)
 		return
 	}
 
@@ -673,7 +675,7 @@ func NewContextWithTimeout(parent context.Context, timeout time.Duration) (conte
 }
 
 // GetAllEvents retrieves all events from the database
-func (p *PostgreSQLDatabase) GetAllEvents(ctx context.Context) ([]*core.BlockchainEvent, error) {
+func (p *PostgreSQLDatabase) GetAllEvents(ctx context.Context) ([]*blockchain.BlockchainEvent, error) {
 	p.mu.RLock()
 	db := p.db
 	p.mu.RUnlock()
@@ -697,13 +699,13 @@ func (p *PostgreSQLDatabase) GetAllEvents(ctx context.Context) ([]*core.Blockcha
 	}
 	defer func() {
 		if err := rows.Close(); err != nil {
-			p.logger.Error("failed to close rows", core.LogKeyError, err)
+			p.logger.Error("failed to close rows", logkeys.LogKeyError, err)
 		}
 	}()
 
-	var events []*core.BlockchainEvent
+	var events []*blockchain.BlockchainEvent
 	for rows.Next() {
-		event := &core.BlockchainEvent{}
+		event := &blockchain.BlockchainEvent{}
 		if err := rows.Scan(
 			&event.ID, &event.BlockNumber, &event.TransactionHash, &event.LogIndex,
 			&event.EventSignature, &event.ContractAddress, &event.EventName,
@@ -725,7 +727,7 @@ func (p *PostgreSQLDatabase) GetAllEvents(ctx context.Context) ([]*core.Blockcha
 }
 
 // GetAllBlocks retrieves all blocks from the database
-func (p *PostgreSQLDatabase) GetAllBlocks(ctx context.Context) ([]*core.Block, error) {
+func (p *PostgreSQLDatabase) GetAllBlocks(ctx context.Context) ([]*blockchain.Block, error) {
 	p.mu.RLock()
 	db := p.db
 	p.mu.RUnlock()
@@ -747,9 +749,9 @@ func (p *PostgreSQLDatabase) GetAllBlocks(ctx context.Context) ([]*core.Block, e
 	}
 	defer func() { _ = rows.Close() }()
 
-	var blocks []*core.Block
+	var blocks []*blockchain.Block
 	for rows.Next() {
-		block := &core.Block{}
+		block := &blockchain.Block{}
 		if err := rows.Scan(
 			&block.Number, &block.Hash, &block.ParentHash, &block.Timestamp,
 			&block.Miner, &block.Difficulty, &block.GasUsed, &block.GasLimit,
@@ -770,7 +772,7 @@ func (p *PostgreSQLDatabase) GetAllBlocks(ctx context.Context) ([]*core.Block, e
 }
 
 // GetEventsByBlockRange retrieves events within a block range
-func (p *PostgreSQLDatabase) GetEventsByBlockRange(ctx context.Context, fromBlock, toBlock uint64) ([]*core.BlockchainEvent, error) {
+func (p *PostgreSQLDatabase) GetEventsByBlockRange(ctx context.Context, fromBlock, toBlock uint64) ([]*blockchain.BlockchainEvent, error) {
 	p.mu.RLock()
 	db := p.db
 	p.mu.RUnlock()
@@ -795,9 +797,9 @@ func (p *PostgreSQLDatabase) GetEventsByBlockRange(ctx context.Context, fromBloc
 	}
 	defer func() { _ = rows.Close() }()
 
-	var events []*core.BlockchainEvent
+	var events []*blockchain.BlockchainEvent
 	for rows.Next() {
-		event := &core.BlockchainEvent{}
+		event := &blockchain.BlockchainEvent{}
 		if err := rows.Scan(
 			&event.ID, &event.BlockNumber, &event.TransactionHash, &event.LogIndex,
 			&event.EventSignature, &event.ContractAddress, &event.EventName,
@@ -819,7 +821,7 @@ func (p *PostgreSQLDatabase) GetEventsByBlockRange(ctx context.Context, fromBloc
 }
 
 // GetBlock retrieves a specific block by number
-func (p *PostgreSQLDatabase) GetBlock(ctx context.Context, blockNumber uint64) (*core.Block, error) {
+func (p *PostgreSQLDatabase) GetBlock(ctx context.Context, blockNumber uint64) (*blockchain.Block, error) {
 	p.mu.RLock()
 	db := p.db
 	p.mu.RUnlock()
@@ -834,7 +836,7 @@ func (p *PostgreSQLDatabase) GetBlock(ctx context.Context, blockNumber uint64) (
 		WHERE number = $1
 	`
 
-	block := &core.Block{}
+	block := &blockchain.Block{}
 	err := db.QueryRowContext(ctx, query, blockNumber).Scan(
 		&block.Number, &block.Hash, &block.ParentHash, &block.Timestamp,
 		&block.Miner, &block.Difficulty, &block.GasUsed, &block.GasLimit,

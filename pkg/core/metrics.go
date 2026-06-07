@@ -12,6 +12,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/rtcdance/chainpulse/pkg/histogram"
 	"github.com/rtcdance/chainpulse/pkg/ports"
 )
 
@@ -25,7 +26,7 @@ type DefaultMetricsCollector struct {
 	mu         sync.RWMutex
 	counters   map[string]int64
 	gauges     map[string]float64
-	histograms map[string]*boundedHistogram
+	histograms map[string]*histogram.Histogram
 	tags       map[string]map[string]string
 	timestamps map[string]time.Time
 }
@@ -56,7 +57,7 @@ func NewDefaultMetricsCollector() *DefaultMetricsCollector {
 	return &DefaultMetricsCollector{
 		counters:   make(map[string]int64),
 		gauges:     make(map[string]float64),
-		histograms: make(map[string]*boundedHistogram),
+		histograms: make(map[string]*histogram.Histogram),
 		tags:       make(map[string]map[string]string),
 		timestamps: make(map[string]time.Time),
 	}
@@ -91,7 +92,7 @@ func (m *DefaultMetricsCollector) RecordHistogram(name string, value float64, ta
 
 	key := m.buildKey(name, tags)
 	if m.histograms[key] == nil {
-		m.histograms[key] = newBoundedHistogram(1024)
+		m.histograms[key] = histogram.New(1024)
 	}
 	m.histograms[key].Record(value)
 	m.tags[key] = tags
@@ -279,7 +280,7 @@ func (m *DefaultMetricsCollector) Reset() {
 
 	m.counters = make(map[string]int64)
 	m.gauges = make(map[string]float64)
-	m.histograms = make(map[string]*boundedHistogram)
+	m.histograms = make(map[string]*histogram.Histogram)
 	m.tags = make(map[string]map[string]string)
 	m.timestamps = make(map[string]time.Time)
 }
@@ -413,7 +414,7 @@ func writePrometheusSample(builder *strings.Builder, name string, tags map[strin
 	builder.WriteByte('\n')
 }
 
-func writePrometheusHistogram(builder *strings.Builder, name string, tags map[string]string, h *boundedHistogram) {
+func writePrometheusHistogram(builder *strings.Builder, name string, tags map[string]string, h *histogram.Histogram) {
 	values := h.All()
 	if len(values) == 0 {
 		return

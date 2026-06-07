@@ -1,6 +1,7 @@
 package core
 
 import (
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"math/big"
 	"testing"
 	"time"
@@ -15,12 +16,12 @@ func TestBlockchainEventValidate(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name    string
-		event   *BlockchainEvent
+		event   *blockchain.BlockchainEvent
 		wantErr bool
 	}{
 		{
 			name: "valid event",
-			event: &BlockchainEvent{
+			event: &blockchain.BlockchainEvent{
 				BlockNumber:     1000,
 				TransactionHash: common.HexToHash("0x1234"),
 				ContractAddress: common.HexToAddress("0x5678"),
@@ -30,7 +31,7 @@ func TestBlockchainEventValidate(t *testing.T) {
 		},
 		{
 			name: "invalid block number",
-			event: &BlockchainEvent{
+			event: &blockchain.BlockchainEvent{
 				BlockNumber:     0,
 				TransactionHash: common.HexToHash("0x1234"),
 				ContractAddress: common.HexToAddress("0x5678"),
@@ -40,7 +41,7 @@ func TestBlockchainEventValidate(t *testing.T) {
 		},
 		{
 			name: "invalid transaction hash",
-			event: &BlockchainEvent{
+			event: &blockchain.BlockchainEvent{
 				BlockNumber:     1000,
 				TransactionHash: common.Hash{},
 				ContractAddress: common.HexToAddress("0x5678"),
@@ -50,7 +51,7 @@ func TestBlockchainEventValidate(t *testing.T) {
 		},
 		{
 			name: "invalid contract address",
-			event: &BlockchainEvent{
+			event: &blockchain.BlockchainEvent{
 				BlockNumber:     1000,
 				TransactionHash: common.HexToHash("0x1234"),
 				ContractAddress: common.Address{},
@@ -60,7 +61,7 @@ func TestBlockchainEventValidate(t *testing.T) {
 		},
 		{
 			name: "invalid event name",
-			event: &BlockchainEvent{
+			event: &blockchain.BlockchainEvent{
 				BlockNumber:     1000,
 				TransactionHash: common.HexToHash("0x1234"),
 				ContractAddress: common.HexToAddress("0x5678"),
@@ -86,7 +87,7 @@ func TestBlockchainEventStatus(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name        string
-		status      EventStatus
+		status      blockchain.EventStatus
 		isConfirmed bool
 		isPending   bool
 		isFailed    bool
@@ -94,7 +95,7 @@ func TestBlockchainEventStatus(t *testing.T) {
 	}{
 		{
 			name:        "confirmed",
-			status:      EventStatusConfirmed,
+			status:      blockchain.EventStatusConfirmed,
 			isConfirmed: true,
 			isPending:   false,
 			isFailed:    false,
@@ -102,7 +103,7 @@ func TestBlockchainEventStatus(t *testing.T) {
 		},
 		{
 			name:        "pending",
-			status:      EventStatusPending,
+			status:      blockchain.EventStatusPending,
 			isConfirmed: false,
 			isPending:   true,
 			isFailed:    false,
@@ -110,7 +111,7 @@ func TestBlockchainEventStatus(t *testing.T) {
 		},
 		{
 			name:        "failed",
-			status:      EventStatusFailed,
+			status:      blockchain.EventStatusFailed,
 			isConfirmed: false,
 			isPending:   false,
 			isFailed:    true,
@@ -118,7 +119,7 @@ func TestBlockchainEventStatus(t *testing.T) {
 		},
 		{
 			name:        "reorged",
-			status:      EventStatusReorged,
+			status:      blockchain.EventStatusReorged,
 			isConfirmed: false,
 			isPending:   false,
 			isFailed:    false,
@@ -128,7 +129,7 @@ func TestBlockchainEventStatus(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			event := &BlockchainEvent{Status: tt.status}
+			event := &blockchain.BlockchainEvent{Status: tt.status}
 			assert.Equal(t, tt.isConfirmed, event.IsConfirmed())
 			assert.Equal(t, tt.isPending, event.IsPending())
 			assert.Equal(t, tt.isFailed, event.IsFailed())
@@ -141,12 +142,12 @@ func TestTransactionValidate(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name    string
-		tx      *Transaction
+		tx      *blockchain.Transaction
 		wantErr bool
 	}{
 		{
 			name: "valid transaction",
-			tx: &Transaction{
+			tx: &blockchain.Transaction{
 				Hash:        common.HexToHash("0x1234"),
 				From:        common.HexToAddress("0x5678"),
 				BlockNumber: 1000,
@@ -155,7 +156,7 @@ func TestTransactionValidate(t *testing.T) {
 		},
 		{
 			name: "invalid hash",
-			tx: &Transaction{
+			tx: &blockchain.Transaction{
 				Hash:        common.Hash{},
 				From:        common.HexToAddress("0x5678"),
 				BlockNumber: 1000,
@@ -164,7 +165,7 @@ func TestTransactionValidate(t *testing.T) {
 		},
 		{
 			name: "invalid from address",
-			tx: &Transaction{
+			tx: &blockchain.Transaction{
 				Hash:        common.HexToHash("0x1234"),
 				From:        common.Address{},
 				BlockNumber: 1000,
@@ -173,7 +174,7 @@ func TestTransactionValidate(t *testing.T) {
 		},
 		{
 			name: "invalid block number",
-			tx: &Transaction{
+			tx: &blockchain.Transaction{
 				Hash:        common.HexToHash("0x1234"),
 				From:        common.HexToAddress("0x5678"),
 				BlockNumber: 0,
@@ -218,7 +219,7 @@ func TestTransactionStatus(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tx := &Transaction{Status: tt.status}
+			tx := &blockchain.Transaction{Status: tt.status}
 			assert.Equal(t, tt.isSuccessful, tx.IsSuccessful())
 			assert.Equal(t, tt.isFailed, tx.IsFailed())
 		})
@@ -229,12 +230,12 @@ func TestBlockValidate(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name    string
-		block   *Block
+		block   *blockchain.Block
 		wantErr bool
 	}{
 		{
 			name: "valid block",
-			block: &Block{
+			block: &blockchain.Block{
 				Number:    1000,
 				Hash:      common.HexToHash("0x1234"),
 				Timestamp: time.Now().Unix(),
@@ -243,7 +244,7 @@ func TestBlockValidate(t *testing.T) {
 		},
 		{
 			name: "invalid number",
-			block: &Block{
+			block: &blockchain.Block{
 				Number:    0,
 				Hash:      common.HexToHash("0x1234"),
 				Timestamp: time.Now().Unix(),
@@ -252,7 +253,7 @@ func TestBlockValidate(t *testing.T) {
 		},
 		{
 			name: "invalid hash",
-			block: &Block{
+			block: &blockchain.Block{
 				Number:    1000,
 				Hash:      common.Hash{},
 				Timestamp: time.Now().Unix(),
@@ -261,7 +262,7 @@ func TestBlockValidate(t *testing.T) {
 		},
 		{
 			name: "invalid timestamp",
-			block: &Block{
+			block: &blockchain.Block{
 				Number:    1000,
 				Hash:      common.HexToHash("0x1234"),
 				Timestamp: 0,
@@ -285,7 +286,7 @@ func TestBlockValidate(t *testing.T) {
 func TestBlockGetTimestamp(t *testing.T) {
 	t.Parallel()
 	now := time.Now()
-	block := &Block{
+	block := &blockchain.Block{
 		Number:    1000,
 		Timestamp: now.Unix(),
 	}
@@ -318,7 +319,7 @@ func TestTransactionReceiptStatus(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			receipt := &TransactionReceipt{Status: tt.status}
+			receipt := &blockchain.TransactionReceipt{Status: tt.status}
 			assert.Equal(t, tt.isSuccessful, receipt.IsSuccessful())
 			assert.Equal(t, tt.isFailed, receipt.IsFailed())
 		})
@@ -327,7 +328,7 @@ func TestTransactionReceiptStatus(t *testing.T) {
 
 func TestBlockchainEventWithDecodedData(t *testing.T) {
 	t.Parallel()
-	event := &BlockchainEvent{
+	event := &blockchain.BlockchainEvent{
 		BlockNumber:     1000,
 		TransactionHash: common.HexToHash("0x1234"),
 		ContractAddress: common.HexToAddress("0x5678"),
@@ -347,7 +348,7 @@ func TestBlockchainEventWithDecodedData(t *testing.T) {
 
 func TestTransactionWithLogs(t *testing.T) {
 	t.Parallel()
-	tx := &Transaction{
+	tx := &blockchain.Transaction{
 		Hash:        common.HexToHash("0x1234"),
 		From:        common.HexToAddress("0x5678"),
 		BlockNumber: 1000,
@@ -361,7 +362,7 @@ func TestTransactionWithLogs(t *testing.T) {
 
 func TestTransactionTypeClassification(t *testing.T) {
 	t.Parallel()
-	baseTx := Transaction{
+	baseTx :=blockchain.Transaction{
 		Hash:        common.HexToHash("0x1234"),
 		From:        common.HexToAddress("0x5678"),
 		BlockNumber: 1000,
@@ -375,10 +376,10 @@ func TestTransactionTypeClassification(t *testing.T) {
 		isEIP1559    bool
 		isBlob       bool
 	}{
-		{"legacy", TxLegacy, true, false, false, false},
-		{"access_list", TxAccessList, false, true, false, false},
-		{"eip1559", TxEIP1559, false, false, true, false},
-		{"blob", TxBlob, false, false, false, true},
+		{"legacy", blockchain.TxLegacy, true, false, false, false},
+		{"access_list", blockchain.TxAccessList, false, true, false, false},
+		{"eip1559", blockchain.TxEIP1559, false, false, true, false},
+		{"blob", blockchain.TxBlob, false, false, false, true},
 	}
 
 	for _, tt := range tests {
@@ -395,11 +396,11 @@ func TestTransactionTypeClassification(t *testing.T) {
 
 func TestTransactionEIP1559Fields(t *testing.T) {
 	t.Parallel()
-	tx := &Transaction{
+	tx := &blockchain.Transaction{
 		Hash:                 common.HexToHash("0xabc"),
 		From:                 common.HexToAddress("0x123"),
 		BlockNumber:          18000000,
-		Type:                 TxEIP1559,
+		Type:                 blockchain.TxEIP1559,
 		MaxFeePerGas:         big.NewInt(50000000000), // 50 Gwei
 		MaxPriorityFeePerGas: big.NewInt(2000000000),  // 2 Gwei
 		GasPrice:             nil,                     // Not required for EIP-1559
@@ -416,11 +417,11 @@ func TestTransactionBlobFields(t *testing.T) {
 	t.Parallel()
 	blobHash := common.HexToHash("0x01" + "00000000000000000000000000000000000000000000000000000000000000")
 
-	tx := &Transaction{
+	tx := &blockchain.Transaction{
 		Hash:                 common.HexToHash("0xdef"),
 		From:                 common.HexToAddress("0x456"),
 		BlockNumber:          19000000,
-		Type:                 TxBlob,
+		Type:                 blockchain.TxBlob,
 		MaxFeePerGas:         big.NewInt(30000000000),
 		MaxPriorityFeePerGas: big.NewInt(1000000000),
 		BlobVersionedHashes:  []common.Hash{blobHash},
@@ -435,11 +436,11 @@ func TestTransactionBlobFields(t *testing.T) {
 
 func TestTransactionAccessListFields(t *testing.T) {
 	t.Parallel()
-	tx := &Transaction{
+	tx := &blockchain.Transaction{
 		Hash:        common.HexToHash("0x789"),
 		From:        common.HexToAddress("0x789"),
 		BlockNumber: 17000000,
-		Type:        TxAccessList,
+		Type:        blockchain.TxAccessList,
 		AccessList: types.AccessList{
 			{
 				Address:     common.HexToAddress("0xdead"),
@@ -455,7 +456,7 @@ func TestTransactionAccessListFields(t *testing.T) {
 
 func TestBlockEIP1559Fields(t *testing.T) {
 	t.Parallel()
-	block := &Block{
+	block := &blockchain.Block{
 		Number:  18000000,
 		Hash:    common.HexToHash("0xabc"),
 		BaseFee: big.NewInt(30000000000),
@@ -468,10 +469,10 @@ func TestBlockEIP1559Fields(t *testing.T) {
 func TestBlockWithdrawals(t *testing.T) {
 	t.Parallel()
 	addr := common.HexToAddress("0xvalidator")
-	block := &Block{
+	block := &blockchain.Block{
 		Number: 19000000,
 		Hash:   common.HexToHash("0xdef"),
-		Withdrawals: []*Withdrawal{
+		Withdrawals: []*blockchain.Withdrawal{
 			{
 				Index:          0,
 				ValidatorIndex: 100,
@@ -489,7 +490,7 @@ func TestBlockWithdrawals(t *testing.T) {
 func TestBlockUncles(t *testing.T) {
 	t.Parallel()
 	uncleHash := common.HexToHash("0xuncle1")
-	block := &Block{
+	block := &blockchain.Block{
 		Number:          15000000,
 		Hash:            common.HexToHash("0xb1"),
 		Uncles:          []common.Hash{uncleHash},
@@ -503,30 +504,30 @@ func TestBlockUncles(t *testing.T) {
 
 func TestTransactionReceiptEIP1559Fields(t *testing.T) {
 	t.Parallel()
-	receipt := &TransactionReceipt{
+	receipt := &blockchain.TransactionReceipt{
 		TransactionHash:   common.HexToHash("0xtx"),
 		BlockNumber:       18000000,
-		Type:              TxEIP1559,
+		Type:              blockchain.TxEIP1559,
 		EffectiveGasPrice: big.NewInt(25000000000),
 		Status:            1,
 	}
 
-	assert.Equal(t, uint8(TxEIP1559), receipt.Type)
+	assert.Equal(t, uint8(blockchain.TxEIP1559), receipt.Type)
 	assert.NotNil(t, receipt.EffectiveGasPrice)
 }
 
 func TestTransactionReceiptBlobFields(t *testing.T) {
 	t.Parallel()
-	receipt := &TransactionReceipt{
+	receipt := &blockchain.TransactionReceipt{
 		TransactionHash: common.HexToHash("0xblob"),
 		BlockNumber:     19000000,
-		Type:            TxBlob,
+		Type:            blockchain.TxBlob,
 		BlobGasUsed:     131072,
 		BlobGasPrice:    big.NewInt(1000000000),
 		Status:          1,
 	}
 
-	assert.Equal(t, uint8(TxBlob), receipt.Type)
+	assert.Equal(t, uint8(blockchain.TxBlob), receipt.Type)
 	assert.Equal(t, uint64(131072), receipt.BlobGasUsed)
 	assert.NotNil(t, receipt.BlobGasPrice)
 }
@@ -536,44 +537,44 @@ func TestBlobSidecarVerifyBlobProof(t *testing.T) {
 	verifier := &SizeOnlyKZGVerifier{}
 
 	t.Run("valid sidecar", func(t *testing.T) {
-		sidecar := &BlobSidecar{
-			Blobs:          make([]Blob, 2),
-			KZGCommitments: make([]KZGCommitment, 2),
-			KZGProofs:      make([]KZGProof, 2),
+		sidecar := &blockchain.BlobSidecar{
+			Blobs:          make([]blockchain.Blob, 2),
+			KZGCommitments: make([]blockchain.KZGCommitment, 2),
+			KZGProofs:      make([]blockchain.KZGProof, 2),
 		}
 		assert.NoError(t, VerifyBlobSidecarProof(sidecar, verifier, 0))
 		assert.NoError(t, VerifyBlobSidecarProof(sidecar, verifier, 1))
 	})
 
 	t.Run("nil sidecar", func(t *testing.T) {
-		var sidecar *BlobSidecar
+		var sidecar *blockchain.BlobSidecar
 		assert.Error(t, VerifyBlobSidecarProof(sidecar, verifier, 0))
 	})
 
 	t.Run("index out of range", func(t *testing.T) {
-		sidecar := &BlobSidecar{
-			Blobs:          make([]Blob, 1),
-			KZGCommitments: make([]KZGCommitment, 1),
-			KZGProofs:      make([]KZGProof, 1),
+		sidecar := &blockchain.BlobSidecar{
+			Blobs:          make([]blockchain.Blob, 1),
+			KZGCommitments: make([]blockchain.KZGCommitment, 1),
+			KZGProofs:      make([]blockchain.KZGProof, 1),
 		}
 		assert.Error(t, VerifyBlobSidecarProof(sidecar, verifier, -1))
 		assert.Error(t, VerifyBlobSidecarProof(sidecar, verifier, 1))
 	})
 
 	t.Run("commitment count mismatch", func(t *testing.T) {
-		sidecar := &BlobSidecar{
-			Blobs:          make([]Blob, 2),
-			KZGCommitments: make([]KZGCommitment, 1),
-			KZGProofs:      make([]KZGProof, 2),
+		sidecar := &blockchain.BlobSidecar{
+			Blobs:          make([]blockchain.Blob, 2),
+			KZGCommitments: make([]blockchain.KZGCommitment, 1),
+			KZGProofs:      make([]blockchain.KZGProof, 2),
 		}
 		assert.Error(t, VerifyBlobSidecarProof(sidecar, verifier, 0))
 	})
 
 	t.Run("proof count mismatch", func(t *testing.T) {
-		sidecar := &BlobSidecar{
-			Blobs:          make([]Blob, 2),
-			KZGCommitments: make([]KZGCommitment, 2),
-			KZGProofs:      make([]KZGProof, 1),
+		sidecar := &blockchain.BlobSidecar{
+			Blobs:          make([]blockchain.Blob, 2),
+			KZGCommitments: make([]blockchain.KZGCommitment, 2),
+			KZGProofs:      make([]blockchain.KZGProof, 1),
 		}
 		assert.Error(t, VerifyBlobSidecarProof(sidecar, verifier, 0))
 	})
@@ -583,15 +584,15 @@ func TestTransactionBlobSidecarField(t *testing.T) {
 	t.Parallel()
 	verifier := &SizeOnlyKZGVerifier{}
 
-	tx := &Transaction{
+	tx := &blockchain.Transaction{
 		Hash:                common.HexToHash("0xblobtx"),
-		Type:                TxBlob,
+		Type:                blockchain.TxBlob,
 		BlobVersionedHashes: []common.Hash{common.HexToHash("0x01"), common.HexToHash("0x02")},
 		MaxFeePerBlobGas:    big.NewInt(1000000000),
-		BlobSidecar: &BlobSidecar{
-			Blobs:          make([]Blob, 2),
-			KZGCommitments: make([]KZGCommitment, 2),
-			KZGProofs:      make([]KZGProof, 2),
+		BlobSidecar: &blockchain.BlobSidecar{
+			Blobs:          make([]blockchain.Blob, 2),
+			KZGCommitments: make([]blockchain.KZGCommitment, 2),
+			KZGProofs:      make([]blockchain.KZGProof, 2),
 		},
 	}
 
@@ -603,9 +604,9 @@ func TestTransactionBlobSidecarField(t *testing.T) {
 
 func TestTransactionNilBlobSidecar(t *testing.T) {
 	t.Parallel()
-	tx := &Transaction{
+	tx := &blockchain.Transaction{
 		Hash: common.HexToHash("0xlegacy"),
-		Type: TxLegacy,
+		Type: blockchain.TxLegacy,
 	}
 	assert.True(t, tx.IsLegacyTx())
 	assert.Nil(t, tx.BlobSidecar)

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 
 	"github.com/ethereum/go-ethereum/common"
 )
@@ -51,7 +52,7 @@ func TestDatabaseIntegrationSuite(t *testing.T) {
 
 	// Test 3: Write single event
 	t.Run("WriteSingleEvent", func(t *testing.T) {
-		event := &core.BlockchainEvent{
+		event := &blockchain.BlockchainEvent{
 			ID:              "suite-test-hash-1",
 			BlockNumber:     1,
 			TransactionHash: common.HexToHash("0x1234567890abcdef"),
@@ -69,9 +70,9 @@ func TestDatabaseIntegrationSuite(t *testing.T) {
 
 	// Test 4: Write batch events
 	t.Run("WriteBatchEvents", func(t *testing.T) {
-		events := make([]core.BlockchainEvent, 100)
+		events := make([]blockchain.BlockchainEvent, 100)
 		for i := 0; i < 100; i++ {
-			events[i] = core.BlockchainEvent{
+			events[i] = blockchain.BlockchainEvent{
 				ID:              fmt.Sprintf("suite-batch-hash-%d", i),
 				BlockNumber:     uint64(i),
 				TransactionHash: common.HexToHash(fmt.Sprintf("0x%064x", i)),
@@ -137,9 +138,9 @@ func TestDatabaseIntegrationSuite(t *testing.T) {
 
 	// Test 8: Performance
 	t.Run("Performance", func(t *testing.T) {
-		events := make([]core.BlockchainEvent, 1000)
+		events := make([]blockchain.BlockchainEvent, 1000)
 		for i := 0; i < 1000; i++ {
-			events[i] = core.BlockchainEvent{
+			events[i] = blockchain.BlockchainEvent{
 				ID:              fmt.Sprintf("suite-perf-hash-%d-%d", time.Now().UnixNano(), i),
 				BlockNumber:     uint64(i),
 				TransactionHash: common.HexToHash(fmt.Sprintf("0x%064x", i)),
@@ -289,7 +290,7 @@ func TestDatabaseIntegrationConcurrency(t *testing.T) {
 
 	for i := 0; i < 10; i++ {
 		go func(id int) {
-			event := &core.BlockchainEvent{
+			event := &blockchain.BlockchainEvent{
 				ID:              fmt.Sprintf("concurrent-hash-%d", id),
 				BlockNumber:     uint64(id),
 				TransactionHash: common.HexToHash(fmt.Sprintf("0x%064x", id)),

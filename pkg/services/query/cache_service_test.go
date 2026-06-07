@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 )
 
 // TestCacheServiceInitialization tests cache service initialization
@@ -71,7 +72,7 @@ func TestCacheServiceSetAndGet(t *testing.T) {
 	}()
 
 	// Create test events
-	events := []core.BlockchainEvent{
+	events := []blockchain.BlockchainEvent{
 		{
 			EventHash:   "0x123",
 			BlockNumber: 1000,
@@ -128,7 +129,7 @@ func TestCacheServiceSetAndGetSingle(t *testing.T) {
 	}()
 
 	// Create test event
-	event := &core.BlockchainEvent{
+	event := &blockchain.BlockchainEvent{
 		EventHash:   "0x789",
 		BlockNumber: 2000,
 		ChainID:     "1",
@@ -178,7 +179,7 @@ func TestCacheServiceDelete(t *testing.T) {
 	}()
 
 	// Set cache
-	events := []core.BlockchainEvent{{EventHash: "0xabc"}}
+	events := []blockchain.BlockchainEvent{{EventHash: "0xabc"}}
 	if err := cs.Set(ctx, "delete-key", events, 1*time.Hour); err != nil {
 		t.Fatalf("Failed to set cache: %v", err)
 	}
@@ -218,7 +219,7 @@ func TestCacheServiceExpiration(t *testing.T) {
 	}()
 
 	// Set cache with short TTL
-	events := []core.BlockchainEvent{{EventHash: "0xdef"}}
+	events := []blockchain.BlockchainEvent{{EventHash: "0xdef"}}
 	if err := cs.Set(ctx, "expire-key", events, 100*time.Millisecond); err != nil {
 		t.Fatalf("Failed to set cache: %v", err)
 	}
@@ -284,7 +285,7 @@ func TestCacheServiceNotRunning(t *testing.T) {
 	}
 
 	// Don't start, try to use
-	events := []core.BlockchainEvent{{EventHash: "0x111"}}
+	events := []blockchain.BlockchainEvent{{EventHash: "0x111"}}
 	err := cs.Set(ctx, "key", events, 1*time.Hour)
 	if err == nil {
 		t.Error("Expected error when cache service not running")
@@ -362,7 +363,7 @@ func TestCacheServiceEmptyKey(t *testing.T) {
 	}()
 
 	// Set with empty key
-	events := []core.BlockchainEvent{{EventHash: "0x222"}}
+	events := []blockchain.BlockchainEvent{{EventHash: "0x222"}}
 	err := cs.Set(ctx, "", events, 1*time.Hour)
 	if err == nil {
 		t.Error("Expected error for empty key")
@@ -437,7 +438,7 @@ func TestCacheServiceSetQueryResultAndGet(t *testing.T) {
 		_ = cs.Stop(ctx)
 	}()
 
-	events := []core.BlockchainEvent{
+	events := []blockchain.BlockchainEvent{
 		{EventHash: "0xqr1", BlockNumber: 3000, ChainID: "1"},
 		{EventHash: "0xqr2", BlockNumber: 3001, ChainID: "1"},
 	}
@@ -485,7 +486,7 @@ func TestCacheServiceQueryResultExpiration(t *testing.T) {
 		_ = cs.Stop(ctx)
 	}()
 
-	events := []core.BlockchainEvent{{EventHash: "0xqr3"}}
+	events := []blockchain.BlockchainEvent{{EventHash: "0xqr3"}}
 	if err := cs.SetQueryResult(ctx, "qr-expire-key", events, 1, 100*time.Millisecond); err != nil {
 		t.Fatalf("Failed to set query result: %v", err)
 	}
@@ -517,7 +518,7 @@ func TestCacheServiceQueryResultNotRunning(t *testing.T) {
 		t.Fatalf("Failed to initialize: %v", err)
 	}
 
-	events := []core.BlockchainEvent{{EventHash: "0xqr4"}}
+	events := []blockchain.BlockchainEvent{{EventHash: "0xqr4"}}
 	err := cs.SetQueryResult(ctx, "key", events, 1, 1*time.Hour)
 	if err == nil {
 		t.Error("Expected error when cache service not running")
@@ -550,7 +551,7 @@ func TestCacheServiceQueryResultEmptyKey(t *testing.T) {
 		_ = cs.Stop(ctx)
 	}()
 
-	events := []core.BlockchainEvent{{EventHash: "0xqr5"}}
+	events := []blockchain.BlockchainEvent{{EventHash: "0xqr5"}}
 	err := cs.SetQueryResult(ctx, "", events, 1, 1*time.Hour)
 	if err == nil {
 		t.Error("Expected error for empty key")
@@ -616,22 +617,22 @@ func TestCacheServiceEvictOldest(t *testing.T) {
 		_ = cs.Stop(ctx)
 	}()
 
-	events := []core.BlockchainEvent{{EventHash: "0xev1"}}
+	events := []blockchain.BlockchainEvent{{EventHash: "0xev1"}}
 	if err := cs.Set(ctx, "key-1", events, 1*time.Hour); err != nil {
 		t.Fatalf("Failed to set key-1: %v", err)
 	}
 
-	events2 := []core.BlockchainEvent{{EventHash: "0xev2"}}
+	events2 := []blockchain.BlockchainEvent{{EventHash: "0xev2"}}
 	if err := cs.Set(ctx, "key-2", events2, 1*time.Hour); err != nil {
 		t.Fatalf("Failed to set key-2: %v", err)
 	}
 
-	events3 := []core.BlockchainEvent{{EventHash: "0xev3"}}
+	events3 := []blockchain.BlockchainEvent{{EventHash: "0xev3"}}
 	if err := cs.Set(ctx, "key-3", events3, 1*time.Hour); err != nil {
 		t.Fatalf("Failed to set key-3: %v", err)
 	}
 
-	events4 := []core.BlockchainEvent{{EventHash: "0xev4"}}
+	events4 := []blockchain.BlockchainEvent{{EventHash: "0xev4"}}
 	if err := cs.Set(ctx, "key-4", events4, 1*time.Hour); err != nil {
 		t.Fatalf("Failed to set key-4: %v", err)
 	}

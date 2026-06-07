@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
+	"github.com/rtcdance/chainpulse/pkg/services/query/qerrors"
 )
 
 type MockEventStoreForRecovery struct {
@@ -18,81 +20,81 @@ func (m *MockEventStoreForRecovery) Initialize(ctx context.Context) error {
 	return nil
 }
 
-func (m *MockEventStoreForRecovery) InsertEvent(ctx context.Context, event *core.BlockchainEvent) error {
+func (m *MockEventStoreForRecovery) InsertEvent(ctx context.Context, event *blockchain.BlockchainEvent) error {
 	if !m.healthy {
 		return m.err
 	}
 	return nil
 }
 
-func (m *MockEventStoreForRecovery) InsertEventBatch(ctx context.Context, events []*core.BlockchainEvent) error {
+func (m *MockEventStoreForRecovery) InsertEventBatch(ctx context.Context, events []*blockchain.BlockchainEvent) error {
 	if !m.healthy {
 		return m.err
 	}
 	return nil
 }
 
-func (m *MockEventStoreForRecovery) GetEvent(ctx context.Context, eventID string) (*core.BlockchainEvent, error) {
+func (m *MockEventStoreForRecovery) GetEvent(ctx context.Context, eventID string) (*blockchain.BlockchainEvent, error) {
 	if !m.healthy {
 		return nil, m.err
 	}
-	return &core.BlockchainEvent{ID: eventID}, nil
+	return &blockchain.BlockchainEvent{ID: eventID}, nil
 }
 
-func (m *MockEventStoreForRecovery) GetEventsByChain(ctx context.Context, chainID int, limit int, offset int) ([]*core.BlockchainEvent, error) {
+func (m *MockEventStoreForRecovery) GetEventsByChain(ctx context.Context, chainID int, limit int, offset int) ([]*blockchain.BlockchainEvent, error) {
 	if !m.healthy {
 		return nil, m.err
 	}
-	return []*core.BlockchainEvent{}, nil
+	return []*blockchain.BlockchainEvent{}, nil
 }
 
-func (m *MockEventStoreForRecovery) GetEventsByContract(ctx context.Context, contractAddress string, limit int, offset int) ([]*core.BlockchainEvent, error) {
+func (m *MockEventStoreForRecovery) GetEventsByContract(ctx context.Context, contractAddress string, limit int, offset int) ([]*blockchain.BlockchainEvent, error) {
 	if !m.healthy {
 		return nil, m.err
 	}
-	return []*core.BlockchainEvent{}, nil
+	return []*blockchain.BlockchainEvent{}, nil
 }
 
-func (m *MockEventStoreForRecovery) GetEventsByEventName(ctx context.Context, eventName string, limit int, offset int) ([]*core.BlockchainEvent, error) {
+func (m *MockEventStoreForRecovery) GetEventsByEventName(ctx context.Context, eventName string, limit int, offset int) ([]*blockchain.BlockchainEvent, error) {
 	if !m.healthy {
 		return nil, m.err
 	}
-	return []*core.BlockchainEvent{}, nil
+	return []*blockchain.BlockchainEvent{}, nil
 }
 
-func (m *MockEventStoreForRecovery) GetEventsByBlock(ctx context.Context, blockNumber int64) ([]*core.BlockchainEvent, error) {
+func (m *MockEventStoreForRecovery) GetEventsByBlock(ctx context.Context, blockNumber int64) ([]*blockchain.BlockchainEvent, error) {
 	if !m.healthy {
 		return nil, m.err
 	}
-	return []*core.BlockchainEvent{}, nil
+	return []*blockchain.BlockchainEvent{}, nil
 }
 
-func (m *MockEventStoreForRecovery) GetEventsByAddress(ctx context.Context, address string, limit int) ([]*core.BlockchainEvent, error) {
+func (m *MockEventStoreForRecovery) GetEventsByAddress(ctx context.Context, address string, limit int) ([]*blockchain.BlockchainEvent, error) {
 	if !m.healthy {
 		return nil, m.err
 	}
-	return []*core.BlockchainEvent{}, nil
+	return []*blockchain.BlockchainEvent{}, nil
 }
 
-func (m *MockEventStoreForRecovery) GetEventsByName(ctx context.Context, eventName string, limit int) ([]*core.BlockchainEvent, error) {
+func (m *MockEventStoreForRecovery) GetEventsByName(ctx context.Context, eventName string, limit int) ([]*blockchain.BlockchainEvent, error) {
 	if !m.healthy {
 		return nil, m.err
 	}
-	return []*core.BlockchainEvent{}, nil
+	return []*blockchain.BlockchainEvent{}, nil
 }
 
-func (m *MockEventStoreForRecovery) GetEventsPaginated(ctx context.Context, cursor string, limit int) ([]*core.BlockchainEvent, bool, error) {
+func (m *MockEventStoreForRecovery) GetEventsPaginated(ctx context.Context, cursor string, limit int) ([]*blockchain.BlockchainEvent, bool, error) {
 	if !m.healthy {
 		return nil, false, m.err
 	}
-	return []*core.BlockchainEvent{}, false, nil
+	return []*blockchain.BlockchainEvent{}, false, nil
 }
 
-func (m *MockEventStoreForRecovery) GetEventsByCorrelationID(ctx context.Context, correlationID string, limit int, offset int) ([]*core.BlockchainEvent, error) {
+func (m *MockEventStoreForRecovery) GetEventsByCorrelationID(ctx context.Context, correlationID string, limit int, offset int) ([]*blockchain.BlockchainEvent, error) {
 	if !m.healthy {
 		return nil, m.err
 	}
-	return []*core.BlockchainEvent{}, nil
+	return []*blockchain.BlockchainEvent{}, nil
 }
 
 func (m *MockEventStoreForRecovery) GetEventStats(ctx context.Context) (map[string]int64, map[string]int64, int64, error) {
@@ -206,46 +208,46 @@ func (m *MockCacheServiceForRecovery) Stop(ctx context.Context) error {
 	return nil
 }
 
-func (m *MockCacheServiceForRecovery) Get(ctx context.Context, key string) ([]core.BlockchainEvent, error) {
+func (m *MockCacheServiceForRecovery) Get(ctx context.Context, key string) ([]blockchain.BlockchainEvent, error) {
 	if !m.healthy {
 		return nil, m.err
 	}
-	return []core.BlockchainEvent{}, nil
+	return []blockchain.BlockchainEvent{}, nil
 }
 
-func (m *MockCacheServiceForRecovery) GetSingle(ctx context.Context, key string) (*core.BlockchainEvent, error) {
+func (m *MockCacheServiceForRecovery) GetSingle(ctx context.Context, key string) (*blockchain.BlockchainEvent, error) {
 	if !m.healthy {
 		return nil, m.err
 	}
-	return &core.BlockchainEvent{}, nil
+	return &blockchain.BlockchainEvent{}, nil
 }
 
-func (m *MockCacheServiceForRecovery) Set(ctx context.Context, key string, value []core.BlockchainEvent, ttl time.Duration) error {
+func (m *MockCacheServiceForRecovery) Set(ctx context.Context, key string, value []blockchain.BlockchainEvent, ttl time.Duration) error {
 	if !m.healthy {
 		return m.err
 	}
 	return nil
 }
 
-func (m *MockCacheServiceForRecovery) SetSingle(ctx context.Context, key string, value *core.BlockchainEvent, ttl time.Duration) error {
+func (m *MockCacheServiceForRecovery) SetSingle(ctx context.Context, key string, value *blockchain.BlockchainEvent, ttl time.Duration) error {
 	if !m.healthy {
 		return m.err
 	}
 	return nil
 }
 
-func (m *MockCacheServiceForRecovery) SetQueryResult(ctx context.Context, key string, events []core.BlockchainEvent, total int64, ttl time.Duration) error {
+func (m *MockCacheServiceForRecovery) SetQueryResult(ctx context.Context, key string, events []blockchain.BlockchainEvent, total int64, ttl time.Duration) error {
 	if !m.healthy {
 		return m.err
 	}
 	return nil
 }
 
-func (m *MockCacheServiceForRecovery) GetQueryResult(ctx context.Context, key string) ([]core.BlockchainEvent, int64, error) {
+func (m *MockCacheServiceForRecovery) GetQueryResult(ctx context.Context, key string) ([]blockchain.BlockchainEvent, int64, error) {
 	if !m.healthy {
 		return nil, 0, m.err
 	}
-	return []core.BlockchainEvent{}, 0, nil
+	return []blockchain.BlockchainEvent{}, 0, nil
 }
 
 func (m *MockCacheServiceForRecovery) Delete(ctx context.Context, key string) error {
@@ -288,7 +290,7 @@ func TestRecoveryHandlerInitialize(t *testing.T) {
 	cacheService := &MockCacheServiceForRecovery{healthy: true}
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
-	errorClassifier := NewErrorClassifier()
+	errorClassifier := qerrors.NewClassifier()
 
 	handler := NewRecoveryHandler(config, eventStore, metadataStore, cacheService, errorClassifier, logger, metrics)
 
@@ -306,7 +308,7 @@ func TestRecoveryHandlerInitializeNilStores(t *testing.T) {
 	config := DefaultRecoveryConfig()
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
-	errorClassifier := NewErrorClassifier()
+	errorClassifier := qerrors.NewClassifier()
 
 	handler := NewRecoveryHandler(config, nil, nil, nil, errorClassifier, logger, metrics)
 
@@ -327,7 +329,7 @@ func TestRecoveryWithHealthyStores(t *testing.T) {
 	cacheService := &MockCacheServiceForRecovery{healthy: true}
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
-	errorClassifier := NewErrorClassifier()
+	errorClassifier := qerrors.NewClassifier()
 
 	handler := NewRecoveryHandler(config, eventStore, metadataStore, cacheService, errorClassifier, logger, metrics)
 
@@ -360,7 +362,7 @@ func TestRecoveryWithUnhealthyEventStore(t *testing.T) {
 	cacheService := &MockCacheServiceForRecovery{healthy: true}
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
-	errorClassifier := NewErrorClassifier()
+	errorClassifier := qerrors.NewClassifier()
 
 	handler := NewRecoveryHandler(config, eventStore, metadataStore, cacheService, errorClassifier, logger, metrics)
 
@@ -383,7 +385,7 @@ func TestRecoveryWithUnhealthyMetadataStore(t *testing.T) {
 	cacheService := &MockCacheServiceForRecovery{healthy: true}
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
-	errorClassifier := NewErrorClassifier()
+	errorClassifier := qerrors.NewClassifier()
 
 	handler := NewRecoveryHandler(config, eventStore, metadataStore, cacheService, errorClassifier, logger, metrics)
 
@@ -406,7 +408,7 @@ func TestRecoveryHandlerGetRecoveryState(t *testing.T) {
 	cacheService := &MockCacheServiceForRecovery{healthy: true}
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
-	errorClassifier := NewErrorClassifier()
+	errorClassifier := qerrors.NewClassifier()
 
 	handler := NewRecoveryHandler(config, eventStore, metadataStore, cacheService, errorClassifier, logger, metrics)
 
@@ -424,7 +426,7 @@ func TestRecoveryHandlerGetLastRecoveryTime(t *testing.T) {
 	cacheService := &MockCacheServiceForRecovery{healthy: true}
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
-	errorClassifier := NewErrorClassifier()
+	errorClassifier := qerrors.NewClassifier()
 
 	handler := NewRecoveryHandler(config, eventStore, metadataStore, cacheService, errorClassifier, logger, metrics)
 
@@ -442,7 +444,7 @@ func TestRecoveryHandlerGetRecoveryMetrics(t *testing.T) {
 	cacheService := &MockCacheServiceForRecovery{healthy: true}
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
-	errorClassifier := NewErrorClassifier()
+	errorClassifier := qerrors.NewClassifier()
 
 	handler := NewRecoveryHandler(config, eventStore, metadataStore, cacheService, errorClassifier, logger, metrics)
 
@@ -460,7 +462,7 @@ func TestRecoveryHandlerCloseNotInitialized(t *testing.T) {
 	cacheService := &MockCacheServiceForRecovery{healthy: true}
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
-	errorClassifier := NewErrorClassifier()
+	errorClassifier := qerrors.NewClassifier()
 
 	handler := NewRecoveryHandler(config, eventStore, metadataStore, cacheService, errorClassifier, logger, metrics)
 
@@ -478,7 +480,7 @@ func TestRecoveryHandlerCloseInitialized(t *testing.T) {
 	cacheService := &MockCacheServiceForRecovery{healthy: true}
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
-	errorClassifier := NewErrorClassifier()
+	errorClassifier := qerrors.NewClassifier()
 
 	handler := NewRecoveryHandler(config, eventStore, metadataStore, cacheService, errorClassifier, logger, metrics)
 
@@ -500,7 +502,7 @@ func TestRecoveryNotInitialized(t *testing.T) {
 	cacheService := &MockCacheServiceForRecovery{healthy: true}
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
-	errorClassifier := NewErrorClassifier()
+	errorClassifier := qerrors.NewClassifier()
 
 	handler := NewRecoveryHandler(config, eventStore, metadataStore, cacheService, errorClassifier, logger, metrics)
 
@@ -531,7 +533,7 @@ func TestRecoveryHandlerRecoverConnection(t *testing.T) {
 	cacheService := &MockCacheServiceForRecovery{healthy: true}
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
-	errorClassifier := NewErrorClassifier()
+	errorClassifier := qerrors.NewClassifier()
 
 	handler := NewRecoveryHandler(config, eventStore, metadataStore, cacheService, errorClassifier, logger, metrics)
 
@@ -553,7 +555,7 @@ func TestRecoveryHandlerRecoverConnectionEmptyStore(t *testing.T) {
 	cacheService := &MockCacheServiceForRecovery{healthy: true}
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
-	errorClassifier := NewErrorClassifier()
+	errorClassifier := qerrors.NewClassifier()
 
 	handler := NewRecoveryHandler(config, eventStore, metadataStore, cacheService, errorClassifier, logger, metrics)
 
@@ -575,7 +577,7 @@ func TestRecoveryHandlerRecoverConnectionUnknown(t *testing.T) {
 	cacheService := &MockCacheServiceForRecovery{healthy: true}
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
-	errorClassifier := NewErrorClassifier()
+	errorClassifier := qerrors.NewClassifier()
 
 	handler := NewRecoveryHandler(config, eventStore, metadataStore, cacheService, errorClassifier, logger, metrics)
 
@@ -597,7 +599,7 @@ func TestRecoveryHandlerSyncData(t *testing.T) {
 	cacheService := &MockCacheServiceForRecovery{healthy: true}
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
-	errorClassifier := NewErrorClassifier()
+	errorClassifier := qerrors.NewClassifier()
 
 	handler := NewRecoveryHandler(config, eventStore, metadataStore, cacheService, errorClassifier, logger, metrics)
 
@@ -619,7 +621,7 @@ func TestRecoveryHandlerSyncDataUnhealthy(t *testing.T) {
 	cacheService := &MockCacheServiceForRecovery{healthy: true}
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
-	errorClassifier := NewErrorClassifier()
+	errorClassifier := qerrors.NewClassifier()
 
 	handler := NewRecoveryHandler(config, eventStore, metadataStore, cacheService, errorClassifier, logger, metrics)
 

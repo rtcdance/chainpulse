@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"github.com/rtcdance/chainpulse/pkg/services/query"
 	"github.com/rtcdance/chainpulse/test/integration/fixtures"
 )
@@ -264,7 +265,7 @@ func contains(s, substr string) bool {
 }
 
 // AssertEventFields asserts that an event has the expected field values
-func (ah *AssertionHelper) AssertEventFields(event *core.BlockchainEvent, expectedChainID string, expectedBlockNum uint64) {
+func (ah *AssertionHelper) AssertEventFields(event *blockchain.BlockchainEvent, expectedChainID string, expectedBlockNum uint64) {
 	if event.ChainID != expectedChainID {
 		ah.t.Errorf("expected chain ID %s, but got %s", expectedChainID, event.ChainID)
 	}
@@ -351,7 +352,7 @@ func (ah *AssertionHelper) AssertSliceLength(slice any, expectedLen int, message
 		if len(s) != expectedLen {
 			ah.t.Errorf("%s: expected length %d, but got %d", message, expectedLen, len(s))
 		}
-	case []*core.BlockchainEvent:
+	case []*blockchain.BlockchainEvent:
 		if len(s) != expectedLen {
 			ah.t.Errorf("%s: expected length %d, but got %d", message, expectedLen, len(s))
 		}
@@ -490,7 +491,7 @@ func (ah *AssertionHelper) AssertContextCancelled(ctx context.Context, message s
 }
 
 // AssertEventIDsUnique asserts that all event IDs are unique
-func (ah *AssertionHelper) AssertEventIDsUnique(events []*core.BlockchainEvent, message string) {
+func (ah *AssertionHelper) AssertEventIDsUnique(events []*blockchain.BlockchainEvent, message string) {
 	seen := make(map[string]bool)
 	for _, event := range events {
 		if seen[event.ID] {
@@ -502,7 +503,7 @@ func (ah *AssertionHelper) AssertEventIDsUnique(events []*core.BlockchainEvent, 
 }
 
 // AssertEventsSorted asserts that events are sorted by block number
-func (ah *AssertionHelper) AssertEventsSorted(events []*core.BlockchainEvent, message string) {
+func (ah *AssertionHelper) AssertEventsSorted(events []*blockchain.BlockchainEvent, message string) {
 	for i := 1; i < len(events); i++ {
 		if events[i].BlockNumber < events[i-1].BlockNumber {
 			ah.t.Errorf("%s: events not sorted by block number at index %d", message, i)
@@ -512,7 +513,7 @@ func (ah *AssertionHelper) AssertEventsSorted(events []*core.BlockchainEvent, me
 }
 
 // AssertEventChainIDConsistent asserts that all events have the same chain ID
-func (ah *AssertionHelper) AssertEventChainIDConsistent(events []*core.BlockchainEvent, expectedChainID string, message string) {
+func (ah *AssertionHelper) AssertEventChainIDConsistent(events []*blockchain.BlockchainEvent, expectedChainID string, message string) {
 	for i, event := range events {
 		if event.ChainID != expectedChainID {
 			ah.t.Errorf("%s: event at index %d has chain ID %s, expected %s", message, i, event.ChainID, expectedChainID)
@@ -542,7 +543,7 @@ func (ah *AssertionHelper) AssertCacheHitRate(hits, total int64, minRate float64
 }
 
 // AssertEventDataNotNil asserts that event data is not nil
-func (ah *AssertionHelper) AssertEventDataNotNil(event *core.BlockchainEvent, message string) {
+func (ah *AssertionHelper) AssertEventDataNotNil(event *blockchain.BlockchainEvent, message string) {
 	if event == nil {
 		ah.t.Errorf("%s: event is nil", message)
 		return
@@ -603,7 +604,7 @@ func (ah *AssertionHelper) AssertSliceNotEmpty(slice any, message string) {
 		if len(s) == 0 {
 			ah.t.Errorf("%s: expected non-empty slice", message)
 		}
-	case []*core.BlockchainEvent:
+	case []*blockchain.BlockchainEvent:
 		if len(s) == 0 {
 			ah.t.Errorf("%s: expected non-empty slice", message)
 		}
@@ -619,7 +620,7 @@ func (ah *AssertionHelper) AssertSliceEmpty(slice any, message string) {
 		if len(s) != 0 {
 			ah.t.Errorf("%s: expected empty slice, but got %d elements", message, len(s))
 		}
-	case []*core.BlockchainEvent:
+	case []*blockchain.BlockchainEvent:
 		if len(s) != 0 {
 			ah.t.Errorf("%s: expected empty slice, but got %d elements", message, len(s))
 		}

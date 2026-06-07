@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"github.com/rtcdance/chainpulse/pkg/integrations/generic"
 )
 
@@ -100,7 +101,7 @@ func TestIndexEventsFromChain(t *testing.T) {
 
 	_ = indexer.RegisterChainIndexer("ethereum", chainIndexer)
 
-	events := []*core.BlockchainEvent{
+	events := []*blockchain.BlockchainEvent{
 		{
 			ID:              "event1",
 			ChainID:         "ethereum",
@@ -120,7 +121,7 @@ func TestIndexEventsFromChainNotRegistered(t *testing.T) {
 	config := &MockConfigManager{}
 	indexer := NewMultiChainIndexer(logger, config)
 
-	events := []*core.BlockchainEvent{
+	events := []*blockchain.BlockchainEvent{
 		{
 			ID:      "event1",
 			ChainID: "ethereum",
@@ -138,7 +139,7 @@ func TestIndexEventsFromChainEmptyChainID(t *testing.T) {
 	config := &MockConfigManager{}
 	indexer := NewMultiChainIndexer(logger, config)
 
-	events := []*core.BlockchainEvent{
+	events := []*blockchain.BlockchainEvent{
 		{
 			ID: "event1",
 		},
@@ -168,7 +169,7 @@ func TestIndexEventsFromAllChains(t *testing.T) {
 	_ = indexer.RegisterChainIndexer("ethereum", chainIndexer1)
 	_ = indexer.RegisterChainIndexer("polygon", chainIndexer2)
 
-	eventsByChain := map[string][]*core.BlockchainEvent{
+	eventsByChain := map[string][]*blockchain.BlockchainEvent{
 		"ethereum": {
 			{
 				ID:              "event1",
@@ -206,7 +207,7 @@ func TestIndexEventsFromAllChainsUnregisteredChain(t *testing.T) {
 
 	_ = indexer.RegisterChainIndexer("ethereum", chainIndexer)
 
-	eventsByChain := map[string][]*core.BlockchainEvent{
+	eventsByChain := map[string][]*blockchain.BlockchainEvent{
 		"polygon": {
 			{
 				ID:      "event1",
@@ -376,7 +377,7 @@ func TestMultipleChainIndexing(t *testing.T) {
 	_ = indexer.RegisterChainIndexer("polygon", chainIndexer2)
 
 	// Index events from both chains
-	ethEvents := []*core.BlockchainEvent{
+	ethEvents := []*blockchain.BlockchainEvent{
 		{
 			ID:              "eth1",
 			ChainID:         "ethereum",
@@ -386,7 +387,7 @@ func TestMultipleChainIndexing(t *testing.T) {
 		},
 	}
 
-	polyEvents := []*core.BlockchainEvent{
+	polyEvents := []*blockchain.BlockchainEvent{
 		{
 			ID:              "poly1",
 			ChainID:         "polygon",

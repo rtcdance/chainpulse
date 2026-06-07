@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 )
 
 // ─── Confirmation Depth Gates ────────────────────────────────────────────────
@@ -66,7 +66,7 @@ type pendingEvent struct {
 	EventHash   string
 	BlockNumber uint64
 	BlockHash   string
-	Status      core.EventStatus
+	Status      blockchain.EventStatus
 	QueuedAt    time.Time
 }
 
@@ -138,7 +138,7 @@ func (t *ConfirmationTracker) Stop() {
 }
 
 // Track adds an event to the confirmation tracking system.
-// The event starts in core.EventStatusPending.
+// The event starts in blockchain.EventStatusPending.
 func (t *ConfirmationTracker) Track(eventHash string, blockNumber uint64, blockHash string) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
@@ -151,7 +151,7 @@ func (t *ConfirmationTracker) Track(eventHash string, blockNumber uint64, blockH
 		EventHash:   eventHash,
 		BlockNumber: blockNumber,
 		BlockHash:   blockHash,
-		Status:      core.EventStatusPending,
+		Status:      blockchain.EventStatusPending,
 		QueuedAt:    time.Now(),
 	}
 }
@@ -159,13 +159,13 @@ func (t *ConfirmationTracker) Track(eventHash string, blockNumber uint64, blockH
 // AdvanceBlock is called when a new block is imported. It checks all pending
 // events and promotes those that have reached the confirmation or finalization
 // depth threshold.
-func (t *ConfirmationTracker) AdvanceBlock(blockNumber uint64) []core.EventStatus {
+func (t *ConfirmationTracker) AdvanceBlock(blockNumber uint64) []blockchain.EventStatus {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
 	t.currentBlock = blockNumber
 	t.blocksSinceCheck++
-	var transitions []core.EventStatus
+	var transitions []blockchain.EventStatus
 
 	// Periodically reconcile with on-chain finality
 	if t.finalityChecker != nil && t.blocksSinceCheck >= t.reconcileInterval {
@@ -211,20 +211,20 @@ func (t *ConfirmationTracker) AdvanceBlock(blockNumber uint64) []core.EventStatu
 		blocksSince := blockNumber - pe.BlockNumber
 
 		// Pending → Confirmed
-		if pe.Status == core.EventStatusPending && blocksSince >= t.config.ConfirmBlocks {
-			pe.Status = core.EventStatusConfirmed
-			transitions = append(transitions, core.EventStatusConfirmed)
+		if pe.Status == blockchain.EventStatusPending && blocksSince >= t.config.ConfirmBlocks {
+			pe.Status = blockchain.EventStatusConfirmed
+			transitions = append(transitions, blockchain.EventStatusConfirmed)
 			if t.OnConfirmed != nil {
 				t.OnConfirmed(hash)
 			}
 		}
 
 		// Confirmed → Finalized (may happen in the same AdvanceBlock call)
-		if pe.Status == core.EventStatusConfirmed {
+		if pe.Status == blockchain.EventStatusConfirmed {
 			blocksToFinalize := t.config.BlocksToFinalize()
 			if blocksSince >= blocksToFinalize {
-				pe.Status = core.EventStatusFinalized
-				transitions = append(transitions, core.EventStatusFinalized)
+				pe.Status = blockchain.EventStatusFinalized
+				transitions = append(transitions, blockchain.EventStatusFinalized)
 				if t.OnFinalized != nil {
 					t.OnFinalized(hash)
 				}
@@ -255,8 +255,8 @@ func (t *ConfirmationTracker) ReconcileFinality() (uint64, error) {
 	t.mu.Lock()
 	promoted := uint64(0)
 	for hash, pe := range t.pending {
-		if pe.BlockNumber <= finalizedBlock && pe.Status != core.EventStatusFinalized {
-			pe.Status = core.EventStatusFinalized
+		if pe.BlockNumber <= finalizedBlock && pe.Status != blockchain.EventStatusFinalized {
+			pe.Status = blockchain.EventStatusFinalized
 			promoted++
 			if t.OnFinalized != nil {
 				t.OnFinalized(hash)
@@ -273,7 +273,7 @@ type pendingEventJSON struct {
 	EventHash   string           `json:"event_hash"`
 	BlockNumber uint64           `json:"block_number"`
 	BlockHash   string           `json:"block_hash"`
-	Status      core.EventStatus `json:"status"`
+	Status      blockchain.EventStatus `json:"status"`
 	QueuedAt    time.Time        `json:"queued_at"`
 }
 
@@ -326,14 +326,14 @@ func (t *ConfirmationTracker) Load(data []byte) error {
 }
 
 // GetStatus returns the current confirmation status of an event.
-// Returns core.EventStatusPending if the event is not being tracked.
-func (t *ConfirmationTracker) GetStatus(eventHash string) core.EventStatus {
+// Returns blockchain.EventStatusPending if the event is not being tracked.
+func (t *ConfirmationTracker) GetStatus(eventHash string) blockchain.EventStatus {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 
 	pe, exists := t.pending[eventHash]
 	if !exists {
-		return core.EventStatusPending
+		return blockchain.EventStatusPending
 	}
 	return pe.Status
 }
@@ -345,7 +345,7 @@ func (t *ConfirmationTracker) PendingCount() int {
 
 	count := 0
 	for _, pe := range t.pending {
-		if pe.Status == core.EventStatusPending {
+		if pe.Status == blockchain.EventStatusPending {
 			count++
 		}
 	}
@@ -359,7 +359,7 @@ func (t *ConfirmationTracker) ConfirmedCount() int {
 
 	count := 0
 	for _, pe := range t.pending {
-		if pe.Status == core.EventStatusConfirmed {
+		if pe.Status == blockchain.EventStatusConfirmed {
 			count++
 		}
 	}
@@ -373,7 +373,7 @@ func (t *ConfirmationTracker) FinalizedCount() int {
 
 	count := 0
 	for _, pe := range t.pending {
-		if pe.Status == core.EventStatusFinalized {
+		if pe.Status == blockchain.EventStatusFinalized {
 			count++
 		}
 	}
@@ -395,7 +395,7 @@ func (t *ConfirmationTracker) RemoveFinalized() int {
 
 	removed := 0
 	for hash, pe := range t.pending {
-		if pe.Status == core.EventStatusFinalized {
+		if pe.Status == blockchain.EventStatusFinalized {
 			delete(t.pending, hash)
 			removed++
 		}
@@ -412,7 +412,7 @@ func (t *ConfirmationTracker) MarkReorged(blockHash string) int {
 	reorged := 0
 	for hash, pe := range t.pending {
 		if pe.BlockHash == blockHash {
-			pe.Status = core.EventStatusReorged
+			pe.Status = blockchain.EventStatusReorged
 			delete(t.pending, hash)
 			reorged++
 		}
@@ -432,7 +432,7 @@ func (t *ConfirmationTracker) BlocksUntilConfirmed(eventHash string) (uint64, er
 		return 0, fmt.Errorf("event %s not tracked", eventHash)
 	}
 
-	if pe.Status != core.EventStatusPending {
+	if pe.Status != blockchain.EventStatusPending {
 		return 0, nil
 	}
 

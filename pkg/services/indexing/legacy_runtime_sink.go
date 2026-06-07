@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 )
 
 const eventCacheTTLSeconds = 24 * 3600
@@ -72,10 +73,10 @@ func (s *LegacyRuntimeSink) Persist(ctx context.Context, events []core.EventEnve
 	return nil
 }
 
-func eventFromEnvelope(envelope core.EventEnvelope) (*core.BlockchainEvent, error) {
-	event, ok := envelope.Payload.(*core.BlockchainEvent)
+func eventFromEnvelope(envelope core.EventEnvelope) (*blockchain.BlockchainEvent, error) {
+	event, ok := envelope.Payload.(*blockchain.BlockchainEvent)
 	if !ok || event == nil {
-		return nil, fmt.Errorf("event payload must be *core.BlockchainEvent")
+		return nil, fmt.Errorf("event payload must be *blockchain.BlockchainEvent")
 	}
 	return event, nil
 }

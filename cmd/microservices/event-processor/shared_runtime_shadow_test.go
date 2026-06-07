@@ -6,6 +6,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 )
 
 func TestEventProcessorShadowRuntimeProcessorTracksSharedRuntimeStatus(t *testing.T) {
@@ -56,8 +57,8 @@ func TestEventProcessorShadowRuntimeProcessorTracksSharedRuntimeStatus(t *testin
 	}
 }
 
-func newValidEventProcessorShadowEvent() (*core.BlockchainEvent, error) {
-	return &core.BlockchainEvent{
+func newValidEventProcessorShadowEvent() (*blockchain.BlockchainEvent, error) {
+	return &blockchain.BlockchainEvent{
 		ID:              "evt-shadow-1",
 		ChainID:         "ethereum",
 		Network:         "ethereum",

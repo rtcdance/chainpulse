@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
+"github.com/rtcdance/chainpulse/pkg/logkeys"
 )
 
 // MicroserviceDeployment represents a microservice deployment mode where services run independently
@@ -397,7 +398,7 @@ func (md *MicroserviceDeployment) heartbeatLoop() {
 
 				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 				if err := md.mqPlugin.Publish(ctx, md.coordinationTopic, msgBytes); err != nil {
-					md.logger.Error("Failed to publish heartbeat", core.LogKeyError, err)
+					md.logger.Error("Failed to publish heartbeat", logkeys.LogKeyError, err)
 				}
 				cancel()
 			}

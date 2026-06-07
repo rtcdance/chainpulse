@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"github.com/rtcdance/chainpulse/pkg/core/eventsig"
 	"github.com/rtcdance/chainpulse/pkg/core/topics"
 	"github.com/rtcdance/chainpulse/pkg/evm"
@@ -44,7 +45,7 @@ type HTTPSJSONRPCPuller struct {
 	currentBlock      uint64
 	pollInterval      time.Duration
 	stopChan          chan bool
-	eventHandlers     []func(core.BlockchainEvent)
+	eventHandlers     []func(blockchain.BlockchainEvent)
 	requestCounter    int64
 	tracer            *observability.DefaultTracer
 	redRecorder       *observability.REDRecorder
@@ -87,7 +88,7 @@ func NewHTTPSJSONRPCPuller(
 		currentBlock:         config.StartBlock,
 		pollInterval:         5 * time.Second,
 		stopChan:             make(chan bool),
-		eventHandlers:        make([]func(core.BlockchainEvent), 0),
+		eventHandlers:        make([]func(blockchain.BlockchainEvent), 0),
 		tracer:               observability.NewDefaultTracer(logger, metricsCollector),
 		redRecorder:          observability.NewREDRecorder(metricsCollector),
 		reorgVerifyInterval:  100, // default: check every 100 blocks
@@ -240,7 +241,7 @@ func (p *HTTPSJSONRPCPuller) Stop(ctx context.Context) error {
 
 // PullEvents pulls events from the blockchain.
 // go-ethereum's ethclient.Client is concurrency-safe, so no mutex is needed here.
-func (p *HTTPSJSONRPCPuller) PullEvents(ctx context.Context, fromBlock, toBlock uint64) ([]core.BlockchainEvent, error) {
+func (p *HTTPSJSONRPCPuller) PullEvents(ctx context.Context, fromBlock, toBlock uint64) ([]blockchain.BlockchainEvent, error) {
 	ctx, span := p.tracer.StartSpan(ctx, "puller.fetch_events", observability.SpanKindClient)
 	defer p.tracer.EndSpan(&span)
 	p.tracer.SetAttribute(&span, "from_block", fromBlock)
@@ -254,7 +255,7 @@ func (p *HTTPSJSONRPCPuller) PullEvents(ctx context.Context, fromBlock, toBlock 
 		}
 	}
 
-	events := make([]core.BlockchainEvent, 0, int(toBlock-fromBlock+1)*4)
+	events := make([]blockchain.BlockchainEvent, 0, int(toBlock-fromBlock+1)*4)
 
 	chunkSize := p.GetConfig().BlockChunkSize
 	if chunkSize <= 0 {
@@ -418,7 +419,7 @@ func (p *HTTPSJSONRPCPuller) GetLatestBlock(ctx context.Context) (uint64, error)
 }
 
 // SubscribeToEvents subscribes to blockchain events
-func (p *HTTPSJSONRPCPuller) SubscribeToEvents(ctx context.Context, handler func(core.BlockchainEvent)) error {
+func (p *HTTPSJSONRPCPuller) SubscribeToEvents(ctx context.Context, handler func(blockchain.BlockchainEvent)) error {
 	p.mu.Lock()
 	p.eventHandlers = append(p.eventHandlers, handler)
 	p.mu.Unlock()
@@ -874,7 +875,7 @@ func (p *HTTPSJSONRPCPuller) fetchBlockTimestamps(ctx context.Context, logs []ty
 }
 
 // ethLogToEvent converts a go-ethereum types.Log to a BlockchainEvent
-func (p *HTTPSJSONRPCPuller) ethLogToEvent(log types.Log, blockTimestamps map[uint64]int64) (core.BlockchainEvent, error) {
+func (p *HTTPSJSONRPCPuller) ethLogToEvent(log types.Log, blockTimestamps map[uint64]int64) (blockchain.BlockchainEvent, error) {
 	blockNumber := log.BlockNumber
 	logIndex := uint64(log.Index)
 
@@ -898,7 +899,7 @@ func (p *HTTPSJSONRPCPuller) ethLogToEvent(log types.Log, blockTimestamps map[ui
 	// Decode with both map-style (backward compatible) and typed event
 	decodedData, typedData := evm.DecodeEventWithTyped(eventName, eventTopics, eventDataBytes)
 
-	event := core.BlockchainEvent{
+	event := blockchain.BlockchainEvent{
 		ID:              chainID + "-" + txHash.Hex() + "-" + strconv.FormatUint(uint64(logIndex), 10),
 		BlockNumber:     blockNumber,
 		BlockHash:       blockHash,
@@ -913,7 +914,7 @@ func (p *HTTPSJSONRPCPuller) ethLogToEvent(log types.Log, blockTimestamps map[ui
 		ChainID:         chainID,
 		Network:         p.Network(),
 		BlockTimestamp:  blockTimestamps[blockNumber],
-		Status:          core.EventStatusPending,
+		Status:          blockchain.EventStatusPending,
 		Removed:         log.Removed,
 	}
 

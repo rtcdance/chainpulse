@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"github.com/rtcdance/chainpulse/pkg/core/replay"
 	"github.com/rtcdance/chainpulse/pkg/defi"
 
@@ -33,7 +34,7 @@ import (
 // --- mock puller ---
 
 type mockPuller struct {
-	events   []core.BlockchainEvent
+	events   []blockchain.BlockchainEvent
 	nextID   atomic.Uint64
 	blockNum atomic.Uint64
 }
@@ -45,15 +46,15 @@ func newMockPuller() *mockPuller {
 }
 
 // generate creates count mock ERC-20 Transfer events.
-func (p *mockPuller) generate(count int) []core.BlockchainEvent {
+func (p *mockPuller) generate(count int) []blockchain.BlockchainEvent {
 	block := p.blockNum.Add(uint64(count))
 	now := time.Now()
-	generated := make([]core.BlockchainEvent, 0, count)
+	generated := make([]blockchain.BlockchainEvent, 0, count)
 
 	for i := 0; i < count; i++ {
 		id := p.nextID.Add(1)
 		bn := block - uint64(count) + uint64(i) + 1
-		generated = append(generated, core.BlockchainEvent{
+		generated = append(generated, blockchain.BlockchainEvent{
 			ID:              fmt.Sprintf("mock_evt_%d", id),
 			EventHash:       fmt.Sprintf("0x%064x", id),
 			EventSignature:  common.HexToHash(fmt.Sprintf("0x%064x", id)),
@@ -72,7 +73,7 @@ func (p *mockPuller) generate(count int) []core.BlockchainEvent {
 			},
 			ChainID:   "1",
 			Network:   "mainnet",
-			Status:    core.EventStatusConfirmed,
+			Status:    blockchain.EventStatusConfirmed,
 			CreatedAt: now,
 		})
 	}
@@ -91,24 +92,24 @@ func mockTransferData(amount uint64) []byte {
 
 type memoryDB struct {
 	mu     sync.RWMutex
-	events map[string]*core.BlockchainEvent
+	events map[string]*blockchain.BlockchainEvent
 }
 
 func newMemoryDB() *memoryDB {
-	return &memoryDB{events: make(map[string]*core.BlockchainEvent)}
+	return &memoryDB{events: make(map[string]*blockchain.BlockchainEvent)}
 }
 
-func (db *memoryDB) StoreEvent(ctx context.Context, event *core.BlockchainEvent) error {
+func (db *memoryDB) StoreEvent(ctx context.Context, event *blockchain.BlockchainEvent) error {
 	db.mu.Lock()
 	defer db.mu.Unlock()
 	db.events[event.ID] = event
 	return nil
 }
 
-func (db *memoryDB) GetAllEvents(ctx context.Context) ([]*core.BlockchainEvent, error) {
+func (db *memoryDB) GetAllEvents(ctx context.Context) ([]*blockchain.BlockchainEvent, error) {
 	db.mu.RLock()
 	defer db.mu.RUnlock()
-	result := make([]*core.BlockchainEvent, 0, len(db.events))
+	result := make([]*blockchain.BlockchainEvent, 0, len(db.events))
 	for _, ev := range db.events {
 		result = append(result, ev)
 	}
@@ -133,7 +134,7 @@ func newPlayground(logger core.Logger) *playground {
 	}
 
 	pg.eventBus.SubscribeNamed(context.Background(), "events", "printer", func(_ context.Context, event any) error {
-		if ev, ok := event.(core.BlockchainEvent); ok {
+		if ev, ok := event.(blockchain.BlockchainEvent); ok {
 			slog.Info(
 				"eventbus received",
 				"event", ev.EventName,
@@ -197,7 +198,7 @@ func (p *playground) handleListEvents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if all == nil {
-		all = []*core.BlockchainEvent{}
+		all = []*blockchain.BlockchainEvent{}
 	}
 	writeJSON(w, map[string]any{
 		"total":  len(all),
@@ -222,7 +223,7 @@ func (p *playground) handleStats(w http.ResponseWriter, r *http.Request) {
 
 // generateSwap creates a mock Uniswap Swap event demonstrating AMM math
 // from defi.ConstantProductAMM (defi_primitives.go).
-func (p *mockPuller) generateSwap() core.BlockchainEvent {
+func (p *mockPuller) generateSwap() blockchain.BlockchainEvent {
 	id := p.nextID.Add(1)
 	bn := p.blockNum.Add(1)
 	now := time.Now()
@@ -234,7 +235,7 @@ func (p *mockPuller) generateSwap() core.BlockchainEvent {
 		30,                                    // 0.3% fee
 	)
 
-	return core.BlockchainEvent{
+	return blockchain.BlockchainEvent{
 		ID:              fmt.Sprintf("mock_swap_%d", id),
 		EventHash:       fmt.Sprintf("0x%064x", id),
 		EventSignature:  common.HexToHash("0xd78ad95fa46c994b6551d0da85fc275fe613ce37657fb8d5e3d130840159d822"),
@@ -254,7 +255,7 @@ func (p *mockPuller) generateSwap() core.BlockchainEvent {
 		},
 		ChainID:   "1",
 		Network:   "mainnet",
-		Status:    core.EventStatusConfirmed,
+		Status:    blockchain.EventStatusConfirmed,
 		CreatedAt: now,
 	}
 }
@@ -264,13 +265,13 @@ func amtToString(f *big.Float) string {
 }
 
 // generateAA creates a mock ERC-4337 UserOperation event demonstrating
-// the Account Abstraction types in core.BlockchainEvent.
-func (p *mockPuller) generateAA() core.BlockchainEvent {
+// the Account Abstraction types in blockchain.BlockchainEvent.
+func (p *mockPuller) generateAA() blockchain.BlockchainEvent {
 	id := p.nextID.Add(1)
 	bn := p.blockNum.Add(1)
 	now := time.Now()
 
-	return core.BlockchainEvent{
+	return blockchain.BlockchainEvent{
 		ID:              fmt.Sprintf("mock_aa_%d", id),
 		EventHash:       fmt.Sprintf("0x%064x", id),
 		EventSignature:  common.HexToHash("0x49628e147c1ffba5e4c8a0b077908f2c04d246a911fc3da0f2d5e80eecae9148"),
@@ -293,7 +294,7 @@ func (p *mockPuller) generateAA() core.BlockchainEvent {
 		},
 		ChainID:   "1",
 		Network:   "mainnet",
-		Status:    core.EventStatusConfirmed,
+		Status:    blockchain.EventStatusConfirmed,
 		CreatedAt: now,
 	}
 }

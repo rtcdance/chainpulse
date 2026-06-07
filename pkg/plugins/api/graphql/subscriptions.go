@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 )
 
 // SubscriptionManager manages GraphQL subscriptions
@@ -218,7 +219,7 @@ func NewSubscriptionHandler(
 }
 
 // OnEventCreated publishes event created notification
-func (sh *SubscriptionHandler) OnEventCreated(event *core.BlockchainEvent) error {
+func (sh *SubscriptionHandler) OnEventCreated(event *blockchain.BlockchainEvent) error {
 	payload := EventSubscriptionPayload{
 		Type:      "created",
 		EventID:   event.ID,
@@ -230,7 +231,7 @@ func (sh *SubscriptionHandler) OnEventCreated(event *core.BlockchainEvent) error
 }
 
 // OnEventUpdated publishes event updated notification
-func (sh *SubscriptionHandler) OnEventUpdated(event *core.BlockchainEvent) error {
+func (sh *SubscriptionHandler) OnEventUpdated(event *blockchain.BlockchainEvent) error {
 	payload := EventSubscriptionPayload{
 		Type:      "updated",
 		EventID:   event.ID,
@@ -253,7 +254,7 @@ func (sh *SubscriptionHandler) OnEventDeleted(eventID string) error {
 }
 
 // OnEventConfirmed publishes event confirmed notification
-func (sh *SubscriptionHandler) OnEventConfirmed(event *core.BlockchainEvent) error {
+func (sh *SubscriptionHandler) OnEventConfirmed(event *blockchain.BlockchainEvent) error {
 	payload := EventSubscriptionPayload{
 		Type:      "confirmed",
 		EventID:   event.ID,
@@ -265,7 +266,7 @@ func (sh *SubscriptionHandler) OnEventConfirmed(event *core.BlockchainEvent) err
 }
 
 // OnEventFailed publishes event failed notification
-func (sh *SubscriptionHandler) OnEventFailed(event *core.BlockchainEvent) error {
+func (sh *SubscriptionHandler) OnEventFailed(event *blockchain.BlockchainEvent) error {
 	payload := EventSubscriptionPayload{
 		Type:      "failed",
 		EventID:   event.ID,

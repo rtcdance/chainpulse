@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 
 	"github.com/ethereum/go-ethereum/common"
 )
@@ -40,7 +41,7 @@ func TestTransactionIsolation(t *testing.T) {
 	defer func() { _ = db.Stop(context.Background()) }()
 
 	// Create test event
-	event := &core.BlockchainEvent{
+	event := &blockchain.BlockchainEvent{
 		ID:              "test-tx-isolation-1",
 		BlockNumber:     1,
 		TransactionHash: common.HexToHash("0x1234567890abcdef"),
@@ -117,7 +118,7 @@ func TestRollbackOnError(t *testing.T) {
 	defer func() { _ = db.Stop(context.Background()) }()
 
 	// Create test events with duplicate hash
-	events := []core.BlockchainEvent{
+	events := []blockchain.BlockchainEvent{
 		{
 			ID:              "test-rollback-1",
 			BlockNumber:     2,
@@ -190,7 +191,7 @@ func TestConcurrentTransactions(t *testing.T) {
 	done := make(chan bool, 5)
 	for i := 0; i < 5; i++ {
 		go func(id int) {
-			event := &core.BlockchainEvent{
+			event := &blockchain.BlockchainEvent{
 				ID:              fmt.Sprintf("test-concurrent-%d", id),
 				BlockNumber:     uint64(id),
 				TransactionHash: common.HexToHash(fmt.Sprintf("0x%064x", id)),
@@ -246,7 +247,7 @@ func TestTransactionConsistency(t *testing.T) {
 	defer func() { _ = db.Stop(context.Background()) }()
 
 	// Write event
-	event := &core.BlockchainEvent{
+	event := &blockchain.BlockchainEvent{
 		ID:              "test-consistency-1",
 		BlockNumber:     100,
 		TransactionHash: common.HexToHash("0x1234567890abcdef"),

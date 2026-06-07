@@ -13,6 +13,8 @@ import (
 	"time"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
+"github.com/rtcdance/chainpulse/pkg/logkeys"
 )
 
 type postgresConnectionProvider interface {
@@ -256,7 +258,7 @@ func (pa *DefaultPostgreSQLAdapter) Initialize(ctx context.Context) error {
 	pa.db = sqlDB
 	pa.initialized.Store(true)
 
-	pa.logger.Info("PostgreSQL adapter initialized", core.LogKeyComponent, "postgres-adapter")
+	pa.logger.Info("PostgreSQL adapter initialized", logkeys.LogKeyComponent, "postgres-adapter")
 
 	return nil
 }
@@ -349,15 +351,15 @@ func (pa *DefaultPostgreSQLAdapter) Query(ctx context.Context, req *QueryRequest
 	if err != nil {
 		duration := time.Since(start).Milliseconds()
 		pa.metricsCollector.RecordCounter("postgres_query_error", 1, map[string]string{})
-		pa.logger.Error("PostgreSQL query failed", "table", req.Collection, core.LogKeyError, err, core.LogKeyDuration, duration)
+		pa.logger.Error("PostgreSQL query failed", "table", req.Collection, logkeys.LogKeyError, err, logkeys.LogKeyDuration, duration)
 		return nil, fmt.Errorf("PostgreSQL query failed: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
 
 	// Scan results
-	var events []core.BlockchainEvent
+	var events []blockchain.BlockchainEvent
 	for rows.Next() {
-		var event core.BlockchainEvent
+		var event blockchain.BlockchainEvent
 		// Note: This is a simplified scan. In production, you'd need to map columns properly
 		if err := rows.Scan(
 			&event.EventHash,
@@ -370,7 +372,7 @@ func (pa *DefaultPostgreSQLAdapter) Query(ctx context.Context, req *QueryRequest
 			&event.BlockTimestamp,
 			&event.ChainID,
 		); err != nil {
-			pa.logger.Error("Failed to scan PostgreSQL row", core.LogKeyError, err)
+			pa.logger.Error("Failed to scan PostgreSQL row", logkeys.LogKeyError, err)
 			continue
 		}
 		events = append(events, event)
@@ -379,7 +381,7 @@ func (pa *DefaultPostgreSQLAdapter) Query(ctx context.Context, req *QueryRequest
 	if err := rows.Err(); err != nil {
 		duration := time.Since(start).Milliseconds()
 		pa.metricsCollector.RecordCounter("postgres_scan_error", 1, map[string]string{})
-		pa.logger.Error("PostgreSQL scan error", "table", req.Collection, core.LogKeyError, err, core.LogKeyDuration, duration)
+		pa.logger.Error("PostgreSQL scan error", "table", req.Collection, logkeys.LogKeyError, err, logkeys.LogKeyDuration, duration)
 		return nil, fmt.Errorf("PostgreSQL scan failed: %w", err)
 	}
 
@@ -391,7 +393,7 @@ func (pa *DefaultPostgreSQLAdapter) Query(ctx context.Context, req *QueryRequest
 
 	var total int64
 	if err := pa.db.QueryRowContext(ctx, countQuery, args...).Scan(&total); err != nil {
-		pa.logger.Error("Failed to count PostgreSQL rows", "table", req.Collection, core.LogKeyError, err)
+		pa.logger.Error("Failed to count PostgreSQL rows", "table", req.Collection, logkeys.LogKeyError, err)
 		total = int64(len(events))
 	}
 
@@ -399,7 +401,7 @@ func (pa *DefaultPostgreSQLAdapter) Query(ctx context.Context, req *QueryRequest
 	pa.metricsCollector.RecordHistogram("postgres_query_time_ms", float64(duration), map[string]string{})
 	pa.metricsCollector.RecordCounter("postgres_query_success", 1, map[string]string{})
 
-	pa.logger.Info("PostgreSQL query successful", "table", req.Collection, core.LogKeyCount, len(events), "total", total, core.LogKeyDuration, duration)
+	pa.logger.Info("PostgreSQL query successful", "table", req.Collection, logkeys.LogKeyCount, len(events), "total", total, logkeys.LogKeyDuration, duration)
 
 	return &QueryResult{
 		Events:       events,
@@ -414,7 +416,7 @@ func isSafePostgresIdentifier(identifier string) bool {
 }
 
 // QueryByHash retrieves a single item by hash
-func (pa *DefaultPostgreSQLAdapter) QueryByHash(ctx context.Context, hash string) (*core.BlockchainEvent, error) {
+func (pa *DefaultPostgreSQLAdapter) QueryByHash(ctx context.Context, hash string) (*blockchain.BlockchainEvent, error) {
 	if !pa.initialized.Load() {
 		return nil, fmt.Errorf("PostgreSQL adapter not initialized")
 	}
@@ -433,7 +435,7 @@ func (pa *DefaultPostgreSQLAdapter) QueryByHash(ctx context.Context, hash string
 	query := "SELECT event_hash, block_number, transaction_hash, log_index, contract_address, event_topic, event_data, block_timestamp, chain_id FROM events WHERE event_hash = $1"
 
 	// Execute query
-	var event core.BlockchainEvent
+	var event blockchain.BlockchainEvent
 	err := pa.db.QueryRowContext(ctx, query, hash).Scan(
 		&event.EventHash,
 		&event.BlockNumber,
@@ -448,13 +450,13 @@ func (pa *DefaultPostgreSQLAdapter) QueryByHash(ctx context.Context, hash string
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			duration := time.Since(start).Milliseconds()
-			pa.logger.Debug("Event not found in PostgreSQL", core.LogKeyHash, hash, core.LogKeyDuration, duration)
+			pa.logger.Debug("Event not found in PostgreSQL", logkeys.LogKeyHash, hash, logkeys.LogKeyDuration, duration)
 			return nil, nil
 		}
 
 		duration := time.Since(start).Milliseconds()
 		pa.metricsCollector.RecordCounter("postgres_query_by_hash_error", 1, map[string]string{})
-		pa.logger.Error("PostgreSQL query by hash failed", core.LogKeyHash, hash, core.LogKeyError, err, core.LogKeyDuration, duration)
+		pa.logger.Error("PostgreSQL query by hash failed", logkeys.LogKeyHash, hash, logkeys.LogKeyError, err, logkeys.LogKeyDuration, duration)
 		return nil, fmt.Errorf("PostgreSQL query failed: %w", err)
 	}
 
@@ -462,7 +464,7 @@ func (pa *DefaultPostgreSQLAdapter) QueryByHash(ctx context.Context, hash string
 	pa.metricsCollector.RecordHistogram("postgres_query_by_hash_time_ms", float64(duration), map[string]string{})
 	pa.metricsCollector.RecordCounter("postgres_query_by_hash_success", 1, map[string]string{})
 
-	pa.logger.Info("PostgreSQL query by hash successful", core.LogKeyHash, hash, core.LogKeyDuration, duration)
+	pa.logger.Info("PostgreSQL query by hash successful", logkeys.LogKeyHash, hash, logkeys.LogKeyDuration, duration)
 
 	return &event, nil
 }

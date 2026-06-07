@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	sharedhttp "github.com/rtcdance/chainpulse/pkg/infrastructure/http"
 )
 
@@ -73,7 +74,7 @@ type CosmosPuller struct {
 	currentHeight  uint64
 	pollInterval   time.Duration
 	stopChan       chan bool
-	eventHandlers  []func(core.BlockchainEvent)
+	eventHandlers  []func(blockchain.BlockchainEvent)
 	requestCounter int64
 	metrics        *cosmosPullerMetrics
 }
@@ -93,8 +94,8 @@ func NewCosmosPuller(config core.Config, logger core.Logger, metrics core.Metric
 }
 
 // PullEvents pulls events from Cosmos blocks in the given height range
-func (p *CosmosPuller) PullEvents(ctx context.Context, fromHeight, toHeight uint64) ([]core.BlockchainEvent, error) {
-	var events []core.BlockchainEvent
+func (p *CosmosPuller) PullEvents(ctx context.Context, fromHeight, toHeight uint64) ([]blockchain.BlockchainEvent, error) {
+	var events []blockchain.BlockchainEvent
 
 	for height := fromHeight; height <= toHeight; height++ {
 		blockEvents, err := p.getEventsFromBlock(ctx, height)
@@ -139,7 +140,7 @@ func (p *CosmosPuller) GetLatestBlock(ctx context.Context) (uint64, error) {
 }
 
 // SubscribeToEvents adds an event handler
-func (p *CosmosPuller) SubscribeToEvents(ctx context.Context, handler func(core.BlockchainEvent)) error {
+func (p *CosmosPuller) SubscribeToEvents(ctx context.Context, handler func(blockchain.BlockchainEvent)) error {
 	p.mu.Lock()
 	p.eventHandlers = append(p.eventHandlers, handler)
 	p.mu.Unlock()
@@ -202,7 +203,7 @@ func (p *CosmosPuller) Poll(ctx context.Context) error {
 
 			p.mu.Lock()
 			p.currentHeight = latestHeight
-			handlers := make([]func(core.BlockchainEvent), len(p.eventHandlers))
+			handlers := make([]func(blockchain.BlockchainEvent), len(p.eventHandlers))
 			copy(handlers, p.eventHandlers)
 			p.mu.Unlock()
 
@@ -218,7 +219,7 @@ func (p *CosmosPuller) Poll(ctx context.Context) error {
 	}
 }
 
-func (p *CosmosPuller) getEventsFromBlock(ctx context.Context, height uint64) ([]core.BlockchainEvent, error) {
+func (p *CosmosPuller) getEventsFromBlock(ctx context.Context, height uint64) ([]blockchain.BlockchainEvent, error) {
 	var blockResult struct {
 		Result struct {
 			Block struct {
@@ -238,7 +239,7 @@ func (p *CosmosPuller) getEventsFromBlock(ctx context.Context, height uint64) ([
 		return nil, fmt.Errorf("get block %d: %w", height, err)
 	}
 
-	var events []core.BlockchainEvent
+	var events []blockchain.BlockchainEvent
 	txs := blockResult.Result.Block.Data.Txs
 	p.metrics.incTransactions(int64(len(txs)))
 
@@ -263,8 +264,8 @@ func (p *CosmosPuller) getEventsFromBlock(ctx context.Context, height uint64) ([
 // Cosmos SDK transactions are protobuf-serialized TxBody containing messages.
 // For a lightweight approach, we look at the base64-decoded raw bytes for
 // key Cosmos SDK message patterns like MsgSend, MsgDelegate, MsgExecuteContract.
-func (p *CosmosPuller) parseTxEvents(height uint64, txBytes []byte, chainID string) []core.BlockchainEvent {
-	var events []core.BlockchainEvent
+func (p *CosmosPuller) parseTxEvents(height uint64, txBytes []byte, chainID string) []blockchain.BlockchainEvent {
+	var events []blockchain.BlockchainEvent
 
 	txStr := string(txBytes)
 
@@ -272,7 +273,7 @@ func (p *CosmosPuller) parseTxEvents(height uint64, txBytes []byte, chainID stri
 	for _, msgType := range msgTypes {
 		p.metrics.recordMessageType(msgType)
 
-		event := core.BlockchainEvent{
+		event := blockchain.BlockchainEvent{
 			ChainID:        chainID,
 			EventName:      fmt.Sprintf("cosmos.%s", msgType),
 			BlockNumber:    height,

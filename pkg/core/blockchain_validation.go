@@ -1,13 +1,14 @@
 package core
 
 import (
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"fmt"
 
 	"github.com/ethereum/go-ethereum/common"
 )
 
 // ValidateBlockchainEvent validates a blockchain event.
-func ValidateBlockchainEvent(be *BlockchainEvent) error {
+func ValidateBlockchainEvent(be *blockchain.BlockchainEvent) error {
 	if be.BlockNumber == 0 {
 		return ErrInvalidBlockNumber
 	}
@@ -27,7 +28,7 @@ func ValidateBlockchainEvent(be *BlockchainEvent) error {
 }
 
 // ValidateTransaction validates a transaction.
-func ValidateTransaction(t *Transaction) error {
+func ValidateTransaction(t *blockchain.Transaction) error {
 	if t.Hash == (common.Hash{}) {
 		return ErrInvalidTransactionHash
 	}
@@ -41,7 +42,7 @@ func ValidateTransaction(t *Transaction) error {
 }
 
 // ValidateBlock validates a block.
-func ValidateBlock(b *Block) error {
+func ValidateBlock(b *blockchain.Block) error {
 	if b.Number == 0 {
 		return ErrInvalidBlockNumber
 	}
@@ -54,9 +55,9 @@ func ValidateBlock(b *Block) error {
 	return nil
 }
 
-// VerifyBlobSidecarProof validates that the KZG proof in a BlobSidecar matches
+// VerifyBlobSidecarProof validates that the KZG proof in a blockchain.BlobSidecar matches
 // the commitment for a given blob index.
-func VerifyBlobSidecarProof(s *BlobSidecar, verifier KZGVerifier, index int) error {
+func VerifyBlobSidecarProof(s *blockchain.BlobSidecar, verifier KZGVerifier, index int) error {
 	if s == nil {
 		return fmt.Errorf("blob sidecar is nil")
 	}

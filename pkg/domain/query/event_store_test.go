@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 
 	"github.com/ethereum/go-ethereum/common"
 )
@@ -18,13 +19,13 @@ func minInt(a, b int) int {
 }
 
 type mockEventStoreDomain struct {
-	events     map[string]*core.BlockchainEvent
+	events     map[string]*blockchain.BlockchainEvent
 	initialize bool
 	close      bool
 }
 
 func NewMockEventStoreDomain() *mockEventStoreDomain {
-	return &mockEventStoreDomain{events: make(map[string]*core.BlockchainEvent)}
+	return &mockEventStoreDomain{events: make(map[string]*blockchain.BlockchainEvent)}
 }
 
 func (m *mockEventStoreDomain) Initialize(ctx context.Context) error {
@@ -37,7 +38,7 @@ func (m *mockEventStoreDomain) Close(ctx context.Context) error {
 	return nil
 }
 
-func (m *mockEventStoreDomain) InsertEvent(ctx context.Context, event *core.BlockchainEvent) error {
+func (m *mockEventStoreDomain) InsertEvent(ctx context.Context, event *blockchain.BlockchainEvent) error {
 	if event == nil || event.ID == "" {
 		return nil
 	}
@@ -45,7 +46,7 @@ func (m *mockEventStoreDomain) InsertEvent(ctx context.Context, event *core.Bloc
 	return nil
 }
 
-func (m *mockEventStoreDomain) InsertEventBatch(ctx context.Context, events []*core.BlockchainEvent) error {
+func (m *mockEventStoreDomain) InsertEventBatch(ctx context.Context, events []*blockchain.BlockchainEvent) error {
 	for _, e := range events {
 		if err := m.InsertEvent(ctx, e); err != nil {
 			return err
@@ -54,7 +55,7 @@ func (m *mockEventStoreDomain) InsertEventBatch(ctx context.Context, events []*c
 	return nil
 }
 
-func (m *mockEventStoreDomain) GetEvent(ctx context.Context, eventID string) (*core.BlockchainEvent, error) {
+func (m *mockEventStoreDomain) GetEvent(ctx context.Context, eventID string) (*blockchain.BlockchainEvent, error) {
 	event, ok := m.events[eventID]
 	if !ok {
 		return nil, nil
@@ -62,8 +63,8 @@ func (m *mockEventStoreDomain) GetEvent(ctx context.Context, eventID string) (*c
 	return event, nil
 }
 
-func (m *mockEventStoreDomain) GetEventsByChain(ctx context.Context, chainID int, limit int, offset int) ([]*core.BlockchainEvent, error) {
-	var result []*core.BlockchainEvent
+func (m *mockEventStoreDomain) GetEventsByChain(ctx context.Context, chainID int, limit int, offset int) ([]*blockchain.BlockchainEvent, error) {
+	var result []*blockchain.BlockchainEvent
 	chainIDStr := "1"
 	if chainID == 2 {
 		chainIDStr = "2"
@@ -82,8 +83,8 @@ func (m *mockEventStoreDomain) GetEventsByChain(ctx context.Context, chainID int
 	return result, nil
 }
 
-func (m *mockEventStoreDomain) GetEventsByContract(ctx context.Context, contractAddress string, limit int, offset int) ([]*core.BlockchainEvent, error) {
-	var result []*core.BlockchainEvent
+func (m *mockEventStoreDomain) GetEventsByContract(ctx context.Context, contractAddress string, limit int, offset int) ([]*blockchain.BlockchainEvent, error) {
+	var result []*blockchain.BlockchainEvent
 	addr := common.HexToAddress(contractAddress)
 	for _, e := range m.events {
 		if e.ContractAddress == addr {
@@ -96,8 +97,8 @@ func (m *mockEventStoreDomain) GetEventsByContract(ctx context.Context, contract
 	return result[offset:minInt(offset+limit, len(result))], nil
 }
 
-func (m *mockEventStoreDomain) GetEventsByEventName(ctx context.Context, eventName string, limit int, offset int) ([]*core.BlockchainEvent, error) {
-	var result []*core.BlockchainEvent
+func (m *mockEventStoreDomain) GetEventsByEventName(ctx context.Context, eventName string, limit int, offset int) ([]*blockchain.BlockchainEvent, error) {
+	var result []*blockchain.BlockchainEvent
 	for _, e := range m.events {
 		if e.EventName == eventName {
 			result = append(result, e)
@@ -109,8 +110,8 @@ func (m *mockEventStoreDomain) GetEventsByEventName(ctx context.Context, eventNa
 	return result[offset:minInt(offset+limit, len(result))], nil
 }
 
-func (m *mockEventStoreDomain) GetEventsByBlock(ctx context.Context, blockNumber int64) ([]*core.BlockchainEvent, error) {
-	var result []*core.BlockchainEvent
+func (m *mockEventStoreDomain) GetEventsByBlock(ctx context.Context, blockNumber int64) ([]*blockchain.BlockchainEvent, error) {
+	var result []*blockchain.BlockchainEvent
 	for _, e := range m.events {
 		if e.BlockNumber == uint64(blockNumber) {
 			result = append(result, e)
@@ -119,8 +120,8 @@ func (m *mockEventStoreDomain) GetEventsByBlock(ctx context.Context, blockNumber
 	return result, nil
 }
 
-func (m *mockEventStoreDomain) GetEventsByAddress(ctx context.Context, address string, limit int) ([]*core.BlockchainEvent, error) {
-	var result []*core.BlockchainEvent
+func (m *mockEventStoreDomain) GetEventsByAddress(ctx context.Context, address string, limit int) ([]*blockchain.BlockchainEvent, error) {
+	var result []*blockchain.BlockchainEvent
 	addr := common.HexToAddress(address)
 	count := 0
 	for _, e := range m.events {
@@ -135,12 +136,12 @@ func (m *mockEventStoreDomain) GetEventsByAddress(ctx context.Context, address s
 	return result, nil
 }
 
-func (m *mockEventStoreDomain) GetEventsByName(ctx context.Context, eventName string, limit int) ([]*core.BlockchainEvent, error) {
+func (m *mockEventStoreDomain) GetEventsByName(ctx context.Context, eventName string, limit int) ([]*blockchain.BlockchainEvent, error) {
 	return m.GetEventsByEventName(ctx, eventName, limit, 0)
 }
 
-func (m *mockEventStoreDomain) GetEventsPaginated(ctx context.Context, cursor string, limit int) ([]*core.BlockchainEvent, bool, error) {
-	var result []*core.BlockchainEvent
+func (m *mockEventStoreDomain) GetEventsPaginated(ctx context.Context, cursor string, limit int) ([]*blockchain.BlockchainEvent, bool, error) {
+	var result []*blockchain.BlockchainEvent
 	count := 0
 	hasMore := false
 	for _, e := range m.events {
@@ -154,8 +155,8 @@ func (m *mockEventStoreDomain) GetEventsPaginated(ctx context.Context, cursor st
 	return result, hasMore, nil
 }
 
-func (m *mockEventStoreDomain) GetEventsByCorrelationID(ctx context.Context, correlationID string, limit int, offset int) ([]*core.BlockchainEvent, error) {
-	var result []*core.BlockchainEvent
+func (m *mockEventStoreDomain) GetEventsByCorrelationID(ctx context.Context, correlationID string, limit int, offset int) ([]*blockchain.BlockchainEvent, error) {
+	var result []*blockchain.BlockchainEvent
 	for _, e := range m.events {
 		// Simple substring match since mock data has no structured correlation ID
 		if e.ID == correlationID || e.EventName == correlationID {
@@ -231,7 +232,7 @@ func TestEventStoreInsertEvent(t *testing.T) {
 	store := NewMockEventStoreDomain()
 	ctx := context.Background()
 	_ = store.Initialize(ctx)
-	event := &core.BlockchainEvent{
+	event := &blockchain.BlockchainEvent{
 		ID:              "test-event-1",
 		EventName:       "Transfer",
 		ChainID:         "1",
@@ -259,7 +260,7 @@ func TestEventStoreInsertInvalidEvent(t *testing.T) {
 	ctx := context.Background()
 	_ = store.Initialize(ctx)
 	_ = store.InsertEvent(ctx, nil)
-	_ = store.InsertEvent(ctx, &core.BlockchainEvent{ID: ""})
+	_ = store.InsertEvent(ctx, &blockchain.BlockchainEvent{ID: ""})
 }
 
 func TestEventStoreInsertBatch(t *testing.T) {
@@ -267,7 +268,7 @@ func TestEventStoreInsertBatch(t *testing.T) {
 	store := NewMockEventStoreDomain()
 	ctx := context.Background()
 	_ = store.Initialize(ctx)
-	events := []*core.BlockchainEvent{
+	events := []*blockchain.BlockchainEvent{
 		{ID: "batch-1", EventName: "Transfer", ChainID: "1"},
 		{ID: "batch-2", EventName: "Transfer", ChainID: "1"},
 		{ID: "batch-3", EventName: "Approval", ChainID: "1"},
@@ -283,9 +284,9 @@ func TestEventStoreGetEventsByChain(t *testing.T) {
 	store := NewMockEventStoreDomain()
 	ctx := context.Background()
 	_ = store.Initialize(ctx)
-	_ = store.InsertEvent(ctx, &core.BlockchainEvent{ID: "chain1-1", ChainID: "1"})
-	_ = store.InsertEvent(ctx, &core.BlockchainEvent{ID: "chain1-2", ChainID: "1"})
-	_ = store.InsertEvent(ctx, &core.BlockchainEvent{ID: "chain2-1", ChainID: "2"})
+	_ = store.InsertEvent(ctx, &blockchain.BlockchainEvent{ID: "chain1-1", ChainID: "1"})
+	_ = store.InsertEvent(ctx, &blockchain.BlockchainEvent{ID: "chain1-2", ChainID: "1"})
+	_ = store.InsertEvent(ctx, &blockchain.BlockchainEvent{ID: "chain2-1", ChainID: "2"})
 	events, err := store.GetEventsByChain(ctx, 1, 10, 0)
 	if err != nil {
 		t.Errorf("GetEventsByChain() unexpected error: %v", err)
@@ -299,7 +300,7 @@ func TestEventStorePagination(t *testing.T) {
 	ctx := context.Background()
 	_ = store.Initialize(ctx)
 	for i := 0; i < 10; i++ {
-		_ = store.InsertEvent(ctx, &core.BlockchainEvent{ID: "event-" + string(rune('0'+i))})
+		_ = store.InsertEvent(ctx, &blockchain.BlockchainEvent{ID: "event-" + string(rune('0'+i))})
 	}
 	events, hasMore, err := store.GetEventsPaginated(ctx, "", 3)
 	if err != nil {
@@ -350,7 +351,7 @@ func TestRequestStruct(t *testing.T) {
 func TestResultStruct(t *testing.T) {
 	t.Parallel()
 	result := &Result{
-		Events:       []core.BlockchainEvent{{ID: "1"}},
+		Events:       []blockchain.BlockchainEvent{{ID: "1"}},
 		Total:        1,
 		CacheHit:     false,
 		ResponseTime: 100,

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	domainquery "github.com/rtcdance/chainpulse/pkg/domain/query"
 )
 
@@ -60,7 +61,7 @@ func (s *EventRetrievalService) Initialize(ctx context.Context) error {
 
 // EventWithMetadata represents an event with its metadata
 type EventWithMetadata struct {
-	Event    *core.BlockchainEvent
+	Event    *blockchain.BlockchainEvent
 	Metadata *EventMetadata
 }
 
@@ -312,7 +313,7 @@ func (s *EventRetrievalService) Close(ctx context.Context) error {
 
 // attachMetadata fetches metadata for all events in a single batch query and
 // joins them into EventWithMetadata results.
-func (s *EventRetrievalService) attachMetadata(ctx context.Context, events []*core.BlockchainEvent) ([]*EventWithMetadata, error) {
+func (s *EventRetrievalService) attachMetadata(ctx context.Context, events []*blockchain.BlockchainEvent) ([]*EventWithMetadata, error) {
 	if len(events) == 0 {
 		return []*EventWithMetadata{}, nil
 	}

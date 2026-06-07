@@ -4,11 +4,11 @@ import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 )
 
-func makeEvent(chainID string, contractAddr string, eventName string, status core.EventStatus, blockNumber uint64, logIndex uint64, removed bool, blockTimestamp int64) *core.BlockchainEvent {
-	return &core.BlockchainEvent{
+func makeEvent(chainID string, contractAddr string, eventName string, status blockchain.EventStatus, blockNumber uint64, logIndex uint64, removed bool, blockTimestamp int64) *blockchain.BlockchainEvent {
+	return &blockchain.BlockchainEvent{
 		ChainID:         chainID,
 		ContractAddress: common.HexToAddress(contractAddr),
 		EventName:       eventName,
@@ -25,106 +25,106 @@ func TestApplyEventFilter(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		events  []*core.BlockchainEvent
+		events  []*blockchain.BlockchainEvent
 		filter  map[string]any
 		wantIDs []string
 	}{
 		{
 			name: "filter by status matches one",
-			events: []*core.BlockchainEvent{
-				makeEvent("1", "0xA", "Transfer", core.EventStatusConfirmed, 100, 0, false, 1000),
-				makeEvent("1", "0xB", "Approve", core.EventStatusPending, 101, 0, false, 1001),
+			events: []*blockchain.BlockchainEvent{
+				makeEvent("1", "0xA", "Transfer", blockchain.EventStatusConfirmed, 100, 0, false, 1000),
+				makeEvent("1", "0xB", "Approve", blockchain.EventStatusPending, 101, 0, false, 1001),
 			},
 			filter:  map[string]any{"status": "confirmed"},
 			wantIDs: []string{"confirmed"},
 		},
 		{
 			name: "filter by chain_id matches one",
-			events: []*core.BlockchainEvent{
-				makeEvent("1", "0xA", "Transfer", core.EventStatusConfirmed, 100, 0, false, 1000),
-				makeEvent("137", "0xB", "Approve", core.EventStatusConfirmed, 101, 0, false, 1001),
+			events: []*blockchain.BlockchainEvent{
+				makeEvent("1", "0xA", "Transfer", blockchain.EventStatusConfirmed, 100, 0, false, 1000),
+				makeEvent("137", "0xB", "Approve", blockchain.EventStatusConfirmed, 101, 0, false, 1001),
 			},
 			filter:  map[string]any{"chainId": "137"},
 			wantIDs: []string{"137"},
 		},
 		{
 			name: "filter by contract_address matches one",
-			events: []*core.BlockchainEvent{
-				makeEvent("1", "0x1111111111111111111111111111111111111111", "Transfer", core.EventStatusConfirmed, 100, 0, false, 1000),
-				makeEvent("1", "0x2222222222222222222222222222222222222222", "Approve", core.EventStatusConfirmed, 101, 0, false, 1001),
+			events: []*blockchain.BlockchainEvent{
+				makeEvent("1", "0x1111111111111111111111111111111111111111", "Transfer", blockchain.EventStatusConfirmed, 100, 0, false, 1000),
+				makeEvent("1", "0x2222222222222222222222222222222222222222", "Approve", blockchain.EventStatusConfirmed, 101, 0, false, 1001),
 			},
 			filter:  map[string]any{"contractAddress": common.HexToAddress("0x2222222222222222222222222222222222222222").Hex()},
 			wantIDs: []string{"matched_addr"},
 		},
 		{
 			name: "filter by event_name matches one",
-			events: []*core.BlockchainEvent{
-				makeEvent("1", "0xA", "Transfer", core.EventStatusConfirmed, 100, 0, false, 1000),
-				makeEvent("1", "0xA", "Swap", core.EventStatusConfirmed, 101, 0, false, 1001),
+			events: []*blockchain.BlockchainEvent{
+				makeEvent("1", "0xA", "Transfer", blockchain.EventStatusConfirmed, 100, 0, false, 1000),
+				makeEvent("1", "0xA", "Swap", blockchain.EventStatusConfirmed, 101, 0, false, 1001),
 			},
 			filter:  map[string]any{"eventName": "Swap"},
 			wantIDs: []string{"Swap"},
 		},
 		{
 			name: "filter by blockNumberGte",
-			events: []*core.BlockchainEvent{
-				makeEvent("1", "0xA", "Transfer", core.EventStatusConfirmed, 100, 0, false, 1000),
-				makeEvent("1", "0xA", "Transfer", core.EventStatusConfirmed, 200, 0, false, 1001),
-				makeEvent("1", "0xA", "Transfer", core.EventStatusConfirmed, 300, 0, false, 1002),
+			events: []*blockchain.BlockchainEvent{
+				makeEvent("1", "0xA", "Transfer", blockchain.EventStatusConfirmed, 100, 0, false, 1000),
+				makeEvent("1", "0xA", "Transfer", blockchain.EventStatusConfirmed, 200, 0, false, 1001),
+				makeEvent("1", "0xA", "Transfer", blockchain.EventStatusConfirmed, 300, 0, false, 1002),
 			},
 			filter:  map[string]any{"blockNumberGte": 200},
 			wantIDs: []string{"gte200", "gte300"},
 		},
 		{
 			name: "filter by blockNumberLte",
-			events: []*core.BlockchainEvent{
-				makeEvent("1", "0xA", "Transfer", core.EventStatusConfirmed, 100, 0, false, 1000),
-				makeEvent("1", "0xA", "Transfer", core.EventStatusConfirmed, 200, 0, false, 1001),
-				makeEvent("1", "0xA", "Transfer", core.EventStatusConfirmed, 300, 0, false, 1002),
+			events: []*blockchain.BlockchainEvent{
+				makeEvent("1", "0xA", "Transfer", blockchain.EventStatusConfirmed, 100, 0, false, 1000),
+				makeEvent("1", "0xA", "Transfer", blockchain.EventStatusConfirmed, 200, 0, false, 1001),
+				makeEvent("1", "0xA", "Transfer", blockchain.EventStatusConfirmed, 300, 0, false, 1002),
 			},
 			filter:  map[string]any{"blockNumberLte": 200},
 			wantIDs: []string{"lte100", "lte200"},
 		},
 		{
 			name: "filter by removed flag",
-			events: []*core.BlockchainEvent{
-				makeEvent("1", "0xA", "Transfer", core.EventStatusConfirmed, 100, 0, true, 1000),
-				makeEvent("1", "0xA", "Transfer", core.EventStatusConfirmed, 101, 0, false, 1001),
+			events: []*blockchain.BlockchainEvent{
+				makeEvent("1", "0xA", "Transfer", blockchain.EventStatusConfirmed, 100, 0, true, 1000),
+				makeEvent("1", "0xA", "Transfer", blockchain.EventStatusConfirmed, 101, 0, false, 1001),
 			},
 			filter:  map[string]any{"removed": true},
 			wantIDs: []string{"removed"},
 		},
 		{
 			name: "combined filters match only one",
-			events: []*core.BlockchainEvent{
-				makeEvent("1", "0xA", "Transfer", core.EventStatusConfirmed, 100, 0, false, 1000),
-				makeEvent("1", "0xA", "Transfer", core.EventStatusPending, 100, 0, false, 1001),
-				makeEvent("137", "0xA", "Transfer", core.EventStatusConfirmed, 100, 0, false, 1002),
+			events: []*blockchain.BlockchainEvent{
+				makeEvent("1", "0xA", "Transfer", blockchain.EventStatusConfirmed, 100, 0, false, 1000),
+				makeEvent("1", "0xA", "Transfer", blockchain.EventStatusPending, 100, 0, false, 1001),
+				makeEvent("137", "0xA", "Transfer", blockchain.EventStatusConfirmed, 100, 0, false, 1002),
 			},
 			filter:  map[string]any{"chainId": "1", "status": "confirmed"},
 			wantIDs: []string{"combined"},
 		},
 		{
 			name: "no filter returns all",
-			events: []*core.BlockchainEvent{
-				makeEvent("1", "0xA", "Transfer", core.EventStatusConfirmed, 100, 0, false, 1000),
-				makeEvent("1", "0xB", "Approve", core.EventStatusConfirmed, 101, 0, false, 1001),
+			events: []*blockchain.BlockchainEvent{
+				makeEvent("1", "0xA", "Transfer", blockchain.EventStatusConfirmed, 100, 0, false, 1000),
+				makeEvent("1", "0xB", "Approve", blockchain.EventStatusConfirmed, 101, 0, false, 1001),
 			},
 			filter:  map[string]any{},
 			wantIDs: []string{"all_0", "all_1"},
 		},
 		{
 			name: "nil filter raw returns all",
-			events: []*core.BlockchainEvent{
-				makeEvent("1", "0xA", "Transfer", core.EventStatusConfirmed, 100, 0, false, 1000),
+			events: []*blockchain.BlockchainEvent{
+				makeEvent("1", "0xA", "Transfer", blockchain.EventStatusConfirmed, 100, 0, false, 1000),
 			},
 			filter:  nil,
 			wantIDs: []string{"nil_filter"},
 		},
 		{
 			name: "empty string filter criteria does not filter out",
-			events: []*core.BlockchainEvent{
-				makeEvent("1", "0xA", "Transfer", core.EventStatusConfirmed, 100, 0, false, 1000),
+			events: []*blockchain.BlockchainEvent{
+				makeEvent("1", "0xA", "Transfer", blockchain.EventStatusConfirmed, 100, 0, false, 1000),
 			},
 			filter:  map[string]any{"chainId": "", "contractAddress": "", "eventName": "", "status": ""},
 			wantIDs: []string{"empty_strings"},
@@ -145,11 +145,11 @@ func TestApplyEventFilter(t *testing.T) {
 func TestMatchesFilter(t *testing.T) {
 	t.Parallel()
 
-	event := &core.BlockchainEvent{
+	event := &blockchain.BlockchainEvent{
 		ChainID:         "1",
 		ContractAddress: common.HexToAddress("0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"),
 		EventName:       "Transfer",
-		Status:          core.EventStatusConfirmed,
+		Status:          blockchain.EventStatusConfirmed,
 		BlockNumber:     150,
 		Removed:         false,
 	}
@@ -277,10 +277,10 @@ func TestMatchesFilter(t *testing.T) {
 func TestApplyEventSort(t *testing.T) {
 	t.Parallel()
 
-	events := []*core.BlockchainEvent{
-		makeEvent("1", "0xA", "Zeta", core.EventStatusConfirmed, 300, 2, false, 3000),
-		makeEvent("1", "0xA", "Alpha", core.EventStatusConfirmed, 100, 0, false, 1000),
-		makeEvent("1", "0xA", "Beta", core.EventStatusConfirmed, 200, 1, false, 2000),
+	events := []*blockchain.BlockchainEvent{
+		makeEvent("1", "0xA", "Zeta", blockchain.EventStatusConfirmed, 300, 2, false, 3000),
+		makeEvent("1", "0xA", "Alpha", blockchain.EventStatusConfirmed, 100, 0, false, 1000),
+		makeEvent("1", "0xA", "Beta", blockchain.EventStatusConfirmed, 200, 1, false, 2000),
 	}
 
 	tests := []struct {

@@ -4,12 +4,14 @@ import (
 	"errors"
 	"strings"
 	"testing"
+
+	"github.com/rtcdance/chainpulse/pkg/services/query/qerrors"
 )
 
 // TestErrorClassifierTransientErrors tests classification of transient errors
 func TestErrorClassifierTransientErrors(t *testing.T) {
 	t.Skip("regression: pre-existing failure")
-	classifier := NewErrorClassifier()
+	classifier := qerrors.NewClassifier()
 
 	transientErrors := []error{
 		errors.New("connection refused"),
@@ -30,7 +32,7 @@ func TestErrorClassifierTransientErrors(t *testing.T) {
 
 	for _, err := range transientErrors {
 		errType := classifier.Classify(err)
-		if errType != ErrorTypeTransient {
+		if errType != qerrors.TypeTransient {
 			t.Errorf("Expected transient error for %q, got %s", err.Error(), errType.String())
 		}
 
@@ -43,7 +45,7 @@ func TestErrorClassifierTransientErrors(t *testing.T) {
 // TestErrorClassifierPermanentErrors tests classification of permanent errors
 func TestErrorClassifierPermanentErrors(t *testing.T) {
 	t.Skip("regression: pre-existing failure")
-	classifier := NewErrorClassifier()
+	classifier := qerrors.NewClassifier()
 
 	permanentErrors := []error{
 		errors.New("invalid argument"),
@@ -65,7 +67,7 @@ func TestErrorClassifierPermanentErrors(t *testing.T) {
 
 	for _, err := range permanentErrors {
 		errType := classifier.Classify(err)
-		if errType != ErrorTypePermanent {
+		if errType != qerrors.TypePermanent {
 			t.Errorf("Expected permanent error for %q, got %s", err.Error(), errType.String())
 		}
 
@@ -78,7 +80,7 @@ func TestErrorClassifierPermanentErrors(t *testing.T) {
 // TestErrorClassifierCriticalErrors tests classification of critical errors
 func TestErrorClassifierCriticalErrors(t *testing.T) {
 	t.Skip("regression: pre-existing failure")
-	classifier := NewErrorClassifier()
+	classifier := qerrors.NewClassifier()
 
 	criticalErrors := []error{
 		errors.New("out of memory"),
@@ -94,7 +96,7 @@ func TestErrorClassifierCriticalErrors(t *testing.T) {
 
 	for _, err := range criticalErrors {
 		errType := classifier.Classify(err)
-		if errType != ErrorTypeCritical {
+		if errType != qerrors.TypeCritical {
 			t.Errorf("Expected critical error for %q, got %s", err.Error(), errType.String())
 		}
 
@@ -106,40 +108,40 @@ func TestErrorClassifierCriticalErrors(t *testing.T) {
 
 // TestErrorClassifierNilError tests classification of nil error
 func TestErrorClassifierNilError(t *testing.T) {
-	classifier := NewErrorClassifier()
+	classifier := qerrors.NewClassifier()
 
 	errType := classifier.Classify(nil)
-	if errType != ErrorTypeUnknown {
+	if errType != qerrors.TypeUnknown {
 		t.Errorf("Expected unknown error type for nil, got %s", errType.String())
 	}
 }
 
 // TestErrorClassifierUnknownError tests classification of unknown error
 func TestErrorClassifierUnknownError(t *testing.T) {
-	classifier := NewErrorClassifier()
+	classifier := qerrors.NewClassifier()
 
 	unknownErr := errors.New("some random error message")
 	errType := classifier.Classify(unknownErr)
-	if errType != ErrorTypeUnknown {
+	if errType != qerrors.TypeUnknown {
 		t.Errorf("Expected unknown error type for random error, got %s", errType.String())
 	}
 }
 
 // TestErrorClassifierCaseInsensitive tests that classification is case insensitive
 func TestErrorClassifierCaseInsensitive(t *testing.T) {
-	classifier := NewErrorClassifier()
+	classifier := qerrors.NewClassifier()
 
 	testCases := []struct {
 		err      error
-		expected ErrorType
+		expected qerrors.Type
 	}{
-		{errors.New("CONNECTION REFUSED"), ErrorTypeTransient},
-		{errors.New("Connection Refused"), ErrorTypeTransient},
-		{errors.New("CONNECTION refused"), ErrorTypeTransient},
-		{errors.New("UNIQUE CONSTRAINT VIOLATION"), ErrorTypePermanent},
-		{errors.New("Unique Constraint Violation"), ErrorTypePermanent},
-		{errors.New("OUT OF MEMORY"), ErrorTypeCritical},
-		{errors.New("Out Of Memory"), ErrorTypeCritical},
+		{errors.New("CONNECTION REFUSED"), qerrors.TypeTransient},
+		{errors.New("Connection Refused"), qerrors.TypeTransient},
+		{errors.New("CONNECTION refused"), qerrors.TypeTransient},
+		{errors.New("UNIQUE CONSTRAINT VIOLATION"), qerrors.TypePermanent},
+		{errors.New("Unique Constraint Violation"), qerrors.TypePermanent},
+		{errors.New("OUT OF MEMORY"), qerrors.TypeCritical},
+		{errors.New("Out Of Memory"), qerrors.TypeCritical},
 	}
 
 	for _, tc := range testCases {
@@ -152,7 +154,7 @@ func TestErrorClassifierCaseInsensitive(t *testing.T) {
 
 // TestErrorClassifierIsTransient tests IsTransient method
 func TestErrorClassifierIsTransient(t *testing.T) {
-	classifier := NewErrorClassifier()
+	classifier := qerrors.NewClassifier()
 
 	testCases := []struct {
 		err      error
@@ -175,7 +177,7 @@ func TestErrorClassifierIsTransient(t *testing.T) {
 // TestErrorClassifierIsPermanent tests IsPermanent method
 func TestErrorClassifierIsPermanent(t *testing.T) {
 	t.Skip("regression: pre-existing failure")
-	classifier := NewErrorClassifier()
+	classifier := qerrors.NewClassifier()
 
 	testCases := []struct {
 		err      error
@@ -197,7 +199,7 @@ func TestErrorClassifierIsPermanent(t *testing.T) {
 
 // TestErrorClassifierIsCritical tests IsCritical method
 func TestErrorClassifierIsCritical(t *testing.T) {
-	classifier := NewErrorClassifier()
+	classifier := qerrors.NewClassifier()
 
 	testCases := []struct {
 		err      error
@@ -219,60 +221,60 @@ func TestErrorClassifierIsCritical(t *testing.T) {
 
 // TestErrorClassifierClassifyWithContext tests ClassifyWithContext method
 func TestErrorClassifierClassifyWithContext(t *testing.T) {
-	classifier := NewErrorClassifier()
+	classifier := qerrors.NewClassifier()
 
 	err := errors.New("connection refused")
 	errType := classifier.ClassifyWithContext(err, "insert_event")
 
-	if errType != ErrorTypeTransient {
+	if errType != qerrors.TypeTransient {
 		t.Errorf("Expected transient error type, got %s", errType.String())
 	}
 }
 
-// TestErrorTypeString tests ErrorType String method
+// TestErrorTypeString tests qerrors.Type String method
 func TestErrorTypeString(t *testing.T) {
 	testCases := []struct {
-		errType  ErrorType
+		errType  qerrors.Type
 		expected string
 	}{
-		{ErrorTypeTransient, "transient"},
-		{ErrorTypePermanent, "permanent"},
-		{ErrorTypeCritical, "critical"},
-		{ErrorTypeUnknown, "unknown"},
-		{ErrorType(999), "unknown"},
+		{qerrors.TypeTransient, "transient"},
+		{qerrors.TypePermanent, "permanent"},
+		{qerrors.TypeCritical, "critical"},
+		{qerrors.TypeUnknown, "unknown"},
+		{qerrors.Type(999), "unknown"},
 	}
 
 	for _, tc := range testCases {
 		result := tc.errType.String()
 		if result != tc.expected {
-			t.Errorf("ErrorType(%d).String() = %q, expected %q", tc.errType, result, tc.expected)
+			t.Errorf("qerrors.Type(%d).String() = %q, expected %q", tc.errType, result, tc.expected)
 		}
 	}
 }
 
 // TestErrorClassifierMultiplePatterns tests errors matching multiple patterns
 func TestErrorClassifierMultiplePatterns(t *testing.T) {
-	classifier := NewErrorClassifier()
+	classifier := qerrors.NewClassifier()
 
 	// Error with multiple keywords - should match first applicable pattern
 	err := errors.New("connection refused: temporary failure")
 	errType := classifier.Classify(err)
-	if errType != ErrorTypeTransient {
+	if errType != qerrors.TypeTransient {
 		t.Errorf("Expected transient error, got %s", errType.String())
 	}
 }
 
 // TestErrorClassifierPartialMatches tests partial pattern matching
 func TestErrorClassifierPartialMatches(t *testing.T) {
-	classifier := NewErrorClassifier()
+	classifier := qerrors.NewClassifier()
 
 	testCases := []struct {
 		err      error
-		expected ErrorType
+		expected qerrors.Type
 	}{
-		{errors.New("error: connection refused by server"), ErrorTypeTransient},
-		{errors.New("database error: unique constraint violation"), ErrorTypePermanent},
-		{errors.New("system error: out of memory"), ErrorTypeCritical},
+		{errors.New("error: connection refused by server"), qerrors.TypeTransient},
+		{errors.New("database error: unique constraint violation"), qerrors.TypePermanent},
+		{errors.New("system error: out of memory"), qerrors.TypeCritical},
 	}
 
 	for _, tc := range testCases {

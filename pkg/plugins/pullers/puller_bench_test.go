@@ -9,7 +9,7 @@ import (
 )
 
 // BenchmarkEthLogToEvent measures the performance of converting a types.Log
-// to a core.BlockchainEvent. This is called for every event log from the chain.
+// to a blockchain.BlockchainEvent. This is called for every event log from the chain.
 func BenchmarkEthLogToEvent(b *testing.B) {
 	puller := newBenchPuller()
 

@@ -10,6 +10,8 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
+"github.com/rtcdance/chainpulse/pkg/logkeys"
 	"github.com/rtcdance/chainpulse/pkg/core/batch"
 
 	"github.com/rtcdance/chainpulse/pkg/services/decoder"
@@ -94,13 +96,13 @@ func NewERC20Indexer(
 // IndexTransfers indexes ERC20 transfer events
 func (ei *ERC20Indexer) IndexTransfers(
 	ctx context.Context,
-	events []*core.BlockchainEvent,
+	events []*blockchain.BlockchainEvent,
 ) error {
 	if len(events) == 0 {
 		return nil
 	}
 
-	ei.logger.Debug("indexing transfer events", core.LogKeyCount, len(events))
+	ei.logger.Debug("indexing transfer events", logkeys.LogKeyCount, len(events))
 
 	return batch.Index(ctx, events, ei.indexTransferEvent)
 }
@@ -108,7 +110,7 @@ func (ei *ERC20Indexer) IndexTransfers(
 // indexTransferEvent indexes a single transfer event
 func (ei *ERC20Indexer) indexTransferEvent(
 	ctx context.Context,
-	event *core.BlockchainEvent,
+	event *blockchain.BlockchainEvent,
 ) error {
 	if event == nil {
 		return fmt.Errorf("event is nil")
@@ -136,15 +138,15 @@ func (ei *ERC20Indexer) indexTransferEvent(
 
 	ei.logger.Debug("indexed transfer event",
 		"token", transferEvent.Token.Hex(),
-		core.LogKeySender, transferEvent.From.Hex(),
-		core.LogKeyRecipient, transferEvent.To.Hex(),
+		logkeys.LogKeySender, transferEvent.From.Hex(),
+		logkeys.LogKeyRecipient, transferEvent.To.Hex(),
 		"value", transferEvent.Value.String())
 
 	return nil
 }
 
 // decodeTransferEvent decodes a raw event into a TransferEvent
-func (ei *ERC20Indexer) decodeTransferEvent(event *core.BlockchainEvent) (*TransferEvent, error) {
+func (ei *ERC20Indexer) decodeTransferEvent(event *blockchain.BlockchainEvent) (*TransferEvent, error) {
 	if event == nil {
 		return nil, fmt.Errorf("event is nil")
 	}
@@ -282,8 +284,8 @@ func (ei *ERC20Indexer) GetTransferHistory(
 	ei.logger.Debug("getting transfer history",
 		"token", token.Hex(),
 		"account", account.Hex(),
-		core.LogKeyFromBlock, fromBlock,
-		core.LogKeyToBlock, toBlock)
+		logkeys.LogKeyFromBlock, fromBlock,
+		logkeys.LogKeyToBlock, toBlock)
 
 	// Create filter for transfer events
 	filter := &core.EventFilter{
@@ -298,7 +300,7 @@ func (ei *ERC20Indexer) GetTransferHistory(
 	events, err := ei.database.QueryEvents(ctx, filter)
 	if err != nil {
 		ei.logger.Error("failed to query transfer events",
-			core.LogKeyError, err.Error(),
+			logkeys.LogKeyError, err.Error(),
 			"token", token.Hex())
 		return nil, err
 	}
@@ -310,7 +312,7 @@ func (ei *ERC20Indexer) GetTransferHistory(
 	var firstTransfer, lastTransfer int64
 
 	for i, eventInterface := range events {
-		event, ok := eventInterface.(*core.BlockchainEvent)
+		event, ok := eventInterface.(*blockchain.BlockchainEvent)
 		if !ok {
 			ei.logger.Warn("failed to cast event to BlockchainEvent", "index", i)
 			continue
@@ -319,8 +321,8 @@ func (ei *ERC20Indexer) GetTransferHistory(
 		transferEvent, err := ei.decodeTransferEvent(event)
 		if err != nil {
 			ei.logger.Warn("failed to decode transfer event",
-				core.LogKeyError, err.Error(),
-				core.LogKeyEventID, event.ID)
+				logkeys.LogKeyError, err.Error(),
+				logkeys.LogKeyEventID, event.ID)
 			continue
 		}
 

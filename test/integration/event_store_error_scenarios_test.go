@@ -7,20 +7,23 @@ import (
 	"testing"
 	"time"
 
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"github.com/rtcdance/chainpulse/pkg/core"
 	"github.com/rtcdance/chainpulse/pkg/services/query"
+	"github.com/rtcdance/chainpulse/pkg/services/query/circuitbreaker"
+	"github.com/rtcdance/chainpulse/pkg/services/query/qerrors"
 )
 
 // TestMongoDBConnectionFailure tests MongoDB connection failure handling
 func TestMongoDBConnectionFailure(t *testing.T) {
-	classifier := query.NewErrorClassifier()
+	classifier := qerrors.NewClassifier()
 
 	// Classify the error
 	err := fmt.Errorf("connection refused")
 	errorType := classifier.Classify(err)
 
-	if errorType != query.ErrorTypeTransient {
-		t.Errorf("Error classification = %v, want %v", errorType, query.ErrorTypeTransient)
+	if errorType != qerrors.TypeTransient {
+		t.Errorf("Error classification = %v, want %v", errorType, qerrors.TypeTransient)
 	}
 
 	// Verify error is transient
@@ -31,14 +34,14 @@ func TestMongoDBConnectionFailure(t *testing.T) {
 
 // TestPostgreSQLConnectionFailure tests PostgreSQL connection failure handling
 func TestPostgreSQLConnectionFailure(t *testing.T) {
-	classifier := query.NewErrorClassifier()
+	classifier := qerrors.NewClassifier()
 
 	// Create a PostgreSQL connection error
 	err := fmt.Errorf("connection refused")
 	errorType := classifier.Classify(err)
 
-	if errorType != query.ErrorTypeTransient {
-		t.Errorf("Error classification = %v, want %v", errorType, query.ErrorTypeTransient)
+	if errorType != qerrors.TypeTransient {
+		t.Errorf("Error classification = %v, want %v", errorType, qerrors.TypeTransient)
 	}
 
 	if !classifier.IsTransient(err) {
@@ -48,14 +51,14 @@ func TestPostgreSQLConnectionFailure(t *testing.T) {
 
 // TestTimeoutDuringQuery tests timeout handling during query execution
 func TestTimeoutDuringQuery(t *testing.T) {
-	classifier := query.NewErrorClassifier()
+	classifier := qerrors.NewClassifier()
 
 	// Create a timeout error
 	err := fmt.Errorf("context deadline exceeded")
 	errorType := classifier.Classify(err)
 
-	if errorType != query.ErrorTypeTransient {
-		t.Errorf("Error classification = %v, want %v", errorType, query.ErrorTypeTransient)
+	if errorType != qerrors.TypeTransient {
+		t.Errorf("Error classification = %v, want %v", errorType, qerrors.TypeTransient)
 	}
 
 	if !classifier.IsTransient(err) {
@@ -65,14 +68,14 @@ func TestTimeoutDuringQuery(t *testing.T) {
 
 // TestDuplicateKeyError tests duplicate key error handling
 func TestDuplicateKeyError(t *testing.T) {
-	classifier := query.NewErrorClassifier()
+	classifier := qerrors.NewClassifier()
 
 	// Create a duplicate key error
 	err := fmt.Errorf("duplicate key error")
 	errorType := classifier.Classify(err)
 
-	if errorType != query.ErrorTypePermanent {
-		t.Errorf("Error classification = %v, want %v", errorType, query.ErrorTypePermanent)
+	if errorType != qerrors.TypePermanent {
+		t.Errorf("Error classification = %v, want %v", errorType, qerrors.TypePermanent)
 	}
 
 	if !classifier.IsPermanent(err) {
@@ -82,14 +85,14 @@ func TestDuplicateKeyError(t *testing.T) {
 
 // TestConstraintViolation tests constraint violation error handling
 func TestConstraintViolation(t *testing.T) {
-	classifier := query.NewErrorClassifier()
+	classifier := qerrors.NewClassifier()
 
 	// Create a constraint violation error
 	err := fmt.Errorf("unique constraint violation")
 	errorType := classifier.Classify(err)
 
-	if errorType != query.ErrorTypePermanent {
-		t.Errorf("Error classification = %v, want %v", errorType, query.ErrorTypePermanent)
+	if errorType != qerrors.TypePermanent {
+		t.Errorf("Error classification = %v, want %v", errorType, qerrors.TypePermanent)
 	}
 
 	if !classifier.IsPermanent(err) {
@@ -101,12 +104,12 @@ func TestConstraintViolation(t *testing.T) {
 func TestNetworkPartition(t *testing.T) {
 	t.Skip("regression: pre-existing failure")
 	t.Skip("regression: pre-existing error classifier mismatch")
-	classifier := query.NewErrorClassifier()
+	classifier := qerrors.NewClassifier()
 	err := fmt.Errorf("network unreachable")
 	errorType := classifier.Classify(err)
 
-	if errorType != query.ErrorTypeTransient {
-		t.Errorf("Error classification = %v, want %v", errorType, query.ErrorTypeTransient)
+	if errorType != qerrors.TypeTransient {
+		t.Errorf("Error classification = %v, want %v", errorType, qerrors.TypeTransient)
 	}
 
 	if !classifier.IsTransient(err) {
@@ -131,7 +134,7 @@ func TestPartialDataLoss(t *testing.T) {
 
 // TestCascadingFailures tests cascading failure handling
 func TestCascadingFailures(t *testing.T) {
-	classifier := query.NewErrorClassifier()
+	classifier := qerrors.NewClassifier()
 	logger := &MockLogger{}
 
 	// Simulate cascading failures
@@ -157,7 +160,7 @@ func TestCascadingFailures(t *testing.T) {
 
 // TestErrorRecovery tests error recovery procedures
 func TestErrorRecovery(t *testing.T) {
-	classifier := query.NewErrorClassifier()
+	classifier := qerrors.NewClassifier()
 
 	// Test recovery from transient error
 	err := fmt.Errorf("connection refused")
@@ -197,7 +200,7 @@ func TestRetryLogic(t *testing.T) {
 
 // TestCircuitBreakerStateTransitions tests circuit breaker state transitions
 func TestCircuitBreakerStateTransitions(t *testing.T) {
-	config := query.CircuitBreakerConfig{
+	config := circuitbreaker.Config{
 		FailureThreshold: 5,
 		SuccessThreshold: 2,
 		Timeout:          30 * time.Second,
@@ -285,7 +288,7 @@ type MockEventStoreWithFailure struct {
 	currentAttempt int
 }
 
-func (m *MockEventStoreWithFailure) StoreEvent(ctx context.Context, event *core.BlockchainEvent) error {
+func (m *MockEventStoreWithFailure) StoreEvent(ctx context.Context, event *blockchain.BlockchainEvent) error {
 	m.mu.Lock()
 	m.currentAttempt++
 	currentAttempt := m.currentAttempt
@@ -307,19 +310,19 @@ func (m *MockEventStoreWithFailure) StoreEvent(ctx context.Context, event *core.
 	return nil
 }
 
-func (m *MockEventStoreWithFailure) GetEvent(ctx context.Context, eventID string) (*core.BlockchainEvent, error) {
+func (m *MockEventStoreWithFailure) GetEvent(ctx context.Context, eventID string) (*blockchain.BlockchainEvent, error) {
 	return nil, nil
 }
 
-func (m *MockEventStoreWithFailure) GetEventsByChain(ctx context.Context, chainID int, limit int, offset int) ([]*core.BlockchainEvent, error) {
+func (m *MockEventStoreWithFailure) GetEventsByChain(ctx context.Context, chainID int, limit int, offset int) ([]*blockchain.BlockchainEvent, error) {
 	return nil, nil
 }
 
-func (m *MockEventStoreWithFailure) GetEventsByContract(ctx context.Context, contractAddress string, limit int, offset int) ([]*core.BlockchainEvent, error) {
+func (m *MockEventStoreWithFailure) GetEventsByContract(ctx context.Context, contractAddress string, limit int, offset int) ([]*blockchain.BlockchainEvent, error) {
 	return nil, nil
 }
 
-func (m *MockEventStoreWithFailure) GetEventsByEventName(ctx context.Context, eventName string, limit int, offset int) ([]*core.BlockchainEvent, error) {
+func (m *MockEventStoreWithFailure) GetEventsByEventName(ctx context.Context, eventName string, limit int, offset int) ([]*blockchain.BlockchainEvent, error) {
 	return nil, nil
 }
 
@@ -335,23 +338,23 @@ type MockEventStore struct {
 	healthy bool
 }
 
-func (m *MockEventStore) StoreEvent(ctx context.Context, event *core.BlockchainEvent) error {
+func (m *MockEventStore) StoreEvent(ctx context.Context, event *blockchain.BlockchainEvent) error {
 	return nil
 }
 
-func (m *MockEventStore) GetEvent(ctx context.Context, eventID string) (*core.BlockchainEvent, error) {
+func (m *MockEventStore) GetEvent(ctx context.Context, eventID string) (*blockchain.BlockchainEvent, error) {
 	return nil, nil
 }
 
-func (m *MockEventStore) GetEventsByChain(ctx context.Context, chainID int, limit int, offset int) ([]*core.BlockchainEvent, error) {
+func (m *MockEventStore) GetEventsByChain(ctx context.Context, chainID int, limit int, offset int) ([]*blockchain.BlockchainEvent, error) {
 	return nil, nil
 }
 
-func (m *MockEventStore) GetEventsByContract(ctx context.Context, contractAddress string, limit int, offset int) ([]*core.BlockchainEvent, error) {
+func (m *MockEventStore) GetEventsByContract(ctx context.Context, contractAddress string, limit int, offset int) ([]*blockchain.BlockchainEvent, error) {
 	return nil, nil
 }
 
-func (m *MockEventStore) GetEventsByEventName(ctx context.Context, eventName string, limit int, offset int) ([]*core.BlockchainEvent, error) {
+func (m *MockEventStore) GetEventsByEventName(ctx context.Context, eventName string, limit int, offset int) ([]*blockchain.BlockchainEvent, error) {
 	return nil, nil
 }
 

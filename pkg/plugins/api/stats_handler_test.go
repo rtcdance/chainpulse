@@ -7,37 +7,38 @@ import (
 	"testing"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 )
 
 type mockEventReader struct {
 	countEventsErr error
 }
 
-func (m *mockEventReader) GetEvent(ctx context.Context, eventID string) (*core.BlockchainEvent, error) {
+func (m *mockEventReader) GetEvent(ctx context.Context, eventID string) (*blockchain.BlockchainEvent, error) {
 	return nil, nil
 }
-func (m *mockEventReader) GetEventsByChain(ctx context.Context, chainID int, limit int, offset int) ([]*core.BlockchainEvent, error) {
+func (m *mockEventReader) GetEventsByChain(ctx context.Context, chainID int, limit int, offset int) ([]*blockchain.BlockchainEvent, error) {
 	return nil, nil
 }
-func (m *mockEventReader) GetEventsByContract(ctx context.Context, contractAddress string, limit int, offset int) ([]*core.BlockchainEvent, error) {
+func (m *mockEventReader) GetEventsByContract(ctx context.Context, contractAddress string, limit int, offset int) ([]*blockchain.BlockchainEvent, error) {
 	return nil, nil
 }
-func (m *mockEventReader) GetEventsByEventName(ctx context.Context, eventName string, limit int, offset int) ([]*core.BlockchainEvent, error) {
+func (m *mockEventReader) GetEventsByEventName(ctx context.Context, eventName string, limit int, offset int) ([]*blockchain.BlockchainEvent, error) {
 	return nil, nil
 }
-func (m *mockEventReader) GetEventsByBlock(ctx context.Context, blockNumber int64) ([]*core.BlockchainEvent, error) {
+func (m *mockEventReader) GetEventsByBlock(ctx context.Context, blockNumber int64) ([]*blockchain.BlockchainEvent, error) {
 	return nil, nil
 }
-func (m *mockEventReader) GetEventsByAddress(ctx context.Context, address string, limit int) ([]*core.BlockchainEvent, error) {
+func (m *mockEventReader) GetEventsByAddress(ctx context.Context, address string, limit int) ([]*blockchain.BlockchainEvent, error) {
 	return nil, nil
 }
-func (m *mockEventReader) GetEventsByName(ctx context.Context, eventName string, limit int) ([]*core.BlockchainEvent, error) {
+func (m *mockEventReader) GetEventsByName(ctx context.Context, eventName string, limit int) ([]*blockchain.BlockchainEvent, error) {
 	return nil, nil
 }
-func (m *mockEventReader) GetEventsPaginated(ctx context.Context, cursor string, limit int) ([]*core.BlockchainEvent, bool, error) {
+func (m *mockEventReader) GetEventsPaginated(ctx context.Context, cursor string, limit int) ([]*blockchain.BlockchainEvent, bool, error) {
 	return nil, false, nil
 }
-func (m *mockEventReader) GetEventsByCorrelationID(ctx context.Context, correlationID string, limit int, offset int) ([]*core.BlockchainEvent, error) {
+func (m *mockEventReader) GetEventsByCorrelationID(ctx context.Context, correlationID string, limit int, offset int) ([]*blockchain.BlockchainEvent, error) {
 	return nil, nil
 }
 func (m *mockEventReader) CountEvents(ctx context.Context) (int64, error) {

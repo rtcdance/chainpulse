@@ -432,8 +432,7 @@ github.com/posener/complete v1.1.1/go.mod h1:em0nMJCgc9GFtwrmVmEMR/ZL6WyhyjMBndr
 github.com/prometheus/client_golang v1.15.0 h1:5fCgGYogn0hFdhyhLbw7hEsWxufKtY9klyvdNfFlFhM=
 github.com/prometheus/client_golang v1.15.0/go.mod h1:e9yaBhRPU2pPNsZwE+JdQl0KEt1N9XgF6zxWmaC0xOk=
 github.com/prometheus/client_model v0.0.0-20190812154241-14fe0d1b01d4/go.mod h1:xMI15A0UPsDsEKsMN9yxemIoYk6Tm2C1GtYGdfGttqA=
-github.com/prometheus/client_model v0.3.0 h1:UBgGFHqYdG/TPFD1B1ogZywDqEkwp3fBMvqdiQ7Xew4=
-github.com/prometheus/client_model v0.3.0/go.mod h1:LDGWKZIo7rky3hgvBe+caln+Dr3dPggB5dvjtD7w9+w=
+github.com/prometheus/client_model v0.6.2 h1:oBsgwpGs7iVziMvrGhE53c/GrLUsZdHnqNwqPLxwZyk=
 github.com/prometheus/common v0.42.0 h1:EKsfXEYo4JpWMHH5cg+KOUWeuJSov1Id8zGR8eeI1YM=
 github.com/prometheus/common v0.42.0/go.mod h1:xBwqVerjNdUDjgODMpudtOMwlOwf2SaTr1yjz4b7Zbc=
 github.com/prometheus/procfs v0.9.0 h1:wzCHvIvM5SxWqYvwgVL7yJY8Lz3PKn49KQtpgMYJfhI=
@@ -454,8 +453,6 @@ github.com/rtcdance/chainpulse/pkg/chainid v0.0.0-20260522082730-ccbcddf342a5 h1
 github.com/rtcdance/chainpulse/pkg/chainid v0.0.0-20260522082730-ccbcddf342a5/go.mod h1:guW0x+A2TsuchPe/T2FbWW9mSpy4O/LxzjILRj/JgLM=
 github.com/rtcdance/chainpulse/pkg/configmodel v0.0.0-20260522082730-ccbcddf342a5 h1:WQKzVTTK2lUiP2CMB9RU5oCM6p3TNe6tPHEWIsLUbPE=
 github.com/rtcdance/chainpulse/pkg/configmodel v0.0.0-20260522082730-ccbcddf342a5/go.mod h1:+IHIUEM9UxheOmlLMt47zgNbR8UB8VhjwqJXZN+b8Hs=
-github.com/rtcdance/chainpulse/pkg/generics v0.0.0-20260522082730-ccbcddf342a5 h1:f2IaVYAaDpG8WWGA3+zjHzEkVrnE3jn3IbRA8u1S9c4=
-github.com/rtcdance/chainpulse/pkg/generics v0.0.0-20260522082730-ccbcddf342a5/go.mod h1:hOwnsCV7tGMTE3o33P4xCLmDoWCun52QrOTnZ3UIeeE=
 github.com/rtcdance/chainpulse/pkg/histogram v0.0.0-20260522082730-ccbcddf342a5 h1:PtmpQ0xYjhgwCubd8pxoeEkNGpVj2KBDBjg6nZpVpuc=
 github.com/rtcdance/chainpulse/pkg/histogram v0.0.0-20260522082730-ccbcddf342a5/go.mod h1:CAolMuqIIvDAk/II2lBBaUK97cHkpgijUqb4yl8DKRc=
 github.com/rtcdance/chainpulse/pkg/logkeys v0.0.0-20260522082730-ccbcddf342a5 h1:6XWTKeRACfw5T+NF7+qKmEAlcmVaoyC3IobDUPBDoQI=

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 )
 
 // DistributedCache defines the interface for distributed caching
@@ -121,7 +122,7 @@ func (bc *BlockchainCluster) Deploy(ctx context.Context) error {
 }
 
 // ProcessEvent processes an event in the cluster
-func (bc *BlockchainCluster) ProcessEvent(ctx context.Context, event *core.BlockchainEvent) error {
+func (bc *BlockchainCluster) ProcessEvent(ctx context.Context, event *blockchain.BlockchainEvent) error {
 	bc.mu.RLock()
 	defer bc.mu.RUnlock()
 
@@ -274,7 +275,7 @@ func NewMultiBlockchainClusterManager() *MultiBlockchainClusterManager {
 // ClusterManager is the minimal interface for managing blockchain clusters.
 type ClusterManager interface {
 	RegisterCluster(cluster *BlockchainCluster) error
-	ProcessEvent(ctx context.Context, event *core.BlockchainEvent) error
+	ProcessEvent(ctx context.Context, event *blockchain.BlockchainEvent) error
 	GetCluster(chainID string) (*BlockchainCluster, error)
 	GetAllClusters() []*BlockchainCluster
 	GetMetrics() map[string]any
@@ -299,7 +300,7 @@ func (mcm *MultiBlockchainClusterManager) RegisterCluster(cluster *BlockchainClu
 }
 
 // ProcessEvent processes an event in the appropriate cluster
-func (mcm *MultiBlockchainClusterManager) ProcessEvent(ctx context.Context, event *core.BlockchainEvent) error {
+func (mcm *MultiBlockchainClusterManager) ProcessEvent(ctx context.Context, event *blockchain.BlockchainEvent) error {
 	mcm.mu.RLock()
 	cluster, exists := mcm.clusters[event.ChainID]
 	mcm.mu.RUnlock()

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 )
 
 type configurableMockAdapter struct {
@@ -15,7 +16,7 @@ type configurableMockAdapter struct {
 	healthy       bool
 	initErr       error
 	queryFn       func(ctx context.Context, req *QueryRequest) (*QueryResult, error)
-	queryByHashFn func(ctx context.Context, hash string) (*core.BlockchainEvent, error)
+	queryByHashFn func(ctx context.Context, hash string) (*blockchain.BlockchainEvent, error)
 }
 
 func (m *configurableMockAdapter) Initialize(ctx context.Context) error {
@@ -28,10 +29,10 @@ func (m *configurableMockAdapter) Query(ctx context.Context, req *QueryRequest) 
 	if m.queryFn != nil {
 		return m.queryFn(ctx, req)
 	}
-	return &QueryResult{Events: []core.BlockchainEvent{{ID: "test"}}, Total: 1}, nil
+	return &QueryResult{Events: []blockchain.BlockchainEvent{{ID: "test"}}, Total: 1}, nil
 }
 
-func (m *configurableMockAdapter) QueryByHash(ctx context.Context, hash string) (*core.BlockchainEvent, error) {
+func (m *configurableMockAdapter) QueryByHash(ctx context.Context, hash string) (*blockchain.BlockchainEvent, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	if m.queryByHashFn != nil {
@@ -58,10 +59,10 @@ type queryServiceCacheMock struct {
 	initErr         error
 	startErr        error
 	stopErr         error
-	queryCacheData  []core.BlockchainEvent
+	queryCacheData  []blockchain.BlockchainEvent
 	queryCacheTotal int64
 	queryCacheErr   error
-	singleData      *core.BlockchainEvent
+	singleData      *blockchain.BlockchainEvent
 	singleErr       error
 	deleteErr       error
 }
@@ -90,11 +91,11 @@ func (m *queryServiceCacheMock) Stop(ctx context.Context) error {
 	return nil
 }
 
-func (m *queryServiceCacheMock) Get(ctx context.Context, key string) ([]core.BlockchainEvent, error) {
+func (m *queryServiceCacheMock) Get(ctx context.Context, key string) ([]blockchain.BlockchainEvent, error) {
 	return nil, nil
 }
 
-func (m *queryServiceCacheMock) GetSingle(ctx context.Context, key string) (*core.BlockchainEvent, error) {
+func (m *queryServiceCacheMock) GetSingle(ctx context.Context, key string) (*blockchain.BlockchainEvent, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	if m.singleErr != nil {
@@ -103,19 +104,19 @@ func (m *queryServiceCacheMock) GetSingle(ctx context.Context, key string) (*cor
 	return m.singleData, nil
 }
 
-func (m *queryServiceCacheMock) Set(ctx context.Context, key string, value []core.BlockchainEvent, ttl time.Duration) error {
+func (m *queryServiceCacheMock) Set(ctx context.Context, key string, value []blockchain.BlockchainEvent, ttl time.Duration) error {
 	return nil
 }
 
-func (m *queryServiceCacheMock) SetSingle(ctx context.Context, key string, value *core.BlockchainEvent, ttl time.Duration) error {
+func (m *queryServiceCacheMock) SetSingle(ctx context.Context, key string, value *blockchain.BlockchainEvent, ttl time.Duration) error {
 	return nil
 }
 
-func (m *queryServiceCacheMock) SetQueryResult(ctx context.Context, key string, events []core.BlockchainEvent, total int64, ttl time.Duration) error {
+func (m *queryServiceCacheMock) SetQueryResult(ctx context.Context, key string, events []blockchain.BlockchainEvent, total int64, ttl time.Duration) error {
 	return nil
 }
 
-func (m *queryServiceCacheMock) GetQueryResult(ctx context.Context, key string) ([]core.BlockchainEvent, int64, error) {
+func (m *queryServiceCacheMock) GetQueryResult(ctx context.Context, key string) ([]blockchain.BlockchainEvent, int64, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.queryCacheData, m.queryCacheTotal, m.queryCacheErr
@@ -311,7 +312,7 @@ func TestQueryService_Query_NilRequest(t *testing.T) {
 func TestQueryService_Query_EmptyResult(t *testing.T) {
 	t.Parallel()
 	emptyResultFn := func(ctx context.Context, req *QueryRequest) (*QueryResult, error) {
-		return &QueryResult{Events: []core.BlockchainEvent{}, Total: 0}, nil
+		return &QueryResult{Events: []blockchain.BlockchainEvent{}, Total: 0}, nil
 	}
 	mongo := &configurableMockAdapter{healthy: true, queryFn: emptyResultFn}
 	postgres := &configurableMockAdapter{healthy: true, queryFn: emptyResultFn}
@@ -331,10 +332,10 @@ func TestQueryService_Query_EmptyResult(t *testing.T) {
 
 func TestQueryService_Query_CacheHit(t *testing.T) {
 	t.Parallel()
-	event := core.BlockchainEvent{ID: "cached-event"}
+	event := blockchain.BlockchainEvent{ID: "cached-event"}
 	cache := &queryServiceCacheMock{
 		healthStatus:    "healthy",
-		queryCacheData:  []core.BlockchainEvent{event},
+		queryCacheData:  []blockchain.BlockchainEvent{event},
 		queryCacheTotal: 1,
 	}
 	svc := newQueryServiceForTest(t, nil, nil, cache)
@@ -385,7 +386,7 @@ func TestQueryService_QueryByHash_NotFound(t *testing.T) {
 
 func TestQueryService_QueryByHash_CacheHit(t *testing.T) {
 	t.Parallel()
-	event := &core.BlockchainEvent{ID: "cached-hash"}
+	event := &blockchain.BlockchainEvent{ID: "cached-hash"}
 	cache := &queryServiceCacheMock{
 		healthStatus: "healthy",
 		singleData:   event,
@@ -406,10 +407,10 @@ func TestQueryService_QueryByHash_CacheHit(t *testing.T) {
 
 func TestQueryService_QueryByHash_MongoHit(t *testing.T) {
 	t.Parallel()
-	event := &core.BlockchainEvent{ID: "mongo-hash"}
+	event := &blockchain.BlockchainEvent{ID: "mongo-hash"}
 	mongo := &configurableMockAdapter{
 		healthy: true,
-		queryByHashFn: func(ctx context.Context, hash string) (*core.BlockchainEvent, error) {
+		queryByHashFn: func(ctx context.Context, hash string) (*blockchain.BlockchainEvent, error) {
 			return event, nil
 		},
 	}
@@ -584,13 +585,13 @@ func TestQueryService_QueryByHash_BothBackendsFail(t *testing.T) {
 	errFailed := errors.New("hash query failed")
 	mongo := &configurableMockAdapter{
 		healthy: true,
-		queryByHashFn: func(ctx context.Context, hash string) (*core.BlockchainEvent, error) {
+		queryByHashFn: func(ctx context.Context, hash string) (*blockchain.BlockchainEvent, error) {
 			return nil, errFailed
 		},
 	}
 	postgres := &configurableMockAdapter{
 		healthy: true,
-		queryByHashFn: func(ctx context.Context, hash string) (*core.BlockchainEvent, error) {
+		queryByHashFn: func(ctx context.Context, hash string) (*blockchain.BlockchainEvent, error) {
 			return nil, errFailed
 		},
 	}
@@ -627,22 +628,22 @@ type cacheWithNilHealth struct{}
 func (c *cacheWithNilHealth) Initialize(ctx context.Context) error { return nil }
 func (c *cacheWithNilHealth) Start(ctx context.Context) error      { return nil }
 func (c *cacheWithNilHealth) Stop(ctx context.Context) error       { return nil }
-func (c *cacheWithNilHealth) Get(ctx context.Context, key string) ([]core.BlockchainEvent, error) {
+func (c *cacheWithNilHealth) Get(ctx context.Context, key string) ([]blockchain.BlockchainEvent, error) {
 	return nil, nil
 }
-func (c *cacheWithNilHealth) GetSingle(ctx context.Context, key string) (*core.BlockchainEvent, error) {
+func (c *cacheWithNilHealth) GetSingle(ctx context.Context, key string) (*blockchain.BlockchainEvent, error) {
 	return nil, nil
 }
-func (c *cacheWithNilHealth) Set(ctx context.Context, key string, value []core.BlockchainEvent, ttl time.Duration) error {
+func (c *cacheWithNilHealth) Set(ctx context.Context, key string, value []blockchain.BlockchainEvent, ttl time.Duration) error {
 	return nil
 }
-func (c *cacheWithNilHealth) SetSingle(ctx context.Context, key string, value *core.BlockchainEvent, ttl time.Duration) error {
+func (c *cacheWithNilHealth) SetSingle(ctx context.Context, key string, value *blockchain.BlockchainEvent, ttl time.Duration) error {
 	return nil
 }
-func (c *cacheWithNilHealth) SetQueryResult(ctx context.Context, key string, events []core.BlockchainEvent, total int64, ttl time.Duration) error {
+func (c *cacheWithNilHealth) SetQueryResult(ctx context.Context, key string, events []blockchain.BlockchainEvent, total int64, ttl time.Duration) error {
 	return nil
 }
-func (c *cacheWithNilHealth) GetQueryResult(ctx context.Context, key string) ([]core.BlockchainEvent, int64, error) {
+func (c *cacheWithNilHealth) GetQueryResult(ctx context.Context, key string) ([]blockchain.BlockchainEvent, int64, error) {
 	return nil, 0, nil
 }
 func (c *cacheWithNilHealth) Delete(ctx context.Context, key string) error { return nil }

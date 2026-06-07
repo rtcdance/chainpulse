@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	sharedhttp "github.com/rtcdance/chainpulse/pkg/infrastructure/http"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -94,7 +95,7 @@ type SolanaPuller struct {
 	currentSlot    uint64
 	pollInterval   time.Duration
 	stopChan       chan bool
-	eventHandlers  []func(core.BlockchainEvent)
+	eventHandlers  []func(blockchain.BlockchainEvent)
 	requestCounter int64
 	metrics        *solPullerMetrics
 }
@@ -114,8 +115,8 @@ func NewSolanaPuller(config core.Config, logger core.Logger, metrics core.Metric
 }
 
 // PullEvents pulls events from Solana blocks in the given slot range
-func (p *SolanaPuller) PullEvents(ctx context.Context, fromSlot, toSlot uint64) ([]core.BlockchainEvent, error) {
-	var events []core.BlockchainEvent
+func (p *SolanaPuller) PullEvents(ctx context.Context, fromSlot, toSlot uint64) ([]blockchain.BlockchainEvent, error) {
+	var events []blockchain.BlockchainEvent
 
 	originalToSlot := toSlot
 
@@ -184,7 +185,7 @@ func (p *SolanaPuller) GetLatestBlock(ctx context.Context) (uint64, error) {
 }
 
 // SubscribeToEvents adds an event handler
-func (p *SolanaPuller) SubscribeToEvents(ctx context.Context, handler func(core.BlockchainEvent)) error {
+func (p *SolanaPuller) SubscribeToEvents(ctx context.Context, handler func(blockchain.BlockchainEvent)) error {
 	p.mu.Lock()
 	p.eventHandlers = append(p.eventHandlers, handler)
 	p.mu.Unlock()
@@ -345,8 +346,8 @@ func parseInstructionType(programID string) string {
 	return programID
 }
 
-func parseSPLEvents(accountKeys []string, instructions []solanaInstruction, logMessages []string) []core.BlockchainEvent {
-	var splEvents []core.BlockchainEvent
+func parseSPLEvents(accountKeys []string, instructions []solanaInstruction, logMessages []string) []blockchain.BlockchainEvent {
+	var splEvents []blockchain.BlockchainEvent
 
 	logData := core.ParseSolanaLogMessages(logMessages)
 
@@ -399,12 +400,12 @@ func parseSPLEvents(accountKeys []string, instructions []solanaInstruction, logM
 			decodedData[k] = v
 		}
 
-		event := core.BlockchainEvent{
+		event := blockchain.BlockchainEvent{
 			ChainID:     "solana",
 			Network:     "solana",
 			EventName:   eventKind,
 			DecodedData: decodedData,
-			Status:      core.EventStatusConfirmed,
+			Status:      blockchain.EventStatusConfirmed,
 			CreatedAt:   time.Now(),
 			ProcessedAt: time.Now(),
 		}
@@ -414,7 +415,7 @@ func parseSPLEvents(accountKeys []string, instructions []solanaInstruction, logM
 	return splEvents
 }
 
-func (p *SolanaPuller) getEventsFromSlot(ctx context.Context, slot uint64) ([]core.BlockchainEvent, error) {
+func (p *SolanaPuller) getEventsFromSlot(ctx context.Context, slot uint64) ([]blockchain.BlockchainEvent, error) {
 	params := []any{slot, map[string]any{
 		"encoding":                       "json",
 		"maxSupportedTransactionVersion": 0,
@@ -427,7 +428,7 @@ func (p *SolanaPuller) getEventsFromSlot(ctx context.Context, slot uint64) ([]co
 		return nil, fmt.Errorf("getBlock slot %d: %w", slot, err)
 	}
 
-	var events []core.BlockchainEvent
+	var events []blockchain.BlockchainEvent
 	p.metrics.incTransactions(int64(len(block.Transactions)))
 
 	for i, tx := range block.Transactions {
@@ -503,7 +504,7 @@ func (p *SolanaPuller) getEventsFromSlot(ctx context.Context, slot uint64) ([]co
 			eventName = "Transaction"
 		}
 
-		event := core.BlockchainEvent{
+		event := blockchain.BlockchainEvent{
 			ID:               eventID,
 			EventHash:        eventID,
 			ChainID:          "solana",
@@ -519,7 +520,7 @@ func (p *SolanaPuller) getEventsFromSlot(ctx context.Context, slot uint64) ([]co
 			EventName:        eventName,
 			EventSignature:   eventSig,
 			DecodedData:      decodedData,
-			Status:           core.EventStatusConfirmed,
+			Status:           blockchain.EventStatusConfirmed,
 			CreatedAt:        time.Now(),
 			ProcessedAt:      time.Now(),
 		}

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"github.com/rtcdance/chainpulse/pkg/plugins/pullers"
 )
 
@@ -155,7 +156,7 @@ func (p *pullersTestPlugin) Initialize(config core.Config) error { return nil }
 func (p *pullersTestPlugin) Start() error                        { return nil }
 func (p *pullersTestPlugin) Stop() error                         { return nil }
 func (p *pullersTestPlugin) Health() error                       { return nil }
-func (p *pullersTestPlugin) PullEvents(ctx context.Context, fromBlock, toBlock uint64) ([]core.BlockchainEvent, error) {
+func (p *pullersTestPlugin) PullEvents(ctx context.Context, fromBlock, toBlock uint64) ([]blockchain.BlockchainEvent, error) {
 	return nil, nil
 }
 
@@ -163,7 +164,7 @@ func (p *pullersTestPlugin) GetLatestBlock(ctx context.Context) (uint64, error) 
 	return p.latestBlock, nil
 }
 
-func (p *pullersTestPlugin) SubscribeToEvents(ctx context.Context, handler func(core.BlockchainEvent)) error {
+func (p *pullersTestPlugin) SubscribeToEvents(ctx context.Context, handler func(blockchain.BlockchainEvent)) error {
 	return nil
 }
 func (p *pullersTestPlugin) ChainID() string            { return p.name }

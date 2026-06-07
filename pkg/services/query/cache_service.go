@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
+"github.com/rtcdance/chainpulse/pkg/logkeys"
 )
 
 // DefaultCacheService provides cache operations with Redis backend
@@ -55,7 +57,7 @@ func (cs *DefaultCacheService) Initialize(ctx context.Context) error {
 	}
 
 	cs.initialized = true
-	cs.logger.Info("Cache service initialized", core.LogKeyComponent, "cache-service")
+	cs.logger.Info("Cache service initialized", logkeys.LogKeyComponent, "cache-service")
 
 	return nil
 }
@@ -78,7 +80,7 @@ func (cs *DefaultCacheService) Start(ctx context.Context) error {
 	// Start cleanup goroutine
 	go cs.cleanupExpiredEntries()
 
-	cs.logger.Info("Cache service started", core.LogKeyComponent, "cache-service")
+	cs.logger.Info("Cache service started", logkeys.LogKeyComponent, "cache-service")
 
 	return nil
 }
@@ -98,13 +100,13 @@ func (cs *DefaultCacheService) Stop(ctx context.Context) error {
 		close(cs.done)
 	})
 
-	cs.logger.Info("Cache service stopped", core.LogKeyComponent, "cache-service")
+	cs.logger.Info("Cache service stopped", logkeys.LogKeyComponent, "cache-service")
 
 	return nil
 }
 
 // Get retrieves a cached value
-func (cs *DefaultCacheService) Get(ctx context.Context, key string) ([]core.BlockchainEvent, error) {
+func (cs *DefaultCacheService) Get(ctx context.Context, key string) ([]blockchain.BlockchainEvent, error) {
 	cs.mu.RLock()
 	defer cs.mu.RUnlock()
 
@@ -129,20 +131,20 @@ func (cs *DefaultCacheService) Get(ctx context.Context, key string) ([]core.Bloc
 	}
 
 	// Unmarshal data
-	var events []core.BlockchainEvent
+	var events []blockchain.BlockchainEvent
 	if err := json.Unmarshal(entry.data, &events); err != nil {
-		cs.logger.Error("Failed to unmarshal cached data", core.LogKeyKey, key, core.LogKeyError, err)
+		cs.logger.Error("Failed to unmarshal cached data", logkeys.LogKeyKey, key, logkeys.LogKeyError, err)
 		return nil, fmt.Errorf("failed to unmarshal cached data: %w", err)
 	}
 
 	cs.metricsCollector.RecordCounter("cache_hit", 1, map[string]string{})
-	cs.logger.Debug("Cache hit", core.LogKeyKey, key, core.LogKeyCount, len(events))
+	cs.logger.Debug("Cache hit", logkeys.LogKeyKey, key, logkeys.LogKeyCount, len(events))
 
 	return events, nil
 }
 
 // GetSingle retrieves a single cached value
-func (cs *DefaultCacheService) GetSingle(ctx context.Context, key string) (*core.BlockchainEvent, error) {
+func (cs *DefaultCacheService) GetSingle(ctx context.Context, key string) (*blockchain.BlockchainEvent, error) {
 	cs.mu.RLock()
 	defer cs.mu.RUnlock()
 
@@ -167,14 +169,14 @@ func (cs *DefaultCacheService) GetSingle(ctx context.Context, key string) (*core
 	}
 
 	// Unmarshal data
-	var event core.BlockchainEvent
+	var event blockchain.BlockchainEvent
 	if err := json.Unmarshal(entry.data, &event); err != nil {
-		cs.logger.Error("Failed to unmarshal cached data", core.LogKeyKey, key, core.LogKeyError, err)
+		cs.logger.Error("Failed to unmarshal cached data", logkeys.LogKeyKey, key, logkeys.LogKeyError, err)
 		return nil, fmt.Errorf("failed to unmarshal cached data: %w", err)
 	}
 
 	cs.metricsCollector.RecordCounter("cache_hit", 1, map[string]string{})
-	cs.logger.Debug("Cache hit (single)", core.LogKeyKey, key)
+	cs.logger.Debug("Cache hit (single)", logkeys.LogKeyKey, key)
 
 	return &event, nil
 }
@@ -194,7 +196,7 @@ func (cs *DefaultCacheService) evictOldest() {
 }
 
 // Set sets a cached value
-func (cs *DefaultCacheService) Set(ctx context.Context, key string, value []core.BlockchainEvent, ttl time.Duration) error {
+func (cs *DefaultCacheService) Set(ctx context.Context, key string, value []blockchain.BlockchainEvent, ttl time.Duration) error {
 	cs.mu.Lock()
 	defer cs.mu.Unlock()
 
@@ -222,7 +224,7 @@ func (cs *DefaultCacheService) Set(ctx context.Context, key string, value []core
 	// Marshal data
 	data, err := json.Marshal(value)
 	if err != nil {
-		cs.logger.Error("Failed to marshal cache data", core.LogKeyKey, key, core.LogKeyError, err)
+		cs.logger.Error("Failed to marshal cache data", logkeys.LogKeyKey, key, logkeys.LogKeyError, err)
 		return fmt.Errorf("failed to marshal cache data: %w", err)
 	}
 
@@ -233,13 +235,13 @@ func (cs *DefaultCacheService) Set(ctx context.Context, key string, value []core
 	}
 
 	cs.metricsCollector.RecordCounter("cache_set", 1, map[string]string{})
-	cs.logger.Debug("Cache set", core.LogKeyKey, key, core.LogKeyCount, len(value), core.LogKeyTTLMs, duration.Milliseconds())
+	cs.logger.Debug("Cache set", logkeys.LogKeyKey, key, logkeys.LogKeyCount, len(value), logkeys.LogKeyTTLMs, duration.Milliseconds())
 
 	return nil
 }
 
 // SetSingle sets a single cached value
-func (cs *DefaultCacheService) SetSingle(ctx context.Context, key string, value *core.BlockchainEvent, ttl time.Duration) error {
+func (cs *DefaultCacheService) SetSingle(ctx context.Context, key string, value *blockchain.BlockchainEvent, ttl time.Duration) error {
 	cs.mu.Lock()
 	defer cs.mu.Unlock()
 
@@ -263,7 +265,7 @@ func (cs *DefaultCacheService) SetSingle(ctx context.Context, key string, value 
 	// Marshal data
 	data, err := json.Marshal(value)
 	if err != nil {
-		cs.logger.Error("Failed to marshal cache data", core.LogKeyKey, key, core.LogKeyError, err)
+		cs.logger.Error("Failed to marshal cache data", logkeys.LogKeyKey, key, logkeys.LogKeyError, err)
 		return fmt.Errorf("failed to marshal cache data: %w", err)
 	}
 
@@ -274,17 +276,17 @@ func (cs *DefaultCacheService) SetSingle(ctx context.Context, key string, value 
 	}
 
 	cs.metricsCollector.RecordCounter("cache_set", 1, map[string]string{})
-	cs.logger.Debug("Cache set (single)", core.LogKeyKey, key, core.LogKeyTTLMs, duration.Milliseconds())
+	cs.logger.Debug("Cache set (single)", logkeys.LogKeyKey, key, logkeys.LogKeyTTLMs, duration.Milliseconds())
 
 	return nil
 }
 
 type queryResultCache struct {
-	Events []core.BlockchainEvent `json:"events"`
+	Events []blockchain.BlockchainEvent `json:"events"`
 	Total  int64                  `json:"total"`
 }
 
-func (cs *DefaultCacheService) SetQueryResult(ctx context.Context, key string, events []core.BlockchainEvent, total int64, ttl time.Duration) error {
+func (cs *DefaultCacheService) SetQueryResult(ctx context.Context, key string, events []blockchain.BlockchainEvent, total int64, ttl time.Duration) error {
 	cs.mu.Lock()
 	defer cs.mu.Unlock()
 
@@ -303,7 +305,7 @@ func (cs *DefaultCacheService) SetQueryResult(ctx context.Context, key string, e
 	entry := queryResultCache{Events: events, Total: total}
 	data, err := json.Marshal(entry)
 	if err != nil {
-		cs.logger.Error("Failed to marshal cache data", core.LogKeyKey, key, core.LogKeyError, err)
+		cs.logger.Error("Failed to marshal cache data", logkeys.LogKeyKey, key, logkeys.LogKeyError, err)
 		return fmt.Errorf("failed to marshal cache data: %w", err)
 	}
 
@@ -313,12 +315,12 @@ func (cs *DefaultCacheService) SetQueryResult(ctx context.Context, key string, e
 	}
 
 	cs.metricsCollector.RecordCounter("cache_set", 1, map[string]string{})
-	cs.logger.Debug("Cache set (query result)", core.LogKeyKey, key, core.LogKeyCount, len(events), "total", total, core.LogKeyTTLMs, duration.Milliseconds())
+	cs.logger.Debug("Cache set (query result)", logkeys.LogKeyKey, key, logkeys.LogKeyCount, len(events), "total", total, logkeys.LogKeyTTLMs, duration.Milliseconds())
 
 	return nil
 }
 
-func (cs *DefaultCacheService) GetQueryResult(ctx context.Context, key string) ([]core.BlockchainEvent, int64, error) {
+func (cs *DefaultCacheService) GetQueryResult(ctx context.Context, key string) ([]blockchain.BlockchainEvent, int64, error) {
 	cs.mu.RLock()
 	defer cs.mu.RUnlock()
 
@@ -342,12 +344,12 @@ func (cs *DefaultCacheService) GetQueryResult(ctx context.Context, key string) (
 
 	var result queryResultCache
 	if err := json.Unmarshal(entry.data, &result); err != nil {
-		cs.logger.Error("Failed to unmarshal cached data", core.LogKeyKey, key, core.LogKeyError, err)
+		cs.logger.Error("Failed to unmarshal cached data", logkeys.LogKeyKey, key, logkeys.LogKeyError, err)
 		return nil, 0, fmt.Errorf("failed to unmarshal cached data: %w", err)
 	}
 
 	cs.metricsCollector.RecordCounter("cache_hit", 1, map[string]string{})
-	cs.logger.Debug("Cache hit (query result)", core.LogKeyKey, key, core.LogKeyCount, len(result.Events), "total", result.Total)
+	cs.logger.Debug("Cache hit (query result)", logkeys.LogKeyKey, key, logkeys.LogKeyCount, len(result.Events), "total", result.Total)
 
 	return result.Events, result.Total, nil
 }
@@ -368,7 +370,7 @@ func (cs *DefaultCacheService) Delete(ctx context.Context, key string) error {
 	delete(cs.cache, key)
 
 	cs.metricsCollector.RecordCounter("cache_delete", 1, map[string]string{})
-	cs.logger.Debug("Cache deleted", core.LogKeyKey, key)
+	cs.logger.Debug("Cache deleted", logkeys.LogKeyKey, key)
 
 	return nil
 }
@@ -430,7 +432,7 @@ func (cs *DefaultCacheService) cleanupExpiredEntries() {
 			}
 			cs.mu.Unlock()
 
-			cs.logger.Debug("Cache cleanup", core.LogKeyExpiredEntries, len(expiredKeys))
+			cs.logger.Debug("Cache cleanup", logkeys.LogKeyExpiredEntries, len(expiredKeys))
 		}
 	}
 }

@@ -13,6 +13,7 @@ import (
 
 	"github.com/rtcdance/chainpulse/pkg/application/bootstrap"
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"github.com/rtcdance/chainpulse/pkg/env"
 	"github.com/rtcdance/chainpulse/pkg/plugins/api"
 	"github.com/rtcdance/chainpulse/pkg/plugins/mq"
@@ -415,7 +416,7 @@ func startEventPushConsumer(
 
 		topic := "processed-events"
 		err := kafkaMQ.ConsumeMessages(ctx, topic, func(message core.MessageQueueMessage) error {
-			var event core.BlockchainEvent
+			var event blockchain.BlockchainEvent
 			if err := json.Unmarshal(message.Payload, &event); err != nil {
 				logger.Warn("Failed to unmarshal event for WebSocket push", "error", err.Error())
 				return nil // skip malformed messages

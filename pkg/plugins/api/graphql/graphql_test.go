@@ -14,29 +14,30 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/graphql-go/graphql"
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	apicore "github.com/rtcdance/chainpulse/pkg/plugins/api/core"
 )
 
 // MockEventStore implements core.EventStore for testing
 type MockEventStore struct {
-	events             map[string]*core.BlockchainEvent
-	getEventsPaginated func(ctx context.Context, cursor string, limit int) ([]*core.BlockchainEvent, bool, error)
-	getEventsByName    func(ctx context.Context, eventName string, limit int) ([]*core.BlockchainEvent, error)
-	getEventsByAddress func(ctx context.Context, address string, limit int) ([]*core.BlockchainEvent, error)
-	getEventsByBlock   func(ctx context.Context, blockNumber int64) ([]*core.BlockchainEvent, error)
+	events             map[string]*blockchain.BlockchainEvent
+	getEventsPaginated func(ctx context.Context, cursor string, limit int) ([]*blockchain.BlockchainEvent, bool, error)
+	getEventsByName    func(ctx context.Context, eventName string, limit int) ([]*blockchain.BlockchainEvent, error)
+	getEventsByAddress func(ctx context.Context, address string, limit int) ([]*blockchain.BlockchainEvent, error)
+	getEventsByBlock   func(ctx context.Context, blockNumber int64) ([]*blockchain.BlockchainEvent, error)
 }
 
 func NewMockEventStore() *MockEventStore {
 	return &MockEventStore{
-		events: make(map[string]*core.BlockchainEvent),
+		events: make(map[string]*blockchain.BlockchainEvent),
 	}
 }
 
-func (m *MockEventStore) GetEvent(ctx context.Context, eventID string) (*core.BlockchainEvent, error) {
+func (m *MockEventStore) GetEvent(ctx context.Context, eventID string) (*blockchain.BlockchainEvent, error) {
 	return m.events[eventID], nil
 }
 
-func (m *MockEventStore) StoreEvent(ctx context.Context, event *core.BlockchainEvent) error {
+func (m *MockEventStore) StoreEvent(ctx context.Context, event *blockchain.BlockchainEvent) error {
 	m.events[event.ID] = event
 	return nil
 }
@@ -53,48 +54,48 @@ func (m *MockEventStore) DeleteExpiredEvents(ctx context.Context) (int64, error)
 	return 0, nil
 }
 
-func (m *MockEventStore) GetEventsByChain(ctx context.Context, chainID int, limit int, offset int) ([]*core.BlockchainEvent, error) {
-	return []*core.BlockchainEvent{}, nil
+func (m *MockEventStore) GetEventsByChain(ctx context.Context, chainID int, limit int, offset int) ([]*blockchain.BlockchainEvent, error) {
+	return []*blockchain.BlockchainEvent{}, nil
 }
 
-func (m *MockEventStore) GetEventsByContract(ctx context.Context, contractAddress string, limit int, offset int) ([]*core.BlockchainEvent, error) {
-	return []*core.BlockchainEvent{}, nil
+func (m *MockEventStore) GetEventsByContract(ctx context.Context, contractAddress string, limit int, offset int) ([]*blockchain.BlockchainEvent, error) {
+	return []*blockchain.BlockchainEvent{}, nil
 }
 
-func (m *MockEventStore) GetEventsByEventName(ctx context.Context, eventName string, limit int, offset int) ([]*core.BlockchainEvent, error) {
-	return []*core.BlockchainEvent{}, nil
+func (m *MockEventStore) GetEventsByEventName(ctx context.Context, eventName string, limit int, offset int) ([]*blockchain.BlockchainEvent, error) {
+	return []*blockchain.BlockchainEvent{}, nil
 }
 
-func (m *MockEventStore) GetEventsByCorrelationID(ctx context.Context, correlationID string, limit int, offset int) ([]*core.BlockchainEvent, error) {
-	return []*core.BlockchainEvent{}, nil
+func (m *MockEventStore) GetEventsByCorrelationID(ctx context.Context, correlationID string, limit int, offset int) ([]*blockchain.BlockchainEvent, error) {
+	return []*blockchain.BlockchainEvent{}, nil
 }
 
-func (m *MockEventStore) GetEventsByBlock(ctx context.Context, blockNumber int64) ([]*core.BlockchainEvent, error) {
+func (m *MockEventStore) GetEventsByBlock(ctx context.Context, blockNumber int64) ([]*blockchain.BlockchainEvent, error) {
 	if m.getEventsByBlock != nil {
 		return m.getEventsByBlock(ctx, blockNumber)
 	}
-	return []*core.BlockchainEvent{}, nil
+	return []*blockchain.BlockchainEvent{}, nil
 }
 
-func (m *MockEventStore) GetEventsByAddress(ctx context.Context, address string, limit int) ([]*core.BlockchainEvent, error) {
+func (m *MockEventStore) GetEventsByAddress(ctx context.Context, address string, limit int) ([]*blockchain.BlockchainEvent, error) {
 	if m.getEventsByAddress != nil {
 		return m.getEventsByAddress(ctx, address, limit)
 	}
-	return []*core.BlockchainEvent{}, nil
+	return []*blockchain.BlockchainEvent{}, nil
 }
 
-func (m *MockEventStore) GetEventsByName(ctx context.Context, eventName string, limit int) ([]*core.BlockchainEvent, error) {
+func (m *MockEventStore) GetEventsByName(ctx context.Context, eventName string, limit int) ([]*blockchain.BlockchainEvent, error) {
 	if m.getEventsByName != nil {
 		return m.getEventsByName(ctx, eventName, limit)
 	}
-	return []*core.BlockchainEvent{}, nil
+	return []*blockchain.BlockchainEvent{}, nil
 }
 
-func (m *MockEventStore) GetEventsPaginated(ctx context.Context, cursor string, limit int) ([]*core.BlockchainEvent, bool, error) {
+func (m *MockEventStore) GetEventsPaginated(ctx context.Context, cursor string, limit int) ([]*blockchain.BlockchainEvent, bool, error) {
 	if m.getEventsPaginated != nil {
 		return m.getEventsPaginated(ctx, cursor, limit)
 	}
-	return []*core.BlockchainEvent{}, false, nil
+	return []*blockchain.BlockchainEvent{}, false, nil
 }
 
 func (m *MockEventStore) CountEvents(ctx context.Context) (int64, error) {
@@ -107,12 +108,12 @@ func (m *MockEventStore) Health(ctx context.Context) *core.HealthStatus {
 	}
 }
 
-func (m *MockEventStore) InsertEvent(ctx context.Context, event *core.BlockchainEvent) error {
+func (m *MockEventStore) InsertEvent(ctx context.Context, event *blockchain.BlockchainEvent) error {
 	m.events[event.ID] = event
 	return nil
 }
 
-func (m *MockEventStore) InsertEventBatch(ctx context.Context, events []*core.BlockchainEvent) error {
+func (m *MockEventStore) InsertEventBatch(ctx context.Context, events []*blockchain.BlockchainEvent) error {
 	for _, event := range events {
 		m.events[event.ID] = event
 	}
@@ -328,12 +329,12 @@ func TestSchemaBuilderResolveEventsByNameIncludesLiveQuerySourcePosture(t *testi
 	logger := NewMockLogger()
 	metrics := NewMockMetrics()
 	eventStore := NewMockEventStore()
-	eventStore.getEventsByName = func(ctx context.Context, eventName string, limit int) ([]*core.BlockchainEvent, error) {
-		return []*core.BlockchainEvent{
+	eventStore.getEventsByName = func(ctx context.Context, eventName string, limit int) ([]*blockchain.BlockchainEvent, error) {
+		return []*blockchain.BlockchainEvent{
 			{
 				ID:          "evt-name-schema",
 				EventName:   eventName,
-				Status:      core.EventStatusConfirmed,
+				Status:      blockchain.EventStatusConfirmed,
 				CreatedAt:   time.Now(),
 				ProcessedAt: time.Now(),
 				IndexedAt:   time.Now(),
@@ -410,9 +411,9 @@ func TestSubscriptionHandler_OnEventUpdated(t *testing.T) {
 
 	handler := NewSubscriptionHandler(manager, logger, metrics)
 
-	err := handler.OnEventUpdated(&core.BlockchainEvent{
+	err := handler.OnEventUpdated(&blockchain.BlockchainEvent{
 		ID:     "evt-updated",
-		Status: core.EventStatusConfirmed,
+		Status: blockchain.EventStatusConfirmed,
 	})
 	if err != nil {
 		t.Fatalf("OnEventUpdated failed: %v", err)
@@ -474,9 +475,9 @@ func TestSubscriptionHandler_OnEventConfirmed(t *testing.T) {
 
 	handler := NewSubscriptionHandler(manager, logger, metrics)
 
-	err := handler.OnEventConfirmed(&core.BlockchainEvent{
+	err := handler.OnEventConfirmed(&blockchain.BlockchainEvent{
 		ID:     "evt-confirmed",
-		Status: core.EventStatusConfirmed,
+		Status: blockchain.EventStatusConfirmed,
 	})
 	if err != nil {
 		t.Fatalf("OnEventConfirmed failed: %v", err)
@@ -506,9 +507,9 @@ func TestSubscriptionHandler_OnEventFailed(t *testing.T) {
 
 	handler := NewSubscriptionHandler(manager, logger, metrics)
 
-	err := handler.OnEventFailed(&core.BlockchainEvent{
+	err := handler.OnEventFailed(&blockchain.BlockchainEvent{
 		ID:     "evt-failed",
-		Status: core.EventStatusFailed,
+		Status: blockchain.EventStatusFailed,
 	})
 	if err != nil {
 		t.Fatalf("OnEventFailed failed: %v", err)
@@ -675,9 +676,9 @@ func TestEventResolverResolveEventIncludesLiveQuerySourcePosture(t *testing.T) {
 	logger := NewMockLogger()
 	metrics := NewMockMetrics()
 	eventStore := NewMockEventStore()
-	eventStore.events["evt-live"] = &core.BlockchainEvent{
+	eventStore.events["evt-live"] = &blockchain.BlockchainEvent{
 		ID:          "evt-live",
-		Status:      core.EventStatusConfirmed,
+		Status:      blockchain.EventStatusConfirmed,
 		CreatedAt:   time.Now(),
 		ProcessedAt: time.Now(),
 		IndexedAt:   time.Now(),
@@ -756,12 +757,12 @@ func TestEventResolverResolveEventsIncludesLiveQuerySourcePosture(t *testing.T) 
 	logger := NewMockLogger()
 	metrics := NewMockMetrics()
 	eventStore := NewMockEventStore()
-	eventStore.getEventsPaginated = func(ctx context.Context, cursor string, limit int) ([]*core.BlockchainEvent, bool, error) {
-		return []*core.BlockchainEvent{
+	eventStore.getEventsPaginated = func(ctx context.Context, cursor string, limit int) ([]*blockchain.BlockchainEvent, bool, error) {
+		return []*blockchain.BlockchainEvent{
 			{
 				ID:          "evt-root-live",
 				BlockNumber: 99,
-				Status:      core.EventStatusConfirmed,
+				Status:      blockchain.EventStatusConfirmed,
 				CreatedAt:   time.Now(),
 				ProcessedAt: time.Now(),
 				IndexedAt:   time.Now(),
@@ -1184,9 +1185,9 @@ func TestSubscriptionHandler_OnEventCreated(t *testing.T) {
 	subscription, _ := manager.Subscribe("event:created")
 
 	// Create event
-	event := &core.BlockchainEvent{
+	event := &blockchain.BlockchainEvent{
 		ID:     "test-id",
-		Status: core.EventStatusConfirmed,
+		Status: blockchain.EventStatusConfirmed,
 	}
 
 	err := handler.OnEventCreated(event)
@@ -1299,9 +1300,9 @@ func TestSubscriptionManager_GetStats(t *testing.T) {
 // Test Event To GraphQL Conversion
 func TestEventToGraphQL(t *testing.T) {
 	t.Parallel()
-	event := &core.BlockchainEvent{
+	event := &blockchain.BlockchainEvent{
 		ID:     "test-id",
-		Status: core.EventStatusConfirmed,
+		Status: blockchain.EventStatusConfirmed,
 	}
 
 	result := eventToGraphQL(event)
@@ -1324,12 +1325,12 @@ func TestEventResolverResolveEventsByNameIncludesLiveQuerySourcePosture(t *testi
 	logger := NewMockLogger()
 	metrics := NewMockMetrics()
 	eventStore := NewMockEventStore()
-	eventStore.getEventsByName = func(ctx context.Context, eventName string, limit int) ([]*core.BlockchainEvent, error) {
-		return []*core.BlockchainEvent{
+	eventStore.getEventsByName = func(ctx context.Context, eventName string, limit int) ([]*blockchain.BlockchainEvent, error) {
+		return []*blockchain.BlockchainEvent{
 			{
 				ID:          "evt-live",
 				EventName:   eventName,
-				Status:      core.EventStatusConfirmed,
+				Status:      blockchain.EventStatusConfirmed,
 				CreatedAt:   time.Now(),
 				ProcessedAt: time.Now(),
 				IndexedAt:   time.Now(),
@@ -1423,12 +1424,12 @@ func TestEventResolverResolveEventsByAddressIncludesLiveQuerySourcePosture(t *te
 	logger := NewMockLogger()
 	metrics := NewMockMetrics()
 	eventStore := NewMockEventStore()
-	eventStore.getEventsByAddress = func(ctx context.Context, address string, limit int) ([]*core.BlockchainEvent, error) {
-		return []*core.BlockchainEvent{
+	eventStore.getEventsByAddress = func(ctx context.Context, address string, limit int) ([]*blockchain.BlockchainEvent, error) {
+		return []*blockchain.BlockchainEvent{
 			{
 				ID:              "evt-address-live",
 				ContractAddress: common.HexToAddress("0xabc"),
-				Status:          core.EventStatusConfirmed,
+				Status:          blockchain.EventStatusConfirmed,
 				CreatedAt:       time.Now(),
 				ProcessedAt:     time.Now(),
 				IndexedAt:       time.Now(),
@@ -1602,12 +1603,12 @@ func TestEventResolverResolveEventsByBlockIncludesLiveQuerySourcePosture(t *test
 	logger := NewMockLogger()
 	metrics := NewMockMetrics()
 	eventStore := NewMockEventStore()
-	eventStore.getEventsByBlock = func(ctx context.Context, blockNumber int64) ([]*core.BlockchainEvent, error) {
-		return []*core.BlockchainEvent{
+	eventStore.getEventsByBlock = func(ctx context.Context, blockNumber int64) ([]*blockchain.BlockchainEvent, error) {
+		return []*blockchain.BlockchainEvent{
 			{
 				ID:          "evt-block-live",
 				BlockNumber: 42,
-				Status:      core.EventStatusConfirmed,
+				Status:      blockchain.EventStatusConfirmed,
 				CreatedAt:   time.Now(),
 				ProcessedAt: time.Now(),
 				IndexedAt:   time.Now(),
@@ -1918,9 +1919,9 @@ func TestGraphQLPlugin_IsRunning(t *testing.T) {
 
 func TestEventToGraphQL_WithDecodedData(t *testing.T) {
 	t.Parallel()
-	event := &core.BlockchainEvent{
+	event := &blockchain.BlockchainEvent{
 		ID:          "evt-1",
-		Status:      core.EventStatusConfirmed,
+		Status:      blockchain.EventStatusConfirmed,
 		DecodedData: map[string]any{"from": "0xabc", "to": "0xdef", "value": "100"},
 		CreatedAt:   time.Now(),
 		ProcessedAt: time.Now(),
@@ -1939,9 +1940,9 @@ func TestEventToGraphQL_WithDecodedData(t *testing.T) {
 
 func TestEventToGraphQL_NilDecodedData(t *testing.T) {
 	t.Parallel()
-	event := &core.BlockchainEvent{
+	event := &blockchain.BlockchainEvent{
 		ID:          "evt-2",
-		Status:      core.EventStatusPending,
+		Status:      blockchain.EventStatusPending,
 		CreatedAt:   time.Now(),
 		ProcessedAt: time.Now(),
 		IndexedAt:   time.Now(),
@@ -1956,7 +1957,7 @@ func TestEventToGraphQL_NilDecodedData(t *testing.T) {
 func TestEventToGraphQL_AllFields(t *testing.T) {
 	t.Parallel()
 	now := time.Now()
-	event := &core.BlockchainEvent{
+	event := &blockchain.BlockchainEvent{
 		ID:               "evt-all",
 		EventHash:        "0xhash",
 		BlockNumber:      12345,
@@ -1969,7 +1970,7 @@ func TestEventToGraphQL_AllFields(t *testing.T) {
 		EventName:        "Transfer",
 		ChainID:          "1",
 		Network:          "mainnet",
-		Status:           core.EventStatusConfirmed,
+		Status:           blockchain.EventStatusConfirmed,
 		Removed:          false,
 		GasUsed:          21000,
 		GasPrice:         big.NewInt(1000000000),
@@ -2240,9 +2241,9 @@ func TestMutationBuilder_ResolveRefreshEventCache(t *testing.T) {
 	metrics := NewMockMetrics()
 	cache := NewMockCache()
 	eventStore := NewMockEventStore()
-	eventStore.events["evt-refresh"] = &core.BlockchainEvent{
+	eventStore.events["evt-refresh"] = &blockchain.BlockchainEvent{
 		ID:          "evt-refresh",
-		Status:      core.EventStatusConfirmed,
+		Status:      blockchain.EventStatusConfirmed,
 		CreatedAt:   time.Now(),
 		ProcessedAt: time.Now(),
 		IndexedAt:   time.Now(),
@@ -2284,9 +2285,9 @@ func TestMutationBuilder_ResolveRefreshEventCache_NoCache(t *testing.T) {
 	logger := NewMockLogger()
 	metrics := NewMockMetrics()
 	eventStore := NewMockEventStore()
-	eventStore.events["evt-refresh"] = &core.BlockchainEvent{
+	eventStore.events["evt-refresh"] = &blockchain.BlockchainEvent{
 		ID:          "evt-refresh",
-		Status:      core.EventStatusConfirmed,
+		Status:      blockchain.EventStatusConfirmed,
 		CreatedAt:   time.Now(),
 		ProcessedAt: time.Now(),
 		IndexedAt:   time.Now(),
@@ -2331,18 +2332,18 @@ func TestMutationBuilder_ResolveWarmCache(t *testing.T) {
 	metrics := NewMockMetrics()
 	cache := NewMockCache()
 	eventStore := NewMockEventStore()
-	eventStore.getEventsPaginated = func(ctx context.Context, cursor string, limit int) ([]*core.BlockchainEvent, bool, error) {
-		return []*core.BlockchainEvent{
+	eventStore.getEventsPaginated = func(ctx context.Context, cursor string, limit int) ([]*blockchain.BlockchainEvent, bool, error) {
+		return []*blockchain.BlockchainEvent{
 			{
 				ID:          "evt-warm-1",
-				Status:      core.EventStatusConfirmed,
+				Status:      blockchain.EventStatusConfirmed,
 				CreatedAt:   time.Now(),
 				ProcessedAt: time.Now(),
 				IndexedAt:   time.Now(),
 			},
 			{
 				ID:          "evt-warm-2",
-				Status:      core.EventStatusConfirmed,
+				Status:      blockchain.EventStatusConfirmed,
 				CreatedAt:   time.Now(),
 				ProcessedAt: time.Now(),
 				IndexedAt:   time.Now(),
@@ -2387,11 +2388,11 @@ func TestMutationBuilder_ResolveWarmCache_LimitCapped(t *testing.T) {
 	metrics := NewMockMetrics()
 	cache := NewMockCache()
 	eventStore := NewMockEventStore()
-	eventStore.getEventsPaginated = func(ctx context.Context, cursor string, limit int) ([]*core.BlockchainEvent, bool, error) {
+	eventStore.getEventsPaginated = func(ctx context.Context, cursor string, limit int) ([]*blockchain.BlockchainEvent, bool, error) {
 		if limit > maxWarmCacheLimit {
 			t.Errorf("limit should be capped at %d, got %d", maxWarmCacheLimit, limit)
 		}
-		return []*core.BlockchainEvent{}, false, nil
+		return []*blockchain.BlockchainEvent{}, false, nil
 	}
 
 	builder := NewMutationBuilder(eventStore, logger, metrics, cache)
@@ -2457,12 +2458,12 @@ func TestSchemaBuilder_ResolveEventsByBlock(t *testing.T) {
 	logger := NewMockLogger()
 	metrics := NewMockMetrics()
 	eventStore := NewMockEventStore()
-	eventStore.getEventsByBlock = func(ctx context.Context, blockNumber int64) ([]*core.BlockchainEvent, error) {
-		return []*core.BlockchainEvent{
+	eventStore.getEventsByBlock = func(ctx context.Context, blockNumber int64) ([]*blockchain.BlockchainEvent, error) {
+		return []*blockchain.BlockchainEvent{
 			{
 				ID:          "evt-block-1",
 				BlockNumber: uint64(blockNumber),
-				Status:      core.EventStatusConfirmed,
+				Status:      blockchain.EventStatusConfirmed,
 				CreatedAt:   time.Now(),
 				ProcessedAt: time.Now(),
 				IndexedAt:   time.Now(),
@@ -2500,12 +2501,12 @@ func TestSchemaBuilder_ResolveEventsByAddress(t *testing.T) {
 	logger := NewMockLogger()
 	metrics := NewMockMetrics()
 	eventStore := NewMockEventStore()
-	eventStore.getEventsByAddress = func(ctx context.Context, address string, limit int) ([]*core.BlockchainEvent, error) {
-		return []*core.BlockchainEvent{
+	eventStore.getEventsByAddress = func(ctx context.Context, address string, limit int) ([]*blockchain.BlockchainEvent, error) {
+		return []*blockchain.BlockchainEvent{
 			{
 				ID:              "evt-addr-1",
 				ContractAddress: common.HexToAddress(address),
-				Status:          core.EventStatusConfirmed,
+				Status:          blockchain.EventStatusConfirmed,
 				CreatedAt:       time.Now(),
 				ProcessedAt:     time.Now(),
 				IndexedAt:       time.Now(),
@@ -2544,12 +2545,12 @@ func TestSchemaBuilder_ResolveEventsByAddress_WithCache(t *testing.T) {
 	metrics := NewMockMetrics()
 	cache := NewMockCache()
 	eventStore := NewMockEventStore()
-	eventStore.getEventsByAddress = func(ctx context.Context, address string, limit int) ([]*core.BlockchainEvent, error) {
-		return []*core.BlockchainEvent{
+	eventStore.getEventsByAddress = func(ctx context.Context, address string, limit int) ([]*blockchain.BlockchainEvent, error) {
+		return []*blockchain.BlockchainEvent{
 			{
 				ID:              "evt-addr-cache",
 				ContractAddress: common.HexToAddress(address),
-				Status:          core.EventStatusConfirmed,
+				Status:          blockchain.EventStatusConfirmed,
 				CreatedAt:       time.Now(),
 				ProcessedAt:     time.Now(),
 				IndexedAt:       time.Now(),
@@ -2637,13 +2638,13 @@ func TestSchemaBuilder_ResolveEvents_Filter(t *testing.T) {
 	logger := NewMockLogger()
 	metrics := NewMockMetrics()
 	eventStore := NewMockEventStore()
-	eventStore.getEventsPaginated = func(ctx context.Context, cursor string, limit int) ([]*core.BlockchainEvent, bool, error) {
-		return []*core.BlockchainEvent{
+	eventStore.getEventsPaginated = func(ctx context.Context, cursor string, limit int) ([]*blockchain.BlockchainEvent, bool, error) {
+		return []*blockchain.BlockchainEvent{
 			{
 				ID:          "evt-filter-1",
 				EventName:   "Transfer",
 				BlockNumber: 100,
-				Status:      core.EventStatusConfirmed,
+				Status:      blockchain.EventStatusConfirmed,
 				CreatedAt:   time.Now(),
 				ProcessedAt: time.Now(),
 				IndexedAt:   time.Now(),
@@ -2652,7 +2653,7 @@ func TestSchemaBuilder_ResolveEvents_Filter(t *testing.T) {
 				ID:          "evt-filter-2",
 				EventName:   "Approval",
 				BlockNumber: 200,
-				Status:      core.EventStatusConfirmed,
+				Status:      blockchain.EventStatusConfirmed,
 				CreatedAt:   time.Now(),
 				ProcessedAt: time.Now(),
 				IndexedAt:   time.Now(),
@@ -2661,7 +2662,7 @@ func TestSchemaBuilder_ResolveEvents_Filter(t *testing.T) {
 				ID:          "evt-filter-3",
 				EventName:   "Transfer",
 				BlockNumber: 300,
-				Status:      core.EventStatusFailed,
+				Status:      blockchain.EventStatusFailed,
 				CreatedAt:   time.Now(),
 				ProcessedAt: time.Now(),
 				IndexedAt:   time.Now(),
@@ -2699,12 +2700,12 @@ func TestSchemaBuilder_ResolveEvents_FilterWithSort(t *testing.T) {
 	logger := NewMockLogger()
 	metrics := NewMockMetrics()
 	eventStore := NewMockEventStore()
-	eventStore.getEventsPaginated = func(ctx context.Context, cursor string, limit int) ([]*core.BlockchainEvent, bool, error) {
-		return []*core.BlockchainEvent{
+	eventStore.getEventsPaginated = func(ctx context.Context, cursor string, limit int) ([]*blockchain.BlockchainEvent, bool, error) {
+		return []*blockchain.BlockchainEvent{
 			{
 				ID:          "evt-sort-1",
 				BlockNumber: 200,
-				Status:      core.EventStatusConfirmed,
+				Status:      blockchain.EventStatusConfirmed,
 				CreatedAt:   time.Now(),
 				ProcessedAt: time.Now(),
 				IndexedAt:   time.Now(),
@@ -2712,7 +2713,7 @@ func TestSchemaBuilder_ResolveEvents_FilterWithSort(t *testing.T) {
 			{
 				ID:          "evt-sort-2",
 				BlockNumber: 100,
-				Status:      core.EventStatusConfirmed,
+				Status:      blockchain.EventStatusConfirmed,
 				CreatedAt:   time.Now(),
 				ProcessedAt: time.Now(),
 				IndexedAt:   time.Now(),
@@ -2754,9 +2755,9 @@ func TestSchemaBuilder_ResolveEvent_NoCache(t *testing.T) {
 	logger := NewMockLogger()
 	metrics := NewMockMetrics()
 	eventStore := NewMockEventStore()
-	eventStore.events["evt-nocache"] = &core.BlockchainEvent{
+	eventStore.events["evt-nocache"] = &blockchain.BlockchainEvent{
 		ID:          "evt-nocache",
-		Status:      core.EventStatusConfirmed,
+		Status:      blockchain.EventStatusConfirmed,
 		CreatedAt:   time.Now(),
 		ProcessedAt: time.Now(),
 		IndexedAt:   time.Now(),
@@ -2795,12 +2796,12 @@ func TestSchemaBuilder_ResolveEventsByName_NoCache(t *testing.T) {
 	logger := NewMockLogger()
 	metrics := NewMockMetrics()
 	eventStore := NewMockEventStore()
-	eventStore.getEventsByName = func(ctx context.Context, eventName string, limit int) ([]*core.BlockchainEvent, error) {
-		return []*core.BlockchainEvent{
+	eventStore.getEventsByName = func(ctx context.Context, eventName string, limit int) ([]*blockchain.BlockchainEvent, error) {
+		return []*blockchain.BlockchainEvent{
 			{
 				ID:          "evt-name-nocache",
 				EventName:   eventName,
-				Status:      core.EventStatusConfirmed,
+				Status:      blockchain.EventStatusConfirmed,
 				CreatedAt:   time.Now(),
 				ProcessedAt: time.Now(),
 				IndexedAt:   time.Now(),
@@ -2830,12 +2831,12 @@ func TestSchemaBuilder_ResolveEventsByName_WithCache(t *testing.T) {
 	metrics := NewMockMetrics()
 	cache := NewMockCache()
 	eventStore := NewMockEventStore()
-	eventStore.getEventsByName = func(ctx context.Context, eventName string, limit int) ([]*core.BlockchainEvent, error) {
-		return []*core.BlockchainEvent{
+	eventStore.getEventsByName = func(ctx context.Context, eventName string, limit int) ([]*blockchain.BlockchainEvent, error) {
+		return []*blockchain.BlockchainEvent{
 			{
 				ID:          "evt-name-cache-set",
 				EventName:   eventName,
-				Status:      core.EventStatusConfirmed,
+				Status:      blockchain.EventStatusConfirmed,
 				CreatedAt:   time.Now(),
 				ProcessedAt: time.Now(),
 				IndexedAt:   time.Now(),

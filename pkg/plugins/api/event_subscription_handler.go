@@ -14,6 +14,7 @@ import (
 
 	"github.com/rtcdance/chainpulse/pkg/chainid"
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"github.com/rtcdance/chainpulse/pkg/services/query"
 )
 
@@ -402,7 +403,7 @@ func (h *EventSubscriptionHandler) handleConnection(subConn *SubscriptionConnect
 }
 
 // BroadcastEvent broadcasts an event to all matching subscribers
-func (h *EventSubscriptionHandler) BroadcastEvent(ctx context.Context, event *core.BlockchainEvent) error {
+func (h *EventSubscriptionHandler) BroadcastEvent(ctx context.Context, event *blockchain.BlockchainEvent) error {
 	if !h.initialized {
 		return fmt.Errorf("handler not initialized")
 	}
@@ -444,7 +445,7 @@ func (h *EventSubscriptionHandler) BroadcastEvent(ctx context.Context, event *co
 }
 
 // matchesSubscription checks if an event matches a subscription
-func (h *EventSubscriptionHandler) matchesSubscription(event *core.BlockchainEvent, sub *Subscription) bool {
+func (h *EventSubscriptionHandler) matchesSubscription(event *blockchain.BlockchainEvent, sub *Subscription) bool {
 	switch sub.SubscriptionType {
 	case "all":
 		return true

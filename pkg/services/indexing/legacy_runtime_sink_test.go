@@ -7,6 +7,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -27,7 +28,7 @@ func TestLegacyRuntimeSinkPersistStoresEventAndCache(t *testing.T) {
 	sink, err := NewLegacyRuntimeSink(db, cache, logger)
 	require.NoError(t, err)
 
-	event := &core.BlockchainEvent{
+	event := &blockchain.BlockchainEvent{
 		ID:              "event1",
 		ChainID:         "ethereum",
 		BlockNumber:     100,
@@ -60,7 +61,7 @@ func TestLegacyRuntimeSinkPersistAllowsNilCache(t *testing.T) {
 	sink, err := NewLegacyRuntimeSink(db, nil, logger)
 	require.NoError(t, err)
 
-	event := &core.BlockchainEvent{
+	event := &blockchain.BlockchainEvent{
 		ID:              "event1",
 		ChainID:         "ethereum",
 		BlockNumber:     100,

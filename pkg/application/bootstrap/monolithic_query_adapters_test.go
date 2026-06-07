@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	domainquery "github.com/rtcdance/chainpulse/pkg/domain/query"
 	"github.com/rtcdance/chainpulse/pkg/testhelpers"
 )
@@ -21,7 +22,7 @@ func TestMonolithicIndexingEventStoreFiltersByContractAndName(t *testing.T) {
 	require.NoError(t, db.Initialize(context.Background(), core.Config{}))
 	require.NoError(t, db.Start(context.Background()))
 
-	first := &core.BlockchainEvent{
+	first := &blockchain.BlockchainEvent{
 		ID:              "evt-1",
 		ChainID:         "ethereum",
 		BlockNumber:     12,
@@ -31,7 +32,7 @@ func TestMonolithicIndexingEventStoreFiltersByContractAndName(t *testing.T) {
 		EventName:       "Transfer",
 		CreatedAt:       time.Unix(1700000000, 0).UTC(),
 	}
-	second := &core.BlockchainEvent{
+	second := &blockchain.BlockchainEvent{
 		ID:              "evt-2",
 		ChainID:         "polygon",
 		BlockNumber:     20,
@@ -64,7 +65,7 @@ func TestMonolithicIndexingDomainQueryServiceReadsFromIndexingDatabase(t *testin
 	require.NoError(t, db.Initialize(context.Background(), core.Config{}))
 	require.NoError(t, db.Start(context.Background()))
 
-	event := &core.BlockchainEvent{
+	event := &blockchain.BlockchainEvent{
 		ID:              "evt-3",
 		ChainID:         "ethereum",
 		BlockNumber:     42,
@@ -200,7 +201,7 @@ func TestBuildSyntheticMetadata(t *testing.T) {
 
 	t.Run("fully populated event", func(t *testing.T) {
 		t.Parallel()
-		event := &core.BlockchainEvent{
+		event := &blockchain.BlockchainEvent{
 			ID:              "evt-abc",
 			ChainID:         "1",
 			BlockNumber:     100,
@@ -243,7 +244,7 @@ func TestBuildSyntheticMetadata(t *testing.T) {
 
 	t.Run("event with zero times falls back", func(t *testing.T) {
 		t.Parallel()
-		event := &core.BlockchainEvent{
+		event := &blockchain.BlockchainEvent{
 			ID:              "evt-zero-times",
 			ChainID:         "ethereum",
 			BlockNumber:     50,
@@ -267,10 +268,10 @@ func TestBuildSyntheticMetadata(t *testing.T) {
 func TestPaginateEvents(t *testing.T) {
 	t.Parallel()
 
-	makeEvents := func(n int) []*core.BlockchainEvent {
-		events := make([]*core.BlockchainEvent, n)
+	makeEvents := func(n int) []*blockchain.BlockchainEvent {
+		events := make([]*blockchain.BlockchainEvent, n)
 		for i := 0; i < n; i++ {
-			events[i] = &core.BlockchainEvent{ID: fmt.Sprintf("evt-%d", i)}
+			events[i] = &blockchain.BlockchainEvent{ID: fmt.Sprintf("evt-%d", i)}
 		}
 		return events
 	}
@@ -318,10 +319,10 @@ func TestPaginateEvents(t *testing.T) {
 func TestPaginateDomainEvents(t *testing.T) {
 	t.Parallel()
 
-	makeEvents := func(n int) []core.BlockchainEvent {
-		events := make([]core.BlockchainEvent, n)
+	makeEvents := func(n int) []blockchain.BlockchainEvent {
+		events := make([]blockchain.BlockchainEvent, n)
 		for i := 0; i < n; i++ {
-			events[i] = core.BlockchainEvent{ID: fmt.Sprintf("evt-%d", i)}
+			events[i] = blockchain.BlockchainEvent{ID: fmt.Sprintf("evt-%d", i)}
 		}
 		return events
 	}
@@ -369,7 +370,7 @@ func TestPaginateDomainEvents(t *testing.T) {
 func TestMatchesDomainQueryFilter(t *testing.T) {
 	t.Parallel()
 
-	event := &core.BlockchainEvent{
+	event := &blockchain.BlockchainEvent{
 		ChainID:         "1",
 		ContractAddress: common.HexToAddress("0x1234567890ABCDEF1234567890ABCDEF12345678"),
 		EventName:       "Transfer",
@@ -405,7 +406,7 @@ func TestMatchesDomainQueryFilter(t *testing.T) {
 
 	t.Run("chainId case insensitive match", func(t *testing.T) {
 		t.Parallel()
-		evt := &core.BlockchainEvent{ChainID: "ethereum", ContractAddress: common.HexToAddress("0x1234567890ABCDEF1234567890ABCDEF12345678"), EventName: "Transfer"}
+		evt := &blockchain.BlockchainEvent{ChainID: "ethereum", ContractAddress: common.HexToAddress("0x1234567890ABCDEF1234567890ABCDEF12345678"), EventName: "Transfer"}
 		if !matchesDomainQueryFilter(evt, map[string]any{"chainId": "Ethereum"}) {
 			t.Fatal("chainId case insensitive should match")
 		}
@@ -466,7 +467,7 @@ func TestMonolithicIndexingEventStoreFullCoverage(t *testing.T) {
 
 	now := time.Now().UTC()
 
-	event1 := &core.BlockchainEvent{
+	event1 := &blockchain.BlockchainEvent{
 		ID:              "evt-101",
 		ChainID:         "1",
 		BlockNumber:     100,
@@ -479,7 +480,7 @@ func TestMonolithicIndexingEventStoreFullCoverage(t *testing.T) {
 		ProcessedAt:     now,
 		Status:          "confirmed",
 	}
-	event2 := &core.BlockchainEvent{
+	event2 := &blockchain.BlockchainEvent{
 		ID:              "evt-102",
 		ChainID:         "137",
 		BlockNumber:     100,
@@ -492,7 +493,7 @@ func TestMonolithicIndexingEventStoreFullCoverage(t *testing.T) {
 		ProcessedAt:     now.Add(time.Minute),
 		Status:          "confirmed",
 	}
-	event3 := &core.BlockchainEvent{
+	event3 := &blockchain.BlockchainEvent{
 		ID:              "evt-103",
 		ChainID:         "1",
 		BlockNumber:     200,
@@ -507,7 +508,7 @@ func TestMonolithicIndexingEventStoreFullCoverage(t *testing.T) {
 
 	t.Run("insert event and batch", func(t *testing.T) {
 		require.NoError(t, store.InsertEvent(context.Background(), event1))
-		require.NoError(t, store.InsertEventBatch(context.Background(), []*core.BlockchainEvent{event2, event3}))
+		require.NoError(t, store.InsertEventBatch(context.Background(), []*blockchain.BlockchainEvent{event2, event3}))
 	})
 
 	t.Run("get event by id", func(t *testing.T) {
@@ -689,7 +690,7 @@ func TestMonolithicIndexingMetadataStore_GetMetadataByChain_Limits(t *testing.T)
 
 	// Insert some events first
 	for i := 0; i < 5; i++ {
-		evt := &core.BlockchainEvent{
+		evt := &blockchain.BlockchainEvent{
 			ID:        fmt.Sprintf("evt-metadata-%d", i),
 			ChainID:   "1",
 			CreatedAt: time.Now(),
@@ -731,7 +732,7 @@ func TestMonolithicIndexingDomainQueryService_QueryByHash(t *testing.T) {
 	require.NoError(t, err)
 	require.Nil(t, evt)
 
-	evt = &core.BlockchainEvent{
+	evt = &blockchain.BlockchainEvent{
 		ID:              "evt-qbh-1",
 		TransactionHash: common.HexToHash("0xabcd"),
 		EventHash:       "event-hash-abc",

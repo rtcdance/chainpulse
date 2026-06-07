@@ -1,6 +1,7 @@
 package core
 
 import (
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"context"
 	"testing"
 
@@ -56,7 +57,7 @@ func TestConfigInterface(t *testing.T) {
 
 // TestBlockchainEventModel verifies BlockchainEvent struct
 func TestBlockchainEventModel(t *testing.T) {
-	event := BlockchainEvent{
+	event := blockchain.BlockchainEvent{
 		ID:              "event-1",
 		EventHash:       "hash-1",
 		BlockNumber:     12345,
@@ -158,7 +159,7 @@ func TestCacheStats(t *testing.T) {
 // TestQueryResult verifies QueryResult struct
 func TestQueryResult(t *testing.T) {
 	result := QueryResult{
-		Events:       []BlockchainEvent{},
+		Events:       []blockchain.BlockchainEvent{},
 		Total:        0,
 		CacheHit:     true,
 		ResponseTime: 5,

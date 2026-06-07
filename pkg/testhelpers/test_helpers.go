@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 )
 
 // NewTestLogger creates a logger for testing
@@ -438,8 +439,8 @@ func (tdb *TestDataBuilder) WithEventCount(count int) *TestDataBuilder {
 	return tdb
 }
 
-func (tdb *TestDataBuilder) BuildEvent(id string) *core.BlockchainEvent {
-	return &core.BlockchainEvent{
+func (tdb *TestDataBuilder) BuildEvent(id string) *blockchain.BlockchainEvent {
+	return &blockchain.BlockchainEvent{
 		ID:              id,
 		ChainID:         tdb.chainID,
 		BlockNumber:     tdb.blockNum,
@@ -448,8 +449,8 @@ func (tdb *TestDataBuilder) BuildEvent(id string) *core.BlockchainEvent {
 	}
 }
 
-func (tdb *TestDataBuilder) BuildEvents() []*core.BlockchainEvent {
-	events := make([]*core.BlockchainEvent, tdb.eventCount)
+func (tdb *TestDataBuilder) BuildEvents() []*blockchain.BlockchainEvent {
+	events := make([]*blockchain.BlockchainEvent, tdb.eventCount)
 	for i := 0; i < tdb.eventCount; i++ {
 		events[i] = tdb.BuildEvent(string(rune(i)))
 	}

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	domainquery "github.com/rtcdance/chainpulse/pkg/domain/query"
 	"github.com/rtcdance/chainpulse/pkg/services/query"
 )
@@ -25,8 +26,8 @@ func TestGatewayRuntimeRouteCompositionEventByIDDomainFirst(t *testing.T) {
 
 	eventQueryHandler := NewEventQueryHandler(retrieval, logger, metrics)
 	eventQueryHandler.SetDomainQueryService(&mockDomainQueryService{
-		queryByHash: func(ctx context.Context, hash string) (*core.BlockchainEvent, error) {
-			return &core.BlockchainEvent{
+		queryByHash: func(ctx context.Context, hash string) (*blockchain.BlockchainEvent, error) {
+			return &blockchain.BlockchainEvent{
 				ID:             "runtime-domain-hit",
 				BlockNumber:    888,
 				BlockTimestamp: time.Now().Unix(),
@@ -129,7 +130,7 @@ func TestGatewayRuntimeRouteCompositionEventListDomainQuerySource(t *testing.T) 
 	eventQueryHandler.SetDomainQueryService(&mockDomainQueryService{
 		query: func(ctx context.Context, req *domainquery.Request) (*domainquery.Result, error) {
 			return &domainquery.Result{
-				Events: []core.BlockchainEvent{
+				Events: []blockchain.BlockchainEvent{
 					{
 						ID:             "runtime-domain-list-hit",
 						BlockNumber:    999,
@@ -229,7 +230,7 @@ func TestGatewayRuntimeRouteCompositionEventByChainDomainQuerySource(t *testing.
 				t.Fatalf("expected chainId filter 1 or $in filter, got %v", got)
 			}
 			return &domainquery.Result{
-				Events: []core.BlockchainEvent{
+				Events: []blockchain.BlockchainEvent{
 					{
 						ID:             "runtime-domain-chain-hit",
 						BlockNumber:    1001,
@@ -317,7 +318,7 @@ func TestGatewayRuntimeRouteCompositionEventByNameDomainQuerySource(t *testing.T
 				t.Fatalf("expected eventName filter Transfer, got %v", got)
 			}
 			return &domainquery.Result{
-				Events: []core.BlockchainEvent{
+				Events: []blockchain.BlockchainEvent{
 					{
 						ID:             "runtime-domain-name-hit",
 						BlockNumber:    1002,
@@ -405,7 +406,7 @@ func TestGatewayRuntimeRouteCompositionEventByContractDomainQuerySource(t *testi
 				t.Fatalf("expected contractAddress filter, got %v", got)
 			}
 			return &domainquery.Result{
-				Events: []core.BlockchainEvent{
+				Events: []blockchain.BlockchainEvent{
 					{
 						ID:             "runtime-domain-contract-hit",
 						BlockNumber:    1003,

@@ -9,7 +9,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/rtcdance/chainpulse/pkg/core"
+	blockchainmodels "github.com/rtcdance/chainpulse/pkg/blockchain"
 )
 
 // CrossChainQuery represents a query across multiple blockchains
@@ -26,8 +26,8 @@ type CrossChainQuery struct {
 // CrossChainResult represents aggregated results from multiple blockchains
 type CrossChainResult struct {
 	QueryID       string
-	Events        []core.BlockchainEvent
-	BlockchainMap map[string][]core.BlockchainEvent // Events grouped by blockchain
+	Events        []blockchainmodels.BlockchainEvent
+	BlockchainMap map[string][]blockchainmodels.BlockchainEvent // Events grouped by blockchain
 	TotalCount    int
 	QueryTime     time.Duration
 	CompletedAt   time.Time
@@ -99,8 +99,8 @@ func (cca *CrossChainAPI) Query(ctx context.Context, query *CrossChainQuery) (*C
 	start := time.Now()
 	result := &CrossChainResult{
 		QueryID:       query.QueryID,
-		Events:        make([]core.BlockchainEvent, 0),
-		BlockchainMap: make(map[string][]core.BlockchainEvent),
+		Events:        make([]blockchainmodels.BlockchainEvent, 0),
+		BlockchainMap: make(map[string][]blockchainmodels.BlockchainEvent),
 	}
 
 	// Query each blockchain cluster in parallel
@@ -120,7 +120,7 @@ func (cca *CrossChainAPI) Query(ctx context.Context, query *CrossChainQuery) (*C
 			}
 
 			// Query cluster (simplified - would query actual data store)
-			events := make([]core.BlockchainEvent, 0)
+			events := make([]blockchainmodels.BlockchainEvent, 0)
 			result := map[string]any{
 				"blockchain": bc,
 				"events":     events,
@@ -148,7 +148,7 @@ func (cca *CrossChainAPI) Query(ctx context.Context, query *CrossChainQuery) (*C
 		if !ok {
 			continue
 		}
-		events, ok := res["events"].([]core.BlockchainEvent)
+		events, ok := res["events"].([]blockchainmodels.BlockchainEvent)
 		if !ok {
 			continue
 		}
@@ -175,7 +175,7 @@ func (cca *CrossChainAPI) Query(ctx context.Context, query *CrossChainQuery) (*C
 		}
 		result.Events = result.Events[query.Offset:end]
 	} else {
-		result.Events = make([]core.BlockchainEvent, 0)
+		result.Events = make([]blockchainmodels.BlockchainEvent, 0)
 	}
 
 	result.QueryTime = time.Since(start)
@@ -203,21 +203,21 @@ func (cca *CrossChainAPI) Query(ctx context.Context, query *CrossChainQuery) (*C
 }
 
 // QueryByBlockchain queries a specific blockchain
-func (cca *CrossChainAPI) QueryByBlockchain(ctx context.Context, blockchain string, filter EventFilter) ([]core.BlockchainEvent, error) {
+func (cca *CrossChainAPI) QueryByBlockchain(ctx context.Context, blockchain string, filter EventFilter) ([]blockchainmodels.BlockchainEvent, error) {
 	_, err := cca.clusterManager.GetCluster(blockchain)
 	if err != nil {
 		return nil, err
 	}
 
 	// Query cluster (simplified - would query actual data store)
-	events := make([]core.BlockchainEvent, 0)
+	events := make([]blockchainmodels.BlockchainEvent, 0)
 
 	return events, nil
 }
 
 // AggregateResults aggregates results from multiple blockchains
-func (cca *CrossChainAPI) AggregateResults(results map[string][]core.BlockchainEvent) []core.BlockchainEvent {
-	aggregated := make([]core.BlockchainEvent, 0)
+func (cca *CrossChainAPI) AggregateResults(results map[string][]blockchainmodels.BlockchainEvent) []blockchainmodels.BlockchainEvent {
+	aggregated := make([]blockchainmodels.BlockchainEvent, 0)
 
 	for _, events := range results {
 		aggregated = append(aggregated, events...)
@@ -227,9 +227,9 @@ func (cca *CrossChainAPI) AggregateResults(results map[string][]core.BlockchainE
 }
 
 // MergeResults merges results with consistency guarantees
-func (cca *CrossChainAPI) MergeResults(ctx context.Context, results map[string][]core.BlockchainEvent) (*CrossChainResult, error) {
+func (cca *CrossChainAPI) MergeResults(ctx context.Context, results map[string][]blockchainmodels.BlockchainEvent) (*CrossChainResult, error) {
 	merged := &CrossChainResult{
-		Events:        make([]core.BlockchainEvent, 0),
+		Events:        make([]blockchainmodels.BlockchainEvent, 0),
 		BlockchainMap: results,
 		CompletedAt:   time.Now(),
 	}
@@ -244,9 +244,9 @@ func (cca *CrossChainAPI) MergeResults(ctx context.Context, results map[string][
 }
 
 // PaginateResults paginates results
-func (cca *CrossChainAPI) PaginateResults(results []core.BlockchainEvent, limit, offset int) []core.BlockchainEvent {
+func (cca *CrossChainAPI) PaginateResults(results []blockchainmodels.BlockchainEvent, limit, offset int) []blockchainmodels.BlockchainEvent {
 	if offset >= len(results) {
-		return make([]core.BlockchainEvent, 0)
+		return make([]blockchainmodels.BlockchainEvent, 0)
 	}
 
 	end := offset + limit

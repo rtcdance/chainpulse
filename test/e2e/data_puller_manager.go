@@ -363,18 +363,4 @@ func (dpm *DefaultDataPullerManager) WaitForEventCollection(ctx context.Context,
 	}
 }
 
-//nolint:unused
-func (dpm *DefaultDataPullerManager) addCollectedEvent(event *CollectedEvent) {
-	dpm.mu.Lock()
-	defer dpm.mu.Unlock()
 
-	key := fmt.Sprintf("%s_%d_%d", event.TxHash, event.BlockNumber, event.LogIndex)
-	dpm.eventIndex[key] = event
-	dpm.collectedEvents = append(dpm.collectedEvents, event)
-	dpm.metrics.EventsCollected++
-
-	if event.BlockNumber > dpm.lastBlockProcessed {
-		dpm.lastBlockProcessed = event.BlockNumber
-		dpm.metrics.LastBlockProcessed = event.BlockNumber
-	}
-}

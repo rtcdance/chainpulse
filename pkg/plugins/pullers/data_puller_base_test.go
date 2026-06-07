@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 
 	"github.com/ethereum/go-ethereum/common"
 )
@@ -152,10 +153,10 @@ func TestBaseDataPullerPlugin_ValidateEvent(t *testing.T) {
 
 	tests := []struct {
 		name  string
-		event core.BlockchainEvent
+		event blockchain.BlockchainEvent
 		fails bool
 	}{
-		{"valid", core.BlockchainEvent{
+		{"valid", blockchain.BlockchainEvent{
 			ID:              "1",
 			ChainID:         "1",
 			BlockNumber:     100,
@@ -164,9 +165,9 @@ func TestBaseDataPullerPlugin_ValidateEvent(t *testing.T) {
 			EventName:       "Transfer",
 			Status:          "pending",
 		}, false},
-		{"empty id", core.BlockchainEvent{ChainID: "1", BlockNumber: 100}, true},
-		{"empty chain", core.BlockchainEvent{ID: "1", BlockNumber: 100}, true},
-		{"zero block", core.BlockchainEvent{ID: "1", ChainID: "1"}, true},
+		{"empty id", blockchain.BlockchainEvent{ChainID: "1", BlockNumber: 100}, true},
+		{"empty chain", blockchain.BlockchainEvent{ID: "1", BlockNumber: 100}, true},
+		{"zero block", blockchain.BlockchainEvent{ID: "1", ChainID: "1"}, true},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -184,7 +185,7 @@ func TestBaseDataPullerPlugin_ValidateEvent(t *testing.T) {
 func TestBaseDataPullerPlugin_GenerateEventHash(t *testing.T) {
 	t.Parallel()
 	p := newBasePuller()
-	event := core.BlockchainEvent{
+	event := blockchain.BlockchainEvent{
 		ID:              "evt1",
 		ChainID:         "1",
 		BlockNumber:     100,
@@ -297,12 +298,12 @@ func TestBaseDataPullerPlugin_PublishEvents(t *testing.T) {
 	p := newBasePuller()
 	ctx := context.Background()
 
-	err := p.PublishEvent(ctx, core.BlockchainEvent{ID: "evt1"})
+	err := p.PublishEvent(ctx, blockchain.BlockchainEvent{ID: "evt1"})
 	if err != nil {
 		t.Logf("PublishEvent error (expected without EventBus): %v", err)
 	}
 
-	err = p.PublishEvents(ctx, []core.BlockchainEvent{{ID: "evt1"}, {ID: "evt2"}})
+	err = p.PublishEvents(ctx, []blockchain.BlockchainEvent{{ID: "evt1"}, {ID: "evt2"}})
 	if err != nil {
 		t.Logf("PublishEvents error (expected without EventBus): %v", err)
 	}

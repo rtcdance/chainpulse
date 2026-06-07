@@ -7,6 +7,8 @@ import (
 	"math"
 	"math/big"
 	"time"
+
+	"github.com/rtcdance/chainpulse/pkg/services/query/qerrors"
 )
 
 // RetryPolicy defines the retry configuration
@@ -81,14 +83,14 @@ func (rp *RetryPolicy) ShouldRetry(err error, attempt int) bool {
 	}
 
 	// Only retry transient errors
-	classifier := NewErrorClassifier()
+	classifier := qerrors.NewClassifier()
 	return classifier.IsTransient(err)
 }
 
 // RetryHandler handles retry logic
 type RetryHandler struct {
 	policy     *RetryPolicy
-	classifier *ErrorClassifier
+	classifier *qerrors.Classifier
 }
 
 // NewRetryHandler creates a new retry handler
@@ -99,7 +101,7 @@ func NewRetryHandler(policy *RetryPolicy) *RetryHandler {
 
 	return &RetryHandler{
 		policy:     policy,
-		classifier: NewErrorClassifier(),
+		classifier: qerrors.NewClassifier(),
 	}
 }
 
