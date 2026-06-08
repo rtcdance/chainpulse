@@ -285,7 +285,9 @@ services:
       - "9090:9090"
     volumes:
       - ../monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ../monitoring/prometheus/alerts:/etc/prometheus/alerts:ro
       - prometheus_data:/prometheus
+      - alertmanager_data:/alertmanager
       - /tmp/chainpulse-sim:/tmp/chainpulse-sim:ro
     command:
       - "--config.file=/etc/prometheus/prometheus.yml"
@@ -300,6 +302,25 @@ services:
         limits:
           cpus: '0.10'
           memory: 256M
+
+  alertmanager:
+    image: prom/alertmanager:v0.26.0
+    <<: *default-logging
+    container_name: chainpulse-alertmanager
+    ports:
+      - "9093:9093"
+    volumes:
+      - ../monitoring/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    command:
+      - "--config.file=/etc/alertmanager/alertmanager.yml"
+      - "--log.level=debug"
+    networks:
+      - chainpulse
+    deploy:
+      resources:
+        limits:
+          cpus: '0.05'
+          memory: 64M
 
   frontend:
     build:
@@ -366,6 +387,57 @@ services:
         limits:
           cpus: '0.10'
           memory: 256M
+    depends_on:
+      prometheus:
+        condition: service_started
+
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:v0.15.0
+    <<: *default-logging
+    container_name: chainpulse-postgres-exporter
+    environment:
+      DATA_SOURCE_NAME: "postgresql://chainpulse:${POSTGRES_PASSWORD}@postgres:5432/chainpulse?sslmode=disable"
+    ports:
+      - "9187:9187"
+    networks:
+      - chainpulse
+    deploy:
+      resources:
+        limits:
+          cpus: '0.05'
+          memory: 32M
+
+  redis-exporter:
+    image: oliver006/redis_exporter:v1.61.0
+    <<: *default-logging
+    container_name: chainpulse-redis-exporter
+    environment:
+      REDIS_ADDR: "redis:6379"
+    ports:
+      - "9121:9121"
+    networks:
+      - chainpulse
+    deploy:
+      resources:
+        limits:
+          cpus: '0.05'
+          memory: 32M
+
+  kafka-exporter:
+    image: danielqsj/kafka-exporter:latest
+    <<: *default-logging
+    container_name: chainpulse-kafka-exporter
+    environment:
+      KAFKA_EXPORTER_KAFKA_SERVERS: "kafka:9092"
+    ports:
+      - "9308:9308"
+    networks:
+      - chainpulse
+    deploy:
+      resources:
+        limits:
+          cpus: '0.05'
+          memory: 64M
 
   api-service:
     image: chainpulse-api-service:latest
@@ -525,6 +597,7 @@ services:
 volumes:
   postgres_data:
   prometheus_data:
+  alertmanager_data:
   grafana_data:
   anvil_svm_cache:
   solana_ledger:
