@@ -80,6 +80,9 @@ frontend/.vite/
 # Package locks
 package-lock.json
 
+# Go workspace
+go.work.sum
+
 # Test results
 test-results/
 
