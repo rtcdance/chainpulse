@@ -429,18 +429,18 @@ func TestDataPullerMetricsAccuracy(t *testing.T) {
 				if err != nil {
 					t.Fatalf("invalid log index: %d: %v", i, err)
 				}
-			event := &CollectedEvent{
-				ID:              fmt.Sprintf("event_%d", i),
-				ContractAddress: "0x1111111111111111111111111111111111111111",
-				EventName:       "Transfer",
-				TxHash:          fmt.Sprintf("0x%064d", i),
-				BlockNumber:     blockNumber,
-				LogIndex:        logIndex,
-				ChainID:         "31337",
-			}
-			if err := dataPullerMgr.AddCollectedEvent(ctx, event); err != nil {
-				t.Fatalf("failed to add collected event: %v", err)
-			}
+				event := &CollectedEvent{
+					ID:              fmt.Sprintf("event_%d", i),
+					ContractAddress: "0x1111111111111111111111111111111111111111",
+					EventName:       "Transfer",
+					TxHash:          fmt.Sprintf("0x%064d", i),
+					BlockNumber:     blockNumber,
+					LogIndex:        logIndex,
+					ChainID:         "31337",
+				}
+				if err := dataPullerMgr.AddCollectedEvent(ctx, event); err != nil {
+					t.Fatalf("failed to add collected event: %v", err)
+				}
 			}
 
 			// Get metrics
