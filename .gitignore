@@ -76,6 +76,7 @@ docs/ARCHITECTURE_REVIEW_REPORT.md
 node_modules/
 frontend/node_modules/
 frontend/.vite/
+frontend/package-lock.json
 
 # Package locks
 package-lock.json
