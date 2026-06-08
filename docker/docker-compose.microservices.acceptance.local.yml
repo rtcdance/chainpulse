@@ -12,7 +12,7 @@ services:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U chainpulse -d chainpulse"]
-      interval: 10s
+      interval: 30s
       timeout: 5s
       retries: 5
     networks:
@@ -25,10 +25,10 @@ services:
     container_name: chainpulse-redis
     ports:
       - "16379:6379"
-    command: redis-server --appendonly yes
+    command: redis-server --save ""
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
+      interval: 30s
       timeout: 5s
       retries: 5
     networks:
@@ -43,7 +43,8 @@ services:
     container_name: chainpulse-zookeeper
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
-      ZOOKEEPER_TICK_TIME: 2000
+      ZOOKEEPER_TICK_TIME: 3000
+      ZOOKEEPER_HEAP_OPTS: "-Xms128M -Xmx256M"
     networks:
       - chainpulse
 
@@ -62,11 +63,14 @@ services:
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_OFFSETS_TOPIC_NUM_PARTITIONS: "1"
+      KAFKA_TRANSACTION_STATE_LOG_NUM_PARTITIONS: "1"
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: "1"
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
     restart: on-failure
     healthcheck:
       test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
-      interval: 10s
+      interval: 30s
       timeout: 5s
       retries: 5
     networks:
@@ -93,9 +97,11 @@ services:
       - "10"
       - "--balance"
       - "10000"
+      - "--block-time"
+      - "3"
     healthcheck:
       test: ["CMD", "cast", "rpc", "--rpc-url", "http://127.0.0.1:8545", "eth_chainId"]
-      interval: 10s
+      interval: 30s
       timeout: 5s
       retries: 5
     networks:
@@ -105,10 +111,11 @@ services:
           - polygon-rpc
 
   mongodb:
-    image: mongo:6
+    image: mongo:7
+    command: ["--wiredTigerCacheSizeGB", "0.15"]
     healthcheck:
       test: ["CMD", "mongosh", "--quiet", "--eval", "db.runCommand({ ping: 1 })"]
-      interval: 10s
+      interval: 30s
       timeout: 5s
       retries: 5
     networks:
@@ -127,9 +134,16 @@ services:
     command:
       - "--config.file=/etc/prometheus/prometheus.yml"
       - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=7d"
+      - "--storage.tsdb.min-block-duration=2h"
       - "--web.enable-lifecycle"
     networks:
       - chainpulse
+    deploy:
+      resources:
+        limits:
+          cpus: '0.30'
+          memory: 512M
 
   grafana:
     image: grafana/grafana:10.1.0
@@ -140,6 +154,10 @@ services:
       GF_SECURITY_ADMIN_USER: admin
       GF_SECURITY_ADMIN_PASSWORD: ${GF_SECURITY_ADMIN_PASSWORD}
       GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_ALERTING_ENABLED: "false"
+      GF_UNIFIED_ALERTING_ENABLED: "false"
+      GF_LIVE_MAX_CHANNELS: "5"
+      GF_DASHBOARDS_MIN_REFRESH_INTERVAL: "5m"
     volumes:
       - grafana_data:/var/lib/grafana
       - ../monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
@@ -148,6 +166,11 @@ services:
       - prometheus
     networks:
       - chainpulse
+    deploy:
+      resources:
+        limits:
+          cpus: '0.20'
+          memory: 256M
 
   jaeger:
     image: jaegertracing/all-in-one:1.49
@@ -160,6 +183,11 @@ services:
       COLLECTOR_OTLP_ENABLED: "true"
     networks:
       - chainpulse
+    deploy:
+      resources:
+        limits:
+          cpus: '0.20'
+          memory: 256M
 
   api-service:
     build:
@@ -189,12 +217,15 @@ services:
       API_SERVICE_AUTH_API_KEYS: ${API_KEYS}
       API_SERVICE_RATE_LIMIT_ENABLED: "true"
       API_SERVICE_RATE_LIMIT: 600
-      LOG_LEVEL: info
+      LOG_LEVEL: error
+      GOMAXPROCS: "2"
+      GOMEMLIMIT: "400MiB"
+      GOGC: "100"
     ports:
       - "8081:8081"
     healthcheck:
       test: ["CMD", "wget", "--header=X-API-Key: acceptance-local-api-key", "--spider", "-q", "http://localhost:8081/health"]
-      interval: 15s
+      interval: 30s
       timeout: 5s
       retries: 5
     networks:
@@ -220,12 +251,15 @@ services:
       GATEWAY_AUTH_API_KEYS: ${API_KEYS}
       GATEWAY_RATE_LIMIT_ENABLED: "true"
       GATEWAY_RATE_LIMIT: 600
-      LOG_LEVEL: info
+      LOG_LEVEL: error
+      GOMAXPROCS: "2"
+      GOMEMLIMIT: "200MiB"
+      GOGC: "100"
     ports:
       - "8080:8080"
     healthcheck:
       test: ["CMD", "wget", "--header=X-API-Key: acceptance-local-api-key", "--spider", "-q", "http://localhost:8080/health"]
-      interval: 15s
+      interval: 30s
       timeout: 5s
       retries: 5
     networks:
@@ -250,12 +284,15 @@ services:
       INSTANCE_ID: event-processor-1
       DATABASE_URL: ${DATABASE_URL}
       MONGODB_URI: mongodb://mongodb:27017
-      LOG_LEVEL: info
+      LOG_LEVEL: error
+      GOMAXPROCS: "2"
+      GOMEMLIMIT: "400MiB"
+      GOGC: "100"
     ports:
       - "8082:8082"
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:8082/health"]
-      interval: 15s
+      interval: 30s
       timeout: 5s
       retries: 5
     networks:
@@ -281,12 +318,15 @@ services:
       KAFKA_BROKERS: kafka-1:9092,kafka-2:9092,kafka-3:9092
       BLOCKCHAIN_RPCS: http://ethereum-rpc:8545,http://polygon-rpc:8545
       BLOCK_CONFIRMATION: 0
-      LOG_LEVEL: info
+      LOG_LEVEL: error
+      GOMAXPROCS: "2"
+      GOMEMLIMIT: "400MiB"
+      GOGC: "100"
     ports:
       - "8083:8083"
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:8083/health"]
-      interval: 15s
+      interval: 30s
       timeout: 5s
       retries: 5
     networks:

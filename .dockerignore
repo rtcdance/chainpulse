@@ -27,12 +27,35 @@ Thumbs.db
 .git/
 .gitignore
 
+# CI/CD
+.github/
+
 # Docker
 docker/
+
+# Kubernetes
+k8s/
+
+# Monitoring configs
+monitoring/
+
+# Scripts
+scripts/
+*.sh
 
 # Test
 testdata/
 *_test.go
+test/
+
+# Node.js
+package.json
+package-lock.json
+node_modules/
 
 # Compose specs
 .comate/
+
+# Terraform
+*.tf
+*.tfvars

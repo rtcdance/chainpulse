@@ -1,72 +1,73 @@
 version: '3.8'
 
+x-logging: &default-logging
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+
 services:
   # ============================================
   # E2E Test Blockchain Nodes (Anvil)
   # ============================================
 
-  anvil-ethereum:
+  anvil-ethereum: &e2e-anvil-node
     image: ghcr.io/foundry-rs/foundry:latest
+    <<: *default-logging
     container_name: chainpulse-e2e-anvil-ethereum
     ports:
       - "8545:8545"
-    command: anvil --host 0.0.0.0 --port 8545 --chain-id 1 --accounts 10 --balance 10000 --timestamp 0
+    command: anvil --host 0.0.0.0 --port 8545 --chain-id 1 --accounts 5 --balance 10000 --block-time 3 --timestamp 0
     networks:
       - e2e-network
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 256M
 
   anvil-polygon:
-    image: ghcr.io/foundry-rs/foundry:latest
+    <<: *e2e-anvil-node
     container_name: chainpulse-e2e-anvil-polygon
     ports:
       - "8546:8545"
-    command: anvil --host 0.0.0.0 --port 8545 --chain-id 137 --accounts 10 --balance 10000 --timestamp 0
-    networks:
-      - e2e-network
+    command: anvil --host 0.0.0.0 --port 8545 --chain-id 137 --accounts 5 --balance 10000 --block-time 3 --timestamp 0
 
   anvil-bsc:
-    image: ghcr.io/foundry-rs/foundry:latest
+    <<: *e2e-anvil-node
     container_name: chainpulse-e2e-anvil-bsc
     ports:
       - "8547:8545"
-    command: anvil --host 0.0.0.0 --port 8545 --chain-id 97 --accounts 10 --balance 10000 --timestamp 0
-    networks:
-      - e2e-network
+    command: anvil --host 0.0.0.0 --port 8545 --chain-id 97 --accounts 5 --balance 10000 --block-time 3 --timestamp 0
 
   anvil-arbitrum:
-    image: ghcr.io/foundry-rs/foundry:latest
+    <<: *e2e-anvil-node
     container_name: chainpulse-e2e-anvil-arbitrum
     ports:
       - "8548:8545"
-    command: anvil --host 0.0.0.0 --port 8545 --chain-id 421614 --accounts 10 --balance 10000 --timestamp 0
-    networks:
-      - e2e-network
+    command: anvil --host 0.0.0.0 --port 8545 --chain-id 421614 --accounts 5 --balance 10000 --block-time 3 --timestamp 0
 
   anvil-optimism:
-    image: ghcr.io/foundry-rs/foundry:latest
+    <<: *e2e-anvil-node
     container_name: chainpulse-e2e-anvil-optimism
     ports:
       - "8549:8545"
-    command: anvil --host 0.0.0.0 --port 8545 --chain-id 11155420 --accounts 10 --balance 10000 --timestamp 0
-    networks:
-      - e2e-network
+    command: anvil --host 0.0.0.0 --port 8545 --chain-id 11155420 --accounts 5 --balance 10000 --block-time 3 --timestamp 0
 
   anvil-base:
-    image: ghcr.io/foundry-rs/foundry:latest
+    <<: *e2e-anvil-node
     container_name: chainpulse-e2e-anvil-base
     ports:
       - "8550:8545"
-    command: anvil --host 0.0.0.0 --port 8545 --chain-id 84532 --accounts 10 --balance 10000 --timestamp 0
-    networks:
-      - e2e-network
+    command: anvil --host 0.0.0.0 --port 8545 --chain-id 84532 --accounts 5 --balance 10000 --block-time 3 --timestamp 0
 
   anvil-avalanche:
-    image: ghcr.io/foundry-rs/foundry:latest
+    <<: *e2e-anvil-node
     container_name: chainpulse-e2e-anvil-avalanche
     ports:
       - "8551:8545"
-    command: anvil --host 0.0.0.0 --port 8545 --chain-id 43113 --accounts 10 --balance 10000 --timestamp 0
-    networks:
-      - e2e-network
+    command: anvil --host 0.0.0.0 --port 8545 --chain-id 43113 --accounts 5 --balance 10000 --block-time 3 --timestamp 0
 
   # ============================================
   # E2E Test Runner
