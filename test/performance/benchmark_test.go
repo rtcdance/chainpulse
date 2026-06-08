@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/rtcdance/chainpulse/pkg/core"
 	"github.com/rtcdance/chainpulse/pkg/blockchain"
+	"github.com/rtcdance/chainpulse/pkg/core"
 	"github.com/rtcdance/chainpulse/pkg/plugins/cache"
 	"github.com/rtcdance/chainpulse/pkg/plugins/database"
 	"github.com/rtcdance/chainpulse/pkg/plugins/mq"

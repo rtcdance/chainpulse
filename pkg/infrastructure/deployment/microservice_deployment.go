@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
-"github.com/rtcdance/chainpulse/pkg/logkeys"
+	"github.com/rtcdance/chainpulse/pkg/logkeys"
 )
 
 // MicroserviceDeployment represents a microservice deployment mode where services run independently

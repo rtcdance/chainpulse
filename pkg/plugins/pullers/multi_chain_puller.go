@@ -6,8 +6,8 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/rtcdance/chainpulse/pkg/core"
 	"github.com/rtcdance/chainpulse/pkg/blockchain"
+	"github.com/rtcdance/chainpulse/pkg/core"
 	"golang.org/x/sync/errgroup"
 )
 

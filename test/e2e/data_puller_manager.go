@@ -32,6 +32,9 @@ type DataPullerManager interface {
 
 	// WaitForEventCollection waits for events to be collected
 	WaitForEventCollection(ctx context.Context, expectedCount int, timeout time.Duration) error
+
+	// AddCollectedEvent adds a collected event to the manager
+	AddCollectedEvent(ctx context.Context, event *CollectedEvent) error
 }
 
 // DataPullerConfig configures the data puller
@@ -168,6 +171,30 @@ func (dpm *DefaultDataPullerManager) StopPuller(ctx context.Context) error {
 
 	dpm.isRunning = false
 	close(dpm.eventCollectionChan)
+
+	return nil
+}
+
+// AddCollectedEvent adds a collected event to the manager
+func (dpm *DefaultDataPullerManager) AddCollectedEvent(ctx context.Context, event *CollectedEvent) error {
+	dpm.mu.Lock()
+	defer dpm.mu.Unlock()
+
+	if !dpm.isRunning {
+		return fmt.Errorf("data puller not running")
+	}
+
+	if event == nil {
+		return fmt.Errorf("event cannot be nil")
+	}
+
+	dpm.collectedEvents = append(dpm.collectedEvents, event)
+	dpm.eventIndex[event.ID] = event
+	dpm.metrics.EventsCollected++
+
+	if event.BlockNumber > dpm.metrics.LastBlockProcessed {
+		dpm.metrics.LastBlockProcessed = event.BlockNumber
+	}
 
 	return nil
 }
@@ -362,5 +389,3 @@ func (dpm *DefaultDataPullerManager) WaitForEventCollection(ctx context.Context,
 		}
 	}
 }
-
-

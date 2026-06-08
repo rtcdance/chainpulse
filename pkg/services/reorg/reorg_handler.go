@@ -9,8 +9,8 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/rtcdance/chainpulse/pkg/core"
-"github.com/rtcdance/chainpulse/pkg/logkeys"
 	"github.com/rtcdance/chainpulse/pkg/core/topics"
+	"github.com/rtcdance/chainpulse/pkg/logkeys"
 )
 
 // ReorgHandler detects and recovers from blockchain reorganizations.

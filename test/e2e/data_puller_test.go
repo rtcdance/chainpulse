@@ -114,6 +114,9 @@ func TestDataPullerEventCollection(t *testing.T) {
 			RetryCount:      0,
 		}
 		collectedEvents = append(collectedEvents, collected)
+		if err := dataPullerMgr.AddCollectedEvent(ctx, collected); err != nil {
+			t.Fatalf("failed to add collected event: %v", err)
+		}
 	}
 
 	// Validate collection
@@ -239,13 +242,29 @@ func TestDataPullerReorgHandling(t *testing.T) {
 		to := fixtures.TestAccounts[1].Address
 		amount := big.NewInt(int64(100 * (i + 1)))
 
-		_, err := blockchainMgr.EmitEvent(ctx, contract.Address, "Transfer", map[string]any{
+		emitted, err := blockchainMgr.EmitEvent(ctx, contract.Address, "Transfer", map[string]any{
 			"from":  from,
 			"to":    to,
 			"value": amount,
 		})
 		if err != nil {
 			t.Fatalf("failed to emit event: %v", err)
+		}
+
+		collected := &CollectedEvent{
+			ID:              emitted.ID,
+			ContractAddress: emitted.ContractAddress,
+			EventName:       emitted.EventName,
+			TxHash:          emitted.TxHash,
+			BlockNumber:     emitted.BlockNumber,
+			LogIndex:        emitted.LogIndex,
+			RawData:         []byte{},
+			CollectedAt:     time.Now(),
+			ChainID:         "31337",
+			RetryCount:      0,
+		}
+		if err := dataPullerMgr.AddCollectedEvent(ctx, collected); err != nil {
+			t.Fatalf("failed to add collected event: %v", err)
 		}
 	}
 
@@ -317,10 +336,11 @@ func TestDataPullerEventFiltering(t *testing.T) {
 		},
 	}
 
-	// Add events to manager (using internal method) - call removed: pre-existing vet error (addCollectedEvent undefined at HEAD)
+	// Add events to manager
 	for _, event := range testEvents {
-		_ = event
-		_ = dataPullerMgr
+		if err := dataPullerMgr.AddCollectedEvent(ctx, event); err != nil {
+			t.Fatalf("failed to add collected event: %v", err)
+		}
 	}
 
 	// Test filtering by contract address
@@ -404,8 +424,9 @@ func TestDataPullerPagination(t *testing.T) {
 			LogIndex:        uint32(i),
 			ChainID:         "31337",
 		}
-		_ = event
-		_ = dataPullerMgr
+		if err := dataPullerMgr.AddCollectedEvent(ctx, event); err != nil {
+			t.Fatalf("failed to add collected event: %v", err)
+		}
 	}
 
 	// Test limit
@@ -493,8 +514,9 @@ func TestDataPullerMetrics(t *testing.T) {
 			LogIndex:        uint32(i),
 			ChainID:         "31337",
 		}
-		_ = event
-		_ = dataPullerMgr
+		if err := dataPullerMgr.AddCollectedEvent(ctx, event); err != nil {
+			t.Fatalf("failed to add collected event: %v", err)
+		}
 	}
 
 	// Get metrics
@@ -550,8 +572,10 @@ func TestDataPullerWaitForCollection(t *testing.T) {
 				LogIndex:        uint32(i),
 				ChainID:         "31337",
 			}
-			_ = event
-			_ = dataPullerMgr
+			if err := dataPullerMgr.AddCollectedEvent(ctx, event); err != nil {
+				t.Logf("failed to add collected event: %v", err)
+				return
+			}
 			time.Sleep(50 * time.Millisecond)
 		}
 	}()

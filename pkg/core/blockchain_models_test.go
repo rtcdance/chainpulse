@@ -362,7 +362,7 @@ func TestTransactionWithLogs(t *testing.T) {
 
 func TestTransactionTypeClassification(t *testing.T) {
 	t.Parallel()
-	baseTx :=blockchain.Transaction{
+	baseTx := blockchain.Transaction{
 		Hash:        common.HexToHash("0x1234"),
 		From:        common.HexToAddress("0x5678"),
 		BlockNumber: 1000,

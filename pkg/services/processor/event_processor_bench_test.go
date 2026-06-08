@@ -6,16 +6,20 @@ import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/rtcdance/chainpulse/pkg/core"
 	"github.com/rtcdance/chainpulse/pkg/blockchain"
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 // mockBenchStorage is a no-op storage for benchmarking processor logic.
 type mockBenchStorage struct{}
 
-func (m *mockBenchStorage) WriteEvent(_ context.Context, _ *blockchain.BlockchainEvent) error { return nil }
+func (m *mockBenchStorage) WriteEvent(_ context.Context, _ *blockchain.BlockchainEvent) error {
+	return nil
+}
 
-func (m *mockBenchStorage) WriteBatch(_ context.Context, _ []*blockchain.BlockchainEvent) error { return nil }
+func (m *mockBenchStorage) WriteBatch(_ context.Context, _ []*blockchain.BlockchainEvent) error {
+	return nil
+}
 
 func (m *mockBenchStorage) DeleteEvent(_ context.Context, _ string) error { return nil }
 

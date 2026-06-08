@@ -5,8 +5,8 @@ import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/rtcdance/chainpulse/pkg/core"
 	"github.com/rtcdance/chainpulse/pkg/blockchain"
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 type benchMockDB struct {
@@ -39,7 +39,7 @@ func (m *benchMockDB) GetAllEvents(_ context.Context) ([]*blockchain.BlockchainE
 func (m *benchMockDB) GetEventsByBlockRange(_ context.Context, _, _ uint64) ([]*blockchain.BlockchainEvent, error) {
 	return nil, nil
 }
-func (m *benchMockDB) GetLatestBlock(_ context.Context) (uint64, error)      { return 0, nil }
+func (m *benchMockDB) GetLatestBlock(_ context.Context) (uint64, error)            { return 0, nil }
 func (m *benchMockDB) GetAllBlocks(_ context.Context) ([]*blockchain.Block, error) { return nil, nil }
 func (m *benchMockDB) GetReorgStats(_ context.Context) (*core.ReorgStats, error) {
 	return nil, nil

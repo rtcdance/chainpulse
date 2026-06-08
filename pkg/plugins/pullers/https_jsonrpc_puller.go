@@ -11,8 +11,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/rtcdance/chainpulse/pkg/core"
 	"github.com/rtcdance/chainpulse/pkg/blockchain"
+	"github.com/rtcdance/chainpulse/pkg/core"
 	"github.com/rtcdance/chainpulse/pkg/core/eventsig"
 	"github.com/rtcdance/chainpulse/pkg/core/topics"
 	"github.com/rtcdance/chainpulse/pkg/evm"

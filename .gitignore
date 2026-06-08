@@ -6,6 +6,13 @@ log/
 *.so
 *.dylib
 
+# Binary build artifacts
+/chainpulse
+/api-gateway
+/api-service
+/event-processor
+/puller
+
 # Test coverage
 *.out
 coverage/

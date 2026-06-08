@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
-"github.com/rtcdance/chainpulse/pkg/logkeys"
+	"github.com/rtcdance/chainpulse/pkg/logkeys"
 
 	"github.com/redis/go-redis/v9"
 )

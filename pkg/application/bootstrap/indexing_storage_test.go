@@ -5,8 +5,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/rtcdance/chainpulse/pkg/core"
 	"github.com/rtcdance/chainpulse/pkg/blockchain"
+	"github.com/rtcdance/chainpulse/pkg/core"
 
 	"github.com/ethereum/go-ethereum/common"
 )

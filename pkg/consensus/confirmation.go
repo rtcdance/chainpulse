@@ -270,11 +270,11 @@ func (t *ConfirmationTracker) ReconcileFinality() (uint64, error) {
 
 // pendingEventJSON is the JSON representation of a pendingEvent for persistence.
 type pendingEventJSON struct {
-	EventHash   string           `json:"event_hash"`
-	BlockNumber uint64           `json:"block_number"`
-	BlockHash   string           `json:"block_hash"`
+	EventHash   string                 `json:"event_hash"`
+	BlockNumber uint64                 `json:"block_number"`
+	BlockHash   string                 `json:"block_hash"`
 	Status      blockchain.EventStatus `json:"status"`
-	QueuedAt    time.Time        `json:"queued_at"`
+	QueuedAt    time.Time              `json:"queued_at"`
 }
 
 // Persist serializes the tracker's pending events to JSON bytes.

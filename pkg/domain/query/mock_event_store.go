@@ -11,8 +11,8 @@ package query
 
 import (
 	context "context"
-	core "github.com/rtcdance/chainpulse/pkg/core"
 	"github.com/rtcdance/chainpulse/pkg/blockchain"
+	core "github.com/rtcdance/chainpulse/pkg/core"
 	reflect "reflect"
 
 	gomock "go.uber.org/mock/gomock"

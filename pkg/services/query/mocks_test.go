@@ -6,8 +6,8 @@ import (
 
 	"go.mongodb.org/mongo-driver/mongo"
 
-	"github.com/rtcdance/chainpulse/pkg/core"
 	"github.com/rtcdance/chainpulse/pkg/blockchain"
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 // mockDatabaseManager is a mock implementation of DatabaseManager for testing

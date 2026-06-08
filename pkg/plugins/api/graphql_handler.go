@@ -9,11 +9,11 @@ import (
 
 	"github.com/graphql-go/graphql"
 	"github.com/graphql-go/graphql/language/ast"
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"github.com/rtcdance/chainpulse/pkg/chainid"
 	"github.com/rtcdance/chainpulse/pkg/core"
-	"github.com/rtcdance/chainpulse/pkg/blockchain"
-"github.com/rtcdance/chainpulse/pkg/logkeys"
 	domainquery "github.com/rtcdance/chainpulse/pkg/domain/query"
+	"github.com/rtcdance/chainpulse/pkg/logkeys"
 )
 
 // jsonScalar is a custom GraphQL scalar that passes through arbitrary JSON values

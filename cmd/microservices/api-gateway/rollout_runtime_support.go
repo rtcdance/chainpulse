@@ -79,5 +79,3 @@ func buildAPIGatewayRuntimeRolloutComponents(
 
 	return eventQueryHandler, eventSubscriptionHandler, healthHandler, nil
 }
-
-

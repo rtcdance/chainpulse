@@ -13,8 +13,8 @@ import (
 	"time"
 
 	"github.com/rtcdance/chainpulse/pkg/application/bootstrap"
-	"github.com/rtcdance/chainpulse/pkg/core"
 	"github.com/rtcdance/chainpulse/pkg/blockchain"
+	"github.com/rtcdance/chainpulse/pkg/core"
 	"github.com/rtcdance/chainpulse/pkg/env"
 	sharedhttp "github.com/rtcdance/chainpulse/pkg/infrastructure/http"
 	"github.com/rtcdance/chainpulse/pkg/observability"

@@ -13,8 +13,8 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/graphql-go/graphql"
-	"github.com/rtcdance/chainpulse/pkg/core"
 	"github.com/rtcdance/chainpulse/pkg/blockchain"
+	"github.com/rtcdance/chainpulse/pkg/core"
 	apicore "github.com/rtcdance/chainpulse/pkg/plugins/api/core"
 )
 

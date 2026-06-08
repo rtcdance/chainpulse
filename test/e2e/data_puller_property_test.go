@@ -80,6 +80,9 @@ func TestDataPullerEventCollectionCompleteness(t *testing.T) {
 					ChainID:         "31337",
 					RetryCount:      0,
 				}
+				if err := dataPullerMgr.AddCollectedEvent(ctx, collectedEvents[i]); err != nil {
+					t.Fatalf("failed to add collected event: %v", err)
+				}
 			}
 
 			// Validate collection
@@ -215,10 +218,11 @@ func TestDataPullerEventFilteringAccuracy(t *testing.T) {
 	}
 
 	// Add events to manager
-	// for _, event := range testEvents {                                  // pre-existing vet error: addCollectedEvent undefined
-	// 	dataPullerMgr.(*DefaultDataPullerManager).addCollectedEvent(event)
-	// }
-	_ = testEvents // addCollectedEvent call commented out due to pre-existing undefined symbol
+	for _, event := range testEvents {
+		if err := dataPullerMgr.AddCollectedEvent(ctx, event); err != nil {
+			t.Fatalf("failed to add collected event: %v", err)
+		}
+	}
 
 	// Property test: Filtered results must match filter criteria
 	testCases := []struct {
@@ -332,8 +336,9 @@ func TestDataPullerPaginationCorrectness(t *testing.T) {
 			LogIndex:        logIndex,
 			ChainID:         "31337",
 		}
-		_ = event // addCollectedEvent call removed: pre-existing vet error (undefined at HEAD)
-		_ = dataPullerMgr
+		if err := dataPullerMgr.AddCollectedEvent(ctx, event); err != nil {
+			t.Fatalf("failed to add collected event: %v", err)
+		}
 	}
 
 	// Property test: Pagination must be consistent
@@ -424,17 +429,18 @@ func TestDataPullerMetricsAccuracy(t *testing.T) {
 				if err != nil {
 					t.Fatalf("invalid log index: %d: %v", i, err)
 				}
-				event := &CollectedEvent{
-					ID:              fmt.Sprintf("event_%d", i),
-					ContractAddress: "0x1111111111111111111111111111111111111111",
-					EventName:       "Transfer",
-					TxHash:          fmt.Sprintf("0x%064d", i),
-					BlockNumber:     blockNumber,
-					LogIndex:        logIndex,
-					ChainID:         "31337",
-				}
-				_ = event // addCollectedEvent call removed: pre-existing vet error (undefined at HEAD)
-				_ = dpm
+			event := &CollectedEvent{
+				ID:              fmt.Sprintf("event_%d", i),
+				ContractAddress: "0x1111111111111111111111111111111111111111",
+				EventName:       "Transfer",
+				TxHash:          fmt.Sprintf("0x%064d", i),
+				BlockNumber:     blockNumber,
+				LogIndex:        logIndex,
+				ChainID:         "31337",
+			}
+			if err := dataPullerMgr.AddCollectedEvent(ctx, event); err != nil {
+				t.Fatalf("failed to add collected event: %v", err)
+			}
 			}
 
 			// Get metrics
@@ -511,8 +517,9 @@ func TestDataPullerReorgHandlingCorrectness(t *testing.T) {
 			LogIndex:        uint32(i),
 			ChainID:         "31337",
 		}
-		_ = event // addCollectedEvent call removed: pre-existing vet error (undefined at HEAD)
-		_ = dataPullerMgr
+		if err := dataPullerMgr.AddCollectedEvent(ctx, event); err != nil {
+			t.Fatalf("failed to add collected event: %v", err)
+		}
 	}
 
 	// Property test: Reorg must correctly identify affected transactions

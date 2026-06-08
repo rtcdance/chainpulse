@@ -1,10 +1,10 @@
 package core
 
 import (
-	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 )
 
 // ComputeEventHash produces a deterministic SHA-256 hash for a blockchain event

@@ -7,9 +7,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/rtcdance/chainpulse/pkg/core"
 	"github.com/rtcdance/chainpulse/pkg/blockchain"
-"github.com/rtcdance/chainpulse/pkg/logkeys"
+	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/logkeys"
 )
 
 // DefaultCacheService provides cache operations with Redis backend
@@ -283,7 +283,7 @@ func (cs *DefaultCacheService) SetSingle(ctx context.Context, key string, value 
 
 type queryResultCache struct {
 	Events []blockchain.BlockchainEvent `json:"events"`
-	Total  int64                  `json:"total"`
+	Total  int64                        `json:"total"`
 }
 
 func (cs *DefaultCacheService) SetQueryResult(ctx context.Context, key string, events []blockchain.BlockchainEvent, total int64, ttl time.Duration) error {

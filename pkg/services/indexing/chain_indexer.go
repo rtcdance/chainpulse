@@ -6,9 +6,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"github.com/rtcdance/chainpulse/pkg/consensus"
 	"github.com/rtcdance/chainpulse/pkg/core"
-	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"github.com/rtcdance/chainpulse/pkg/domain"
 	"github.com/rtcdance/chainpulse/pkg/integrations/generic"
 )

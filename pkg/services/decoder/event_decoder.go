@@ -5,8 +5,8 @@ import (
 	"sync"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
-"github.com/rtcdance/chainpulse/pkg/logkeys"
 	"github.com/rtcdance/chainpulse/pkg/evm"
+	"github.com/rtcdance/chainpulse/pkg/logkeys"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"

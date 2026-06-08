@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rtcdance/chainpulse/pkg/chainid"
 	"github.com/rtcdance/chainpulse/pkg/blockchain"
+	"github.com/rtcdance/chainpulse/pkg/chainid"
 	"github.com/rtcdance/chainpulse/pkg/services/query"
 )
 

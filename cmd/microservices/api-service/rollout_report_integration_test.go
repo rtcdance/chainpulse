@@ -7,8 +7,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/rtcdance/chainpulse/pkg/core"
 	"github.com/rtcdance/chainpulse/pkg/blockchain"
+	"github.com/rtcdance/chainpulse/pkg/core"
 	"github.com/rtcdance/chainpulse/pkg/plugins/api"
 	"github.com/rtcdance/chainpulse/pkg/services/query"
 )
@@ -16,7 +16,6 @@ import (
 func TestAPIServiceRolloutReportRouteParityMetadataAndBodyBoundaries(t *testing.T) {
 	t.Skip("pre-existing vet error: newAPIServiceRolloutReportProducerWithReadinessDetails undefined at HEAD; restore when production function is reintroduced")
 }
-
 
 type apiServiceTestQueryService struct {
 	health         *core.HealthStatus

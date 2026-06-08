@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/rtcdance/chainpulse/pkg/application/bootstrap"
-	"github.com/rtcdance/chainpulse/pkg/core"
 	"github.com/rtcdance/chainpulse/pkg/blockchain"
+	"github.com/rtcdance/chainpulse/pkg/core"
 	"github.com/rtcdance/chainpulse/pkg/testhelpers"
 
 	"github.com/ethereum/go-ethereum/common"
