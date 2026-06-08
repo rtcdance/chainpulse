@@ -85,5 +85,4 @@ test-results/
 
 # Scripts generated
 scripts/mock-server/
-event-processor
 puller
