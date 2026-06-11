@@ -174,6 +174,7 @@ func TestAPIServiceRolloutReportProducerRuntimeDerivedDegradedQueryState(t *test
 func TestAPIServiceRolloutReportProducerRuntimeDerivedIncludesMonolithParitySource(t *testing.T) {
 	t.Skip("pre-existing vet error: newAPIServiceRolloutReportProducerWithReadinessDetails undefined at HEAD; restore when production function is reintroduced")
 }
+
 func TestClassifyAPIServiceRolloutWiringCompleteness(t *testing.T) {
 	completeness := classifyAPIServiceRolloutWiringCompleteness(
 		apiServiceRolloutRuntimeState{

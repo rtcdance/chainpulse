@@ -4,72 +4,36 @@ Shared kernel for ChainPulse: core abstractions, data models, and foundational i
 
 ## Responsibility
 
-This package is the **shared kernel** of ChainPulse. It defines:
-- Cross-package interfaces (ports)
+This package is the **shared kernel** of ChainPulse. It contains:
+- Type aliases for port interfaces (actual interface definitions are in `pkg/ports/`)
 - Shared data models (blockchain events, config, health status)
-- Foundational implementations that are tightly coupled to the shared types
-  (event bus, config manager, confirmation tracker, MEV pipeline, etc.)
+- Foundational implementations tightly coupled to the shared types
+  (event bus, config manager, logger, metrics collector, etc.)
 
 **Important**: New business logic implementations should prefer `pkg/services/`
 or `pkg/infrastructure/`. Only place implementations here if they are
-fundamental cross-cutting utilities or if they implement core interfaces
-from this same package.
+fundamental cross-cutting utilities.
 
-## Key Interfaces
+## Interface Definitions
 
-### Plugin Interface
+All core interfaces (Plugin, EventBus, Config, Logger, Metrics, HealthChecker, etc.)
+are defined in **`pkg/ports/`**. This package provides type aliases for backward
+compatibility:
+
 ```go
-type Plugin interface {
-    Name() string
-    Version() string
-    Initialize(ctx context.Context, config Config) error
-    Start(ctx context.Context) error
-    Stop(ctx context.Context) error
-    Health(ctx context.Context) HealthStatus
-}
+// pkg/core/plugin.go
+type Plugin = ports.Plugin
+type Logger = ports.Logger
+
+// pkg/core/eventbus_iface.go
+type EventBus = ports.EventBus
+
+// pkg/core/config_iface.go
+type ConfigManager = ports.ConfigManager
 ```
 
-### EventBus Interface
-```go
-type EventBus interface {
-    Publish(ctx context.Context, event Event) error
-    Subscribe(topic string, handler EventHandler) error
-    Unsubscribe(topic string, handler EventHandler) error
-}
-```
-
-### Config Interface
-```go
-type Config interface {
-    Get(key string) any
-    Set(key string, value any)
-}
-```
-
-### Logger Interface
-```go
-type Logger interface {
-    Debug(msg string, fields ...any)
-    Info(msg string, fields ...any)
-    Warn(msg string, fields ...any)
-    Error(msg string, fields ...any)
-}
-```
-
-### Metrics Interface
-```go
-type Metrics interface {
-    Record(name string, value float64)
-    Increment(name string)
-}
-```
-
-### HealthChecker Interface
-```go
-type HealthChecker interface {
-    Check(ctx context.Context) HealthStatus
-}
-```
+New code should import `pkg/ports/` directly. The aliases in `pkg/core/` are
+deprecated and will be removed in a future major version.
 
 ## Key Implementations
 
@@ -77,12 +41,11 @@ type HealthChecker interface {
 - **config.go** — DefaultConfigManager (env-based config, hot-reload)
 - **config_validation.go** — Config validation rules
 - **config_extensions.go** — Feature flags, multi-chain support
+- **config_accessors.go** — Config accessor field definitions
 
 ### Event Bus
-- **eventbus.go** — DefaultEventBus with bounded worker pool and panic recovery
-
-### Confirmation Tracker
-- **confirmation.go** — Pending → Confirmed → Finalized lifecycle
+- **channel_eventbus.go** — Channel-based in-memory EventBus
+- **typed_eventbus.go** — Typed event bus with topic routing
 
 ### Logging
 - **slog_logger.go** — Slog-based Logger implementation
@@ -90,21 +53,45 @@ type HealthChecker interface {
 ### Metrics
 - **metrics.go** — In-memory metrics collector
 
-### Web3 Utilities
-- **blockchain_models.go** — Block, Transaction, Event, Log data structures
-- **mev_pipeline.go**, **mev_builder.go**, **mev_flashbots.go** — MEV-Boost pipeline
-- **aa_mempool.go**, **aa_bundler.go** — ERC-4337 Account Abstraction
-- **l2_bridge.go** — L2→L1 message verification
-- **defi_primitives.go** — AMM math, lending health factors
-- **gas_estimator.go** — Gas estimation and history
-- **consensus.go** — Consensus rules and validation
+### MQ (Message Queue)
+- **mq_plugin.go** — MQ plugin definition
+- **mq_messaging.go** — Messaging primitives
+- **mq_batch.go** — Batch message processing
+- **mq_lifecycle.go** — MQ lifecycle management
+- **mq_metrics.go** — MQ metrics collection
+- **mq_error_handler.go** — MQ error handling
+
+### Core Data Structures
+- **types.go** — Domain types and port type aliases
+- **errors.go** — Error types and classification
+- **health.go** — Health check models and implementations
+- **health_iface.go** — HealthChecker interface alias
+- **plugin.go** — Plugin interface alias and lifecycle helpers
+- **eventbus_iface.go** — EventBus interface alias
+- **config_iface.go** — Config interface aliases
+- **secret.go** — Secret string type for credentials
+- **constants.go** — Core constants
+- **deployment_constants.go** — Deployment constants
+
+### Web3 Data Structures
+- **blockchain_validation.go** — Blockchain data validation
+- **event_filter.go** — Event filtering logic
+- **event_hash.go** — Event hashing utilities
+- **solana_models.go** — Solana blockchain data structures
+- **kzg.go** — KZG commitment verification
+- **address_utils.go** — Address utility functions
+
+### Registry & Runtime
+- **registry.go** — Plugin registry
+- **runtime_types.go** — Runtime type definitions
+- **indexer_ops.go** — Indexer operations
 
 ## Important Rules
 
-1. **Do NOT define new interfaces** in `pkg/infrastructure` — define them here
-2. All implementations in `pkg/infrastructure` must implement interfaces from here
+1. **Define new interfaces in `pkg/ports/`** — not in `pkg/core/` or `pkg/infrastructure/`
+2. All implementations in `pkg/infrastructure/` must implement interfaces from `pkg/ports/`
 3. Do NOT import `pkg/services/` or `pkg/infrastructure/` from this package
-4. Use this package for cross-package contracts
+4. Use `pkg/ports/` for cross-package contracts
 
 ## Documentation
 

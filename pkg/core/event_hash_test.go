@@ -1,8 +1,9 @@
 package core
 
 import (
-	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"testing"
+
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 
 	"github.com/ethereum/go-ethereum/common"
 )

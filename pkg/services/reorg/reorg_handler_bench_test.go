@@ -41,6 +41,7 @@ func (m *benchMockDB) GetEventsByBlockRange(_ context.Context, _, _ uint64) ([]*
 }
 func (m *benchMockDB) GetLatestBlock(_ context.Context) (uint64, error)            { return 0, nil }
 func (m *benchMockDB) GetAllBlocks(_ context.Context) ([]*blockchain.Block, error) { return nil, nil }
+
 func (m *benchMockDB) GetReorgStats(_ context.Context) (*core.ReorgStats, error) {
 	return nil, nil
 }

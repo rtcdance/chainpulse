@@ -631,18 +631,23 @@ func (c *cacheWithNilHealth) Stop(ctx context.Context) error       { return nil 
 func (c *cacheWithNilHealth) Get(ctx context.Context, key string) ([]blockchain.BlockchainEvent, error) {
 	return nil, nil
 }
+
 func (c *cacheWithNilHealth) GetSingle(ctx context.Context, key string) (*blockchain.BlockchainEvent, error) {
 	return nil, nil
 }
+
 func (c *cacheWithNilHealth) Set(ctx context.Context, key string, value []blockchain.BlockchainEvent, ttl time.Duration) error {
 	return nil
 }
+
 func (c *cacheWithNilHealth) SetSingle(ctx context.Context, key string, value *blockchain.BlockchainEvent, ttl time.Duration) error {
 	return nil
 }
+
 func (c *cacheWithNilHealth) SetQueryResult(ctx context.Context, key string, events []blockchain.BlockchainEvent, total int64, ttl time.Duration) error {
 	return nil
 }
+
 func (c *cacheWithNilHealth) GetQueryResult(ctx context.Context, key string) ([]blockchain.BlockchainEvent, int64, error) {
 	return nil, 0, nil
 }

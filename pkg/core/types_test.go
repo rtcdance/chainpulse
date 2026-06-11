@@ -1,9 +1,10 @@
 package core
 
 import (
-	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"testing"
 	"time"
+
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 
 	"github.com/stretchr/testify/assert"
 )

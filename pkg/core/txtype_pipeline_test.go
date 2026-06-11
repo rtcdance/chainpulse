@@ -3,8 +3,9 @@ package core
 import (
 	"context"
 	"errors"
-	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"testing"
+
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/assert"

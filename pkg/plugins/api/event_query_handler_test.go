@@ -106,6 +106,7 @@ func (m *mockEventStore) Close(ctx context.Context) error { return nil }
 func (m *mockEventStore) GetEventStats(ctx context.Context) (map[string]int64, map[string]int64, int64, error) {
 	return nil, nil, 0, nil
 }
+
 func (m *mockEventStore) GetEventsByCorrelationID(ctx context.Context, correlationID string, limit int, offset int) ([]*blockchain.BlockchainEvent, error) {
 	return nil, nil
 }

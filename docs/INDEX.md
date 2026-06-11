@@ -6,6 +6,7 @@
 
 ### Core
 - `ARCHITECTURE.md` - System architecture overview
+- `CHANGELOG.md` - Detailed phase-by-phase implementation history
 - `MILESTONE_STATUS.md` - Active milestone execution status for `M1a/M1b/M1c → M2 → M3a/M3b/M3c`
 - `DOCKER_RUNTIME_RECOVERY.md` - Docker runtime recovery runbook for compose-based readiness smoke failures
 - `TESTING.md` - Testing strategy

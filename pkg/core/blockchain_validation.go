@@ -2,6 +2,7 @@ package core
 
 import (
 	"fmt"
+
 	"github.com/rtcdance/chainpulse/pkg/blockchain"
 
 	"github.com/ethereum/go-ethereum/common"

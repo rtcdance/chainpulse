@@ -385,9 +385,11 @@ func TestPropertyHandlerPanicRecovery(t *testing.T) {
 		t.Fatalf("failed to subscribe normal handler: %v", err)
 	}
 
-	// This should not panic
+	// PublishSync should recover from the panic and return an error
 	err = eb.PublishSync(context.Background(), "test-topic", "event")
-	if err != nil {
-		t.Errorf("expected no error, got %v", err)
+	if err == nil {
+		t.Error("expected error from handler panic, got nil")
+	} else if err.Error() != "handler panic: test panic" {
+		t.Errorf("expected 'handler panic: test panic', got %v", err)
 	}
 }
