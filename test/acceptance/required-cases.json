@@ -1,5 +1,5 @@
 {
-  "$comment": "Required-cases manifest (plan §7.2). Maps the §9 acceptance scenarios (E01-E15) to the REAL Go test names that prove them. Consumed by scripts/acceptance/verify-tests.py --required-cases. A listed test that does not run, or that is skipped, is a hard failure. PARTIALLY FILLED (T18 local pre-flight, 2026-10-13): E02/E04/E05/E07/E09/E10/E11 are mapped to tests that were actually executed and passed locally. The remaining scenarios keep an empty array with a 'pending' reason; an empty array is NOT a claim that the scenario passes.",
+  "$comment": "Required-cases manifest (plan §7.2). Maps the §9 acceptance scenarios (E01-E15) to the REAL Go test names that prove them. Consumed by scripts/acceptance/verify-tests.py --required-cases. A listed test that does not run, or that is skipped, is a hard failure. PARTIALLY FILLED (T18 local pre-flight, 2026-10-13): E02/E04/E05/E07/E08/E09/E10/E11 are mapped to tests that were actually executed and passed locally. The remaining scenarios keep an empty array with a 'pending' reason; an empty array is NOT a claim that the scenario passes.",
   "schema": "chainpulse.required-cases.v1",
   "scenarios": [
     {
@@ -57,8 +57,14 @@
       "id": "E08",
       "lane": "unit",
       "summary": "RPC/WS failure: 429 Retry-After, timeout, 5xx, disconnect",
-      "tests": [],
-      "pending": "NOT IMPLEMENTED: no 429 / Retry-After handling exists anywhere in pkg/ (code or test) — this scenario cannot be mapped until it is written"
+      "tests": [
+        "TestFailoverRPCClient429Handling",
+        "TestParseRetryAfter_Seconds",
+        "TestParseRetryAfter_HTTPDate",
+        "TestFailoverRPCClientFailover",
+        "TestRateLimitExceededResponse"
+      ],
+      "note": "client-side 429 + Retry-After (pkg/infrastructure/rpc/failover_client.go), server-side 429 with Retry-After (pkg/plugins/api/rate_limiter.go), and 5xx/disconnect failover"
     },
     {
       "id": "E09",
