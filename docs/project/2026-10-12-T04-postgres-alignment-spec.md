@@ -30,6 +30,20 @@
 
 **仍未做（见 §2、§3）**：F06 身份（`ComputeEventHash` 加 `block_hash`）、`status`/`correlation_id` 写入、block 写入路径、live `events` 表处置、T02 的 PG 契约 runner + 适配层。
 
+### 0.2 后续轮次补齐（全部完成）
+
+| 项 | 落地 | 验证 |
+| --- | --- | --- |
+| **F06 身份** | `ComputeEventHash` 输入改为 `chain:block_hash:tx:log_index`；迁移 **000009** 把唯一约束加宽为含 `block_hash`；`ON CONFLICT` 同步 | `TestPostgresBlockHashIdentity`：同高两分支**并存两行**、重复投递**折叠** |
+| **`status` / `correlation_id` 持久化** | 三个 INSERT 合并为共享常量 `insertEventSQL`（12 列）；四个读路径合并为 `selectEventColumns` + `scanEvent` | `TestPostgresEventRoundTrip` 断言 `status` 与 `correlation_id` 往返一致 |
+| **block 写入路径** | 新增 `WriteBlock(ctx, chainID, *Block)`：`id = chain_id:number` 作为 PK **在结构上强制 I03**，同高替换走 `ON CONFLICT (id) DO UPDATE` | `TestPostgresBlockUpsert`：同高写两次 → `GetBlock` 返回替换后的 hash，且该高度**只有一行** |
+| **legacy `events` 表** | 迁移 **000010**：若存在 `public.events` 则**重命名为 `events_legacy`**（可逆、不丢数据）；down 恢复原名 | 实测：含 `events` 的库迁移后为 `events_legacy`；down 后恢复 `events` |
+| **T02 适配层 + PG 契约 runner** | `PostgreSQLPluginAdapter`；`TestPostgresDatabaseContract` 用**同一套契约**跑 Postgres | 五个子用例全 PASS |
+
+迁移总量：全新库 **10/10** 通过。
+
+**清理**：`pkg/plugins/database/postgres_database.go` 的 12 处 SQL 收敛为 2 个常量 + 1 个 `scanEvent`，杜绝"三处 INSERT 各自漂移"（正是最初那类 bug 的成因）。
+
 ---
 
 ## 0. 事实来源（T02 已核）

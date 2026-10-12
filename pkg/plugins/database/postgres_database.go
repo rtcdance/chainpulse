@@ -16,6 +16,69 @@ import (
 	"github.com/rtcdance/chainpulse/pkg/logkeys"
 )
 
+// insertEventSQL is the single INSERT shared by WriteEvent / WriteEvents /
+// WriteBatch, so the column list cannot drift between the three paths.
+const insertEventSQL = `
+INSERT INTO blockchain_events (id, chain_id, block_number, block_hash, transaction_hash, log_index, contract_address, event_name, event_data, timestamp, status, correlation_id)
+	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+	ON CONFLICT (chain_id, block_hash, transaction_hash, log_index) DO NOTHING
+	`
+
+// selectEventColumns is the column list every event read path selects, in the
+// order the scan code expects.
+const selectEventColumns = `id, chain_id, block_number, block_hash, transaction_hash, log_index, contract_address, event_name, event_data, timestamp, status, correlation_id`
+
+// eventStatus returns the value for the NOT NULL `status` column. An unset
+// status maps to "pending", matching the column default.
+func eventStatus(event *blockchain.BlockchainEvent) string {
+	if event.Status == "" {
+		return string(blockchain.EventStatusPending)
+	}
+	return string(event.Status)
+}
+
+// nullableString maps "" to SQL NULL.
+func nullableString(s string) any {
+	if s == "" {
+		return nil
+	}
+	return s
+}
+
+// eventScanner is satisfied by *sql.Row and *sql.Rows.
+type eventScanner interface {
+	Scan(dest ...any) error
+}
+
+// scanEvent scans one row selected with selectEventColumns into an event,
+// applying the same conversions on every read path.
+func scanEvent(s eventScanner) (*blockchain.BlockchainEvent, error) {
+	var (
+		event                              blockchain.BlockchainEvent
+		blockHash, txHash, contractAddress string
+		eventData                          []byte
+		status                             string
+		correlationID                      sql.NullString
+	)
+	if err := s.Scan(
+		&event.ID, &event.ChainID, &event.BlockNumber, &blockHash, &txHash,
+		&event.LogIndex, &contractAddress, &event.EventName, &eventData,
+		&event.BlockTimestamp, &status, &correlationID,
+	); err != nil {
+		return nil, err
+	}
+	event.EventHash = event.ID
+	event.BlockHash = common.HexToHash(blockHash)
+	event.TransactionHash = common.HexToHash(txHash)
+	event.ContractAddress = common.HexToAddress(contractAddress)
+	event.EventData = eventDataFromJSON(eventData)
+	event.Status = blockchain.EventStatus(status)
+	if correlationID.Valid {
+		event.CorrelationID = correlationID.String
+	}
+	return &event, nil
+}
+
 // eventPK returns the value stored in the `id` column.
 //
 // The caller-provided ID wins when set (the core.DatabasePlugin port addresses
@@ -203,11 +266,7 @@ func (p *PostgreSQLDatabase) WriteEvent(ctx context.Context, event *blockchain.B
 	ctx, cancel := NewContextWithTimeout(ctx, p.queryTimeout)
 	defer cancel()
 
-	insertSQL := `
-INSERT INTO blockchain_events (id, chain_id, block_number, block_hash, transaction_hash, log_index, contract_address, event_name, event_data, timestamp)
-	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-	ON CONFLICT (chain_id, block_hash, transaction_hash, log_index) DO NOTHING
-	`
+	insertSQL := insertEventSQL
 
 	_, err := db.ExecContext(
 		ctx, insertSQL,
@@ -221,6 +280,8 @@ INSERT INTO blockchain_events (id, chain_id, block_number, block_hash, transacti
 		event.EventName,
 		eventDataJSON(event.EventData),
 		event.BlockTimestamp,
+		eventStatus(event),
+		nullableString(event.CorrelationID),
 	)
 
 	duration := time.Since(start).Milliseconds()
@@ -241,6 +302,53 @@ INSERT INTO blockchain_events (id, chain_id, block_number, block_hash, transacti
 	// Update event count
 	p.updateEventCount()
 
+	return nil
+}
+
+// WriteBlock upserts a canonical block.
+//
+// The `id` column is derived from (chain_id, number), so invariant I03 — at
+// most one canonical block per chain per height — is enforced by the primary
+// key itself. A reorg that replaces the block at a height updates the hash in
+// place rather than inserting a second row.
+func (p *PostgreSQLDatabase) WriteBlock(ctx context.Context, chainID string, block *blockchain.Block) error {
+	if block == nil {
+		return fmt.Errorf("block is required")
+	}
+	if chainID == "" {
+		return fmt.Errorf("chainID is required")
+	}
+
+	start := time.Now()
+
+	p.mu.RLock()
+	db := p.db
+	p.mu.RUnlock()
+	if db == nil {
+		p.RecordError()
+		return fmt.Errorf("database not initialized")
+	}
+
+	ctx, cancel := NewContextWithTimeout(ctx, p.queryTimeout)
+	defer cancel()
+
+	const upsertBlockSQL = `
+INSERT INTO blocks (id, chain_id, number, hash, parent_hash, timestamp)
+	VALUES ($1, $2, $3, $4, $5, $6)
+	ON CONFLICT (id) DO UPDATE
+	SET hash = EXCLUDED.hash, parent_hash = EXCLUDED.parent_hash, timestamp = EXCLUDED.timestamp
+	`
+
+	id := fmt.Sprintf("%s:%d", chainID, block.Number)
+	_, err := db.ExecContext(ctx, upsertBlockSQL, id, chainID, block.Number,
+		block.Hash.Hex(), block.ParentHash.Hex(), block.Timestamp)
+	if err != nil {
+		p.RecordError()
+		p.logger.Error("Failed to write block to PostgreSQL", logkeys.LogKeyError, err)
+		return fmt.Errorf("failed to write block: %w", err)
+	}
+
+	p.RecordWrite(time.Since(start).Milliseconds())
 	return nil
 }
 
@@ -270,11 +378,7 @@ func (p *PostgreSQLDatabase) WriteEvents(ctx context.Context, events []blockchai
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 
-	insertSQL := `
-	INSERT INTO blockchain_events (id, chain_id, block_number, block_hash, transaction_hash, log_index, contract_address, event_name, event_data, timestamp)
-	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-	ON CONFLICT (chain_id, block_hash, transaction_hash, log_index) DO NOTHING
-	`
+	insertSQL := insertEventSQL
 
 	stmt, err := tx.PrepareContext(ctx, insertSQL)
 	if err != nil {
@@ -303,6 +407,8 @@ func (p *PostgreSQLDatabase) WriteEvents(ctx context.Context, events []blockchai
 			event.EventName,
 			eventDataJSON(event.EventData),
 			event.BlockTimestamp,
+			eventStatus(&event),
+			nullableString(event.CorrelationID),
 		)
 		if err != nil {
 			if rbErr := tx.Rollback(); rbErr != nil {
@@ -359,11 +465,7 @@ func (p *PostgreSQLDatabase) WriteBatch(ctx context.Context, events []*blockchai
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 
-	insertSQL := `
-	INSERT INTO blockchain_events (id, chain_id, block_number, block_hash, transaction_hash, log_index, contract_address, event_name, event_data, timestamp)
-	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-	ON CONFLICT (chain_id, block_hash, transaction_hash, log_index) DO NOTHING
-	`
+	insertSQL := insertEventSQL
 
 	stmt, err := tx.PrepareContext(ctx, insertSQL)
 	if err != nil {
@@ -395,6 +497,8 @@ func (p *PostgreSQLDatabase) WriteBatch(ctx context.Context, events []*blockchai
 			event.EventName,
 			eventDataJSON(event.EventData),
 			event.BlockTimestamp,
+			eventStatus(event),
+			nullableString(event.CorrelationID),
 		)
 		if err != nil {
 			if rbErr := tx.Rollback(); rbErr != nil {
@@ -443,7 +547,7 @@ func (p *PostgreSQLDatabase) QueryEvents(filter *core.EventFilter) (*core.QueryR
 	defer cancel()
 
 	// Build query
-	query := "SELECT id, chain_id, block_number, block_hash, transaction_hash, log_index, contract_address, event_name, event_data, timestamp FROM blockchain_events WHERE 1=1"
+	query := "SELECT " + selectEventColumns + " FROM blockchain_events WHERE 1=1"
 	args := []any{}
 	argIndex := 1
 
@@ -491,33 +595,12 @@ func (p *PostgreSQLDatabase) QueryEvents(filter *core.EventFilter) (*core.QueryR
 
 	events := []blockchain.BlockchainEvent{}
 	for rows.Next() {
-		var (
-			event                              blockchain.BlockchainEvent
-			blockHash, txHash, contractAddress string
-			eventData                          []byte
-		)
-		err := rows.Scan(
-			&event.EventHash,
-			&event.ChainID,
-			&event.BlockNumber,
-			&blockHash,
-			&txHash,
-			&event.LogIndex,
-			&contractAddress,
-			&event.EventName,
-			&eventData,
-			&event.BlockTimestamp,
-		)
+		event, err := scanEvent(rows)
 		if err != nil {
 			p.RecordError()
 			return nil, fmt.Errorf("failed to scan event: %w", err)
 		}
-		event.ID = event.EventHash
-		event.BlockHash = common.HexToHash(blockHash)
-		event.TransactionHash = common.HexToHash(txHash)
-		event.ContractAddress = common.HexToAddress(contractAddress)
-		event.EventData = eventDataFromJSON(eventData)
-		events = append(events, event)
+		events = append(events, *event)
 	}
 
 	if err := rows.Err(); err != nil {
@@ -567,25 +650,9 @@ func (p *PostgreSQLDatabase) GetEventByHash(hash string) (*blockchain.Blockchain
 	ctx, cancel := NewContextWithTimeout(context.Background(), p.queryTimeout)
 	defer cancel()
 
-	query := "SELECT id, chain_id, block_number, block_hash, transaction_hash, log_index, contract_address, event_name, event_data, timestamp FROM blockchain_events WHERE id = $1"
+	query := "SELECT " + selectEventColumns + " FROM blockchain_events WHERE id = $1"
 
-	var (
-		event                              blockchain.BlockchainEvent
-		blockHash, txHash, contractAddress string
-		eventData                          []byte
-	)
-	err := db.QueryRowContext(ctx, query, hash).Scan(
-		&event.EventHash,
-		&event.ChainID,
-		&event.BlockNumber,
-		&blockHash,
-		&txHash,
-		&event.LogIndex,
-		&contractAddress,
-		&event.EventName,
-		&eventData,
-		&event.BlockTimestamp,
-	)
+	event, err := scanEvent(db.QueryRowContext(ctx, query, hash))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			duration := time.Since(start).Milliseconds()
@@ -597,21 +664,15 @@ func (p *PostgreSQLDatabase) GetEventByHash(hash string) (*blockchain.Blockchain
 		return nil, fmt.Errorf("failed to get event by hash: %w", err)
 	}
 
-	event.ID = event.EventHash
-	event.BlockHash = common.HexToHash(blockHash)
-	event.TransactionHash = common.HexToHash(txHash)
-	event.ContractAddress = common.HexToAddress(contractAddress)
-	event.EventData = eventDataFromJSON(eventData)
-
 	duration := time.Since(start).Milliseconds()
 	p.RecordRead(duration)
 
 	// Update in-memory cache
 	p.eventsMu.Lock()
-	p.events[hash] = &event
+	p.events[hash] = event
 	p.eventsMu.Unlock()
 
-	return &event, nil
+	return event, nil
 }
 
 // DeleteEvent deletes an event from the database by ID
@@ -722,8 +783,7 @@ func (p *PostgreSQLDatabase) GetAllEvents(ctx context.Context) ([]*blockchain.Bl
 	}
 
 	query := `
-		SELECT id, chain_id, block_number, block_hash, transaction_hash, log_index,
-		       contract_address, event_name, event_data, timestamp, created_at
+		SELECT ` + selectEventColumns + `
 		FROM blockchain_events
 		ORDER BY block_number ASC, log_index ASC
 	`
@@ -741,24 +801,11 @@ func (p *PostgreSQLDatabase) GetAllEvents(ctx context.Context) ([]*blockchain.Bl
 
 	var events []*blockchain.BlockchainEvent
 	for rows.Next() {
-		event := &blockchain.BlockchainEvent{}
-		var (
-			blockHash, txHash, contractAddress string
-			eventData                          []byte
-		)
-		if err := rows.Scan(
-			&event.ID, &event.ChainID, &event.BlockNumber, &blockHash, &txHash,
-			&event.LogIndex, &contractAddress, &event.EventName, &eventData,
-			&event.BlockTimestamp, &event.CreatedAt,
-		); err != nil {
+		event, err := scanEvent(rows)
+		if err != nil {
 			p.RecordError()
 			return nil, fmt.Errorf("failed to scan event: %w", err)
 		}
-		event.EventHash = event.ID
-		event.BlockHash = common.HexToHash(blockHash)
-		event.TransactionHash = common.HexToHash(txHash)
-		event.ContractAddress = common.HexToAddress(contractAddress)
-		event.EventData = eventDataFromJSON(eventData)
 		events = append(events, event)
 	}
 
@@ -829,8 +876,7 @@ func (p *PostgreSQLDatabase) GetEventsByBlockRange(ctx context.Context, fromBloc
 	}
 
 	query := `
-		SELECT id, chain_id, block_number, block_hash, transaction_hash, log_index,
-		       contract_address, event_name, event_data, timestamp, created_at
+		SELECT ` + selectEventColumns + `
 		FROM blockchain_events
 		WHERE block_number >= $1 AND block_number <= $2
 		ORDER BY block_number ASC, log_index ASC
@@ -845,24 +891,11 @@ func (p *PostgreSQLDatabase) GetEventsByBlockRange(ctx context.Context, fromBloc
 
 	var events []*blockchain.BlockchainEvent
 	for rows.Next() {
-		event := &blockchain.BlockchainEvent{}
-		var (
-			blockHash, txHash, contractAddress string
-			eventData                          []byte
-		)
-		if err := rows.Scan(
-			&event.ID, &event.ChainID, &event.BlockNumber, &blockHash, &txHash,
-			&event.LogIndex, &contractAddress, &event.EventName, &eventData,
-			&event.BlockTimestamp, &event.CreatedAt,
-		); err != nil {
+		event, err := scanEvent(rows)
+		if err != nil {
 			p.RecordError()
 			return nil, fmt.Errorf("failed to scan event: %w", err)
 		}
-		event.EventHash = event.ID
-		event.BlockHash = common.HexToHash(blockHash)
-		event.TransactionHash = common.HexToHash(txHash)
-		event.ContractAddress = common.HexToAddress(contractAddress)
-		event.EventData = eventDataFromJSON(eventData)
 		events = append(events, event)
 	}
 

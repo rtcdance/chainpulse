@@ -41,8 +41,7 @@ func postgresDSN() string {
 	return os.Getenv("CHAINPULSE_TEST_DATABASE_URL")
 }
 
-// truncateBlockchainEvents empties the events table so a test that uses fixed
-// ids / natural keys is deterministic across runs.
+// truncateBlockchainEvents empties the events table so a test that uses fixed// ids / natural keys is deterministic across runs.
 func truncateBlockchainEvents(t *testing.T, dsn string) {
 	t.Helper()
 	db, err := sql.Open("postgres", dsn)
@@ -106,6 +105,8 @@ func TestPostgresEventRoundTrip(t *testing.T) {
 		ContractAddress: contractAddr,
 		EventName:       "Transfer",
 		EventData:       []byte("0xdeadbeef"),
+		Status:          blockchain.EventStatusConfirmed,
+		CorrelationID:   "corr-t04",
 	}
 
 	require.NoError(t, pg.WriteEvent(ctx, event), "WriteEvent must succeed against the real schema")
@@ -129,6 +130,8 @@ func TestPostgresEventRoundTrip(t *testing.T) {
 	assert.Equal(t, event.LogIndex, found.LogIndex)
 	assert.Equal(t, event.EventName, found.EventName)
 	assert.Equal(t, event.EventData, found.EventData, "event_data must round-trip")
+	assert.Equal(t, blockchain.EventStatusConfirmed, found.Status, "status must round-trip")
+	assert.Equal(t, "corr-t04", found.CorrelationID, "correlation_id must round-trip")
 
 	// GetEventByHash (the `id` column holds the canonical hash).
 	byHash, err := pg.GetEventByHash(event.EventHash)
@@ -216,4 +219,60 @@ func TestPostgresBlockHashIdentity(t *testing.T) {
 
 	require.NoError(t, pg.DeleteEvent(ctx, branchA.ID))
 	require.NoError(t, pg.DeleteEvent(ctx, branchB.ID))
+}
+
+// TestPostgresBlockUpsert proves invariant I03 for the block write path: at most
+// one canonical block per (chain, height). Writing a second block at the same
+// height with a different hash must replace it, not add a row.
+func TestPostgresBlockUpsert(t *testing.T) {
+	dsn := postgresDSN()
+	if dsn == "" {
+		t.Skip("set CHAINPULSE_RUN_POSTGRES_INTEGRATION=1 and CHAINPULSE_TEST_DATABASE_URL to run the Postgres round-trip")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	pg := database.NewPostgreSQLDatabase(
+		testhelpers.NewTestLogger(),
+		testhelpers.NewTestMetricsCollector(),
+	)
+	require.NoError(t, pg.Initialize(ctx, core.Config{DatabaseURL: dsn}), "Initialize")
+	require.NoError(t, pg.Start(ctx), "Start")
+	t.Cleanup(func() { _ = pg.Stop(context.Background()) })
+
+	chainID := "t04-blocks"
+	height := uint64(7777)
+
+	first := &blockchain.Block{
+		Number:     height,
+		Hash:       common.HexToHash("0xc0ffee0000000000000000000000000000000000000000000000000000000001"),
+		ParentHash: common.HexToHash("0xc0ffee0000000000000000000000000000000000000000000000000000000000"),
+		Timestamp:  1700000100,
+	}
+	require.NoError(t, pg.WriteBlock(ctx, chainID, first))
+
+	// A reorg replaces the block at the same height.
+	replacement := &blockchain.Block{
+		Number:     height,
+		Hash:       common.HexToHash("0xc0ffee0000000000000000000000000000000000000000000000000000000002"),
+		ParentHash: first.ParentHash,
+		Timestamp:  1700000200,
+	}
+	require.NoError(t, pg.WriteBlock(ctx, chainID, replacement))
+
+	got, err := pg.GetBlock(ctx, height)
+	require.NoError(t, err)
+	require.NotNil(t, got, "the block at this height must exist")
+	assert.Equal(t, replacement.Hash.Hex(), got.Hash.Hex(), "the replacement must win (I03)")
+
+	blocks, err := pg.GetAllBlocks(ctx)
+	require.NoError(t, err)
+	atHeight := 0
+	for _, b := range blocks {
+		if b.Number == height {
+			atHeight++
+		}
+	}
+	assert.Equal(t, 1, atHeight, "exactly one canonical block per height (I03)")
 }
