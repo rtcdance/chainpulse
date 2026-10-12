@@ -17,7 +17,7 @@ Then verify that:
 
 ## Prerequisites
 
-- Go 1.21+
+- Go 1.26+
 - the dependencies needed by `api-service` for local startup:
   - PostgreSQL
   - Redis

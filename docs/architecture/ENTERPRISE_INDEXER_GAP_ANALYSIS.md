@@ -59,8 +59,7 @@ This is a real strength for Web3+Go backend transition, because it allows:
 The newer layer split exists, but mostly around the query/API vertical:
 
 - `pkg/domain/query/`
-- `pkg/application/query/`
-- `pkg/adapters/query/`
+- `pkg/application/bootstrap/`
 
 This means the project has **started architecture migration**, but it has not
 yet generalized that migration across the full indexing runtime.
@@ -93,7 +92,7 @@ the center of gravity by itself.
 
 Current reality:
 
-- `pkg/domain`, `pkg/application`, `pkg/adapters` exist
+- `pkg/domain`, `pkg/application`, `pkg/plugins` exist (there is **no `pkg/adapters`**)
 - but they are still thin
 - heavy runtime behavior still lives in:
   - `pkg/services/query/`

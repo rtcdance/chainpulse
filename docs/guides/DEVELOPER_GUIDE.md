@@ -73,11 +73,11 @@ ChainPulse uses a microkernel architecture with pluggable components:
 
 ```bash
 # macOS
-brew install go@1.25
+brew install go@1.26
 
 # Linux
-wget https://go.dev/dl/go1.25.5.linux-amd64.tar.gz
-tar -C /usr/local -xzf go1.25.5.linux-amd64.tar.gz
+wget https://go.dev/dl/go1.26.9.linux-amd64.tar.gz
+tar -C /usr/local -xzf go1.26.9.linux-amd64.tar.gz
 ```
 
 ### 2. Clone Repository

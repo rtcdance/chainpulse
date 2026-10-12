@@ -2,7 +2,7 @@
 # Build specific target: docker build --target=monolithic -f docker/Dockerfile .
 # Build all: docker build --target=all -f docker/Dockerfile .
 
-FROM golang:1.25-alpine AS builder
+FROM golang:1.26-alpine AS builder
 
 WORKDIR /app
 

@@ -4,7 +4,7 @@ Get the Data Puller running in 5 minutes.
 
 ## Prerequisites
 
-- Go 1.21+
+- Go 1.26+
 - Kafka 3+
 - Blockchain RPC endpoints (Ethereum, Polygon, etc.)
 - Docker (optional)

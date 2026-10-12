@@ -37,7 +37,7 @@ go test ./test/e2e/... -v
 ### Q: What are the system requirements?
 
 A: Minimum requirements:
-- Go 1.21+
+- Go 1.26+
 - Docker and Docker Compose
 - 4GB RAM
 - 10GB disk space

@@ -6,7 +6,7 @@ This guide covers deploying ChainPulse in various environments: local developmen
 
 ## Prerequisites
 
-- Go 1.24 or later
+- Go 1.26 or later
 - Docker and Docker Compose (for containerized deployment)
 - Kubernetes 1.20+ (for Kubernetes deployment)
 - PostgreSQL 12+ or MongoDB 4.4+

@@ -101,7 +101,6 @@ ChainPulse 使用 Go 实现 DDD：
 pkg/core/             ← 共享类型与接口（零实现逻辑）
 pkg/domain/           ← 纯业务逻辑（依赖 core，不依赖其他层）
 pkg/application/      ← 编排层/用例
-pkg/adapters/         ← 外部世界适配器
 pkg/infrastructure/   ← 具体实现（数据库、RPC 客户端等）
 pkg/plugins/          ← 可插拔组件（pullers/database/cache/MQ）
 pkg/services/         ← 跨领域业务逻辑
@@ -109,7 +108,7 @@ pkg/services/         ← 跨领域业务逻辑
 
 **DDD 层间依赖规则**（Go 的 interface 是其核心机制）：
 ```
-core  ←  domain  ←  application  ←  adapters/infrastructure/plugins
+core  ←  domain  ←  application  ←  infrastructure/plugins
                                                     ↑
                                     services ───────┘
 ```
@@ -308,7 +307,7 @@ dlv debug ./cmd/monolithic/chainpulse
 # 4. 在调试器中设置断点（看到真实链上事件流过）
 #    pkg/plugins/pullers/https_jsonrpc_puller.go:300  ← PullEvents 拉取真实区块
 #    pkg/core/event_decoder.go:50                     ← ABI 解码真实事件
-#    pkg/adapters/indexing/monolithic_memory_storage.go:93 ← 存储
+#    pkg/application/bootstrap/monolithic_memory_storage.go:62 ← 存储
 ```
 
 ### 两种调试模式对比

@@ -19,7 +19,7 @@
 确认就绪：
 
 ```bash
-go version      # 应输出 go1.24.x 或更高
+go version      # 应输出 go1.26.x 或更高
 docker version  # 应输出 Client + Server 信息
 ```
 
@@ -268,7 +268,7 @@ bash docker/deploy-monolith.sh   # 或 deploy-microservices.sh
 ```
 
 **Q: 编译报错 `go: command not found`**
-安装 Go 1.24+：https://go.dev/dl/
+安装 Go 1.26+：https://go.dev/dl/
 
 **Q: 前端页面显示 API Error**
 后端可能还在启动中，等待 30 秒后 Cmd+Shift+R 硬刷新浏览器。

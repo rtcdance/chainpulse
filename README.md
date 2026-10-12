@@ -1,5 +1,10 @@
 # ChainPulse
 
+[![CI](https://github.com/rtcdance/chainpulse/actions/workflows/ci.yml/badge.svg)](https://github.com/rtcdance/chainpulse/actions/workflows/ci.yml)
+[![Tests](https://github.com/rtcdance/chainpulse/actions/workflows/test.yml/badge.svg)](https://github.com/rtcdance/chainpulse/actions/workflows/test.yml)
+[![Go Version](https://img.shields.io/badge/Go-1.26-00ADD8?logo=go)](https://go.dev/)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 ChainPulse monitors and indexes blockchain events in real time. Track
 transactions, detect chain reorganizations, inspect dead-letter queues,
 and debug event processing across Ethereum and other chains — from a
@@ -54,7 +59,7 @@ cp docker/.env.example docker/.env
 # 2a. Quickstart (1 chain + essential infra, recommended for development)
 docker compose -f docker/docker-compose.quickstart.yml up -d
 
-# 2b. Full stack (7 blockchains + full observability)
+# 2b. Full stack (7 EVM chains (config) + Solana/Cosmos adapters + full observability)
 docker compose -f docker/docker-compose.yml up -d
 
 # 3. Verify it's running
@@ -70,7 +75,7 @@ docker compose -f docker/docker-compose.yml -f docker/docker-compose.with-ui.yml
 
 ### Prerequisites
 
-- Go 1.24+
+- Go 1.26+
 - Docker & Docker Compose (for full stack)
 - PostgreSQL, Redis, Kafka (optional — playground mode needs none)
 
@@ -137,7 +142,6 @@ chainpulse/
 │   ├── core/              # Foundation interfaces and types (DDD)
 │   ├── domain/            # Domain models and interfaces
 │   ├── application/        # Use cases and orchestration
-│   ├── adapters/          # External adapters
 │   ├── plugins/           # Plugin implementations
 │   │   ├── api/           # API plugins (REST, gRPC, GraphQL, WebSocket)
 │   │   ├── cache/         # Caching implementations
@@ -359,7 +363,6 @@ See [Developer Guide](docs/guides/DEVELOPER_GUIDE.md) for detailed guidelines.
 - `pkg/core` - Foundation interfaces and types
 - `pkg/domain` - Domain models and interfaces
 - `pkg/application` - Use cases and orchestration
-- `pkg/adapters` - External adapters
 - `pkg/plugins` - Plugin implementations
 - `pkg/services` - Business logic
 - `pkg/observability` - Monitoring and tracing
@@ -411,8 +414,11 @@ For questions or issues:
 
 | Metric        | Value                   |
 | ------------- | ----------------------- |
-| Total Go Code | \~195,559 lines         |
-| Project Code  | \~85,748 lines (43.8%)  |
-| Test Code     | \~109,811 lines (56.2%) |
-| Go Version    | 1.24                    |
+| Total Go Code | 245,138 lines (all `.go`, excl. `node_modules`/`frontend`) |
+| Production (pkg+cmd, non-test) | 92,635 lines |
+| Test (pkg+cmd) | 124,326 lines |
+| Test (`test/`) | 17,398 lines |
+| Test harness (`test/`, non-test) | 10,256 lines |
+| Examples (`examples/`) | 523 lines |
+| Go Version    | 1.26                    |
 | Milestones    | 7/7 Completed           |

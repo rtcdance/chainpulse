@@ -8,7 +8,7 @@ The ChainPulse Web3 Indexer E2E testing framework provides comprehensive end-to-
 
 ### Prerequisites
 
-- Go 1.21+
+- Go 1.26+
 - Docker and Docker Compose
 - Anvil (for local blockchain simulation)
 - PostgreSQL 14+
