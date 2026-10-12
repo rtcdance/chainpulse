@@ -100,6 +100,20 @@ func NewMetricLabelGuard(inner core.MetricsCollector, opts LabelGuardOptions) (*
 	}, nil
 }
 
+// Guarded wraps inner with the label guard using the default options.
+//
+// It exists so a production call site can bound its labels in one line without
+// handling an error that cannot happen: NewMetricLabelGuard only fails on a nil
+// inner, and Guarded returns the inner collector unchanged in that case rather
+// than panicking at startup.
+func Guarded(inner core.MetricsCollector) core.MetricsCollector {
+	guard, err := NewMetricLabelGuard(inner, LabelGuardOptions{})
+	if err != nil {
+		return inner
+	}
+	return guard
+}
+
 // RecordCounter implements core.MetricsCollector.
 func (g *MetricLabelGuard) RecordCounter(name string, value int64, tags map[string]string) {
 	g.inner.RecordCounter(name, value, g.Sanitize(tags))

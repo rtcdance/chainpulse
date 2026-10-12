@@ -197,3 +197,23 @@ func TestLagRecorderAndGuardCompose(t *testing.T) {
 	require.NoError(t, rec.RecordLagSnapshot("ethereum", 100, 90, 95))
 	assert.Zero(t, guard.Stats().Redacted, "chain_id is a bounded label and must not be redacted")
 }
+
+// TestGuardedWrapsAndRedacts: Guarded is the one-line wrapper production uses,
+// so it must actually return a guard and bound the labels that reach it.
+func TestGuardedWrapsAndRedacts(t *testing.T) {
+	t.Parallel()
+
+	got := Guarded(core.NewDefaultMetricsCollector())
+	guard, ok := got.(*MetricLabelGuard)
+	require.Truef(t, ok, "Guarded must wrap the collector, got %T", got)
+
+	guard.RecordCounter("events_indexed", 1, map[string]string{"tx_hash": "0xabc"})
+	assert.Equal(t, int64(1), guard.Stats().Redacted)
+}
+
+// TestGuardedNilInnerFallsBack: NewMetricLabelGuard errors on a nil inner, but
+// Guarded must not panic at startup — it returns the (nil) inner unchanged.
+func TestGuardedNilInnerFallsBack(t *testing.T) {
+	t.Parallel()
+	assert.Nil(t, Guarded(nil))
+}
