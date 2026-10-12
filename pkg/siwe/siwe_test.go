@@ -207,6 +207,87 @@ func TestParseMessageInvalid(t *testing.T) {
 	}
 }
 
+// signSIWEMessage builds and signs a SIWE message with a fresh key, returning
+// the message and its signature. Used by the origin-binding tests below.
+func signSIWEMessage(t *testing.T, domain, uri string, chainID *big.Int) (*SIWEMessage, []byte) {
+	t.Helper()
+
+	privateKey, err := crypto.GenerateKey()
+	if err != nil {
+		t.Fatalf("generate key: %v", err)
+	}
+	msg := &SIWEMessage{
+		Domain:   domain,
+		Address:  crypto.PubkeyToAddress(privateKey.PublicKey),
+		URI:      uri,
+		Nonce:    "origin-test-nonce",
+		Version:  "1",
+		ChainID:  chainID,
+		IssuedAt: time.Now(),
+	}
+	sig, err := corecrypto.SignMessage([]byte(msg.BuildMessage()), privateKey)
+	if err != nil {
+		t.Fatalf("sign message: %v", err)
+	}
+	return msg, sig
+}
+
+// TestSIWEVerifyWithOrigin_RejectsWrongDomain is the regression test for the
+// EIP-4361 domain-binding hole: a message that is *correctly signed* but was
+// issued for a different domain must not be accepted by this service.
+func TestSIWEVerifyWithOrigin_RejectsWrongDomain(t *testing.T) {
+	t.Parallel()
+
+	msg, sig := signSIWEMessage(t, "evil.example.com", "https://evil.example.com/login", big.NewInt(1))
+
+	// The signature is valid — the legacy check must still accept it, proving
+	// any rejection below comes from the origin binding, not from the signature.
+	if err := msg.VerifySIWE(sig, nil); err != nil {
+		t.Fatalf("precondition: correctly-signed message must pass signature check: %v", err)
+	}
+
+	expected := VerifyOptions{
+		Domain:  "chainpulse.example.com",
+		URI:     "https://chainpulse.example.com/login",
+		ChainID: big.NewInt(1),
+	}
+	if err := msg.VerifySIWEWithOrigin(expected, sig, nil); err == nil {
+		t.Fatal("expected rejection: message domain does not match the expected origin")
+	}
+}
+
+// TestSIWEVerifyWithOrigin_AcceptsMatchingOrigin guards against over-rejection.
+func TestSIWEVerifyWithOrigin_AcceptsMatchingOrigin(t *testing.T) {
+	t.Parallel()
+
+	msg, sig := signSIWEMessage(t, "chainpulse.example.com", "https://chainpulse.example.com/login", big.NewInt(1))
+
+	expected := VerifyOptions{
+		Domain:  "chainpulse.example.com",
+		URI:     "https://chainpulse.example.com/login",
+		ChainID: big.NewInt(1),
+	}
+	if err := msg.VerifySIWEWithOrigin(expected, sig, nil); err != nil {
+		t.Fatalf("expected acceptance for matching origin, got: %v", err)
+	}
+}
+
+// TestSIWEVerifyWithOrigin_RejectsWrongChainID covers the replay-across-chains case.
+func TestSIWEVerifyWithOrigin_RejectsWrongChainID(t *testing.T) {
+	t.Parallel()
+
+	msg, sig := signSIWEMessage(t, "chainpulse.example.com", "https://chainpulse.example.com/login", big.NewInt(137))
+
+	expected := VerifyOptions{
+		Domain:  "chainpulse.example.com",
+		URI:     "https://chainpulse.example.com/login",
+		ChainID: big.NewInt(1),
+	}
+	if err := msg.VerifySIWEWithOrigin(expected, sig, nil); err == nil {
+		t.Fatal("expected rejection: message chain ID does not match the expected chain")
+	}
+}
+
 func strContains(s, substr string) bool {
 	return len(s) >= len(substr) && stringContains(s, substr)
 }

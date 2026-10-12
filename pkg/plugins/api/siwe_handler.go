@@ -137,7 +137,13 @@ func (h *SIWEHandler) HandleVerify(w http.ResponseWriter, r *http.Request) {
 		return exists
 	}
 
-	if err := msg.VerifySIWE(sig, nonceValidator); err != nil {
+	// Verify against the origin we issued the challenge for. VerifySIWE alone
+	// would accept a message signed for any domain (EIP-4361 phishing).
+	if err := msg.VerifySIWEWithOrigin(siwe.VerifyOptions{
+		Domain:  h.domain,
+		URI:     h.uri,
+		ChainID: h.chainID,
+	}, sig, nonceValidator); err != nil {
 		h.nonceStore.Delete(msg.Nonce)
 		WriteErrorEnvelope(w, ErrUnauthorized("SIWE verification failed: "+err.Error()))
 		return

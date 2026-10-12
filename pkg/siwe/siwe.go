@@ -196,6 +196,39 @@ func (m *SIWEMessage) VerifySIWE(signature []byte, nonceValidator func(string) b
 	return nil
 }
 
+// VerifyOptions constrains the origin fields a SIWE message must match.
+// A zero value for a field means "do not check that field".
+type VerifyOptions struct {
+	Domain  string
+	URI     string
+	ChainID *big.Int
+}
+
+// VerifySIWEWithOrigin verifies the message and additionally enforces that its
+// origin fields (domain, URI, chain ID) match the expected values.
+//
+// This is the EIP-4361 anti-phishing check. VerifySIWE alone only proves the
+// message was signed by the claimed address — it accepts a message issued for
+// *any* domain, so a phished signature would be replayable against this service.
+func (m *SIWEMessage) VerifySIWEWithOrigin(opts VerifyOptions, signature []byte, nonceValidator func(string) bool) error {
+	if err := m.VerifySIWE(signature, nonceValidator); err != nil {
+		return err
+	}
+
+	// Domain comparison is case-insensitive: DNS host names are.
+	if opts.Domain != "" && !strings.EqualFold(m.Domain, opts.Domain) {
+		return fmt.Errorf("domain mismatch: message domain %q does not match expected %q", m.Domain, opts.Domain)
+	}
+	if opts.URI != "" && m.URI != opts.URI {
+		return fmt.Errorf("uri mismatch: message URI %q does not match expected %q", m.URI, opts.URI)
+	}
+	if opts.ChainID != nil && (m.ChainID == nil || m.ChainID.Cmp(opts.ChainID) != 0) {
+		return fmt.Errorf("chain id mismatch: message chain ID %v does not match expected %v", m.ChainID, opts.ChainID)
+	}
+
+	return nil
+}
+
 func GenerateChallenge(domain, uri string, address common.Address, chainID *big.Int) (*SIWEMessage, error) {
 	nonce, err := GenerateNonce()
 	if err != nil {

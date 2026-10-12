@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"math/big"
 	"net/http"
@@ -10,7 +11,10 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/rtcdance/chainpulse/pkg/core"
+	corecrypto "github.com/rtcdance/chainpulse/pkg/core/crypto"
+	"github.com/rtcdance/chainpulse/pkg/siwe"
 )
 
 func TestNewSIWENonceStore(t *testing.T) {
@@ -296,4 +300,56 @@ Issued At: 2026-01-01T00:00:00Z`
 			t.Errorf("expected INVALID_PARAMETER error, got %+v", envelope.Error)
 		}
 	})
+}
+
+// TestSIWEHandler_HandleVerify_RejectsForeignDomain is the end-to-end regression
+// test for the EIP-4361 phishing hole: a correctly-signed message that was
+// issued for a *different* domain must be rejected with 401. Before the fix the
+// handler called VerifySIWE, which ignores the domain, and returned 200.
+func TestSIWEHandler_HandleVerify_RejectsForeignDomain(t *testing.T) {
+	t.Parallel()
+
+	logger := core.NewDefaultLogger(core.LogLevelError)
+	metrics := core.NewDefaultMetricsCollector()
+	chainID := big.NewInt(1)
+	tokenValidator := NewTokenValidator("test-secret", logger, metrics)
+	h := NewSIWEHandler(tokenValidator, "example.com", "https://example.com", chainID, logger, metrics)
+
+	privateKey, err := crypto.GenerateKey()
+	if err != nil {
+		t.Fatalf("generate key: %v", err)
+	}
+
+	// An attacker-issued message: valid signature, but signed for their domain.
+	msg := &siwe.SIWEMessage{
+		Domain:   "evil.example.com",
+		Address:  crypto.PubkeyToAddress(privateKey.PublicKey),
+		URI:      "https://evil.example.com/login",
+		Nonce:    "foreign-domain-nonce",
+		Version:  "1",
+		ChainID:  chainID,
+		IssuedAt: time.Now(),
+	}
+	sig, err := corecrypto.SignMessage([]byte(msg.BuildMessage()), privateKey)
+	if err != nil {
+		t.Fatalf("sign message: %v", err)
+	}
+	h.nonceStore.Store(msg.Nonce, msg.Address)
+
+	body, err := json.Marshal(map[string]string{
+		"message":   msg.BuildMessage(),
+		"signature": "0x" + hex.EncodeToString(sig),
+	})
+	if err != nil {
+		t.Fatalf("marshal body: %v", err)
+	}
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/siwe/verify", strings.NewReader(string(body)))
+	w := httptest.NewRecorder()
+	h.HandleVerify(w, req)
+
+	resp := w.Result()
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("expected 401 for a foreign-domain message, got %d", resp.StatusCode)
+	}
 }
