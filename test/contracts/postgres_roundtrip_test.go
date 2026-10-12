@@ -4,6 +4,7 @@ package contracts
 
 import (
 	"context"
+	"database/sql"
 	"os"
 	"testing"
 	"time"
@@ -12,6 +13,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/common"
+
+	_ "github.com/lib/pq" // postgres driver for the truncate helper
 
 	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"github.com/rtcdance/chainpulse/pkg/core"
@@ -36,6 +39,17 @@ func postgresDSN() string {
 		return ""
 	}
 	return os.Getenv("CHAINPULSE_TEST_DATABASE_URL")
+}
+
+// truncateBlockchainEvents empties the events table so a test that uses fixed
+// ids / natural keys is deterministic across runs.
+func truncateBlockchainEvents(t *testing.T, dsn string) {
+	t.Helper()
+	db, err := sql.Open("postgres", dsn)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = db.Close() })
+	_, err = db.Exec("TRUNCATE blockchain_events")
+	require.NoError(t, err, "TRUNCATE blockchain_events")
 }
 
 // TestPostgresEventRoundTrip is the T04 acceptance test for the Postgres write

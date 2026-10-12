@@ -95,6 +95,34 @@ func TestInMemoryCacheContract(t *testing.T) {
 	})
 }
 
+// TestPostgresDatabaseContract runs the database contract against the Postgres
+// adapter (PostgreSQLPluginAdapter), which satisfies core.DatabasePlugin.
+//
+// Gated on a reachable DSN because the short lane must not require a database:
+//
+//	CHAINPULSE_RUN_POSTGRES_INTEGRATION=1 \
+//	CHAINPULSE_TEST_DATABASE_URL='postgres://user:pass@host:5432/db?sslmode=disable'
+func TestPostgresDatabaseContract(t *testing.T) {
+	dsn := postgresDSN()
+	if dsn == "" {
+		t.Skip("set CHAINPULSE_RUN_POSTGRES_INTEGRATION=1 and CHAINPULSE_TEST_DATABASE_URL to run the Postgres contract")
+	}
+	// The contract uses fixed ids and natural keys, so start from a clean table
+	// to stay deterministic across runs.
+	truncateBlockchainEvents(t, dsn)
+	DatabaseContractTest(t, func(t *testing.T) core.DatabasePlugin {
+		t.Helper()
+		a := database.NewPostgreSQLPluginAdapter(
+			testhelpers.NewTestLogger(),
+			testhelpers.NewTestMetricsCollector(),
+		)
+		require.NoError(t, a.Initialize(context.Background(), core.Config{DatabaseURL: dsn}))
+		require.NoError(t, a.Start(context.Background()))
+		t.Cleanup(func() { _ = a.Stop(context.Background()) })
+		return a
+	})
+}
+
 // TestPortConformanceGaps is a tripwire, not an acceptance test.
 //
 // FINDING (T02): three of the four production/in-memory adapters do NOT
@@ -143,4 +171,8 @@ func TestPortConformanceGaps(t *testing.T) {
 
 	_, pluginCacheOK := any(cache.NewDefaultInMemoryCachePlugin("c", "1.0.0", logger, metrics)).(core.CachePlugin)
 	assert.True(t, pluginCacheOK, "DefaultInMemoryCachePlugin must satisfy core.CachePlugin")
+
+	// The Postgres adapter layer DOES satisfy the port (T02 "adapter layer").
+	_, pgAdapterOK := any(database.NewPostgreSQLPluginAdapter(logger, metrics)).(core.DatabasePlugin)
+	assert.True(t, pgAdapterOK, "PostgreSQLPluginAdapter must satisfy core.DatabasePlugin")
 }

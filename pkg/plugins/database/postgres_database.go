@@ -16,6 +16,19 @@ import (
 	"github.com/rtcdance/chainpulse/pkg/logkeys"
 )
 
+// eventPK returns the value stored in the `id` column.
+//
+// The caller-provided ID wins when set (the core.DatabasePlugin port addresses
+// events by ID via GetEvent(ctx, id)); otherwise the canonical event hash is
+// used. Production leaves ID empty and relies on EventHash, while some callers
+// (and the contract suite) set only ID.
+func eventPK(event *blockchain.BlockchainEvent) string {
+	if event.ID != "" {
+		return event.ID
+	}
+	return event.EventHash
+}
+
 // eventDataJSON converts raw event-data bytes into a value the `event_data`
 // jsonb column accepts: SQL NULL when empty, otherwise a JSON-encoded string.
 // Reading it back with eventDataFromJSON restores the original bytes.
@@ -198,7 +211,7 @@ INSERT INTO blockchain_events (id, chain_id, block_number, block_hash, transacti
 
 	_, err := db.ExecContext(
 		ctx, insertSQL,
-		event.EventHash,
+		eventPK(event),
 		event.ChainID,
 		event.BlockNumber,
 		event.BlockHash.Hex(),
@@ -280,7 +293,7 @@ func (p *PostgreSQLDatabase) WriteEvents(ctx context.Context, events []blockchai
 	for _, event := range events {
 		_, err := stmt.ExecContext(
 			ctx,
-			event.EventHash,
+			eventPK(&event),
 			event.ChainID,
 			event.BlockNumber,
 			event.BlockHash.Hex(),
@@ -372,7 +385,7 @@ func (p *PostgreSQLDatabase) WriteBatch(ctx context.Context, events []*blockchai
 		}
 		_, err := stmt.ExecContext(
 			ctx,
-			event.EventHash,
+			eventPK(event),
 			event.ChainID,
 			event.BlockNumber,
 			event.BlockHash.Hex(),

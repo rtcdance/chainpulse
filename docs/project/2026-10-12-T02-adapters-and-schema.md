@@ -148,6 +148,18 @@ ERROR:  column "event_hash" of relation "blockchain_events" does not exist
 **本轮已做的无争议修复**：`000004` 改为对 `blockchain_events` 加约束（约束名 `uq_blockchain_events_natural_key`），与代码 `ON CONFLICT (chain_id, block_number, transaction_hash, log_index)` 一致。修复后全新库**迁移 8/8 全过**。
 **未做（属 T04）**：`event_hash`/`data`/`indexed_params` → 真实列的映射；`id` vs `event_hash` 主键统一；live 库 `events` 与迁移 `blockchain_events` 的取舍。
 
+### 3.6 ✅ 适配层与 PG 契约 runner（已完成）
+
+在 T04 把 Postgres 适配器修好之后（见 [T04 对齐规格](./2026-10-12-T04-postgres-alignment-spec.md) §0.1），按计划 §3 的"适配层"路线补齐：
+
+- **`pkg/plugins/database/postgres_plugin_adapter.go`**：`PostgreSQLPluginAdapter` 包装 `*PostgreSQLDatabase`，补上端口要求的 `StoreEvent(ctx, any)` / `BatchStoreEvents(ctx, []any)` / `GetEvent(ctx, id)` / `QueryEvents(ctx, any)`，其余方法由内嵌类型提升（签名已一致）。带编译期断言 `var _ core.DatabasePlugin = (*PostgreSQLPluginAdapter)(nil)`。
+- **`test/contracts/runners_test.go`**：新增 `TestPostgresDatabaseContract`（gated），**用与内存实现同一套契约**跑 Postgres；`TestPortConformanceGaps` 增加"适配器必须合规"断言。
+- **契约 fixture 加固**（`db_contract_test.go`）：原 fixture 的 block_hash/tx_hash/log_index 全为 0，在真实库上会撞自然键 ⇒ 契约"看起来在测持久化，其实测不到"。改为每块生成**不同**的 block_hash/tx_hash + 真实 `EventHash`。
+
+**实测**（真实 Postgres）：`TestPostgresDatabaseContract` 五个子用例**全 PASS**（`store_and_get_event` / `batch_store_events` / `get_nonexistent_event` / `delete_event` / `get_events_by_block_range`），与内存实现同一契约。
+
+⇒ §3 表格中"PG 契约 runner 受阻"一项**已解除**；`contracts` lane 的"每个必需生产 factory executed>0"对 Postgres 现已成立。
+
 ## 4. 对后续任务的影响
 
 - **T03+ 可直接复用 digest oracle** 做链隔离与重组摘要比对（`CanonicalEvents` / `CanonicalBlocks`）。
