@@ -105,11 +105,24 @@
 
 单元测试 10 个（fake store）+ 集成 1 个，全 PASS。
 
+### 1.6 接进 processor：`ProcessBlock` —— 已实现并验证
+
+`DefaultEventProcessor` 原本只有**逐事件**路径：`ProcessEvent` 做"生成 hash → **查重** → 写 → 标记"，且 `CheckAndMark` 是内存 map。这正是 F05 的"分步提交"。
+
+- **`BlockCommitter` 接口**（`CommitBlock`）+ `WithCommitter(...)`：processor 依赖**提交契约**而非具体数据库。
+- **`ProcessBlock(ctx, blockNumber, blockHash, events)`**：整块走**一个事务**。
+  - **先校验再开事务**：非法事件让整块失败且**不碰数据库**；
+  - **空块合法**（提交它正是"推进 checkpoint 越过该高度"的手段）；
+  - **不碰 idempotency service**：去重交给数据库自然键，从而**消除 check-then-write 窗口**；
+  - fenced + drain-aware（继承 `BatchCommitter`）。
+
+**验收**（单元 7 个，全 PASS）：无 committer 报错 / 未 running 报错 / 正常委派并计数 / **空块合法** / **非法事件不进 committer** / 提交失败如实计数且不计入 processed / **同一块提交两次会调用 committer 两次**（证明**没有**预检）。
+
 ---
 
 ## 2. 未完成（T05 剩余）
 
-- [ ] **接入真实 runtime**：让 shared runtime / event-processor 用 `BatchCommitter` 替换现有的"查重→写→标记"路径（本轮的 `BatchCommitter` 是**共享契约本身**，尚未替换调用方）。
+- [ ] **接入真实 runtime**：把 `ProcessBlock` / `BatchCommitter` 接进 shared runtime 与 `cmd/microservices/event-processor`（本轮交付了契约与 processor 的整块路径，**尚未替换 runtime 的调用方**）。
 - [ ] **Kafka 消费进度与 ack 对齐**：`chainpulse-kafka` 已启动（9092 healthy），消费/ack 路径尚未接线与验收。
 - [ ] commit 前后 / ack 前后**四处 kill/restart 各 10 次**（§5 验收原文；目前只覆盖了 SIGTERM 一处）。
 

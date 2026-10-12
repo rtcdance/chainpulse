@@ -31,6 +31,17 @@ type CacheWriter interface {
 }
 
 // EventProcessor processes events from message queue and stores them.
+// BlockCommitter commits a whole block's events together with the checkpoint
+// advance for that block. *BatchCommitter satisfies it.
+//
+// It exists so the processor can depend on the commit contract rather than on a
+// concrete database: the "check for duplicates -> store -> mark processed"
+// sequence in ProcessEvent is per-event and non-atomic, while a block commit is
+// one transaction (F05).
+type BlockCommitter interface {
+	CommitBlock(ctx context.Context, blockNumber uint64, blockHash string, events []*blockchain.BlockchainEvent) error
+}
+
 type EventProcessor interface {
 	// Initialize initializes the event processor
 	Initialize(config *core.Config) error
@@ -83,6 +94,19 @@ type DefaultEventProcessor struct {
 	maxRetries         int
 	retryDelay         time.Duration
 	tracer             *observability.DefaultTracer
+
+	// committer, when set, enables the atomic block-level commit path
+	// (ProcessBlock). Nil means only the legacy per-event path is available.
+	committer BlockCommitter
+}
+
+// WithCommitter attaches the atomic block-commit contract and returns the
+// processor for chaining. Without it, ProcessBlock is unavailable.
+func (p *DefaultEventProcessor) WithCommitter(c BlockCommitter) *DefaultEventProcessor {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.committer = c
+	return p
 }
 
 // NewDefaultEventProcessor creates a new event processor.
@@ -403,6 +427,79 @@ func (p *DefaultEventProcessor) ProcessBatch(ctx context.Context, events []*bloc
 	if failureCount > 0 {
 		return fmt.Errorf("batch processing completed with %d failures", failureCount)
 	}
+
+	return nil
+}
+
+// ProcessBlock persists a whole block's events and advances the chain
+// checkpoint as one unit, through the shared commit contract.
+//
+// This is the path that replaces the per-event sequence used by ProcessEvent
+// (F05). Compared to "check for duplicates -> store -> mark processed":
+//
+//   - the block's events and its checkpoint commit or roll back together, so a
+//     crash cannot leave the checkpoint ahead of the data or behind it;
+//   - duplicates are suppressed by the database's natural-key constraint, not
+//     by a pre-check, which removes the check-then-write window;
+//   - the commit is fenced (a rebalanced-away worker is rejected) and
+//     drain-aware (a batch that starts during shutdown is refused).
+//
+// An empty block is valid and still advances the checkpoint; otherwise the
+// chain would stall at that height.
+func (p *DefaultEventProcessor) ProcessBlock(ctx context.Context, blockNumber uint64, blockHash string, events []*blockchain.BlockchainEvent) error {
+	p.mu.RLock()
+	running := p.running
+	committer := p.committer
+	p.mu.RUnlock()
+
+	if !running {
+		return fmt.Errorf("event processor not running")
+	}
+	if committer == nil {
+		return fmt.Errorf("event processor has no block committer configured")
+	}
+
+	// Validate before opening the transaction: a malformed event must fail the
+	// block without touching the database.
+	for i, event := range events {
+		if event == nil {
+			continue
+		}
+		if err := p.validateEvent(event); err != nil {
+			p.mu.Lock()
+			p.failedCount++
+			p.mu.Unlock()
+
+			p.metricsCollector.RecordCounter("event_processor_validation_failed", 1, map[string]string{
+				"network": event.Network,
+			})
+			p.logger.Error("Block validation failed", logkeys.LogKeyError, err, logkeys.LogKeyBlockNumber, blockNumber)
+			return fmt.Errorf("invalid event %d/%d in block %d: %w", i+1, len(events), blockNumber, err)
+		}
+	}
+
+	start := time.Now()
+	if err := committer.CommitBlock(ctx, blockNumber, blockHash, events); err != nil {
+		p.mu.Lock()
+		p.failedCount += int64(len(events))
+		p.mu.Unlock()
+
+		p.metricsCollector.RecordCounter("event_processor_block_commit_failed", 1, nil)
+		p.logger.Error("Block commit failed", logkeys.LogKeyError, err, logkeys.LogKeyBlockNumber, blockNumber)
+		return err
+	}
+
+	p.mu.Lock()
+	p.processedCount += int64(len(events))
+	p.mu.Unlock()
+
+	latency := time.Since(start).Milliseconds()
+	p.metricsCollector.RecordCounter("event_processor_block_committed", 1, nil)
+	p.metricsCollector.RecordHistogram("event_processor_block_commit_ms", float64(latency), nil)
+	p.metricsCollector.RecordGauge("event_processor_block_events", float64(len(events)), nil)
+
+	p.logger.Info("Block committed", logkeys.LogKeyBlockNumber, blockNumber,
+		logkeys.LogKeyBatchSize, len(events), "latency_ms", latency)
 
 	return nil
 }
