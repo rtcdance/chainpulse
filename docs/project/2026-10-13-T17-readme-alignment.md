@@ -6,7 +6,8 @@
 > **README 架构图（Mermaid）已加（§5）**；
 > **三份核心 ADR + ADR-004 编号修复已完成（§6）**；
 > **20 个面试问题已重写并校验路径（§7）**；
-> 录屏、性能/故障报告、英文摘要、新机器 happy path 未做。
+> **英文项目摘要已产出（§8）**；
+> 录屏、性能/故障报告、新机器 happy path 未做。
 > 日期：2026-10-13，Asia/Singapore。
 
 ---
@@ -118,9 +119,22 @@ plan §11 要求"20 个面试问题按四组各 5 题整理，每题能指向代
 - 新版每题指向**已存在**的代码 + 测试；抽路径脚本核对：**47 条路径引用，MISSING 0**；
 - 失效路径的教训保留在文末注记，不抹掉。
 
-## 8. 未完成（T17 剩余）
+## 8. 英文项目摘要（已完成）
+
+plan §11 要求"英文摘要以 Web3 Go Backend 定位，不凭个人项目宣称已有生产 Web3 架构师经验"。已产出 [`2026-10-13-english-summary.md`](2026-10-13-english-summary.md)，并在 README 首屏加"What it is / What it is not"块并链接它。
+
+**"不吹"是怎么机械保证的**：
+
+- 三项"有证据的结果"只列**今天就能跑的测试文件**（`postgres_chain_isolation_test.go`、`postgres_atomic_test.go` + `sigterm_test.go`、`kafka_redelivery_test.go` + `postgres_fault_test.go` + `redis_fault_test.go`）；
+- **明确写出没有性能数字**：benchmark gate 与 30 分钟 soak 未做，故不公布 events/s 或 P99，不外推主网容量；
+- **明确写出 `required-cases.json` 的 E01–E15 测试数组仍是空占位符**，不代表场景通过（封版属 T18）；
+- 简历条目保留 `[方括号占位]`，注明"只有测量后才能填"；
+- 结尾单独一段 *Scope and honesty* 声明这是个人项目，不等于生产架构师经验。
+
+链接校验：摘要 5 条链接 0 断；README 相对链接 20 条 0 断。
+
+## 9. 未完成（T17 剩余）
 
 - [ ] **3–5 分钟录屏**（需可编排环境 + 显示）。
 - [ ] **性能报告**、**故障报告**（需真实发压/故障运行）。
-- [ ] **英文项目摘要**。
 - [ ] **新机器 5 分钟 happy path / 15 分钟复现故障**（需可编排环境）。
