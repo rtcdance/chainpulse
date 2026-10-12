@@ -54,6 +54,7 @@ Thumbs.db
 .kiro/
 .trae/
 .omo/
+.omx/
 .opencode/
 .comate/
 .crush/
@@ -63,6 +64,9 @@ Thumbs.db
 
 # Local reports
 docs/ARCHITECTURE_REVIEW_REPORT.md
+
+# Project optimization plan (contains candid project criticism — keep local)
+optimization-plan/
 
 # Sisyphus orchestrator
 .sisyphus/

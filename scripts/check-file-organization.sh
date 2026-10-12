@@ -21,9 +21,12 @@ ROOT_WHITELIST=(
   "CODE_OF_CONDUCT.md"
   # Project docs and config
   "CLAUDE.md"
+  "AGENTS.md"
   # Node.js project files
   "package.json"
   "package-lock.json"
+  # Playwright config (root-level, read by default)
+  "playwright.config.ts"
 )
 
 echo "Checking file organization..."
