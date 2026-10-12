@@ -22,8 +22,13 @@ var knownEventABIs = map[string]string{
 	"TransferBatch": `[{"type":"event","name":"TransferBatch","inputs":[{"name":"operator","type":"address","indexed":true},{"name":"from","type":"address","indexed":true},{"name":"to","type":"address","indexed":true},{"name":"ids","type":"uint256[]","indexed":false},{"name":"values","type":"uint256[]","indexed":false}]}]`,
 	// ERC-1155 URI(string value, uint256 indexed id)
 	"URI": `[{"type":"event","name":"URI","inputs":[{"name":"value","type":"string","indexed":false},{"name":"id","type":"uint256","indexed":true}]}]`,
-	// Uniswap V3 Swap(address indexed sender, int256 amount0, int256 amount1, uint160 sqrtPriceX96, uint128 liquidity, int24 tick)
-	"Swap": `[{"type":"event","name":"Swap","inputs":[{"name":"sender","type":"address","indexed":true},{"name":"amount0","type":"int256","indexed":false},{"name":"amount1","type":"int256","indexed":false},{"name":"sqrtPriceX96","type":"uint160","indexed":false},{"name":"liquidity","type":"uint128","indexed":false},{"name":"tick","type":"int24","indexed":false}]}]`,
+	// Uniswap V3 Swap(address indexed sender, address indexed recipient, int256 amount0, int256 amount1, uint160 sqrtPriceX96, uint128 liquidity, int24 tick)
+	//
+	// `recipient` is the SECOND indexed parameter. It was missing here, which
+	// made this ABI's topic0 0x08a8a95d… instead of the real Uniswap V3
+	// 0xc42079f9… — so no real pool log ever matched the decoder — and shifted
+	// every subsequent field by one word (finding F16).
+	"Swap": `[{"type":"event","name":"Swap","inputs":[{"name":"sender","type":"address","indexed":true},{"name":"recipient","type":"address","indexed":true},{"name":"amount0","type":"int256","indexed":false},{"name":"amount1","type":"int256","indexed":false},{"name":"sqrtPriceX96","type":"uint160","indexed":false},{"name":"liquidity","type":"uint128","indexed":false},{"name":"tick","type":"int24","indexed":false}]}]`,
 	// ChainPulse EventEmitter Ping(address sender, uint256 value)
 	"Ping": `[{"type":"event","name":"Ping","inputs":[{"name":"sender","type":"address","indexed":false},{"name":"value","type":"uint256","indexed":false}]}]`,
 

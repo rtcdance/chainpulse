@@ -86,10 +86,16 @@ type ERC1155URI struct {
 func (e *ERC1155URI) EventName() string   { return "URI" }
 func (e *ERC1155URI) Topic0() common.Hash { return topic0ForName("URI") }
 
-// UniswapV3Swap represents a Uniswap V3 Swap event
-// Swap(address indexed sender, int256 amount0, int256 amount1, uint160 sqrtPriceX96, uint128 liquidity, int24 tick)
+// UniswapV3Swap represents a Uniswap V3 Swap event.
+//
+// The real event has TWO indexed parameters, which is what makes its topic0
+// 0xc42079f9…:
+//
+//	Swap(address indexed sender, address indexed recipient, int256 amount0,
+//	     int256 amount1, uint160 sqrtPriceX96, uint128 liquidity, int24 tick)
 type UniswapV3Swap struct {
 	Sender       common.Address `json:"sender"`
+	Recipient    common.Address `json:"recipient"`
 	Amount0      *big.Int       `json:"amount0"`
 	Amount1      *big.Int       `json:"amount1"`
 	SqrtPriceX96 *big.Int       `json:"sqrtPriceX96"`
@@ -311,6 +317,11 @@ func decodeUniswapV3Swap(topics []common.Hash, data []byte) TypedEvent {
 	e := &UniswapV3Swap{}
 	if len(topics) > 1 {
 		e.Sender = common.BytesToAddress(topics[1].Bytes()[12:])
+	}
+	// recipient is the second indexed parameter; without it every non-indexed
+	// field would be attributed to the wrong name.
+	if len(topics) > 2 {
+		e.Recipient = common.BytesToAddress(topics[2].Bytes()[12:])
 	}
 	if len(data) >= 160 {
 		e.Amount0 = decodeSignedBigInt(data[:32])           // int256

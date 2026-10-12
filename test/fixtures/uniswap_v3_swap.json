@@ -1,0 +1,68 @@
+{
+  "provenance": {
+    "task": "T09 (finding F16)",
+    "contract": "contracts/SwapEmitter.sol",
+    "generator": "contracts/test/SwapFixture.t.sol",
+    "command": "cd contracts && forge test --match-path test/SwapFixture.t.sol -vv",
+    "event_signature": "Swap(address,address,int256,int256,uint160,uint128,int24)",
+    "topic0": "0xc42079f94a6350d7e6235f29174924f928cc2ac818eb64fed8004e115fbcca67",
+    "topic0_source": "keccak256 of the real Uniswap V3 Swap signature; matches the value the plan names in F16",
+    "why_not_anvil": "The raw log depends only on the event signature and its arguments, so Foundry's local EVM produces the same bytes a live pool would. Anvil-based generation was not possible in this environment because host->8545 HTTP is mediated."
+  },
+  "cases": [
+    {
+      "name": "typical",
+      "topics": [
+        "0xc42079f94a6350d7e6235f29174924f928cc2ac818eb64fed8004e115fbcca67",
+        "0x0000000000000000000000001111111111111111111111111111111111111111",
+        "0x0000000000000000000000002222222222222222222222222222222222222222"
+      ],
+      "data": "0xffffffffffffffffffffffffffffffffffffffffffffffffeeddef0b82167eeb000000000000000000000000000000000000000000000000891087b8e3b70cb1000000000000000000000000000000000000000000000000ffffffffffffffff00000000000000000000000000000000fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff27618",
+      "expected": {
+        "sender": "0x1111111111111111111111111111111111111111",
+        "recipient": "0x2222222222222222222222222222222222222222",
+        "amount0": "-1234567890123456789",
+        "amount1": "9876543210987654321",
+        "sqrtPriceX96": "18446744073709551615",
+        "liquidity": "340282366920938463463374607431768211455",
+        "tick": "-887272"
+      }
+    },
+    {
+      "name": "boundary",
+      "topics": [
+        "0xc42079f94a6350d7e6235f29174924f928cc2ac818eb64fed8004e115fbcca67",
+        "0x000000000000000000000000aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "0x000000000000000000000000bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      ],
+      "data": "0x80000000000000000000000000000000000000000000000000000000000000007fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff000000000000000000000000ffffffffffffffffffffffffffffffffffffffff00000000000000000000000000000000ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff800000",
+      "expected": {
+        "sender": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "recipient": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "amount0": "-57896044618658097711785492504343953926634992332820282019728792003956564819968",
+        "amount1": "57896044618658097711785492504343953926634992332820282019728792003956564819967",
+        "sqrtPriceX96": "1461501637330902918203684832716283019655932542975",
+        "liquidity": "340282366920938463463374607431768211455",
+        "tick": "-8388608"
+      }
+    },
+    {
+      "name": "max-tick",
+      "topics": [
+        "0xc42079f94a6350d7e6235f29174924f928cc2ac818eb64fed8004e115fbcca67",
+        "0x000000000000000000000000cccccccccccccccccccccccccccccccccccccccc",
+        "0x000000000000000000000000dddddddddddddddddddddddddddddddddddddddd"
+      ],
+      "data": "0x0000000000000000000000000000000000000000000000000000000000000001ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000007fffff",
+      "expected": {
+        "sender": "0xcccccccccccccccccccccccccccccccccccccccc",
+        "recipient": "0xdddddddddddddddddddddddddddddddddddddddd",
+        "amount0": "1",
+        "amount1": "-1",
+        "sqrtPriceX96": "1",
+        "liquidity": "0",
+        "tick": "8388607"
+      }
+    }
+  ]
+}
