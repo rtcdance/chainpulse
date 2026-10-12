@@ -2,6 +2,9 @@
 
 [![CI](https://github.com/rtcdance/chainpulse/actions/workflows/ci.yml/badge.svg)](https://github.com/rtcdance/chainpulse/actions/workflows/ci.yml)
 [![Tests](https://github.com/rtcdance/chainpulse/actions/workflows/test.yml/badge.svg)](https://github.com/rtcdance/chainpulse/actions/workflows/test.yml)
+[![Coverage](https://github.com/rtcdance/chainpulse/actions/workflows/coverage.yml/badge.svg)](https://github.com/rtcdance/chainpulse/actions/workflows/coverage.yml)
+[![Release](https://github.com/rtcdance/chainpulse/actions/workflows/release.yml/badge.svg)](https://github.com/rtcdance/chainpulse/actions/workflows/release.yml)
+[![Deploy](https://github.com/rtcdance/chainpulse/actions/workflows/deploy.yml/badge.svg)](https://github.com/rtcdance/chainpulse/actions/workflows/deploy.yml)
 [![Go Version](https://img.shields.io/badge/Go-1.26-00ADD8?logo=go)](https://go.dev/)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
@@ -122,42 +125,55 @@ See [docs/README.md](docs/README.md) for complete documentation index.
 chainpulse/
 ├── cmd/                   # Application entrypoints
 │   ├── monolithic/        # Monolithic mode
-│   └── microservices/     # Microservice mode
-│       ├── api-gateway/
-│       ├── api-service/
-│       ├── event-processor/
-│       └── puller/
+│   ├── microservices/     # Microservice mode
+│   │   ├── api-gateway/
+│   │   ├── api-service/
+│   │   ├── event-processor/
+│   │   └── puller/
+│   └── playground/        # In-memory playground
+├── contracts/             # Foundry: EventEmitter/SwapEmitter + vendored forge-std
+├── docker/                # Compose stacks (dev, microservices, e2e, acceptance)
 ├── docs/                  # Documentation
+│   ├── adr/               # Architecture decision records
+│   ├── architecture/      # Architecture notes and diagrams
 │   ├── deployment/        # Go-live and operations runbooks
 │   ├── guides/            # Developer and operator guides
 │   ├── operations/        # Governance and policy docs
-│   ├── project/           # Project-level guardrails
-│   ├── specs/             # Design records
-│   └── archive/           # Historical baseline docs
-├── docker/                # Docker configuration
+│   ├── project/           # Project guardrails and per-task records
+│   └── specs/             # Design records (the delivery plan lives here)
+├── examples/              # Runnable examples
 ├── frontend/              # Dashboard/UI
 ├── k8s/                   # Kubernetes manifests
-├── monitoring/            # Prometheus and Grafana assets
-├── pkg/                    # Go packages
+├── migrations/            # PostgreSQL migrations, applied in filename order
+├── monitoring/            # Prometheus, Grafana, Loki, Alertmanager assets
+├── pkg/                   # Go packages
 │   ├── core/              # Foundation interfaces and types (DDD)
-│   ├── domain/            # Domain models and interfaces
-│   ├── application/        # Use cases and orchestration
+│   ├── ports/             # Hexagonal ports (core aliases these)
+│   ├── domain/            # Domain models
+│   ├── application/       # Use cases and orchestration
 │   ├── plugins/           # Plugin implementations
 │   │   ├── api/           # API plugins (REST, gRPC, GraphQL, WebSocket)
 │   │   ├── cache/         # Caching implementations
-│   │   ├── database/      # Database drivers
-│   │   ├── mq/            # Message queue implementations
+│   │   ├── database/      # Database drivers (PostgreSQL, in-memory)
+│   │   ├── mq/            # Message queue implementations (Kafka)
 │   │   └── pullers/       # Data collection (HTTPS, WebSocket, gRPC)
-│   ├── services/          # Business logic
+│   ├── services/          # Business logic (indexing, processor, reorg, finality, query)
+│   ├── evm/               # EVM typed event decoding
+│   ├── siwe/              # Sign-In With Ethereum and the nonce store
 │   ├── infrastructure/    # Infrastructure utilities
 │   ├── integrations/      # External integrations (ERC20, Uniswap)
-│   └── observability/     # Monitoring, tracing, metrics
-├── scripts/               # Verification and automation scripts
-├── test/                  # Test suites
-│   ├── acceptance/        # Playwright UI acceptance tests
-│   ├── integration/      # Integration tests
-│   └── e2e/              # End-to-end tests
-└── package.json           # Node.js for Playwright tests
+│   └── observability/     # Metrics, tracing, health
+├── scripts/               # Automation and verification (see scripts/README.md)
+│   └── acceptance/        # verify-tests, collect-evidence, bench-gate, dep-approval-gate
+└── test/                  # Test suites
+    ├── acceptance/        # Cross-cutting acceptance tests + tools/
+    ├── benchmarks/        # Micro-benchmark baselines
+    ├── contracts/         # Adapter contract suites
+    ├── e2e/               # End-to-end tests
+    ├── fixtures/          # Committed corpora (e.g. the Uniswap V3 Swap fixture)
+    ├── integration/       # Integration tests
+    ├── migration/         # Migration tests
+    └── performance/       # Performance tests
 ```
 
 ## 📊 Architecture
