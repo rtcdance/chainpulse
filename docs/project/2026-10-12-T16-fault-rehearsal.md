@@ -54,11 +54,30 @@ $ CHAINPULSE_RUN_POSTGRES_INTEGRATION=1 \
 
 测试在 `t.Cleanup` 里**无条件恢复转发容器**，断言失败也不会把环境留在故障态。
 
+## 3.5 §9 E09：Redis 故障（fail-closed）—— 真实执行
+
+`test/acceptance/redis_fault_test.go`（新）：`TestRedisOutageFailsClosed`。
+
+**被测对象**：T08 的 `RedisNonceStore`（`Issue`/`Consume` 用 Lua 原子 compare-and-consume）。
+
+**要证明的性质是 fail-closed**：一个在**后端不可达时仍报"已消费"**的 nonce 存储会让**同一 nonce 被用两次**。因此故障下的必需行为是：
+
+| 操作 | 故障下的要求 |
+| --- | --- |
+| `Issue` | **失败** —— 不能发出一个之后无法校验的 nonce |
+| `Consume` | **返回错误**，且**永不返回 `true`** |
+
+**序列**：① 基线（Redis 正常，Issue+Consume 成功）② `docker stop chainpulse-redis` ③ `Issue` **报错** ④ `Consume` **报错且 `consumed == false`** ⑤ `docker start` + 等 ping ⑥ 恢复后 Issue+Consume 成功，且**同一 nonce 第二次 Consume 仍为 false**（**单次使用语义跨故障存活**）。
+
+**实测**：`--- PASS: TestRedisOutageFailsClosed (5.87s)`；容器已恢复。`t.Cleanup` 无条件恢复容器。
+
+---
+
 ## 4. 未完成（T16 剩余）
 
 - [ ] **E09 的 MQ 部分**：Kafka 重投与 rebalance（Kafka 已起，9092 可用；需先接消费路径）。
-- [ ] **E09 的 Redis 部分**：Redis 停止后的降级查询（Redis 6379 可用）。
 - [ ] **E05 的 kill 矩阵**：persist / DB commit / mark / checkpoint / ack **四处** kill 各 10 次（目前只有 SIGTERM 一处，见 T05）。
 - [ ] **E06 修复任务崩溃**：outbox/重采中停止 ⇒ restart 续跑（持久任务与 outbox 已就绪，缺编排）。
 - [ ] **E15 版本回滚**：错误镜像/配置/迁移中断，前版 digest 回滚，旧版恢复后数据摘要一致。
 - [ ] **RPO/RTO 报告**：按本地受控范围给出，**不冒充跨机房保证**（计划原文）。
+- [ ] **E09 的"降级查询"**：计划要求"Redis 降级查询"，即查询路径在 Redis 故障时**退到数据库**而非失败。本轮证明的是**安全边界**（nonce）必须 fail-closed；**查询路径的降级**是另一件事，尚未实现与验收。
