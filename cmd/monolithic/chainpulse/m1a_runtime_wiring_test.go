@@ -157,6 +157,16 @@ func TestMonolithicPullerRuntimeObserveEventDetectsAndHandlesReorg(t *testing.T)
 		t.Fatalf("new runtime: %v", err)
 	}
 
+	// Reorg detection compares locally-indexed hashes against the canonical
+	// chain through the block-hash provider. No node runs in this test, so
+	// point the handler at a stub that reports the post-reorg canonical hash
+	// for the block. Without this the lookup fails, and DetectReorg used to
+	// swallow that failure and report it as a reorg — so this test asserted
+	// "reorg handled" while the provider was actually erroring.
+	runtime.reorgChains["ethereum"].handler.SetBlockHashProvider(
+		stubReorgBlockHashProvider{hash: common.HexToHash("0x1234")},
+	)
+
 	oldEvent := blockchain.BlockchainEvent{
 		ID:              "evt-old",
 		ChainID:         "ethereum",
@@ -223,6 +233,12 @@ func TestMonolithicPullerRuntimeObserveEventDetectsAndHandlesReorg(t *testing.T)
 	if status.Posture != "monolithic-reorg-active" {
 		t.Fatalf("expected posture monolithic-reorg-active, got %s", status.Posture)
 	}
+}
+
+type stubReorgBlockHashProvider struct{ hash common.Hash }
+
+func (s stubReorgBlockHashProvider) GetBlockHash(context.Context, uint64) (common.Hash, error) {
+	return s.hash, nil
 }
 
 type recordingChainIndexer struct {

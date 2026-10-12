@@ -3,7 +3,6 @@ package reorg
 import (
 	"context"
 	"fmt"
-	"math"
 	"sync"
 	"time"
 
@@ -214,7 +213,9 @@ func (rh *ReorgHandler) DetectReorg(
 	reorgBlock, err := rh.findReorgBlock(ctx, currentBlock, knownBlocks, provider, maxRollback)
 	if err != nil {
 		rh.logger.Warn("reorg scan failed", logkeys.LogKeyError, err)
-		return true, currentBlock, nil
+		// A failed scan is not a reorg. Reporting one here would roll back the
+		// chain head on nothing more than an RPC/DB hiccup.
+		return false, 0, fmt.Errorf("reorg scan failed: %w", err)
 	}
 	if reorgBlock == 0 {
 		return false, 0, fmt.Errorf("failed to find reorg block")
@@ -455,8 +456,6 @@ func (rh *ReorgHandler) UpdateBlockHash(blockNumber uint64, blockHash common.Has
 
 	rh.lastKnownBlocks[blockNumber] = blockHash
 
-	thresholdWindow := rh.reorgThreshold
-
 	// Persist latest hash every checkpointInterval blocks (single write, not batch loop)
 	if rh.checkpointStore != nil && blockNumber > rh.lastPersistedBlock+rh.checkpointInterval {
 		checkpointCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -467,9 +466,11 @@ func (rh *ReorgHandler) UpdateBlockHash(blockNumber uint64, blockHash common.Has
 			cancel()
 			rh.lastPersistedBlock = blockNumber
 		}
-		thresholdWindow = math.MaxUint64
 	}
-	if uint64(len(rh.lastKnownBlocks)) > thresholdWindow {
+	// Cleanup must not be coupled to checkpoint persistence: skipping it here
+	// (e.g. `thresholdWindow = math.MaxUint64`) lets lastKnownBlocks grow past
+	// reorgThreshold and, if the checkpoint cadence is ever tightened, unbounded.
+	if uint64(len(rh.lastKnownBlocks)) > rh.reorgThreshold {
 		rh.cleanupBlockCache(blockNumber)
 	}
 }

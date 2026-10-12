@@ -202,7 +202,12 @@ func (h *DLQHandler) HandleReplayDLQEvents(w http.ResponseWriter, r *http.Reques
 				"dlqReplay":  true,
 				"replayFrom": evt.ID,
 			}
-			data, _ := json.Marshal(payload)
+			data, err := json.Marshal(payload)
+			if err != nil {
+				h.logger.Warn("Failed to marshal DLQ replay payload", "id", evt.ID, "error", err.Error())
+				failed++
+				continue
+			}
 			if err := h.publisher.Publish(ctx, topic, data); err != nil {
 				h.logger.Warn("Failed to replay DLQ event", "id", evt.ID, "error", err.Error())
 				failed++
@@ -210,12 +215,14 @@ func (h *DLQHandler) HandleReplayDLQEvents(w http.ResponseWriter, r *http.Reques
 			}
 		}
 
-		// Mark as replayed
-		_, err := h.db.ExecContext(ctx,
+		// Mark as replayed. Only count it once the UPDATE actually applied —
+		// otherwise the reported `replayed` count overstates the work done.
+		if _, err := h.db.ExecContext(ctx,
 			"UPDATE dlq_events SET status = 'replayed', updated_at = NOW() WHERE id = $1",
-			evt.ID)
-		if err != nil {
+			evt.ID); err != nil {
 			h.logger.Warn("Failed to update DLQ event status", "id", evt.ID, "error", err.Error())
+			failed++
+			continue
 		}
 		replayed++
 	}
