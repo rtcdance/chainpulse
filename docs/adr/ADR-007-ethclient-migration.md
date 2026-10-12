@@ -1,4 +1,7 @@
-# ADR-004: ethclient 迁移 — 从手写 JSON-RPC 到 go-ethereum 官方库
+# ADR-007: ethclient 迁移 — 从手写 JSON-RPC 到 go-ethereum 官方库
+
+> Renumbered from ADR-004 to resolve a numbering conflict with
+> [ADR-004 environment variable naming](ADR-004-env-var-naming-convention.md).
 
 **Date**: 2026-05-13
 
