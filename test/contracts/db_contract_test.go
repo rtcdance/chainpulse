@@ -61,8 +61,12 @@ func DatabaseContractTest(t *testing.T, factory func(t *testing.T) core.Database
 		db := factory(t)
 		ctx := context.Background()
 
-		_, err := db.GetEvent(ctx, "nonexistent")
-		assert.Error(t, err)
+		// Convention: a missing entity is (nil, nil), not an error. The query
+		// path (event_retrieval_service, GraphQL resolver) branches on
+		// `event == nil`, and an error is reserved for real failures.
+		event, err := db.GetEvent(ctx, "nonexistent")
+		require.NoError(t, err)
+		assert.Nil(t, event)
 	})
 
 	t.Run("delete_event", func(t *testing.T) {
@@ -81,8 +85,9 @@ func DatabaseContractTest(t *testing.T, factory func(t *testing.T) core.Database
 		err = db.DeleteEvent(ctx, "delete-test")
 		require.NoError(t, err)
 
-		_, err = db.GetEvent(ctx, "delete-test")
-		assert.Error(t, err)
+		deleted, err := db.GetEvent(ctx, "delete-test")
+		require.NoError(t, err)
+		assert.Nil(t, deleted)
 	})
 
 	t.Run("get_events_by_block_range", func(t *testing.T) {

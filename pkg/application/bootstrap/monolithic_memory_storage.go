@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"github.com/rtcdance/chainpulse/pkg/core"
@@ -79,9 +80,17 @@ func (db *MonolithicMemoryDatabase) StoreEvent(ctx context.Context, event any) e
 	return nil
 }
 
+// GetEvent returns the stored event, or (nil, nil) when it does not exist.
+// The (nil, nil) convention for a missing entity is what the query path
+// expects (see event_retrieval_service.GetEventWithMetadata and the GraphQL
+// resolver, which both branch on `event == nil`). An error is reserved for
+// real failures (e.g. the store is not started).
 func (db *MonolithicMemoryDatabase) GetEvent(ctx context.Context, id string) (*blockchain.BlockchainEvent, error) {
 	db.mu.RLock()
 	defer db.mu.RUnlock()
+	if !db.started {
+		return nil, fmt.Errorf("database not started")
+	}
 	return db.events[id], nil
 }
 
@@ -227,16 +236,23 @@ func (db *MonolithicMemoryDatabase) StoreBlockSnapshot(ctx context.Context, bloc
 
 // MonolithicMemoryCache provides a debug-friendly in-memory cache for the
 // indexing contract used by monolithic mode.
+//
+// It honours the ttl argument of Set (the CachePlugin port requires it) and
+// tracks hit/miss statistics so GetStats is meaningful.
 type MonolithicMemoryCache struct {
 	mu      sync.RWMutex
 	started bool
 	data    map[string][]byte
+	expires map[string]time.Time
+	hits    int64
+	misses  int64
 }
 
 // NewMonolithicMemoryCache creates a new in-memory cache adapter.
 func NewMonolithicMemoryCache() *MonolithicMemoryCache {
 	return &MonolithicMemoryCache{
-		data: make(map[string][]byte),
+		data:    make(map[string][]byte),
+		expires: make(map[string]time.Time),
 	}
 }
 
@@ -274,9 +290,21 @@ func (c *MonolithicMemoryCache) HealthCheck(ctx context.Context) error {
 }
 
 func (c *MonolithicMemoryCache) Get(ctx context.Context, key string) ([]byte, error) {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	return c.data[key], nil
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if exp, ok := c.expires[key]; ok && !exp.IsZero() && time.Now().After(exp) {
+		delete(c.data, key)
+		delete(c.expires, key)
+	}
+
+	value, ok := c.data[key]
+	if !ok {
+		c.misses++
+		return nil, nil
+	}
+	c.hits++
+	return value, nil
 }
 
 func (c *MonolithicMemoryCache) Set(ctx context.Context, key string, value []byte, ttl int) error {
@@ -286,6 +314,11 @@ func (c *MonolithicMemoryCache) Set(ctx context.Context, key string, value []byt
 		return fmt.Errorf("cache not started")
 	}
 	c.data[key] = append([]byte(nil), value...)
+	if ttl > 0 {
+		c.expires[key] = time.Now().Add(time.Duration(ttl) * time.Second)
+	} else {
+		delete(c.expires, key)
+	}
 	return nil
 }
 
@@ -293,9 +326,23 @@ func (c *MonolithicMemoryCache) Delete(ctx context.Context, key string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	delete(c.data, key)
+	delete(c.expires, key)
 	return nil
 }
 
 func (c *MonolithicMemoryCache) GetStats() core.CacheStats {
-	return core.CacheStats{}
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	total := c.hits + c.misses
+	var hitRate float64
+	if total > 0 {
+		hitRate = float64(c.hits) / float64(total)
+	}
+	return core.CacheStats{
+		HitCount:   c.hits,
+		MissCount:  c.misses,
+		HitRate:    hitRate,
+		EntryCount: int64(len(c.data)),
+	}
 }

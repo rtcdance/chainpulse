@@ -176,9 +176,10 @@ func (cc *ConsistencyChecker) checkOrphanedMetadata(ctx context.Context) (int64,
 
 	var orphanedCount int64
 	for _, m := range metadata {
-		// Check if event exists
-		_, err := cc.eventStore.GetEvent(ctx, m.EventID)
-		if err != nil {
+		// Check if event exists. GetEvent returns (nil, nil) for a missing
+		// entity, so a nil event is just as much an orphan as an error.
+		event, err := cc.eventStore.GetEvent(ctx, m.EventID)
+		if err != nil || event == nil {
 			orphanedCount++
 		}
 	}
