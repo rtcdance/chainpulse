@@ -2,7 +2,6 @@ package query
 
 import (
 	"errors"
-	"strings"
 	"testing"
 
 	"github.com/rtcdance/chainpulse/pkg/services/query/qerrors"
@@ -10,7 +9,6 @@ import (
 
 // TestErrorClassifierTransientErrors tests classification of transient errors
 func TestErrorClassifierTransientErrors(t *testing.T) {
-	t.Skip("regression: pre-existing failure")
 	classifier := qerrors.NewClassifier()
 
 	transientErrors := []error{
@@ -44,7 +42,6 @@ func TestErrorClassifierTransientErrors(t *testing.T) {
 
 // TestErrorClassifierPermanentErrors tests classification of permanent errors
 func TestErrorClassifierPermanentErrors(t *testing.T) {
-	t.Skip("regression: pre-existing failure")
 	classifier := qerrors.NewClassifier()
 
 	permanentErrors := []error{
@@ -79,7 +76,6 @@ func TestErrorClassifierPermanentErrors(t *testing.T) {
 
 // TestErrorClassifierCriticalErrors tests classification of critical errors
 func TestErrorClassifierCriticalErrors(t *testing.T) {
-	t.Skip("regression: pre-existing failure")
 	classifier := qerrors.NewClassifier()
 
 	criticalErrors := []error{
@@ -176,7 +172,6 @@ func TestErrorClassifierIsTransient(t *testing.T) {
 
 // TestErrorClassifierIsPermanent tests IsPermanent method
 func TestErrorClassifierIsPermanent(t *testing.T) {
-	t.Skip("regression: pre-existing failure")
 	classifier := qerrors.NewClassifier()
 
 	testCases := []struct {
@@ -283,9 +278,4 @@ func TestErrorClassifierPartialMatches(t *testing.T) {
 			t.Errorf("Expected %s for %q, got %s", tc.expected.String(), tc.err.Error(), errType.String())
 		}
 	}
-}
-
-// Helper function to check if string contains substring
-func contains(s, substr string) bool {
-	return strings.Contains(s, substr)
 }

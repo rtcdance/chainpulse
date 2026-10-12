@@ -2,6 +2,7 @@ package database
 
 import (
 	"context"
+	"os"
 	"testing"
 	"time"
 
@@ -199,10 +200,17 @@ func TestDatabaseManagerConcurrentAccess(t *testing.T) {
 	}
 }
 
-// TestDatabaseManagerInitializeAlreadyInitialized tests initializing twice
+// TestDatabaseManagerInitializeAlreadyInitialized tests initializing twice.
+//
+// This requires live MongoDB and PostgreSQL servers: DefaultDatabaseManager
+// only flips its initialized flags after a successful connection, so with no
+// reachable server the second Initialize retries the connection instead of
+// reporting "already initialized".
 func TestDatabaseManagerInitializeAlreadyInitialized(t *testing.T) {
-	t.Skip("regression: pre-existing slow test")
 	t.Parallel()
+	if os.Getenv("CHAINPULSE_RUN_DB_INTEGRATION") == "" {
+		t.Skip("Skipping DB integration test; set CHAINPULSE_RUN_DB_INTEGRATION=1 to enable")
+	}
 	manager := NewDatabaseManager("mongodb://localhost:27017", "postgres://localhost:5432", "disable", 10, 5*time.Second)
 	ctx := context.Background()
 

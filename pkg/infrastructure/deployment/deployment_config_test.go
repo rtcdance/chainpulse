@@ -10,7 +10,6 @@ import (
 
 // TestConfigurationLoading tests loading configuration from environment variables
 func TestConfigurationLoading(t *testing.T) {
-	t.Skip("regression: pre-existing failure")
 	// Set environment variables
 	_ = os.Setenv("DATA_PULLER_TYPE", "websocket")
 	_ = os.Setenv("BLOCKCHAIN_NODE_URL", "ws://localhost:8546")
@@ -105,7 +104,6 @@ func TestConfigurationLoading(t *testing.T) {
 
 // TestConfigurationValidation tests configuration validation
 func TestConfigurationValidation(t *testing.T) {
-	t.Skip("regression: pre-existing failure")
 	t.Skip("regression")
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	cm := core.NewConfigManager(logger)
@@ -229,7 +227,6 @@ func TestConfigurationValidation(t *testing.T) {
 
 // TestFeatureFlagManagement tests feature flag management
 func TestFeatureFlagManagement(t *testing.T) {
-	t.Skip("regression: pre-existing failure")
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	cm := core.NewConfigManager(logger)
 
@@ -271,7 +268,6 @@ func TestFeatureFlagManagement(t *testing.T) {
 
 // TestHotReload tests hot reload functionality
 func TestHotReload(t *testing.T) {
-	t.Skip("regression: pre-existing failure")
 	_ = os.Setenv("DATA_PULLER_TYPE", "https-jsonrpc")
 	_ = os.Setenv("BLOCKCHAIN_NODE_URL", "http://localhost:8545")
 	_ = os.Setenv("MQ_TYPE", "kafka")
@@ -335,7 +331,6 @@ func TestHotReload(t *testing.T) {
 
 // TestConfigChangeListener tests configuration change listeners
 func TestConfigChangeListener(t *testing.T) {
-	t.Skip("regression: pre-existing failure")
 	_ = os.Setenv("DATA_PULLER_TYPE", "https-jsonrpc")
 	_ = os.Setenv("BLOCKCHAIN_NODE_URL", "http://localhost:8545")
 	_ = os.Setenv("MQ_TYPE", "kafka")
@@ -401,7 +396,6 @@ func TestConfigChangeListener(t *testing.T) {
 
 // TestGetLastLoadTime tests getting the last load time
 func TestGetLastLoadTime(t *testing.T) {
-	t.Skip("regression: pre-existing failure")
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	cm := core.NewConfigManager(logger)
 
@@ -422,7 +416,6 @@ func TestGetLastLoadTime(t *testing.T) {
 
 // TestHotReloadDisabled tests disabling hot reload
 func TestHotReloadDisabled(t *testing.T) {
-	t.Skip("regression: pre-existing failure")
 	_ = os.Setenv("DATA_PULLER_TYPE", "https-jsonrpc")
 	_ = os.Setenv("BLOCKCHAIN_NODE_URL", "http://localhost:8545")
 	_ = os.Setenv("MQ_TYPE", "kafka")
@@ -485,7 +478,6 @@ func TestHotReloadDisabled(t *testing.T) {
 
 // TestConfigurationGetSet tests getting and setting configuration values
 func TestConfigurationGetSet(t *testing.T) {
-	t.Skip("regression: pre-existing failure")
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	cm := core.NewConfigManager(logger)
 

@@ -483,8 +483,10 @@ func normalizePrometheusMetricName(name string) string {
 	return name
 }
 
+//nolint:unused // used only by validatePrometheusMetricName, which tests exercise
 var prometheusMetricNamePattern = regexp.MustCompile(`^[a-zA-Z_:][a-zA-Z0-9_:]*$`)
 
+//nolint:unused // exercised by tests only
 func validatePrometheusMetricName(name string) error {
 	if name == "" {
 		return fmt.Errorf("metric name must not be empty")

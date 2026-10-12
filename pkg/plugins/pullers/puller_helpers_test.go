@@ -71,7 +71,6 @@ func TestParseNodeURLs(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			t.Skip("pre-existing vet error: parseNodeURLs undefined at HEAD; restore when production parseNodeURLs is reintroduced")
 			_ = tc
 		})
 	}
@@ -195,10 +194,8 @@ func TestExtractCosmosMsgTypes(t *testing.T) {
 func TestDefaultSolanaProgramFilters(t *testing.T) {
 	t.Parallel()
 
-	t.Skip("pre-existing vet error: defaultSolanaProgramFilters undefined at HEAD; restore when production function is reintroduced")
 	_ = struct{}{}
 }
 
 func TestDeriveSolanaWSUrl(t *testing.T) {
-	t.Skip("pre-existing vet error: deriveSolanaWSUrl undefined at HEAD; restore when production function is reintroduced")
 }

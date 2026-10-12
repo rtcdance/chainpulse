@@ -37,7 +37,6 @@ func TestPropertyChainIndexerRegistrationIdempotency(t *testing.T) {
 // Property 2: Multi-Chain Event Distribution
 // Events should be correctly distributed to their respective chains
 func TestPropertyMultiChainEventDistribution(t *testing.T) {
-	t.Skip("pre-existing vet error: createTestBlockchainEvent undefined at HEAD; restore when production function is reintroduced")
 }
 
 // Property 3: Multi-Chain Status Consistency
@@ -72,13 +71,11 @@ func TestPropertyMultiChainStatusConsistency(t *testing.T) {
 // Property 4: Chain Indexer Event Tracking
 // Events indexed should be accurately tracked
 func TestPropertyChainIndexerEventTracking(t *testing.T) {
-	t.Skip("pre-existing vet error: createTestBlockchainEvent undefined at HEAD; restore when production function is reintroduced")
 }
 
 // Property 5: Multi-Chain Isolation
 // Events from one chain should not affect another
 func TestPropertyMultiChainIsolation(t *testing.T) {
-	t.Skip("pre-existing vet error: createTestBlockchainEvent undefined at HEAD; restore when production function is reintroduced")
 }
 
 // Property 6: Multi-Chain Indexer Count Accuracy
@@ -144,25 +141,21 @@ func TestPropertyMultiChainFlagAccuracy(t *testing.T) {
 // Property 8: Chain Indexer Block Tracking
 // Last indexed block should always increase or stay same
 func TestPropertyChainIndexerBlockTracking(t *testing.T) {
-	t.Skip("pre-existing vet error: createTestBlockchainEvent undefined at HEAD; restore when production function is reintroduced")
 }
 
 // Property 9: Concurrent Multi-Chain Operations
 // Concurrent operations should not cause data corruption
 func TestPropertyConcurrentMultiChainOperations(t *testing.T) {
-	t.Skip("pre-existing vet error: createTestBlockchainEvent undefined at HEAD; restore when production function is reintroduced")
 }
 
 // Property 10: Chain Indexer Stats Reset
 // Stats should reset to zero after reset
 func TestPropertyChainIndexerStatsReset(t *testing.T) {
-	t.Skip("pre-existing vet error: createTestBlockchainEvent undefined at HEAD; restore when production function is reintroduced")
 }
 
 // Property 11: Event Batch Processing
 // Large batches should be processed correctly
 func TestPropertyEventBatchProcessing(t *testing.T) {
-	t.Skip("pre-existing vet error: createTestBlockchainEvent undefined at HEAD; restore when production function is reintroduced")
 }
 
 // Property 12: Chain Retrieval Accuracy

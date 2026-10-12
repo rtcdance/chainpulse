@@ -24,7 +24,6 @@ const (
 type PostgreSQLDatabase struct {
 	*BaseDatabasePlugin
 	db             *sql.DB
-	connectionPool *sql.DB
 	maxConnections int
 	queryTimeout   time.Duration
 	mu             sync.RWMutex
@@ -85,43 +84,6 @@ func (p *PostgreSQLDatabase) Initialize(ctx context.Context, config core.Config)
 
 	if err := db.PingContext(pingCtx); err != nil {
 		return fmt.Errorf("failed to ping database: %w", err)
-	}
-
-	return nil
-}
-
-func (p *PostgreSQLDatabase) createTables(ctx context.Context) error {
-	createTableSQL := `
-	CREATE TABLE IF NOT EXISTS blockchain_events (
-		id SERIAL PRIMARY KEY,
-		event_hash VARCHAR(255) NOT NULL,
-		chain_id VARCHAR(255) NOT NULL DEFAULT '',
-		block_number BIGINT NOT NULL,
-		transaction_hash VARCHAR(255) NOT NULL,
-		log_index BIGINT NOT NULL,
-		contract_address VARCHAR(255) NOT NULL,
-		event_name VARCHAR(255),
-		event_data BYTEA,
-		status VARCHAR(50) NOT NULL DEFAULT 'pending',
-		timestamp BIGINT NOT NULL,
-		processed_at TIMESTAMP,
-		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-		updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-		CONSTRAINT uq_event_natural_key UNIQUE (chain_id, block_number, transaction_hash, log_index)
-	);
-	CREATE INDEX IF NOT EXISTS idx_event_hash ON blockchain_events(event_hash);
-	CREATE INDEX IF NOT EXISTS idx_block_number ON blockchain_events(block_number);
-	CREATE INDEX IF NOT EXISTS idx_contract_address ON blockchain_events(contract_address);
-	CREATE INDEX IF NOT EXISTS idx_timestamp ON blockchain_events(timestamp);
-	CREATE INDEX IF NOT EXISTS idx_chain_id ON blockchain_events(chain_id);
-	`
-
-	execCtx, cancel := NewContextWithTimeout(ctx, p.queryTimeout)
-	defer cancel()
-
-	_, err := p.db.ExecContext(execCtx, createTableSQL)
-	if err != nil {
-		return fmt.Errorf("failed to create tables: %w", err)
 	}
 
 	return nil

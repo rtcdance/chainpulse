@@ -22,6 +22,7 @@ type eventProcessorProcessingRuntime struct {
 	inMemoryDatabase *database.DefaultInMemoryDatabasePlugin
 }
 
+//nolint:unused // exercised by tests only; kept as the runtime-wiring seam
 func newEventProcessorProcessingRuntime(
 	config EventProcessorConfig,
 	logger core.Logger,

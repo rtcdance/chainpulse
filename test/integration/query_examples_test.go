@@ -26,25 +26,20 @@ import (
 // Example Query Tests
 
 func TestExampleQueryAllContractEvents(t *testing.T) {
-	t.Skip("pre-existing vet error: createTestBlockchainEvent undefined at HEAD; restore when production function is reintroduced")
 }
 
 func TestExampleQueryByBlockRange(t *testing.T) {
-	t.Skip("pre-existing vet error: createTestBlockchainEvent undefined at HEAD; restore when production function is reintroduced")
 }
 
 func TestExampleQueryMultipleContracts(t *testing.T) {
-	t.Skip("pre-existing vet error: createTestBlockchainEvent undefined at HEAD; restore when production function is reintroduced")
 }
 
 func TestExampleQueryWithPagination(t *testing.T) {
-	t.Skip("pre-existing vet error: createTestBlockchainEvent undefined at HEAD; restore when production function is reintroduced")
 }
 
 // Uniswap Query Examples
 
 func TestExampleUniswapIndexSwaps(t *testing.T) {
-	t.Skip("pre-existing vet error: createTestBlockchainEvent undefined at HEAD; restore when production function is reintroduced")
 }
 
 func TestExampleUniswapGetPoolMetadata(t *testing.T) {
@@ -88,13 +83,11 @@ func TestExampleUniswapGetPoolMetadata(t *testing.T) {
 }
 
 func TestExampleUniswapGetAllPools(t *testing.T) {
-	t.Skip("pre-existing vet error: createTestBlockchainEvent undefined at HEAD; restore when production function is reintroduced")
 }
 
 // ERC20 Query Examples
 
 func TestExampleERC20IndexTransfers(t *testing.T) {
-	t.Skip("pre-existing vet error: createTestBlockchainEvent undefined at HEAD; restore when production function is reintroduced")
 }
 
 func TestExampleERC20GetBalance(t *testing.T) {
@@ -114,7 +107,6 @@ func TestExampleERC20GetBalance(t *testing.T) {
 }
 
 func TestExampleERC20SetTokenMetadata(t *testing.T) {
-	t.Skip("pre-existing vet error: createTestBlockchainEvent undefined at HEAD; restore when production function is reintroduced")
 }
 
 func TestExampleERC20GetAllTokenMetadata(t *testing.T) {
@@ -144,7 +136,6 @@ func TestExampleERC20GetAllTokenMetadata(t *testing.T) {
 // Performance Examples
 
 func TestExampleQueryPerformanceMetrics(t *testing.T) {
-	t.Skip("pre-existing vet error: createTestBlockchainEvent undefined at HEAD; restore when production function is reintroduced")
 }
 
 func TestExampleCachingPattern(t *testing.T) {
@@ -196,5 +187,4 @@ func TestExampleErrorHandlingEmptyResults(t *testing.T) {
 }
 
 func TestExampleErrorHandlingPagination(t *testing.T) {
-	t.Skip("pre-existing vet error: createTestBlockchainEvent undefined at HEAD; restore when production function is reintroduced")
 }

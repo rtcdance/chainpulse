@@ -1,7 +1,6 @@
 package qerrors
 
 import (
-	"fmt"
 	"strings"
 
 	"go.mongodb.org/mongo-driver/mongo"
@@ -41,15 +40,32 @@ func NewClassifier() *Classifier {
 			"connection refused", "timeout", "too many connections",
 			"deadline exceeded", "context deadline", "no reachable servers",
 			"server selection timeout", "EOF",
+			// Socket/network level failures — all retryable.
+			"connection reset", "connection closed", "broken pipe",
+			"network unreachable", "host unreachable",
+			// Transient resolver / availability failures.
+			"temporary failure", "temporarily unavailable",
+			// Connection-pool saturation is backpressure, not corruption.
+			"pool exhausted",
 		},
 		permanentPatterns: []string{
 			"not found", "invalid", "permission denied", "unauthorized",
 			"forbidden", "already exists", "constraint violation",
 			"duplicate key",
+			// Schema/statement errors will never succeed on retry.
+			"no such table", "no such column", "syntax error",
+			// Auth failures are permanent until credentials change.
+			"access denied", "authentication failed",
+			// "unique constraint" alone (without "violation") is still a
+			// constraint error.
+			"unique constraint",
 		},
 		criticalPatterns: []string{
 			"panic", "corruption", "data loss", "integrity violation",
 			"fatal", "disk full", "out of memory",
+			// Storage exhaustion and process-level crashes need operator
+			// intervention, not retries.
+			"disk quota", "segmentation fault", "unrecoverable",
 		},
 	}
 }
@@ -125,7 +141,6 @@ func errorsAs(err error, target interface{}) bool {
 				return true
 			}
 		}
-		err = fmt.Errorf("wrapped: %w", err)
 		return false
 	}
 }

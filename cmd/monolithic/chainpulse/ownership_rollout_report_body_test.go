@@ -186,17 +186,14 @@ func TestBuildOwnershipRolloutReportBodySections(t *testing.T) {
 	}
 
 	t.Run("surface", func(t *testing.T) {
-		t.Skip("pre-existing vet error: buildOwnershipRolloutReportSurfaceSection undefined at HEAD; restore when production function is reintroduced")
 		_ = snapshot
 	})
 
 	t.Run("approval", func(t *testing.T) {
-		t.Skip("pre-existing vet error: buildOwnershipRolloutReportApprovalSection undefined at HEAD; restore when production function is reintroduced")
 		_ = snapshot
 	})
 
 	t.Run("guarded", func(t *testing.T) {
-		t.Skip("pre-existing vet error: buildOwnershipRolloutReportGuardedSection undefined at HEAD; restore when production function is reintroduced")
 	})
 
 	t.Run("assembler", func(t *testing.T) {

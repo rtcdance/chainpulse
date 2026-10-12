@@ -157,11 +157,9 @@ func TestRegisterChainIndexerDuplicate(t *testing.T) {
 }
 
 func TestIndexEventsFromChain(t *testing.T) {
-	t.Skip("pre-existing vet error: createTestBlockchainEvent undefined at HEAD; restore when production function is reintroduced")
 }
 
 func TestIndexEventsFromChainUnregistered(t *testing.T) {
-	t.Skip("pre-existing vet error: createTestBlockchainEvent undefined at HEAD; restore when production function is reintroduced")
 }
 
 func TestIndexEventsFromChainEmpty(t *testing.T) {
@@ -181,7 +179,6 @@ func TestIndexEventsFromChainEmpty(t *testing.T) {
 }
 
 func TestIndexEventsFromAllChains(t *testing.T) {
-	t.Skip("pre-existing vet error: createTestBlockchainEvent undefined at HEAD; restore when production function is reintroduced")
 }
 
 func TestIndexEventsFromAllChainsEmpty(t *testing.T) {
@@ -198,7 +195,6 @@ func TestIndexEventsFromAllChainsEmpty(t *testing.T) {
 }
 
 func TestIndexEventsFromAllChainsUnregistered(t *testing.T) {
-	t.Skip("pre-existing vet error: createTestBlockchainEvent undefined at HEAD; restore when production function is reintroduced")
 }
 
 func TestGetChainIndexer(t *testing.T) {
@@ -234,7 +230,6 @@ func TestGetChainIndexerNotFound(t *testing.T) {
 }
 
 func TestGetRegisteredChains(t *testing.T) {
-	t.Skip("pre-existing vet error: createTestBlockchainEvent undefined at HEAD; restore when production function is reintroduced")
 }
 
 func TestGetStatus(t *testing.T) {
@@ -262,11 +257,9 @@ func TestGetStatus(t *testing.T) {
 }
 
 func TestIsMultiChain(t *testing.T) {
-	t.Skip("pre-existing vet error: createTestBlockchainEvent undefined at HEAD; restore when production function is reintroduced")
 }
 
 func TestGetIndexerCount(t *testing.T) {
-	t.Skip("pre-existing vet error: createTestBlockchainEvent undefined at HEAD; restore when production function is reintroduced")
 }
 
 func TestClose(t *testing.T) {
@@ -286,17 +279,13 @@ func TestClose(t *testing.T) {
 }
 
 func TestDefaultChainIndexerStatus(t *testing.T) {
-	t.Skip("pre-existing vet error: createTestBlockchainEvent undefined at HEAD; restore when production function is reintroduced")
 }
 
 func TestDefaultChainIndexerIndexEvents(t *testing.T) {
-	t.Skip("pre-existing vet error: createTestBlockchainEvent undefined at HEAD; restore when production function is reintroduced")
 }
 
 func TestDefaultChainIndexerResetStats(t *testing.T) {
-	t.Skip("pre-existing vet error: createTestBlockchainEvent undefined at HEAD; restore when production function is reintroduced")
 }
 
 func TestConcurrentMultiChainIndexing(t *testing.T) {
-	t.Skip("pre-existing vet error: createTestBlockchainEvent undefined at HEAD; restore when production function is reintroduced")
 }

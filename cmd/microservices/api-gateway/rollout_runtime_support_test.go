@@ -159,7 +159,6 @@ func TestAPIGatewayRuntimeRolloutRoute(t *testing.T) {
 }
 
 func TestAPIGatewayRuntimeRolloutRouteIncludesMonolithParityReason(t *testing.T) {
-	t.Skip("pre-existing vet error: buildAPIGatewayRuntimeRolloutComponentsWithReadinessDetails undefined at HEAD; restore when production function is reintroduced")
 }
 
 func TestAPIGatewayRuntimeSummaryRoute(t *testing.T) {

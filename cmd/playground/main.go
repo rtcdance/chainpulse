@@ -133,7 +133,7 @@ func newPlayground(logger core.Logger) *playground {
 		eventBus: core.NewChannelEventBus(),
 	}
 
-	pg.eventBus.SubscribeNamed(context.Background(), "events", "printer", func(_ context.Context, event any) error {
+	if _, err := pg.eventBus.SubscribeNamed(context.Background(), "events", "printer", func(_ context.Context, event any) error {
 		if ev, ok := event.(blockchain.BlockchainEvent); ok {
 			slog.Info(
 				"eventbus received",
@@ -143,7 +143,9 @@ func newPlayground(logger core.Logger) *playground {
 			)
 		}
 		return nil
-	})
+	}); err != nil {
+		slog.Error("failed to subscribe printer to eventbus", "error", err)
+	}
 
 	return pg
 }

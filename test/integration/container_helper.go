@@ -30,7 +30,6 @@ type Containers struct {
 	projectDir  string
 	postgresURL string
 	anvilURL    string
-	teardown    func()
 }
 
 // StartContainers starts the required integration test containers.

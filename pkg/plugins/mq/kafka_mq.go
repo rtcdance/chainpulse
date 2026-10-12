@@ -313,7 +313,11 @@ func (p *KafkaMQPlugin) Subscribe(ctx context.Context, topic string, handler fun
 		handler(msg.Payload)
 		return nil
 	}
-	go p.ConsumeMessages(ctx, topic, mqHandler)
+	go func() {
+		if err := p.ConsumeMessages(ctx, topic, mqHandler); err != nil {
+			p.logger.Error("failed to consume messages", "topic", topic, "error", err.Error())
+		}
+	}()
 	return nil
 }
 

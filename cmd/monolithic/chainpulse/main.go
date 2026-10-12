@@ -144,7 +144,9 @@ func run() error {
 
 	// Validate the resolved core configuration
 	configManager := core.NewConfigManager(logger)
-	configManager.Load()
+	if _, err := configManager.Load(); err != nil {
+		return fmt.Errorf("failed to load core configuration: %w", err)
+	}
 	if err := configManager.ValidateLoaded(); err != nil {
 		return fmt.Errorf("core configuration validation failed: %w", err)
 	}
@@ -229,7 +231,9 @@ func run() error {
 			ctx, "event:created", "monolithic-subscription-bridge",
 			func(_ context.Context, payload any) error {
 				if event, ok := payload.(*blockchain.BlockchainEvent); ok && event != nil {
-					runtimeWiring.EventSubscriptionHandler.BroadcastEvent(ctx, event)
+					if err := runtimeWiring.EventSubscriptionHandler.BroadcastEvent(ctx, event); err != nil {
+						logger.Warn("failed to broadcast event to subscription handlers", "error", err.Error())
+					}
 					// Deliver webhooks for this event
 					if webhookStore != nil {
 						payloadMap := map[string]any{
@@ -666,6 +670,7 @@ func parseChains(raw string) ([]string, error) {
 	return chains, nil
 }
 
+//nolint:unused // exercised by tests only
 func parseMonolithicDLQRetention(raw string) (time.Duration, error) {
 	trimmed := strings.TrimSpace(raw)
 	if trimmed == "" {

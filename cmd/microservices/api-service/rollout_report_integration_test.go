@@ -14,7 +14,6 @@ import (
 )
 
 func TestAPIServiceRolloutReportRouteParityMetadataAndBodyBoundaries(t *testing.T) {
-	t.Skip("pre-existing vet error: newAPIServiceRolloutReportProducerWithReadinessDetails undefined at HEAD; restore when production function is reintroduced")
 }
 
 type apiServiceTestQueryService struct {

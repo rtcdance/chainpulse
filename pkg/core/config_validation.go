@@ -60,6 +60,7 @@ func checkURLScheme(val string, expectedScheme string, name string) error {
 	return nil
 }
 
+//nolint:unused // helper exercised by tests only
 func checkFileExists(path string, name string) error {
 	if path == "" {
 		return nil // checkRequired handles empty

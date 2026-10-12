@@ -119,11 +119,9 @@ func TestAPIGatewayRolloutReportProducerRuntimeDerivedFullyWired(t *testing.T) {
 }
 
 func TestAPIGatewayRolloutReportProducerIncludesMonolithParitySource(t *testing.T) {
-	t.Skip("pre-existing vet error: newAPIGatewayRolloutReportProducerWithReadinessDetails undefined at HEAD; restore when production function is reintroduced")
 }
 
 func TestClassifyAPIGatewayOwnershipParityHint(t *testing.T) {
-	t.Skip("pre-existing vet error: classifyAPIGatewayOwnershipParityHint undefined at HEAD; restore when production function is reintroduced")
 }
 
 func TestClassifyAPIGatewayRolloutPostureHint(t *testing.T) {
@@ -147,5 +145,4 @@ func TestClassifyAPIGatewayRolloutPostureHint(t *testing.T) {
 }
 
 func TestAPIGatewayRolloutReportHandlerRoute(t *testing.T) {
-	t.Skip("pre-existing vet error: newAPIGatewayRolloutReportProducerWithReadinessDetails undefined at HEAD; restore when production function is reintroduced")
 }

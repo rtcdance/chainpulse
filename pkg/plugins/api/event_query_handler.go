@@ -315,6 +315,7 @@ func (h *EventQueryHandler) HandleGetEventByID(w http.ResponseWriter, r *http.Re
 	h.respondJSON(w, http.StatusOK, response)
 }
 
+//nolint:unused // helper exercised by tests only
 func looksLikeHash(value string) bool {
 	if len(value) != 66 {
 		return false
@@ -872,10 +873,6 @@ func buildEventQueryMeta(source, queryPath string, fallbackUsed bool, events []*
 		MetadataMissingCount:  len(events) - withMetadata,
 		ResultCount:           len(events),
 	})
-}
-
-func buildDomainListQueryMeta(result *domainquery.Result) *QueryMeta {
-	return buildDomainQueryListMeta(result, "domain-list")
 }
 
 func buildDomainQueryListMeta(result *domainquery.Result, queryPath string) *QueryMeta {

@@ -194,7 +194,6 @@ func (ef *EventFilter) ToQuery() (string, []any) {
 	if ef.Offset > 0 {
 		query += fmt.Sprintf(" OFFSET $%d", argIdx)
 		args = append(args, ef.Offset)
-		argIdx++
 	}
 
 	return query, args

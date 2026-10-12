@@ -162,18 +162,21 @@ func (p *BaseCachePlugin) RecordEviction() {
 	}
 }
 
+//nolint:unused // exercised by tests only
 func (p *BaseCachePlugin) recordHitCount() int64 {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 	return p.hitCount
 }
 
+//nolint:unused // exercised by tests only
 func (p *BaseCachePlugin) recordMissCount() int64 {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 	return p.missCount
 }
 
+//nolint:unused // exercised by tests only
 func (p *BaseCachePlugin) recordEvictionCount() int64 {
 	p.mu.RLock()
 	defer p.mu.RUnlock()

@@ -293,12 +293,11 @@ func TestConfigurationBuilder_SetDuration(t *testing.T) {
 func TestConfigurationBuilder_SetBool(t *testing.T) {
 	t.Parallel()
 	builder := NewConfigurationBuilder(nil, context.Background(), "author")
-	result := builder.SetBool("bool-key", true)
+	_ = builder.SetBool("bool-key", true)
 	assert.Equal(t, "true", builder.configs["bool-key"])
 
-	result = builder.SetBool("bool-key2", false)
+	_ = builder.SetBool("bool-key2", false)
 	assert.Equal(t, "false", builder.configs["bool-key2"])
-	_ = result
 }
 
 func TestConfigurationBuilder_Apply(t *testing.T) {

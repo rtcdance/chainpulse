@@ -49,7 +49,6 @@ type HTTPSJSONRPCPuller struct {
 	requestCounter    int64
 	tracer            *observability.DefaultTracer
 	redRecorder       *observability.REDRecorder
-	nextRequestID     uint64 // atomic counter for correlation ids
 	lastVerifiedBlock uint64 // last block where parent hash chain was verified
 	// Parent hash chain verification tuning
 	reorgVerifyInterval uint64 // blocks between full chain verification checks (default: 100)
@@ -847,8 +846,6 @@ func (p *HTTPSJSONRPCPuller) getLogs(ctx context.Context, fromBlock, toBlock uin
 	return logs.([]types.Log), nil
 }
 
-const rpcResultTruncationThreshold = 9000
-
 // fetchBlockTimestamps collects unique block numbers from logs and fetches their timestamps
 // using ethclient.HeaderByNumber with failover support.
 func (p *HTTPSJSONRPCPuller) fetchBlockTimestamps(ctx context.Context, logs []types.Log) map[uint64]int64 {
@@ -1002,11 +999,6 @@ func (p *HTTPSJSONRPCPuller) SetReorgDetectionConfig(verifyInterval, samplingSte
 	if samplingStep > 0 {
 		p.reorgSamplingStep = samplingStep
 	}
-}
-
-// nextID returns a unique correlation ID using an atomic counter.
-func (p *HTTPSJSONRPCPuller) nextID() int64 {
-	return int64(atomic.AddUint64(&p.nextRequestID, 1))
 }
 
 // saturatingPullerBlockMetric converts uint64 block to int64 with saturation

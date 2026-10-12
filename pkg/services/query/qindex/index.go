@@ -2,12 +2,10 @@
 package qindex
 
 import (
-	"sync"
 	"time"
 )
 
 type Manager struct {
-	mu             sync.RWMutex
 	indexes        map[string]*IndexInfo
 	indexStats     map[string]*Statistics
 	pendingIndexes map[string]*PendingIndex

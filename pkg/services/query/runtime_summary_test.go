@@ -9,7 +9,6 @@ import (
 )
 
 func TestQueryServiceRuntimeSummaryReady(t *testing.T) {
-	t.Skip("regression: pre-existing failure")
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	metrics := core.NewDefaultMetricsCollector()
 
@@ -37,11 +36,11 @@ func TestQueryServiceRuntimeSummaryReady(t *testing.T) {
 	if summary.CachePosture != "cache-ready" {
 		t.Fatalf("expected cache-ready, got %q", summary.CachePosture)
 	}
-	if summary.CircuitBreakerPosture != "circuit-not-wired" {
-		t.Fatalf("expected circuit-not-wired, got %q", summary.CircuitBreakerPosture)
+	if summary.CircuitBreakerPosture != "circuit-breaker-not-applicable" {
+		t.Fatalf("expected circuit-breaker-not-applicable, got %q", summary.CircuitBreakerPosture)
 	}
-	if summary.ConsistencyPosture != "consistency-not-wired" {
-		t.Fatalf("expected consistency-not-wired, got %q", summary.ConsistencyPosture)
+	if summary.ConsistencyPosture != "consistency-check-not-applicable" {
+		t.Fatalf("expected consistency-check-not-applicable, got %q", summary.ConsistencyPosture)
 	}
 }
 

@@ -314,31 +314,6 @@ type solanaTransaction struct {
 	} `json:"meta"`
 }
 
-// solanaTxResponse is used for getTransaction RPC response
-type solanaTxResponse struct {
-	Slot        uint64            `json:"slot"`
-	BlockTime   int64             `json:"blockTime"`
-	Transaction solanaTransaction `json:"transaction"`
-	Meta        *struct {
-		Err                  any      `json:"err"`
-		LogMessages          []string `json:"logMessages"`
-		Fee                  uint64   `json:"fee"`
-		ComputeUnitsConsumed uint64   `json:"computeUnitsConsumed"`
-	} `json:"meta"`
-}
-
-func (p *SolanaPuller) getTransactions(ctx context.Context, signatures []string) ([]solanaTxResponse, error) {
-	params := []any{signatures, map[string]any{
-		"encoding":                       "json",
-		"maxSupportedTransactionVersion": 0,
-	}}
-	var results []solanaTxResponse
-	if err := p.sendRPCRequest(ctx, "getTransaction", params, &results); err != nil {
-		return nil, fmt.Errorf("getTransaction: %w", err)
-	}
-	return results, nil
-}
-
 func parseInstructionType(programID string) string {
 	if label, ok := knownProgramLabels[programID]; ok {
 		return label

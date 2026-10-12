@@ -42,6 +42,8 @@ type Log struct {
 }
 
 // hexToUint64 converts a hex string to uint64.
+//
+//nolint:unused // helper exercised by tests only
 func hexToUint64(hexStr string) uint64 {
 	if len(hexStr) < 2 {
 		return 0
@@ -59,6 +61,8 @@ func hexToUint64(hexStr string) uint64 {
 }
 
 // uint64ToHex converts uint64 to hex string.
+//
+//nolint:unused // helper exercised by tests only
 func uint64ToHex(num uint64) string {
 	return fmt.Sprintf("0x%x", num)
 }
