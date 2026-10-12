@@ -201,6 +201,31 @@ func TestDecodeWithABIIntType(t *testing.T) {
 	}
 }
 
+// TestDecodeWithABIIntType_Negative is the regression test for indexed signed
+// types being decoded as unsigned in the ABI-driven decoder.
+func TestDecodeWithABIIntType_Negative(t *testing.T) {
+	t.Parallel()
+
+	int256Type, err := abi.NewType("int256", "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	eventABI := abi.NewEvent("Signed", "Signed", false, abi.Arguments{
+		{Name: "val", Type: int256Type, Indexed: true},
+	})
+
+	var hash common.Hash
+	copy(hash[:], encodeSigned256(big.NewInt(-42)))
+
+	topics := []common.Hash{eventABI.ID, hash}
+	result := decodeWithABI(eventABI, topics, nil)
+
+	if result["val"] != "-42" {
+		t.Errorf("val = %v, want -42", result["val"])
+	}
+}
+
 func TestChainedDecoderResolveEventName(t *testing.T) {
 	t.Parallel()
 

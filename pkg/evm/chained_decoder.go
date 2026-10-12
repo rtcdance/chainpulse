@@ -168,8 +168,7 @@ func decodeWithABI(eventABI abi.Event, topics []common.Hash, data []byte) map[st
 			case "uint8", "uint16", "uint32", "uint64", "uint128", "uint256", "uint160":
 				result[input.Name] = new(big.Int).SetBytes(val.Bytes()).String()
 			case "int8", "int16", "int32", "int64", "int128", "int256", "int24":
-				v := new(big.Int).SetBytes(val.Bytes())
-				result[input.Name] = v.String()
+				result[input.Name] = decodeSignedBigInt(val.Bytes()).String()
 			case "bytes32":
 				result[input.Name] = "0x" + hex.EncodeToString(val.Bytes())
 			default:

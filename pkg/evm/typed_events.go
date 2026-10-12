@@ -313,11 +313,24 @@ func decodeUniswapV3Swap(topics []common.Hash, data []byte) TypedEvent {
 		e.Sender = common.BytesToAddress(topics[1].Bytes()[12:])
 	}
 	if len(data) >= 160 {
-		e.Amount0 = new(big.Int).SetBytes(data[:32])
-		e.Amount1 = new(big.Int).SetBytes(data[32:64])
-		e.SqrtPriceX96 = new(big.Int).SetBytes(data[64:96])
-		e.Liquidity = new(big.Int).SetBytes(data[96:128])
-		e.Tick = new(big.Int).SetBytes(data[128:160])
+		e.Amount0 = decodeSignedBigInt(data[:32])           // int256
+		e.Amount1 = decodeSignedBigInt(data[32:64])         // int256
+		e.SqrtPriceX96 = new(big.Int).SetBytes(data[64:96]) // uint160
+		e.Liquidity = new(big.Int).SetBytes(data[96:128])   // uint128
+		e.Tick = decodeSignedBigInt(data[128:160])          // int24 (sign-extended to 32 bytes)
 	}
 	return e
+}
+
+// decodeSignedBigInt decodes a big-endian two's-complement ABI word as a signed
+// integer. ABI signed types (int256, int24, …) are sign-extended to a full
+// 32-byte word, so a set high bit in the first byte marks a negative value.
+//
+// Using new(big.Int).SetBytes here would silently turn -1 into 2^256-1.
+func decodeSignedBigInt(word []byte) *big.Int {
+	v := new(big.Int).SetBytes(word)
+	if len(word) > 0 && word[0]&0x80 != 0 {
+		v.Sub(v, new(big.Int).Lsh(big.NewInt(1), uint(8*len(word))))
+	}
+	return v
 }

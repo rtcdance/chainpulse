@@ -405,6 +405,62 @@ func TestDecodeTypedEvent_Swap(t *testing.T) {
 	}
 }
 
+// encodeSigned256 encodes a signed integer as a 32-byte big-endian
+// two's-complement ABI word (how int256/int24 appear in event data).
+func encodeSigned256(v *big.Int) []byte {
+	mod := new(big.Int).Lsh(big.NewInt(1), 256)
+	buf := make([]byte, 32)
+	new(big.Int).Mod(v, mod).FillBytes(buf) // Mod is always non-negative
+	return buf
+}
+
+// TestDecodeTypedEvent_Swap_NegativeValues is the regression test for signed
+// ABI types being decoded as unsigned: `new(big.Int).SetBytes` turns -1 into
+// 2^256-1. Amount0/Amount1 are int256 and Tick is int24; all three can be
+// negative in Uniswap V3. sqrtPriceX96 (uint160) and liquidity (uint128) must
+// stay unsigned.
+func TestDecodeTypedEvent_Swap_NegativeValues(t *testing.T) {
+	t.Parallel()
+
+	topic := topic0ForName("Swap")
+	if topic == (common.Hash{}) {
+		t.Skip("ABI not available for Swap")
+	}
+	sender := common.HexToHash("0x000000000000000000000000aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+
+	data := make([]byte, 160)
+	copy(data[0:32], encodeSigned256(big.NewInt(-1)))
+	copy(data[32:64], encodeSigned256(big.NewInt(-2000)))
+	big.NewInt(12345).FillBytes(data[64:96])               // sqrtPriceX96: uint160
+	big.NewInt(67890).FillBytes(data[96:128])              // liquidity: uint128
+	copy(data[128:160], encodeSigned256(big.NewInt(-100))) // tick: int24
+
+	result, ok := DecodeTypedEvent([]common.Hash{topic, sender}, data)
+	if !ok {
+		t.Fatal("expected true for Swap event")
+	}
+	e, ok := result.(*UniswapV3Swap)
+	if !ok {
+		t.Fatalf("expected *UniswapV3Swap, got %T", result)
+	}
+
+	if e.Amount0.Cmp(big.NewInt(-1)) != 0 {
+		t.Errorf("Amount0 (int256): expected -1, got %s", e.Amount0)
+	}
+	if e.Amount1.Cmp(big.NewInt(-2000)) != 0 {
+		t.Errorf("Amount1 (int256): expected -2000, got %s", e.Amount1)
+	}
+	if e.Tick.Cmp(big.NewInt(-100)) != 0 {
+		t.Errorf("Tick (int24): expected -100, got %s", e.Tick)
+	}
+	if e.SqrtPriceX96.Cmp(big.NewInt(12345)) != 0 {
+		t.Errorf("SqrtPriceX96 (uint160): expected 12345, got %s", e.SqrtPriceX96)
+	}
+	if e.Liquidity.Cmp(big.NewInt(67890)) != 0 {
+		t.Errorf("Liquidity (uint128): expected 67890, got %s", e.Liquidity)
+	}
+}
+
 func TestChainedDecoder_DefaultDecoder(t *testing.T) {
 	t.Parallel()
 	if DefaultDecoder == nil {
