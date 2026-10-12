@@ -1,21 +1,123 @@
 {
-  "$comment": "Required-cases manifest (plan §7.2). Maps the §9 acceptance scenarios (E01-E15) to the REAL Go test names that prove them. Consumed by scripts/acceptance/verify-tests.py --required-cases. A listed test that does not run, or that is skipped, is a hard failure. NOTE: test names are filled in by T02 (contracts runners) and T09/T12; empty arrays below are placeholders, NOT a claim that the scenario passes.",
+  "$comment": "Required-cases manifest (plan §7.2). Maps the §9 acceptance scenarios (E01-E15) to the REAL Go test names that prove them. Consumed by scripts/acceptance/verify-tests.py --required-cases. A listed test that does not run, or that is skipped, is a hard failure. PARTIALLY FILLED (T18 local pre-flight, 2026-10-13): E02/E04/E05/E07/E09/E10/E11 are mapped to tests that were actually executed and passed locally. The remaining scenarios keep an empty array with a 'pending' reason; an empty array is NOT a claim that the scenario passes.",
   "schema": "chainpulse.required-cases.v1",
   "scenarios": [
-    { "id": "E01", "lane": "evm-e2e", "summary": "normal path: two Anvil chains emit ERC20 logs; one verified Swap fixture", "tests": [] },
-    { "id": "E02", "lane": "contracts", "summary": "zero-log block / 100x duplicate / out-of-order arrival", "tests": [] },
-    { "id": "E03", "lane": "evm-e2e", "summary": "fork depth 1/2/12; same-height new hash; tx re-included", "tests": [] },
-    { "id": "E04", "lane": "contracts", "summary": "two-chain isolation: A rollback leaves B unchanged", "tests": [] },
-    { "id": "E05", "lane": "e2e", "summary": "commit-crash kill at boundaries + SIGTERM graceful shutdown", "tests": [] },
-    { "id": "E06", "lane": "chaos", "summary": "repair-job crash: DB rollback done, notify fails, restart resumes", "tests": [] },
-    { "id": "E07", "lane": "unit", "summary": "finality failure: finalized/safe unavailable, stale, wrong chain", "tests": [] },
-    { "id": "E08", "lane": "unit", "summary": "RPC/WS failure: 429 Retry-After, timeout, 5xx, disconnect", "tests": [] },
-    { "id": "E09", "lane": "contracts", "summary": "DB/MQ/Redis failure: backpressure, redelivery, no early ack", "tests": [] },
-    { "id": "E10", "lane": "unit", "summary": "auth: nonce concurrency/expiry/address swap, bad origin/format", "tests": [] },
-    { "id": "E11", "lane": "unit", "summary": "precision/decoding: signed/unsigned bounds, bad topics, unknown ABI", "tests": [] },
-    { "id": "E12", "lane": "frontend-api", "summary": "API compat + paging across cold/hot cache and reorg", "tests": [] },
-    { "id": "E13", "lane": "evm-e2e", "summary": "mode equivalence: monolithic vs four-service canonical digest equal", "tests": [] },
-    { "id": "E14", "lane": "chaos-soak-perf", "summary": "performance / 30min soak", "tests": [] },
-    { "id": "E15", "lane": "release-candidate", "summary": "deploy/rollback: bad image/config, prior digest restore", "tests": [] }
+    {
+      "id": "E01",
+      "lane": "evm-e2e",
+      "summary": "normal path: two Anvil chains emit ERC20 logs; one verified Swap fixture",
+      "tests": [],
+      "pending": "needs two Anvil chains + fixture deploy (not runnable in this sandbox)"
+    },
+    {
+      "id": "E02",
+      "lane": "contracts",
+      "summary": "zero-log block / 100x duplicate / out-of-order arrival",
+      "tests": ["TestPostgresBatchCommitter"],
+      "note": "covers the zero-log block and the all-duplicate block against a real Postgres; out-of-order arrival is covered by the digest order-independence tests, not by this case"
+    },
+    {
+      "id": "E03",
+      "lane": "evm-e2e",
+      "summary": "fork depth 1/2/12; same-height new hash; tx re-included",
+      "tests": [],
+      "pending": "needs Anvil to fork at depth 1/2/12"
+    },
+    {
+      "id": "E04",
+      "lane": "contracts",
+      "summary": "two-chain isolation: A rollback leaves B unchanged",
+      "tests": ["TestPostgresChainIsolation"]
+    },
+    {
+      "id": "E05",
+      "lane": "e2e",
+      "summary": "commit-crash kill at boundaries + SIGTERM graceful shutdown",
+      "tests": ["TestSigtermGracefulShutdown"],
+      "note": "covers the SIGTERM graceful-shutdown half; the commit-crash half is exercised by the atomic-rollback contract test in the contracts lane"
+    },
+    {
+      "id": "E06",
+      "lane": "chaos",
+      "summary": "repair-job crash: DB rollback done, notify fails, restart resumes",
+      "tests": [],
+      "pending": "chaos lane not built; resume logic is unit-tested by TestRepairResumeRepairsEveryPendingJob in pkg/services/reorg, but that is not a crash rehearsal"
+    },
+    {
+      "id": "E07",
+      "lane": "unit",
+      "summary": "finality failure: finalized/safe unavailable, stale, wrong chain",
+      "tests": [
+        "TestGetFinalizedBlockNumber_AllFallbacksFail",
+        "TestIsBlockFinalizedRefusesDegraded",
+        "TestSafeIsNotFinalized"
+      ]
+    },
+    {
+      "id": "E08",
+      "lane": "unit",
+      "summary": "RPC/WS failure: 429 Retry-After, timeout, 5xx, disconnect",
+      "tests": [],
+      "pending": "NOT IMPLEMENTED: no 429 / Retry-After handling exists anywhere in pkg/ (code or test) — this scenario cannot be mapped until it is written"
+    },
+    {
+      "id": "E09",
+      "lane": "contracts",
+      "summary": "DB/MQ/Redis failure: backpressure, redelivery, no early ack",
+      "tests": [
+        "TestDatabaseDisconnectIsBackpressure",
+        "TestRedisOutageFailsClosed",
+        "TestRedisOutageDegradesQueries"
+      ],
+      "note": "the MQ (Kafka) half is TestKafkaRedeliveryKeepsEffectSingle, which SKIPS because the broker's advertised listener is unreachable from this host; it is deliberately NOT listed, because a required skip is a failure"
+    },
+    {
+      "id": "E10",
+      "lane": "unit",
+      "summary": "auth: nonce concurrency/expiry/address swap, bad origin/format",
+      "tests": [
+        "TestMemoryNonceStoreConcurrentConsumeHasOneWinner",
+        "TestMemoryNonceStoreBindsNonceToAddress"
+      ],
+      "note": "the Redis-backed nonce tests (TestRedisNonceStoreTwoInstancesOneWinner) skip in -short mode and are not listed here"
+    },
+    {
+      "id": "E11",
+      "lane": "unit",
+      "summary": "precision/decoding: signed/unsigned bounds, bad topics, unknown ABI",
+      "tests": [
+        "TestDecodeTypedEvent_UnknownTopic0",
+        "TestDecodeTypedEvent_NoTopics",
+        "TestTypedEvent_ERC20Transfer"
+      ]
+    },
+    {
+      "id": "E12",
+      "lane": "frontend-api",
+      "summary": "API compat + paging across cold/hot cache and reorg",
+      "tests": [],
+      "pending": "needs the frontend build + a running API"
+    },
+    {
+      "id": "E13",
+      "lane": "evm-e2e",
+      "summary": "mode equivalence: monolithic vs four-service canonical digest equal",
+      "tests": [],
+      "pending": "needs both deployment modes running against the same fixture"
+    },
+    {
+      "id": "E14",
+      "lane": "chaos-soak-perf",
+      "summary": "performance / 30min soak",
+      "tests": [],
+      "pending": "needs a soak environment"
+    },
+    {
+      "id": "E15",
+      "lane": "release-candidate",
+      "summary": "deploy/rollback: bad image/config, prior digest restore",
+      "tests": [],
+      "pending": "needs a deployment target"
+    }
   ]
 }
