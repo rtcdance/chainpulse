@@ -39,16 +39,35 @@
 - 部署参数（非消息内容）在注释中冻结：分区数是 topic 属性；**每条链的并发提交者上限 = 1**（DB generation/owner token 是第二道防线，不是第一道）。
 - `partition_contract_test.go`：`TestPartitionKeyContract` 逐字冻结"键 == chain key / 同链同键 / 异链异键"；`TestNewChainMessageSetsPartitionKey` 保证构造即带键。
 
+### 1.3 F24：SIGTERM 优雅停机 —— 已实现并验证（10 次）
+
+`pkg/application/bootstrap/drain.go`（新）：`DrainController`。
+
+- `Begin()` 在停机开始后**拒绝新批次**（返回 false），`End()` 配对；
+- `Drain(timeout)` 翻转 draining 并等待 in-flight 批次完成，**超时如实上报**（超时意味着 checkpoint 可能落后、批次将被重放，不能隐藏）；
+- 提供 `InFlight()` / `Rejected()` 便于断言。
+
+**为什么必须这样**：`kill -9` 覆盖的是崩溃场景，而 Docker stop / 滚动部署走 **SIGTERM**。没有 drain 就会**死在批次中间**——要么 checkpoint 已推进而事件丢失，要么整批重放。
+
+**验收（真实进程 + 真实 Postgres，10 次）**：`test/acceptance/tools/graceful` 是一个真实工作负载（每批 3 个事件 + 同事务推进 checkpoint，循环提交），`TestSigtermGracefulShutdown` 每次启动它、等它提交若干批、发 **SIGTERM**，然后断言：
+
+1. 退出码 **0**（干净退出，不是被 kill）；
+2. checkpoint 仍落在批次边界；
+3. **事件数恰好等于 checkpoint 推算值** ⇒ **无半提交、无缺口**。
+
+实测：`run_00` … `run_09` **10/10 PASS**。
+
+> 过程中的一个自证：工作负载最初忘了调用 `tx.Commit`，结果 108 个批次全部回滚、库中 0 行——这同时验证了 `Rollback` 确实生效。
+
 ---
 
 ## 2. 未完成（T05 剩余）
 
-- [ ] **F24 SIGTERM 优雅停机**：in-flight 批次收尾、checkpoint 连续、无半提交、退出码 0；10 次 SIGTERM 验收。
-- [ ] **接线**：把 `BeginTx` 接进 shared runtime 与 processor 的提交路径（目前 processor 仍先查重再写再标记，`CheckAndMark` 只有测试调用 —— 见 F05）。
+- [ ] **接线**：把 `BeginTx` / `DrainController` 接进 shared runtime 与 processor 的提交路径（目前 processor 仍先查重再写再标记，`CheckAndMark` 只有测试调用 —— 见 F05）。
 - [ ] **世代与 owner fencing**：rebalance 后旧 worker 的提交必须被拒（需要 DB 侧 generation/owner token）。
 - [ ] **空块 / 全重复批次**：`ON CONFLICT DO NOTHING` 下 checkpoint 仍须推进（需测试固定）。
-- [ ] **Kafka 依赖**：本机 **9092 未起**，消费进度与 ack 对齐的验收无法执行。
-- [ ] commit 前后 / ack 前后**四处 kill/restart 各 10 次**（§5 验收原文）。
+- [ ] **Kafka 消费进度与 ack 对齐**：`chainpulse-kafka` 已启动（9092 healthy），但消费/ack 路径尚未接线与验收。
+- [ ] commit 前后 / ack 前后**四处 kill/restart 各 10 次**（§5 验收原文；目前只覆盖了 SIGTERM 一处）。
 
 ---
 
