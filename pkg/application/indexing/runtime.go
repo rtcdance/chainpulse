@@ -3,9 +3,13 @@ package indexing
 import (
 	"context"
 	"fmt"
+	"sort"
 	"sync"
 	"time"
 
+	"github.com/ethereum/go-ethereum/common"
+
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
@@ -30,6 +34,18 @@ type EventSource interface {
 // EventSink persists accepted envelopes and derived metadata.
 type EventSink interface {
 	Persist(ctx context.Context, events []EventEnvelope) error
+}
+
+// AtomicBatchCommitter commits a whole block's events together with the
+// checkpoint advance for that block, in one transaction.
+// *processor.BatchCommitter satisfies it.
+//
+// ProcessBatch commits in four steps (dedupe -> persist -> mark processed ->
+// checkpoint); a crash between any two leaves the checkpoint ahead of the data
+// or behind it. This interface is how the runtime opts into the atomic path
+// (finding F05) without depending on a concrete database.
+type AtomicBatchCommitter interface {
+	CommitBlock(ctx context.Context, blockNumber uint64, blockHash string, events []*blockchain.BlockchainEvent) error
 }
 
 // CheckpointStore loads and saves runtime checkpoints.
@@ -86,6 +102,10 @@ type SharedRuntime struct {
 	replay       ReplaySource
 	chains       []string
 
+	// committer, when set, enables the atomic block-commit path
+	// (ProcessBatchAtomic). Nil means only the four-step path is available.
+	committer AtomicBatchCommitter
+
 	mu     sync.RWMutex
 	status RuntimeStatus
 }
@@ -100,6 +120,9 @@ type RuntimeDeps struct {
 	FailureRouter   FailureRouter
 	ReplaySource    ReplaySource
 	Chains          []string
+
+	// Committer is optional: when set, ProcessBatchAtomic becomes available.
+	Committer AtomicBatchCommitter
 }
 
 // NewSharedRuntime creates a shared indexing runtime skeleton.
@@ -136,6 +159,7 @@ func NewSharedRuntime(deps RuntimeDeps) (*SharedRuntime, error) {
 		failureRoute: deps.FailureRouter,
 		replay:       deps.ReplaySource,
 		chains:       append([]string(nil), deps.Chains...),
+		committer:    deps.Committer,
 		status: RuntimeStatus{
 			State:                 "created",
 			Chains:                append([]string(nil), deps.Chains...),
@@ -423,6 +447,135 @@ func (rt *SharedRuntime) ReplayChainRange(
 	}
 
 	return len(replayed), nil
+}
+
+// envelopeToEvent unwraps an envelope's payload into a blockchain event,
+// filling in the identity fields the envelope carries. It copies rather than
+// mutating the caller's payload.
+func envelopeToEvent(envelope EventEnvelope, chainID string) (*blockchain.BlockchainEvent, error) {
+	if envelope.EventKey == "" {
+		return nil, fmt.Errorf("event key is required")
+	}
+	if envelope.ChainID != "" && envelope.ChainID != chainID {
+		return nil, fmt.Errorf("event chain ID mismatch: expected %s, got %s", chainID, envelope.ChainID)
+	}
+
+	source, ok := envelope.Payload.(*blockchain.BlockchainEvent)
+	if !ok || source == nil {
+		return nil, fmt.Errorf("envelope %s payload is %T, want *blockchain.BlockchainEvent", envelope.EventKey, envelope.Payload)
+	}
+
+	event := *source
+	if event.ChainID == "" {
+		event.ChainID = chainID
+	}
+	if event.BlockNumber == 0 {
+		event.BlockNumber = envelope.BlockNumber
+	}
+	if event.TransactionHash == (common.Hash{}) && envelope.TransactionHash != "" {
+		event.TransactionHash = common.HexToHash(envelope.TransactionHash)
+	}
+	if event.LogIndex == 0 {
+		event.LogIndex = envelope.LogIndex
+	}
+	if event.ID == "" {
+		event.ID = envelope.EventKey
+	}
+	if event.EventHash == "" {
+		event.EventHash = core.ComputeEventHash(&event)
+	}
+	return &event, nil
+}
+
+// recordAtomicProgress updates the status counters after a batch commit.
+func (rt *SharedRuntime) recordAtomicProgress(chainID string, processed int, blockNumber uint64) {
+	rt.mu.Lock()
+	defer rt.mu.Unlock()
+
+	rt.status.ProcessedEvents += int64(processed)
+	rt.status.LastCheckpointChainID = chainID
+	rt.status.LastCheckpointCursor = fmt.Sprintf("block:%d", blockNumber)
+	rt.status.LastUpdatedAt = time.Now()
+}
+
+// ProcessBatchAtomic is the atomic counterpart of ProcessBatch.
+//
+// Instead of "dedupe -> persist -> mark processed -> checkpoint" as four
+// independent steps, it groups the batch by block and commits each block's
+// events together with its checkpoint advance, in ascending block order. A
+// failure therefore stops on a block boundary: the checkpoint names the last
+// fully committed block, so there is no gap and no half-committed block to
+// replay.
+//
+// Deduplication is delegated to the store's natural-key constraint rather than
+// a pre-check, which removes the check-then-write window.
+//
+// Every envelope's Payload must be a *blockchain.BlockchainEvent; a malformed
+// envelope fails the whole batch before anything is committed.
+func (rt *SharedRuntime) ProcessBatchAtomic(ctx context.Context, chainID string, events []EventEnvelope) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+	}
+
+	if chainID == "" {
+		return fmt.Errorf("chain ID is required")
+	}
+	if len(events) == 0 {
+		return nil
+	}
+
+	rt.mu.RLock()
+	started := rt.status.Started
+	committer := rt.committer
+	rt.mu.RUnlock()
+
+	if !started {
+		return fmt.Errorf("runtime must be started before processing")
+	}
+	if committer == nil {
+		return fmt.Errorf("runtime has no atomic committer configured")
+	}
+
+	// Convert and validate everything first: nothing is committed if any
+	// envelope is malformed.
+	converted := make([]*blockchain.BlockchainEvent, 0, len(events))
+	for _, envelope := range events {
+		event, err := envelopeToEvent(envelope, chainID)
+		if err != nil {
+			return err
+		}
+		converted = append(converted, event)
+	}
+
+	sort.SliceStable(converted, func(i, j int) bool {
+		return converted[i].BlockNumber < converted[j].BlockNumber
+	})
+
+	committed := 0
+	for i := 0; i < len(converted); {
+		blockNumber := converted[i].BlockNumber
+		j := i
+		for j < len(converted) && converted[j].BlockNumber == blockNumber {
+			j++
+		}
+		group := converted[i:j]
+
+		if err := committer.CommitBlock(ctx, blockNumber, group[0].BlockHash.Hex(), group); err != nil {
+			// The checkpoint still names the previous fully committed block.
+			if committed > 0 {
+				rt.recordAtomicProgress(chainID, committed, converted[i-1].BlockNumber)
+			}
+			return fmt.Errorf("commit block %d: %w", blockNumber, err)
+		}
+
+		committed += len(group)
+		i = j
+	}
+
+	rt.recordAtomicProgress(chainID, committed, converted[len(converted)-1].BlockNumber)
+	return nil
 }
 
 // ProcessBatch applies the first shared indexing orchestration path for one

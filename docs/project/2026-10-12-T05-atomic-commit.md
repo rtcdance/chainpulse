@@ -118,11 +118,23 @@
 
 **验收**（单元 7 个，全 PASS）：无 committer 报错 / 未 running 报错 / 正常委派并计数 / **空块合法** / **非法事件不进 committer** / 提交失败如实计数且不计入 processed / **同一块提交两次会调用 committer 两次**（证明**没有**预检）。
 
+### 1.7 接进 shared runtime：`ProcessBatchAtomic` —— 已实现并验证
+
+`SharedRuntime.ProcessBatch` 的注释本身就写着 **"dedupe -> persist -> mark processed -> checkpoint"** —— **四步独立提交**，正是 F05。
+
+- **`AtomicBatchCommitter` 接口**（`CommitBlock`）+ `RuntimeDeps.Committer`（**可选**，不设则只有四步路径）。
+- **`ProcessBatchAtomic(ctx, chainID, events)`**：
+  - **先全部转换校验**（`Payload` 必须是 `*blockchain.BlockchainEvent`）——任何非法信封都会**在提交前**失败整批；
+  - **按块分组、升序提交**，失败**停在块边界**：checkpoint 仍指向上一个**完整提交**的块 ⇒ **无缺口、无半提交**；
+  - **不碰 idempotency store**（去重交给 DB 自然键）。
+
+**验收**（单元 7 个，全 PASS）：无 committer 报错 / **按块分组**（3 事件 2 块 ⇒ 2 次提交、块序正确）/ **非法 payload 不进 committer** / 链不匹配报错 / 空批 no-op / **块 11 失败时 checkpoint 停在 `block:10` 且只计 1 个 processed** / **同一块提交两次 ⇒ committer 调用两次**（证明无预检）。
+
 ---
 
 ## 2. 未完成（T05 剩余）
 
-- [ ] **接入真实 runtime**：把 `ProcessBlock` / `BatchCommitter` 接进 shared runtime 与 `cmd/microservices/event-processor`（本轮交付了契约与 processor 的整块路径，**尚未替换 runtime 的调用方**）。
+- [ ] **接入具体入口**：`cmd/microservices/event-processor` 与 monolithic 启动路径**注入** `Committer`（本轮交付的是 runtime 的原子路径与注入点；`RuntimeDeps.Committer` 目前无人设置）。
 - [ ] **Kafka 消费进度与 ack 对齐**：`chainpulse-kafka` 已启动（9092 healthy），消费/ack 路径尚未接线与验收。
 - [ ] commit 前后 / ack 前后**四处 kill/restart 各 10 次**（§5 验收原文；目前只覆盖了 SIGTERM 一处）。
 
