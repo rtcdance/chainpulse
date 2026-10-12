@@ -1,0 +1,17 @@
+{
+  "provenance": {
+    "task": "T14 (§8 微基准回归)",
+    "recorded_on": "2026-10-12",
+    "host": "macOS (darwin), Apple Silicon — NOT the §8 reference environment (Linux, 8 vCPU, 16GiB, SSD)",
+    "note": "Absolute numbers are only comparable on the same host and toolchain. §8 says a Mac report must be labelled as such and must not be presented as the reference environment's numbers; this file follows that rule. The gate's job is to catch a regression on the SAME machine, which is what the threshold applies to.",
+    "command": "go test -run '^$' -bench BenchmarkDecodeEventDataTransfer -benchmem -count=5 ./pkg/evm/",
+    "samples_per_benchmark": 5,
+    "threshold": "0.15 (ns/op and B/op, per §8)"
+  },
+  "benchmarks": {
+    "BenchmarkDecodeEventDataTransfer": {
+      "bytes_per_op": 904.0,
+      "ns_per_op": 1539.6
+    }
+  }
+}
