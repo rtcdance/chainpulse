@@ -73,6 +73,38 @@ $ CHAINPULSE_RUN_POSTGRES_INTEGRATION=1 \
 
 ---
 
+## 3.6 §9 E09：Redis 降级查询（与 fail-closed 相对的另一半）—— 真实执行
+
+上一节证明**安全边界必须 fail-closed**。计划 E09 同时要求"**Redis 降级查询**" —— 即**查询路径**不能因缓存故障而失败。**这两条策略是刻意相反的，且都必须有**：
+
+| 路径 | 缓存故障时的正确行为 | 理由 |
+| --- | --- | --- |
+| **安全决策**（nonce） | **fail-closed**（报错，永不报成功） | 报成功 ⇒ nonce 可被重放 |
+| **查询** | **降级**（退到权威源，仍成功） | 丢缓存只损失延迟，不该把缓存故障变成服务故障 |
+
+**实现** `pkg/services/query/degrading_reader.go`（新）：`DegradingReader.Read` 返回 `ReadResult{Value, Degraded, Reason}`。
+
+关键区分：**缓存 error 与缓存 miss 走不同分支**。miss 是正常路径（读源，**不标降级**）；error 是降级（读源，**标降级并记录原因**）。只有**缓存与源都失败**才返回错误 —— 即"答案确实无法产出"。
+
+**验收**：
+
+| 测试 | 断言 |
+| --- | --- |
+| `TestDegradingReaderServesFromCacheOnHit` | 命中 ⇒ 不降级，**源不被访问** |
+| `TestDegradingReaderFallsThroughOnMiss` | miss ⇒ 读源，**不标降级**（miss ≠ 降级） |
+| **`TestDegradingReaderDegradesOnCacheError`** | 缓存 error ⇒ **无错误**、`Degraded=true`、`Reason` 点名原因、值正确 |
+| `TestDegradingReaderFailsOnlyWhenBothFail` | 两者都失败 ⇒ 错误**同时报出两个原因** |
+| `TestDegradingReaderSourceFailureAfterMissIsAnError` | miss + 源失败 ⇒ 错误 |
+| `TestDegradingReaderRejectsEmptyKey` / `RequiresDependencies` | 输入与依赖校验 |
+
+**真实 Redis 演练**：`TestRedisOutageDegradesQueries` —— 基线（miss，不降级）→ `docker stop chainpulse-redis` → **查询仍成功且 `Degraded=true`、值仍正确** → `docker start` → 缓存重新被使用（不降级）。
+
+**实测**：`TestRedisOutageFailsClosed (4.94s)` + `TestRedisOutageDegradesQueries (2.80s)` 双双 PASS。
+
+> 演练里的 `redisCachePlugin` 是测试本地适配器：生产 `RedisCachePlugin` **不满足** `core.CachePlugin`（`Get`/`Set` 收 `*CacheEntry`）—— 即 T02 记录的端口缺口。这里**不掩盖它**，只用本地适配器让演练跑起来。
+
+---
+
 ## 4. 未完成（T16 剩余）
 
 - [ ] **E09 的 MQ 部分**：Kafka 重投与 rebalance（Kafka 已起，9092 可用；需先接消费路径）。
@@ -80,4 +112,4 @@ $ CHAINPULSE_RUN_POSTGRES_INTEGRATION=1 \
 - [ ] **E06 修复任务崩溃**：outbox/重采中停止 ⇒ restart 续跑（持久任务与 outbox 已就绪，缺编排）。
 - [ ] **E15 版本回滚**：错误镜像/配置/迁移中断，前版 digest 回滚，旧版恢复后数据摘要一致。
 - [ ] **RPO/RTO 报告**：按本地受控范围给出，**不冒充跨机房保证**（计划原文）。
-- [ ] **E09 的"降级查询"**：计划要求"Redis 降级查询"，即查询路径在 Redis 故障时**退到数据库**而非失败。本轮证明的是**安全边界**（nonce）必须 fail-closed；**查询路径的降级**是另一件事，尚未实现与验收。
+- [ ] **接线**：`DegradingReader` 尚未接进真实查询路径（`pkg/services/query` 的调用方仍直接读缓存）。
