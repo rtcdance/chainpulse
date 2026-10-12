@@ -86,7 +86,7 @@ func run() error {
 	} else {
 		logger = core.NewSlogLogger(logLevel, logFormat)
 	}
-	metrics := core.NewDefaultMetricsCollector()
+	metrics := observability.Guarded(core.NewDefaultMetricsCollector())
 	registry := core.NewPluginRegistry(logger)
 
 	// Create shared observability provider (single TracerProvider)

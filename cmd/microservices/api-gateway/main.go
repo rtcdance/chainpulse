@@ -12,6 +12,7 @@ import (
 	"github.com/rtcdance/chainpulse/pkg/application/bootstrap"
 	"github.com/rtcdance/chainpulse/pkg/core"
 	"github.com/rtcdance/chainpulse/pkg/env"
+	"github.com/rtcdance/chainpulse/pkg/observability"
 	"github.com/rtcdance/chainpulse/pkg/plugins/api"
 )
 
@@ -45,7 +46,7 @@ func main() {
 		logLevel = core.LogLevelDebug
 	}
 	logger := core.NewDefaultLogger(logLevel)
-	metrics := core.NewDefaultMetricsCollector()
+	metrics := observability.Guarded(core.NewDefaultMetricsCollector())
 	registry := core.NewPluginRegistry(logger)
 
 	fmt.Println("  [1/3] Logger initialized")
