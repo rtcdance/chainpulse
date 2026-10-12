@@ -13,6 +13,19 @@ transactions, detect chain reorganizations, inspect dead-letter queues,
 and debug event processing across Ethereum and other chains — from a
 single dashboard.
 
+**What it is:** a Web3 Go backend that indexes EVM events — PostgreSQL
+persistence, Kafka redelivery, a Redis cache and a query API — built around the
+correctness problems that make indexing hard: reorgs that rewrite history,
+at-least-once delivery, and finality that differs by chain.
+
+**What it is not:** a bridge, an MEV or account-abstraction implementation, or a
+multi-chain production deployment. The widest thing exercised is a two-chain
+isolation test and a single-chain load path.
+
+See the [English project summary](docs/project/2026-10-13-english-summary.md) for
+the evidenced results, the support boundary, and the design decisions
+([ADRs](docs/adr/README.md)).
+
 ## 5-Minute Happy Path
 
 See blockchain events indexed and queried in under 5 minutes:
