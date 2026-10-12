@@ -61,6 +61,8 @@ func TestPostgresEventRoundTrip(t *testing.T) {
 		testhelpers.NewTestMetricsCollector(),
 	)
 	require.NoError(t, pg.Initialize(ctx, core.Config{DatabaseURL: dsn}), "Initialize")
+	require.NoError(t, pg.Start(ctx), "Start")
+	t.Cleanup(func() { _ = pg.Stop(context.Background()) })
 
 	// Use a chain id unique to this test so the round-trip does not collide
 	// with anything else in the shared dev database.
@@ -69,23 +71,27 @@ func TestPostgresEventRoundTrip(t *testing.T) {
 	txHash := common.HexToHash("0x7777000000000000000000000000000000000000000000000000000000000077")
 	contractAddr := common.HexToAddress("0xcccc0000000000000000000000000000000000cc")
 
+	// The `id` column holds the canonical event hash (that is what
+	// GetEventByHash assumes), so ID and EventHash are the same value here.
+	evHash := core.ComputeEventHash(&blockchain.BlockchainEvent{
+		ChainID:         chainID,
+		BlockNumber:     100,
+		TransactionHash: txHash,
+		LogIndex:        7,
+	})
+
 	event := &blockchain.BlockchainEvent{
-		ID:               chainID + "-event-1",
-		EventHash:        core.ComputeEventHash(&blockchain.BlockchainEvent{
-			ChainID:         chainID,
-			BlockNumber:     100,
-			TransactionHash: txHash,
-			LogIndex:        7,
-		}),
-		ChainID:          chainID,
-		BlockNumber:      100,
-		BlockHash:        blockHash,
-		BlockTimestamp:   1700000000,
-		TransactionHash:  txHash,
-		LogIndex:         7,
-		ContractAddress:  contractAddr,
-		EventName:        "Transfer",
-		EventData:        []byte("0xdeadbeef"),
+		ID:              evHash,
+		EventHash:       evHash,
+		ChainID:         chainID,
+		BlockNumber:     100,
+		BlockHash:       blockHash,
+		BlockTimestamp:  1700000000,
+		TransactionHash: txHash,
+		LogIndex:        7,
+		ContractAddress: contractAddr,
+		EventName:       "Transfer",
+		EventData:       []byte("0xdeadbeef"),
 	}
 
 	require.NoError(t, pg.WriteEvent(ctx, event), "WriteEvent must succeed against the real schema")
@@ -109,6 +115,30 @@ func TestPostgresEventRoundTrip(t *testing.T) {
 	assert.Equal(t, event.LogIndex, found.LogIndex)
 	assert.Equal(t, event.EventName, found.EventName)
 	assert.Equal(t, event.EventData, found.EventData, "event_data must round-trip")
+
+	// GetEventByHash (the `id` column holds the canonical hash).
+	byHash, err := pg.GetEventByHash(event.EventHash)
+	require.NoError(t, err, "GetEventByHash")
+	require.NotNil(t, byHash, "GetEventByHash must find the event")
+	assert.Equal(t, event.BlockHash.Hex(), byHash.BlockHash.Hex())
+	assert.Equal(t, event.ChainID, byHash.ChainID)
+
+	// GetAllEvents.
+	all, err := pg.GetAllEvents(ctx)
+	require.NoError(t, err, "GetAllEvents")
+	assert.NotEmpty(t, all, "GetAllEvents must return the written event")
+
+	// QueryEvents.
+	res, err := pg.QueryEvents(&core.EventFilter{FromBlock: 100, ToBlock: 100})
+	require.NoError(t, err, "QueryEvents")
+	require.NotNil(t, res)
+
+	// Block readers must not fail against the real schema (an empty table is
+	// a valid result; a missing column would be an error).
+	_, err = pg.GetAllBlocks(ctx)
+	require.NoError(t, err, "GetAllBlocks")
+	_, err = pg.GetBlock(ctx, 999999)
+	require.NoError(t, err, "GetBlock")
 
 	// Cleanup so repeated runs stay idempotent.
 	require.NoError(t, pg.DeleteEvent(ctx, event.ID))

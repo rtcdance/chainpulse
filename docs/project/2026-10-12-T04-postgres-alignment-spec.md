@@ -7,6 +7,31 @@
 
 ---
 
+## 0.1 执行记录（本轮**已执行**，非仅规格）
+
+在建立可验证回路（socat 端口转发 + 迁移过的测试库）后，直接改了生产代码并用**真实 Postgres**验证。
+
+**先发现的更根本 bug**：`postgres_database.go` 的 `Initialize` 打开连接后**从不保存**（`grep "p\.db ="` 零命中）⇒ 所有方法走 `p.db == nil` 返回 "database not initialized"，`Start()` 还 nil-panic。**该适配器此前完全不可用**。已修。
+
+**已对齐（`pkg/plugins/database/postgres_database.go`）**：
+
+| 位置 | 修复 |
+| --- | --- |
+| `Initialize` | ping 成功后 `p.db = db`（失败 `Close` + `RecordError`） |
+| `WriteEvent` / `WriteEvents` / `WriteBatch` | `event_hash` → **`id`**；补 `block_hash`；哈希/地址 `.Hex()`；`event_data` 经 `eventDataJSON` |
+| `QueryEvents` | SELECT 改真实列；扫描经 string 中转 + `common.HexToHash/HexToAddress` |
+| `GetEventByHash` | `WHERE id = $1`（原 `event_hash`）；同样扫描转换 |
+| `GetAllEvents` / `GetEventsByBlockRange` | 删 `event_signature`/`event_hash`/`data`/`indexed_params`，改真实列 |
+| `GetAllBlocks` / `GetBlock` | 删 `miner`/`difficulty`/`gas_used`/`gas_limit`，改 `number, hash, parent_hash, timestamp` |
+
+**验收（真实 Postgres，非 mock）**：`TestPostgresEventRoundTrip` **PASS**，覆盖
+`WriteEvent → GetEventsByBlockRange / GetEventByHash / GetAllEvents / QueryEvents / GetAllBlocks / GetBlock / DeleteEvent`；
+`block_hash` 与 `event_data` 往返一致。门禁：`go build` 0 / `make check` 0 / `make lint` 0 issues / `make test-short` 66 ok。
+
+**仍未做（见 §2、§3）**：F06 身份（`ComputeEventHash` 加 `block_hash`）、`status`/`correlation_id` 写入、block 写入路径、live `events` 表处置、T02 的 PG 契约 runner + 适配层。
+
+---
+
 ## 0. 事实来源（T02 已核）
 
 **迁移产物（唯一事实来源）** —— `migrations/000001_init_schema.up.sql` + 000005/000007：
