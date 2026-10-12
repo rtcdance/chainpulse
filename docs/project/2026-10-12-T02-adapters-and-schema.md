@@ -100,6 +100,54 @@
 
 ---
 
+### 3.5 🔴 P0：Postgres schema 与代码「三方分裂」（实测证据，F04）
+
+在按"适配层"路线推进前，先用**真实 Postgres（本机 `chainpulse-postgres`，5432）**核对，发现比端口缺口更严重的问题。
+
+**证据 1 — 全新库跑迁移在 000004 直接失败（修复前）**
+
+```text
+ok   000001_init_schema.up.sql
+ok   000002_api_keys.up.sql
+ok   000003_webhooks.up.sql
+FAIL migrations/000004_event_natural_key_constraint.up.sql (rc=3):
+ERROR:  relation "events_metadata" does not exist
+```
+
+`000004` 对 `events_metadata` 加约束，而**没有任何迁移创建过这张表**（000001 建的是 `blockchain_events`）。
+
+**证据 2 — 代码的 INSERT 在真实 schema 上必然失败**
+
+`postgres_database.go:158` 生成：
+```sql
+INSERT INTO blockchain_events (event_hash, chain_id, block_number, transaction_hash,
+  log_index, contract_address, event_name, event_data, timestamp) VALUES (...)
+```
+在迁移产物上实测：
+```text
+ERROR:  column "event_hash" of relation "blockchain_events" does not exist
+```
+
+**三方对照**：
+
+| 来源 | 表 | 关键列 |
+| --- | --- | --- |
+| 迁移 000001 | `blockchain_events` | `id`(PK)、`block_hash`(NOT NULL)、`event_data` |
+| 本机 live 库 | **`events`** | `id`(PK)、`block_hash`、`event_data`（**无 `blockchain_events`**） |
+| 代码 `postgres_database.go` | `blockchain_events` | 期望 `event_hash`、`data`、`indexed_params` |
+
+实测列清单（全新库）：`id chain_id block_number block_hash transaction_hash log_index contract_address event_name event_data timestamp created_at status correlation_id`。
+代码额外引用且**任何迁移都不存在**的列：`event_hash`（6 处）、`data`、`indexed_params`（各 2 处）。
+代码自身还不自洽：INSERT 用 `event_hash`，而 `:557` 的 DELETE 用 `WHERE id = $1`。
+
+**结论**：Postgres 读写路径**对任何真实 schema 都无法工作**。这不是"缺一个方法"，而是**表名 + 主键 + 列集合三方不一致**。因此：
+
+- **适配层无法建立**：在把适配器包成 `core.DatabasePlugin` 之前，必须先决定"事实来源 schema"（T02 明令：`禁止为迎合旧文档创建第二套表`）。
+- **这正是 T04 的职责**（事件身份与迁移：`修改 event hash 与相关 DB 映射`）。建议**把 T04 提到 Postgres 适配层之前**。
+
+**本轮已做的无争议修复**：`000004` 改为对 `blockchain_events` 加约束（约束名 `uq_blockchain_events_natural_key`），与代码 `ON CONFLICT (chain_id, block_number, transaction_hash, log_index)` 一致。修复后全新库**迁移 8/8 全过**。
+**未做（属 T04）**：`event_hash`/`data`/`indexed_params` → 真实列的映射；`id` vs `event_hash` 主键统一；live 库 `events` 与迁移 `blockchain_events` 的取舍。
+
 ## 4. 对后续任务的影响
 
 - **T03+ 可直接复用 digest oracle** 做链隔离与重组摘要比对（`CanonicalEvents` / `CanonicalBlocks`）。

@@ -1,2 +1,2 @@
-ALTER TABLE events_metadata
-    DROP CONSTRAINT IF EXISTS uq_events_metadata_natural_key;
+ALTER TABLE blockchain_events
+    DROP CONSTRAINT IF EXISTS uq_blockchain_events_natural_key;
