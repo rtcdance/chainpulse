@@ -82,13 +82,35 @@
 
 **顺带修复**：迁移 `000004` 改为先 `DROP CONSTRAINT IF EXISTS` 再 `ADD`，使其**可重复执行**（此前二次运行会失败）。
 
+### 1.5 共享提交契约 `BatchCommitter` —— 已实现并验证
+
+**为什么**：此前"写事件"与"推进 checkpoint"是**两步**，且 processor 里 `CheckAndMark` 是**内存 map**、只有测试调用。计划要求的"同一提交契约"并不存在。
+
+- **`pkg/services/processor/batch_committer.go`（新）**：`BatchCommitter.CommitBlock(ctx, blockNumber, blockHash, events)` —— **一个 fenced 事务**内完成"写事件 + 推进 checkpoint"。
+  - `FencedStore` 接口（`AcquireLease` / `ReleaseLease` / `BeginFencedTx`）由 `PostgreSQLPluginAdapter` 直接满足；
+  - `WorkGate` 接口（`Begin`/`End`）由 `bootstrap.DrainController` 满足 —— **不引入 services→application 的反向依赖**；
+  - `EnsureLease` **惰性续租**（过半 TTL 才续），避免每批churn 租约。
+- **三条性质**：① **原子**（事件与 checkpoint 同生共死）② **fenced**（接管后的事务被拒）③ **可 drain**（gate 关闭后不再开新批，在途批允许完成）。
+- **不做重复预检**：去重是数据库自然键 + `ON CONFLICT DO NOTHING` 的职责。预检会**重新引入 check-then-write 窗口**（正是 F05 的病灶）。
+
+**验收（真实 Postgres）** `TestPostgresBatchCommitter`：
+
+| 场景 | 断言 |
+| --- | --- |
+| 普通块 | 事件落库 + checkpoint 前进 |
+| **空块** | 0 事件，**checkpoint 仍前进**（否则该高度永久卡死） |
+| **全重复块** | 事件数不变，**checkpoint 仍前进** |
+| 正在 drain | 新批被拒（`ErrDraining`），**checkpoint 不动** |
+| 被 fence 掉的 worker | 提交失败，**checkpoint 不动** |
+
+单元测试 10 个（fake store）+ 集成 1 个，全 PASS。
+
 ---
 
 ## 2. 未完成（T05 剩余）
 
-- [ ] **接线**：把 `BeginTx` / `BeginFencedTx` / `DrainController` 接进 shared runtime 与 processor 的提交路径（目前 processor 仍先查重再写再标记，`CheckAndMark` 只有测试调用 —— 见 F05）。
-- [ ] **空块 / 全重复批次**：`ON CONFLICT DO NOTHING` 下 checkpoint 仍须推进（需测试固定）。
-- [ ] **Kafka 消费进度与 ack 对齐**：`chainpulse-kafka` 已启动（9092 healthy），但消费/ack 路径尚未接线与验收。
+- [ ] **接入真实 runtime**：让 shared runtime / event-processor 用 `BatchCommitter` 替换现有的"查重→写→标记"路径（本轮的 `BatchCommitter` 是**共享契约本身**，尚未替换调用方）。
+- [ ] **Kafka 消费进度与 ack 对齐**：`chainpulse-kafka` 已启动（9092 healthy），消费/ack 路径尚未接线与验收。
 - [ ] commit 前后 / ack 前后**四处 kill/restart 各 10 次**（§5 验收原文；目前只覆盖了 SIGTERM 一处）。
 
 ---
