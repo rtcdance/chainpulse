@@ -57,6 +57,8 @@ if [ -d "deployment" ]; then
 fi
 
 # Check tracked files for generated/artifact paths and binary payloads.
+
+# Artifact-path check: a pure shell case, no process spawns.
 while IFS= read -r tracked; do
   [ -e "$tracked" ] || continue
   case "$tracked" in
@@ -65,13 +67,16 @@ while IFS= read -r tracked; do
       ((ERRORS++))
       ;;
   esac
-
-  FILE_DESC="$(file "$tracked" 2>/dev/null || true)"
-  if echo "$FILE_DESC" | grep -Eq 'Mach-O|ELF|PE32'; then
-    echo "❌ Binary file is tracked by git: $tracked"
-    ((ERRORS++))
-  fi
 done < <(git ls-files)
+
+# Binary detection: call file(1) once over the whole tracked set, not once per
+# path. One spawn per tracked file makes this gate O(files) in process spawns
+# and takes minutes on a large repo; a single batched call is O(1) spawns.
+# grep does the filtering, so the loop only reports what already matched.
+while IFS= read -r desc; do
+  echo "❌ Binary file is tracked by git: ${desc%%: *}"
+  ((ERRORS++))
+done < <(git ls-files -z | xargs -0 file 2>/dev/null | grep -E 'Mach-O|ELF|PE32' || true)
 
 # Check for generated code outside pkg/generated/
 # Only check staged files, not the entire repo (pre-existing mocks are allowed)
