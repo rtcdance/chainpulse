@@ -2,8 +2,9 @@
 
 > 对应任务：`docs/specs/2026-10-12-web3-go-backend-delivery-plan.md` §5 的 **T17 / P1 / 8h**。
 > 状态：**In Progress** —— **F20 的 README 对齐已完成并机器验证**；
-> **F26 两份叙事文档已产出并机器验证链接（§5）**；
-> 架构图、三份 ADR、录屏、性能/故障报告、英文摘要未做。
+> **F26 两份叙事文档已产出并机器验证链接（§4）**；
+> **README 架构图（Mermaid）已加（§5）**；
+> 三份核心 ADR、录屏、性能/故障报告、英文摘要、20 问答整理未做。
 > 日期：2026-10-13，Asia/Singapore。
 
 ---
@@ -81,10 +82,21 @@ T17 验收对 F26 的原文要求：**"补两份轻量叙事文档（F26）：10
 
 > 首次产出时把 ADR 链接写成 `../../adr/...`（从 `docs/project/` 出发应是 `../adr/...`，只上一级）。检查器抓到 5 条全断，修正后归零 —— 与 §3 的"检查器本身也要被检查"同一个教训。
 
-## 5. 未完成（T17 剩余）
+## 5. 架构图（已完成）
 
-- [ ] **一张实际架构图**（当前 README 只有文字表格）。
-- [ ] **三份核心 ADR**（`docs/adr/` 已存在，需确认是否有三份可交付）。
+T17 要求"一张实际架构图"，而 README 原本只有文字表格。已加一张 **Mermaid flowchart** 到 README 的 `## 📊 Architecture` → `### System Overview`：
+
+- 节点名用**真实包名**（`plugins/pullers`、`services/decoder`、`services/processor`、`plugins/database`、`plugins/api`、`siwe`、`services/reorg`、`services/finality`、`observability`），不虚构组件；
+- 画的是**已实现的索引路径**：puller → decoder → processor → **fenced batch commit** → PostgreSQL（事件 + checkpoint 原子提交），旁挂 Kafka 重投、Redis 版本化缓存、`DegradingReader`、reorg 修复、finality、lag 指标；
+- **不暗示未实现能力**：图注明写"今天真正压过的是双链隔离测试与单链负载路径，不是多链生产部署"；
+- ADR 段落指向**确实存在**的 ADR（ADR-001 plugin architecture / ADR-002 event bus / ADR-003 reorg），**不是** plan §11 建议的那三份（那三份尚未成篇，见 §6）。
+
+README 相对链接复检：**18 条，BROKEN 0**（新增的 ADR 链接均存在）。
+
+## 6. 未完成（T17 剩余）
+
+- [ ] **三份核心 ADR**：plan §11 建议「事件身份/canonical 模型」「DB 提交与 Kafka 进度协调」「finality 与重组降级」，目前均**未独立成篇**（ADR-003 reorg 最接近第三份）。
+- [ ] **`docs/adr/` 编号冲突**：存在**两个 ADR-004**（`ADR-004-env-var-naming-convention.md` 与 `ADR-004-ethclient-migration.md`），需重编号。
 - [ ] **3–5 分钟录屏**、**性能报告**、**故障报告**、**英文项目摘要**。
 - [ ] **20 个问题有代码/测试答案**的整理。
 - [ ] **新机器 5 分钟 happy path / 15 分钟复现故障**（需可编排环境）。
