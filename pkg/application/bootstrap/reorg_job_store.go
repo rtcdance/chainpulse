@@ -3,6 +3,7 @@ package bootstrap
 import (
 	"context"
 
+	"github.com/rtcdance/chainpulse/pkg/core"
 	"github.com/rtcdance/chainpulse/pkg/plugins/database"
 	"github.com/rtcdance/chainpulse/pkg/services/reorg"
 )
@@ -19,6 +20,9 @@ type PostgresReorgJobStore struct {
 
 // PostgresReorgJobStore must satisfy the port.
 var _ reorg.JobStore = (*PostgresReorgJobStore)(nil)
+
+// It also drains the outbox, so one adapter serves both halves.
+var _ reorg.OutboxDrainer = (*PostgresReorgJobStore)(nil)
 
 // NewPostgresReorgJobStore creates the adapter.
 func NewPostgresReorgJobStore(adapter *database.PostgreSQLPluginAdapter) *PostgresReorgJobStore {
@@ -74,4 +78,58 @@ func (s *PostgresReorgJobStore) PendingJobs(ctx context.Context, chainID string,
 // CompleteJob marks a repair job done.
 func (s *PostgresReorgJobStore) CompleteJob(ctx context.Context, jobID string) error {
 	return s.adapter.CompleteReorgJob(ctx, jobID)
+}
+
+// PendingNotifications returns notifications that still owe delivery.
+func (s *PostgresReorgJobStore) PendingNotifications(ctx context.Context, limit int) ([]reorg.Notification, error) {
+	rows, err := s.adapter.PendingReorgNotifications(ctx, limit)
+	if err != nil {
+		return nil, err
+	}
+
+	out := make([]reorg.Notification, 0, len(rows))
+	for _, n := range rows {
+		out = append(out, reorg.Notification{
+			ID:         n.ID,
+			JobID:      n.JobID,
+			ChainID:    n.ChainID,
+			Generation: n.Generation,
+			Topic:      n.Topic,
+			Payload:    n.Payload,
+			Attempts:   n.Attempts,
+		})
+	}
+	return out, nil
+}
+
+// MarkPublished records a successful delivery. It is idempotent.
+func (s *PostgresReorgJobStore) MarkPublished(ctx context.Context, id int64) error {
+	return s.adapter.MarkReorgNotificationPublished(ctx, id)
+}
+
+// RecordFailure bumps the attempt counter for a notification.
+func (s *PostgresReorgJobStore) RecordFailure(ctx context.Context, id int64) error {
+	return s.adapter.RecordReorgNotificationFailure(ctx, id)
+}
+
+// EventBusPublisher adapts core.EventBus to reorg.NotificationPublisher.
+type EventBusPublisher struct {
+	bus core.EventBus
+}
+
+var _ reorg.NotificationPublisher = (*EventBusPublisher)(nil)
+
+// NewEventBusPublisher creates the adapter. It returns nil when bus is nil, so
+// callers can treat "no bus configured" as "no publisher".
+func NewEventBusPublisher(bus core.EventBus) *EventBusPublisher {
+	if bus == nil {
+		return nil
+	}
+	return &EventBusPublisher{bus: bus}
+}
+
+// Publish sends the payload as-is; subscribers receive the raw bytes and decode
+// them according to the topic's payload type.
+func (p *EventBusPublisher) Publish(ctx context.Context, topic string, payload []byte) error {
+	return p.bus.Publish(ctx, topic, payload)
 }

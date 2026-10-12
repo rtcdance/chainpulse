@@ -56,12 +56,23 @@
 
 **验收（单元 5 个，全 PASS）**：任务+2 通知一起入队（含稳定 job id、block range）/ **入队失败被上报** / **有 store 时旧 publish 路径不运行**（优先级钉住）/ **无 store 时旧路径仍工作**（向后兼容）/ job id 稳定且按链隔离。
 
+### 1.5 outbox drainer（本轮完成）
+
+`pkg/services/reorg/outbox_drainer.go`（新）：`OutboxDrainerLoop`。
+
+- **投递语义是 at-least-once**：**发布成功之后**才 `MarkPublished`。因此"发布成功但标记前崩溃"会**重投**——这是**刻意**的：反过来（先标记）会把崩溃变成**通知丢失**，正是 F07 要消除的状态。消费者按 `(job id, generation)` 去重。
+- `DrainOnce(ctx)` —— 取一批 → 逐条 publish → 成功则标记。**单条毒消息不阻塞其余**（失败记 `RecordFailure` 后继续，返回首个错误供告警）。
+- `Run(ctx)` —— 定时 drain，`ctx` 取消返回 `ctx.Err()`、`Stop()` 返回 `nil`（**优雅停机不算失败**）。
+- 组合层适配器：`PostgresReorgJobStore` 同时实现 `reorg.JobStore` **与** `reorg.OutboxDrainer`；新增 `EventBusPublisher` 把 `core.EventBus` 适配成 `reorg.NotificationPublisher`。
+
+**验收（单元 7 个，全 PASS）**：发布并标记 / **毒消息不阻塞 + 记为失败 + 仍待发** / **at-least-once 排序**（标记失败 ⇒ 已发布但**仍待发**）/ 空 outbox no-op / 批大小生效 / `Run` 在 `Stop` 时返回 nil / `Run` 在 ctx 取消时返回 `Canceled`。
+
 ---
 
 ## 2. 未完成（T06 剩余）
 
-- [ ] **outbox drainer 接线**：`OutboxDrainer` 端口已定义、`PostgresReorgJobStore` 已可用，但**尚无 drainer 循环**把 `PendingReorgNotifications` 发到 event bus 并 `MarkPublished`。
-- [ ] **generation 失效缓存**：撤销 canonical/派生结果、回退 checkpoint、按 generation 失效缓存（`Job.Generation` 字段已就位，尚无生产者填充）。
+- [ ] **启动 drainer 循环**：`OutboxDrainerLoop` 与两个适配器均已就绪，但**没有入口把它 `Run` 起来**（需要接进 `cmd` / runtime 的启动与停机）。
+- [ ] **generation 失效缓存**：撤销 canonical/派生结果、回退 checkpoint、按 generation 失效缓存（`Job.Generation` 字段已就位，**尚无生产者填充**）。
 - [ ] **深度 1 / 2 / 12 端到端**：结果需与 `test/acceptance/tools/digest` 的 `CanonicalEvents`/`CanonicalBlocks` 摘要一致。
 - [ ] **重放重复 / 修复中崩溃 / outbox 失败后重启** 的组合演练。
 - [ ] **超深度 / 祖先未知时停止提交**（现有 `maxRollback` 只做拒绝，未与 checkpoint 回退联动）。
