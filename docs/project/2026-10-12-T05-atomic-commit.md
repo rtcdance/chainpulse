@@ -130,11 +130,20 @@
 
 **验收**（单元 7 个，全 PASS）：无 committer 报错 / **按块分组**（3 事件 2 块 ⇒ 2 次提交、块序正确）/ **非法 payload 不进 committer** / 链不匹配报错 / 空批 no-op / **块 11 失败时 checkpoint 停在 `block:10` 且只计 1 个 processed** / **同一块提交两次 ⇒ committer 调用两次**（证明无预检）。
 
+### 1.8 打开注入点：`InMemoryIndexingRuntimeOptions.Committer` —— 已实现并验证
+
+`RuntimeDeps.Committer` 此前**无人设置**，原子路径在真实构造路径上不可达。
+
+- `InMemoryIndexingRuntimeOptions` 新增**可选** `Committer appindexing.AtomicBatchCommitter`，透传到 `RuntimeDeps.Committer`。
+- **验收（2 个单测，全 PASS）**：① 通过 `buildMonolithicIndexingRuntimeWithDeps` 注入 committer ⇒ `ProcessBatchAtomic` **确实到达**该 committer；② 不注入 ⇒ `ProcessBatchAtomic` 报 "no atomic committer"（**opt-in 行为被钉住**，四步路径不受影响）。
+
+⇒ **注入点已打开**：调用方（`cmd/microservices/event-processor`、monolithic 启动路径）现在可以把真实的 `BatchCommitter` 传进来。**但本仓库的 cmd 入口尚未设置它** —— 那是"接线"的最后一步，需要同时决定 owner token 来源与租约 TTL。
+
 ---
 
 ## 2. 未完成（T05 剩余）
 
-- [ ] **接入具体入口**：`cmd/microservices/event-processor` 与 monolithic 启动路径**注入** `Committer`（本轮交付的是 runtime 的原子路径与注入点；`RuntimeDeps.Committer` 目前无人设置）。
+- [ ] **在 cmd 入口设置 `Committer`**：注入点已就绪，但 `cmd/microservices/event-processor` / monolithic 启动路径尚未构造并传入 `BatchCommitter`（需决定 owner token 来源与租约 TTL）。
 - [ ] **Kafka 消费进度与 ack 对齐**：`chainpulse-kafka` 已启动（9092 healthy），消费/ack 路径尚未接线与验收。
 - [ ] commit 前后 / ack 前后**四处 kill/restart 各 10 次**（§5 验收原文；目前只覆盖了 SIGTERM 一处）。
 

@@ -20,6 +20,13 @@ type monolithicIndexingRuntimeDeps struct {
 
 type InMemoryIndexingRuntimeOptions struct {
 	DLQRetention time.Duration
+
+	// Committer, when set, enables the runtime's atomic block-commit path
+	// (ProcessBatchAtomic). A caller that can prove chain ownership — a fenced
+	// store plus a lease — should set it; otherwise the four-step path
+	// (dedupe -> persist -> mark processed -> checkpoint) remains the only
+	// option. See finding F05.
+	Committer appindexing.AtomicBatchCommitter
 }
 
 func defaultMonolithicIndexingRuntimeDeps() monolithicIndexingRuntimeDeps {
@@ -143,6 +150,7 @@ func buildInMemoryIndexingRuntimeWithDeps(
 		FailureRouter:   failures,
 		ReplaySource:    failures,
 		Chains:          normalizedChains,
+		Committer:       options.Committer,
 	})
 }
 
