@@ -4,7 +4,9 @@
 > 状态：**In Progress** —— **F20 的 README 对齐已完成并机器验证**；
 > **F26 两份叙事文档已产出并机器验证链接（§4）**；
 > **README 架构图（Mermaid）已加（§5）**；
-> 三份核心 ADR、录屏、性能/故障报告、英文摘要、20 问答整理未做。
+> **三份核心 ADR + ADR-004 编号修复已完成（§6）**；
+> **20 个面试问题已重写并校验路径（§7）**；
+> 录屏、性能/故障报告、英文摘要、新机器 happy path 未做。
 > 日期：2026-10-13，Asia/Singapore。
 
 ---
@@ -89,14 +91,36 @@ T17 要求"一张实际架构图"，而 README 原本只有文字表格。已加
 - 节点名用**真实包名**（`plugins/pullers`、`services/decoder`、`services/processor`、`plugins/database`、`plugins/api`、`siwe`、`services/reorg`、`services/finality`、`observability`），不虚构组件；
 - 画的是**已实现的索引路径**：puller → decoder → processor → **fenced batch commit** → PostgreSQL（事件 + checkpoint 原子提交），旁挂 Kafka 重投、Redis 版本化缓存、`DegradingReader`、reorg 修复、finality、lag 指标；
 - **不暗示未实现能力**：图注明写"今天真正压过的是双链隔离测试与单链负载路径，不是多链生产部署"；
-- ADR 段落指向**确实存在**的 ADR（ADR-001 plugin architecture / ADR-002 event bus / ADR-003 reorg），**不是** plan §11 建议的那三份（那三份尚未成篇，见 §6）。
+- ADR 段落指向**确实存在**的 ADR（ADR-001 plugin architecture / ADR-002 event bus / ADR-003 reorg）。三份核心 ADR 见 §6。
 
 README 相对链接复检：**18 条，BROKEN 0**（新增的 ADR 链接均存在）。
 
-## 6. 未完成（T17 剩余）
+## 6. 三份核心 ADR + 编号修复（已完成）
 
-- [ ] **三份核心 ADR**：plan §11 建议「事件身份/canonical 模型」「DB 提交与 Kafka 进度协调」「finality 与重组降级」，目前均**未独立成篇**（ADR-003 reorg 最接近第三份）。
-- [ ] **`docs/adr/` 编号冲突**：存在**两个 ADR-004**（`ADR-004-env-var-naming-convention.md` 与 `ADR-004-ethclient-migration.md`），需重编号。
-- [ ] **3–5 分钟录屏**、**性能报告**、**故障报告**、**英文项目摘要**。
-- [ ] **20 个问题有代码/测试答案**的整理。
+plan §11 要求"三份核心 ADR：事件身份/canonical 模型；DB 提交与 Kafka 进度协调；finality 与重组降级策略"，每份说明备选方案、选型理由、失败语义、测试和代价。已产出：
+
+| ADR | 主题 | 关键内容 | 关联 finding |
+| --- | --- | --- | --- |
+| [ADR-008](../adr/ADR-008-event-identity-canonical-digest.md) | Event Identity and the Canonical Digest | 物理身份 `(chain_id, block_hash, tx_hash, log_index)`；canonical 摘要有序无关 + 幂等；同 ID 不同 payload = 冲突报错 | F06、F21 |
+| [ADR-009](../adr/ADR-009-db-commit-kafka-progress.md) | Database Commit and Kafka Progress Coordination | events + checkpoint 单事务 fenced 提交；partition key = chain key；at-least-once + 去重；outbox | F04、F05、F28 |
+| [ADR-010](../adr/ADR-010-finality-reorg-degradation.md) | Finality and Reorg Degradation | finality 是置信度非布尔；只有 finalized 可提升；reorg 修复有序且 generation 作用域 | F08 |
+
+**编号冲突修复**：`docs/adr/` 原有**两个 ADR-004**。保留较早的 `ADR-004-env-var-naming-convention`（2026-05-05），把 `ADR-004-ethclient-migration`（2026-05-13）重编号为 **ADR-007**（`git mv` 保留历史，标题加注说明）。新增 [`docs/adr/README.md`](../adr/README.md) 作为索引。
+
+每份 ADR 的"看测试"段引用的测试名均经 `grep '^func Test'` 核对存在。
+
+## 7. 20 个面试问题（已完成）
+
+plan §11 要求"20 个面试问题按四组各 5 题整理，每题能指向代码与测试"。已重写 [`docs/guides/INTERVIEW_MAP.md`](../guides/INTERVIEW_MAP.md)：
+
+- 按 plan 的四组各 5 题（Go / Web3 / 后端 / 架构与交付）；
+- **旧版有 12 条失效路径**（`pkg/core/` 下 bloom_filter、siwe、mev_flashbots、event_signature、event_decoder、ecdsa_verify、aa_mempool、l2_bridge、l2_events、mev_builder，`multi_rpc_puller.go`，以及不存在的 `docs/adr/ADR-003.md`）；
+- 新版每题指向**已存在**的代码 + 测试；抽路径脚本核对：**47 条路径引用，MISSING 0**；
+- 失效路径的教训保留在文末注记，不抹掉。
+
+## 8. 未完成（T17 剩余）
+
+- [ ] **3–5 分钟录屏**（需可编排环境 + 显示）。
+- [ ] **性能报告**、**故障报告**（需真实发压/故障运行）。
+- [ ] **英文项目摘要**。
 - [ ] **新机器 5 分钟 happy path / 15 分钟复现故障**（需可编排环境）。
