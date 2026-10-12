@@ -217,6 +217,17 @@ def verify(
             failures.append(f"required package ran no tests (empty-run): {pkg}")
 
     # 5. Required cases.
+    #
+    # A manifest that declares scenarios but requires ZERO tests is a
+    # placeholder, and a gate with nothing to check cannot fail. That is the
+    # same class of defect as an empty suite (F13): it reports green while
+    # proving nothing. Fail loudly instead of passing vacuously.
+    if required_cases and not any(required_cases.values()):
+        failures.append(
+            "required-cases manifest requires 0 tests across "
+            f"{len(required_cases)} scenario(s): it is a placeholder, so this "
+            "gate cannot fail (fill in the test names, or drop --required-cases)"
+        )
     for scenario_id, names in sorted(required_cases.items()):
         for name in names:
             matches = [
@@ -349,6 +360,22 @@ def self_test() -> int:
     else:
         ok = False
         print("[FAIL] self-test: required skip was not treated as a failure")
+
+    # Required-case: a placeholder manifest (scenarios declared, zero tests)
+    # must FAIL rather than pass vacuously.
+    report = Report()
+    for line in [
+        '{"Action":"run","Package":"p/foo","Test":"TestA"}',
+        '{"Action":"pass","Package":"p/foo","Test":"TestA"}',
+        '{"Action":"pass","Package":"p/foo","Elapsed":0.1}',
+    ]:
+        _ingest(json.loads(line), report)
+    failures = verify(report, {"E01": [], "E02": []}, None, False, [])
+    if any("placeholder" in f for f in failures):
+        print("[PASS] self-test: placeholder required-cases manifest is a failure")
+    else:
+        ok = False
+        print("[FAIL] self-test: placeholder manifest passed vacuously")
 
     print("self-test:", "OK" if ok else "FAILED")
     return 0 if ok else 1
