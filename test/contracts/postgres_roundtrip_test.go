@@ -143,3 +143,63 @@ func TestPostgresEventRoundTrip(t *testing.T) {
 	// Cleanup so repeated runs stay idempotent.
 	require.NoError(t, pg.DeleteEvent(ctx, event.ID))
 }
+
+// TestPostgresBlockHashIdentity proves invariant I02 / finding F06 end to end:
+// the same (chain, tx_hash, log_index) on two different block hashes are two
+// distinct physical events, while a genuine duplicate of one of them collapses.
+func TestPostgresBlockHashIdentity(t *testing.T) {
+	dsn := postgresDSN()
+	if dsn == "" {
+		t.Skip("set CHAINPULSE_RUN_POSTGRES_INTEGRATION=1 and CHAINPULSE_TEST_DATABASE_URL to run the Postgres round-trip")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	pg := database.NewPostgreSQLDatabase(
+		testhelpers.NewTestLogger(),
+		testhelpers.NewTestMetricsCollector(),
+	)
+	require.NoError(t, pg.Initialize(ctx, core.Config{DatabaseURL: dsn}), "Initialize")
+	require.NoError(t, pg.Start(ctx), "Start")
+	t.Cleanup(func() { _ = pg.Stop(context.Background()) })
+
+	chainID := "t04-identity"
+	txHash := common.HexToHash("0x1111000000000000000000000000000000000000000000000000000000000011")
+	addr := common.HexToAddress("0xaaaa0000000000000000000000000000000000aa")
+
+	mk := func(blockHash common.Hash) *blockchain.BlockchainEvent {
+		h := core.ComputeEventHash(&blockchain.BlockchainEvent{
+			ChainID: chainID, BlockHash: blockHash,
+			TransactionHash: txHash, LogIndex: 1,
+		})
+		return &blockchain.BlockchainEvent{
+			ID: h, EventHash: h, ChainID: chainID, BlockNumber: 500,
+			BlockHash: blockHash, BlockTimestamp: 1700000001,
+			TransactionHash: txHash, LogIndex: 1, ContractAddress: addr,
+			EventName: "Transfer", EventData: []byte("0x01"),
+		}
+	}
+
+	branchA := mk(common.HexToHash("0xaaaa0000000000000000000000000000000000000000000000000000000000aa"))
+	branchB := mk(common.HexToHash("0xbbbb0000000000000000000000000000000000000000000000000000000000bb"))
+	require.NotEqual(t, branchA.ID, branchB.ID, "different block_hash must yield different identities")
+
+	require.NoError(t, pg.WriteEvent(ctx, branchA))
+	require.NoError(t, pg.WriteEvent(ctx, branchB))
+	require.NoError(t, pg.WriteEvent(ctx, branchA), "duplicate of branch A must not error")
+
+	events, err := pg.GetEventsByBlockRange(ctx, 500, 500)
+	require.NoError(t, err)
+
+	seen := map[string]bool{}
+	for _, e := range events {
+		if e.ChainID == chainID {
+			seen[e.BlockHash.Hex()] = true
+		}
+	}
+	assert.Len(t, seen, 2, "both branches must persist (no same-height collision); duplicate must collapse")
+
+	require.NoError(t, pg.DeleteEvent(ctx, branchA.ID))
+	require.NoError(t, pg.DeleteEvent(ctx, branchB.ID))
+}

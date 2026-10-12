@@ -38,7 +38,9 @@ func TestComputeEventHash_DifferentEventsDifferentHashes(t *testing.T) {
 		modify func(*blockchain.BlockchainEvent)
 	}{
 		{"different chain", func(e *blockchain.BlockchainEvent) { e.ChainID = "137" }},
-		{"different block", func(e *blockchain.BlockchainEvent) { e.BlockNumber = 200 }},
+		// block_number is deliberately NOT identity (see
+		// TestComputeEventHash_IgnoresBlockNumber); block_hash is.
+		{"different block hash", func(e *blockchain.BlockchainEvent) { e.BlockHash = common.HexToHash("0xdeadbeef") }},
 		{"different tx", func(e *blockchain.BlockchainEvent) { e.TransactionHash = common.HexToHash("0xdef456") }},
 		{"different log", func(e *blockchain.BlockchainEvent) { e.LogIndex = 5 }},
 	}
@@ -119,6 +121,44 @@ func TestComputeEventHash_OutputLength(t *testing.T) {
 	// SHA-256 = 32 bytes = 64 hex chars
 	if len(hash) != 64 {
 		t.Errorf("expected 64 hex chars, got %d", len(hash))
+	}
+}
+
+func TestComputeEventHash_DistinguishesBlockHash(t *testing.T) {
+	t.Parallel()
+	// F06 / I02: the same (chain, tx, log_index) on two competing branches at
+	// the same height must NOT collide — block_hash is part of the identity.
+	base := &blockchain.BlockchainEvent{
+		ChainID:         "1",
+		BlockNumber:     100,
+		BlockHash:       common.HexToHash("0xaaa1"),
+		TransactionHash: common.HexToHash("0xabc123"),
+		LogIndex:        0,
+	}
+	other := *base
+	other.BlockHash = common.HexToHash("0xbbb2")
+
+	if ComputeEventHash(base) == ComputeEventHash(&other) {
+		t.Error("different block_hash must produce a different event hash (I02/F06)")
+	}
+}
+
+func TestComputeEventHash_IgnoresBlockNumber(t *testing.T) {
+	t.Parallel()
+	// Block number is not part of the physical identity: it is implied by the
+	// block hash and is used for ordering/range scans only.
+	base := &blockchain.BlockchainEvent{
+		ChainID:         "1",
+		BlockNumber:     100,
+		BlockHash:       common.HexToHash("0xaaa1"),
+		TransactionHash: common.HexToHash("0xabc123"),
+		LogIndex:        0,
+	}
+	other := *base
+	other.BlockNumber = 999
+
+	if ComputeEventHash(base) != ComputeEventHash(&other) {
+		t.Error("block_number must not change the physical identity")
 	}
 }
 

@@ -193,7 +193,7 @@ func (p *PostgreSQLDatabase) WriteEvent(ctx context.Context, event *blockchain.B
 	insertSQL := `
 INSERT INTO blockchain_events (id, chain_id, block_number, block_hash, transaction_hash, log_index, contract_address, event_name, event_data, timestamp)
 	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-	ON CONFLICT (chain_id, block_number, transaction_hash, log_index) DO NOTHING
+	ON CONFLICT (chain_id, block_hash, transaction_hash, log_index) DO NOTHING
 	`
 
 	_, err := db.ExecContext(
@@ -260,7 +260,7 @@ func (p *PostgreSQLDatabase) WriteEvents(ctx context.Context, events []blockchai
 	insertSQL := `
 	INSERT INTO blockchain_events (id, chain_id, block_number, block_hash, transaction_hash, log_index, contract_address, event_name, event_data, timestamp)
 	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-	ON CONFLICT (chain_id, block_number, transaction_hash, log_index) DO NOTHING
+	ON CONFLICT (chain_id, block_hash, transaction_hash, log_index) DO NOTHING
 	`
 
 	stmt, err := tx.PrepareContext(ctx, insertSQL)
@@ -349,7 +349,7 @@ func (p *PostgreSQLDatabase) WriteBatch(ctx context.Context, events []*blockchai
 	insertSQL := `
 	INSERT INTO blockchain_events (id, chain_id, block_number, block_hash, transaction_hash, log_index, contract_address, event_name, event_data, timestamp)
 	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-	ON CONFLICT (chain_id, block_number, transaction_hash, log_index) DO NOTHING
+	ON CONFLICT (chain_id, block_hash, transaction_hash, log_index) DO NOTHING
 	`
 
 	stmt, err := tx.PrepareContext(ctx, insertSQL)
