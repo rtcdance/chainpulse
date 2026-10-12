@@ -105,9 +105,29 @@ $ CHAINPULSE_RUN_POSTGRES_INTEGRATION=1 \
 
 ---
 
+## 3.7 §9 E09：Kafka 重投（已编写，**本环境无法执行**）
+
+`test/acceptance/kafka_redelivery_test.go`（新）：`TestKafkaRedeliveryKeepsEffectSingle`。
+
+**要证明的性质**（§4.2 的对外承诺）："**at-least-once 交付 + 幂等持久化效果**"。Kafka **按设计会重投**（消费者在提交 offset 前死掉就会再看到同一批消息），所以**效果必须单份**。
+
+**做法**：发布一批事件 → 消费组 A 消费并提交 → **换一个全新的消费组 B**（新组从最早 offset 开始，这正是"重投"的样子）→ **同一批消息再次到达** → 再提交一次 → **行数必须不变**。
+
+**🔴 本环境阻塞**：broker 的 `KAFKA_ADVERTISED_LISTENERS = PLAINTEXT://kafka:9092`。kafka-go 在 bootstrap 之后**改用 advertised 地址**，而宿主机**无法解析 `kafka`**：
+
+```
+Kafka write errors (1/1): dial tcp: lookup kafka: no such host
+```
+
+bootstrap 端口（`localhost:9092`）是通的，但**不足以**。测试现在**精确地**在这种条件下 `t.Skipf` 并给出**两条解法**（把 `kafka` 加入 `/etc/hosts`，或把 broker 的 advertised listener 改成宿主可达地址）——**而不是失败 26 秒后报一个错误的原因**。
+
+**为什么不在本轮直接改**：这两条都是**用户环境决策**（`/etc/hosts` 是系统文件；改 broker 配置会影响同网络内的其它消费者）。测试本身是正确的，**环境一旦满足即可通过**。
+
+---
+
 ## 4. 未完成（T16 剩余）
 
-- [ ] **E09 的 MQ 部分**：Kafka 重投与 rebalance（Kafka 已起，9092 可用；需先接消费路径）。
+- [ ] **E09 的 Kafka 重投**：测试已就绪，**受阻于 advertised listener 的宿主可达性**（见 §3.7）。
 - [ ] **E05 的 kill 矩阵**：persist / DB commit / mark / checkpoint / ack **四处** kill 各 10 次（目前只有 SIGTERM 一处，见 T05）。
 - [ ] **E06 修复任务崩溃**：outbox/重采中停止 ⇒ restart 续跑（持久任务与 outbox 已就绪，缺编排）。
 - [ ] **E15 版本回滚**：错误镜像/配置/迁移中断，前版 digest 回滚，旧版恢复后数据摘要一致。
