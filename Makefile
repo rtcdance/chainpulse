@@ -118,10 +118,10 @@ lint:
 		LINTER_BIN="$$(GOROOT= $(GO) env GOPATH)/bin/golangci-lint"; \
 	fi; \
 	if [ ! -x "$$LINTER_BIN" ]; then \
-		echo "Installing golangci-lint v1.64.8..."; \
-		GOROOT= $(GO) install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.64.8; \
+		echo "Installing golangci-lint v2.12.2..."; \
+		GOROOT= $(GO) install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2; \
 		if [ ! -x "$$LINTER_BIN" ]; then \
-			echo "golangci-lint v1.64.8 installation failed at $$LINTER_BIN"; \
+			echo "golangci-lint v2.12.2 installation failed at $$LINTER_BIN"; \
 			exit 127; \
 		fi; \
 	fi; \
@@ -142,7 +142,7 @@ lint-fix:
 		LINTER_BIN="$$(GOROOT= $(GO) env GOPATH)/bin/golangci-lint"; \
 	fi; \
 	if [ ! -x "$$LINTER_BIN" ]; then \
-		echo "golangci-lint v1.64.8 is not installed at $$LINTER_BIN"; \
+		echo "golangci-lint v2.12.2 is not installed at $$LINTER_BIN"; \
 		exit 127; \
 	fi; \
 	GOCACHE=$${GOCACHE:-/tmp/chainpulse-go-build-cache} "$$LINTER_BIN" run --tests=false --fix $(LINT_DIRS)
@@ -190,7 +190,7 @@ deps-vendor:
 
 generate:
 	@echo "Running code generation..."
-	# Note: mockgen requires Go toolchain matching the project (go1.25+).
+	# Note: mockgen requires Go toolchain matching the project (go1.26+).
 	# Install: go install go.uber.org/mock/mockgen@latest
 	# Then remove manual mocks from test files before running.
 	$(GO) generate ./...
