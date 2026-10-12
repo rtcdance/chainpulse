@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/ethereum/go-ethereum/common"
 
@@ -22,6 +23,57 @@ import (
 //
 // The methods below take the chain key explicitly. Multi-chain code MUST use
 // them; the unscoped port methods are for explicitly single-chain contexts.
+
+// Chain-scope enforcement (invariant I01).
+//
+// The unscoped port methods cannot express which chain they mean, so they are
+// safe only when the adapter serves exactly one chain. A caller must therefore
+// DECLARE that scope: WithChainScope("ethereum") opts in, and declaring more
+// than one chain makes every unscoped method fail loudly rather than silently
+// mixing chains.
+
+// WithChainScope declares which chains this adapter serves.
+//
+// Empty or whitespace-only ids are dropped. Declaring more than one chain turns
+// the unscoped port methods (GetBlock, GetLatestBlock, GetEventsByBlockRange,
+// GetAllBlocks, GetAllEvents, MarkEventsAsReorged, DeleteEventsByBlockRange)
+// into errors.
+func (a *PostgreSQLPluginAdapter) WithChainScope(chainIDs ...string) *PostgreSQLPluginAdapter {
+	cleaned := make([]string, 0, len(chainIDs))
+	for _, id := range chainIDs {
+		if trimmed := strings.TrimSpace(id); trimmed != "" {
+			cleaned = append(cleaned, trimmed)
+		}
+	}
+
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.chainScope = cleaned
+	return a
+}
+
+// ChainScope returns the declared chains (empty when undeclared).
+func (a *PostgreSQLPluginAdapter) ChainScope() []string {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	return append([]string(nil), a.chainScope...)
+}
+
+// requireSingleChain rejects an unscoped operation when the adapter serves more
+// than one chain. With no declared scope it allows the call, preserving the
+// legacy single-chain behaviour.
+func (a *PostgreSQLPluginAdapter) requireSingleChain(method string) error {
+	a.mu.RLock()
+	chains := append([]string(nil), a.chainScope...)
+	a.mu.RUnlock()
+
+	if len(chains) > 1 {
+		return fmt.Errorf(
+			"%s is not chain-scoped and this adapter serves %v; use the ...ForChain variant (invariant I01)",
+			method, chains)
+	}
+	return nil
+}
 
 // GetEventsByBlockRangeForChain returns one chain's events in a block range.
 func (a *PostgreSQLPluginAdapter) GetEventsByBlockRangeForChain(ctx context.Context, chainID string, fromBlock, toBlock uint64) ([]*blockchain.BlockchainEvent, error) {
@@ -223,4 +275,69 @@ func (a *PostgreSQLPluginAdapter) requireDB() (*sql.DB, error) {
 		return nil, fmt.Errorf("database not initialized")
 	}
 	return db, nil
+}
+
+// ---------------------------------------------------------------------------
+// Guarded overrides
+//
+// The adapter is the port surface, so it is where the chain scope is enforced:
+// an unscoped call that cannot say which chain it means is rejected outright
+// rather than silently answering for one of several. *PostgreSQLDatabase keeps
+// its raw behaviour for callers that use it directly.
+// ---------------------------------------------------------------------------
+
+// GetEventsByBlockRange is the unscoped port method; see the chain-scope guard.
+func (a *PostgreSQLPluginAdapter) GetEventsByBlockRange(ctx context.Context, fromBlock, toBlock uint64) ([]*blockchain.BlockchainEvent, error) {
+	if err := a.requireSingleChain("GetEventsByBlockRange"); err != nil {
+		return nil, err
+	}
+	return a.PostgreSQLDatabase.GetEventsByBlockRange(ctx, fromBlock, toBlock)
+}
+
+// GetAllEvents is the unscoped port method; see the chain-scope guard.
+func (a *PostgreSQLPluginAdapter) GetAllEvents(ctx context.Context) ([]*blockchain.BlockchainEvent, error) {
+	if err := a.requireSingleChain("GetAllEvents"); err != nil {
+		return nil, err
+	}
+	return a.PostgreSQLDatabase.GetAllEvents(ctx)
+}
+
+// GetAllBlocks is the unscoped port method; see the chain-scope guard.
+func (a *PostgreSQLPluginAdapter) GetAllBlocks(ctx context.Context) ([]*blockchain.Block, error) {
+	if err := a.requireSingleChain("GetAllBlocks"); err != nil {
+		return nil, err
+	}
+	return a.PostgreSQLDatabase.GetAllBlocks(ctx)
+}
+
+// GetBlock is the unscoped port method; see the chain-scope guard.
+func (a *PostgreSQLPluginAdapter) GetBlock(ctx context.Context, blockNumber uint64) (*blockchain.Block, error) {
+	if err := a.requireSingleChain("GetBlock"); err != nil {
+		return nil, err
+	}
+	return a.PostgreSQLDatabase.GetBlock(ctx, blockNumber)
+}
+
+// GetLatestBlock is the unscoped port method; see the chain-scope guard.
+func (a *PostgreSQLPluginAdapter) GetLatestBlock(ctx context.Context) (uint64, error) {
+	if err := a.requireSingleChain("GetLatestBlock"); err != nil {
+		return 0, err
+	}
+	return a.PostgreSQLDatabase.GetLatestBlock(ctx)
+}
+
+// MarkEventsAsReorged is the unscoped port method; see the chain-scope guard.
+func (a *PostgreSQLPluginAdapter) MarkEventsAsReorged(ctx context.Context, fromBlock, toBlock uint64) (int64, error) {
+	if err := a.requireSingleChain("MarkEventsAsReorged"); err != nil {
+		return 0, err
+	}
+	return a.PostgreSQLDatabase.MarkEventsAsReorged(ctx, fromBlock, toBlock)
+}
+
+// DeleteEventsByBlockRange is the unscoped port method; see the chain-scope guard.
+func (a *PostgreSQLPluginAdapter) DeleteEventsByBlockRange(ctx context.Context, fromBlock, toBlock uint64) (int64, error) {
+	if err := a.requireSingleChain("DeleteEventsByBlockRange"); err != nil {
+		return 0, err
+	}
+	return a.PostgreSQLDatabase.DeleteEventsByBlockRange(ctx, fromBlock, toBlock)
 }

@@ -53,9 +53,30 @@
 
 `TestPostgresChainScopedAccessorsRejectEmptyChain` —— 6 个作用域访问器在空 chain key 下**全部报错**。
 
+## 3.5 强制机制：未限定方法在多链下**拒绝**（本轮完成）
+
+此前"未限定链方法仅允许明确单链上下文"**只在注释里声明**，没有任何机制阻止多链部署调用它们。现在有了：
+
+- **`PostgreSQLPluginAdapter.WithChainScope(chainIDs...)`** —— 调用方**声明**本适配器服务哪些链（空/空白 id 被丢弃）。
+- **`requireSingleChain(method)`** —— 声明 **>1 条链**时，未限定方法**直接报错**，错误信息**点名替代方法**：`"GetEventsByBlockRange is not chain-scoped and this adapter serves [ethereum polygon]; use the ...ForChain variant (invariant I01)"`。
+- **未声明 scope ⇒ 保持旧行为**（单链部署零破坏）；**声明 1 条链 ⇒ 显式单链上下文，放行**。
+- **实现位置**：守卫放在**适配器**（端口表面）上，用**覆盖方法**（`GetEventsByBlockRange`/`GetAllEvents`/`GetAllBlocks`/`GetBlock`/`GetLatestBlock`/`MarkEventsAsReorged`/`DeleteEventsByBlockRange`）委托给 `*PostgreSQLDatabase`。原始类型保持原行为，供直接使用者。
+
+**验收**（`TestPostgresChainScopeEnforcement`，真实 Postgres）：
+
+| 场景 | 结果 |
+| --- | --- |
+| 未声明 scope | 未限定方法**可用**（legacy） |
+| 声明 1 条链 | 未限定方法**可用**（显式单链） |
+| 声明 2 条链 | **7 个未限定方法全部报错**，且错误点名 `ForChain` 替代 |
+| 声明 2 条链 | **作用域 API 仍可用** |
+| 只传空白 id | scope 视为空 ⇒ 不误判为多链 |
+
+---
+
 ## 4. 未完成（T03 剩余）
 
 - [ ] **缓存与 metadata 查询的链作用域**（`pkg/services/query`、cache key 生成器）。
-- [ ] **"旧未限定链方法仅允许明确单链上下文"的强制**：目前只在文档与注释里声明；尚无机制（如运行时校验或 lint）阻止多链部署调用未限定方法。
-- [ ] **重组/去重失效接口的链作用域逐层传入**（`core.IdempotencyInvalidator` 等）。
-- [ ] `query` 路径改用作用域访问器（当前仍走 `eventStore` 的未限定方法）。
+- [ ] **重组 / 去重失效接口的链作用域逐层传入**（`core.IdempotencyInvalidator` 等）。
+- [ ] **`query` 路径改用作用域访问器**（当前仍走 `eventStore` 的未限定方法）。
+- [ ] **`WithChainScope` 的接线**：机制已就绪，但**启动路径尚未按配置声明链集合**（未声明时守卫不生效）。

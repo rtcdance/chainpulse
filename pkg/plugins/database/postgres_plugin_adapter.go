@@ -28,6 +28,11 @@ import (
 // embedded *PostgreSQLDatabase and already match the port.
 type PostgreSQLPluginAdapter struct {
 	*PostgreSQLDatabase
+
+	// chainScope is the declared set of chains this adapter serves. Empty means
+	// "undeclared", which keeps the legacy single-chain behaviour. Declaring
+	// more than one chain turns the unscoped port methods into errors (I01).
+	chainScope []string
 }
 
 // PostgreSQLPluginAdapter must satisfy the port.

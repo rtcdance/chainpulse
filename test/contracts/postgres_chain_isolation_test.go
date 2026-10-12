@@ -180,6 +180,65 @@ func TestPostgresChainIsolation(t *testing.T) {
 	assert.Equal(t, blockHashB.Hex(), cpHashB)
 }
 
+// TestPostgresChainScopeEnforcement pins the T03 rule: an unscoped port method
+// is allowed only in a DECLARED single-chain context, and refused when the
+// adapter serves more than one chain — so a multi-chain deployment cannot
+// silently mix chains.
+func TestPostgresChainScopeEnforcement(t *testing.T) {
+	dsn := postgresDSN()
+	if dsn == "" {
+		t.Skip("set CHAINPULSE_RUN_POSTGRES_INTEGRATION=1 and CHAINPULSE_TEST_DATABASE_URL")
+	}
+	truncateIndexingTables(t, dsn)
+
+	ctx := context.Background()
+
+	// Undeclared scope: legacy single-chain behaviour, unscoped calls work.
+	legacy := newAdapter(t, dsn)
+	_, err := legacy.GetEventsByBlockRange(ctx, 0, 1)
+	require.NoError(t, err, "an undeclared scope must keep the legacy behaviour")
+
+	// One declared chain: an explicit single-chain context, still fine.
+	single := newAdapter(t, dsn).WithChainScope("ethereum")
+	assert.Equal(t, []string{"ethereum"}, single.ChainScope())
+	_, err = single.GetEventsByBlockRange(ctx, 0, 1)
+	require.NoError(t, err, "a single declared chain is an explicit single-chain context")
+
+	// Two declared chains: every unscoped method is refused.
+	multi := newAdapter(t, dsn).WithChainScope("ethereum", "polygon")
+
+	_, err = multi.GetEventsByBlockRange(ctx, 0, 1)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "not chain-scoped")
+	assert.Contains(t, err.Error(), "ForChain", "the error must name the alternative")
+
+	_, err = multi.GetBlock(ctx, 1)
+	require.Error(t, err)
+	_, err = multi.GetLatestBlock(ctx)
+	require.Error(t, err)
+	_, err = multi.GetAllBlocks(ctx)
+	require.Error(t, err)
+	_, err = multi.GetAllEvents(ctx)
+	require.Error(t, err)
+	_, err = multi.MarkEventsAsReorged(ctx, 0, 1)
+	require.Error(t, err)
+	_, err = multi.DeleteEventsByBlockRange(ctx, 0, 1)
+	require.Error(t, err)
+
+	// ...while the chain-scoped API keeps working.
+	_, err = multi.GetEventsByBlockRangeForChain(ctx, "ethereum", 0, 1)
+	require.NoError(t, err, "the chain-scoped API must remain usable")
+	_, err = multi.GetLatestBlockForChain(ctx, "ethereum")
+	require.NoError(t, err)
+
+	// Blank ids are dropped, so a whitespace-only scope does not accidentally
+	// look like a multi-chain declaration.
+	blank := newAdapter(t, dsn).WithChainScope("", "  ")
+	assert.Empty(t, blank.ChainScope())
+	_, err = blank.GetLatestBlock(ctx)
+	require.NoError(t, err)
+}
+
 // TestPostgresChainScopedAccessorsRejectEmptyChain pins the guard: an empty
 // chain key must be refused rather than silently matching every chain.
 func TestPostgresChainScopedAccessorsRejectEmptyChain(t *testing.T) {
