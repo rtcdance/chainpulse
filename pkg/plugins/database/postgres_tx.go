@@ -23,9 +23,19 @@ INSERT INTO indexing_state (chain_id, last_indexed_block, last_indexed_hash, upd
 	`
 
 // pgTx implements core.Tx over a single database transaction.
+//
+// When the transaction is fenced (BeginFencedTx), the lease fields record which
+// owner and generation the transaction was opened under. Ownership is verified
+// under SELECT ... FOR UPDATE at Begin, so the lease row stays locked for the
+// transaction's lifetime and no takeover can interleave.
 type pgTx struct {
 	tx   *sql.Tx
 	done bool
+
+	// Fencing (zero when the transaction is not fenced).
+	chainID    string
+	ownerToken string
+	generation int64
 }
 
 var _ core.Tx = (*pgTx)(nil)

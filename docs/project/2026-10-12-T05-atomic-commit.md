@@ -59,12 +59,34 @@
 
 > 过程中的一个自证：工作负载最初忘了调用 `tx.Commit`，结果 108 个批次全部回滚、库中 0 行——这同时验证了 `Rollback` 确实生效。
 
+### 1.4 Owner fencing（世代 / owner token）—— 已实现并验证
+
+**为什么需要**：Kafka consumer group 的 rebalance 会把分区在 worker 之间搬走，而**旧 owner 可能正处在批次中间**。没有 fencing token，它会继续提交，导致**一条链有两个写入者**。
+
+- **迁移 `000011`**：`chain_leases(chain_id PK, owner_token, generation, acquired_at, expires_at)`。
+- **`postgres_lease.go`（新）**：
+  - `AcquireLease(ctx, chainID, ownerToken, ttl)` —— upsert，且**带条件**：只有"已过期"或"还是自己"才允许接管，每次获取 `generation + 1`。竞争者拿不到行 ⇒ `ErrLeaseLost`。**两条链不会同时以为自己是 owner。**
+  - `ReleaseLease` / `CurrentLease`；`ReleaseLease` 只删自己的租约（非 owner 调用是 no-op）。
+  - **`BeginFencedTx(ctx, chainID, ownerToken)`** —— 用 `SELECT … FOR UPDATE` 在事务内校验并**锁定租约行**，锁持续到事务结束。这让语义精确可用：
+    - **在途批次允许完成**（不产生半提交）；
+    - **接管之后才开始的批次被拒**（`ErrLeaseLost`）。
+- `pgTx` 增加 `chainID / ownerToken / generation` 字段记录该事务开启时所属的 owner 与世代。
+
+**验收（真实 Postgres）**：
+
+| 测试 | 断言 |
+| --- | --- |
+| `TestPostgresLeaseTakeoverRejectsOldOwner` | A 持租约 → 过期 → B 接管（generation 1→2）⇒ **A 的新事务被拒**、B 正常提交 |
+| `TestPostgresLeaseCannotBeStolenWhileLive` | 租约未过期时 B **抢不走**；同 owner 续租幂等且 generation 递增 |
+| `TestPostgresLeaseReleaseAllowsHandover` | 优雅释放后立即可交接；**非 owner 释放是 no-op**（B 的租约不被 A 误删） |
+
+**顺带修复**：迁移 `000004` 改为先 `DROP CONSTRAINT IF EXISTS` 再 `ADD`，使其**可重复执行**（此前二次运行会失败）。
+
 ---
 
 ## 2. 未完成（T05 剩余）
 
-- [ ] **接线**：把 `BeginTx` / `DrainController` 接进 shared runtime 与 processor 的提交路径（目前 processor 仍先查重再写再标记，`CheckAndMark` 只有测试调用 —— 见 F05）。
-- [ ] **世代与 owner fencing**：rebalance 后旧 worker 的提交必须被拒（需要 DB 侧 generation/owner token）。
+- [ ] **接线**：把 `BeginTx` / `BeginFencedTx` / `DrainController` 接进 shared runtime 与 processor 的提交路径（目前 processor 仍先查重再写再标记，`CheckAndMark` 只有测试调用 —— 见 F05）。
 - [ ] **空块 / 全重复批次**：`ON CONFLICT DO NOTHING` 下 checkpoint 仍须推进（需测试固定）。
 - [ ] **Kafka 消费进度与 ack 对齐**：`chainpulse-kafka` 已启动（9092 healthy），但消费/ack 路径尚未接线与验收。
 - [ ] commit 前后 / ack 前后**四处 kill/restart 各 10 次**（§5 验收原文；目前只覆盖了 SIGTERM 一处）。

@@ -9,5 +9,8 @@
 -- The natural key intentionally does NOT yet include block_hash: widening it to
 -- (chain_id, block_hash, transaction_hash, log_index) is T04's job (finding F06).
 ALTER TABLE blockchain_events
+    DROP CONSTRAINT IF EXISTS uq_blockchain_events_natural_key;
+
+ALTER TABLE blockchain_events
     ADD CONSTRAINT uq_blockchain_events_natural_key
     UNIQUE (chain_id, block_number, transaction_hash, log_index);
