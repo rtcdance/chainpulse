@@ -46,12 +46,22 @@
 
 迁移实测：全新库 **12/12** 通过。
 
+### 1.4 接进 `HandleReorg`（本轮完成）
+
+- **`pkg/services/reorg/reorg_job.go`（新）**：`Job` / `Notification` 类型 + **`JobStore` 端口**（`EnqueueJob` / `PendingJobs` / `CompleteJob`）+ `OutboxDrainer` 端口 + `ReorgJobID(chainID, from, to)`（**确定性**，重试同一重组不会产生第二个任务）。
+- **`ReorgHandler.WithJobStore(store)`**；`HandleReorg` 改为：
+  - **有 store** ⇒ `EnqueueJob` 把任务与两条通知（`reorg.detected`、`reorg.rollback`）**一个事务**写入；失败**返回错误**而不是吞掉（回滚已提交，吞掉就正好是 F07 那个状态）；
+  - **无 store** ⇒ 保留旧的 best-effort publish（**向后兼容**，注释明确标注"NOT crash-safe"）。
+- **`pkg/application/bootstrap/reorg_job_store.go`（新）**：`PostgresReorgJobStore` 把 Postgres outbox 适配到 `reorg.JobStore`。放在**组合层**，使 reorg 服务不依赖数据库插件、插件也不依赖服务。
+
+**验收（单元 5 个，全 PASS）**：任务+2 通知一起入队（含稳定 job id、block range）/ **入队失败被上报** / **有 store 时旧 publish 路径不运行**（优先级钉住）/ **无 store 时旧路径仍工作**（向后兼容）/ job id 稳定且按链隔离。
+
 ---
 
 ## 2. 未完成（T06 剩余）
 
-- [ ] **接线 `pkg/services/reorg`**：`HandleReorg` 改为在回滚事务内 `EnqueueReorgJob`，并用 outbox drainer 取代 best-effort `eventBus.Publish`（**本轮交付的是持久化原语，调用方尚未替换**）。
-- [ ] **generation 失效缓存**：撤销 canonical/派生结果、回退 checkpoint、按 generation 失效缓存（本会话已备好 `AcquireLease` 的 generation 原语，尚未接进 reorg）。
+- [ ] **outbox drainer 接线**：`OutboxDrainer` 端口已定义、`PostgresReorgJobStore` 已可用，但**尚无 drainer 循环**把 `PendingReorgNotifications` 发到 event bus 并 `MarkPublished`。
+- [ ] **generation 失效缓存**：撤销 canonical/派生结果、回退 checkpoint、按 generation 失效缓存（`Job.Generation` 字段已就位，尚无生产者填充）。
 - [ ] **深度 1 / 2 / 12 端到端**：结果需与 `test/acceptance/tools/digest` 的 `CanonicalEvents`/`CanonicalBlocks` 摘要一致。
 - [ ] **重放重复 / 修复中崩溃 / outbox 失败后重启** 的组合演练。
 - [ ] **超深度 / 祖先未知时停止提交**（现有 `maxRollback` 只做拒绝，未与 checkpoint 回退联动）。

@@ -2,6 +2,7 @@ package reorg
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sync"
 	"time"
@@ -35,6 +36,11 @@ type ReorgHandler struct {
 	// Idempotency invalidator — clears idempotency entries for reorged
 	// block ranges so that re-indexed events are not rejected as duplicates.
 	idempotencyInvalidator core.IdempotencyInvalidator
+
+	// jobStore, when set, records the repair job and its notifications in one
+	// transaction instead of publishing best-effort (finding F07). Nil keeps
+	// the legacy path.
+	jobStore JobStore
 
 	// State tracking
 	lastKnownBlocks map[uint64]common.Hash // block number -> block hash (LRU cache backed by DB)
@@ -119,6 +125,18 @@ func (p *DatabaseBlockHashProvider) GetBlockHash(ctx context.Context, blockNumbe
 		return common.Hash{}, nil
 	}
 	return block.Hash, nil
+}
+
+// WithJobStore attaches the persistent repair-job store.
+//
+// With it, HandleReorg records the job and the notifications it owes in one
+// transaction; without it, notifications stay best-effort (a publish failure is
+// only logged) and an interrupted reorg leaves no record to resume from.
+func (rh *ReorgHandler) WithJobStore(store JobStore) *ReorgHandler {
+	rh.mu.Lock()
+	defer rh.mu.Unlock()
+	rh.jobStore = store
+	return rh
 }
 
 // WithChainID sets the chain identifier for reorg event publishing.
@@ -249,6 +267,7 @@ func (rh *ReorgHandler) HandleReorg(ctx context.Context, reorgBlock uint64) erro
 	db := rh.database
 	invalidator := rh.idempotencyInvalidator
 	eventBus := rh.eventBus
+	jobStore := rh.jobStore
 	chainID := rh.chainID
 	rh.mu.RUnlock()
 
@@ -265,22 +284,59 @@ func (rh *ReorgHandler) HandleReorg(ctx context.Context, reorgBlock uint64) erro
 	rh.cleanupBlockCache(reorgBlock)
 	rh.mu.Unlock()
 
-	if eventBus != nil {
-		reorgEvt := &ReorgEvent{
-			DetectedAt:       time.Now(),
-			ReorgBlock:       reorgBlock,
-			BlocksAffected:   blocksToRollback,
-			EventsRolledBack: eventsRolledBack,
+	reorgEvt := &ReorgEvent{
+		DetectedAt:       time.Now(),
+		ReorgBlock:       reorgBlock,
+		BlocksAffected:   blocksToRollback,
+		EventsRolledBack: eventsRolledBack,
+	}
+	reindexEvt := &core.ReorgRollbackEvent{
+		ChainID:    chainID,
+		FromBlock:  reorgBlock,
+		ToBlock:    currentBlock,
+		DetectedAt: time.Now(),
+	}
+
+	switch {
+	case jobStore != nil:
+		// Record the repair job AND its notifications in one transaction, so a
+		// crash can never leave a committed rollback with nobody told (F07).
+		// The job is idempotent per (chain, range), so a retried HandleReorg
+		// does not duplicate it.
+		jobID := ReorgJobID(chainID, reorgBlock, currentBlock)
+		job := Job{
+			ID:        jobID,
+			ChainID:   chainID,
+			FromBlock: reorgBlock,
+			ToBlock:   currentBlock,
+			Status:    JobPending,
 		}
-		if err := eventBus.Publish(ctx, topics.TopicReorgDetected, reorgEvt); err != nil {
-			rh.logger.Error("Failed to publish reorg event", logkeys.LogKeyError, err)
+		notifications := []Notification{
+			{
+				JobID:   jobID,
+				ChainID: chainID,
+				Topic:   topics.TopicReorgDetected,
+				Payload: marshalNotification(reorgEvt),
+			},
+			{
+				JobID:   jobID,
+				ChainID: chainID,
+				Topic:   topics.TopicReorgRollback,
+				Payload: marshalNotification(reindexEvt),
+			},
+		}
+		if err := jobStore.EnqueueJob(ctx, job, notifications); err != nil {
+			// The rollback is already committed, so this is reported rather
+			// than swallowed: the caller must retry the enqueue.
+			return fmt.Errorf("failed to enqueue reorg job: %w", err)
 		}
 
-		reindexEvt := &core.ReorgRollbackEvent{
-			ChainID:    chainID,
-			FromBlock:  reorgBlock,
-			ToBlock:    currentBlock,
-			DetectedAt: time.Now(),
+	case eventBus != nil:
+		// Legacy best-effort path for callers that have not injected a
+		// JobStore. It is NOT crash-safe: a publish failure is only logged, so
+		// a committed rollback can end up with nobody notified.
+		if err := eventBus.Publish(ctx, topics.TopicReorgDetected, reorgEvt); err != nil {
+			rh.logger.Error("Failed to publish reorg event", logkeys.LogKeyError, err)
 		}
 		if err := eventBus.Publish(ctx, topics.TopicReorgRollback, reindexEvt); err != nil {
 			rh.logger.Error("Failed to publish reorg rollback event", logkeys.LogKeyError, err)
@@ -295,6 +351,17 @@ func (rh *ReorgHandler) HandleReorg(ctx context.Context, reorgBlock uint64) erro
 	)
 
 	return nil
+}
+
+// marshalNotification encodes a notification payload. A value that cannot be
+// encoded becomes an empty object rather than blocking the reorg: the job row
+// is what makes the repair resumable, and the payload is advisory.
+func marshalNotification(v any) []byte {
+	payload, err := json.Marshal(v)
+	if err != nil {
+		return []byte("{}")
+	}
+	return payload
 }
 
 // RollbackEvents marks events as reorged (soft delete) instead of hard-deleting them.
