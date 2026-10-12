@@ -120,7 +120,11 @@ func topic0ForName(name string) common.Hash {
 
 // typedDecoderRegistry maps topic0 hashes to typed decoder functions.
 // Each decoder takes (topics, data) and returns a TypedEvent.
-type typedDecoderFunc func(topics []common.Hash, data []byte) TypedEvent
+// A decoder returns (event, true) only when the input actually satisfies the
+// event's shape. Returning a partially-filled event for a truncated log would
+// make a malformed log indistinguishable from a real one whose fields happen
+// to be zero — so the contract is (nil, false) instead (raw-only fallback).
+type typedDecoderFunc func(topics []common.Hash, data []byte) (TypedEvent, bool)
 
 var (
 	typedDecoders     map[common.Hash]typedDecoderFunc
@@ -189,148 +193,144 @@ func DecodeTypedEvent(topics []common.Hash, data []byte) (TypedEvent, bool) {
 		return nil, false
 	}
 
-	result := decoder(topics, data)
-	if result == nil {
-		return nil, false
-	}
-	return result, true
+	return decoder(topics, data)
 }
 
 // --- Decoder implementations ---
 
-func decodeERC20Transfer(topics []common.Hash, data []byte) TypedEvent {
-	e := &ERC20Transfer{}
-	if len(topics) > 1 {
-		e.From = common.BytesToAddress(topics[1].Bytes()[12:])
+func decodeERC20Transfer(topics []common.Hash, data []byte) (TypedEvent, bool) {
+	// Transfer(address indexed,address indexed,uint256): 3 topics, one word.
+	if len(topics) < 3 || len(data) < 32 {
+		return nil, false
 	}
-	if len(topics) > 2 {
-		e.To = common.BytesToAddress(topics[2].Bytes()[12:])
-	}
-	if len(data) >= 32 {
-		e.Value = new(big.Int).SetBytes(data[:32])
-	}
-	return e
+	return &ERC20Transfer{
+		From:  common.BytesToAddress(topics[1].Bytes()[12:]),
+		To:    common.BytesToAddress(topics[2].Bytes()[12:]),
+		Value: new(big.Int).SetBytes(data[:32]),
+	}, true
 }
 
-func decodeERC20Approval(topics []common.Hash, data []byte) TypedEvent {
-	e := &ERC20Approval{}
-	if len(topics) > 1 {
-		e.Owner = common.BytesToAddress(topics[1].Bytes()[12:])
+func decodeERC20Approval(topics []common.Hash, data []byte) (TypedEvent, bool) {
+	// Approval(address indexed,address indexed,uint256): 3 topics, one word.
+	if len(topics) < 3 || len(data) < 32 {
+		return nil, false
 	}
-	if len(topics) > 2 {
-		e.Spender = common.BytesToAddress(topics[2].Bytes()[12:])
-	}
-	if len(data) >= 32 {
-		e.Value = new(big.Int).SetBytes(data[:32])
-	}
-	return e
+	return &ERC20Approval{
+		Owner:   common.BytesToAddress(topics[1].Bytes()[12:]),
+		Spender: common.BytesToAddress(topics[2].Bytes()[12:]),
+		Value:   new(big.Int).SetBytes(data[:32]),
+	}, true
 }
 
-func decodeERC721ApprovalForAll(topics []common.Hash, data []byte) TypedEvent {
-	e := &ERC721ApprovalForAll{}
-	if len(topics) > 1 {
-		e.Owner = common.BytesToAddress(topics[1].Bytes()[12:])
+func decodeERC721ApprovalForAll(topics []common.Hash, data []byte) (TypedEvent, bool) {
+	// ApprovalForAll(address indexed,address indexed,bool): 3 topics, one word.
+	if len(topics) < 3 || len(data) < 32 {
+		return nil, false
 	}
-	if len(topics) > 2 {
-		e.Operator = common.BytesToAddress(topics[2].Bytes()[12:])
-	}
-	if len(data) >= 32 {
-		e.Approved = data[31] != 0
-	}
-	return e
+	return &ERC721ApprovalForAll{
+		Owner:    common.BytesToAddress(topics[1].Bytes()[12:]),
+		Operator: common.BytesToAddress(topics[2].Bytes()[12:]),
+		Approved: data[31] != 0,
+	}, true
 }
 
-func decodeERC1155TransferSingle(topics []common.Hash, data []byte) TypedEvent {
-	e := &ERC1155TransferSingle{}
-	if len(topics) > 1 {
-		e.Operator = common.BytesToAddress(topics[1].Bytes()[12:])
+func decodeERC1155TransferSingle(topics []common.Hash, data []byte) (TypedEvent, bool) {
+	// TransferSingle(address indexed x3, uint256, uint256): 4 topics, two words.
+	if len(topics) < 4 || len(data) < 64 {
+		return nil, false
 	}
-	if len(topics) > 2 {
-		e.From = common.BytesToAddress(topics[2].Bytes()[12:])
-	}
-	if len(topics) > 3 {
-		e.To = common.BytesToAddress(topics[3].Bytes()[12:])
-	}
-	if len(data) >= 64 {
-		e.ID = new(big.Int).SetBytes(data[:32])
-		e.Value = new(big.Int).SetBytes(data[32:64])
-	}
-	return e
+	return &ERC1155TransferSingle{
+		Operator: common.BytesToAddress(topics[1].Bytes()[12:]),
+		From:     common.BytesToAddress(topics[2].Bytes()[12:]),
+		To:       common.BytesToAddress(topics[3].Bytes()[12:]),
+		ID:       new(big.Int).SetBytes(data[:32]),
+		Value:    new(big.Int).SetBytes(data[32:64]),
+	}, true
 }
 
-func decodeERC1155TransferBatch(topics []common.Hash, data []byte) TypedEvent {
-	e := &ERC1155TransferBatch{}
-	if len(topics) > 1 {
-		e.Operator = common.BytesToAddress(topics[1].Bytes()[12:])
+func decodeERC1155TransferBatch(topics []common.Hash, data []byte) (TypedEvent, bool) {
+	// TransferBatch(address indexed x3, uint256[], uint256[]): 4 topics, and a
+	// payload whose two dynamic arrays must both unpack. If they do not, the log
+	// is not decodable and must fall through to raw-only rather than surface as
+	// a typed event with empty slices.
+	if len(topics) < 4 {
+		return nil, false
 	}
-	if len(topics) > 2 {
-		e.From = common.BytesToAddress(topics[2].Bytes()[12:])
+
+	parsedABI := GetABIForEventName("TransferBatch")
+	if parsedABI == nil {
+		return nil, false
 	}
-	if len(topics) > 3 {
-		e.To = common.BytesToAddress(topics[3].Bytes()[12:])
+	ev, ok := parsedABI.Events["TransferBatch"]
+	if !ok {
+		return nil, false
 	}
-	// ABI-decode dynamic arrays ids[] and values[] from data
-	if len(data) > 0 {
-		parsedABI := GetABIForEventName("TransferBatch")
-		if parsedABI != nil {
-			if ev, ok := parsedABI.Events["TransferBatch"]; ok {
-				nonIndexed := ev.Inputs.NonIndexed()
-				decoded, err := nonIndexed.Unpack(data)
-				if err == nil && len(decoded) >= 2 {
-					if ids, ok := decoded[0].([]*big.Int); ok {
-						e.IDs = ids
-					}
-					if values, ok := decoded[1].([]*big.Int); ok {
-						e.Values = values
-					}
-				}
-			}
-		}
+
+	decoded, err := ev.Inputs.NonIndexed().Unpack(data)
+	if err != nil || len(decoded) < 2 {
+		return nil, false
 	}
-	return e
+	ids, okIDs := decoded[0].([]*big.Int)
+	values, okValues := decoded[1].([]*big.Int)
+	if !okIDs || !okValues {
+		return nil, false
+	}
+
+	return &ERC1155TransferBatch{
+		Operator: common.BytesToAddress(topics[1].Bytes()[12:]),
+		From:     common.BytesToAddress(topics[2].Bytes()[12:]),
+		To:       common.BytesToAddress(topics[3].Bytes()[12:]),
+		IDs:      ids,
+		Values:   values,
+	}, true
 }
 
-func decodeERC1155URI(topics []common.Hash, data []byte) TypedEvent {
-	e := &ERC1155URI{}
-	if len(topics) > 1 {
-		e.ID = new(big.Int).SetBytes(topics[1].Bytes())
+func decodeERC1155URI(topics []common.Hash, data []byte) (TypedEvent, bool) {
+	// URI(uint256 indexed, string): 2 topics, and the dynamic string must unpack.
+	if len(topics) < 2 {
+		return nil, false
 	}
-	// ABI-decode the dynamic string from data
-	if len(data) > 0 {
-		parsedABI := GetABIForEventName("URI")
-		if parsedABI != nil {
-			if ev, ok := parsedABI.Events["URI"]; ok {
-				nonIndexed := ev.Inputs.NonIndexed()
-				decoded, err := nonIndexed.Unpack(data)
-				if err == nil && len(decoded) >= 1 {
-					if s, ok := decoded[0].(string); ok {
-						e.Value = s
-					}
-				}
-			}
-		}
+
+	parsedABI := GetABIForEventName("URI")
+	if parsedABI == nil {
+		return nil, false
 	}
-	return e
+	ev, ok := parsedABI.Events["URI"]
+	if !ok {
+		return nil, false
+	}
+
+	decoded, err := ev.Inputs.NonIndexed().Unpack(data)
+	if err != nil || len(decoded) < 1 {
+		return nil, false
+	}
+	value, ok := decoded[0].(string)
+	if !ok {
+		return nil, false
+	}
+
+	return &ERC1155URI{
+		ID:    new(big.Int).SetBytes(topics[1].Bytes()),
+		Value: value,
+	}, true
 }
 
-func decodeUniswapV3Swap(topics []common.Hash, data []byte) TypedEvent {
-	e := &UniswapV3Swap{}
-	if len(topics) > 1 {
-		e.Sender = common.BytesToAddress(topics[1].Bytes()[12:])
+func decodeUniswapV3Swap(topics []common.Hash, data []byte) (TypedEvent, bool) {
+	// Swap(address indexed sender, address indexed recipient, int256, int256,
+	// uint160, uint128, int24): 3 topics and five words. A truncated log must
+	// not surface as a Swap with zeroed amounts.
+	if len(topics) < 3 || len(data) < 160 {
+		return nil, false
 	}
-	// recipient is the second indexed parameter; without it every non-indexed
-	// field would be attributed to the wrong name.
-	if len(topics) > 2 {
-		e.Recipient = common.BytesToAddress(topics[2].Bytes()[12:])
-	}
-	if len(data) >= 160 {
-		e.Amount0 = decodeSignedBigInt(data[:32])           // int256
-		e.Amount1 = decodeSignedBigInt(data[32:64])         // int256
-		e.SqrtPriceX96 = new(big.Int).SetBytes(data[64:96]) // uint160
-		e.Liquidity = new(big.Int).SetBytes(data[96:128])   // uint128
-		e.Tick = decodeSignedBigInt(data[128:160])          // int24 (sign-extended to 32 bytes)
-	}
-	return e
+	return &UniswapV3Swap{
+		Sender:       common.BytesToAddress(topics[1].Bytes()[12:]),
+		Recipient:    common.BytesToAddress(topics[2].Bytes()[12:]),
+		Amount0:      decodeSignedBigInt(data[:32]),       // int256
+		Amount1:      decodeSignedBigInt(data[32:64]),     // int256
+		SqrtPriceX96: new(big.Int).SetBytes(data[64:96]),  // uint160
+		Liquidity:    new(big.Int).SetBytes(data[96:128]), // uint128
+		Tick:         decodeSignedBigInt(data[128:160]),   // int24 (sign-extended)
+	}, true
 }
 
 // decodeSignedBigInt decodes a big-endian two's-complement ABI word as a signed

@@ -302,12 +302,18 @@ func TestChainedDecoderDecodeWithTypedEvent(t *testing.T) {
 	from := common.HexToHash("0x000000000000000000000000f39fd6e51aad88f6f4ce6ab8827279cfffb92266")
 	to := common.HexToHash("0x00000000000000000000000070997970c51812dc3a010c7d01b50e0d17dc79c8")
 
-	mapResult, typed := d.DecodeWithTypedEvent("Transfer", []common.Hash{transferTopic0, from, to}, nil)
+	// A real ERC-20 Transfer always carries its value, so the payload is a
+	// 32-byte word. Passing nil here would describe a log that cannot exist, and
+	// the decoder now (correctly) declines to claim a typed event for it.
+	value := make([]byte, 32)
+	big.NewInt(1000).FillBytes(value)
+
+	mapResult, typed := d.DecodeWithTypedEvent("Transfer", []common.Hash{transferTopic0, from, to}, value)
 	if mapResult == nil {
 		t.Error("mapResult should not be nil")
 	}
 	if typed == nil {
-		t.Error("typed should not be nil for known event")
+		t.Error("typed should not be nil for a well-formed Transfer")
 	}
 }
 

@@ -385,6 +385,9 @@ func TestDecodeTypedEvent_Swap(t *testing.T) {
 		t.Skip("ABI not available for Swap")
 	}
 	sender := common.HexToHash("0x000000000000000000000000aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+	// The real Uniswap V3 Swap indexes BOTH sender and recipient, so a valid
+	// log carries three topics (finding F16).
+	recipient := common.HexToHash("0x000000000000000000000000bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")
 	data := make([]byte, 160)
 	big.NewInt(1000).FillBytes(data[:32])
 	big.NewInt(2000).FillBytes(data[32:64])
@@ -392,7 +395,7 @@ func TestDecodeTypedEvent_Swap(t *testing.T) {
 	big.NewInt(67890).FillBytes(data[96:128])
 	big.NewInt(100).FillBytes(data[128:160])
 
-	result, ok := DecodeTypedEvent([]common.Hash{topic, sender}, data)
+	result, ok := DecodeTypedEvent([]common.Hash{topic, sender, recipient}, data)
 	if !ok {
 		t.Fatal("expected true for Swap event")
 	}
@@ -427,6 +430,8 @@ func TestDecodeTypedEvent_Swap_NegativeValues(t *testing.T) {
 		t.Skip("ABI not available for Swap")
 	}
 	sender := common.HexToHash("0x000000000000000000000000aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+	// Three topics: the real V3 Swap indexes both sender and recipient (F16).
+	recipient := common.HexToHash("0x000000000000000000000000bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")
 
 	data := make([]byte, 160)
 	copy(data[0:32], encodeSigned256(big.NewInt(-1)))
@@ -435,7 +440,7 @@ func TestDecodeTypedEvent_Swap_NegativeValues(t *testing.T) {
 	big.NewInt(67890).FillBytes(data[96:128])              // liquidity: uint128
 	copy(data[128:160], encodeSigned256(big.NewInt(-100))) // tick: int24
 
-	result, ok := DecodeTypedEvent([]common.Hash{topic, sender}, data)
+	result, ok := DecodeTypedEvent([]common.Hash{topic, sender, recipient}, data)
 	if !ok {
 		t.Fatal("expected true for Swap event")
 	}
@@ -517,7 +522,10 @@ func TestDecodeTypedEvent_TransferBatch(t *testing.T) {
 	}
 }
 
-func TestDecodeTypedEvent_TransferBatch_NoData(t *testing.T) {
+// TestDecodeTypedEvent_TransferBatch_RejectsEmptyData: TransferBatch carries two
+// dynamic arrays, so an empty payload is not decodable. Claiming a typed event
+// with empty slices would be indistinguishable from a real empty batch.
+func TestDecodeTypedEvent_TransferBatch_RejectsEmptyData(t *testing.T) {
 	t.Parallel()
 	topic := topic0ForName("TransferBatch")
 	if topic == (common.Hash{}) {
@@ -529,23 +537,11 @@ func TestDecodeTypedEvent_TransferBatch_NoData(t *testing.T) {
 	to := common.HexToHash("0x000000000000000000000000cccccccccccccccccccccccccccccccccccccccc")
 
 	result, ok := DecodeTypedEvent([]common.Hash{topic, op, from, to}, nil)
-	if !ok {
-		t.Fatal("expected true for TransferBatch event with no data")
+	if ok {
+		t.Fatalf("a TransferBatch with no data must not decode, got %T", result)
 	}
-
-	e, ok := result.(*ERC1155TransferBatch)
-	if !ok {
-		t.Fatalf("expected *ERC1155TransferBatch, got %T", result)
-	}
-
-	if e.Operator != common.HexToAddress("0xaAaAaAaaAaAaAaaAaAAAAAAAAaaaAaAaAaaAaaAa") {
-		t.Errorf("unexpected operator")
-	}
-	if len(e.IDs) != 0 {
-		t.Errorf("expected empty IDs, got %v", e.IDs)
-	}
-	if len(e.Values) != 0 {
-		t.Errorf("expected empty Values, got %v", e.Values)
+	if result != nil {
+		t.Fatalf("expected a nil event, got %T", result)
 	}
 }
 
@@ -584,7 +580,10 @@ func TestDecodeTypedEvent_URI(t *testing.T) {
 	}
 }
 
-func TestDecodeTypedEvent_URI_NoData(t *testing.T) {
+// TestDecodeTypedEvent_URI_RejectsEmptyData: the URI payload is a dynamic
+// string; an empty payload must fall through to raw-only rather than produce a
+// typed event with an empty value.
+func TestDecodeTypedEvent_URI_RejectsEmptyData(t *testing.T) {
 	t.Parallel()
 	topic := topic0ForName("URI")
 	if topic == (common.Hash{}) {
@@ -594,18 +593,10 @@ func TestDecodeTypedEvent_URI_NoData(t *testing.T) {
 	id := common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000001")
 
 	result, ok := DecodeTypedEvent([]common.Hash{topic, id}, nil)
-	if !ok {
-		t.Fatal("expected true for URI event with no data")
+	if ok {
+		t.Fatalf("a URI with no data must not decode, got %T", result)
 	}
-
-	e, ok := result.(*ERC1155URI)
-	if !ok {
-		t.Fatalf("expected *ERC1155URI, got %T", result)
-	}
-	if e.Value != "" {
-		t.Errorf("expected empty URI, got %s", e.Value)
-	}
-	if e.ID.Cmp(big.NewInt(1)) != 0 {
-		t.Errorf("expected ID=1, got %s", e.ID)
+	if result != nil {
+		t.Fatalf("expected a nil event, got %T", result)
 	}
 }

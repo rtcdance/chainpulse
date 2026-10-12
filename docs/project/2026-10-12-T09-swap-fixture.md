@@ -52,10 +52,46 @@ F16 的描述是"仓库内未找到 Uniswap V3 Swap topic0（`0xc42079f9…`）�
 
 **缺 fixture 时测试 `require.NoError` 失败而非跳过** —— 满足"缺 fixture 时 E01/E11 判失败"（跳过的解码测试在发布报告里与通过无法区分）。
 
-## 5. 未完成（T09 剩余）
+## 5. 第二批：畸形输入不得成为 typed 事件（raw-only 策略）
+
+### 5.1 缺陷
+
+所有 7 个解码器都是"**尽力而为**"：`data` 太短或 topics 不足时，返回一个**字段为空的非 nil 事件**，而 `DecodeTypedEvent` 报告 `(event, true)`。于是：
+
+- 一条**截断的日志**会变成一个**字段为零的 typed 事件**，与"真实的、字段恰好为零的事件"**无法区分**；
+- 消费者读 `Value`/`ID` 得到 `nil`，可能 panic 或静默当作 0。
+
+计划要求"**未知 topic/ABI 变更进明确 raw-only/DLQ 策略**" —— 畸形输入**不应该**变成 typed 事件。
+
+### 5.2 修复
+
+- `typedDecoderFunc` 改为返回 `(TypedEvent, bool)`；每个解码器**先校验自身形状**，不满足即 `(nil, false)`；
+- 各事件的最低要求：`Transfer`/`Approval`/`ApprovalForAll` → 3 topics + 32 字节；`TransferSingle` → 4 topics + 64 字节；`UniswapV3Swap` → **3 topics** + 160 字节；`TransferBatch`/`URI` → **动态载荷必须 Unpack 成功**，否则不认（空切片与真实空批次无法区分）；
+- `DecodeTypedEvent` 直接透传该标志 ⇒ 畸形日志**落到 raw-only**，与未知 topic0 同一条路径。
+
+### 5.3 验收（`typed_events_malformed_test.go`，全 PASS）
+
+| 测试 | 内容 |
+| --- | --- |
+| `...RejectsMalformedLogs` | **14 个畸形用例**（缺 topic、data 短一个字节、空 data、Swap 只有 2 个 topic 等）⇒ 全部 `ok=false` 且 `event==nil` |
+| `...AcceptsWellFormedLogs` | **5 个阳性对照**（同批事件的良构形态必须解出）——没有它，上面的"全拒绝"毫无意义 |
+| `...UnknownTopicIsRawOnly` | 未识别的 topic0 ⇒ `(nil,false)`，不是错误 |
+
+### 5.4 同步更新的既有测试（**它们编码的是旧行为**）
+
+| 测试 | 为什么必须改 |
+| --- | --- |
+| `TestDecodeTypedEvent_Swap` / `_NegativeValues` | 只喂 **2 个 topic** —— 只有在**错误 ABI** 下才算合法；已改为 3 个并断言 `Recipient` |
+| `..._TransferBatch_NoData` → `..._RejectsEmptyData` | 原来断言"空 data 也解出 typed 事件" |
+| `..._URI_NoData` → `..._RejectsEmptyData` | 同上 |
+| `TestChainedDecoderDecodeWithTypedEvent` | 原来用 `nil` data 调 ERC20 `Transfer` —— 现实中不存在这种日志；已补 32 字节 value |
+
+---
+
+## 6. 未完成（T09 剩余）
 
 - [ ] **ERC20 实际 fixture**（当前只有内存构造的用例）。
-- [ ] **未知 topic / ABI 变更的 raw-only 与 DLQ 策略**显式化。
-- [ ] **fuzz 固定语料回归**：错误长度、截断 data、topic 数量不足等（`decodeUniswapV3Swap` 目前对 `len(data) < 160` 静默返回部分填充的事件）。
+- [ ] **DLQ 策略**：畸形日志目前只落到 raw-only；尚未定义何时进 DLQ。
+- [ ] **fuzz 语料固定回归**：目前是手工枚举的 14 个用例，尚未用 Go fuzz 生成并冻结语料。
 - [ ] **`decimals` 与金额精度**：无 float 损失的端到端用例。
 - [ ] **E01/E11 接线**：把该 fixture 接进端到端场景（目前只在单元层消费）。
