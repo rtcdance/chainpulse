@@ -178,6 +178,66 @@ chainpulse/
 
 ## 📊 Architecture
 
+### System Overview
+
+The diagram below is the indexing path as the code actually implements it
+(PostgreSQL + Kafka + Redis + EVM). The widest things exercised today are a
+two-chain isolation test and a single-chain load path — not a multi-chain
+production deployment. Component names are the real packages under `pkg/`.
+
+```mermaid
+flowchart LR
+  subgraph CH["EVM chains"]
+    RPC["RPC providers<br/>eth_getLogs / WS"]
+  end
+
+  subgraph ING["Ingest — one writer per chain"]
+    PULL["plugins/pullers<br/>RangeSplitter"]
+    DEC["services/decoder<br/>typed events"]
+    PROC["services/processor<br/>event_processor"]
+    CMIT["services/processor<br/>batch_committer"]
+    LEASE["plugins/database<br/>lease + generation"]
+  end
+
+  subgraph INF["Shared infrastructure"]
+    PG[("PostgreSQL<br/>events · checkpoint<br/>lease · outbox")]
+    MQ[("Kafka<br/>partition key = chain")]
+    RD[("Redis<br/>versioned cache")]
+  end
+
+  subgraph SRV["Serve"]
+    QRY["services/query<br/>DegradingReader"]
+    API["plugins/api<br/>REST · gRPC · WS"]
+    SIWE["siwe<br/>nonce store"]
+  end
+
+  subgraph REP["Repair and safety"]
+    REORG["services/reorg<br/>repair + outbox drainer"]
+    FIN["services/finality<br/>safe · finalized"]
+    OBS["observability<br/>metrics · lag phases"]
+  end
+
+  RPC --> PULL --> DEC --> PROC --> CMIT
+  CMIT -->|"atomic TX: events + checkpoint"| PG
+  CMIT -.->|outbox| MQ
+  MQ -->|redelivery| PROC
+  LEASE --- CMIT
+  API --> QRY
+  QRY --> RD
+  QRY -->|"cache miss"| PG
+  API --> SIWE --> RD
+  REORG --> PG
+  REORG -.-> MQ
+  FIN --> PG
+  OBS -.-> CMIT
+```
+
+The deployment model and the correctness contracts behind this path are
+recorded under [`docs/adr/`](docs/adr/): the monolith-vs-microservice split
+([ADR-001](docs/adr/ADR-001-plugin-architecture.md)), the event bus pub/sub
+contract ([ADR-002](docs/adr/ADR-002-event-bus-pubsub.md)), and the reorg
+rollback/reindex strategy ([ADR-003](docs/adr/ADR-003-reorg-rollback-reindex.md)).
+
 ### Dual-Mode Deployment
 
 ChainPulse supports two deployment modes from the same codebase:
