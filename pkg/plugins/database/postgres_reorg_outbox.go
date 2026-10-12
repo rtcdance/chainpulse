@@ -252,6 +252,38 @@ func (a *PostgreSQLPluginAdapter) MarkReorgNotificationPublished(ctx context.Con
 	return nil
 }
 
+// RewindCheckpoint moves a chain's checkpoint back to `toBlock` and clears the
+// hash unless the block is still known locally.
+//
+// This is the "回退 checkpoint" half of a reorg repair. Rewinding — rather than
+// leaving the checkpoint where it was — is what makes re-indexing start at the
+// right height; leaving it ahead would silently skip the re-orged range.
+func (a *PostgreSQLPluginAdapter) RewindCheckpoint(ctx context.Context, chainID string, toBlock uint64) error {
+	if chainID == "" {
+		return fmt.Errorf("chainID is required")
+	}
+
+	a.mu.RLock()
+	db := a.db
+	a.mu.RUnlock()
+	if db == nil {
+		a.RecordError()
+		return fmt.Errorf("database not initialized")
+	}
+
+	_, err := db.ExecContext(ctx, `
+UPDATE indexing_state
+	SET last_indexed_block = $2,
+	    last_indexed_hash  = (SELECT hash FROM blocks WHERE chain_id = $1 AND number = $2),
+	    updated_at         = now()
+	WHERE chain_id = $1`, chainID, toBlock)
+	if err != nil {
+		a.RecordError()
+		return fmt.Errorf("failed to rewind checkpoint: %w", err)
+	}
+	return nil
+}
+
 // RecordReorgNotificationFailure bumps the attempt counter so a poison
 // notification is visible rather than retried forever.
 func (a *PostgreSQLPluginAdapter) RecordReorgNotificationFailure(ctx context.Context, id int64) error {

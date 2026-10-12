@@ -11,8 +11,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ethereum/go-ethereum/common"
+
 	_ "github.com/lib/pq" // postgres driver
 
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"github.com/rtcdance/chainpulse/pkg/plugins/database"
 )
 
@@ -160,6 +163,44 @@ func TestPostgresReorgOutboxSurvivesRestart(t *testing.T) {
 	jobs, err = second.PendingReorgJobs(ctx, "ethereum", 10)
 	require.NoError(t, err)
 	assert.Empty(t, jobs)
+}
+
+// TestPostgresRewindCheckpoint is the "回退 checkpoint" half of a reorg repair:
+// the checkpoint must move BACK to the block before the repaired range, or
+// re-indexing would silently skip it.
+func TestPostgresRewindCheckpoint(t *testing.T) {
+	dsn := postgresDSN()
+	if dsn == "" {
+		t.Skip("set CHAINPULSE_RUN_POSTGRES_INTEGRATION=1 and CHAINPULSE_TEST_DATABASE_URL")
+	}
+	truncateIndexingTables(t, dsn)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	a := newAdapter(t, dsn)
+	chainID := "t06-rewind"
+
+	// A known block at the rewind target, so the hash can be restored.
+	require.NoError(t, a.WriteBlock(ctx, chainID, &blockchain.Block{
+		Number: 99,
+		Hash:   common.HexToHash("0x99"),
+	}))
+
+	// Advance the checkpoint past the range we are about to repair.
+	tx, err := a.BeginTx(ctx)
+	require.NoError(t, err)
+	require.NoError(t, tx.SaveCheckpoint(ctx, chainID, 110, "0x110"))
+	require.NoError(t, tx.Commit(ctx))
+
+	block, _ := readCheckpoint(t, dsn, chainID)
+	require.Equal(t, uint64(110), block)
+
+	require.NoError(t, a.RewindCheckpoint(ctx, chainID, 99))
+
+	block, hash := readCheckpoint(t, dsn, chainID)
+	assert.Equal(t, uint64(99), block, "the checkpoint must move back")
+	assert.Equal(t, common.HexToHash("0x99").Hex(), hash, "the hash must come from the known block")
 }
 
 // TestPostgresReorgOutboxMarkIsIdempotent covers the at-least-once window: the

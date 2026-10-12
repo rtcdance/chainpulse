@@ -18,6 +18,11 @@ type fakeJobStore struct {
 	jobs          []Job
 	notifications []Notification
 	err           error
+
+	// Repair-side state.
+	pending     []Job
+	completed   []string
+	completeErr error
 }
 
 func (s *fakeJobStore) EnqueueJob(_ context.Context, job Job, notifications []Notification) error {
@@ -29,8 +34,17 @@ func (s *fakeJobStore) EnqueueJob(_ context.Context, job Job, notifications []No
 	return nil
 }
 
-func (s *fakeJobStore) PendingJobs(context.Context, string, int) ([]Job, error) { return nil, nil }
-func (s *fakeJobStore) CompleteJob(context.Context, string) error               { return nil }
+func (s *fakeJobStore) PendingJobs(context.Context, string, int) ([]Job, error) {
+	return s.pending, nil
+}
+
+func (s *fakeJobStore) CompleteJob(_ context.Context, jobID string) error {
+	if s.completeErr != nil {
+		return s.completeErr
+	}
+	s.completed = append(s.completed, jobID)
+	return nil
+}
 
 func reorgDB(t *testing.T) *mockReorgDatabase {
 	t.Helper()
