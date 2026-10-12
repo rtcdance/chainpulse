@@ -224,9 +224,43 @@ git add -f docs/project/2026-10-12-T00-scope-and-baseline.md
 - [x] 一份 skip 分类表（唯一口径，§2）
 - [x] 一份任务到证据映射（§4）
 - [x] 一份 dirty→commit 批次计划（§5，F18）
-- [x] 部署目标冻结记录（§7，F22）
+- [x] 部署目标冻结记录（§7，F22 = 本地 Docker 演示）
 - [x] 验收工具链清单与落点确认（§6，F21）
 - [x] 规则源冲突清单（§1，F12）
-- [ ] `git show HEAD:` 抽查确认关键修复已在提交历史中（**待 §5.2 批次执行后**）
-- [ ] 部署目标连通性验证记录（**待用户确认目标**）
-- [ ] 非本任务 dirty 文件未被重置（**待批次执行时核验**）
+- [x] **`git show HEAD:` 抽查确认关键修复已在提交历史中（F18 达成）**
+  - `git show HEAD:pkg/siwe/siwe.go | grep -c VerifySIWEWithOrigin` → **2**
+  - `git show HEAD:pkg/evm/typed_events.go | grep -c decodeSignedBigInt` → **5**
+  - `git show HEAD:pkg/services/processor/idempotency.go | grep -c CheckAndMark` → **4**
+  - `git status --porcelain` → **0**（工作区干净）；`git rev-list --count origin/main..HEAD` → **11**
+- [ ] 部署目标连通性验证记录（本地 Docker 已运行 ✅；E15 时补真实验证记录）
+- [x] 非本任务 dirty 文件未被重置（全部按批次 commit，未做 `reset`/`checkout`）
+
+### 10.1 本会话落地的 11 个 commit（F18）
+
+```text
+aa641b9 chore(scripts): fix deploy-event-emitter debug hint path
+e9df742 refactor: remove dead code, unused scaffolding and expired test skips
+de3db0b chore(tooling): align frontend React types; add root Playwright config
+1ab3118 chore(deps): align shared dependencies and toolchain to Go 1.26
+206c8a4 docs(spec): add delivery plan, baseline and T00 scope artifacts
+14f4736 docs: update README, guides and quickstarts; drop stale pkg/adapters refs
+637c146 chore(ci): align workflow Go version to 1.26
+99cf9f5 chore(rules): consolidate agent rules into AGENTS.md
+a5fce33 fix(core): harden DLQ replay, reorg detection and idempotency
+f914c71 fix(evm): decode signed int256/int24 via two's complement
+a4f9d46 fix(siwe): validate domain, URI and chainID in SIWE verification
+d364744 (origin/main) …
+```
+
+### 10.2 提交后门禁复跑（committed state）
+
+| 门禁 | 结果 |
+| --- | --- |
+| `go build ./...` | exit 0 |
+| `make check` | exit 0 |
+| `make lint` | **0 issues** |
+| `make test-short` | exit 0 / 66 ok / 0 FAIL |
+
+### 10.3 提交钩子（新增环境事实）
+
+`.git/hooks/pre-commit` → `scripts/pre-coding-checklist.sh` → `scripts/check-file-organization.sh`：对每个 tracked 文件跑 `file`（≈1min/commit），暂存 `.go` 时追加全量 `go build`+`go vet`。**提交必须后台执行**，否则撞工具 120s 超时。根目录白名单已补 `AGENTS.md`/`playwright.config.ts`；`requirements` 已移入 `docs/specs/`。
