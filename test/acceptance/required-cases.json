@@ -1,0 +1,21 @@
+{
+  "$comment": "Required-cases manifest (plan §7.2). Maps the §9 acceptance scenarios (E01-E15) to the REAL Go test names that prove them. Consumed by scripts/acceptance/verify-tests.py --required-cases. A listed test that does not run, or that is skipped, is a hard failure. NOTE: test names are filled in by T02 (contracts runners) and T09/T12; empty arrays below are placeholders, NOT a claim that the scenario passes.",
+  "schema": "chainpulse.required-cases.v1",
+  "scenarios": [
+    { "id": "E01", "lane": "evm-e2e", "summary": "normal path: two Anvil chains emit ERC20 logs; one verified Swap fixture", "tests": [] },
+    { "id": "E02", "lane": "contracts", "summary": "zero-log block / 100x duplicate / out-of-order arrival", "tests": [] },
+    { "id": "E03", "lane": "evm-e2e", "summary": "fork depth 1/2/12; same-height new hash; tx re-included", "tests": [] },
+    { "id": "E04", "lane": "contracts", "summary": "two-chain isolation: A rollback leaves B unchanged", "tests": [] },
+    { "id": "E05", "lane": "e2e", "summary": "commit-crash kill at boundaries + SIGTERM graceful shutdown", "tests": [] },
+    { "id": "E06", "lane": "chaos", "summary": "repair-job crash: DB rollback done, notify fails, restart resumes", "tests": [] },
+    { "id": "E07", "lane": "unit", "summary": "finality failure: finalized/safe unavailable, stale, wrong chain", "tests": [] },
+    { "id": "E08", "lane": "unit", "summary": "RPC/WS failure: 429 Retry-After, timeout, 5xx, disconnect", "tests": [] },
+    { "id": "E09", "lane": "contracts", "summary": "DB/MQ/Redis failure: backpressure, redelivery, no early ack", "tests": [] },
+    { "id": "E10", "lane": "unit", "summary": "auth: nonce concurrency/expiry/address swap, bad origin/format", "tests": [] },
+    { "id": "E11", "lane": "unit", "summary": "precision/decoding: signed/unsigned bounds, bad topics, unknown ABI", "tests": [] },
+    { "id": "E12", "lane": "frontend-api", "summary": "API compat + paging across cold/hot cache and reorg", "tests": [] },
+    { "id": "E13", "lane": "evm-e2e", "summary": "mode equivalence: monolithic vs four-service canonical digest equal", "tests": [] },
+    { "id": "E14", "lane": "chaos-soak-perf", "summary": "performance / 30min soak", "tests": [] },
+    { "id": "E15", "lane": "release-candidate", "summary": "deploy/rollback: bad image/config, prior digest restore", "tests": [] }
+  ]
+}

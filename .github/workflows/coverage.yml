@@ -83,85 +83,26 @@ jobs:
           REDIS_HOST: localhost
           REDIS_PORT: 6379
         run: |
-          # Clear Go cache to ensure fresh test runs
+          set -euo pipefail
           go clean -testcache
-          
-          # Run ALL unit tests with coverage for pkg/ directory
-          echo "Running ALL UNIT TESTS for pkg/ packages..."
-          echo "Using -short flag to skip long-running integration tests"
-          echo "Timeout: 60s per package, Parallelism: 2 concurrent packages"
-          
-          # Run tests with comprehensive coverage:
-          # -short: skip long-running tests
-          # -v: verbose output
-          # -coverprofile: generate coverage profile
-          # -covermode=atomic: atomic coverage mode for accurate results
-          # -timeout 120s: 120 second timeout per package (some packages need more time)
-          # -p 2: reduced parallelism (2 concurrent packages) for stability
-          
-          # Run ALL pkg packages
-          go test -short -v -coverprofile=coverage.out -covermode=atomic -timeout 120s -p 2 \
-            ./pkg/... \
-            2>&1 | tee test-output.log
-          TEST_EXIT_CODE=${PIPESTATUS[0]}
-          
-          # Verify coverage file was created
-          if [ -f coverage.out ] && [ -s coverage.out ]; then
-            echo ""
-            echo "✓ Coverage file created successfully"
-            echo "Coverage file size: $(wc -c < coverage.out) bytes"
-            echo "Number of coverage entries: $(wc -l < coverage.out)"
-            
-            # Show which packages are in the coverage file
-            echo ""
-            echo "Packages in coverage file:"
-            go tool cover -func=coverage.out 2>/dev/null | grep "github.com/rtcdance/chainpulse/pkg" | cut -d'/' -f1-3 | sort -u
-            
-            # Show summary by package
-            echo ""
-            echo "Coverage summary by package:"
-            go tool cover -func=coverage.out 2>/dev/null | grep "total" || echo "No total found"
-            
-            # Show test results summary
-            echo ""
-            echo "Test Results Summary:"
-            echo "PASS tests: $(grep -c "^--- PASS:" test-output.log || echo "0")"
-            echo "FAIL tests: $(grep -c "^--- FAIL:" test-output.log || echo "0")"
-            echo "SKIP tests: $(grep -c "^--- SKIP:" test-output.log || echo "0")"
-            
-            # Show which packages had failures
-            if grep -q "^--- FAIL:" test-output.log; then
-              echo ""
-              echo "Failed packages:"
-              grep "^--- FAIL:" test-output.log | awk '{print $3}' | cut -d'/' -f1-3 | sort -u
-            fi
-          else
+
+          echo "Running unit tests with coverage for pkg/ packages (JSONL + coverage)..."
+          # `pipefail` fails the step on a go-test failure; the verifier then
+          # catches the "exit 0 but nothing ran" cases.
+          go test -json -short -coverprofile=coverage.out -covermode=atomic \
+            -timeout 120s -p 2 ./pkg/... | tee test-output.jsonl
+
+          python3 scripts/acceptance/verify-tests.py \
+            --jsonl test-output.jsonl \
+            --min-tests 1 \
+            --report coverage-tests-report.json
+
+          if [ ! -s coverage.out ]; then
             echo "✗ Coverage file not created or is empty"
             exit 1
           fi
-          
-          # Check if there are actual test failures (not just timeouts)
-          ACTUAL_FAILURES=$(grep -c "^--- FAIL:" test-output.log || echo "0")
-          if [ "$ACTUAL_FAILURES" -gt 0 ]; then
-            echo ""
-            echo "⚠ WARNING: $ACTUAL_FAILURES test(s) failed"
-            echo "Continuing with coverage analysis to generate reports..."
-          fi
-          
-          # Check if tests timed out
-          if grep -q "panic: test timed out" test-output.log; then
-            echo ""
-            echo "⚠ WARNING: Some tests timed out"
-            echo "Timed out tests:"
-            grep -A 2 "panic: test timed out" test-output.log | grep "running tests:" -A 1 || true
-            echo "Continuing with coverage analysis to generate reports..."
-          fi
-          
-          # Always exit with success to allow coverage reports to be generated
-          # This ensures we get coverage data even if some tests timeout or fail
-          echo ""
-          echo "Exiting with success code to generate coverage reports..."
-          exit 0
+          echo "✓ Coverage profile written ($(wc -c < coverage.out) bytes)"
+          go tool cover -func=coverage.out | grep total || true
       
       - name: Analyze coverage gaps
         if: always()
@@ -609,27 +550,25 @@ jobs:
       - name: Check coverage threshold
         id: coverage-check
         run: |
-          if [ -f coverage.out ] && [ -s coverage.out ]; then
-            COVERAGE=$(go tool cover -func=coverage.out 2>/dev/null | grep total | awk '{print $3}' | sed 's/%//' || echo "0")
-            echo "coverage=$COVERAGE" >> $GITHUB_OUTPUT
-            echo "Total coverage: ${COVERAGE}%"
-            
-            if [ -z "$COVERAGE" ] || [ "$COVERAGE" = "0" ]; then
-              echo "⚠ Could not calculate coverage, skipping threshold check"
-              echo "status=no-data" >> $GITHUB_OUTPUT
-            elif (( $(echo "$COVERAGE < $MIN_COVERAGE" | bc -l) )); then
-              echo "⚠ Coverage ${COVERAGE}% is below minimum ${MIN_COVERAGE}%"
-              echo "Note: This is a warning, not a failure. Coverage data may be incomplete."
-              echo "status=warning" >> $GITHUB_OUTPUT
-            else
-              echo "✓ Coverage ${COVERAGE}% meets minimum ${MIN_COVERAGE}%"
-              echo "status=passed" >> $GITHUB_OUTPUT
-            fi
-          else
-            echo "coverage=0" >> $GITHUB_OUTPUT
-            echo "status=no-data" >> $GITHUB_OUTPUT
-            echo "⚠ No coverage data available, skipping threshold check"
+          set -euo pipefail
+          if [ ! -s coverage.out ]; then
+            echo "✗ No coverage profile — failing instead of skipping"
+            exit 1
           fi
+          COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//')
+          if [ -z "$COVERAGE" ]; then
+            echo "✗ Could not parse coverage total — failing instead of skipping"
+            exit 1
+          fi
+          echo "coverage=$COVERAGE" >> "$GITHUB_OUTPUT"
+          echo "Total coverage: ${COVERAGE}%"
+          if (( $(echo "$COVERAGE < $MIN_COVERAGE" | bc -l) )); then
+            echo "✗ Coverage ${COVERAGE}% is below minimum ${MIN_COVERAGE}%"
+            echo "status=failed" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+          echo "✓ Coverage ${COVERAGE}% meets minimum ${MIN_COVERAGE}%"
+          echo "status=passed" >> "$GITHUB_OUTPUT"
       
       - name: Generate coverage badge
         run: |
@@ -724,8 +663,10 @@ jobs:
             coverage-by-component.txt
             coverage-summary.md
             coverage-badge.json
+            test-output.jsonl
+            coverage-tests-report.json
           retention-days: 90
-          if-no-files-found: ignore
+          if-no-files-found: error
       
       - name: Comment PR with coverage
         if: github.event_name == 'pull_request'

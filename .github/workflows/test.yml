@@ -104,64 +104,26 @@ jobs:
       
       - name: Run unit tests
         run: |
+          set -euo pipefail
           # Clear Go cache to ensure fresh test runs
           go clean -testcache
-          
-          echo "Running unit tests for all pkg/ packages..."
-          echo "Using -short flag to skip long-running tests"
-          echo "Timeout: 120s per package, Parallelism: 4 concurrent packages"
-          go test -short -v -coverprofile=coverage-unit.out -covermode=atomic -timeout 120s -p 4 \
-            ./pkg/... 2>&1 | tee unit-test-output.log
-          UNIT_TEST_EXIT_CODE=${PIPESTATUS[0]}
-          
-          # Verify coverage file was created
-          if [ -f coverage-unit.out ] && [ -s coverage-unit.out ]; then
-            echo "✓ Unit test coverage file created successfully"
-            echo "Packages in coverage file:"
-            go tool cover -func=coverage-unit.out 2>/dev/null | grep "pkg/" | cut -d'/' -f1-2 | sort -u
-            
-            # Show test results summary
-            echo ""
-            echo "Unit Test Results Summary:"
-            echo "PASS tests: $(grep -c "^--- PASS:" unit-test-output.log || echo "0")"
-            echo "FAIL tests: $(grep -c "^--- FAIL:" unit-test-output.log || echo "0")"
-            echo "SKIP tests: $(grep -c "^--- SKIP:" unit-test-output.log || echo "0")"
-            
-            # Show which packages had failures
-            if grep -q "^--- FAIL:" unit-test-output.log; then
-              echo ""
-              echo "Failed packages:"
-              grep "^--- FAIL:" unit-test-output.log | awk '{print $3}' | cut -d'/' -f1-2 | sort -u
-            fi
-          else
-            echo "✗ Coverage file not created or is empty"
+
+          echo "Running unit tests for all pkg/ packages (JSONL + coverage)..."
+          # `pipefail` propagates a go-test failure; the verifier then catches
+          # the "exit 0 but nothing actually ran" cases (empty run, no tests).
+          go test -json -short -coverprofile=coverage-unit.out -covermode=atomic \
+            -timeout 120s -p 4 ./pkg/... | tee unit-test-output.jsonl
+
+          python3 scripts/acceptance/verify-tests.py \
+            --jsonl unit-test-output.jsonl \
+            --min-tests 1 \
+            --report unit-tests-report.json
+
+          if [ ! -s coverage-unit.out ]; then
+            echo "✗ unit test coverage profile missing or empty"
             exit 1
           fi
-          
-          # Check if there are actual test failures (not just timeouts)
-          ACTUAL_FAILURES=$(grep -c "^--- FAIL:" unit-test-output.log || echo "0")
-          if [ "$ACTUAL_FAILURES" -gt 0 ]; then
-            echo ""
-            echo "✗ ERROR: $ACTUAL_FAILURES test(s) failed"
-            echo "Failed tests:"
-            grep "^--- FAIL:" unit-test-output.log || true
-            exit 1
-          fi
-          
-          # Check if tests timed out
-          if grep -q "panic: test timed out" unit-test-output.log; then
-            echo ""
-            echo "⚠ WARNING: Some tests timed out (but no test failures)"
-            echo "Timed out tests:"
-            grep -A 2 "panic: test timed out" unit-test-output.log | grep "running tests:" -A 1 || true
-            echo "These tests should be fixed or marked with testing.Short() check"
-            echo "Continuing since all assertions passed..."
-          fi
-          
-          # Exit with success if no actual test failures
-          echo ""
-          echo "✓ All unit tests passed (no assertion failures)"
-          exit 0
+          echo "✓ unit tests passed; coverage profile written"
       
       - name: Run integration tests
         env:
@@ -173,37 +135,14 @@ jobs:
           REDIS_HOST: localhost
           REDIS_PORT: 6379
         run: |
-          go test -short -v -coverprofile=coverage-integration.out -covermode=atomic -timeout 15m ./test/integration/... 2>&1 | tee integration-test-output.log
-          INTEGRATION_TEST_EXIT_CODE=${PIPESTATUS[0]}
-          
-          # Show test results summary
-          echo ""
-          echo "Integration Test Results Summary:"
-          echo "PASS tests: $(grep -c "^--- PASS:" integration-test-output.log || echo "0")"
-          echo "FAIL tests: $(grep -c "^--- FAIL:" integration-test-output.log || echo "0")"
-          echo "SKIP tests: $(grep -c "^--- SKIP:" integration-test-output.log || echo "0")"
-          
-          # Check if there are actual test failures (not just timeouts)
-          ACTUAL_FAILURES=$(grep -c "^--- FAIL:" integration-test-output.log || echo "0")
-          if [ "$ACTUAL_FAILURES" -gt 0 ]; then
-            echo ""
-            echo "✗ ERROR: $ACTUAL_FAILURES integration test(s) failed"
-            echo "Failed tests:"
-            grep "^--- FAIL:" integration-test-output.log || true
-            exit 1
-          fi
-          
-          # Check if tests timed out
-          if grep -q "panic: test timed out" integration-test-output.log; then
-            echo ""
-            echo "⚠ WARNING: Some integration tests timed out (but no test failures)"
-            echo "Continuing since all assertions passed..."
-          fi
-          
-          # Exit with success if no actual test failures
-          echo ""
-          echo "✓ All integration tests passed"
-          exit 0
+          set -euo pipefail
+          go test -json -short -coverprofile=coverage-integration.out -covermode=atomic \
+            -timeout 15m ./test/integration/... | tee integration-test-output.jsonl
+
+          python3 scripts/acceptance/verify-tests.py \
+            --jsonl integration-test-output.jsonl \
+            --report integration-tests-report.json
+          echo "✓ integration tests passed"
       
       - name: Analyze unit test coverage gaps
         if: always()
@@ -242,107 +181,65 @@ jobs:
           REDIS_PORT: 6379
           ANVIL_URL: http://localhost:8545
         run: |
-          echo "Starting E2E tests..."
-          go test -short -v -coverprofile=coverage-e2e.out -covermode=atomic -timeout 20m ./test/e2e/... 2>&1 | tee e2e-test-output.log
-          TEST_EXIT_CODE=${PIPESTATUS[0]}
-          
-          echo ""
-          echo "E2E Test Results Summary:"
-          echo "PASS tests: $(grep -c "^--- PASS:" e2e-test-output.log || echo "0")"
-          echo "FAIL tests: $(grep -c "^--- FAIL:" e2e-test-output.log || echo "0")"
-          echo "SKIP tests: $(grep -c "^--- SKIP:" e2e-test-output.log || echo "0")"
-          
-          # Check if there are actual test failures (not just timeouts)
-          ACTUAL_FAILURES=$(grep -c "^--- FAIL:" e2e-test-output.log || echo "0")
-          if [ "$ACTUAL_FAILURES" -gt 0 ]; then
-            echo ""
-            echo "✗ ERROR: $ACTUAL_FAILURES E2E test(s) failed"
-            echo "Failed tests:"
-            grep "^--- FAIL:" e2e-test-output.log || true
-            exit 1
-          fi
-          
-          # Check if tests timed out
-          if grep -q "panic: test timed out" e2e-test-output.log; then
-            echo ""
-            echo "⚠ WARNING: Some E2E tests timed out (but no test failures)"
-            echo "Continuing since all assertions passed..."
-          fi
-          
-          # Exit with success if no actual test failures
-          echo ""
-          echo "✓ All E2E tests passed"
-          exit 0
+          set -euo pipefail
+          go test -json -short -coverprofile=coverage-e2e.out -covermode=atomic \
+            -timeout 20m ./test/e2e/... | tee e2e-test-output.jsonl
+
+          python3 scripts/acceptance/verify-tests.py \
+            --jsonl e2e-test-output.jsonl \
+            --report e2e-tests-report.json
+          echo "✓ E2E tests passed"
       
       - name: Merge coverage reports
         run: |
-          # Only use unit test coverage (pkg/ directory)
-          if [ -f coverage-unit.out ] && [ -s coverage-unit.out ]; then
-            cp coverage-unit.out coverage.out
-            echo "✓ Using unit test coverage (pkg/ only)"
-          else
-            echo "⚠ No unit test coverage found"
-            touch coverage.out
+          set -euo pipefail
+          if [ ! -s coverage-unit.out ]; then
+            echo "✗ No unit test coverage profile — refusing to fabricate an empty report"
+            exit 1
           fi
+          cp coverage-unit.out coverage.out
+          echo "✓ Using unit test coverage (pkg/ only)"
       
       - name: Generate coverage report
         run: |
-          if [ -f coverage.out ] && [ -s coverage.out ]; then
-            go tool cover -html=coverage.out -o coverage.html || true
-            go tool cover -func=coverage.out -o coverage.txt || true
-            echo "✓ Coverage reports generated successfully"
-          else
-            echo "⚠ Coverage file is empty or missing, creating placeholder reports"
-            touch coverage.html coverage.txt
-          fi
+          set -euo pipefail
+          go tool cover -html=coverage.out -o coverage.html
+          go tool cover -func=coverage.out -o coverage.txt
+          echo "✓ Coverage reports generated successfully"
       
       - name: Check coverage threshold
         run: |
-          if [ -f coverage.out ] && [ -s coverage.out ]; then
-            COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//' || echo "0")
-            echo "Total coverage: ${COVERAGE}%"
-            if [ -z "$COVERAGE" ] || [ "$COVERAGE" = "0" ]; then
-              echo "⚠ Could not calculate coverage, skipping threshold check"
-            elif (( $(echo "$COVERAGE < $MIN_COVERAGE" | bc -l) )); then
-              echo "✗ Coverage ${COVERAGE}% is below minimum ${MIN_COVERAGE}%"
-              exit 1
-            else
-              echo "✓ Coverage ${COVERAGE}% meets minimum ${MIN_COVERAGE}%"
-            fi
-          else
-            echo "⚠ No coverage data available, skipping threshold check"
+          set -euo pipefail
+          COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//')
+          if [ -z "$COVERAGE" ]; then
+            echo "✗ Could not parse coverage total — failing instead of skipping"
+            exit 1
           fi
+          echo "Total coverage: ${COVERAGE}%"
+          if (( $(echo "$COVERAGE < $MIN_COVERAGE" | bc -l) )); then
+            echo "✗ Coverage ${COVERAGE}% is below minimum ${MIN_COVERAGE}%"
+            exit 1
+          fi
+          echo "✓ Coverage ${COVERAGE}% meets minimum ${MIN_COVERAGE}%"
       
       - name: Generate test summary
         if: always()
         run: |
-          echo "## Test Execution Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          
-          # Count test results
-          if [ -f e2e-test-output.log ]; then
-            PASSED=$(grep -c "^--- PASS:" e2e-test-output.log || echo "0")
-            FAILED=$(grep -c "^--- FAIL:" e2e-test-output.log || echo "0")
-            SKIPPED=$(grep -c "^--- SKIP:" e2e-test-output.log || echo "0")
-            
-            echo "### E2E Tests" >> $GITHUB_STEP_SUMMARY
-            echo "- ✓ Passed: $PASSED" >> $GITHUB_STEP_SUMMARY
-            echo "- ✗ Failed: $FAILED" >> $GITHUB_STEP_SUMMARY
-            echo "- ⊘ Skipped: $SKIPPED" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Test Execution Summary" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          for suite in unit integration e2e; do
+            report="${suite}-tests-report.json"
+            if [ -f "$report" ]; then
+              echo "### ${suite} tests" >> "$GITHUB_STEP_SUMMARY"
+              echo '```json' >> "$GITHUB_STEP_SUMMARY"
+              cat "$report" >> "$GITHUB_STEP_SUMMARY"
+              echo '```' >> "$GITHUB_STEP_SUMMARY"
+            fi
+          done
+          if [ -s coverage.out ]; then
+            echo "### Coverage" >> "$GITHUB_STEP_SUMMARY"
+            echo "- Total: $(go tool cover -func=coverage.out | grep total | awk '{print $3}')" >> "$GITHUB_STEP_SUMMARY"
           fi
-          
-          # Coverage summary
-          if [ -f coverage.out ] && [ -s coverage.out ]; then
-            COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' || echo "N/A")
-            echo "### Coverage" >> $GITHUB_STEP_SUMMARY
-            echo "- Total: $COVERAGE" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-          fi
-          
-          echo "### Artifacts" >> $GITHUB_STEP_SUMMARY
-          echo "- Coverage reports available in artifacts" >> $GITHUB_STEP_SUMMARY
-          echo "- Test logs available in artifacts" >> $GITHUB_STEP_SUMMARY
       
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v6
@@ -362,19 +259,20 @@ jobs:
             coverage.html
             coverage.txt
           retention-days: 30
-          if-no-files-found: ignore
+          if-no-files-found: error
       
-      - name: Upload test logs
+      - name: Upload test evidence (required)
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: test-logs
+          name: test-evidence
           path: |
+            *-test-output.jsonl
+            *-tests-report.json
             *.log
             test/integration/*.log
-            e2e-test-output.log
-          retention-days: 7
-          if-no-files-found: ignore
+          retention-days: 30
+          if-no-files-found: error
       
       - name: Cleanup Anvil
         if: always()

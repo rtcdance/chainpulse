@@ -95,9 +95,12 @@ jobs:
         TEST_KAFKA_BROKERS: localhost:9092
         DEPLOYMENT_MODE: monolithic
       run: |
-        go test -v -race -timeout=10m \
-          -tags=integration \
-          ./test/integration/...
+        set -euo pipefail
+        go test -json -race -timeout=10m -tags=integration \
+          ./test/integration/... | tee integration-output.jsonl
+        python3 scripts/acceptance/verify-tests.py \
+          --jsonl integration-output.jsonl --min-tests 1 \
+          --report integration-report.json
 
     - name: Upload integration test results
       if: always()
@@ -135,9 +138,15 @@ jobs:
       env:
         TEST_REDIS_URL: localhost:6379
       run: |
-        go test -v -race -timeout=5m \
-          -tags=integration \
-          ./test/contracts/...
+        set -euo pipefail
+        # F13: the contract suite is currently EMPTY (0 tests). An empty suite
+        # must not present as green on a PR, so this job is intentionally RED
+        # until T02 adds the real Postgres/Redis/Kafka adapter runners.
+        go test -json -race -timeout=5m -tags=integration \
+          ./test/contracts/... | tee contracts-output.jsonl
+        python3 scripts/acceptance/verify-tests.py \
+          --jsonl contracts-output.jsonl --min-tests 1 \
+          --report contracts-report.json
 
   e2e:
     name: E2E Tests
@@ -190,9 +199,12 @@ jobs:
         TEST_REDIS_URL: localhost:6379
         DEPLOYMENT_MODE: monolithic
       run: |
-        go test -v -race -timeout=20m \
-          -tags=e2e \
-          ./test/e2e/...
+        set -euo pipefail
+        go test -json -race -timeout=20m -tags=e2e \
+          ./test/e2e/... | tee e2e-output.jsonl
+        python3 scripts/acceptance/verify-tests.py \
+          --jsonl e2e-output.jsonl --min-tests 1 \
+          --report e2e-report.json
 
     - name: Upload E2E test results
       if: always()
