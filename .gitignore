@@ -94,3 +94,7 @@ test-results/
 # Scripts generated
 scripts/mock-server/
 puller
+
+# Foundry build artifacts (contracts/lib/ IS vendored and committed)
+contracts/out/
+contracts/cache/
