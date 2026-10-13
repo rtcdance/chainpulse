@@ -31,6 +31,9 @@ Usage
 from __future__ import annotations
 
 import argparse
+import datetime
+import platform
+import subprocess
 import json
 import re
 import sys
@@ -102,6 +105,62 @@ def summarize(samples: list[Sample]) -> dict[str, float]:
     if byte_values:
         summary["bytes_per_op"] = mean(byte_values)
     return summary
+
+
+def raw_document(
+    current: dict[str, list[Sample]], command: str, threshold: float
+) -> dict:
+    """Build the §10 `bench-raw.json` document from the SAME parse the gate uses.
+
+    Why it lives here rather than in its own script: a second parser would be a
+    second definition of "what the benchmark output means", and the two would
+    drift. The artifact is meant to be the evidence behind the verdict, so it is
+    produced by the code that reaches the verdict.
+
+    Provenance is recorded deliberately. §8 says a Mac report must be labelled as
+    such and must never be presented as the reference environment's numbers, so
+    the host and the threshold travel with the samples.
+    """
+    benchmarks = {}
+    for name, samples in sorted(current.items()):
+        benchmarks[name] = {
+            "sample_count": len(samples),
+            "ns_per_op": [s.ns_per_op for s in samples],
+            "bytes_per_op": [s.bytes_per_op for s in samples if s.bytes_per_op is not None],
+            "allocs_per_op": [s.allocs_per_op for s in samples if s.allocs_per_op is not None],
+            "mean": summarize(samples),
+        }
+
+    return {
+        "schema": "chainpulse.bench-raw.v1",
+        "generated_at": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "commit_sha": git_output("rev-parse", "HEAD"),
+        "tree_dirty": bool(git_output("status", "--porcelain")),
+        "host": {
+            "platform": platform.platform(),
+            "machine": platform.machine(),
+            "python": platform.python_version(),
+            "note": (
+                "Absolute numbers are comparable only on this host and toolchain. "
+                "If this is not the §8 reference environment (Linux, 8 vCPU, 16GiB, SSD) "
+                "it must be labelled as such and must not be quoted as the reference numbers."
+            ),
+        },
+        "command": command,
+        "threshold": threshold,
+        "min_samples": MIN_SAMPLES,
+        "benchmarks": benchmarks,
+    }
+
+
+def git_output(*args: str) -> str:
+    """Run git in the repository containing this script; "" when unavailable."""
+    root = Path(__file__).resolve().parents[2]
+    try:
+        out = subprocess.run(["git", "-C", str(root), *args], capture_output=True, text=True, check=False)
+    except OSError:
+        return ""
+    return out.stdout.strip() if out.returncode == 0 else ""
 
 
 def compare(current: dict[str, list[Sample]], baseline: dict[str, dict], threshold: float) -> Result:
@@ -294,6 +353,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--baseline", type=Path, help="baseline JSON to compare against")
     parser.add_argument("--write-baseline", type=Path, help="record the run as the new baseline")
     parser.add_argument("--threshold", type=float, default=REGRESSION_THRESHOLD)
+    parser.add_argument("--emit-json", type=Path,
+                        help="write the raw per-sample evidence (§10 bench-raw.json)")
+    parser.add_argument("--command", default="", help="the command that produced the output")
     parser.add_argument("--self-test", action="store_true", help="verify the gate itself")
     args = parser.parse_args(argv)
 
@@ -323,8 +385,22 @@ def main(argv: list[str] | None = None) -> int:
         print(f"recorded baseline for {len(recorded)} benchmark(s) in {args.write_baseline}")
         return 0
 
+    if args.emit_json:
+        # A run that parsed nothing must not produce an artifact: an empty file
+        # would later read as "benchmarks regressed to zero" rather than "the run
+        # was empty".
+        if not current:
+            print("no benchmark results parsed; refusing to write an empty bench-raw artifact", file=sys.stderr)
+            return 1
+        doc = raw_document(current, args.command or "<not recorded>", args.threshold)
+        args.emit_json.parent.mkdir(parents=True, exist_ok=True)
+        args.emit_json.write_text(json.dumps(doc, indent=2) + "\n", encoding="utf-8")
+        print(f"wrote bench-raw evidence for {len(doc['benchmarks'])} benchmark(s) to {args.emit_json}")
+
     if not args.baseline:
-        parser.error("--baseline is required unless --write-baseline or --self-test is given")
+        if args.emit_json:
+            return 0
+        parser.error("--baseline is required unless --write-baseline, --emit-json or --self-test is given")
 
     baseline_doc = json.loads(args.baseline.read_text(encoding="utf-8"))
     result = compare(current, baseline_doc.get("benchmarks", {}), args.threshold)
