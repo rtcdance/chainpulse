@@ -59,7 +59,6 @@ type KafkaMQPlugin struct {
 	retryDelay       time.Duration
 	brokers          []string
 	consumerGroup    string
-	commitInterval   time.Duration
 	consumerMaxBytes int64
 
 	stats       *kafkaMessageStats
