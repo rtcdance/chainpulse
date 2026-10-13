@@ -94,6 +94,14 @@
 - **选项**：(a) 加一个 `acceptance` lane（需 Postgres/Redis service 容器 + `-tags=integration`）；(b) 明确声明它只在发布前手工运行，并写进 DoD；(c) 把其中的关键用例迁到 `test/integration`（已有 lane）。
 - **证据**：`2026-10-14-f24-f25-acceptance.md` §4。
 
+## D14. `make test-unit` 的稳定性（PR 必需命令）
+
+- **现状**：PR 模板要求 `make test-unit`，而它实际是 **`go test -v -race -timeout 5m -short ./pkg/...`**（`TESTFLAGS := -v -race -timeout 5m`）—— **带 `-race`**，我此前所有"短测全绿"都**没开 race**。
+- **观察到一次失败**：exit=2（82s）；随后用同一命令连跑 **7 次全绿**，**未复现**。**失败的包名未知**（当时未保存完整日志）。
+- **需要决定/执行**：(a) 约定"失败必须留存完整日志"（本轮唯一线索就是这样丢的）；(b) 在 `-race` 下重复 10–20 次以判定是偶发还是低概率稳定竞态；(c) 若确认偶发，是否允许重试，还是必须修到稳定。
+- **为什么重要**：它是 PR 门禁的必需项，**它的稳定性就是门禁的稳定性**。
+- **证据**：`2026-10-14-pr-template-commands.md`；`build/acceptance/<sha>/race-flake/`。
+
 ## 决策后我可以立刻执行的事
 
 | 决策 | 立刻可做 |
@@ -109,5 +117,6 @@
 | D11 | 填 allow-list（或消除 skip）+ 在 CI 打开 `--fail-on-unknown-skip`，并留原始输出 |
 | D12 | 拿到 admin 后：建 `acceptance-gate` job（`needs` 全部 required + `always()` + 逐条断言 success）+ 配 ruleset + 对齐分支过滤 |
 | D13 | 加 `acceptance` lane（或把关键用例迁进 `test/integration`），并留原始输出 |
+| D14 | 在 `-race` 下重复 10–20 次判定 `make test-unit` 的失败是偶发还是稳定竞态，并加"失败留存完整日志"约定 |
 
 > 说明：本文件只记录**需要拍板的问题**，不含任何未决的代码改动。以上每一项我都可以在得到答复后立即执行并给出实测证据。
