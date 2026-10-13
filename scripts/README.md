@@ -9,7 +9,7 @@ here for the full list.
 
 ## `scripts/acceptance/` — the acceptance toolchain (F21)
 
-Four dependency-free (Python 3 stdlib) gates, each with a built-in `--self-test`.
+Five dependency-free (Python 3 stdlib) gates, each with a built-in `--self-test`.
 They implement the tooling the delivery plan requires, so T18 consumes evidence
 rather than assembling it by hand.
 
@@ -19,6 +19,7 @@ rather than assembling it by hand.
 | `collect-evidence.py` | Assembles the §10 evidence pack (15 required artifacts) and **fails when one is missing**; emits `manifest.json` + `checksums.txt`. Never writes a placeholder. | `collect-evidence.py --input build/raw --out build/evidence` |
 | `bench-gate.py` | Micro-benchmark regression gate: blocks on >15% in `ns/op` or `B/op`, requires ≥5 samples, and treats "no match / missing baseline / no valid samples" as failures. | `bench-gate.py --bench-output raw.txt --baseline test/benchmarks/micro_baseline.json` |
 | `dep-approval-gate.py` | Fails when a dependency manifest changed but `docs/project/DEPENDENCY_APPROVAL.md` did not. | `dep-approval-gate.py --base origin/main --head HEAD` |
+| `skip-report.py` | Builds the single skip taxonomy (§10 `skip-report.json`) from measured data: skips that fired in `go test -json` streams, plus every `t.Skip` call site in the tree. A reason that matches no bucket is counted and listed, never absorbed. | `skip-report.py --jsonl unit.jsonl --out skip-report.json` |
 
 Each supports `--self-test`; run it after changing the tool.
 
@@ -36,7 +37,7 @@ Grouped by what they are for:
 
 | Path | Contents |
 | --- | --- |
-| `scripts/acceptance/` | The four gates above. |
+| `scripts/acceptance/` | The five gates above. |
 | `scripts/bench/` | Load-generation helpers (`ingest.sh`, `query_events.js`). |
 | `scripts/dev/` | `dev.sh` local development helper. |
 | `scripts/lib/` | Shared shell libraries sourced by the scripts above. |

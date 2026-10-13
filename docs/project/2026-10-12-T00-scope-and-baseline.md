@@ -264,3 +264,37 @@ d364744 (origin/main) …
 ### 10.3 提交钩子（新增环境事实）
 
 `.git/hooks/pre-commit` → `scripts/pre-coding-checklist.sh` → `scripts/check-file-organization.sh`：对每个 tracked 文件跑 `file`（≈1min/commit），暂存 `.go` 时追加全量 `go build`+`go vet`。**提交必须后台执行**，否则撞工具 120s 超时。根目录白名单已补 `AGENTS.md`/`playwright.config.ts`；`requirements` 已移入 `docs/specs/`。
+
+---
+
+## 11. §2 skip 口径闭环（2026-10-13，F19 结项）
+
+§2 说"三处口径互不一致，以命令实测为唯一口径"。本轮把这件事**做成工具**（`scripts/acceptance/skip-report.py`，仅 Python 3 标准库 + `--self-test`），因为**散文口径不能被 §10 的收集器消费**，而且散文会随仓库漂移。
+
+### 11.1 当前实测（commit `a8737160cfe1`，`build/acceptance/a8737160cfe1/skip-report.json`）
+
+| 口径 | 数值 | 来源 |
+| --- | --- | --- |
+| 运行 skip —— **测试级** | **70** | 三个 lane 的 `go test -json` 合并（unit / contracts / acceptance） |
+| 运行 skip —— **包级** | **9** | 同上的无 `Test` 字段 skip 动作（整包未跑，例如纯接口包） |
+| 运行 skip —— 合计动作 | **79** | 70 + 9 |
+| 源码点 —— 全部 `t.Skip` / `Skipf` / `SkipNow` | **153 处 / 48 文件**（扫描 888 个 `.go`） | 静态扫描 |
+| 源码点 —— 仅 `t.Skip(` | **103 处 / 43 文件** | 静态扫描 |
+
+**与检验器的对账**：`verify-tests.py` 在同一批流上报 `skip=70`，与上表**测试级**完全一致。它**不计包级 skip**（那 9 个被它归入 "no-test packages"）。⇒ 两个工具不冲突，差异是**口径定义**，已写进报告字段（`runtime.total` vs `runtime.package_skip_count`）。
+
+分桶（源码点，153）：`dependency_gated` 124、`short_mode_excluded` 24、`covered_elsewhere` 1、`environment_gated` 1、`unclassified` 3。
+分桶（运行时，70）：`short_mode_excluded` 61、`dependency_gated` 3、`covered_elsewhere` 1、`unclassified` 5。
+
+### 11.2 ⚠️ §2 的 "72 处 / 29 文件" **不可复现**
+
+用当前树无法重建该数字，任何切法都不等于 72：`t.Skip(` 全树 103；`pkg/` 44；`test/e2e` 71；`pkg/`+`test/acceptance` 52；`t.Skip(` 限 `*_test.go` 102（`test/integration/container_helper.go:42` 是**唯一**非 `_test.go` 的调用点，会被 `--include="*_test.go"` 漏掉）。
+两个可查的漂移来源（**未断言其为唯一原因**）：① T00 之后 T02/T03/T04/T06/T16 新增的 `test/contracts` + `test/acceptance` 就带 **28** 个调用点；② 若当时用了 `--include="*_test.go"`，会漏掉上面那 1 处。
+
+**处置**：§2 的 72/29 标为**历史数字、已失效**；自此以 `skip-report.json` 的双列（运行 + 源码）为唯一口径。**不删任何 skip**，与 §2 的铁律一致。
+
+### 11.3 工具本身的失败记录（两处，都是"检查器也要被检查"）
+
+1. **首版把每个 runtime skip 都判成 `unclassified`（58/70）**。根因：取"skip 前最后一行输出"当 reason，而那一行**永远是** `--- SKIP: TestX (0.00s)` —— 真正的 reason 在**再上一行**。修掉框架行（`=== RUN`/`--- SKIP|PASS|FAIL|`/包级 `ok`）后降到 5。
+2. **首版自测期望值写错**（把 3 个 skip 的 fixture 写成 2），被自测当场抓到 —— **改的是期望值，不是工具**。
+3. 首版桶太窄（68 个源码点未分类）。按**实测到的**未分类 reason 扩了三个桶（`covered_elsewhere`、`environment_gated`，并扩充 `dependency_gated`），现在源码点仅剩 **3** 个真未分类（reason 均写作 `"regression"`，需要人工判定）。**未把 `unclassified` 强行清零**：那 3 个就是要人来看的。
