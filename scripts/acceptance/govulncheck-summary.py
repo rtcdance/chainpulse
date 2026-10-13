@@ -90,12 +90,101 @@ def build_summary(objects: list[dict]) -> dict:
     }
 
 
+def self_test() -> int:
+    """Verify the two things that make this tool worth trusting.
+
+    1. decode_stream must handle a PRETTY-PRINTED stream. govulncheck emits one
+       multi-line JSON object per record, so a line-by-line reader returns
+       nothing and the tool then reports a clean scan. That failure mode is the
+       whole reason this file exists, so it gets a test.
+    2. A finding counts as callable only when its trace reaches a function.
+    """
+    ok = True
+
+    def check(label: str, got, want) -> None:
+        nonlocal ok
+        good = got == want
+        if not good:
+            ok = False
+        print(f"[{'PASS' if good else 'FAIL'}] self-test: {label} (got={got!r} want={want!r})")
+
+    # A pretty-printed stream: exactly what govulncheck writes, and exactly what
+    # a line-oriented parser cannot read.
+    stream = """{
+  "config": {
+    "scanner_name": "govulncheck",
+    "scanner_version": "v1.8.0",
+    "go_version": "go1.26.9"
+  }
+}
+{
+  "osv": {
+    "id": "GO-2026-0001",
+    "affected": [
+      {
+        "package": {"name": "example.com/callable"},
+        "ranges": [{"events": [{"fixed": "v1.2.3"}]}]
+      }
+    ]
+  }
+}
+{
+  "finding": {
+    "osv": "GO-2026-0001",
+    "trace": [{"function": "main.Run"}]
+  }
+}
+{
+  "osv": {
+    "id": "GO-2026-0002",
+    "affected": [
+      {"package": {"name": "example.com/notcalled"}, "ranges": [{"events": [{"fixed": "v2.0.0"}]}]}
+    ]
+  }
+}
+{
+  "finding": {
+    "osv": "GO-2026-0002",
+    "trace": [{"module": "example.com/notcalled"}]
+  }
+}
+"""
+
+    objects = decode_stream(stream)
+    check("pretty-printed stream decodes every object", len(objects), 5)
+
+    summary = build_summary(objects)
+    check("advisories considered", summary["totals"]["advisories_considered"], 2)
+    check("finding records", summary["totals"]["finding_records"], 2)
+    check("callable findings (only the one with a function)", summary["totals"]["callable_findings"], 1)
+    check("callable advisories", summary["totals"]["callable_advisories"], 1)
+    check("callable advisory ids", summary["callable_advisory_ids"], ["GO-2026-0001"])
+    check("the non-callable module is excluded", "example.com/notcalled" in summary["by_module"], False)
+    check("the callable module is present", "example.com/callable" in summary["by_module"], True)
+    check("toolchain version is read from config", summary["toolchain_go_version"], "go1.26.9")
+
+    # The fail-closed rule main() enforces: an unparseable stream yields zero
+    # records, which must never be reported as a clean scan.
+    empty = build_summary(decode_stream(""))
+    check("an empty stream parses to zero advisories", empty["totals"]["advisories_considered"], 0)
+
+    print("self-test:", "OK" if ok else "FAILED")
+    return 0 if ok else 1
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--input", type=Path, required=True)
+    parser.add_argument("--input", type=Path, default=None)
     parser.add_argument("--out-dir", type=Path, default=None)
     parser.add_argument("--sbom-dir", type=Path, default=None, help="also write the SBOM record here")
+    parser.add_argument("--self-test", action="store_true")
     args = parser.parse_args(argv)
+
+    if args.self_test:
+        return self_test()
+
+    if args.input is None:
+        parser.error("--input is required (or use --self-test)")
 
     if not args.input.is_file():
         print(f"error: {args.input} not found", file=sys.stderr)
