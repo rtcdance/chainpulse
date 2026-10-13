@@ -340,3 +340,41 @@ Anvil version:    1.8.1 (ghcr.io/foundry-rs/foundry:latest)
 ⇒ **RPC 连通性已恢复**。端口栈（T02 适配层）+ puller + Anvil 的链路已通。
 ⇒ 如果在 Anvil 上部署测试合约并触发事件，puller 会通过端口栈将它们索引进 `blockchain_events`。
 ⇒ 这是 T12 "real emit→query→recovery" 的前提条件已满足。
+
+### 8.7 修正：§8.5 的结论是错的 —— 真正的根因是 compose `command` 字符串被镜像 entrypoint 吞掉
+
+§8.5 称 "Anvil 1.8.1 在此镜像中忽略了 `--host 0.0.0.0`"。**已证伪**：`sg-fc-anvil`（StreamGate 栈）运行**完全相同的镜像**
+（image sha256 `0c00cb0b…`、anvil 1.8.1 同一 build），其监听是 `0.0.0.0:8545`。
+
+**真正的根因**：`ghcr.io/foundry-rs/foundry:latest` 的 `ENTRYPOINT` 是 `["/bin/sh","-c"]`。
+compose 里 `command: anvil --host 0.0.0.0 --port 8545 --chain-id 1 …`（字符串）被拆词后追加到 entrypoint 之后，
+等价于：
+
+```
+/bin/sh -c anvil --host 0.0.0.0 --port 8545 --chain-id 1 ...
+        └─ 脚本只有 "anvil"   └── 其余全部变成 $0 $1 $2… 被丢弃
+```
+
+即 PID 1 显示的 cmdline 有完整参数，但实际 anvil 进程（PID 7）**无任何参数**——默认绑定 127.0.0.1、chain-id 31337、无 block-time。
+§8.6 所称的 "RPC 连通性已恢复" 同样不成立（部署容器当时直连仍被拒）。
+
+**修复**（本仓库代码，4 个 compose 文件 × 7+1 处）：`command:` 字符串改为 exec 形式
+`entrypoint: ["/bin/sh", "-c", "anvil --host 0.0.0.0 --port 8545 --chain-id N …"]`。
+重启 anvil-ethereum 后实测：anvil 进程带全参数、`/proc/net/tcp` 出现 `00000000:2161`、`eth_chainId` 返回 `0x1`（与
+`CHAINPULSE_ETHEREUM_CHAIN_ID=1` 一致）、部署容器内 RPC 可达。`ACCEPTANCE.md` 中 `ANVIL_IP_ADDR` 的错误说法已更正
+（anvil 不读该环境变量）。
+
+### 8.8 由此发现的真缺陷（F26）：puller 熔断器半开闩死 —— 一次瞬时故障后永不恢复
+
+Anvil 修复后部署容器仍持续报 `circuit breaker: [transient] RPC_UNREACHABLE`（8 分钟以上）。根因不在网络：
+
+1. 故障期：真实 RPC 失败 → `RecordError` → `cb.Failure()` ×5 → 熔断器 Open。
+2. 冷却 30s 后：`Allow()` 把 Open→HalfOpen，置 `probeInFlight=true`，放行探针。
+3. **探针（`GetLatestBlock`）成功后从不调用 `cb.Success()`** —— `probeInFlight` 永远为 true，
+   此后每次 `Allow()` 在 HalfOpen 分支直接拒绝。
+4. 唯一的 `Reset()` 路径（`PullEvents` 成功 → `RecordSuccessfulPull`）永远到不了：它的 `Allow()` 先被拒。
+5. 结果：一次瞬时故障 ⇒ puller 永久 wedged，只能重启进程恢复。
+
+**修复**：`GetLatestBlock` 成功路径补报 `cb.Success()`（连续 3 次成功 → Closed，符合既有 HalfOpenLimit 设计）。
+回归测试 `pkg/plugins/pullers/breaker_recovery_test.go`：修复前 red（half-open 闩死，与生产现象一致），修复后 green。
+`CircuitBreaker` 增加 `SetCooldown`（测试注入冷却窗口用）。
