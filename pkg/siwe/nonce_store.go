@@ -48,9 +48,18 @@ func nonceKey(nonce string) string {
 // MemoryNonceStore is an atomic in-process store. It is correct for ONE
 // instance; a deployment with several instances needs RedisNonceStore, because
 // separate processes do not share this map.
+//
+// Memory is reclaimed opportunistically by Issue rather than by a background
+// goroutine: a goroutine would need a stop interface, and a store that is
+// dropped without being stopped leaks it. An issued-but-never-redeemed nonce
+// is removed the next time the map has grown past its sweep threshold.
 type MemoryNonceStore struct {
 	mu     sync.Mutex
 	nonces map[string]memoryNonce
+	// nextSweep is the map size at which Issue sweeps expired entries. It
+	// doubles after each sweep, so sweeping stays amortised O(1) per Issue
+	// even when every entry is still live.
+	nextSweep int
 }
 
 type memoryNonce struct {
@@ -58,9 +67,17 @@ type memoryNonce struct {
 	expiresAt time.Time
 }
 
+// initialSweepThreshold is the smallest map size that triggers a sweep. Below
+// it the waste is bounded by a few thousand small structs, which is cheaper
+// than scanning on every Issue.
+const initialSweepThreshold = 1024
+
 // NewMemoryNonceStore creates an empty in-process store.
 func NewMemoryNonceStore() *MemoryNonceStore {
-	return &MemoryNonceStore{nonces: make(map[string]memoryNonce)}
+	return &MemoryNonceStore{
+		nonces:    make(map[string]memoryNonce),
+		nextSweep: initialSweepThreshold,
+	}
 }
 
 // Issue implements NonceStore.
@@ -74,11 +91,38 @@ func (s *MemoryNonceStore) Issue(_ context.Context, address, nonce string, ttl t
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
+	if len(s.nonces) >= s.nextSweep {
+		s.sweepLocked()
+	}
+
 	s.nonces[nonce] = memoryNonce{
 		address:   normalizeAddress(address),
 		expiresAt: time.Now().Add(ttl),
 	}
 	return nil
+}
+
+// sweepLocked drops expired entries. The caller must hold mu.
+func (s *MemoryNonceStore) sweepLocked() {
+	now := time.Now()
+	for nonce, entry := range s.nonces {
+		if now.After(entry.expiresAt) {
+			delete(s.nonces, nonce)
+		}
+	}
+	s.nextSweep = len(s.nonces) * 2
+	if s.nextSweep < initialSweepThreshold {
+		s.nextSweep = initialSweepThreshold
+	}
+}
+
+// Len reports how many bindings are held, expired ones included. It exists so
+// tests can assert that the store is bounded.
+func (s *MemoryNonceStore) Len() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return len(s.nonces)
 }
 
 // Consume implements NonceStore. The delete happens BEFORE the comparison, so a

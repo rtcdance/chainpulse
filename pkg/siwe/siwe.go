@@ -1,6 +1,7 @@
 package siwe
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
@@ -12,6 +13,12 @@ import (
 
 	"github.com/rtcdance/chainpulse/pkg/core/crypto"
 )
+
+// issuedAtFutureSkew tolerates ordinary clock drift between the client that
+// stamps "Issued At" and the server that verifies it. A message stamped
+// further ahead than this is rejected: it is not yet valid, and accepting it
+// would let a client mint a long-lived assertion.
+const issuedAtFutureSkew = 5 * time.Minute
 
 // SIWEMessage represents an EIP-4361 Sign-In with Ethereum message.
 type SIWEMessage struct {
@@ -30,6 +37,12 @@ type SIWEMessage struct {
 }
 
 const siweVersion = "1"
+
+// SupportedVersion is the EIP-4361 message version this package issues and
+// accepts. Callers should pass it as VerifyOptions.Version: parsing defaults
+// the version to SupportedVersion and the field is part of the signed message,
+// so an explicit comparison is what actually rejects a downgraded message.
+func SupportedVersion() string { return siweVersion }
 
 func GenerateNonce() (string, error) {
 	buf := make([]byte, 16)
@@ -202,17 +215,27 @@ type VerifyOptions struct {
 	Domain  string
 	URI     string
 	ChainID *big.Int
+	Version string
 }
 
 // VerifySIWEWithOrigin verifies the message and additionally enforces that its
-// origin fields (domain, URI, chain ID) match the expected values.
+// origin fields (domain, URI, chain ID, version) match the expected values.
 //
 // This is the EIP-4361 anti-phishing check. VerifySIWE alone only proves the
 // message was signed by the claimed address — it accepts a message issued for
 // *any* domain, so a phished signature would be replayable against this service.
+//
+// The nonceValidator parameter is a legacy boolean predicate. It cannot consume
+// a nonce (a predicate has no side effect the caller can rely on) and it cannot
+// bind a nonce to an address, so it is subject to a check-then-act race. New
+// callers should use VerifySIWEWithStore instead.
 func (m *SIWEMessage) VerifySIWEWithOrigin(opts VerifyOptions, signature []byte, nonceValidator func(string) bool) error {
 	if err := m.VerifySIWE(signature, nonceValidator); err != nil {
 		return err
+	}
+
+	if !m.IssuedAt.IsZero() && time.Until(m.IssuedAt) > issuedAtFutureSkew {
+		return fmt.Errorf("issued at is in the future: %s", m.IssuedAt.Format(time.RFC3339))
 	}
 
 	// Domain comparison is case-insensitive: DNS host names are.
@@ -224,6 +247,47 @@ func (m *SIWEMessage) VerifySIWEWithOrigin(opts VerifyOptions, signature []byte,
 	}
 	if opts.ChainID != nil && (m.ChainID == nil || m.ChainID.Cmp(opts.ChainID) != 0) {
 		return fmt.Errorf("chain id mismatch: message chain ID %v does not match expected %v", m.ChainID, opts.ChainID)
+	}
+	if opts.Version != "" && m.Version != opts.Version {
+		return fmt.Errorf("version mismatch: message version %q does not match expected %q", m.Version, opts.Version)
+	}
+
+	return nil
+}
+
+// VerifySIWEWithStore is VerifySIWEWithOrigin plus atomic, address-bound nonce
+// consumption. This is the entry point a server should use.
+//
+// Why the store rather than the predicate: with a `func(string) bool` the
+// caller must check the nonce and then delete it as two separate steps, so two
+// concurrent verifications of the same nonce can both pass the check before
+// either deletes it — both then mint a session from one challenge. The store's
+// Consume does the compare and the delete in one atomic operation and returns
+// false for a nonce bound to a different address, so replay and address
+// substitution both collapse to a single winner.
+//
+// Ordering is deliberate: every check that does not depend on the nonce runs
+// first and the nonce is consumed LAST, so a message rejected for signature,
+// origin, version or expiry does not burn a nonce that was legitimately issued.
+// The complementary direction is covered by Consume itself, which burns the
+// nonce whatever the outcome of the address comparison — a single-use nonce
+// must not be retryable with a different address.
+func (m *SIWEMessage) VerifySIWEWithStore(ctx context.Context, opts VerifyOptions, signature []byte, store NonceStore) error {
+	if store == nil {
+		return fmt.Errorf("nonce store is required")
+	}
+
+	if err := m.VerifySIWEWithOrigin(opts, signature, nil); err != nil {
+		return err
+	}
+
+	// Bind to the address that actually signed, not to a claimed field.
+	consumed, err := store.Consume(ctx, m.Address.Hex(), m.Nonce)
+	if err != nil {
+		return fmt.Errorf("consume nonce: %w", err)
+	}
+	if !consumed {
+		return fmt.Errorf("invalid or already used nonce")
 	}
 
 	return nil

@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"math/big"
 	"net/http"
-	"sync"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -12,13 +11,16 @@ import (
 	"github.com/rtcdance/chainpulse/pkg/siwe"
 )
 
+// siweNonceTTL bounds how long a challenge stays redeemable.
+const siweNonceTTL = 10 * time.Minute
+
 // SIWEHandler manages EIP-4361 Sign-In with Ethereum authentication.
 // It provides two endpoints:
 //   - POST /api/v1/auth/siwe/challenge — get a nonce to sign
 //   - POST /api/v1/auth/siwe/verify — submit signed challenge for JWT
 type SIWEHandler struct {
 	tokenValidator *TokenValidator
-	nonceStore     *SIWENonceStore
+	nonceStore     siwe.NonceStore
 	domain         string
 	uri            string
 	chainID        *big.Int
@@ -29,6 +31,12 @@ type SIWEHandler struct {
 // NewSIWEHandler creates a SIWE authentication handler.
 // domain: the service domain (e.g., "chainpulse.example.com")
 // uri: the service URI (e.g., "https://chainpulse.example.com/login")
+//
+// The default nonce store is in-process. That is correct for a single instance
+// and only for a single instance: a second replica would keep its own map, so a
+// challenge issued by replica A could not be verified by replica B, and a nonce
+// consumed on A would still be redeemable on B. A multi-instance deployment
+// must call WithNonceStore with a shared store (siwe.NewRedisNonceStore).
 func NewSIWEHandler(
 	tokenValidator *TokenValidator,
 	domain, uri string,
@@ -38,13 +46,23 @@ func NewSIWEHandler(
 ) *SIWEHandler {
 	return &SIWEHandler{
 		tokenValidator: tokenValidator,
-		nonceStore:     NewSIWENonceStore(),
+		nonceStore:     siwe.NewMemoryNonceStore(),
 		domain:         domain,
 		uri:            uri,
 		chainID:        chainID,
 		logger:         logger,
 		metrics:        metrics,
 	}
+}
+
+// WithNonceStore replaces the nonce store, e.g. with a Redis-backed store that
+// is shared by every replica. A nil store is ignored. It returns the handler so
+// it can be chained onto NewSIWEHandler.
+func (h *SIWEHandler) WithNonceStore(store siwe.NonceStore) *SIWEHandler {
+	if store != nil {
+		h.nonceStore = store
+	}
+	return h
 }
 
 // challengeRequest accepts an Ethereum address and returns a SIWE challenge message.
@@ -92,7 +110,14 @@ func (h *SIWEHandler) HandleChallenge(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.nonceStore.Store(msg.Nonce, address)
+	// Issue binds the nonce to the requested address. If the store is
+	// unavailable the challenge is NOT returned: handing out a nonce that can
+	// never be consumed would only be verifiable by no one.
+	if err := h.nonceStore.Issue(r.Context(), address.Hex(), msg.Nonce, siweNonceTTL); err != nil {
+		h.logger.Error("failed to issue SIWE nonce", "error", err.Error())
+		WriteErrorEnvelope(w, ErrInternalServer("failed to generate challenge"))
+		return
+	}
 
 	WriteEnvelope(w, http.StatusOK, challengeResponse{
 		Message: msg.BuildMessage(),
@@ -132,24 +157,26 @@ func (h *SIWEHandler) HandleVerify(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	nonceValidator := func(nonce string) bool {
-		_, exists := h.nonceStore.Get(nonce)
-		return exists
-	}
-
-	// Verify against the origin we issued the challenge for. VerifySIWE alone
-	// would accept a message signed for any domain (EIP-4361 phishing).
-	if err := msg.VerifySIWEWithOrigin(siwe.VerifyOptions{
+	// Verify against the origin we issued the challenge for AND consume the
+	// nonce atomically. VerifySIWE alone would accept a message signed for any
+	// domain (EIP-4361 phishing); a check-then-delete nonce would let two
+	// concurrent replays of one challenge both succeed.
+	if err := msg.VerifySIWEWithStore(r.Context(), siwe.VerifyOptions{
 		Domain:  h.domain,
 		URI:     h.uri,
 		ChainID: h.chainID,
-	}, sig, nonceValidator); err != nil {
-		h.nonceStore.Delete(msg.Nonce)
-		WriteErrorEnvelope(w, ErrUnauthorized("SIWE verification failed: "+err.Error()))
+		Version: siwe.SupportedVersion(),
+	}, sig, h.nonceStore); err != nil {
+		// The reason is logged, not returned: it discloses the expected
+		// domain/URI/chain to an unauthenticated caller.
+		h.logger.Warn("SIWE verification rejected",
+			"error", err.Error(), "address", msg.Address.Hex())
+		if h.metrics != nil {
+			h.metrics.RecordCounter("siwe_auth_rejected", 1, map[string]string{"method": "siwe"})
+		}
+		WriteErrorEnvelope(w, ErrUnauthorized("SIWE verification failed"))
 		return
 	}
-
-	h.nonceStore.Delete(msg.Nonce)
 
 	subject := msg.Address.Hex()
 
@@ -168,63 +195,4 @@ func (h *SIWEHandler) HandleVerify(w http.ResponseWriter, r *http.Request) {
 		"token":   jwtToken,
 		"address": subject,
 	})
-}
-
-// SIWENonceStore tracks used SIWE nonces to prevent replay attacks.
-type SIWENonceStore struct {
-	mu     sync.RWMutex
-	nonces map[string]siweNonceEntry
-	ttl    time.Duration
-}
-
-type siweNonceEntry struct {
-	address   common.Address
-	createdAt time.Time
-}
-
-func NewSIWENonceStore() *SIWENonceStore {
-	s := &SIWENonceStore{
-		nonces: make(map[string]siweNonceEntry),
-		ttl:    10 * time.Minute,
-	}
-	go s.cleanupLoop()
-	return s
-}
-
-func (s *SIWENonceStore) Store(nonce string, address common.Address) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.nonces[nonce] = siweNonceEntry{address: address, createdAt: time.Now()}
-}
-
-func (s *SIWENonceStore) Get(nonce string) (common.Address, bool) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	entry, ok := s.nonces[nonce]
-	if !ok {
-		return common.Address{}, false
-	}
-	if time.Since(entry.createdAt) > s.ttl {
-		return common.Address{}, false
-	}
-	return entry.address, true
-}
-
-func (s *SIWENonceStore) Delete(nonce string) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	delete(s.nonces, nonce)
-}
-
-func (s *SIWENonceStore) cleanupLoop() {
-	ticker := time.NewTicker(5 * time.Minute)
-	for range ticker.C {
-		s.mu.Lock()
-		for nonce, entry := range s.nonces {
-			if time.Since(entry.createdAt) > s.ttl {
-				delete(s.nonces, nonce)
-			}
-		}
-		s.mu.Unlock()
-	}
 }
