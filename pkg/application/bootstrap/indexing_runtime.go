@@ -27,6 +27,12 @@ type InMemoryIndexingRuntimeOptions struct {
 	// (dedupe -> persist -> mark processed -> checkpoint) remains the only
 	// option. See finding F05.
 	Committer appindexing.AtomicBatchCommitter
+
+	// CheckpointStore, when set, replaces the default in-memory checkpoint
+	// store (I04). Deployed postgres deployments pass a PG-backed store so a
+	// restart resumes from the persisted position and the API's indexing_state
+	// read model becomes real.
+	CheckpointStore appindexing.CheckpointStore
 }
 
 func defaultMonolithicIndexingRuntimeDeps() monolithicIndexingRuntimeDeps {
@@ -145,7 +151,7 @@ func buildInMemoryIndexingRuntimeWithDeps(
 		Logger:          logger,
 		Source:          monolithicNoopEventSource{},
 		Sink:            sink,
-		CheckpointStore: newMonolithicMemoryCheckpointStore(normalizedChains),
+		CheckpointStore: resolveCheckpointStore(options.CheckpointStore, normalizedChains),
 		Idempotency:     newMonolithicMemoryIdempotencyStore(),
 		FailureRouter:   failures,
 		ReplaySource:    failures,

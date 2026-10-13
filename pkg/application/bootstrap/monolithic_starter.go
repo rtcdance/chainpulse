@@ -7,6 +7,7 @@ import (
 
 	appindexing "github.com/rtcdance/chainpulse/pkg/application/indexing"
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/infrastructure/database"
 	"github.com/rtcdance/chainpulse/pkg/plugins/api"
 	"github.com/rtcdance/chainpulse/pkg/services/indexing"
 )
@@ -72,9 +73,22 @@ func BuildMonolithicStarter(
 		"cache", indexingCache.Name())
 
 	// 3. Build and start shared indexing runtime
+	options := InMemoryIndexingRuntimeOptions{DLQRetention: 168 * time.Hour}
+	// I04: when the deployment asks for PostgreSQL, persist the shared
+	// runtime's checkpoints in `indexing_state` instead of an in-memory map,
+	// so a restart resumes from the persisted position and the API's
+	// indexing_state read model is written by the same pipeline that serves it.
+	if cfg.DatabaseType == "postgres" && cfg.DatabaseURL != "" {
+		if manager, ok := rw.DBManager.(*database.DefaultDatabaseManager); ok {
+			options.CheckpointStore = newPostgresCheckpointStore(database.NewPostgresCheckpointStore(manager))
+		} else {
+			logger.Warn("postgres checkpoint store unavailable — checkpoints stay in memory",
+				"db_manager_type", fmt.Sprintf("%T", rw.DBManager))
+		}
+	}
 	sharedRuntime, err := BuildMonolithicIndexingRuntimeWithOptions(
 		logger, indexingDB, indexingCache, chainIDs,
-		InMemoryIndexingRuntimeOptions{DLQRetention: 168 * time.Hour},
+		options,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("build indexing runtime: %w", err)
