@@ -162,3 +162,42 @@ export CHAINPULSE_TEST_DATABASE_URL='postgres://chainpulse:chainpulse_dev@127.0.
 go test -tags=integration -count=1 -run 'TestPostgresAtomic|TestPostgresRollback' ./test/contracts/...
 go test -race -count=1 ./pkg/plugins/mq/ -run 'TestPartitionKeyContract|TestNewChainMessage'
 ```
+
+---
+
+## 附：kill 矩阵完成（2026-10-13）
+
+E05 的另一半（"commit 前后 kill"）此前只有 SIGTERM 与"原子回滚"契约测试，**没有真正在提交中途打死进程**。本轮补上，并**把 kill 的时刻做成确定的**，而不是靠抖动碰运气。
+
+### 为什么必须确定时刻
+
+第一版用"抖动延时后 SIGKILL"（10 次）。20/20 通过 —— 但**通过不能证明什么**：如果信号每次都落在两个事务**之间**，"提交中途不留残迹"这条断言就是空转。这正是本轮之前反复出现的"假通过"形态。
+
+改用**可控事务窗口**：workload 新增 `CHAINPULSE_GRACEFUL_TX_DELAY_MS` —— 在"事件已写入事务"之后、"COMMIT"之前停顿，并打印 `begin tx N`。测试等到 `begin tx N` 再 SIGKILL ⇒ **确定落在事务内部**。
+
+### 两条边界（各 10 次，全 PASS）
+
+| 测试 | kill 时刻 | 断言 |
+| --- | --- | --- |
+| `TestCrashInsideCommitLeavesNothingBehind` | 等 `committed block 0` + `begin tx 1` 后立刻 SIGKILL（事务开着的 400ms 内） | checkpoint **恰为 0**、事件**恰为 3**、**max block 为 0** ⇒ **在途事务一点都没留下** |
+| `TestCrashAfterCommitKeepsTheBlock` | 等 3 次 `committed block` 后 SIGKILL | 一致前缀；随后以 `CHAINPULSE_GRACEFUL_START_FROM_CHECKPOINT=1` 重启，**从 checkpoint 续跑**（而非从 0 重放），checkpoint 必须前进 |
+
+共同不变量 `assertConsistentPrefix`：`events == (cp+1)*batch`、`count(distinct block) == cp+1`、min block 0、max block == cp、**每个块恰好 batch 条**。任一条不成立即为半提交或缺口。
+
+### 🔴 反向对照：证明断言**有区分力**
+
+`TestCrashInsideCommitNegativeControl` 用**同一个 workload、同一个 kill 窗口**，只改一处：事件与 checkpoint **分两个事务提交**（T05 之前 `CheckAndMark` + 单独写入 + 单独推进的形态）。用 `events committed N` 标记卡在"事件已提交、checkpoint 未提交"之间再 SIGKILL。实测对照：
+
+| 实现 | 事件数 | checkpoint | max block | 判定 |
+| --- | --- | --- | --- | --- |
+| **原子提交（生产）** | **3** | 0 | 0 | ✅ 一致前缀 |
+| **非原子对照** | **6** | 0 | **1** | ❌ **事件越过 checkpoint = 半提交** |
+
+⇒ 若生产线退回分步提交，`TestCrashInsideCommitLeavesNothingBehind` 的 `events == 3` / `max block == 0` 会**立刻失败**。控制组本身断言"**必须观察到不一致**"，所以它也不能空转。
+
+（首次跑控制组得到的是**一致前缀**——因为 kill 落在了**事件事务内部**，整个回滚了。加 `events committed N` 标记后才落在真正的夹缝里。**控制组也要被检查**。）
+
+### 覆盖边界声明（不夸大）
+
+- ✅ 已覆盖：DB 侧边界 —— persist / commit / mark / checkpoint **全在同一事务内**，故"事务内任意点被 kill"即覆盖这四处。
+- ❌ **未覆盖**：Kafka **ack 边界** —— 需要真实消费组与 broker（本机 broker 的 advertised listener 不可达，见 T16）。计划的 E05 把 ack 单列，此处不冒充已覆盖。

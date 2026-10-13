@@ -11,6 +11,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"os"
 	"os/signal"
@@ -19,6 +20,7 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
+	_ "github.com/lib/pq"
 
 	"github.com/rtcdance/chainpulse/pkg/application/bootstrap"
 	"github.com/rtcdance/chainpulse/pkg/blockchain"
@@ -34,6 +36,39 @@ func fatal(err error) {
 	os.Exit(1)
 }
 
+// startBlock returns the first block this process should commit.
+//
+// By default it starts at 0, which is what the SIGTERM test wants: a fresh
+// process replaying blocks 0..N proves that re-delivery folds into one effect.
+// With CHAINPULSE_GRACEFUL_START_FROM_CHECKPOINT=1 it instead resumes after the
+// durable checkpoint, which is what proves "rebuild from the checkpoint" rather
+// than "replay from the beginning".
+func startBlock(dsn, chainID string) uint64 {
+	if os.Getenv("CHAINPULSE_GRACEFUL_START_FROM_CHECKPOINT") != "1" {
+		return 0
+	}
+
+	db, err := sql.Open("postgres", dsn)
+	if err != nil {
+		fatal(err)
+	}
+	defer func() { _ = db.Close() }()
+
+	var block uint64
+	err = db.QueryRow(
+		"SELECT last_indexed_block FROM indexing_state WHERE chain_id = $1", chainID,
+	).Scan(&block)
+	if err == sql.ErrNoRows {
+		fmt.Println("no checkpoint yet, starting at block 0")
+		return 0
+	}
+	if err != nil {
+		fatal(err)
+	}
+	fmt.Printf("resuming after checkpoint, starting at block %d\n", block+1)
+	return block + 1
+}
+
 func main() {
 	dsn := os.Getenv("CHAINPULSE_TEST_DATABASE_URL")
 	chainID := os.Getenv("CHAINPULSE_GRACEFUL_CHAIN_ID")
@@ -47,6 +82,20 @@ func main() {
 			batchSize = n
 		}
 	}
+
+	// An optional pause between "the events are stored" and "the transaction
+	// commits". It exists so a crash test can land a signal inside the
+	// transaction deterministically instead of hoping a jittered timer happens
+	// to hit the window; the events are already written at that point, so a
+	// half-commit is exactly the failure mode being probed.
+	txDelay := time.Duration(0)
+	if v := os.Getenv("CHAINPULSE_GRACEFUL_TX_DELAY_MS"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n >= 0 {
+			txDelay = time.Duration(n) * time.Millisecond
+		}
+	}
+
+	first := startBlock(dsn, chainID)
 
 	ctx := context.Background()
 	adapter := database.NewPostgreSQLPluginAdapter(
@@ -73,11 +122,12 @@ func main() {
 		}
 	}()
 
-	for block := uint64(0); ; block++ {
+	for block := first; ; block++ {
 		if !drain.Begin() {
 			break // draining: no new batches
 		}
-		err := commitBatch(ctx, adapter, chainID, block, batchSize)
+		fmt.Printf("begin tx %d\n", block)
+		err := commitBatch(ctx, adapter, chainID, block, batchSize, txDelay)
 		drain.End()
 		if err != nil {
 			fatal(err)
@@ -95,7 +145,7 @@ func main() {
 
 // commitBatch writes batchSize events at `block` and advances the checkpoint to
 // that block, all inside one transaction.
-func commitBatch(ctx context.Context, a *database.PostgreSQLPluginAdapter, chainID string, block uint64, size int) error {
+func commitBatch(ctx context.Context, a *database.PostgreSQLPluginAdapter, chainID string, block uint64, size int, txDelay time.Duration) error {
 	tx, err := a.BeginTx(ctx)
 	if err != nil {
 		return err
@@ -122,6 +172,9 @@ func commitBatch(ctx context.Context, a *database.PostgreSQLPluginAdapter, chain
 	}
 	if err := tx.SaveCheckpoint(ctx, chainID, block, blockHash.Hex()); err != nil {
 		return err
+	}
+	if txDelay > 0 {
+		time.Sleep(txDelay)
 	}
 	return tx.Commit(ctx)
 }

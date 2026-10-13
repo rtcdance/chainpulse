@@ -13,7 +13,9 @@
       "id": "E02",
       "lane": "contracts",
       "summary": "zero-log block / 100x duplicate / out-of-order arrival",
-      "tests": ["TestPostgresBatchCommitter"],
+      "tests": [
+        "TestPostgresBatchCommitter"
+      ],
       "note": "covers the zero-log block and the all-duplicate block against a real Postgres; out-of-order arrival is covered by the digest order-independence tests, not by this case"
     },
     {
@@ -27,14 +29,20 @@
       "id": "E04",
       "lane": "contracts",
       "summary": "two-chain isolation: A rollback leaves B unchanged",
-      "tests": ["TestPostgresChainIsolation"]
+      "tests": [
+        "TestPostgresChainIsolation"
+      ]
     },
     {
       "id": "E05",
       "lane": "e2e",
       "summary": "commit-crash kill at boundaries + SIGTERM graceful shutdown",
-      "tests": ["TestSigtermGracefulShutdown"],
-      "note": "covers the SIGTERM graceful-shutdown half; the commit-crash half is exercised by the atomic-rollback contract test in the contracts lane"
+      "tests": [
+        "TestSigtermGracefulShutdown",
+        "TestCrashInsideCommitLeavesNothingBehind",
+        "TestCrashAfterCommitKeepsTheBlock"
+      ],
+      "note": "SIGTERM graceful shutdown, plus a kill inside the commit transaction and a kill after commits; each then resumes from the durable checkpoint. The Kafka ack boundary is NOT covered - it needs a reachable broker. TestCrashInsideCommitNegativeControl is deliberately NOT listed: it asserts a non-atomic implementation leaks, so it is a control, not an acceptance case."
     },
     {
       "id": "E06",
