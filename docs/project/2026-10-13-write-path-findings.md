@@ -310,3 +310,33 @@ p.offsets.mu.Unlock()
 ### 8.4 `env.Get` 的**双前缀查找**
 
 `pkg/env/env.go` 的 `Get(key, default)` 先查 `CHAINPULSE_<key>`，再查 `<key>`。所以 `env.Get("BLOCKCHAIN_NODE_URL", …)` 先找 `CHAINPULSE_BLOCKCHAIN_NODE_URL`，再找 `BLOCKCHAIN_NODE_URL`。**两个名字都能用**。同理，`env.Get("CHAINPULSE_ETHEREUM_NODE_URL", …)` 先找 `CHAINPULSE_CHAINPULSE_ETHEREUM_NODE_URL`，再找 `CHAINPULSE_ETHEREUM_NODE_URL`。
+
+### 8.5 🔴 Anvil Docker 容器**不绑定 0.0.0.0** —— 端到端事件流的最终阻塞项
+
+**证据链**（全部来自容器内检查）：
+
+```
+/proc/1/cmdline:  anvil --host 0.0.0.0 --port 8545 --chain-id 1 --accounts 5 --balance 10000 --block-time 3
+/proc/net/tcp:    0100007F:2161 (= 127.0.0.1:8545, LISTEN)     ← 只有 loopback！
+                  0B00007F:B6B5 (= 127.0.0.11:46773, Docker DNS)
+Anvil version:    1.8.1 (ghcr.io/foundry-rs/foundry:latest)
+```
+
+**没有 `0.0.0.0:8545` 监听器。** Anvil 1.8.1 在此 Docker 镜像中忽略了 `--host 0.0.0.0`。
+⇒ 同一 docker 网络上的其他容器无法连接 port 8545。
+⇒ PostgreSQL（同一网络）**是可达的** ⇒ Docker 容器间通信本身是通的，**只有 Anvil 的端口不可达**。
+
+**修复方式**（均需改 Docker 基础设施，非代码改动）：
+- 使用较旧的 Foundry 镜像（`--host` 在旧版中有效）
+- 或用 `--network host` 启动 Anvil（共享宿主网络栈）
+- 或在 Anvil 容器内用 `socat` 把 0.0.0.0:8545 转发到 127.0.0.1:8545
+
+**影响**：T12 的 "real emit→query" 端到端验证被此基础设施问题阻塞。**所有代码路径已就绪**（端口栈已接线、puller 配置正确、PG 适配层已连接）。
+
+### 8.6 部署演练在 Anvil 重启后 **RPC 错误归零**
+
+重启 `chainpulse-anvil-ethereum` 后，部署容器内的 puller **不再报 `RPC_UNREACHABLE`**（之前每次 poll 都报错）。
+`blockchain_events` = 0（预期：Anvil 全新链上无合约部署 ⇒ 无 ERC20 事件可索引）。
+⇒ **RPC 连通性已恢复**。端口栈（T02 适配层）+ puller + Anvil 的链路已通。
+⇒ 如果在 Anvil 上部署测试合约并触发事件，puller 会通过端口栈将它们索引进 `blockchain_events`。
+⇒ 这是 T12 "real emit→query→recovery" 的前提条件已满足。
