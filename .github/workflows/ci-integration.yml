@@ -116,6 +116,19 @@ jobs:
     name: Contract Tests
     runs-on: ubuntu-latest
     services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: chainpulse
+          POSTGRES_PASSWORD: chainpulse_test
+          POSTGRES_DB: chainpulse_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
       redis:
         image: redis:7-alpine
         options: >-
@@ -125,6 +138,15 @@ jobs:
           --health-retries 5
         ports:
           - 6379:6379
+    # F13: these are the names the contract tests actually read. This job used to
+    # set TEST_REDIS_URL, which no test reads, and provisioned no database at all,
+    # so every Postgres and Redis contract test skipped while the job still
+    # reported success. See docs/project/2026-10-14-f13-contract-lane.md.
+    env:
+      CHAINPULSE_RUN_POSTGRES_INTEGRATION: '1'
+      CHAINPULSE_TEST_DATABASE_URL: postgres://chainpulse:chainpulse_test@localhost:5432/chainpulse_test?sslmode=disable
+      CHAINPULSE_RUN_REDIS_INTEGRATION: '1'
+      CHAINPULSE_TEST_REDIS_URL: redis://localhost:6379/0
     steps:
     - uses: actions/checkout@v6
 
@@ -134,18 +156,25 @@ jobs:
         go-version-file: go.mod
         cache: true
 
-    - name: Run contract tests
-      env:
-        TEST_REDIS_URL: localhost:6379
+    - name: Apply migrations
       run: |
         set -euo pipefail
-        # F13: the contract suite is currently EMPTY (0 tests). An empty suite
-        # must not present as green on a PR, so this job is intentionally RED
-        # until T02 adds the real Postgres/Redis/Kafka adapter runners.
+        # The Postgres contract tests read an existing schema rather than
+        # creating one, so the database must be migrated before they run.
+        go run ./cmd/migrate/ -db "$CHAINPULSE_TEST_DATABASE_URL" -path migrations up
+
+    - name: Run contract tests
+      run: |
+        set -euo pipefail
+        # F13: --fail-on-unknown-skip is the guard that was missing. --min-tests 1
+        # only catches an EMPTY suite; it passes happily when every Postgres and
+        # Redis test skips, which is how this job reported green while the real
+        # adapters were never exercised.
         go test -json -race -timeout=5m -tags=integration \
           ./test/contracts/... | tee contracts-output.jsonl
         python3 scripts/acceptance/verify-tests.py \
           --jsonl contracts-output.jsonl --min-tests 1 \
+          --fail-on-unknown-skip \
           --report contracts-report.json
 
   e2e:
