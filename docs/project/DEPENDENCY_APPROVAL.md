@@ -38,17 +38,17 @@ Approved by: mingo (2026-06-07) — in-flight refactor (massive dead code remova
 
 ### Go Toolchain
 
-#### Go 1.26.6 (bumped from 1.26.0)
+#### Go 1.26.9 (bumped from 1.26.6, originally 1.26.0)
 - **Purpose**: Build toolchain and standard library
-- **Why**: The Go 1.26.0 standard library carries 35 advisories reported by govulncheck. 1.26.6 is the first patch release that clears them, and a standard-library fix cannot be taken without moving the toolchain.
+- **Why**: govulncheck reports advisories against the standard library itself, and they can only be fixed by moving the toolchain. 1.26.0 carried 35; moving to 1.26.6 cleared those. A later scan then reported 6 *newer* stdlib advisories (GO-2026-6600, 6603, 6607, 6610, 6612, 6613 — `net/http`, `net/textproto`, `crypto/tls`, `html/template`) whose fix lands in **1.26.9**, so the target moved again. The lesson is that the target version has to be re-derived from the database, not fixed once.
 - **Why not stdlib**: not applicable — this *is* the standard library.
-- **Alternatives**: stay on 1.26.0 and suppress the advisories — rejected, because it would ship known-vulnerable stdlib code in the binary.
+- **Alternatives**: stay on an older patch and suppress the advisories — rejected, because it would ship known-vulnerable stdlib code in the binary.
 - **License**: BSD-3-Clause (Go)
 - **Size**: not applicable (build-time only; no runtime footprint)
 - **Scope**: build toolchain. Declared in `go.mod`, `go.work` and the six `pkg/*` submodules (8 declarations total). CI uses `go-version-file: go.mod` or `go-version: '1.26'`; the Dockerfiles use `golang:1.26-alpine` — all of which track the 1.26 line.
-- **Security**: clears 35 stdlib advisories
+- **Security**: clears 35 stdlib advisories (via 1.26.6) and a further 6 (via 1.26.9); stdlib findings now 0
 - **Approved by**: mingo
-- **Date**: 2026-10-13
+- **Date**: 2026-10-13 (1.26.6), 2026-10-14 (1.26.9)
 
 #### github.com/ethereum/go-ethereum v1.13.0
 - **Purpose**: Ethereum client library
