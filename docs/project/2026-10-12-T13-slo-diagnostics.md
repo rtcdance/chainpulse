@@ -2,8 +2,10 @@
 
 > 对应任务：`docs/specs/2026-10-12-web3-go-backend-delivery-plan.md` §5 的 **T13 / P1 / 6h**。
 > 状态：**In Progress** —— 标签基数守卫与采集/提交/finalized 三相 lag 已完成并验证；
+> **`MetricLabelGuard` 已完成生产接线（2026-10-13，提交 270ff18 / ac76352）**；
+> **`LagRecorder` / `IndexerMetrics` / `IndexerHealth` 仍未接线**，且经核查**在生产中根本没有调用方**（见 §4.1）；
 > trace 跨 MQ 连续性、readiness/liveness 拆分、告警↔runbook 对应、故障注入下的指标变化未做。
-> 日期：2026-10-12，Asia/Singapore。
+> 日期：2026-10-12（§4.1 更新于 2026-10-13），Asia/Singapore。
 
 ---
 
@@ -68,8 +70,40 @@ type MetricsCollector interface {
 
 ## 4. 未完成（T13 剩余）
 
-- [ ] **接线**：`MetricLabelGuard` / `LagRecorder` 尚未接进启动路径（调用方仍直接用裸 collector）。
+- [x] **`MetricLabelGuard` 接线（2026-10-13 完成）**：见 §4.2。
+- [ ] **`LagRecorder` / `IndexerMetrics` / `IndexerHealth` 接线**：见 §4.1 —— 比"没接"更严重：**生产代码里没有任何调用方**。
 - [ ] **trace 跨 MQ 连续**。
 - [ ] **readiness 看依赖与处理可用性、liveness 看进程**（`indexer_health.go` 需按此拆分）。
 - [ ] **每个告警对应 runbook**（`monitoring/prometheus`、`alerts.go` 需补齐映射）。
 - [ ] **故障注入验收**：注入 RPC/DB/MQ 故障时指标与告警按预期出现、恢复后消退。
+
+### 4.1 核查发现：lag / health 指标在生产中是**死代码**（2026-10-13）
+
+上一版只写了"尚未接进启动路径"。实际核查（`grep -rn <sym> --include="*.go" pkg/ cmd/ | grep -v _test.go`）比这更糟：
+
+| 符号 | 生产调用方 |
+| --- | --- |
+| `NewIndexerMetrics` | **无**（仅定义在 `indexer_metrics.go`） |
+| `NewIndexerHealth` | **无**（仅定义在 `indexer_health.go`） |
+| `NewLagRecorder` | **无**（仅定义在 `indexer_lag.go`） |
+| `RecordIndexingProgress` | **仅测试**（`indexer_metrics_test.go`、`indexer_health_test.go`） |
+
+**推论（可直接验证）**：
+
+1. `IndexerMetrics` 从未被实例化 ⇒ `IndexingLag` 字段永远是零值；
+2. `IndexerHealth.CheckHealth()` 读的正是该字段 ⇒ 即使被构造，也只会报 `indexing_lag = 0`；
+3. `indexer_metrics.go:388` 的 `mc.RecordGauge("chainpulse_indexer_lag", …)` 因此**在生产中永不发出**；
+4. 现行 `/health` 处理器（`pkg/plugins/api/health_check_handler.go`）**根本不含 lag 字段** —— 也就是说，**这条链路的"滞后"信号目前完全不存在**，不是"数值不准"。
+
+**为什么不能顺手接上**：三相 lag 需要四个高度来源（链头、puller 已观测最高块、checkpoint、已 finalized 最高块），而运行时的 `EventSource` 接口**只有 `Fetch`**（`pkg/application/indexing/runtime.go:30`），没有任何链头来源；`CheckpointStore` 只提供 checkpoint。⇒ 接线的前提是**先引入一个链头来源**（接口 + 依赖注入），这是一个需要明确设计的改动，不是一行接线。
+
+### 4.2 `MetricLabelGuard` 接线（已完成）
+
+`observability.Guarded(inner)` 一行包装（nil inner 回退而非 panic），接到：
+
+- `pkg/application/bootstrap/providers.go` 的 `provideMetrics()`（DI 路径）；
+- 5 个入口点 —— `cmd/monolithic/chainpulse/main.go`、`cmd/microservices/{api-service,api-gateway,event-processor,puller}/main.go`（后 4 个新增 `pkg/observability` import）。
+
+核对：`grep -rn "NewDefaultMetricsCollector()" --include="*.go" pkg/ cmd/ | grep -v _test.go` 现在只剩定义处与 `pkg/testhelpers/test_helpers.go`（测试助手，理应保持裸 collector）。⇒ **guard 的生产接线 100% 完成**，`tx_hash`/`address`/`block_height` 等无界标签在生产中会被 redact 而非每事件一条序列。
+
+测试：`providers_test.go` 断言 provider 返回的确是 `*MetricLabelGuard` 且 `tx_hash` 被 redact；`metric_labels_test.go` 增 `TestGuardedWrapsAndRedacts`、`TestGuardedNilInnerFallsBack`。`go build ./...`、`go vet ./cmd/...`、`gofumpt`、`make test-short` 均通过。
