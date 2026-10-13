@@ -10,6 +10,7 @@ package contracts
 
 import (
 	"context"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -123,6 +124,53 @@ func TestPostgresDatabaseContract(t *testing.T) {
 	})
 }
 
+// TestRedisCacheContract runs the cache contract against the Redis adapter
+// (RedisCachePluginAdapter), which satisfies core.CachePlugin.
+//
+// Gated on a reachable Redis because the short lane must not require one. Point
+// the URL at a DISPOSABLE database index — the underlying plugin's Delete and
+// Clear operate on that index's whole keyspace:
+//
+//	CHAINPULSE_RUN_REDIS_INTEGRATION=1 \
+//	CHAINPULSE_TEST_REDIS_CACHE_URL='redis://127.0.0.1:6379/15'
+func TestRedisCacheContract(t *testing.T) {
+	url := redisCacheURL()
+	if url == "" {
+		t.Skip("set CHAINPULSE_RUN_REDIS_INTEGRATION=1 and CHAINPULSE_TEST_REDIS_CACHE_URL (or CHAINPULSE_TEST_REDIS_URL) to run the Redis cache contract")
+	}
+
+	CacheContractTest(t, func(t *testing.T) core.CachePlugin {
+		t.Helper()
+		a := cache.NewRedisCachePluginAdapter(
+			testhelpers.NewTestLogger(),
+			testhelpers.NewTestMetricsCollector(),
+		)
+		require.NoError(t, a.Initialize(&core.Config{CacheConnectionURL: url}))
+		require.NoError(t, a.Start(context.Background()))
+		t.Cleanup(func() { _ = a.Stop(context.Background()) })
+
+		// Start degrades to the in-memory store when Redis is unreachable and
+		// still returns nil, so without this the suite would run against memory
+		// and report "Redis verified". Fail loudly instead.
+		require.True(t, a.Connected(),
+			"the Redis plugin fell back to its in-memory store, so nothing here would have exercised Redis")
+		return a
+	})
+}
+
+// redisCacheURL returns the DSN for the Redis cache contract, or "" when the
+// lane is not enabled. CHAINPULSE_TEST_REDIS_CACHE_URL wins over the generic
+// CHAINPULSE_TEST_REDIS_URL so the cache suite can use its own index.
+func redisCacheURL() string {
+	if os.Getenv("CHAINPULSE_RUN_REDIS_INTEGRATION") != "1" {
+		return ""
+	}
+	if url := os.Getenv("CHAINPULSE_TEST_REDIS_CACHE_URL"); url != "" {
+		return url
+	}
+	return os.Getenv("CHAINPULSE_TEST_REDIS_URL")
+}
+
 // TestPortConformanceGaps is a tripwire, not an acceptance test.
 //
 // FINDING (T02): three of the four production/in-memory adapters do NOT
@@ -134,14 +182,16 @@ func TestPostgresDatabaseContract(t *testing.T) {
 //     GetEvent(ctx, id). Signature mismatch, not just a missing method.
 //  3. cache.RedisCachePlugin — exposes Get(key) (*CacheEntry, error) and
 //     Set(*CacheEntry); pkg/ports requires Get(ctx, key) ([]byte, error) and
-//     Set(ctx, key, value, ttl).
+//     Set(ctx, key, value, ttl). RESOLVED for the port surface by
+//     RedisCachePluginAdapter (see TestRedisCacheContract); the raw plugin is
+//     deliberately left alone because it has existing callers.
 //
 // Consequence: the contract suite can only bind the monolithic in-memory
-// implementations today, and §7.3's requirement "every required production
-// factory has executed > 0 cases" cannot be met for Postgres/Redis until an
-// adapter layer (or signature alignment) lands. This test fails on purpose the
-// moment an adapter starts conforming, so its contract runner must be added in
-// the same change.
+// implementations plus the two adapter layers today, and §7.3's requirement
+// "every required production factory has executed > 0 cases" is unmet for
+// database.DefaultInMemoryDatabasePlugin. This test fails on purpose the moment
+// an adapter starts conforming, so its contract runner must be added in the same
+// change.
 func TestPortConformanceGaps(t *testing.T) {
 	t.Parallel()
 
@@ -175,4 +225,9 @@ func TestPortConformanceGaps(t *testing.T) {
 	// The Postgres adapter layer DOES satisfy the port (T02 "adapter layer").
 	_, pgAdapterOK := any(database.NewPostgreSQLPluginAdapter(logger, metrics)).(core.DatabasePlugin)
 	assert.True(t, pgAdapterOK, "PostgreSQLPluginAdapter must satisfy core.DatabasePlugin")
+
+	// The Redis adapter layer satisfies the port while the raw plugin still does
+	// not, which is the whole point of the wrapper.
+	_, redisAdapterOK := any(cache.NewRedisCachePluginAdapter(logger, metrics)).(core.CachePlugin)
+	assert.True(t, redisAdapterOK, "RedisCachePluginAdapter must satisfy core.CachePlugin")
 }
