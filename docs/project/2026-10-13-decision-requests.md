@@ -53,6 +53,19 @@
 - **选项**：把 `kafka → 127.0.0.1` 加进 `/etc/hosts`（需 sudo），或改 broker 的 `KAFKA_ADVERTISED_LISTENERS`（需重启服务，会影响并行会话的 `cp-t12` 等容器）。
 - **不做的后果**：I06 的修复只有库语义 + 回归测试背书，**没有真实重投递跑通**。
 
+## D9. 吞吐 property test 怎么处置？（`test/e2e`）
+
+- **问题**：`TestPropertyThroughputConsistency`（`test/e2e/performance_manager_property_test.go:196`）断言 10 轮**墙钟吞吐**各轮与均值偏差 ≤50%。机器有负载时某一轮被抢占即假失败。实测：单独跑 6/6 PASS；全量 `./...` 第 1 次 FAIL（`-75.4%`）、第 2 次 PASS；当时 load 7.4–9.2。
+- **为什么需要决策**：它断言的是**调度器**而非代码性质；调整阈值/断言接近"降低指标目标"，计划对此有明确纪律，故不擅改。
+- **选项**：(a) `-short` 下跳过（`-short` 语义正是跳过慢/负载敏感用例）；(b) 改断言为代码可控的性质（吞吐为正 + 各轮事件数达标），去掉墙钟比较；(c) 保留现状，但把 §10 该条明确为"逐模块"而非根 `./...`。
+- **证据**：`2026-10-13-workspace-modules-verification.md` §3。
+
+## D10. 嵌套模块是否要纳入常规门禁？
+
+- **问题**：`go.work` 有 7 个模块，但 `./...` **不进入**嵌套模块（根目录 89 个包，6 个子模块贡献 0）。于是 `make test-short`、`go build ./...`、`go vet ./...`、以及 PR 模板要求的 `make build`/`make test-unit`/`make vet` **全都漏掉** `pkg/{blockchain,chainid,configmodel,histogram,logkeys,runtimetypes}`。
+- **选项**：(a) 在各 Makefile 目标里显式遍历 `go.work` 的模块；(b) 加一个 CI job 逐模块 build/vet/test；(c) 维持现状，接受这 6 个模块只在被 import 时才编译。
+- **证据**：`2026-10-13-workspace-modules-verification.md` §1、§4.3。
+
 ---
 
 ## 决策后我可以立刻执行的事
@@ -65,5 +78,7 @@
 | D4 | outbox drainer 接线（选 b 的话不需要新子系统） |
 | D5/D6/D7 | 各自接线 + 验收测试 |
 | D8 | 跑 `TestKafkaRedeliveryKeepsEffectSingle`，把 I06 从"库语义背书"升级为"实测通过" |
+| D9 | 按选定方案改该 property test，并连续跑 N 次证明不再间歇失败 |
+| D10 | 改 Makefile 目标 + 加 CI job，逐模块 build/vet/test 并留原始输出 |
 
 > 说明：本文件只记录**需要拍板的问题**，不含任何未决的代码改动。以上每一项我都可以在得到答复后立即执行并给出实测证据。
