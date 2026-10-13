@@ -77,6 +77,15 @@
 
 ---
 
+## D12. CI 门禁载体（`acceptance-gate` + ruleset + 分支过滤）
+
+- **现状（`gh api` 实测）**：
+  - **`acceptance-gate` job 不存在**；计划 §7.3 的 lane 名（`quality`/`unit-race`/`contracts`/`evm-e2e`/`frontend-api`/`security`）**一个都不是 job 名**。最接近的 `notify` 只在夜间失败时开 issue，**不汇总 required checks**。
+  - `gh api repos/:owner/:repo/rulesets` → **`[]`**（无 ruleset，且有读权限、确为空）；`branches/main/protection` → **404**（未配置）；`permissions.admin` → **false**（活动账号 `codex689` 仅 `repo` scope，无 admin）。
+  - **默认分支是 `master`**，但 `test.yml`/`coverage.yml`/`metrics.yml`/`ci.yml` 的分支过滤是 `[main, develop]`（不含 `master`）⇒ **主测试门禁在默认分支上不触发**。
+- **需要决策/权限**：(a) 谁来给 admin（或换 `rtcdance` 账号）；(b) 默认分支改成 `main` 还是给 4 个 workflow 补 `master`；(c) lane 名是否统一到计划 §7.3 的词汇。
+- **证据**：`2026-10-13-ci-gate-audit.md`（含全部命令与原始输出）。
+
 ## 决策后我可以立刻执行的事
 
 | 决策 | 立刻可做 |
@@ -90,5 +99,6 @@
 | D9 | 按选定方案改该 property test，并连续跑 N 次证明不再间歇失败 |
 | D10 | 改 Makefile 目标 + 加 CI job，逐模块 build/vet/test 并留原始输出 |
 | D11 | 填 allow-list（或消除 skip）+ 在 CI 打开 `--fail-on-unknown-skip`，并留原始输出 |
+| D12 | 拿到 admin 后：建 `acceptance-gate` job（`needs` 全部 required + `always()` + 逐条断言 success）+ 配 ruleset + 对齐分支过滤 |
 
 > 说明：本文件只记录**需要拍板的问题**，不含任何未决的代码改动。以上每一项我都可以在得到答复后立即执行并给出实测证据。
