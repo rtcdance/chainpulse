@@ -20,7 +20,10 @@ at-least-once delivery, and finality that differs by chain.
 
 **What it is not:** a bridge, an MEV or account-abstraction implementation, or a
 multi-chain production deployment. The widest thing exercised is a two-chain
-isolation test and a single-chain load path.
+isolation test and a single-chain load path. It also has **no gRPC API**: there
+is a `.proto` with message definitions and a protocol detector that can
+*recognise* gRPC traffic, but no generated code, service definition, server or
+client, so gRPC is neither served nor consumed.
 
 See the [English project summary](docs/project/2026-10-13-english-summary.md) for
 the evidenced results, the support boundary, and the design decisions
@@ -129,7 +132,7 @@ See [docs/README.md](docs/README.md) for complete documentation index.
 - **[Project Docs](docs/project/README.md)** - Project-level guardrails and operational guidance
 - **[Developer Guide](docs/guides/DEVELOPER_GUIDE.md)** - Development setup and guidelines
 - **[Deployment Guide](docs/guides/DEPLOYMENT_GUIDE.md)** - Deployment procedures
-- **[API Documentation](docs/guides/API_DOCUMENTATION.md)** - REST, gRPC, and WebSocket APIs
+- **[API Documentation](docs/guides/API_DOCUMENTATION.md)** - REST and WebSocket APIs
 - **[Operations Guide](docs/guides/OPERATIONS_GUIDE.md)** - Monitoring and maintenance
 
 ## 🏗️ Project Structure
@@ -165,11 +168,11 @@ chainpulse/
 │   ├── domain/            # Domain models
 │   ├── application/       # Use cases and orchestration
 │   ├── plugins/           # Plugin implementations
-│   │   ├── api/           # API plugins (REST, gRPC, GraphQL, WebSocket)
+│   │   ├── api/           # API plugins (REST, GraphQL, WebSocket)
 │   │   ├── cache/         # Caching implementations
 │   │   ├── database/      # Database drivers (PostgreSQL, in-memory)
 │   │   ├── mq/            # Message queue implementations (Kafka)
-│   │   └── pullers/       # Data collection (HTTPS, WebSocket, gRPC)
+│   │   └── pullers/       # Data collection (HTTPS, WebSocket)
 │   ├── services/          # Business logic (indexing, processor, reorg, finality, query)
 │   ├── evm/               # EVM typed event decoding
 │   ├── siwe/              # Sign-In With Ethereum and the nonce store
@@ -220,7 +223,7 @@ flowchart LR
 
   subgraph SRV["Serve"]
     QRY["services/query<br/>DegradingReader"]
-    API["plugins/api<br/>REST · gRPC · WS"]
+    API["plugins/api<br/>REST · WS"]
     SIWE["siwe<br/>nonce store"]
   end
 
@@ -266,11 +269,11 @@ Set via: `export DEPLOYMENT_MODE=monolithic` or `export DEPLOYMENT_MODE=microser
 
 | Feature              | Details                                                     |
 | -------------------- | ----------------------------------------------------------- |
-| **Data Collection**  | Multiple protocols (HTTPS-JSONRPC, WebSocket-JSONRPC, gRPC) |
+| **Data Collection**  | Multiple protocols (HTTPS-JSONRPC, WebSocket-JSONRPC)       |
 | **Event Processing** | Idempotency, batch processing, error recovery               |
 | **Caching**          | Redis and in-memory backends with TTL support               |
 | **Persistence**      | PostgreSQL and MongoDB support                              |
-| **APIs**             | REST, gRPC, and WebSocket protocols                         |
+| **APIs**             | REST and WebSocket protocols                                |
 | **Deployment**       | Monolithic and microservice modes                           |
 | **Observability**    | Metrics, logging, tracing, health checks                    |
 | **Resilience**       | Error handling, retry logic, graceful shutdown              |
