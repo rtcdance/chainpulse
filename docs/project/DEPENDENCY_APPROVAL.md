@@ -36,6 +36,20 @@ Approved by: mingo (2026-06-07) — in-flight refactor (massive dead code remova
 
 ### Current Approved
 
+### Go Toolchain
+
+#### Go 1.26.6 (bumped from 1.26.0)
+- **Purpose**: Build toolchain and standard library
+- **Why**: The Go 1.26.0 standard library carries 35 advisories reported by govulncheck. 1.26.6 is the first patch release that clears them, and a standard-library fix cannot be taken without moving the toolchain.
+- **Why not stdlib**: not applicable — this *is* the standard library.
+- **Alternatives**: stay on 1.26.0 and suppress the advisories — rejected, because it would ship known-vulnerable stdlib code in the binary.
+- **License**: BSD-3-Clause (Go)
+- **Size**: not applicable (build-time only; no runtime footprint)
+- **Scope**: build toolchain. Declared in `go.mod`, `go.work` and the six `pkg/*` submodules (8 declarations total). CI uses `go-version-file: go.mod` or `go-version: '1.26'`; the Dockerfiles use `golang:1.26-alpine` — all of which track the 1.26 line.
+- **Security**: clears 35 stdlib advisories
+- **Approved by**: mingo
+- **Date**: 2026-10-13
+
 #### github.com/ethereum/go-ethereum v1.13.0
 - **Purpose**: Ethereum client library
 - **Why**: Core Web3 functionality (RPC, ABI, crypto)

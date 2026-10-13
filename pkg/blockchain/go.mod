@@ -1,7 +1,6 @@
 module github.com/rtcdance/chainpulse/pkg/blockchain
 
-go 1.26.0
-
+go 1.26.6
 require github.com/ethereum/go-ethereum v1.16.8
 
 require (
