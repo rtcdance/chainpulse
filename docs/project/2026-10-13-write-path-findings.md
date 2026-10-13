@@ -434,3 +434,39 @@ API 读的 `indexing_state` 是一张**没有任何写入者的表**（I04 的�
 **实证**：重新部署后 mint 一笔 NFT → `indexing_state` 出现真实行
 （`ethereum | 620 | | ethereum:620:0 | 07:53:14`），`blockchain_events` 同步落库（3 行），持久化错误 0。
 API 的 indexing_state 读模型自此由写入它的同一条流水线供给。
+
+## 10. 补充发现：原子路径不能靠"设一个 Committer"启用（2026-10-13 晚）
+
+交接 §6.2 把 F05 收尾描述为"部署路径 `options.Committer` 仍为空，接 `BeginFencedTx` + `chain_leases`"。
+核查后，**这一步不是一行接线**，有两个彼此独立的阻塞。
+
+### 10.1 接口缺 chain 维度（设计缺口）
+
+- `AtomicBatchCommitter.CommitBlock(ctx, blockNumber, blockHash, events)`（`pkg/application/indexing/runtime.go:47`）**没有 chainID 形参**；
+- 而 `processor.BatchCommitter` 是**按单链构造**的（`NewBatchCommitter(store, gate, chainID, ownerToken, ttl)`），lease 用的是**构造时固定的 chainID**（`AcquireLease(ctx, c.chainID, …)`、`BeginFencedTx(ctx, c.chainID, …)`，见 `pkg/services/processor/batch_committer.go`、`pkg/plugins/database/postgres_lease.go`）；
+- `ProcessBatchAtomic(ctx, chainID, events)`（`runtime.go:515`）**拿到了 chainID 却不往下传**（`runtime.go:565` 只传 block/hash/events）。
+
+⇒ `RuntimeDeps.Committer` 是**单个** committer，而运行时服务**多条链**（starter 传 `chainIDs`）。把一个单链 `BatchCommitter` 塞进去，在第二条链上会**用第一条链的 lease 去写第二条链的事件**——违反 I01（链作用域），是正确性 bug 而非配置疏漏。这很可能正是它被留空的原因。
+
+### 10.2 原子路径在生产中**没有调用方**
+
+`ProcessBatchAtomic` 的调用方**全部是测试**（`runtime_atomic_test.go`、`indexing_runtime_committer_test.go`）。部署路径走的是**四步** `ProcessBatch`：
+
+```
+pkg/services/indexing/chain_indexer.go:168
+    dci.sharedRuntime.ProcessBatch(ctx, dci.chainID, envelopes)
+```
+
+⇒ 即使把 Committer 接上，**原子路径也不会执行**，半提交窗口仍在。
+
+### 10.3 因此 F05 收尾需要三处协同改动（建议顺序）
+
+1. **给接口补 chain 维度**。两个方案：
+   - (a) `CommitBlock` 增加 `chainID` 形参，`BatchCommitter` 改为按调用解析 lease；
+   - (b) 保留按链构造的 `BatchCommitter` 不动，把 `RuntimeDeps.Committer` 改为**工厂**（`func(chainID) (AtomicBatchCommitter, error)`）或加一个按链分发的薄 dispatcher。
+
+   **倾向 (b)**：`BatchCommitter` 现有 10 个测试与 fenced 语义都不用动，改动面最小。
+2. **在 `monolithic_starter.go:76` 的 options 里接上**（`indexingDB` 需满足 `FencedStore`：`AcquireLease`/`ReleaseLease`/`BeginFencedTx`——目前只有 `*PostgreSQLPluginAdapter` 实现，见 `postgres_lease.go:113`）。
+3. **把 `chain_indexer.go:168` 从 `ProcessBatch` 切到 `ProcessBatchAtomic`**（这一步改动**主写路径**，blast radius 最大，需 T12 端到端复验）。
+
+**本文件只记录，不改动**：主写路径的切换需要作者确认，且与 §4 的 A/B/C 栈选择耦合——若选 B（service-store 为生产栈），则 T05 语义要在 service-store 上重做，本文 1–3 不适用。
