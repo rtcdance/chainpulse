@@ -263,21 +263,22 @@ func (p *HTTPSJSONRPCPuller) PullEvents(ctx context.Context, fromBlock, toBlock 
 
 	minChunkSize := 10 // absolute minimum block range per chunk
 
-	// Process block range in chunks to avoid RPC timeouts and provider limits
+	// Process block range in chunks to avoid RPC timeouts and provider limits.
+	//
+	// Each chunk goes through a RangeSplitter, so a provider that refuses the
+	// range or truncates the result set costs extra round trips instead of lost
+	// blocks. The loop this replaced advanced to `lastBlock + 1` of the
+	// truncated result, which silently skipped every block between that tail and
+	// the end of the chunk (F25: "失败范围不跳过").
 	for chunkFrom := fromBlock; chunkFrom <= toBlock; {
 		chunkTo := chunkFrom + uint64(chunkSize) - 1
 		if chunkTo > toBlock {
 			chunkTo = toBlock
 		}
 
-		// Clamp chunk to not exceed toBlock
-		if chunkTo > toBlock {
-			chunkTo = toBlock
-		}
-
 		p.LogInfo("fetching chunk", "from", chunkFrom, "to", chunkTo, "chunk_size", chunkTo-chunkFrom+1)
 
-		logs, err := p.getLogs(ctx, chunkFrom, chunkTo)
+		logs, splitStats, err := p.fetchLogsWithoutGaps(ctx, chunkFrom, chunkTo, minChunkSize)
 		if err != nil {
 			p.RecordError(err)
 			p.RecordMetric("pull_errors", int64(1), nil)
@@ -289,61 +290,17 @@ func (p *HTTPSJSONRPCPuller) PullEvents(ctx context.Context, fromBlock, toBlock 
 			return nil, err
 		}
 
-		// Detect provider-side truncation: if result count hits the limit,
-		// the provider likely truncated the response. Process what we have
-		// (valid for the blocks covered) and continue from the last block
-		// in the returned set with a smaller chunk size.
-		if len(logs) >= maxEventsPerChunk {
-			p.LogWarn(
-				"eth_getLogs result hit provider truncation limit, processing partial results",
-				"result_count", len(logs),
-				"from_block", chunkFrom,
-				"to_block", chunkTo,
-			)
-
-			// Halve the chunk size for subsequent requests
-			halfSize := max(chunkSize/2, minChunkSize)
-			if halfSize < chunkSize {
-				chunkSize = halfSize
-				p.LogInfo("reducing chunk size to avoid future truncation", "new_chunk_size", chunkSize)
+		// Learn the provider's real capacity rather than assuming the configured
+		// chunk size. LargestRange is the widest range it actually served, so
+		// shrinking to it makes the next chunk more likely to need one call.
+		if splitStats.Splits > 0 && splitStats.LargestRange > 0 {
+			if learned := int(splitStats.LargestRange); learned < chunkSize {
+				chunkSize = max(learned, minChunkSize)
+				p.LogInfo("adapting chunk size to what the provider accepted",
+					"new_chunk_size", chunkSize,
+					"observed_largest_range", splitStats.LargestRange,
+					"splits", splitStats.Splits)
 			}
-
-			// Process the logs we received (they are valid for covered blocks)
-			// then advance chunkFrom based on the last block in the results.
-			blockTimestamps := p.fetchBlockTimestamps(ctx, logs)
-			var lastBlockInResults uint64
-			for _, log := range logs {
-				if log.BlockNumber > lastBlockInResults {
-					lastBlockInResults = log.BlockNumber
-				}
-
-				if log.Removed && p.GetConfig().SkipRemovedLogs {
-					p.LogInfo("skipping removed log (reorg)", "tx_hash", log.TxHash.Hex(), "log_index", log.Index)
-					continue
-				}
-
-				event, err := p.ethLogToEvent(log, blockTimestamps)
-				if err != nil {
-					p.LogWarn("failed to convert log to event", "error", err.Error())
-					continue
-				}
-
-				if err := p.ValidateEvent(event); err != nil {
-					p.LogWarn("invalid event", "error", err.Error())
-					continue
-				}
-
-				events = append(events, event)
-			}
-
-			// Advance past the blocks we successfully processed.
-			// If lastBlockInResults is 0 (empty logs), advance by original chunk size.
-			if lastBlockInResults > 0 {
-				chunkFrom = lastBlockInResults + 1
-			} else {
-				chunkFrom = chunkTo + 1
-			}
-			continue
 		}
 
 		// Collect unique block numbers and fetch their timestamps
@@ -383,6 +340,69 @@ func (p *HTTPSJSONRPCPuller) PullEvents(ctx context.Context, fromBlock, toBlock 
 	p.RecordSuccessfulPull()
 
 	return events, nil
+}
+
+// providerRangeLimitHints are phrasings providers use to refuse a block range or
+// a result set that is too large. geth, erigon and reth word it differently, and
+// some do not refuse at all — they truncate — which is why truncation is
+// signalled by the result count (TruncationError) rather than by matching text.
+//
+// A message that matches none of these stays a fatal error: splitting an
+// invalid request would multiply the failure instead of narrowing it.
+var providerRangeLimitHints = []string{
+	"block range is too wide",
+	"block range too large",
+	"range is too large",
+	"exceed maximum block range",
+	"exceeds max block range",
+	"query returned more than",
+	"more than 10000 results",
+	"result set too large",
+	"too many results",
+	"response size exceeded",
+	"limit exceeded",
+}
+
+// classifyGetLogsError converts a provider refusal into ErrRangeTooWide when the
+// message says the range or the result set was too large, so the splitter
+// narrows the request instead of giving up.
+func classifyGetLogsError(from, to uint64, err error) error {
+	message := strings.ToLower(err.Error())
+	for _, hint := range providerRangeLimitHints {
+		if strings.Contains(message, hint) {
+			return &ErrRangeTooWide{From: from, To: to, Reason: err.Error()}
+		}
+	}
+	return err
+}
+
+// fetchLogsWithoutGaps returns every log in [from, to].
+//
+// A provider that refuses the range, or that returns a full page (its way of
+// saying it stopped early), causes the range to be split and retried — never
+// skipped. SplitStats is returned alongside so the caller can learn the widest
+// range the provider actually accepted.
+func (p *HTTPSJSONRPCPuller) fetchLogsWithoutGaps(ctx context.Context, from, to uint64, minRange int) ([]types.Log, SplitStats, error) {
+	fetch := func(ctx context.Context, chunkFrom, chunkTo uint64) ([]types.Log, error) {
+		logs, err := p.getLogs(ctx, chunkFrom, chunkTo)
+		if err != nil {
+			return nil, classifyGetLogsError(chunkFrom, chunkTo, err)
+		}
+		// A full page means the provider stopped early. Returning it with a nil
+		// error would make the splitter treat the range as covered.
+		if len(logs) >= maxEventsPerChunk {
+			return nil, TruncationError(chunkFrom, chunkTo, maxEventsPerChunk)
+		}
+		return logs, nil
+	}
+
+	splitter, err := NewRangeSplitter(fetch, SplitConfig{MinRange: uint64(minRange)})
+	if err != nil {
+		return nil, SplitStats{}, err
+	}
+
+	logs, err := splitter.Fetch(ctx, from, to)
+	return logs, splitter.Stats(), err
 }
 
 // GetLatestBlock gets the latest block number
