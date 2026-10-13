@@ -9,7 +9,7 @@ here for the full list.
 
 ## `scripts/acceptance/` — the acceptance toolchain (F21)
 
-Seven dependency-free (Python 3 stdlib) gates, each with a built-in `--self-test`.
+Eight dependency-free (Python 3 stdlib) gates, each with a built-in `--self-test`.
 They implement the tooling the delivery plan requires, so T18 consumes evidence
 rather than assembling it by hand.
 
@@ -20,8 +20,10 @@ rather than assembling it by hand.
 | `bench-gate.py` | Micro-benchmark regression gate: blocks on >15% in `ns/op` or `B/op`, requires ≥5 samples, and treats "no match / missing baseline / no valid samples" as failures. `--emit-json` also writes the §10 `bench-raw.json` from the same parse, with host provenance, so the evidence behind the verdict cannot drift from the verdict. | `bench-gate.py --bench-output raw.txt --baseline test/benchmarks/micro_baseline.json --emit-json bench-raw.json` |
 | `dep-approval-gate.py` | Fails when a dependency manifest changed but `docs/project/DEPENDENCY_APPROVAL.md` did not. | `dep-approval-gate.py --base origin/main --head HEAD` |
 | `skip-report.py` | Builds the single skip taxonomy (§10 `skip-report.json`) from measured data: skips that fired in `go test -json` streams, plus every `t.Skip` call site in the tree. A reason that matches no bucket is counted and listed, never absorbed. | `skip-report.py --jsonl unit.jsonl --out skip-report.json` |
+| `chaos-report.py` | Builds the §10 `chaos-report.json` from the `go test -json` streams of the lanes that run the fault rehearsals. A scenario counts as covered only if every listed test ran and passed; a scenario whose dependency is unreachable is reported as `environment_skipped` and listed under `not_covered`, never folded into a pass. | `chaos-report.py --jsonl acceptance.jsonl --jsonl unit.jsonl --out chaos-report.json` |
 | `govulncheck-summary.py` | Turns `govulncheck -json` output into the §10 security artifact (`security/summary.json`) and the SBOM (`sbom/govulncheck-sbom.json`). `govulncheck -json` is a stream of pretty-printed objects, not JSONL, so it refuses to report a clean scan when it parses zero records. | `govulncheck-summary.py --input govulncheck.json --out-dir build/acceptance/<sha> --sbom-dir build/acceptance/<sha>` |
-| `openapi-drift.py` | Compares `docs/api/openapi.yaml` against the Go response structs' JSON tags in both directions, and requires the spec to state the §4.1 rule that amounts are decimal strings. A schema or struct that parses to zero properties is a failure, so it cannot pass on an empty comparison. Feeds the `frontend-api` lane's OpenAPI diff. | `govulncheck-summary.py` | Turns `govulncheck -json` output into the §10 security artifact (`security/summary.json`) and the SBOM (`sbom/govulncheck-sbom.json`). `govulncheck -json` is a stream of pretty-printed objects, not JSONL, so it refuses to report a clean scan when it parses zero records. | `govulncheck-summary.py --input govulncheck.json --out-dir build/acceptance/<sha> --sbom-dir build/acceptance/<sha>` |
+| `openapi-drift.py` | Compares `docs/api/openapi.yaml` against the Go response structs' JSON tags in both directions, and requires the spec to state the §4.1 rule that amounts are decimal strings. A schema or struct that parses to zero properties is a failure, so it cannot pass on an empty comparison. Feeds the `frontend-api` lane's OpenAPI diff. | `chaos-report.py` | Builds the §10 `chaos-report.json` from the `go test -json` streams of the lanes that run the fault rehearsals. A scenario counts as covered only if every listed test ran and passed; a scenario whose dependency is unreachable is reported as `environment_skipped` and listed under `not_covered`, never folded into a pass. | `chaos-report.py --jsonl acceptance.jsonl --jsonl unit.jsonl --out chaos-report.json` |
+| `govulncheck-summary.py` | Turns `govulncheck -json` output into the §10 security artifact (`security/summary.json`) and the SBOM (`sbom/govulncheck-sbom.json`). `govulncheck -json` is a stream of pretty-printed objects, not JSONL, so it refuses to report a clean scan when it parses zero records. | `govulncheck-summary.py --input govulncheck.json --out-dir build/acceptance/<sha> --sbom-dir build/acceptance/<sha>` |
 | `openapi-drift.py` |
 
 Each supports `--self-test`; run it after changing the tool.
@@ -40,7 +42,7 @@ Grouped by what they are for:
 
 | Path | Contents |
 | --- | --- |
-| `scripts/acceptance/` | The seven gates above. |
+| `scripts/acceptance/` | The eight gates above. |
 | `scripts/bench/` | Load-generation helpers (`ingest.sh`, `query_events.js`). |
 | `scripts/dev/` | `dev.sh` local development helper. |
 | `scripts/lib/` | Shared shell libraries sourced by the scripts above. |
