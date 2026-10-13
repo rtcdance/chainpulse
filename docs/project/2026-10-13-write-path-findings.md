@@ -270,3 +270,43 @@ p.offsets.mu.Unlock()
 ### 7.4 证据
 
 `build/acceptance/94908e6ade22/deployment-report.json` —— digest `sha256:cbf2851e90fa…`，由**接线后**的源码构建。
+
+---
+
+## 8. **部署契约实测**（`deploy-rehearsal.sh` + 容器内验证，2026-10-13）
+
+### 8.1 启动必需项（缺一即 exit 1）
+
+| 环境变量 | 默认值 | 不设的后果 |
+| --- | --- | --- |
+| `MONGODB_URI` | `mongodb://localhost:27017` | Mongo ping 失败 ⇒ **容器直接退出**（Mongo 不是可选依赖） |
+| `DATABASE_URL` | `postgres://localhost:5432/chainpulse` | PG ping 失败 ⇒ 容器退出 |
+| `DATABASE_SSLMODE` | **`require`** | **独立于 DSN 里的 `sslmode`** ⇒ 对非 SSL Postgres **必须设 `disable`** 否则连接超时 |
+
+### 8.2 Puller 的 RPC URL **不从** `BLOCKCHAIN_NODE_URL` 或 per-chain env 读取
+
+设置了 `BLOCKCHAIN_NODE_URL=http://chainpulse-anvil-ethereum:8545`、`CHAINPULSE_ETHEREUM_NODE_URL=…`、`CHAINPULSE_POLYGON_NODE_URL=…`、`CHAINPULSE_CHAINS=ethereum`，但 puller 的日志仍然报 `Post "http://localhost:8545": connection refused`。
+
+**根因**：monolithic puller runtime 的 `rawNodeURLs` 来自**另一个配置路径**，它有自己的默认值 `http://localhost:8545,http://localhost:8546`，并且**校验 chains 数量 == node URLs 数量**（`m1a_runtime_wiring.go:92`）。
+
+**环境已确认在容器内存在**（`docker exec … env | grep BLOCKCHAIN` 验证通过），但配置加载时**没有读取到**。
+
+⇒ 这是 T12 的**配置接线项**：puller 的 node URLs 来源需要对准正确的配置字段。**不是端口栈的缺陷**（端口栈已通，storage 已走 PG）。
+
+### 8.3 部署演练**通过**了
+
+即使 puller 连不上 RPC，容器的 storage 层仍正常工作：
+
+| 验证 | 结果 |
+| --- | --- |
+| 容器 healthy | **yes**（healthcheck 通过） |
+| `/health` | **200**（含逐组件状态） |
+| `/api/v1/events` | **200** |
+| `/metrics` | **200** |
+| PG 适配层 | **已连接**（health body 中 PostgreSQL: healthy） |
+
+⇒ 端口栈在部署路径上**可达且可用**；puller 的 RPC URL 是**配置接线**问题。
+
+### 8.4 `env.Get` 的**双前缀查找**
+
+`pkg/env/env.go` 的 `Get(key, default)` 先查 `CHAINPULSE_<key>`，再查 `<key>`。所以 `env.Get("BLOCKCHAIN_NODE_URL", …)` 先找 `CHAINPULSE_BLOCKCHAIN_NODE_URL`，再找 `BLOCKCHAIN_NODE_URL`。**两个名字都能用**。同理，`env.Get("CHAINPULSE_ETHEREUM_NODE_URL", …)` 先找 `CHAINPULSE_CHAINPULSE_ETHEREUM_NODE_URL`，再找 `CHAINPULSE_ETHEREUM_NODE_URL`。
