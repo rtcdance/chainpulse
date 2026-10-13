@@ -232,3 +232,34 @@ func TestBuildMonolithicIndexingStorageStopsDatabaseIfCacheStartFails(t *testing
 		t.Fatal("expected database stop on cache start failure")
 	}
 }
+
+// Regression (F27): the snapshotCompatibleDatabase wrapper embeds only the
+// core.DatabasePlugin interface, so the ConfigurablePlugin/LifecyclePlugin type
+// assertions in buildMonolithicIndexingStorageWithDeps silently failed for every
+// wrapped database. Initialize/Start were never called — for the PostgreSQL
+// adapter this left p.db nil and every event store failed at runtime with
+// "database not initialized", while the starter logged "indexing storage
+// started" (a false pass). Observed live on 2026-10-13: the deployed container
+// received a real Transfer event through the port stack and dropped it with
+// exactly that error.
+func TestSnapshotCompatibleDatabaseForwardsLifecycleToWrappedPlugin(t *testing.T) {
+	t.Parallel()
+	logger := core.NewDefaultLogger(core.LogLevelInfo)
+	inner := &stubDatabasePlugin{}
+
+	_, _, err := buildMonolithicIndexingStorageWithDeps(context.Background(), logger, core.Config{}, monolithicIndexingStorageDeps{
+		newDatabase: func(core.Logger, core.Config) core.DatabasePlugin {
+			return newSnapshotCompatibleDatabase(inner)
+		},
+		newCache: func(core.Config) core.CachePlugin { return &stubCachePlugin{} },
+	})
+	if err != nil {
+		t.Fatalf("build indexing storage: %v", err)
+	}
+	if !inner.initCalled {
+		t.Fatal("Initialize was not forwarded to the wrapped database plugin")
+	}
+	if !inner.started {
+		t.Fatal("Start was not forwarded to the wrapped database plugin")
+	}
+}

@@ -37,6 +37,34 @@ func newSnapshotCompatibleDatabase(db core.DatabasePlugin) *snapshotCompatibleDa
 	}
 }
 
+// Lifecycle and config forwarding: the wrapper embeds only the
+// core.DatabasePlugin interface, so without these methods the
+// ConfigurablePlugin/LifecyclePlugin type assertions in the storage builder
+// silently failed and the wrapped plugin was never initialized nor started.
+// For the PostgreSQL adapter that left the handle nil — every store then
+// failed at runtime with "database not initialized" while the builder
+// reported success (F27).
+func (d *snapshotCompatibleDatabase) Initialize(ctx context.Context, config core.Config) error {
+	if p, ok := d.DatabasePlugin.(core.ConfigurablePlugin); ok {
+		return p.Initialize(ctx, config)
+	}
+	return nil
+}
+
+func (d *snapshotCompatibleDatabase) Start(ctx context.Context) error {
+	if p, ok := d.DatabasePlugin.(core.LifecyclePlugin); ok {
+		return p.Start(ctx)
+	}
+	return nil
+}
+
+func (d *snapshotCompatibleDatabase) Stop(ctx context.Context) error {
+	if p, ok := d.DatabasePlugin.(core.LifecyclePlugin); ok {
+		return p.Stop(ctx)
+	}
+	return nil
+}
+
 func (d *snapshotCompatibleDatabase) StoreBlockSnapshot(_ context.Context, block *blockchain.Block) error {
 	if block == nil {
 		return fmt.Errorf("block is nil")
