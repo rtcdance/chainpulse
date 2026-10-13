@@ -86,6 +86,14 @@
 - **需要决策/权限**：(a) 谁来给 admin（或换 `rtcdance` 账号）；(b) 默认分支改成 `main` 还是给 4 个 workflow 补 `master`；(c) lane 名是否统一到计划 §7.3 的词汇。
 - **证据**：`2026-10-13-ci-gate-audit.md`（含全部命令与原始输出）。
 
+## D13. `test/acceptance` 没有任何 CI lane 会跑
+
+- **现状（实测）**：`grep -rn "test/acceptance" .github/workflows/` → **空**；`Makefile` 也没有 `test-acceptance` target。CI 只跑 `./test/integration/...`、`./test/contracts/...`、`./test/e2e/...`。
+- **盲区里有什么**：F24 的 SIGTERM + kill 崩溃测试、`TestCanonicalDigestsAcrossRollbackAndRedelivery`、E09 的 DB/Redis 故障测试、Kafka 重投递测试等 —— **全是计划 §9 的验收场景**。它们本会话手工跑全绿，但**没有自动化持续跑**，可以静默腐坏。
+- **注**：F25 的 provider 受限测试在 `pkg/plugins/pullers`（无 build tag），**属 unit lane，会被跑**。
+- **选项**：(a) 加一个 `acceptance` lane（需 Postgres/Redis service 容器 + `-tags=integration`）；(b) 明确声明它只在发布前手工运行，并写进 DoD；(c) 把其中的关键用例迁到 `test/integration`（已有 lane）。
+- **证据**：`2026-10-14-f24-f25-acceptance.md` §4。
+
 ## 决策后我可以立刻执行的事
 
 | 决策 | 立刻可做 |
@@ -100,5 +108,6 @@
 | D10 | 改 Makefile 目标 + 加 CI job，逐模块 build/vet/test 并留原始输出 |
 | D11 | 填 allow-list（或消除 skip）+ 在 CI 打开 `--fail-on-unknown-skip`，并留原始输出 |
 | D12 | 拿到 admin 后：建 `acceptance-gate` job（`needs` 全部 required + `always()` + 逐条断言 success）+ 配 ruleset + 对齐分支过滤 |
+| D13 | 加 `acceptance` lane（或把关键用例迁进 `test/integration`），并留原始输出 |
 
 > 说明：本文件只记录**需要拍板的问题**，不含任何未决的代码改动。以上每一项我都可以在得到答复后立即执行并给出实测证据。
