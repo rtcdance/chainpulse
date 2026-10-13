@@ -42,7 +42,7 @@ Grouped by what they are for:
 
 | Path | Contents |
 | --- | --- |
-| `scripts/acceptance/` | The eight gates above. |
+| `scripts/acceptance/` | The eight gates above, plus `deploy-rehearsal.sh` — the local Docker deployment rehearsal of §7.5. |
 | `scripts/bench/` | Load-generation helpers (`ingest.sh`, `query_events.js`). |
 | `scripts/dev/` | `dev.sh` local development helper. |
 | `scripts/lib/` | Shared shell libraries sourced by the scripts above. |
