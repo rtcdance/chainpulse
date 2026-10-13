@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/rtcdance/chainpulse/pkg/blockchain"
+	"github.com/rtcdance/chainpulse/pkg/chainid"
 	"github.com/rtcdance/chainpulse/pkg/core"
 	"github.com/rtcdance/chainpulse/pkg/core/eventsig"
 	"github.com/rtcdance/chainpulse/pkg/core/topics"
@@ -111,14 +112,28 @@ func (p *HTTPSJSONRPCPuller) SetEthClient(client *ethclient.Client) {
 
 // VerifyChainID calls eth_chainId on the RPC node and compares it with the
 // configured chain ID. Returns an error if the node serves a different chain.
+//
+// The configured identifier may be a name ("ethereum") or a number ("1"), while
+// eth_chainId always answers with a number, so both sides are resolved to a
+// numeric ID before comparing. Comparing the raw strings made every named chain
+// report a mismatch — a warning that was always on, and therefore useless.
 func (p *HTTPSJSONRPCPuller) VerifyChainID(ctx context.Context) error {
 	if p.ethClient == nil {
 		return fmt.Errorf("ethereum client not initialized")
 	}
 
-	expectedChainID := p.ChainID()
-	if expectedChainID == "" {
+	configured := p.ChainID()
+	if configured == "" {
 		p.LogWarn("no chain ID configured — skipping RPC chain ID verification")
+		return nil
+	}
+
+	expectedID := chainid.ResolveChainID(configured)
+	if expectedID == 0 {
+		// An identifier we cannot resolve numerically cannot be verified. Say so
+		// rather than reporting a mismatch that was never actually detected.
+		p.LogWarn("chain ID is not resolvable to a numeric ID — skipping RPC chain ID verification",
+			"chain_id", configured)
 		return nil
 	}
 
@@ -126,13 +141,16 @@ func (p *HTTPSJSONRPCPuller) VerifyChainID(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("eth_chainId RPC call failed: %w", err)
 	}
-
-	rpcChainIDStr := rpcChainID.String()
-	if rpcChainIDStr != expectedChainID {
-		return fmt.Errorf("RPC chain ID mismatch: node returned %s, expected %s", rpcChainIDStr, expectedChainID)
+	if !rpcChainID.IsUint64() {
+		return fmt.Errorf("eth_chainId returned a value that does not fit in uint64: %s", rpcChainID.String())
 	}
 
-	p.LogInfo("RPC chain ID verified", "chain_id", rpcChainIDStr)
+	if rpcChainID.Uint64() != uint64(expectedID) {
+		return fmt.Errorf("RPC chain ID mismatch: node returned %s, expected %d (configured as %q)",
+			rpcChainID.String(), expectedID, configured)
+	}
+
+	p.LogInfo("RPC chain ID verified", "chain_id", rpcChainID.String(), "configured_as", configured)
 	return nil
 }
 
