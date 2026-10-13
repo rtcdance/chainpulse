@@ -8,20 +8,19 @@ import (
 	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"github.com/rtcdance/chainpulse/pkg/core"
 
+	plugincache "github.com/rtcdance/chainpulse/pkg/plugins/cache"
 	plugindatabase "github.com/rtcdance/chainpulse/pkg/plugins/database"
 )
 
 type monolithicIndexingStorageDeps struct {
 	newDatabase func(logger core.Logger, config core.Config) core.DatabasePlugin
-	newCache    func() core.CachePlugin
+	newCache    func(config core.Config) core.CachePlugin
 }
 
 func defaultMonolithicIndexingStorageDeps() monolithicIndexingStorageDeps {
 	return monolithicIndexingStorageDeps{
 		newDatabase: newMonolithicIndexingDatabaseForMode,
-		newCache: func() core.CachePlugin {
-			return NewMonolithicMemoryCache()
-		},
+		newCache:    newMonolithicIndexingCacheForConfig,
 	}
 }
 
@@ -73,11 +72,46 @@ func (d *snapshotCompatibleDatabase) GetBlock(ctx context.Context, blockNumber u
 	return d.blocks[blockNumber], nil
 }
 
+// newMonolithicIndexingDatabaseForMode selects the indexing database.
+//
+// `DATABASE_TYPE=postgres` (the configured default) means the caller wants the
+// port stack — the PostgreSQL adapter with chain scope and the atomic commit path
+// — rather than the in-memory store. Until 2026-10-13 this function never
+// returned it, which is why T02/T03/T05 were verified at the port but the port
+// was never constructed in the deployed path.
+//
+// The in-memory store remains for a config that does not ask for postgres, so the
+// zero-dependency playground keeps working.
 func newMonolithicIndexingDatabaseForMode(logger core.Logger, config core.Config) core.DatabasePlugin {
+	if config.DatabaseType == "postgres" && config.DatabaseURL != "" {
+		adapter := plugindatabase.NewPostgreSQLPluginAdapter(logger, core.NewDefaultMetricsCollector())
+		// I01: declare the chains this adapter serves. Declaring more than one
+		// makes the unscoped port methods refuse to run, so a multi-chain
+		// deployment cannot silently mix chains.
+		if len(config.ActiveChains) > 1 {
+			adapter.WithChainScope(config.ActiveChains...)
+		}
+		return newSnapshotCompatibleDatabase(adapter)
+	}
 	if config.DeploymentMode == "microservice" {
 		return newSnapshotCompatibleDatabase(plugindatabase.NewMockDB())
 	}
 	return NewMonolithicMemoryDatabase(logger)
+}
+
+// newMonolithicIndexingCacheForConfig selects the indexing cache.
+//
+// `CACHE_TYPE=redis` means the Redis adapter; anything else keeps the in-memory
+// cache. The adapter reports whether it actually reached Redis via Connected(),
+// so a caller that cares can refuse to run against the fallback.
+func newMonolithicIndexingCacheForConfig(config core.Config) core.CachePlugin {
+	if config.CacheType == "redis" {
+		return plugincache.NewRedisCachePluginAdapter(
+			core.NewProductionLogger(),
+			core.NewDefaultMetricsCollector(),
+		)
+	}
+	return NewMonolithicMemoryCache()
 }
 
 // BuildMonolithicIndexingStorage creates started in-memory storage adapters for
@@ -101,7 +135,7 @@ func buildMonolithicIndexingStorageWithDeps(
 	}
 
 	database := deps.newDatabase(logger, config)
-	cache := deps.newCache()
+	cache := deps.newCache(config)
 
 	if p, ok := database.(core.ConfigurablePlugin); ok {
 		if err := p.Initialize(ctx, config); err != nil {

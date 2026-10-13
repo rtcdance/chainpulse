@@ -223,7 +223,7 @@ func TestBuildMonolithicIndexingStorageStopsDatabaseIfCacheStartFails(t *testing
 
 	_, _, err := buildMonolithicIndexingStorageWithDeps(context.Background(), logger, core.Config{}, monolithicIndexingStorageDeps{
 		newDatabase: func(logger core.Logger, config core.Config) core.DatabasePlugin { return db },
-		newCache:    func() core.CachePlugin { return cache },
+		newCache:    func(core.Config) core.CachePlugin { return cache },
 	})
 	if err == nil {
 		t.Fatal("expected cache start failure")

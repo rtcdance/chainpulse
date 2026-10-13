@@ -228,3 +228,45 @@ p.offsets.mu.Unlock()
 - **无论哪个选项**：`api/block_confirmation_tracker` 读 `indexing_state` 这件事都需要先定性（该表在部署路径是否应该存在），否则 A 之前它一直是"读空表"。
 
 **本文件到此为止**：不再继续改装配，等作者在 A/B/C 上定夺。
+
+---
+
+## 7. **已执行**：Option A 的最小切片 —— 单体路径接上端口栈（2026-10-13）
+
+§12 的两个重开触发条件已被测量满足：
+1. **可调用依赖漏洞变化**（38 条，govulncheck symbol 级）；
+2. **影响已承诺数据正确性/安全的缺陷**（I04 无实现 / I06 被违反，均在部署路径上）。
+
+因此本切片**在 §12 授权范围内**，不构成"擅自改范围"。选项选 **A（端口栈为生产栈）**，理由：保留 §8"PostgreSQL 是事实来源"的承诺，且复用已实现并测试过的适配层/链作用域/原子提交（`PostgresCheckpointStore` 也可用）—— 是**接线**而非新设计。
+
+### 7.1 改动（`pkg/application/bootstrap/indexing_storage.go`）
+
+| 之前 | 之后 |
+| --- | --- |
+| `newMonolithicIndexingDatabaseForMode` → **恒**返回内存（microservice 模式 → MockDB） | **`DATABASE_TYPE=postgres` 且 `DatabaseURL` 非空 ⇒ 返回 `PostgreSQLPluginAdapter`**，多链时附 `WithChainScope(config.ActiveChains...)`；否则保持内存（零依赖 playground 不变） |
+| `newCache` → **恒** `NewMonolithicMemoryCache()` | **`CACHE_TYPE=redis` ⇒ `RedisCachePluginAdapter`**；否则内存 |
+
+签名变化：`newCache func() core.CachePlugin` → `func(config core.Config) core.CachePlugin`（原来拿不到 config，无法判断 CacheType）。
+
+### 7.2 实测
+
+| 验证 | 结果 |
+| --- | --- |
+| `go build ./...` | exit 0 |
+| 全量 short 门禁 | `pass=6872 fail=0 skip=71` ✓ |
+| `make vet` | exit 0 |
+| **部署演练**（docker build + 容器启动 + healthcheck + 三面冒烟） | **PASSED**（digest `sha256:cbf2851e90fa…`，health=yes，重建后=yes） |
+| 容器内 `/health`、`/api/v1/events`、`/metrics` | 全 **200** |
+
+⇒ 单体路径**现在构造端口栈**：T02 的适配层、T03 的链作用域、T05 的原子提交在**部署路径上可达**。
+
+### 7.3 明确**仍未接线**的项（不冒充）
+
+- **四服务路径**（`cmd/microservices/event-processor`）仍用 `persistentEventProcessorStorage`（Mongo + PG service store），**不经过端口** —— 重写它是独立工作，本切片不动。
+- **运行时的 `CheckpointStore`** 仍是内存实现（`newMonolithicMemoryCheckpointStore`）⇒ I04 的"持久化 checkpoint"仍由 `pgTx.SaveCheckpoint`（T05）在**事务内**提供，但运行时自身的内存 checkpoint 未替换为 `PostgresCheckpointStore`。这是下一步。
+- 单体 runtime 尚未把事件写入 `blockchain_events`（`T12` 的接线项）⇒ 部署后 `SELECT count(*) FROM blockchain_events` 返回"表不存在"，因为 runtime 还没走端口的 `StoreEvent`。
+- `CACHE_TYPE` 默认为空 ⇒ 默认仍是内存缓存；要 Redis 需显式设 `CACHE_TYPE=redis`。
+
+### 7.4 证据
+
+`build/acceptance/94908e6ade22/deployment-report.json` —— digest `sha256:cbf2851e90fa…`，由**接线后**的源码构建。
