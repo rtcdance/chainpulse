@@ -175,12 +175,25 @@ def load_required_cases(path: Path) -> dict[str, list[str]]:
     return out
 
 
+def load_skip_allowlist(path: Path) -> set[str]:
+    """Load declared-expected skips as "package::Test" keys.
+
+    Format: {"allowed": ["github.com/x/y::TestZ", ...]}
+
+    An empty or absent list means "no skip is expected", so every skip is
+    reported. That is deliberate: the list has to be earned, not defaulted.
+    """
+    data = json.loads(path.read_text(encoding="utf-8"))
+    return {str(key) for key in data.get("allowed", [])}
+
+
 def verify(
     report: Report,
     required_cases: dict[str, list[str]],
     min_tests: int | None,
     fail_on_unknown_skip: bool,
     require_packages: list[str],
+    skip_allowlist: set[str] | None = None,
 ) -> list[str]:
     """Return a list of human-readable failures (empty == passed)."""
     failures: list[str] = []
@@ -250,10 +263,20 @@ def verify(
                 )
 
     # 6. Unknown skips (optional, off by default).
+    #
+    # "Unknown" means "not declared in the allow-list". Some skips are legitimate
+    # and expected (a PostgreSQL contract test when no DSN is configured); an
+    # undeclared skip is how a test quietly stops protecting anything. With no
+    # allow-list every skip is unknown, which is the strict reading.
     if fail_on_unknown_skip:
+        allowlist = skip_allowlist or set()
         for (pkg, name), stat in sorted(report.tests.items()):
-            if stat.final == "skip":
-                failures.append(f"unknown skip (not allow-listed): {pkg}::{name}")
+            if stat.final != "skip":
+                continue
+            key = f"{pkg}::{name}"
+            if key in allowlist:
+                continue
+            failures.append(f"unknown skip (not allow-listed): {key}")
 
     return failures
 
@@ -377,6 +400,31 @@ def self_test() -> int:
         ok = False
         print("[FAIL] self-test: placeholder manifest passed vacuously")
 
+    # Skip allow-list: a declared skip passes, an undeclared one fails. Without
+    # this distinction the flag's own message ("not allow-listed") is a promise
+    # the tool does not keep.
+    report = Report()
+    for line in [
+        '{"Action":"run","Package":"p/foo","Test":"TestSkipMe"}',
+        '{"Action":"skip","Package":"p/foo","Test":"TestSkipMe"}',
+        '{"Action":"pass","Package":"p/foo","Elapsed":0.1}',
+    ]:
+        _ingest(json.loads(line), report)
+
+    declared = verify(report, {}, None, True, [], {"p/foo::TestSkipMe"})
+    if declared:
+        ok = False
+        print(f"[FAIL] self-test: declared skip was still rejected: {declared}")
+    else:
+        print("[PASS] self-test: declared skip is allowed")
+
+    undeclared = verify(report, {}, None, True, [], {"p/foo::TestSomethingElse"})
+    if any("unknown skip" in f for f in undeclared):
+        print("[PASS] self-test: undeclared skip is a failure")
+    else:
+        ok = False
+        print("[FAIL] self-test: undeclared skip was not treated as a failure")
+
     print("self-test:", "OK" if ok else "FAILED")
     return 0 if ok else 1
 
@@ -391,6 +439,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--min-tests", type=int)
     parser.add_argument("--require-package", action="append", default=[])
     parser.add_argument("--fail-on-unknown-skip", action="store_true")
+    parser.add_argument(
+        "--skip-allowlist",
+        type=Path,
+        help="JSON list of skips that are expected, as package::Test keys",
+    )
     parser.add_argument("--report", type=Path)
     parser.add_argument("--self-test", action="store_true")
     args = parser.parse_args(argv)
@@ -405,12 +458,14 @@ def main(argv: list[str] | None = None) -> int:
     parse_jsonl(args.jsonl, report)
 
     required = load_required_cases(args.required_cases) if args.required_cases else {}
+    allowlist = load_skip_allowlist(args.skip_allowlist) if args.skip_allowlist else set()
     failures = verify(
         report,
         required,
         args.min_tests,
         args.fail_on_unknown_skip,
         args.require_package,
+        allowlist,
     )
 
     summary = to_json(report, failures)

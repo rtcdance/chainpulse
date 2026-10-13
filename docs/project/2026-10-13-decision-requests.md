@@ -66,6 +66,15 @@
 - **选项**：(a) 在各 Makefile 目标里显式遍历 `go.work` 的模块；(b) 加一个 CI job 逐模块 build/vet/test；(c) 维持现状，接受这 6 个模块只在被 import 时才编译。
 - **证据**：`2026-10-13-workspace-modules-verification.md` §1、§4.3。
 
+## D11. 71 个 skip 怎么处置？（计划要求"未知skip=0"）
+
+- **现状**：unit lane 实测 `skip=71`（`pass=6589 fail=0`）。分类：**42 个需要外部依赖**（PG/Redis/Kafka，env 门未开）、**26 个 `-short` 模式跳过**、3 个其他。原因都合理，但**不等于 0**。
+- **而且未被强制**：检验器有 `--fail-on-unknown-skip`，但**没有任何 CI 工作流使用它**（CI 只传 `--jsonl … --min-tests 1`）。
+- **已补的机制**：该开关的报错文案原本写着 "not allow-listed"，**但代码里没有 allow-list**（一个工具兑现不了的承诺）。已实现 `--skip-allowlist <json>`（声明的放行、未声明的失败）+ 自测。
+- **需要决策**：(a) 把 71 个声明为已知可接受（填 allow-list）并在 CI 打开 `--fail-on-unknown-skip`；(b) 消除它们（补依赖或删失效用例）；(c) 维持现状。
+- **提醒**：`AGENTS.md` 指出约 89 处 `t.Skip("... pre-existing ...")` 中 **42 处是 "undefined at HEAD"**（生产函数已删）——**不要为了把数字变绿而批量删除**，先分类。
+- **证据**：`2026-10-13-coverage-and-skip-verification.md`。
+
 ---
 
 ## 决策后我可以立刻执行的事
@@ -80,5 +89,6 @@
 | D8 | 跑 `TestKafkaRedeliveryKeepsEffectSingle`，把 I06 从"库语义背书"升级为"实测通过" |
 | D9 | 按选定方案改该 property test，并连续跑 N 次证明不再间歇失败 |
 | D10 | 改 Makefile 目标 + 加 CI job，逐模块 build/vet/test 并留原始输出 |
+| D11 | 填 allow-list（或消除 skip）+ 在 CI 打开 `--fail-on-unknown-skip`，并留原始输出 |
 
 > 说明：本文件只记录**需要拍板的问题**，不含任何未决的代码改动。以上每一项我都可以在得到答复后立即执行并给出实测证据。
