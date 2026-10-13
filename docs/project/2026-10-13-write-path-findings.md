@@ -416,3 +416,21 @@ PostgreSQL 适配器从未 Initialize（`p.db` 为 nil），启动日志却打�
 T02/T03/T05 的端口栈自此**在部署路径上真实可达且真实工作**。
 
 遗留小项（非阻塞）：puller `VerifyChainID` 用链名 "ethereum" 与数字 "1" 比较，报 mismatch 但"proceeding with caution"。
+
+## 9. I04 完成：共享运行时 checkpoint 落入 PostgreSQL（2026-10-13 下午）
+
+提交 `061b58b`。此前部署路径的共享运行时把 checkpoint 存在内存 map 里：重启即丢位置，
+API 读的 `indexing_state` 是一张**没有任何写入者的表**（I04 的原文描述）。
+
+**三层修复**：
+1. **迁移 000013**：`indexing_state` 增加 `last_cursor VARCHAR(255)`——运行时排序游标
+   （`chain:block:logIndex`）有自己诚实的家，不再冒充 `last_indexed_hash`。
+2. **复活 `PostgresCheckpointStore`**（原为死代码，且其 `ExecContext (any, error)` 断言**永远匹配不上**
+   `*sql.DB`——即使被构造，每次写也必失败；又一处"假接口真死码"）。
+3. **接线**：`postgresCheckpointStore` 适配器（Load 只给块级位置、Save 带游标——重启后失败日志为空，
+   恢复语义必须是块级），经 `InMemoryIndexingRuntimeOptions.CheckpointStore` 注入，
+   starter 在 `DATABASE_TYPE=postgres` 且 DB manager 为具体类型时选中它。
+
+**实证**：重新部署后 mint 一笔 NFT → `indexing_state` 出现真实行
+（`ethereum | 620 | | ethereum:620:0 | 07:53:14`），`blockchain_events` 同步落库（3 行），持久化错误 0。
+API 的 indexing_state 读模型自此由写入它的同一条流水线供给。
