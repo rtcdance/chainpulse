@@ -285,6 +285,24 @@ func (p *KafkaMQPlugin) getMaxBytes() int64 {
 	return defaultKafkaMaxBytes
 }
 
+// consumerReaderConfig builds the reader configuration for the ingest consume
+// loop (initial reader and the post-reconnect one).
+//
+// CommitInterval is deliberately left at its zero value. kafka-go documents
+// "If 0, commits will be handled synchronously", and 0 is also its default; a
+// non-zero value starts a ticker that commits the offset stash on a timer, so a
+// message whose handler failed is marked consumed and lost. Offsets are
+// committed explicitly after a successful handler in ConsumeMessages instead.
+func (p *KafkaMQPlugin) consumerReaderConfig(topic string) kafka.ReaderConfig {
+	return kafka.ReaderConfig{
+		Brokers:     p.brokers,
+		Topic:       topic,
+		GroupID:     p.consumerGroup,
+		StartOffset: kafka.FirstOffset,
+		MaxBytes:    int(p.getMaxBytes()),
+	}
+}
+
 // Subscribe subscribes to a Kafka topic and calls handler for each message
 func (p *KafkaMQPlugin) Subscribe(ctx context.Context, topic string, handler func([]byte)) error {
 	p.mu.Lock()
@@ -465,17 +483,8 @@ func (p *KafkaMQPlugin) ConsumeMessages(ctx context.Context, topic string, handl
 	p.mu.Unlock()
 
 	// Create Kafka reader (consumer) with consumer group for offset tracking
-	// CommitInterval is left at 0 on purpose. A non-zero value makes kafka-go
-	// auto-commit the last-read offset on a timer, so a message whose handler
-	// failed is marked consumed and lost. Offsets are committed explicitly
-	// after a successful handler instead (see ConsumeMessages).
-	reader := kafka.NewReader(kafka.ReaderConfig{
-		Brokers:     p.brokers,
-		Topic:       topic,
-		GroupID:     p.consumerGroup,
-		StartOffset: kafka.FirstOffset,
-		MaxBytes:    int(p.getMaxBytes()),
-	})
+	// Auto-commit stays off; see consumerReaderConfig for why.
+	reader := kafka.NewReader(p.consumerReaderConfig(topic))
 
 	// Register consumer for graceful shutdown
 	p.mu.Lock()
@@ -584,14 +593,7 @@ func (p *KafkaMQPlugin) ConsumeMessages(ctx context.Context, topic string, handl
 						return fmt.Errorf("plugin stopped")
 					}
 
-					// Auto-commit stays off here too, for the same reason.
-					reader = kafka.NewReader(kafka.ReaderConfig{
-						Brokers:     p.brokers,
-						Topic:       topic,
-						GroupID:     p.consumerGroup,
-						StartOffset: kafka.FirstOffset,
-						MaxBytes:    int(p.getMaxBytes()),
-					})
+					reader = kafka.NewReader(p.consumerReaderConfig(topic))
 					p.mu.Lock()
 					p.consumers[topic] = &KafkaConsumer{
 						reader: reader,
