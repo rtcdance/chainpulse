@@ -71,7 +71,19 @@ type FinalityResult struct {
 type FinalityChecker interface {
 	// GetFinalizedBlockNumber returns the latest finalized block number for the chain.
 	// Returns an error if the chain does not support the finalized tag.
+	//
+	// The height alone is not enough to act on: it may come from an L2 "safe"
+	// tag or a "latest" fallback, neither of which carries a finality
+	// guarantee. Callers that promote data should use
+	// GetFinalizedBlockNumberWithStatus.
 	GetFinalizedBlockNumber(ctx context.Context, chainID string) (uint64, error)
+
+	// GetFinalizedBlockNumberWithStatus returns the finalized height together
+	// with how it was obtained. Only a result whose Confidence is
+	// ConfidenceFinalized and which is not Degraded may be used to promote
+	// data to confirmed/finalized; every other confidence describes a height
+	// that can still be reorged.
+	GetFinalizedBlockNumberWithStatus(ctx context.Context, chainID string) (*FinalityResult, error)
 
 	// IsBlockFinalized returns true if the given block number is at or below
 	// the finalized block for the chain.
@@ -240,10 +252,14 @@ func (f *rpcFinalityChecker) IsBlockFinalized(ctx context.Context, chainID strin
 	return result.IsFinalized, nil
 }
 
-// IsBlockFinalizedWithStatus returns the verdict together with how it was
-// reached. When Degraded is true, or Confidence is not ConfidenceFinalized, the
-// caller must NOT treat the block as finalized.
-func (f *rpcFinalityChecker) IsBlockFinalizedWithStatus(ctx context.Context, chainID string, blockNumber uint64) (*FinalityResult, error) {
+// GetFinalizedBlockNumberWithStatus returns the finalized height together with
+// the confidence and source it was obtained from.
+//
+// IsFinalized is reported as true: the height this returns IS the finalized
+// height, so the block at that height is finalized by construction. The field
+// that callers must actually branch on is Confidence (with Degraded as the
+// coarse version of the same signal).
+func (f *rpcFinalityChecker) GetFinalizedBlockNumberWithStatus(ctx context.Context, chainID string) (*FinalityResult, error) {
 	finalized, err := f.GetFinalizedBlockNumber(ctx, chainID)
 	if err != nil {
 		return nil, fmt.Errorf("get finalized block number for chain %s: %w", chainID, err)
@@ -251,13 +267,25 @@ func (f *rpcFinalityChecker) IsBlockFinalizedWithStatus(ctx context.Context, cha
 
 	meta := f.getCachedMeta(chainID)
 	return &FinalityResult{
-		IsFinalized:          blockNumber <= finalized,
+		IsFinalized:          true,
 		Degraded:             meta.degraded,
 		Confidence:           meta.confidence,
 		Source:               meta.source,
 		ObservedAt:           meta.cachedAt,
 		FinalizedBlockNumber: finalized,
 	}, nil
+}
+
+// IsBlockFinalizedWithStatus returns the verdict together with how it was
+// reached. When Degraded is true, or Confidence is not ConfidenceFinalized, the
+// caller must NOT treat the block as finalized.
+func (f *rpcFinalityChecker) IsBlockFinalizedWithStatus(ctx context.Context, chainID string, blockNumber uint64) (*FinalityResult, error) {
+	result, err := f.GetFinalizedBlockNumberWithStatus(ctx, chainID)
+	if err != nil {
+		return nil, err
+	}
+	result.IsFinalized = blockNumber <= result.FinalizedBlockNumber
+	return result, nil
 }
 
 // getCachedMeta returns the metadata recorded for a chain's cached height.
