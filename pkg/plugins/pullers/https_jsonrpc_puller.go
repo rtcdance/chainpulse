@@ -426,6 +426,14 @@ func (p *HTTPSJSONRPCPuller) GetLatestBlock(ctx context.Context) (uint64, error)
 		return 0, err
 	}
 
+	// Report the successful probe to the circuit breaker. Without this, a
+	// half-open breaker latches forever: Allow() set probeInFlight=true for
+	// this call and only Success()/Failure() clear it, and the failure path
+	// alone cannot recover a breaker whose RPC endpoint is healthy again.
+	if cb := p.CircuitBreaker(); cb != nil {
+		cb.Success()
+	}
+
 	p.mu.Lock()
 	p.currentBlock = blockNumber
 	current := p.currentBlock
