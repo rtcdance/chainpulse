@@ -378,3 +378,41 @@ Anvil 修复后部署容器仍持续报 `circuit breaker: [transient] RPC_UNREAC
 **修复**：`GetLatestBlock` 成功路径补报 `cb.Success()`（连续 3 次成功 → Closed，符合既有 HalfOpenLimit 设计）。
 回归测试 `pkg/plugins/pullers/breaker_recovery_test.go`：修复前 red（half-open 闩死，与生产现象一致），修复后 green。
 `CircuitBreaker` 增加 `SetCooldown`（测试注入冷却窗口用）。
+
+### 8.9 第二层阻塞：`--timestamp 0` 把 Anvil 钉在 Frontier 硬分叉
+
+compose 里 anvil 的 `--timestamp 0` 使 genesis 时间戳为 0，所有**按时间戳激活**的硬分叉（Shanghai 及以后）永不激活：
+`anvil_nodeInfo` 报告 `hardFork: "Frontier"`。Frontier 上 EIP-1559 费用字段被拒
+（"EIP-1559 style fee params … not supported by the current hardfork"），编译后的 Solidity 合约部署后
+`eth_getCode` 返回 `0x`（tx 状态 success 但无代码存入，`0x5f`=PUSH0 在 Frontier 是非法码）。
+移除该 flag 后同一镜像报告 `hardFork: "Bpo2"`，forge 编译的 DemoNFT 正常部署并发出 Transfer 事件。
+
+调试教训（三次证伪）：§8.5 的 "镜像忽略 --host"、§8.6 的 "RPC 已恢复"、以及 "硬分叉是根因" 都不完整——
+真正的分层是：**compose entrypoint 吞参数（§8.7）→ `--timestamp 0` 钉死 Frontier（本节）→ 自制手写字节码本身有错
+（RETURN 栈序踩坑，改用 forge 编译的 DemoNFT 后一发即中）**。手写 EVM 字节码做端到端验证不可靠。
+
+### 8.10 F27：`snapshotCompatibleDatabase` 装饰器吞掉生命周期 —— 事件入库全链路假死
+
+T12 首次真实验证时：puller 拉到真 Transfer、事件总线送达 indexer（"monolithic event received"），
+但持久化报 `persist batch: store event …: database not initialized`。
+
+根因：`buildMonolithicIndexingStorageWithDeps` 用 `ConfigurablePlugin`/`LifecyclePlugin` 类型断言驱动
+Initialize/Start，而 `snapshotCompatibleDatabase` 只嵌入了 `core.DatabasePlugin` 接口——断言**静默失败**，
+PostgreSQL 适配器从未 Initialize（`p.db` 为 nil），启动日志却打印 "indexing storage started"（假过）。
+
+修复：装饰器转发 Initialize/Start/Stop（提交 `c927bc5`）。回归测试 red→green。
+
+### 8.11 T12 完成：真实 emit→query 端到端验证 ✅
+
+修复后重新部署（HEAD `c927bc5`，部署演练 PASSED，digest sha256:137cf298…）：
+
+1. forge 在 Anvil 部署 DemoNFT → `cast send "mint(address)"` 触发 Transfer（topic `0xddf252ad…`）。
+2. 部署容器 puller 通过端口栈拉取并索引 —— 无任何错误。
+3. **Postgres `blockchain_events` 落库 2 行**（status=published）：
+   - block 125（历史回填，进程启动后从 genesis 扫描补上）
+   - block 296（实时事件，mint 后 ~10s 内入库）
+
+历史回填 + 实时事件都经 puller → 事件总线 → 共享运行时 → PG 适配器（T02 端口栈）入库。
+T02/T03/T05 的端口栈自此**在部署路径上真实可达且真实工作**。
+
+遗留小项（非阻塞）：puller `VerifyChainID` 用链名 "ethereum" 与数字 "1" 比较，报 mismatch 但"proceeding with caution"。
