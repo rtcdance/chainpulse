@@ -19,7 +19,6 @@ const (
 	defaultKafkaMaxRetries         = 3
 	defaultKafkaRetryDelay         = 1 * time.Second
 	defaultKafkaMaxBytes           = 10e6
-	defaultKafkaCommitInterval     = time.Second
 	defaultKafkaStopTimeout        = 10 * time.Second
 	defaultKafkaCommitTimeout      = 5 * time.Second
 	defaultKafkaDLQReadTimeout     = 2 * time.Second
@@ -266,21 +265,15 @@ func (p *KafkaMQPlugin) DetailedHealth(ctx context.Context) core.HealthStatus {
 	}
 }
 
-// SetConsumerConfig overrides default consumer commit interval and max bytes.
-func (p *KafkaMQPlugin) SetConsumerConfig(commitInterval time.Duration, maxBytes int64) {
+// SetConsumerConfig overrides the maximum bytes fetched per consumer request.
+//
+// There is deliberately no commit-interval knob: offsets are committed
+// explicitly after a successful handler (see ConsumeMessages), because a timer
+// commits the last-read offset whether or not the handler succeeded.
+func (p *KafkaMQPlugin) SetConsumerConfig(maxBytes int64) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	p.commitInterval = commitInterval
 	p.consumerMaxBytes = maxBytes
-}
-
-func (p *KafkaMQPlugin) getCommitInterval() time.Duration {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-	if p.commitInterval > 0 {
-		return p.commitInterval
-	}
-	return defaultKafkaCommitInterval
 }
 
 func (p *KafkaMQPlugin) getMaxBytes() int64 {
@@ -472,13 +465,16 @@ func (p *KafkaMQPlugin) ConsumeMessages(ctx context.Context, topic string, handl
 	p.mu.Unlock()
 
 	// Create Kafka reader (consumer) with consumer group for offset tracking
+	// CommitInterval is left at 0 on purpose. A non-zero value makes kafka-go
+	// auto-commit the last-read offset on a timer, so a message whose handler
+	// failed is marked consumed and lost. Offsets are committed explicitly
+	// after a successful handler instead (see ConsumeMessages).
 	reader := kafka.NewReader(kafka.ReaderConfig{
-		Brokers:        p.brokers,
-		Topic:          topic,
-		GroupID:        p.consumerGroup,
-		StartOffset:    kafka.FirstOffset,
-		CommitInterval: p.getCommitInterval(),
-		MaxBytes:       int(p.getMaxBytes()),
+		Brokers:     p.brokers,
+		Topic:       topic,
+		GroupID:     p.consumerGroup,
+		StartOffset: kafka.FirstOffset,
+		MaxBytes:    int(p.getMaxBytes()),
 	})
 
 	// Register consumer for graceful shutdown
@@ -588,13 +584,13 @@ func (p *KafkaMQPlugin) ConsumeMessages(ctx context.Context, topic string, handl
 						return fmt.Errorf("plugin stopped")
 					}
 
+					// Auto-commit stays off here too, for the same reason.
 					reader = kafka.NewReader(kafka.ReaderConfig{
-						Brokers:        p.brokers,
-						Topic:          topic,
-						GroupID:        p.consumerGroup,
-						StartOffset:    kafka.FirstOffset,
-						CommitInterval: p.getCommitInterval(),
-						MaxBytes:       int(p.getMaxBytes()),
+						Brokers:     p.brokers,
+						Topic:       topic,
+						GroupID:     p.consumerGroup,
+						StartOffset: kafka.FirstOffset,
+						MaxBytes:    int(p.getMaxBytes()),
 					})
 					p.mu.Lock()
 					p.consumers[topic] = &KafkaConsumer{
@@ -664,7 +660,20 @@ func (p *KafkaMQPlugin) ConsumeMessages(ctx context.Context, topic string, handl
 				continue
 			}
 
-			// Track offset for exactly-once semantics
+			// Commit the offset only now that the handler has succeeded. With
+			// auto-commit disabled this is what makes delivery at-least-once:
+			// the failure path above returns without committing, so the message
+			// is redelivered instead of being silently dropped.
+			commitCtx, commitCancel := context.WithTimeout(ctx, defaultKafkaCommitTimeout)
+			commitErr := reader.CommitMessages(commitCtx, msg)
+			commitCancel()
+			if commitErr != nil {
+				p.logger.Warn("failed to commit offset after handler success",
+					"topic", topic, "offset", msg.Offset, "error", commitErr)
+				p.metricsCollector.RecordCounter("mq_offset_commit_errors", 1, map[string]string{"topic": topic})
+			}
+
+			// Track offset for progress reporting
 			p.offsets.mu.Lock()
 			p.offsets.tracking[topic] = msg.Offset
 			p.offsets.mu.Unlock()
@@ -684,13 +693,12 @@ func (p *KafkaMQPlugin) ConsumeMessages(ctx context.Context, topic string, handl
 	}
 }
 
-// closeKafkaReader commits pending offsets and closes the Kafka reader.
-func (p *KafkaMQPlugin) closeKafkaReader(ctx context.Context, reader *kafka.Reader, topic string) {
-	commitCtx, commitCancel := context.WithTimeout(ctx, defaultKafkaCommitTimeout)
-	defer commitCancel()
-	if err := reader.CommitMessages(commitCtx); err != nil {
-		p.logger.Warn("failed to commit offset before close", "topic", topic, "error", err)
-	}
+// closeKafkaReader closes the Kafka reader.
+//
+// It deliberately does NOT commit. Offsets are committed per message after a
+// successful handler, and CommitMessages with no messages would commit the last
+// READ offset — including a message whose handler failed.
+func (p *KafkaMQPlugin) closeKafkaReader(_ context.Context, reader *kafka.Reader, topic string) {
 	if err := reader.Close(); err != nil {
 		p.logger.Error("failed to close Kafka reader", "topic", topic, "error", err)
 	}
