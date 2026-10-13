@@ -111,6 +111,16 @@
 - **未做**：**没有**系统排查"还有多少其他修复被静默回退"——那需要按关键行逐个 `-S` 排查，是一个可做但未做的更大工程。
 - **证据**：`2026-10-14-silent-revert-kafka.md`。
 
+## D16. `evm-e2e` lane 没有验收"真实发日志"与"reorg"
+
+- **现状**：CI 跑的 Go `test/e2e` lane 里，**29 个用例在任何环境下都必然 skip**（本地门全开、Anvil 在 PATH 上，仍是 315 pass / 29 skip），因为 `NewTestOrchestrator()`（`test/e2e/orchestrator.go:27`）把 DSN 硬编码成占位值 `postgres://user:password@localhost:5432/test`，且 `test/e2e` 包**不读任何**数据库环境变量——CI 设的 `TEST_DATABASE_URL` / `POSTGRES_*` 全被忽略。被 skip 的 29 个里就包含 `TestDataPullerEventCollection` 与 `TestDataPullerReorgHandling`。
+- **`anvil_test.go` 在两个 CI lane 里都不执行**：`test.yml` 装了并起了 Anvil 却**不带 `-tags=e2e`**（文件不参与编译）；`ci-integration.yml` 带 tag 但**不装 Anvil**（6 个全 skip、exit 0）。正确的命令已在 Makefile 的 `test-anvil`（带 tag + 缺依赖即失败），**但无人调用**。
+- **lane 内"真实事件"是伪造**：`DeployContract` 用时钟造地址与 tx hash、从不发交易；`EmitEvent` 返回造的 struct；`TestDataPullerEventCollection` 再用它逐字段构造"已采集"列表去和自己比对（同义反复），`RawData` 为空字节。`SimulateReorg` 全程不碰链，全仓库无 `evm_snapshot`/`evm_revert`。
+- **真实路径存在但没接 CI**：`docker/verify-e2e-reorg.sh`（真 `cast rpc evm_snapshot` → 发真实事件 → `evm_revert` → 核对索引数）与 `docker/verify-e2e-indexing.sh`（真部署 EventEmitter）只在 `docker/ACCEPTANCE.md` 里被引用；`scripts/multi-chain-e2e.sh` 有 Makefile 目标但无 CI。
+- **需要决定/执行**：(a) 占位 DSN 改为读 `TEST_DATABASE_URL`（保留可用默认），还是删除这批用例、承认它们不属于本 lane；(b) `anvil_test.go` 并入 `test.yml`（去 tag 或给该步加 tag），还是给 `ci-integration` 的 e2e job 补 Foundry——两者都影响 CI 时长与额度（关联 F23）；(c) `evm-e2e` lane 究竟跑哪一套（Go 套件 / docker 脚本 / `make test-anvil`），需与 §7 lane 表对齐；(d) 两个 e2e job 的 verifier 是否补 `--fail-on-unknown-skip`。
+- **为什么重要**：§7 把 `evm-e2e` 定为每个 PR 都跑的 lane，验收是"真实发日志 + reorg/restart"。当前它既没有真日志、也没有真 reorg，核心场景还 skip——**lane 的绿灯不代表它宣称验收过的东西被验收过**。
+- **证据**：`2026-10-14-evm-e2e-lane.md`；`build/acceptance/<sha>/e2e-lane/{e2e-full-run.jsonl,ci-anvil-simulated-absent.jsonl,SUMMARY.txt}`。
+
 ## 决策后我可以立刻执行的事
 
 | 决策 | 立刻可做 |
@@ -128,5 +138,6 @@
 | D13 | 加 `acceptance` lane（或把关键用例迁进 `test/integration`），并留原始输出 |
 | D14 | 在 `-race` 下重复 10–20 次判定 `make test-unit` 的失败是偶发还是稳定竞态，并加"失败留存完整日志"约定 |
 | D15 | 为已修复缺陷补"断言不变式"的测试；要求 CHANGELOG 条目指向测试；对 `-S` 命中"关键行消失"的回退单独标注 |
+| D16 | 定 `evm-e2e` lane 跑哪一套；修占位 DSN 与 `anvil_test.go` 的 tag 错配；两个 e2e job 补 `--fail-on-unknown-skip` |
 
 > 说明：本文件只记录**需要拍板的问题**，不含任何未决的代码改动。以上每一项我都可以在得到答复后立即执行并给出实测证据。
