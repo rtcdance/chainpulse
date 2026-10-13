@@ -95,3 +95,63 @@ F16 的描述是"仓库内未找到 Uniswap V3 Swap topic0（`0xc42079f9…`）�
 - [ ] **fuzz 语料固定回归**：目前是手工枚举的 14 个用例，尚未用 Go fuzz 生成并冻结语料。
 - [ ] **`decimals` 与金额精度**：无 float 损失的端到端用例。
 - [ ] **E01/E11 接线**：把该 fixture 接进端到端场景（目前只在单元层消费）。
+
+---
+
+## 附：金额精度端到端——typed_data 的 JSON 数字缺陷（2026-10-13）
+
+计划 §4.1 明文要求：「金额与大整数采用 Go `big.Int`、数据库可无损表达的数值/字符串和 **JSON 字符串**；禁止 float64 作为资产值」。
+
+### 实测到的缺陷（修前）
+
+`pkg/blockchain/types.go:71`：
+
+```go
+TypedData any `json:"typed_data,omitempty"` // Type-safe decoded event (e.g., *ERC20Transfer)
+```
+
+该字段的取值来自 `ChainedDecoder` 的 typed 解码结果，字段类型是 `*big.Int`（`typed_events.go:25/36/60/73/99-103`）。**Go 的 `big.Int.MarshalJSON` 输出的是裸十进制数字字面量**，所以实测线上形态是：
+
+```
+"typed_data":{...,"value":115792089237316195423570985008687907853269984665640564039457584007913129639935}
+```
+
+把这个 s 当作 double 解析（所有 JS 运行时、`jq` 都是如此）得到：
+
+```
+115792089237316200000000000000000000000000000000000000000000000000000000000000
+```
+
+**低位数字静默丢失**。`int256` 同理（`"amount0":-57896044618658097711785492504343953926634992332820282019728792003956564819968`）。
+
+### 它是**可达的**写路径，不只是理论
+
+1. `pkg/plugins/pullers/https_jsonrpc_puller.go:930` —— `TypedData: typedData`，采集时写入；
+2. `cmd/microservices/event-processor/consumer_runtime.go:373` —— **`json.Marshal(event)` 后发布到 output topic**；
+3. 同文件 `:389` —— 同一序列化写入 **DLQ payload**。
+
+⇒ 四服务的下游消费者拿到的就是带 78 位数字的 JSON。**全仓 `TypedData` 只有两处命中（写入 + 字段定义），没有任何读取方** ⇒ 该字段目前是**只写负载**，但它确实上线上。
+
+### 修复
+
+为含大整数的 6 个 typed 结构体加 `MarshalJSON`（`ERC20Transfer`、`ERC20Approval`、`ERC1155TransferSingle`、`ERC1155TransferBatch`、`ERC1155URI`、`UniswapV3Swap`；`ERC721ApprovalForAll` 无大整数，不需要），统一走新类型 **`jsonBigInt`**：大整数一律**十进制字符串**，`nil` **仍为 `null`**（保持原形状）。
+
+**Go 侧 API 未变**（字段仍是 `*big.Int`），只改线上编码 —— 避免动到既有 Go 调用方。
+
+### 验收
+
+| 测试 | 断言 |
+| --- | --- |
+| `TestTypedEventBigIntegersSerializeAsStrings` | 5 个字段（含 **int256 负值下界**）反序列化后**类型必须是 string**，且与精确十进制**逐字相等** |
+| `TestTypedEventNilBigIntegerStaysNull` | nil 仍是 `null`（没有变成空串） |
+| `TestTypedEventBigIntegerSliceSerializesAsStrings` | `TransferBatch` 的 `ids`/`values` 数组元素也是字符串 |
+| `TestBlockchainEventTypedDataHasNoLossyNumbers` | **端到端**：`BlockchainEvent` 整体 marshal 后 `typed_data.value` 是字符串；并断言 256 位精度下精确可表示 |
+| `TestTypedEventJSONShapeUnchangedOtherwise` | 字段数仍为 3、地址形状不变（防止改编码时漏字段/改名） |
+
+全量 short 门禁：`pass=6861 fail=0 skip=71`；与改动前同一计数器逐项对比：**新增 10 个顶层测试（全部为本轮新增），移除 0 个**（`pkg/evm` +5、`pkg/plugins/api` +2、`pkg/plugins/pullers` +3 —— 后两者是前几轮新增、基线尚未包含）。
+
+### 仍未做（T09）
+
+- **`decoded_data`（map 路径）已是字符串**（`event_decoder.go`/`chained_decoder.go` 一律 `.String()`），无需改动 —— 本缺陷**只在 typed 路径**。
+- `TypedData` 的反序列化从来就不是对称的（`any` 会落成 `map[string]any`，不会还原成 typed 结构体）；因为**没有读取方**，本轮只修编码，不改这条不对称。
+- §4.4 要求的 **OpenAPI/contract 差异测试**：`typed_data` 的值类型由 number 变 string 属**契约变更**，需按 §4.4 给出兼容说明。本轮只保证编码正确，**未产出 OpenAPI 差异件**。

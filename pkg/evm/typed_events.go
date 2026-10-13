@@ -1,11 +1,53 @@
 package evm
 
 import (
+	"encoding/json"
 	"math/big"
 	"sync"
 
 	"github.com/ethereum/go-ethereum/common"
 )
+
+// jsonBigInt is the JSON form of a *big.Int used by the typed events below.
+//
+// Why a string and not a number: encoding/json writes *big.Int as a bare decimal
+// literal, so a uint256 travels as a 78-digit NUMBER. Measured, for
+// 2^256-1 the wire carries
+//
+//	"value":115792089237316195423570985008687907853269984665640564039457584007913129639935
+//
+// and any JSON consumer that parses numbers as doubles — every JavaScript
+// runtime, and jq — reads that back as
+// 115792089237316200000000000000000000000000000000000000000000000000000000000000,
+// i.e. the low digits are silently gone. The delivery plan's §4.1 requires
+// amounts and large integers to travel as JSON strings for exactly this reason.
+//
+// A nil value still marshals to null, so the existing shape is preserved.
+type jsonBigInt struct {
+	value *big.Int
+}
+
+// MarshalJSON implements json.Marshaler.
+func (j jsonBigInt) MarshalJSON() ([]byte, error) {
+	if j.value == nil {
+		return []byte("null"), nil
+	}
+	return json.Marshal(j.value.String())
+}
+
+// jsonBigInts converts a slice for the array-valued fields.
+func jsonBigInts(values []*big.Int) []jsonBigInt {
+	out := make([]jsonBigInt, len(values))
+	for i, v := range values {
+		out[i] = jsonBigInt{value: v}
+	}
+	return out
+}
+
+// bigIntJSON renders a single value for the shadow structs below.
+func bigIntJSON(value *big.Int) jsonBigInt {
+	return jsonBigInt{value: value}
+}
 
 // TypedEvent represents a type-safe decoded blockchain event.
 // Each known event type has its own Go struct with properly typed fields
@@ -28,6 +70,15 @@ type ERC20Transfer struct {
 func (e *ERC20Transfer) EventName() string   { return "Transfer" }
 func (e *ERC20Transfer) Topic0() common.Hash { return topic0ForName("Transfer") }
 
+// MarshalJSON emits Value as a decimal string. See jsonBigInt.
+func (e *ERC20Transfer) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		From  common.Address `json:"from"`
+		To    common.Address `json:"to"`
+		Value jsonBigInt     `json:"value"`
+	}{e.From, e.To, bigIntJSON(e.Value)})
+}
+
 // ERC20Approval represents an ERC-20 Approval event
 // Approval(address indexed owner, address indexed spender, uint256 value)
 type ERC20Approval struct {
@@ -38,6 +89,15 @@ type ERC20Approval struct {
 
 func (e *ERC20Approval) EventName() string   { return "Approval" }
 func (e *ERC20Approval) Topic0() common.Hash { return topic0ForName("Approval") }
+
+// MarshalJSON emits Value as a decimal string. See jsonBigInt.
+func (e *ERC20Approval) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Owner   common.Address `json:"owner"`
+		Spender common.Address `json:"spender"`
+		Value   jsonBigInt     `json:"value"`
+	}{e.Owner, e.Spender, bigIntJSON(e.Value)})
+}
 
 // ERC721ApprovalForAll represents an ERC-721 ApprovalForAll event
 // ApprovalForAll(address indexed owner, address indexed operator, bool approved)
@@ -63,6 +123,17 @@ type ERC1155TransferSingle struct {
 func (e *ERC1155TransferSingle) EventName() string   { return "TransferSingle" }
 func (e *ERC1155TransferSingle) Topic0() common.Hash { return topic0ForName("TransferSingle") }
 
+// MarshalJSON emits ID and Value as decimal strings. See jsonBigInt.
+func (e *ERC1155TransferSingle) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Operator common.Address `json:"operator"`
+		From     common.Address `json:"from"`
+		To       common.Address `json:"to"`
+		ID       jsonBigInt     `json:"id"`
+		Value    jsonBigInt     `json:"value"`
+	}{e.Operator, e.From, e.To, bigIntJSON(e.ID), bigIntJSON(e.Value)})
+}
+
 // ERC1155TransferBatch represents an ERC-1155 TransferBatch event
 // TransferBatch(address indexed operator, address indexed from, address indexed to, uint256[] ids, uint256[] values)
 type ERC1155TransferBatch struct {
@@ -76,6 +147,17 @@ type ERC1155TransferBatch struct {
 func (e *ERC1155TransferBatch) EventName() string   { return "TransferBatch" }
 func (e *ERC1155TransferBatch) Topic0() common.Hash { return topic0ForName("TransferBatch") }
 
+// MarshalJSON emits IDs and Values as arrays of decimal strings. See jsonBigInt.
+func (e *ERC1155TransferBatch) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Operator common.Address `json:"operator"`
+		From     common.Address `json:"from"`
+		To       common.Address `json:"to"`
+		IDs      []jsonBigInt   `json:"ids"`
+		Values   []jsonBigInt   `json:"values"`
+	}{e.Operator, e.From, e.To, jsonBigInts(e.IDs), jsonBigInts(e.Values)})
+}
+
 // ERC1155URI represents an ERC-1155 URI event
 // URI(string value, uint256 indexed id)
 type ERC1155URI struct {
@@ -85,6 +167,14 @@ type ERC1155URI struct {
 
 func (e *ERC1155URI) EventName() string   { return "URI" }
 func (e *ERC1155URI) Topic0() common.Hash { return topic0ForName("URI") }
+
+// MarshalJSON emits ID as a decimal string. See jsonBigInt.
+func (e *ERC1155URI) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Value string     `json:"value"`
+		ID    jsonBigInt `json:"id"`
+	}{e.Value, bigIntJSON(e.ID)})
+}
 
 // UniswapV3Swap represents a Uniswap V3 Swap event.
 //
@@ -105,6 +195,25 @@ type UniswapV3Swap struct {
 
 func (e *UniswapV3Swap) EventName() string   { return "Swap" }
 func (e *UniswapV3Swap) Topic0() common.Hash { return topic0ForName("Swap") }
+
+// MarshalJSON emits every numeric field as a decimal string. See jsonBigInt:
+// amount0/amount1 are int256, so they can be negative and must not be parsed as
+// doubles either.
+func (e *UniswapV3Swap) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Sender       common.Address `json:"sender"`
+		Recipient    common.Address `json:"recipient"`
+		Amount0      jsonBigInt     `json:"amount0"`
+		Amount1      jsonBigInt     `json:"amount1"`
+		SqrtPriceX96 jsonBigInt     `json:"sqrtPriceX96"`
+		Liquidity    jsonBigInt     `json:"liquidity"`
+		Tick         jsonBigInt     `json:"tick"`
+	}{
+		e.Sender, e.Recipient,
+		bigIntJSON(e.Amount0), bigIntJSON(e.Amount1),
+		bigIntJSON(e.SqrtPriceX96), bigIntJSON(e.Liquidity), bigIntJSON(e.Tick),
+	})
+}
 
 // topic0ForName looks up the topic0 hash for a known event name.
 func topic0ForName(name string) common.Hash {
