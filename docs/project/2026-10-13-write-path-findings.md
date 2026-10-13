@@ -143,3 +143,88 @@ processorRuntime, err := newEventProcessorProcessingRuntimeWithStorage(
 - 没有把 T02/T03/T05 的结论标为"生产可用"——它们仍然是**端口级**已验证。
 - 没有断言"Mongo/Kafka 内部行为"——那些标为未验证。
 - 没有删除或降级任何既有测试。
+
+---
+
+## 6. 测量结果：**checkpoint 与 offset 谁负责？**（§4 建议的第一步，已完成）
+
+§4 推荐"先测量四服务 checkpoint/offset 归属"。**测完了，答案是：两者都没有生产所有者。**
+
+### 6.1 Checkpoint：**没有任何生产写入者**
+
+全仓 `indexing_state` 的**写入**只有三处，且**三处都不在生产路径上**：
+
+| 写入点 | 栈 | 可达性 |
+| --- | --- | --- |
+| `pkg/plugins/database/postgres_tx.go:100` `pgTx.SaveCheckpoint` | 端口栈（由 `pkg/services/processor/batch_committer.go:159` 调用） | **不可达** —— §1 已证端口实现恒为内存/MockDB |
+| `pkg/plugins/database/postgres_reorg_outbox.go:275`（`RewindCheckpoint`） | 端口栈 | 同上 |
+| `pkg/infrastructure/database/checkpoint_store.go:56` `SaveLastIndexedBlock` | 基础设施层，实现 `core.CheckpointStore` | **从未被构造** |
+
+`NewPostgresCheckpointStore` 在全仓只有**两处命中：定义（`:19`）与文档注释（`:18`）。零调用点。** ⇒ 唯一一个真正写 PG 的 checkpoint 实现是**死代码**。
+
+那么装配给共享运行时的是什么？`pkg/application/bootstrap/indexing_runtime.go:148`：
+
+```go
+CheckpointStore: newMonolithicMemoryCheckpointStore(normalizedChains),   // :175 内存实现
+```
+
+而 `ReorgHandler.WithCheckpointStore`（`reorg_handler.go:155`）的**唯一调用点在测试里**（`reorg_handler_defects_test.go:70`）。⇒ reorg 路径也不持久化 checkpoint。
+
+**反向证据**：`pkg/plugins/api/block_confirmation_tracker.go:143` 会 `SELECT chain_id, last_indexed_block FROM indexing_state` —— **API 在读一张生产里没人写的表**。
+
+⇒ **I04（"持久化 checkpoint 只到最后一个已完成的连续块"）在部署路径上没有实现。**
+
+### 6.2 Offset：**kafka-go 的 1 秒定时自动提交，与持久化效果无关**
+
+`pkg/plugins/mq/kafka_mq.go:475-482`：
+
+```go
+reader := kafka.NewReader(kafka.ReaderConfig{
+	Brokers:        p.brokers,
+	Topic:          topic,
+	GroupID:        p.consumerGroup,
+	StartOffset:    kafka.FirstOffset,
+	CommitInterval: p.getCommitInterval(),   // :22 defaultKafkaCommitInterval = time.Second
+	MaxBytes:       int(p.getMaxBytes()),
+})
+```
+
+`DisableAutoCommit` **未设置**，`CommitInterval` 为 **1s** ⇒ kafka-go 按定时器提交已读 offset，**不看 handler 是否成功、更不看效果是否落库**。同一配置出现在 `:596`。
+
+全插件唯一的显式 `CommitMessages` 在 `closeKafkaReader`（`:691`），**只在关闭时**执行一次。
+
+`:667-671` 的注释写着 "Track offset for exactly-once semantics"，但那一行只是把 offset 记进**内存 map**：
+
+```go
+p.offsets.mu.Lock()
+p.offsets.tracking[topic] = msg.Offset   // 记账，不是提交
+p.offsets.mu.Unlock()
+```
+
+且 handler 失败时（`:655-663`）只**记日志 + `continue`**，而自动提交早已推进。
+
+⇒ **I06（"offset 只能在相应持久化效果成功后推进"）在部署路径上被违反**；崩溃会永久丢失已提交 offset 但未落库的消息 —— **连 at-least-once 都不成立**，而 §4.2 的承诺正是 at-least-once。
+
+> **证据等级**：读取器配置为**代码实测**；"定时自动提交"这一运行时后果依据 kafka-go 的既有语义（`CommitInterval > 0` 且未禁自动提交 ⇒ 定时提交）。**未做运行时验证**，因为本机 broker 的 advertised listener 不可达（T16 已记录），消费者起不来。若要运行时证据，需先解决 broker 可达性。
+
+### 6.3 这对 §4 的不变量意味着什么
+
+| 不变量 | 部署路径状态 |
+| --- | --- |
+| I04 checkpoint | **无实现**（无写入者；读取方（API）在读空表） |
+| I05 原始事件/投影/checkpoint 权威更新同事务 | **不成立**（事件写 Mongo+PG 两库，checkpoint 不写） |
+| I06 offset 只在效果成功后推进 | **被违反**（1s 自动提交） |
+| I07 重组任务持久化 | 端口栈有实现，**不可达**；四服务路径未见 |
+
+⇒ §4.2 的关键决策（"PostgreSQL 事务包住块头、事件、必要投影与处理 checkpoint"）在**部署的写路径上完全没有落地**。这是比 §1 的"栈选择"更硬的事实：**不是选了另一个栈，而是这条路径上没有 checkpoint 可提交。**
+
+### 6.4 更新建议
+
+§4 的问题（"谁负责"）**已回答**，因此 A/B/C 的评估可以推进。但答案本身改变了三个选项的**前提**：
+
+- **选项 A（端口栈为生产）**：最小落地路径是让装配按配置返回 `PostgreSQLPluginAdapter` 并给共享运行时换上 `PostgresCheckpointStore`。**注意**：`PostgresCheckpointStore` 已实现但从未构造 —— 这是**接线**工作而不是新开发，且它没有测试（新文档需要补）。
+- **选项 B（service-store 栈为生产）**：必须**新增** checkpoint 写入者，并把 offset 提交改为手动（`DisableAutoCommit` + 在效果落库后提交），因为跨 Mongo/PG 无法单库事务 ⇒ 需要 outbox。**这是本文件能给出的最关键的实现要求。**
+- **选项 C（冻结范围）**：DoD 必须下修 I04/I05/I06 三项，且简历**不得**声称 at-least-once 或 PostgreSQL 生产链路。
+- **无论哪个选项**：`api/block_confirmation_tracker` 读 `indexing_state` 这件事都需要先定性（该表在部署路径是否应该存在），否则 A 之前它一直是"读空表"。
+
+**本文件到此为止**：不再继续改装配，等作者在 A/B/C 上定夺。
