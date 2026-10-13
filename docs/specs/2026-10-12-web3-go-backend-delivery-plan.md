@@ -489,3 +489,50 @@ T18通过后停止本轮功能扩张。只在出现影响已承诺数据正确�
 ## Final Verification
 
 见 [2026-10-12基线与原始输出](../project/2026-10-12-web3-go-baseline.md)。当前本地通过不等于T18通过；最终实施记录必须补齐同SHA远端CI/CD、真实适配器与E01–E15验收。
+
+---
+
+## Execution Record（append-only，2026-10-13）
+
+> 本节按 §12 的交办协议追加：**记录实际执行与阻塞，不改动上面的范围、任务与验收合同**。上面的 `Status: Approved` 与各任务状态**未被回写**——任务是否 Verified 仍需逐条证据，本节只做事实登记。
+> 本节取代上面 Implementation Summary 末句的「T00–T18 实施未开始」；该句自本日起已过时。
+
+### A. 本地已闭环并留有原始证据的项
+
+| 任务 / 条款 | 实测结果 | 证据落点 |
+| --- | --- | --- |
+| T07 F08（finality 误晋升） | 写路径的 `GetFinalizedBlockNumber` 高度被当 `confirmed` 截断线 ⇒ 已加置信度并拒绝降级；7 例纯函数 + 接线钉住 | `d0d8355`；`docs/project/2026-10-12-T07-finality.md` §5 |
+| T08 I09（SIWE nonce） | 原子消费 + 地址绑定；**100 并发重放恰好 1 次成功**；反面对照实测旧写法 **10 winners vs 1** | `2ef98d7`；T08 文档 §6 |
+| T08 匿名 replay/pprof/control | **实测已禁止**：匿名 401、角色不足 403、`/api/v1` 前缀同一裁决；对照证明角色表有效（403 vs 200） | `554f5ff`,`5055ece`；T08 文档 §7 |
+| T10 F25（受限 provider 不丢块） | 真实 httptest JSON-RPC + 真 `ethclient`：范围拒绝 200 块全回；静默截断 21000 条全回；**旧前进逻辑实测丢 4 条** | `bdf57c2`；T10 文档附录 |
+| T09 §4.1（金额精度） | `typed_data` 的 78 位数字改为**十进制字符串**；端到端断言覆盖 output topic 与 DLQ payload 的序列化 | `8ede0bc`；T09 文档附录 |
+| T09 §4.4（OpenAPI 差异测试） | 新增 drift 检查器，首跑抓到 spec 缺 `network` 与"金额规则未写明" | `c492d07` |
+| T05 F24/E05（提交崩溃） | 事务内 kill 10/10 + 提交后 kill 10/10；**非原子对照实测 6 events vs checkpoint 0** | `b288549`；T05 文档附录 |
+| T02 §7.3（生产 factory executed>0） | Redis 适配层 + 契约 runner；`Connected()` 断掉"静默退到内存仍报 Redis verified"的假通过 | `a873716` |
+| T18 §10（覆盖率门槛） | **70.4% / MIN_COVERAGE=40 → PASS**，命令与解析与 CI 逐字同口径 | `docs/project/2026-10-13-T18-preflight.md` §8.1 |
+| T18 §10（PR 模板门禁） | `make vet` / `make build` / `make test-unit` **rc=0** | 同上 §8.2 |
+| T18 §10（新检出 + 冷 cache） | 干净检出 build/check/lint/test-short 全过；**空 GOMODCACHE 60s 内 build 通过** | T18 文档 §6 |
+| T18 §10（schema fresh/upgrade/rollback） | 12 迁移四相位全绿；含"重跑 000004 会静默破坏"的身份约束不变量 | T18 文档 §6.2 |
+| T00 F19（skip 唯一口径） | 工具化：**70 测试级 + 9 包级**；源码点 **153/48**；检验器与之一致 | `b88928f`；T00 文档 §11 |
+
+**验收工具链**（§10 要求"有实际代码与测试"）：`scripts/acceptance/` 现为 **6 个 stdlib 门禁**，各自带 `--self-test`：`verify-tests`、`collect-evidence`、`bench-gate`、`dep-approval-gate`、`skip-report`、`openapi-drift`。
+
+### B. 🔴 阻塞：**端口栈不是部署栈**（需作者决策，本记录不擅自改范围）
+
+**发现**（全文件证据见 `docs/project/2026-10-13-write-path-findings.md`）：
+
+1. 生产唯一的数据库插件选择器 `newMonolithicIndexingDatabaseForMode`（`indexing_storage.go:76-81`）返回**内存**（microservice 模式下是 **`NewMockDB()`**）；缓存恒为内存实现，**忽略 `CacheConnectionURL`**。
+2. `NewPostgreSQLPluginAdapter` / `NewPostgreSQLDatabase` / `NewRedisCachePlugin` 在 `cmd/` + `pkg/application` **零调用** ⇒ `WithChainScope` **无路径可接**（不是"忘了声明"）。
+3. 四服务真实写路径是 service 级 store（Mongo 事件 + PG 元数据）：**无 `BeginTx`、无 `SaveCheckpoint`**；包内 checkpoint 与 offset 提交**零命中**。
+4. **checkpoint 无生产所有者**：PE 唯一写 PG 的 `PostgresCheckpointStore` **从未被构造**（`NewPostgresCheckpointStore` 全仓仅定义 + 注释两处）。而 `api` 却在**读** `indexing_state`。
+5. **offset 被违反**：`kafka_mq.go` 的 reader 设了 `CommitInterval: 1s` 且未禁自动提交 ⇒ 定时提交，与效果落盘无关。
+
+**对本文档条款的影响**：§4 的 I04/I05/I06 在**部署路径**上没有实现（I04 无写入者、I05 跨库无法单事务、I06 被自动提交违反）；§7.3 的"每个必需生产 factory"若指装配路径，则应指内存实现而非 PG/Redis；§7.5 的 CD 步骤按当前装配**不成立**；§8 的"PostgreSQL 是事实来源"与装配**不一致**。
+
+**已给出的三个选项与代价**：见 findings 文档 §4/§6.4（A 端口栈为生产 / B service-store 为生产 / C 冻结范围）。
+
+**本轮遵循 §12**：**未改动任何装配**，**未回写任何任务的 Verified 状态**，**未新增/删除范围**。T02/T03/T05/T11/T12 的既有结论应被读作**端口级已验证**，而非生产可用。
+
+### C. 沙箱内不可执行的项（与 T18 原记录一致）
+
+同一最终 SHA 的远端 CI run URL、GitHub ruleset/required checks（需 admin）、RC performance/30min soak、真实 CD/回滚、3–5 分钟录屏、`sbom`/`security`/`run-urls.json` 工件。
