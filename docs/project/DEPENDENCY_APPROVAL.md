@@ -50,6 +50,16 @@ Approved by: mingo (2026-06-07) — in-flight refactor (massive dead code remova
 - **Approved by**: mingo
 - **Date**: 2026-10-13 (1.26.6), 2026-10-14 (1.26.9)
 
+#### Security-driven module bumps (2026-10-14)
+- **Modules**: `golang.org/x/net` v0.58.0 → v0.60.0; `go.opentelemetry.io/otel/sdk` v1.44.0 → v1.45.0 and `.../exporters/otlp/otlptrace` + `.../otlptracegrpc` v1.43.0 → v1.45.0; `go.mongodb.org/mongo-driver` v1.14.0 → v1.17.7; `github.com/jackc/pgx/v5` v5.8.0 → v5.9.2.
+- **Why**: each carried a govulncheck advisory reachable from this codebase — GO-2026-6617/6612/6611/6603 (x/net), GO-2026-6505/5327/5004 (otel), GO-2026-5327 (mongo-driver), GO-2026-5004 (pgx). Together with the toolchain move to 1.26.9, these took the scan from **14 callable findings to 0**.
+- **Note**: `go.mongodb.org/mongo-driver` is deprecated upstream in favour of `.../v2`. This bump deliberately stays on v1, because a major-version migration is a separate change; v1.17.7 is the fixed v1 release.
+- **Note**: these modules were never listed in this file even before the bump — the log only covered go-ethereum, prometheus and zap. Recorded here so the security-relevant set is visible.
+- **License**: BSD-3-Clause (x/net), Apache-2.0 (otel, mongo-driver), MIT (pgx)
+- **Scope**: dependency version bumps only; no new modules introduced, no API changes required (build, vet, lint and the short suite all pass).
+- **Approved by**: mingo
+- **Date**: 2026-10-14
+
 #### github.com/ethereum/go-ethereum v1.13.0
 - **Purpose**: Ethereum client library
 - **Why**: Core Web3 functionality (RPC, ABI, crypto)
