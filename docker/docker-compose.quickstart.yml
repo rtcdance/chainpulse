@@ -18,7 +18,7 @@ services:
     container_name: chainpulse-anvil-ethereum
     ports:
       - "8545:8545"
-    command: anvil --host 0.0.0.0 --port 8545 --chain-id 1 --accounts 5 --balance 10000 --block-time 3
+    entrypoint: ["/bin/sh", "-c", "anvil --host 0.0.0.0 --port 8545 --chain-id 1 --accounts 5 --balance 10000 --block-time 3"]
     healthcheck:
       test: ["CMD-SHELL", "cast chain --rpc-url http://localhost:8545 2>/dev/null || exit 1"]
       interval: 60s
