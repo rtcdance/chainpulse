@@ -70,7 +70,13 @@ smoke() {  # path -> "http_code time_total"
 read -r health_code health_time <<<"$(smoke /health)"
 read -r events_code events_time <<<"$(smoke /api/v1/events)"
 read -r metrics_code metrics_time <<<"$(smoke /metrics)"
-health_body="$(docker exec "$CONTAINER" curl -s "http://localhost:8080/health" 2>/dev/null | head -c 600 || true)"
+# Written to a FILE rather than interpolated into the Python below: the body is
+# JSON and can end on a quote at the truncation boundary, which would terminate
+# the Python string literal early. Embedding data into generated source is how
+# that bug happens; passing a path removes the hazard whatever the content is.
+mkdir -p "${OUT_DIR}/deploy"
+health_body_file="${OUT_DIR}/deploy/health-body.json"
+docker exec "$CONTAINER" curl -s "http://localhost:8080/health" 2>/dev/null | head -c 600 > "$health_body_file" || true
 
 echo "== rollback rehearsal =="
 # With no previous release in this environment, the honest statement is that
@@ -116,7 +122,7 @@ report = {
     {"probe": "/api/v1/events", "http_status": int("${events_code}"), "seconds": float("${events_time}")},
     {"probe": "/metrics", "http_status": int("${metrics_code}"), "seconds": float("${metrics_time}")},
   ],
-  "health_body_excerpt": """${health_body}""",
+  "health_body_excerpt": (open("${health_body_file}").read() if os.path.exists("${health_body_file}") else ""),
   "rollback": {
     "prior_digest": None,
     "note": "no previous release exists in this environment, so a rollback to a prior digest cannot be exercised; the same digest was recreated to show the procedure is repeatable",
