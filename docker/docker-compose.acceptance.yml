@@ -24,7 +24,7 @@ services:
       ANVIL_IP_ADDR: "0.0.0.0"
     ports:
       - "8545:8545"
-    entrypoint: ["/bin/sh", "-c", "anvil --host 0.0.0.0 --port 8545 --chain-id 1 --accounts 5 --balance 10000 --block-time 3 --timestamp 0"]
+    entrypoint: ["/bin/sh", "-c", "anvil --host 0.0.0.0 --port 8545 --chain-id 1 --accounts 5 --balance 10000 --block-time 3"]
     healthcheck:
       test: ["CMD-SHELL", "cast chain --rpc-url http://localhost:8545 2>/dev/null || curl -sf -X POST http://localhost:8545 -H 'Content-Type: application/json' -d '{\"jsonrpc\":\"2.0\",\"method\":\"eth_blockNumber\",\"params\":[],\"id\":1}'"]
       interval: 60s
@@ -44,42 +44,42 @@ services:
     container_name: chainpulse-anvil-polygon
     ports:
       - "8546:8545"
-    entrypoint: ["/bin/sh", "-c", "anvil --host 0.0.0.0 --port 8545 --chain-id 137 --accounts 5 --balance 10000 --block-time 3 --timestamp 0"]
+    entrypoint: ["/bin/sh", "-c", "anvil --host 0.0.0.0 --port 8545 --chain-id 137 --accounts 5 --balance 10000 --block-time 3"]
 
   anvil-bsc:
     <<: *anvil-node
     container_name: chainpulse-anvil-bsc
     ports:
       - "8547:8545"
-    entrypoint: ["/bin/sh", "-c", "anvil --host 0.0.0.0 --port 8545 --chain-id 97 --accounts 5 --balance 10000 --block-time 3 --timestamp 0"]
+    entrypoint: ["/bin/sh", "-c", "anvil --host 0.0.0.0 --port 8545 --chain-id 97 --accounts 5 --balance 10000 --block-time 3"]
 
   anvil-arbitrum:
     <<: *anvil-node
     container_name: chainpulse-anvil-arbitrum
     ports:
       - "8548:8545"
-    entrypoint: ["/bin/sh", "-c", "anvil --host 0.0.0.0 --port 8545 --chain-id 421614 --accounts 5 --balance 10000 --block-time 3 --timestamp 0"]
+    entrypoint: ["/bin/sh", "-c", "anvil --host 0.0.0.0 --port 8545 --chain-id 421614 --accounts 5 --balance 10000 --block-time 3"]
 
   anvil-optimism:
     <<: *anvil-node
     container_name: chainpulse-anvil-optimism
     ports:
       - "8549:8545"
-    entrypoint: ["/bin/sh", "-c", "anvil --host 0.0.0.0 --port 8545 --chain-id 11155420 --accounts 5 --balance 10000 --block-time 3 --timestamp 0"]
+    entrypoint: ["/bin/sh", "-c", "anvil --host 0.0.0.0 --port 8545 --chain-id 11155420 --accounts 5 --balance 10000 --block-time 3"]
 
   anvil-base:
     <<: *anvil-node
     container_name: chainpulse-anvil-base
     ports:
       - "8550:8545"
-    entrypoint: ["/bin/sh", "-c", "anvil --host 0.0.0.0 --port 8545 --chain-id 84532 --accounts 5 --balance 10000 --block-time 3 --timestamp 0"]
+    entrypoint: ["/bin/sh", "-c", "anvil --host 0.0.0.0 --port 8545 --chain-id 84532 --accounts 5 --balance 10000 --block-time 3"]
 
   anvil-avalanche:
     <<: *anvil-node
     container_name: chainpulse-anvil-avalanche
     ports:
       - "8551:8545"
-    entrypoint: ["/bin/sh", "-c", "anvil --host 0.0.0.0 --port 8545 --chain-id 43113 --accounts 5 --balance 10000 --block-time 3 --timestamp 0"]
+    entrypoint: ["/bin/sh", "-c", "anvil --host 0.0.0.0 --port 8545 --chain-id 43113 --accounts 5 --balance 10000 --block-time 3"]
 
   # ============================================
   # Infrastructure Services
