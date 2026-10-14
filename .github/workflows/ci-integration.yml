@@ -138,6 +138,13 @@ jobs:
           --health-retries 5
         ports:
           - 6379:6379
+      # Section 7.3 lists the contracts lane as "Postgres/Redis/Kafka ready".
+      # A Kafka service is deliberately NOT provisioned here: the E09 redelivery
+      # rehearsal cannot run in CI as written, because its createTopic helper
+      # shells out to `docker exec <container> kafka-topics --bootstrap-server
+      # localhost:9092`, and a GitHub service container is not reachable that way.
+      # Adding a broker would therefore turn this job red at topic creation, not
+      # exercise the rehearsal. See docs/project/2026-10-14-required-cases-lane.md.
     # F13: these are the names the contract tests actually read. This job used to
     # set TEST_REDIS_URL, which no test reads, and provisioned no database at all,
     # so every Postgres and Redis contract test skipped while the job still
@@ -170,11 +177,34 @@ jobs:
         # only catches an EMPTY suite; it passes happily when every Postgres and
         # Redis test skips, which is how this job reported green while the real
         # adapters were never exercised.
-        go test -json -race -timeout=5m -tags=integration \
-          ./test/contracts/... | tee contracts-output.jsonl
+        #
+        # test/acceptance is included because two section 9 scenarios are mapped
+        # to tests that live there (E05 SIGTERM/crash, E09 DB/Redis failure) and
+        # nothing else ran that directory. Both need the same Postgres and Redis
+        # this job already provisions.
+        #
+        # -p 1 is not an optimisation: these two packages share one database and
+        # are NOT concurrency-safe against each other. Running them in parallel
+        # fails TestPostgresAtomicCommit, TestCanonicalDigestsAcrossRollbackAndRedelivery
+        # and TestBackgroundWorkersReturnToBaseline; serially they pass. See
+        # docs/project/2026-10-14-required-cases-lane.md.
+        go test -json -race -timeout=10m -p 1 -tags=integration \
+          ./test/contracts/... ./test/acceptance/... | tee contracts-output.jsonl
+        # --required-lane makes the section 7.2 manifest an actual gate: the
+        # listed tests must have RUN and PASSED. Without it the manifest was a
+        # document no workflow read.
+        #
+        # --skip-allowlist declares the one skip this run produces. The Kafka
+        # rehearsal is NOT in the manifest (its scenario E09 lists the DB and
+        # Redis cases only), so the allowlist entry is not covering a required
+        # case - but it is the MQ half of E09 and remains an open gap, recorded
+        # in the allowlist itself with a reason, an owner and an expiry.
         python3 scripts/acceptance/verify-tests.py \
           --jsonl contracts-output.jsonl --min-tests 1 \
           --fail-on-unknown-skip \
+          --skip-allowlist test/acceptance/skip-allowlist.json \
+          --required-cases test/acceptance/required-cases.json \
+          --required-lane contracts --required-lane e2e \
           --report contracts-report.json
 
   e2e:

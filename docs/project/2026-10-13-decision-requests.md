@@ -152,6 +152,14 @@
 - **范围限制**：基线只覆盖**一条**基准（`BenchmarkDecodeEventDataTransfer`），而仓库有 **8 个 `*_bench_test.go`**。扩大覆盖需要为每条基准定基线，是决策。
 - **证据**：`2026-10-14-perf-metrics-pipeline.md`；`build/acceptance/<sha>/perf-metrics/SUMMARY.txt`。
 
+## D21. E09 的 MQ 那一半（Kafka 重投）在 CI 里跑不起来
+
+- **现状**：§7.2 要求 `required-cases` manifest 强制"必需 Test pass、必需 skip = 0"，但此前**没有任何 workflow 传 `--required-cases`** ⇒ manifest 只是文档。**已修**：新增 `--required-lane`（可重复）过滤，并把 manifest 接进 **unit lane** 与 **contracts lane**（后者为此纳入 `test/acceptance`，本地两 lane 均 `exit=0`，反向输入会红）。顺带修了 `TestBackgroundWorkersReturnToBaseline` 的不稳定断言（原来用全局 `runtime.NumGoroutine()` 增量推断存活，改为直接观察 drainer 自己 poll 了几次；`-race` 下 6/6 通过）。
+- **未解**：`TestKafkaRedeliveryKeepsEffectSingle`（E09 的 MQ 一半）**无法在 CI 运行**——`createTopic` 助手 `docker exec ${CHAINPULSE_KAFKA_CONTAINER:-chainpulse-kafka} kafka-topics --bootstrap-server localhost:9092`，而 **GitHub Actions 的 service container 无法从 job shell `docker exec`**；本机 broker 又广播 `kafka:9092`（不可解析）。目前以 `test/acceptance/skip-allowlist.json` 的**显式例外**登记（含 reason/remedy/owner/expires=2026-11-14），**这是 gap 不是合规**。
+- **需要决定/执行**：(a) 把 `createTopic` 改为**走 Kafka 协议**建 topic（kafka-go `CreateTopics`），然后在 CI 提供 broker——注意 **broker 必须广播它自己监听的端口**，否则连不上自己的 controller；(b) 若不做，是否接受 E09 的 MQ 一半长期未验证。
+- **另一条已处理但值得知道的事实**：`test/contracts` 与 `test/acceptance` **共享一个数据库且并发不安全**，并行跑会失败三个测试，故 contract job 用 `-p 1`。
+- **证据**：`2026-10-14-required-cases-lane.md`；`build/acceptance/<sha>/required-cases/`。
+
 ## 决策后我可以立刻执行的事
 
 | 决策 | 立刻可做 |
@@ -174,5 +182,6 @@
 | D18 | 在有 GitHub 的环境确认 `checksums.txt` 是否随 release 发布；审查 `docker` job 的镜像 digest 策略；把 SBOM 接进 release |
 | D19 | 决定 `scripts/verify-production-readiness.sh` 是**写出来**还是**删掉这一步**（`deploy.yml` 在此之前会有意变红）；用同样手法修 `metrics.yml` 的 6 处掩蔽（含 §8 性能回归门禁）；决定 CD 走 K8s 还是 Docker 路径 |
 | D20 | **新建真实 p99/吞吐测量**（定义负载模型、指标口径、参考环境）以补 §8 缺口；review 热路径 PR 清单；决定是否把基线扩到其余 7 个 benchmark 文件 |
+| D21 | 决定 `createTopic` 是否改为**走 Kafka 协议**建 topic 以便 E09 的 MQ 一半能在 CI 运行（broker 必须广播自己监听的端口）；若不做，是否接受该场景长期未验证 |
 
 > 说明：本文件只记录**需要拍板的问题**，不含任何未决的代码改动。以上每一项我都可以在得到答复后立即执行并给出实测证据。

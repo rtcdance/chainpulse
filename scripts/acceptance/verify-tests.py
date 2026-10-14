@@ -36,7 +36,7 @@ them as failures.
 Usage
 -----
   verify-tests.py --jsonl unit.jsonl --jsonl integration.jsonl \
-      [--required-cases manifest.json] [--min-tests N] \
+      [--required-cases manifest.json] [--required-lane LANE] [--min-tests N] \
       [--fail-on-unknown-skip] [--report report.json]
 
   verify-tests.py --self-test
@@ -52,6 +52,12 @@ Required-cases manifest format
 Each listed test must exist and must have PASSED; a listed test that was
 SKIPPED is a failure (required skips must be 0).
 
+The manifest's scenarios carry a `lane` because their tests do not all run in the
+same job. `--required-lane` (repeatable) enforces only the scenarios whose lane
+matches, so each job can check its own slice against the JSONL it produced
+without having to run every other job's tests. Passing no lane enforces all of
+them.
+
 Exit codes
 ----------
   0  verification passed
@@ -64,6 +70,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterable
@@ -175,10 +182,20 @@ def _ingest(event: dict[str, Any], report: Report) -> None:
 # --------------------------------------------------------------------------- #
 # Verification
 # --------------------------------------------------------------------------- #
-def load_required_cases(path: Path) -> dict[str, list[str]]:
+def load_required_cases(path: Path, lanes: set[str] | None = None) -> dict[str, list[str]]:
+    """Load the scenario -> test-name map, optionally filtered to some lanes.
+
+    The manifest carries a `lane` per scenario because its tests do not all run in
+    the same job: the unit scenarios live in pkg/, the contracts ones in
+    test/contracts and test/acceptance. Filtering lets each job enforce its own
+    slice against the JSONL it actually produced, instead of the manifest being a
+    document nothing reads.
+    """
     data = json.loads(path.read_text(encoding="utf-8"))
     out: dict[str, list[str]] = {}
     for scenario in data.get("scenarios", []):
+        if lanes and scenario.get("lane") not in lanes:
+            continue
         out[scenario["id"]] = list(scenario.get("tests", []))
     return out
 
@@ -465,6 +482,42 @@ def self_test() -> int:
     else:
         print("[PASS] self-test: package pass and no-test packages are not failures")
 
+    # Lane filtering. The manifest's scenarios do not all run in the same job, so
+    # each job has to be able to enforce its own slice; without this the manifest
+    # is a document nothing reads.
+    manifest_path = Path(tempfile.mkdtemp()) / "required.json"
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "scenarios": [
+                    {"id": "U1", "lane": "unit", "tests": ["TestUnit"]},
+                    {"id": "C1", "lane": "contracts", "tests": ["TestContract"]},
+                    {"id": "E1", "lane": "e2e", "tests": ["TestE2E"]},
+                ]
+            }
+        )
+    )
+    only_unit = load_required_cases(manifest_path, {"unit"})
+    if list(only_unit) == ["U1"]:
+        print("[PASS] self-test: --required-lane keeps only the matching scenarios")
+    else:
+        ok = False
+        print(f"[FAIL] self-test: lane filter returned {list(only_unit)}")
+
+    two = load_required_cases(manifest_path, {"unit", "e2e"})
+    if sorted(two) == ["E1", "U1"]:
+        print("[PASS] self-test: --required-lane is repeatable")
+    else:
+        ok = False
+        print(f"[FAIL] self-test: repeated lane filter returned {sorted(two)}")
+
+    unfiltered = load_required_cases(manifest_path, None)
+    if sorted(unfiltered) == ["C1", "E1", "U1"]:
+        print("[PASS] self-test: no lane filter keeps every scenario")
+    else:
+        ok = False
+        print(f"[FAIL] self-test: unfiltered returned {sorted(unfiltered)}")
+
     # Skip allow-list: a declared skip passes, an undeclared one fails. Without
     # this distinction the flag's own message ("not allow-listed") is a promise
     # the tool does not keep.
@@ -501,6 +554,12 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--jsonl", action="append", default=[], type=Path)
     parser.add_argument("--required-cases", type=Path)
+    parser.add_argument(
+        "--required-lane",
+        action="append",
+        default=[],
+        help='only enforce manifest scenarios whose "lane" matches; repeatable',
+    )
     parser.add_argument("--min-tests", type=int)
     parser.add_argument("--require-package", action="append", default=[])
     parser.add_argument("--fail-on-unknown-skip", action="store_true")
@@ -522,7 +581,11 @@ def main(argv: list[str] | None = None) -> int:
     report = Report()
     parse_jsonl(args.jsonl, report)
 
-    required = load_required_cases(args.required_cases) if args.required_cases else {}
+    required = (
+        load_required_cases(args.required_cases, set(args.required_lane) or None)
+        if args.required_cases
+        else {}
+    )
     allowlist = load_skip_allowlist(args.skip_allowlist) if args.skip_allowlist else set()
     failures = verify(
         report,

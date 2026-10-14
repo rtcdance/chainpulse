@@ -1,0 +1,17 @@
+{
+  "$comment": "Declared-expected skips for the contracts lane (plan §7.2). An entry here is an EXCEPTION, not a default: the verifier reports every skip that is not listed. Plan §7.2 permits explicit exceptions with a reason and an expiry for skips outside the repository's promised surface, but forbids using them to cover chain correctness, security, or a required adapter. Read the entry below against that rule.",
+  "schema": "chainpulse.skip-allowlist.v1",
+  "allowed": [
+    "github.com/rtcdance/chainpulse/test/acceptance::TestKafkaRedeliveryKeepsEffectSingle"
+  ],
+  "reasons": {
+    "github.com/rtcdance/chainpulse/test/acceptance::TestKafkaRedeliveryKeepsEffectSingle": {
+      "scenario": "E09",
+      "why": "The rehearsal gates on CHAINPULSE_RUN_KAFKA_INTEGRATION and skips without it. It cannot be enabled in CI as written: its createTopic helper runs `docker exec ${CHAINPULSE_KAFKA_CONTAINER:-chainpulse-kafka} kafka-topics --bootstrap-server localhost:9092`, and a GitHub Actions service container is not reachable by docker exec from the job shell. Enabling the gate without fixing the helper moves the failure to topic creation rather than exercising the rehearsal.",
+      "remedy": "Create the topic over the Kafka protocol (kafka-go CreateTopics) instead of shelling out to docker, then set CHAINPULSE_RUN_KAFKA_INTEGRATION=1 and provision a broker whose advertised listener is host-reachable. The broker must advertise the same port it listens on, or it cannot reach its own controller.",
+      "owner": "unassigned",
+      "expires": "2026-11-14",
+      "status": "GAP - this is the MQ half of E09 and is NOT verified. It is listed here so the lane can be green about everything it does check, not to claim E09 passes."
+    }
+  }
+}

@@ -117,6 +117,8 @@ jobs:
           python3 scripts/acceptance/verify-tests.py \
             --jsonl unit-test-output.jsonl \
             --min-tests 1 \
+            --required-cases test/acceptance/required-cases.json \
+            --required-lane unit \
             --report unit-tests-report.json
 
           if [ ! -s coverage-unit.out ]; then

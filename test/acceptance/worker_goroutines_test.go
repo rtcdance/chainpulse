@@ -12,6 +12,7 @@ import (
 	"runtime/pprof"
 	"sort"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -28,13 +29,21 @@ const workerCycles = 10
 
 // emptyOutbox is an OutboxDrainer with nothing pending, so the loop under test
 // does no work and the only thing being measured is its own lifecycle.
-type emptyOutbox struct{}
+//
+// It counts its calls so the liveness check below can observe the loop ticking
+// directly. The previous version inferred liveness from
+// `runtime.NumGoroutine() > beforeCycle`, which is a global count: a goroutine
+// finishing anywhere else in the process offsets the one that just started, and
+// the check then fails claiming the worker "is not running" when it is. That
+// made the test fail intermittently under -race and under load.
+type emptyOutbox struct{ calls atomic.Int64 }
 
-func (emptyOutbox) PendingNotifications(context.Context, int) ([]reorg.Notification, error) {
+func (o *emptyOutbox) PendingNotifications(context.Context, int) ([]reorg.Notification, error) {
+	o.calls.Add(1)
 	return nil, nil
 }
-func (emptyOutbox) MarkPublished(context.Context, int64) error { return nil }
-func (emptyOutbox) RecordFailure(context.Context, int64) error { return nil }
+func (o *emptyOutbox) MarkPublished(context.Context, int64) error { return nil }
+func (o *emptyOutbox) RecordFailure(context.Context, int64) error { return nil }
 
 // noopPublisher accepts whatever the drainer publishes.
 type noopPublisher struct{}
@@ -85,13 +94,12 @@ func TestBackgroundWorkersReturnToBaseline(t *testing.T) {
 	baseline := runtime.NumGoroutine()
 
 	for i := 0; i < workerCycles; i++ {
-		loop, err := reorg.NewOutboxDrainerLoop(emptyOutbox{}, noopPublisher{}, logger)
+		outbox := &emptyOutbox{}
+		loop, err := reorg.NewOutboxDrainerLoop(outbox, noopPublisher{}, logger)
 		if err != nil {
 			t.Fatalf("cycle %d: NewOutboxDrainerLoop: %v", i, err)
 		}
 		loop.WithInterval(5 * time.Millisecond).WithBatchSize(1)
-
-		beforeCycle := runtime.NumGoroutine()
 
 		ctx, cancel := context.WithCancel(context.Background())
 		done := make(chan error, 1)
@@ -100,6 +108,10 @@ func TestBackgroundWorkersReturnToBaseline(t *testing.T) {
 		// Positive control: the loop must actually be alive before it is stopped.
 		// Without this the test would also pass if Run returned immediately, and
 		// "no goroutine leaked" would be trivially true because none ever ran.
+		//
+		// Liveness is observed from the drainer itself: a running loop polls the
+		// outbox. That is a direct signal, so no unrelated goroutine coming or
+		// going can turn it into a false negative.
 		alive := false
 		deadline := time.Now().Add(2 * time.Second)
 		for time.Now().Before(deadline) {
@@ -109,14 +121,14 @@ func TestBackgroundWorkersReturnToBaseline(t *testing.T) {
 					"so this cycle proves nothing about leaking", i, err)
 			default:
 			}
-			if runtime.NumGoroutine() > beforeCycle {
+			if outbox.calls.Load() > 0 {
 				alive = true
 				break
 			}
 			time.Sleep(2 * time.Millisecond)
 		}
 		if !alive {
-			t.Fatalf("cycle %d: no additional goroutine appeared; the worker under test is not running", i)
+			t.Fatalf("cycle %d: the drainer never polled its outbox; the worker under test is not running", i)
 		}
 
 		// Let it tick so the loop is genuinely running, not just started.
