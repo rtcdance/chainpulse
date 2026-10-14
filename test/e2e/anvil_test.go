@@ -9,6 +9,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"strings"
 	"testing"
 	"time"
 
@@ -209,6 +210,100 @@ func TestAnvil_PullerIntegration(t *testing.T) {
 	}
 
 	t.Logf("PullEvents returned %d events from blocks 0-%d", len(events), latestBlock)
+}
+
+// TestAnvil_WebSocketSubscription verifies the puller's WebSocket push mode.
+//
+// https_jsonrpc_puller.go switches to ethclient.SubscribeNewHead when the node
+// URL is ws:// or wss://, and silently falls back to ticker polling when the
+// subscription fails. Only the HTTP path had ever been exercised, so the README's
+// "WebSocket-JSONRPC" data-collection claim was unverified - and the fallback
+// makes that worse than merely untested, because a broken subscription looks like
+// a working puller that is merely slower.
+//
+// The test therefore asserts three things: the subscription was established, the
+// fallback was not taken, and a mined block actually reached the puller.
+func TestAnvil_WebSocketSubscription(t *testing.T) {
+	cmd, rpcURL := startAnvil(t)
+	defer func() { _ = cmd.Process.Kill() }()
+
+	// Anvil serves HTTP and WebSocket on the same port.
+	wsURL := strings.Replace(rpcURL, "http://", "ws://", 1)
+
+	logger := th.NewTestLoggerWithCapture()
+	puller := pullers.NewHTTPSJSONRPCPuller(core.Config{
+		DataPullerType:    "websocket",
+		BlockchainNodeURL: wsURL,
+		ChainID:           "31337",
+		ServiceName:       "anvil-ws-test",
+		StartBlock:        0,
+	}, logger, core.NewDefaultMetricsCollector(), nil)
+
+	if err := puller.Start(context.Background()); err != nil {
+		t.Fatalf("puller start failed: %v", err)
+	}
+	defer func() { _ = puller.Stop(context.Background()) }()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	// Poll blocks until the context ends, so it runs in its own goroutine.
+	go func() { _ = puller.Poll(ctx) }()
+
+	// The subscription is established before the first head arrives.
+	subscribed := false
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) && !subscribed {
+		for _, message := range logger.GetMessages() {
+			if strings.Contains(message, "WebSocket subscription failed") {
+				t.Fatalf("the puller fell back to polling instead of subscribing: %s", message)
+			}
+			if strings.Contains(message, "subscribed to newHeads via WebSocket") {
+				subscribed = true
+			}
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	if !subscribed {
+		t.Fatalf("no WebSocket subscription was established; captured logs: %v", logger.GetMessages())
+	}
+
+	// A head only arrives when a block is produced, so produce one.
+	client, err := ethclient.Dial(wsURL)
+	if err != nil {
+		t.Fatalf("failed to dial the WebSocket endpoint: %v", err)
+	}
+	defer client.Close()
+
+	var mined any
+	if err := client.Client().CallContext(ctx, &mined, "evm_mine"); err != nil {
+		t.Fatalf("failed to mine a block: %v", err)
+	}
+
+	height, err := client.BlockNumber(ctx)
+	if err != nil {
+		t.Fatalf("failed to read the block height: %v", err)
+	}
+
+	// The puller advances its checkpoint only after processing a head, so this
+	// proves the push delivered it rather than the subscribe call merely
+	// succeeding.
+	advanced := false
+	deadline = time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		if puller.GetLastBlockNumber() >= height {
+			advanced = true
+			break
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	if !advanced {
+		t.Fatalf("the mined block %d never reached the puller (checkpoint still %d)",
+			height, puller.GetLastBlockNumber())
+	}
+
+	t.Logf("WebSocket push mode verified: subscribed to newHeads and advanced to block %d",
+		puller.GetLastBlockNumber())
 }
 
 // TestAnvil_ParentHashChainVerification verifies that the puller's parent hash
