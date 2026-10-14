@@ -231,6 +231,19 @@ def build_cases(work: Path) -> list[Case]:
     baseline = str(REPO_ROOT / "test" / "benchmarks" / "micro_baseline.json")
     clean_scan = w("scan_empty.json", "")
 
+    # --- bench-gate output fixtures (section 7.4 "no zero-valued fake report") --
+    bg_real = w(
+        "bench-gate-real.json",
+        json.dumps(
+            {
+                "benchmarks": {
+                    "BenchmarkX": {"mean": {"ns_per_op": 1500.0, "bytes_per_op": 900.0}}
+                }
+            }
+        ),
+    )
+    bg_empty = w("bench-gate-empty.json", json.dumps({"benchmarks": {}}))
+
     # --- checksum manifest fixtures (section 7.5 item 3) -------------------
     def wbin(root: str, platform: str, *names: str) -> None:
         for n in names:
@@ -330,6 +343,13 @@ def build_cases(work: Path) -> list[Case]:
              "checksums.sh", ["--verify-only", ck_tamper], "fail"),
         Case("control-checksums-clean", "(control)",
              "checksums.sh", [ck_clean], "pass"),
+        # ---- bench-prometheus: the metrics export --------------------------
+        Case("metrics-export-no-data",
+             "coverage/perf artifact missing, empty, NaN / wrong schema",
+             "bench-prometheus.py", [bg_empty], "fail",
+             note="must refuse rather than emit a zero-valued report"),
+        Case("control-metrics-export-real", "(control)",
+             "bench-prometheus.py", [bg_real], "pass"),
     ]
 
 

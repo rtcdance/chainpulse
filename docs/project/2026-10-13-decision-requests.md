@@ -144,6 +144,14 @@
 - **E15 仍未执行**：§10 要求"CD 部署目标已在 T00 冻结且 **E15 在该目标真实执行**"。本轮是**让门禁不再说谎**，不是**完成一次真实部署**（仍需环境，见 F22）。
 - **证据**：`2026-10-14-cd-deploy-gate.md`；`build/acceptance/<sha>/cd-deploy-gate/SUMMARY.txt`。
 
+## D20. p99/吞吐测量能力缺失；热路径清单需 review
+
+- **背景**：`metrics.yml` 原先的"延迟指标"与"吞吐指标"两个步骤**从未采集到任何数据**——它们调用 `-args -metrics-output=…`，而**该 flag 未注册**（`flag provided but not defined`），且 `-run=TestThroughput` **匹配零个测试**；错误被 `|| true` 吞掉、`touch` 补了**空文件**，因此"空"这件事从未被看见。回归检查是 `# TODO: Implement actual regression detection`，三个阈值（`MAX_LATENCY_MS`/`MIN_THROUGHPUT_EPS`/`MAX_MEMORY_MB`）**定义了从不使用**。**已修**：两个坏步骤删除，回归检查改用仓库已测试的 `scripts/acceptance/bench-gate.py` 对基线比较（超 15% 即失败），指标导出改为读真实结果（新增 `bench-prometheus.py`，空数据拒绝输出），PR 触发收窄到热路径，`continue-on-error` 6→0。
+- **能力缺口（未补）**：**p99 与吞吐没有测量器**。`TestPerformanceManager*` 是管理器单测，不是负载测试；`test/e2e` 里也没有对应基准。要满足 §8"性能数据有效且达成目标"与 §7.4"吞吐下降、p99 超预算 → failure"，需要**新建一套真实负载测量**（定义负载模型、指标口径、参考环境）。这是本轮范围外的独立工程。
+- **需要 review**：热路径清单（我按"事件解码与处理链路"选了 `pkg/evm/`、`pkg/services/processor/`、`pkg/plugins/pullers/`、`pkg/plugins/mq/`、`test/benchmarks/`、两个 gate 脚本、workflow 自身）。§7.3 只说"热路径 PR 也触发"，未定义热路径。
+- **范围限制**：基线只覆盖**一条**基准（`BenchmarkDecodeEventDataTransfer`），而仓库有 **8 个 `*_bench_test.go`**。扩大覆盖需要为每条基准定基线，是决策。
+- **证据**：`2026-10-14-perf-metrics-pipeline.md`；`build/acceptance/<sha>/perf-metrics/SUMMARY.txt`。
+
 ## 决策后我可以立刻执行的事
 
 | 决策 | 立刻可做 |
@@ -165,5 +173,6 @@
 | D17 | 给 govulncheck 建"已审定基线"机制；把 `security` 提为独立 required check（依赖 T15 命名冻结与 F14 ruleset）；补 secret/gosec/镜像扫描 |
 | D18 | 在有 GitHub 的环境确认 `checksums.txt` 是否随 release 发布；审查 `docker` job 的镜像 digest 策略；把 SBOM 接进 release |
 | D19 | 决定 `scripts/verify-production-readiness.sh` 是**写出来**还是**删掉这一步**（`deploy.yml` 在此之前会有意变红）；用同样手法修 `metrics.yml` 的 6 处掩蔽（含 §8 性能回归门禁）；决定 CD 走 K8s 还是 Docker 路径 |
+| D20 | **新建真实 p99/吞吐测量**（定义负载模型、指标口径、参考环境）以补 §8 缺口；review 热路径 PR 清单；决定是否把基线扩到其余 7 个 benchmark 文件 |
 
 > 说明：本文件只记录**需要拍板的问题**，不含任何未决的代码改动。以上每一项我都可以在得到答复后立即执行并给出实测证据。
