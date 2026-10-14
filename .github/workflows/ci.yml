@@ -43,6 +43,27 @@ jobs:
       - name: Workspace modules (build, vet, test each)
         run: ./scripts/check-workspace-modules.sh
 
+      # 39 Kubernetes manifests live under k8s/ and nothing in the repository
+      # referenced them - not a workflow, not the Makefile, not a script - so a
+      # manifest that stopped building would only surface at deploy time.
+      # `kubectl kustomize` builds each overlay client-side and needs no cluster.
+      - name: Kubernetes manifests build
+        run: |
+          set -euo pipefail
+          command -v kubectl >/dev/null || {
+            echo "::error::kubectl is not available, so the manifests cannot be validated"
+            exit 1
+          }
+          for overlay in k8s/base k8s/overlays/monolithic k8s/overlays/microservice; do
+            out=$(kubectl kustomize "$overlay")
+            count=$(printf '%s\n' "$out" | grep -c '^kind:' || true)
+            echo "  $overlay: ${count} resources"
+            if [ "${count:-0}" -lt 1 ]; then
+              echo "::error::$overlay built no resources"
+              exit 1
+            fi
+          done
+
       - name: Build monolithic
         run: go build ./cmd/monolithic/chainpulse/
 
