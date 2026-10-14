@@ -34,6 +34,15 @@ jobs:
       - name: Vet
         run: go vet ./...
 
+      # Section 7.1: "root ./... is not the whole Go workspace". The commands
+      # above all stop at the current module, so the six nested modules under
+      # pkg/ were never built, vetted or tested - while looking fully covered,
+      # because the root commands are the ones a reader checks. The script
+      # enumerates modules from `go work edit -json` rather than a hard-coded
+      # list, so a new module cannot silently fall outside it.
+      - name: Workspace modules (build, vet, test each)
+        run: ./scripts/check-workspace-modules.sh
+
       - name: Build monolithic
         run: go build ./cmd/monolithic/chainpulse/
 
