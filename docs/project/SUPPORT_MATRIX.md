@@ -11,6 +11,7 @@ README's "What it is not" paragraph must agree.
 | status | meaning |
 | --- | --- |
 | **verified** | a test that runs in a named lane proves it, and the evidence is named here |
+| **partly verified** | some of it is proven by a named test and the row states what is left; the rest is unverified |
 | **unverified** | the code exists and is wired, but nothing proves it works |
 | **absent** | there is no code for it |
 | **out of scope** | deliberately not claimed this round |
@@ -55,7 +56,7 @@ holds the raw artifacts for a given commit and is not committed.
 | capability | status | evidence |
 | --- | --- | --- |
 | PostgreSQL persistence | **verified** | `test/contracts`, `test/acceptance` |
-| MongoDB persistence | **unverified** | `go.mongodb.org/mongo-driver` is a direct dependency with real non-test usage; no lane starts a MongoDB |
+| MongoDB persistence | **partly verified** | `TestMongoDBEventStoreAgainstRealServer` (verified 2026-10-14) covers write, point read, query-by-event-name, count and health against a real server; the contracts lane provisions `mongo:7` so it runs rather than skips. **Not covered**: `GetEventsByChain`/`ByContract`/`ByCorrelationID`, pagination cursors, `DeleteEventsByBlockRange`, `MarkEventsAsReorged`, TTL expiry, and anything TLS or replica-set related — the local server is single-node and unauthenticated. Before this, the thirteen tests in the package ran against a nil mock and asserted only guard conditions |
 | Redis cache (fail-closed and degrade policies) | **verified** | `TestRedisOutageFailsClosed`, `TestRedisOutageDegradesQueries` |
 | Schema fresh / upgrade / rollback | **verified** | `test/migration`: fresh → up → up (no-op) → down × 13 → up, with `schema_after_rollback_matches_fresh: true`. Lane `contracts` |
 | Upgrade from an arbitrary historical version | **unverified** | "upgrade" here means empty-to-latest; a real upgrade matrix needs a database per version |

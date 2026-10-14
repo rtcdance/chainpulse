@@ -138,6 +138,22 @@ jobs:
           --health-retries 5
         ports:
           - 6379:6379
+      # The README lists MongoDB as a supported persistence backend and
+      # pkg/services/query/mongodb_event_store.go is a substantial production
+      # path, but until 2026-10-14 no test had ever inserted a document into a
+      # real MongoDB: the thirteen tests in that package run against a nil mock
+      # and assert only guard conditions. Provisioning it here is what makes
+      # TestMongoDBEventStoreAgainstRealServer execute rather than skip - and a
+      # skip would fail this job, which runs --fail-on-unknown-skip.
+      mongo:
+        image: mongo:7
+        options: >-
+          --health-cmd "mongosh --quiet --eval 'db.runCommand({ ping: 1 })'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 27017:27017
       # Section 7.3 lists the contracts lane as "Postgres/Redis/Kafka ready".
       # A Kafka service is deliberately NOT provisioned here: the E09 redelivery
       # rehearsal cannot run in CI as written, because its createTopic helper
@@ -154,6 +170,8 @@ jobs:
       CHAINPULSE_TEST_DATABASE_URL: postgres://chainpulse:chainpulse_test@localhost:5432/chainpulse_test?sslmode=disable
       CHAINPULSE_RUN_REDIS_INTEGRATION: '1'
       CHAINPULSE_TEST_REDIS_URL: redis://localhost:6379/0
+      CHAINPULSE_RUN_MONGODB_INTEGRATION: '1'
+      CHAINPULSE_TEST_MONGODB_URI: mongodb://localhost:27017
     steps:
     - uses: actions/checkout@v6
 
