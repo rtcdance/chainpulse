@@ -80,10 +80,14 @@ optimization-plan/
 node_modules/
 frontend/node_modules/
 frontend/.vite/
-frontend/package-lock.json
 
-# Package locks
-package-lock.json
+# Package locks are NOT ignored. `npm ci` installs strictly from the lockfile and
+# refuses to run without one ("EUSAGE: The `npm ci` command can only install with
+# an existing package-lock.json"), so ignoring them made the frontend-api lane
+# impossible: a fresh checkout had no lockfile and the first npm ci step failed.
+# They were previously listed here, which is why frontend/package.json could
+# declare `test: vitest run` while jsdom and the testing-library packages were
+# absent from both the manifest and the lockfile.
 
 # Go workspace
 go.work.sum

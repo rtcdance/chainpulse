@@ -168,6 +168,14 @@
 - **一个必然的观察**：`run-urls.json` 只能由远端产出，所以**本地永远得不到 `complete: true` 的包**——也就是说**这个证据包至今从未被完整产出过**，因为远端那部分（同 SHA 的 CI run URL、RC perf/soak、真实 CD/回滚）都还没做。
 - **证据**：`2026-10-14-evidence-pack-provenance.md`；`build/acceptance/<sha>/evidence-pack/`。
 
+## D23. Playwright 那一半需要运行中的栈；前端覆盖很薄
+
+- **背景**：§7.3 的 `frontend-api` lane **完全不存在**（没有任何 workflow 碰前端），而 `frontend/` 里有 build/test 脚本、3 个单元测试文件、`playwright.config.ts` + 2 个 spec。**已修**：补上三个从未被声明的测试依赖（`jsdom`/`@testing-library/react`/`@testing-library/jest-dom` —— 它们既不在 `package.json` 也不在 lockfile 里，所以 `npm ci` 一个都不装、`npm run test` 报 `MISSING DEPENDENCY` 并**收集到 0 个测试**）；修掉 `URL.revokeObjectURL` 在 jsdom 下缺失导致的那条失败（stub 放 `test-setup.ts`，产品代码对浏览器是正确的）；新增 `.github/workflows/frontend.yml`；F17 门禁已按规则要求补 `DEPENDENCY_APPROVAL.md`。本地逐条验证：`npm ci`(根/前端) / build / test（**21 passed (21)**）/ `openapi-drift.py` 全部 exit 0。
+- **需要决定/执行**：**Playwright 那一半未接**。`test/acceptance/*.spec.ts` 需要**已运行的栈**（:8080/:8081/:3000/:9090）。在 CI 里拉起整套 compose 是本机**无法验证**的改动（7 链全栈代价高），故未单方面加。
+- **覆盖很薄**：前端只有 3 文件 21 用例，覆盖 `ErrorBoundary`/`Skeleton`/纯函数。**这不等于"前端已被验证"**；§7.3 的"关键场景实际执行"要靠 Playwright 那半。
+- **顺带发现**：`scripts/acceptance/openapi-drift.py` 有通过的自测、文档完善、**被谁都不调用**（其 docstring 自述 spec 曾漂移过一次）。现已接进 lane，今天通过。
+- **证据**：`2026-10-14-frontend-api-lane.md`；`build/acceptance/<sha>/frontend-lane/`。
+
 ## 决策后我可以立刻执行的事
 
 | 决策 | 立刻可做 |
@@ -192,5 +200,7 @@
 | D20 | **新建真实 p99/吞吐测量**（定义负载模型、指标口径、参考环境）以补 §8 缺口；review 热路径 PR 清单；决定是否把基线扩到其余 7 个 benchmark 文件 |
 | D21 | 决定 `createTopic` 是否改为**走 Kafka 协议**建 topic 以便 E09 的 MQ 一半能在 CI 运行（broker 必须广播自己监听的端口）；若不做，是否接受该场景长期未验证 |
 | D22 | 把证据收集器接进 CI lane（需先定 job/时机/输入来源）；决定 `fixture_version`/`chain_id`/`genesis`/`image_digest` 在"多链多镜像"的包里怎么填 |
+| D23 | 决定是否在 CI 里拉起栈以接 Playwright（§7.3 的 `frontend-api` 含"主流程 Playwright"）；前端覆盖仅 21 用例，是否补关键场景 |
+| D24 | 写**支持矩阵**（§10 item 22 要求且**不存在**）；决定 `v0.1.0-prep` 落后 368 个提交的 tag 如何处置（§10 item 22 要求"与最终tag一致"） |
 
 > 说明：本文件只记录**需要拍板的问题**，不含任何未决的代码改动。以上每一项我都可以在得到答复后立即执行并给出实测证据。

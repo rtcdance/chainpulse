@@ -60,6 +60,17 @@ Approved by: mingo (2026-06-07) — in-flight refactor (massive dead code remova
 - **Approved by**: mingo
 - **Date**: 2026-10-14
 
+#### Frontend test dependencies (2026-10-14)
+- **Packages**: `jsdom` ^30.1.2, `@testing-library/react` ^16.3.3, `@testing-library/jest-dom` ^7.0.1 — all **devDependencies** of `frontend/`, none shipped in the bundle.
+- **Why**: `frontend/vitest.config.ts` sets `environment: 'jsdom'`, `frontend/src/test-setup.ts` imports `@testing-library/jest-dom`, and the component tests import `render`/`screen` from `@testing-library/react`. **All three were declared in neither `package.json` nor `package-lock.json`**, so `npm ci` installed none of them and `npm run test` could not run: vitest reported `MISSING DEPENDENCY  Cannot find dependency 'jsdom'` and collected **zero tests** while the three test files errored. Nothing ran the frontend tests, so nothing reported it.
+- **Alternatives**: switch the environment to `happy-dom` — rejected, because it would be a second, different DOM implementation and the existing tests were written against jsdom's behaviour. Removing the component tests — rejected; they cover `ErrorBoundary` and `Skeleton`, and the non-DOM tests in the same suite pass.
+- **License**: MIT (all three)
+- **Size**: dev-only; 56 packages added to the install tree, 0 bytes in the built bundle.
+- **Scope**: `frontend/package.json` and `frontend/package-lock.json` only.
+- **Note**: this is a **gap being closed, not an upgrade**. The tests had never been runnable. After the change, `npm --prefix frontend run test` reports 21 passed / 21 across 3 files, and `npm --prefix frontend run build` still exits 0.
+- **Approved by**: mingo
+- **Date**: 2026-10-14
+
 #### github.com/ethereum/go-ethereum v1.13.0
 - **Purpose**: Ethereum client library
 - **Why**: Core Web3 functionality (RPC, ABI, crypto)
