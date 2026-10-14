@@ -176,6 +176,14 @@
 - **顺带发现**：`scripts/acceptance/openapi-drift.py` 有通过的自测、文档完善、**被谁都不调用**（其 docstring 自述 spec 曾漂移过一次）。现已接进 lane，今天通过。
 - **证据**：`2026-10-14-frontend-api-lane.md`；`build/acceptance/<sha>/frontend-lane/`。
 
+## D24. 最终 tag 如何处置；`acceptance-gate` lane 缺失
+
+- **背景**：§10 item 22 要求"README、**支持矩阵**、录屏、架构图、ADR 与最终 tag 一致"。**支持矩阵已补**：新增 `docs/project/SUPPORT_MATRIX.md`，逐项标注 verified / unverified / absent / out-of-scope，**每一行 verified 都指名测试或 lane**；README 已链接它；并**修正了英文摘要里已过时的说法**——它仍称 required-cases manifest 的测试数组"全是空的"，而实际已有 **8/15** 个场景映射到真实测试并被 `unit` 与 `contracts` 两个 lane 强制。
+- **需要决定（一）**：**`v0.1.0-prep` 落后 HEAD 368 个提交**，且仓库里还有 `pre-commit-wip`、`v0.0.0-test-deploy`、`v0.0.0-test-v2..v6` 等一批测试 tag。§10 要求"与最终 tag 一致"——是**打新 tag 指向当前 SHA**、**清理测试 tag**，还是保持现状并在文档里说明？这是发布动作，不单方面执行。
+- **需要决定（二）**：§7.3 的 **`acceptance-gate` lane 不存在**——`scripts/acceptance/acceptance-gate.py` 实现了"skipped/neutral/cancelled/missing 都失败"的规则、有通过的自测，但**没有任何 workflow 调用它**。建这个汇总 job 涉及 job 命名冻结（T15）与 ruleset（F14，需 admin）。
+- **另**：§11 还要求 **3–5 分钟录屏脚本**（发真实事件→查 raw 与 typed→展示链进度→制造分叉或停 DB→观察告警/背压→恢复后核对查询与摘要）。脚本可写，**录制本身**需要环境。
+- **证据**：`docs/project/SUPPORT_MATRIX.md`。
+
 ## 决策后我可以立刻执行的事
 
 | 决策 | 立刻可做 |
@@ -201,6 +209,6 @@
 | D21 | 决定 `createTopic` 是否改为**走 Kafka 协议**建 topic 以便 E09 的 MQ 一半能在 CI 运行（broker 必须广播自己监听的端口）；若不做，是否接受该场景长期未验证 |
 | D22 | 把证据收集器接进 CI lane（需先定 job/时机/输入来源）；决定 `fixture_version`/`chain_id`/`genesis`/`image_digest` 在"多链多镜像"的包里怎么填 |
 | D23 | 决定是否在 CI 里拉起栈以接 Playwright（§7.3 的 `frontend-api` 含"主流程 Playwright"）；前端覆盖仅 21 用例，是否补关键场景 |
-| D24 | 写**支持矩阵**（§10 item 22 要求且**不存在**）；决定 `v0.1.0-prep` 落后 368 个提交的 tag 如何处置（§10 item 22 要求"与最终tag一致"） |
+| D24 | 决定 `v0.1.0-prep`（落后 HEAD 368 个提交）与一批测试 tag 如何处置；建缺失的 `acceptance-gate` lane（依赖 T15 命名冻结与 F14 ruleset）；写 §11 要求的录屏脚本 |
 
 > 说明：本文件只记录**需要拍板的问题**，不含任何未决的代码改动。以上每一项我都可以在得到答复后立即执行并给出实测证据。

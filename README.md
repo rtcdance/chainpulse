@@ -27,7 +27,10 @@ client, so gRPC is neither served nor consumed.
 
 See the [English project summary](docs/project/2026-10-13-english-summary.md) for
 the evidenced results, the support boundary, and the design decisions
-([ADRs](docs/adr/README.md)).
+([ADRs](docs/adr/README.md)). The per-capability detail — what is verified, what
+exists but is unverified, and what is absent — is in
+[SUPPORT_MATRIX.md](docs/project/SUPPORT_MATRIX.md); it names the test or lane
+behind every verified row.
 
 ## 5-Minute Happy Path
 

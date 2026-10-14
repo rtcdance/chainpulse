@@ -74,9 +74,13 @@ no `events/s` or P99 figure is claimed, and no mainnet capacity is extrapolated.
    DB or Redis outage has a rehearsed, asserted behaviour.
 
 **Honest caveat:** the acceptance manifest
-(`test/acceptance/required-cases.json`, scenarios E01–E15) currently has
-**empty test arrays** — they are placeholders, not a claim that the scenarios
-pass. Freezing that manifest is T18 work.
+(`test/acceptance/required-cases.json`, scenarios E01–E15) maps **8 of its 15
+scenarios** to real tests — E02, E04, E05, E07, E08, E09, E10, E11 — and those are
+now enforced in the `unit` and `contracts` lanes, where a listed test that does
+not run, or that is skipped, fails the build. The remaining seven (E01, E03, E06,
+E12, E13, E14, E15) still carry an **empty array with a stated reason**, and an
+empty array is not a claim that the scenario passes. The per-scenario status is in
+[SUPPORT_MATRIX.md](SUPPORT_MATRIX.md).
 
 ## Support boundary — what this is *not*
 
