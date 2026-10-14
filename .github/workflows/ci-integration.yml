@@ -272,6 +272,26 @@ jobs:
     - name: Download dependencies
       run: go mod download
 
+    # Section 7.3 lists the evm-e2e lane as "本地双 Anvil"; section 7.4 requires a
+    # missing Foundry to fail the lane rather than skip. This job passed
+    # -tags=e2e without ever installing the toolchain, while test.yml installed
+    # the toolchain without ever passing the flag - so the six tagged tests in
+    # anvil_test.go ran in no lane at all between them.
+    - name: Install Foundry (for Anvil)
+      uses: foundry-rs/foundry-toolchain@v1
+
+    - name: Require Anvil
+      run: |
+        set -euo pipefail
+        # startAnvil() calls t.Skip when the binary is absent, so installing it is
+        # not enough: without this guard the job stays green while every Anvil
+        # test skips, which is the failure mode section 7.4 names.
+        command -v anvil >/dev/null || {
+          echo "::error::anvil is not on PATH; the Anvil tests would skip and this lane would pass while testing nothing"
+          exit 1
+        }
+        anvil --version
+
     - name: Run E2E tests
       env:
         TEST_DATABASE_URL: postgres://test:test@localhost:5432/chainpulse_test?sslmode=disable

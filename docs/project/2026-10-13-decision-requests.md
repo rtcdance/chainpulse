@@ -114,12 +114,12 @@
 ## D16. `evm-e2e` lane 没有验收"真实发日志"与"reorg"
 
 - **现状**：CI 跑的 Go `test/e2e` lane 里，**29 个用例在任何环境下都必然 skip**（本地门全开、Anvil 在 PATH 上，仍是 315 pass / 29 skip），因为 `NewTestOrchestrator()`（`test/e2e/orchestrator.go:27`）把 DSN 硬编码成占位值 `postgres://user:password@localhost:5432/test`，且 `test/e2e` 包**不读任何**数据库环境变量——CI 设的 `TEST_DATABASE_URL` / `POSTGRES_*` 全被忽略。被 skip 的 29 个里就包含 `TestDataPullerEventCollection` 与 `TestDataPullerReorgHandling`。
-- **`anvil_test.go` 在两个 CI lane 里都不执行**：`test.yml` 装了并起了 Anvil 却**不带 `-tags=e2e`**（文件不参与编译）；`ci-integration.yml` 带 tag 但**不装 Anvil**（6 个全 skip、exit 0）。正确的命令已在 Makefile 的 `test-anvil`（带 tag + 缺依赖即失败），**但无人调用**。
+- **`anvil_test.go` 曾在两个 CI lane 里都不执行（已修）**：`test.yml` 装了并起了 Anvil 却**不带 `-tags=e2e`**（文件不参与编译）；`ci-integration.yml` 带 tag 但**不装 Anvil**（6 个全 skip、exit 0）。**2026-10-14 已修**：e2e job 补 `foundry-rs/foundry-toolchain`，并加 **`Require Anvil`** 守卫（`command -v anvil || exit 1`）——因为 `startAnvil()` 缺二进制时调 `t.Skip`，**只装工具链不够**，安装失败会让测试跳过而 job 照样绿。实测该 job 完整序列：`go test exit=0`、`verifier exit=0`、**带 tag 的 Anvil 测试 13 pass / 0 fail / 0 skip**。**并且第一次真跑就抓到一条错的测试**：`TestAnvil_ParentHashChainVerification` 读 `HeaderByNumber(1)`，而全新 Anvil **只有一个区块**（按需出块）⇒ `failed to get block 1 header: not found`；已改为先 `evm_mine` 造出前提、**并断言高度 ≥ 1**，再比较父哈希。
+- **需要决定/执行**：(a) 占位 DSN 改为读 `TEST_DATABASE_URL`（保留可用默认），还是删除这批用例、承认它们不属于本 lane——**这是 D16 剩下的主要一半**，36 个 skip 全来自它，也是 `--fail-on-unknown-skip` 至今不能加到这个 job 的原因；(b) ~~`anvil_test.go` 的 tag 错配~~ **已完成**；(c) `evm-e2e` lane 究竟跑哪一套（Go 套件 / docker 脚本 / `make test-anvil`），需与 §7 lane 表对齐；(d) 两个 e2e job 的 verifier 是否补 `--fail-on-unknown-skip`（**阻塞于 (a)**）。
 - **lane 内"真实事件"是伪造**：`DeployContract` 用时钟造地址与 tx hash、从不发交易；`EmitEvent` 返回造的 struct；`TestDataPullerEventCollection` 再用它逐字段构造"已采集"列表去和自己比对（同义反复），`RawData` 为空字节。`SimulateReorg` 全程不碰链，全仓库无 `evm_snapshot`/`evm_revert`。
 - **真实路径存在但没接 CI**：`docker/verify-e2e-reorg.sh`（真 `cast rpc evm_snapshot` → 发真实事件 → `evm_revert` → 核对索引数）与 `docker/verify-e2e-indexing.sh`（真部署 EventEmitter）只在 `docker/ACCEPTANCE.md` 里被引用；`scripts/multi-chain-e2e.sh` 有 Makefile 目标但无 CI。
-- **需要决定/执行**：(a) 占位 DSN 改为读 `TEST_DATABASE_URL`（保留可用默认），还是删除这批用例、承认它们不属于本 lane；(b) `anvil_test.go` 并入 `test.yml`（去 tag 或给该步加 tag），还是给 `ci-integration` 的 e2e job 补 Foundry——两者都影响 CI 时长与额度（关联 F23）；(c) `evm-e2e` lane 究竟跑哪一套（Go 套件 / docker 脚本 / `make test-anvil`），需与 §7 lane 表对齐；(d) 两个 e2e job 的 verifier 是否补 `--fail-on-unknown-skip`。
 - **为什么重要**：§7 把 `evm-e2e` 定为每个 PR 都跑的 lane，验收是"真实发日志 + reorg/restart"。当前它既没有真日志、也没有真 reorg，核心场景还 skip——**lane 的绿灯不代表它宣称验收过的东西被验收过**。
-- **证据**：`2026-10-14-evm-e2e-lane.md`；`build/acceptance/<sha>/e2e-lane/{e2e-full-run.jsonl,ci-anvil-simulated-absent.jsonl,SUMMARY.txt}`。
+- **证据**：`2026-10-14-evm-e2e-lane.md`（原始发现）与 `2026-10-14-anvil-tests-first-run.md`（tag 错配的修复 + 首次真跑抓到的错误测试）；`build/acceptance/<sha>/{e2e-lane,evm-e2e-anvil}/`。
 
 ## D17. 安全 lane 缺"已审定基线"机制，且仍不是独立 required check
 

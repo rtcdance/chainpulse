@@ -97,7 +97,7 @@ holds the raw artifacts for a given commit and is not committed.
 | `quality` | **partial** | no job by that name; `ci.yml`'s `build` job runs format, vet and build, and now `scripts/check-workspace-modules.sh` for all seven modules |
 | `unit-race` | **partial** | `ci.yml` runs `go test -race -short ./...`; `test.yml`'s unit step runs `-short` **without** `-race` |
 | `contracts` | **partial** | Postgres + Redis provisioned, `--fail-on-unknown-skip`, the required-cases manifest, and the migration test. Kafka is **not** provisioned, so the E09 MQ half cannot run |
-| `evm-e2e` | **partial** | the job exists, but `anvil_test.go` runs in no lane: one job installs Anvil without `-tags=e2e`, the other passes the tag without installing Anvil |
+| `evm-e2e` | **partial** | fixed 2026-10-14: the job now installs Foundry and refuses to run without `anvil` on PATH, so the six tagged tests in `anvil_test.go` execute (13 assertions pass, including the seven `TestAnvilStartupVerify` subtests). It still cannot use `--fail-on-unknown-skip`: 36 skips remain, all from the placeholder DSN in `test/e2e/orchestrator.go` |
 | `frontend-api` | **partial** | added 2026-10-14: install, build, unit tests, OpenAPI drift. Playwright needs a running stack and is not wired |
 | `security` | **partial** | a step inside `ci.yml`, not a lane. `govulncheck` now covers all seven modules and fails the job, but there is no approved baseline, and no secret scan, gosec or image scan |
 | `coverage` | **verified** | `coverage.yml`, 40% threshold |
