@@ -135,6 +135,15 @@
 - **需要决定/执行**：在有 GitHub 的环境确认 `checksums.txt` 是否被发布；审查 `docker` job 的 digest 策略；把 SBOM 接进 release。
 - **证据**：`2026-10-14-release-checksums.md`；`build/acceptance/<sha>/release-checksums/`。
 
+## D19. `deploy.yml` 现在会红，需要一个决定；`metrics.yml` 同类缺陷未修
+
+- **背景**：§7.5 第 8 条要求"验证失败保留失败状态；不能用 `|| true` 使 `if: failure()` 无法触发；缺 kubeconfig 时不能报告 K8s 部署成功"；§7.3 line 311 要求"测试步骤不使用 `continue-on-error`"。`deploy.yml` 原本 **14/21 个 run-step 被掩蔽**、引用的**三个验证脚本都不存在**、并**生成一份硬编码四个 ✓ 的就绪报告**（且 `$(date)` 因 quoted heredoc 未展开）。**已修**：掩蔽清零（0/21）、缺脚本与缺 kubeconfig 改为 fail-closed、报告改由 `steps.<id>.outcome` 生成、21 个 run 块全部 `bash -n` 通过。
+- **需要决定（二选一）**：`scripts/verify-production-readiness.sh` **不存在**，而 `verify` job 现在会因此失败。**(a)** 写出该脚本（需要定义"生产就绪"检查什么——这是设计决策）；**(b)** 删掉这一步（承认该 job 只做 tests/lint/docs）。**在此之前 `deploy.yml` 会红**——这是有意的（§7.5"保留失败状态"）。触发面仅限 **tag push 与手动 dispatch，PR 不受影响**。
+- **同类未修**：`metrics.yml` 仍有 **6/9** 个 run-step 被掩蔽，**含 "Check for regressions"**——那是 **§8 性能回归门禁**，掩蔽意味着它不可能失败。同类问题，需同样处理。
+- **未接**：§7.5 说"不采用 K8s 的版本应明确调用已选 Docker 部署路径"。本仓库 CD 是纯 K8s；`docker/deploy-monolith.sh` 存在但未被 workflow 调用。选哪条路径是决策。
+- **E15 仍未执行**：§10 要求"CD 部署目标已在 T00 冻结且 **E15 在该目标真实执行**"。本轮是**让门禁不再说谎**，不是**完成一次真实部署**（仍需环境，见 F22）。
+- **证据**：`2026-10-14-cd-deploy-gate.md`；`build/acceptance/<sha>/cd-deploy-gate/SUMMARY.txt`。
+
 ## 决策后我可以立刻执行的事
 
 | 决策 | 立刻可做 |
@@ -155,5 +164,6 @@
 | D16 | 定 `evm-e2e` lane 跑哪一套；修占位 DSN 与 `anvil_test.go` 的 tag 错配；两个 e2e job 补 `--fail-on-unknown-skip` |
 | D17 | 给 govulncheck 建"已审定基线"机制；把 `security` 提为独立 required check（依赖 T15 命名冻结与 F14 ruleset）；补 secret/gosec/镜像扫描 |
 | D18 | 在有 GitHub 的环境确认 `checksums.txt` 是否随 release 发布；审查 `docker` job 的镜像 digest 策略；把 SBOM 接进 release |
+| D19 | 决定 `scripts/verify-production-readiness.sh` 是**写出来**还是**删掉这一步**（`deploy.yml` 在此之前会有意变红）；用同样手法修 `metrics.yml` 的 6 处掩蔽（含 §8 性能回归门禁）；决定 CD 走 K8s 还是 Docker 路径 |
 
 > 说明：本文件只记录**需要拍板的问题**，不含任何未决的代码改动。以上每一项我都可以在得到答复后立即执行并给出实测证据。
