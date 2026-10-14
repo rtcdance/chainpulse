@@ -170,8 +170,10 @@ def build_cases(work: Path) -> list[Case]:
     f = work
 
     def w(name: str, text: str) -> str:
-        (f / name).write_text(text if text.endswith("\n") else text + "\n")
-        return str(f / name)
+        target = f / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(text if text.endswith("\n") else text + "\n")
+        return str(target)
 
     clean = w("clean.jsonl", CLEAN_JSONL)
     assertion = w("assertion.jsonl", ASSERTION_FAIL_JSONL)
@@ -228,6 +230,33 @@ def build_cases(work: Path) -> list[Case]:
 
     baseline = str(REPO_ROOT / "test" / "benchmarks" / "micro_baseline.json")
     clean_scan = w("scan_empty.json", "")
+
+    # --- checksum manifest fixtures (section 7.5 item 3) -------------------
+    def wbin(root: str, platform: str, *names: str) -> None:
+        for n in names:
+            w(f"{root}/binaries-{platform}/{n}", f"payload {n}")
+
+    ck_clean = str(f / "ck_clean")
+    for plat in ("linux-amd64", "darwin-arm64", "windows-amd64"):
+        wbin("ck_clean", plat, f"chainpulse-{plat}", f"puller-{plat}")
+
+    # Same basenames in two platform directories: a checksum that cannot be
+    # attributed to one file is not a checksum.
+    ck_dup = str(f / "ck_dup")
+    wbin("ck_dup", "linux-amd64", "chainpulse", "puller")
+    wbin("ck_dup", "darwin-arm64", "chainpulse", "puller")
+
+    # A manifest whose entry does not match the file.
+    ck_tamper = str(f / "ck_tamper")
+    wbin("ck_tamper", "linux-amd64", "chainpulse")
+    w("ck_tamper/checksums.txt", "0" * 64 + "  chainpulse")
+
+    # The exact state the old truncating loop produced: four binaries, one
+    # checksum.
+    ck_trunc = str(f / "ck_trunc")
+    wbin("ck_trunc", "linux-amd64", "chainpulse", "puller")
+    wbin("ck_trunc", "darwin-arm64", "chainpulse2", "puller2")
+    w("ck_trunc/checksums.txt", "0" * 64 + "  chainpulse")
 
     V = "verify-tests.py"
     A = "acceptance-gate.py"
@@ -288,13 +317,29 @@ def build_cases(work: Path) -> list[Case]:
         Case("security-artifact-undecodable",
              "security artifact wrong schema / decode broken",
              G, ["--input", clean_scan], "fail"),
+        # ---- checksums.sh: the release manifest (section 7.5 item 3) -------
+        Case("checksum-manifest-truncated",
+             "throughput drop / p99 over budget / checksum error",
+             "checksums.sh", ["--verify-only", ck_trunc], "fail",
+             note="the exact state the old truncating loop produced: 4 binaries, 1 checksum"),
+        Case("checksum-duplicate-names",
+             "throughput drop / p99 over budget / checksum error",
+             "checksums.sh", [ck_dup], "fail"),
+        Case("checksum-binary-tampered",
+             "throughput drop / p99 over budget / checksum error",
+             "checksums.sh", ["--verify-only", ck_tamper], "fail"),
+        Case("control-checksums-clean", "(control)",
+             "checksums.sh", [ck_clean], "pass"),
     ]
 
 
 def run_case(case: Case) -> tuple[bool, int, str]:
     """Run one case. Returns (as_expected, exit_code, first line of output)."""
     tool = TOOLS / case.tool
-    cmd = [PYTHON, str(tool), *case.args]
+    if case.tool.endswith(".sh"):
+        cmd = ["bash", str(tool), *case.args]
+    else:
+        cmd = [PYTHON, str(tool), *case.args]
     proc = subprocess.run(
         cmd, cwd=REPO_ROOT, capture_output=True, text=True, timeout=600
     )

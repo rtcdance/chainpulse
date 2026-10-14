@@ -128,6 +128,13 @@
 - **为什么重要**：安全门禁的价值在于"新严重项阻断"。去掉 `continue-on-error` 已让 govulncheck 真正具备阻断力，但缺基线会让它变成"噪音源"，而缺独立 lane 则让它在 §7.3 的表里**名不副实**。
 - **证据**：`2026-10-14-ci-negative-cases.md`；`build/acceptance/<sha>/security/SUMMARY.txt`。
 
+## D18. release 流程的镜像 digest 与 SBOM 未审
+
+- **现状**：§7.5 第 3 条要求"生成覆盖**所有二进制/镜像**的 checksum、**SBOM** 与扫描报告……**镜像使用不可变 digest，禁止重新 build 后直接提升**"。本轮**已修**二进制 checksum 循环覆盖写文件问题（`release.yml` 的 `Create checksums`，25 个二进制只登记 5 个；已抽成 `scripts/acceptance/checksums.sh` 并纳入 25 例反例矩阵）。
+- **未做**：(a) **镜像 digest**：`docker` job 的 push/提升逻辑**未审查**，是否存在"重新 build 后直接提升"未知。(b) **SBOM**：`govulncheck-summary.py` 有 `--sbom-dir`，但 release 流程里**没有 SBOM 步骤**。(c) **`checksums.txt` 是否随 release 发布未确认**——release 用 `files: dist/**/*`，按 minimatch 语义应匹配深度 1 的文件，但那是 action 自己的 glob 方言，本机无法验证；我**刻意没有**加显式一行，因为若本已匹配会导致资产重名冲突。
+- **需要决定/执行**：在有 GitHub 的环境确认 `checksums.txt` 是否被发布；审查 `docker` job 的 digest 策略；把 SBOM 接进 release。
+- **证据**：`2026-10-14-release-checksums.md`；`build/acceptance/<sha>/release-checksums/`。
+
 ## 决策后我可以立刻执行的事
 
 | 决策 | 立刻可做 |
@@ -147,5 +154,6 @@
 | D15 | 为已修复缺陷补"断言不变式"的测试；要求 CHANGELOG 条目指向测试；对 `-S` 命中"关键行消失"的回退单独标注 |
 | D16 | 定 `evm-e2e` lane 跑哪一套；修占位 DSN 与 `anvil_test.go` 的 tag 错配；两个 e2e job 补 `--fail-on-unknown-skip` |
 | D17 | 给 govulncheck 建"已审定基线"机制；把 `security` 提为独立 required check（依赖 T15 命名冻结与 F14 ruleset）；补 secret/gosec/镜像扫描 |
+| D18 | 在有 GitHub 的环境确认 `checksums.txt` 是否随 release 发布；审查 `docker` job 的镜像 digest 策略；把 SBOM 接进 release |
 
 > 说明：本文件只记录**需要拍板的问题**，不含任何未决的代码改动。以上每一项我都可以在得到答复后立即执行并给出实测证据。

@@ -152,13 +152,16 @@ jobs:
         pattern: binaries-*
 
     - name: Create checksums
+      # Section 7.5 item 3 asks for this loop to be fixed: it wrote
+      # `sha256sum * > ../checksums.txt` from inside the per-directory loop, so
+      # every iteration truncated the file and only the last platform's checksums
+      # survived. With five matrix platforms and five binaries each, 20 of 25
+      # checksums were silently dropped and the truncated manifest was published
+      # as if complete. The logic now lives in a script the negative-case suite
+      # can drive, so the guards are themselves regression-tested.
       run: |
-        cd dist
-        for dir in binaries-*; do
-          cd "$dir"
-          sha256sum * > ../checksums.txt
-          cd ..
-        done
+        set -euo pipefail
+        bash scripts/acceptance/checksums.sh dist
 
     - name: Create Release
       uses: softprops/action-gh-release@v2
