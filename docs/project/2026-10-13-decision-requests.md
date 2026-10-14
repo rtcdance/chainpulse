@@ -184,6 +184,13 @@
 - **另**：§11 还要求 **3–5 分钟录屏脚本**（发真实事件→查 raw 与 typed→展示链进度→制造分叉或停 DB→观察告警/背压→恢复后核对查询与摘要）。脚本可写，**录制本身**需要环境。
 - **证据**：`docs/project/SUPPORT_MATRIX.md`。
 
+## D25. `DataPullerType` / `APIType` 既不选择实现，也会被覆盖
+
+- **背景**：写支持矩阵时发现 `pkg/core/config_validation.go` 在**两处**接受 `"grpc"`（`DataPullerType` 与 `APIType`），而 gRPC **没有任何实现**。**已修**：从两处接受集合移除 `"grpc"`，并加回归测试 `TestValidateConfigurationRejectsGrpcWithoutImplementation`（表驱动两字段，先断言基线有效再断言 grpc 被拒）。安全性已先核对：三个 compose 文件都设 `https-jsonrpc`、没有任何配置设 `grpc`，现有校验测试用的非法值是 `"invalid"`，`config_test.go` 里那处 `API_TYPE=grpc` 只测加载、不调 `Validate`。
+- **顺带查清**：这两个字段在**生产代码里没有任何按值分支**——真正选择按**链类型**（`chainid.IsCosmosChain`/`IsSolanaChain`，否则 HTTPS），微服务路径（`puller_execution.go:479-504`）还在构造时**把字段覆盖成硬编码值**，配置里写的值被丢弃；`APIType` 的 4 处分支全是覆盖合并的 `nil` 守卫；`AllowedAPITypes` 标着 deprecated 且**只被赋值、从未被读取**。⇒ 两个字段**只被校验、只被打印**。
+- **需要决定**：把这两个字段**删掉**（承认配置不能选协议），还是让它们**真正生效**（实现按字段选择）？当前按链类型选择的设计本身合理，字段则可能是历史遗留。属设计决策，未单方面改动。
+- **证据**：`2026-10-14-config-grpc.md`；`build/acceptance/<sha>/config-grpc/`；`docs/project/SUPPORT_MATRIX.md`。
+
 ## 决策后我可以立刻执行的事
 
 | 决策 | 立刻可做 |
@@ -210,5 +217,6 @@
 | D22 | 把证据收集器接进 CI lane（需先定 job/时机/输入来源）；决定 `fixture_version`/`chain_id`/`genesis`/`image_digest` 在"多链多镜像"的包里怎么填 |
 | D23 | 决定是否在 CI 里拉起栈以接 Playwright（§7.3 的 `frontend-api` 含"主流程 Playwright"）；前端覆盖仅 21 用例，是否补关键场景 |
 | D24 | 决定 `v0.1.0-prep`（落后 HEAD 368 个提交）与一批测试 tag 如何处置；建缺失的 `acceptance-gate` lane（依赖 T15 命名冻结与 F14 ruleset）；写 §11 要求的录屏脚本 |
+| D25 | 决定 `DataPullerType`/`APIType` 的归宿（当前**只被校验与打印、不选择任何实现**，微服务路径还会覆盖它）：删掉、或改成真正生效 |
 
 > 说明：本文件只记录**需要拍板的问题**，不含任何未决的代码改动。以上每一项我都可以在得到答复后立即执行并给出实测证据。

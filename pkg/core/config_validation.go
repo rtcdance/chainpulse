@@ -95,7 +95,12 @@ func (cm *DefaultConfigManager) Validate(config Config) error {
 		// Data puller
 		func() error { return checkRequired(config.DataPullerType, "DataPullerType") },
 		func() error {
-			return checkOneOf(config.DataPullerType, []string{"https-jsonrpc", "websocket", "grpc"}, "DataPullerType")
+			// "grpc" was accepted here and has no implementation: there is no
+			// generated code, no service definition and no server or client
+			// anywhere in the repository. A validator that accepts it tells an
+			// operator the option exists. Section 10 requires no capability claim
+			// without evidence, so the value is rejected rather than tolerated.
+			return checkOneOf(config.DataPullerType, []string{"https-jsonrpc", "websocket"}, "DataPullerType")
 		},
 		func() error { return checkRequired(config.BlockchainNodeURL, "BlockchainNodeURL") },
 		func() error { return checkURLScheme(config.BlockchainNodeURL, "", "BlockchainNodeURL") },
@@ -119,7 +124,12 @@ func (cm *DefaultConfigManager) Validate(config Config) error {
 
 		// API
 		func() error { return checkRequired(config.APIType, "APIType") },
-		func() error { return checkOneOf(config.APIType, []string{"rest", "grpc", "websocket"}, "APIType") },
+		func() error {
+			// Same reason as DataPullerType above: no gRPC API exists, so
+			// accepting "grpc" here would validate a configuration the binary
+			// cannot serve.
+			return checkOneOf(config.APIType, []string{"rest", "websocket"}, "APIType")
+		},
 		func() error { return checkPort(config.APIPort, "APIPort") },
 
 		// Processing
