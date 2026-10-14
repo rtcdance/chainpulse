@@ -244,6 +244,36 @@ def build_cases(work: Path) -> list[Case]:
     )
     bg_empty = w("bench-gate-empty.json", json.dumps({"benchmarks": {}}))
 
+    # --- evidence-pack fixtures (section 10 / F21) --------------------------
+    def wpack(root: str, *, omit: str | None = None) -> str:
+        members = {
+            "quality.log": "build ok",
+            "tests/unit.jsonl": '{"Action":"run","Package":"p","Test":"TestA"}\n'
+                                '{"Action":"pass","Package":"p","Test":"TestA"}\n'
+                                '{"Action":"pass","Package":"p"}',
+            "skip-report.json": '{"skips":[]}',
+            "required-cases-report.json": '{"cases":[]}',
+            "migration-report.json": '{"fresh":"ok","upgrade":"ok"}',
+            "canonical-digests.json": '{"events":"deadbeef"}',
+            "bench-raw.json": '{"bench":[]}',
+            "profiles/run.cpu.pprof": "cpu",
+            "profiles/run.heap.pprof": "heap",
+            "profiles/run.goroutine.pprof": "goroutine",
+            "chaos-report.json": '{"scenarios":[]}',
+            "deployment-report.json": '{"rollback":"ok"}',
+            "sbom/sbom.json": '{"components":[]}',
+            "security/scan.json": '{"findings":[]}',
+            "run-urls.json": '{"runs":[]}',
+        }
+        for relative, content in members.items():
+            if relative == omit:
+                continue
+            w(f"{root}/{relative}", content)
+        return str(f / root)
+
+    pack_complete = wpack("pack_complete")
+    pack_missing = wpack("pack_missing", omit="run-urls.json")
+
     # --- checksum manifest fixtures (section 7.5 item 3) -------------------
     def wbin(root: str, platform: str, *names: str) -> None:
         for n in names:
@@ -350,6 +380,15 @@ def build_cases(work: Path) -> list[Case]:
              note="must refuse rather than emit a zero-valued report"),
         Case("control-metrics-export-real", "(control)",
              "bench-prometheus.py", [bg_real], "pass"),
+        # ---- collect-evidence: the section 10 pack (F21) -------------------
+        Case("evidence-pack-incomplete",
+             "artifact missing from the section 10 pack",
+             "collect-evidence.py",
+             ["--input", pack_missing, "--out", str(f / "pack_missing_out")], "fail",
+             note="run-urls.json withheld; the pack must refuse, not omit quietly"),
+        Case("control-evidence-pack-complete", "(control)",
+             "collect-evidence.py",
+             ["--input", pack_complete, "--out", str(f / "pack_complete_out")], "pass"),
     ]
 
 

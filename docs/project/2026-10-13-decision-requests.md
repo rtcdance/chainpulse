@@ -160,6 +160,14 @@
 - **另一条已处理但值得知道的事实**：`test/contracts` 与 `test/acceptance` **共享一个数据库且并发不安全**，并行跑会失败三个测试，故 contract job 用 `-p 1`。
 - **证据**：`2026-10-14-required-cases-lane.md`；`build/acceptance/<sha>/required-cases/`。
 
+## D22. 证据收集器未接进 CI；manifest 里几条溯源字段需要定"多值怎么填"
+
+- **现状**：`scripts/acceptance/collect-evidence.py`（§10 证据包收集器，F21）**本身是好的**：15 条必需工件规格、缺失即失败、不留空占位、自测覆盖三种情形。在真实证据目录上跑：收集 17 个工件、exit=1、缺失项恰好是 `run-urls.json`。**已修**：manifest 原先只记 `generated_at` 与 `sha256`/`size`，**§10 要求的 `commit_sha`/`tree_dirty`/工具版本/环境/test actions/skip 全部缺席**；现已补 `provenance` 块（取不到写 `null` 不猜）与每个 `tests/*.jsonl` 的 `test_actions`（计数**复用 `verify-tests.py`**，避免第二套计数规则）。反例矩阵 27→**29 例**。
+- **需要决定/执行（一）**：**收集器没有接进任何 CI lane**。§10 说"证据包由收集器生成"，但目前只有本地/手工调用。接进去要先定义"哪个 job、何时收集、输入目录从哪来"，涉及 §7.3 的 lane 表。
+- **需要决定/执行（二）**：`fixture_version`、`chain_id`、`genesis`、`image_digest`、`command`/`exit` **仍未进 manifest**——它们分散在各工件内（fixture provenance、canonical digests、镜像 digest 属 D18）。提到顶层需要先定"一个包描述多条链/多个镜像时填什么"，是数据结构决策。
+- **一个必然的观察**：`run-urls.json` 只能由远端产出，所以**本地永远得不到 `complete: true` 的包**——也就是说**这个证据包至今从未被完整产出过**，因为远端那部分（同 SHA 的 CI run URL、RC perf/soak、真实 CD/回滚）都还没做。
+- **证据**：`2026-10-14-evidence-pack-provenance.md`；`build/acceptance/<sha>/evidence-pack/`。
+
 ## 决策后我可以立刻执行的事
 
 | 决策 | 立刻可做 |
@@ -183,5 +191,6 @@
 | D19 | 决定 `scripts/verify-production-readiness.sh` 是**写出来**还是**删掉这一步**（`deploy.yml` 在此之前会有意变红）；用同样手法修 `metrics.yml` 的 6 处掩蔽（含 §8 性能回归门禁）；决定 CD 走 K8s 还是 Docker 路径 |
 | D20 | **新建真实 p99/吞吐测量**（定义负载模型、指标口径、参考环境）以补 §8 缺口；review 热路径 PR 清单；决定是否把基线扩到其余 7 个 benchmark 文件 |
 | D21 | 决定 `createTopic` 是否改为**走 Kafka 协议**建 topic 以便 E09 的 MQ 一半能在 CI 运行（broker 必须广播自己监听的端口）；若不做，是否接受该场景长期未验证 |
+| D22 | 把证据收集器接进 CI lane（需先定 job/时机/输入来源）；决定 `fixture_version`/`chain_id`/`genesis`/`image_digest` 在"多链多镜像"的包里怎么填 |
 
 > 说明：本文件只记录**需要拍板的问题**，不含任何未决的代码改动。以上每一项我都可以在得到答复后立即执行并给出实测证据。

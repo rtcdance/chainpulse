@@ -21,6 +21,16 @@ It is dependency-free (Python 3 stdlib only) so it can run before any toolchain
 is installed, and it has a built-in self-test (`--self-test`) so the collector
 itself is verified rather than assumed.
 
+Section 10 also requires each piece of evidence to bind its provenance: the
+commit, whether the workspace was dirty, the tool versions, the environment, the
+run time, the data digest, and the test actions and skips. The manifest therefore
+carries a `provenance` block and, for every `tests/*.jsonl`, the pass/fail/skip
+counts and the names of the skipped tests. Those counts come from
+verify-tests.py rather than a second parser here, because section 7.2 is explicit
+that a subtest pass action must not be counted as a test and one counting rule is
+better than two. Values that cannot be determined are recorded as null rather
+than guessed.
+
 Usage
 -----
     collect-evidence.py --input build/raw --out build/evidence
@@ -35,7 +45,9 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import platform
 import shutil
+import subprocess
 import sys
 import tempfile
 from dataclasses import dataclass, field
@@ -141,22 +153,100 @@ def collect(input_dir: Path, out_dir: Path, specs=REQUIRED_ARTIFACTS) -> Result:
     return result
 
 
+def _run(argv: list[str], cwd: Path | None = None) -> subprocess.CompletedProcess | None:
+    try:
+        return subprocess.run(argv, cwd=cwd, capture_output=True, text=True, timeout=300)
+    except (OSError, subprocess.SubprocessError):
+        return None
+
+
+def provenance(input_dir: Path) -> dict:
+    """The section 10 provenance a pack must carry.
+
+    Section 10 requires every piece of evidence to bind the commit, whether the
+    workspace was dirty, the tool versions, the environment and the data digest.
+    The manifest previously recorded only a timestamp and per-file hashes, so a
+    pack could not be tied to a commit without opening its artifacts - and the
+    commit is the first thing a reader needs.
+
+    Unknown values are reported as null rather than guessed: a pack that claims
+    commit_sha when git is unavailable is worse than one that admits it does not
+    know.
+    """
+    repo = Path(__file__).resolve().parents[2]
+
+    commit = _run(["git", "rev-parse", "HEAD"], cwd=repo)
+    status = _run(["git", "status", "--porcelain"], cwd=repo)
+    go = _run(["go", "version"], cwd=repo)
+
+    return {
+        "commit_sha": commit.stdout.strip() if commit and commit.returncode == 0 else None,
+        "tree_dirty": bool(status.stdout.strip()) if status and status.returncode == 0 else None,
+        "tool_versions": {
+            "go": go.stdout.strip() if go and go.returncode == 0 else None,
+            "python": platform.python_version(),
+        },
+        "environment": {
+            "platform": platform.platform(),
+            "machine": platform.machine(),
+        },
+        "input_dir": str(input_dir),
+    }
+
+
+def test_summary(jsonl: Path) -> dict | None:
+    """Section 10's "test actions / skip" per suite, taken from the verifier.
+
+    The counts come from verify-tests.py rather than a second parser here.
+    Section 7.2 is explicit that a parent/child subtest pass action must not be
+    counted as a test; a separate counter would be a new way to get that wrong.
+    """
+    verifier = Path(__file__).with_name("verify-tests.py")
+    if not verifier.is_file():
+        return None
+
+    with tempfile.TemporaryDirectory() as tmp:
+        report_path = Path(tmp) / "report.json"
+        # A non-zero exit is expected when the suite failed; the report is still
+        # written, and its counts are exactly what this function is after.
+        _run([sys.executable, str(verifier), "--jsonl", str(jsonl),
+              "--report", str(report_path)])
+        if not report_path.is_file():
+            return None
+        data = json.loads(report_path.read_text(encoding="utf-8"))
+
+    return {
+        "test_actions": data.get("test_actions"),
+        "top_level_test_count": data.get("top_level_test_count"),
+        "package_count": data.get("package_count"),
+        "skipped_tests": data.get("skipped_tests"),
+        "failed_tests": data.get("failed_tests"),
+    }
+
+
 def write_manifest(out_dir: Path, result: Result, input_dir: Path) -> Path:
+    artifacts = []
+    for item in result.collected:
+        entry = {
+            "name": item.name,
+            "path": item.target,
+            "sha256": item.sha256,
+            "size": item.size,
+        }
+        # Section 10 binds test actions and skips to each suite's evidence.
+        if item.name == "tests.jsonl":
+            summary = test_summary(input_dir / item.target)
+            if summary is not None:
+                entry.update(summary)
+        artifacts.append(entry)
+
     manifest = {
         "schema": "chainpulse.evidence/v1",
         "generated_at": datetime.now(timezone.utc).isoformat(),
-        "input_dir": str(input_dir),
+        "provenance": provenance(input_dir),
         "complete": result.ok,
         "artifact_count": len(result.collected),
-        "artifacts": [
-            {
-                "name": item.name,
-                "path": item.target,
-                "sha256": item.sha256,
-                "size": item.size,
-            }
-            for item in result.collected
-        ],
+        "artifacts": artifacts,
         "missing": result.missing,
     }
 
@@ -251,6 +341,30 @@ def self_test() -> int:
         for entry in manifest.get("artifacts", []):
             if len(entry.get("sha256", "")) != 64:
                 failures.append(f"artifact {entry.get('path')} has a malformed sha256")
+
+        # Section 10 provenance: a pack has to say which commit it describes and
+        # whether the tree was clean. Without it a reader has to open artifacts
+        # to answer the first question they ask.
+        prov = manifest.get("provenance") or {}
+        for field_name in ("commit_sha", "tree_dirty", "tool_versions", "environment"):
+            if field_name not in prov:
+                failures.append(f"manifest.provenance is missing {field_name}")
+        if not isinstance(prov.get("tool_versions"), dict) or "python" not in (
+            prov.get("tool_versions") or {}
+        ):
+            failures.append("manifest.provenance.tool_versions does not name the python version")
+
+        # Section 10 also binds test actions and skips to each suite's evidence.
+        suites = [e for e in manifest.get("artifacts", []) if e.get("name") == "tests.jsonl"]
+        if not suites:
+            failures.append("no tests.jsonl entry was recorded")
+        for entry in suites:
+            actions = entry.get("test_actions")
+            if not isinstance(actions, dict) or "pass" not in actions:
+                failures.append(f"{entry.get('path')} carries no test_actions")
+                continue
+            if actions.get("pass", 0) < 1:
+                failures.append(f"{entry.get('path')} reports no passing test: {actions}")
 
         # 2. An incomplete pack must fail and name the missing artifact.
         incomplete_input = root / "incomplete-in"
