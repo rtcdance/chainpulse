@@ -191,6 +191,14 @@
 - **需要决定**：把这两个字段**删掉**（承认配置不能选协议），还是让它们**真正生效**（实现按字段选择）？当前按链类型选择的设计本身合理，字段则可能是历史遗留。属设计决策，未单方面改动。
 - **证据**：`2026-10-14-config-grpc.md`；`build/acceptance/<sha>/config-grpc/`；`docs/project/SUPPORT_MATRIX.md`。
 
+## D26. 应用内告警是死代码：19 个测试通过，但从未被构造
+
+- **背景**：查支持矩阵的 "Alerts delivered to a sink" 一行时发现，这一行只说了**部署侧**，漏了**应用侧**——而应用侧更值得记。`pkg/observability/alerts.go` 是一个完整的告警管理器（`AlertRule.Validate`、`AddRule`/`RemoveRule`/`GetRule`/`ListRules`、`AddCallback`、`Evaluate`、`evaluateCondition`、`Reset`），**有 19 个测试且全部通过**；但全仓库出现 `NewAlertManager`/`AlertManager` 的文件**只有它自己和它的测试**，`cmd/` 与 `pkg/application/bootstrap/` 下提到 "alert" 的**非测试代码为 0 处**。⇒ **没有二进制构造它、没有注册过规则、`Evaluate` 从未被调用——告警永远不会触发。**
+- **需要决定**：把 `AlertManager` **接进运行时**（需要定：监听哪些指标、阈值多少、发到哪个 sink——涉及 §8 的 SLI 与 §9 的故障演练），还是**删掉**（承认本轮不做告警）。
+- **另（部署侧，与本条独立）**：`monitoring/alertmanager/alertmanager.yml` 只有一个 dummy webhook（`http://localhost:9099/dummy-webhook`）；Slack/PagerDuty receivers 是被 `e09f443` 移除的，而那个提交的标题是"**feat**: add alertmanager…"——**说 add 实为删**。
+- **性质说明**：README 的能力表写的是 "Metrics, logging, tracing, health checks"，**并未声明告警**，所以这**不是一处假声明，而是一处死代码**。两者都要记，但处理方式不同。
+- **证据**：`2026-10-14-alerting-dead-code.md`；`build/acceptance/<sha>/alerting/`；`docs/project/SUPPORT_MATRIX.md`（新增 **dead code** 档）。
+
 ## 决策后我可以立刻执行的事
 
 | 决策 | 立刻可做 |
@@ -218,5 +226,6 @@
 | D23 | 决定是否在 CI 里拉起栈以接 Playwright（§7.3 的 `frontend-api` 含"主流程 Playwright"）；前端覆盖仅 21 用例，是否补关键场景 |
 | D24 | 决定 `v0.1.0-prep`（落后 HEAD 368 个提交）与一批测试 tag 如何处置；建缺失的 `acceptance-gate` lane（依赖 T15 命名冻结与 F14 ruleset）；写 §11 要求的录屏脚本 |
 | D25 | 决定 `DataPullerType`/`APIType` 的归宿（当前**只被校验与打印、不选择任何实现**，微服务路径还会覆盖它）：删掉、或改成真正生效 |
+| D26 | 决定应用内告警（`pkg/observability/alerts.go`，19 个测试通过但**从未被生产代码构造**）是**接进运行时**（需定指标/阈值/sink）还是**删掉**；部署侧 Alertmanager 也仍只有 dummy webhook |
 
 > 说明：本文件只记录**需要拍板的问题**，不含任何未决的代码改动。以上每一项我都可以在得到答复后立即执行并给出实测证据。

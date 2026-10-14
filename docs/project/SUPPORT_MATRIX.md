@@ -13,6 +13,7 @@ README's "What it is not" paragraph must agree.
 | **verified** | a test that runs in a named lane proves it, and the evidence is named here |
 | **partly verified** | some of it is proven by a named test and the row states what is left; the rest is unverified |
 | **unverified** | the code exists and is wired, but nothing proves it works |
+| **dead code** | the code exists and may even be tested, but nothing in a running binary reaches it, so it cannot take effect |
 | **absent** | there is no code for it |
 | **out of scope** | deliberately not claimed this round |
 
@@ -84,8 +85,9 @@ holds the raw artifacts for a given commit and is not committed.
 | Mode equivalence, monolithic vs four-service (E13) | **unverified** | needs both modes running against one fixture |
 | Monolithic vs four-service canonical digest equality | **unverified** | as above |
 | Graceful shutdown under SIGTERM | **verified** | E05 |
-| Observability: metrics, logging, tracing, health | **partly verified** | health endpoints and metrics are exercised; the indexer-lag signal is dead code (T13), so the observability row in the README is only partly backed |
-| Alerts delivered to a sink | **unverified** | Alertmanager config carries one dummy webhook; the Slack/PagerDuty receivers were removed |
+| Observability: metrics, logging, tracing, health | **partly verified** | health endpoints and metrics are exercised; the indexer-lag signal is dead code (T13), and so is the in-app alert manager (row below), so the observability row in the README is only partly backed |
+| In-app alerting (`pkg/observability/alerts.go`) | **dead code** | the `AlertManager` has **19 passing tests** and is **never instantiated in production**: `NewAlertManager` and `AlertManager` appear only in `alerts.go` and `alerts_test.go`, and nothing under `cmd/` or `pkg/application/bootstrap/` references them. No rule is ever registered and `Evaluate` is never called, so no alert can fire. The tests prove the component works in isolation; they cannot prove it is reachable. Verified 2026-10-14 |
+| Alerts delivered to a sink | **unverified** | two separate gaps. In the application the alert manager above is not wired at all. In the deployment, `monitoring/alertmanager/alertmanager.yml` carries a single dummy webhook on `localhost:9099`, and the Slack/PagerDuty receivers were removed by `e09f443` — a commit titled "feat: add alertmanager, postgres/redis/kafka exporters" |
 | Kubernetes manifests **build** | **verified** | 39 files under `k8s/`; `kubectl kustomize` succeeds for all three entry points — `base` (56 resources), `overlays/monolithic` (58), `overlays/microservice` (59) — and the ConfigMap's values (`MQ_TYPE: kafka`, `CACHE_TYPE: redis`, `DATABASE_TYPE: postgres`, `LOG_LEVEL: info`) are all accepted by the validator. Verified 2026-10-14. Nothing in the repository referenced `k8s/` or `kustomize` before that, so no lane checks this and it can regress silently |
 | Kubernetes deployment **applied** to a cluster | **unverified** | no cluster is created anywhere; nothing applies the manifests |
 | `DataPullerType` / `APIType` choosing an implementation | **absent** | both fields are declared, validated and printed at startup, but **no production code branches on their value**. Pullers are chosen by chain type (`chainid.IsCosmosChain` → Cosmos, `IsSolanaChain` → Solana, else HTTPS) in `cmd/monolithic/chainpulse/m1a_runtime_wiring.go:121-126` and again in `cmd/microservices/puller/puller_execution.go:479-504`, where the field is **overwritten** with a hardcoded `"solana"`/`"cosmos"`/`"https-jsonrpc"` per branch. `AllowedAPITypes` is marked deprecated and only ever assigned. Setting either field to a valid value changes nothing at runtime |
