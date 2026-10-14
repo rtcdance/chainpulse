@@ -121,6 +121,13 @@
 - **为什么重要**：§7 把 `evm-e2e` 定为每个 PR 都跑的 lane，验收是"真实发日志 + reorg/restart"。当前它既没有真日志、也没有真 reorg，核心场景还 skip——**lane 的绿灯不代表它宣称验收过的东西被验收过**。
 - **证据**：`2026-10-14-evm-e2e-lane.md`；`build/acceptance/<sha>/e2e-lane/{e2e-full-run.jsonl,ci-anvil-simulated-absent.jsonl,SUMMARY.txt}`。
 
+## D17. 安全 lane 缺"已审定基线"机制，且仍不是独立 required check
+
+- **现状**：`ci.yml` 的 build job 里原先 `Security scan` 带 **`continue-on-error: true`**（**已修**：§7.3 line 311 明确禁止；改为按退出码失败 job），版本由 `@latest` 固定为 **`v1.8.0`**，并补扫 **6 个嵌套模块**（根 `./...` 够不到 `pkg/{configmodel,logkeys,blockchain,runtimetypes,histogram,chainid}`，已用 `go list` 逐个确认），同时接入 `govulncheck-summary.py` 产出 §10 工件。修后本地实测 **7 个模块全 exit 0 / 0 callable**。
+- **需要决定/执行**：(a) §7.3 写的是"按**已审定基线**"——即允许把已知可调用漏洞登记为**已处置**。目前 `govulncheck` **没有基线机制**（`bench-gate` 有）。不建基线，则任何新可调用漏洞（含低危）都会直接阻断 PR，且第三方库新披露会让仓库"无故"变红。(b) `security` 在 §7.3 是**独立 lane / required check**，现在只是 build job 的一个 step。新建 lane 涉及 **T15 job 命名冻结**与 **F14 ruleset（需 admin）**，不宜单方面改动。(c) secret scan / gosec / 镜像扫描在 §7.3 也属 security lane，当前**均不存在**。
+- **为什么重要**：安全门禁的价值在于"新严重项阻断"。去掉 `continue-on-error` 已让 govulncheck 真正具备阻断力，但缺基线会让它变成"噪音源"，而缺独立 lane 则让它在 §7.3 的表里**名不副实**。
+- **证据**：`2026-10-14-ci-negative-cases.md`；`build/acceptance/<sha>/security/SUMMARY.txt`。
+
 ## 决策后我可以立刻执行的事
 
 | 决策 | 立刻可做 |
@@ -139,5 +146,6 @@
 | D14 | 在 `-race` 下重复 10–20 次判定 `make test-unit` 的失败是偶发还是稳定竞态，并加"失败留存完整日志"约定 |
 | D15 | 为已修复缺陷补"断言不变式"的测试；要求 CHANGELOG 条目指向测试；对 `-S` 命中"关键行消失"的回退单独标注 |
 | D16 | 定 `evm-e2e` lane 跑哪一套；修占位 DSN 与 `anvil_test.go` 的 tag 错配；两个 e2e job 补 `--fail-on-unknown-skip` |
+| D17 | 给 govulncheck 建"已审定基线"机制；把 `security` 提为独立 required check（依赖 T15 命名冻结与 F14 ruleset）；补 secret/gosec/镜像扫描 |
 
 > 说明：本文件只记录**需要拍板的问题**，不含任何未决的代码改动。以上每一项我都可以在得到答复后立即执行并给出实测证据。

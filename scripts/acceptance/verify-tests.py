@@ -25,6 +25,14 @@ Counting rules (per the plan's §7.2)
                            {pass, fail, skip}.
   * No-test packages     = packages that emitted no test-level event at all.
 
+A package-level `fail` is a failure in its own right, even when no Test carries a
+fail action. That is the shape of a build failure, a panic outside a test, a
+TestMain that exits non-zero, or a timeout kill: `go test` exits non-zero and the
+JSONL has a package-level `fail`, but there is no `--- FAIL` to find. Section 7.4
+requires that case to fail without grepping text. This cannot misfire on packages
+excluded by build tags, because `go test ./...` omits those rather than reporting
+them as failures.
+
 Usage
 -----
   verify-tests.py --jsonl unit.jsonl --jsonl integration.jsonl \
@@ -214,6 +222,25 @@ def verify(
         if stat.failed:
             failures.append(f"test failed: {pkg}::{name}")
 
+    # 2b. Package-level failures.
+    #
+    # A package can fail without any Test carrying a fail action: a build
+    # failure, a panic outside a test, a TestMain that exits non-zero, or a
+    # timeout kill. `go test` exits non-zero in every one of those, and the JSONL
+    # carries a package-level `fail`, but the loop above sees nothing — so the
+    # run used to report "verification passed" while a package had not built.
+    #
+    # Plan section 7.4 names this case explicitly: "timeout / panic / go test
+    # exit 1 but no --- FAIL" must fail, and must not depend on grepping text.
+    # The data was already being parsed and printed under "no-test packages";
+    # it simply was not consulted. Note that this cannot misfire on packages
+    # excluded by build tags: `go test ./...` omits those entirely rather than
+    # reporting them as failures (verified: 89 packages untagged vs 91 with
+    # -tags=integration).
+    for pkg, stat in sorted(report.packages.items()):
+        if stat.result == "fail":
+            failures.append(f"package failed: {pkg}")
+
     # 3. Minimum test count.
     if min_tests is not None and len(report.top_level_tests) < min_tests:
         failures.append(
@@ -399,6 +426,44 @@ def self_test() -> int:
     else:
         ok = False
         print("[FAIL] self-test: placeholder manifest passed vacuously")
+
+    # Package-level failure with NO failing Test: a build failure, a panic
+    # outside a test, or a timeout kill. go test exits 1 and the JSONL carries a
+    # package-level `fail`, but no Test carries a fail action, so the test-level
+    # loop sees nothing. Section 7.4 requires this to fail; before the fix the
+    # tool printed the package under "no-test packages" and still passed.
+    report = Report()
+    for line in [
+        '{"Action":"fail","Package":"p/broken","Elapsed":0,"FailedBuild":"p/broken [p/broken.test]"}',
+        '{"Action":"run","Package":"p/good","Test":"TestGood"}',
+        '{"Action":"pass","Package":"p/good","Test":"TestGood"}',
+        '{"Action":"pass","Package":"p/good","Elapsed":0.1}',
+    ]:
+        _ingest(json.loads(line), report)
+    failures = verify(report, {}, None, False, [])
+    if any("package failed" in f for f in failures):
+        print("[PASS] self-test: package-level fail without a failing Test is a failure")
+    else:
+        ok = False
+        print("[FAIL] self-test: package-level fail was not treated as a failure")
+
+    # Negative control for the rule above: a package that reports `pass` and a
+    # package with no test files (`skip`) must NOT be treated as failures, or
+    # the new check would break every normal run.
+    report = Report()
+    for line in [
+        '{"Action":"run","Package":"p/good","Test":"TestGood"}',
+        '{"Action":"pass","Package":"p/good","Test":"TestGood"}',
+        '{"Action":"pass","Package":"p/good","Elapsed":0.1}',
+        '{"Action":"skip","Package":"p/empty","Elapsed":0}',
+    ]:
+        _ingest(json.loads(line), report)
+    failures = verify(report, {}, None, False, [])
+    if failures:
+        ok = False
+        print(f"[FAIL] self-test: clean run with a no-test package failed: {failures}")
+    else:
+        print("[PASS] self-test: package pass and no-test packages are not failures")
 
     # Skip allow-list: a declared skip passes, an undeclared one fails. Without
     # this distinction the flag's own message ("not allow-listed") is a promise

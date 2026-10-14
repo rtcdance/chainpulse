@@ -56,10 +56,33 @@ jobs:
         run: go test -timeout 300s -tags=e2e ./test/e2e/...
 
       - name: Security scan
-        continue-on-error: true
+        # Section 7.3 forbids continue-on-error on test steps ("a gate that cannot
+        # fail is decorative"), so the exit code is re-raised below rather than
+        # swallowed. This is also the only place govulncheck runs, and root
+        # `./...` does not reach the six nested modules under pkg/, so each is
+        # scanned in its own module context.
         run: |
-          go install golang.org/x/vuln/cmd/govulncheck@latest
-          govulncheck ./...
+          set -euo pipefail
+          go install golang.org/x/vuln/cmd/govulncheck@v1.8.0
+
+          # Root module. Capture the exit code so the section 10 artifact is still
+          # written when findings exist, then fail the job on it.
+          rc=0
+          govulncheck -json ./... > govulncheck-root.json || rc=$?
+          python3 scripts/acceptance/govulncheck-summary.py \
+            --input govulncheck-root.json \
+            --out-dir build/acceptance/security
+
+          if [ "$rc" -ne 0 ]; then
+            echo "::error::govulncheck reported callable vulnerabilities (exit $rc)"
+            exit "$rc"
+          fi
+
+          for m in pkg/configmodel pkg/logkeys pkg/blockchain \
+                   pkg/runtimetypes pkg/histogram pkg/chainid; do
+            echo "=== govulncheck ${m} ==="
+            (cd "$m" && govulncheck ./...)
+          done
 
       - name: Docker build (all targets)
         run: |
