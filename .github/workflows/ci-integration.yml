@@ -207,6 +207,26 @@ jobs:
           --required-lane contracts --required-lane e2e \
           --report contracts-report.json
 
+    # Section 7.3 puts "migration fresh/upgrade" in the contracts lane, and
+    # section 10 asks for schema fresh/upgrade/rollback compatibility. The test
+    # existed and passed but ran in no lane: -tags=migration appeared in no
+    # workflow. It needs CREATE DATABASE, which the postgres service's own user
+    # has, and it creates a scratch database per run rather than touching this
+    # job's database.
+    - name: Migration fresh / upgrade / rollback
+      env:
+        MIGRATION_TEST_DSN: postgres://chainpulse:chainpulse_test@localhost:5432/chainpulse_test?sslmode=disable
+      run: |
+        set -euo pipefail
+        # No -race: the test drives `go run ./cmd/migrate` subprocesses, so the
+        # detector would only cover the harness, not the code under test.
+        go test -json -timeout=10m -tags=migration \
+          ./test/migration/... | tee migration-output.jsonl
+        python3 scripts/acceptance/verify-tests.py \
+          --jsonl migration-output.jsonl --min-tests 1 \
+          --fail-on-unknown-skip \
+          --report migration-tests-report.json
+
   e2e:
     name: E2E Tests
     runs-on: ubuntu-latest
