@@ -128,4 +128,8 @@ if [ "${#failures[@]}" -ne 0 ]; then
   exit 1
 fi
 
-echo "workspace check passed: ${#modules[@]} modules built, vetted${run_tests:+ and tested}"
+if [ "$run_tests" -eq 1 ]; then
+  echo "workspace check passed: ${#modules[@]} modules built, vetted and tested"
+else
+  echo "workspace check passed: ${#modules[@]} modules built and vetted (tests not requested)"
+fi

@@ -292,6 +292,7 @@ v8 补充两条落地事实（F13/F14）：其一，现存第 7 个 workflow `ci
 | lane / required check | 触发 | 检查内容 | 通过条件 |
 | --- | --- | --- | --- |
 | `quality` | 每个 PR、main | workspace build、gofumpt、vet、标准 lint、工具版本与架构边界增量检查 | exit 0；新跨层依赖为 0；工具与 scope 可追溯 |
+| `image-build` | 每个 PR、main | 构建单体与四个原生服务镜像（从 quality 拆出） | 五个目标全部构建成功；作为 acceptance-gate 必需项，缺失/跳过同样失败 |
 | `unit-race` | 每个 PR、main | workspace short/race、cmd tests、decoder fixed corpus | 无失败/timeout/race；skip manifest 合格 |
 | `contracts` | 每个 PR、main | Postgres/Redis/Kafka ready；真实 adapter runners、migration fresh/upgrade | 每个必需 factory executed>0、必需 skip=0 |
 | `evm-e2e` | 每个 PR、main | 本地双 Anvil、真实发日志、单体/四服务核心场景、reorg/restart | oracle/DB/API 摘要一致；依赖缺失直接失败 |

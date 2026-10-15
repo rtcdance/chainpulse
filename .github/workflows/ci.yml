@@ -1,7 +1,7 @@
 name: CI
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}-${{ inputs.negative_control || 'normal' }}
   cancel-in-progress: true
 
 on:
@@ -13,6 +13,12 @@ on:
   pull_request:
     branches: [main, master]
   workflow_dispatch:
+    inputs:
+      negative_control:
+        description: 'Isolated acceptance fault; none runs normal CI'
+        type: choice
+        default: none
+        options: [none, compile, assertion, timeout, empty, required-skip, coverage]
 
 env:
   GOPROXY: https://proxy.golang.org|https://goproxy.cn|direct
@@ -21,6 +27,7 @@ jobs:
   build:
     name: quality
     runs-on: ubuntu-latest
+    timeout-minutes: 5
 
     steps:
       - name: Checkout
@@ -30,6 +37,20 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+
+      - name: Inject isolated acceptance fault
+        if: inputs.negative_control && inputs.negative_control != 'none'
+        env:
+          CONTROL: ${{ inputs.negative_control }}
+        run: python3 scripts/acceptance/ci-negative-control.py --control "$CONTROL" --out build/negative-control
+
+      - name: Upload controlled fault evidence
+        if: always() && inputs.negative_control && inputs.negative_control != 'none'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: negative-control-${{ inputs.negative_control }}
+          path: build/negative-control
+          if-no-files-found: error
 
       - name: Format check
         # gofumpt, not gofmt: `make fmt` / `make fmt-check` are the
@@ -58,7 +79,7 @@ jobs:
       # enumerates modules from `go work edit -json` rather than a hard-coded
       # list, so a new module cannot silently fall outside it.
       - name: Workspace modules (build, vet, test each)
-        run: bash scripts/check-workspace-modules.sh
+        run: bash scripts/check-workspace-modules.sh --no-test
 
       # 39 Kubernetes manifests live under k8s/ and nothing in the repository
       # referenced them - not a workflow, not the Makefile, not a script - so a
@@ -81,62 +102,20 @@ jobs:
             fi
           done
 
-      - name: Build monolithic
-        run: go build ./cmd/monolithic/chainpulse/
-
-      - name: Build microservices
-        run: |
-          go build ./cmd/microservices/api-service/
-          go build ./cmd/microservices/api-gateway/
-          go build ./cmd/microservices/event-processor/
-          go build ./cmd/microservices/puller/
-
-      - name: Test (short, with race detector)
-        run: go test -race -short -timeout 120s ./...
-
-      # F13: the Integration/E2E steps that used to live here ran with no
-      # services and no Foundry toolchain (`-tags=e2e` without anvil), so
-      # every infra-gated test skipped and the step could only ever be
-      # fake-green. The authoritative lanes are ci-integration.yml (full
-      # contracts / integration / evm-e2e with services + anvil) and
-      # test.yml (the -short variants, which upload coverage).
-
-      - name: Security scan
-        # Section 7.3 forbids continue-on-error on test steps ("a gate that cannot
-        # fail is decorative"), so the exit code is re-raised below rather than
-        # swallowed. This is also the only place govulncheck runs, and root
-        # `./...` does not reach the six nested modules under pkg/, so each is
-        # scanned in its own module context.
-        run: |
-          set -euo pipefail
-          go install golang.org/x/vuln/cmd/govulncheck@v1.8.0
-
-          # Root module. Capture the exit code so the section 10 artifact is still
-          # written when findings exist, then fail the job on it.
-          rc=0
-          govulncheck -json ./... > govulncheck-root.json || rc=$?
-          python3 scripts/acceptance/govulncheck-summary.py \
-            --input govulncheck-root.json \
-            --out-dir build/acceptance/security
-
-          if [ "$rc" -ne 0 ]; then
-            echo "::error::govulncheck reported callable vulnerabilities (exit $rc)"
-            exit "$rc"
-          fi
-
-          for m in pkg/configmodel pkg/logkeys pkg/blockchain \
-                   pkg/runtimetypes pkg/histogram pkg/chainid; do
-            echo "=== govulncheck ${m} ==="
-            (cd "$m" && govulncheck ./...)
-          done
-
+  image-build:
+    if: ${{ !inputs.negative_control || inputs.negative_control == 'none' }}
+    name: image-build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - name: Docker build (all targets)
         run: |
-          docker build --target=monolithic -f docker/Dockerfile -t chainpulse-monolithic:ci .
-          docker build --target=puller -f docker/Dockerfile -t chainpulse-puller:ci .
-          docker build --target=event-processor -f docker/Dockerfile -t chainpulse-event-processor:ci .
-          docker build --target=api-service -f docker/Dockerfile -t chainpulse-api-service:ci .
-          docker build --target=api-gateway -f docker/Dockerfile -t chainpulse-api-gateway:ci .
+          set -euo pipefail
+          for target in monolithic puller event-processor api-service api-gateway; do
+            docker build --target="$target" -f docker/Dockerfile -t "chainpulse-$target:ci" .
+          done
 
   # D12/plan §7.3: one place that says "this commit is releasable". It does
   # not re-run tests; it reads the conclusions the lanes above and in

@@ -226,3 +226,12 @@ CI汇总由只检查3个check改为 test/acceptance/required-checks.json 的10�
 T14 微基准工具新增 fail-closed 校验：每个样本必须有有限正 ns/op 和非负有限 B/op，缺/部分指标不能通过；零分配基线合法，但从0增加分配失败。15%阈值未改变；旧代码自测反例真实失败，修复后自测及31/31外部CLI反例通过。正式100k双链正确性、持续摄取、查询、积压、30min soak、不可变镜像发布/回滚与最终作者签字仍未完成，不将本轮局部结果当作T00–T18全部完成。
 
 第三轮终态补充：真实部署四场景步骤已成功，后续 legacy E2E 因同一 localhost:8545 fixture 缺失而失败；两个调用该套件的 workflow 均补固定 Anvil 进程和探测。18 项相关并发测试（两源文件全量）本地 race 复核为18pass/0fail/0skip。初次本地筛选只包含13项而误设min17，检验器正确拒绝空覆盖；已改为从两文件函数名生成精确18项筛选，原始记录保留，不把数量不足当通过。quality 本轮最终成功，但超过方案5min预算，仍需优化和复测；acceptance-gate因unit-race/legacy E2E失败正确阻断。
+
+
+## 2026-10-15：T01 lane 时间与覆盖拆分
+
+为修复 quality 超过5min，把五目标 Docker 构建移到独立必需 `image-build`（20min timeout），required-checks.json由10项增加到11项，外层 ruleset 仍要求同名 acceptance-gate。quality 保留每个workspace模块build/vet和格式、manifest校验；重复govulncheck交给已必需的security。原root短测覆盖迁至unit-race：pkg、cmd、integration、e2e均显式-race，动态枚举6个嵌套module执行-race，动态补齐剩余root package。quality 5min、unit-race 10min预算直接用job timeout执行，仍须远端验证冷缓存预算，未宣称已达标。
+
+check-workspace-modules.sh --no-test 的旧输出错误地带“and tested”，已修为明确“tests not requested”。本地7模块build/vet通过；剩余root包14pass/0fail/2skip，两项原有 MemoryMQ stress 的testing.Short主动跳过已逐项分类为GAP，既非删除测试也非正式T14验收证明。image-build缺失/失败/skipped均被汇总拒绝，success正向控制通过（4/4）。
+
+新增六类真实CI故障注入入口，仅workflow_dispatch显式选择启用。每次在临时零依赖Go module先运行真实正向fixture，再注入编译/断言/timeout/空跑/必需skip/缺coverage，保存Go JSONL、退出码与检验器输出；本地6/6得到预期拒绝，基础设施失败单独exit2。远端将使用拥有独立marker commit的专用分支，避免故障check污染业务候选SHA；仍待保留六条远端失败run URL，不能把本地控制当成远端验收。

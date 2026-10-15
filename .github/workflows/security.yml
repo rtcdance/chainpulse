@@ -41,11 +41,8 @@ jobs:
           cache: true
 
       - name: govulncheck (root + six nested modules)
-        # Exact recipe from ci.yml's Security scan step (this lane duplicates
-        # it deliberately: ci.yml must stay untouched per handoff, and §7.3
-        # wants a standalone security lane). Exit code is captured, the
-        # section-10 artifact is written, then the code is re-raised — a
-        # swallowed exit would make the gate decorative (§7.3).
+        # This dedicated required lane owns the vulnerability scan; quality
+        # owns formatting/build/vet and does not duplicate the security work.
         # --sbom-dir additionally persists govulncheck's SBOM record under
         # build/acceptance/security/ (verified locally: the -json stream
         # always carries an "SBOM" record; the script exits 1 if it is

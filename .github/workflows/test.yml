@@ -25,7 +25,7 @@ jobs:
   test:
     name: unit-race
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 10
     
     services:
       postgres:
@@ -84,7 +84,7 @@ jobs:
           echo "Running unit tests for all pkg/ packages (JSONL + coverage)..."
           # `pipefail` propagates a go-test failure; the verifier then catches
           # the "exit 0 but nothing actually ran" cases (empty run, no tests).
-          go test -json -short -coverprofile=coverage-unit.out -covermode=atomic \
+          go test -json -race -short -coverprofile=coverage-unit.out -covermode=atomic \
             -timeout 120s -p 4 ./pkg/... | tee unit-test-output.jsonl
 
           # D11(a): a skip that is not declared in the allowlist fails the lane.
@@ -107,6 +107,38 @@ jobs:
           fi
           echo "✓ unit tests passed; coverage profile written"
       
+      - name: Command and nested workspace module race tests
+        run: |
+          set -euo pipefail
+          go test -json -race -short -timeout 120s ./cmd/... | tee command-test-output.jsonl
+          python3 scripts/acceptance/verify-tests.py \
+            --jsonl command-test-output.jsonl --min-tests 1 --fail-on-unknown-skip \
+            --skip-allowlist test/acceptance/skip-allowlist.json --report command-tests-report.json
+          python3 - <<'PYMODULES'
+          import json, subprocess
+          workspace = json.loads(subprocess.check_output(["go", "work", "edit", "-json"]))
+          for item in workspace["Use"]:
+              directory = item["DiskPath"]
+              if directory == ".":
+                  continue
+              subprocess.run(["go", "test", "-race", "-short", "-count=1", "-timeout=120s", "./..."],
+                             cwd=directory, check=True)
+          # Preserve every package previously covered by quality's root ./...
+          # test; pkg, cmd, integration and e2e already have explicit JSON lanes.
+          packages = subprocess.check_output(["go", "list", "./..."], text=True).splitlines()
+          root = json.loads(subprocess.check_output(["go", "mod", "edit", "-json"]))["Module"]["Path"]
+          prefixes = tuple(root + "/" + part for part in ("pkg/", "cmd/", "test/integration", "test/e2e"))
+          remaining = [package for package in packages if not package.startswith(prefixes)]
+          if not remaining:
+              raise SystemExit("remaining root package inventory unexpectedly empty")
+          with open("remaining-test-output.jsonl", "w") as stream:
+              subprocess.run(["go", "test", "-json", "-race", "-short", "-timeout=120s", *remaining],
+                             stdout=stream, check=True)
+          PYMODULES
+          python3 scripts/acceptance/verify-tests.py \
+            --jsonl remaining-test-output.jsonl --min-tests 1 --fail-on-unknown-skip \
+            --skip-allowlist test/acceptance/skip-allowlist.json --report remaining-tests-report.json
+
       - name: Run integration tests
         env:
           POSTGRES_HOST: localhost
@@ -118,7 +150,7 @@ jobs:
           REDIS_PORT: 6379
         run: |
           set -euo pipefail
-          go test -json -short -coverprofile=coverage-integration.out -covermode=atomic \
+          go test -json -race -short -coverprofile=coverage-integration.out -covermode=atomic \
             -timeout 15m ./test/integration/... | tee integration-test-output.jsonl
 
           # D11(a), extended to this lane: declare the skips this step produces
@@ -186,7 +218,7 @@ jobs:
             sleep 1
           done
           test "$(cat anvil-short-chain-id.txt)" = "31337"
-          go test -json -short -coverprofile=coverage-e2e.out -covermode=atomic \
+          go test -json -race -short -coverprofile=coverage-e2e.out -covermode=atomic \
             -timeout 20m ./test/e2e/... | tee e2e-test-output.jsonl
 
           # D11(a), extended to this lane. D16(d) blocked this flag on the DSN

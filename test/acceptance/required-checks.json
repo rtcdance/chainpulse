@@ -5,6 +5,7 @@
     "unit-race",
     "lint",
     "build-binaries",
+    "image-build",
     "integration",
     "contracts",
     "evm-e2e",
