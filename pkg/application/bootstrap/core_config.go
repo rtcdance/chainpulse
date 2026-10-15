@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/rtcdance/chainpulse/pkg/configmodel"
 	"github.com/rtcdance/chainpulse/pkg/core"
 	"github.com/rtcdance/chainpulse/pkg/env"
 )
@@ -66,7 +67,40 @@ func NewMonolithicCoreConfig(logLevel, databaseType, databaseURL, cacheType, dat
 	cfg.IdempotencyCleanupInterval = env.GetInt("IDEMPOTENCY_CLEANUP_INTERVAL", 600)
 	cfg.StartBlock = uint64(env.GetInt("START_BLOCK", 0))
 
+	cfg.CORSAllowedOrigins = env.GetCSV("GATEWAY_CORS_ALLOWED_ORIGINS", nil)
+	cfg.Alerts = configmodel.AlertsConfig{
+		Enabled: env.GetBool("ALERTS_ENABLED", false),
+	}
+	cfg.Finality = configmodel.FinalityConfig{
+		DefaultConfirmations: env.GetUint64("FINALITY_DEFAULT_CONFIRMATIONS", 12),
+		Strategies:           parseStrategySpecCSV(env.Get("FINALITY_STRATEGIES", "")),
+	}
+
 	return cfg
+}
+
+func parseStrategySpecCSV(raw string) map[string]string {
+	result := make(map[string]string)
+	for _, entry := range strings.Split(raw, ",") {
+		entry = strings.TrimSpace(entry)
+		if entry == "" {
+			continue
+		}
+		key, spec, found := strings.Cut(entry, "=")
+		if !found {
+			continue
+		}
+		key = strings.TrimSpace(key)
+		spec = strings.TrimSpace(spec)
+		if key == "" || spec == "" {
+			continue
+		}
+		result[key] = spec
+	}
+	if len(result) == 0 {
+		return nil
+	}
+	return result
 }
 
 // =============================================================================

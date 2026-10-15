@@ -27,6 +27,24 @@ Approved by: mingo (2026-06-07) — in-flight refactor (massive dead code remova
 
 ## Approved Dependencies
 
+### Delivery verification tool (2026-10-14)
+
+- Tool: `honnef.co/go/tools/cmd/staticcheck@v0.7.0`, built with Go 1.26.9.
+- Classification: verification compatibility fix. The installed v0.6.1 binary was built with Go 1.24.13 and rejected the workspace's Go 1.26 directives before analysis.
+- Scope: isolated `/tmp/chainpulse-delivery-tools/staticcheck`; no go.mod/go.sum or production binary dependency changes. `STATICCHECK_BIN` selects it for the micro-loop gate.
+- Authorization: approved delivery plan T01/T15 and the user's instruction to execute it. This records agent execution authorization, not a separate human dependency review.
+- Verification: raw staticcheck/full-gate output is retained under `build/acceptance/20261014-working/`; a gate failure remains a failure.
+- Rollback: unset `STATICCHECK_BIN`; the previous installed tool is preserved.
+
+### CI tool and action locks (2026-10-14)
+
+- GitHub actions retain their existing major versions and are locked to full commit SHAs resolved through each upstream repository's GitHub API. The 15 resolutions are retained in `build/acceptance/20261014-working/action-pins.json`.
+- Go lint: `github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2`, matching the authoritative Makefile and local Go 1.26-compatible binary. The obsolete v1 installers and v1-only flags were replaced.
+- Workflow verifier: `github.com/rhysd/actionlint/cmd/actionlint@v1.7.12`, installed in the isolated verification-tools directory; its upstream release tag was checked via GitHub API. It caught invalid service-container contexts and a duplicate workflow env block before the corrected workflows passed.
+- Coverage merge tool: `github.com/wadey/gocovmerge@b5bfa59ec0adc420475f97f89b58045c721d761c`, resolved through upstream API rather than `@latest`.
+- Foundry EVM lane: v1.8.5, matching the locally executed Anvil version. Runtime Go versions are derived from go.mod.
+- Scope: CI and verification tools; no additional production Go dependencies. Authorization derives from the approved delivery plan T01/T15. Remote execution and same-SHA verification remain required.
+
 ### Standard Library Preference
 - **Rule**: Use Go stdlib when sufficient
 - **Examples**:

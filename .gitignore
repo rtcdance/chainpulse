@@ -97,8 +97,18 @@ test-results/
 
 # Scripts generated
 scripts/mock-server/
-puller
+/loadtest
 
 # Foundry build artifacts (contracts/lib/ IS vendored and committed)
 contracts/out/
 contracts/cache/
+
+# D20: this machine's global core.excludesFile has a blanket `scripts` pattern,
+# which hides every NEW file under scripts/ from git (tracked ones are exempt).
+# A repo .gitignore pattern outranks core.excludesFile, so re-include the dir;
+# without this, scripts/bench/loadtest and any future script cannot be added.
+!scripts/
+
+# Python bytecode emitted by scripts/acceptance/*.py self-tests
+__pycache__/
+*.pyc

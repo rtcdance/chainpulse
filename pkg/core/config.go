@@ -72,9 +72,10 @@ func (cm *DefaultConfigManager) Load() (Config, error) {
 		RetryBackoff:   env.GetInt("RETRY_BACKOFF", DefaultRetryBackoff),
 
 		// Deployment Configuration
-		DeploymentMode: env.Get("DEPLOYMENT_MODE", DeploymentModeMonolithic),
-		ServiceName:    env.Get("SERVICE_NAME", "chainpulse"),
-		ChainID:        env.Get("CHAIN_ID", ""),
+		DeploymentMode:      env.Get("DEPLOYMENT_MODE", DeploymentModeMonolithic),
+		ServiceName:         env.Get("SERVICE_NAME", "chainpulse"),
+		ChainID:             env.Get("CHAIN_ID", ""),
+		ExpectedGenesisHash: env.Get("EXPECTED_GENESIS_HASH", ""),
 
 		// MongoDB Configuration
 		MongoDBConnectionString: configmodel.SecretString(env.Get("MONGODB_CONNECTION_STRING", "")),
