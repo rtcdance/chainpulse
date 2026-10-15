@@ -61,6 +61,14 @@ jobs:
           go-version-file: go.mod
           cache: true
       
+      - name: Install pinned Anvil for legacy E2E short fixtures
+        uses: foundry-rs/foundry-toolchain@908c540300062bd5a7e473851cdb4282204cee09 # v1
+        with:
+          version: v1.8.5
+
+      - name: Verify required Anvil binary
+        run: anvil --version
+
       - name: Install dependencies
         run: |
           go mod download
