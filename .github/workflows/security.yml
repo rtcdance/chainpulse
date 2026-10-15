@@ -1,0 +1,100 @@
+name: Security
+
+# Plan §7.3 lane "security". Triggers per §7.3: PR / main / nightly.
+# F14: registering this check as a ruleset-required check is an admin
+# action (rulesets API is blocked for this token) — it is NOT done here.
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  GOPROXY: https://goproxy.cn,direct
+
+jobs:
+  security:
+    # §7.3 fixes the lane name at "security"; that is what a future ruleset
+    # entry must reference. Budget: §7.3 caps this lane at 15 minutes.
+    name: security
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Setup Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: govulncheck (root + six nested modules)
+        # Exact recipe from ci.yml's Security scan step (this lane duplicates
+        # it deliberately: ci.yml must stay untouched per handoff, and §7.3
+        # wants a standalone security lane). Exit code is captured, the
+        # section-10 artifact is written, then the code is re-raised — a
+        # swallowed exit would make the gate decorative (§7.3).
+        # --sbom-dir additionally persists govulncheck's SBOM record under
+        # build/acceptance/security/ (verified locally: the -json stream
+        # always carries an "SBOM" record; the script exits 1 if it is
+        # missing, which would fail the step rather than hide a gap).
+        run: |
+          set -euo pipefail
+          go install golang.org/x/vuln/cmd/govulncheck@v1.8.0
+
+          mkdir -p build/acceptance/security
+          rc=0
+          govulncheck -json ./... > build/acceptance/security/govulncheck-root.json || rc=$?
+          python3 scripts/acceptance/govulncheck-summary.py \
+            --input build/acceptance/security/govulncheck-root.json \
+            --out-dir build/acceptance/security \
+            --sbom-dir build/acceptance/security
+
+          if [ "$rc" -ne 0 ]; then
+            echo "::error::govulncheck reported callable vulnerabilities (exit $rc)"
+            exit "$rc"
+          fi
+
+          for m in pkg/configmodel pkg/logkeys pkg/blockchain \
+                   pkg/runtimetypes pkg/histogram pkg/chainid; do
+            echo "=== govulncheck ${m} ==="
+            (cd "$m" && govulncheck ./...)
+          done
+
+      - name: Trivy filesystem scan
+        # Blocking by design: a scanner that cannot fail is decorative
+        # (§7.3 forbids continue-on-error on gate steps). HIGH+CRITICAL,
+        # ignore-unfixed so only actionable findings fail the lane. The JSON
+        # report is uploaded as evidence regardless of outcome.
+        # NOTE: unverified at authoring time — the trivy DB mirrors
+        # (mirror.gcr.io, docker.io) were unreachable from the dev network,
+        # so the first CI run establishes the baseline; if it surfaces
+        # pre-existing findings those need a reviewed .trivyignore, not a
+        # disabled gate.
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: '.'
+          scanners: vuln
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          format: json
+          output: build/acceptance/security/trivy-fs.json
+          exit-code: '1'
+
+      - name: Upload security evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: security-report
+          path: build/acceptance/security/
+          if-no-files-found: warn
+          retention-days: 30

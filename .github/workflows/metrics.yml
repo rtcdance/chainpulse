@@ -1,13 +1,16 @@
 name: Performance Metrics
 
 on:
+  # D12: `master` is the remote default branch; without it in the list this
+  # gate never fires on the branch that actually protects. main/develop are
+  # kept for the existing branch layout.
   push:
-    branches: [ main, develop ]
+    branches: [ main, master, develop ]
   pull_request:
     # Section 7.3: the chaos-soak-perf lane runs on nightly, before RC/tag, and on
     # hot-path PRs, and must not block the normal PR path. This filter is the
     # hot-path set - widen or narrow it deliberately rather than removing it.
-    branches: [ main, develop ]
+    branches: [ main, master, develop ]
     paths:
       - 'pkg/evm/**'
       - 'pkg/services/processor/**'
@@ -22,7 +25,8 @@ on:
     - cron: '0 2 * * *'
   workflow_dispatch:
 
-env: {}
+env:
+  GOPROXY: https://goproxy.cn,direct
 
 jobs:
   collect-metrics:
@@ -57,10 +61,9 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
-
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - name: Set up Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
           go-version-file: go.mod
           cache: true
@@ -159,7 +162,7 @@ jobs:
 
       - name: Upload metrics artifacts
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: performance-metrics
           path: |
@@ -170,7 +173,7 @@ jobs:
 
       - name: Comment PR with metrics
         if: github.event_name == 'pull_request'
-        uses: actions/github-script@v9
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
         with:
           script: |
             const fs = require('fs');
@@ -205,10 +208,9 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
-
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - name: Download metrics
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           name: performance-metrics
           # The artifact was uploaded from two paths (metrics/ and

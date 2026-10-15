@@ -12,26 +12,28 @@ name: Frontend API
 # vitest collected zero tests behind three "Cannot find dependency" errors.
 
 on:
+  # D12: `master` is the remote default branch; without it in the list this
+  # gate never fires on the branch that actually protects. main/develop are
+  # kept for the existing branch layout.
   push:
-    branches: [ main, develop ]
+    branches: [ main, master, develop ]
   pull_request:
-    branches: [ main, develop ]
+    branches: [ main, master, develop ]
 
 permissions:
   contents: read
 
 jobs:
   frontend-api:
-    name: Frontend & API Contract
+    name: frontend-api
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
-
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - name: Set up Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '22'
           cache: npm
@@ -66,7 +68,7 @@ jobs:
 
       - name: Upload frontend evidence
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: frontend-api-${{ github.sha }}
           path: |

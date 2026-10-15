@@ -1,13 +1,17 @@
 name: E2E Tests
 
 on:
+  # D12: `master` is the remote default branch; without it in the list this
+  # gate never fires on the branch that actually protects. main/develop are
+  # kept for the existing branch layout.
   push:
-    branches: [ main, develop ]
+    branches: [ main, master, develop ]
   pull_request:
-    branches: [ main, develop ]
+    branches: [ main, master, develop ]
   workflow_dispatch:
 
 env:
+  GOPROXY: https://goproxy.cn,direct
   GO_VERSION: '1.26'
   MIN_COVERAGE: 40
   POSTGRES_VERSION: '15'
@@ -15,7 +19,7 @@ env:
 
 jobs:
   test:
-    name: Run E2E Tests
+    name: unit-race
     runs-on: ubuntu-latest
     timeout-minutes: 40
     
@@ -46,61 +50,18 @@ jobs:
     
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
-      
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - name: Set up Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
-          go-version: ${{ env.GO_VERSION }}
+          go-version-file: go.mod
           cache: true
-      
-      - name: Install Foundry (for Anvil)
-        uses: foundry-rs/foundry-toolchain@v1
-        with:
-          version: nightly
-        continue-on-error: true
-      
-      - name: Start Anvil
-        run: |
-          if command -v anvil &> /dev/null; then
-            # Start Anvil in the background with proper configuration
-            anvil \
-              --host 0.0.0.0 \
-              --port 8545 \
-              --chain-id 31337 \
-              --accounts 10 \
-              --balance 10000 \
-              > /tmp/anvil.log 2>&1 &
-            
-            ANVIL_PID=$!
-            echo "Anvil started with PID: $ANVIL_PID"
-            echo "ANVIL_PID=$ANVIL_PID" >> $GITHUB_ENV
-            
-            # Wait for Anvil to be ready
-            echo "Waiting for Anvil to be ready..."
-            for i in {1..30}; do
-              if curl -s http://localhost:8545 -X POST -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","method":"eth_chainId","params":[],"id":1}' > /dev/null 2>&1; then
-                echo "✓ Anvil is ready"
-                break
-              fi
-              if [ $i -eq 30 ]; then
-                echo "✗ Anvil failed to start"
-                cat /tmp/anvil.log
-                exit 1
-              fi
-              echo "Attempt $i/30: Waiting for Anvil..."
-              sleep 1
-            done
-          else
-            echo "⚠ Anvil not available, tests will run without it"
-          fi
-        continue-on-error: true
       
       - name: Install dependencies
         run: |
           go mod download
           go mod verify
-          go install github.com/wadey/gocovmerge@latest || true
+          go install github.com/wadey/gocovmerge@b5bfa59ec0adc420475f97f89b58045c721d761c
       
       - name: Run unit tests
         run: |
@@ -114,9 +75,16 @@ jobs:
           go test -json -short -coverprofile=coverage-unit.out -covermode=atomic \
             -timeout 120s -p 4 ./pkg/... | tee unit-test-output.jsonl
 
+          # D11(a): a skip that is not declared in the allowlist fails the lane.
+          # --min-tests 1 only catches an EMPTY suite; without this flag a test
+          # that quietly starts skipping is invisible behind a green run. The
+          # allowlist is a classified snapshot (reason per entry), not a
+          # blanket: adding a NEW t.Skip without classifying it goes red here.
           python3 scripts/acceptance/verify-tests.py \
             --jsonl unit-test-output.jsonl \
             --min-tests 1 \
+            --fail-on-unknown-skip \
+            --skip-allowlist test/acceptance/skip-allowlist.json \
             --required-cases test/acceptance/required-cases.json \
             --required-lane unit \
             --report unit-tests-report.json
@@ -141,8 +109,13 @@ jobs:
           go test -json -short -coverprofile=coverage-integration.out -covermode=atomic \
             -timeout 15m ./test/integration/... | tee integration-test-output.jsonl
 
+          # D11(a), extended to this lane: declare the skips this step produces
+          # (unconditional fixture/DSN-availability skips) so a NEW skip is
+          # noticed instead of hiding behind "verify passed".
           python3 scripts/acceptance/verify-tests.py \
             --jsonl integration-test-output.jsonl \
+            --fail-on-unknown-skip \
+            --skip-allowlist test/acceptance/skip-allowlist.json \
             --report integration-tests-report.json
           echo "✓ integration tests passed"
       
@@ -187,8 +160,16 @@ jobs:
           go test -json -short -coverprofile=coverage-e2e.out -covermode=atomic \
             -timeout 20m ./test/e2e/... | tee e2e-test-output.jsonl
 
+          # D11(a), extended to this lane. D16(d) blocked this flag on the DSN
+          # decision; the allowlist carries those skips as explicit, classified
+          # entries (with GAP status where the lane cannot reach its fixture),
+          # which is the same mechanism the contracts lane already uses for its
+          # Kafka skip. Anvil-availability skips are deliberately NOT declared:
+          # if Foundry/anvil breaks, they show up undeclared and fail here.
           python3 scripts/acceptance/verify-tests.py \
             --jsonl e2e-test-output.jsonl \
+            --fail-on-unknown-skip \
+            --skip-allowlist test/acceptance/skip-allowlist.json \
             --report e2e-tests-report.json
           echo "✓ E2E tests passed"
       
@@ -244,7 +225,7 @@ jobs:
           fi
       
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v6
+        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v6
         with:
           files: ./coverage.out
           flags: unittests,integration
@@ -253,7 +234,7 @@ jobs:
         continue-on-error: true
       
       - name: Upload coverage reports
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: coverage-reports
           path: |
@@ -265,7 +246,7 @@ jobs:
       
       - name: Upload test evidence (required)
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: test-evidence
           path: |
@@ -276,43 +257,33 @@ jobs:
           retention-days: 30
           if-no-files-found: error
       
-      - name: Cleanup Anvil
-        if: always()
-        run: |
-          if [ ! -z "$ANVIL_PID" ]; then
-            echo "Stopping Anvil (PID: $ANVIL_PID)..."
-            kill $ANVIL_PID 2>/dev/null || true
-            sleep 1
-            kill -9 $ANVIL_PID 2>/dev/null || true
-            echo "✓ Anvil stopped"
-          fi
-        continue-on-error: true
 
   lint:
-    name: Lint Code
+    name: lint
     runs-on: ubuntu-latest
     
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
-      
-      - name: Set up Go
-        uses: actions/setup-go@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
-          go-version: ${{ env.GO_VERSION }}
+          fetch-depth: 0
+      - name: Set up Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version-file: go.mod
           cache: true
       
       - name: Install golangci-lint via go install
         run: |
-          echo "Installing golangci-lint latest..."
-          go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+          echo "Installing golangci-lint v2.12.2..."
+          go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2
           "$(go env GOPATH)/bin/golangci-lint" --version
           echo "✓ golangci-lint installed successfully"
       
       - name: Run golangci-lint
         run: |
           echo "Running golangci-lint checks..."
-          GODEBUG=gotypesalias=1 "$(go env GOPATH)/bin/golangci-lint" run --timeout=5m --out-format=colored-line-number ./...
+          make lint
           echo "✓ golangci-lint completed successfully"
       
       - name: Report Lint Status
@@ -320,26 +291,25 @@ jobs:
         run: |
           echo "## Lint Job Status" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "✓ golangci-lint: **PASSED**" >> $GITHUB_STEP_SUMMARY
-          echo "- Method: go install (latest)" >> $GITHUB_STEP_SUMMARY
+          echo "golangci-lint job status: **${{ job.status }}**" >> $GITHUB_STEP_SUMMARY
+          echo "- Method: go install v2.12.2" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Configuration" >> $GITHUB_STEP_SUMMARY
           echo "- Go Version: ${{ env.GO_VERSION }}" >> $GITHUB_STEP_SUMMARY
-          echo "- golangci-lint Version: latest (compatible with Go 1.24.0)" >> $GITHUB_STEP_SUMMARY
+          echo "- golangci-lint Version: v2.12.2 (Go 1.26)" >> $GITHUB_STEP_SUMMARY
           echo "- Timeout: 5m" >> $GITHUB_STEP_SUMMARY
 
   build:
-    name: Build Binaries
+    name: build-binaries
     runs-on: ubuntu-latest
     
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
-      
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - name: Set up Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
-          go-version: ${{ env.GO_VERSION }}
+          go-version-file: go.mod
           cache: true
       
       - name: Build monolithic service
@@ -354,8 +324,87 @@ jobs:
           go build -v -o bin/api-gateway ./cmd/microservices/api-gateway
       
       - name: Upload binaries
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: binaries
           path: bin/
           retention-days: 7
+
+  # D22 (docs/project/2026-10-13-decision-requests.md) / delivery plan §10
+  # DoD + §9 acceptance: every test run must produce the release evidence
+  # pack. The pack is assembled by scripts/acceptance/collect-evidence.py
+  # (the §10 collector; never hand-build the pack). This job runs even when
+  # the test lane fails — a failing run is exactly when the pack matters —
+  # and re-uses the `test-evidence` artifact the test job already uploads
+  # (the unit/integration/e2e `go test -json` streams) as the collector's
+  # input, so no test output is re-run or re-generated here.
+  evidence:
+    name: Evidence Pack (D22)
+    runs-on: ubuntu-latest
+    if: always()
+    needs: [test]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - name: Download test evidence (collector input)
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: test-evidence
+          path: build/raw
+
+      # The collector's `tests.jsonl` spec matches input-relative
+      # `tests/*.jsonl` (min_count=1); move the three lane streams there.
+      # Reports/logs in the artifact match no §10 spec and are left alone.
+      - name: Stage collector input layout
+        run: |
+          set -euo pipefail
+          mkdir -p build/raw/tests
+          shopt -s nullglob
+          streams=(build/raw/*-test-output.jsonl)
+          if [ "${#streams[@]}" -eq 0 ]; then
+            echo "✗ no *-test-output.jsonl in the test-evidence artifact"
+            exit 1
+          fi
+          mv "${streams[@]}" build/raw/tests/
+          ls -la build/raw/tests
+
+      # WHY: this is the plan §10 / D22 evidence-pack requirement. The
+      # collector exits 1 when the pack is incomplete, which is the EXPECTED
+      # state for this lane: 13 of the 15 §10 artifacts (run-urls.json, SBOM,
+      # security scan, profiles, chaos/deployment/migration reports, ...) are
+      # produced only by the release/acceptance lanes, and D22 records that a
+      # `complete: true` pack has never existed yet. The manifest is still
+      # written either way — with complete:false, the missing list, and the
+      # provenance block (commit_sha, tree_dirty, tool versions, environment)
+      # plus the per-suite test_actions bound to each tests/*.jsonl — and that
+      # is what gets uploaded. Only a wiring failure (exit 2: input dir
+      # missing / collector crashed, or no manifest written) fails this job:
+      # an incomplete pack must not become a new red lane on day one.
+      - name: Assemble evidence pack with collect-evidence.py (D22 / §10)
+        run: |
+          set -euo pipefail
+          set +e
+          python3 scripts/acceptance/collect-evidence.py \
+            --input build/raw \
+            --out build/evidence
+          rc=$?
+          set -e
+          echo "collect-evidence.py exit code: ${rc}"
+          if [ "${rc}" -eq 1 ]; then
+            echo "exit 1 = incomplete pack (expected in the test lane; see build/evidence/manifest.json missing[])"
+          elif [ "${rc}" -ne 0 ]; then
+            echo "✗ collector wiring failure (exit ${rc}) — input directory missing or collector crashed"
+            exit "${rc}"
+          fi
+          test -f build/evidence/manifest.json
+          echo "✓ evidence pack written to build/evidence"
+
+      - name: Upload evidence pack
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: evidence-pack
+          path: build/evidence
+          retention-days: 90
+          if-no-files-found: warn

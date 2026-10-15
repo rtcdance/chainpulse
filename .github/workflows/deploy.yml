@@ -16,6 +16,7 @@ on:
           - production
 
 env:
+  GOPROXY: https://goproxy.cn,direct
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
 
@@ -52,10 +53,11 @@ jobs:
     
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
-      
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
       - name: Set up Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
           go-version-file: go.mod
           cache: true
@@ -101,8 +103,8 @@ jobs:
         id: lint
         run: |
           set -euo pipefail
-          go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.63.0
-          golangci-lint run --timeout=5m
+          go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2
+          make lint
       
       - name: Verify documentation
         id: docs
@@ -167,7 +169,7 @@ jobs:
 
       - name: Upload readiness report
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: deployment-readiness
           path: reports/deployment-readiness.md
@@ -186,13 +188,11 @@ jobs:
     
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
-      
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
-      
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
       - name: Log in to Container Registry
-        uses: docker/login-action@v4
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
@@ -200,7 +200,7 @@ jobs:
       
       - name: Extract metadata
         id: meta
-        uses: docker/metadata-action@v6
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
@@ -210,7 +210,7 @@ jobs:
             type=sha
       
       - name: Build and push monolithic image
-        uses: docker/build-push-action@v7
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
         with:
           context: .
           file: ./docker/Dockerfile
@@ -277,10 +277,9 @@ jobs:
 
       - name: Checkout code
         if: steps.check-kube.outputs.available == 'true'
-        uses: actions/checkout@v6
-      
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - name: Setup kubectl
-        uses: azure/setup-kubectl@v4
+        uses: azure/setup-kubectl@776406bce94f63e41d621b960d78ee25c8b76ede # v4
         with:
           version: 'latest'
 
@@ -304,7 +303,7 @@ jobs:
           bash scripts/verify-staging.sh
 
       - name: Notify deployment
-        uses: actions/github-script@v9
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
         with:
           script: |
             try {
@@ -348,11 +347,10 @@ jobs:
 
       - name: Checkout code
         if: steps.check-kube.outputs.available == 'true'
-        uses: actions/checkout@v6
-
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - name: Setup kubectl
         if: steps.check-kube.outputs.available == 'true'
-        uses: azure/setup-kubectl@v4
+        uses: azure/setup-kubectl@776406bce94f63e41d621b960d78ee25c8b76ede # v4
         with:
           version: 'latest'
 
@@ -392,7 +390,7 @@ jobs:
 
       - name: Create release notes
         if: steps.check-kube.outputs.available == 'true'
-        uses: actions/github-script@v9
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
         with:
           script: |
             const tag = context.ref.replace('refs/tags/', '');
@@ -420,7 +418,7 @@ jobs:
 
       - name: Notify deployment
         if: steps.check-kube.outputs.available == 'true'
-        uses: actions/github-script@v9
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
         with:
           script: |
             github.rest.repos.createCommitComment({
@@ -464,11 +462,10 @@ jobs:
 
       - name: Checkout code
         if: steps.check-kube.outputs.available == 'true'
-        uses: actions/checkout@v6
-
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - name: Setup kubectl
         if: steps.check-kube.outputs.available == 'true'
-        uses: azure/setup-kubectl@v4
+        uses: azure/setup-kubectl@776406bce94f63e41d621b960d78ee25c8b76ede # v4
         with:
           version: 'latest'
 
@@ -504,7 +501,7 @@ jobs:
 
       - name: Notify rollback
         if: steps.check-kube.outputs.available == 'true'
-        uses: actions/github-script@v9
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
         with:
           script: |
             github.rest.repos.createCommitComment({

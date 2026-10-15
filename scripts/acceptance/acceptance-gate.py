@@ -44,6 +44,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import tempfile
 from pathlib import Path
 
 # The only conclusion that counts as passing.
@@ -86,13 +87,20 @@ def load_checks(path: Path) -> dict[str, str]:
             continue
         # An in-progress check has conclusion null. Record it as such so it is
         # reported as not-yet-successful rather than silently absent.
-        out[name] = (run.get("conclusion") or "in_progress").lower()
+        conclusion = (run.get("conclusion") or "in_progress").lower()
+        # Never let a second successful record hide a failed/pending record
+        # with the same name. CI asks GitHub for filter=latest; conflicting
+        # duplicate results are still ambiguous evidence, not a green check.
+        if name not in out or out[name] == PASSING:
+            out[name] = conclusion
     return out
 
 
 def evaluate(checks: dict[str, str], required: list[str]) -> list[str]:
     """Return the reasons the gate must fail (empty list == pass)."""
     failures: list[str] = []
+    if not required:
+        return ["required-check set is empty"]
 
     for name in required:
         conclusion = checks.get(name)
@@ -102,6 +110,20 @@ def evaluate(checks: dict[str, str], required: list[str]) -> list[str]:
             failures.append(f"required check {name}: conclusion={conclusion}")
 
     return failures
+
+
+def load_policy(path: Path) -> list[str]:
+    data = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(data, dict) or data.get("schema") != "chainpulse.required-checks.v1":
+        raise ValueError("unsupported required-check policy")
+    required = data.get("required")
+    if not isinstance(required, list) or not required or any(
+        not isinstance(name, str) or not name.strip() for name in required
+    ):
+        raise ValueError("required-check policy must contain nonempty check names")
+    if len(required) != len(set(required)):
+        raise ValueError("required-check policy contains duplicate check names")
+    return required
 
 
 def self_test() -> int:
@@ -117,6 +139,7 @@ def self_test() -> int:
         print(f"[{status}] self-test: {label} (failures={failures})")
 
     check("all success", {"test": "success", "lint": "success"}, ["test", "lint"], True)
+    check("empty required set", {}, [], False)
     check("failure", {"test": "failure"}, ["test"], False)
     check("skipped", {"test": "skipped"}, ["test"], False)
     check("neutral", {"test": "neutral"}, ["test"], False)
@@ -132,6 +155,32 @@ def self_test() -> int:
         False,
     )
 
+    with tempfile.TemporaryDirectory(prefix="chainpulse-check-policy-") as directory:
+        path = Path(directory) / "policy.json"
+        for label, required, valid in [
+            ("valid policy", ["quality", "contracts"], True),
+            ("empty policy", [], False),
+            ("duplicate policy", ["quality", "quality"], False),
+            ("blank policy", [" "], False),
+            ("wrong type", "quality", False),
+        ]:
+            path.write_text(json.dumps({"schema": "chainpulse.required-checks.v1", "required": required}))
+            try:
+                load_policy(path)
+                accepted = True
+            except ValueError:
+                accepted = False
+            passed = accepted == valid
+            ok = ok and passed
+            print(f"[{'PASS' if passed else 'FAIL'}] self-test: {label}")
+
+        for runs in [
+            [{"name": "quality", "conclusion": "failure"}, {"name": "quality", "conclusion": "success"}],
+            [{"name": "quality", "conclusion": "success"}, {"name": "quality", "conclusion": "failure"}],
+        ]:
+            path.write_text(json.dumps({"checks": runs}))
+            check("duplicate success cannot hide failure", load_checks(path), ["quality"], False)
+
     print("self-test:", "OK" if ok else "FAILED")
     return 0 if ok else 1
 
@@ -139,6 +188,7 @@ def self_test() -> int:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--checks", type=Path, help="JSON of check runs")
+    parser.add_argument("--policy", type=Path, help="versioned required-check policy JSON")
     parser.add_argument(
         "--required",
         nargs="+",
@@ -153,6 +203,13 @@ def main(argv: list[str] | None = None) -> int:
 
     if not args.checks:
         parser.error("--checks is required (or use --self-test)")
+    if args.policy and args.required:
+        parser.error("use --policy or --required, not both")
+    if args.policy:
+        try:
+            args.required = load_policy(args.policy)
+        except (OSError, ValueError, TypeError) as exc:
+            parser.error(str(exc))
     if not args.required:
         parser.error(
             "--required is required: an empty required set would pass vacuously"

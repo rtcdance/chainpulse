@@ -1,18 +1,22 @@
 name: Code Coverage
 
 on:
+  # D12: `master` is the remote default branch; without it in the list this
+  # gate never fires on the branch that actually protects. main/develop are
+  # kept for the existing branch layout.
   push:
-    branches: [ main, develop ]
+    branches: [ main, master, develop ]
   pull_request:
-    branches: [ main, develop ]
+    branches: [ main, master, develop ]
   workflow_dispatch:
 
 env:
+  GOPROXY: https://goproxy.cn,direct
   MIN_COVERAGE: 40
 
 jobs:
   coverage:
-    name: Generate Coverage Report
+    name: coverage
     runs-on: ubuntu-latest
     timeout-minutes: 20
     
@@ -43,16 +47,15 @@ jobs:
     
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
-      
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - name: Set up Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
           go-version-file: go.mod
           cache: true
       
       - name: Install Foundry (for Anvil)
-        uses: foundry-rs/foundry-toolchain@v1
+        uses: foundry-rs/foundry-toolchain@908c540300062bd5a7e473851cdb4282204cee09 # v1
         with:
           version: nightly
         continue-on-error: true
@@ -92,9 +95,15 @@ jobs:
           go test -json -short -coverprofile=coverage.out -covermode=atomic \
             -timeout 120s -p 2 ./pkg/... | tee test-output.jsonl
 
+          # D11(a): same strict skip policy as the test.yml unit lane. This step
+          # runs the identical `./pkg/... -short` suite, so its skip set is the
+          # one declared in the shared allowlist; an undeclared skip fails
+          # instead of hiding behind an otherwise-green coverage run.
           python3 scripts/acceptance/verify-tests.py \
             --jsonl test-output.jsonl \
             --min-tests 1 \
+            --fail-on-unknown-skip \
+            --skip-allowlist test/acceptance/skip-allowlist.json \
             --report coverage-tests-report.json
 
           if [ ! -s coverage.out ]; then
@@ -642,7 +651,7 @@ jobs:
           echo "✓ Coverage summary generated successfully"
       
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v6
+        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v6
         with:
           files: ./coverage.out
           flags: pkg
@@ -651,7 +660,7 @@ jobs:
         continue-on-error: true
       
       - name: Upload coverage reports
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: coverage-reports
           path: |
@@ -670,7 +679,7 @@ jobs:
       
       - name: Comment PR with coverage
         if: github.event_name == 'pull_request'
-        uses: actions/github-script@v9
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
         with:
           script: |
             const fs = require('fs');
@@ -702,21 +711,20 @@ jobs:
     
     steps:
       - name: Checkout PR branch
-        uses: actions/checkout@v6
-      
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - name: Checkout base branch
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           ref: ${{ github.base_ref }}
           path: base
       
       - name: Set up Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
           go-version-file: go.mod
       
       - name: Download PR coverage
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           name: coverage-reports
           path: pr-coverage/
@@ -755,7 +763,7 @@ jobs:
           cat coverage-diff.md
       
       - name: Comment PR with diff
-        uses: actions/github-script@v9
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
         with:
           script: |
             const fs = require('fs');

@@ -184,6 +184,14 @@ def build_cases(work: Path) -> list[Case]:
     no_test_pkg = w("notestpkg.jsonl", NO_TEST_PACKAGE_JSONL)
     rc_ok = w("required_ok.json", REQUIRED_CASES_OK)
     rc_missing = w("required_missing.json", REQUIRED_CASES_MISSING)
+    rc_mixed_empty = w("required_mixed_empty.json", json.dumps({"scenarios": [
+        {"id": "E01", "tests": ["TestA"]}, {"id": "E12", "tests": []},
+    ]}))
+    rc_duplicate_lanes = w("required_duplicate_lanes.json", json.dumps({"scenarios": [
+        {"id": "E04", "lane": "evm-e2e", "tests": ["TestNativeMissing"]},
+        {"id": "E04", "lane": "contracts", "tests": ["TestA"]},
+    ]}))
+
 
     bench_clean = w("bench_clean.txt", BENCH_CLEAN)
     bench_reg = w("bench_regression.txt", BENCH_REGRESSION)
@@ -322,6 +330,11 @@ def build_cases(work: Path) -> list[Case]:
         Case("required-case-never-ran",
              "-run matches zero tests / runner deleted",
              V, ["--jsonl", clean, "--required-cases", rc_missing], "fail"),
+        Case("mixed-empty-required-scenario", "one passing scenario hides another empty requirement",
+             V, ["--jsonl", clean, "--required-cases", rc_mixed_empty], "fail"),
+        Case("duplicate-scenario-lanes-overwritten", "combined lane requirements overwritten by repeated scenario id",
+             V, ["--jsonl", clean, "--required-cases", rc_duplicate_lanes,
+                 "--required-lane", "contracts", "--required-lane", "evm-e2e"], "fail"),
         Case("required-skip", "Foundry missing / DB not ready / required skip",
              V, ["--jsonl", req_skip, "--fail-on-unknown-skip"], "fail"),
         # controls

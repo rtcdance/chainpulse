@@ -196,7 +196,10 @@ def load_required_cases(path: Path, lanes: set[str] | None = None) -> dict[str, 
     for scenario in data.get("scenarios", []):
         if lanes and scenario.get("lane") not in lanes:
             continue
-        out[scenario["id"]] = list(scenario.get("tests", []))
+        names = out.setdefault(scenario["id"], [])
+        for name in scenario.get("tests", []):
+            if name not in names:
+                names.append(name)
     return out
 
 
@@ -286,6 +289,8 @@ def verify(
             "gate cannot fail (fill in the test names, or drop --required-cases)"
         )
     for scenario_id, names in sorted(required_cases.items()):
+        if not names:
+            failures.append(f"required case {scenario_id}: no executable tests declared")
         for name in names:
             matches = [
                 stat for (_pkg, tname), stat in report.tests.items() if tname == name
@@ -413,6 +418,16 @@ def self_test() -> int:
     else:
         print("[PASS] self-test: top-level count excludes subtests")
 
+    mixed = Report()
+    for line in _SELF_TEST_FIXTURES[0][1]:
+        _ingest(json.loads(line), mixed)
+    mixed_failures = verify(mixed, {"E01": ["TestA"], "E12": []}, None, False, [])
+    if mixed_failures:
+        print("[PASS] self-test: one populated scenario cannot hide another empty requirement")
+    else:
+        ok = False
+        print("[FAIL] self-test: mixed empty required scenario falsely passed")
+
     # Required-case: a skipped required test must fail.
     report = Report()
     for line in [
@@ -511,6 +526,20 @@ def self_test() -> int:
         ok = False
         print(f"[FAIL] self-test: repeated lane filter returned {sorted(two)}")
 
+    original_manifest = manifest_path.read_text()
+    # One scenario may require different tests in several lanes. A combined
+    # full gate must preserve every lane's requirements, never last-wins them.
+    manifest_path.write_text(json.dumps({"scenarios": [
+        {"id": "E04", "lane": "contracts", "tests": ["TestDB"]},
+        {"id": "E04", "lane": "evm-e2e", "tests": ["TestNative"]},
+    ]}))
+    merged = load_required_cases(manifest_path, {"contracts", "evm-e2e"})
+    if merged.get("E04") == ["TestDB", "TestNative"]:
+        print("[PASS] self-test: repeated scenario id merges selected lane requirements")
+    else:
+        print(f"[FAIL] self-test: scenario requirements overwritten: {merged}")
+        ok = False
+    manifest_path.write_text(original_manifest)
     unfiltered = load_required_cases(manifest_path, None)
     if sorted(unfiltered) == ["C1", "E1", "U1"]:
         print("[PASS] self-test: no lane filter keeps every scenario")

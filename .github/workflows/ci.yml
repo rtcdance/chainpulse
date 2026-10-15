@@ -1,32 +1,45 @@
 name: CI
 
 on:
+  # D12: `master` is the remote default branch; without it in the list this
+  # gate never fires on the branch that actually protects. main and the
+  # codex/acceptance-wrapup-2026-04-09 branch are kept as-is.
   push:
-    branches: [main, codex/acceptance-wrapup-2026-04-09]
+    branches: [main, master, codex/acceptance-wrapup-2026-04-09]
   pull_request:
-    branches: [main]
+    branches: [main, master]
   workflow_dispatch:
+
+env:
+  GOPROXY: https://goproxy.cn,direct
 
 jobs:
   build:
-    name: Build & Test
+    name: quality
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
-
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - name: Setup Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
-          go-version: '1.26'
+          go-version-file: go.mod
           cache: true
 
       - name: Format check
+        # gofumpt, not gofmt: `make fmt` / `make fmt-check` are the
+        # repository's formatting gate and they run gofumpt (a stricter
+        # superset of gofmt), so a gofmt-only CI passes files the Makefile
+        # would rewrite. The version is pinned because Makefile installs
+        # @latest; CI pins so the gate does not move under us when a new
+        # gofumpt release changes a rule.
         run: |
-          output=$(gofmt -l .)
+          set -euo pipefail
+          go install mvdan.cc/gofumpt@v0.12.0
+          output=$("$(go env GOPATH)/bin/gofumpt" -l .)
           if [ -n "$output" ]; then
-            echo "Files not formatted:"
+            echo "Files not formatted (gofumpt):"
             echo "$output"
             exit 1
           fi
@@ -77,13 +90,12 @@ jobs:
       - name: Test (short, with race detector)
         run: go test -race -short -timeout 120s ./...
 
-      - name: Integration tests
-        if: github.event_name == 'push'
-        run: go test -timeout 300s -tags=integration ./test/integration/...
-
-      - name: E2E tests
-        if: github.event_name == 'push'
-        run: go test -timeout 300s -tags=e2e ./test/e2e/...
+      # F13: the Integration/E2E steps that used to live here ran with no
+      # services and no Foundry toolchain (`-tags=e2e` without anvil), so
+      # every infra-gated test skipped and the step could only ever be
+      # fake-green. The authoritative lanes are ci-integration.yml (full
+      # contracts / integration / evm-e2e with services + anvil) and
+      # test.yml (the -short variants, which upload coverage).
 
       - name: Security scan
         # Section 7.3 forbids continue-on-error on test steps ("a gate that cannot
@@ -121,3 +133,68 @@ jobs:
           docker build --target=event-processor -f docker/Dockerfile -t chainpulse-event-processor:ci .
           docker build --target=api-service -f docker/Dockerfile -t chainpulse-api-service:ci .
           docker build --target=api-gateway -f docker/Dockerfile -t chainpulse-api-gateway:ci .
+
+  # D12/plan §7.3: one place that says "this commit is releasable". It does
+  # not re-run tests; it reads the conclusions the lanes above and in
+  # test.yml already produced for this SHA and fails unless every required
+  # check concluded successfully. Missing or in-progress is a failure -
+  # a gate that cannot fail is decorative. `if: always()` so a red build
+  # (needs) still runs the gate and turns it red, rather than leaving the
+  # required check absent from the checks list.
+  acceptance-gate:
+    name: acceptance-gate
+    runs-on: ubuntu-latest
+    needs: [build]
+    if: always()
+    permissions:
+      checks: read
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      # check runs may not be concluded when this job starts. Poll (bounded)
+      # until every required name has a conclusion, then evaluate. A lane
+      # that never concludes is reported by the gate as missing/in_progress;
+      # it is neither waited on forever nor silently ignored.
+      - name: Wait for required lanes to conclude
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os, subprocess, sys, time
+
+          required = json.load(open("test/acceptance/required-checks.json"))["required"]
+          if not required or len(required) != len(set(required)):
+              sys.exit("required-check policy is empty or duplicated")
+          api = (f"repos/{os.environ['GITHUB_REPOSITORY']}"
+                 f"/commits/{os.environ['GITHUB_SHA']}/check-runs"
+                 "?per_page=100&filter=latest")
+
+          for attempt in range(1, 61):  # bounded 30-minute wait for all mandatory workflows
+              raw = subprocess.check_output(["gh", "api", api], env=os.environ)
+              # Persist every poll so the evaluate step always has the latest
+              # snapshot, including when this loop times out on a still-running
+              # lane: the gate then reports it as missing/in_progress.
+              with open("checks.json", "wb") as fh:
+                  fh.write(raw)
+
+              checks = {r["name"]: (r.get("conclusion") or "in_progress")
+                        for r in json.loads(raw).get("check_runs", [])}
+              pending = [n for n in required
+                         if checks.get(n, "missing") in ("in_progress", "missing")]
+              if not pending:
+                  sys.exit(0)
+              print(f"poll {attempt}/60: waiting on {pending}", flush=True)
+              time.sleep(30)
+
+          print("::warning::timed out waiting for required checks; "
+                "the gate will report them as missing/in_progress", flush=True)
+          PY
+
+      - name: Evaluate the gate
+        run: |
+          set -euo pipefail
+          python3 scripts/acceptance/acceptance-gate.py \
+            --checks checks.json \
+            --policy test/acceptance/required-checks.json
