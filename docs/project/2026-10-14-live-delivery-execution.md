@@ -224,3 +224,5 @@ CI汇总由只检查3个check改为 test/acceptance/required-checks.json 的10�
 本地 readiness 修复后完整 micro-loop exit0：131 pass actions、60 顶层测试、0 fail/0 skip；31/31 门禁反例通过。此前 full 证据复制到 pre-readiness-full，保留运行边界。新增 finality RPC 反例已用旧候选源 overlay 真实复现：HTTP错误、非法hex/overflow、非规范quantity、错误JSON-RPC ID/version、尾部响应和切换provider旧缓存。当前修复拒绝这些响应，限制响应体2MiB，provider重新注册清缓存并拒绝旧in-flight结果覆盖；状态接口的降级结果 IsFinalized=false，height与元数据由同一次快照返回。新增回归100次race与整个finality包race通过。此项只证明 checker 改进，尚不能替代生产 finality observer 的 chain/genesis/header/freshness 全链路接线验收。
 
 T14 微基准工具新增 fail-closed 校验：每个样本必须有有限正 ns/op 和非负有限 B/op，缺/部分指标不能通过；零分配基线合法，但从0增加分配失败。15%阈值未改变；旧代码自测反例真实失败，修复后自测及31/31外部CLI反例通过。正式100k双链正确性、持续摄取、查询、积压、30min soak、不可变镜像发布/回滚与最终作者签字仍未完成，不将本轮局部结果当作T00–T18全部完成。
+
+第三轮终态补充：真实部署四场景步骤已成功，后续 legacy E2E 因同一 localhost:8545 fixture 缺失而失败；两个调用该套件的 workflow 均补固定 Anvil 进程和探测。18 项相关并发测试（两源文件全量）本地 race 复核为18pass/0fail/0skip。初次本地筛选只包含13项而误设min17，检验器正确拒绝空覆盖；已改为从两文件函数名生成精确18项筛选，原始记录保留，不把数量不足当通过。quality 本轮最终成功，但超过方案5min预算，仍需优化和复测；acceptance-gate因unit-race/legacy E2E失败正确阻断。

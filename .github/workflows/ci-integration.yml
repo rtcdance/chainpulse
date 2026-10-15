@@ -462,6 +462,23 @@ jobs:
         DEPLOYMENT_MODE: monolithic
       run: |
         set -euo pipefail
+        # These legacy concurrency fixtures connect to localhost:8545; an
+        # installed binary alone does not provision their required RPC node.
+        anvil --host 127.0.0.1 --port 8545 --chain-id 31337 --timestamp 1700000000 > anvil-short.log 2>&1 &
+        fixture_pid=$!
+        cleanup_fixture() {
+          kill "$fixture_pid" 2>/dev/null || :
+          wait "$fixture_pid" 2>/dev/null || :
+        }
+        trap cleanup_fixture EXIT
+        for attempt in $(seq 1 30); do
+          if cast chain-id --rpc-url http://127.0.0.1:8545 > anvil-short-chain-id.txt 2>/dev/null; then
+            break
+          fi
+          kill -0 "$fixture_pid"
+          sleep 1
+        done
+        test "$(cat anvil-short-chain-id.txt)" = "31337"
         go test -json -race -timeout=20m -tags=e2e \
           ./test/e2e/... | tee e2e-output.jsonl
         python3 scripts/acceptance/verify-tests.py \
