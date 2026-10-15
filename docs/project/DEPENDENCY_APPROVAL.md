@@ -27,6 +27,16 @@ Approved by: mingo (2026-06-07) — in-flight refactor (massive dead code remova
 
 ## Approved Dependencies
 
+### Targeted security patches from first remote candidate scan (2026-10-15)
+
+- Classification: security remediation under the Approved delivery plan T15 and the user's execute-to-completion instruction; this records execution authorization, not a newly invented human sign-off.
+- Source: GitHub security run 38722855284, Trivy 0.70.0 filesystem report for candidate ad236be706aa8fe611b75c532b8118e438884711. Full report and raw job log are retained in the task evidence.
+- Frontend only: pin axios 1.20.0 (from lockfile 1.16.1); its form-data dependency must resolve to >=4.0.6. Addresses the scanner's actionable HIGH advisories for these two packages. Existing frontend request/normalization/finality tests and production build must pass; no audit-fix or unrelated framework upgrades.
+- Nested Go module only: align pkg/blockchain's go-ethereum 1.16.8 and x/crypto 0.49.0 with the already-used root workspace versions 1.17.0 and 0.57.0. This removes vulnerable standalone-module pins without introducing a new workspace runtime version. Other modules do not declare these dependencies. x/sys moves to the root-aligned 0.48.0; tidy removes obsolete geth transitive entries. Retain the explicit x/crypto 0.57.0 graph floor: without it geth's standalone module graph falls back to 0.44.0 even though its packages are not called by the current blockchain model. Verify both GOWORK=off nested tests and the actual workspace's signature, decoding, storage and entry-point paths. No toolchain directive.
+- Runtime risks: HTTP proxy/adapter behavior and cryptographic/transaction types; targeted tests plus repeat remote govulncheck/Trivy are required before marking verified.
+- Rollback: revert this dedicated dependency commit and redeploy the prior immutable digest only as an emergency recovery measure; that restores the old vulnerable dependencies and is not an accepted release state. Keep dependency changes separate from the CI routing fix.
+
+
 ### Delivery verification tool (2026-10-14)
 
 - Tool: `honnef.co/go/tools/cmd/staticcheck@v0.7.0`, built with Go 1.26.9.
