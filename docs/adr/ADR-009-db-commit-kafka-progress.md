@@ -116,3 +116,18 @@ that a no-op.
 - **Neutral** — per-chain parallelism is capped at one committer by design. That
   is a deliberate limit: throughput scales by adding *chains*, not by adding
   writers to one chain.
+
+### Implementation acceptance note — 2026-10-15
+
+The PostgreSQL native consumer now checks the RPC canonical header inside its
+fenced transaction. Expired owners cannot begin transactions. The producer
+compares durable checkpoint hashes every poll and uses an expected-checkpoint
+rollback guard; rejected orphan frames are acknowledged only after a terminal
+audit write, and never published as canonical commits. Actual four-service
+reorg depths 1/2/12 and outbox publication have local process evidence in the
+[execution record](../project/2026-10-14-live-delivery-execution.md).
+
+Database owner fencing is implemented; binding ownership to Kafka group
+revocation and proving the old worker cannot commit after an actual rebalance
+remain required T05 work. The lease's stored generation alone does not prove
+that broker lifecycle property. These local tests do not complete T18.

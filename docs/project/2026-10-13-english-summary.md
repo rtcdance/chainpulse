@@ -35,17 +35,17 @@ The pipeline, as the code actually implements it (diagram in the
 
 | Stage | Package | What it does |
 | --- | --- | --- |
-| Ingest | `pkg/plugins/pullers` | `eth_getLogs` with provider-capability range splitting |
+| Ingest | `pkg/plugins/pullers` | `eth_getLogs` with bounded complete-block ranges; provider-limit acceptance remains pending |
 | Decode | `pkg/evm` | Typed events (ERC20/721/1155, Uniswap V3) with shape validation |
 | Commit | `pkg/services/processor` | Fenced **atomic** commit of events + checkpoint |
 | Store | `pkg/plugins/database` | PostgreSQL: natural-key uniqueness, lease/generation fencing, reorg outbox |
 | Queue | `pkg/plugins/mq` | Kafka, partition key = chain key, at-least-once + idempotent dedup |
-| Cache | `pkg/plugins/cache` | Redis, versioned keys (chain + generation + schema), degrading reads |
-| Serve | `pkg/plugins/api` | REST / gRPC / WebSocket |
+| Cache | `pkg/plugins/cache` | Redis adapters and shared SIWE nonces; canonical hot-cache generation acceptance remains pending |
+| Serve | `pkg/plugins/api` | Canonical REST / GraphQL; WebSocket/SSE components, with live canonical subscription wiring pending |
 | Safety | `pkg/services/finality`, `pkg/services/reorg` | Finality confidence; ordered, generation-scoped reorg repair |
-| Observability | `pkg/observability` | Bounded metric labels; per-phase lag |
+| Observability | `pkg/observability` | Bounded metric labels and progress wiring; committed/finalized lag and cross-process trace acceptance pending |
 
-One codebase, two deployment modes (monolithic in-memory vs four-service) —
+One codebase, two deployment modes (monolithic PostgreSQL vs four native services; a separate in-memory playground is retained) —
 [ADR-001](../adr/ADR-001-plugin-architecture.md).
 
 The three correctness decisions are
@@ -73,20 +73,29 @@ no `events/s` or P99 figure is claimed, and no mainnet capacity is extrapolated.
    `test/acceptance/redis_fault_test.go`: duplicate delivery is a no-op, and a
    DB or Redis outage has a rehearsed, asserted behaviour.
 
-**Honest caveat:** the acceptance manifest
-(`test/acceptance/required-cases.json`, scenarios E01–E15) maps **8 of its 15
-scenarios** to real tests — E02, E04, E05, E07, E08, E09, E10, E11 — and those are
-now enforced in the `unit` and `contracts` lanes, where a listed test that does
-not run, or that is skipped, fails the build. The remaining seven (E01, E03, E06,
-E12, E13, E14, E15) still carry an **empty array with a stated reason**, and an
-empty array is not a claim that the scenario passes. The per-scenario status is in
-[SUPPORT_MATRIX.md](SUPPORT_MATRIX.md).
+The current local execution record additionally covers two independent EVM
+chains in both deployment modes, exact raw-log oracle digests, a real signed
+Swap fixture and max-uint256 API values. Native four-service scenarios exercise
+reorg depths 1/2/12, transaction re-inclusion, terminal orphan audit and durable
+reorg notification publication. The repair-crash rehearsal additionally
+verifies failed publication, SIGKILL, persisted replay with old-branch backlog,
+terminal audit and actual owed notices after restart. See the named JSONL artifacts in the
+[execution record](2026-10-14-live-delivery-execution.md).
+
+These are dirty-working-tree results. The acceptance manifest still has pending
+scenarios, including browser flow, sustained performance and real
+release rollback. Kafka rebalance/revocation fencing, generation-safe hot caching
+and canonical subscription recovery also need acceptance. Remote same-SHA checks,
+immutable image digests and the final evidence pack are not complete. The
+[SUPPORT_MATRIX](SUPPORT_MATRIX.md) separates local verification from release
+acceptance.
 
 ## Support boundary — what this is *not*
 
 - **Not a bridge** and does not custody assets or attest cross-chain messages.
 - **Not a multi-chain production deployment.** The widest thing exercised is a
-  two-chain isolation test and a single-chain load path.
+  two-independent-chain normal pipeline in both modes and isolated fault tests;
+  production capacity is unmeasured.
 - **Not an MEV mitigation** and **not an account-abstraction implementation**
   (see the security discussion outline for where the code is merely *adjacent*).
 - **L2 finality is discounted, not guaranteed.**
@@ -103,7 +112,7 @@ empty array is not a claim that the scenario passes. The per-scenario status is 
 - **PostgreSQL** — transactional atomicity, lease/generation fencing,
   natural-key dedup, transactional outbox.
 - **Kafka** — partition-key design, at-least-once semantics, redelivery.
-- **Redis** — versioned cache keys, fail-closed vs degrade policies.
+- **Redis** — shared atomic nonce consumption, fail-closed vs degrade policies.
 - **Architecture** — hexagonal ports/adapters, ADR-driven decisions, CI gating
   that refuses false-green runs.
 

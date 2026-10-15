@@ -17,6 +17,12 @@ README's "What it is not" paragraph must agree.
 | **absent** | there is no code for it |
 | **out of scope** | deliberately not claimed this round |
 
+Current local results are dirty-working-tree evidence in
+`build/acceptance/20261014-working/`, described by the
+[execution record](2026-10-14-live-delivery-execution.md). A locally verified
+row is not a clean candidate or remote CI/CD acceptance claim. Remote required
+checks, immutable release digests and final evidence assembly remain pending.
+
 Evidence paths are relative to the repository root. `build/acceptance/<sha>/`
 holds the raw artifacts for a given commit and is not committed.
 
@@ -30,7 +36,7 @@ holds the raw artifacts for a given commit and is not committed.
 | Two-chain isolation (a rollback on A leaves B unchanged) | **verified** | `TestPostgresChainIsolation` (E04); lane `contracts` |
 | Seven-chain **configuration** (seven nodes started and reachable) | **verified** | `TestMultiChainRealEvents` starts seven Anvil instances on distinct ports — ethereum, polygon, bsc, arbitrum, optimism, base, avalanche — and connects to each, reading block height and account balance. Re-verified 2026-10-14 by running it: 7/7 subtests pass in 17.08s. It is untagged, so it runs in the `e2e` job |
 | Seven-chain **indexing** | **unverified** | no test runs the indexer across more than two chains' logs. The seven-chain test reads chain state; it does not index anything, so "seven nodes start" and "seven chains are indexed" are different claims |
-| Multi-chain production operation | **out of scope** | no test drives concurrent indexing at production scale; the widest indexed path is the two-chain isolation test |
+| Multi-chain production operation | **out of scope** | no test drives concurrent indexing at production scale; local normal-mode verification runs two independent EVM chains in both deployment modes |
 | HTTPS-JSONRPC collection | **verified** | `pkg/plugins/pullers/https_jsonrpc_puller.go`; used by `test/e2e` |
 | WebSocket-JSONRPC collection | **verified** | the same puller switches to a WebSocket subscription when the node URL is `ws://`/`wss://`, with polling as fallback. `TestAnvil_WebSocketSubscription` asserts all three parts: the subscription is established, the fallback is *not* taken, and a mined block reaches the puller's checkpoint. Verified 2026-10-14; before that the branch had never executed |
 | **gRPC** (any direction) | **absent** | no generated code, no `service`/`rpc` in `pkg/plugins/api/proto/chainpulse.proto`, no `grpc.NewServer`/`Dial` anywhere, and the module is an indirect dependency only. `detector.go` can *recognise* `application/grpc` traffic; recognising a protocol is not serving it. Config validation accepted `"grpc"` for both `DataPullerType` and `APIType` until 2026-10-14; it now rejects them, and `TestValidateConfigurationRejectsGrpcWithoutImplementation` keeps them out |
@@ -46,9 +52,9 @@ holds the raw artifacts for a given commit and is not committed.
 | Atomic commit (events + checkpoint together or not at all) | **verified** | `test/contracts/postgres_atomic_test.go` (E02) |
 | SIGTERM graceful shutdown | **verified** | `TestSigtermGracefulShutdown` (E05) |
 | Crash inside the commit window | **verified** | `TestCrashInsideCommitLeavesNothingBehind`, `TestCrashAfterCommitKeepsTheBlock` (E05); ten distinct kill points |
-| Kafka redelivery rehearsal (E09 MQ half) | **unverified** | `TestKafkaRedeliveryKeepsEffectSingle` skips; it cannot run in CI because `createTopic` shells out to `docker exec`. Declared in `test/acceptance/skip-allowlist.json` as an open gap |
-| Reorg rollback, fork depth 1/2/12 (E03) | **unverified** | the reorg code and its unit tests exist; the multi-depth rehearsal is pending |
-| Repair-job crash and resume (E06) | **unverified** | `TestRepairResumeRepairsEveryPendingJob` covers the resume logic; it is not a crash rehearsal |
+| Kafka redelivery rehearsal (E09 MQ half) | **verified locally** | `TestKafkaRedeliveryKeepsEffectSingle` and `TestKafkaHandlerFailureIsRedeliveredBeforeLaterOffsets` run against the isolated broker in full/contracts.jsonl; zero mandatory skips. Topic provisioning uses the broker API. |
+| Reorg rollback, fork depth 1/2/12 (E03) | **verified locally** | `TestDeployedReorgCanonicalDigestAndRestart` and `TestDeployedPullerKafkaAndAtomicProcessor` exercise actual native entry points; the latter also checks stale branch redelivery, audit and durable notifications. Rebalance/revocation acceptance remains pending; repair-crash has its own row. |
+| Repair-job crash and resume (E06) | **verified locally** | `TestDeployedPullerKafkaAndAtomicProcessor/repair-crash`: notification topic failure after durable rollback, queued old-branch gap, SIGKILL, restart, terminal audit, replay/job completion and two actual owed Kafka notices. Raw before/after JSON and JSONL are in the local execution record; image/data rollback is still pending. |
 | Finality failure handling (E07) | **verified** | `TestGetFinalizedBlockNumber_AllFallbacksFail`, `TestIsBlockFinalizedRefusesDegraded`, `TestSafeIsNotFinalized` |
 | RPC/WS failure: 429, Retry-After, 5xx, disconnect (E08) | **verified** | `TestFailoverRPCClient429Handling`, `TestParseRetryAfter_Seconds`/`_HTTPDate`, `TestFailoverRPCClientFailover`, `TestRateLimitExceededResponse` |
 | DB / Redis outage behaviour (E09, storage half) | **verified** | `TestDatabaseDisconnectIsBackpressure`, `TestRedisOutageFailsClosed`, `TestRedisOutageDegradesQueries` |
@@ -60,7 +66,7 @@ holds the raw artifacts for a given commit and is not committed.
 | PostgreSQL persistence | **verified** | `test/contracts`, `test/acceptance` |
 | MongoDB persistence | **partly verified** | `TestMongoDBEventStoreAgainstRealServer` (verified 2026-10-14) covers write, point read, query-by-event-name, count and health against a real server; the contracts lane provisions `mongo:7` so it runs rather than skips. **Not covered**: `GetEventsByChain`/`ByContract`/`ByCorrelationID`, pagination cursors, `DeleteEventsByBlockRange`, `MarkEventsAsReorged`, TTL expiry, and anything TLS or replica-set related — the local server is single-node and unauthenticated. Before this, the thirteen tests in the package ran against a nil mock and asserted only guard conditions |
 | Redis cache (fail-closed and degrade policies) | **verified** | `TestRedisOutageFailsClosed`, `TestRedisOutageDegradesQueries` |
-| Schema fresh / upgrade / rollback | **verified** | `test/migration`: fresh → up → up (no-op) → down × 13 → up, with `schema_after_rollback_matches_fresh: true`. Lane `contracts` |
+| Schema fresh / upgrade / rollback | **verified** | `test/migration`: fresh → up → up (no-op) → down × 14 → up, with `schema_after_rollback_matches_fresh: true`. Lane `contracts` |
 | Upgrade from an arbitrary historical version | **unverified** | "upgrade" here means empty-to-latest; a real upgrade matrix needs a database per version |
 | Canonical digest / event identity | **verified** | `pkg/evm`, ADR-008; `TestDecodeTypedEvent_*` (E11) |
 
@@ -82,16 +88,16 @@ holds the raw artifacts for a given commit and is not committed.
 | capability | status | evidence |
 | --- | --- | --- |
 | Monolithic and four-service modes build | **verified** | `ci.yml` builds all five binaries; `release.yml` builds all platforms |
-| Mode equivalence, monolithic vs four-service (E13) | **unverified** | needs both modes running against one fixture |
-| Monolithic vs four-service canonical digest equality | **unverified** | as above |
+| Mode equivalence, monolithic vs four-service (E13) | **verified locally for the normal pipeline** | `TestDeployedDualChainModesMatchRPCOracle`; two independent chains, two isolated databases, all four native services, raw-log digest equality and full header comparisons. Equivalence under the complete fault matrix is pending. |
+| Monolithic vs four-service canonical digest equality | **verified locally for the normal pipeline** | Same dual-chain test; full/contracts.jsonl and the same-run dual-mode-oracle.json. Counts and hashes may change as each isolated run emits real events. |
 | Graceful shutdown under SIGTERM | **verified** | E05 |
-| Observability: metrics, logging, tracing, health | **partly verified** | health endpoints and metrics are exercised; the indexer-lag signal is dead code (T13), and so is the in-app alert manager (row below), so the observability row in the README is only partly backed |
-| In-app alerting (`pkg/observability/alerts.go`) | **dead code** | the `AlertManager` has **19 passing tests** and is **never instantiated in production**: `NewAlertManager` and `AlertManager` appear only in `alerts.go` and `alerts_test.go`, and nothing under `cmd/` or `pkg/application/bootstrap/` references them. No rule is ever registered and `Evaluate` is never called, so no alert can fire. The tests prove the component works in isolation; they cannot prove it is reachable. Verified 2026-10-14 |
-| Alerts delivered to a sink | **unverified** | two separate gaps. In the application the alert manager above is not wired at all. In the deployment, `monitoring/alertmanager/alertmanager.yml` carries a single dummy webhook on `localhost:9099`, and the Slack/PagerDuty receivers were removed by `e09f443` — a commit titled "feat: add alertmanager, postgres/redis/kafka exporters" |
+| Observability: metrics, logging, tracing, health | **partly verified** | Real health/progress wiring and bounded-label contracts run locally. Full observed/committed/finalized lag separation, cross-MQ traces and fault-triggered alert acceptance remain pending. |
+| In-app alerting (`pkg/observability/alerts.go`) | **partly verified** | `BuildAlertManager` is instantiated by `monolithic_starter.go`; configured-rule and log-sink tests pass. This replaces the prior dead-code finding. Full runtime fault/SLO acceptance remains pending. |
+| Alerts delivered to a sink | **partly verified** | `TestBuildAlertManagerLogSinkFires` covers the application log sink. Deployment webhook delivery and complete fault/clear cycles remain unverified. |
 | Kubernetes manifests **build** | **verified** | 39 files under `k8s/`; `kubectl kustomize` succeeds for all three entry points — `base` (56 resources), `overlays/monolithic` (58), `overlays/microservice` (59) — and the ConfigMap's values (`MQ_TYPE: kafka`, `CACHE_TYPE: redis`, `DATABASE_TYPE: postgres`, `LOG_LEVEL: info`) are all accepted by the validator. Verified 2026-10-14. Nothing in the repository referenced `k8s/` or `kustomize` before that, so no lane checks this and it can regress silently |
 | Kubernetes deployment **applied** to a cluster | **unverified** | no cluster is created anywhere; nothing applies the manifests |
 | `DataPullerType` / `APIType` choosing an implementation | **absent** | both fields are declared, validated and printed at startup, but **no production code branches on their value**. Pullers are chosen by chain type (`chainid.IsCosmosChain` → Cosmos, `IsSolanaChain` → Solana, else HTTPS) in `cmd/monolithic/chainpulse/m1a_runtime_wiring.go:121-126` and again in `cmd/microservices/puller/puller_execution.go:479-504`, where the field is **overwritten** with a hardcoded `"solana"`/`"cosmos"`/`"https-jsonrpc"` per branch. `AllowedAPITypes` is marked deprecated and only ever assigned. Setting either field to a valid value changes nothing at runtime |
-| **Performance: events/s, P99** | **unverified** | no measurement apparatus exists for p99 or throughput. The micro-benchmark gate covers one decode path only, on a developer machine, and is explicitly not the §8 reference environment |
+| **Performance: events/s, P99** | **unverified** | Load tooling exists, but the approved end-to-end sustained load/soak has not run. Decode microbenchmarks cannot establish ingest throughput. |
 | 30-minute soak (E14) | **unverified** | needs a soak environment |
 | Deploy / rollback rehearsal (E15) | **unverified** | needs a deployment target |
 
@@ -101,8 +107,8 @@ holds the raw artifacts for a given commit and is not committed.
 | --- | --- | --- |
 | `quality` | **partial** | no job by that name; `ci.yml`'s `build` job runs format, vet and build, and now `scripts/check-workspace-modules.sh` for all seven modules |
 | `unit-race` | **partial** | `ci.yml` runs `go test -race -short ./...`; `test.yml`'s unit step runs `-short` **without** `-race` |
-| `contracts` | **partial** | Postgres + Redis provisioned, `--fail-on-unknown-skip`, the required-cases manifest, and the migration test. Kafka is **not** provisioned, so the E09 MQ half cannot run |
-| `evm-e2e` | **partial** | fixed 2026-10-14: the job now installs Foundry and refuses to run without `anvil` on PATH, so the six tagged tests in `anvil_test.go` execute (13 assertions pass, including the seven `TestAnvilStartupVerify` subtests). It still cannot use `--fail-on-unknown-skip`: 36 skips remain, all from the placeholder DSN in `test/e2e/orchestrator.go` |
+| `contracts` | **configured and locally exercised** | PostgreSQL, Redis, Kafka and Mongo services; real contracts, explicit fault targets, zero required skips. Remote same-SHA run remains pending. |
+| `evm-e2e` | **configured and locally exercised** | Dual Anvil fixtures, single-process and native four-service reorg, two-mode oracle, required-case verifier with unknown skips rejected. Remote same-SHA run remains pending. |
 | `frontend-api` | **partial** | added 2026-10-14: install, build, unit tests, OpenAPI drift. Playwright needs a running stack and is not wired |
 | `security` | **partial** | a step inside `ci.yml`, not a lane. `govulncheck` now covers all seven modules and fails the job, but there is no approved baseline, and no secret scan, gosec or image scan |
 | `coverage` | **verified** | `coverage.yml`, 40% threshold |
@@ -115,7 +121,7 @@ holds the raw artifacts for a given commit and is not committed.
 | capability | status | evidence |
 | --- | --- | --- |
 | Section 10 evidence pack assembled by the collector | **partial** | `scripts/acceptance/collect-evidence.py` collects 17 artifacts and refuses when one is missing, and its manifest now carries commit, dirty state, tool versions, environment and per-suite test actions. **No CI lane calls it**, so the rule is not enforced anywhere |
-| Required-cases manifest enforced | **partial** | 8 of 15 scenarios are mapped to real tests and enforced in the `unit` and `contracts` lanes; E01, E03, E06, E12, E13, E14, E15 remain pending with reasons |
+| Required-cases manifest enforced | **partial** | Real unit, contracts, e2e and evm-e2e tests are now required locally/in workflow configuration, including E01/E03/E13 actual native scenarios. E12/E14/E15 remain pending; use required-cases.json as the executable list. |
 | Remote CI run URLs, RC performance, real CD/rollback | **unverified** | `run-urls.json` can only come from the remote side, so the pack has never been produced complete |
 
 ## 8. Out of scope

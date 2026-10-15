@@ -497,6 +497,12 @@ T18通过后停止本轮功能扩张。只在出现影响已承诺数据正确�
 > 本节按 §12 的交办协议追加：**记录实际执行与阻塞，不改动上面的范围、任务与验收合同**。上面的 `Status: Approved` 与各任务状态**未被回写**——任务是否 Verified 仍需逐条证据，本节只做事实登记。
 > 本节取代上面 Implementation Summary 末句的「T00–T18 实施未开始」；该句自本日起已过时。
 
+### 2026-10-14 实际生产接线推进
+
+见 [实际接线与验收记录](../project/2026-10-14-live-delivery-execution.md)。已将完整区块原子提交、空块 checkpoint、持久 canonical 校验、原子 reorg/outbox/replay 完成状态、Kafka 正确 ack、二进制 ABI 载荷、canonical PostgreSQL 查询、真实 readiness 与共享 SIWE nonce 接入实际入口，并运行真实服务与进程级演练。所有结果保留原始工件；未用局部通过把 T00–T18 标成全量 Verified。
+
+四服务统一、双链模式等价、完整性能/soak、版本回滚、同 SHA 远端 CI/CD 和封版仍需完成；保持原范围与 Status: Approved。
+
 ### A. 本地已闭环并留有原始证据的项
 
 | 任务 / 条款 | 实测结果 | 证据落点 |
@@ -536,3 +542,8 @@ T18通过后停止本轮功能扩张。只在出现影响已承诺数据正确�
 ### C. 沙箱内不可执行的项（与 T18 原记录一致）
 
 同一最终 SHA 的远端 CI run URL、GitHub ruleset/required checks（需 admin）、RC performance/30min soak、真实 CD/回滚、3–5 分钟录屏、`sbom`/`security`/`run-urls.json` 工件。
+
+
+### T04 additive state implementation decision (2026-10-15)
+
+在已批准 T04/T07 范围内，迁移 000016 为权威 blockchain_events 增加 event_state JSONB：canonicality、processing、finality 三个独立维度。legacy status 和 physical ID 保留。旧写者兼容 trigger 只同步 canonicality/processing；历史或新增的 status=finalized 不能构造 RPC finality 证据，finality 默认 unknown。reorg 撤销 canonicality，同时保留已完成 processing，失效旧分支 finality。PG 查询从同一 snapshot 读回 state；API 只增加 state 字段。回滚按先回退应用读者再 down16 的顺序，旧 status 与 raw identity 不丢失；重新 up16 对历史 finalized 仍保持 unknown。验收覆盖 fresh/upgrade/down/reapply、legacy 写者、独立维度、A→B→A、约束拒绝不完整 finality、API 兼容。该段细化已授权实现，不改变 Approved 状态或引入新交付范围。

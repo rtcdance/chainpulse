@@ -1,12 +1,20 @@
 # ChainPulse
 
-[![CI](https://github.com/rtcdance/chainpulse/actions/workflows/ci.yml/badge.svg)](https://github.com/rtcdance/chainpulse/actions/workflows/ci.yml)
-[![Tests](https://github.com/rtcdance/chainpulse/actions/workflows/test.yml/badge.svg)](https://github.com/rtcdance/chainpulse/actions/workflows/test.yml)
-[![Coverage](https://github.com/rtcdance/chainpulse/actions/workflows/coverage.yml/badge.svg)](https://github.com/rtcdance/chainpulse/actions/workflows/coverage.yml)
-[![Release](https://github.com/rtcdance/chainpulse/actions/workflows/release.yml/badge.svg)](https://github.com/rtcdance/chainpulse/actions/workflows/release.yml)
-[![Deploy](https://github.com/rtcdance/chainpulse/actions/workflows/deploy.yml/badge.svg)](https://github.com/rtcdance/chainpulse/actions/workflows/deploy.yml)
-[![Go Version](https://img.shields.io/badge/Go-1.26-00ADD8?logo=go)](https://go.dev/)
-[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+![CI](https://github.com/rtcdance/chainpulse/actions/workflows/ci.yml/badge.svg)
+
+![Tests](https://github.com/rtcdance/chainpulse/actions/workflows/test.yml/badge.svg)
+
+![Coverage](https://github.com/rtcdance/chainpulse/actions/workflows/coverage.yml/badge.svg)
+
+
+
+![Release](https://github.com/rtcdance/chainpulse/actions/workflows/release.yml/badge.svg)
+
+![Deploy](https://github.com/rtcdance/chainpulse/actions/workflows/deploy.yml/badge.svg)
+
+![Go Version](https://img.shields.io/badge/Go-1.26-00ADD8?logo=go)
+
+![License](https://img.shields.io/badge/license-MIT-blue.svg)
 
 ChainPulse monitors and indexes blockchain events in real time. Track
 transactions, detect chain reorganizations, inspect dead-letter queues,
@@ -19,17 +27,23 @@ correctness problems that make indexing hard: reorgs that rewrite history,
 at-least-once delivery, and finality that differs by chain.
 
 **What it is not:** a bridge, an MEV or account-abstraction implementation, or a
-multi-chain production deployment. The widest thing exercised is a two-chain
-isolation test and a single-chain load path. It also has **no gRPC API**: there
+multi-chain production deployment. Local verification runs two independent EVM chains through both the monolith
+and four native services, and exercises reorg depths 1/2/12. Production-scale
+load, complete fault recovery and release acceptance remain pending. It also has **no gRPC API**: there
 is a `.proto` with message definitions and a protocol detector that can
 *recognise* gRPC traffic, but no generated code, service definition, server or
 client, so gRPC is neither served nor consumed.
+
+Current implementation evidence is recorded in the
+[local execution record](docs/project/2026-10-14-live-delivery-execution.md).
+It comes from a dirty working tree. The badges above describe their workflow
+runs; they do not establish acceptance for these uncommitted changes.
 
 See the [English project summary](docs/project/2026-10-13-english-summary.md) for
 the evidenced results, the support boundary, and the design decisions
 ([ADRs](docs/adr/README.md)). The per-capability detail — what is verified, what
 exists but is unverified, and what is absent — is in
-[SUPPORT_MATRIX.md](docs/project/SUPPORT_MATRIX.md); it names the test or lane
+[SUPPORT\_MATRIX.md](docs/project/SUPPORT_MATRIX.md); it names the test or lane
 behind every verified row.
 
 ## 5-Minute Happy Path
@@ -257,6 +271,7 @@ recorded under [`docs/adr/`](docs/adr/): the monolith-vs-microservice split
 contract ([ADR-002](docs/adr/ADR-002-event-bus-pubsub.md)), and the reorg
 rollback/reindex strategy ([ADR-003](docs/adr/ADR-003-reorg-rollback-reindex.md)).
 
+
 ### Dual-Mode Deployment
 
 ChainPulse supports two deployment modes from the same codebase:
@@ -270,16 +285,16 @@ Set via: `export DEPLOYMENT_MODE=monolithic` or `export DEPLOYMENT_MODE=microser
 
 ### Key Capabilities
 
-| Feature              | Details                                                     |
-| -------------------- | ----------------------------------------------------------- |
-| **Data Collection**  | Multiple protocols (HTTPS-JSONRPC, WebSocket-JSONRPC)       |
-| **Event Processing** | Idempotency, batch processing, error recovery               |
-| **Caching**          | Redis and in-memory backends with TTL support               |
-| **Persistence**      | PostgreSQL and MongoDB support                              |
-| **APIs**             | REST and WebSocket protocols                                |
-| **Deployment**       | Monolithic and microservice modes                           |
-| **Observability**    | Metrics, logging, tracing, health checks                    |
-| **Resilience**       | Error handling, retry logic, graceful shutdown              |
+| Feature              | Details                                               |
+| -------------------- | ----------------------------------------------------- |
+| **Data Collection**  | Multiple protocols (HTTPS-JSONRPC, WebSocket-JSONRPC) |
+| **Event Processing** | Idempotency, batch processing, error recovery         |
+| **Caching**          | Redis and in-memory backends with TTL support         |
+| **Persistence**      | PostgreSQL and MongoDB support                        |
+| **APIs**             | REST and WebSocket protocols                          |
+| **Deployment**       | Monolithic and microservice modes                     |
+| **Observability**    | Metrics, logging, tracing, health checks              |
+| **Resilience**       | Error handling, retry logic, graceful shutdown        |
 
 ## 🧪 Testing
 
@@ -507,13 +522,13 @@ For questions or issues:
 
 ## 📈 Code Statistics
 
-| Metric        | Value                   |
-| ------------- | ----------------------- |
-| Total Go Code | 245,138 lines (all `.go`, excl. `node_modules`/`frontend`) |
-| Production (pkg+cmd, non-test) | 92,635 lines |
-| Test (pkg+cmd) | 124,326 lines |
-| Test (`test/`) | 17,398 lines |
-| Test harness (`test/`, non-test) | 10,256 lines |
-| Examples (`examples/`) | 523 lines |
-| Go Version    | 1.26                    |
-| Milestones    | 7/7 Completed           |
+| Metric                           | Value                                                      |
+| -------------------------------- | ---------------------------------------------------------- |
+| Total Go Code                    | 245,138 lines (all `.go`, excl. `node_modules`/`frontend`) |
+| Production (pkg+cmd, non-test)   | 92,635 lines                                               |
+| Test (pkg+cmd)                   | 124,326 lines                                              |
+| Test (`test/`)                   | 17,398 lines                                               |
+| Test harness (`test/`, non-test) | 10,256 lines                                               |
+| Examples (`examples/`)           | 523 lines                                                  |
+| Go Version                       | 1.26                                                       |
+| Milestones                       | 7/7 Completed                                              |

@@ -68,7 +68,7 @@ paths:
           in: query
           schema:
             type: string
-          description: Filter by chain ID (e.g. "1" for Ethereum, "137" for Polygon)
+          description: Filter by chain ID (e.g. "1" for Ethereum, "137" for Polygon). Also accepts chain_id and chainId; chain takes precedence.
         - name: contract
           in: query
           schema:
@@ -78,7 +78,7 @@ paths:
           in: query
           schema:
             type: string
-          description: Filter by event name (e.g. "Transfer")
+          description: Filter by event name (e.g. "Transfer"). Also accepts eventName; event_name takes precedence.
         - name: event_signature
           in: query
           schema:
@@ -110,6 +110,12 @@ paths:
             type: string
             enum: [pending, confirmed, failed, reorged]
           description: Filter by event status
+        - name: cursor
+          in: query
+          schema:
+            type: string
+            maxLength: 4096
+          description: Opaque canonical cursor bound to chain, filters and generation. Keep the same filters and use offset 0; a 409 CURSOR_STALE requires restarting pagination.
         - name: offset
           in: query
           schema:
@@ -131,6 +137,18 @@ paths:
                 $ref: '#/components/schemas/EventListResponse'
         '400':
           description: Invalid query parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '409':
+          description: CURSOR_STALE; canonical generation changed and pagination must restart
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        '503':
+          description: Canonical PostgreSQL source unavailable; no legacy fallback
           content:
             application/json:
               schema:
@@ -484,6 +502,42 @@ components:
           description: Event processing status
           enum: [pending, confirmed, failed, reorged]
           example: "confirmed"
+        state:
+          $ref: '#/components/schemas/EventState'
+
+    EventState:
+      type: object
+      description: Independent persisted state axes. Legacy status is retained for compatibility and does not prove RPC finality. Absent state in a legacy backend means finality is unknown.
+      required: [canonicality, processing, finality]
+      properties:
+        canonicality:
+          type: string
+          enum: [canonical, orphaned]
+        processing:
+          type: string
+          enum: [pending, processed, failed, raw_only]
+        finality:
+          type: object
+          required: [state, confidence, source]
+          properties:
+            state:
+              type: string
+              enum: [unknown, safe, finalized]
+            confidence:
+              type: string
+              enum: [unknown, degraded, safe, finalized]
+            source:
+              type: string
+            observed_at:
+              type: string
+              format: date-time
+            head_number:
+              type: integer
+              format: int64
+              minimum: 0
+            head_hash:
+              type: string
+              pattern: '^0x[0-9a-fA-F]{64}$'
 
     EventListResponse:
       type: object
@@ -518,8 +572,11 @@ components:
           example: 0
         total:
           type: integer
-          description: Total matching events
+          description: Total matching events in the page snapshot
           example: 1500
+        nextCursor:
+          type: string
+          description: Opaque cursor for the next canonical page; omitted on the last page
 
     QueryMeta:
       type: object
