@@ -244,4 +244,6 @@ T01本轮收尾证据：e7ab3a2的quality=43s、unit-race=422s、image-build=214
 
 ## 2026-10-15：Coverage Diff 独立旧故障
 
-e7ab3a2的coverage主job成功，但Coverage Diff的Compare coverage因heredoc缩进导致bash语法错误而失败；不是40%阈值失败，不能误归因为新的drain测试。保留remote-fifth-coverage-failed.log。修复独立比较报告：base checkout固定PR base SHA，与候选同口径-short；profile下载、base测试与JSON检验均不再忽略错误；新coverage-diff.py直接按Go profile的statement数量加权，重复block合并，缺失/空/格式错误/零statement输入失败，不填虚假0。数值与语义有自测；summary替代自动PR评论，MIN_COVERAGE=40保持不变。该修复仍待远端验证，不把工具自测当整条CI通过。
+e7ab3a2的coverage主job成功，但Coverage Diff的Compare coverage因heredoc缩进导致bash语法错误而失败；不是40%阈值失败，不能误归因为新的drain测试。保留remote-fifth-coverage-failed.log。修复独立比较报告：base checkout固定PR base SHA，与候选同口径-short；profile下载、base测试与JSON检验均不再忽略错误；新coverage-diff.py校验原始profile、合并重复block并拒绝缺失/空/格式错误/零statement输入。比较百分比取自两个匹配checkout各自go tool cover原生报告，不填虚假0。数值与语义有自测；summary替代自动PR评论，MIN_COVERAGE=40保持不变。该修复仍待远端验证，不把工具自测当整条CI通过。
+
+真实profile交叉核验纠正：e7ab3a2原始block总计20904/30084=69.4854%，但go tool cover函数汇总为69.6%；两种口径不能混用。首次工具版本错误地把raw block比例用于比较，已保留失败校验记录并改为要求两个原生functions报告，工作流在各自源码目录执行go tool cover；raw block统计仅作diagnostic。使用同一真实profile/原生summary的工具正向验证返回69.6%和0差值，只证明解析器一致，不宣称base→candidate覆盖率变化。

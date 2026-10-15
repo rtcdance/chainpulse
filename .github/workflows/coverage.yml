@@ -733,8 +733,11 @@ jobs:
         run: |
           set -euo pipefail
           python3 scripts/acceptance/coverage-diff.py --self-test
+          (cd base && go tool cover -func=../base-coverage.out) > base-coverage-functions.txt
+          go tool cover -func=pr-coverage/coverage.out > candidate-coverage-functions.txt
           python3 scripts/acceptance/coverage-diff.py \
             --base base-coverage.out --candidate pr-coverage/coverage.out \
+            --base-summary base-coverage-functions.txt --candidate-summary candidate-coverage-functions.txt \
             --base-sha "$BASE_SHA" --candidate-sha "$CANDIDATE_SHA" --out coverage-diff.md
           cat coverage-diff.md >> "$GITHUB_STEP_SUMMARY"
 
@@ -746,6 +749,8 @@ jobs:
           path: |
             coverage-diff.md
             coverage-diff.json
+            base-coverage-functions.txt
+            candidate-coverage-functions.txt
             base-test-output.jsonl
             base-tests-report.json
           if-no-files-found: error
