@@ -156,3 +156,9 @@ Approved by: mingo (2026-06-07) — in-flight refactor (massive dead code remova
 - **Low risk**: <1MB, MIT/Apache, active maintenance → Auto-approve
 - **Medium risk**: 1-10MB, LGPL, moderate activity → Architect review
 - **High risk**: >10MB, GPL, inactive, CVEs → Reject or deep review
+
+### Same-runner microbenchmark reporting tool (2026-10-15)
+
+- Tool-only: golang.org/x/perf/cmd/benchstat@v0.0.0-20261009192801-be2c69fb417e, resolved through the module registry (2026-10-09 commit, requires Go1.26) and installed into an isolated verification directory. No production module dependency.
+- Authorized by Approved T14/T15; produce benchstat alongside the existing fixed 15% gate. The Mac baseline is retained as historical Mac evidence; it is never compared against a Linux AMD runner. The CI baseline source is the already frozen T00 commit 30c45b05485b4ecfb47ae5accd3b723c09fad4e1, measured on the same runner/toolchain/corpus before the candidate. Both raw sets and provenance must be retained.
+- Rollback: revert the dedicated CI/tool change; this restores the old invalid comparison and is not a verified regression result. Formal 100k/250eps/600s/30min T14 acceptance remains separate and required.

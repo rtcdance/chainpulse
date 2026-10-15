@@ -66,6 +66,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
       - name: Set up Go
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
@@ -75,25 +77,15 @@ jobs:
       - name: Install dependencies
         run: go mod download
 
-      # The command must stay identical to the one recorded in
-      # test/benchmarks/micro_baseline.json, or the comparison means nothing.
-      # bench-gate.py is told which command produced the output for exactly that
-      # reason, and records it in the emitted JSON.
-      - name: Run the benchmark the baseline was recorded with
-        run: |
-          set -euo pipefail
-          mkdir -p metrics
-          go test -run '^$' -bench BenchmarkDecodeEventDataTransfer -benchmem -count=5 ./pkg/evm/ \
-            | tee benchmark-results.txt
+      - name: Install pinned benchstat
+        run: go install golang.org/x/perf/cmd/benchstat@v0.0.0-20261009192801-be2c69fb417e
 
-      - name: Gate the benchmark against the baseline
+      - name: Compare frozen source and candidate on the same runner
         run: |
           set -euo pipefail
-          python3 scripts/acceptance/bench-gate.py \
-            --bench-output benchmark-results.txt \
-            --baseline test/benchmarks/micro_baseline.json \
-            --command "go test -run '^$' -bench BenchmarkDecodeEventDataTransfer -benchmem -count=5 ./pkg/evm/" \
-            --emit-json metrics/bench-gate.json
+          python3 scripts/bench/compare-micro.py \
+            --base-sha 30c45b05485b4ecfb47ae5accd3b723c09fad4e1 --out metrics
+          cp metrics/benchmark-results.txt benchmark-results.txt
 
       # The previous version of this workflow ran
       #   go test -run=TestPerformance ... -args -metrics-output=metrics/latency.json
@@ -175,34 +167,11 @@ jobs:
           retention-days: 90
           if-no-files-found: error
 
-      - name: Comment PR with metrics
-        if: github.event_name == 'pull_request'
-        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
-        with:
-          script: |
-            const fs = require('fs');
-            try {
-              if (fs.existsSync('metrics/summary.md')) {
-                const summary = fs.readFileSync('metrics/summary.md', 'utf8');
-                if (summary && summary.length > 0) {
-                  await github.rest.issues.createComment({
-                    issue_number: context.issue.number,
-                    owner: context.repo.owner,
-                    repo: context.repo.repo,
-                    body: summary
-                  });
-                  console.log('✓ Metrics comment posted successfully');
-                } else {
-                  console.log('⚠ Summary file is empty, skipping comment');
-                }
-              } else {
-                console.log('⚠ Summary file not found, skipping comment');
-              }
-            } catch (error) {
-              console.log('⚠ Failed to post metrics comment:', error.message);
-              // Comment posting is a notification, not a gate: it must not fail
-              // the run. The check itself is the bench-gate step above.
-            }
+      - name: Add measured report to job summary
+        if: always()
+        run: |
+          test -s metrics/summary.md
+          cat metrics/summary.md >> "$GITHUB_STEP_SUMMARY"
 
   performance-regression-check:
     name: Check Performance Regression
@@ -238,6 +207,6 @@ jobs:
           }
           python3 scripts/acceptance/bench-gate.py \
             --bench-output benchmark-results.txt \
-            --baseline test/benchmarks/micro_baseline.json \
+            --baseline metrics/paired-baseline.json \
             --command "go test -run '^$' -bench BenchmarkDecodeEventDataTransfer -benchmem -count=5 ./pkg/evm/" \
             --emit-json metrics/bench-gate-regression.json

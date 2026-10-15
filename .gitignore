@@ -112,3 +112,7 @@ contracts/cache/
 # Python bytecode emitted by scripts/acceptance/*.py self-tests
 __pycache__/
 *.pyc
+
+# Measured benchmark artifacts (source lives under scripts/bench).
+/metrics/
+/benchmark-results.txt
