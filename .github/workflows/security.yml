@@ -3,6 +3,10 @@ name: Security
 # Plan §7.3 lane "security". Triggers per §7.3: PR / main / nightly.
 # F14: registering this check as a ruleset-required check is an admin
 # action (rulesets API is blocked for this token) — it is NOT done here.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 on:
   push:
     branches: [main, master]
@@ -16,7 +20,7 @@ permissions:
   contents: read
 
 env:
-  GOPROXY: https://goproxy.cn,direct
+  GOPROXY: https://proxy.golang.org|https://goproxy.cn|direct
 
 jobs:
   security:

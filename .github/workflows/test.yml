@@ -1,5 +1,9 @@
 name: E2E Tests
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 on:
   # D12: `master` is the remote default branch; without it in the list this
   # gate never fires on the branch that actually protects. main/develop are
@@ -11,7 +15,7 @@ on:
   workflow_dispatch:
 
 env:
-  GOPROXY: https://goproxy.cn,direct
+  GOPROXY: https://proxy.golang.org|https://goproxy.cn|direct
   GO_VERSION: '1.26'
   MIN_COVERAGE: 40
   POSTGRES_VERSION: '15'

@@ -16,7 +16,7 @@ on:
           - production
 
 env:
-  GOPROXY: https://goproxy.cn,direct
+  GOPROXY: https://proxy.golang.org|https://goproxy.cn|direct
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
 

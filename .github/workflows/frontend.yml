@@ -11,6 +11,10 @@ name: Frontend API
 # neither package.json nor the lockfile, so `npm ci` installed none of them and
 # vitest collected zero tests behind three "Cannot find dependency" errors.
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 on:
   # D12: `master` is the remote default branch; without it in the list this
   # gate never fires on the branch that actually protects. main/develop are

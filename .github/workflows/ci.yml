@@ -1,5 +1,9 @@
 name: CI
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 on:
   # D12: `master` is the remote default branch; without it in the list this
   # gate never fires on the branch that actually protects. main and the
@@ -11,7 +15,7 @@ on:
   workflow_dispatch:
 
 env:
-  GOPROXY: https://goproxy.cn,direct
+  GOPROXY: https://proxy.golang.org|https://goproxy.cn|direct
 
 jobs:
   build:
@@ -54,7 +58,7 @@ jobs:
       # enumerates modules from `go work edit -json` rather than a hard-coded
       # list, so a new module cannot silently fall outside it.
       - name: Workspace modules (build, vet, test each)
-        run: ./scripts/check-workspace-modules.sh
+        run: bash scripts/check-workspace-modules.sh
 
       # 39 Kubernetes manifests live under k8s/ and nothing in the repository
       # referenced them - not a workflow, not the Makefile, not a script - so a
@@ -159,6 +163,7 @@ jobs:
       - name: Wait for required lanes to conclude
         env:
           GH_TOKEN: ${{ github.token }}
+          CANDIDATE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
           python3 - <<'PY'
@@ -168,7 +173,7 @@ jobs:
           if not required or len(required) != len(set(required)):
               sys.exit("required-check policy is empty or duplicated")
           api = (f"repos/{os.environ['GITHUB_REPOSITORY']}"
-                 f"/commits/{os.environ['GITHUB_SHA']}/check-runs"
+                 f"/commits/{os.environ['CANDIDATE_SHA']}/check-runs"
                  "?per_page=100&filter=latest")
 
           for attempt in range(1, 61):  # bounded 30-minute wait for all mandatory workflows
@@ -183,6 +188,10 @@ jobs:
                         for r in json.loads(raw).get("check_runs", [])}
               pending = [n for n in required
                          if checks.get(n, "missing") in ("in_progress", "missing")]
+              failed = [n for n in required if checks.get(n) not in (None, "missing", "in_progress", "success")]
+              if failed:
+                  print(f"required lane already failed: {failed}; evaluate immediately", flush=True)
+                  sys.exit(0)
               if not pending:
                   sys.exit(0)
               print(f"poll {attempt}/60: waiting on {pending}", flush=True)

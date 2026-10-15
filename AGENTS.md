@@ -32,6 +32,8 @@ Entry points live in `cmd/`. Everything else is under `pkg/` — **ask the files
 
 ---
 
+GitHub-hosted CI uses `GOPROXY=https://proxy.golang.org|https://goproxy.cn|direct`; the pipe-separated fallbacks apply on transport/HTTP failures. Local development keeps the proxy above. Do not disable checksum verification (`GOSUMDB=off`) to hide a network failure.
+
 ## Build and test commands
 
 > For the complete target list run **`make help`** or read the `Makefile`. **This file deliberately does not duplicate it.**

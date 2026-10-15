@@ -14,6 +14,10 @@ name: Integration & E2E Tests
 # - on demand (workflow_dispatch)
 # - nightly on main/master
 # - on every PR and protected-branch push (required lanes cannot be path-filtered)
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 on:
   workflow_dispatch:
     inputs:
@@ -34,7 +38,7 @@ on:
     branches: [ main, master, develop ]
 
 env:
-  GOPROXY: https://goproxy.cn,direct
+  GOPROXY: https://proxy.golang.org|https://goproxy.cn|direct
 
 jobs:
   integration:
