@@ -22,7 +22,7 @@ func NewIndexerManager(config *IndexerConfig) (IndexerManager, error) {
 	if config == nil {
 		config = &IndexerConfig{
 			Port:          8080,
-			DatabaseURL:   "postgres://postgres:postgres@localhost:5432/chainpulse_test",
+			DatabaseURL:   testDatabaseURL(scenarioDatabaseURL),
 			BlockchainRPC: "http://localhost:8545",
 			LogLevel:      "info",
 			Timeout:       5 * time.Minute,

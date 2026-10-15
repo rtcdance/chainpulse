@@ -37,6 +37,7 @@ func TestDataPullerEventCollection(t *testing.T) {
 
 	// Skip if database is not available
 	if !isDatabaseAvailable(ctx) {
+		fatalIfDatabaseBroken(t, ctx)
 		t.Skip("PostgreSQL database not available")
 	}
 
@@ -190,6 +191,7 @@ func TestDataPullerReorgHandling(t *testing.T) {
 
 	// Skip if database is not available
 	if !isDatabaseAvailable(ctx) {
+		fatalIfDatabaseBroken(t, ctx)
 		t.Skip("PostgreSQL database not available")
 	}
 

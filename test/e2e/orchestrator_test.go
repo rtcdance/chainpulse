@@ -16,7 +16,7 @@ func TestOrchestrator_Initialize(t *testing.T) {
 
 	orch := NewOrchestrator(
 		"http://localhost:8545",
-		"postgres://user:password@localhost:5432/testdb",
+		testDatabaseURL(placeholderDatabaseURL),
 		"http://localhost:8080",
 	)
 	defer func() { _ = orch.Close() }()
@@ -34,7 +34,7 @@ func TestOrchestrator_Initialize(t *testing.T) {
 func TestOrchestrator_Initialize_AlreadyInitialized(t *testing.T) {
 	orch := NewOrchestrator(
 		"http://localhost:8545",
-		"postgres://user:password@localhost:5432/testdb",
+		testDatabaseURL(placeholderDatabaseURL),
 		"http://localhost:8080",
 	)
 	orch.initialized = true
@@ -51,7 +51,7 @@ func TestOrchestrator_Initialize_AlreadyInitialized(t *testing.T) {
 func TestOrchestrator_Close(t *testing.T) {
 	orch := NewOrchestrator(
 		"http://localhost:8545",
-		"postgres://user:password@localhost:5432/testdb",
+		testDatabaseURL(placeholderDatabaseURL),
 		"http://localhost:8080",
 	)
 	orch.initialized = true
@@ -69,7 +69,7 @@ func TestOrchestrator_Close(t *testing.T) {
 func TestOrchestrator_Close_NotInitialized(t *testing.T) {
 	orch := NewOrchestrator(
 		"http://localhost:8545",
-		"postgres://user:password@localhost:5432/testdb",
+		testDatabaseURL(placeholderDatabaseURL),
 		"http://localhost:8080",
 	)
 
@@ -82,7 +82,7 @@ func TestOrchestrator_Close_NotInitialized(t *testing.T) {
 func TestOrchestrator_GetBlockchainManager(t *testing.T) {
 	orch := NewOrchestrator(
 		"http://localhost:8545",
-		"postgres://user:password@localhost:5432/testdb",
+		testDatabaseURL(placeholderDatabaseURL),
 		"http://localhost:8080",
 	)
 
@@ -99,7 +99,7 @@ func TestOrchestrator_GetBlockchainManager(t *testing.T) {
 func TestOrchestrator_GetDatabaseManager(t *testing.T) {
 	orch := NewOrchestrator(
 		"http://localhost:8545",
-		"postgres://user:password@localhost:5432/testdb",
+		testDatabaseURL(placeholderDatabaseURL),
 		"http://localhost:8080",
 	)
 
@@ -116,7 +116,7 @@ func TestOrchestrator_GetDatabaseManager(t *testing.T) {
 func TestOrchestrator_GetAPIManager(t *testing.T) {
 	orch := NewOrchestrator(
 		"http://localhost:8545",
-		"postgres://user:password@localhost:5432/testdb",
+		testDatabaseURL(placeholderDatabaseURL),
 		"http://localhost:8080",
 	)
 
@@ -133,7 +133,7 @@ func TestOrchestrator_GetAPIManager(t *testing.T) {
 func TestOrchestrator_WaitForAllServices_NotInitialized(t *testing.T) {
 	orch := NewOrchestrator(
 		"http://localhost:8545",
-		"postgres://user:password@localhost:5432/testdb",
+		testDatabaseURL(placeholderDatabaseURL),
 		"http://localhost:8080",
 	)
 
@@ -149,7 +149,7 @@ func TestOrchestrator_WaitForAllServices_NotInitialized(t *testing.T) {
 func TestOrchestrator_IsReady_NotInitialized(t *testing.T) {
 	orch := NewOrchestrator(
 		"http://localhost:8545",
-		"postgres://user:password@localhost:5432/testdb",
+		testDatabaseURL(placeholderDatabaseURL),
 		"http://localhost:8080",
 	)
 
@@ -164,7 +164,7 @@ func TestOrchestrator_IsReady_NotInitialized(t *testing.T) {
 func TestOrchestrator_Reset_NotInitialized(t *testing.T) {
 	orch := NewOrchestrator(
 		"http://localhost:8545",
-		"postgres://user:password@localhost:5432/testdb",
+		testDatabaseURL(placeholderDatabaseURL),
 		"http://localhost:8080",
 	)
 
@@ -180,7 +180,7 @@ func TestOrchestrator_Reset_NotInitialized(t *testing.T) {
 func TestOrchestrator_GetStatus_NotInitialized(t *testing.T) {
 	orch := NewOrchestrator(
 		"http://localhost:8545",
-		"postgres://user:password@localhost:5432/testdb",
+		testDatabaseURL(placeholderDatabaseURL),
 		"http://localhost:8080",
 	)
 
@@ -196,7 +196,7 @@ func TestOrchestrator_GetStatus_NotInitialized(t *testing.T) {
 func TestOrchestrator_GetStatus_Initialized(t *testing.T) {
 	orch := NewOrchestrator(
 		"http://localhost:8545",
-		"postgres://user:password@localhost:5432/testdb",
+		testDatabaseURL(placeholderDatabaseURL),
 		"http://localhost:8080",
 	)
 	orch.initialized = true

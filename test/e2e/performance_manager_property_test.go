@@ -2,6 +2,7 @@ package e2e
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 )
@@ -190,23 +191,60 @@ func TestPropertyOperationSuccessRate(t *testing.T) {
 	}
 }
 
+// stepClock is a deterministic fake clock: every reading advances it by a
+// fixed quantum, so elapsed time depends only on how many times the code
+// under test reads the clock — never on the speed of the host (decision D9(b)).
+type stepClock struct {
+	mu      sync.Mutex
+	current time.Time
+	quantum time.Duration
+}
+
+func newStepClock(quantum time.Duration) *stepClock {
+	return &stepClock{current: time.Unix(0, 0), quantum: quantum}
+}
+
+func (c *stepClock) now() time.Time {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.current = c.current.Add(c.quantum)
+	return c.current
+}
+
 // Property: Throughput Consistency
 // For any operation type, throughput should be consistent across runs
 // Validates: Requirements 9.2, 9.4
 func TestPropertyThroughputConsistency(t *testing.T) {
-	throughputs := make([]float64, 10)
+	const (
+		runs       = 10
+		eventCount = 100
+	)
 
-	for run := 0; run < 10; run++ {
-		pm := NewPerformanceManager()
+	throughputs := make([]float64, runs)
+
+	for run := 0; run < runs; run++ {
+		clock := newStepClock(time.Millisecond)
+		pm := NewPerformanceManagerWithClock(clock.now)
 		ctx := context.Background()
 
-		err := pm.BenchmarkEventProcessing(ctx, 100, 10)
+		err := pm.BenchmarkEventProcessing(ctx, eventCount, 10)
 		if err != nil {
 			t.Fatalf("run %d: unexpected error: %v", run, err)
 		}
 
 		metrics := pm.CalculateMetrics()
 		metric := metrics["event_processing"]
+
+		// The fixed workload must be fully accounted for: these counters
+		// prove every run performed identical work, independent of wall time.
+		if metric.TotalOperations != eventCount {
+			t.Fatalf("run %d: recorded %d operations, want %d", run, metric.TotalOperations, eventCount)
+		}
+		if metric.SuccessfulOps != eventCount || metric.FailedOps != 0 {
+			t.Fatalf("run %d: success/failure counters %d/%d, want %d/0",
+				run, metric.SuccessfulOps, metric.FailedOps, eventCount)
+		}
+
 		throughputs[run] = metric.ThroughputOpsPerSec
 	}
 
@@ -217,7 +255,9 @@ func TestPropertyThroughputConsistency(t *testing.T) {
 	}
 	avg := sum / float64(len(throughputs))
 
-	// Verify all throughputs are within 50% of average
+	// Verify all throughputs are within 50% of average. Elapsed time comes
+	// from the step clock, so any deviation here is a regression in metric
+	// computation — host load can no longer move these numbers.
 	for i, tp := range throughputs {
 		deviation := (tp - avg) / avg
 		if deviation < -0.5 || deviation > 0.5 {

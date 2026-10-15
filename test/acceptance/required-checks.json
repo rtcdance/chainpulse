@@ -1,0 +1,15 @@
+{
+  "schema": "chainpulse.required-checks.v1",
+  "required": [
+    "quality",
+    "unit-race",
+    "lint",
+    "build-binaries",
+    "integration",
+    "contracts",
+    "evm-e2e",
+    "frontend-api",
+    "security",
+    "coverage"
+  ]
+}

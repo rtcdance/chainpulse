@@ -1,0 +1,19 @@
+{
+  "provenance": {
+    "task": "D20 partial (\u00a78 performance data path) \u2014 bench-gate baseline inventory",
+    "recorded_on": "2026-10-14",
+    "host": "Darwin (darwin), arm64 \u2014 NOT the \u00a78 reference environment (Linux, 8 vCPU, 16GiB, SSD)",
+    "note": "Absolute numbers are only comparable on the same host and toolchain; this baseline catches regressions on the SAME machine. Recorded alongside micro_baseline.json (which covers BenchmarkDecodeEventDataTransfer only, because .github/workflows/metrics.yml runs that benchmark alone \u2014 a superset baseline there would fail the gate's no-match rule). bytes_per_op is omitted for benchmarks whose measured mean was exactly 0 B/op (no allocation): bench-gate treats a non-positive baseline value as a failure, and an omitted metric is skipped by design. Affected: BenchmarkBinarySearchReorg, BenchmarkBinarySearchReorg_WithReorg.",
+    "command": "go test -run '^$' -bench . -benchmem -count=5 ./pkg/services/reorg/",
+    "samples_per_benchmark": 5,
+    "threshold": "0.15 (ns/op and B/op, per \u00a78)"
+  },
+  "benchmarks": {
+    "BenchmarkBinarySearchReorg": {
+      "ns_per_op": 170.12
+    },
+    "BenchmarkBinarySearchReorg_WithReorg": {
+      "ns_per_op": 155.42000000000002
+    }
+  }
+}

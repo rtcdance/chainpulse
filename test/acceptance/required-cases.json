@@ -1,36 +1,57 @@
 {
-  "$comment": "Required-cases manifest (plan §7.2). Maps the §9 acceptance scenarios (E01-E15) to the REAL Go test names that prove them. Consumed by scripts/acceptance/verify-tests.py --required-cases. A listed test that does not run, or that is skipped, is a hard failure. PARTIALLY FILLED (T18 local pre-flight, 2026-10-13): E02/E04/E05/E07/E08/E09/E10/E11 are mapped to tests that were actually executed and passed locally. The remaining scenarios keep an empty array with a 'pending' reason; an empty array is NOT a claim that the scenario passes.",
+  "$comment": "Required scenario manifest. Listed tests must execute and pass; empty pending arrays remain unresolved delivery work. E03 and the Kafka portion of E09 were verified locally on 2026-10-14. Final same-SHA remote CI/CD and all remaining scenarios are still required.",
   "schema": "chainpulse.required-cases.v1",
   "scenarios": [
     {
       "id": "E01",
       "lane": "evm-e2e",
       "summary": "normal path: two Anvil chains emit ERC20 logs; one verified Swap fixture",
-      "tests": [],
-      "pending": "needs two Anvil chains + fixture deploy (not runnable in this sandbox)"
+      "tests": [
+        "TestDeployedDualChainModesMatchRPCOracle"
+      ],
+      "note": "Real native monolithic and four-service entry points, independent chain IDs 31337/31338, ERC20 max-uint and actual Swap log, full raw RPC/SQL digest and per-height header/parent comparison. Local dirty-tree evidence is not final same-SHA remote CI."
     },
     {
       "id": "E02",
       "lane": "contracts",
       "summary": "zero-log block / 100x duplicate / out-of-order arrival",
       "tests": [
-        "TestPostgresBatchCommitter"
+        "TestPostgresBatchCommitter",
+        "TestFencedCheckpointRejectsGapsAndUnscheduledBranchChanges",
+        "TestPostgresCompleteHeaderAndLogsShareCommit",
+        "TestOriginalBranchCanBecomeCanonicalAgain",
+        "TestPostgresEventStateSeparatesCanonicalProcessingAndFinality"
       ],
-      "note": "covers the zero-log block and the all-duplicate block against a real Postgres; out-of-order arrival is covered by the digest order-independence tests, not by this case"
+      "note": "Real PostgreSQL: zero-log/duplicate blocks plus rejection of checkpoint gaps and unscheduled branch replacement; canonical late redelivery does not rewind. Full 100x duplicate fixture remains part of final acceptance."
     },
     {
       "id": "E03",
       "lane": "evm-e2e",
       "summary": "fork depth 1/2/12; same-height new hash; tx re-included",
-      "tests": [],
-      "pending": "needs Anvil to fork at depth 1/2/12"
+      "tests": [
+        "TestDeployedReorgCanonicalDigestAndRestart",
+        "TestDeployedPullerKafkaAndAtomicProcessor"
+      ],
+      "note": "Real monolithic process + Anvil + PostgreSQL, depths 1/2/12, same-height branch replacement, same transaction re-included, canonical SQL/RPC digests equal; depth 2 also occurs while the process is stopped. Locally executed 2026-10-14; remote same-SHA CI still required. Native puller/Kafka/PG processor complete-block transmission, consumer restart and empty-header commit are additionally mandatory; this does not prove the pending two-chain full four-service mode parity in E13."
+    },
+    {
+      "id": "E04",
+      "lane": "evm-e2e",
+      "summary": "dual-chain fault isolation: A same-height rollback leaves B unchanged",
+      "tests": [
+        "TestDeployedDualChainFaultIsolation"
+      ],
+      "note": "Real four-service deployment on two isolated Anvil chains equalized to one shared height; chain A evm_snapshot/evm_revert same-height replacement while chain B must stay bit-identical (checkpoint, blocks digest, events digest, reorg jobs, gateway page) and chain A must equal its own RPC oracle. Local dirty-tree evidence is not final same-SHA remote CI."
     },
     {
       "id": "E04",
       "lane": "contracts",
       "summary": "two-chain isolation: A rollback leaves B unchanged",
       "tests": [
-        "TestPostgresChainIsolation"
+        "TestPostgresChainIsolation",
+        "TestCanonicalReaderDetailsAndStatsExcludeOrphans",
+        "TestCanonicalCursorContinuesBelowAnchorAndRejectsOrphan",
+        "TestVersionedCursorBindsChainFilterAndCanonicalGeneration"
       ]
     },
     {
@@ -40,16 +61,20 @@
       "tests": [
         "TestSigtermGracefulShutdown",
         "TestCrashInsideCommitLeavesNothingBehind",
-        "TestCrashAfterCommitKeepsTheBlock"
+        "TestCrashAfterCommitKeepsTheBlock",
+        "TestKafkaHandlerFailureIsRedeliveredBeforeLaterOffsets",
+        "TestKafkaGenerationRevokesDatabaseWriterBeforeReassignment"
       ],
-      "note": "SIGTERM graceful shutdown, plus a kill inside the commit transaction and a kill after commits; each then resumes from the durable checkpoint. The Kafka ack boundary is NOT covered - it needs a reachable broker. TestCrashInsideCommitNegativeControl is deliberately NOT listed: it asserts a non-atomic implementation leaks, so it is a control, not an acceptance case."
+      "note": "Commit-window crash/SIGTERM cases plus actual Kafka same-group failure redelivery and a two-member broker rebalance against PostgreSQL: cancellation rolls back the old writer, rejects its token and preserves the unacknowledged offset; the next generation commits one effect. Native entry wiring is separately exercised by the required evm-e2e pipeline."
     },
     {
       "id": "E06",
-      "lane": "chaos",
+      "lane": "evm-e2e",
       "summary": "repair-job crash: DB rollback done, notify fails, restart resumes",
-      "tests": [],
-      "pending": "chaos lane not built; resume logic is unit-tested by TestRepairResumeRepairsEveryPendingJob in pkg/services/reorg, but that is not a crash rehearsal"
+      "tests": [
+        "TestDeployedPullerKafkaAndAtomicProcessor/repair-crash"
+      ],
+      "note": "Actual native puller/processor: an unprovisioned isolated reorg topic causes a recorded publication failure after atomic rollback. The processor is held down with old-branch backlog queued. SIGKILL the puller, restore the topic, restart both processes, verify terminal orphan audit, canonical replay, persistent job completion and actual owed Kafka notices. Reuses the evm-e2e fixture; no synthetic resume substitute."
     },
     {
       "id": "E07",
@@ -81,9 +106,12 @@
       "tests": [
         "TestDatabaseDisconnectIsBackpressure",
         "TestRedisOutageFailsClosed",
-        "TestRedisOutageDegradesQueries"
+        "TestRedisOutageDegradesQueries",
+        "TestKafkaRedeliveryKeepsEffectSingle",
+        "TestKafkaHandlerFailureIsRedeliveredBeforeLaterOffsets",
+        "TestProductionKafkaKeepsEachChainOnOnePartition"
       ],
-      "note": "the MQ (Kafka) half is TestKafkaRedeliveryKeepsEffectSingle, which SKIPS because the broker's advertised listener is unreachable from this host; it is deliberately NOT listed, because a required skip is a failure"
+      "note": "PostgreSQL/Redis outages and recovery plus Kafka same-group handler-failure redelivery, with explicitly isolated fault containers. All executed locally; no required skip. Production Kafka writer is also verified against a real three-partition topic: two chain keys, 24 records, one partition per chain and preserved publication order."
     },
     {
       "id": "E10",
@@ -116,8 +144,10 @@
       "id": "E13",
       "lane": "evm-e2e",
       "summary": "mode equivalence: monolithic vs four-service canonical digest equal",
-      "tests": [],
-      "pending": "needs both deployment modes running against the same fixture"
+      "tests": [
+        "TestDeployedDualChainModesMatchRPCOracle"
+      ],
+      "note": "Real native monolithic and four-service entry points, independent chain IDs 31337/31338, ERC20 max-uint and actual Swap log, full raw RPC/SQL digest and per-height header/parent comparison. Local dirty-tree evidence is not final same-SHA remote CI."
     },
     {
       "id": "E14",

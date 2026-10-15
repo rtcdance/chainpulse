@@ -12,16 +12,18 @@ func TestErrorScenario_InvalidBlockchainAddress(t *testing.T) {
 
 	orch := NewOrchestrator(
 		"http://localhost:8545",
-		"postgres://postgres:postgres@localhost:5432/chainpulse_test",
+		testDatabaseURL(scenarioDatabaseURL),
 		"http://localhost:8080",
 	)
 	defer func() { _ = orch.Close() }()
 
 	if err := orch.Initialize(ctx); err != nil {
+		fatalIfDatabaseBroken(t, ctx)
 		t.Skipf("Failed to initialize orchestrator: %v", err)
 	}
 
 	if err := orch.WaitForAllServices(ctx, 10*time.Second); err != nil {
+		fatalIfDatabaseBroken(t, ctx)
 		t.Skipf("Services not ready: %v", err)
 	}
 
@@ -42,12 +44,13 @@ func TestErrorScenario_DatabaseConnectionFailure(t *testing.T) {
 
 	orch := NewOrchestrator(
 		"http://localhost:8545",
-		"postgres://postgres:postgres@localhost:5432/chainpulse_test",
+		testDatabaseURL(scenarioDatabaseURL),
 		"http://localhost:8080",
 	)
 	defer func() { _ = orch.Close() }()
 
 	if err := orch.Initialize(ctx); err != nil {
+		fatalIfDatabaseBroken(t, ctx)
 		t.Skipf("Failed to initialize orchestrator: %v", err)
 	}
 
@@ -68,16 +71,18 @@ func TestErrorScenario_InvalidDatabaseQuery(t *testing.T) {
 
 	orch := NewOrchestrator(
 		"http://localhost:8545",
-		"postgres://postgres:postgres@localhost:5432/chainpulse_test",
+		testDatabaseURL(scenarioDatabaseURL),
 		"http://localhost:8080",
 	)
 	defer func() { _ = orch.Close() }()
 
 	if err := orch.Initialize(ctx); err != nil {
+		fatalIfDatabaseBroken(t, ctx)
 		t.Skipf("Failed to initialize orchestrator: %v", err)
 	}
 
 	if err := orch.WaitForAllServices(ctx, 10*time.Second); err != nil {
+		fatalIfDatabaseBroken(t, ctx)
 		t.Skipf("Services not ready: %v", err)
 	}
 
@@ -98,16 +103,18 @@ func TestErrorScenario_APIEndpointNotFound(t *testing.T) {
 
 	orch := NewOrchestrator(
 		"http://localhost:8545",
-		"postgres://postgres:postgres@localhost:5432/chainpulse_test",
+		testDatabaseURL(scenarioDatabaseURL),
 		"http://localhost:8080",
 	)
 	defer func() { _ = orch.Close() }()
 
 	if err := orch.Initialize(ctx); err != nil {
+		fatalIfDatabaseBroken(t, ctx)
 		t.Skipf("Failed to initialize orchestrator: %v", err)
 	}
 
 	if err := orch.WaitForAllServices(ctx, 10*time.Second); err != nil {
+		fatalIfDatabaseBroken(t, ctx)
 		t.Skipf("Services not ready: %v", err)
 	}
 
@@ -128,16 +135,18 @@ func TestErrorScenario_ContextCancellation(t *testing.T) {
 
 	orch := NewOrchestrator(
 		"http://localhost:8545",
-		"postgres://postgres:postgres@localhost:5432/chainpulse_test",
+		testDatabaseURL(scenarioDatabaseURL),
 		"http://localhost:8080",
 	)
 	defer func() { _ = orch.Close() }()
 
 	if err := orch.Initialize(ctx); err != nil {
+		fatalIfDatabaseBroken(t, ctx)
 		t.Skipf("Failed to initialize orchestrator: %v", err)
 	}
 
 	if err := orch.WaitForAllServices(ctx, 10*time.Second); err != nil {
+		fatalIfDatabaseBroken(t, ctx)
 		t.Skipf("Services not ready: %v", err)
 	}
 
@@ -158,16 +167,18 @@ func TestErrorScenario_AllScenarios(t *testing.T) {
 
 	orch := NewOrchestrator(
 		"http://localhost:8545",
-		"postgres://postgres:postgres@localhost:5432/chainpulse_test",
+		testDatabaseURL(scenarioDatabaseURL),
 		"http://localhost:8080",
 	)
 	defer func() { _ = orch.Close() }()
 
 	if err := orch.Initialize(ctx); err != nil {
+		fatalIfDatabaseBroken(t, ctx)
 		t.Skipf("Failed to initialize orchestrator: %v", err)
 	}
 
 	if err := orch.WaitForAllServices(ctx, 10*time.Second); err != nil {
+		fatalIfDatabaseBroken(t, ctx)
 		t.Skipf("Services not ready: %v", err)
 	}
 

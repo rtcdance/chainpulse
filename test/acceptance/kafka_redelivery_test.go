@@ -5,14 +5,16 @@ package acceptance
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"net"
 	"os"
-	"os/exec"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/segmentio/kafka-go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -24,42 +26,95 @@ import (
 	"github.com/rtcdance/chainpulse/pkg/testhelpers"
 )
 
+// kafkaBrokers resolves the broker list from the environment. The address is
+// fully env-driven (decision D21(a)); CI must point one of these at the
+// service-container address:
+//
+//	CHAINPULSE_TEST_KAFKA_BROKERS - this package's CHAINPULSE_TEST_* naming
+//	KAFKA_BROKERS                 - the compose / test/integration convention
+//
+// The localhost fallback matches the compose port mapping (9092:9092).
 func kafkaBrokers() []string {
 	if os.Getenv("CHAINPULSE_RUN_KAFKA_INTEGRATION") != "1" {
 		return nil
 	}
-	if raw := os.Getenv("CHAINPULSE_TEST_KAFKA_BROKERS"); raw != "" {
-		return strings.Split(raw, ",")
+	for _, key := range []string{"CHAINPULSE_TEST_KAFKA_BROKERS", "KAFKA_BROKERS"} {
+		if raw := os.Getenv(key); raw != "" {
+			return strings.Split(raw, ",")
+		}
 	}
 	return []string{"localhost:9092"}
 }
 
-// createTopic uses the broker's own CLI inside the container. The plugin is
-// configured with AllowAutoTopicCreation=false, so a topic that does not exist
-// would make the rehearsal fail for the wrong reason.
-func createTopic(t *testing.T, topic string) {
+// createTopic provisions the topic over the Kafka protocol with the same
+// kafka-go library pkg/plugins/mq uses (decision D21(a)). docker exec is not
+// an option: a GitHub Actions service container is not reachable from the job
+// shell. The plugin sets AllowAutoTopicCreation=false, so a topic that does
+// not exist would make the rehearsal fail for the wrong reason.
+//
+// Every skip lives in this Setup phase and fires BEFORE the topic exists:
+//   - bootstrap connection refused -> environment problem, skip;
+//   - advertised broker address unreachable from this host (the broker
+//     broadcasts kafka:9092 while only localhost:9092 is routable) -> skip.
+//
+// Once this function returns, the topic exists and every later error is a
+// real failure - no skip may fire mid-test.
+func createTopic(t *testing.T, brokers []string, topic string) {
 	t.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
-	container := os.Getenv("CHAINPULSE_KAFKA_CONTAINER")
-	if container == "" {
-		container = "chainpulse-kafka"
+	// 1. Bootstrap reachability: a refused connection is an environment
+	//    problem, not a rehearsal failure.
+	{
+		var d net.Dialer
+		conn, err := d.DialContext(ctx, "tcp", brokers[0])
+		if err != nil {
+			t.Skipf("kafka broker %s is not reachable from this host (%v); "+
+				"set CHAINPULSE_TEST_KAFKA_BROKERS/KAFKA_BROKERS to a reachable "+
+				"broker (in CI: the service-container address)", brokers[0], err)
+		}
+		_ = conn.Close()
 	}
 
-	out, err := exec.CommandContext(ctx, "docker", "exec", container,
-		"kafka-topics", "--bootstrap-server", "localhost:9092",
-		"--create", "--topic", topic, "--partitions", "1", "--replication-factor", "1",
-	).CombinedOutput()
-	require.NoError(t, err, "creating topic %s: %s", topic, out)
+	client := &kafka.Client{Addr: kafka.TCP(brokers[0])}
+
+	// 2. Follow the advertised broker list exactly as kafka-go's writer will.
+	//    An open bootstrap port does not prove the advertised listener
+	//    resolves from here.
+	md, err := client.Metadata(ctx, &kafka.MetadataRequest{})
+	require.NoError(t, err, "fetching kafka metadata from %s", brokers[0])
+	for _, b := range md.Brokers {
+		addr := net.JoinHostPort(b.Host, fmt.Sprintf("%d", b.Port))
+		var d net.Dialer
+		conn, err := d.DialContext(ctx, "tcp", addr)
+		if err != nil {
+			t.Skipf("kafka advertises %s which this host cannot reach (%v); "+
+				"either make that address resolvable (e.g. /etc/hosts) or run "+
+				"the broker with a host-reachable advertised listener", addr, err)
+		}
+		_ = conn.Close()
+	}
+
+	// 3. 1 partition, replication factor 1 - the shape E09 needs.
+	res, err := client.CreateTopics(ctx, &kafka.CreateTopicsRequest{
+		Topics: []kafka.TopicConfig{{
+			Topic:             topic,
+			NumPartitions:     1,
+			ReplicationFactor: 1,
+		}},
+	})
+	require.NoError(t, err, "creating topic %s via the kafka protocol", topic)
+	if e := res.Errors[topic]; e != nil && !errors.Is(e, kafka.TopicAlreadyExists) {
+		require.NoError(t, e, "creating topic %s", topic)
+	}
 
 	t.Cleanup(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
-		_ = exec.CommandContext(ctx, "docker", "exec", container,
-			"kafka-topics", "--bootstrap-server", "localhost:9092", "--delete", "--topic", topic,
-		).Run()
+		c := &kafka.Client{Addr: kafka.TCP(brokers[0])}
+		_, _ = c.DeleteTopics(ctx, &kafka.DeleteTopicsRequest{Topics: []string{topic}})
 	})
 }
 
@@ -132,7 +187,7 @@ func TestKafkaRedeliveryKeepsEffectSingle(t *testing.T) {
 
 	const chainID = "e09-kafka"
 	topic := fmt.Sprintf("chainpulse-acceptance-%d", time.Now().UnixNano())
-	createTopic(t, topic)
+	createTopic(t, brokers, topic)
 
 	resetState(t, dsn)
 
@@ -153,24 +208,15 @@ func TestKafkaRedeliveryKeepsEffectSingle(t *testing.T) {
 		payload, err := json.Marshal(event)
 		require.NoError(t, err)
 
+		// Reachability was decided in createTopic (Setup). Any failure here is
+		// a real publish failure - it must fail the test, not skip it.
 		err = publisher.Publish(ctx, topic, payload)
-		if err != nil && strings.Contains(err.Error(), "no such host") {
-			// The broker advertises an in-network name (KAFKA_ADVERTISED_LISTENERS
-			// = kafka:9092) and kafka-go follows the advertised listener after the
-			// initial bootstrap, so the bootstrap port being open is not enough.
-			// Skipping with the exact reason beats failing for the wrong one; the
-			// rehearsal itself is correct and passes once the advertised address
-			// resolves from here.
-			t.Skipf("kafka advertises an address this host cannot resolve (%v). "+
-				"Either add `kafka` to /etc/hosts, or set KAFKA_ADVERTISED_LISTENERS "+
-				"to a host-reachable address on the broker.", err)
-		}
 		require.NoError(t, err)
 		events = append(events, event)
 	}
 
 	// 2. First delivery: consume and commit.
-	first := collectPayloads(t, brokers, "acceptance-group-first", topic, batchSize, 30*time.Second)
+	first := collectPayloads(t, brokers, topic+"-first", topic, batchSize, 30*time.Second)
 	require.Len(t, first, batchSize, "the first consumer must receive the whole batch")
 
 	adapter := database.NewPostgreSQLPluginAdapter(
@@ -200,7 +246,7 @@ func TestKafkaRedeliveryKeepsEffectSingle(t *testing.T) {
 
 	// 3. Redelivery: a fresh consumer group starts from the beginning and sees
 	//    the same messages again.
-	second := collectPayloads(t, brokers, "acceptance-group-second", topic, batchSize, 30*time.Second)
+	second := collectPayloads(t, brokers, topic+"-second", topic, batchSize, 30*time.Second)
 	require.Len(t, second, batchSize, "the redelivery must carry the same batch")
 
 	// 4. Committing the redelivered batch must not change the effect.

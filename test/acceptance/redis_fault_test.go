@@ -23,7 +23,7 @@ func redisContainer() string {
 	if name := os.Getenv("CHAINPULSE_REDIS_CONTAINER"); name != "" {
 		return name
 	}
-	return "chainpulse-redis"
+	return ""
 }
 
 // redisFaultClient connects using the same env gates as the SIWE tests, so a

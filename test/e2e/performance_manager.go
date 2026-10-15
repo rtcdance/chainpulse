@@ -15,15 +15,24 @@ type PerformanceManager struct {
 	latencies       map[string][]time.Duration
 	startTime       time.Time
 	operationCounts map[string]int64
+	now             func() time.Time
 }
 
-// NewPerformanceManager creates a new performance manager
+// NewPerformanceManager creates a new performance manager backed by the wall clock
 func NewPerformanceManager() *PerformanceManager {
+	return NewPerformanceManagerWithClock(time.Now)
+}
+
+// NewPerformanceManagerWithClock creates a performance manager that reads time
+// from now instead of the wall clock, so tests can make deterministic timing
+// assertions independent of host load (decision D9(b)).
+func NewPerformanceManagerWithClock(now func() time.Time) *PerformanceManager {
 	return &PerformanceManager{
 		metrics:         make(map[string]*PerformanceMetrics),
 		latencies:       make(map[string][]time.Duration),
-		startTime:       time.Now(),
+		startTime:       now(),
 		operationCounts: make(map[string]int64),
+		now:             now,
 	}
 }
 
@@ -70,9 +79,9 @@ func (pm *PerformanceManager) RecordOperation(name string, duration time.Duratio
 
 // MeasureOperation measures the duration of an operation
 func (pm *PerformanceManager) MeasureOperation(ctx context.Context, name string, fn func() error) error {
-	start := time.Now()
+	start := pm.now()
 	err := fn()
-	duration := time.Since(start)
+	duration := pm.now().Sub(start)
 	pm.RecordOperation(name, duration, err == nil)
 	return err
 }
@@ -89,7 +98,7 @@ func (pm *PerformanceManager) CalculateMetrics() map[string]*PerformanceMetrics 
 			metric.AverageDuration = metric.TotalDuration / time.Duration(len(latencies))
 
 			// Calculate throughput
-			elapsed := time.Since(pm.startTime)
+			elapsed := pm.now().Sub(pm.startTime)
 			if elapsed > 0 {
 				metric.ThroughputOpsPerSec = float64(len(latencies)) / elapsed.Seconds()
 			}

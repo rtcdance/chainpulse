@@ -80,13 +80,14 @@ func forwarderName() string {
 	if name := os.Getenv("CHAINPULSE_PG_FORWARDER"); name != "" {
 		return name
 	}
-	return "cp-pg-fwd"
+	return ""
 }
 
 // dockerLifecycle runs `docker <action> <name>`, skipping the test when docker
 // is unavailable rather than reporting a false pass.
 func dockerLifecycle(t *testing.T, action, name string) {
 	t.Helper()
+	require.NotEmpty(t, name, "set an explicit isolated fault target; shared default containers must not be stopped")
 
 	if _, err := exec.LookPath("docker"); err != nil {
 		t.Skip("docker is not available; the fault rehearsal needs it to toggle the forwarder")

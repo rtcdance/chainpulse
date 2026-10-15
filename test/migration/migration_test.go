@@ -109,8 +109,8 @@ func TestMigrationIdempotency(t *testing.T) {
 
 	// Create a fresh test database
 	testDB := "chainpulse_migration_test_" + randomSuffix()
+	baseDSN := dsn
 	dsn = replaceDBName(dsn, testDB)
-	baseDSN := replaceDBName(dsn, "chainpulse")
 
 	report := &migrationReport{
 		Schema:      "chainpulse.migration-report.v1",
