@@ -3,6 +3,7 @@ package bootstrap
 import (
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -30,26 +31,22 @@ func TestDrainControllerAcceptsThenRejects(t *testing.T) {
 
 func TestDrainControllerWaitsForInFlightWork(t *testing.T) {
 	t.Parallel()
-
-	d := NewDrainController()
-	require.True(t, d.Begin())
-
-	// A unit of work that finishes shortly after draining starts.
-	finished := make(chan struct{})
-	go func() {
-		time.Sleep(50 * time.Millisecond)
+	synctest.Test(t, func(t *testing.T) {
+		d := NewDrainController()
+		require.True(t, d.Begin())
+		result := make(chan bool, 1)
+		go func() { result <- d.Drain(5 * time.Second) }()
+		// All drain goroutines have reached their wait points. No real sleeps or
+		// assumption that a statement after End executes before Drain returns.
+		synctest.Wait()
+		assert.True(t, d.Draining())
+		assert.Len(t, result, 0, "drain must remain blocked while work is registered")
+		assert.Equal(t, int64(1), d.InFlight())
 		d.End()
-		close(finished)
-	}()
-
-	// Drain must not return before the in-flight unit completes.
-	require.True(t, d.Drain(5*time.Second), "drain must complete once in-flight work finishes")
-	select {
-	case <-finished:
-	default:
-		t.Fatal("Drain returned before the in-flight unit finished")
-	}
-	assert.Equal(t, int64(0), d.InFlight())
+		synctest.Wait()
+		require.True(t, <-result, "drain completes after End releases the work")
+		assert.Equal(t, int64(0), d.InFlight())
+	})
 }
 
 func TestDrainControllerReportsTimeout(t *testing.T) {
