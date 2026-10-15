@@ -250,12 +250,14 @@ func runDurableEventProcessor(config EventProcessorConfig, logger ports.Logger, 
 			defer stop()
 			_, _, err := store.GetCheckpointForChain(probeCtx, chains[0])
 			state := consume.Snapshot()
-			ready := err == nil && processor.Health().Status == "healthy" && state.Running && state.LastError == ""
+			ownershipReady := !state.OwnershipRequired || (state.ConfiguredTopics > 0 && state.OwnedTopics == state.ConfiguredTopics)
+			runtimeReady := processor.Health().Status == "healthy"
+			ready := err == nil && runtimeReady && state.Running && ownershipReady && state.LastError == ""
 			w.Header().Set("Content-Type", "application/json")
 			if !ready {
 				w.WriteHeader(http.StatusServiceUnavailable)
 			}
-			if err := json.NewEncoder(w).Encode(map[string]any{"ready": ready, "status": map[bool]string{true: "healthy", false: "unhealthy"}[ready], "service": "event-processor"}); err != nil {
+			if err := json.NewEncoder(w).Encode(map[string]any{"ready": ready, "status": map[bool]string{true: "healthy", false: "unhealthy"}[ready], "service": "event-processor", "checks": map[string]bool{"storage": err == nil, "runtime": runtimeReady, "ownership": ownershipReady, "consumer": state.Running, "effects": state.LastError == ""}}); err != nil {
 				logger.Error("Encode durable health response", "error", err)
 			}
 			return

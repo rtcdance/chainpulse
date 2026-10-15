@@ -10,6 +10,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"math/big"
 	"net/http"
 	"net/url"
@@ -18,6 +19,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"testing"
 	"time"
@@ -118,14 +120,32 @@ func TestDeployedPullerKafkaAndAtomicProcessor(t *testing.T) {
 	}
 	startProcessor()
 	httpClient := &http.Client{Timeout: time.Second}
-	require.Eventually(t, func() bool {
+	var readinessMu sync.Mutex
+	var readinessBody string
+	var readinessStatus int
+	ready := assert.Eventually(t, func() bool {
 		response, err := httpClient.Get("http://127.0.0.1:" + processorPort + "/health/ready")
 		if err != nil {
 			return false
 		}
 		defer response.Body.Close()
+		body, readErr := io.ReadAll(io.LimitReader(response.Body, 4096))
+		if readErr != nil {
+			return false
+		}
+		readinessMu.Lock()
+		readinessBody, readinessStatus = string(body), response.StatusCode
+		readinessMu.Unlock()
 		return response.StatusCode == 200
 	}, 15*time.Second, 100*time.Millisecond)
+	readinessMu.Lock()
+	readinessEvidence, err := json.Marshal(map[string]any{"ready": ready, "httpStatus": readinessStatus, "response": readinessBody})
+	readinessMu.Unlock()
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(filepath.Join(artifacts, "native-readiness.json"), readinessEvidence, 0o644))
+	if !ready {
+		t.FailNow()
+	}
 	apiPort := required("CHAINPULSE_DEPLOYED_API_SERVICE_PORT")
 	apiService = start(required("CHAINPULSE_DEPLOYED_API_SERVICE_BINARY"), "api-service", "API_SERVICE_PORT="+apiPort, "KAFKA_COMMITTED_TOPIC="+output)
 	gatewayPort := required("CHAINPULSE_DEPLOYED_GATEWAY_PORT")

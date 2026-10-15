@@ -33,17 +33,29 @@ type completeBlockMessageProcessor interface {
 	ProcessCompleteBlock(context.Context, appindexing.CompletedBlock) error
 }
 
+type generationOwnedProcessor interface {
+	AssignOwnership(context.Context, string) error
+	RevokeOwnership(context.Context) error
+}
+
+type consumeTransportError struct {
+	message string
+	at      int64
+}
+
 type eventProcessorConsumeLoopSnapshot struct {
-	ConfiguredTopics int
-	ActiveTopics     int
-	Running          bool
-	Paused           bool
-	State            string
-	LastError        string
-	LastErrorAt      int64
-	LastAction       string
-	Reason           string
-	UpdatedUnix      int64
+	ConfiguredTopics  int
+	ActiveTopics      int
+	OwnedTopics       int
+	OwnershipRequired bool
+	Running           bool
+	Paused            bool
+	State             string
+	LastError         string
+	LastErrorAt       int64
+	LastAction        string
+	Reason            string
+	UpdatedUnix       int64
 }
 
 type eventProcessorConsumeRuntime struct {
@@ -61,6 +73,8 @@ type eventProcessorConsumeRuntime struct {
 	paused          bool
 	activeTopics    map[string]bool
 	activeCancels   map[string]context.CancelFunc
+	ownedTopics     map[string]bool
+	transportErrors map[string]consumeTransportError
 	lastError       string
 	lastErrorAtUnix int64
 	lastAction      string
@@ -84,17 +98,19 @@ func newEventProcessorConsumeRuntime(
 	dlqDB *sql.DB,
 ) *eventProcessorConsumeRuntime {
 	return &eventProcessorConsumeRuntime{
-		logger:        logger,
-		metrics:       metrics,
-		consumer:      consumer,
-		processor:     processor,
-		publisher:     publisher,
-		topics:        append([]string(nil), topics...),
-		outputTopics:  append([]string(nil), outputTopics...),
-		dlqDB:         dlqDB,
-		activeTopics:  make(map[string]bool),
-		activeCancels: make(map[string]context.CancelFunc),
-		waitCh:        make(chan struct{}),
+		logger:          logger,
+		metrics:         metrics,
+		consumer:        consumer,
+		processor:       processor,
+		publisher:       publisher,
+		topics:          append([]string(nil), topics...),
+		outputTopics:    append([]string(nil), outputTopics...),
+		dlqDB:           dlqDB,
+		activeTopics:    make(map[string]bool),
+		activeCancels:   make(map[string]context.CancelFunc),
+		ownedTopics:     make(map[string]bool),
+		transportErrors: make(map[string]consumeTransportError),
+		waitCh:          make(chan struct{}),
 	}
 }
 
@@ -157,7 +173,7 @@ func (r *eventProcessorConsumeRuntime) Start(ctx context.Context, wg *sync.WaitG
 					continue
 				}
 				if err != nil {
-					r.recordError(fmt.Errorf("consume topic %s: %w", topic, err))
+					r.recordTransportError(topic, fmt.Errorf("consume topic %s: %w", topic, err))
 					backoff := time.NewTimer(250 * time.Millisecond)
 					select {
 					case <-ctx.Done():
@@ -285,19 +301,57 @@ func (r *eventProcessorConsumeRuntime) Snapshot() eventProcessorConsumeLoopSnaps
 	case active == 0 && len(r.topics) > 0:
 		state = "idle"
 	}
+	lastError, lastErrorAt := r.lastError, r.lastErrorAtUnix
+	if lastError == "" {
+		for _, topic := range r.topics {
+			if transport, exists := r.transportErrors[topic]; exists {
+				lastError, lastErrorAt = transport.message, transport.at
+				break
+			}
+		}
+	}
+	_, ownershipRequired := r.processor.(generationOwnedProcessor)
 
 	return eventProcessorConsumeLoopSnapshot{
-		ConfiguredTopics: len(r.topics),
-		ActiveTopics:     active,
-		Running:          r.running,
-		Paused:           r.paused,
-		State:            state,
-		LastError:        r.lastError,
-		LastErrorAt:      r.lastErrorAtUnix,
-		LastAction:       r.lastAction,
-		Reason:           r.reason,
-		UpdatedUnix:      r.updatedAtUnix,
+		ConfiguredTopics:  len(r.topics),
+		ActiveTopics:      active,
+		OwnedTopics:       len(r.ownedTopics),
+		OwnershipRequired: ownershipRequired,
+		Running:           r.running,
+		Paused:            r.paused,
+		State:             state,
+		LastError:         lastError,
+		LastErrorAt:       lastErrorAt,
+		LastAction:        r.lastAction,
+		Reason:            r.reason,
+		UpdatedUnix:       r.updatedAtUnix,
 	}
+}
+
+func (r *eventProcessorConsumeRuntime) recordTransportError(topic string, err error) {
+	if err == nil {
+		return
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.transportErrors == nil {
+		r.transportErrors = make(map[string]consumeTransportError)
+	}
+	r.transportErrors[topic] = consumeTransportError{message: err.Error(), at: time.Now().Unix()}
+}
+
+func (r *eventProcessorConsumeRuntime) setOwnership(topic string, owned bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if !owned {
+		delete(r.ownedTopics, topic)
+		return
+	}
+	if r.ownedTopics == nil {
+		r.ownedTopics = make(map[string]bool)
+	}
+	r.ownedTopics[topic] = true
+	delete(r.transportErrors, topic)
 }
 
 func (r *eventProcessorConsumeRuntime) setTopicControl(topic string, active bool, cancel context.CancelFunc) {
@@ -394,10 +448,7 @@ func (r *eventProcessorConsumeRuntime) writeToDLQ(ctx context.Context, event *bl
 // consumeTopic preserves the legacy adapter contract while making broker-owned
 // contexts mandatory for the PostgreSQL processor's durable effect path.
 func (r *eventProcessorConsumeRuntime) consumeTopic(ctx context.Context, topic string, legacy func(core.MessageQueueMessage) error) error {
-	owner, ok := r.processor.(interface {
-		AssignOwnership(context.Context, string) error
-		RevokeOwnership(context.Context) error
-	})
+	owner, ok := r.processor.(generationOwnedProcessor)
 	if !ok {
 		return r.consumer.ConsumeMessages(ctx, topic, legacy)
 	}
@@ -417,5 +468,17 @@ func (r *eventProcessorConsumeRuntime) consumeTopic(ctx context.Context, topic s
 			r.recordError(fmt.Errorf("process owned topic %s: %w", topic, err))
 		}
 		return err
-	}, mq.ConsumerOwnershipHooks{Assigned: owner.AssignOwnership, Revoked: owner.RevokeOwnership})
+	}, mq.ConsumerOwnershipHooks{
+		Assigned: func(active context.Context, token string) error {
+			if err := owner.AssignOwnership(active, token); err != nil {
+				return err
+			}
+			r.setOwnership(topic, true)
+			return nil
+		},
+		Revoked: func(cleanup context.Context) error {
+			r.setOwnership(topic, false)
+			return owner.RevokeOwnership(cleanup)
+		},
+	})
 }
