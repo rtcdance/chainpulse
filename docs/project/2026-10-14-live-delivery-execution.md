@@ -241,3 +241,7 @@ T01 新分层首轮 e7ab3a2：远端CI 38760066608的quality于15:24:40Z–15:25
 第四轮quality 38758799184另有真实旧测试时序误报：TestDrainControllerWaitsForInFlightWork在End()之后close(finished)，正确Drain可能抢先返回。已使用testing/synctest在所有等待者阻塞时检查Drain尚未返回，再End并验证释放；100次race通过。跳过实际Wait的错误版本overlay会被新测试稳定拒绝。候选ab40d59仅改此测试；DoD的build/check/lint/test-short日志均通过，lint0issues。cmd覆盖337pass actions/233顶层/0skip，六嵌套module race通过；本次没有生产Drain行为变化。
 
 T01本轮收尾证据：e7ab3a2的quality=43s、unit-race=422s、image-build=214s，均success；cmd与nested race和剩余包范围已接线，两个既有short stress跳过明确登记GAP而非正式T14证据。六个专用远端故障运行全部failure，六份report均已下载核验positive_control_passed=true且injection_rejected=true，完整映射见ci-negative-remote/verified-matrix.json；因此可确认失败来自正确注入而非基础设施不可用。临时故障分支已请求删除，managed worktree已请求归档，源commit和run工件保留。候选原命令make build/make test-unit/make vet全部exit0，原始日志candidate-pr-make-*.log；不将这些局部结果替代最终T18。
+
+## 2026-10-15：Coverage Diff 独立旧故障
+
+e7ab3a2的coverage主job成功，但Coverage Diff的Compare coverage因heredoc缩进导致bash语法错误而失败；不是40%阈值失败，不能误归因为新的drain测试。保留remote-fifth-coverage-failed.log。修复独立比较报告：base checkout固定PR base SHA，与候选同口径-short；profile下载、base测试与JSON检验均不再忽略错误；新coverage-diff.py直接按Go profile的statement数量加权，重复block合并，缺失/空/格式错误/零statement输入失败，不填虚假0。数值与语义有自测；summary替代自动PR评论，MIN_COVERAGE=40保持不变。该修复仍待远端验证，不把工具自测当整条CI通过。

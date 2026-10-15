@@ -681,25 +681,9 @@ jobs:
           retention-days: 90
           if-no-files-found: error
       
-      - name: Comment PR with coverage
-        if: github.event_name == 'pull_request'
-        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
-        with:
-          script: |
-            const fs = require('fs');
-            try {
-              const summary = fs.readFileSync('coverage-summary.md', 'utf8');
-              github.rest.issues.createComment({
-                issue_number: context.issue.number,
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                body: summary
-              });
-            } catch (error) {
-              console.log('⚠ Could not post coverage comment:', error.message);
-            }
-        continue-on-error: true
-      
+      - name: Add measured coverage to job summary
+        run: cat coverage-summary.md >> "$GITHUB_STEP_SUMMARY"
+
       - name: Update coverage badge in README
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         run: |
@@ -719,7 +703,7 @@ jobs:
       - name: Checkout base branch
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
-          ref: ${{ github.base_ref }}
+          ref: ${{ github.event.pull_request.base.sha }}
           path: base
       
       - name: Set up Go
@@ -732,54 +716,36 @@ jobs:
         with:
           name: coverage-reports
           path: pr-coverage/
-        continue-on-error: true
       
       - name: Generate base coverage
         working-directory: base
         run: |
-          go test -coverprofile=../base-coverage.out -covermode=atomic -timeout 30m ./pkg/... || true
-      
+          set -euo pipefail
+          go test -json -short -coverprofile=../base-coverage.out -covermode=atomic \
+            -timeout 120s -p 2 ./pkg/... > ../base-test-output.jsonl
+          python3 ../scripts/acceptance/verify-tests.py \
+            --jsonl ../base-test-output.jsonl --min-tests 1 --report ../base-tests-report.json
+
       - name: Compare coverage
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          CANDIDATE_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
-          if [ -f pr-coverage/coverage.out ] && [ -s pr-coverage/coverage.out ] && [ -f base-coverage.out ] && [ -s base-coverage.out ]; then
-            PR_COVERAGE=$(go tool cover -func=pr-coverage/coverage.out 2>/dev/null | grep total | awk '{print $3}' | sed 's/%//' || echo "0")
-            BASE_COVERAGE=$(go tool cover -func=base-coverage.out 2>/dev/null | grep total | awk '{print $3}' | sed 's/%//' || echo "0")
-            
-            DIFF=$(echo "$PR_COVERAGE - $BASE_COVERAGE" | bc 2>/dev/null || echo "0")
-            
-            cat > coverage-diff.md << EOF || true
-            # Coverage Comparison (pkg/ only)
-            
-            **Base Branch**: ${BASE_COVERAGE}%
-            **PR Branch**: ${PR_COVERAGE}%
-            **Difference**: ${DIFF}%
-            
-            $([ $(echo "$DIFF >= 0" | bc -l 2>/dev/null || echo "0") -eq 1 ] && echo "✓ Coverage improved!" || echo "⚠ Coverage decreased")
-            EOF
-          else
-            cat > coverage-diff.md << EOF || true
-            # Coverage Comparison
-            
-            ⚠ Could not generate coverage comparison. Coverage data may be incomplete.
-            EOF
-          fi
-          
-          cat coverage-diff.md
-      
-      - name: Comment PR with diff
-        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
+          set -euo pipefail
+          python3 scripts/acceptance/coverage-diff.py --self-test
+          python3 scripts/acceptance/coverage-diff.py \
+            --base base-coverage.out --candidate pr-coverage/coverage.out \
+            --base-sha "$BASE_SHA" --candidate-sha "$CANDIDATE_SHA" --out coverage-diff.md
+          cat coverage-diff.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload comparison evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
-          script: |
-            const fs = require('fs');
-            try {
-              const diff = fs.readFileSync('coverage-diff.md', 'utf8');
-              github.rest.issues.createComment({
-                issue_number: context.issue.number,
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                body: diff
-              });
-            } catch (error) {
-              console.log('⚠ Could not post coverage diff comment:', error.message);
-            }
-        continue-on-error: true
+          name: coverage-comparison
+          path: |
+            coverage-diff.md
+            coverage-diff.json
+            base-test-output.jsonl
+            base-tests-report.json
+          if-no-files-found: error
