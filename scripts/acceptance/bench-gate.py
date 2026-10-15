@@ -35,6 +35,7 @@ import datetime
 import platform
 import subprocess
 import json
+import math
 import re
 import sys
 from dataclasses import dataclass, field
@@ -107,6 +108,23 @@ def summarize(samples: list[Sample]) -> dict[str, float]:
     return summary
 
 
+def valid_metric(value: object, *, positive: bool = False) -> bool:
+    return (type(value) in (int, float) and math.isfinite(value)
+            and (value > 0 if positive else value >= 0))
+
+
+def sample_failures(name: str, samples: list[Sample]) -> list[str]:
+    failures = []
+    if len(samples) < MIN_SAMPLES:
+        failures.append(f"{name}: only {len(samples)} sample(s), {MIN_SAMPLES} required")
+    for index, sample in enumerate(samples):
+        if not valid_metric(sample.ns_per_op, positive=True):
+            failures.append(f"{name}: sample {index} ns_per_op must be positive and finite")
+        if not valid_metric(sample.bytes_per_op):
+            failures.append(f"{name}: sample {index} bytes_per_op must be present, nonnegative and finite")
+    return failures
+
+
 def raw_document(
     current: dict[str, list[Sample]], command: str, threshold: float
 ) -> dict:
@@ -175,11 +193,9 @@ def compare(current: dict[str, list[Sample]], baseline: dict[str, dict], thresho
         return result
 
     for name, samples in sorted(current.items()):
-        if len(samples) < MIN_SAMPLES:
-            # §8: "无有效样本不能 pass".
-            result.failures.append(
-                f"{name}: only {len(samples)} sample(s), {MIN_SAMPLES} required"
-            )
+        invalid = sample_failures(name, samples)
+        if invalid:
+            result.failures.extend(invalid)
             continue
 
         expected = baseline.get(name)
@@ -191,15 +207,14 @@ def compare(current: dict[str, list[Sample]], baseline: dict[str, dict], thresho
 
         actual = summarize(samples)
         for metric in ("ns_per_op", "bytes_per_op"):
-            if metric not in expected or metric not in actual:
+            base_value = expected.get(metric)
+            if not valid_metric(base_value, positive=metric == "ns_per_op"):
+                result.failures.append(f"{name}: baseline {metric} is missing or invalid")
                 continue
-
-            base_value = expected[metric]
-            if base_value <= 0:
-                result.failures.append(f"{name}: baseline {metric} is not positive")
+            if base_value == 0 and actual[metric] > 0:
+                result.failures.append(f"{name}: {metric} increased from zero to {actual[metric]}")
                 continue
-
-            change = (actual[metric] - base_value) / base_value
+            change = 0.0 if base_value == 0 else (actual[metric] - base_value) / base_value
             entry = {
                 "benchmark": name,
                 "metric": metric,
@@ -334,6 +349,28 @@ def self_test() -> int:
     result = compare(current, baseline, REGRESSION_THRESHOLD)
     check("exactly +15% must not block", result.ok)
 
+    # Missing or invalid measurements must fail, even if their mean looks faster.
+    for label, samples in [
+        ("zero latency", [Sample(0, 100)] * MIN_SAMPLES),
+        ("nonfinite latency", [Sample(float("inf"), 100)] * MIN_SAMPLES),
+        ("nonfinite allocation", [Sample(1000, float("nan"))] * MIN_SAMPLES),
+        ("missing allocation", [Sample(1000)] * MIN_SAMPLES),
+        ("partial allocation", [Sample(1000, 100)] * (MIN_SAMPLES - 1) + [Sample(1000)]),
+    ]:
+        check(label + " must block", not compare({"BenchmarkA": samples}, baseline, REGRESSION_THRESHOLD).ok)
+    for invalid in (0, -1, float("inf"), float("nan"), "1000"):
+        check("invalid baseline latency must block", not compare(
+            {"BenchmarkA": [Sample(1000, 100)] * MIN_SAMPLES},
+            {"BenchmarkA": {"ns_per_op": invalid, "bytes_per_op": 100}}, REGRESSION_THRESHOLD).ok)
+    check("missing baseline latency must block", not compare(
+        {"BenchmarkA": [Sample(1000, 100)] * MIN_SAMPLES},
+        {"BenchmarkA": {"bytes_per_op": 100}}, REGRESSION_THRESHOLD).ok)
+    allocation_free = {"BenchmarkA": {"ns_per_op": 1000, "bytes_per_op": 0}}
+    check("zero allocations remain valid", compare(
+        {"BenchmarkA": [Sample(1000, 0)] * MIN_SAMPLES}, allocation_free, REGRESSION_THRESHOLD).ok)
+    check("new allocation blocks against zero baseline", not compare(
+        {"BenchmarkA": [Sample(1000, 1)] * MIN_SAMPLES}, allocation_free, REGRESSION_THRESHOLD).ok)
+
     if failures:
         print("bench-gate self-test FAILED:", file=sys.stderr)
         for failure in failures:
@@ -342,7 +379,7 @@ def self_test() -> int:
 
     print(
         f"bench-gate self-test passed "
-        f"(threshold {REGRESSION_THRESHOLD:.0%}, min samples {MIN_SAMPLES}, 10 cases)"
+        f"(threshold {REGRESSION_THRESHOLD:.0%}, min samples {MIN_SAMPLES}; invalid/missing measurement controls included)"
     )
     return 0
 
@@ -359,6 +396,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--self-test", action="store_true", help="verify the gate itself")
     args = parser.parse_args(argv)
 
+    if not valid_metric(args.threshold):
+        parser.error("--threshold must be finite and nonnegative")
+
     if args.self_test:
         return self_test()
 
@@ -369,6 +409,11 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     current = parse_bench_output(args.bench_output.read_text(encoding="utf-8"))
+
+    invalid = [failure for name, samples in current.items() for failure in sample_failures(name, samples)]
+    if invalid:
+        print("invalid benchmark measurements: " + "; ".join(invalid), file=sys.stderr)
+        return 1
 
     if args.write_baseline:
         if not current:
