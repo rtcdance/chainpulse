@@ -478,8 +478,8 @@ func TestIsBlockFinalizedWithStatus_Degraded(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if !result.IsFinalized {
-		t.Error("block 500 should be finalized when finalized block is 1000")
+	if result.IsFinalized {
+		t.Error("latest fallback must not report block 500 finalized")
 	}
 	if !result.Degraded {
 		t.Error("result should be marked as degraded when finality came from 'latest' fallback")

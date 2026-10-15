@@ -10,6 +10,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ethereum/go-ethereum/common/hexutil"
+
 	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
 
 	"github.com/rtcdance/chainpulse/pkg/chainid"
@@ -133,6 +135,7 @@ func (f *rpcFinalityChecker) RegisterChain(chainID, nodeURL string) {
 	defer f.cacheMu.Unlock()
 	f.clients[chainID] = &http.Client{Timeout: 10 * time.Second}
 	f.nodeURLs[chainID] = nodeURL
+	delete(f.cache, chainID)
 }
 
 // GetFinalizedBlockNumber returns the latest finalized block number.
@@ -140,6 +143,14 @@ func (f *rpcFinalityChecker) RegisterChain(chainID, nodeURL string) {
 // For L2 chains: uses eth_getBlockByNumber("safe") as an approximation,
 // since L2 nodes may not support the "finalized" tag.
 func (f *rpcFinalityChecker) GetFinalizedBlockNumber(ctx context.Context, chainID string) (uint64, error) {
+	observation, err := f.observeFinality(ctx, chainID)
+	if err != nil {
+		return 0, err
+	}
+	return observation.blockNumber, nil
+}
+
+func (f *rpcFinalityChecker) observeFinality(ctx context.Context, chainID string) (cachedFinality, error) {
 	// Check cache first
 	if cached, ok := f.getCached(chainID); ok {
 		return cached, nil
@@ -147,7 +158,7 @@ func (f *rpcFinalityChecker) GetFinalizedBlockNumber(ctx context.Context, chainI
 
 	client, nodeURL := f.getClient(chainID)
 	if client == nil {
-		return 0, fmt.Errorf("no RPC endpoint registered for chain %s", chainID)
+		return cachedFinality{}, fmt.Errorf("no RPC endpoint registered for chain %s", chainID)
 	}
 
 	// Choose the block tag based on chain type and rollup mechanism
@@ -191,13 +202,13 @@ func (f *rpcFinalityChecker) GetFinalizedBlockNumber(ctx context.Context, chainI
 				"chain_id", chainID, "tag", tag, "error", err.Error())
 			blockNumber, err = f.getBlockByTag(ctx, client, nodeURL, "latest")
 			if err != nil {
-				return 0, fmt.Errorf("failed to get block number for chain %s: %w", chainID, err)
+				return cachedFinality{}, fmt.Errorf("failed to get block number for chain %s: %w", chainID, err)
 			}
 			source = SourceLatestFallback
 			confidence = ConfidenceDegraded
 			degraded = true
 		} else {
-			return 0, fmt.Errorf("failed to get finalized block for chain %s: %w", chainID, err)
+			return cachedFinality{}, fmt.Errorf("failed to get finalized block for chain %s: %w", chainID, err)
 		}
 	}
 
@@ -222,16 +233,21 @@ func (f *rpcFinalityChecker) GetFinalizedBlockNumber(ctx context.Context, chainI
 
 	// Update cache
 	f.cacheMu.Lock()
-	f.cache[chainID] = cachedFinality{
+	if f.clients[chainID] != client {
+		f.cacheMu.Unlock()
+		return cachedFinality{}, fmt.Errorf("finality provider changed during observation for chain %s", chainID)
+	}
+	observation := cachedFinality{
 		blockNumber: blockNumber,
 		cachedAt:    time.Now(),
 		degraded:    degraded,
 		source:      source,
 		confidence:  confidence,
 	}
+	f.cache[chainID] = observation
 	f.cacheMu.Unlock()
 
-	return blockNumber, nil
+	return observation, nil
 }
 
 // IsBlockFinalized reports whether a block may be treated as finalized.
@@ -256,24 +272,21 @@ func (f *rpcFinalityChecker) IsBlockFinalized(ctx context.Context, chainID strin
 // GetFinalizedBlockNumberWithStatus returns the finalized height together with
 // the confidence and source it was obtained from.
 //
-// IsFinalized is reported as true: the height this returns IS the finalized
-// height, so the block at that height is finalized by construction. The field
-// that callers must actually branch on is Confidence (with Degraded as the
-// coarse version of the same signal).
+// IsFinalized is true only for a non-degraded finalized-tag observation.
+// A safe or latest height never implies finality, even in the status interface.
 func (f *rpcFinalityChecker) GetFinalizedBlockNumberWithStatus(ctx context.Context, chainID string) (*FinalityResult, error) {
-	finalized, err := f.GetFinalizedBlockNumber(ctx, chainID)
+	meta, err := f.observeFinality(ctx, chainID)
 	if err != nil {
 		return nil, fmt.Errorf("get finalized block number for chain %s: %w", chainID, err)
 	}
 
-	meta := f.getCachedMeta(chainID)
 	return &FinalityResult{
-		IsFinalized:          true,
+		IsFinalized:          !meta.degraded && meta.confidence == ConfidenceFinalized,
 		Degraded:             meta.degraded,
 		Confidence:           meta.confidence,
 		Source:               meta.source,
 		ObservedAt:           meta.cachedAt,
-		FinalizedBlockNumber: finalized,
+		FinalizedBlockNumber: meta.blockNumber,
 	}, nil
 }
 
@@ -285,15 +298,8 @@ func (f *rpcFinalityChecker) IsBlockFinalizedWithStatus(ctx context.Context, cha
 	if err != nil {
 		return nil, err
 	}
-	result.IsFinalized = blockNumber <= result.FinalizedBlockNumber
+	result.IsFinalized = result.IsFinalized && blockNumber <= result.FinalizedBlockNumber
 	return result, nil
-}
-
-// getCachedMeta returns the metadata recorded for a chain's cached height.
-func (f *rpcFinalityChecker) getCachedMeta(chainID string) cachedFinality {
-	f.cacheMu.RLock()
-	defer f.cacheMu.RUnlock()
-	return f.cache[chainID]
 }
 
 // IsDegraded returns true if the cached finality value for the given chain
@@ -312,22 +318,22 @@ func (f *rpcFinalityChecker) getClient(chainID string) (*http.Client, string) {
 	return f.clients[chainID], f.nodeURLs[chainID]
 }
 
-func (f *rpcFinalityChecker) getCached(chainID string) (uint64, bool) {
+func (f *rpcFinalityChecker) getCached(chainID string) (cachedFinality, bool) {
 	f.cacheMu.RLock()
 	defer f.cacheMu.RUnlock()
 
 	cached, ok := f.cache[chainID]
 	if !ok {
-		return 0, false
+		return cachedFinality{}, false
 	}
 	ttl := f.cacheTTL
 	if cached.degraded {
 		ttl = f.degradedCacheTTL
 	}
 	if time.Since(cached.cachedAt) > ttl {
-		return 0, false
+		return cachedFinality{}, false
 	}
-	return cached.blockNumber, true
+	return cached, true
 }
 
 // getBlockByTag calls eth_getBlockByNumber with a block tag ("finalized", "safe", "latest")
@@ -358,44 +364,42 @@ func (f *rpcFinalityChecker) getBlockByTag(ctx context.Context, client *http.Cli
 	}
 	defer resp.Body.Close() //nolint:errcheck // defer close
 
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		return 0, fmt.Errorf("finality RPC returned HTTP %d", resp.StatusCode)
+	}
+	const maxResponseBytes = 2 << 20
+	payload, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseBytes+1))
+	if err != nil {
+		return 0, fmt.Errorf("read finality response: %w", err)
+	}
+	if len(payload) > maxResponseBytes {
+		return 0, fmt.Errorf("finality RPC response exceeds %d bytes", maxResponseBytes)
+	}
 	var rpcResp struct {
-		Result struct {
+		Version string          `json:"jsonrpc"`
+		ID      json.RawMessage `json:"id"`
+		Result  *struct {
 			Number string `json:"number"`
 		} `json:"result"`
 		Error *struct {
 			Message string `json:"message"`
 		} `json:"error"`
 	}
-
-	if err := json.NewDecoder(resp.Body).Decode(&rpcResp); err != nil {
-		return 0, fmt.Errorf("decode response: %w", err)
+	if err := json.Unmarshal(payload, &rpcResp); err != nil {
+		return 0, fmt.Errorf("decode finality response: %w", err)
 	}
-
+	if rpcResp.Version != "2.0" || string(rpcResp.ID) != "1" {
+		return 0, fmt.Errorf("invalid finality JSON-RPC version or response ID")
+	}
 	if rpcResp.Error != nil {
 		return 0, fmt.Errorf("RPC error: %s", rpcResp.Error.Message)
 	}
-
-	if rpcResp.Result.Number == "" {
+	if rpcResp.Result == nil {
 		return 0, fmt.Errorf("block tag %s returned null result", tag)
 	}
-
-	// Parse hex block number
-	numberStr := rpcResp.Result.Number
-	if len(numberStr) > 2 && numberStr[:2] == "0x" {
-		var number uint64
-		for _, c := range numberStr[2:] {
-			number = number * 16
-			switch {
-			case c >= '0' && c <= '9':
-				number += uint64(c - '0')
-			case c >= 'a' && c <= 'f':
-				number += uint64(c-'a') + 10
-			case c >= 'A' && c <= 'F':
-				number += uint64(c-'A') + 10
-			}
-		}
-		return number, nil
+	number, err := hexutil.DecodeUint64(rpcResp.Result.Number)
+	if err != nil {
+		return 0, fmt.Errorf("invalid finality block quantity: %w", err)
 	}
-
-	return 0, fmt.Errorf("invalid block number format: %s", numberStr)
+	return number, nil
 }
