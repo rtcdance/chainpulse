@@ -564,6 +564,12 @@ func (m *RateLimitMiddleware) Limiter() *RateLimiter {
 func (m *RateLimitMiddleware) Middleware(limiter *RateLimiter) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// Probe readiness reports processing/dependency availability, not
+			// whether business traffic has exhausted a shared IP's quota.
+			if isHealthProbeRequest(r) {
+				next.ServeHTTP(w, r)
+				return
+			}
 			// Extract client ID from context or headers
 			clientID := extractClientID(r)
 
@@ -584,6 +590,18 @@ func (m *RateLimitMiddleware) Middleware(limiter *RateLimiter) func(http.Handler
 			// Call next handler
 			next.ServeHTTP(w, r.WithContext(RateLimitContext(r.Context(), info)))
 		})
+	}
+}
+
+func isHealthProbeRequest(r *http.Request) bool {
+	if r.Method != http.MethodGet && r.Method != http.MethodHead {
+		return false
+	}
+	switch r.URL.Path {
+	case "/health", "/health/ready", "/health/live", "/readyz", "/livez":
+		return true
+	default:
+		return false
 	}
 }
 
