@@ -60,16 +60,11 @@ func (r *LagRecorder) RecordLag(chainID string, phase LagPhase, blocks uint64) {
 
 // RecordLagSnapshot records all three phases at once.
 //
-// It rejects orderings that cannot happen (commit lag above ingest lag, or
-// finalized lag below commit lag) rather than recording an impossible reading:
-// a violated phase relationship means the counters disagree, and silently
-// publishing it would make the dashboard lie.
+// Finalized lag cannot be below commit lag. Ingest and commit lag have different
+// baselines and cannot be ordered relative to each other.
 func (r *LagRecorder) RecordLagSnapshot(chainID string, ingest, commit, finalized uint64) error {
 	if chainID == "" {
 		return fmt.Errorf("chainID is required")
-	}
-	if commit > ingest {
-		return fmt.Errorf("chain %s: commit lag %d cannot exceed ingest lag %d", chainID, commit, ingest)
 	}
 	if finalized < commit {
 		return fmt.Errorf("chain %s: finalized lag %d cannot be below commit lag %d", chainID, finalized, commit)
@@ -83,4 +78,13 @@ func (r *LagRecorder) RecordLagSnapshot(chainID string, ingest, commit, finalize
 		r.RecordLag(chainID, phase, blocks)
 	}
 	return nil
+}
+
+// RecordHeights derives lag from its actual height sources. Ingest and commit
+// lag use different baselines; a caught-up puller can have a large commit lag.
+func (r *LagRecorder) RecordHeights(chainID string, head, observed, committed, finalized uint64) error {
+	if observed > head || committed > observed || finalized > committed {
+		return fmt.Errorf("invalid height ordering for chain %s", chainID)
+	}
+	return r.RecordLagSnapshot(chainID, head-observed, observed-committed, head-finalized)
 }

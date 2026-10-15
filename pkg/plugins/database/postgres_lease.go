@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/rtcdance/chainpulse/pkg/core"
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
 )
 
 // ErrLeaseLost is returned when a commit is attempted with a lease token that is
@@ -73,7 +73,7 @@ func (a *PostgreSQLPluginAdapter) ReleaseLease(ctx context.Context, chainID, own
 	}
 
 	_, err := db.ExecContext(ctx,
-		"DELETE FROM chain_leases WHERE chain_id = $1 AND owner_token = $2", chainID, ownerToken)
+		"UPDATE chain_leases SET expires_at=clock_timestamp() WHERE chain_id = $1 AND owner_token = $2", chainID, ownerToken)
 	if err != nil {
 		return fmt.Errorf("failed to release lease: %w", err)
 	}
@@ -81,7 +81,7 @@ func (a *PostgreSQLPluginAdapter) ReleaseLease(ctx context.Context, chainID, own
 }
 
 // CurrentLease returns the owner token and generation for a chain.
-// ok is false when no lease row exists.
+// ok is false when no active lease exists; expired rows retain fencing history.
 func (a *PostgreSQLPluginAdapter) CurrentLease(ctx context.Context, chainID string) (owner string, generation int64, ok bool, err error) {
 	a.mu.RLock()
 	db := a.db
@@ -91,7 +91,7 @@ func (a *PostgreSQLPluginAdapter) CurrentLease(ctx context.Context, chainID stri
 	}
 
 	err = db.QueryRowContext(ctx,
-		"SELECT owner_token, generation FROM chain_leases WHERE chain_id = $1", chainID,
+		"SELECT owner_token, generation FROM chain_leases WHERE chain_id = $1 AND expires_at > clock_timestamp()", chainID,
 	).Scan(&owner, &generation)
 	if errors.Is(err, sql.ErrNoRows) {
 		return "", 0, false, nil
@@ -110,7 +110,7 @@ func (a *PostgreSQLPluginAdapter) CurrentLease(ctx context.Context, chainID stri
 // transaction finishes, which is what makes the guarantee usable: an in-flight
 // batch is allowed to COMPLETE (no half-commit), while a batch that starts
 // after a takeover is REJECTED with ErrLeaseLost.
-func (a *PostgreSQLPluginAdapter) BeginFencedTx(ctx context.Context, chainID, ownerToken string) (core.Tx, error) {
+func (a *PostgreSQLPluginAdapter) BeginFencedTx(ctx context.Context, chainID, ownerToken string) (portcontract.Tx, error) {
 	if chainID == "" || ownerToken == "" {
 		return nil, fmt.Errorf("chainID and ownerToken are required")
 	}
@@ -131,7 +131,7 @@ func (a *PostgreSQLPluginAdapter) BeginFencedTx(ctx context.Context, chainID, ow
 
 	var generation int64
 	err = sqlTx.QueryRowContext(ctx,
-		"SELECT generation FROM chain_leases WHERE chain_id = $1 AND owner_token = $2 FOR UPDATE",
+		"SELECT generation FROM chain_leases WHERE chain_id = $1 AND owner_token = $2 AND expires_at > clock_timestamp() FOR UPDATE",
 		chainID, ownerToken,
 	).Scan(&generation)
 	if errors.Is(err, sql.ErrNoRows) {

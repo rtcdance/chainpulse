@@ -6,6 +6,8 @@ import (
 	"os"
 	"testing"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
 	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"github.com/rtcdance/chainpulse/pkg/core"
 )
@@ -38,7 +40,7 @@ func (t *testCachePlugin) Set(ctx context.Context, key string, value []byte, ttl
 	return nil
 }
 func (t *testCachePlugin) Delete(ctx context.Context, key string) error             { return nil }
-func (t *testCachePlugin) GetStats() core.CacheStats                                { return core.CacheStats{} }
+func (t *testCachePlugin) GetStats() portcontract.CacheStats                        { return portcontract.CacheStats{} }
 func (t *testCachePlugin) HealthCheck(ctx context.Context) error                    { return nil }
 func (t *testCachePlugin) Initialize(ctx context.Context, config core.Config) error { return nil }
 func (t *testCachePlugin) Start(ctx context.Context) error                          { return nil }
@@ -86,7 +88,7 @@ func (t *testDatabasePlugin) GetAllBlocks(ctx context.Context) ([]*blockchain.Bl
 	return nil, nil
 }
 
-func (t *testDatabasePlugin) GetReorgStats(ctx context.Context) (*core.ReorgStats, error) {
+func (t *testDatabasePlugin) GetReorgStats(ctx context.Context) (*portcontract.ReorgStats, error) {
 	return nil, nil
 }
 

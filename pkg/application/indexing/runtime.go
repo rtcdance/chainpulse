@@ -7,6 +7,8 @@ import (
 	"sync"
 	"time"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/rtcdance/chainpulse/pkg/blockchain"
@@ -46,6 +48,29 @@ type EventSink interface {
 // (finding F05) without depending on a concrete database.
 type AtomicBatchCommitter interface {
 	CommitBlock(ctx context.Context, blockNumber uint64, blockHash string, events []*blockchain.BlockchainEvent) error
+}
+
+// ChainAtomicBatchCommitter makes the chain explicit for empty blocks and
+// multi-chain deployments while preserving the existing single-chain port.
+type ChainAtomicBatchCommitter interface {
+	CommitChainBlock(ctx context.Context, chainID string, blockNumber uint64, blockHash string, events []*blockchain.BlockchainEvent) error
+}
+
+// AtomicCommitsEnabled lets the indexing entry know persistence is authoritative
+// and a commit failure must not fall back to a non-transactional legacy write.
+func (rt *SharedRuntime) AtomicCommitsEnabled() bool {
+	rt.mu.RLock()
+	defer rt.mu.RUnlock()
+	return rt.committer != nil
+}
+
+// ChainCheckpoint reads authoritative per-chain progress, rather than the
+// aggregate status fields that can describe a different chain.
+func (rt *SharedRuntime) ChainCheckpoint(ctx context.Context, chainID string) (Checkpoint, error) {
+	if chainID == "" {
+		return Checkpoint{}, fmt.Errorf("chain ID is required")
+	}
+	return rt.checkpoints.Load(ctx, chainID)
 }
 
 // CheckpointStore loads and saves runtime checkpoints.
@@ -93,7 +118,7 @@ type Runtime interface {
 // SharedRuntime is the first shared indexing runtime skeleton for later parity
 // wiring between deployment modes.
 type SharedRuntime struct {
-	logger       core.Logger
+	logger       portcontract.Logger
 	source       EventSource
 	sink         EventSink
 	checkpoints  CheckpointStore
@@ -112,7 +137,7 @@ type SharedRuntime struct {
 
 // RuntimeDeps groups the required runtime ports.
 type RuntimeDeps struct {
-	Logger          core.Logger
+	Logger          portcontract.Logger
 	Source          EventSource
 	Sink            EventSink
 	CheckpointStore CheckpointStore
@@ -466,6 +491,12 @@ func envelopeToEvent(envelope EventEnvelope, chainID string) (*blockchain.Blockc
 	}
 
 	event := *source
+	if event.ChainID != "" && event.ChainID != chainID {
+		return nil, fmt.Errorf("payload chain ID mismatch: expected %s, got %s", chainID, event.ChainID)
+	}
+	if event.BlockNumber != 0 && envelope.BlockNumber != 0 && event.BlockNumber != envelope.BlockNumber {
+		return nil, fmt.Errorf("payload block number does not match envelope")
+	}
 	if event.ChainID == "" {
 		event.ChainID = chainID
 	}
@@ -495,6 +526,7 @@ func (rt *SharedRuntime) recordAtomicProgress(chainID string, processed int, blo
 	rt.status.ProcessedEvents += int64(processed)
 	rt.status.LastCheckpointChainID = chainID
 	rt.status.LastCheckpointCursor = fmt.Sprintf("block:%d", blockNumber)
+	rt.status.LastCheckpointBlock = blockNumber
 	rt.status.LastUpdatedAt = time.Now()
 }
 
@@ -550,8 +582,16 @@ func (rt *SharedRuntime) ProcessBatchAtomic(ctx context.Context, chainID string,
 	}
 
 	sort.SliceStable(converted, func(i, j int) bool {
-		return converted[i].BlockNumber < converted[j].BlockNumber
+		if converted[i].BlockNumber != converted[j].BlockNumber {
+			return converted[i].BlockNumber < converted[j].BlockNumber
+		}
+		return converted[i].LogIndex < converted[j].LogIndex
 	})
+	for i := 1; i < len(converted); i++ {
+		if converted[i].BlockNumber == converted[i-1].BlockNumber && converted[i].BlockHash != converted[i-1].BlockHash {
+			return fmt.Errorf("conflicting block hashes at height %d", converted[i].BlockNumber)
+		}
+	}
 
 	committed := 0
 	for i := 0; i < len(converted); {
@@ -562,7 +602,7 @@ func (rt *SharedRuntime) ProcessBatchAtomic(ctx context.Context, chainID string,
 		}
 		group := converted[i:j]
 
-		if err := committer.CommitBlock(ctx, blockNumber, group[0].BlockHash.Hex(), group); err != nil {
+		if err := commitChainBlock(ctx, committer, chainID, blockNumber, group[0].BlockHash.Hex(), group); err != nil {
 			// The checkpoint still names the previous fully committed block.
 			if committed > 0 {
 				rt.recordAtomicProgress(chainID, committed, converted[i-1].BlockNumber)
@@ -578,9 +618,41 @@ func (rt *SharedRuntime) ProcessBatchAtomic(ctx context.Context, chainID string,
 	return nil
 }
 
+func commitChainBlock(ctx context.Context, committer AtomicBatchCommitter, chainID string, blockNumber uint64, blockHash string, events []*blockchain.BlockchainEvent) error {
+	if routed, ok := committer.(ChainAtomicBatchCommitter); ok {
+		return routed.CommitChainBlock(ctx, chainID, blockNumber, blockHash, events)
+	}
+	return committer.CommitBlock(ctx, blockNumber, blockHash, events)
+}
+
+// ProcessEmptyBlock advances a completed zero-log block without inventing an
+// event. The caller must have fetched and verified the block's header/log range.
+func (rt *SharedRuntime) ProcessEmptyBlock(ctx context.Context, chainID string, blockNumber uint64, blockHash string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	rt.mu.RLock()
+	started, committer := rt.status.Started, rt.committer
+	rt.mu.RUnlock()
+	if !started || committer == nil || chainID == "" || blockHash == "" {
+		return fmt.Errorf("started runtime, atomic committer, chain and block hash are required")
+	}
+	if _, ok := committer.(ChainAtomicBatchCommitter); !ok {
+		return fmt.Errorf("empty-block commit requires explicit chain routing")
+	}
+	if err := commitChainBlock(ctx, committer, chainID, blockNumber, blockHash, nil); err != nil {
+		return fmt.Errorf("commit empty block %d: %w", blockNumber, err)
+	}
+	rt.recordAtomicProgress(chainID, 0, blockNumber)
+	return nil
+}
+
 // ProcessBatch applies the first shared indexing orchestration path for one
 // chain: dedupe -> persist -> mark processed -> checkpoint.
 func (rt *SharedRuntime) ProcessBatch(ctx context.Context, chainID string, events []EventEnvelope) error {
+	if rt.AtomicCommitsEnabled() {
+		return rt.ProcessBatchAtomic(ctx, chainID, events)
+	}
 	select {
 	case <-ctx.Done():
 		return ctx.Err()

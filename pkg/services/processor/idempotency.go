@@ -6,6 +6,8 @@ import (
 	"sync"
 	"time"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
 	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"github.com/rtcdance/chainpulse/pkg/core"
 	"github.com/rtcdance/chainpulse/pkg/logkeys"
@@ -74,14 +76,14 @@ type DefaultIdempotencyService struct {
 	running          bool
 	lastHealthCheck  *core.HealthStatus
 	config           *core.Config
-	logger           core.Logger
+	logger           portcontract.Logger
 	metricsCollector core.MetricsCollector
 	stopCh           chan struct{}
 	maxSize          int
 }
 
 // NewDefaultIdempotencyService creates a new idempotency service
-func NewDefaultIdempotencyService(logger core.Logger, metricsCollector core.MetricsCollector) *DefaultIdempotencyService {
+func NewDefaultIdempotencyService(logger portcontract.Logger, metricsCollector core.MetricsCollector) *DefaultIdempotencyService {
 	return &DefaultIdempotencyService{
 		processedHashes:  make(map[string]time.Time),
 		logger:           logger,

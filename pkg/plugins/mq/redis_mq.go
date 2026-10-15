@@ -6,6 +6,8 @@ import (
 	"sync"
 	"time"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
 	"github.com/redis/go-redis/v9"
 	"github.com/rtcdance/chainpulse/pkg/core"
 )
@@ -23,9 +25,9 @@ type RedisMQPlugin struct {
 	name                string
 	version             string
 	config              *core.Config
-	logger              core.Logger
+	logger              portcontract.Logger
 	metricsCollector    core.MetricsCollector
-	eventBus            core.EventBus
+	eventBus            portcontract.EventBus
 	isInitialized       bool
 	isRunning           bool
 	mu                  sync.RWMutex
@@ -49,9 +51,9 @@ type RedisMQPlugin struct {
 func NewRedisMQPlugin(
 	name, version string,
 	config *core.Config,
-	logger core.Logger,
+	logger portcontract.Logger,
 	metricsCollector core.MetricsCollector,
-	eventBus core.EventBus,
+	eventBus portcontract.EventBus,
 	connectionURL string,
 ) *RedisMQPlugin {
 	return &RedisMQPlugin{

@@ -4,18 +4,20 @@ import (
 	"context"
 	"fmt"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
 	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
-// PostgreSQLPluginAdapter adapts *PostgreSQLDatabase to the core.DatabasePlugin
+// PostgreSQLPluginAdapter adapts *PostgreSQLDatabase to the portcontract.DatabasePlugin
 // port.
 //
 // The two types expose different shapes for the same operations:
 //
 //	*PostgreSQLDatabase  : WriteEvent(ctx, *BlockchainEvent) / WriteBatch(ctx, []*BlockchainEvent)
 //	                       GetEventByHash(hash) / QueryEvents(*EventFilter) (*QueryResult, error)
-//	core.DatabasePlugin  : StoreEvent(ctx, any) / BatchStoreEvents(ctx, []any)
+//	portcontract.DatabasePlugin  : StoreEvent(ctx, any) / BatchStoreEvents(ctx, []any)
 //	                       GetEvent(ctx, id) / QueryEvents(ctx, filter any) ([]any, error)
 //
 // Wrapping rather than changing signatures keeps every existing caller of
@@ -36,16 +38,16 @@ type PostgreSQLPluginAdapter struct {
 }
 
 // PostgreSQLPluginAdapter must satisfy the port.
-var _ core.DatabasePlugin = (*PostgreSQLPluginAdapter)(nil)
+var _ portcontract.DatabasePlugin = (*PostgreSQLPluginAdapter)(nil)
 
 // NewPostgreSQLPluginAdapter creates the port-shaped adapter.
-func NewPostgreSQLPluginAdapter(logger core.Logger, metricsCollector core.MetricsCollector) *PostgreSQLPluginAdapter {
+func NewPostgreSQLPluginAdapter(logger portcontract.Logger, metricsCollector core.MetricsCollector) *PostgreSQLPluginAdapter {
 	return &PostgreSQLPluginAdapter{
 		PostgreSQLDatabase: NewPostgreSQLDatabase(logger, metricsCollector),
 	}
 }
 
-// StoreEvent implements core.DatabasePlugin.
+// StoreEvent implements portcontract.DatabasePlugin.
 func (a *PostgreSQLPluginAdapter) StoreEvent(ctx context.Context, event any) error {
 	ev, ok := event.(*blockchain.BlockchainEvent)
 	if !ok || ev == nil {
@@ -54,7 +56,7 @@ func (a *PostgreSQLPluginAdapter) StoreEvent(ctx context.Context, event any) err
 	return a.PostgreSQLDatabase.WriteEvent(ctx, ev)
 }
 
-// BatchStoreEvents implements core.DatabasePlugin.
+// BatchStoreEvents implements portcontract.DatabasePlugin.
 func (a *PostgreSQLPluginAdapter) BatchStoreEvents(ctx context.Context, events []any) error {
 	batch := make([]*blockchain.BlockchainEvent, 0, len(events))
 	for i, e := range events {
@@ -67,13 +69,13 @@ func (a *PostgreSQLPluginAdapter) BatchStoreEvents(ctx context.Context, events [
 	return a.PostgreSQLDatabase.WriteBatch(ctx, batch)
 }
 
-// GetEvent implements core.DatabasePlugin. The `id` column holds the canonical
+// GetEvent implements portcontract.DatabasePlugin. The `id` column holds the canonical
 // event hash, which is what GetEventByHash looks up.
 func (a *PostgreSQLPluginAdapter) GetEvent(ctx context.Context, id string) (*blockchain.BlockchainEvent, error) {
 	return a.PostgreSQLDatabase.GetEventByHash(id)
 }
 
-// QueryEvents implements core.DatabasePlugin. The port passes `filter any`;
+// QueryEvents implements portcontract.DatabasePlugin. The port passes `filter any`;
 // only *core.EventFilter is supported. It returns []any to match the port while
 // the underlying implementation returns a *core.QueryResult.
 func (a *PostgreSQLPluginAdapter) QueryEvents(ctx context.Context, filter any) ([]any, error) {
@@ -81,7 +83,17 @@ func (a *PostgreSQLPluginAdapter) QueryEvents(ctx context.Context, filter any) (
 	if !ok {
 		return nil, fmt.Errorf("postgres adapter: QueryEvents expects *core.EventFilter, got %T", filter)
 	}
-	result, err := a.PostgreSQLDatabase.QueryEvents(f)
+	if f.Network == "" {
+		if err := a.requireSingleChain("QueryEvents"); err != nil {
+			return nil, err
+		}
+		if scope := a.ChainScope(); len(scope) == 1 {
+			copyFilter := *f
+			copyFilter.Network = scope[0]
+			f = &copyFilter
+		}
+	}
+	result, err := a.PostgreSQLDatabase.QueryEventsContext(ctx, f)
 	if err != nil {
 		return nil, err
 	}

@@ -64,7 +64,7 @@ func (m *MockLogger) Info(msg string, fields ...any)  {}
 func (m *MockLogger) Warn(msg string, fields ...any)  {}
 func (m *MockLogger) Error(msg string, fields ...any) {}
 func (m *MockLogger) Fatal(msg string, fields ...any) {}
-func (m *MockLogger) WithCorrelationID(id string) core.Logger {
+func (m *MockLogger) WithCorrelationID(id string) ports.Logger {
 	return m
 }
 
@@ -137,7 +137,7 @@ func (m *MockMQPlugin) GetQueueDepth(ctx context.Context, topic string) (int64, 
 // MockPluginRegistry for testing
 type MockPluginRegistry struct{}
 
-func (m *MockPluginRegistry) Register(plugin core.Plugin) error {
+func (m *MockPluginRegistry) Register(plugin ports.Plugin) error {
 	return nil
 }
 
@@ -145,12 +145,12 @@ func (m *MockPluginRegistry) Unregister(name string) error {
 	return nil
 }
 
-func (m *MockPluginRegistry) Get(name string) (core.Plugin, error) {
+func (m *MockPluginRegistry) Get(name string) (ports.Plugin, error) {
 	return nil, fmt.Errorf("not found")
 }
 
-func (m *MockPluginRegistry) List() []core.Plugin {
-	return []core.Plugin{}
+func (m *MockPluginRegistry) List() []ports.Plugin {
+	return []ports.Plugin{}
 }
 
 func (m *MockPluginRegistry) Start(ctx context.Context) error {

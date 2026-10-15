@@ -6,7 +6,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/rtcdance/chainpulse/pkg/core"
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
 	"github.com/rtcdance/chainpulse/pkg/logkeys"
 )
 
@@ -26,7 +27,7 @@ type NotificationPublisher interface {
 type OutboxDrainerLoop struct {
 	store     OutboxDrainer
 	publisher NotificationPublisher
-	logger    core.Logger
+	logger    portcontract.Logger
 
 	interval  time.Duration
 	batchSize int
@@ -37,7 +38,7 @@ type OutboxDrainerLoop struct {
 
 // NewOutboxDrainerLoop creates a drainer. It does not start anything; call
 // DrainOnce for one pass or Run for the loop.
-func NewOutboxDrainerLoop(store OutboxDrainer, publisher NotificationPublisher, logger core.Logger) (*OutboxDrainerLoop, error) {
+func NewOutboxDrainerLoop(store OutboxDrainer, publisher NotificationPublisher, logger portcontract.Logger) (*OutboxDrainerLoop, error) {
 	if store == nil {
 		return nil, fmt.Errorf("outbox store is required")
 	}

@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -148,10 +150,10 @@ func (m *MockDatabasePlugin) MarkEventsAsReorged(ctx context.Context, fromBlock,
 	return 0, nil
 }
 
-func (m *MockDatabasePlugin) GetReorgStats(ctx context.Context) (*core.ReorgStats, error) {
+func (m *MockDatabasePlugin) GetReorgStats(ctx context.Context) (*portcontract.ReorgStats, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	return &core.ReorgStats{}, nil
+	return &portcontract.ReorgStats{}, nil
 }
 
 func (m *MockDatabasePlugin) Health(ctx context.Context) error {
@@ -182,7 +184,7 @@ func (m *MockDatabasePlugin) Close() error {
 	return nil
 }
 
-// MockLogger implements core.Logger for testing
+// MockLogger implements portcontract.Logger for testing
 type MockLogger struct {
 	logs []string
 	mu   sync.RWMutex
@@ -224,7 +226,7 @@ func (m *MockLogger) Fatal(msg string, _ ...any) {
 	m.logs = append(m.logs, msg)
 }
 
-func (m *MockLogger) WithCorrelationID(id string) core.Logger {
+func (m *MockLogger) WithCorrelationID(id string) portcontract.Logger {
 	return m
 }
 
@@ -285,10 +287,10 @@ func (mcp *MockCachePlugin) Close() error {
 	return nil
 }
 
-func (mcp *MockCachePlugin) GetStats() core.CacheStats {
+func (mcp *MockCachePlugin) GetStats() portcontract.CacheStats {
 	mcp.mu.RLock()
 	defer mcp.mu.RUnlock()
-	return core.CacheStats{
+	return portcontract.CacheStats{
 		HitCount:      0,
 		MissCount:     0,
 		EvictionCount: 0,

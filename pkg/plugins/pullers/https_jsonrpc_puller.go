@@ -2,6 +2,7 @@ package pullers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"math/big"
@@ -11,6 +12,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
 	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"github.com/rtcdance/chainpulse/pkg/chainid"
 	"github.com/rtcdance/chainpulse/pkg/core"
@@ -18,11 +21,13 @@ import (
 	"github.com/rtcdance/chainpulse/pkg/core/topics"
 	"github.com/rtcdance/chainpulse/pkg/evm"
 	"github.com/rtcdance/chainpulse/pkg/observability"
+	"github.com/rtcdance/chainpulse/pkg/services/finality"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/ethereum/go-ethereum/rpc"
 )
 
 // HTTPSJSONRPCPuller implements HTTPS-JSONRPC protocol for pulling blockchain events
@@ -40,17 +45,19 @@ type endpointStats struct {
 
 type HTTPSJSONRPCPuller struct {
 	*BaseDataPullerPlugin
-	mu                sync.RWMutex
-	ethClient         *ethclient.Client
-	nodeURL           string
-	currentBlock      uint64
-	pollInterval      time.Duration
-	stopChan          chan bool
-	eventHandlers     []func(blockchain.BlockchainEvent)
-	requestCounter    int64
-	tracer            *observability.DefaultTracer
-	redRecorder       *observability.REDRecorder
-	lastVerifiedBlock uint64 // last block where parent hash chain was verified
+	mu                 sync.RWMutex
+	ethClient          *ethclient.Client
+	nodeURL            string
+	currentBlock       uint64
+	pollInterval       time.Duration
+	stopChan           chan bool
+	eventHandlers      []func(blockchain.BlockchainEvent)
+	completedRange     func(context.Context, uint64, uint64, []blockchain.BlockchainEvent) error
+	validateCheckpoint func(context.Context) error
+	requestCounter     int64
+	tracer             *observability.DefaultTracer
+	redRecorder        *observability.REDRecorder
+	lastVerifiedBlock  uint64 // last block where parent hash chain was verified
 	// Parent hash chain verification tuning
 	reorgVerifyInterval uint64 // blocks between full chain verification checks (default: 100)
 	reorgSamplingStep   uint64 // sampling step within verification (default: 10)
@@ -63,6 +70,9 @@ type HTTPSJSONRPCPuller struct {
 	nodeURLs          []string // mirrors failoverClients for logging
 	endpointStats     []*endpointStats
 	rankedPool        sync.Pool
+	// finalityRegistry caps the pull target below the head per chain strategy.
+	// Nil means no cap (process latest head), which preserves pre-D7 behavior.
+	finalityRegistry *finality.Registry
 }
 
 type rankedEndpoint struct {
@@ -76,9 +86,9 @@ type rankedEndpoint struct {
 // construction never blocks and errors are handled at startup time.
 func NewHTTPSJSONRPCPuller(
 	config core.Config,
-	logger core.Logger,
+	logger portcontract.Logger,
 	metricsCollector core.MetricsCollector,
-	eventBus core.EventBus,
+	eventBus portcontract.EventBus,
 ) *HTTPSJSONRPCPuller {
 	base := NewBaseDataPullerPlugin("https-jsonrpc", "1.0.0", config, logger, metricsCollector, eventBus)
 
@@ -89,7 +99,7 @@ func NewHTTPSJSONRPCPuller(
 		pollInterval:         5 * time.Second,
 		stopChan:             make(chan bool),
 		eventHandlers:        make([]func(blockchain.BlockchainEvent), 0),
-		tracer:               observability.NewDefaultTracer(logger, metricsCollector),
+		tracer:               observability.NewSharedTracer(logger, metricsCollector),
 		redRecorder:          observability.NewREDRecorder(metricsCollector),
 		reorgVerifyInterval:  100, // default: check every 100 blocks
 		reorgSamplingStep:    10,  // default: sample every 10th block
@@ -108,6 +118,95 @@ func (p *HTTPSJSONRPCPuller) SetEthClient(client *ethclient.Client) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.ethClient = client
+}
+
+// SetFinalityRegistry installs the per-chain finality strategy used to cap the
+// pull target below the chain head. Passing nil disables the cap.
+func (p *HTTPSJSONRPCPuller) SetFinalityRegistry(registry *finality.Registry) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.finalityRegistry = registry
+}
+
+func (p *HTTPSJSONRPCPuller) getFinalityRegistry() *finality.Registry {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	return p.finalityRegistry
+}
+
+// finalityTarget returns the highest block this puller should process for the
+// configured chain, given the node's latest head. A nil registry returns the
+// head unchanged (no cap). Tag strategies resolve via RPC and fall back to the
+// head when the tag lookup fails, so a finality-node hiccup degrades to
+// latest-head processing instead of stalling the pipeline.
+func (p *HTTPSJSONRPCPuller) finalityTarget(ctx context.Context, latest uint64) uint64 {
+	registry := p.getFinalityRegistry()
+	if registry == nil {
+		return latest
+	}
+	strategy := registry.StrategyFor(p.ChainID())
+	switch strategy.Mode {
+	case finality.StrategyConfirmations:
+		return strategy.CapHeight(latest)
+	case finality.StrategyLatest:
+		return latest
+	case finality.StrategyTag:
+		tagged, err := p.blockNumberByTag(ctx, strategy.Tag)
+		if err != nil {
+			p.LogWarn("finality tag lookup failed; falling back to latest head",
+				"tag", strategy.Tag, "error", err.Error())
+			return latest
+		}
+		if tagged > latest {
+			return latest
+		}
+		return tagged
+	default:
+		return latest
+	}
+}
+
+func (p *HTTPSJSONRPCPuller) blockNumberByTag(ctx context.Context, tag string) (uint64, error) {
+	p.mu.RLock()
+	client := p.ethClient
+	p.mu.RUnlock()
+	if client == nil {
+		return 0, fmt.Errorf("ethereum client not initialized")
+	}
+	var number *big.Int
+	switch tag {
+	case "latest":
+		number = big.NewInt(int64(rpc.LatestBlockNumber))
+	case "safe":
+		number = big.NewInt(int64(rpc.SafeBlockNumber))
+	case "finalized":
+		number = big.NewInt(int64(rpc.FinalizedBlockNumber))
+	default:
+		return 0, fmt.Errorf("unsupported finality tag %q", tag)
+	}
+	header, err := client.HeaderByNumber(ctx, number)
+	if err != nil {
+		return 0, fmt.Errorf("header by tag %q: %w", tag, err)
+	}
+	if header == nil || header.Number == nil {
+		return 0, fmt.Errorf("header by tag %q: nil response", tag)
+	}
+	return header.Number.Uint64(), nil
+}
+
+// ChainIDMismatchError reports that the RPC node demonstrably serves a
+// different chain than the puller is configured for. Start refuses to run on
+// it: indexing the wrong chain silently produces wrong data, which is worse
+// than a startup failure.
+type ChainIDMismatchError struct {
+	NodeChainID string
+	Expected    uint64
+	Configured  string
+}
+
+func (e *ChainIDMismatchError) Error() string {
+	return fmt.Sprintf("RPC chain ID mismatch: node returned %s, expected %d (configured as %q)",
+		e.NodeChainID, e.Expected, e.Configured)
 }
 
 // VerifyChainID calls eth_chainId on the RPC node and compares it with the
@@ -146,11 +245,35 @@ func (p *HTTPSJSONRPCPuller) VerifyChainID(ctx context.Context) error {
 	}
 
 	if rpcChainID.Uint64() != uint64(expectedID) {
-		return fmt.Errorf("RPC chain ID mismatch: node returned %s, expected %d (configured as %q)",
-			rpcChainID.String(), expectedID, configured)
+		return &ChainIDMismatchError{
+			NodeChainID: rpcChainID.String(),
+			Expected:    uint64(expectedID),
+			Configured:  configured,
+		}
 	}
 
 	p.LogInfo("RPC chain ID verified", "chain_id", rpcChainID.String(), "configured_as", configured)
+	return nil
+}
+
+// VerifyGenesisHash compares the provider's block-0 hash against the pinned
+// ExpectedGenesisHash (0x-prefixed, case-insensitive). A mismatch means the
+// endpoint serves a different chain than the operator pinned, regardless of
+// what eth_chainId claims.
+func (p *HTTPSJSONRPCPuller) VerifyGenesisHash(ctx context.Context, expected string) error {
+	if p.ethClient == nil {
+		return fmt.Errorf("ethereum client not initialized")
+	}
+	header, err := p.ethClient.HeaderByNumber(ctx, big.NewInt(0))
+	if err != nil {
+		return fmt.Errorf("fetch genesis block: %w", err)
+	}
+	got := strings.ToLower(header.Hash().Hex())
+	want := strings.ToLower(expected)
+	if got != want {
+		return fmt.Errorf("genesis hash mismatch: node returned %s, expected %s", got, want)
+	}
+	p.LogInfo("genesis hash verified", "genesis_hash", got)
 	return nil
 }
 
@@ -195,7 +318,20 @@ func (p *HTTPSJSONRPCPuller) Start(ctx context.Context) error {
 	ctx, cancel := context.WithTimeout(p.lifecycleCtx, 10*time.Second)
 	defer cancel()
 	if err := p.VerifyChainID(ctx); err != nil {
+		var mismatch *ChainIDMismatchError
+		if errors.As(err, &mismatch) {
+			p.lifecycleCancel()
+			p.ethClient.Close()
+			return fmt.Errorf("refusing to start puller %q: %w", p.name, err)
+		}
 		p.LogWarn("chain ID verification failed — proceeding with caution", "error", err.Error())
+	}
+	if want := p.GetConfig().ExpectedGenesisHash; want != "" {
+		if err := p.VerifyGenesisHash(ctx, want); err != nil {
+			p.lifecycleCancel()
+			p.ethClient.Close()
+			return fmt.Errorf("refusing to start puller %q: genesis check failed: %w", p.name, err)
+		}
 	}
 
 	// Load checkpoint from persistent store if available
@@ -210,7 +346,7 @@ func (p *HTTPSJSONRPCPuller) Start(ctx context.Context) error {
 
 	// Subscribe to reorg rollback events for automatic re-indexing
 	if p.eventBus != nil {
-		if _, err := core.SubscribeTypedNamed[*core.ReorgRollbackEvent](p.eventBus, p.lifecycleCtx, topics.TopicReorgRollback, "https-puller-reorg", func(reorgEvt *core.ReorgRollbackEvent) {
+		if _, err := core.SubscribeTypedNamed[*portcontract.ReorgRollbackEvent](p.eventBus, p.lifecycleCtx, topics.TopicReorgRollback, "https-puller-reorg", func(reorgEvt *portcontract.ReorgRollbackEvent) {
 			// Only handle events for our chain
 			if reorgEvt.ChainID != p.ChainID() {
 				return
@@ -402,9 +538,19 @@ func classifyGetLogsError(from, to uint64, err error) error {
 // range the provider actually accepted.
 func (p *HTTPSJSONRPCPuller) fetchLogsWithoutGaps(ctx context.Context, from, to uint64, minRange int) ([]types.Log, SplitStats, error) {
 	fetch := func(ctx context.Context, chunkFrom, chunkTo uint64) ([]types.Log, error) {
-		logs, err := p.getLogs(ctx, chunkFrom, chunkTo)
+		var logs []types.Log
+		err := p.RetryWithBackoff(ctx, func() error {
+			got, err := p.getLogs(ctx, chunkFrom, chunkTo)
+			if err != nil {
+				return classifyGetLogsError(chunkFrom, chunkTo, err)
+			}
+			logs = got
+			return nil
+		})
 		if err != nil {
-			return nil, classifyGetLogsError(chunkFrom, chunkTo, err)
+			// ErrRangeTooWide is non-retryable, so RetryWithBackoff returned it
+			// unwrapped on the first attempt — the splitter reacts by splitting.
+			return nil, err
 		}
 		// A full page means the provider stopped early. Returning it with a nil
 		// error would make the splitter treat the range as covered.
@@ -510,6 +656,9 @@ func (p *HTTPSJSONRPCPuller) pollWithTicker(ctx context.Context) error {
 			p.LogInfo("Poll: stop signal received")
 			return nil
 		case <-ticker.C:
+			if err := p.validateDurableCheckpoint(ctx); err != nil {
+				return fmt.Errorf("validate durable checkpoint: %w", err)
+			}
 			p.LogInfo("Poll: fetching latest block...")
 			latestBlock, err := p.GetLatestBlock(ctx)
 			if err != nil {
@@ -517,13 +666,19 @@ func (p *HTTPSJSONRPCPuller) pollWithTicker(ctx context.Context) error {
 				continue
 			}
 
-			if latestBlock > p.GetLastBlockNumber() {
-				events, err := p.PullEvents(ctx, p.GetLastBlockNumber()+1, latestBlock)
+			targetBlock := p.finalityTarget(ctx, latestBlock)
+			targetBlock = p.boundedPollTarget(targetBlock)
+			if targetBlock > p.GetLastBlockNumber() {
+				fromBlock := p.GetLastBlockNumber() + 1
+				events, err := p.PullEvents(ctx, fromBlock, targetBlock)
 				if err != nil {
 					p.LogError("failed to pull events", "error", err.Error())
 					continue
 				}
 
+				if err := p.commitPulledRange(ctx, fromBlock, targetBlock, events); err != nil {
+					return fmt.Errorf("commit pulled range: %w", err)
+				}
 				for _, event := range events {
 					if err := p.PublishEvent(ctx, event); err != nil {
 						p.LogError("failed to publish event", "error", err.Error())
@@ -540,22 +695,22 @@ func (p *HTTPSJSONRPCPuller) pollWithTicker(ctx context.Context) error {
 					}
 				}
 
-				p.SetLastBlockNumber(latestBlock)
+				p.SetLastBlockNumber(targetBlock)
 
 				// Periodically verify parent hash chain integrity
-				if latestBlock-p.lastVerifiedBlock >= p.reorgVerifyInterval {
+				if targetBlock-p.lastVerifiedBlock >= p.reorgVerifyInterval {
 					p.mu.RLock()
 					prevBlock := p.lastVerifiedBlock
 					p.mu.RUnlock()
 					if prevBlock > 0 {
-						if err := p.verifyParentHashChain(ctx, prevBlock, latestBlock); err != nil {
+						if err := p.verifyParentHashChain(ctx, prevBlock, targetBlock); err != nil {
 							p.LogError("parent hash chain verification failed — possible reorg", "error", err.Error())
 							// Reset to before the gap for re-indexing
 							p.SetLastBlockNumber(prevBlock - 1)
 						}
 					}
 					p.mu.Lock()
-					p.lastVerifiedBlock = latestBlock
+					p.lastVerifiedBlock = targetBlock
 					p.mu.Unlock()
 				}
 			}
@@ -586,16 +741,25 @@ func (p *HTTPSJSONRPCPuller) pollWithSubscription(ctx context.Context) error {
 			if header == nil {
 				continue
 			}
+			if err := p.validateDurableCheckpoint(ctx); err != nil {
+				return fmt.Errorf("validate durable checkpoint: %w", err)
+			}
 			latestBlock := header.Number.Uint64()
 			p.RecordMetric("latest_block_number", saturatingPullerBlockMetric(latestBlock), nil)
 
-			if latestBlock > p.GetLastBlockNumber() {
-				events, pullErr := p.PullEvents(ctx, p.GetLastBlockNumber()+1, latestBlock)
+			targetBlock := p.finalityTarget(ctx, latestBlock)
+			targetBlock = p.boundedPollTarget(targetBlock)
+			if targetBlock > p.GetLastBlockNumber() {
+				fromBlock := p.GetLastBlockNumber() + 1
+				events, pullErr := p.PullEvents(ctx, fromBlock, targetBlock)
 				if pullErr != nil {
 					p.LogError("failed to pull events", "error", pullErr.Error())
 					continue
 				}
 
+				if err := p.commitPulledRange(ctx, fromBlock, targetBlock, events); err != nil {
+					return fmt.Errorf("commit pulled range: %w", err)
+				}
 				for _, event := range events {
 					if pubErr := p.PublishEvent(ctx, event); pubErr != nil {
 						p.LogError("failed to publish event", "error", pubErr.Error())
@@ -611,21 +775,21 @@ func (p *HTTPSJSONRPCPuller) pollWithSubscription(ctx context.Context) error {
 					}
 				}
 
-				p.SetLastBlockNumber(latestBlock)
+				p.SetLastBlockNumber(targetBlock)
 
 				// Periodic parent hash chain verification
-				if latestBlock-p.lastVerifiedBlock >= p.reorgVerifyInterval {
+				if targetBlock-p.lastVerifiedBlock >= p.reorgVerifyInterval {
 					p.mu.RLock()
 					prevBlock := p.lastVerifiedBlock
 					p.mu.RUnlock()
 					if prevBlock > 0 {
-						if verifyErr := p.verifyParentHashChain(ctx, prevBlock, latestBlock); verifyErr != nil {
+						if verifyErr := p.verifyParentHashChain(ctx, prevBlock, targetBlock); verifyErr != nil {
 							p.LogError("parent hash chain verification failed — possible reorg", "error", verifyErr.Error())
 							p.SetLastBlockNumber(prevBlock - 1)
 						}
 					}
 					p.mu.Lock()
-					p.lastVerifiedBlock = latestBlock
+					p.lastVerifiedBlock = targetBlock
 					p.mu.Unlock()
 				}
 			}
@@ -708,6 +872,9 @@ func (p *HTTPSJSONRPCPuller) executeWithFailover(ctx context.Context, fn func(cl
 	p.mu.RUnlock()
 
 	if len(clients) <= 1 {
+		if ethClient == nil {
+			return nil, fmt.Errorf("RPC client is not initialized")
+		}
 		return fn(ethClient)
 	}
 
@@ -943,25 +1110,28 @@ func (p *HTTPSJSONRPCPuller) ethLogToEvent(log types.Log, blockTimestamps map[ui
 	decodedData, typedData := evm.DecodeEventWithTyped(eventName, eventTopics, eventDataBytes)
 
 	event := blockchain.BlockchainEvent{
-		ID:              chainID + "-" + txHash.Hex() + "-" + strconv.FormatUint(uint64(logIndex), 10),
-		BlockNumber:     blockNumber,
-		BlockHash:       blockHash,
-		TransactionHash: txHash,
-		LogIndex:        logIndex,
-		ContractAddress: contractAddr,
-		EventName:       eventName,
-		EventSignature:  eventSig,
-		EventData:       eventDataBytes,
-		DecodedData:     decodedData,
-		TypedData:       typedData,
-		ChainID:         chainID,
-		Network:         p.Network(),
-		BlockTimestamp:  blockTimestamps[blockNumber],
-		Status:          blockchain.EventStatusPending,
-		Removed:         log.Removed,
+		ID:               chainID + "-" + txHash.Hex() + "-" + strconv.FormatUint(uint64(logIndex), 10),
+		BlockNumber:      blockNumber,
+		BlockHash:        blockHash,
+		TransactionHash:  txHash,
+		LogIndex:         logIndex,
+		ContractAddress:  contractAddr,
+		EventName:        eventName,
+		EventSignature:   eventSig,
+		EventTopic:       eventTopics,
+		TransactionIndex: uint64(log.TxIndex),
+		EventData:        eventDataBytes,
+		DecodedData:      decodedData,
+		TypedData:        typedData,
+		ChainID:          chainID,
+		Network:          p.Network(),
+		BlockTimestamp:   blockTimestamps[blockNumber],
+		Status:           blockchain.EventStatusPending,
+		Removed:          log.Removed,
 	}
 
 	event.EventHash = p.GenerateEventHash(event)
+	event.ID = event.EventHash
 
 	return event, nil
 }

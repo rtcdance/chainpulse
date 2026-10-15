@@ -164,16 +164,16 @@ func TestLagRecorderRecordsEveryPhase(t *testing.T) {
 	}
 }
 
-// TestLagRecorderRejectsImpossibleOrderings: commit lag cannot exceed ingest
-// lag, and finalized lag cannot be below commit lag. Publishing an impossible
-// reading would make the dashboard lie.
+// Finalized lag cannot be below commit lag. Height-source ordering is checked
+// by RecordHeights; the two lag distances need not order relative to each other.
 func TestLagRecorderRejectsImpossibleOrderings(t *testing.T) {
 	t.Parallel()
 
 	rec, err := NewLagRecorder(core.NewDefaultMetricsCollector())
 	require.NoError(t, err)
 
-	require.Error(t, rec.RecordLagSnapshot("ethereum", 10, 20, 30), "commit > ingest is impossible")
+	require.NoError(t, rec.RecordLagSnapshot("ethereum", 10, 20, 30), "commit can trail a caught-up ingest stage")
+	require.Error(t, rec.RecordHeights("ethereum", 10, 20, 5, 0), "observed cannot exceed head")
 	require.Error(t, rec.RecordLagSnapshot("ethereum", 100, 90, 5), "finalized < commit is impossible")
 	require.Error(t, rec.RecordLagSnapshot("", 100, 90, 12), "chain id is required")
 }

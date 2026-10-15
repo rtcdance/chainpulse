@@ -6,6 +6,8 @@ import (
 	"sync"
 	"time"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
 	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"github.com/rtcdance/chainpulse/pkg/core"
 	"github.com/rtcdance/chainpulse/pkg/logkeys"
@@ -33,7 +35,7 @@ type BaseDatabasePlugin struct {
 	initialized      bool
 	running          bool
 	config           *core.Config
-	logger           core.Logger
+	logger           portcontract.Logger
 	metricsCollector core.MetricsCollector
 	lastHealthCheck  *core.HealthStatus
 	writeCount       int64
@@ -49,7 +51,7 @@ type BaseDatabasePlugin struct {
 }
 
 // NewBaseDatabasePlugin creates a new base database plugin
-func NewBaseDatabasePlugin(logger core.Logger, metricsCollector core.MetricsCollector) *BaseDatabasePlugin {
+func NewBaseDatabasePlugin(logger portcontract.Logger, metricsCollector core.MetricsCollector) *BaseDatabasePlugin {
 	return &BaseDatabasePlugin{
 		logger:           logger,
 		metricsCollector: metricsCollector,
@@ -283,7 +285,7 @@ type DefaultInMemoryDatabasePlugin struct {
 }
 
 // NewDefaultInMemoryDatabasePlugin creates a new in-memory database plugin
-func NewDefaultInMemoryDatabasePlugin(logger core.Logger, metricsCollector core.MetricsCollector) *DefaultInMemoryDatabasePlugin {
+func NewDefaultInMemoryDatabasePlugin(logger portcontract.Logger, metricsCollector core.MetricsCollector) *DefaultInMemoryDatabasePlugin {
 	return &DefaultInMemoryDatabasePlugin{
 		BaseDatabasePlugin: NewBaseDatabasePlugin(logger, metricsCollector),
 		events:             make(map[string]*blockchain.BlockchainEvent),
@@ -384,7 +386,7 @@ func (p *DefaultInMemoryDatabasePlugin) WriteBatch(ctx context.Context, events [
 }
 
 // QueryEvents queries events from the database
-func (p *DefaultInMemoryDatabasePlugin) QueryEvents(filter *core.EventFilter) (*core.QueryResult, error) {
+func (p *DefaultInMemoryDatabasePlugin) QueryEvents(filter *core.EventFilter) (*portcontract.QueryResult, error) {
 	if filter == nil {
 		return nil, fmt.Errorf("filter is required")
 	}
@@ -437,7 +439,7 @@ func (p *DefaultInMemoryDatabasePlugin) QueryEvents(filter *core.EventFilter) (*
 	p.mu.RUnlock()
 	p.RecordRead(duration)
 
-	return &core.QueryResult{
+	return &portcontract.QueryResult{
 		Events:       results,
 		Total:        total,
 		CacheHit:     false,
@@ -664,7 +666,7 @@ func (p *DefaultInMemoryDatabasePlugin) MarkEventsAsReorged(ctx context.Context,
 }
 
 // GetReorgStats retrieves reorg statistics
-func (p *DefaultInMemoryDatabasePlugin) GetReorgStats(ctx context.Context) (*core.ReorgStats, error) {
+func (p *DefaultInMemoryDatabasePlugin) GetReorgStats(ctx context.Context) (*portcontract.ReorgStats, error) {
 	p.mu.RLock()
 
 	if !p.running {
@@ -675,5 +677,5 @@ func (p *DefaultInMemoryDatabasePlugin) GetReorgStats(ctx context.Context) (*cor
 	// In-memory implementation returns empty stats
 	p.mu.RUnlock()
 	p.RecordRead(0)
-	return &core.ReorgStats{}, nil
+	return &portcontract.ReorgStats{}, nil
 }

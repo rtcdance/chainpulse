@@ -5,9 +5,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
 
-	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/stretchr/testify/assert"
 )
 
 // MockLogger for testing
@@ -25,7 +25,7 @@ func (ml *MockLogger) Error(msg string, args ...any) { ml.messages = append(ml.m
 
 func (ml *MockLogger) Fatal(msg string, args ...any) { ml.messages = append(ml.messages, msg) }
 
-func (ml *MockLogger) WithCorrelationID(id string) core.Logger {
+func (ml *MockLogger) WithCorrelationID(id string) portcontract.Logger {
 	return ml
 }
 

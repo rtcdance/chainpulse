@@ -53,6 +53,12 @@ type JobStore interface {
 	CompleteJob(ctx context.Context, jobID string) error
 }
 
+// AtomicReorgStore applies the rollback, checkpoint and notification record in
+// one transaction; durable deployments prefer it over the legacy steps.
+type AtomicReorgStore interface {
+	CommitReorg(ctx context.Context, chainID string, fromBlock, toBlock uint64) (int64, error)
+}
+
 // OutboxDrainer publishes owed notifications. The outbox is drained at least
 // once, so a consumer may see a notification twice; job id and generation let
 // it deduplicate.

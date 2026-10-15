@@ -15,7 +15,7 @@ import (
 // MonoMockPluginRegistry for testing
 type MonoMockPluginRegistry struct{}
 
-func (m *MonoMockPluginRegistry) Register(plugin core.Plugin) error {
+func (m *MonoMockPluginRegistry) Register(plugin ports.Plugin) error {
 	return nil
 }
 
@@ -23,12 +23,12 @@ func (m *MonoMockPluginRegistry) Unregister(name string) error {
 	return nil
 }
 
-func (m *MonoMockPluginRegistry) Get(name string) (core.Plugin, error) {
+func (m *MonoMockPluginRegistry) Get(name string) (ports.Plugin, error) {
 	return nil, fmt.Errorf("not found")
 }
 
-func (m *MonoMockPluginRegistry) List() []core.Plugin {
-	return []core.Plugin{}
+func (m *MonoMockPluginRegistry) List() []ports.Plugin {
+	return []ports.Plugin{}
 }
 
 func (m *MonoMockPluginRegistry) Start(ctx context.Context) error {
@@ -87,7 +87,7 @@ func (m *MonoMockLogger) Info(msg string, fields ...any)  {}
 func (m *MonoMockLogger) Warn(msg string, fields ...any)  {}
 func (m *MonoMockLogger) Error(msg string, fields ...any) {}
 func (m *MonoMockLogger) Fatal(msg string, fields ...any) {}
-func (m *MonoMockLogger) WithCorrelationID(id string) core.Logger {
+func (m *MonoMockLogger) WithCorrelationID(id string) ports.Logger {
 	return m
 }
 

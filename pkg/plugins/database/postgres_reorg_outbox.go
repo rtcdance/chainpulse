@@ -300,3 +300,60 @@ func (a *PostgreSQLPluginAdapter) RecordReorgNotificationFailure(ctx context.Con
 	}
 	return nil
 }
+
+// BumpReorgGeneration advances the chain's reorg generation and returns the new
+// value (reorg.GenerationStore).
+//
+// This is the durable generation producer behind the cache fence: one reorg,
+// one bump, atomically. The row is created on first reorg, so a chain that has
+// never reorged reads generation 0 via CurrentReorgGeneration.
+func (a *PostgreSQLPluginAdapter) BumpReorgGeneration(ctx context.Context, chainID string) (int64, error) {
+	if chainID == "" {
+		return 0, fmt.Errorf("chain id is required")
+	}
+
+	a.mu.RLock()
+	db := a.db
+	a.mu.RUnlock()
+	if db == nil {
+		return 0, fmt.Errorf("database not initialized")
+	}
+
+	var generation int64
+	err := db.QueryRowContext(ctx, `
+INSERT INTO reorg_generations (chain_id, generation) VALUES ($1, 1)
+	ON CONFLICT (chain_id)
+	DO UPDATE SET generation = reorg_generations.generation + 1,
+	              updated_at  = now()
+	RETURNING generation`, chainID).Scan(&generation)
+	if err != nil {
+		return 0, fmt.Errorf("failed to bump reorg generation: %w", err)
+	}
+	return generation, nil
+}
+
+// CurrentReorgGeneration returns the generation in force for a chain, 0 when
+// the chain has never reorged. This is how readers observe the fence.
+func (a *PostgreSQLPluginAdapter) CurrentReorgGeneration(ctx context.Context, chainID string) (int64, error) {
+	if chainID == "" {
+		return 0, fmt.Errorf("chain id is required")
+	}
+
+	a.mu.RLock()
+	db := a.db
+	a.mu.RUnlock()
+	if db == nil {
+		return 0, fmt.Errorf("database not initialized")
+	}
+
+	var generation int64
+	err := db.QueryRowContext(ctx,
+		"SELECT generation FROM reorg_generations WHERE chain_id = $1", chainID).Scan(&generation)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, nil
+	}
+	if err != nil {
+		return 0, fmt.Errorf("failed to read reorg generation: %w", err)
+	}
+	return generation, nil
+}

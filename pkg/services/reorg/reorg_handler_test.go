@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"github.com/rtcdance/chainpulse/pkg/core"
@@ -105,8 +107,8 @@ func (m *mockReorgDatabase) GetAllBlocks(_ context.Context) ([]*blockchain.Block
 }
 
 // ReorgStatsProvider
-func (m *mockReorgDatabase) GetReorgStats(_ context.Context) (*core.ReorgStats, error) {
-	return &core.ReorgStats{}, nil
+func (m *mockReorgDatabase) GetReorgStats(_ context.Context) (*portcontract.ReorgStats, error) {
+	return &portcontract.ReorgStats{}, nil
 }
 
 // Plugin interface

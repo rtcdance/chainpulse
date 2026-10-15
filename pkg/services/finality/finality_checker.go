@@ -10,8 +10,9 @@ import (
 	"sync"
 	"time"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
 	"github.com/rtcdance/chainpulse/pkg/chainid"
-	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 // FinalityConfidence says HOW a finality answer was obtained, so a caller never
@@ -103,7 +104,7 @@ type rpcFinalityChecker struct {
 	cacheMu          sync.RWMutex
 	cacheTTL         time.Duration
 	degradedCacheTTL time.Duration // shorter TTL for degraded (unreliable) values
-	logger           core.Logger
+	logger           portcontract.Logger
 }
 
 type cachedFinality struct {
@@ -115,7 +116,7 @@ type cachedFinality struct {
 }
 
 // NewRPCFinalityChecker creates a FinalityChecker that queries RPC nodes.
-func NewRPCFinalityChecker(logger core.Logger) *rpcFinalityChecker {
+func NewRPCFinalityChecker(logger portcontract.Logger) *rpcFinalityChecker {
 	return &rpcFinalityChecker{
 		clients:          make(map[string]*http.Client),
 		nodeURLs:         make(map[string]string),

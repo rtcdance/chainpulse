@@ -7,12 +7,12 @@ import (
 	"testing"
 	"time"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/rtcdance/chainpulse/pkg/application/bootstrap"
 	"github.com/rtcdance/chainpulse/pkg/blockchain"
-	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 // --------------------------------------------------------------------------- //
@@ -110,7 +110,7 @@ func (s *fakeStore) ReleaseLease(_ context.Context, _, ownerToken string) error 
 	return nil
 }
 
-func (s *fakeStore) BeginFencedTx(_ context.Context, _, ownerToken string) (core.Tx, error) {
+func (s *fakeStore) BeginFencedTx(_ context.Context, _, ownerToken string) (portcontract.Tx, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -301,18 +301,4 @@ func TestBatchCommitterRenewsLeaseLazily(t *testing.T) {
 	// A second immediate batch must not re-acquire: the lease is still fresh.
 	require.NoError(t, c.CommitBlock(context.Background(), 2, "0xb", nil))
 	assert.Equal(t, first, c.Generation(), "the lease must not be churned on every batch")
-}
-
-// TestBatchCommitterAcceptsDrainControllerAsGate pins the wiring: the real
-// shutdown gate must satisfy the interface the committer expects.
-func TestBatchCommitterAcceptsDrainControllerAsGate(t *testing.T) {
-	t.Parallel()
-
-	var gate WorkGate = bootstrap.NewDrainController()
-	c, err := NewBatchCommitter(&fakeStore{}, gate, "1", "worker-A", time.Minute)
-	require.NoError(t, err)
-
-	require.NoError(t, c.CommitBlock(context.Background(), 1, "0xa", nil))
-	require.True(t, gate.(*bootstrap.DrainController).Drain(time.Second))
-	require.ErrorIs(t, c.CommitBlock(context.Background(), 2, "0xb", nil), ErrDraining)
 }

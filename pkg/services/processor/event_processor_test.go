@@ -6,6 +6,8 @@ import (
 	"sync"
 	"testing"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/rtcdance/chainpulse/pkg/blockchain"
@@ -36,10 +38,10 @@ func (m *mockStorage) DeleteEvent(_ context.Context, eventID string) error {
 type mockCacheWriter struct {
 	setErr  error
 	mu      sync.Mutex
-	entries []*core.CacheEntry
+	entries []*portcontract.CacheEntry
 }
 
-func (m *mockCacheWriter) Set(entry *core.CacheEntry) error {
+func (m *mockCacheWriter) Set(entry *portcontract.CacheEntry) error {
 	m.mu.Lock()
 	m.entries = append(m.entries, entry)
 	m.mu.Unlock()

@@ -7,6 +7,8 @@ import (
 	"sync"
 	"time"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
 	"github.com/rtcdance/chainpulse/pkg/core"
 	"go.opentelemetry.io/otel"
 	otelattribute "go.opentelemetry.io/otel/attribute"
@@ -133,10 +135,20 @@ type DefaultTracer struct {
 	activeSpans      map[string]*activeSpanState
 	traceIDCounter   uint64
 	spanIDCounter    uint64
-	logger           core.Logger
+	logger           portcontract.Logger
 	metricsCollector core.MetricsCollector
 	otelProvider     *sdktrace.TracerProvider
 	otelTracer       oteltrace.Tracer
+}
+
+// NewSharedTracer uses the process provider configured by the composition
+// root. Components do not allocate exporters or own provider shutdown.
+func NewSharedTracer(logger portcontract.Logger, metrics core.MetricsCollector) *DefaultTracer {
+	return &DefaultTracer{
+		spans: make([]Span, 0), maxSpans: 10000, activeSpans: make(map[string]*activeSpanState),
+		traceIDCounter: 1, spanIDCounter: 1, logger: logger, metricsCollector: metrics,
+		otelTracer: otel.Tracer("github.com/rtcdance/chainpulse/pkg.observability"),
+	}
 }
 
 // NewDefaultTracer creates a new tracer.
@@ -146,7 +158,7 @@ type DefaultTracer struct {
 // new TracerProvider and calls otel.SetTracerProvider, which overwrites the
 // global state and breaks trace correlation between components.
 // Will be removed in a future release.
-func NewDefaultTracer(logger core.Logger, metrics core.MetricsCollector) *DefaultTracer {
+func NewDefaultTracer(logger portcontract.Logger, metrics core.MetricsCollector) *DefaultTracer {
 	res := sdkresource.NewWithAttributes(
 		"",
 		otelattribute.String("service.name", "chainpulse"),
@@ -238,7 +250,7 @@ func (t *DefaultTracer) StartSpan(ctx context.Context, name string, kind SpanKin
 	}
 
 	spanID := spanCtx.SpanID().String()
-	if spanID == "" {
+	if spanID == "" || spanCtx.SpanID() == (oteltrace.SpanID{}) {
 		spanID = t.generateSpanID()
 	}
 

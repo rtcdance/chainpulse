@@ -23,6 +23,7 @@ type QueryRequest struct {
 	Filter     map[string]any
 	Limit      int64
 	Offset     int64
+	Cursor     string
 	CacheKey   string
 	CacheTTL   time.Duration
 	Sort       map[string]int
@@ -35,6 +36,8 @@ type QueryResult struct {
 	CacheHit     bool
 	ResponseTime int64
 	Source       string
+	NextCursor   string
+	Cursors      []string
 }
 
 // ReorgStats tracks reorg statistics

@@ -1,10 +1,22 @@
 package pullers
 
 import (
+	"context"
 	"errors"
+	"fmt"
 	"math"
 	"testing"
+
+	"github.com/rtcdance/chainpulse/pkg/core"
 )
+
+type stubRPCCodedError struct {
+	code int
+	msg  string
+}
+
+func (e *stubRPCCodedError) Error() string  { return e.msg }
+func (e *stubRPCCodedError) ErrorCode() int { return e.code }
 
 func TestClassifyError(t *testing.T) {
 	t.Parallel()
@@ -34,6 +46,26 @@ func TestClassifyError(t *testing.T) {
 		{"invalid_param", errors.New("invalid param"), false, "non_retryable"},
 		{"unknown_method", errors.New("unknown method"), false, "non_retryable"},
 		{"default_retryable", errors.New("some random error"), true, "unknown"},
+
+		{"rpceerr_429", &core.RPCErr{StatusCode: 429}, true, "rate_limit"},
+		{"rpceerr_408", &core.RPCErr{StatusCode: 408}, true, "timeout"},
+		{"rpceerr_500", &core.RPCErr{StatusCode: 500}, true, "server_error"},
+		{"rpceerr_503", &core.RPCErr{StatusCode: 503}, true, "server_error"},
+		{"rpceerr_401", &core.RPCErr{StatusCode: 401}, false, "non_retryable"},
+		{"rpceerr_403", &core.RPCErr{StatusCode: 403}, false, "non_retryable"},
+		{"rpceerr_wrapped", fmt.Errorf("eth_getLogs failed: %w", &core.RPCErr{StatusCode: 502}), true, "server_error"},
+
+		{"jsonrpc_invalid_request", &stubRPCCodedError{code: -32600, msg: "invalid request"}, false, "non_retryable"},
+		{"jsonrpc_method_not_found", &stubRPCCodedError{code: -32601, msg: "the method does not exist"}, false, "non_retryable"},
+		{"jsonrpc_invalid_params", &stubRPCCodedError{code: -32602, msg: "invalid params"}, false, "non_retryable"},
+		{"jsonrpc_limit_exceeded", &stubRPCCodedError{code: -32005, msg: "query returned more than 10000 results"}, true, "rate_limit"},
+		{"jsonrpc_server_error", &stubRPCCodedError{code: -32000, msg: "server error"}, true, "server_error"},
+
+		{"range_too_wide", &ErrRangeTooWide{From: 1, To: 1000, Reason: "result count reached the provider limit"}, false, "non_retryable"},
+		{"range_too_wide_wrapped", fmt.Errorf("fetch chunk: %w", &ErrRangeTooWide{From: 1, To: 1000, Reason: "too wide"}), false, "non_retryable"},
+
+		{"deadline_is", context.DeadlineExceeded, true, "timeout"},
+		{"deadline_wrapped", fmt.Errorf("fetch logs: %w", context.DeadlineExceeded), true, "timeout"},
 	}
 
 	for _, tc := range tests {

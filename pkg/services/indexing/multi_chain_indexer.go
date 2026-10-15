@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"sync"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
 	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"github.com/rtcdance/chainpulse/pkg/core"
 	"golang.org/x/sync/errgroup"
@@ -22,7 +24,7 @@ type ReorgConfirmationChecker interface {
 type MultiChainIndexer struct {
 	indexers map[string]ChainIndexer
 	mu       sync.RWMutex
-	logger   core.Logger
+	logger   portcontract.Logger
 	config   core.ConfigManager
 
 	reorgHandler ReorgConfirmationChecker
@@ -62,7 +64,7 @@ type ChainIndexer interface {
 }
 
 // NewMultiChainIndexer creates a new multi-chain indexer
-func NewMultiChainIndexer(logger core.Logger, config core.ConfigManager) *MultiChainIndexer {
+func NewMultiChainIndexer(logger portcontract.Logger, config core.ConfigManager) *MultiChainIndexer {
 	return &MultiChainIndexer{
 		indexers: make(map[string]ChainIndexer),
 		logger:   logger,
@@ -181,8 +183,9 @@ func (mci *MultiChainIndexer) IndexEventsFromAllChains(
 		}
 	}
 
-	// Index from all chains in parallel using errgroup
+	// Index from all chains in parallel, bounded by the configured worker pool.
 	g, gCtx := errgroup.WithContext(ctx)
+	g.SetLimit(mci.maxConcurrency())
 
 	for chainID, events := range eventsByChain {
 		cID, evts := chainID, events
@@ -196,6 +199,19 @@ func (mci *MultiChainIndexer) IndexEventsFromAllChains(
 	}
 
 	return nil
+}
+
+// maxConcurrency reads "worker_pool_size" through ConfigManager, falling back
+// to the core default when the config is unavailable or not an int.
+func (mci *MultiChainIndexer) maxConcurrency() int {
+	if mci.config != nil {
+		if raw, err := mci.config.Get("worker_pool_size"); err == nil {
+			if n, ok := raw.(int); ok && n > 0 {
+				return n
+			}
+		}
+	}
+	return core.DefaultWorkerPoolSize
 }
 
 // GetChainIndexer retrieves an indexer for a specific chain

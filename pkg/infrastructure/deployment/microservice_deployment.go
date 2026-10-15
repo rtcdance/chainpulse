@@ -6,6 +6,8 @@ import (
 	"sync"
 	"time"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
 	"github.com/rtcdance/chainpulse/pkg/core"
 	"github.com/rtcdance/chainpulse/pkg/logkeys"
 )
@@ -13,13 +15,13 @@ import (
 // MicroserviceDeployment represents a microservice deployment mode where services run independently
 type MicroserviceDeployment struct {
 	config             core.Config
-	registry           core.PluginRegistry
+	registry           portcontract.PluginRegistry
 	configManager      core.ConfigManager
-	eventBus           core.EventBus
-	logger             core.Logger
+	eventBus           portcontract.EventBus
+	logger             portcontract.Logger
 	metricsCollector   core.MetricsCollector
 	healthChecker      core.HealthChecker
-	mqPlugin           core.MQPlugin
+	mqPlugin           portcontract.MQPlugin
 	mu                 sync.RWMutex
 	isRunning          bool
 	shutdownChan       chan struct{}
@@ -37,13 +39,13 @@ type MicroserviceDeployment struct {
 // NewMicroserviceDeployment creates a new microservice deployment
 func NewMicroserviceDeployment(
 	config core.Config,
-	registry core.PluginRegistry,
+	registry portcontract.PluginRegistry,
 	configManager core.ConfigManager,
-	eventBus core.EventBus,
-	logger core.Logger,
+	eventBus portcontract.EventBus,
+	logger portcontract.Logger,
 	metricsCollector core.MetricsCollector,
 	healthChecker core.HealthChecker,
-	mqPlugin core.MQPlugin,
+	mqPlugin portcontract.MQPlugin,
 ) *MicroserviceDeployment {
 	return &MicroserviceDeployment{
 		config:            config,

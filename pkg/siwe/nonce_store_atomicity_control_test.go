@@ -1,7 +1,6 @@
 package siwe
 
 import (
-	"runtime"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -37,19 +36,15 @@ func (l *legacyNonceMap) remove(n string) { l.mu.Lock(); delete(l.m, n); l.mu.Un
 // nonce, do the verification work, then delete it — and asserts that more than
 // one caller gets through. That is what makes the one-winner tests meaningful:
 // they are not passing because the race is hard to hit, they are passing because
-// Consume removes it. Measured on an 8-core host this yields 10 winners, i.e.
-// one per P: each goroutine runs the whole window before the scheduler
-// preempts it.
+// Consume removes it. A barrier after the check forces a legal interleaving
+// in which every caller sees the nonce before any caller removes it. This
+// counterexample is deterministic even with a single scheduler P.
 //
 // The old shape is modelled locally rather than imported, because the fix was to
 // delete it: the check cannot be expressed against siwe.NonceStore, whose
 // Consume has no separate "check" step to call.
 func TestCheckThenActNonceAdmitsManyWinners(t *testing.T) {
 	t.Parallel()
-
-	if runtime.GOMAXPROCS(0) < 2 {
-		t.Skip("needs at least 2 Ps for the check and the act to interleave")
-	}
 
 	const attempts = 100
 
@@ -66,20 +61,18 @@ func TestCheckThenActNonceAdmitsManyWinners(t *testing.T) {
 	legacy := &legacyNonceMap{m: make(map[string]struct{})}
 	legacy.put("nonce")
 
-	var winners, resident int64
+	var winners int64
 	var wg sync.WaitGroup
-	// Spin until every goroutine is resident, so this is a real race and not
-	// just "the first goroutine finished before the others were scheduled".
+	checked := make(chan bool, attempts)
+	act := make(chan struct{})
 	for i := 0; i < attempts; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			atomic.AddInt64(&resident, 1)
-			for atomic.LoadInt64(&resident) < attempts {
-				runtime.Gosched()
-			}
-
-			if !legacy.existed("nonce") { // check
+			existed := legacy.existed("nonce")
+			checked <- existed
+			<-act
+			if !existed { // check
 				return
 			}
 			if _, err := corecrypto.RecoverAddress(message, signature); err != nil {
@@ -89,9 +82,19 @@ func TestCheckThenActNonceAdmitsManyWinners(t *testing.T) {
 			atomic.AddInt64(&winners, 1)
 		}()
 	}
+	checks := 0
+	for range attempts {
+		if <-checked {
+			checks++
+		}
+	}
+	close(act)
 	wg.Wait()
+	if checks != attempts {
+		t.Fatalf("controlled check phase saw %d nonces, want %d", checks, attempts)
+	}
 
-	if got := atomic.LoadInt64(&winners); got < 2 {
+	if got := atomic.LoadInt64(&winners); got != attempts {
 		t.Fatalf("check-then-act admitted only %d winner(s); "+
 			"the one-winner tests would then pass against the unsafe shape too", got)
 	}

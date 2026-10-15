@@ -4,6 +4,8 @@ import (
 	"context"
 	"sync"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
 	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"github.com/rtcdance/chainpulse/pkg/core"
 )
@@ -197,6 +199,6 @@ func (m *MockDB) MarkEventsAsReorged(ctx context.Context, fromBlock, toBlock uin
 	return count, nil
 }
 
-func (m *MockDB) GetReorgStats(ctx context.Context) (*core.ReorgStats, error) {
-	return &core.ReorgStats{}, nil
+func (m *MockDB) GetReorgStats(ctx context.Context) (*portcontract.ReorgStats, error) {
+	return &portcontract.ReorgStats{}, nil
 }

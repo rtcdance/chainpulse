@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"github.com/rtcdance/chainpulse/pkg/core"
@@ -42,7 +44,7 @@ func (m *benchMockDB) GetEventsByBlockRange(_ context.Context, _, _ uint64) ([]*
 func (m *benchMockDB) GetLatestBlock(_ context.Context) (uint64, error)            { return 0, nil }
 func (m *benchMockDB) GetAllBlocks(_ context.Context) ([]*blockchain.Block, error) { return nil, nil }
 
-func (m *benchMockDB) GetReorgStats(_ context.Context) (*core.ReorgStats, error) {
+func (m *benchMockDB) GetReorgStats(_ context.Context) (*portcontract.ReorgStats, error) {
 	return nil, nil
 }
 func (m *benchMockDB) StoreEvent(_ context.Context, _ any) error         { return nil }
@@ -56,15 +58,15 @@ func (m *benchMockDB) MarkEventsAsReorged(_ context.Context, _, _ uint64) (int64
 	return 0, nil
 }
 
-// benchMockLogger stubs core.Logger
+// benchMockLogger stubs portcontract.Logger
 type benchMockLogger struct{}
 
-func (l *benchMockLogger) Debug(_ string, _ ...any)               {}
-func (l *benchMockLogger) Info(_ string, _ ...any)                {}
-func (l *benchMockLogger) Warn(_ string, _ ...any)                {}
-func (l *benchMockLogger) Error(_ string, _ ...any)               {}
-func (l *benchMockLogger) Fatal(_ string, _ ...any)               {}
-func (l *benchMockLogger) WithCorrelationID(_ string) core.Logger { return l }
+func (l *benchMockLogger) Debug(_ string, _ ...any)                       {}
+func (l *benchMockLogger) Info(_ string, _ ...any)                        {}
+func (l *benchMockLogger) Warn(_ string, _ ...any)                        {}
+func (l *benchMockLogger) Error(_ string, _ ...any)                       {}
+func (l *benchMockLogger) Fatal(_ string, _ ...any)                       {}
+func (l *benchMockLogger) WithCorrelationID(_ string) portcontract.Logger { return l }
 
 // BenchmarkBinarySearchReorg measures the performance of binary search reorg detection.
 // With 1000 blocks, binary search should complete in ~10 iterations (log2(1000)).

@@ -11,6 +11,8 @@ import (
 	"sync"
 	"time"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
 	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"github.com/rtcdance/chainpulse/pkg/core"
 	sharedhttp "github.com/rtcdance/chainpulse/pkg/infrastructure/http"
@@ -101,7 +103,7 @@ type SolanaPuller struct {
 }
 
 // NewSolanaPuller creates a new Solana puller
-func NewSolanaPuller(config core.Config, logger core.Logger, metrics core.MetricsCollector, eventBus core.EventBus) *SolanaPuller {
+func NewSolanaPuller(config core.Config, logger portcontract.Logger, metrics core.MetricsCollector, eventBus portcontract.EventBus) *SolanaPuller {
 	base := NewBaseDataPullerPlugin("solana", "1.0.0", config, logger, metrics, eventBus)
 
 	return &SolanaPuller{

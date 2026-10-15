@@ -4,7 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/rtcdance/chainpulse/pkg/core"
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
 	"github.com/rtcdance/chainpulse/pkg/logkeys"
 )
 
@@ -41,7 +42,7 @@ type Repair struct {
 	events      EventRollerBacker
 	checkpoints CheckpointRewinder
 	derived     DerivedStateInvalidator
-	logger      core.Logger
+	logger      portcontract.Logger
 }
 
 // NewRepair creates the repair runner.
@@ -50,7 +51,7 @@ func NewRepair(
 	events EventRollerBacker,
 	checkpoints CheckpointRewinder,
 	derived DerivedStateInvalidator,
-	logger core.Logger,
+	logger portcontract.Logger,
 ) (*Repair, error) {
 	if jobs == nil {
 		return nil, fmt.Errorf("job store is required")

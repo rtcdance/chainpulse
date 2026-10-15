@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"sync"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
 	"github.com/rtcdance/chainpulse/pkg/core"
 
 	"go.opentelemetry.io/otel"
@@ -38,7 +40,7 @@ type ObservabilityConfig struct {
 // NewObservabilityProvider creates a shared observability provider with a single
 // TracerProvider. If no OTLP endpoint is configured, it creates a no-export provider
 // (spans are recorded but not exported).
-func NewObservabilityProvider(cfg ObservabilityConfig, logger core.Logger) (*ObservabilityProvider, error) {
+func NewObservabilityProvider(cfg ObservabilityConfig, logger portcontract.Logger) (*ObservabilityProvider, error) {
 	if cfg.ServiceName == "" {
 		cfg.ServiceName = os.Getenv("OTEL_SERVICE_NAME")
 		if cfg.ServiceName == "" {
@@ -135,7 +137,7 @@ func (op *ObservabilityProvider) TracerProvider() *sdktrace.TracerProvider {
 
 // NewDefaultTracerWithProvider creates a DefaultTracer using the shared
 // ObservabilityProvider instead of creating a new TracerProvider.
-func NewDefaultTracerWithProvider(provider *ObservabilityProvider, logger core.Logger, metrics core.MetricsCollector) *DefaultTracer {
+func NewDefaultTracerWithProvider(provider *ObservabilityProvider, logger portcontract.Logger, metrics core.MetricsCollector) *DefaultTracer {
 	if provider == nil {
 		// Fallback to legacy behavior if no provider is given
 		return NewDefaultTracer(logger, metrics)

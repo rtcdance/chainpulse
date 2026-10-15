@@ -8,6 +8,6 @@
 // Type aliases in pkg/core/ are maintained for backward compatibility only.
 // New code MUST import this package directly.
 //
-// Deprecated: pkg/core provides type aliases that shadow these definitions.
-// These aliases will be removed in a future major version.
+// Migration note: pkg/core provides compatibility aliases for these definitions.
+// Those aliases are deprecated; this package owns the interfaces.
 package ports

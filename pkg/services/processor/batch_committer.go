@@ -7,8 +7,9 @@ import (
 	"sync"
 	"time"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
 	"github.com/rtcdance/chainpulse/pkg/blockchain"
-	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 // ErrDraining is returned when a batch is offered while the process is shutting
@@ -29,7 +30,7 @@ type WorkGate interface {
 type FencedStore interface {
 	AcquireLease(ctx context.Context, chainID, ownerToken string, ttl time.Duration) (int64, error)
 	ReleaseLease(ctx context.Context, chainID, ownerToken string) error
-	BeginFencedTx(ctx context.Context, chainID, ownerToken string) (core.Tx, error)
+	BeginFencedTx(ctx context.Context, chainID, ownerToken string) (portcontract.Tx, error)
 }
 
 // BatchCommitter commits one block's events together with the checkpoint
@@ -54,9 +55,10 @@ type BatchCommitter struct {
 	ownerToken string
 	leaseTTL   time.Duration
 
-	mu         sync.Mutex
-	generation int64
-	acquiredAt time.Time
+	mu            sync.Mutex
+	generation    int64
+	acquiredAt    time.Time
+	validateBlock func(context.Context, *blockchain.Block) error
 }
 
 // NewBatchCommitter creates a committer for one chain and owner.
@@ -83,6 +85,14 @@ func NewBatchCommitter(store FencedStore, gate WorkGate, chainID, ownerToken str
 		ownerToken: ownerToken,
 		leaseTTL:   leaseTTL,
 	}, nil
+}
+
+// SetBlockValidator installs the canonical check performed while the fenced
+// transaction owns the chain lease, before it writes any effects.
+func (c *BatchCommitter) SetBlockValidator(validate func(context.Context, *blockchain.Block) error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.validateBlock = validate
 }
 
 // EnsureLease acquires the chain lease, or renews it once half the TTL has
@@ -116,9 +126,27 @@ func (c *BatchCommitter) Generation() int64 {
 // instead of waiting for the TTL.
 func (c *BatchCommitter) Release(ctx context.Context) error {
 	c.mu.Lock()
+	defer c.mu.Unlock()
 	c.generation = 0
-	c.mu.Unlock()
+	c.acquiredAt = time.Time{}
 	return c.store.ReleaseLease(ctx, c.chainID, c.ownerToken)
+}
+
+// RotateOwner runs after the old generation has drained. A distinct token
+// prevents a delayed old task from borrowing the new generation's ownership.
+func (c *BatchCommitter) RotateOwner(ctx context.Context, ownerToken string) error {
+	if ownerToken == "" {
+		return fmt.Errorf("new lease owner is required")
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if err := c.store.ReleaseLease(ctx, c.chainID, c.ownerToken); err != nil {
+		return fmt.Errorf("release previous generation: %w", err)
+	}
+	c.ownerToken = ownerToken
+	c.generation = 0
+	c.acquiredAt = time.Time{}
+	return nil
 }
 
 // CommitBlock atomically persists `events` and advances the chain checkpoint to
@@ -129,6 +157,27 @@ func (c *BatchCommitter) Release(ctx context.Context) error {
 // height forever. Duplicate suppression is the database's job (the natural-key
 // unique constraint plus ON CONFLICT DO NOTHING), not a pre-check here.
 func (c *BatchCommitter) CommitBlock(ctx context.Context, blockNumber uint64, blockHash string, events []*blockchain.BlockchainEvent) error {
+	return c.commit(ctx, blockNumber, blockHash, events, nil)
+}
+
+// CommitCompleteBlock also commits the canonical parent and timestamp in the
+// same transaction. A writer that cannot store full headers is rejected.
+func (c *BatchCommitter) CommitCompleteBlock(ctx context.Context, block *blockchain.Block, events []*blockchain.BlockchainEvent) error {
+	if block == nil {
+		return fmt.Errorf("complete block is required")
+	}
+	for _, event := range events {
+		if event == nil || event.ChainID != c.chainID || event.BlockNumber != block.Number || event.BlockHash != block.Hash || event.Removed {
+			return fmt.Errorf("event does not belong to complete block for chain %s", c.chainID)
+		}
+	}
+	return c.commit(ctx, block.Number, block.Hash.Hex(), events, block)
+}
+
+func (c *BatchCommitter) commit(ctx context.Context, blockNumber uint64, blockHash string, events []*blockchain.BlockchainEvent, block *blockchain.Block) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	if c.gate != nil {
 		if !c.gate.Begin() {
 			return ErrDraining
@@ -140,12 +189,29 @@ func (c *BatchCommitter) CommitBlock(ctx context.Context, blockNumber uint64, bl
 		return err
 	}
 
-	tx, err := c.store.BeginFencedTx(ctx, c.chainID, c.ownerToken)
+	c.mu.Lock()
+	owner := c.ownerToken
+	c.mu.Unlock()
+	tx, err := c.store.BeginFencedTx(ctx, c.chainID, owner)
 	if err != nil {
+		// A reorg or rebalance may revoke a still-cached lease. Revalidate on
+		// the next attempt rather than staying wedged until half its TTL.
+		c.mu.Lock()
+		c.acquiredAt = time.Time{}
+		c.mu.Unlock()
 		return fmt.Errorf("begin fenced transaction for chain %s: %w", c.chainID, err)
 	}
 	// No-op once Commit has run.
 	defer func() { _ = tx.Rollback(ctx) }()
+
+	c.mu.Lock()
+	validate := c.validateBlock
+	c.mu.Unlock()
+	if block != nil && validate != nil {
+		if err := validate(ctx, block); err != nil {
+			return fmt.Errorf("validate fenced canonical block: %w", err)
+		}
+	}
 
 	for i, event := range events {
 		if event == nil {
@@ -158,6 +224,17 @@ func (c *BatchCommitter) CommitBlock(ctx context.Context, blockNumber uint64, bl
 
 	if err := tx.SaveCheckpoint(ctx, c.chainID, blockNumber, blockHash); err != nil {
 		return fmt.Errorf("save checkpoint at block %d: %w", blockNumber, err)
+	}
+	if block != nil {
+		writer, ok := tx.(interface {
+			StoreBlock(context.Context, string, *blockchain.Block) error
+		})
+		if !ok {
+			return fmt.Errorf("transaction cannot persist a complete block header")
+		}
+		if err := writer.StoreBlock(ctx, c.chainID, block); err != nil {
+			return fmt.Errorf("store complete block header: %w", err)
+		}
 	}
 
 	if err := tx.Commit(ctx); err != nil {

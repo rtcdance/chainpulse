@@ -9,8 +9,10 @@ import (
 	"sync"
 	"time"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
 	"github.com/ethereum/go-ethereum/common"
-	_ "github.com/lib/pq" // PostgreSQL driver for database/sql
+	"github.com/lib/pq" // PostgreSQL driver and parameterized arrays
 	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"github.com/rtcdance/chainpulse/pkg/core"
 	"github.com/rtcdance/chainpulse/pkg/logkeys"
@@ -19,14 +21,17 @@ import (
 // insertEventSQL is the single INSERT shared by WriteEvent / WriteEvents /
 // WriteBatch, so the column list cannot drift between the three paths.
 const insertEventSQL = `
-INSERT INTO blockchain_events (id, chain_id, block_number, block_hash, transaction_hash, log_index, contract_address, event_name, event_data, timestamp, status, correlation_id)
-	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+INSERT INTO blockchain_events (id, chain_id, block_number, block_hash, transaction_hash, log_index, contract_address, event_name, event_data, timestamp, status, correlation_id, event_state)
+	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::text, $12,
+	 jsonb_build_object('canonicality',CASE WHEN $11::text='reorged' THEN 'orphaned' ELSE 'canonical' END,
+	 'processing',CASE WHEN $13::boolean THEN 'processed' WHEN $11::text IN ('confirmed','finalized') THEN 'processed' WHEN $11::text='failed' THEN 'failed' ELSE 'pending' END,
+	 'finality',jsonb_build_object('state','unknown','confidence','unknown','source','unknown')))
 	ON CONFLICT (chain_id, block_hash, transaction_hash, log_index) DO NOTHING
 	`
 
 // selectEventColumns is the column list every event read path selects, in the
 // order the scan code expects.
-const selectEventColumns = `id, chain_id, block_number, block_hash, transaction_hash, log_index, contract_address, event_name, event_data, timestamp, status, correlation_id`
+const selectEventColumns = `id, chain_id, block_number, block_hash, transaction_hash, log_index, contract_address, event_name, event_data, timestamp, status, correlation_id, event_state`
 
 // eventStatus returns the value for the NOT NULL `status` column. An unset
 // status maps to "pending", matching the column default.
@@ -57,13 +62,14 @@ func scanEvent(s eventScanner) (*blockchain.BlockchainEvent, error) {
 		event                              blockchain.BlockchainEvent
 		blockHash, txHash, contractAddress string
 		eventData                          []byte
+		eventState                         []byte
 		status                             string
 		correlationID                      sql.NullString
 	)
 	if err := s.Scan(
 		&event.ID, &event.ChainID, &event.BlockNumber, &blockHash, &txHash,
 		&event.LogIndex, &contractAddress, &event.EventName, &eventData,
-		&event.BlockTimestamp, &status, &correlationID,
+		&event.BlockTimestamp, &status, &correlationID, &eventState,
 	); err != nil {
 		return nil, err
 	}
@@ -71,8 +77,13 @@ func scanEvent(s eventScanner) (*blockchain.BlockchainEvent, error) {
 	event.BlockHash = common.HexToHash(blockHash)
 	event.TransactionHash = common.HexToHash(txHash)
 	event.ContractAddress = common.HexToAddress(contractAddress)
-	event.EventData = eventDataFromJSON(eventData)
+	if err := restoreEventPayload(eventData, &event); err != nil {
+		return nil, err
+	}
 	event.Status = blockchain.EventStatus(status)
+	if err := json.Unmarshal(eventState, &event.State); err != nil {
+		return nil, fmt.Errorf("decode independent event state: %w", err)
+	}
 	if correlationID.Valid {
 		event.CorrelationID = correlationID.String
 	}
@@ -92,21 +103,7 @@ func eventPK(event *blockchain.BlockchainEvent) string {
 	return event.EventHash
 }
 
-// eventDataJSON converts raw event-data bytes into a value the `event_data`
-// jsonb column accepts: SQL NULL when empty, otherwise a JSON-encoded string.
-// Reading it back with eventDataFromJSON restores the original bytes.
-func eventDataJSON(data []byte) any {
-	if len(data) == 0 {
-		return nil
-	}
-	encoded, err := json.Marshal(string(data))
-	if err != nil {
-		return nil
-	}
-	return string(encoded)
-}
-
-// eventDataFromJSON is the inverse of eventDataJSON.
+// eventDataFromJSON reads legacy string-only rows during schema upgrade.
 func eventDataFromJSON(stored []byte) []byte {
 	if len(stored) == 0 {
 		return nil
@@ -132,17 +129,14 @@ type PostgreSQLDatabase struct {
 	maxConnections int
 	queryTimeout   time.Duration
 	mu             sync.RWMutex
-	events         map[string]*blockchain.BlockchainEvent // in-memory cache for testing
-	eventsMu       sync.RWMutex
 }
 
 // NewPostgreSQLDatabase creates a new PostgreSQL database plugin
-func NewPostgreSQLDatabase(logger core.Logger, metricsCollector core.MetricsCollector) *PostgreSQLDatabase {
+func NewPostgreSQLDatabase(logger portcontract.Logger, metricsCollector core.MetricsCollector) *PostgreSQLDatabase {
 	return &PostgreSQLDatabase{
 		BaseDatabasePlugin: NewBaseDatabasePlugin(logger, metricsCollector),
 		maxConnections:     defaultPostgresMaxConnections,
 		queryTimeout:       defaultPostgresQueryTimeout,
-		events:             make(map[string]*blockchain.BlockchainEvent),
 	}
 }
 
@@ -267,8 +261,12 @@ func (p *PostgreSQLDatabase) WriteEvent(ctx context.Context, event *blockchain.B
 	defer cancel()
 
 	insertSQL := insertEventSQL
+	payload, err := eventPayloadJSON(event)
+	if err != nil {
+		return err
+	}
 
-	_, err := db.ExecContext(
+	_, err = db.ExecContext(
 		ctx, insertSQL,
 		eventPK(event),
 		event.ChainID,
@@ -278,10 +276,11 @@ func (p *PostgreSQLDatabase) WriteEvent(ctx context.Context, event *blockchain.B
 		event.LogIndex,
 		event.ContractAddress.Hex(),
 		event.EventName,
-		eventDataJSON(event.EventData),
+		payload,
 		event.BlockTimestamp,
 		eventStatus(event),
 		nullableString(event.CorrelationID),
+		false,
 	)
 
 	duration := time.Since(start).Milliseconds()
@@ -293,11 +292,6 @@ func (p *PostgreSQLDatabase) WriteEvent(ctx context.Context, event *blockchain.B
 	}
 
 	p.RecordWrite(duration)
-
-	// Update in-memory cache
-	p.eventsMu.Lock()
-	p.events[event.EventHash] = event
-	p.eventsMu.Unlock()
 
 	// Update event count
 	p.updateEventCount()
@@ -395,7 +389,12 @@ func (p *PostgreSQLDatabase) WriteEvents(ctx context.Context, events []blockchai
 	}()
 
 	for _, event := range events {
-		_, err := stmt.ExecContext(
+		payload, err := eventPayloadJSON(&event)
+		if err != nil {
+			_ = tx.Rollback()
+			return err
+		}
+		_, err = stmt.ExecContext(
 			ctx,
 			eventPK(&event),
 			event.ChainID,
@@ -405,10 +404,11 @@ func (p *PostgreSQLDatabase) WriteEvents(ctx context.Context, events []blockchai
 			event.LogIndex,
 			event.ContractAddress.Hex(),
 			event.EventName,
-			eventDataJSON(event.EventData),
+			payload,
 			event.BlockTimestamp,
 			eventStatus(&event),
 			nullableString(event.CorrelationID),
+			false,
 		)
 		if err != nil {
 			if rbErr := tx.Rollback(); rbErr != nil {
@@ -419,10 +419,6 @@ func (p *PostgreSQLDatabase) WriteEvents(ctx context.Context, events []blockchai
 			return fmt.Errorf("failed to write event in batch: %w", err)
 		}
 
-		// Update in-memory cache
-		p.eventsMu.Lock()
-		p.events[event.EventHash] = &event
-		p.eventsMu.Unlock()
 	}
 
 	if err := tx.Commit(); err != nil {
@@ -485,7 +481,12 @@ func (p *PostgreSQLDatabase) WriteBatch(ctx context.Context, events []*blockchai
 		if event == nil {
 			continue
 		}
-		_, err := stmt.ExecContext(
+		payload, err := eventPayloadJSON(event)
+		if err != nil {
+			_ = tx.Rollback()
+			return err
+		}
+		_, err = stmt.ExecContext(
 			ctx,
 			eventPK(event),
 			event.ChainID,
@@ -495,10 +496,11 @@ func (p *PostgreSQLDatabase) WriteBatch(ctx context.Context, events []*blockchai
 			event.LogIndex,
 			event.ContractAddress.Hex(),
 			event.EventName,
-			eventDataJSON(event.EventData),
+			payload,
 			event.BlockTimestamp,
 			eventStatus(event),
 			nullableString(event.CorrelationID),
+			false,
 		)
 		if err != nil {
 			if rbErr := tx.Rollback(); rbErr != nil {
@@ -509,9 +511,6 @@ func (p *PostgreSQLDatabase) WriteBatch(ctx context.Context, events []*blockchai
 			return fmt.Errorf("failed to write event in batch: %w", err)
 		}
 
-		p.eventsMu.Lock()
-		p.events[event.EventHash] = event
-		p.eventsMu.Unlock()
 	}
 
 	if err := tx.Commit(); err != nil {
@@ -527,7 +526,12 @@ func (p *PostgreSQLDatabase) WriteBatch(ctx context.Context, events []*blockchai
 }
 
 // QueryEvents queries events from the database
-func (p *PostgreSQLDatabase) QueryEvents(filter *core.EventFilter) (*core.QueryResult, error) {
+func (p *PostgreSQLDatabase) QueryEvents(filter *core.EventFilter) (*portcontract.QueryResult, error) {
+	return p.QueryEventsContext(context.Background(), filter)
+}
+
+// QueryEventsContext preserves cancellation across the database boundary.
+func (p *PostgreSQLDatabase) QueryEventsContext(ctx context.Context, filter *core.EventFilter) (*portcontract.QueryResult, error) {
 	if filter == nil {
 		return nil, fmt.Errorf("filter is required")
 	}
@@ -543,13 +547,25 @@ func (p *PostgreSQLDatabase) QueryEvents(filter *core.EventFilter) (*core.QueryR
 		return nil, fmt.Errorf("database not initialized")
 	}
 
-	ctx, cancel := NewContextWithTimeout(context.Background(), p.queryTimeout)
+	ctx, cancel := NewContextWithTimeout(ctx, p.queryTimeout)
 	defer cancel()
 
 	// Build query
 	query := "SELECT " + selectEventColumns + " FROM blockchain_events WHERE 1=1"
 	args := []any{}
 	argIndex := 1
+	if filter.Network != "" {
+		query += fmt.Sprintf(" AND chain_id = $%d", argIndex)
+		args = append(args, filter.Network)
+		argIndex++
+	}
+	if len(filter.Status) == 0 {
+		query += " AND status <> 'reorged'"
+	} else {
+		query += fmt.Sprintf(" AND status = ANY($%d)", argIndex)
+		args = append(args, pq.Array(filter.Status))
+		argIndex++
+	}
 
 	if len(filter.ContractAddress) > 0 {
 		query += fmt.Sprintf(" AND contract_address = $%d", argIndex)
@@ -570,7 +586,7 @@ func (p *PostgreSQLDatabase) QueryEvents(filter *core.EventFilter) (*core.QueryR
 	}
 
 	// Add pagination
-	query += " ORDER BY block_number DESC"
+	query += " ORDER BY block_number DESC, log_index DESC, id DESC"
 	if filter.Limit > 0 {
 		query += fmt.Sprintf(" LIMIT $%d", argIndex)
 		args = append(args, filter.Limit)
@@ -611,7 +627,7 @@ func (p *PostgreSQLDatabase) QueryEvents(filter *core.EventFilter) (*core.QueryR
 	duration := time.Since(start).Milliseconds()
 	p.RecordRead(duration)
 
-	result := &core.QueryResult{
+	result := &portcontract.QueryResult{
 		Events:       events,
 		Total:        int64(len(events)),
 		ResponseTime: duration,
@@ -627,16 +643,6 @@ func (p *PostgreSQLDatabase) GetEventByHash(hash string) (*blockchain.Blockchain
 	}
 
 	start := time.Now()
-
-	// Check in-memory cache first
-	p.eventsMu.RLock()
-	if event, exists := p.events[hash]; exists {
-		p.eventsMu.RUnlock()
-		duration := time.Since(start).Milliseconds()
-		p.RecordRead(duration)
-		return event, nil
-	}
-	p.eventsMu.RUnlock()
 
 	p.mu.RLock()
 	db := p.db
@@ -668,9 +674,6 @@ func (p *PostgreSQLDatabase) GetEventByHash(hash string) (*blockchain.Blockchain
 	p.RecordRead(duration)
 
 	// Update in-memory cache
-	p.eventsMu.Lock()
-	p.events[hash] = event
-	p.eventsMu.Unlock()
 
 	return event, nil
 }
@@ -1026,7 +1029,7 @@ func (p *PostgreSQLDatabase) MarkEventsAsReorged(ctx context.Context, fromBlock,
 }
 
 // GetReorgStats retrieves reorg statistics
-func (p *PostgreSQLDatabase) GetReorgStats(ctx context.Context) (*core.ReorgStats, error) {
+func (p *PostgreSQLDatabase) GetReorgStats(ctx context.Context) (*portcontract.ReorgStats, error) {
 	p.mu.RLock()
 	db := p.db
 	p.mu.RUnlock()
@@ -1043,14 +1046,14 @@ func (p *PostgreSQLDatabase) GetReorgStats(ctx context.Context) (*core.ReorgStat
 		LIMIT 1
 	`
 
-	stats := &core.ReorgStats{}
+	stats := &portcontract.ReorgStats{}
 	err := db.QueryRowContext(ctx, query).Scan(
 		&stats.TotalReorgsDetected, &stats.TotalBlocksRolledBack, &stats.AverageReorgSize,
 		&stats.LastReorgTime, &stats.LastReorgBlock,
 	)
 
 	if errors.Is(err, sql.ErrNoRows) {
-		return &core.ReorgStats{}, nil
+		return &portcontract.ReorgStats{}, nil
 	}
 	if err != nil {
 		p.RecordError()

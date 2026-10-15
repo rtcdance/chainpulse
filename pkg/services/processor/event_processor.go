@@ -9,6 +9,8 @@ import (
 	"sync"
 	"time"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/rtcdance/chainpulse/pkg/blockchain"
@@ -27,7 +29,7 @@ type EventStorage interface {
 // CacheWriter is the minimal cache interface needed by the event processor.
 // This decouples the processor from the concrete plugins/cache package.
 type CacheWriter interface {
-	Set(entry *core.CacheEntry) error
+	Set(entry *portcontract.CacheEntry) error
 }
 
 // EventProcessor processes events from message queue and stores them.
@@ -80,12 +82,12 @@ type DefaultEventProcessor struct {
 	initialized        bool
 	running            bool
 	config             *core.Config
-	logger             core.Logger
+	logger             portcontract.Logger
 	metricsCollector   core.MetricsCollector
 	idempotencyService IdempotencyService
 	cachePlugin        CacheWriter
 	databasePlugin     EventStorage
-	eventBus           core.EventBus
+	eventBus           portcontract.EventBus
 	processedCount     int64
 	failedCount        int64
 	duplicateCount     int64
@@ -111,12 +113,12 @@ func (p *DefaultEventProcessor) WithCommitter(c BlockCommitter) *DefaultEventPro
 
 // NewDefaultEventProcessor creates a new event processor.
 func NewDefaultEventProcessor(
-	logger core.Logger,
+	logger portcontract.Logger,
 	metricsCollector core.MetricsCollector,
 	idempotencyService IdempotencyService,
 	cachePlugin CacheWriter,
 	databasePlugin EventStorage,
-	eventBus core.EventBus,
+	eventBus portcontract.EventBus,
 ) *DefaultEventProcessor {
 	return &DefaultEventProcessor{
 		logger:             logger,
@@ -128,7 +130,7 @@ func NewDefaultEventProcessor(
 		batchSize:          100,
 		maxRetries:         3,
 		retryDelay:         time.Second,
-		tracer:             observability.NewDefaultTracer(logger, metricsCollector),
+		tracer:             observability.NewSharedTracer(logger, metricsCollector),
 	}
 }
 
@@ -343,13 +345,14 @@ func (p *DefaultEventProcessor) ProcessEvent(ctx context.Context, event *blockch
 
 	// Mark as processed with retry
 	err = p.idempotencyService.MarkProcessed(ctx, hash)
+markRetry:
 	for attempt := 0; attempt < p.maxRetries && err != nil; attempt++ {
 		if ctx.Err() != nil {
 			break
 		}
 		select {
 		case <-ctx.Done():
-			break
+			break markRetry
 		case <-time.After(p.retryDelay):
 		}
 		err = p.idempotencyService.MarkProcessed(ctx, hash)
@@ -363,7 +366,7 @@ func (p *DefaultEventProcessor) ProcessEvent(ctx context.Context, event *blockch
 	if p.cachePlugin != nil {
 		cacheKey := "event:" + event.Network + ":" + strconv.FormatUint(event.BlockNumber, 10) + ":" + event.TransactionHash.Hex()
 		eventBytes := []byte(fmt.Sprintf("%v", event))
-		cacheEntry := &core.CacheEntry{
+		cacheEntry := &portcontract.CacheEntry{
 			Key:   cacheKey,
 			Value: eventBytes,
 			TTL:   3600, // 1 hour

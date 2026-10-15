@@ -8,6 +8,8 @@ import (
 	"sync"
 	"time"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
 	"github.com/rtcdance/chainpulse/pkg/core"
 	"github.com/rtcdance/chainpulse/pkg/observability"
 	"github.com/segmentio/kafka-go"
@@ -31,14 +33,14 @@ const (
 type KafkaProducer struct {
 	writer *kafka.Writer
 	config *core.Config
-	logger core.Logger
+	logger portcontract.Logger
 }
 
 // KafkaConsumer represents a Kafka message consumer
 type KafkaConsumer struct {
 	reader *kafka.Reader
 	config *core.Config
-	logger core.Logger
+	logger portcontract.Logger
 }
 
 // KafkaMQPlugin represents the Kafka message queue plugin
@@ -46,14 +48,15 @@ type KafkaMQPlugin struct {
 	name             string
 	version          string
 	config           *core.Config
-	logger           core.Logger
+	logger           portcontract.Logger
 	metricsCollector core.MetricsCollector
-	eventBus         core.EventBus
+	eventBus         portcontract.EventBus
 	isInitialized    bool
 	isRunning        bool
 	mu               sync.RWMutex
 	producer         *KafkaProducer
 	consumers        map[string]*KafkaConsumer
+	ownedConsumers   map[string]context.CancelFunc
 	batchSize        int
 	maxRetries       int
 	retryDelay       time.Duration
@@ -77,9 +80,9 @@ type KafkaMQPlugin struct {
 func NewKafkaMQPlugin(
 	name, version string,
 	config *core.Config,
-	logger core.Logger,
+	logger portcontract.Logger,
 	metricsCollector core.MetricsCollector,
-	eventBus core.EventBus,
+	eventBus portcontract.EventBus,
 	brokers []string,
 	consumerGroup string,
 ) *KafkaMQPlugin {
@@ -98,6 +101,7 @@ func NewKafkaMQPlugin(
 		brokers:          brokers,
 		consumerGroup:    consumerGroup,
 		consumers:        make(map[string]*KafkaConsumer),
+		ownedConsumers:   make(map[string]context.CancelFunc),
 
 		stats:       &kafkaMessageStats{},
 		offsets:     newKafkaOffsetState(),
@@ -105,7 +109,7 @@ func NewKafkaMQPlugin(
 		cgState:     newKafkaConsumerGroupState(),
 		dlqState:    newKafkaDLQState(),
 
-		tracer:     observability.NewDefaultTracer(logger, metricsCollector),
+		tracer:     observability.NewSharedTracer(logger, metricsCollector),
 		shutdownCh: make(chan struct{}),
 	}
 }
@@ -124,7 +128,8 @@ func (p *KafkaMQPlugin) Initialize(ctx context.Context, config core.Config) erro
 	// Create Kafka writer (producer)
 	writer := &kafka.Writer{
 		Addr:                   kafka.TCP(p.brokers...),
-		Balancer:               &kafka.LeastBytes{},
+		Balancer:               &kafka.Hash{},
+		RequiredAcks:           kafka.RequireAll,
 		AllowAutoTopicCreation: false,
 		BatchTimeout:           10 * time.Millisecond,
 		BatchSize:              100,
@@ -169,6 +174,9 @@ func (p *KafkaMQPlugin) Stop(ctx context.Context) error {
 		return nil
 	}
 	p.isRunning = false
+	for _, cancel := range p.ownedConsumers {
+		cancel()
+	}
 	p.mu.Unlock()
 
 	p.shutdownOnce.Do(func() {
@@ -256,7 +264,7 @@ func (p *KafkaMQPlugin) DetailedHealth(ctx context.Context) core.HealthStatus {
 			"dead_letter_queue_size": p.stats.deadLetterQueueSize,
 			"brokers":                p.brokers,
 			"consumer_group":         p.consumerGroup,
-			"active_consumers":       len(p.consumers),
+			"active_consumers":       len(p.consumers) + len(p.ownedConsumers),
 			"consumer_group_lag":     consumerGroupLag,
 			"max_tracked_offset":     maxTrackedOffset,
 			"consumer_group_metrics": consumerGroupMetrics,
@@ -310,12 +318,10 @@ func (p *KafkaMQPlugin) Subscribe(ctx context.Context, topic string, handler fun
 		return fmt.Errorf("already subscribed to topic: %s", topic)
 	}
 
-	reader := kafka.NewReader(kafka.ReaderConfig{
-		Brokers: p.brokers,
-		Topic:   topic,
-		GroupID: p.consumerGroup,
-	})
-	consumer := &KafkaConsumer{reader: reader, config: p.config, logger: p.logger}
+	// Reserve the topic before starting the worker. ConsumeMessages creates the
+	// actual reader; creating another here leaks it and nests configuration
+	// reads under this write lock.
+	consumer := &KafkaConsumer{config: p.config, logger: p.logger}
 	p.consumers[topic] = consumer
 	p.mu.Unlock()
 
@@ -458,7 +464,7 @@ func (p *KafkaMQPlugin) PublishMessage(ctx context.Context, message core.Message
 	return nil
 }
 
-// ConsumeMessages consumes messages from a Kafka topic with exactly-once semantics
+// ConsumeMessages delivers at least once and acknowledges only successful effects.
 // Implements context support for cancellation, handler invocation, error handling,
 // graceful consumer shutdown, and offset tracking per topic
 func (p *KafkaMQPlugin) ConsumeMessages(ctx context.Context, topic string, handler func(core.MessageQueueMessage) error) error {
@@ -499,6 +505,13 @@ func (p *KafkaMQPlugin) ConsumeMessages(ctx context.Context, topic string, handl
 
 	// Track in-flight operations for graceful shutdown
 	var inFlightOps sync.WaitGroup
+	defer func() {
+		inFlightOps.Wait()
+		p.closeKafkaReader(ctx, reader, topic)
+		p.mu.Lock()
+		delete(p.consumers, topic)
+		p.mu.Unlock()
+	}()
 
 	// Track consecutive read errors for backoff and reader recreation
 	consecutiveErrors := 0
@@ -513,13 +526,6 @@ func (p *KafkaMQPlugin) ConsumeMessages(ctx context.Context, topic string, handl
 			// Wait for in-flight operations to complete
 			inFlightOps.Wait()
 
-			p.closeKafkaReader(ctx, reader, topic)
-
-			// Unregister consumer
-			p.mu.Lock()
-			delete(p.consumers, topic)
-			p.mu.Unlock()
-
 			p.logger.Info("consumer stopped gracefully", "topic", topic)
 			p.metricsCollector.RecordCounter("mq_consume_stop", 1, map[string]string{"topic": topic})
 			return ctx.Err()
@@ -527,7 +533,7 @@ func (p *KafkaMQPlugin) ConsumeMessages(ctx context.Context, topic string, handl
 		default:
 			// Read message with timeout
 			readCtx, cancel := context.WithTimeout(ctx, defaultKafkaCommitTimeout)
-			msg, err := reader.ReadMessage(readCtx)
+			msg, err := reader.FetchMessage(readCtx)
 			cancel()
 
 			if err != nil {
@@ -620,6 +626,10 @@ func (p *KafkaMQPlugin) ConsumeMessages(ctx context.Context, topic string, handl
 					partitionKey = string(header.Value)
 				}
 			}
+			if partitionKey != "" && partitionKey != string(msg.Key) {
+				return fmt.Errorf("kafka partition header does not match the actual record key")
+			}
+			partitionKey = string(msg.Key)
 
 			// Create core.MessageQueueMessage
 			queueMsg := core.MessageQueueMessage{
@@ -634,7 +644,7 @@ func (p *KafkaMQPlugin) ConsumeMessages(ctx context.Context, topic string, handl
 			// Track in-flight operation
 			inFlightOps.Add(1)
 
-			// Call handler with exactly-once semantics
+			// Invoke the handler before committing the fetched offset.
 			// Handler is responsible for idempotent processing
 			consumeStartTime := time.Now()
 			_, consumeSpan := p.tracer.StartSpan(ctx, "mq.process_message", observability.SpanKindConsumer)
@@ -646,7 +656,8 @@ func (p *KafkaMQPlugin) ConsumeMessages(ctx context.Context, topic string, handl
 			consumeLatency := time.Since(consumeStartTime).Milliseconds()
 
 			if handlerErr != nil {
-				// Handler error - record and continue
+				// Stop before reading a later offset: committing a higher offset
+				// would also acknowledge this failed message in the same partition.
 				p.mu.Lock()
 				p.stats.errorCount++
 				p.stats.lastError = handlerErr
@@ -658,7 +669,7 @@ func (p *KafkaMQPlugin) ConsumeMessages(ctx context.Context, topic string, handl
 				p.logger.Error("handler error", "topic", topic, "message_id", messageID, "offset", msg.Offset, "error", handlerErr, "latency_ms", consumeLatency)
 
 				inFlightOps.Done()
-				continue
+				return fmt.Errorf("handle Kafka topic %s partition %d offset %d: %w", topic, msg.Partition, msg.Offset, handlerErr)
 			}
 
 			// Commit the offset only now that the handler has succeeded. With
@@ -672,6 +683,8 @@ func (p *KafkaMQPlugin) ConsumeMessages(ctx context.Context, topic string, handl
 				p.logger.Warn("failed to commit offset after handler success",
 					"topic", topic, "offset", msg.Offset, "error", commitErr)
 				p.metricsCollector.RecordCounter("mq_offset_commit_errors", 1, map[string]string{"topic": topic})
+				inFlightOps.Done()
+				return fmt.Errorf("commit Kafka topic %s partition %d offset %d: %w", topic, msg.Partition, msg.Offset, commitErr)
 			}
 
 			// Track offset for progress reporting
@@ -1286,7 +1299,7 @@ func (p *KafkaMQPlugin) GetKafkaSpecificMetrics() map[string]any {
 		"offset_tracking":        offsetTrackingCopy,
 		"dlq_reasons":            dlqReasonsCopy,
 		"consumer_group_metrics": consumerGroupMetrics,
-		"active_consumers":       len(p.consumers),
+		"active_consumers":       len(p.consumers) + len(p.ownedConsumers),
 	}
 }
 

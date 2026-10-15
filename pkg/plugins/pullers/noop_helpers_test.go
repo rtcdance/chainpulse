@@ -1,6 +1,6 @@
 package pullers
 
-import "github.com/rtcdance/chainpulse/pkg/core"
+import portcontract "github.com/rtcdance/chainpulse/pkg/ports"
 
 type noopLogger struct{}
 
@@ -9,7 +9,7 @@ func (l *noopLogger) Info(msg string, fields ...any)  {}
 func (l *noopLogger) Warn(msg string, fields ...any)  {}
 func (l *noopLogger) Error(msg string, fields ...any) {}
 func (l *noopLogger) Fatal(msg string, fields ...any) {}
-func (l *noopLogger) WithCorrelationID(id string) core.Logger {
+func (l *noopLogger) WithCorrelationID(id string) portcontract.Logger {
 	return l
 }
 
