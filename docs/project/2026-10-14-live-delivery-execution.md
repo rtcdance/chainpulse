@@ -235,3 +235,7 @@ T14 微基准工具新增 fail-closed 校验：每个样本必须有有限正 ns
 check-workspace-modules.sh --no-test 的旧输出错误地带“and tested”，已修为明确“tests not requested”。本地7模块build/vet通过；剩余root包14pass/0fail/2skip，两项原有 MemoryMQ stress 的testing.Short主动跳过已逐项分类为GAP，既非删除测试也非正式T14验收证明。image-build缺失/失败/skipped均被汇总拒绝，success正向控制通过（4/4）。
 
 新增六类真实CI故障注入入口，仅workflow_dispatch显式选择启用。每次在临时零依赖Go module先运行真实正向fixture，再注入编译/断言/timeout/空跑/必需skip/缺coverage，保存Go JSONL、退出码与检验器输出；本地6/6得到预期拒绝，基础设施失败单独exit2。远端将使用拥有独立marker commit的专用分支，避免故障check污染业务候选SHA；仍待保留六条远端失败run URL，不能把本地控制当成远端验收。
+
+T01 新分层首轮 e7ab3a2：远端CI 38760066608的quality于15:24:40Z–15:25:23Z成功（43s），独立image-build成功；这证明该次运行在预算内，冷缓存专项仍未验证。六类故障专用SHA为b613d8507ac81cec4f9860d7b5c5717465d90027，dispatch run依次为compile 38760458524、assertion 38760473196、timeout 38760483351、empty 38760493439、required-skip 38760503820、coverage 38760515542。前五个已按预期失败，其中四份下载report已确认positive_control_passed与injection_rejected均为true；timeout工件遇一次TLS下载超时待重试，coverage仍排队。不能把下载失败算为注入验收通过。
+
+第四轮quality 38758799184另有真实旧测试时序误报：TestDrainControllerWaitsForInFlightWork在End()之后close(finished)，正确Drain可能抢先返回。已使用testing/synctest在所有等待者阻塞时检查Drain尚未返回，再End并验证释放；100次race通过。跳过实际Wait的错误版本overlay会被新测试稳定拒绝。候选ab40d59仅改此测试；DoD的build/check/lint/test-short日志均通过，lint0issues。cmd覆盖337pass actions/233顶层/0skip，六嵌套module race通过；本次没有生产Drain行为变化。
