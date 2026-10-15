@@ -5,6 +5,8 @@ import (
 	"sync"
 	"time"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
 	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
@@ -14,7 +16,7 @@ type InMemoryCache struct {
 	data      map[string]*cacheItem
 	mu        sync.RWMutex
 	started   bool
-	stats     core.CacheStats
+	stats     portcontract.CacheStats
 	done      chan struct{}
 	closeOnce sync.Once
 }
@@ -117,7 +119,7 @@ func (c *InMemoryCache) Delete(ctx context.Context, key string) error {
 	return nil
 }
 
-func (c *InMemoryCache) GetStats() core.CacheStats {
+func (c *InMemoryCache) GetStats() portcontract.CacheStats {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 

@@ -9,18 +9,20 @@ import (
 	"strings"
 	"time"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
 	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"github.com/rtcdance/chainpulse/pkg/chainid"
-	"github.com/rtcdance/chainpulse/pkg/core"
+
 	domainquery "github.com/rtcdance/chainpulse/pkg/domain/query"
 )
 
 type ExportHandler struct {
-	logger     core.Logger
+	logger     portcontract.Logger
 	eventStore domainquery.EventReader
 }
 
-func NewExportHandler(logger core.Logger, eventStore domainquery.EventReader) *ExportHandler {
+func NewExportHandler(logger portcontract.Logger, eventStore domainquery.EventReader) *ExportHandler {
 	return &ExportHandler{
 		logger:     logger,
 		eventStore: eventStore,

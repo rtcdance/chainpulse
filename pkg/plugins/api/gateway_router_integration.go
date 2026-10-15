@@ -13,6 +13,8 @@ import (
 	"sync"
 	"time"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
 	"github.com/rtcdance/chainpulse/pkg/core"
 	"github.com/rtcdance/chainpulse/pkg/observability"
 )
@@ -20,7 +22,7 @@ import (
 // GatewayRouterIntegration integrates the RequestRouter with the API Gateway
 type GatewayRouterIntegration struct {
 	router                        *RequestRouter
-	logger                        core.Logger
+	logger                        portcontract.Logger
 	metrics                       core.MetricsCollector
 	redRecorder                   *observability.REDRecorder
 	eventQueryHandler             *EventQueryHandler
@@ -62,7 +64,7 @@ const gatewayAPIV1Prefix = "/api/v1"
 
 // NewGatewayRouterIntegration creates a new gateway router integration
 func NewGatewayRouterIntegration(
-	logger core.Logger,
+	logger portcontract.Logger,
 	metrics core.MetricsCollector,
 	eventQueryHandler *EventQueryHandler,
 	subscriptionHandler *EventSubscriptionHandler,
@@ -1204,11 +1206,11 @@ func (gri *GatewayRouterIntegration) Close(ctx context.Context) error {
 // RequestRouterMiddleware is middleware for request routing
 type RequestRouterMiddleware struct {
 	router *RequestRouter
-	logger core.Logger
+	logger portcontract.Logger
 }
 
 // NewRequestRouterMiddleware creates a new request router middleware
-func NewRequestRouterMiddleware(router *RequestRouter, logger core.Logger) *RequestRouterMiddleware {
+func NewRequestRouterMiddleware(router *RequestRouter, logger portcontract.Logger) *RequestRouterMiddleware {
 	return &RequestRouterMiddleware{
 		router: router,
 		logger: logger,
@@ -1310,11 +1312,11 @@ func NewResponseWriter(w http.ResponseWriter) *ResponseWriter {
 
 // RequestLogger logs request details
 type RequestLogger struct {
-	logger core.Logger
+	logger portcontract.Logger
 }
 
 // NewRequestLogger creates a new request logger
-func NewRequestLogger(logger core.Logger) *RequestLogger {
+func NewRequestLogger(logger portcontract.Logger) *RequestLogger {
 	return &RequestLogger{
 		logger: logger,
 	}

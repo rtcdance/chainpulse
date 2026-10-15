@@ -9,6 +9,8 @@ import (
 	"sync"
 	"time"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
 	"github.com/rtcdance/chainpulse/pkg/core"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -29,7 +31,7 @@ type TokenValidator struct {
 	whitelistMu     sync.RWMutex           // protects apiKeyWhitelist
 	revokedTokens   map[string]time.Time   // jti -> expiry (auto-cleanup)
 	revokeMu        sync.RWMutex
-	logger          core.Logger
+	logger          portcontract.Logger
 	metrics         core.MetricsCollector
 }
 
@@ -45,7 +47,7 @@ type ValidationResult struct {
 }
 
 // NewTokenValidator creates a new token validator
-func NewTokenValidator(jwtSecret string, logger core.Logger, metrics core.MetricsCollector) *TokenValidator {
+func NewTokenValidator(jwtSecret string, logger portcontract.Logger, metrics core.MetricsCollector) *TokenValidator {
 	return &TokenValidator{
 		jwtSecret:       jwtSecret,
 		apiKeyWhitelist: make(map[string]apiKeyEntry),

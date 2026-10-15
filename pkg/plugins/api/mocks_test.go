@@ -5,10 +5,12 @@ import (
 	"sync"
 	"time"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
 	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
-// MockLogger implements core.Logger for testing
+// MockLogger implements portcontract.Logger for testing
 type MockLogger struct {
 	mu       sync.Mutex
 	messages []string
@@ -44,7 +46,7 @@ func (m *MockLogger) Fatal(msg string, fields ...any) {
 	m.messages = append(m.messages, msg)
 }
 
-func (m *MockLogger) WithCorrelationID(id string) core.Logger {
+func (m *MockLogger) WithCorrelationID(id string) portcontract.Logger {
 	return m
 }
 
@@ -198,8 +200,8 @@ func (m *MockCachePlugin) Delete(ctx context.Context, key string) error {
 	return nil
 }
 
-func (m *MockCachePlugin) GetStats() core.CacheStats {
-	return core.CacheStats{
+func (m *MockCachePlugin) GetStats() portcontract.CacheStats {
+	return portcontract.CacheStats{
 		HitCount:      0,
 		MissCount:     0,
 		EvictionCount: 0,

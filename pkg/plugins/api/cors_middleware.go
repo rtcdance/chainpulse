@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/rtcdance/chainpulse/pkg/core"
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
 )
 
 type CORSMiddleware struct {
@@ -13,12 +13,11 @@ type CORSMiddleware struct {
 	allowedMethods []string
 	allowedHeaders []string
 	maxAge         int
-	logger         core.Logger
+	logger         portcontract.Logger
 }
 
-func NewCORSMiddleware(logger core.Logger) *CORSMiddleware {
+func NewCORSMiddleware(logger portcontract.Logger) *CORSMiddleware {
 	return &CORSMiddleware{
-		allowedOrigins: []string{"*"},
 		allowedMethods: []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		allowedHeaders: []string{
 			"Accept",
@@ -57,7 +56,7 @@ func (m *CORSMiddleware) Handler(next http.Handler) http.Handler {
 		}
 
 		if !m.isOriginAllowed(origin) {
-			if m.logger != nil {
+			if m.logger != nil && len(m.allowedOrigins) > 0 {
 				m.logger.Warn("CORS: origin not allowed", "origin", origin)
 			}
 			next.ServeHTTP(w, r)

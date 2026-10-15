@@ -331,6 +331,7 @@ func TestExtractClientID(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			req := httptest.NewRequest("GET", "/test", nil)
 			if tt.clientID != "" {
+				//lint:ignore SA1029 This table verifies the historical plain-string context key remains readable.
 				ctx := context.WithValue(req.Context(), "clientID", tt.clientID)
 				req = req.WithContext(ctx)
 			}
@@ -577,7 +578,11 @@ func TestTokenBucketConcurrency(t *testing.T) {
 		t.Skip("skipping concurrency stress test in short mode")
 	}
 
-	tb := NewTokenBucket(1000.0, 100.0)
+	// Refill is deliberately disabled: with any positive refill rate the
+	// scheduler can hand out extra tokens while the 200 goroutines run, and
+	// the exact 100/100 split below becomes a timing lottery. Refill itself
+	// is covered by TestTokenBucketRefill.
+	tb := NewTokenBucket(0.0, 100.0)
 
 	var wg sync.WaitGroup
 	allowedCount := 0

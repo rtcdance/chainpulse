@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/rtcdance/chainpulse/pkg/core"
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
 )
 
 // CacheScope is the version of the data a cached value describes.
@@ -106,12 +106,12 @@ func (g *VersionedKeyGenerator) Event(eventID string) string {
 // have to enumerate and delete an unknown set of keys before it can serve
 // correct data, and a sweep that fails would leave the stale entries reachable.
 type VersionedCache struct {
-	cache core.CachePlugin
+	cache portcontract.CachePlugin
 	keys  *VersionedKeyGenerator
 }
 
 // NewVersionedCache creates a versioned view over a cache plugin.
-func NewVersionedCache(c core.CachePlugin, keys *VersionedKeyGenerator) (*VersionedCache, error) {
+func NewVersionedCache(c portcontract.CachePlugin, keys *VersionedKeyGenerator) (*VersionedCache, error) {
 	if c == nil {
 		return nil, fmt.Errorf("cache plugin is required")
 	}

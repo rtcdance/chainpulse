@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"time"
+
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
 )
 
 // APIEnvelope is the unified JSON response wrapper for all API responses.
@@ -56,4 +58,16 @@ type HealthResponse struct {
 	Timestamp  int64                       `json:"timestamp"`
 	Version    string                      `json:"version"`
 	Components map[string]*ComponentStatus `json:"components,omitempty"`
+}
+
+// writeRedactedInternalError logs the underlying cause server-side and writes
+// a stable machine-readable 500 body. Internal error text — DSNs, SQL, driver
+// messages, stack frames — must never reach the client: it discloses
+// infrastructure (credentials, host names, schema) to any caller that can
+// provoke a store or dependency failure.
+func writeRedactedInternalError(w http.ResponseWriter, logger portcontract.Logger, op string, err error) {
+	if logger != nil && err != nil {
+		logger.Error("internal error", "op", op, "error", err.Error())
+	}
+	WriteErrorEnvelope(w, ErrInternalServer("internal error"))
 }

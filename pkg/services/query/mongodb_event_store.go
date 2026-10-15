@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
 	"github.com/ethereum/go-ethereum/common"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -26,7 +28,7 @@ import (
 // MongoDBEventStore implements EventStore for MongoDB
 type MongoDBEventStore struct {
 	dbManager   mongoClientProvider
-	logger      core.Logger
+	logger      portcontract.Logger
 	metrics     core.MetricsCollector
 	config      *EventStoreConfig
 	collection  *mongo.Collection
@@ -37,7 +39,7 @@ type MongoDBEventStore struct {
 // NewMongoDBEventStore creates a new MongoDB event store
 func NewMongoDBEventStore(
 	dbManager mongoClientProvider,
-	logger core.Logger,
+	logger portcontract.Logger,
 	metrics core.MetricsCollector,
 	config *EventStoreConfig,
 ) *MongoDBEventStore {
@@ -49,7 +51,7 @@ func NewMongoDBEventStore(
 		logger:      logger,
 		metrics:     metrics,
 		config:      config,
-		tracer:      observability.NewDefaultTracer(logger, metrics),
+		tracer:      observability.NewSharedTracer(logger, metrics),
 		initialized: false,
 	}
 }

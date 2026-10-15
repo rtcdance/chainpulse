@@ -5,15 +5,17 @@ import (
 	"encoding/base64"
 	"fmt"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
 	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
-// RedisCachePluginAdapter adapts *RedisCachePlugin to the core.CachePlugin port.
+// RedisCachePluginAdapter adapts *RedisCachePlugin to the portcontract.CachePlugin port.
 //
 // The two types expose different shapes for the same operations:
 //
 //	*RedisCachePlugin : Get(key) (*CacheEntry, error) / Set(*CacheEntry) / Delete(key)
-//	core.CachePlugin  : Get(ctx, key) ([]byte, error) / Set(ctx, key, []byte, ttl) / Delete(ctx, key)
+//	portcontract.CachePlugin  : Get(ctx, key) ([]byte, error) / Set(ctx, key, []byte, ttl) / Delete(ctx, key)
 //
 // Only those three operations need wrapping. Name, Initialize, Start, Stop,
 // GetStats and HealthCheck are promoted from the embedded plugin and already
@@ -27,10 +29,10 @@ type RedisCachePluginAdapter struct {
 }
 
 // RedisCachePluginAdapter must satisfy the port.
-var _ core.CachePlugin = (*RedisCachePluginAdapter)(nil)
+var _ portcontract.CachePlugin = (*RedisCachePluginAdapter)(nil)
 
 // NewRedisCachePluginAdapter creates the port-shaped adapter.
-func NewRedisCachePluginAdapter(logger core.Logger, metricsCollector core.MetricsCollector) *RedisCachePluginAdapter {
+func NewRedisCachePluginAdapter(logger portcontract.Logger, metricsCollector core.MetricsCollector) *RedisCachePluginAdapter {
 	return &RedisCachePluginAdapter{
 		RedisCachePlugin: NewRedisCachePlugin(logger, metricsCollector),
 	}
@@ -50,7 +52,7 @@ func (a *RedisCachePluginAdapter) Connected() bool {
 	return a.client != nil
 }
 
-// Get implements core.CachePlugin.
+// Get implements portcontract.CachePlugin.
 //
 // A missing key is (nil, nil), not an error: the port distinguishes "absent"
 // from "failed", and treating an absent key as a failure would turn every cache
@@ -71,7 +73,7 @@ func (a *RedisCachePluginAdapter) Get(ctx context.Context, key string) ([]byte, 
 	return decodeCacheValue(key, entry.Value)
 }
 
-// Set implements core.CachePlugin.
+// Set implements portcontract.CachePlugin.
 //
 // The value is stored as an explicit base64 string, and the reason is measured
 // rather than assumed: CacheEntry.Value is `any` and the Redis backend
@@ -100,7 +102,7 @@ func (a *RedisCachePluginAdapter) Set(ctx context.Context, key string, value []b
 	})
 }
 
-// Delete implements core.CachePlugin.
+// Delete implements portcontract.CachePlugin.
 func (a *RedisCachePluginAdapter) Delete(ctx context.Context, key string) error {
 	if err := ctx.Err(); err != nil {
 		return err

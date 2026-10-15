@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { finalityLabel } from '../lib/finality'
 import { Database, Download, Layers, Loader2, RefreshCw, Search, ArrowDown, ArrowUp, X } from 'lucide-react'
 import { fetchEventDetail, fetchEvents, exportToCSV, exportToJSON, formatTimestamp, type NormalizedEvent, type NormalizedEventsResponse } from '../lib/chainpulse'
 
@@ -344,6 +345,7 @@ export default function Events() {
                           )}
                         </div>
                         <div className="font-mono text-xs text-sand/55">{event.id || event.eventId}</div>
+                        <p className="text-xs text-mist">Finality: {finalityLabel(event.raw)}</p>
                         <div className="grid grid-cols-2 gap-2 text-sm">
                           <div>
                             <span className="text-xs text-mist">Chain</span>
@@ -370,6 +372,7 @@ export default function Events() {
                             )}
                           </div>
                           <div className="mt-1 font-mono text-xs text-sand/55">{event.id || event.eventId}</div>
+                          <p className="mt-1 text-xs text-mist">Finality: {finalityLabel(event.raw)}</p>
                         </div>
                         <div className="text-sm text-sand/75">{event.chainId}</div>
                         <div className="truncate font-mono text-sm text-sand/75">{event.contractAddress || '-'}</div>

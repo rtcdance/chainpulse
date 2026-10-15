@@ -6,12 +6,15 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
+
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
 
 	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"github.com/rtcdance/chainpulse/pkg/chainid"
@@ -26,7 +29,7 @@ import (
 type EventQueryHandler struct {
 	retrievalService *query.EventRetrievalService
 	domainQuery      domainquery.Service
-	logger           core.Logger
+	logger           portcontract.Logger
 	metrics          core.MetricsCollector
 	tracer           *observability.DefaultTracer
 	initialized      bool
@@ -35,14 +38,14 @@ type EventQueryHandler struct {
 // NewEventQueryHandler creates a new event query handler
 func NewEventQueryHandler(
 	retrievalService *query.EventRetrievalService,
-	logger core.Logger,
+	logger portcontract.Logger,
 	metrics core.MetricsCollector,
 ) *EventQueryHandler {
 	return &EventQueryHandler{
 		retrievalService: retrievalService,
 		logger:           logger,
 		metrics:          metrics,
-		tracer:           observability.NewDefaultTracer(logger, metrics),
+		tracer:           observability.NewSharedTracer(logger, metrics),
 		initialized:      false,
 	}
 }
@@ -102,26 +105,28 @@ type QueryMeta struct {
 
 // Pagination represents pagination information
 type Pagination struct {
-	Limit  int `json:"limit"`
-	Offset int `json:"offset"`
-	Total  int `json:"total"`
+	Limit      int    `json:"limit"`
+	Offset     int    `json:"offset"`
+	Total      int    `json:"total"`
+	NextCursor string `json:"nextCursor,omitempty"`
 }
 
 // EventResponse represents a single event in the response
 type EventResponse struct {
-	EventID         string         `json:"eventId"`
-	ChainID         string         `json:"chainId"`
-	Network         string         `json:"network,omitempty"`
-	BlockNumber     int64          `json:"blockNumber"`
-	TransactionHash string         `json:"transactionHash"`
-	LogIndex        int64          `json:"logIndex"`
-	ContractAddress string         `json:"contractAddress"`
-	EventName       string         `json:"eventName"`
-	EventSignature  string         `json:"eventSignature,omitempty"`
-	EventData       map[string]any `json:"eventData"`
-	Timestamp       int64          `json:"timestamp"`
-	ProcessedAt     int64          `json:"processedAt"`
-	Status          string         `json:"status"`
+	EventID         string                 `json:"eventId"`
+	ChainID         string                 `json:"chainId"`
+	Network         string                 `json:"network,omitempty"`
+	BlockNumber     int64                  `json:"blockNumber"`
+	TransactionHash string                 `json:"transactionHash"`
+	LogIndex        int64                  `json:"logIndex"`
+	ContractAddress string                 `json:"contractAddress"`
+	EventName       string                 `json:"eventName"`
+	EventSignature  string                 `json:"eventSignature,omitempty"`
+	EventData       map[string]any         `json:"eventData"`
+	Timestamp       int64                  `json:"timestamp"`
+	ProcessedAt     int64                  `json:"processedAt"`
+	Status          string                 `json:"status"`
+	State           *blockchain.EventState `json:"state,omitempty"`
 }
 
 type listQuerySpec struct {
@@ -144,7 +149,11 @@ func (h *EventQueryHandler) executeListQuery(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	fp := h.parseFilterParams(r)
+	fp, paramErr := h.parseFilterParams(r)
+	if paramErr != nil {
+		h.respondError(w, http.StatusBadRequest, "invalid_request", paramErr.Error())
+		return
+	}
 	if errMsg := h.validateFilterParams(fp); errMsg != "" {
 		h.respondError(w, http.StatusBadRequest, "invalid_request", errMsg)
 		return
@@ -154,6 +163,14 @@ func (h *EventQueryHandler) executeListQuery(w http.ResponseWriter, r *http.Requ
 	defer cancel()
 
 	if h.domainQuery != nil {
+		authoritative := false
+		if source, ok := h.domainQuery.(interface{ AuthoritativeQuery() bool }); ok {
+			authoritative = source.AuthoritativeQuery()
+		}
+		if fp.Cursor != "" && !authoritative {
+			h.respondError(w, http.StatusBadRequest, "invalid_cursor", "cursor pagination is unavailable for this source")
+			return
+		}
 		mongoFilter := h.buildMongoFilter(fp, spec.baseFilterFn())
 		domainResult, domainErr := h.domainQuery.Query(ctx, &domainquery.Request{
 			QueryType:  "mongodb",
@@ -161,10 +178,25 @@ func (h *EventQueryHandler) executeListQuery(w http.ResponseWriter, r *http.Requ
 			Filter:     mongoFilter,
 			Limit:      int64(fp.Limit),
 			Offset:     int64(fp.Offset),
+			Cursor:     fp.Cursor,
 			CacheKey:   h.generateCacheKey(spec.cacheKeyPrefix, mongoFilter, int64(fp.Limit), int64(fp.Offset)),
 			CacheTTL:   5 * time.Minute,
 		})
-		if domainErr == nil && domainResult != nil && len(domainResult.Events) > 0 {
+		var cursorError *portcontract.QueryCursorError
+		if errors.As(domainErr, &cursorError) {
+			status, code := http.StatusBadRequest, "invalid_cursor"
+			if cursorError.Stale {
+				status, code = http.StatusConflict, "cursor_stale"
+			}
+			h.respondError(w, status, code, cursorError.Error())
+			return
+		}
+		if authoritative && domainErr != nil {
+			h.logger.Error("Authoritative event query failed", "error", domainErr.Error())
+			h.respondError(w, http.StatusServiceUnavailable, "query_unavailable", "canonical query is unavailable")
+			return
+		}
+		if domainErr == nil && domainResult != nil && (authoritative || len(domainResult.Events) > 0) {
 			response := buildPaginatedEventQueryResponse(
 				h.convertDomainEventsToResponse(domainResult.Events),
 				fp.Limit,
@@ -172,6 +204,7 @@ func (h *EventQueryHandler) executeListQuery(w http.ResponseWriter, r *http.Requ
 				int(domainResult.Total),
 				buildDomainQueryListMeta(domainResult, "domain-"+spec.cacheKeyPrefix),
 			)
+			response.Pagination.NextCursor = domainResult.NextCursor
 			h.metrics.RecordGauge("event_query_"+spec.metricsPrefix+"_domain_success", float64(len(domainResult.Events)), nil)
 			h.respondJSON(w, http.StatusOK, response)
 			return
@@ -274,6 +307,19 @@ func (h *EventQueryHandler) HandleGetEventByID(w http.ResponseWriter, r *http.Re
 
 	if h.domainQuery != nil {
 		event, domainErr := h.domainQuery.QueryByHash(ctx, eventID)
+		authoritative := false
+		if source, ok := h.domainQuery.(interface{ AuthoritativeQuery() bool }); ok {
+			authoritative = source.AuthoritativeQuery()
+		}
+		if authoritative && domainErr != nil {
+			h.logger.Error("Authoritative event lookup failed", "error", domainErr)
+			h.respondError(w, http.StatusServiceUnavailable, "query_unavailable", "canonical query is unavailable")
+			return
+		}
+		if authoritative && event == nil {
+			h.respondError(w, http.StatusNotFound, "not_found", "Event not found")
+			return
+		}
 		if domainErr == nil && event != nil {
 			domainResult := &query.EventWithMetadata{Event: event, Metadata: nil}
 			response := buildSingleEventQueryResponse(
@@ -410,8 +456,16 @@ func (h *EventQueryHandler) HandleGetCorrelatedEvents(w http.ResponseWriter, r *
 		return
 	}
 
-	limit := h.parseIntParam(r, "limit", 50)
-	offset := h.parseIntParam(r, "offset", 0)
+	limit, paramErr := h.parseIntParam(r, "limit", 50)
+	if paramErr != nil {
+		h.respondError(w, http.StatusBadRequest, "invalid_request", paramErr.Error())
+		return
+	}
+	offset, paramErr := h.parseIntParam(r, "offset", 0)
+	if paramErr != nil {
+		h.respondError(w, http.StatusBadRequest, "invalid_request", paramErr.Error())
+		return
+	}
 
 	if h.retrievalService == nil {
 		h.respondError(w, http.StatusInternalServerError, "SERVICE_UNAVAILABLE", "event retrieval service not available")
@@ -487,6 +541,7 @@ func (h *EventQueryHandler) convertEventToResponse(eventWithMetadata *query.Even
 		Timestamp:       event.BlockTimestamp,
 		ProcessedAt:     processedAt,
 		Status:          string(event.Status),
+		State:           event.State,
 	}
 }
 
@@ -523,52 +578,53 @@ func (h *EventQueryHandler) convertDomainEventsToResponse(events []blockchain.Bl
 }
 
 // parseIntParam parses an integer query parameter with a default value
-func (h *EventQueryHandler) parseIntParam(r *http.Request, name string, defaultValue int) int {
+func (h *EventQueryHandler) parseIntParam(r *http.Request, name string, defaultValue int) (int, error) {
 	value := r.URL.Query().Get(name)
 	if value == "" {
-		return defaultValue
+		return defaultValue, nil
 	}
 
 	intValue, err := strconv.Atoi(value)
 	if err != nil {
-		return defaultValue
+		return 0, fmt.Errorf("%s must be an integer", name)
 	}
 
-	return intValue
+	return intValue, nil
 }
 
 // parseInt64Param parses an int64 query parameter with a default value
-func (h *EventQueryHandler) parseInt64Param(r *http.Request, name string, defaultValue int64) int64 {
+func (h *EventQueryHandler) parseInt64Param(r *http.Request, name string, defaultValue int64) (int64, error) {
 	value := r.URL.Query().Get(name)
 	if value == "" {
-		return defaultValue
+		return defaultValue, nil
 	}
 
 	intValue, err := strconv.ParseInt(value, 10, 64)
 	if err != nil {
-		return defaultValue
+		return 0, fmt.Errorf("%s must be an integer", name)
 	}
 
-	return intValue
+	return intValue, nil
 }
 
 // parseUint64Param parses a uint64 query parameter with a default value
-func (h *EventQueryHandler) parseUint64Param(r *http.Request, name string, defaultValue uint64) uint64 {
+func (h *EventQueryHandler) parseUint64Param(r *http.Request, name string, defaultValue uint64) (uint64, error) {
 	value := r.URL.Query().Get(name)
 	if value == "" {
-		return defaultValue
+		return defaultValue, nil
 	}
 
 	intValue, err := strconv.ParseUint(value, 10, 64)
 	if err != nil {
-		return defaultValue
+		return 0, fmt.Errorf("%s must be a non-negative integer", name)
 	}
 
-	return intValue
+	return intValue, nil
 }
 
 // filterParams holds parsed query filter parameters
 type filterParams struct {
+	Cursor          string
 	FromBlock       uint64
 	ToBlock         uint64
 	FromTime        int64
@@ -585,22 +641,48 @@ type filterParams struct {
 }
 
 // parseFilterParams parses common filter query parameters from the request
-func (h *EventQueryHandler) parseFilterParams(r *http.Request) *filterParams {
-	return &filterParams{
-		FromBlock:       h.parseUint64Param(r, "from_block", 0),
-		ToBlock:         h.parseUint64Param(r, "to_block", 0),
-		FromTime:        h.parseInt64Param(r, "from_time", 0),
-		ToTime:          h.parseInt64Param(r, "to_time", 0),
+func (h *EventQueryHandler) parseFilterParams(r *http.Request) (*filterParams, error) {
+	fp := &filterParams{
+		Cursor:          strings.TrimSpace(r.URL.Query().Get("cursor")),
 		EventSignature:  strings.TrimSpace(r.URL.Query().Get("event_signature")),
 		ContractAddress: strings.TrimSpace(r.URL.Query().Get("contract")),
-		Chain:           strings.TrimSpace(r.URL.Query().Get("chain")),
+		Chain:           queryFilterAlias(r, "chain", "chain_id", "chainId"),
 		Network:         strings.TrimSpace(r.URL.Query().Get("network")),
-		EventName:       strings.TrimSpace(r.URL.Query().Get("event_name")),
+		EventName:       queryFilterAlias(r, "event_name", "eventName"),
 		Status:          strings.TrimSpace(r.URL.Query().Get("status")),
 		Search:          strings.TrimSpace(r.URL.Query().Get("search")),
-		Limit:           h.parseIntParam(r, "limit", 20),
-		Offset:          h.parseIntParam(r, "offset", 0),
 	}
+	var err error
+	if fp.FromBlock, err = h.parseUint64Param(r, "from_block", 0); err != nil {
+		return nil, err
+	}
+	if fp.ToBlock, err = h.parseUint64Param(r, "to_block", 0); err != nil {
+		return nil, err
+	}
+	if fp.FromTime, err = h.parseInt64Param(r, "from_time", 0); err != nil {
+		return nil, err
+	}
+	if fp.ToTime, err = h.parseInt64Param(r, "to_time", 0); err != nil {
+		return nil, err
+	}
+	if fp.Limit, err = h.parseIntParam(r, "limit", 20); err != nil {
+		return nil, err
+	}
+	if fp.Offset, err = h.parseIntParam(r, "offset", 0); err != nil {
+		return nil, err
+	}
+	return fp, nil
+}
+
+// Existing parameter names retain precedence while published frontend/camel
+// aliases resolve to the same filter rather than silently dropping it.
+func queryFilterAlias(r *http.Request, names ...string) string {
+	for _, name := range names {
+		if value := strings.TrimSpace(r.URL.Query().Get(name)); value != "" {
+			return value
+		}
+	}
+	return ""
 }
 
 // validateFilterParams validates filter parameters and returns an error message if invalid

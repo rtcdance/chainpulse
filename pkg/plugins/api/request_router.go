@@ -10,6 +10,8 @@ import (
 	"sync"
 	"time"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
 	"github.com/rtcdance/chainpulse/pkg/core"
 	"github.com/rtcdance/chainpulse/pkg/observability"
 )
@@ -29,7 +31,7 @@ var sharedHTTPClient = &http.Client{
 type RequestRouter struct {
 	routes          map[string]*Route
 	loadBalancers   map[string]*LoadBalancer
-	logger          core.Logger
+	logger          portcontract.Logger
 	metrics         core.MetricsCollector
 	httpClient      *http.Client
 	mu              sync.RWMutex
@@ -68,7 +70,7 @@ type AggregatedResponse struct {
 }
 
 // NewRequestRouter creates a new request router
-func NewRequestRouter(logger core.Logger, metrics core.MetricsCollector) *RequestRouter {
+func NewRequestRouter(logger portcontract.Logger, metrics core.MetricsCollector) *RequestRouter {
 	return &RequestRouter{
 		routes:          make(map[string]*Route),
 		loadBalancers:   make(map[string]*LoadBalancer),

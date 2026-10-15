@@ -12,6 +12,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
 	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"github.com/rtcdance/chainpulse/pkg/core"
 	"github.com/rtcdance/chainpulse/pkg/logkeys"
@@ -27,7 +29,7 @@ type DefaultPostgreSQLAdapter struct {
 	initialized      atomic.Bool
 	dbManager        postgresConnectionProvider
 	db               *sql.DB
-	logger           core.Logger
+	logger           portcontract.Logger
 	metricsCollector core.MetricsCollector
 }
 
@@ -86,8 +88,7 @@ func buildPostgresFilterHelper(filter map[string]any, idx *int) (string, []any, 
 	var conditions []string
 	var args []any
 
-	var buildCond func(key string, val any) (string, []any, error)
-	buildCond = func(key string, val any) (string, []any, error) {
+	buildCond := func(key string, val any) (string, []any, error) {
 		col := resolveColumn(key)
 		if !isSafePostgresIdentifier(col) {
 			return "", nil, fmt.Errorf("invalid filter field %q", key)
@@ -222,7 +223,7 @@ func buildPostgresFilterHelper(filter map[string]any, idx *int) (string, []any, 
 // NewPostgreSQLAdapter creates a new PostgreSQL adapter
 func NewPostgreSQLAdapter(
 	dbManager postgresConnectionProvider,
-	logger core.Logger,
+	logger portcontract.Logger,
 	metricsCollector core.MetricsCollector,
 ) PostgreSQLAdapter {
 	return &DefaultPostgreSQLAdapter{

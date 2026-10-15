@@ -5,13 +5,15 @@ import (
 	"errors"
 	"testing"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
-// fakeCache is a core.CachePlugin whose Get can be made to hit, miss or fail.
+// fakeCache is a portcontract.CachePlugin whose Get can be made to hit, miss or fail.
 type fakeCache struct {
 	value []byte
 	err   error
@@ -25,10 +27,10 @@ func (c *fakeCache) Get(_ context.Context, _ string) ([]byte, error) {
 }
 func (c *fakeCache) Set(context.Context, string, []byte, int) error { return nil }
 func (c *fakeCache) Delete(context.Context, string) error           { return nil }
-func (c *fakeCache) GetStats() core.CacheStats                      { return core.CacheStats{} }
+func (c *fakeCache) GetStats() portcontract.CacheStats              { return portcontract.CacheStats{} }
 func (c *fakeCache) HealthCheck(context.Context) error              { return nil }
 
-var _ core.CachePlugin = (*fakeCache)(nil)
+var _ portcontract.CachePlugin = (*fakeCache)(nil)
 
 type fakeSource struct {
 	value []byte

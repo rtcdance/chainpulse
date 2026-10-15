@@ -5,6 +5,8 @@ import (
 	"sync"
 	"testing"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -29,7 +31,7 @@ func (m *mutableScope) set(scope CacheScope) {
 	m.scope = scope
 }
 
-func newTestCache(t *testing.T) core.CachePlugin {
+func newTestCache(t *testing.T) portcontract.CachePlugin {
 	t.Helper()
 
 	c := NewDefaultInMemoryCachePlugin("test", "1.0.0",

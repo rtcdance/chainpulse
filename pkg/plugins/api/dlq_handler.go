@@ -9,13 +9,15 @@ import (
 	"strconv"
 	"time"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
 	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 // DLQHandler handles dead letter queue operations
 type DLQHandler struct {
 	db      *sql.DB
-	logger  core.Logger
+	logger  portcontract.Logger
 	metrics core.MetricsCollector
 
 	// Kafka publisher for replay
@@ -39,7 +41,7 @@ type DLQEvent struct {
 }
 
 // NewDLQHandler creates a new DLQ handler
-func NewDLQHandler(db *sql.DB, publisher dlqReplayPublisher, logger core.Logger, metrics core.MetricsCollector) *DLQHandler {
+func NewDLQHandler(db *sql.DB, publisher dlqReplayPublisher, logger portcontract.Logger, metrics core.MetricsCollector) *DLQHandler {
 	return &DLQHandler{
 		db:        db,
 		publisher: publisher,

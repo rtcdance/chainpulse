@@ -4,13 +4,15 @@ import (
 	"sync"
 	"time"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
 	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 // AuditLogger handles security event logging
 type AuditLogger struct {
 	events  []AuditEvent
-	logger  core.Logger
+	logger  portcontract.Logger
 	metrics core.MetricsCollector
 	mu      sync.RWMutex
 	maxSize int
@@ -30,7 +32,7 @@ type AuditEvent struct {
 }
 
 // NewAuditLogger creates a new audit logger
-func NewAuditLogger(logger core.Logger, metrics core.MetricsCollector) *AuditLogger {
+func NewAuditLogger(logger portcontract.Logger, metrics core.MetricsCollector) *AuditLogger {
 	return &AuditLogger{
 		events:  make([]AuditEvent, 0, 1000),
 		logger:  logger,

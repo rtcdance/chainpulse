@@ -8,6 +8,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
 	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"github.com/rtcdance/chainpulse/pkg/core"
 	"github.com/rtcdance/chainpulse/pkg/logkeys"
@@ -26,14 +28,14 @@ type DefaultMongoDBAdapter struct {
 	initialized      atomic.Bool
 	dbManager        mongoClientProvider
 	mongoClient      *mongo.Client
-	logger           core.Logger
+	logger           portcontract.Logger
 	metricsCollector core.MetricsCollector
 }
 
 // NewMongoDBAdapter creates a new MongoDB adapter
 func NewMongoDBAdapter(
 	dbManager mongoClientProvider,
-	logger core.Logger,
+	logger portcontract.Logger,
 	metricsCollector core.MetricsCollector,
 ) MongoDBAdapter {
 	return &DefaultMongoDBAdapter{

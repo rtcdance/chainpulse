@@ -6,9 +6,12 @@ import (
 	"math"
 	"net"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
 )
@@ -31,7 +34,7 @@ type RateLimiter struct {
 	endpointLimiters map[string]*TokenBucket
 	ipLimiters       map[string]*TokenBucket
 
-	logger  core.Logger
+	logger  portcontract.Logger
 	metrics core.MetricsCollector
 
 	defaultRequestsPerSecond float64
@@ -113,8 +116,87 @@ func BurstSizeFromRequestsPerMinute(requestsPerMinute int) int {
 	return burst
 }
 
+// ParseOperatorRateLimits parses an operator quota spec of the form
+// "operator=reqPerMinute,operator2=reqPerMinute" into per-operator req/min
+// budgets. It is the config surface for GATEWAY_OPERATOR_RATE_LIMITS (and the
+// equivalent per-service variable), where an "operator" is the authenticated
+// client identity: an API-key client ID or a SIWE-authenticated subject.
+//
+// Every budget must be a positive integer. An operator typo such as
+// "alice=0" must fail loudly instead of silently turning into an unlimited —
+// or a never-refilling — quota. An empty spec yields an empty map, meaning
+// "no per-operator overrides; the finite global default applies to everyone".
+func ParseOperatorRateLimits(spec string) (map[string]int, error) {
+	quotas := make(map[string]int)
+	for _, entry := range strings.Split(spec, ",") {
+		entry = strings.TrimSpace(entry)
+		if entry == "" {
+			continue
+		}
+
+		operator, raw, ok := strings.Cut(entry, "=")
+		operator = strings.TrimSpace(operator)
+		raw = strings.TrimSpace(raw)
+		if !ok || operator == "" || raw == "" {
+			return nil, fmt.Errorf("invalid operator rate limit entry %q: expected operator=reqPerMinute", entry)
+		}
+
+		perMinute, err := strconv.Atoi(raw)
+		if err != nil {
+			return nil, fmt.Errorf("invalid operator rate limit for %q: %q is not an integer: %w", operator, raw, err)
+		}
+		if perMinute < 1 {
+			return nil, fmt.Errorf("operator %q rate limit must be >= 1 req/min, got %d: unlimited quotas are not allowed", operator, perMinute)
+		}
+		if _, dup := quotas[operator]; dup {
+			return nil, fmt.Errorf("duplicate operator %q in rate limit spec", operator)
+		}
+
+		quotas[operator] = perMinute
+	}
+	return quotas, nil
+}
+
+// NewRateLimitConfigFromPerMinute builds the limiter configuration from
+// operator-facing req/min budgets: one finite global default for traffic that
+// carries no operator identity, plus a finite token bucket per configured
+// operator. Every budget is validated to be >= 1 so a zero or negative value
+// can never mean "unlimited"; callers get an error instead of a silent
+// hole in the limit.
+//
+// This is the single constructor both the monolithic entry point and the
+// shared bootstrap path (BuildSecurityControls) should use, so the two
+// deployment modes cannot drift on quota semantics.
+func NewRateLimitConfigFromPerMinute(defaultPerMinute int, operatorPerMinute map[string]int) (*RateLimitConfig, error) {
+	if defaultPerMinute < 1 {
+		return nil, fmt.Errorf("default rate limit must be >= 1 req/min, got %d: unlimited rate limits are not allowed", defaultPerMinute)
+	}
+
+	var clientLimits map[string]ClientLimit
+	if len(operatorPerMinute) > 0 {
+		clientLimits = make(map[string]ClientLimit, len(operatorPerMinute))
+		for operator, perMinute := range operatorPerMinute {
+			if perMinute < 1 {
+				return nil, fmt.Errorf("operator %q rate limit must be >= 1 req/min, got %d: unlimited rate limits are not allowed", operator, perMinute)
+			}
+			clientLimits[operator] = ClientLimit{
+				ClientID:          operator,
+				RequestsPerSecond: RequestsPerMinuteToPerSecond(perMinute),
+				BurstSize:         BurstSizeFromRequestsPerMinute(perMinute),
+			}
+		}
+	}
+
+	return &RateLimitConfig{
+		DefaultRequestsPerSecond: RequestsPerMinuteToPerSecond(defaultPerMinute),
+		DefaultBurstSize:         BurstSizeFromRequestsPerMinute(defaultPerMinute),
+		ClientLimits:             clientLimits,
+		CleanupInterval:          5 * time.Minute,
+	}, nil
+}
+
 // NewRateLimiter creates a new rate limiter
-func NewRateLimiter(logger core.Logger, metrics core.MetricsCollector, config *RateLimitConfig) *RateLimiter {
+func NewRateLimiter(logger portcontract.Logger, metrics core.MetricsCollector, config *RateLimitConfig) *RateLimiter {
 	if config == nil {
 		config = &RateLimitConfig{
 			DefaultRequestsPerSecond: 100.0,
@@ -244,6 +326,9 @@ func (rl *RateLimiter) AllowRequest(r *http.Request, clientID string) (bool, *Ra
 	// Check client-specific rate limit
 	if clientID != "" {
 		if clientLimiter, ok := rl.clientLimiters[clientID]; ok {
+			if info.Limit == 0 {
+				info.Limit = clientLimiter.GetLimit()
+			}
 			if !clientLimiter.Allow() {
 				info.Allowed = false
 				rl.metrics.RecordCounter("rate_limit_exceeded_client", 1, nil)
@@ -257,6 +342,9 @@ func (rl *RateLimiter) AllowRequest(r *http.Request, clientID string) (bool, *Ra
 		} else {
 			// Create new client limiter if not exists
 			clientLimiter := NewTokenBucket(rl.defaultRequestsPerSecond, float64(rl.defaultBurstSize))
+			if info.Limit == 0 {
+				info.Limit = clientLimiter.GetLimit()
+			}
 			if !clientLimiter.Allow() {
 				info.Allowed = false
 				rl.metrics.RecordCounter("rate_limit_exceeded_client", 1, nil)
@@ -438,12 +526,12 @@ func (rl *RateLimiter) GetStats() map[string]any {
 // RateLimitMiddleware wraps an HTTP handler with rate limiting
 type RateLimitMiddleware struct {
 	limiter        *RateLimiter
-	logger         core.Logger
+	logger         portcontract.Logger
 	trustedProxies map[string]bool // IPs of trusted reverse proxies
 }
 
 // NewRateLimitMiddleware creates a new rate limit middleware
-func NewRateLimitMiddleware(limiter *RateLimiter, logger core.Logger) *RateLimitMiddleware {
+func NewRateLimitMiddleware(limiter *RateLimiter, logger portcontract.Logger) *RateLimitMiddleware {
 	return &RateLimitMiddleware{
 		limiter:        limiter,
 		logger:         logger,
@@ -525,8 +613,16 @@ func getClientIP(r *http.Request, trustedProxies map[string]bool) string {
 	return remoteIP
 }
 
-// extractClientID extracts client ID from request context or headers
+// extractClientID extracts the authenticated client/operator identity from
+// the request context. AuthMiddleware stores it under ContextKeyClientID
+// (API-key client or SIWE subject); the plain "clientID" key is kept as a
+// legacy fallback for callers that set it directly. Without the typed key
+// lookup every operator falls back to the shared per-IP bucket and
+// per-operator quotas never engage.
 func extractClientID(r *http.Request) string {
+	if id := GetClientID(r); id != "" {
+		return id
+	}
 	if clientID, ok := r.Context().Value("clientID").(string); ok {
 		return clientID
 	}

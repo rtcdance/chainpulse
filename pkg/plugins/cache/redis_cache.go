@@ -4,7 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
+
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
 	"github.com/rtcdance/chainpulse/pkg/logkeys"
@@ -21,7 +24,7 @@ type RedisCachePlugin struct {
 }
 
 // NewRedisCachePlugin creates a new Redis cache plugin
-func NewRedisCachePlugin(logger core.Logger, metricsCollector core.MetricsCollector) *RedisCachePlugin {
+func NewRedisCachePlugin(logger portcontract.Logger, metricsCollector core.MetricsCollector) *RedisCachePlugin {
 	return &RedisCachePlugin{
 		BaseCachePlugin: NewBaseCachePlugin("redis-cache", "1.0.0", logger, metricsCollector),
 		data:            make(map[string]*CacheEntry),
@@ -45,11 +48,13 @@ func (p *RedisCachePlugin) Initialize(config *core.Config) error {
 	p.connectionURL = config.CacheConnectionURL
 	if p.connectionURL == "" {
 		p.connectionURL = "redis://localhost:6379"
+	} else if !strings.Contains(p.connectionURL, "://") {
+		p.connectionURL = "redis://" + p.connectionURL
 	}
 
 	p.initialized = true
 
-	p.logger.Info("Redis cache plugin initialized", logkeys.LogKeyComponent, "redis_cache", "connectionURL", p.connectionURL)
+	p.logger.Info("Redis cache plugin initialized", logkeys.LogKeyComponent, "redis_cache", "connectionURL", core.RedactURL(p.connectionURL))
 
 	return nil
 }
@@ -65,9 +70,7 @@ func (p *RedisCachePlugin) Start(ctx context.Context) error {
 
 	opts, err := redis.ParseURL(p.connectionURL)
 	if err != nil {
-		opts = &redis.Options{
-			Addr: "localhost:6379",
-		}
+		return fmt.Errorf("invalid redis cache connection URL")
 	}
 	p.client = redis.NewClient(opts)
 
@@ -76,11 +79,30 @@ func (p *RedisCachePlugin) Start(ctx context.Context) error {
 
 	if err := p.client.Ping(pingCtx).Err(); err != nil {
 		p.logger.Warn("Redis connection failed, using in-memory fallback", "error", err.Error())
+		_ = p.client.Close()
 		p.client = nil
 		return nil
 	}
 
-	p.logger.Info("Redis cache plugin started", "component", "redis_cache", "connection", p.connectionURL)
+	p.logger.Info("Redis cache plugin started", "component", "redis_cache", "connection", core.RedactURL(p.connectionURL))
+	return nil
+}
+
+// Stop releases the client owned by this plugin. Lifecycle shutdown must not
+// leave a Redis pool alive after the application has stopped using the cache.
+func (p *RedisCachePlugin) Stop(ctx context.Context) error {
+	if err := p.BaseCachePlugin.Stop(ctx); err != nil {
+		return err
+	}
+	p.mu.Lock()
+	client := p.client
+	p.client = nil
+	p.mu.Unlock()
+	if client != nil {
+		if err := client.Close(); err != nil {
+			return fmt.Errorf("close redis cache client: %w", err)
+		}
+	}
 	return nil
 }
 
@@ -98,14 +120,15 @@ func (p *RedisCachePlugin) Get(key string) (*CacheEntry, error) {
 		return nil, fmt.Errorf("redis cache plugin not running")
 	}
 
+	client := p.client
 	p.mu.RUnlock()
 
 	// Try Redis first if client is available
-	if p.client != nil {
+	if client != nil {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 		defer cancel()
 
-		val, err := p.client.Get(ctx, key).Result()
+		val, err := client.Get(ctx, key).Result()
 		if err == nil {
 			// Found in Redis — deserialize
 			var entry CacheEntry
@@ -119,7 +142,7 @@ func (p *RedisCachePlugin) Get(key string) (*CacheEntry, error) {
 					return &entry, nil
 				}
 				// Expired — delete from Redis
-				if err := p.client.Del(ctx, key); err != nil {
+				if err := client.Del(ctx, key); err != nil {
 					p.logger.Warn("failed to delete expired key from Redis", "key", key, "error", err.Err())
 				}
 			}
@@ -286,7 +309,7 @@ func (p *RedisCachePlugin) Clear() error {
 }
 
 // GetStats returns cache statistics
-func (p *RedisCachePlugin) GetStats() core.CacheStats {
+func (p *RedisCachePlugin) GetStats() portcontract.CacheStats {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
@@ -300,7 +323,7 @@ func (p *RedisCachePlugin) GetStats() core.CacheStats {
 		}
 	}
 
-	return core.CacheStats{
+	return portcontract.CacheStats{
 		HitCount:      p.hitCount,
 		MissCount:     p.missCount,
 		EvictionCount: p.evictionCount,

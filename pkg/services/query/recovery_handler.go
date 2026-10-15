@@ -6,6 +6,8 @@ import (
 	"sync"
 	"time"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
 	"github.com/rtcdance/chainpulse/pkg/core"
 	"github.com/rtcdance/chainpulse/pkg/logkeys"
 	"github.com/rtcdance/chainpulse/pkg/services/query/qerrors"
@@ -116,7 +118,7 @@ type DefaultRecoveryHandler struct {
 	metadataStore          EventMetadataStore
 	cacheService           CacheService
 	errorClassifier        *qerrors.Classifier
-	logger                 core.Logger
+	logger                 portcontract.Logger
 	metricsCollector       core.MetricsCollector
 	initialized            bool
 	lastRecoveryTime       time.Time
@@ -138,7 +140,7 @@ func NewRecoveryHandler(
 	metadataStore EventMetadataStore,
 	cacheService CacheService,
 	errorClassifier *qerrors.Classifier,
-	logger core.Logger,
+	logger portcontract.Logger,
 	metricsCollector core.MetricsCollector,
 ) RecoveryHandler {
 	return &DefaultRecoveryHandler{

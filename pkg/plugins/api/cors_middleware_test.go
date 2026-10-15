@@ -13,8 +13,8 @@ func TestCORSMiddleware_NewCORSMiddleware(t *testing.T) {
 	if m == nil {
 		t.Fatal("NewCORSMiddleware returned nil")
 	}
-	if len(m.allowedOrigins) != 1 || m.allowedOrigins[0] != "*" {
-		t.Error("default origin not *")
+	if len(m.allowedOrigins) != 0 {
+		t.Errorf("default origins = %v, want empty (same-origin only)", m.allowedOrigins)
 	}
 	if len(m.allowedMethods) < 3 {
 		t.Error("expected default methods")
@@ -108,6 +108,28 @@ func TestCORSMiddleware_Integration(t *testing.T) {
 	}
 	if m.isOriginAllowed("https://evil.com") {
 		t.Error("should not allow unconfigured origin")
+	}
+}
+
+func TestCORSMiddleware_Handler_DefaultSameOriginDeniesCrossOrigin(t *testing.T) {
+	t.Parallel()
+
+	m := NewCORSMiddleware(nil)
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req.Header.Set("Origin", "https://evil.example")
+	rec := httptest.NewRecorder()
+
+	m.Handler(next).ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d", rec.Code)
+	}
+	if rec.Header().Get("Access-Control-Allow-Origin") != "" {
+		t.Error("expected no Access-Control-Allow-Origin header with default same-origin config")
 	}
 }
 

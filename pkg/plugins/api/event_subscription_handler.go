@@ -10,20 +10,26 @@ import (
 	"sync"
 	"time"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
 	"github.com/gorilla/websocket"
 
 	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"github.com/rtcdance/chainpulse/pkg/chainid"
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/core/topics"
 	"github.com/rtcdance/chainpulse/pkg/services/query"
 )
 
 // EventSubscriptionHandler handles event subscription requests via WebSocket
 type EventSubscriptionHandler struct {
 	retrievalService *query.EventRetrievalService
-	logger           core.Logger
+	logger           portcontract.Logger
 	metrics          core.MetricsCollector
 	initialized      bool
+
+	// hub buffers broadcasts for Last-Event-ID resume replay
+	hub *SubscriptionHub
 
 	// Connection management
 	mu                sync.RWMutex
@@ -67,19 +73,44 @@ type Subscription struct {
 	LastActivity     time.Time
 }
 
+const (
+	// subscriptionReplayTopic is the single hub topic shared by live events
+	// and reorg corrections so both carry one monotonic seq cursor.
+	subscriptionReplayTopic = "events"
+	bufferedKindEvent       = "event"
+	bufferedKindReorg       = "reorg"
+)
+
 // SubscriptionMessage represents a message sent to subscriber
 type SubscriptionMessage struct {
-	Type      string `json:"type"` // "event", "error", "ping"
+	Type      string `json:"type"` // "event", "reorg", "error", "ping"
+	Seq       uint64 `json:"seq,omitempty"`
 	Event     any    `json:"event,omitempty"`
 	Error     string `json:"error,omitempty"`
 	Message   string `json:"message,omitempty"`
 	Timestamp int64  `json:"timestamp"`
 }
 
+// bufferedPush is a hub replay-buffer entry; kind discriminates event vs
+// reorg payloads sharing the single replay topic.
+type bufferedPush struct {
+	kind  string
+	event *EventResponse
+	reorg *ReorgCorrection
+}
+
+// ReorgCorrection is the rollback signal delivered to subscribers.
+type ReorgCorrection struct {
+	ChainID    string `json:"chainId"`
+	FromBlock  uint64 `json:"fromBlock"`
+	ToBlock    uint64 `json:"toBlock"`
+	DetectedAt int64  `json:"detectedAt"`
+}
+
 // NewEventSubscriptionHandler creates a new event subscription handler
 func NewEventSubscriptionHandler(
 	retrievalService *query.EventRetrievalService,
-	logger core.Logger,
+	logger portcontract.Logger,
 	metrics core.MetricsCollector,
 ) *EventSubscriptionHandler {
 	return &EventSubscriptionHandler{
@@ -87,6 +118,7 @@ func NewEventSubscriptionHandler(
 		logger:           logger,
 		metrics:          metrics,
 		initialized:      false,
+		hub:              NewSubscriptionHub(),
 		connections:      make(map[string]*SubscriptionConnection),
 		subscriptions:    make(map[string]*Subscription),
 		maxConnections:   10000,
@@ -177,6 +209,23 @@ func (h *EventSubscriptionHandler) HandleSubscribeName(w http.ResponseWriter, r 
 	h.handleSubscription(w, r, "name", eventName)
 }
 
+// parseResumeCursor extracts the replay cursor from the Last-Event-ID header
+// or the last_event_id query parameter. ok is false when neither is present.
+func parseResumeCursor(r *http.Request) (cursor uint64, ok bool, err error) {
+	raw := r.Header.Get("Last-Event-ID")
+	if raw == "" {
+		raw = r.URL.Query().Get("last_event_id")
+	}
+	if raw == "" {
+		return 0, false, nil
+	}
+	cursor, parseErr := strconv.ParseUint(strings.TrimSpace(raw), 10, 64)
+	if parseErr != nil {
+		return 0, false, fmt.Errorf("invalid last_event_id %q: %w", raw, parseErr)
+	}
+	return cursor, true, nil
+}
+
 // handleSubscription handles WebSocket subscription
 func (h *EventSubscriptionHandler) handleSubscription(w http.ResponseWriter, r *http.Request, subscriptionType string, filterValue string) {
 	h.logger.Info("handleSubscription called", "type", subscriptionType, "filter", filterValue)
@@ -210,6 +259,15 @@ func (h *EventSubscriptionHandler) handleSubscription(w http.ResponseWriter, r *
 		}
 	}
 
+	// Resume cursor must be parsed before the upgrade so a malformed value
+	// fails as a plain HTTP 400 instead of a half-open WebSocket.
+	resumeCursor, hasCursor, err := parseResumeCursor(r)
+	if err != nil {
+		h.metrics.RecordCounter("event_subscription_invalid_cursor", 1, nil)
+		http.Error(w, "Invalid last_event_id", http.StatusBadRequest)
+		return
+	}
+
 	// Upgrade HTTP connection to WebSocket
 	upgrader := websocket.Upgrader{
 		ReadBufferSize:  1024,
@@ -236,15 +294,6 @@ func (h *EventSubscriptionHandler) handleSubscription(w http.ResponseWriter, r *
 		Done:          make(chan struct{}),
 	}
 
-	// Register connection
-	h.mu.Lock()
-	h.connections[connID] = subConn
-	h.connectionCount++
-	h.mu.Unlock()
-
-	h.metrics.RecordCounter("event_subscription_connection_established", 1, nil)
-	h.logger.Info("WebSocket connection established", "connectionId", connID, "remoteAddr", r.RemoteAddr)
-
 	// Create subscription
 	subID := fmt.Sprintf("sub_%d", time.Now().UnixNano())
 	subscription := &Subscription{
@@ -256,18 +305,84 @@ func (h *EventSubscriptionHandler) handleSubscription(w http.ResponseWriter, r *
 		LastActivity:     time.Now(),
 	}
 
-	// Register subscription
+	// Registration and replay fetch must be one critical section against
+	// BroadcastEvent's buffer+snapshot (also under h.mu): otherwise an event
+	// could be both live-sent and replayed, or neither. subConn.mu is held
+	// across the replay so concurrent live sends queue behind it — no path
+	// nests h.mu → subConn.mu, so this lock order is safe.
+	subConn.mu.Lock()
 	h.mu.Lock()
+	h.connections[connID] = subConn
+	h.connectionCount++
 	subConn.Subscriptions[subID] = subscription
 	h.subscriptions[subID] = subscription
 	h.subscriptionCount++
+	var replayEntries []replayEntry
+	if hasCursor {
+		replayEntries = h.hub.GetReplayEvents(subscriptionReplayTopic, resumeCursor)
+	}
 	h.mu.Unlock()
 
+	h.metrics.RecordCounter("event_subscription_connection_established", 1, nil)
 	h.metrics.RecordCounter("event_subscription_created", 1, nil)
+	h.logger.Info("WebSocket connection established", "connectionId", connID, "remoteAddr", r.RemoteAddr)
+
+	replayErr := h.sendReplay(subConn, subscription, replayEntries)
+	subConn.mu.Unlock()
+	if replayErr != nil {
+		h.logger.Error("Failed to send replay, closing connection", "connectionId", connID, "error", replayErr.Error())
+		h.closeConnection(subConn)
+		return
+	}
 
 	// Handle connection
 	h.wg.Add(1)
 	go h.handleConnection(subConn, subscription)
+}
+
+// sendReplay writes buffered entries with Seq > cursor to a fresh connection.
+// Caller must hold subConn.mu; reorg corrections are delivered unfiltered
+// because clients filter corrections by chainId themselves.
+func (h *EventSubscriptionHandler) sendReplay(subConn *SubscriptionConnection, sub *Subscription, entries []replayEntry) error {
+	for _, entry := range entries {
+		push, ok := entry.Data.(bufferedPush)
+		if !ok {
+			continue
+		}
+		var message *SubscriptionMessage
+		switch push.kind {
+		case bufferedKindEvent:
+			if push.event == nil || !matchesSubscriptionValues(sub, push.event.ChainID, push.event.ContractAddress, push.event.EventName) {
+				continue
+			}
+			message = &SubscriptionMessage{Type: "event", Seq: entry.Seq, Event: push.event, Timestamp: time.Now().Unix()}
+		case bufferedKindReorg:
+			if push.reorg == nil {
+				continue
+			}
+			message = &SubscriptionMessage{Type: "reorg", Seq: entry.Seq, Event: push.reorg, Timestamp: time.Now().Unix()}
+		default:
+			continue
+		}
+		data, err := json.Marshal(message)
+		if err != nil {
+			h.logger.Error("Failed to marshal replay message", "subscriptionId", sub.ID, "error", err.Error())
+			h.metrics.RecordCounter("event_subscription_marshal_error", 1, nil)
+			continue
+		}
+		if err := subConn.Conn.SetWriteDeadline(time.Now().Add(h.writeTimeout)); err != nil {
+			return fmt.Errorf("set replay write deadline: %w", err)
+		}
+		if err := subConn.Conn.WriteMessage(websocket.TextMessage, data); err != nil {
+			return fmt.Errorf("write replay message: %w", err)
+		}
+		if push.kind == bufferedKindReorg {
+			h.metrics.RecordCounter("event_subscription_reorg_sent", 1, nil)
+		} else {
+			h.metrics.RecordCounter("event_subscription_event_sent", 1, nil)
+		}
+	}
+	return nil
 }
 
 func (h *EventSubscriptionHandler) allowSubscriptionRequest(w http.ResponseWriter, r *http.Request) bool {
@@ -412,13 +527,6 @@ func (h *EventSubscriptionHandler) BroadcastEvent(ctx context.Context, event *bl
 		return fmt.Errorf("event is required")
 	}
 
-	h.mu.RLock()
-	subscriptions := make([]*Subscription, 0, len(h.subscriptions))
-	for _, sub := range h.subscriptions {
-		subscriptions = append(subscriptions, sub)
-	}
-	h.mu.RUnlock()
-
 	// Convert event to response format
 	eventResponse := &EventResponse{
 		EventID:         event.ID,
@@ -433,10 +541,21 @@ func (h *EventSubscriptionHandler) BroadcastEvent(ctx context.Context, event *bl
 		ProcessedAt:     time.Now().Unix(),
 	}
 
+	// Buffer before snapshotting, both under h.mu: a subscriber registered
+	// concurrently either already sees this event in its replay fetch or is
+	// present in this snapshot — never both, never neither.
+	h.mu.RLock()
+	seq := h.hub.BufferEvent(subscriptionReplayTopic, bufferedPush{kind: bufferedKindEvent, event: eventResponse})
+	subscriptions := make([]*Subscription, 0, len(h.subscriptions))
+	for _, sub := range h.subscriptions {
+		subscriptions = append(subscriptions, sub)
+	}
+	h.mu.RUnlock()
+
 	// Send to matching subscribers
 	for _, sub := range subscriptions {
 		if h.matchesSubscription(event, sub) {
-			h.sendEventToSubscription(sub, eventResponse)
+			h.sendEventToSubscription(sub, eventResponse, seq)
 		}
 	}
 
@@ -444,41 +563,96 @@ func (h *EventSubscriptionHandler) BroadcastEvent(ctx context.Context, event *bl
 	return nil
 }
 
+// BroadcastReorg sends a reorg correction to every subscriber and buffers it
+// on the shared replay topic so disconnected subscribers recover it on resume.
+func (h *EventSubscriptionHandler) BroadcastReorg(_ context.Context, reorg *portcontract.ReorgRollbackEvent) error {
+	if !h.initialized {
+		return fmt.Errorf("handler not initialized")
+	}
+	if reorg == nil {
+		return fmt.Errorf("reorg event is required")
+	}
+	correction := &ReorgCorrection{
+		ChainID:    reorg.ChainID,
+		FromBlock:  reorg.FromBlock,
+		ToBlock:    reorg.ToBlock,
+		DetectedAt: reorg.DetectedAt.Unix(),
+	}
+
+	h.mu.RLock()
+	seq := h.hub.BufferEvent(subscriptionReplayTopic, bufferedPush{kind: bufferedKindReorg, reorg: correction})
+	subscriptions := make([]*Subscription, 0, len(h.subscriptions))
+	for _, sub := range h.subscriptions {
+		subscriptions = append(subscriptions, sub)
+	}
+	h.mu.RUnlock()
+
+	for _, sub := range subscriptions {
+		h.sendReorgToSubscription(sub, correction, seq)
+	}
+	return nil
+}
+
+// SubscribeReorgRollback wires the EventBus reorg-rollback topic to
+// BroadcastReorg so corrections reach WebSocket subscribers.
+func (h *EventSubscriptionHandler) SubscribeReorgRollback(ctx context.Context, bus portcontract.EventBus, subscriberName string) (uint64, error) {
+	return core.SubscribeTypedNamed[*portcontract.ReorgRollbackEvent](bus, ctx, topics.TopicReorgRollback, subscriberName, func(reorg *portcontract.ReorgRollbackEvent) {
+		if err := h.BroadcastReorg(ctx, reorg); err != nil {
+			h.logger.Error("Failed to broadcast reorg correction", "error", err.Error())
+		}
+	})
+}
+
 // matchesSubscription checks if an event matches a subscription
 func (h *EventSubscriptionHandler) matchesSubscription(event *blockchain.BlockchainEvent, sub *Subscription) bool {
+	return matchesSubscriptionValues(sub, event.ChainID, event.ContractAddress.Hex(), event.EventName)
+}
+
+func matchesSubscriptionValues(sub *Subscription, chainID, contractAddr, eventName string) bool {
 	switch sub.SubscriptionType {
 	case "all":
 		return true
 	case "chain":
-		chainID, err := strconv.Atoi(sub.FilterValue)
+		chainIDInt, err := strconv.Atoi(sub.FilterValue)
 		if err != nil {
 			return false
 		}
-		// Parse event.ChainID string to int for comparison
-		return chainid.ResolveChainID(event.ChainID) == chainID
+		return chainid.ResolveChainID(chainID) == chainIDInt
 	case "contract":
-		return event.ContractAddress.Hex() == sub.FilterValue
+		return contractAddr == sub.FilterValue
 	case "name":
-		return event.EventName == sub.FilterValue
+		return eventName == sub.FilterValue
 	default:
 		return false
 	}
 }
 
 // sendEventToSubscription sends an event to a specific subscription
-func (h *EventSubscriptionHandler) sendEventToSubscription(sub *Subscription, eventResponse *EventResponse) {
+func (h *EventSubscriptionHandler) sendEventToSubscription(sub *Subscription, eventResponse *EventResponse, seq uint64) {
+	h.sendSubscriptionMessage(sub, &SubscriptionMessage{
+		Type:      "event",
+		Seq:       seq,
+		Event:     eventResponse,
+		Timestamp: time.Now().Unix(),
+	}, "event_subscription_event_sent")
+}
+
+func (h *EventSubscriptionHandler) sendReorgToSubscription(sub *Subscription, correction *ReorgCorrection, seq uint64) {
+	h.sendSubscriptionMessage(sub, &SubscriptionMessage{
+		Type:      "reorg",
+		Seq:       seq,
+		Event:     correction,
+		Timestamp: time.Now().Unix(),
+	}, "event_subscription_reorg_sent")
+}
+
+func (h *EventSubscriptionHandler) sendSubscriptionMessage(sub *Subscription, message *SubscriptionMessage, counterName string) {
 	h.mu.RLock()
 	subConn, exists := h.connections[sub.ConnectionID]
 	h.mu.RUnlock()
 
 	if !exists {
 		return
-	}
-
-	message := &SubscriptionMessage{
-		Type:      "event",
-		Event:     eventResponse,
-		Timestamp: time.Now().Unix(),
 	}
 
 	data, err := json.Marshal(message)
@@ -501,7 +675,7 @@ func (h *EventSubscriptionHandler) sendEventToSubscription(sub *Subscription, ev
 		return
 	}
 
-	h.metrics.RecordCounter("event_subscription_event_sent", 1, nil)
+	h.metrics.RecordCounter(counterName, 1, nil)
 }
 
 // closeConnection closes a WebSocket connection

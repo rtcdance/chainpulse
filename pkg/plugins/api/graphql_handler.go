@@ -7,6 +7,8 @@ import (
 	"strings"
 	"sync"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
 	"github.com/graphql-go/graphql"
 	"github.com/graphql-go/graphql/language/ast"
 	"github.com/rtcdance/chainpulse/pkg/blockchain"
@@ -52,7 +54,7 @@ type Location struct {
 type GraphQLHandler struct {
 	queryService domainquery.Service
 	eventStore   domainquery.EventStore
-	logger       core.Logger
+	logger       portcontract.Logger
 	metrics      core.MetricsCollector
 	schema       *graphql.Schema
 	mu           sync.RWMutex
@@ -60,7 +62,7 @@ type GraphQLHandler struct {
 }
 
 // NewGraphQLHandler creates a new GraphQL handler
-func NewGraphQLHandler(queryService domainquery.Service, eventStore domainquery.EventStore, logger core.Logger, metrics core.MetricsCollector) *GraphQLHandler {
+func NewGraphQLHandler(queryService domainquery.Service, eventStore domainquery.EventStore, logger portcontract.Logger, metrics core.MetricsCollector) *GraphQLHandler {
 	h := &GraphQLHandler{
 		queryService: queryService,
 		eventStore:   eventStore,
@@ -172,6 +174,10 @@ func (h *GraphQLHandler) buildSchema() (*graphql.Schema, error) {
 					chainID := 0 // 0 = all chains
 					if cid, ok := p.Args["chainId"].(string); ok && cid != "" {
 						chainID = chainid.ResolveChainID(cid)
+					}
+					if source, ok := h.queryService.(interface{ AuthoritativeQuery() bool }); ok && source.AuthoritativeQuery() {
+						after, _ := p.Args["after"].(string)
+						return h.canonicalPage(p.Context, chainID, first, after)
 					}
 
 					if h.eventStore == nil {

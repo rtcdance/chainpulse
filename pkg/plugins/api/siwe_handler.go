@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"time"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/rtcdance/chainpulse/pkg/core"
 	"github.com/rtcdance/chainpulse/pkg/siwe"
@@ -24,7 +26,7 @@ type SIWEHandler struct {
 	domain         string
 	uri            string
 	chainID        *big.Int
-	logger         core.Logger
+	logger         portcontract.Logger
 	metrics        core.MetricsCollector
 }
 
@@ -41,7 +43,7 @@ func NewSIWEHandler(
 	tokenValidator *TokenValidator,
 	domain, uri string,
 	chainID *big.Int,
-	logger core.Logger,
+	logger portcontract.Logger,
 	metrics core.MetricsCollector,
 ) *SIWEHandler {
 	return &SIWEHandler{

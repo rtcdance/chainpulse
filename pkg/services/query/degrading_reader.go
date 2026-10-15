@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/rtcdance/chainpulse/pkg/core"
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
 )
 
 // SourceLoader reads a value from the authoritative source (the database).
@@ -38,13 +38,13 @@ type ReadResult struct {
 // differently. A miss is a normal path; an error is a degradation, and it is
 // reported as such rather than silently swallowed.
 type DegradingReader struct {
-	cache  core.CachePlugin
+	cache  portcontract.CachePlugin
 	load   SourceLoader
-	logger core.Logger
+	logger portcontract.Logger
 }
 
 // NewDegradingReader creates the reader.
-func NewDegradingReader(cache core.CachePlugin, load SourceLoader, logger core.Logger) (*DegradingReader, error) {
+func NewDegradingReader(cache portcontract.CachePlugin, load SourceLoader, logger portcontract.Logger) (*DegradingReader, error) {
 	if cache == nil {
 		return nil, fmt.Errorf("cache is required")
 	}

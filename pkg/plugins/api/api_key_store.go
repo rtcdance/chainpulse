@@ -13,6 +13,8 @@ import (
 	"sync"
 	"time"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
 	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
@@ -35,14 +37,14 @@ type APIKeyRecord struct {
 // APIKeyStore manages persistent API key storage
 type APIKeyStore struct {
 	db       *sql.DB
-	logger   core.Logger
+	logger   portcontract.Logger
 	metrics  core.MetricsCollector
 	wg       sync.WaitGroup
 	done     chan struct{}
 	stopOnce sync.Once
 }
 
-func NewAPIKeyStore(db *sql.DB, logger core.Logger, metrics core.MetricsCollector) *APIKeyStore {
+func NewAPIKeyStore(db *sql.DB, logger portcontract.Logger, metrics core.MetricsCollector) *APIKeyStore {
 	return &APIKeyStore{
 		db:      db,
 		logger:  logger,

@@ -8,6 +8,8 @@ import (
 	"sync"
 	"time"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
@@ -21,7 +23,7 @@ import (
 // depth-based confirmation counting for superior accuracy.
 type BlockConfirmationTracker struct {
 	db              *sql.DB
-	logger          core.Logger
+	logger          portcontract.Logger
 	metrics         core.MetricsCollector
 	subscriptionHub *SubscriptionHub               // for buffering replay events
 	reorgHandlers   map[string]*reorg.ReorgHandler // chainID -> reorg handler
@@ -36,7 +38,7 @@ type BlockConfirmationTracker struct {
 // NewBlockConfirmationTracker creates a new confirmation tracker
 func NewBlockConfirmationTracker(
 	db *sql.DB,
-	logger core.Logger,
+	logger portcontract.Logger,
 	metrics core.MetricsCollector,
 	hub *SubscriptionHub,
 	confirmationMap map[uint64]int,

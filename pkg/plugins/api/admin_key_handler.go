@@ -12,15 +12,15 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/rtcdance/chainpulse/pkg/core"
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
 )
 
 type AdminKeyHandler struct {
 	db     *sql.DB
-	logger core.Logger
+	logger portcontract.Logger
 }
 
-func NewAdminKeyHandler(db *sql.DB, logger core.Logger) *AdminKeyHandler {
+func NewAdminKeyHandler(db *sql.DB, logger portcontract.Logger) *AdminKeyHandler {
 	return &AdminKeyHandler{
 		db:     db,
 		logger: logger,

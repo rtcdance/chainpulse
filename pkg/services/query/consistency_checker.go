@@ -6,6 +6,8 @@ import (
 	"sync"
 	"time"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
@@ -37,14 +39,14 @@ type ConsistencyCheckResult struct {
 type ConsistencyChecker struct {
 	eventStore    EventStore
 	metadataStore EventMetadataStore
-	logger        core.Logger
+	logger        portcontract.Logger
 	metrics       core.MetricsCollector
 	mu            sync.RWMutex
 	initialized   bool
 }
 
 // NewConsistencyChecker creates a new consistency checker
-func NewConsistencyChecker(eventStore EventStore, metadataStore EventMetadataStore, logger core.Logger, metrics core.MetricsCollector) *ConsistencyChecker {
+func NewConsistencyChecker(eventStore EventStore, metadataStore EventMetadataStore, logger portcontract.Logger, metrics core.MetricsCollector) *ConsistencyChecker {
 	return &ConsistencyChecker{
 		eventStore:    eventStore,
 		metadataStore: metadataStore,

@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"time"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
 	"github.com/rtcdance/chainpulse/pkg/core"
 
 	redisv9 "github.com/redis/go-redis/v9"
@@ -23,7 +25,7 @@ var errRedisUnavailable = fmt.Errorf("redis unavailable")
 type RedisRateLimiter struct {
 	client *redisv9.Client
 
-	logger  core.Logger
+	logger  portcontract.Logger
 	metrics core.MetricsCollector
 
 	defaultRequestsPerSecond float64
@@ -40,7 +42,7 @@ type RedisRateLimiter struct {
 // If redisClient is nil, it falls back to a pure in-memory limiter.
 func NewRedisRateLimiter(
 	redisClient *redisv9.Client,
-	logger core.Logger,
+	logger portcontract.Logger,
 	metrics core.MetricsCollector,
 	config *RateLimitConfig,
 ) *RedisRateLimiter {

@@ -6,6 +6,8 @@ import (
 	"sync"
 	"time"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
 	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
@@ -87,7 +89,7 @@ type DefaultDegradationHandler struct {
 	eventStore        EventStore
 	metadataStore     EventMetadataStore
 	cacheService      CacheService
-	logger            core.Logger
+	logger            portcontract.Logger
 	metrics           core.MetricsCollector
 	currentMode       DegradationMode
 	lastModeChange    time.Time
@@ -107,7 +109,7 @@ func NewDegradationHandler(
 	eventStore EventStore,
 	metadataStore EventMetadataStore,
 	cacheService CacheService,
-	logger core.Logger,
+	logger portcontract.Logger,
 	metrics core.MetricsCollector,
 ) DegradationHandler {
 	return &DefaultDegradationHandler{

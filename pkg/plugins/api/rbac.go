@@ -6,6 +6,8 @@ import (
 	"sync"
 	"time"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
 	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
@@ -18,7 +20,7 @@ type RBACChecker struct {
 	// endpointPermissions maps endpoint -> required permissions
 	endpointPermissions map[string][]string
 
-	logger  core.Logger
+	logger  portcontract.Logger
 	metrics core.MetricsCollector
 	mu      sync.RWMutex
 }
@@ -35,7 +37,7 @@ type AccessCheckResult struct {
 }
 
 // NewRBACChecker creates a new RBAC checker
-func NewRBACChecker(logger core.Logger, metrics core.MetricsCollector) *RBACChecker {
+func NewRBACChecker(logger portcontract.Logger, metrics core.MetricsCollector) *RBACChecker {
 	return &RBACChecker{
 		rolePermissions:     make(map[string][]string),
 		endpointRoles:       make(map[string][]string),

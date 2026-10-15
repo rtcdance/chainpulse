@@ -8,13 +8,15 @@ import (
 	"strings"
 	"time"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
 	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 // PostgreSQLEventMetadataStore implements EventMetadataStore for PostgreSQL
 type PostgreSQLEventMetadataStore struct {
 	dbManager   postgresConnectionProvider
-	logger      core.Logger
+	logger      portcontract.Logger
 	metrics     core.MetricsCollector
 	db          *sql.DB
 	initialized bool
@@ -27,7 +29,7 @@ type PostgreSQLEventMetadataStore struct {
 // NewPostgreSQLEventMetadataStore creates a new PostgreSQL event metadata store
 func NewPostgreSQLEventMetadataStore(
 	dbManager postgresConnectionProvider,
-	logger core.Logger,
+	logger portcontract.Logger,
 	metrics core.MetricsCollector,
 ) *PostgreSQLEventMetadataStore {
 	return &PostgreSQLEventMetadataStore{

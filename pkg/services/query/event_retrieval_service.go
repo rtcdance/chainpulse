@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"time"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
 	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"github.com/rtcdance/chainpulse/pkg/core"
 	domainquery "github.com/rtcdance/chainpulse/pkg/domain/query"
@@ -14,7 +16,7 @@ import (
 type EventRetrievalService struct {
 	eventStore    EventStore
 	metadataStore EventMetadataStore
-	logger        core.Logger
+	logger        portcontract.Logger
 	metrics       core.MetricsCollector
 	initialized   bool
 }
@@ -23,7 +25,7 @@ type EventRetrievalService struct {
 func NewEventRetrievalService(
 	eventStore EventStore,
 	metadataStore EventMetadataStore,
-	logger core.Logger,
+	logger portcontract.Logger,
 	metrics core.MetricsCollector,
 ) *EventRetrievalService {
 	return &EventRetrievalService{

@@ -7,6 +7,8 @@ import (
 	"sync"
 	"time"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
 	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"github.com/rtcdance/chainpulse/pkg/core"
 	"github.com/rtcdance/chainpulse/pkg/logkeys"
@@ -17,7 +19,7 @@ type DefaultCacheService struct {
 	mu               sync.RWMutex
 	cache            map[string]cacheEntry
 	maxEntries       int
-	logger           core.Logger
+	logger           portcontract.Logger
 	metricsCollector core.MetricsCollector
 	initialized      bool
 	running          bool
@@ -35,7 +37,7 @@ type cacheEntry struct {
 
 // NewCacheService creates a new cache service
 func NewCacheService(
-	logger core.Logger,
+	logger portcontract.Logger,
 	metricsCollector core.MetricsCollector,
 ) CacheService {
 	return &DefaultCacheService{

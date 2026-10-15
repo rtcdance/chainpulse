@@ -1,19 +1,21 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 
-	"github.com/rtcdance/chainpulse/pkg/core"
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
 	domainquery "github.com/rtcdance/chainpulse/pkg/domain/query"
 )
 
 type StatsHandler struct {
-	logger     core.Logger
+	logger     portcontract.Logger
 	eventStore domainquery.EventReader
 }
 
-func NewStatsHandler(logger core.Logger, eventStore domainquery.EventReader) *StatsHandler {
+func NewStatsHandler(logger portcontract.Logger, eventStore domainquery.EventReader) *StatsHandler {
 	return &StatsHandler{
 		logger:     logger,
 		eventStore: eventStore,
@@ -29,6 +31,22 @@ type eventStatsResponse struct {
 
 func (h *StatsHandler) HandleGetStats(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	if source, ok := h.eventStore.(interface {
+		CanonicalStatsEnabled() bool
+		CanonicalEventStats(context.Context) (int64, map[string]int64, map[string]int64, int64, error)
+	}); ok && source.CanonicalStatsEnabled() {
+		total, byChain, byName, reorged, err := source.CanonicalEventStats(ctx)
+		if err != nil {
+			h.logger.Error("Canonical statistics unavailable", "error", err)
+			(&APIError{Code: "STATS_FAILED", Message: "Failed to retrieve event statistics", Status: http.StatusServiceUnavailable}).WriteHTTP(w)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(eventStatsResponse{Total: total, ByChain: byChain, ByEventName: byName, Reorged: reorged}); err != nil {
+			h.logger.Error("Encode canonical statistics", "error", err)
+		}
+		return
+	}
 
 	total, err := h.eventStore.CountEvents(ctx)
 	if err != nil {

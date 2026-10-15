@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
 	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"github.com/rtcdance/chainpulse/pkg/core"
 )
@@ -189,7 +191,7 @@ func (m *MockLogger) Info(msg string, fields ...any)  {}
 func (m *MockLogger) Warn(msg string, fields ...any)  {}
 func (m *MockLogger) Error(msg string, fields ...any) {}
 func (m *MockLogger) Fatal(msg string, fields ...any) {}
-func (m *MockLogger) WithCorrelationID(id string) core.Logger {
+func (m *MockLogger) WithCorrelationID(id string) portcontract.Logger {
 	return m
 }
 

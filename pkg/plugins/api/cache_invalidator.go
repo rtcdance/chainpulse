@@ -5,13 +5,15 @@ import (
 	"sync"
 	"time"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
 	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 // CacheInvalidator handles cache invalidation logic
 type CacheInvalidator struct {
 	cache             *CacheMiddleware
-	logger            core.Logger
+	logger            portcontract.Logger
 	metrics           core.MetricsCollector
 	invalidationQueue chan InvalidationRequest
 	retryPolicy       *RetryPolicy
@@ -47,7 +49,7 @@ func DefaultRetryPolicy() *RetryPolicy {
 }
 
 // NewCacheInvalidator creates a new cache invalidator
-func NewCacheInvalidator(cache *CacheMiddleware, logger core.Logger, metrics core.MetricsCollector) *CacheInvalidator {
+func NewCacheInvalidator(cache *CacheMiddleware, logger portcontract.Logger, metrics core.MetricsCollector) *CacheInvalidator {
 	ci := &CacheInvalidator{
 		cache:             cache,
 		logger:            logger,

@@ -6,12 +6,14 @@ import (
 	"net/http"
 	"time"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
 	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 // ModelsHandler handles model introspection requests
 type ModelsHandler struct {
-	logger      core.Logger
+	logger      portcontract.Logger
 	metrics     core.MetricsCollector
 	initialized bool
 }
@@ -39,7 +41,7 @@ type ModelsResponse struct {
 }
 
 // NewModelsHandler creates a new models handler
-func NewModelsHandler(logger core.Logger, metrics core.MetricsCollector) *ModelsHandler {
+func NewModelsHandler(logger portcontract.Logger, metrics core.MetricsCollector) *ModelsHandler {
 	return &ModelsHandler{
 		logger:      logger,
 		metrics:     metrics,

@@ -6,6 +6,8 @@ import (
 	"sync"
 	"time"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
 	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
@@ -102,14 +104,14 @@ type DefaultErrorMetricsCollector struct {
 	circuitBreakerMetrics *CircuitBreakerMetrics
 	consistencyMetrics    *ConsistencyMetrics
 	degradationMetrics    *DegradationMetrics
-	logger                core.Logger
+	logger                portcontract.Logger
 	metricsCollector      core.MetricsCollector
 	initialized           bool
 }
 
 // NewErrorMetricsCollector creates a new error metrics collector
 func NewErrorMetricsCollector(
-	logger core.Logger,
+	logger portcontract.Logger,
 	metricsCollector core.MetricsCollector,
 ) ErrorMetricsCollector {
 	return &DefaultErrorMetricsCollector{
