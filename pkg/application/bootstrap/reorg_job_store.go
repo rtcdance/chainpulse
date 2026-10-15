@@ -2,8 +2,12 @@ package bootstrap
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 
-	"github.com/rtcdance/chainpulse/pkg/core"
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
+	"github.com/rtcdance/chainpulse/pkg/core/topics"
 	"github.com/rtcdance/chainpulse/pkg/plugins/database"
 	"github.com/rtcdance/chainpulse/pkg/services/reorg"
 )
@@ -27,6 +31,40 @@ var _ reorg.OutboxDrainer = (*PostgresReorgJobStore)(nil)
 // NewPostgresReorgJobStore creates the adapter.
 func NewPostgresReorgJobStore(adapter *database.PostgreSQLPluginAdapter) *PostgresReorgJobStore {
 	return &PostgresReorgJobStore{adapter: adapter}
+}
+
+// BuildReorgStore unwraps lifecycle decorators without replacing a shared
+// adapter's chain scope. Memory deployments keep their existing local path.
+func BuildReorgStore(db portcontract.DatabasePlugin) *PostgresReorgJobStore {
+	for range 5 {
+		if adapter, ok := db.(*database.PostgreSQLPluginAdapter); ok {
+			return NewPostgresReorgJobStore(adapter)
+		}
+		wrapper, ok := db.(interface {
+			Unwrap() portcontract.DatabasePlugin
+		})
+		if !ok {
+			return nil
+		}
+		next := wrapper.Unwrap()
+		if next == nil || next == db {
+			return nil
+		}
+		db = next
+	}
+	return nil
+}
+
+func (s *PostgresReorgJobStore) ChainDatabase(chainID string) portcontract.DatabasePlugin {
+	return s.adapter.ChainView(chainID)
+}
+
+func (s *PostgresReorgJobStore) CommitReorg(ctx context.Context, chainID string, from, to uint64) (int64, error) {
+	return s.adapter.CommitReorg(ctx, chainID, from, to)
+}
+
+func (s *PostgresReorgJobStore) CompleteReorgsThrough(ctx context.Context, chainID string, height uint64) error {
+	return s.adapter.CompleteReorgsThrough(ctx, chainID, height)
 }
 
 // EnqueueJob records the repair job and its notifications in ONE transaction.
@@ -112,24 +150,30 @@ func (s *PostgresReorgJobStore) RecordFailure(ctx context.Context, id int64) err
 	return s.adapter.RecordReorgNotificationFailure(ctx, id)
 }
 
-// EventBusPublisher adapts core.EventBus to reorg.NotificationPublisher.
+// EventBusPublisher adapts portcontract.EventBus to reorg.NotificationPublisher.
 type EventBusPublisher struct {
-	bus core.EventBus
+	bus portcontract.EventBus
 }
 
 var _ reorg.NotificationPublisher = (*EventBusPublisher)(nil)
 
 // NewEventBusPublisher creates the adapter. It returns nil when bus is nil, so
 // callers can treat "no bus configured" as "no publisher".
-func NewEventBusPublisher(bus core.EventBus) *EventBusPublisher {
+func NewEventBusPublisher(bus portcontract.EventBus) *EventBusPublisher {
 	if bus == nil {
 		return nil
 	}
 	return &EventBusPublisher{bus: bus}
 }
 
-// Publish sends the payload as-is; subscribers receive the raw bytes and decode
-// them according to the topic's payload type.
+// Publish reconstructs the typed rollback event expected by puller subscribers.
 func (p *EventBusPublisher) Publish(ctx context.Context, topic string, payload []byte) error {
+	if topic == topics.TopicReorgRollback {
+		var event portcontract.ReorgRollbackEvent
+		if err := json.Unmarshal(payload, &event); err != nil {
+			return fmt.Errorf("decode reorg rollback: %w", err)
+		}
+		return p.bus.Publish(ctx, topic, &event)
+	}
 	return p.bus.Publish(ctx, topic, payload)
 }

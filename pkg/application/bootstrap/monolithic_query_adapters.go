@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
 	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"github.com/rtcdance/chainpulse/pkg/core"
 	domainquery "github.com/rtcdance/chainpulse/pkg/domain/query"
@@ -16,15 +18,15 @@ import (
 )
 
 type MonolithicIndexingEventStore struct {
-	database    core.DatabasePlugin
-	logger      core.Logger
+	database    portcontract.DatabasePlugin
+	logger      portcontract.Logger
 	metrics     core.MetricsCollector
 	initialized bool
 }
 
 func NewMonolithicIndexingEventStore(
-	database core.DatabasePlugin,
-	logger core.Logger,
+	database portcontract.DatabasePlugin,
+	logger portcontract.Logger,
 	metrics core.MetricsCollector,
 ) *MonolithicIndexingEventStore {
 	return &MonolithicIndexingEventStore{
@@ -59,11 +61,23 @@ func (s *MonolithicIndexingEventStore) GetEvent(ctx context.Context, eventID str
 	if !s.initialized {
 		return nil, fmt.Errorf("event store not initialized")
 	}
+	if source, ok := unwrapCanonicalSource(s.database).(interface {
+		GetCanonicalEvent(context.Context, string) (*blockchain.BlockchainEvent, error)
+	}); ok {
+		return source.GetCanonicalEvent(ctx, eventID)
+	}
 
 	return s.database.GetEvent(ctx, eventID)
 }
 
 func (s *MonolithicIndexingEventStore) GetEventsByChain(ctx context.Context, chainID int, limit int, offset int) ([]*blockchain.BlockchainEvent, error) {
+	if source := unwrapCanonicalSource(s.database); source != nil {
+		filter := map[string]any{}
+		if chainID > 0 {
+			filter["chainId"] = strconv.Itoa(chainID)
+		}
+		return canonicalStorePage(ctx, source, filter, limit, offset)
+	}
 	return s.filterEvents(ctx, limit, offset, func(event *blockchain.BlockchainEvent) bool {
 		if chainID == 0 {
 			return true
@@ -74,6 +88,9 @@ func (s *MonolithicIndexingEventStore) GetEventsByChain(ctx context.Context, cha
 }
 
 func (s *MonolithicIndexingEventStore) GetEventsByContract(ctx context.Context, contractAddress string, limit int, offset int) ([]*blockchain.BlockchainEvent, error) {
+	if source := unwrapCanonicalSource(s.database); source != nil {
+		return canonicalStorePage(ctx, source, map[string]any{"contractAddress": contractAddress}, limit, offset)
+	}
 	normalized := strings.ToLower(contractAddress)
 
 	return s.filterEvents(ctx, limit, offset, func(event *blockchain.BlockchainEvent) bool {
@@ -82,12 +99,18 @@ func (s *MonolithicIndexingEventStore) GetEventsByContract(ctx context.Context, 
 }
 
 func (s *MonolithicIndexingEventStore) GetEventsByEventName(ctx context.Context, eventName string, limit int, offset int) ([]*blockchain.BlockchainEvent, error) {
+	if source := unwrapCanonicalSource(s.database); source != nil {
+		return canonicalStorePage(ctx, source, map[string]any{"eventName": eventName}, limit, offset)
+	}
 	return s.filterEvents(ctx, limit, offset, func(event *blockchain.BlockchainEvent) bool {
 		return strings.EqualFold(event.EventName, eventName)
 	})
 }
 
 func (s *MonolithicIndexingEventStore) GetEventsByBlock(ctx context.Context, blockNumber int64) ([]*blockchain.BlockchainEvent, error) {
+	if source := unwrapCanonicalSource(s.database); source != nil {
+		return canonicalStorePage(ctx, source, map[string]any{"blockNumber": blockNumber}, 1000, 0)
+	}
 	return s.filterEvents(ctx, 0, 0, func(event *blockchain.BlockchainEvent) bool {
 		return saturatingUint64ToInt64(event.BlockNumber) == blockNumber
 	})
@@ -102,6 +125,11 @@ func (s *MonolithicIndexingEventStore) GetEventsByName(ctx context.Context, even
 }
 
 func (s *MonolithicIndexingEventStore) GetEventsPaginated(ctx context.Context, cursor string, limit int) ([]*blockchain.BlockchainEvent, bool, error) {
+	if source, ok := unwrapCanonicalSource(s.database).(interface {
+		GetCanonicalEventsPaginated(context.Context, string, int) ([]*blockchain.BlockchainEvent, bool, error)
+	}); ok {
+		return source.GetCanonicalEventsPaginated(ctx, cursor, limit)
+	}
 	offset := 0
 	if cursor != "" {
 		// Try decoding as opaque PageCursor first
@@ -144,6 +172,18 @@ func (s *MonolithicIndexingEventStore) GetEventsPaginated(ctx context.Context, c
 }
 
 func (s *MonolithicIndexingEventStore) GetEventsByCorrelationID(ctx context.Context, correlationID string, limit int, offset int) ([]*blockchain.BlockchainEvent, error) {
+	if source := unwrapCanonicalSource(s.database); source != nil {
+		filter := map[string]any{"correlationId": correlationID}
+		if scoped, ok := source.(interface{ ChainScope() []string }); ok {
+			chains := scoped.ChainScope()
+			ids := make([]any, len(chains))
+			for i, chain := range chains {
+				ids[i] = chain
+			}
+			filter["chainId"] = map[string]any{"$in": ids}
+		}
+		return canonicalStorePage(ctx, source, filter, limit, offset)
+	}
 	allEvents, err := s.loadAllEvents(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("load all events for correlation ID: %w", err)
@@ -170,6 +210,15 @@ func (s *MonolithicIndexingEventStore) GetEventsByCorrelationID(ctx context.Cont
 }
 
 func (s *MonolithicIndexingEventStore) CountEvents(ctx context.Context) (int64, error) {
+	if source, ok := unwrapCanonicalSource(s.database).(interface {
+		CountCanonicalEvents(context.Context) (int64, error)
+	}); ok {
+		return source.CountCanonicalEvents(ctx)
+	}
+	if source, ok := unwrapCanonicalSource(s.database).(canonicalStatsSource); ok {
+		total, _, _, _, err := source.CanonicalEventStats(ctx)
+		return total, err
+	}
 	allEvents, err := s.loadAllEvents(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("count events: %w", err)
@@ -178,6 +227,10 @@ func (s *MonolithicIndexingEventStore) CountEvents(ctx context.Context) (int64, 
 }
 
 func (s *MonolithicIndexingEventStore) GetEventStats(ctx context.Context) (map[string]int64, map[string]int64, int64, error) {
+	if source, ok := unwrapCanonicalSource(s.database).(canonicalStatsSource); ok {
+		_, byChain, byName, reorged, err := source.CanonicalEventStats(ctx)
+		return byChain, byName, reorged, err
+	}
 	allEvents, err := s.loadAllEvents(ctx)
 	if err != nil {
 		return nil, nil, 0, fmt.Errorf("get event stats: %w", err)
@@ -203,7 +256,7 @@ func (s *MonolithicIndexingEventStore) DeleteExpiredEvents(_ context.Context) (i
 }
 
 func (s *MonolithicIndexingEventStore) Health(ctx context.Context) *core.HealthStatus {
-	if hp, ok := s.database.(core.HealthPlugin); ok {
+	if hp, ok := s.database.(portcontract.HealthPlugin); ok {
 		if err := hp.Health(ctx); err != nil {
 			return &core.HealthStatus{
 				Status:    "unhealthy",
@@ -273,11 +326,11 @@ func (s *MonolithicIndexingEventStore) loadAllEvents(ctx context.Context) ([]*bl
 }
 
 type MonolithicIndexingMetadataStore struct {
-	database    core.DatabasePlugin
+	database    portcontract.DatabasePlugin
 	initialized bool
 }
 
-func NewMonolithicIndexingMetadataStore(database core.DatabasePlugin) *MonolithicIndexingMetadataStore {
+func NewMonolithicIndexingMetadataStore(database portcontract.DatabasePlugin) *MonolithicIndexingMetadataStore {
 	return &MonolithicIndexingMetadataStore{database: database}
 }
 
@@ -358,7 +411,7 @@ func (s *MonolithicIndexingMetadataStore) UpdateMetadata(_ context.Context, _ *q
 }
 
 func (s *MonolithicIndexingMetadataStore) Health(ctx context.Context) *core.HealthStatus {
-	if hp, ok := s.database.(core.HealthPlugin); ok {
+	if hp, ok := s.database.(portcontract.HealthPlugin); ok {
 		if err := hp.Health(ctx); err != nil {
 			return &core.HealthStatus{
 				Status:    "unhealthy",
@@ -380,14 +433,14 @@ func (s *MonolithicIndexingMetadataStore) Close(_ context.Context) error {
 }
 
 type MonolithicIndexingDomainQueryService struct {
-	database core.DatabasePlugin
-	logger   core.Logger
+	database portcontract.DatabasePlugin
+	logger   portcontract.Logger
 	metrics  core.MetricsCollector
 }
 
 func NewMonolithicIndexingDomainQueryService(
-	database core.DatabasePlugin,
-	logger core.Logger,
+	database portcontract.DatabasePlugin,
+	logger portcontract.Logger,
 	metrics core.MetricsCollector,
 ) *MonolithicIndexingDomainQueryService {
 	return &MonolithicIndexingDomainQueryService{
@@ -400,6 +453,9 @@ func NewMonolithicIndexingDomainQueryService(
 func (s *MonolithicIndexingDomainQueryService) Query(ctx context.Context, req *domainquery.Request) (*domainquery.Result, error) {
 	if req == nil {
 		return nil, fmt.Errorf("query request is required")
+	}
+	if source := s.authoritativeSource(); source != nil {
+		return source.QueryDomainEvents(ctx, req)
 	}
 
 	events, err := s.database.GetAllEvents(ctx)
@@ -440,9 +496,42 @@ func (s *MonolithicIndexingDomainQueryService) Query(ctx context.Context, req *d
 	}, nil
 }
 
+type canonicalDomainSource interface {
+	QueryDomainEvents(context.Context, *domainquery.Request) (*domainquery.Result, error)
+}
+
+func (s *MonolithicIndexingDomainQueryService) authoritativeSource() canonicalDomainSource {
+	return unwrapCanonicalSource(s.database)
+}
+
+func unwrapCanonicalSource(db portcontract.DatabasePlugin) canonicalDomainSource {
+	for range 5 {
+		if source, ok := db.(canonicalDomainSource); ok {
+			return source
+		}
+		wrapper, ok := db.(interface {
+			Unwrap() portcontract.DatabasePlugin
+		})
+		if !ok {
+			return nil
+		}
+		db = wrapper.Unwrap()
+	}
+	return nil
+}
+
+func (s *MonolithicIndexingDomainQueryService) AuthoritativeQuery() bool {
+	return s.authoritativeSource() != nil
+}
+
 func (s *MonolithicIndexingDomainQueryService) QueryByHash(ctx context.Context, hash string) (*blockchain.BlockchainEvent, error) {
 	if hash == "" {
 		return nil, fmt.Errorf("hash is required")
+	}
+	if source, ok := s.authoritativeSource().(interface {
+		GetCanonicalEvent(context.Context, string) (*blockchain.BlockchainEvent, error)
+	}); ok {
+		return source.GetCanonicalEvent(ctx, hash)
 	}
 
 	events, err := s.database.GetAllEvents(ctx)
@@ -473,7 +562,7 @@ func (s *MonolithicIndexingDomainQueryService) InvalidateCache(_ context.Context
 }
 
 func (s *MonolithicIndexingDomainQueryService) Health(ctx context.Context) *core.HealthStatus {
-	if hp, ok := s.database.(core.HealthPlugin); ok {
+	if hp, ok := s.database.(portcontract.HealthPlugin); ok {
 		if err := hp.Health(ctx); err != nil {
 			return &core.HealthStatus{
 				Status:    "unhealthy",

@@ -4,7 +4,8 @@ import (
 	"context"
 	"math"
 
-	"github.com/rtcdance/chainpulse/pkg/core"
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
 	"github.com/rtcdance/chainpulse/pkg/plugins/pullers"
 )
 
@@ -13,7 +14,7 @@ func capturePullerBlockProgress(
 	puller *pullers.MultiChainDataPuller,
 	checkpointSource pullerCheckpointSource,
 	checkpointInterval int,
-	logger core.Logger,
+	logger portcontract.Logger,
 	progress *pullerLoopRuntimeProgress,
 ) {
 	if puller == nil || progress == nil {

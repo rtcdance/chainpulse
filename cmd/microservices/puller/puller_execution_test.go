@@ -3,7 +3,10 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"testing"
+
+	"github.com/ethereum/go-ethereum/core/types"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/rtcdance/chainpulse/pkg/blockchain"
@@ -33,6 +36,15 @@ type pullerExecutionTestPlugin struct {
 	latestBlock uint64
 	lastBlock   uint64
 	events      []blockchain.BlockchainEvent
+	headers     map[uint64]*types.Header
+}
+
+func (p *pullerExecutionTestPlugin) BlockHeader(_ context.Context, height uint64) (*types.Header, error) {
+	header := p.headers[height]
+	if header == nil {
+		return nil, fmt.Errorf("missing test block header")
+	}
+	return header, nil
 }
 
 func (p *pullerExecutionTestPlugin) Name() string                        { return p.name }

@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"fmt"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"github.com/rtcdance/chainpulse/pkg/core"
@@ -103,6 +105,6 @@ func (a *reorgDBAdapter) GetAllBlocks(_ context.Context) ([]*blockchain.Block, e
 }
 
 // ReorgStatsProvider
-func (a *reorgDBAdapter) GetReorgStats(_ context.Context) (*core.ReorgStats, error) {
-	return &core.ReorgStats{}, nil
+func (a *reorgDBAdapter) GetReorgStats(_ context.Context) (*portcontract.ReorgStats, error) {
+	return &portcontract.ReorgStats{}, nil
 }

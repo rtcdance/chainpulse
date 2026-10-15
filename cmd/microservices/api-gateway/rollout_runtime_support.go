@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
 	"github.com/rtcdance/chainpulse/pkg/core"
 	"github.com/rtcdance/chainpulse/pkg/infrastructure/database"
 	"github.com/rtcdance/chainpulse/pkg/plugins/api"
@@ -48,7 +50,7 @@ func (m *apiGatewayNoopDatabaseManager) Close(ctx context.Context) error {
 func buildAPIGatewayRuntimeRolloutComponents(
 	ctx context.Context,
 	instanceID string,
-	logger core.Logger,
+	logger portcontract.Logger,
 	metrics core.MetricsCollector,
 	gateway *api.APIGatewayPlugin,
 ) (*api.EventQueryHandler, *api.EventSubscriptionHandler, *api.HealthCheckHandler, error) {

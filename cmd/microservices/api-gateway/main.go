@@ -56,10 +56,12 @@ func main() {
 
 	// Convert configuration to core.Config
 	coreConfig := &core.Config{
-		APIType:      "gateway",
-		APIPort:      config.Port,
-		LogLevel:     config.LogLevel,
-		FeatureFlags: make(map[string]bool),
+		APIType:            "gateway",
+		APIPort:            config.Port,
+		LogLevel:           config.LogLevel,
+		FeatureFlags:       make(map[string]bool),
+		CacheType:          env.Get("CACHE_TYPE", "redis"),
+		CacheConnectionURL: env.Get("CACHE_CONNECTION_URL", "localhost:6379"),
 	}
 	runtimeProfile := bootstrap.RuntimeProfileFromEnv()
 	if err := validateGatewayProductionSecurity(config, runtimeProfile); err != nil {
@@ -117,9 +119,25 @@ func main() {
 	}
 
 	// Wire SIWE handler with tokenValidator (nil is OK — challenge works, verify returns 401).
-	siweDomain := fmt.Sprintf("localhost:%d", config.Port)
-	siweURI := "http://" + siweDomain + "/login"
-	siweHandler := api.NewSIWEHandler(tokenValidator, siweDomain, siweURI, nil, logger, metrics)
+	siweDomain := env.Get("SIWE_DOMAIN", fmt.Sprintf("localhost:%d", config.Port))
+	siweURI := env.Get("SIWE_URI", "http://"+siweDomain+"/login")
+	siweChain, err := bootstrap.ResolveSIWEChainID(env.Get("SIWE_CHAIN_ID", env.Get("CHAIN_ID", "1")))
+	if err != nil {
+		logger.Error("Configure SIWE chain", "error", err)
+		os.Exit(1)
+	}
+	siweHandler := api.NewSIWEHandler(tokenValidator, siweDomain, siweURI, siweChain, logger, metrics)
+	nonceStore, closeNonceStore, err := bootstrap.BuildSIWENonceStore(context.Background(), *coreConfig, runtimeProfile)
+	if err != nil {
+		logger.Error("Initialize SIWE nonce store", "error", err)
+		os.Exit(1)
+	}
+	defer func() {
+		if err := closeNonceStore(); err != nil {
+			logger.Error("Close SIWE nonce store", "error", err)
+		}
+	}()
+	siweHandler.WithNonceStore(nonceStore)
 	gateway.SetSIWEHandler(siweHandler)
 	logger.Info("SIWE handler wired", "jwt_enabled", tokenValidator != nil)
 

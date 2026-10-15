@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"sync"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
 	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"github.com/rtcdance/chainpulse/pkg/core"
 
@@ -13,8 +15,8 @@ import (
 )
 
 type monolithicIndexingStorageDeps struct {
-	newDatabase func(logger core.Logger, config core.Config) core.DatabasePlugin
-	newCache    func(config core.Config) core.CachePlugin
+	newDatabase func(logger portcontract.Logger, config core.Config) portcontract.DatabasePlugin
+	newCache    func(config core.Config) portcontract.CachePlugin
 }
 
 func defaultMonolithicIndexingStorageDeps() monolithicIndexingStorageDeps {
@@ -25,12 +27,12 @@ func defaultMonolithicIndexingStorageDeps() monolithicIndexingStorageDeps {
 }
 
 type snapshotCompatibleDatabase struct {
-	core.DatabasePlugin
+	portcontract.DatabasePlugin
 	mu     sync.RWMutex
 	blocks map[uint64]*blockchain.Block
 }
 
-func newSnapshotCompatibleDatabase(db core.DatabasePlugin) *snapshotCompatibleDatabase {
+func newSnapshotCompatibleDatabase(db portcontract.DatabasePlugin) *snapshotCompatibleDatabase {
 	return &snapshotCompatibleDatabase{
 		DatabasePlugin: db,
 		blocks:         make(map[uint64]*blockchain.Block),
@@ -38,28 +40,28 @@ func newSnapshotCompatibleDatabase(db core.DatabasePlugin) *snapshotCompatibleDa
 }
 
 // Lifecycle and config forwarding: the wrapper embeds only the
-// core.DatabasePlugin interface, so without these methods the
+// portcontract.DatabasePlugin interface, so without these methods the
 // ConfigurablePlugin/LifecyclePlugin type assertions in the storage builder
 // silently failed and the wrapped plugin was never initialized nor started.
 // For the PostgreSQL adapter that left the handle nil — every store then
 // failed at runtime with "database not initialized" while the builder
 // reported success (F27).
 func (d *snapshotCompatibleDatabase) Initialize(ctx context.Context, config core.Config) error {
-	if p, ok := d.DatabasePlugin.(core.ConfigurablePlugin); ok {
+	if p, ok := d.DatabasePlugin.(portcontract.ConfigurablePlugin); ok {
 		return p.Initialize(ctx, config)
 	}
 	return nil
 }
 
 func (d *snapshotCompatibleDatabase) Start(ctx context.Context) error {
-	if p, ok := d.DatabasePlugin.(core.LifecyclePlugin); ok {
+	if p, ok := d.DatabasePlugin.(portcontract.LifecyclePlugin); ok {
 		return p.Start(ctx)
 	}
 	return nil
 }
 
 func (d *snapshotCompatibleDatabase) Stop(ctx context.Context) error {
-	if p, ok := d.DatabasePlugin.(core.LifecyclePlugin); ok {
+	if p, ok := d.DatabasePlugin.(portcontract.LifecyclePlugin); ok {
 		return p.Stop(ctx)
 	}
 	return nil
@@ -74,6 +76,15 @@ func (d *snapshotCompatibleDatabase) StoreBlockSnapshot(_ context.Context, block
 	copyBlock := *block
 	d.blocks[block.Number] = &copyBlock
 	return nil
+}
+
+func (d *snapshotCompatibleDatabase) StoreChainBlockSnapshot(ctx context.Context, chainID string, block *blockchain.Block) error {
+	if store, ok := d.DatabasePlugin.(interface {
+		StoreChainBlockSnapshot(context.Context, string, *blockchain.Block) error
+	}); ok {
+		return store.StoreChainBlockSnapshot(ctx, chainID, block)
+	}
+	return d.StoreBlockSnapshot(ctx, block)
 }
 
 func (d *snapshotCompatibleDatabase) GetAllBlocks(ctx context.Context) ([]*blockchain.Block, error) {
@@ -100,6 +111,13 @@ func (d *snapshotCompatibleDatabase) GetBlock(ctx context.Context, blockNumber u
 	return d.blocks[blockNumber], nil
 }
 
+// Unwrap exposes the wrapped database plugin so type assertions further up the
+// stack (e.g. the committer factory's FencedStore check) can reach the concrete
+// PostgreSQL adapter through this wrapper.
+func (d *snapshotCompatibleDatabase) Unwrap() portcontract.DatabasePlugin {
+	return d.DatabasePlugin
+}
+
 // newMonolithicIndexingDatabaseForMode selects the indexing database.
 //
 // `DATABASE_TYPE=postgres` (the configured default) means the caller wants the
@@ -110,13 +128,13 @@ func (d *snapshotCompatibleDatabase) GetBlock(ctx context.Context, blockNumber u
 //
 // The in-memory store remains for a config that does not ask for postgres, so the
 // zero-dependency playground keeps working.
-func newMonolithicIndexingDatabaseForMode(logger core.Logger, config core.Config) core.DatabasePlugin {
+func newMonolithicIndexingDatabaseForMode(logger portcontract.Logger, config core.Config) portcontract.DatabasePlugin {
 	if config.DatabaseType == "postgres" && config.DatabaseURL != "" {
 		adapter := plugindatabase.NewPostgreSQLPluginAdapter(logger, core.NewDefaultMetricsCollector())
 		// I01: declare the chains this adapter serves. Declaring more than one
 		// makes the unscoped port methods refuse to run, so a multi-chain
 		// deployment cannot silently mix chains.
-		if len(config.ActiveChains) > 1 {
+		if len(config.ActiveChains) > 0 {
 			adapter.WithChainScope(config.ActiveChains...)
 		}
 		return newSnapshotCompatibleDatabase(adapter)
@@ -132,7 +150,7 @@ func newMonolithicIndexingDatabaseForMode(logger core.Logger, config core.Config
 // `CACHE_TYPE=redis` means the Redis adapter; anything else keeps the in-memory
 // cache. The adapter reports whether it actually reached Redis via Connected(),
 // so a caller that cares can refuse to run against the fallback.
-func newMonolithicIndexingCacheForConfig(config core.Config) core.CachePlugin {
+func newMonolithicIndexingCacheForConfig(config core.Config) portcontract.CachePlugin {
 	if config.CacheType == "redis" {
 		return plugincache.NewRedisCachePluginAdapter(
 			core.NewProductionLogger(),
@@ -146,18 +164,18 @@ func newMonolithicIndexingCacheForConfig(config core.Config) core.CachePlugin {
 // the monolithic indexing path.
 func BuildMonolithicIndexingStorage(
 	ctx context.Context,
-	logger core.Logger,
+	logger portcontract.Logger,
 	config core.Config,
-) (core.DatabasePlugin, core.CachePlugin, error) {
+) (portcontract.DatabasePlugin, portcontract.CachePlugin, error) {
 	return buildMonolithicIndexingStorageWithDeps(ctx, logger, config, defaultMonolithicIndexingStorageDeps())
 }
 
 func buildMonolithicIndexingStorageWithDeps(
 	ctx context.Context,
-	logger core.Logger,
+	logger portcontract.Logger,
 	config core.Config,
 	deps monolithicIndexingStorageDeps,
-) (core.DatabasePlugin, core.CachePlugin, error) {
+) (portcontract.DatabasePlugin, portcontract.CachePlugin, error) {
 	if logger == nil {
 		return nil, nil, fmt.Errorf("logger is required")
 	}
@@ -165,27 +183,41 @@ func buildMonolithicIndexingStorageWithDeps(
 	database := deps.newDatabase(logger, config)
 	cache := deps.newCache(config)
 
-	if p, ok := database.(core.ConfigurablePlugin); ok {
+	if p, ok := database.(portcontract.ConfigurablePlugin); ok {
 		if err := p.Initialize(ctx, config); err != nil {
 			return nil, nil, fmt.Errorf("initialize indexing database: %w", err)
 		}
 	}
-	if p, ok := cache.(core.ConfigurablePlugin); ok {
+	if p, ok := cache.(portcontract.ConfigurablePlugin); ok {
 		if err := p.Initialize(ctx, config); err != nil {
 			return nil, nil, fmt.Errorf("initialize indexing cache: %w", err)
 		}
+	} else if legacy, ok := cache.(interface{ Initialize(*core.Config) error }); ok {
+		if err := ctx.Err(); err != nil {
+			return nil, nil, fmt.Errorf("initialize indexing cache: %w", err)
+		}
+		if err := legacy.Initialize(&config); err != nil {
+			return nil, nil, fmt.Errorf("initialize legacy indexing cache: %w", err)
+		}
 	}
-	if p, ok := database.(core.LifecyclePlugin); ok {
+	if p, ok := database.(portcontract.LifecyclePlugin); ok {
 		if err := p.Start(ctx); err != nil {
 			return nil, nil, fmt.Errorf("start indexing database: %w", err)
 		}
 	}
-	if p, ok := cache.(core.LifecyclePlugin); ok {
+	if p, ok := cache.(portcontract.LifecyclePlugin); ok {
 		if err := p.Start(ctx); err != nil {
-			if p, ok := database.(core.LifecyclePlugin); ok {
+			if p, ok := database.(portcontract.LifecyclePlugin); ok {
 				_ = p.Stop(ctx)
 			}
 			return nil, nil, fmt.Errorf("start indexing cache: %w", err)
+		}
+		if connection, ok := cache.(interface{ Connected() bool }); config.CacheType == "redis" && ok && !connection.Connected() {
+			_ = p.Stop(ctx)
+			if database, ok := database.(portcontract.LifecyclePlugin); ok {
+				_ = database.Stop(ctx)
+			}
+			return nil, nil, fmt.Errorf("requested Redis indexing cache is not connected")
 		}
 	}
 

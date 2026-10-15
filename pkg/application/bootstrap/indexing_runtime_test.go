@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
 	appindexing "github.com/rtcdance/chainpulse/pkg/application/indexing"
 	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"github.com/rtcdance/chainpulse/pkg/core"
@@ -45,7 +47,7 @@ func TestBuildMonolithicIndexingRuntimePropagatesConstructorFailure(t *testing.T
 		newRuntime: func(deps appindexing.RuntimeDeps) (*appindexing.SharedRuntime, error) {
 			return nil, expectedErr
 		},
-		newSink: func(database core.DatabasePlugin, cache core.CachePlugin, logger core.Logger) (appindexing.EventSink, error) {
+		newSink: func(database portcontract.DatabasePlugin, cache portcontract.CachePlugin, logger portcontract.Logger) (appindexing.EventSink, error) {
 			return &capturingSink{}, nil
 		},
 	})
@@ -77,7 +79,7 @@ func TestBuildMonolithicIndexingRuntimePropagatesSinkFailure(t *testing.T) {
 
 	runtime, err := buildMonolithicIndexingRuntimeWithDeps(logger, &runtimeTestDatabasePlugin{}, &runtimeTestCachePlugin{}, []string{"ethereum"}, InMemoryIndexingRuntimeOptions{}, monolithicIndexingRuntimeDeps{
 		newRuntime: appindexing.NewSharedRuntime,
-		newSink: func(database core.DatabasePlugin, cache core.CachePlugin, logger core.Logger) (appindexing.EventSink, error) {
+		newSink: func(database portcontract.DatabasePlugin, cache portcontract.CachePlugin, logger portcontract.Logger) (appindexing.EventSink, error) {
 			return nil, expectedErr
 		},
 	})
@@ -164,7 +166,7 @@ func TestBuildMonolithicIndexingRuntimeRoutesFailuresIntoReplayJournal(t *testin
 
 	runtime, err := buildMonolithicIndexingRuntimeWithDeps(logger, db, cache, []string{"ethereum"}, InMemoryIndexingRuntimeOptions{}, monolithicIndexingRuntimeDeps{
 		newRuntime: appindexing.NewSharedRuntime,
-		newSink: func(database core.DatabasePlugin, cache core.CachePlugin, logger core.Logger) (appindexing.EventSink, error) {
+		newSink: func(database portcontract.DatabasePlugin, cache portcontract.CachePlugin, logger portcontract.Logger) (appindexing.EventSink, error) {
 			return failingRuntimeSink{err: errors.New("persist failed")}, nil
 		},
 	})
@@ -358,7 +360,7 @@ func TestBuildMonolithicIndexingRuntimeWithOptionsAppliesDLQRetention(t *testing
 				observed = journal.retention
 				return appindexing.NewSharedRuntime(deps)
 			},
-			newSink: func(database core.DatabasePlugin, cache core.CachePlugin, logger core.Logger) (appindexing.EventSink, error) {
+			newSink: func(database portcontract.DatabasePlugin, cache portcontract.CachePlugin, logger portcontract.Logger) (appindexing.EventSink, error) {
 				return &capturingSink{}, nil
 			},
 		},
@@ -464,8 +466,8 @@ func (d *runtimeTestDatabasePlugin) MarkEventsAsReorged(ctx context.Context, fro
 	return 0, nil
 }
 
-func (d *runtimeTestDatabasePlugin) GetReorgStats(ctx context.Context) (*core.ReorgStats, error) {
-	return &core.ReorgStats{}, nil
+func (d *runtimeTestDatabasePlugin) GetReorgStats(ctx context.Context) (*portcontract.ReorgStats, error) {
+	return &portcontract.ReorgStats{}, nil
 }
 
 type runtimeTestCachePlugin struct{}
@@ -485,4 +487,4 @@ func (c *runtimeTestCachePlugin) Set(ctx context.Context, key string, value []by
 	return nil
 }
 func (c *runtimeTestCachePlugin) Delete(ctx context.Context, key string) error { return nil }
-func (c *runtimeTestCachePlugin) GetStats() core.CacheStats                    { return core.CacheStats{} }
+func (c *runtimeTestCachePlugin) GetStats() portcontract.CacheStats            { return portcontract.CacheStats{} }

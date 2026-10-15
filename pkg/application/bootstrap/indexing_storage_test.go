@@ -5,6 +5,8 @@ import (
 	"errors"
 	"testing"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
 	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"github.com/rtcdance/chainpulse/pkg/core"
 
@@ -74,8 +76,8 @@ func (s *stubDatabasePlugin) MarkEventsAsReorged(ctx context.Context, fromBlock,
 	return 0, nil
 }
 
-func (s *stubDatabasePlugin) GetReorgStats(ctx context.Context) (*core.ReorgStats, error) {
-	return &core.ReorgStats{}, nil
+func (s *stubDatabasePlugin) GetReorgStats(ctx context.Context) (*portcontract.ReorgStats, error) {
+	return &portcontract.ReorgStats{}, nil
 }
 
 type stubCachePlugin struct {
@@ -106,7 +108,7 @@ func (s *stubCachePlugin) Set(ctx context.Context, key string, value []byte, ttl
 	return nil
 }
 func (s *stubCachePlugin) Delete(ctx context.Context, key string) error { return nil }
-func (s *stubCachePlugin) GetStats() core.CacheStats                    { return core.CacheStats{} }
+func (s *stubCachePlugin) GetStats() portcontract.CacheStats            { return portcontract.CacheStats{} }
 
 func TestBuildMonolithicIndexingStorageRequiresLogger(t *testing.T) {
 	t.Parallel()
@@ -116,6 +118,32 @@ func TestBuildMonolithicIndexingStorageRequiresLogger(t *testing.T) {
 	}
 	if db != nil || cache != nil {
 		t.Fatal("expected nil storage on validation error")
+	}
+}
+
+type legacyConfiguredCache struct{ stubCachePlugin }
+
+func (c *legacyConfiguredCache) Initialize(*core.Config) error { c.initCalled = true; return nil }
+func (c *legacyConfiguredCache) Start(context.Context) error {
+	if !c.initCalled {
+		return errors.New("legacy cache was not initialized")
+	}
+	c.started = true
+	return nil
+}
+
+func TestStorageInitializesLegacyPointerConfigCache(t *testing.T) {
+	t.Parallel()
+	cache := &legacyConfiguredCache{}
+	_, _, err := buildMonolithicIndexingStorageWithDeps(context.Background(), core.NewDefaultLogger(core.LogLevelError), core.Config{}, monolithicIndexingStorageDeps{
+		newDatabase: func(portcontract.Logger, core.Config) portcontract.DatabasePlugin { return &stubDatabasePlugin{} },
+		newCache:    func(core.Config) portcontract.CachePlugin { return cache },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cache.initCalled || !cache.started {
+		t.Fatal("legacy cache lifecycle was skipped")
 	}
 }
 
@@ -222,8 +250,8 @@ func TestBuildMonolithicIndexingStorageStopsDatabaseIfCacheStartFails(t *testing
 	cache := &stubCachePlugin{startErr: errors.New("cache start boom")}
 
 	_, _, err := buildMonolithicIndexingStorageWithDeps(context.Background(), logger, core.Config{}, monolithicIndexingStorageDeps{
-		newDatabase: func(logger core.Logger, config core.Config) core.DatabasePlugin { return db },
-		newCache:    func(core.Config) core.CachePlugin { return cache },
+		newDatabase: func(logger portcontract.Logger, config core.Config) portcontract.DatabasePlugin { return db },
+		newCache:    func(core.Config) portcontract.CachePlugin { return cache },
 	})
 	if err == nil {
 		t.Fatal("expected cache start failure")
@@ -234,7 +262,7 @@ func TestBuildMonolithicIndexingStorageStopsDatabaseIfCacheStartFails(t *testing
 }
 
 // Regression (F27): the snapshotCompatibleDatabase wrapper embeds only the
-// core.DatabasePlugin interface, so the ConfigurablePlugin/LifecyclePlugin type
+// portcontract.DatabasePlugin interface, so the ConfigurablePlugin/LifecyclePlugin type
 // assertions in buildMonolithicIndexingStorageWithDeps silently failed for every
 // wrapped database. Initialize/Start were never called — for the PostgreSQL
 // adapter this left p.db nil and every event store failed at runtime with
@@ -248,10 +276,10 @@ func TestSnapshotCompatibleDatabaseForwardsLifecycleToWrappedPlugin(t *testing.T
 	inner := &stubDatabasePlugin{}
 
 	_, _, err := buildMonolithicIndexingStorageWithDeps(context.Background(), logger, core.Config{}, monolithicIndexingStorageDeps{
-		newDatabase: func(core.Logger, core.Config) core.DatabasePlugin {
+		newDatabase: func(portcontract.Logger, core.Config) portcontract.DatabasePlugin {
 			return newSnapshotCompatibleDatabase(inner)
 		},
-		newCache: func(core.Config) core.CachePlugin { return &stubCachePlugin{} },
+		newCache: func(core.Config) portcontract.CachePlugin { return &stubCachePlugin{} },
 	})
 	if err != nil {
 		t.Fatalf("build indexing storage: %v", err)

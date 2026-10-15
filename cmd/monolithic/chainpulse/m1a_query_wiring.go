@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
 	"github.com/rtcdance/chainpulse/pkg/application/bootstrap"
 	"github.com/rtcdance/chainpulse/pkg/core"
 	"github.com/rtcdance/chainpulse/pkg/plugins/api"
@@ -25,8 +27,8 @@ type monolithicQuerySurface struct {
 
 func buildMonolithicIndexingBackedQuerySurface(
 	ctx context.Context,
-	indexingDatabase core.DatabasePlugin,
-	logger core.Logger,
+	indexingDatabase portcontract.DatabasePlugin,
+	logger portcontract.Logger,
 	metrics core.MetricsCollector,
 ) (*monolithicQuerySurface, error) {
 	eventStore := bootstrap.NewMonolithicIndexingEventStore(indexingDatabase, logger, metrics)
@@ -118,8 +120,8 @@ func resolveMonolithicQuerySurface(
 	ctx context.Context,
 	config Configuration,
 	runtimeWiring *bootstrap.RuntimeWiring,
-	indexingDatabase core.DatabasePlugin,
-	logger core.Logger,
+	indexingDatabase portcontract.DatabasePlugin,
+	logger portcontract.Logger,
 	metrics core.MetricsCollector,
 ) (*monolithicQuerySurface, error) {
 	if config.DeploymentMode == deploymentModeMicroservice {

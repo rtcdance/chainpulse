@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/rtcdance/chainpulse/pkg/core"
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
 )
 
 type ownershipRolloutPresenterLine struct {
@@ -78,7 +78,7 @@ type ownershipRolloutPresenterAccessors struct {
 	Guarded   ownershipRolloutGuardedAccessors
 }
 
-func logOwnershipRolloutSummary(logger core.Logger, phase string, summary ownershipRolloutSummarySnapshot) {
+func logOwnershipRolloutSummary(logger portcontract.Logger, phase string, summary ownershipRolloutSummarySnapshot) {
 	for _, descriptor := range ownershipRolloutLogDescriptors() {
 		logger.Info(descriptor.message, descriptor.fields(phase, summary)...)
 	}

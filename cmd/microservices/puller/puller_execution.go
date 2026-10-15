@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"net/url"
@@ -11,19 +12,29 @@ import (
 	"sync"
 	"time"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
 	"github.com/rtcdance/chainpulse/pkg/application/bootstrap"
 	appindexing "github.com/rtcdance/chainpulse/pkg/application/indexing"
 	"github.com/rtcdance/chainpulse/pkg/blockchain"
+	"github.com/rtcdance/chainpulse/pkg/chainid"
 	"github.com/rtcdance/chainpulse/pkg/core"
 	"github.com/rtcdance/chainpulse/pkg/logkeys"
+	"github.com/rtcdance/chainpulse/pkg/plugins/mq"
 	"github.com/rtcdance/chainpulse/pkg/plugins/pullers"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/rtcdance/chainpulse/pkg/plugins/database"
 	"golang.org/x/sync/errgroup"
 )
 
 type pullerMessagePublisher interface {
 	Publish(context.Context, string, []byte) error
+}
+
+type pullerKeyedMessagePublisher interface {
+	PublishMessage(context.Context, core.MessageQueueMessage) error
 }
 
 type kafkaEventBus struct {
@@ -77,10 +88,14 @@ type pullerExecutionRuntimeStatusProvider interface {
 }
 
 type pullerExecutionRuntime struct {
-	logger       core.Logger
-	metrics      core.MetricsCollector
-	publisher    pullerMessagePublisher
-	outputTopics []string
+	canonicalIntake    func(context.Context, *pullers.MultiChainDataPuller, string, uint64) error
+	logger             portcontract.Logger
+	metrics            core.MetricsCollector
+	publisher          pullerMessagePublisher
+	outputTopics       []string
+	durableStore       *database.PostgreSQLPluginAdapter
+	durableInitialized map[string]bool
+	publishedTips      map[string]*types.Header
 
 	mu                sync.RWMutex
 	configuredPullers int
@@ -97,19 +112,23 @@ type pullerExecutionRuntime struct {
 }
 
 func newPullerExecutionRuntime(
-	logger core.Logger,
+	logger portcontract.Logger,
 	metrics core.MetricsCollector,
 	publisher pullerMessagePublisher,
 	outputTopics []string,
 ) *pullerExecutionRuntime {
-	return &pullerExecutionRuntime{
-		logger:          logger,
-		metrics:         metrics,
-		publisher:       publisher,
-		outputTopics:    append([]string(nil), outputTopics...),
-		runtimes:        make(map[string]*appindexing.SharedRuntime),
-		lastKnownBlocks: make(map[string]map[uint64]common.Hash),
+	runtime := &pullerExecutionRuntime{
+		logger:             logger,
+		metrics:            metrics,
+		publisher:          publisher,
+		outputTopics:       append([]string(nil), outputTopics...),
+		runtimes:           make(map[string]*appindexing.SharedRuntime),
+		durableInitialized: make(map[string]bool),
+		publishedTips:      make(map[string]*types.Header),
+		lastKnownBlocks:    make(map[string]map[uint64]common.Hash),
 	}
+	runtime.canonicalIntake = runtime.reconcileDurableIntake
+	return runtime
 }
 
 func (r *pullerExecutionRuntime) SetConfiguredPullers(count int) {
@@ -175,6 +194,7 @@ func (r *pullerExecutionRuntime) Poll(ctx context.Context, puller *pullers.Multi
 	}
 
 	g, gCtx := errgroup.WithContext(ctx)
+	g.SetLimit(max(1, config.WorkerThreads))
 	for _, chainID := range chains {
 		cid := chainID
 		g.Go(func() error {
@@ -182,7 +202,11 @@ func (r *pullerExecutionRuntime) Poll(ctx context.Context, puller *pullers.Multi
 		})
 	}
 
-	return g.Wait()
+	pollErr := g.Wait()
+	if config.DurableBlocks {
+		return errors.Join(pollErr, r.drainDurableNotifications(ctx, config.ReorgOutputTopic))
+	}
+	return pollErr
 }
 
 func (r *pullerExecutionRuntime) pollChain(
@@ -192,6 +216,17 @@ func (r *pullerExecutionRuntime) pollChain(
 	chainID string,
 	processedBlocks map[string]uint64,
 ) error {
+	if config.DurableBlocks {
+		if config.ReorgDetectionDepth <= 0 {
+			return fmt.Errorf("positive reorg detection window is required")
+		}
+		if err := r.canonicalIntake(ctx, puller, chainID, uint64(config.ReorgDetectionDepth)); err != nil {
+			return err
+		}
+		// The caller's snapshot predates a possible canonical rewind.
+		processedBlocks = puller.GetProcessedBlocksFromAllChains()
+	}
+
 	latestBlock, err := puller.GetLatestBlockFromChain(ctx, chainID)
 	if err != nil {
 		return fmt.Errorf("get latest block for %s: %w", chainID, err)
@@ -209,29 +244,38 @@ func (r *pullerExecutionRuntime) pollChain(
 	if targetBlock == 0 || fromBlock > targetBlock {
 		return nil
 	}
+	batch := config.BatchSize
+	if batch <= 0 {
+		batch = 100
+	}
+	if targetBlock-fromBlock >= uint64(batch) {
+		targetBlock = fromBlock + uint64(batch) - 1
+	}
 
 	events, err := puller.PullEventsFromChain(ctx, chainID, fromBlock, targetBlock)
 	if err != nil {
 		return fmt.Errorf("pull events for %s [%d,%d]: %w", chainID, fromBlock, targetBlock, err)
 	}
+	if config.DurableBlocks {
+		if err := r.publishCompleteRange(ctx, puller, chainID, fromBlock, targetBlock, events); err != nil {
+			return err
+		}
+		return puller.SetLastProcessedBlock(chainID, targetBlock)
+	}
 
 	// Check for reorg: compare block hashes against previously seen hashes
 	r.detectAndPublishReorg(ctx, chainID, events)
 
-	safeCheckpoint, err := r.publishEvents(ctx, config.InstanceID, events)
+	_, err = r.publishEvents(ctx, config.InstanceID, events)
 	if err != nil {
-		r.logger.Warn("publishEvents: some events skipped, checkpoint limited to safe block",
-			"safe_checkpoint", safeCheckpoint, "target_block", targetBlock, "error", err.Error())
+		return fmt.Errorf("publish complete range for %s [%d,%d]: %w", chainID, fromBlock, targetBlock, err)
 	}
 
 	if err := r.shadowEvents(ctx, chainID, events); err != nil {
 		return fmt.Errorf("shadow events for %s: %w", chainID, err)
 	}
 
-	checkpoint := safeCheckpoint
-	if checkpoint == 0 {
-		checkpoint = targetBlock
-	}
+	checkpoint := targetBlock
 	if checkpoint > 0 {
 		if err := puller.SetLastProcessedBlock(chainID, checkpoint); err != nil {
 			return fmt.Errorf("set last processed block for %s: %w", chainID, err)
@@ -258,23 +302,21 @@ func (r *pullerExecutionRuntime) publishEvents(ctx context.Context, instanceID s
 	}
 
 	var lastPublishedBlock uint64
-	var skipped, published int
 	for _, event := range events {
 		payload, err := json.Marshal(event)
 		if err != nil {
-			r.logger.Warn("publishEvents: marshal failed, skipping event",
-				"event_id", event.ID, "chain_id", event.ChainID, "error", err.Error())
-			skipped++
-			continue
+			return 0, fmt.Errorf("marshal event %s for chain %s: %w", event.ID, event.ChainID, err)
 		}
 
-		publishFailed := false
 		for _, topic := range r.outputTopics {
-			if err := r.publisher.Publish(ctx, topic, payload); err != nil {
-				r.logger.Warn("publishEvents: publish to topic failed, skipping event",
-					"topic", topic, "event_id", event.ID, "chain_id", event.ChainID, "error", err.Error())
-				publishFailed = true
-				break
+			var err error
+			if keyed, ok := r.publisher.(pullerKeyedMessagePublisher); ok {
+				err = keyed.PublishMessage(ctx, mq.NewChainMessage(event.ChainID, topic, payload))
+			} else {
+				err = r.publisher.Publish(ctx, topic, payload)
+			}
+			if err != nil {
+				return 0, fmt.Errorf("publish event %s for chain %s to %s: %w", event.ID, event.ChainID, topic, err)
 			}
 			if r.metrics != nil {
 				r.metrics.RecordCounter("puller_published_messages_total", 1, map[string]string{"topic": topic})
@@ -283,11 +325,6 @@ func (r *pullerExecutionRuntime) publishEvents(ctx context.Context, instanceID s
 			r.publishedMessages++
 			r.mu.Unlock()
 		}
-		if publishFailed {
-			skipped++
-			continue
-		}
-
 		lastPublishedBlock = event.BlockNumber
 
 		if r.metrics != nil {
@@ -296,15 +333,8 @@ func (r *pullerExecutionRuntime) publishEvents(ctx context.Context, instanceID s
 		r.mu.Lock()
 		r.publishedEvents++
 		r.mu.Unlock()
-		published++
 	}
 
-	if skipped > 0 {
-		r.logger.Warn("publishEvents: some events skipped",
-			"published", published, "skipped", skipped, "total", len(events),
-			"safe_checkpoint", lastPublishedBlock)
-		return lastPublishedBlock, fmt.Errorf("%d/%d events skipped during publish", skipped, len(events))
-	}
 	return lastPublishedBlock, nil
 }
 
@@ -460,9 +490,9 @@ func (pullerSharedRuntimeNoopSink) Persist(ctx context.Context, events []appinde
 func registerConfiguredPullers(
 	multi *pullers.MultiChainDataPuller,
 	config PullerConfig,
-	logger core.Logger,
+	logger portcontract.Logger,
 	metrics core.MetricsCollector,
-	eventBus core.EventBus,
+	eventBus portcontract.EventBus,
 ) (int, error) {
 	if multi == nil {
 		return 0, fmt.Errorf("multi-chain puller is required")
@@ -474,8 +504,15 @@ func registerConfiguredPullers(
 		if err != nil {
 			return registered, err
 		}
+		if config.DurableBlocks {
+			id := chainid.ResolveChainID(chainID)
+			if id <= 0 {
+				return registered, fmt.Errorf("durable puller requires a positive numeric or known EVM chain identifier")
+			}
+			chainID = fmt.Sprint(id)
+		}
 
-		var puller core.DataPullerPlugin
+		var puller portcontract.DataPullerPlugin
 		if isSolanaChain(chainID) {
 			puller = pullers.NewSolanaPuller(core.Config{
 				DataPullerType:    "solana",
@@ -511,7 +548,7 @@ func registerConfiguredPullers(
 			}, logger, metrics, nil)
 		}
 
-		if starter, ok := puller.(core.LifecyclePlugin); ok {
+		if starter, ok := puller.(portcontract.LifecyclePlugin); ok {
 			if err := starter.Start(context.Background()); err != nil {
 				return registered, fmt.Errorf("failed to start puller for chain %s: %w", chainID, err)
 			}

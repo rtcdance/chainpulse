@@ -36,18 +36,18 @@ func newPostgresCheckpointStore(inner checkpointStateStore) *postgresCheckpointS
 }
 
 func (s *postgresCheckpointStore) Load(ctx context.Context, chainID string) (appindexing.Checkpoint, error) {
-	block, _, err := s.inner.GetLastIndexedBlock(ctx, chainID)
+	block, hash, err := s.inner.GetLastIndexedBlock(ctx, chainID)
 	if err != nil {
 		return appindexing.Checkpoint{}, fmt.Errorf("load checkpoint for %s: %w", chainID, err)
 	}
-	return appindexing.Checkpoint{ChainID: chainID, BlockNumber: block}, nil
+	return appindexing.Checkpoint{ChainID: chainID, BlockNumber: block, BlockHash: hash}, nil
 }
 
 func (s *postgresCheckpointStore) Save(ctx context.Context, checkpoint appindexing.Checkpoint) error {
 	if checkpoint.ChainID == "" {
 		return fmt.Errorf("checkpoint chain id is required")
 	}
-	if err := s.inner.SaveCheckpoint(ctx, checkpoint.ChainID, checkpoint.BlockNumber, "", checkpoint.Cursor); err != nil {
+	if err := s.inner.SaveCheckpoint(ctx, checkpoint.ChainID, checkpoint.BlockNumber, checkpoint.BlockHash, checkpoint.Cursor); err != nil {
 		return fmt.Errorf("save checkpoint for %s: %w", checkpoint.ChainID, err)
 	}
 	return nil

@@ -67,6 +67,13 @@ func main() {
 	}
 	logger := core.NewDefaultLogger(logLevel)
 	metrics := observability.Guarded(core.NewDefaultMetricsCollector())
+	if env.Get("DATABASE_TYPE", "") == "postgres" {
+		if err := runDurableEventProcessor(config, logger, metrics); err != nil {
+			logger.Error("Durable event processor failed", "error", err.Error())
+			os.Exit(1)
+		}
+		return
+	}
 
 	fmt.Println("  [1/3] Logger initialized")
 	fmt.Println("  [2/3] Metrics collector initialized")

@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
 	"github.com/rtcdance/chainpulse/pkg/core"
 	"github.com/rtcdance/chainpulse/pkg/plugins/database"
 	"github.com/rtcdance/chainpulse/pkg/services/processor"
@@ -25,7 +27,7 @@ type eventProcessorProcessingRuntime struct {
 //nolint:unused // exercised by tests only; kept as the runtime-wiring seam
 func newEventProcessorProcessingRuntime(
 	config EventProcessorConfig,
-	logger core.Logger,
+	logger portcontract.Logger,
 	metrics core.MetricsCollector,
 ) (*eventProcessorProcessingRuntime, error) {
 	return newEventProcessorProcessingRuntimeWithStorage(config, logger, metrics, nil)
@@ -33,7 +35,7 @@ func newEventProcessorProcessingRuntime(
 
 func newEventProcessorProcessingRuntimeWithStorage(
 	config EventProcessorConfig,
-	logger core.Logger,
+	logger portcontract.Logger,
 	metrics core.MetricsCollector,
 	storage processor.EventStorage,
 ) (*eventProcessorProcessingRuntime, error) {

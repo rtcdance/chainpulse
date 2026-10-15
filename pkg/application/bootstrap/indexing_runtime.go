@@ -8,14 +8,16 @@ import (
 	"sync"
 	"time"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
 	appindexing "github.com/rtcdance/chainpulse/pkg/application/indexing"
-	"github.com/rtcdance/chainpulse/pkg/core"
+
 	serviceindexing "github.com/rtcdance/chainpulse/pkg/services/indexing"
 )
 
 type monolithicIndexingRuntimeDeps struct {
 	newRuntime func(deps appindexing.RuntimeDeps) (*appindexing.SharedRuntime, error)
-	newSink    func(database core.DatabasePlugin, cache core.CachePlugin, logger core.Logger) (appindexing.EventSink, error)
+	newSink    func(database portcontract.DatabasePlugin, cache portcontract.CachePlugin, logger portcontract.Logger) (appindexing.EventSink, error)
 }
 
 type InMemoryIndexingRuntimeOptions struct {
@@ -38,7 +40,7 @@ type InMemoryIndexingRuntimeOptions struct {
 func defaultMonolithicIndexingRuntimeDeps() monolithicIndexingRuntimeDeps {
 	return monolithicIndexingRuntimeDeps{
 		newRuntime: appindexing.NewSharedRuntime,
-		newSink: func(database core.DatabasePlugin, cache core.CachePlugin, logger core.Logger) (appindexing.EventSink, error) {
+		newSink: func(database portcontract.DatabasePlugin, cache portcontract.CachePlugin, logger portcontract.Logger) (appindexing.EventSink, error) {
 			return serviceindexing.NewLegacyRuntimeSink(database, cache, logger)
 		},
 	}
@@ -47,9 +49,9 @@ func defaultMonolithicIndexingRuntimeDeps() monolithicIndexingRuntimeDeps {
 // BuildMonolithicIndexingRuntime creates additive shared runtime wiring for
 // monolithic mode without changing existing legacy indexing behavior.
 func BuildMonolithicIndexingRuntime(
-	logger core.Logger,
-	database core.DatabasePlugin,
-	cache core.CachePlugin,
+	logger portcontract.Logger,
+	database portcontract.DatabasePlugin,
+	cache portcontract.CachePlugin,
 	chains []string,
 ) (*appindexing.SharedRuntime, error) {
 	return BuildMonolithicIndexingRuntimeWithOptions(
@@ -62,9 +64,9 @@ func BuildMonolithicIndexingRuntime(
 }
 
 func BuildMonolithicIndexingRuntimeWithOptions(
-	logger core.Logger,
-	database core.DatabasePlugin,
-	cache core.CachePlugin,
+	logger portcontract.Logger,
+	database portcontract.DatabasePlugin,
+	cache portcontract.CachePlugin,
 	chains []string,
 	options InMemoryIndexingRuntimeOptions,
 ) (*appindexing.SharedRuntime, error) {
@@ -82,7 +84,7 @@ func BuildMonolithicIndexingRuntimeWithOptions(
 // in-memory checkpoint/idempotency/failure/replay ports. Callers retain
 // ownership of the persistence sink semantics.
 func BuildInMemoryIndexingRuntime(
-	logger core.Logger,
+	logger portcontract.Logger,
 	sink appindexing.EventSink,
 	chains []string,
 ) (*appindexing.SharedRuntime, error) {
@@ -90,7 +92,7 @@ func BuildInMemoryIndexingRuntime(
 }
 
 func BuildInMemoryIndexingRuntimeWithOptions(
-	logger core.Logger,
+	logger portcontract.Logger,
 	sink appindexing.EventSink,
 	chains []string,
 	options InMemoryIndexingRuntimeOptions,
@@ -99,9 +101,9 @@ func BuildInMemoryIndexingRuntimeWithOptions(
 }
 
 func buildMonolithicIndexingRuntimeWithDeps(
-	logger core.Logger,
-	database core.DatabasePlugin,
-	cache core.CachePlugin,
+	logger portcontract.Logger,
+	database portcontract.DatabasePlugin,
+	cache portcontract.CachePlugin,
 	chains []string,
 	options InMemoryIndexingRuntimeOptions,
 	deps monolithicIndexingRuntimeDeps,
@@ -127,7 +129,7 @@ func buildMonolithicIndexingRuntimeWithDeps(
 }
 
 func buildInMemoryIndexingRuntimeWithDeps(
-	logger core.Logger,
+	logger portcontract.Logger,
 	sink appindexing.EventSink,
 	chains []string,
 	options InMemoryIndexingRuntimeOptions,

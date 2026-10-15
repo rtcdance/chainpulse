@@ -11,6 +11,8 @@ import (
 	"sync"
 	"time"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
 	"github.com/rtcdance/chainpulse/pkg/application/bootstrap"
 	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"github.com/rtcdance/chainpulse/pkg/core"
@@ -385,7 +387,7 @@ func startEventPushConsumer(
 	wg *sync.WaitGroup,
 	config APIServiceConfig,
 	subscriptionHandler *api.EventSubscriptionHandler,
-	logger core.Logger,
+	logger portcontract.Logger,
 	metrics core.MetricsCollector,
 ) {
 	kafkaMQ := mq.NewKafkaMQPlugin(

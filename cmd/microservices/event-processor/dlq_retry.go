@@ -8,6 +8,8 @@ import (
 	"sync"
 	"time"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
 	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"github.com/rtcdance/chainpulse/pkg/core"
 )
@@ -19,7 +21,7 @@ const (
 )
 
 type dlqRetryService struct {
-	logger    core.Logger
+	logger    portcontract.Logger
 	metrics   core.MetricsCollector
 	db        *sql.DB
 	processor eventProcessorMessageProcessor
@@ -31,7 +33,7 @@ type dlqRetryService struct {
 }
 
 func newDLQRetryService(
-	logger core.Logger,
+	logger portcontract.Logger,
 	metrics core.MetricsCollector,
 	db *sql.DB,
 	processor eventProcessorMessageProcessor,

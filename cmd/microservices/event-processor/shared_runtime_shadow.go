@@ -7,6 +7,8 @@ import (
 	"sync"
 	"time"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
 	"github.com/rtcdance/chainpulse/pkg/application/bootstrap"
 	appindexing "github.com/rtcdance/chainpulse/pkg/application/indexing"
 	"github.com/rtcdance/chainpulse/pkg/blockchain"
@@ -35,7 +37,7 @@ type eventProcessorSharedRuntimeShadowProvider interface {
 
 type eventProcessorShadowRuntimeProcessor struct {
 	base    *processor.DefaultEventProcessor
-	logger  core.Logger
+	logger  portcontract.Logger
 	metrics core.MetricsCollector
 
 	mu              sync.RWMutex
@@ -46,7 +48,7 @@ type eventProcessorShadowRuntimeProcessor struct {
 
 func newEventProcessorShadowRuntimeProcessor(
 	base *processor.DefaultEventProcessor,
-	logger core.Logger,
+	logger portcontract.Logger,
 	metrics core.MetricsCollector,
 ) *eventProcessorShadowRuntimeProcessor {
 	return &eventProcessorShadowRuntimeProcessor{

@@ -6,6 +6,8 @@ import (
 	"sync"
 	"time"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
 	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"github.com/rtcdance/chainpulse/pkg/core"
 )
@@ -17,11 +19,11 @@ type MonolithicMemoryDatabase struct {
 	started bool
 	events  map[string]*blockchain.BlockchainEvent
 	blocks  map[uint64]*blockchain.Block
-	logger  core.Logger
+	logger  portcontract.Logger
 }
 
 // NewMonolithicMemoryDatabase creates a new in-memory database adapter.
-func NewMonolithicMemoryDatabase(logger core.Logger) *MonolithicMemoryDatabase {
+func NewMonolithicMemoryDatabase(logger portcontract.Logger) *MonolithicMemoryDatabase {
 	return &MonolithicMemoryDatabase{
 		events: make(map[string]*blockchain.BlockchainEvent),
 		blocks: make(map[uint64]*blockchain.Block),
@@ -212,8 +214,8 @@ func (db *MonolithicMemoryDatabase) MarkEventsAsReorged(ctx context.Context, fro
 	return count, nil
 }
 
-func (db *MonolithicMemoryDatabase) GetReorgStats(ctx context.Context) (*core.ReorgStats, error) {
-	return &core.ReorgStats{}, nil
+func (db *MonolithicMemoryDatabase) GetReorgStats(ctx context.Context) (*portcontract.ReorgStats, error) {
+	return &portcontract.ReorgStats{}, nil
 }
 
 // StoreBlockSnapshot records a minimal canonical block snapshot for monolithic
@@ -330,7 +332,7 @@ func (c *MonolithicMemoryCache) Delete(ctx context.Context, key string) error {
 	return nil
 }
 
-func (c *MonolithicMemoryCache) GetStats() core.CacheStats {
+func (c *MonolithicMemoryCache) GetStats() portcontract.CacheStats {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
@@ -339,7 +341,7 @@ func (c *MonolithicMemoryCache) GetStats() core.CacheStats {
 	if total > 0 {
 		hitRate = float64(c.hits) / float64(total)
 	}
-	return core.CacheStats{
+	return portcontract.CacheStats{
 		HitCount:   c.hits,
 		MissCount:  c.misses,
 		HitRate:    hitRate,

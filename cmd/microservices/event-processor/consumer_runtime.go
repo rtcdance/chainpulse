@@ -9,8 +9,12 @@ import (
 	"sync"
 	"time"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
+	appindexing "github.com/rtcdance/chainpulse/pkg/application/indexing"
 	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/plugins/mq"
 )
 
 type eventProcessorMessageConsumer interface {
@@ -23,6 +27,10 @@ type eventProcessorMessageProcessor interface {
 	GetProcessedCount() int64
 	GetFailedCount() int64
 	GetDuplicateCount() int64
+}
+
+type completeBlockMessageProcessor interface {
+	ProcessCompleteBlock(context.Context, appindexing.CompletedBlock) error
 }
 
 type eventProcessorConsumeLoopSnapshot struct {
@@ -39,7 +47,7 @@ type eventProcessorConsumeLoopSnapshot struct {
 }
 
 type eventProcessorConsumeRuntime struct {
-	logger       core.Logger
+	logger       portcontract.Logger
 	metrics      core.MetricsCollector
 	consumer     eventProcessorMessageConsumer
 	processor    eventProcessorMessageProcessor
@@ -47,8 +55,6 @@ type eventProcessorConsumeRuntime struct {
 	topics       []string
 	outputTopics []string
 	dlqDB        *sql.DB // PostgreSQL for DLQ persistence
-	batchSize    int
-	batchFlushMs int
 
 	mu              sync.RWMutex
 	running         bool
@@ -61,7 +67,6 @@ type eventProcessorConsumeRuntime struct {
 	reason          string
 	updatedAtUnix   int64
 	waitCh          chan struct{}
-	closeOnce       sync.Once
 }
 
 type eventProcessorMessagePublisher interface {
@@ -69,7 +74,7 @@ type eventProcessorMessagePublisher interface {
 }
 
 func newEventProcessorConsumeRuntime(
-	logger core.Logger,
+	logger portcontract.Logger,
 	metrics core.MetricsCollector,
 	consumer eventProcessorMessageConsumer,
 	processor eventProcessorMessageProcessor,
@@ -87,8 +92,6 @@ func newEventProcessorConsumeRuntime(
 		topics:        append([]string(nil), topics...),
 		outputTopics:  append([]string(nil), outputTopics...),
 		dlqDB:         dlqDB,
-		batchSize:     50,
-		batchFlushMs:  500,
 		activeTopics:  make(map[string]bool),
 		activeCancels: make(map[string]context.CancelFunc),
 		waitCh:        make(chan struct{}),
@@ -110,45 +113,44 @@ func (r *eventProcessorConsumeRuntime) Start(ctx context.Context, wg *sync.WaitG
 		go func() {
 			defer wg.Done()
 
-			// Batch accumulator: events are collected and flushed periodically.
-			eventCh := make(chan *blockchain.BlockchainEvent, r.batchSize*2)
-
-			// Start batch flusher goroutine
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				r.batchFlushLoop(ctx, topic, eventCh)
-			}()
-
 			for {
 				if !r.waitUntilIntakeAllowed(ctx) {
-					// Drain remaining events before exiting
-					close(eventCh)
 					return
 				}
 
 				consumeCtx, cancel := context.WithCancel(ctx)
 				r.setTopicControl(topic, true, cancel)
 
-				err := r.consumer.ConsumeMessages(consumeCtx, topic, func(message core.MessageQueueMessage) error {
+				err := r.consumeTopic(consumeCtx, topic, func(message core.MessageQueueMessage) error {
+					if blocks, ok := r.processor.(completeBlockMessageProcessor); ok {
+						return r.processCompleteBlockMessage(consumeCtx, message, blocks)
+					}
 					event, err := decodeEventProcessorQueueMessage(message)
 					if err != nil {
 						r.recordError(fmt.Errorf("decode topic %s message %s: %w", topic, message.ID, err))
 						return err
 					}
-					select {
-					case eventCh <- event:
-						return nil
-					case <-ctx.Done():
-						return ctx.Err()
+					// ConsumeMessages commits the broker offset only after
+					// this callback succeeds. An in-memory enqueue cannot
+					// substitute for the durable processing result.
+					if err := r.processor.ProcessEvent(consumeCtx, event); err != nil {
+						r.recordError(fmt.Errorf("process topic %s event %s: %w", topic, event.ID, err))
+						r.writeToDLQ(consumeCtx, event, err)
+						return fmt.Errorf("persist event %s: %w", event.ID, err)
 					}
+					if err := r.publishProcessedEvent(consumeCtx, event); err != nil {
+						return err
+					}
+					if r.metrics != nil {
+						r.metrics.RecordCounter("event_processor_consume_processed", 1, map[string]string{"topic": topic})
+					}
+					return nil
 				})
 
 				r.setTopicControl(topic, false, nil)
 				cancel()
 
 				if ctx.Err() != nil {
-					close(eventCh)
 					return
 				}
 				if errors.Is(err, context.Canceled) {
@@ -156,80 +158,67 @@ func (r *eventProcessorConsumeRuntime) Start(ctx context.Context, wg *sync.WaitG
 				}
 				if err != nil {
 					r.recordError(fmt.Errorf("consume topic %s: %w", topic, err))
+					backoff := time.NewTimer(250 * time.Millisecond)
+					select {
+					case <-ctx.Done():
+						backoff.Stop()
+						return
+					case <-backoff.C:
+					}
 				}
 			}
 		}()
 	}
 }
 
-// batchFlushLoop reads events from eventCh and processes them in batches.
-// This amortizes MongoDB write costs by using InsertMany instead of InsertOne.
-func (r *eventProcessorConsumeRuntime) batchFlushLoop(ctx context.Context, topic string, eventCh <-chan *blockchain.BlockchainEvent) {
-	batch := make([]*blockchain.BlockchainEvent, 0, r.batchSize)
-	flushTimer := time.NewTimer(time.Duration(r.batchFlushMs) * time.Millisecond)
-	defer flushTimer.Stop()
-
-	flush := func() {
-		if len(batch) == 0 {
-			return
-		}
-		r.flushBatch(ctx, topic, batch)
-		batch = batch[:0]
+func (r *eventProcessorConsumeRuntime) processCompleteBlockMessage(ctx context.Context, message core.MessageQueueMessage, processor completeBlockMessageProcessor) error {
+	var frame appindexing.CompletedBlock
+	if err := json.Unmarshal(message.Payload, &frame); err != nil {
+		return fmt.Errorf("decode complete block: %w", err)
 	}
-
-	for {
-		select {
-		case event, ok := <-eventCh:
-			if !ok {
-				// Channel closed, flush remaining
-				flush()
-				return
+	if err := frame.Normalize(); err != nil {
+		return err
+	}
+	if message.PartitionKey != frame.ChainID {
+		return fmt.Errorf("complete block partition key does not match chain")
+	}
+	if err := processor.ProcessCompleteBlock(ctx, frame); err != nil {
+		var orphan *appindexing.OrphanedBlockError
+		if errors.As(err, &orphan) {
+			r.clearCompleteBlockError()
+			if r.metrics != nil {
+				r.metrics.RecordCounter("event_processor_orphaned_blocks", 1, map[string]string{"chain_id": frame.ChainID})
 			}
-			batch = append(batch, event)
-			if len(batch) >= r.batchSize {
-				flush()
-				if !flushTimer.Stop() {
-					select {
-					case <-flushTimer.C:
-					default:
-					}
-				}
-				flushTimer.Reset(time.Duration(r.batchFlushMs) * time.Millisecond)
+			return nil
+		}
+		return fmt.Errorf("persist complete block: %w", err)
+	}
+	if r.publisher != nil && len(r.outputTopics) > 0 {
+		publisher, ok := r.publisher.(interface {
+			PublishMessage(context.Context, core.MessageQueueMessage) error
+		})
+		if !ok {
+			return fmt.Errorf("committed block publication requires chain-keyed publisher")
+		}
+		payload, err := json.Marshal(frame)
+		if err != nil {
+			return fmt.Errorf("encode committed block: %w", err)
+		}
+		for _, topic := range r.outputTopics {
+			if err := publisher.PublishMessage(ctx, mq.NewChainMessage(frame.ChainID, topic, payload)); err != nil {
+				return fmt.Errorf("publish committed block: %w", err)
 			}
-		case <-flushTimer.C:
-			flush()
-			flushTimer.Reset(time.Duration(r.batchFlushMs) * time.Millisecond)
-		case <-ctx.Done():
-			// Drain remaining events from channel
-			for len(eventCh) > 0 {
-				if event := <-eventCh; event != nil {
-					batch = append(batch, event)
-				}
-			}
-			flush()
-			return
 		}
 	}
+	r.clearCompleteBlockError()
+	return nil
 }
 
-// flushBatch processes a batch of events. It first filters duplicates via
-// idempotency, then writes non-duplicate events in a single MongoDB batch,
-// and finally publishes each processed event to output topics.
-func (r *eventProcessorConsumeRuntime) flushBatch(ctx context.Context, topic string, batch []*blockchain.BlockchainEvent) {
-	r.logger.Info("flushBatch called", "topic", topic, "batch_size", len(batch))
-	for i, event := range batch {
-		r.logger.Info("flushBatch processing event", "index", i, "event_id", event.ID, "network", event.Network, "event_name", event.EventName)
-		if err := r.processor.ProcessEvent(ctx, event); err != nil {
-			r.recordError(fmt.Errorf("process topic %s event %s: %w", topic, event.ID, err))
-			r.writeToDLQ(ctx, event, err)
-			continue
-		}
-		r.logger.Info("flushBatch event processed, publishing", "event_id", event.ID)
-		r.publishProcessedEvent(ctx, event)
-		if r.metrics != nil {
-			r.metrics.RecordCounter("event_processor_consume_processed", 1, map[string]string{"topic": topic})
-		}
-	}
+func (r *eventProcessorConsumeRuntime) clearCompleteBlockError() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.lastError = ""
+	r.lastErrorAtUnix = 0
 }
 
 func (r *eventProcessorConsumeRuntime) PauseIntake(reason string) eventProcessorConsumeLoopSnapshot {
@@ -260,14 +249,15 @@ func (r *eventProcessorConsumeRuntime) ResumeIntake(reason string) eventProcesso
 	}
 
 	r.mu.Lock()
+	wasPaused := r.paused
 	r.paused = false
 	r.reason = reason
 	r.lastAction = "resume-intake"
 	r.updatedAtUnix = time.Now().Unix()
-	r.closeOnce.Do(func() {
+	if wasPaused {
 		close(r.waitCh)
-	})
-	r.waitCh = make(chan struct{})
+		r.waitCh = make(chan struct{})
+	}
 	r.mu.Unlock()
 
 	return r.Snapshot()
@@ -366,20 +356,20 @@ func decodeEventProcessorQueueMessage(message core.MessageQueueMessage) (*blockc
 	return &event, nil
 }
 
-func (r *eventProcessorConsumeRuntime) publishProcessedEvent(ctx context.Context, event *blockchain.BlockchainEvent) {
+func (r *eventProcessorConsumeRuntime) publishProcessedEvent(ctx context.Context, event *blockchain.BlockchainEvent) error {
 	if r.publisher == nil || len(r.outputTopics) == 0 {
-		return
+		return nil
 	}
 	payload, err := json.Marshal(event)
 	if err != nil {
-		r.logger.Warn("Failed to marshal event for output topic", "eventId", event.ID, "error", err.Error())
-		return
+		return fmt.Errorf("encode processed event %s: %w", event.ID, err)
 	}
 	for _, topic := range r.outputTopics {
 		if err := r.publisher.Publish(ctx, topic, payload); err != nil {
-			r.logger.Warn("Failed to publish event to output topic", "topic", topic, "eventId", event.ID, "error", err.Error())
+			return fmt.Errorf("publish processed event %s to %s: %w", event.ID, topic, err)
 		}
 	}
+	return nil
 }
 
 func (r *eventProcessorConsumeRuntime) writeToDLQ(ctx context.Context, event *blockchain.BlockchainEvent, processErr error) {
@@ -399,4 +389,33 @@ func (r *eventProcessorConsumeRuntime) writeToDLQ(ctx context.Context, event *bl
 	if err != nil {
 		r.logger.Warn("Failed to write event to DLQ", "eventId", event.ID, "error", err.Error())
 	}
+}
+
+// consumeTopic preserves the legacy adapter contract while making broker-owned
+// contexts mandatory for the PostgreSQL processor's durable effect path.
+func (r *eventProcessorConsumeRuntime) consumeTopic(ctx context.Context, topic string, legacy func(core.MessageQueueMessage) error) error {
+	owner, ok := r.processor.(interface {
+		AssignOwnership(context.Context, string) error
+		RevokeOwnership(context.Context) error
+	})
+	if !ok {
+		return r.consumer.ConsumeMessages(ctx, topic, legacy)
+	}
+	consumer, ok := r.consumer.(interface {
+		ConsumeOwnedMessages(context.Context, string, func(context.Context, core.MessageQueueMessage) error, mq.ConsumerOwnershipHooks) error
+	})
+	if !ok {
+		return fmt.Errorf("durable processor requires generation-owned Kafka consumption")
+	}
+	blocks, ok := r.processor.(completeBlockMessageProcessor)
+	if !ok {
+		return fmt.Errorf("owned processor requires complete block effects")
+	}
+	return consumer.ConsumeOwnedMessages(ctx, topic, func(active context.Context, message core.MessageQueueMessage) error {
+		err := r.processCompleteBlockMessage(active, message, blocks)
+		if err != nil && active.Err() == nil {
+			r.recordError(fmt.Errorf("process owned topic %s: %w", topic, err))
+		}
+		return err
+	}, mq.ConsumerOwnershipHooks{Assigned: owner.AssignOwnership, Revoked: owner.RevokeOwnership})
 }

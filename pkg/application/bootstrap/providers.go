@@ -3,9 +3,10 @@ package bootstrap
 import (
 	"github.com/rtcdance/chainpulse/pkg/core"
 	"github.com/rtcdance/chainpulse/pkg/observability"
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
 )
 
-func provideLogger() core.Logger {
+func provideLogger() portcontract.Logger {
 	return core.NewSlogLogger(core.LogLevelInfo, "slog")
 }
 

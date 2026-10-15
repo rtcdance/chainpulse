@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"time"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
 	"github.com/rtcdance/chainpulse/pkg/core"
 	"github.com/rtcdance/chainpulse/pkg/infrastructure/database"
 	"github.com/rtcdance/chainpulse/pkg/plugins/api"
@@ -44,7 +46,7 @@ type eventProcessorConsumeRuntimeProvider interface {
 func buildEventProcessorRuntimeRolloutHealthHandler(
 	ctx context.Context,
 	instanceID string,
-	logger core.Logger,
+	logger portcontract.Logger,
 	metrics core.MetricsCollector,
 	dbManager database.DatabaseManager,
 	eventStore eventProcessorComponentHealthProvider,

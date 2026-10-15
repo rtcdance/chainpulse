@@ -8,12 +8,17 @@ import (
 	"sync"
 	"time"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
+	"github.com/rtcdance/chainpulse/pkg/application/bootstrap"
+	appindexing "github.com/rtcdance/chainpulse/pkg/application/indexing"
 	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"github.com/rtcdance/chainpulse/pkg/chainid"
 	"github.com/rtcdance/chainpulse/pkg/core"
 	"github.com/rtcdance/chainpulse/pkg/core/topics"
 	pluginapi "github.com/rtcdance/chainpulse/pkg/plugins/api"
 	"github.com/rtcdance/chainpulse/pkg/plugins/pullers"
+	"github.com/rtcdance/chainpulse/pkg/services/finality"
 	"github.com/rtcdance/chainpulse/pkg/services/indexing"
 	"github.com/rtcdance/chainpulse/pkg/services/reorg"
 
@@ -23,10 +28,10 @@ import (
 const monolithicEventTopic = topics.TopicBlockchainEvents
 
 type monolithicPullerRuntime struct {
-	logger      core.Logger
+	logger      portcontract.Logger
 	eventBus    *core.DefaultEventBus
 	pullers     []monolithicPollingPuller
-	database    core.DatabasePlugin
+	database    portcontract.DatabasePlugin
 	reorgChains map[string]*monolithicChainReorgRuntime
 	reorgMu     sync.RWMutex
 	startedAt   time.Time
@@ -35,6 +40,10 @@ type monolithicPullerRuntime struct {
 	loopChains  map[string]*monolithicPullLoopRuntime
 	backoffBase time.Duration
 	backoffMax  time.Duration
+	outbox      *reorg.OutboxDrainerLoop
+	progress    func(context.Context)
+	progressOK  map[string]bool
+	progressAt  time.Time
 }
 
 type monolithicBlockSnapshotStore interface {
@@ -77,10 +86,11 @@ func newMonolithicPullerRuntime(
 	baseConfig core.Config,
 	rawNodeURLs string,
 	chains []string,
-	logger core.Logger,
+	logger portcontract.Logger,
 	metrics core.MetricsCollector,
-	database core.DatabasePlugin,
+	database portcontract.DatabasePlugin,
 	multiChainIndexer *indexing.MultiChainIndexer,
+	sharedRuntimes ...*appindexing.SharedRuntime,
 ) (*monolithicPullerRuntime, error) {
 	//nolint:funlen // Runtime initializer has many setup steps.
 	nodeURLs, err := parseNodeURLs(rawNodeURLs)
@@ -96,8 +106,14 @@ func newMonolithicPullerRuntime(
 	}
 
 	eventBus := core.NewEventBus(logger)
-	if err := subscribeMonolithicIndexer(ctx, eventBus, multiChainIndexer, logger); err != nil {
-		return nil, err
+	var durable *appindexing.SharedRuntime
+	if len(sharedRuntimes) > 0 && sharedRuntimes[0] != nil && sharedRuntimes[0].AtomicCommitsEnabled() {
+		durable = sharedRuntimes[0]
+	}
+	if durable == nil {
+		if err := subscribeMonolithicIndexer(ctx, eventBus, multiChainIndexer, logger); err != nil {
+			return nil, err
+		}
 	}
 
 	runtime := &monolithicPullerRuntime{
@@ -125,7 +141,10 @@ func newMonolithicPullerRuntime(
 		} else {
 			puller = pullers.NewHTTPSJSONRPCPuller(pullerConfig, logger, metrics, eventBus)
 		}
-		if dataPuller, ok := any(puller).(core.DataPullerPlugin); ok {
+		if durable != nil && (chainid.IsCosmosChain(chainID) || chainid.IsSolanaChain(chainID)) {
+			return nil, fmt.Errorf("durable completed-block ingestion is not implemented for chain %s", chainID)
+		}
+		if dataPuller, ok := any(puller).(portcontract.DataPullerPlugin); ok && durable == nil {
 			if err := dataPuller.SubscribeToEvents(ctx, runtime.observeEvent); err != nil {
 				return nil, err
 			}
@@ -141,12 +160,29 @@ func newMonolithicPullerRuntime(
 			).WithChainID(chainID).WithEventBus(runtime.eventBus),
 			chainID: chainID,
 		}
+		if store := bootstrap.BuildReorgStore(database); store != nil {
+			runtime.reorgChains[chainID].handler = reorg.NewReorgHandler(
+				store.ChainDatabase(chainID), logger, reorgThreshold, reorgThreshold*10,
+			).WithChainID(chainID).WithJobStore(store)
+			if runtime.outbox == nil {
+				drainer, err := reorg.NewOutboxDrainerLoop(store, bootstrap.NewEventBusPublisher(eventBus), logger)
+				if err != nil {
+					return nil, fmt.Errorf("build reorg outbox: %w", err)
+				}
+				runtime.outbox = drainer
+			}
+		}
 		// Inject RPC-backed block hash provider so reorg detection
 		// compares local hashes against the live canonical chain.
 		// Only supports EVM pullers that expose block hash RPC methods.
 		if evmPuller, ok := puller.(*pullers.HTTPSJSONRPCPuller); ok {
 			rpcProvider := pullers.NewRPCBlockHashProvider(evmPuller)
 			runtime.reorgChains[chainID].handler.SetBlockHashProvider(rpcProvider)
+			if durable != nil {
+				if err := runtime.configureDurablePuller(ctx, chainID, evmPuller, durable, reorgThreshold*10); err != nil {
+					return nil, err
+				}
+			}
 		}
 		// Note: SetIdempotencyInvalidator should be called here if an
 		// IdempotencyService is available in the runtime, so that re-indexed
@@ -157,10 +193,48 @@ func newMonolithicPullerRuntime(
 		}
 	}
 
+	if _, err := eventBus.Subscribe(ctx, topics.TopicReorgRollback, func(_ context.Context, payload any) error {
+		event, ok := payload.(*portcontract.ReorgRollbackEvent)
+		if !ok || event.FromBlock == 0 {
+			return fmt.Errorf("invalid reorg rollback notification")
+		}
+		for _, p := range runtime.pullers {
+			if p.GetConfig().ServiceName != event.ChainID {
+				continue
+			}
+			if position, ok := p.(interface{ SetLastBlockNumber(uint64) }); ok {
+				position.SetLastBlockNumber(event.FromBlock - 1)
+			}
+		}
+		return nil
+	}); err != nil {
+		return nil, fmt.Errorf("subscribe reorg recovery: %w", err)
+	}
 	return runtime, nil
 }
 
+// SetFinalityRegistry installs the per-chain finality strategy on every EVM
+// puller so the poll loops stop N blocks (or a safe/finalized tag) behind the
+// head (D7). Non-EVM pullers keep latest-head behavior. A nil registry leaves
+// every puller uncapped.
+func (m *monolithicPullerRuntime) SetFinalityRegistry(registry *finality.Registry) {
+	for _, p := range m.pullers {
+		if evm, ok := p.(*pullers.HTTPSJSONRPCPuller); ok {
+			evm.SetFinalityRegistry(registry)
+		}
+	}
+}
+
 func (m *monolithicPullerRuntime) Start(ctx context.Context, wg *sync.WaitGroup) error {
+	if m.outbox != nil {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if err := m.outbox.Run(ctx); err != nil && ctx.Err() == nil {
+				m.recordLoopError(fmt.Errorf("reorg outbox: %w", err))
+			}
+		}()
+	}
 	m.stateMu.Lock()
 	m.startedAt = time.Now()
 	m.lastError = ""
@@ -181,8 +255,30 @@ func (m *monolithicPullerRuntime) Start(ctx context.Context, wg *sync.WaitGroup)
 
 		go runLoop()
 	}
+	m.startProgress(ctx, wg)
 
 	return nil
+}
+
+func (m *monolithicPullerRuntime) startProgress(ctx context.Context, wg *sync.WaitGroup) {
+	if m.progress == nil {
+		return
+	}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		m.progress(ctx)
+		ticker := time.NewTicker(5 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				m.progress(ctx)
+			}
+		}
+	}()
 }
 
 func (m *monolithicPullerRuntime) runPullerLoop(ctx context.Context, wg *sync.WaitGroup, puller monolithicPollingPuller) {
@@ -220,6 +316,9 @@ func (m *monolithicPullerRuntime) runPullerLoop(ctx context.Context, wg *sync.Wa
 }
 
 func (m *monolithicPullerRuntime) Stop() error {
+	if m.outbox != nil {
+		m.outbox.Stop()
+	}
 	var errs []string
 
 	for _, puller := range m.pullers {
@@ -244,7 +343,7 @@ func (m *monolithicPullerRuntime) SubscriberCount() int {
 }
 
 // EventBus returns the shared event bus for wiring push-based subscriptions.
-func (m *monolithicPullerRuntime) EventBus() core.EventBus {
+func (m *monolithicPullerRuntime) EventBus() portcontract.EventBus {
 	return m.eventBus
 }
 
@@ -350,6 +449,11 @@ func (m *monolithicPullerRuntime) observeEvent(event blockchain.BlockchainEvent)
 }
 
 func (m *monolithicPullerRuntime) storeBlockSnapshot(ctx context.Context, event *blockchain.BlockchainEvent) error {
+	if store, ok := m.database.(interface {
+		StoreChainBlockSnapshot(context.Context, string, *blockchain.Block) error
+	}); ok {
+		return store.StoreChainBlockSnapshot(ctx, event.ChainID, &blockchain.Block{Number: event.BlockNumber, Hash: event.BlockHash})
+	}
 	store, ok := m.database.(monolithicBlockSnapshotStore)
 	if !ok {
 		return fmt.Errorf("monolithic database does not support block snapshots")
@@ -614,9 +718,9 @@ func (m *monolithicChainReorgRuntime) clearError() {
 
 func subscribeMonolithicIndexer(
 	ctx context.Context,
-	eventBus core.EventBus,
+	eventBus portcontract.EventBus,
 	multiChainIndexer *indexing.MultiChainIndexer,
-	logger core.Logger,
+	logger portcontract.Logger,
 ) error {
 	_, err := eventBus.SubscribeNamed(ctx, monolithicEventTopic, "monolithic-indexer", func(_ context.Context, payload any) error {
 		event, ok := payload.(blockchain.BlockchainEvent)
