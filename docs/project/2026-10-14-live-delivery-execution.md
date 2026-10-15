@@ -213,3 +213,14 @@ fresh-chain-old-checkpoint 组合运行失败后，已修正单体测试的初�
 旧 runtime fixture 无迁移ledger，尝试普通升级在迁移4失败（自然键定义已为block_hash；保留旧库未force版本、未删数据）。为防止掩盖状态，以实际migrator从空库建立5个chainpulse_delivery_s16_*独立库并应用1–16；event-state-fresh-fixtures.log记录。新full正在这些fresh库与两条fresh Anvil上运行，包含实际API state断言。
 
 CI汇总由只检查3个check改为 test/acceptance/required-checks.json 的10个必需check：计划7个lane加lint、integration、build-binaries。显示名固定为quality/unit-race/contracts/evm-e2e/frontend-api/security/coverage，汇总名acceptance-gate与拟配置ruleset一致。真实依赖workflow对全部PR及main/master push触发，不再靠paths过滤隐去必需lane。CLI支持versioned policy，空/重复/畸形policy拒绝；重名success不能覆盖failure。25/25实际CLI反例、31/31既有反例、自测及Actionlint通过，尚无远端run或ruleset成功结论。token权限追加后首次重试仍403，服务端响应明确administration=write；待当前凭据授权真实生效后再执行。
+
+
+## 2026-10-15：权限恢复、真实 CI 修复及 finality RPC 校验
+
+当前凭据已实际创建并读回 active ruleset `25154687`，默认分支 master/main 要求 PR 和 GitHub Actions `acceptance-gate`，无 bypass actor；负向验证 PR #2 因缺 required check 被 HTTP405 拒绝合并，随后关闭并删除专用分支。上述事实取代此前 403 的当前状态描述，历史失败证据保留。交付候选在独立 worktree 的 `codex/web3-go-backend-delivery`，草稿 PR #1；原工作区与四个历史 stash 保留。
+
+候选 a36501c7ccc09cf83464821903cc8b1143be8041 的第三轮远端运行：Integration 38756973579 中 integration/contracts 已成功，真实 `Deployed canonical reorg and restart` 步骤成功（整个 evm-e2e job 尚在执行）；Performance Metrics 38756973418 的采集与回归检查均成功；Security 38756973391、Frontend API 38756973469 成功。unit-race 38756973318 仍失败：安装 Anvil 后原来的缺工具跳过转为实际运行，17 个 fixture 需 localhost:8545 节点，其中13项日志失败源为节点未启动；继续补齐进程启动、chain ID 探测与拥有者清理，不能扩大 skip allowlist。quality Docker 构建仍在执行，未将整个 CI 标为通过。
+
+本地 readiness 修复后完整 micro-loop exit0：131 pass actions、60 顶层测试、0 fail/0 skip；31/31 门禁反例通过。此前 full 证据复制到 pre-readiness-full，保留运行边界。新增 finality RPC 反例已用旧候选源 overlay 真实复现：HTTP错误、非法hex/overflow、非规范quantity、错误JSON-RPC ID/version、尾部响应和切换provider旧缓存。当前修复拒绝这些响应，限制响应体2MiB，provider重新注册清缓存并拒绝旧in-flight结果覆盖；状态接口的降级结果 IsFinalized=false，height与元数据由同一次快照返回。新增回归100次race与整个finality包race通过。此项只证明 checker 改进，尚不能替代生产 finality observer 的 chain/genesis/header/freshness 全链路接线验收。
+
+T14 微基准工具新增 fail-closed 校验：每个样本必须有有限正 ns/op 和非负有限 B/op，缺/部分指标不能通过；零分配基线合法，但从0增加分配失败。15%阈值未改变；旧代码自测反例真实失败，修复后自测及31/31外部CLI反例通过。正式100k双链正确性、持续摄取、查询、积压、30min soak、不可变镜像发布/回滚与最终作者签字仍未完成，不将本轮局部结果当作T00–T18全部完成。
