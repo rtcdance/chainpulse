@@ -202,6 +202,44 @@
       "tests": [
         "TestNativeIntakeUsesExplicitFinalityInsteadOfLegacyCap"
       ]
+    },
+    {
+      "id": "E12",
+      "lane": "contracts",
+      "summary": "canonical aggregate count cache: real PG/Redis hit, legacy writes and dependency failure",
+      "tests": [
+        "TestPostgresAggregateCacheUsesMutationRevision",
+        "TestPostgresAggregateCacheRealRedis",
+        "TestPostgresAggregateStatsCacheUsesMutationRevision"
+      ]
+    },
+    {
+      "id": "E12",
+      "lane": "migration",
+      "summary": "mutation revision atomicity, legacy writes, truncate and schema epoch rollback safety",
+      "tests": [
+        "TestQueryRevisionsTrackCommittedMutationsAndRollback"
+      ]
+    },
+    {
+      "id": "E12",
+      "lane": "unit",
+      "summary": "canonical aggregate Redis cancellation and bounded configuration",
+      "tests": [
+        "TestCanonicalRedisCacheRejectsUnsafeConfiguration",
+        "TestCanonicalRedisCacheHonorsCancellationAndBounds",
+        "TestSnapshotStorageClosesCanonicalCacheEvenOnCloseFailure"
+      ]
+    },
+    {
+      "id": "E12",
+      "lane": "evm-e2e",
+      "summary": "actual monolithic and native page/stats use Redis and match PG canonical counts",
+      "tests": [
+        "TestDeployedReorgCanonicalDigestAndRestart/E12_canonical_aggregate_cache",
+        "TestDeployedPullerKafkaAndAtomicProcessor/E12_canonical_aggregate_cache",
+        "TestDeployedAPIRejectsMissingCacheAuthority"
+      ]
     }
   ]
 }

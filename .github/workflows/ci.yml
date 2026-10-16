@@ -73,7 +73,7 @@ jobs:
         run: go vet ./...
 
       - name: Query load measurement regression controls
-        run: python3 -m unittest discover -s scripts/bench -p 'query_load_test.py' -v
+        run: python3 -m unittest discover -s scripts/bench -p 'query*_test.py' -v
 
       # Section 7.1: "root ./... is not the whole Go workspace". The commands
       # above all stop at the current module, so the six nested modules under

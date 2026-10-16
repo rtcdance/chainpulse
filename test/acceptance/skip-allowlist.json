@@ -73,6 +73,7 @@
     "github.com/rtcdance/chainpulse/pkg/plugins/mq::TestKafkaIntegrationPublishAndConsume",
     "github.com/rtcdance/chainpulse/pkg/siwe::TestRedisNonceStoreBindsNonceToAddress",
     "github.com/rtcdance/chainpulse/pkg/siwe::TestRedisNonceStoreTwoInstancesOneWinner",
+    "github.com/rtcdance/chainpulse/test/acceptance::TestDeployedAPIRejectsMissingCacheAuthority",
     "github.com/rtcdance/chainpulse/test/acceptance::TestDeployedDualChainFaultIsolation",
     "github.com/rtcdance/chainpulse/test/acceptance::TestDeployedDualChainModesMatchRPCOracle",
     "github.com/rtcdance/chainpulse/test/acceptance::TestDeployedPullerKafkaAndAtomicProcessor",
@@ -841,6 +842,15 @@
       "owner": "delivery-plan T14",
       "measured_skip_message": "Skipping stress test in short mode",
       "expires": "2026-11-14"
+    },
+    "github.com/rtcdance/chainpulse/test/acceptance::TestDeployedAPIRejectsMissingCacheAuthority": {
+      "category": "dependency_gated",
+      "lane": "contracts",
+      "scenario": "E12",
+      "why": "The contracts job has no deployed API binary. evm-e2e explicitly builds and runs this schema19 startup rejection case; its required manifest rejects any skip even if classified here.",
+      "owner": "delivery-plan T11/T12",
+      "measured_skip_message": "set CHAINPULSE_RUN_DEPLOYED_BLOCKS=1 with isolated native targets",
+      "expires": "2026-11-16"
     }
   }
 }

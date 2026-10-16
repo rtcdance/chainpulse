@@ -315,3 +315,5 @@ T14工具可版本化：query-oracle-export.py参数化psql，在repeatable-read
 SQL诊断保留：offset宽行67.7ms，先ID再回表28.5ms；contract宽行本身0.639ms，事务内临时覆盖索引实验8.68ms更慢，已ROLLBACK，未擅自留下新索引或修改历史migration19。规定600s冷热查询、100k独立RPC oracle、250eps/600s复测、积压精确边界与30min soak尚未闭环。全计划仍Approved，原生committed/reorg订阅桥及其他T00–T18残项未缩减。
 
 当前缓存候选的标准DoD与18项工具控制均exit0；lint0issues。完整计数/统计真实合同另经100轮race：300pass/0fail/0skip。真实API schema19启动负控另经100轮race：100pass/0fail/0skip，100个独立数据库均正常清理，100份唯一进程工件保留。该结果没有把30秒负载FAIL改成PASS。后续需带对照验证冷启动重复聚合、按完整600秒/soak合同复测。
+
+CI接线核对另补：evm-e2e选择正则由4个顶层进程case扩大到5个，明确包含schema19启动拒绝，min-tests同步5。contracts lane没有部署二进制时该新增case实测1个dependency-gated skip，逐项分类并给出到期日；单独manifest反控确认即使该skip已分类，required evm-e2e仍明确拒绝“was SKIPPED (required skips must be 0)”，不是放宽必需case。原始skip流与反控报告已保留。

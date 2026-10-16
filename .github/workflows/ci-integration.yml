@@ -449,10 +449,10 @@ jobs:
         go build -race -o "$CHAINPULSE_DEPLOYED_API_SERVICE_BINARY" ./cmd/microservices/api-service
         go build -race -o "$CHAINPULSE_DEPLOYED_GATEWAY_BINARY" ./cmd/microservices/api-gateway
         go test -json -race -tags=integration ./test/acceptance \
-          -run '^(TestDeployedReorgCanonicalDigestAndRestart|TestDeployedPullerKafkaAndAtomicProcessor|TestDeployedDualChainModesMatchRPCOracle|TestDeployedDualChainFaultIsolation)$' -count=1 -timeout=10m \
+          -run '^(TestDeployedReorgCanonicalDigestAndRestart|TestDeployedPullerKafkaAndAtomicProcessor|TestDeployedDualChainModesMatchRPCOracle|TestDeployedDualChainFaultIsolation|TestDeployedAPIRejectsMissingCacheAuthority)$' -count=1 -timeout=10m \
           | tee deployed-reorg-output.jsonl
         python3 scripts/acceptance/verify-tests.py \
-          --jsonl deployed-reorg-output.jsonl --min-tests 4 --fail-on-unknown-skip \
+          --jsonl deployed-reorg-output.jsonl --min-tests 5 --fail-on-unknown-skip \
           --required-cases test/acceptance/required-cases.json --required-lane evm-e2e \
           --report deployed-reorg-report.json
 

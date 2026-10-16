@@ -217,7 +217,7 @@ if [[ "$MODE" == "full" ]]; then
     --required-cases test/acceptance/required-cases.json --required-lane migration
 
   echo "[micro-loop] step 10: acceptance tooling and negative controls"
-  python3 -m unittest discover -s scripts/bench -p 'query_load_test.py' -v
+  python3 -m unittest discover -s scripts/bench -p 'query*_test.py' -v
   for tool in verify-tests skip-report collect-evidence openapi-drift bench-gate dep-approval-gate acceptance-gate; do
     python3 "scripts/acceptance/$tool.py" --self-test
   done
