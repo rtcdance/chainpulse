@@ -283,3 +283,35 @@ T14本机探索性测量：持续摄取记录250eps/600s、150000窗口内事件
 新增可版本化 scripts/bench/query-load.py：新建输出目录及独占原始文件、有界队列、固定种子、monotonic计划到达时间、包括失败请求的端到端延迟、保留503状态、过载显式失败、每计划请求唯一终态核验。输出明确只验证HTTP/响应结构及性能，e14_verified=false，不将结构检查冒充完整canonical正确性。9项回归测试通过；已接入quality workflow和full micro-loop。布尔total反例先失败后修复；首次RED日志同时有沙箱HTTP监听拒绝，GREEN在授权本机监听环境重跑全部9项通过，未把环境拒绝计入代码反例。原始日志见query-load-boolean-red.log、query-load-regression-green.log。
 
 下一步：候选分支归档既有T07和查询索引改动并重新执行门禁；定位重复COUNT/统计聚合开销，使用全新工件目录复测。T00–T18整体保持未完成；此前“独立事件状态未完成”的概述不能覆盖已存在的T04/T07局部证据。
+
+## 2026-10-16：候选 d00ad28 远端核验与 T11 计数缓存基础
+
+已按主题提交并推送 c29dd21（finality/查询索引）、fef98d2（隔离压测驱动器）、d00ad28（CI与必需case）；候选worktree干净。11项required checks及acceptance-gate全部success。原始check快照为candidate-d00ad28-check-runs-final.json；远端CI38879254062、Integration38879254068。PR实际checkout为synthetic merge aa22306abdb34f12a62e7855363e3bcbca8d4eea，其父提交由GitHub git API核验为master fa80b83和候选d00ad28；因此这是对应head的PR集成验证，不冒称T18最终tag SHA执行。实际部署EVM工件deployed-reorg-report为16 pass actions/4顶层/0fail/0skip，两种mode的E07_finality_observation均pass。旧E2E报告371pass/32skip，32个已分类历史skip没有被称为已执行。coverage必需gate成功；附加比较报告成功生成但comparison_status=unavailable_base_tests_failed，候选Go-native为69.4%，旧基线失败，不虚构差值。
+
+候选本地原样make build/make test-unit/make vet全部通过；build/check/lint/test-short/diff顺序门禁通过，提交业务后再次lint0issues。前端缺node_modules首跑未执行，npm ci后32测试+build成功。迁移5顶层/10pass/0fail/0skip。16份原始本地日志归档candidate-d00ad28-local-gates/，PR#1仍为draft。
+
+随后仅原工作区继续T11：migration20增加同写事务的chain mutation revision/epoch与INSERT/UPDATE/DELETE/TRUNCATE触发器，包含未推进checkpoint的兼容写者；schema重建epoch改变，避免旧Redis键复用。测试先因无migration20失败；首次实现测试错误地将重插created_at与旧值比较，已用固定fixture时间并把完整行保留在down/up期间后修复，原始失败没有覆盖。全部迁移6顶层/11pass/0fail/0skip；新增迁移100次race为100pass/0fail/0skip。
+
+精确count缓存已进入QueryDomainEvents：同一repeatable-read snapshot读取chain revision向量+filter构造键，页与finality证明仍读PG；异常或非整数/负数载荷回源。配置未启用时保持原路径。专用Redis后端无本地map回退，50ms操作期限、8条活跃连接上限、GETRANGE限制64KiB、TTL上限300s。两项真实PG/Redis合同连续100次为200pass/0fail/0skip，覆盖实际命中、兼容SQL重组/删除后的失效、缓存故障与畸形载荷回源；Redis边界单元100次race通过。新DB为chainpulse_delivery_s20_cache_contracts，由CLI正常up20创建，不force旧库。当前尚未接入实际入口与统计聚合缓存；不能据此宣布性能或T11完成。
+
+压测驱动器进一步修复写盘失败时往满队列塞shutdown sentinel造成的死锁。初次简单负控未复现，原始失败保留query-load-writer-negative-control.log；改为事件屏障使worker先进入、排队项滞留，再触发写盘错误，冻结d00ad28版本被父进程3s超时杀掉，修复版本明确失败退出，证据query-load-writer-controlled-negative.log。全部10项回归通过。新增计数缓存后的micro-fast通过；标准DoD正在单独运行。新增缓存/迁移/生命周期改动尚未提交到候选，不属于d00ad28已绿范围。
+
+整体交付仍未完成：实际缓存/原生订阅接线、严格100k oracle/250eps/冷热查询/积压边界/30min soak及资源、完整镜像版本回滚和最终证据仍需继续，保持原Approved范围。
+
+T11计数缓存基础的标准DoD已结束：query-count-cache-build/check/lint/test-short/diff-stat五份日志对应exit0，lint原始输出0issues；query-count-cache-micro-fast.log也以[micro-loop] done结束。required-cases追加E12的contracts/migration/unit三lane，迁移必需case检验通过。仍未执行新的全栈full回归、未接实际入口，不将该基础改动标为整体完成。
+
+## 2026-10-16：T11 实际缓存接线、启动负控与 T14 短诊断
+
+已将revision绑定的精确计数与dashboard聚合缓存接到实际单体和canonical API-service。GROUPING SETS在一次canonical扫描中取total/by-chain/by-name，另计reorged；缓存payload检查分组总和、scope、非负数与容量。Redis只保存计数/聚合，页面和finality每次读同一PG snapshot；冷/故障缓存回源。单体storage wrapper拥有独立Redis client并在Stop关闭，API runtime关闭前detach；关闭出错也继续DB cleanup。缓存启用前校验clean schema≥20和两条启用的mutation triggers；链范围在一次查询中只读取一次，SQL与cache key一致。
+
+真实负控发现并修正API-service异步Query.Start失败只打印错误、主进程仍宣告Running。改为在HTTP启动前同步启动非阻塞query runtime，拥有独立lifetime context，失败关闭wiring并exit1。最初外部负控20s超时未通过，随后固化进程测试RED为12s超时，均保留；GREEN实际schema19以exit1拒绝且无Running消息。新测试创建/删除独立schema19库，随机空闲端口，产生日志/JSON各自唯一文件，不以killed/timeout算拒绝。
+
+full-cache-runtime-v1实际失败，原因是native fixture只向gateway传Redis地址，API缓存回到默认端口；新增E12进程检查发现指定Redis的GETRANGE增量为0。保留v1原始JSONL、failure-report和mono成功样本。补齐native common Redis环境后，在全新双Anvil重跑full-cache-runtime-v2：145 pass actions/65顶层/0fail/0skip；两mode E12都真实通过（mono canonical128、micro96，均GETRANGE=4/hits=2，API与PG一致）；schema19启动负控通过。迁移、静态检查、OpenAPI、14项指标合同、31/31门禁反例和full结尾均通过。当前生产二进制由/tmp/chainpulse-run-cache-runtime-full-v2-20261016.sh重建，full日志和fresh fixture proof均保留；这仍是dirty源码本地证明。
+
+T14工具可版本化：query-oracle-export.py参数化psql，在repeatable-read快照导出每条canonical ID/chain/block/log/address/tx/name及reorged统计；QueryOracle用索引/bisect检查有序offset/range/cursor页、total与统计分组。输入snapshot不是RPC独立canonical oracle，结果明确E14=false。固定seed mix在测前细化为30%offset/25%cursor/15%stats/20%contract/10%range；oracle/hash/原始记录独占存储，失败响应与队列等待均计入，错误2xx容忍0；加入健康预检与URL凭据拒绝。18项工具控制包含真实HTTP错误响应的CLI反例。不得将应用cache-off称为磁盘冷缓存。
+
+实际硬件补录：Mac物理10核心，Docker Desktop VM6CPU/约8GB，任务Postgres限制2CPU/1GiB（shared_buffers128MB、work_mem4MB）；不是计划Linux8CPU/16GB参考数字。短诊断基于274900条静态事件，前后revision相同。第一轮独立启动脚本返回后所有后台进程终结，3000请求URLError，明确FAIL；保存旧栈日志并确认所有PID已死后清理，未当成成功。第二轮用同一持续会话包住启动/测量/清理：30s/100rps/3000条终态，2888个200全部精确oracle通过，112次generator_overload、0响应正确性错误，P95=1127.55ms/P99=2419.63ms，仍FAIL。过载集中首5秒；后25秒无过载，不能裁掉前段宣称验收通过。当前缓存冷启动重复聚合并发是下一项待验证假设；不修改现有门槛。
+
+SQL诊断保留：offset宽行67.7ms，先ID再回表28.5ms；contract宽行本身0.639ms，事务内临时覆盖索引实验8.68ms更慢，已ROLLBACK，未擅自留下新索引或修改历史migration19。规定600s冷热查询、100k独立RPC oracle、250eps/600s复测、积压精确边界与30min soak尚未闭环。全计划仍Approved，原生committed/reorg订阅桥及其他T00–T18残项未缩减。
+
+当前缓存候选的标准DoD与18项工具控制均exit0；lint0issues。完整计数/统计真实合同另经100轮race：300pass/0fail/0skip。真实API schema19启动负控另经100轮race：100pass/0fail/0skip，100个独立数据库均正常清理，100份唯一进程工件保留。该结果没有把30秒负载FAIL改成PASS。后续需带对照验证冷启动重复聚合、按完整600秒/soak合同复测。

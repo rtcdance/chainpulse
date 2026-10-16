@@ -85,6 +85,7 @@ func TestDeployedPullerKafkaAndAtomicProcessor(t *testing.T) {
 		t.Cleanup(func() { require.NoError(t, log.Close()) })
 		command := exec.Command(binary)
 		command.Env = append(os.Environ(), "DATABASE_TYPE=postgres", "FINALITY_STRATEGIES=", "KAFKA_REORG_TOPIC="+output+"-reorg", "BLOCKCHAIN_RPCS=31337="+rpcURL, "API_SERVICE_RATE_LIMIT_ENABLED=false", "GATEWAY_RATE_LIMIT_ENABLED=false", "DATABASE_URL="+dsn, "DATABASE_SSLMODE=disable", "CHAINS=31337", "MONGODB_URI="+required("CHAINPULSE_DEPLOYED_MONGODB_URI"), "KAFKA_BROKERS="+strings.Join(brokers, ","), "KAFKA_CONSUMER_GROUP="+input+"-group")
+		command.Env = append(command.Env, "CACHE_TYPE=redis", "CACHE_CONNECTION_URL="+required("CHAINPULSE_DEPLOYED_REDIS_ADDR"))
 		command.Env = append(command.Env, extra...)
 		command.Stdout = log
 		command.Stderr = log
@@ -623,5 +624,8 @@ func TestDeployedPullerKafkaAndAtomicProcessor(t *testing.T) {
 			stop(&processor)
 			processor = start(required("CHAINPULSE_DEPLOYED_PROCESSOR_BINARY"), "processor-finality", "PROCESSOR_PORT="+processorPort, "KAFKA_INPUT_TOPICS="+input, "KAFKA_OUTPUT_TOPICS="+output, "FINALITY_STRATEGIES=31337=tag:"+tag, "BLOCKCHAIN_RPCS=31337="+endpoint)
 		})
+	})
+	t.Run("E12_canonical_aggregate_cache", func(t *testing.T) {
+		checkDeployedCanonicalCache(t, ctx, db, "http://127.0.0.1:"+gatewayPort, artifacts, "microservices")
 	})
 }

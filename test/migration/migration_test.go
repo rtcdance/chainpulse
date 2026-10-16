@@ -61,6 +61,7 @@ var appTables = []string{
 	"blocks",
 	"chain_leases",
 	"chain_finality_observations",
+	"canonical_query_revisions",
 	"dlq_events",
 	"indexing_state",
 	"reorg_generations",

@@ -225,14 +225,19 @@ func main() {
 	fmt.Println("Starting Services:")
 	var wg sync.WaitGroup
 
-	// Start Query Service
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		if err := runtimeWiring.QueryService.Start(context.Background()); err != nil {
-			logger.Error("Query Service error", "error", err.Error())
+	// Query Start is nonblocking. Its critical initialization must succeed
+	// before HTTP is exposed; the context belongs to the runtime lifetime.
+	queryCtx, queryCancel := context.WithCancel(context.Background())
+	if err := runtimeWiring.QueryService.Start(queryCtx); err != nil {
+		queryCancel()
+		logger.Error("Query Service startup failed", "error", err.Error())
+		cleanupCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		if closeErr := runtimeWiring.Close(cleanupCtx); closeErr != nil {
+			logger.Error("Failed to close runtime after startup failure", "error", closeErr.Error())
 		}
-	}()
+		cancel()
+		os.Exit(1)
+	}
 	fmt.Println("  [1/2] Query Service started")
 
 	// Start API Service
@@ -295,6 +300,7 @@ func main() {
 	}
 	fmt.Println("  [2/3] WebSocket push consumer stopped")
 
+	queryCancel()
 	if err := runtimeWiring.Close(shutdownCtx); err != nil {
 		logger.Error("Error closing runtime wiring", "error", err.Error())
 	}

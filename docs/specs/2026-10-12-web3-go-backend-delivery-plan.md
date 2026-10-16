@@ -565,3 +565,13 @@ T13 probe routing clarification (2026-10-15): the first hosted native run expose
 ### T14 测量工具实施细化（2026-10-16）
 
 在既有 Approved T14 范围内，将查询负载驱动器放入 scripts/bench，而非仅保留在忽略的 build 工件目录。每次运行要求新建输出目录，原始记录独占创建，固定种子、有限队列和工人数量；请求时钟使用 monotonic，端到端延迟从计划到达时间计算，记录队列等待、实际开始时间与 HTTP 错误状态。队列满明确记录 generator_overload 并判失败，不补发掩盖实际到达率。所有计划请求必须恰有一个终态记录，成功、HTTP 错误及网络错误均进入延迟统计。旧混合运行数据只保留为失败诊断，不用于封版。工具的性能通过不代替独立的100k事件正确性、冷/热缓存、资源、积压和soak验收；输出明确 e14_verified=false。验证先覆盖记录覆盖保护、HTTP 503、畸形响应、队列过载、确定种子和样本计数反例，再运行实际目标栈。此细化不调整100 req/s、600s、P95≤100ms/P99≤250ms或错误率≤0.1%的门槛。
+
+### T11/T14 实施细化：持久查询修订号（2026-10-16）
+
+重复COUNT与dashboard聚合是当前负载瓶颈。选择在PostgreSQL同一repeatable-read查询快照内读取持久的chain级mutation revision，再缓存精确count/聚合；事件页与finality证明仍每次从该数据库快照读取。不能只用checkpoint/reorg generation作计数缓存版本，因为兼容写者可独立插入/更新/删除事件。
+
+additive migration20新增canonical_query_revisions(chain_id,revision,epoch)，blockchain_events的AFTER INSERT/UPDATE/DELETE trigger在同一写事务递增受影响链修订号，TRUNCATE也使已有版本失效；重复ON CONFLICT DO NOTHING不递增。历史链seed初始版本；epoch在新建/重建表时随机化，防止down/up后复用旧Redis键。跨链UPDATE按链排序触碰修订行。缓存键绑定schema、链范围/epoch/revision向量与规范化filter，排除分页位置；旧generation和直接兼容写者均无法命中旧count。TTL负责容量回收，不负责正确性；Redis故障或无效载荷回源PG，不保留本地无界map；独立50ms缓存超时，停止时关闭自有client。schema20先部署，再启用缓存应用；回滚先停用缓存/回退应用再down20，事件/raw/state不变。验收先覆盖真实PG的提交/回滚/直接SQL写者/跨链/reorg/TRUNCATE与20↔19数据摘要，再验证Redis命中/断连与两部署模式。该细化属于既有T11/T14授权范围，尚不代表缓存完成或性能达标。
+
+T14 query profile clarification (2026-10-16, before formal remeasurement): the portable fixed-seed mix is 30% offset, 25% cursor, 15% stats, 20% contract and 10% bounded block-range queries. This includes the plan's previously unmeasured range dimension; no latency/rate/error threshold changes. A static canonical PG snapshot may validate each HTTP result's exact ordered IDs, total, chain/contract/block/log fields and cursor anchor. This proves API-to-PG parity only, and never replaces the independent RPC canonical oracle or the 100k mutation/reorg acceptance. Freeze query data during that measurement; record oracle digest and validator time separately from HTTP completion latency. Report warm/cold policy explicitly. E14 remains false until every required phase has its own valid evidence.
+
+T11/T13 startup correction (2026-10-16): the real schema19 negative process exposed API-service logging QueryService.Start failure in a detached goroutine while announcing successful startup. Start the nonblocking managed query runtime synchronously before HTTP service startup; give it an owned lifetime context, cancel during cleanup, and close RuntimeWiring on startup failure. A disposable schema19 process test must exit nonzero before any Running announcement; timeout/killed process is a failed negative control, not a pass. This is within the approved actual-runtime/readiness contract.

@@ -200,5 +200,8 @@ func TestDeployedReorgCanonicalDigestAndRestart(t *testing.T) {
 	t.Run("E07_finality_observation", func(t *testing.T) {
 		checkDeployedFinality(t, ctx, db, rpcURL, "http://127.0.0.1:"+apiPort, artifacts, "monolithic", func(tag, endpoint string) { stop(t); rpcURL = endpoint; finalityPolicy = "31337=tag:" + tag; start(t) })
 	})
+	t.Run("E12_canonical_aggregate_cache", func(t *testing.T) {
+		checkDeployedCanonicalCache(t, ctx, db, "http://127.0.0.1:"+apiPort, artifacts, "monolithic")
+	})
 	stop(t)
 }

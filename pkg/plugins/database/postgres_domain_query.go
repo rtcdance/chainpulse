@@ -20,13 +20,13 @@ func (a *PostgreSQLPluginAdapter) QueryDomainEvents(ctx context.Context, req *do
 	if req == nil || req.Limit < 1 || req.Limit > 1000 || req.Offset < 0 || req.Offset > 100000 {
 		return nil, fmt.Errorf("query requires limit 1..1000 and offset 0..100000")
 	}
+	scope := a.ChainScope()
 	filter := make(map[string]any, len(req.Filter)+1)
 	for k, v := range req.Filter {
 		filter[k] = v
 	}
 	if _, network := filter["network"]; !network {
 		if _, chain := filter["chainId"]; !chain {
-			scope := a.ChainScope()
 			if len(scope) != 1 {
 				return nil, fmt.Errorf("an explicit chain filter is required")
 			}
@@ -38,7 +38,7 @@ func (a *PostgreSQLPluginAdapter) QueryDomainEvents(ctx context.Context, req *do
 	if err != nil {
 		return nil, err
 	}
-	if scope := a.ChainScope(); len(scope) > 0 {
+	if len(scope) > 0 {
 		args = append(args, pq.Array(scope))
 		where += fmt.Sprintf(" AND chain_id=ANY($%d)", len(args))
 	}
@@ -56,13 +56,19 @@ func (a *PostgreSQLPluginAdapter) QueryDomainEvents(ctx context.Context, req *do
 		return nil, fmt.Errorf("begin query snapshot: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
-	base, cursor, err := prepareQueryCursor(ctx, tx, req.Cursor, queryCursorChain(filter, a.ChainScope()), filter, req.Offset)
+	base, cursor, err := prepareQueryCursor(ctx, tx, req.Cursor, queryCursorChain(filter, scope), filter, req.Offset)
 	if err != nil {
 		return nil, err
 	}
-	var total int64
-	if err := tx.QueryRowContext(ctx, "SELECT count(*) FROM blockchain_events WHERE "+where, args...).Scan(&total); err != nil {
-		return nil, fmt.Errorf("count canonical events: %w", err)
+	cache, cacheKey, err := a.aggregateKey(ctx, tx, "count", filter, scope)
+	if err != nil {
+		return nil, err
+	}
+	total, countHit := a.cachedCount(ctx, cache, cacheKey)
+	if !countHit {
+		if err := tx.QueryRowContext(ctx, "SELECT count(*) FROM blockchain_events WHERE "+where, args...).Scan(&total); err != nil {
+			return nil, fmt.Errorf("count canonical events: %w", err)
+		}
 	}
 	pageWhere := where
 	pageArgs := append([]any(nil), args...)
@@ -124,6 +130,9 @@ func (a *PostgreSQLPluginAdapter) QueryDomainEvents(ctx context.Context, req *do
 	}
 	if err := tx.Commit(); err != nil {
 		return nil, fmt.Errorf("finish query snapshot: %w", err)
+	}
+	if !countHit {
+		a.storeCount(ctx, cache, cacheKey, total)
 	}
 	return result, nil
 }

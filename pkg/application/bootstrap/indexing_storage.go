@@ -2,6 +2,7 @@ package bootstrap
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 
@@ -28,8 +29,11 @@ func defaultMonolithicIndexingStorageDeps() monolithicIndexingStorageDeps {
 
 type snapshotCompatibleDatabase struct {
 	portcontract.DatabasePlugin
-	mu     sync.RWMutex
-	blocks map[uint64]*blockchain.Block
+	mu                    sync.RWMutex
+	blocks                map[uint64]*blockchain.Block
+	aggregateCache        *plugincache.CanonicalAggregateRedisCache
+	aggregateCacheEnabled bool
+	aggregateCacheURL     string
 }
 
 func newSnapshotCompatibleDatabase(db portcontract.DatabasePlugin) *snapshotCompatibleDatabase {
@@ -47,24 +51,51 @@ func newSnapshotCompatibleDatabase(db portcontract.DatabasePlugin) *snapshotComp
 // failed at runtime with "database not initialized" while the builder
 // reported success (F27).
 func (d *snapshotCompatibleDatabase) Initialize(ctx context.Context, config core.Config) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
 	if p, ok := d.DatabasePlugin.(portcontract.ConfigurablePlugin); ok {
-		return p.Initialize(ctx, config)
+		if err := p.Initialize(ctx, config); err != nil {
+			return err
+		}
 	}
+	d.aggregateCacheEnabled = config.CacheType == "redis"
+	d.aggregateCacheURL = config.CacheConnectionURL
 	return nil
 }
 
 func (d *snapshotCompatibleDatabase) Start(ctx context.Context) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
 	if p, ok := d.DatabasePlugin.(portcontract.LifecyclePlugin); ok {
-		return p.Start(ctx)
+		if err := p.Start(ctx); err != nil {
+			return err
+		}
+	}
+	if store, ok := d.DatabasePlugin.(*plugindatabase.PostgreSQLPluginAdapter); ok && d.aggregateCacheEnabled {
+		cache, err := attachCanonicalAggregateCache(ctx, store, d.aggregateCacheURL)
+		if err != nil {
+			return errors.Join(err, store.Stop(ctx))
+		}
+		d.aggregateCache = cache
 	}
 	return nil
 }
 
 func (d *snapshotCompatibleDatabase) Stop(ctx context.Context) error {
-	if p, ok := d.DatabasePlugin.(portcontract.LifecyclePlugin); ok {
-		return p.Stop(ctx)
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	var cacheErr error
+	if d.aggregateCache != nil {
+		if store, ok := d.DatabasePlugin.(*plugindatabase.PostgreSQLPluginAdapter); ok {
+			store.WithCanonicalAggregateCache(nil)
+		}
+		cacheErr = d.aggregateCache.Close()
+		d.aggregateCache = nil
 	}
-	return nil
+	if p, ok := d.DatabasePlugin.(portcontract.LifecyclePlugin); ok {
+		return errors.Join(cacheErr, p.Stop(ctx))
+	}
+	return cacheErr
 }
 
 func (d *snapshotCompatibleDatabase) StoreBlockSnapshot(_ context.Context, block *blockchain.Block) error {

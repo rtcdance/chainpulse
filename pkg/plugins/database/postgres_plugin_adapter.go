@@ -34,7 +34,8 @@ type PostgreSQLPluginAdapter struct {
 	// chainScope is the declared set of chains this adapter serves. Empty means
 	// "undeclared", which keeps the legacy single-chain behaviour. Declaring
 	// more than one chain turns the unscoped port methods into errors (I01).
-	chainScope []string
+	chainScope     []string
+	aggregateCache CanonicalAggregateCache
 }
 
 // PostgreSQLPluginAdapter must satisfy the port.

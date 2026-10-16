@@ -3,6 +3,7 @@ package database
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
@@ -61,54 +62,82 @@ func (a *PostgreSQLPluginAdapter) CanonicalEventStats(ctx context.Context) (int6
 		return 0, nil, nil, 0, fmt.Errorf("begin canonical stats snapshot: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
-	// Both counts keep their predicates in WHERE, not count() FILTER:
-	// PostgreSQL cannot apply the partial idx_events_canonical_chain_page
-	// index (WHERE status<>'reorged' AND canonicality='canonical') to a
-	// FILTER clause, which forced a full-table seq scan (214 ms at 215k
-	// rows; measured 2026-10-16). One snapshot still covers both counts.
-	var total, reorged int64
-	err = tx.QueryRowContext(ctx, `SELECT count(*) FROM blockchain_events WHERE chain_id=ANY($1) AND status<>'reorged' AND event_state->>'canonicality'='canonical'`, pq.Array(scope)).Scan(&total)
+	cache, cacheKey, err := a.aggregateKey(ctx, tx, "dashboard", nil, scope)
 	if err != nil {
-		return 0, nil, nil, 0, fmt.Errorf("count canonical stats: %w", err)
+		return 0, nil, nil, 0, err
 	}
-	err = tx.QueryRowContext(ctx, `SELECT count(*) FROM blockchain_events WHERE chain_id=ANY($1) AND status='reorged'`, pq.Array(scope)).Scan(&reorged)
-	if err != nil {
-		return 0, nil, nil, 0, fmt.Errorf("count reorged stats: %w", err)
-	}
-	groups := make([]map[string]int64, 0, 2)
-	for _, column := range []string{"chain_id", "event_name"} {
-		// Column names come from this fixed list, never from request input.
-		rows, err := tx.QueryContext(ctx, `SELECT `+column+`,count(*) FROM blockchain_events WHERE chain_id=ANY($1) AND status<>'reorged' AND event_state->>'canonicality'='canonical' GROUP BY `+column+` LIMIT 1025`, pq.Array(scope))
+	stats, hit := a.cachedStats(ctx, cache, cacheKey, scope)
+	if !hit {
+		stats, err = readCanonicalGroupedStats(ctx, tx, scope)
 		if err != nil {
-			return 0, nil, nil, 0, fmt.Errorf("aggregate canonical stats: %w", err)
+			return 0, nil, nil, 0, err
 		}
-		group := map[string]int64{}
-		for rows.Next() {
-			var key string
-			var count int64
-			if err := rows.Scan(&key, &count); err != nil {
-				_ = rows.Close()
-				return 0, nil, nil, 0, fmt.Errorf("scan canonical stats: %w", err)
-			}
-			group[key] = count
-		}
-		err = rows.Err()
-		closeErr := rows.Close()
-		if err != nil {
-			return 0, nil, nil, 0, fmt.Errorf("read canonical stats: %w", err)
-		}
-		if closeErr != nil {
-			return 0, nil, nil, 0, fmt.Errorf("close canonical stats: %w", closeErr)
-		}
-		if len(group) > 1024 {
-			return 0, nil, nil, 0, fmt.Errorf("canonical stats group cardinality exceeds bound")
-		}
-		groups = append(groups, group)
 	}
 	if err := tx.Commit(); err != nil {
 		return 0, nil, nil, 0, fmt.Errorf("finish canonical stats snapshot: %w", err)
 	}
-	return total, groups[0], groups[1], reorged, nil
+	if !hit && cache != nil {
+		encoded, err := json.Marshal(stats)
+		if err != nil {
+			a.recordAggregateCache("write_error")
+		} else {
+			a.storeAggregate(ctx, cache, cacheKey, encoded)
+		}
+	}
+	return stats.Total, stats.ByChain, stats.ByName, stats.Reorged, nil
+}
+
+func readCanonicalGroupedStats(ctx context.Context, tx *sql.Tx, scope []string) (canonicalStats, error) {
+	stats := canonicalStats{ByChain: make(map[string]int64), ByName: make(map[string]int64)}
+	// The partial-index predicate stays in WHERE. GROUPING SETS computes the
+	// total and both dimensions in one canonical scan, including an empty total.
+	rows, err := tx.QueryContext(ctx, `SELECT chain_id,event_name,GROUPING(chain_id,event_name),count(*)
+FROM blockchain_events WHERE chain_id=ANY($1) AND status<>'reorged' AND event_state->>'canonicality'='canonical'
+GROUP BY GROUPING SETS ((chain_id),(event_name),()) LIMIT 1076`, pq.Array(scope))
+	if err != nil {
+		return stats, fmt.Errorf("aggregate canonical stats: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	for rows.Next() {
+		var chain, name sql.NullString
+		var grouping int
+		var count int64
+		if err := rows.Scan(&chain, &name, &grouping, &count); err != nil {
+			return stats, fmt.Errorf("scan canonical stats: %w", err)
+		}
+		switch grouping {
+		case 1:
+			if !chain.Valid {
+				return stats, fmt.Errorf("canonical stats chain is NULL")
+			}
+			stats.ByChain[chain.String] = count
+		case 2:
+			if !name.Valid {
+				return stats, fmt.Errorf("canonical stats event name is NULL")
+			}
+			stats.ByName[name.String] = count
+		case 3:
+			stats.Total = count
+		default:
+			return stats, fmt.Errorf("unexpected canonical stats grouping")
+		}
+		if len(stats.ByName) > 1024 || len(stats.ByChain) > 50 {
+			return stats, fmt.Errorf("canonical stats group cardinality exceeds bound")
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return stats, fmt.Errorf("read canonical stats: %w", err)
+	}
+	if err := rows.Close(); err != nil {
+		return stats, fmt.Errorf("close canonical stats: %w", err)
+	}
+	if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM blockchain_events WHERE chain_id=ANY($1) AND status='reorged'`, pq.Array(scope)).Scan(&stats.Reorged); err != nil {
+		return stats, fmt.Errorf("count reorged stats: %w", err)
+	}
+	if !stats.valid(scope) {
+		return stats, fmt.Errorf("canonical stats aggregates are inconsistent")
+	}
+	return stats, nil
 }
 
 func (a *PostgreSQLPluginAdapter) CountCanonicalEvents(ctx context.Context) (int64, error) {
