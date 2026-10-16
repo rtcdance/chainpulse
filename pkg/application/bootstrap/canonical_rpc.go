@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/rtcdance/chainpulse/pkg/blockchain"
+	"github.com/rtcdance/chainpulse/pkg/chainid"
 )
 
 // NonCanonicalBlockError is a retry-independent branch rejection. RPC failures
@@ -25,14 +26,20 @@ func (e *NonCanonicalBlockError) Error() string {
 }
 
 // CanonicalRPCVerifier owns one validated EVM connection per configured chain.
-// Endpoints use explicit numeric chain=url entries; positional routing is unsafe
+// Endpoints use explicit chain=url entries with resolvable numeric identities; positional routing is unsafe
 // for a consumer that may receive records from multiple chain partitions.
-type CanonicalRPCVerifier struct{ clients map[string]*ethclient.Client }
+type CanonicalRPCVerifier struct {
+	clients map[string]*ethclient.Client
+	genesis map[string]common.Hash
+}
 
 func NewCanonicalRPCVerifier(ctx context.Context, chains, entries []string) (*CanonicalRPCVerifier, error) {
-	v := &CanonicalRPCVerifier{clients: make(map[string]*ethclient.Client)}
+	v := &CanonicalRPCVerifier{clients: make(map[string]*ethclient.Client), genesis: make(map[string]common.Hash)}
 	wanted := make(map[string]bool, len(chains))
 	for _, chain := range chains {
+		if wanted[chain] || chainid.ResolveChainID(chain) <= 0 {
+			return nil, fmt.Errorf("canonical RPC requires unique resolvable positive EVM chains")
+		}
 		wanted[chain] = true
 	}
 	for _, entry := range entries {
@@ -48,7 +55,7 @@ func NewCanonicalRPCVerifier(ctx context.Context, chains, entries []string) (*Ca
 			v.clients[chain] = client
 			var id *big.Int
 			id, err = client.ChainID(probeCtx)
-			if err == nil && id.String() != chain {
+			if err == nil && id.Cmp(big.NewInt(int64(chainid.ResolveChainID(chain)))) != 0 {
 				err = fmt.Errorf("RPC chain identity mismatch")
 			}
 			if err == nil {
@@ -56,6 +63,9 @@ func NewCanonicalRPCVerifier(ctx context.Context, chains, entries []string) (*Ca
 				err = probeErr
 				if err == nil && (genesis == nil || genesis.Number == nil || genesis.Number.Sign() != 0) {
 					err = fmt.Errorf("invalid RPC genesis")
+				}
+				if err == nil {
+					v.genesis[chain] = genesis.Hash()
 				}
 			}
 		}

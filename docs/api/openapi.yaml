@@ -507,7 +507,7 @@ components:
 
     EventState:
       type: object
-      description: Independent persisted state axes. Legacy status is retained for compatibility and does not prove RPC finality. Absent state in a legacy backend means finality is unknown.
+      description: Canonicality and processing are persisted per physical event; finality is projected from persisted chain evidence in the query snapshot. Legacy status remains compatible and does not prove finality. Absent state means unknown.
       required: [canonicality, processing, finality]
       properties:
         canonicality:
@@ -518,6 +518,7 @@ components:
           enum: [pending, processed, failed, raw_only]
         finality:
           type: object
+          description: Canonical query snapshot projection of a verified RPC tag. Evidence expires after 60 seconds; generation, committed header or provider failures yield unknown/degraded. Safe never implies finalized. Durable finalized rollback protection is retained independently of display freshness.
           required: [state, confidence, source]
           properties:
             state:

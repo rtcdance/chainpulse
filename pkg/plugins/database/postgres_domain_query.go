@@ -99,6 +99,13 @@ func (a *PostgreSQLPluginAdapter) QueryDomainEvents(ctx context.Context, req *do
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("read canonical page: %w", err)
 	}
+	if err := rows.Close(); err != nil {
+		return nil, fmt.Errorf("close canonical page: %w", err)
+	}
+	if err := projectCanonicalFinality(ctx, tx, result.Events); err != nil {
+		return nil, err
+	}
+
 	hasMore := len(result.Events) > int(req.Limit)
 	if hasMore {
 		result.Events = result.Events[:req.Limit]
@@ -193,11 +200,35 @@ func domainPredicate(filter map[string]any, args *[]any, depth int) (string, err
 				if len(values) == 0 || len(values) > 50 {
 					return "", fmt.Errorf("invalid membership filter")
 				}
+				// Deduplicate bound values. The chain-alias expansion in
+				// event_query_handler emits {chainID, strconv.Itoa(chainID),
+				// ResolveChainName(chainID)}, which for an unknown chain are
+				// three identical text values: `chain_id IN ('31337','31337',
+				// '31337')`. PostgreSQL then refuses the ordered index-only
+				// walk on idx_events_canonical_chain_page (multi-valued array
+				// on the leading key), sorts every canonical row of the chain
+				// instead, and spills it: measured 2026-10-16 on chain 31337
+				// at 123,675 rows, external merge Disk=147424kB, 762 ms for
+				// the page query versus 6.6 ms with one equality — the cause
+				// of T14 attempt 4's list/cursor/contract latency failure. An
+				// IN list matches no more than its unique values, so collapsing
+				// duplicates (order preserved, args stay deterministic) cannot
+				// change any result set.
+				seen := make(map[string]struct{}, len(values))
 				var placeholders []string
-				for _, v := range values {
-					placeholders = append(placeholders, bind(fmt.Sprint(v)))
+				for _, value := range values {
+					text := fmt.Sprint(value)
+					if _, dup := seen[text]; dup {
+						continue
+					}
+					seen[text] = struct{}{}
+					placeholders = append(placeholders, bind(text))
 				}
-				parts = append(parts, column+" IN ("+strings.Join(placeholders, ",")+")")
+				if len(placeholders) == 1 {
+					parts = append(parts, column+"="+placeholders[0])
+				} else {
+					parts = append(parts, column+" IN ("+strings.Join(placeholders, ",")+")")
+				}
 				continue
 			}
 			for _, op := range []string{"$gte", "$lte", "$lt"} {

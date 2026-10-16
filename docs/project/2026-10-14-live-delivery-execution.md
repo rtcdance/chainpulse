@@ -247,3 +247,39 @@ T01本轮收尾证据：e7ab3a2的quality=43s、unit-race=422s、image-build=214
 e7ab3a2的coverage主job成功，但Coverage Diff的Compare coverage因heredoc缩进导致bash语法错误而失败；不是40%阈值失败，不能误归因为新的drain测试。保留remote-fifth-coverage-failed.log。修复独立比较报告：base checkout固定PR base SHA，与候选同口径-short；profile下载、base测试与JSON检验均不再忽略错误；新coverage-diff.py校验原始profile、合并重复block并拒绝缺失/空/格式错误/零statement输入。比较百分比取自两个匹配checkout各自go tool cover原生报告，不填虚假0。数值与语义有自测；summary替代自动PR评论，MIN_COVERAGE=40保持不变。该修复仍待远端验证，不把工具自测当整条CI通过。
 
 真实profile交叉核验纠正：e7ab3a2原始block总计20904/30084=69.4854%，但go tool cover函数汇总为69.6%；两种口径不能混用。首次工具版本错误地把raw block比例用于比较，已保留失败校验记录并改为要求两个原生functions报告，工作流在各自源码目录执行go tool cover；raw block统计仅作diagnostic。使用同一真实profile/原生summary的工具正向验证返回69.6%和0差值，只证明解析器一致，不宣称base→candidate覆盖率变化。
+
+
+## 2026-10-16：冻结候选通过与T07持久证据接线
+
+7636755a67ea57e42ac59f63208cc1c37363d1e7已保持稳定等待，Integration 38762492657的integration/contracts/evm-e2e全部success，CI 38762492719的quality/image-build/acceptance-gate全部success。11个required checks已真实汇总通过。附加Coverage Diff报告失败原因已缩小至master基线自身5个SIWE测试动作失败（父Test含4个子Test），不是候选coverage失败。40%主gate成功；旧基线失败的部分profile不得用作比较。后续报告明确比较不可用、保留基线JSON和原始退出码，无差值/基线0；有效候选profile仍先严格验证。该比较是信息报告，未给现有40%门禁新增基线成功条件。
+
+T07新代码仅在原工作区，尚未进入7636755。migration17为chain/tag观察表，16→17→16两轮真实PG测试通过，raw/ID/state原样保持；schema主测试也补入此前遗漏的reorg_generations表以覆盖真实回滚。独立chainpulse_delivery_s17_contracts/runtime/micro/dual_mono/dual_micro均由CLI正常迁到17，不改16版历史验收库。
+
+真实PG finality合同6pass/0fail/0skip：只有声明链和safe/finalized可写；验证提交checkpoint/header、genesis pin、时间、generation；拒绝ahead/stale/future/wrong header/genesis及finalized回退；provider故障保留已验证finalized边界；其上的reorg后fresh proof可绑定新generation。query在事件相同repeatable-read事务中批量投影，原事件State不批量改写。固定clock投影100次race通过。
+
+RPC观察在tag/canonical header两侧校验chain/genesis，latest不回退；wrong chain/genesis/header/mid-probe切换与原canonical RPC合同联合100次race通过。共享observer只对显式tag策略启动，默认确认数/最新头不冒充finality；每链一个5s轮询与5s请求界限，取消后join再关闭客户端，单体和native processor均已接入。别名策略冲突由registry拒绝。observer生命周期测试自身最初计数器共享访问被race发现，已改atomic并保存原始失败后100次通过。build/check/lint均通过，lint0issues。
+
+E07已追加到两种现有真实进程fixture的尾部，受控RPC仅替换safe/finalized标签和错误chain，header/事件仍取真实Anvil；查询实际HTTP API断言safe/finalized/unknown-degraded/expiry/recovery，并保存各mode的finality-api.json。当前正在运行full-finality完整回归，尚无完成结论；不得把单元/PG通过代替该实际部署结果。
+
+
+## 2026-10-16：full-finality 收尾与 monolithic 链别名重复缺陷修复
+
+上一节的full-finality完整回归已实际结束：`micro-full-finality.log` 与随后在全新双链fixture上重跑的 `micro-full-finality-guard.log` 均 exit 0，`full-finality-guard/contracts-report.json` 为139 pass actions、61 顶级 Test、0 fail、0 skip，E07_finality_observation 子场景在两个进程 fixture 中真实通过（52s/52.9s）；`full-finality-guard/monolithic-finality-api.json` 与 `microservices-finality-api.json` 记录 safe/unavailable-degraded/wrong-chain/expiry/recovery 全序列，29→31/31 门禁反例矩阵通过。原始工件保留在 `finality-guard-deployed/` 与 `finality-guard-fixture-1792081291/`。
+
+E07 收尾期间上一轮在 00:28 落下的 RED 测试 `chain_identity_alias_test.go`（`TestMonolithicChainsRejectDuplicateNetworkAliases`）一直没有转绿：monolithic 的 `parseChains` 只按字面逗号切分，`CHAINS=ethereum,1` 会把同一网络索引两次，而 durable processor 已拒绝同身份重复（`durable_runtime.go`），finality registry 也拒绝 alias 冲突——单体入口是这条防线的缺口。本轮修复：`parseChains` 现在按 `chainid.ResolveChainID` 解析出的数字身份去重，解析失败的条目按小写字面去重；`ethereum,1`、`31337,31337`、`polygon,137` 被拒绝，`ethereum,polygon` 保持原样返回。RED→GREEN 见 `finality-mono-alias-red.log`（原始失败）与 `finality-mono-alias-green.log`（race + count=100 通过）。
+
+源码变更后标准 DoD 按序重新执行（`alias-fix-build.log` 等五份原始输出）：build/check/lint(0 issues)/test-short/diff-stat 五项 exit 0，短测试 0 fail、0 skip。随后在全新双 Anvil fixture（固定1700000000时间戳、锁定 imageID、EventEmitter/SwapEmitter runtime bytecode 核验，`alias-fix-fixture-1792112595/fixture-proof.json`）上重建全部五个 -race 入口二进制并重跑完整 micro-loop：`micro-full-alias-fix.log` exit 0，`full-alias-fix/contracts-report.json` 为139 pass actions、61 顶级 Test、0 fail、0 skip（含 1/2/12 重组、四服务 live-rebalance、E06 repair-crash、双链模式 oracle、E04 故障隔离、E07 finality），迁移与指标步骤 pass、31/31 门禁反例、OpenAPI drift、staticcheck 均通过。
+
+过程记录：本轮首次 full 运行在 staticcheck 步骤失败，原因是机器上的 staticcheck 二进制为 go1.24 构建（`module requires at least go1.26.0, but Staticcheck was built with go1.24.13`）；按 Makefile 既有方式 `GOROOT= go install honnef.co/go/tools/cmd/staticcheck@latest` 重建（2026.2.2/go1.26）后通过。第二次失败为环境变量缺失（未带隔离 DB 配置直接调脚本），改用带完整 env 的 fixture 包装脚本（`/tmp/chainpulse-run-alias-fix-fresh-full-20261016.sh`）后通过。两次失败输出都被同一路径的最终成功运行覆盖，仅存于当轮会话记录，没有独立工件——这是本文件已知的一处证据缺口，如实登记而不补造日志。
+
+仍为 dirty 工作树证据：342 dirty 文件本轮未提交、未清理。仍未完成（不得以本节缩减）：独立事件状态语义、完整 SLO/性能/soak（T14：250eps/600s、100 req/s/600s、积压恢复、30min soak 实测）、镜像版本回滚与 SBOM/security lane 完整范围、T00 干净候选与同 SHA 远端 CI/CD、T17/T18 封版。
+
+## 2026-10-16：T14 查询失败审计与负载驱动器归档
+
+权限已恢复，master ruleset 25154687 与 required acceptance-gate 已验证；此前7636755的11项必需检查成功只对应当时源码，不能代替后续T07/T14改动的CI。
+
+T14本机探索性测量：持续摄取记录250eps/600s、150000窗口内事件、poll P99=1852.2ms；查询记录60000计划请求中15个503，P95=585991.99ms/P99=614973.2ms，未达标。原始 query_raw.jsonl 为append模式，含192000行、60000不同idx、最多重复5次，跨多次attempt，不能作为独立运行证据。积压记录34.5s恢复，但暂停期采样峰值14600低于15000目标，精确暂停边界与输入计数仍需复核；30min soak未完成。这些均为Mac本地dirty源码探索数据，不是计划约定Linux8-vCPU正式结果。
+
+新增可版本化 scripts/bench/query-load.py：新建输出目录及独占原始文件、有界队列、固定种子、monotonic计划到达时间、包括失败请求的端到端延迟、保留503状态、过载显式失败、每计划请求唯一终态核验。输出明确只验证HTTP/响应结构及性能，e14_verified=false，不将结构检查冒充完整canonical正确性。9项回归测试通过；已接入quality workflow和full micro-loop。布尔total反例先失败后修复；首次RED日志同时有沙箱HTTP监听拒绝，GREEN在授权本机监听环境重跑全部9项通过，未把环境拒绝计入代码反例。原始日志见query-load-boolean-red.log、query-load-regression-green.log。
+
+下一步：候选分支归档既有T07和查询索引改动并重新执行门禁；定位重复COUNT/统计聚合开销，使用全新工件目录复测。T00–T18整体保持未完成；此前“独立事件状态未完成”的概述不能覆盖已存在的T04/T07局部证据。

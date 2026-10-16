@@ -550,3 +550,18 @@ T18通过后停止本轮功能扩张。只在出现影响已承诺数据正确�
 在已批准 T04/T07 范围内，迁移 000016 为权威 blockchain_events 增加 event_state JSONB：canonicality、processing、finality 三个独立维度。legacy status 和 physical ID 保留。旧写者兼容 trigger 只同步 canonicality/processing；历史或新增的 status=finalized 不能构造 RPC finality 证据，finality 默认 unknown。reorg 撤销 canonicality，同时保留已完成 processing，失效旧分支 finality。PG 查询从同一 snapshot 读回 state；API 只增加 state 字段。回滚按先回退应用读者再 down16 的顺序，旧 status 与 raw identity 不丢失；重新 up16 对历史 finalized 仍保持 unknown。验收覆盖 fresh/upgrade/down/reapply、legacy 写者、独立维度、A→B→A、约束拒绝不完整 finality、API 兼容。该段细化已授权实现，不改变 Approved 状态或引入新交付范围。
 
 T13 probe routing clarification (2026-10-15): the first hosted native run exposed readiness polling consuming the shared IP API quota before Kafka assignment finished. Exact read-only /health, /health/ready, /health/live, /readyz and /livez probes bypass only the business rate limiter; preserve the real handler status (including 503), keep authentication ordering and every other method/path limited. This implements the approved liveness/readiness separation; test both exhausted quota and lookalike/operator routes without disabling production rate limits.
+
+### T07 实施细化：持久 finality 观察与查询快照（2026-10-15）
+
+沿用已批准 T07/T13 范围。新增 additive migration 17，按 chain/tag 持久化 RPC 观察（head hash/height、genesis、proof_at、checked_at、reorg generation、known/degraded）；不对历史事件全表循环晋升。已验证 finalized 高水位在节点故障后仍作为不可跨越的 reorg 边界，展示新鲜度独立判断。
+
+- 只为显式 `FINALITY_STRATEGIES=<chain>=tag:safe|tag:finalized` 开启证明观察；默认 confirmations/latest 只是采集策略，不能伪造 consensus finality。两种部署模式共用观察与存储逻辑；链名/数字别名必须对齐。
+- RPC 观察核验 chain ID、启动时固定的 genesis、tag header 与同高 canonical header。provider 身份变化、tag 回退/分歧/错误不晋升，保留 degraded 状态和最后已验证 finalized 边界。
+- 存储在 checkpoint 共享锁保护下核验本地已提交 header/hash，再绑定当前 reorg generation；尚未提交的 tag head 不可用于晋升。观察有独立 5s 请求上限，每链一个受 context 管理的轮询，最多配置的50链，停止时 cancel+join。
+- canonical 查询先关闭事件 rows，再在同一 repeatable-read snapshot 中批量读取涉及链的证明；只有 generation/head/时间一致的证明可投影 safe/finalized。证明60s过期或 provider故障时返回 unknown/degraded，不改变 canonical/processing/legacy status。
+- DB/内存语义与 RPC 反例覆盖：safe≠finalized、latest/错误tag、provider chain/genesis/header 分歧、过期/未来观察、跨链、reorg generation变化、head未提交、finalized回退；真实Postgres与进程API验证 unknown→safe/finalized→degraded→恢复，停机race与重复运行。
+- 顺序为 schema17→观察者与查询应用；常规应用回滚保留 additive schema17 和 DB trigger，旧应用的越界event/header/checkpoint操作也被数据库拒绝。已有verified finalized proof时down17明确拒绝，需全停写并执行显式proof备份/恢复流程；无此proof的16↔17迁移保持原事件/raw/header/checkpoint摘要。该细化不是验收完成声明。
+
+### T14 测量工具实施细化（2026-10-16）
+
+在既有 Approved T14 范围内，将查询负载驱动器放入 scripts/bench，而非仅保留在忽略的 build 工件目录。每次运行要求新建输出目录，原始记录独占创建，固定种子、有限队列和工人数量；请求时钟使用 monotonic，端到端延迟从计划到达时间计算，记录队列等待、实际开始时间与 HTTP 错误状态。队列满明确记录 generator_overload 并判失败，不补发掩盖实际到达率。所有计划请求必须恰有一个终态记录，成功、HTTP 错误及网络错误均进入延迟统计。旧混合运行数据只保留为失败诊断，不用于封版。工具的性能通过不代替独立的100k事件正确性、冷/热缓存、资源、积压和soak验收；输出明确 e14_verified=false。验证先覆盖记录覆盖保护、HTTP 503、畸形响应、队列过载、确定种子和样本计数反例，再运行实际目标栈。此细化不调整100 req/s、600s、P95≤100ms/P99≤250ms或错误率≤0.1%的门槛。

@@ -16,6 +16,7 @@ import (
 
 	"github.com/rtcdance/chainpulse/pkg/application/bootstrap"
 	"github.com/rtcdance/chainpulse/pkg/blockchain"
+	"github.com/rtcdance/chainpulse/pkg/chainid"
 	"github.com/rtcdance/chainpulse/pkg/core"
 	"github.com/rtcdance/chainpulse/pkg/env"
 	sharedhttp "github.com/rtcdance/chainpulse/pkg/infrastructure/http"
@@ -227,6 +228,17 @@ func run() error {
 		return fmt.Errorf("build finality registry: %w", err)
 	}
 	monolithicPullerRuntime.SetFinalityRegistry(finalityRegistry)
+
+	finalityRPCs := make([]string, 0, len(chains))
+	for _, puller := range monolithicPullerRuntime.pullers {
+		cfg := puller.GetConfig()
+		finalityRPCs = append(finalityRPCs, cfg.ChainID+"="+cfg.BlockchainNodeURL)
+	}
+	stopFinality, err := bootstrap.StartFinalityObserver(ctx, indexingDatabase, bootstrap.FinalityObserverOptions{Chains: chains, RPCs: finalityRPCs, Registry: finalityRegistry}, logger, metrics)
+	if err != nil {
+		return fmt.Errorf("start finality observations: %w", err)
+	}
+	defer stopFinality()
 	if err := monolithicPullerRuntime.ConfigureProgress(starter.SharedRuntime, metrics, starter.AlertManager); err != nil {
 		return fmt.Errorf("configure indexing progress: %w", err)
 	}
@@ -530,6 +542,7 @@ func run() error {
 	}
 
 	cancel()
+	stopFinality()
 	stopPullers()
 
 	if starter.BatchCommitter != nil {
@@ -733,11 +746,20 @@ func validateMonolithicProductionSecurity(c Configuration, runtimeProfile string
 
 func parseChains(raw string) ([]string, error) {
 	chains := make([]string, 0)
+	seen := make(map[string]bool)
 	for _, chainID := range strings.Split(raw, ",") {
 		trimmed := strings.TrimSpace(chainID)
 		if trimmed == "" {
 			continue
 		}
+		key := strings.ToLower(trimmed)
+		if id := chainid.ResolveChainID(trimmed); id > 0 {
+			key = fmt.Sprint(id)
+		}
+		if seen[key] {
+			return nil, fmt.Errorf("one network must not be indexed twice under aliases: %s", trimmed)
+		}
+		seen[key] = true
 		chains = append(chains, trimmed)
 	}
 	if len(chains) == 0 {

@@ -55,7 +55,7 @@ func TestDeployedPullerKafkaAndAtomicProcessor(t *testing.T) {
 	db, err := sql.Open("postgres", dsn)
 	require.NoError(t, err)
 	defer db.Close()
-	_, err = db.ExecContext(ctx, "TRUNCATE blockchain_events,indexing_state,blocks,chain_leases,reorg_jobs,reorg_outbox CASCADE")
+	_, err = db.ExecContext(ctx, "TRUNCATE blockchain_events,indexing_state,blocks,chain_leases,reorg_jobs,reorg_outbox,chain_finality_observations CASCADE")
 	require.NoError(t, err)
 	brokers := strings.Split(required("CHAINPULSE_TEST_KAFKA_BROKERS"), ",")
 	input := fmt.Sprintf("chainpulse-native-blocks-%d", time.Now().UnixNano())
@@ -84,7 +84,7 @@ func TestDeployedPullerKafkaAndAtomicProcessor(t *testing.T) {
 		require.NoError(t, err)
 		t.Cleanup(func() { require.NoError(t, log.Close()) })
 		command := exec.Command(binary)
-		command.Env = append(os.Environ(), "DATABASE_TYPE=postgres", "KAFKA_REORG_TOPIC="+output+"-reorg", "BLOCKCHAIN_RPCS=31337="+rpcURL, "API_SERVICE_RATE_LIMIT_ENABLED=false", "GATEWAY_RATE_LIMIT_ENABLED=false", "DATABASE_URL="+dsn, "DATABASE_SSLMODE=disable", "CHAINS=31337", "MONGODB_URI="+required("CHAINPULSE_DEPLOYED_MONGODB_URI"), "KAFKA_BROKERS="+strings.Join(brokers, ","), "KAFKA_CONSUMER_GROUP="+input+"-group")
+		command.Env = append(os.Environ(), "DATABASE_TYPE=postgres", "FINALITY_STRATEGIES=", "KAFKA_REORG_TOPIC="+output+"-reorg", "BLOCKCHAIN_RPCS=31337="+rpcURL, "API_SERVICE_RATE_LIMIT_ENABLED=false", "GATEWAY_RATE_LIMIT_ENABLED=false", "DATABASE_URL="+dsn, "DATABASE_SSLMODE=disable", "CHAINS=31337", "MONGODB_URI="+required("CHAINPULSE_DEPLOYED_MONGODB_URI"), "KAFKA_BROKERS="+strings.Join(brokers, ","), "KAFKA_CONSUMER_GROUP="+input+"-group")
 		command.Env = append(command.Env, extra...)
 		command.Stdout = log
 		command.Stderr = log
@@ -618,4 +618,10 @@ func TestDeployedPullerKafkaAndAtomicProcessor(t *testing.T) {
 	proof, err := json.MarshalIndent(map[string]any{"dirtyWorkingTree": true, "depths": []int{1, 2, 12}, "oracleDigest": oracleDigest, "indexedDigest": actualDigest, "events": len(actual), "uniqueReorgNotices": len(seenNotices)}, "", "  ")
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(filepath.Join(artifacts, "native-reorg-oracle.json"), proof, 0o644))
+	t.Run("E07_finality_observation", func(t *testing.T) {
+		checkDeployedFinality(t, ctx, db, rpcURL, "http://127.0.0.1:"+gatewayPort, artifacts, "microservices", func(tag, endpoint string) {
+			stop(&processor)
+			processor = start(required("CHAINPULSE_DEPLOYED_PROCESSOR_BINARY"), "processor-finality", "PROCESSOR_PORT="+processorPort, "KAFKA_INPUT_TOPICS="+input, "KAFKA_OUTPUT_TOPICS="+output, "FINALITY_STRATEGIES=31337=tag:"+tag, "BLOCKCHAIN_RPCS=31337="+endpoint)
+		})
+	})
 }

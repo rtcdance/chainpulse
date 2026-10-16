@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math"
 	"net/url"
+	"os"
 	"sort"
 	"strings"
 	"sync"
@@ -22,6 +23,7 @@ import (
 	"github.com/rtcdance/chainpulse/pkg/logkeys"
 	"github.com/rtcdance/chainpulse/pkg/plugins/mq"
 	"github.com/rtcdance/chainpulse/pkg/plugins/pullers"
+	"github.com/rtcdance/chainpulse/pkg/services/finality"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -234,10 +236,14 @@ func (r *pullerExecutionRuntime) pollChain(
 
 	targetBlock := latestBlock
 	if confirmation, ok := safePositiveIntToUint64(config.BlockConfirmation); ok && confirmation > 0 {
-		if latestBlock <= confirmation {
-			return nil
+		targetBlock = 0
+		if latestBlock > confirmation {
+			targetBlock = latestBlock - confirmation
 		}
-		targetBlock = latestBlock - confirmation
+	}
+	targetBlock, err = puller.FinalityTargetFromChain(ctx, chainID, latestBlock, targetBlock)
+	if err != nil {
+		return fmt.Errorf("resolve finality pull target: %w", err)
 	}
 
 	fromBlock := processedBlocks[chainID] + 1
@@ -498,6 +504,22 @@ func registerConfiguredPullers(
 		return 0, fmt.Errorf("multi-chain puller is required")
 	}
 
+	var registry *finality.Registry
+	_, hasDefault := os.LookupEnv("FINALITY_DEFAULT_CONFIRMATIONS")
+	if hasDefault || os.Getenv("FINALITY_STRATEGIES") != "" {
+		cfg := bootstrap.FinalityConfigFromEnv()
+		if !hasDefault {
+			cfg.DefaultConfirmations = 0
+			if confirmation, ok := safePositiveIntToUint64(config.BlockConfirmation); ok {
+				cfg.DefaultConfirmations = confirmation
+			}
+		}
+		var err error
+		registry, err = finality.NewRegistryFromConfig(cfg)
+		if err != nil {
+			return 0, fmt.Errorf("configure native finality policy: %w", err)
+		}
+	}
 	registered := 0
 	for idx, entry := range config.BlockchainRPCs {
 		chainID, rpcURL, err := parsePullerRPCEntry(entry, idx)
@@ -546,6 +568,10 @@ func registerConfiguredPullers(
 				RetryBackoff:      1000,
 				LogLevel:          config.LogLevel,
 			}, logger, metrics, nil)
+		}
+
+		if evm, ok := puller.(*pullers.HTTPSJSONRPCPuller); ok {
+			evm.SetFinalityRegistry(registry)
 		}
 
 		if starter, ok := puller.(portcontract.LifecyclePlugin); ok {

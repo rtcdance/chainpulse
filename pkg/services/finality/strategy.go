@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/rtcdance/chainpulse/pkg/chainid"
 	"github.com/rtcdance/chainpulse/pkg/configmodel"
 )
 
@@ -96,13 +97,17 @@ func NewRegistry(defaultStrategy Strategy, perChain map[string]Strategy) (*Regis
 	}
 	copied := make(map[string]Strategy, len(perChain))
 	for chainID, strategy := range perChain {
-		if chainID == "" {
+		if strings.TrimSpace(chainID) == "" {
 			return nil, fmt.Errorf("empty chain ID in finality strategies")
 		}
 		if err := strategy.Validate(); err != nil {
 			return nil, fmt.Errorf("invalid finality strategy for chain %q: %w", chainID, err)
 		}
-		copied[chainID] = strategy
+		key := finalityChainKey(chainID)
+		if _, exists := copied[key]; exists {
+			return nil, fmt.Errorf("duplicate finality policy for chain aliases %q", chainID)
+		}
+		copied[key] = strategy
 	}
 	return &Registry{defaultStrategy: defaultStrategy, strategies: copied}, nil
 }
@@ -133,8 +138,15 @@ func NewRegistryFromConfig(cfg configmodel.FinalityConfig) (*Registry, error) {
 
 // StrategyFor returns the strategy for a chain, falling back to the default.
 func (r *Registry) StrategyFor(chainID string) Strategy {
-	if strategy, ok := r.strategies[chainID]; ok {
+	if strategy, ok := r.strategies[finalityChainKey(chainID)]; ok {
 		return strategy
 	}
 	return r.defaultStrategy
+}
+
+func finalityChainKey(chain string) string {
+	if id := chainid.ResolveChainID(chain); id > 0 {
+		return strconv.Itoa(id)
+	}
+	return strings.ToLower(strings.TrimSpace(chain))
 }

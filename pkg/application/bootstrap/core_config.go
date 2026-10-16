@@ -71,12 +71,14 @@ func NewMonolithicCoreConfig(logLevel, databaseType, databaseURL, cacheType, dat
 	cfg.Alerts = configmodel.AlertsConfig{
 		Enabled: env.GetBool("ALERTS_ENABLED", false),
 	}
-	cfg.Finality = configmodel.FinalityConfig{
-		DefaultConfirmations: env.GetUint64("FINALITY_DEFAULT_CONFIRMATIONS", 12),
-		Strategies:           parseStrategySpecCSV(env.Get("FINALITY_STRATEGIES", "")),
-	}
+	cfg.Finality = FinalityConfigFromEnv()
 
 	return cfg
+}
+
+// FinalityConfigFromEnv keeps both native entry points on the same policy.
+func FinalityConfigFromEnv() configmodel.FinalityConfig {
+	return configmodel.FinalityConfig{DefaultConfirmations: env.GetUint64("FINALITY_DEFAULT_CONFIRMATIONS", 12), Strategies: parseStrategySpecCSV(env.Get("FINALITY_STRATEGIES", ""))}
 }
 
 func parseStrategySpecCSV(raw string) map[string]string {

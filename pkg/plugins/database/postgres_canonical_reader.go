@@ -61,10 +61,19 @@ func (a *PostgreSQLPluginAdapter) CanonicalEventStats(ctx context.Context) (int6
 		return 0, nil, nil, 0, fmt.Errorf("begin canonical stats snapshot: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
+	// Both counts keep their predicates in WHERE, not count() FILTER:
+	// PostgreSQL cannot apply the partial idx_events_canonical_chain_page
+	// index (WHERE status<>'reorged' AND canonicality='canonical') to a
+	// FILTER clause, which forced a full-table seq scan (214 ms at 215k
+	// rows; measured 2026-10-16). One snapshot still covers both counts.
 	var total, reorged int64
-	err = tx.QueryRowContext(ctx, `SELECT count(*) FILTER (WHERE status<>'reorged' AND event_state->>'canonicality'='canonical'),count(*) FILTER (WHERE status='reorged') FROM blockchain_events WHERE chain_id=ANY($1)`, pq.Array(scope)).Scan(&total, &reorged)
+	err = tx.QueryRowContext(ctx, `SELECT count(*) FROM blockchain_events WHERE chain_id=ANY($1) AND status<>'reorged' AND event_state->>'canonicality'='canonical'`, pq.Array(scope)).Scan(&total)
 	if err != nil {
 		return 0, nil, nil, 0, fmt.Errorf("count canonical stats: %w", err)
+	}
+	err = tx.QueryRowContext(ctx, `SELECT count(*) FROM blockchain_events WHERE chain_id=ANY($1) AND status='reorged'`, pq.Array(scope)).Scan(&reorged)
+	if err != nil {
+		return 0, nil, nil, 0, fmt.Errorf("count reorged stats: %w", err)
 	}
 	groups := make([]map[string]int64, 0, 2)
 	for _, column := range []string{"chain_id", "event_name"} {

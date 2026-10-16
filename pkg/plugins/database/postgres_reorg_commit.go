@@ -65,6 +65,13 @@ func (a *PostgreSQLPluginAdapter) commitReorg(ctx context.Context, chainID strin
 		return 0, fmt.Errorf("reorg checkpoint changed; retry canonical inspection")
 	}
 
+	var protected bool
+	if err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM chain_finality_observations WHERE chain_id=$1 AND tag='finalized' AND head_number >= $2)`, chainID, from).Scan(&protected); err != nil {
+		return 0, fmt.Errorf("read verified finalized boundary: %w", err)
+	}
+	if protected {
+		return 0, fmt.Errorf("reorg crosses verified finalized boundary; manual recovery is required")
+	}
 	var finalized bool
 	if err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM blockchain_events
 		WHERE chain_id=$1 AND block_number BETWEEN $2 AND $3 AND (status='finalized' OR event_state#>>'{finality,state}'='finalized'))`, chainID, from, to).Scan(&finalized); err != nil {

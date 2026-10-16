@@ -82,7 +82,7 @@ func TestDeployedDualChainFaultIsolation(t *testing.T) {
 	db, err := sql.Open("postgres", dsn)
 	require.NoError(t, err)
 	defer db.Close()
-	_, err = db.ExecContext(ctx, "TRUNCATE blockchain_events,indexing_state,blocks,chain_leases,reorg_jobs,reorg_outbox CASCADE")
+	_, err = db.ExecContext(ctx, "TRUNCATE blockchain_events,indexing_state,blocks,chain_leases,reorg_jobs,reorg_outbox,chain_finality_observations CASCADE")
 	require.NoError(t, err)
 	artifacts := required("CHAINPULSE_ACCEPTANCE_OUTPUT")
 	require.NoError(t, os.MkdirAll(artifacts, 0o755))

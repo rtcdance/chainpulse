@@ -134,6 +134,15 @@ func (p *HTTPSJSONRPCPuller) getFinalityRegistry() *finality.Registry {
 	return p.finalityRegistry
 }
 
+// ResolveFinalityTarget exposes the same policy to the native manual-poll
+// coordinator. fallback is its legacy target height when no policy was set.
+func (p *HTTPSJSONRPCPuller) ResolveFinalityTarget(ctx context.Context, latest, fallback uint64) uint64 {
+	if p.getFinalityRegistry() == nil {
+		return fallback
+	}
+	return p.finalityTarget(ctx, latest)
+}
+
 // finalityTarget returns the highest block this puller should process for the
 // configured chain, given the node's latest head. A nil registry returns the
 // head unchanged (no cap). Tag strategies resolve via RPC and fall back to the
@@ -151,7 +160,9 @@ func (p *HTTPSJSONRPCPuller) finalityTarget(ctx context.Context, latest uint64) 
 	case finality.StrategyLatest:
 		return latest
 	case finality.StrategyTag:
-		tagged, err := p.blockNumberByTag(ctx, strategy.Tag)
+		probeCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		defer cancel()
+		tagged, err := p.blockNumberByTag(probeCtx, strategy.Tag)
 		if err != nil {
 			p.LogWarn("finality tag lookup failed; falling back to latest head",
 				"tag", strategy.Tag, "error", err.Error())
@@ -188,8 +199,8 @@ func (p *HTTPSJSONRPCPuller) blockNumberByTag(ctx context.Context, tag string) (
 	if err != nil {
 		return 0, fmt.Errorf("header by tag %q: %w", tag, err)
 	}
-	if header == nil || header.Number == nil {
-		return 0, fmt.Errorf("header by tag %q: nil response", tag)
+	if header == nil || header.Number == nil || !header.Number.IsUint64() {
+		return 0, fmt.Errorf("header by tag %q: invalid numeric header", tag)
 	}
 	return header.Number.Uint64(), nil
 }

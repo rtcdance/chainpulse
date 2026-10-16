@@ -29,7 +29,7 @@ func truncateIndexingTables(t *testing.T, dsn string) {
 	t.Cleanup(func() { _ = db.Close() })
 	_, err = db.Exec("TRUNCATE blockchain_events")
 	require.NoError(t, err)
-	_, err = db.Exec("TRUNCATE indexing_state")
+	_, err = db.Exec("TRUNCATE indexing_state,chain_finality_observations")
 	require.NoError(t, err)
 }
 

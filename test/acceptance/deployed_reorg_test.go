@@ -55,9 +55,10 @@ func TestDeployedReorgCanonicalDigestAndRestart(t *testing.T) {
 	// The parent scenario owns an isolated target database. Its restart checks
 	// preserve data within this run, not checkpoints belonging to a previous
 	// independently created chain with the same numeric ID.
-	_, err = db.ExecContext(ctx, "TRUNCATE blockchain_events,indexing_state,blocks,chain_leases,reorg_jobs,reorg_outbox CASCADE")
+	_, err = db.ExecContext(ctx, "TRUNCATE blockchain_events,indexing_state,blocks,chain_leases,reorg_jobs,reorg_outbox,chain_finality_observations CASCADE")
 	require.NoError(t, err)
 
+	finalityPolicy := ""
 	var process *exec.Cmd
 	var logFile *os.File
 	start := func(t *testing.T) {
@@ -65,7 +66,7 @@ func TestDeployedReorgCanonicalDigestAndRestart(t *testing.T) {
 		logFile, err = os.CreateTemp(artifacts, "monolith-*.log")
 		require.NoError(t, err)
 		process = exec.Command(binary)
-		process.Env = append(os.Environ(), "CHAINS=31337", "CHAIN_ID=31337", "CHAINPULSE_CHAINS=31337", "BLOCKCHAIN_NODE_URL="+rpcURL, "BLOCKCHAIN_NODE_URLS="+rpcURL, "FINALITY_DEFAULT_CONFIRMATIONS=0", "DATABASE_URL="+dsn, "DATABASE_TYPE=postgres", "DATABASE_SSLMODE=disable", "API_PORT="+apiPort, "MONGODB_URI="+required("CHAINPULSE_DEPLOYED_MONGODB_URI"), "CACHE_CONNECTION_URL="+required("CHAINPULSE_DEPLOYED_REDIS_ADDR"), "MQ_CONNECTION_URL="+required("CHAINPULSE_DEPLOYED_KAFKA_ADDR"))
+		process.Env = append(os.Environ(), "CHAINS=31337", "CHAIN_ID=31337", "CHAINPULSE_CHAINS=31337", "BLOCKCHAIN_NODE_URL="+rpcURL, "BLOCKCHAIN_NODE_URLS="+rpcURL, "FINALITY_DEFAULT_CONFIRMATIONS=0", "FINALITY_STRATEGIES="+finalityPolicy, "DATABASE_URL="+dsn, "DATABASE_TYPE=postgres", "DATABASE_SSLMODE=disable", "API_PORT="+apiPort, "MONGODB_URI="+required("CHAINPULSE_DEPLOYED_MONGODB_URI"), "CACHE_CONNECTION_URL="+required("CHAINPULSE_DEPLOYED_REDIS_ADDR"), "MQ_CONNECTION_URL="+required("CHAINPULSE_DEPLOYED_KAFKA_ADDR"))
 		process.Stdout = logFile
 		process.Stderr = logFile
 		require.NoError(t, process.Start())
@@ -196,5 +197,8 @@ func TestDeployedReorgCanonicalDigestAndRestart(t *testing.T) {
 			t.Logf("depth=%d canonical_sha256=%s recovery_ms=%d", depth, observedDigest, time.Since(started).Milliseconds())
 		})
 	}
+	t.Run("E07_finality_observation", func(t *testing.T) {
+		checkDeployedFinality(t, ctx, db, rpcURL, "http://127.0.0.1:"+apiPort, artifacts, "monolithic", func(tag, endpoint string) { stop(t); rpcURL = endpoint; finalityPolicy = "31337=tag:" + tag; start(t) })
+	})
 	stop(t)
 }

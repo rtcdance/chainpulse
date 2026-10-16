@@ -22,6 +22,7 @@ import (
 	"github.com/rtcdance/chainpulse/pkg/plugins/database"
 	"github.com/rtcdance/chainpulse/pkg/plugins/mq"
 	"github.com/rtcdance/chainpulse/pkg/ports"
+	"github.com/rtcdance/chainpulse/pkg/services/finality"
 )
 
 type durableIndexingRuntime interface {
@@ -191,6 +192,16 @@ func runDurableEventProcessor(config EventProcessorConfig, logger ports.Logger, 
 	}
 	defer verifier.Close()
 	committer.SetBlockValidator(verifier.ValidateBlock)
+
+	finalityPolicy, err := finality.NewRegistryFromConfig(bootstrap.FinalityConfigFromEnv())
+	if err != nil {
+		return fmt.Errorf("configure finality observation: %w", err)
+	}
+	stopFinality, err := bootstrap.StartFinalityObserver(ctx, store, bootstrap.FinalityObserverOptions{Chains: chains, RPCs: env.GetCSV("BLOCKCHAIN_RPCS", nil), Registry: finalityPolicy}, logger, metrics)
+	if err != nil {
+		return err
+	}
+	defer stopFinality()
 
 	runtime, err := bootstrap.BuildMonolithicIndexingRuntimeWithOptions(logger, store, nil, chains, bootstrap.InMemoryIndexingRuntimeOptions{Committer: committer, CheckpointStore: durableCheckpointReader{store: store}})
 	if err != nil {

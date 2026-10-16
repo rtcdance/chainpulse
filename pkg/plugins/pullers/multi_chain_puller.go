@@ -19,6 +19,27 @@ type dataPullerLastProcessedBlockProvider interface {
 	GetLastBlockNumber() uint64
 }
 
+// FinalityTargetFromChain preserves protocol-specific explicit policies while
+// keeping legacy targets for adapters without that optional capability.
+func (m *MultiChainDataPuller) FinalityTargetFromChain(ctx context.Context, chain string, latest, fallback uint64) (uint64, error) {
+	m.mu.RLock()
+	puller, ok := m.pullers[chain]
+	m.mu.RUnlock()
+	if !ok {
+		return 0, fmt.Errorf("no puller registered for finality chain %s", chain)
+	}
+	if resolver, ok := puller.(interface {
+		ResolveFinalityTarget(context.Context, uint64, uint64) uint64
+	}); ok {
+		target := resolver.ResolveFinalityTarget(ctx, latest, fallback)
+		if target > latest {
+			return 0, fmt.Errorf("finality target exceeds observed head")
+		}
+		return target, nil
+	}
+	return fallback, nil
+}
+
 // BlockHeaderFromChain exposes the verified header capability without leaking
 // a mutable registered puller. Unsupported protocols fail explicitly.
 func (m *MultiChainDataPuller) BlockHeaderFromChain(ctx context.Context, chainID string, height uint64) (*types.Header, error) {
