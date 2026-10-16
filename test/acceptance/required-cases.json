@@ -83,7 +83,12 @@
       "tests": [
         "TestGetFinalizedBlockNumber_AllFallbacksFail",
         "TestIsBlockFinalizedRefusesDegraded",
-        "TestSafeIsNotFinalized"
+        "TestSafeIsNotFinalized",
+        "TestFinalityRPCObservationVerifiesIdentityAndCanonicalHeader",
+        "TestFinalityPollDegradesWithoutInventingProof",
+        "TestFinalityObserverLifecycleIsBoundedAndCancellable",
+        "TestFinalityProjectionRequiresFreshCanonicalProof",
+        "TestStrategyAliasesShareOneFinalityPolicy"
       ]
     },
     {
@@ -162,6 +167,41 @@
       "summary": "deploy/rollback: bad image/config, prior digest restore",
       "tests": [],
       "pending": "needs a deployment target"
+    },
+    {
+      "id": "E07",
+      "lane": "contracts",
+      "summary": "durable finality evidence and projection",
+      "tests": [
+        "TestPostgresFinalityProofIsFreshScopedAndReorgProtected"
+      ]
+    },
+    {
+      "id": "E07",
+      "lane": "migration",
+      "summary": "additive finality observation upgrade/down preserves raw identity",
+      "tests": [
+        "TestFinalityObservationUpgradeRollbackPreservesEventIdentity",
+        "TestFinalitySchemaRemovalRefusesVerifiedBoundaryLoss"
+      ]
+    },
+    {
+      "id": "E07",
+      "lane": "evm-e2e",
+      "summary": "real mono/native APIs show safe, finalized, degraded, expiry and recovery",
+      "tests": [
+        "TestDeployedReorgCanonicalDigestAndRestart/E07_finality_observation",
+        "TestDeployedPullerKafkaAndAtomicProcessor/E07_finality_observation"
+      ],
+      "note": "Runs after each fixture completes canonical reorg. Real Anvil header proofs; controlled tags/errors/chain mismatch and aged proof timestamps. Both actual entry points own and stop their observers; safe never masquerades as finalized."
+    },
+    {
+      "id": "E07",
+      "lane": "command",
+      "summary": "native manual intake uses shared explicit policy rather than silently retaining legacy confirmation cap",
+      "tests": [
+        "TestNativeIntakeUsesExplicitFinalityInsteadOfLegacyCap"
+      ]
     }
   ]
 }

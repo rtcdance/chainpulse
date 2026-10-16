@@ -278,6 +278,7 @@ jobs:
         python3 scripts/acceptance/verify-tests.py \
           --jsonl migration-output.jsonl --min-tests 1 \
           --fail-on-unknown-skip \
+          --required-cases test/acceptance/required-cases.json --required-lane migration \
           --report migration-tests-report.json
 
   e2e:

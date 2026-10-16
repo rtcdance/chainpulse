@@ -113,6 +113,7 @@ jobs:
           go test -json -race -short -timeout 120s ./cmd/... | tee command-test-output.jsonl
           python3 scripts/acceptance/verify-tests.py \
             --jsonl command-test-output.jsonl --min-tests 1 --fail-on-unknown-skip \
+            --required-cases test/acceptance/required-cases.json --required-lane command \
             --skip-allowlist test/acceptance/skip-allowlist.json --report command-tests-report.json
           python3 - <<'PYMODULES'
           import json, subprocess

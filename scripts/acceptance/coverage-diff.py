@@ -96,6 +96,7 @@ def main():
     parser.add_argument('--base', type=Path)
     parser.add_argument('--candidate', type=Path)
     parser.add_argument('--base-summary', type=Path)
+    parser.add_argument('--base-status', type=Path)
     parser.add_argument('--candidate-summary', type=Path)
     parser.add_argument('--base-sha')
     parser.add_argument('--candidate-sha')
@@ -110,11 +111,30 @@ def main():
         if sha is not None and not re.fullmatch(r'[0-9a-f]{40}', sha):
             parser.error('source SHAs must be full commit identifiers')
     try:
-        base, candidate = read_profile(args.base), read_profile(args.candidate)
+        candidate = read_profile(args.candidate)
+        candidate['percent'] = read_summary(args.candidate_summary)
+        if args.base_status:
+            availability = json.loads(args.base_status.read_text())
+            if availability.get('comparison_status') == 'unavailable_base_tests_failed':
+                doc = {'schema':'chainpulse.coverage-comparison.v1',
+                       'comparison_status':'unavailable_base_tests_failed',
+                       'base_sha':args.base_sha,'candidate_sha':args.candidate_sha,
+                       'candidate':candidate,'base_execution':availability}
+                args.out.parent.mkdir(parents=True, exist_ok=True)
+                args.out.with_suffix('.json').write_text(json.dumps(doc,indent=2)+'\n')
+                args.out.write_text('# Coverage comparison unavailable\n\n'
+                                    'The base commit tests failed. Its partial profile is not a valid baseline; no coverage difference was calculated.\n\n'
+                                    f'Candidate native Go coverage: {candidate["percent"]:.1f}%. '
+                                    'The required candidate coverage job retains its existing threshold gate.\n')
+                print(args.out.read_text())
+                return 0  # Informational report generated; comparison is explicitly unavailable.
+            if availability.get('comparison_status') != 'available':
+                raise ValueError('unrecognized base comparison status')
+        base = read_profile(args.base)
         base['percent'] = read_summary(args.base_summary)
         candidate['percent'] = read_summary(args.candidate_summary)
         difference = candidate['percent'] - base['percent']
-        doc = {'schema': 'chainpulse.coverage-comparison.v1', 'base_sha': args.base_sha,
+        doc = {'schema': 'chainpulse.coverage-comparison.v1', 'comparison_status':'available', 'base_sha': args.base_sha,
                'candidate_sha': args.candidate_sha, 'base': base, 'candidate': candidate,
                'difference_percentage_points': difference,
                'note': 'Percentages come from go tool cover in the matching checkout. Raw block totals are diagnostic and can include initializers omitted from function coverage. Existing CI MIN_COVERAGE remains authoritative.'}

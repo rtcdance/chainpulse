@@ -213,9 +213,11 @@ if [[ "$MODE" == "full" ]]; then
   echo "[micro-loop] step 9: schema fresh, upgrade and rollback"
   MIGRATION_TEST_DSN="$CHAINPULSE_TEST_DATABASE_URL" go test -json -tags=migration ./test/migration \
     -count=1 -timeout=10m > "$evidence_dir/migrations.jsonl"
-  python3 scripts/acceptance/verify-tests.py --jsonl "$evidence_dir/migrations.jsonl" --min-tests 1 --fail-on-unknown-skip
+  python3 scripts/acceptance/verify-tests.py --jsonl "$evidence_dir/migrations.jsonl" --min-tests 1 --fail-on-unknown-skip \
+    --required-cases test/acceptance/required-cases.json --required-lane migration
 
   echo "[micro-loop] step 10: acceptance tooling and negative controls"
+  python3 -m unittest discover -s scripts/bench -p 'query_load_test.py' -v
   for tool in verify-tests skip-report collect-evidence openapi-drift bench-gate dep-approval-gate acceptance-gate; do
     python3 "scripts/acceptance/$tool.py" --self-test
   done
