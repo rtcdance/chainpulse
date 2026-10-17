@@ -364,3 +364,6 @@ T14 固定语料与 250eps/600s 摄取在 attempt 2 已 PASS（ingest_result.jso
 隔离候选工作树本轮完整micro-loop（full-cold-query-v1）exit0：真实PG/Redis/Kafka/故障/双部署/双链/raw RPC摘要/finality/cache共149pass actions、67顶层、0fail/0skip；migration12pass actions、7顶层、0fail/0skip；指标合同14/14、查询工具18/18、门禁反控31/31。full unit历史skip实际71项，未将其记为0，也不将非-v test-short不显示SKIP当作没有跳过。顺序DoD build/check/lint/test-short/diff-stat均exit0，lint0issues；原始日志在candidate-cold-query-local-gates。候选变更仅显式copy清单，包含新文件的范围另由git status/staged stat核对，未使用只含tracked文件的diff-stat隐瞒新文件。既有四服务T14栈和4个stash均保留。
 
 独占chainpulse_t14性能库已通过真实migrate up到clean21（version21/dirty=false），新索引indisvalid/indisready=true，65MiB。当前继续同seed/rate/冷Redis范围诊断，不将新索引SQL实验或数据库升级本身视为§8性能通过；完整E14、原生订阅桥、CD/真实digest回滚及最终封版仍待完成。
+
+
+schema21冷缓存v6诊断仍FAIL：3000终态、333错误（326 generator_overload、7个stats503）、P95 1201.56ms/P99 4568.49ms、成功响应精确PG校验错误0。数据库慢日志显示首个stats聚合因5s上下文取消，约7个共享等待请求返回503；同期contract count在实际并发下3.1–4.46s，串行EXPLAIN改善未转化为冷启动负载通过。已保存aggregate-cover-v6及pg-startup.log，不将SQL实验或完整功能门禁替代性能验收。下一步检查参数化真实计划、冷启动并发下资源/等待与发压器自身开销；禁止裁掉首段或提高性能门槛。

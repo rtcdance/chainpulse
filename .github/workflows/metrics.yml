@@ -103,6 +103,19 @@ jobs:
           go tool pprof -text metrics/mem.prof > metrics/memory-profile.txt
           go tool pprof -text metrics/cpu.prof > metrics/cpu-profile.txt
 
+      # Instrumentation checks are necessary but do not prove live E14 load,
+      # independent canonical correctness or the resource/soak contract.
+      # Those remain explicit pending release-candidate evidence.
+      - name: Verify performance instrumentation cases
+        run: |
+          set -euo pipefail
+          go test -json -run '^TestPerformanceManager' -count=1 ./test/e2e/ > e14-tests.jsonl
+          python3 scripts/acceptance/verify-tests.py \
+            --jsonl e14-tests.jsonl --min-tests 1 \
+            --required-cases test/acceptance/required-cases.json \
+            --required-lane chaos-soak-perf \
+            --report e14-tests-report.json
+
       - name: Generate metrics summary
         if: always()
         run: |
@@ -164,6 +177,8 @@ jobs:
           path: |
             metrics/
             benchmark-results.txt
+            e14-tests.jsonl
+            e14-tests-report.json
           retention-days: 90
           if-no-files-found: error
 

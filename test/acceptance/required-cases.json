@@ -158,8 +158,19 @@
       "id": "E14",
       "lane": "chaos-soak-perf",
       "summary": "performance / 30min soak",
-      "tests": [],
-      "pending": "needs a soak environment"
+      "tests": [
+        "TestPerformanceManagerRecordOperation",
+        "TestPerformanceManagerMinMaxLatency",
+        "TestPerformanceManagerCalculateMetrics",
+        "TestPerformanceManagerMeasureOperation",
+        "TestPerformanceManagerBenchmarkEventProcessing",
+        "TestPerformanceManagerBenchmarkDatabaseOperations",
+        "TestPerformanceManagerBenchmarkAPIQueries",
+        "TestPerformanceManagerBenchmarkEndToEndLatency",
+        "TestPerformanceManagerMultipleOperations",
+        "TestPerformanceManagerConcurrentRecording"
+      ],
+      "note": "These performance-manager cases validate measurement instrumentation only. They do not prove live ingestion/query throughput, independent canonical correctness, backlog recovery or soak. Local attempt6/soak30 artifacts are separate evidence and require raw-data, oracle and provenance audit before final acceptance."
     },
     {
       "id": "E15",
@@ -210,7 +221,9 @@
       "tests": [
         "TestPostgresAggregateCacheUsesMutationRevision",
         "TestPostgresAggregateCacheRealRedis",
-        "TestPostgresAggregateStatsCacheUsesMutationRevision"
+        "TestPostgresAggregateStatsCacheUsesMutationRevision",
+        "TestPostgresConcurrentColdAggregatesReadOriginOnce",
+        "TestPostgresOffsetIDsPreserveFilterOrderAndTies"
       ]
     },
     {
@@ -218,7 +231,8 @@
       "lane": "migration",
       "summary": "mutation revision atomicity, legacy writes, truncate and schema epoch rollback safety",
       "tests": [
-        "TestQueryRevisionsTrackCommittedMutationsAndRollback"
+        "TestQueryRevisionsTrackCommittedMutationsAndRollback",
+        "TestContractCoverIndexUpgradeRollbackPreservesAuthority"
       ]
     },
     {
@@ -228,7 +242,13 @@
       "tests": [
         "TestCanonicalRedisCacheRejectsUnsafeConfiguration",
         "TestCanonicalRedisCacheHonorsCancellationAndBounds",
-        "TestSnapshotStorageClosesCanonicalCacheEvenOnCloseFailure"
+        "TestSnapshotStorageClosesCanonicalCacheEvenOnCloseFailure",
+        "TestAggregateFlightSharesOnlyConcurrentRevision",
+        "TestAggregateFlightWaiterCancellationDoesNotCancelOwner",
+        "TestAggregateFlightRetriesSharedOwnerCancellationOnce",
+        "TestAggregateFlightStateIsBounded",
+        "TestAggregateFlightPanicReleasesWaiters",
+        "TestAggregateFlightDoesNotHideSQLFailureOrCacheDisabled"
       ]
     },
     {
@@ -240,6 +260,13 @@
         "TestDeployedPullerKafkaAndAtomicProcessor/E12_canonical_aggregate_cache",
         "TestDeployedAPIRejectsMissingCacheAuthority"
       ]
+    },
+    {
+      "id": "E14",
+      "lane": "release-candidate",
+      "summary": "strict live load, independent 100k oracle, cold/hot 600s and resource/soak evidence",
+      "tests": [],
+      "pending": "Requires complete strict runtime workload and independent oracle evidence; performance-manager unit tests and shape-only queries are insufficient."
     }
   ]
 }
