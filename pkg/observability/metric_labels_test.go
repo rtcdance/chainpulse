@@ -217,3 +217,47 @@ func TestGuardedNilInnerFallsBack(t *testing.T) {
 	t.Parallel()
 	assert.Nil(t, Guarded(nil))
 }
+
+// TestGuardIsPrometheusExporter pins the guard's exporter capability.
+//
+// core.ExportMetricsPrometheus type-asserts PrometheusMetricsExporter and
+// otherwise falls back to a counter/gauge-only rendering that omits
+// histograms and the runtime section (go_goroutines, go_memstats_*, DB pool).
+// When the guard lost this method, every Guarded() service silently stopped
+// exposing memory and goroutine series — the §8 soak evidence path. Both the
+// concrete method and the interface assertion that the fallback depends on
+// are pinned here.
+func TestGuardIsPrometheusExporter(t *testing.T) {
+	t.Parallel()
+
+	guard := newGuard(t, LabelGuardOptions{})
+
+	// The interface assertion is the real invariant: ExportMetricsPrometheus
+	// only takes this path when the value satisfies the interface.
+	var exporter core.PrometheusMetricsExporter = guard
+	guard.RecordCounter("events_indexed", 3, map[string]string{"chain_id": "1"})
+	guard.RecordHistogram("query_duration", 0.25, map[string]string{"chain_id": "1", "tx_hash": "fixture-unbounded-tx"})
+
+	rendered := exporter.ExportPrometheus()
+	require.NotEmpty(t, rendered, "guarded collector must render exposition text")
+	assert.Contains(t, rendered, "events_indexed", "collected counters must survive the guard")
+	// Histograms are only rendered on the exporter path; their absence would
+	// mean the fallback branch is being taken again.
+	assert.Contains(t, rendered, "query_duration_bucket", "histogram buckets must be rendered, not dropped")
+	assert.NotContains(t, rendered, "fixture-unbounded-tx", "exporting cannot bypass label sanitization")
+	// The runtime section is what the §8 heap/goroutine evidence scrapes.
+	assert.Contains(t, rendered, "go_goroutines", "runtime metrics must be exposed through the guard")
+	assert.Contains(t, rendered, "go_memstats_alloc_bytes", "memory metrics must be exposed through the guard")
+}
+
+// TestExportMetricsPrometheusUsesGuardPathEndToEnd checks the exact helper the
+// service handlers call, so a change to its type assertion that stops honouring
+// the guard fails here rather than at scrape time.
+func TestExportMetricsPrometheusUsesGuardPathEndToEnd(t *testing.T) {
+	t.Parallel()
+
+	rendered := core.ExportMetricsPrometheus(Guarded(core.NewDefaultMetricsCollector()))
+	require.NotEmpty(t, rendered)
+	assert.Contains(t, rendered, "go_memstats_alloc_bytes",
+		"ExportMetricsPrometheus(Guarded(...)) must take the Prometheus exporter branch")
+}

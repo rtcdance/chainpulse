@@ -37,13 +37,13 @@ func (h *StatsHandler) HandleGetStats(w http.ResponseWriter, r *http.Request) {
 	}); ok && source.CanonicalStatsEnabled() {
 		total, byChain, byName, reorged, err := source.CanonicalEventStats(ctx)
 		if err != nil {
-			h.logger.Error("Canonical statistics unavailable", "error", err)
+			h.logger.Error("Canonical statistics unavailable", "error", err.Error())
 			(&APIError{Code: "STATS_FAILED", Message: "Failed to retrieve event statistics", Status: http.StatusServiceUnavailable}).WriteHTTP(w)
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(eventStatsResponse{Total: total, ByChain: byChain, ByEventName: byName, Reorged: reorged}); err != nil {
-			h.logger.Error("Encode canonical statistics", "error", err)
+			h.logger.Error("Encode canonical statistics", "error", err.Error())
 		}
 		return
 	}

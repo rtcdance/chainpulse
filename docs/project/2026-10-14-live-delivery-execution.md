@@ -367,3 +367,20 @@ T14 固定语料与 250eps/600s 摄取在 attempt 2 已 PASS（ingest_result.jso
 
 
 schema21冷缓存v6诊断仍FAIL：3000终态、333错误（326 generator_overload、7个stats503）、P95 1201.56ms/P99 4568.49ms、成功响应精确PG校验错误0。数据库慢日志显示首个stats聚合因5s上下文取消，约7个共享等待请求返回503；同期contract count在实际并发下3.1–4.46s，串行EXPLAIN改善未转化为冷启动负载通过。已保存aggregate-cover-v6及pg-startup.log，不将SQL实验或完整功能门禁替代性能验收。下一步检查参数化真实计划、冷启动并发下资源/等待与发压器自身开销；禁止裁掉首段或提高性能门槛。
+
+
+候选业务提交a415001（13个显式文件）及配置提交89af157已推送，隔离工作树clean。提交后权威make lint仍0issues，make build实跑全部二进制exit0。新CI地址已归档candidate-89af157-run-urls.json，当前只确认frontend-api success，其余尚在运行；上一候选全绿不能代替新候选CI结论。
+
+auto_explain仅通过本次连接URL options开启，未修改数据库全局设置；v7诊断已退出并清理自有API/gateway。实际参数化contract count使用schema21 Index Only Scan，无全量heap退化；两链冷count约1.25s/0.95s，stats在canonical page index上Index Only Scan约1.91s（并发下；含分析仪开销），无大排序。v7全部3000请求200且精确PG校验错误0，但P95=539.22ms/P99=1045.12ms，仍FAIL，且instrumented诊断不能替代正式性能。需要继续区分工作集/PG缓存与并发资源影响，并以同参数完整600s冷热复测；仍禁止修改门槛或裁掉首段。
+
+
+## 2026-10-17：T13 指标、摘要与诊断日志增量（进行中）
+
+上一goal turn完成查询业务a415001与验收配置89af157的实际提交/推送及full/DoD证据，判为progress。当前89af157远端contracts/integration已实读success，evm-e2e仍在运行；其余结论按实际run/check逐项核对，不借上一候选结果替代。
+
+本轮把夜间dirty工作树已有的MetricLabelGuard.ExportPrometheus接入隔离候选，补bucket与敏感高基数标签不泄漏断言。durable processor真实摘要provider统一canonical字段，同时保留indexing/consumer细节；stats失败仅对操作者日志输出可读字符串，HTTP503仍为脱敏STATS_FAILED。新增用例先在旧候选RED：缺Exporter能力、缺durable helper产生编译失败，stats日志字段原错误对象断言失败；再实现。telemetry-closure-race100：4顶层/400pass/0fail/0skip；fast通过；顺序DoD五步均exit0、lint0issues。完整真实部署回归运行中，未提前标记通过。
+
+T11接线复核仍有实质缺口：API-service硬编码processed-events并按单BlockchainEvent解码，而durable processor实际输出chainpulse.block.v1完整frame到committed topic；gateway的订阅路由仅升级本地无MQ输入的handler；numeric replay ring没有epoch/过期范围裁决。puller的durable_outbox确实发布chainpulse.reorg.v1封装，携带id/job_id/chain_id/generation/kind/payload，需要消费者正确接入；不能把“WebSocket能upgrade”当成emit→committed/reorg→gateway订阅的证明。后续必须实现并通过真实进程链路、去重/重组更正、重连缺口与过期游标负控。
+
+
+T13本轮完整门禁已exit0（full-telemetry-closure-v1）：67顶层/149pass/0fail/0skip真实adapter/deployed；migration7顶层/12pass/0fail/0skip；14指标合同、18查询工具控制、31门禁反例均通过。历史unit跳过动作71仍如实披露。telemetry-runtime-v1只读采样实际processor/puller/API/gateway/monolithic五入口，逐个绑定lsof监听PID、ps命令行及二进制SHA256，全部含go_goroutines/go_memstats_alloc_bytes；sampler正常退出，不是30min资源验收。新增四个回归用例均列入unit/command必需清单，原生订阅完整链路另列release-candidate pending。该增量补齐指标可见性、摘要一致性与错误诊断，不宣称T13跨MQ trace/告警故障矩阵已全量闭环。

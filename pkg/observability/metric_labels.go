@@ -134,6 +134,20 @@ func (g *MetricLabelGuard) GetMetrics() map[string]any {
 	return g.inner.GetMetrics()
 }
 
+// ExportPrometheus makes the guard a PrometheusMetricsExporter.
+//
+// Without this method the guard does not satisfy the optional exporter
+// interface, so core.ExportMetricsPrometheus falls back to the generic
+// counter/gauge payload path. That path renders neither histograms nor the
+// runtime section (go_goroutines, go_memstats_*, DB pool), so every service
+// that wraps its collector with Guarded() served a /metrics endpoint without
+// any memory or goroutine series — the §8 heap and goroutine soak evidence
+// could not be scraped at all. Labels are already sanitized at record time,
+// so delegating to the inner exporter renders exactly what was collected.
+func (g *MetricLabelGuard) ExportPrometheus() string {
+	return core.ExportMetricsPrometheus(g.inner)
+}
+
 // Stats reports the guard's redaction counters.
 func (g *MetricLabelGuard) Stats() LabelGuardStats {
 	g.mu.Lock()

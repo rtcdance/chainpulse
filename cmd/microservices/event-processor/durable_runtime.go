@@ -245,7 +245,7 @@ func runDurableEventProcessor(config EventProcessorConfig, logger ports.Logger, 
 	consume.Start(ctx, &workers)
 	defer func() { cancel(); workers.Wait() }()
 	server := newEventProcessorRuntimeHTTPServer(config.Port, nil, metrics, func(*http.Request) *eventProcessorRuntimeSummaryResponse {
-		return &eventProcessorRuntimeSummaryResponse{Service: "event-processor", Timestamp: time.Now().Unix(), DeploymentMode: "microservices", RuntimeMode: "durable-block-v1", Processor: map[string]any{"indexing": runtime.Status(), "consumer": consume.Snapshot()}}
+		return newDurableRuntimeSummary(map[string]any{"indexing": runtime.Status(), "consumer": consume.Snapshot()})
 	}, consume)
 	base := server.Handler
 	server.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -310,4 +310,13 @@ func runDurableEventProcessor(config EventProcessorConfig, logger ports.Logger, 
 	default:
 	}
 	return nil
+}
+
+func newDurableRuntimeSummary(processor map[string]any) *eventProcessorRuntimeSummaryResponse {
+	return &eventProcessorRuntimeSummaryResponse{
+		Service: "event-processor", Timestamp: time.Now().Unix(),
+		DeploymentMode: core.DeploymentModeMicroservice,
+		RuntimeMode:    "runtime-wired", RuntimePosture: "runtime-wired", ComponentState: "runtime-wired",
+		Processor: processor,
+	}
 }

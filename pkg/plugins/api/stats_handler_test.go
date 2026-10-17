@@ -4,11 +4,41 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/ports"
 )
+
+type statsFailureLog struct {
+	ports.Logger
+	fields []any
+}
+
+func (l *statsFailureLog) Error(_ string, fields ...any) { l.fields = append([]any(nil), fields...) }
+
+type canonicalStatsFailure struct{ mockEventReader }
+
+func (*canonicalStatsFailure) CanonicalStatsEnabled() bool { return true }
+func (*canonicalStatsFailure) CanonicalEventStats(context.Context) (int64, map[string]int64, map[string]int64, int64, error) {
+	return 0, nil, nil, 0, context.DeadlineExceeded
+}
+
+func TestCanonicalStatsFailureLogsCauseWithoutExposingIt(t *testing.T) {
+	t.Parallel()
+	logger := &statsFailureLog{}
+	handler := NewStatsHandler(logger, &canonicalStatsFailure{})
+	w := httptest.NewRecorder()
+	handler.HandleGetStats(w, httptest.NewRequest(http.MethodGet, "/events/stats", nil))
+	if w.Code != http.StatusServiceUnavailable || !strings.Contains(w.Body.String(), "STATS_FAILED") || strings.Contains(w.Body.String(), context.DeadlineExceeded.Error()) {
+		t.Fatalf("stats error contract changed: status=%d body=%s", w.Code, w.Body.String())
+	}
+	if len(logger.fields) != 2 || logger.fields[0] != "error" || logger.fields[1] != context.DeadlineExceeded.Error() {
+		t.Fatalf("operator log must retain a JSON-readable cause: %#v", logger.fields)
+	}
+}
 
 type mockEventReader struct {
 	countEventsErr error
