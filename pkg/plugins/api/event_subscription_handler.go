@@ -83,12 +83,14 @@ const (
 
 // SubscriptionMessage represents a message sent to subscriber
 type SubscriptionMessage struct {
-	Type      string `json:"type"` // "event", "reorg", "error", "ping"
-	Seq       uint64 `json:"seq,omitempty"`
-	Event     any    `json:"event,omitempty"`
-	Error     string `json:"error,omitempty"`
-	Message   string `json:"message,omitempty"`
-	Timestamp int64  `json:"timestamp"`
+	Type         string `json:"type"` // "event", "reorg", "resume", "error", "ping"
+	Seq          uint64 `json:"seq,omitempty"`
+	Event        any    `json:"event,omitempty"`
+	Error        string `json:"error,omitempty"`
+	Message      string `json:"message,omitempty"`
+	Epoch        string `json:"epoch,omitempty"`        // hub replay epoch; pair with seq as "epoch:seq" on resume
+	ResumeStatus string `json:"resumeStatus,omitempty"` // only on type "resume": stale_epoch | gap
+	Timestamp    int64  `json:"timestamp"`
 }
 
 // bufferedPush is a hub replay-buffer entry; kind discriminates event vs
@@ -211,19 +213,29 @@ func (h *EventSubscriptionHandler) HandleSubscribeName(w http.ResponseWriter, r 
 
 // parseResumeCursor extracts the replay cursor from the Last-Event-ID header
 // or the last_event_id query parameter. ok is false when neither is present.
-func parseResumeCursor(r *http.Request) (cursor uint64, ok bool, err error) {
+// The value is either a legacy bare sequence number or "epoch:seq", where
+// epoch is the hub epoch the client last observed (advertised on every frame).
+func parseResumeCursor(r *http.Request) (cursor uint64, epoch string, ok bool, err error) {
 	raw := r.Header.Get("Last-Event-ID")
 	if raw == "" {
 		raw = r.URL.Query().Get("last_event_id")
 	}
 	if raw == "" {
-		return 0, false, nil
+		return 0, "", false, nil
 	}
-	cursor, parseErr := strconv.ParseUint(strings.TrimSpace(raw), 10, 64)
+	value := strings.TrimSpace(raw)
+	if epochPart, seqPart, hasEpoch := strings.Cut(value, ":"); hasEpoch {
+		if epochPart == "" || len(epochPart) > 64 {
+			return 0, "", false, fmt.Errorf("invalid last_event_id %q: malformed epoch", raw)
+		}
+		epoch = epochPart
+		value = seqPart
+	}
+	cursor, parseErr := strconv.ParseUint(value, 10, 64)
 	if parseErr != nil {
-		return 0, false, fmt.Errorf("invalid last_event_id %q: %w", raw, parseErr)
+		return 0, "", false, fmt.Errorf("invalid last_event_id %q: %w", raw, parseErr)
 	}
-	return cursor, true, nil
+	return cursor, epoch, true, nil
 }
 
 // handleSubscription handles WebSocket subscription
@@ -261,7 +273,7 @@ func (h *EventSubscriptionHandler) handleSubscription(w http.ResponseWriter, r *
 
 	// Resume cursor must be parsed before the upgrade so a malformed value
 	// fails as a plain HTTP 400 instead of a half-open WebSocket.
-	resumeCursor, hasCursor, err := parseResumeCursor(r)
+	resumeCursor, resumeEpoch, hasCursor, err := parseResumeCursor(r)
 	if err != nil {
 		h.metrics.RecordCounter("event_subscription_invalid_cursor", 1, nil)
 		http.Error(w, "Invalid last_event_id", http.StatusBadRequest)
@@ -317,17 +329,28 @@ func (h *EventSubscriptionHandler) handleSubscription(w http.ResponseWriter, r *
 	subConn.Subscriptions[subID] = subscription
 	h.subscriptions[subID] = subscription
 	h.subscriptionCount++
-	var replayEntries []replayEntry
-	if hasCursor {
-		replayEntries = h.hub.GetReplayEvents(subscriptionReplayTopic, resumeCursor)
-	}
+	// Resume adjudication must stay in this critical section with registration
+	// (same invariant as the old GetReplayEvents call): a concurrent
+	// BroadcastEvent is either already visible to this resume fetch or reaches
+	// the registered subscription live — never both, never neither.
+	resumeStatus, replayEntries := h.hub.Resume(subscriptionReplayTopic, resumeEpoch, resumeCursor, hasCursor)
 	h.mu.Unlock()
 
 	h.metrics.RecordCounter("event_subscription_connection_established", 1, nil)
 	h.metrics.RecordCounter("event_subscription_created", 1, nil)
+	h.metrics.RecordCounter("event_subscription_resume_"+resumeStatus, 1, nil)
 	h.logger.Info("WebSocket connection established", "connectionId", connID, "remoteAddr", r.RemoteAddr)
 
-	replayErr := h.sendReplay(subConn, subscription, replayEntries)
+	// A stale or gapped cursor is reported explicitly with no partial replay:
+	// the client must refetch canonical HTTP state instead of assuming
+	// continuity. ok/fresh resumes go straight to replay so existing
+	// reconnect contracts see no extra frame.
+	var replayErr error
+	if resumeStatus == resumeStatusStaleEpoch || resumeStatus == resumeStatusGap {
+		replayErr = h.sendResumeReset(subConn, resumeStatus)
+	} else {
+		replayErr = h.sendReplay(subConn, subscription, replayEntries)
+	}
 	subConn.mu.Unlock()
 	if replayErr != nil {
 		h.logger.Error("Failed to send replay, closing connection", "connectionId", connID, "error", replayErr.Error())
@@ -355,12 +378,12 @@ func (h *EventSubscriptionHandler) sendReplay(subConn *SubscriptionConnection, s
 			if push.event == nil || !matchesSubscriptionValues(sub, push.event.ChainID, push.event.ContractAddress, push.event.EventName) {
 				continue
 			}
-			message = &SubscriptionMessage{Type: "event", Seq: entry.Seq, Event: push.event, Timestamp: time.Now().Unix()}
+			message = &SubscriptionMessage{Type: "event", Seq: entry.Seq, Event: push.event, Epoch: h.hub.Epoch(), Timestamp: time.Now().Unix()}
 		case bufferedKindReorg:
 			if push.reorg == nil {
 				continue
 			}
-			message = &SubscriptionMessage{Type: "reorg", Seq: entry.Seq, Event: push.reorg, Timestamp: time.Now().Unix()}
+			message = &SubscriptionMessage{Type: "reorg", Seq: entry.Seq, Event: push.reorg, Epoch: h.hub.Epoch(), Timestamp: time.Now().Unix()}
 		default:
 			continue
 		}
@@ -382,6 +405,31 @@ func (h *EventSubscriptionHandler) sendReplay(subConn *SubscriptionConnection, s
 			h.metrics.RecordCounter("event_subscription_event_sent", 1, nil)
 		}
 	}
+	return nil
+}
+
+// sendResumeReset tells a reconnecting client its cursor cannot be resumed
+// (stale epoch or gap beyond the retained window) and carries the current
+// epoch so it can restart cleanly after refetching canonical HTTP state.
+// Caller must hold subConn.mu.
+func (h *EventSubscriptionHandler) sendResumeReset(subConn *SubscriptionConnection, status string) error {
+	message := &SubscriptionMessage{
+		Type:         "resume",
+		ResumeStatus: status,
+		Epoch:        h.hub.Epoch(),
+		Timestamp:    time.Now().Unix(),
+	}
+	data, err := json.Marshal(message)
+	if err != nil {
+		return fmt.Errorf("marshal resume message: %w", err)
+	}
+	if err := subConn.Conn.SetWriteDeadline(time.Now().Add(h.writeTimeout)); err != nil {
+		return fmt.Errorf("set resume write deadline: %w", err)
+	}
+	if err := subConn.Conn.WriteMessage(websocket.TextMessage, data); err != nil {
+		return fmt.Errorf("write resume message: %w", err)
+	}
+	h.logger.Info("Subscription resume reset", "connectionId", subConn.ID, "resumeStatus", status)
 	return nil
 }
 
@@ -633,6 +681,7 @@ func (h *EventSubscriptionHandler) sendEventToSubscription(sub *Subscription, ev
 		Type:      "event",
 		Seq:       seq,
 		Event:     eventResponse,
+		Epoch:     h.hub.Epoch(),
 		Timestamp: time.Now().Unix(),
 	}, "event_subscription_event_sent")
 }
@@ -642,6 +691,7 @@ func (h *EventSubscriptionHandler) sendReorgToSubscription(sub *Subscription, co
 		Type:      "reorg",
 		Seq:       seq,
 		Event:     correction,
+		Epoch:     h.hub.Epoch(),
 		Timestamp: time.Now().Unix(),
 	}, "event_subscription_reorg_sent")
 }

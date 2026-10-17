@@ -539,6 +539,16 @@ func (gri *GatewayRouterIntegration) attachUpstreamQueryHandlers() error {
 		"event-by-name",
 		"graphql",
 	}
+	// Subscription routes are intentionally withheld from the monolithic
+	// microservice-intent surface, so they are attached only when registered
+	// (api-gateway and full-surface postures).
+	subscriptionRouteIDs := []string{
+		"websocket-subscribe",
+		"subscribe",
+		"subscribe-chain",
+		"subscribe-contract",
+		"subscribe-name",
+	}
 
 	for idx, endpoint := range gri.upstreamQueryEndpoints {
 		handler := NewHandler(
@@ -553,6 +563,14 @@ func (gri *GatewayRouterIntegration) attachUpstreamQueryHandlers() error {
 			handler.SetHealthHeaders(gri.upstreamQueryHealthHeaders)
 		}
 		for _, routeID := range routeIDs {
+			if err := gri.router.AttachHandler(routeID, handler); err != nil {
+				return fmt.Errorf("failed to attach upstream handler to route %s: %w", routeID, err)
+			}
+		}
+		for _, routeID := range subscriptionRouteIDs {
+			if _, err := gri.router.GetRoute(routeID); err != nil {
+				continue
+			}
 			if err := gri.router.AttachHandler(routeID, handler); err != nil {
 				return fmt.Errorf("failed to attach upstream handler to route %s: %w", routeID, err)
 			}
@@ -702,7 +720,10 @@ func gatewayHandleEventByName(gri *GatewayRouterIntegration, w http.ResponseWrit
 	gri.handleQueryRoute(w, r, route, "event-by-name", func() { gri.eventQueryHandler.HandleGetEventsByName(w, r, eventName) })
 }
 
-func gatewayHandleSubscribeAll(gri *GatewayRouterIntegration, w http.ResponseWriter, wrapped http.ResponseWriter, r *http.Request, _ *Route, _ map[string]string) {
+func gatewayHandleSubscribeAll(gri *GatewayRouterIntegration, w http.ResponseWriter, wrapped http.ResponseWriter, r *http.Request, route *Route, _ map[string]string) {
+	if gri.tryForwardSubscriptionUpgrade(w, wrapped, r, route) {
+		return
+	}
 	gri.logger.Info("Handling WebSocket subscribe", "path", r.URL.Path, "handler_nil", gri.subscriptionHandler == nil)
 	if gri.subscriptionHandler == nil {
 		gri.logger.Error("subscriptionHandler is nil!")
@@ -712,7 +733,10 @@ func gatewayHandleSubscribeAll(gri *GatewayRouterIntegration, w http.ResponseWri
 	gri.subscriptionHandler.HandleSubscribeAll(wrapped, r)
 }
 
-func gatewayHandleSubscribeChain(gri *GatewayRouterIntegration, w http.ResponseWriter, _ http.ResponseWriter, r *http.Request, _ *Route, params map[string]string) {
+func gatewayHandleSubscribeChain(gri *GatewayRouterIntegration, w http.ResponseWriter, wrapped http.ResponseWriter, r *http.Request, route *Route, params map[string]string) {
+	if gri.tryForwardSubscriptionUpgrade(w, wrapped, r, route) {
+		return
+	}
 	chainID := ""
 	if params != nil {
 		chainID = params["chainId"]
@@ -725,7 +749,10 @@ func gatewayHandleSubscribeChain(gri *GatewayRouterIntegration, w http.ResponseW
 	gri.subscriptionHandler.HandleSubscribeChain(w, r, chainID)
 }
 
-func gatewayHandleSubscribeContract(gri *GatewayRouterIntegration, w http.ResponseWriter, _ http.ResponseWriter, r *http.Request, _ *Route, params map[string]string) {
+func gatewayHandleSubscribeContract(gri *GatewayRouterIntegration, w http.ResponseWriter, wrapped http.ResponseWriter, r *http.Request, route *Route, params map[string]string) {
+	if gri.tryForwardSubscriptionUpgrade(w, wrapped, r, route) {
+		return
+	}
 	address := ""
 	if params != nil {
 		address = params["address"]
@@ -737,7 +764,10 @@ func gatewayHandleSubscribeContract(gri *GatewayRouterIntegration, w http.Respon
 	gri.subscriptionHandler.HandleSubscribeContract(w, r, address)
 }
 
-func gatewayHandleSubscribeName(gri *GatewayRouterIntegration, w http.ResponseWriter, _ http.ResponseWriter, r *http.Request, _ *Route, params map[string]string) {
+func gatewayHandleSubscribeName(gri *GatewayRouterIntegration, w http.ResponseWriter, wrapped http.ResponseWriter, r *http.Request, route *Route, params map[string]string) {
+	if gri.tryForwardSubscriptionUpgrade(w, wrapped, r, route) {
+		return
+	}
 	eventName := ""
 	if params != nil {
 		eventName = params["eventName"]
