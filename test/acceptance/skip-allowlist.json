@@ -77,6 +77,7 @@
     "github.com/rtcdance/chainpulse/test/acceptance::TestDeployedDualChainFaultIsolation",
     "github.com/rtcdance/chainpulse/test/acceptance::TestDeployedDualChainModesMatchRPCOracle",
     "github.com/rtcdance/chainpulse/test/acceptance::TestDeployedPullerKafkaAndAtomicProcessor",
+    "github.com/rtcdance/chainpulse/test/acceptance::TestDeployedReleaseRollback",
     "github.com/rtcdance/chainpulse/test/acceptance::TestDeployedReorgCanonicalDigestAndRestart",
     "github.com/rtcdance/chainpulse/test/acceptance::TestKafkaRedeliveryKeepsEffectSingle",
     "github.com/rtcdance/chainpulse/test/e2e::TestBlockchainManager_Initialize",
@@ -851,6 +852,15 @@
       "owner": "delivery-plan T11/T12",
       "measured_skip_message": "set CHAINPULSE_RUN_DEPLOYED_BLOCKS=1 with isolated native targets",
       "expires": "2026-11-16"
+    },
+    "github.com/rtcdance/chainpulse/test/acceptance::TestDeployedReleaseRollback": {
+      "category": "dependency_gated",
+      "lane": "contracts",
+      "scenario": "E15",
+      "why": "The contracts job provisions no isolated deployment target, no previous release source and no Docker daemon, so this scenario cannot run there. The release-candidate workflow rebuilds the previous release from CHAINPULSE_DEPLOYED_ROLLBACK_PREV_REF and executes the case without skips; its required manifest rejects a skip even when classified here.",
+      "owner": "delivery-plan T15",
+      "measured_skip_message": "set CHAINPULSE_RUN_DEPLOYED_ROLLBACK=1 with isolated deployed targets",
+      "expires": "2026-11-18"
     }
   }
 }

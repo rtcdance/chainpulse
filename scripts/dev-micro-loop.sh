@@ -130,7 +130,11 @@ else
 fi
 
 echo "[micro-loop] step 3: go vet"
-if [[ "$MODE" == "full" || -z "$changed_go_files" ]]; then
+if [[ -z "$changed_pkgs" ]]; then
+  # The only changed .go files live in an integration-only directory, so there is
+  # no package to analyse; `go vet` with no arguments fails instead of no-opping.
+  echo "[micro-loop] no analyzable packages for vet (integration-only changes); relying on the full gate"
+elif [[ "$MODE" == "full" || -z "$changed_go_files" ]]; then
   if [[ "$MODE" == "full" ]]; then
     go vet $changed_pkgs
   else
@@ -141,7 +145,9 @@ else
 fi
 
 echo "[micro-loop] step 4: staticcheck"
-if [[ "$MODE" == "full" || -z "$changed_go_files" ]]; then
+if [[ -z "$changed_pkgs" ]]; then
+  echo "[micro-loop] no analyzable packages for staticcheck (integration-only changes); relying on the full gate"
+elif [[ "$MODE" == "full" || -z "$changed_go_files" ]]; then
   if [[ "$MODE" == "full" ]]; then
     staticcheck_bin="${STATICCHECK_BIN:-staticcheck}"
     need_cmd "$staticcheck_bin"
@@ -203,9 +209,18 @@ if [[ "$MODE" == "full" ]]; then
   fi
   : "${CHAINPULSE_DUAL_MONO_DATABASE_URL:?full gate requires isolated dual-chain monolithic DB}"
   : "${CHAINPULSE_DUAL_MICRO_DATABASE_URL:?full gate requires isolated dual-chain microservices DB}"
+  if [[ "${CHAINPULSE_RUN_DEPLOYED_ROLLBACK:-}" != "1" ]]; then
+    echo "full gate requires CHAINPULSE_RUN_DEPLOYED_ROLLBACK=1 with an isolated deployment target, a previous release revision and a Docker daemon"
+    exit 1
+  fi
+  : "${CHAINPULSE_DEPLOYED_ROLLBACK_DATABASE_URL:?full gate requires an isolated database where CREATE DATABASE is allowed}"
+  : "${CHAINPULSE_DEPLOYED_ROLLBACK_RPC_URL:?full gate requires an isolated Anvil RPC endpoint}"
+  : "${CHAINPULSE_DEPLOYED_ROLLBACK_EMITTER:?full gate requires the deployed emitter address}"
+  : "${CHAINPULSE_DEPLOYED_ROLLBACK_PREV_REF:?full gate requires the previous release revision the rollback returns to}"
+  export CHAINPULSE_ACCEPTANCE_OUTPUT="${CHAINPULSE_ACCEPTANCE_OUTPUT:-$evidence_dir}"
   export CHAINPULSE_RUN_POSTGRES_INTEGRATION=1 CHAINPULSE_RUN_REDIS_INTEGRATION=1 CHAINPULSE_RUN_KAFKA_INTEGRATION=1
   go test -json -race -p 1 -parallel 1 -tags=integration ./test/contracts ./test/acceptance \
-    -count=1 -timeout=10m > "$evidence_dir/contracts.jsonl"
+    -count=1 -timeout=20m > "$evidence_dir/contracts.jsonl"
   python3 scripts/acceptance/verify-tests.py --jsonl "$evidence_dir/contracts.jsonl" \
     --min-tests 1 --fail-on-unknown-skip --required-cases test/acceptance/required-cases.json \
     --required-lane contracts --required-lane e2e --required-lane evm-e2e --report "$evidence_dir/contracts-report.json"
@@ -223,6 +238,19 @@ if [[ "$MODE" == "full" ]]; then
   done
   python3 scripts/acceptance/openapi-drift.py --report "$evidence_dir/openapi-report.json"
   python3 scripts/acceptance/negative-cases.py --json "$evidence_dir/negative-controls.json"
+
+  echo "[micro-loop] step 11: release-candidate rollback (E15)"
+  # E15 owns the release-candidate lane and needs a previous release rebuilt from
+  # its own revision plus a Docker daemon, so it gets an explicit step instead of
+  # riding along in step 8's contracts/e2e slice. The verifier enforces the
+  # scenario by name: a skip here is a failure, so a dependency-gated run cannot
+  # pass quietly.
+  go test -json -tags=integration -run '^TestDeployedReleaseRollback$' ./test/acceptance \
+    -count=1 -timeout=25m > "$evidence_dir/rollback.jsonl"
+  python3 scripts/acceptance/verify-tests.py --jsonl "$evidence_dir/rollback.jsonl" \
+    --min-tests 1 --fail-on-unknown-skip --skip-allowlist test/acceptance/skip-allowlist.json \
+    --required-cases test/acceptance/required-cases.json --require-scenario E15 \
+    --report "$evidence_dir/rollback-report.json"
 
 fi
 

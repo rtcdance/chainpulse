@@ -176,8 +176,10 @@
       "id": "E15",
       "lane": "release-candidate",
       "summary": "deploy/rollback: bad image/config, prior digest restore",
-      "tests": [],
-      "pending": "needs a deployment target"
+      "tests": [
+        "TestDeployedReleaseRollback"
+      ],
+      "note": "The previous release is rebuilt from CHAINPULSE_DEPLOYED_ROLLBACK_PREV_REF and the current tree from HEAD, and both run as native processes against isolated PostgreSQL: the previous release indexes an emitted block on its own schema, five fail-closed probes (invalid API_PORT, RPC chain id mismatch on schema 20+, a schema below 20, a dirty migration ledger, a corrupt image) each exit non-zero with the exact message and never print Status: Running, the 16->21 expand lands the main database on 21, the current release indexes further, and rolling back to the previous release on the expanded schema serves /health and the events API with a byte-identical canonical digest. Local dirty-tree evidence is not final same-SHA remote CI."
     },
     {
       "id": "E07",

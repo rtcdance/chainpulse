@@ -72,6 +72,29 @@ jobs:
       - name: Vet
         run: go vet ./...
 
+      # T15 / §10 DoD: AGENTS.md makes updating docs/project/DEPENDENCY_APPROVAL.md
+      # mandatory when a dependency manifest changes. Until this step existed the
+      # gate ran only inside scripts/dev-micro-loop.sh's self-test loop, which
+      # meant CI never consumed it and the obligation was unenforced.
+      - name: Dependency approval gate (T15)
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          set -euo pipefail
+          python3 scripts/acceptance/dep-approval-gate.py --self-test
+          base="${BASE_SHA}"
+          if [ -z "$base" ] || [[ "$base" =~ ^0+$ ]]; then
+            # workflow_dispatch and a first push have no usable "before"; the
+            # meaningful comparison is against the default branch.
+            git fetch --depth=1 origin master
+            base="FETCH_HEAD"
+          else
+            # The repository is large (packed history is ~221 MiB), so fetch just
+            # the base commit rather than the whole history.
+            git fetch --depth=1 origin "$base"
+          fi
+          python3 scripts/acceptance/dep-approval-gate.py --base "$base" --head HEAD
+
       - name: Query load measurement regression controls
         run: python3 -m unittest discover -s scripts/bench -p 'query*_test.py' -v
 

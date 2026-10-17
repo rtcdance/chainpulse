@@ -36,7 +36,8 @@ them as failures.
 Usage
 -----
   verify-tests.py --jsonl unit.jsonl --jsonl integration.jsonl \
-      [--required-cases manifest.json] [--required-lane LANE] [--min-tests N] \
+      [--required-cases manifest.json] [--required-lane LANE] \
+      [--require-scenario ID] [--min-tests N] \
       [--fail-on-unknown-skip] [--report report.json]
 
   verify-tests.py --self-test
@@ -57,6 +58,15 @@ same job. `--required-lane` (repeatable) enforces only the scenarios whose lane
 matches, so each job can check its own slice against the JSONL it produced
 without having to run every other job's tests. Passing no lane enforces all of
 them.
+
+`--require-scenario` (repeatable) is the scenario-level equivalent, for the case
+where a lane contains scenarios that are not yet executable: enforcing the whole
+lane would then fail on a scenario that is honestly recorded as pending, while
+enforcing nothing would let the lane pass without running anything. Naming the
+scenarios is the only option that fails closed both ways. An id that is not in
+the manifest is a usage error (exit 2). A selection that resolves to zero
+scenarios - because the id is absent, or because the lane filter dropped it - is
+a FAILURE, never a silent pass.
 
 Exit codes
 ----------
@@ -182,25 +192,76 @@ def _ingest(event: dict[str, Any], report: Report) -> None:
 # --------------------------------------------------------------------------- #
 # Verification
 # --------------------------------------------------------------------------- #
-def load_required_cases(path: Path, lanes: set[str] | None = None) -> dict[str, list[str]]:
-    """Load the scenario -> test-name map, optionally filtered to some lanes.
+def load_required_cases(
+    path: Path,
+    lanes: set[str] | None = None,
+    scenarios: set[str] | None = None,
+) -> dict[str, list[str]]:
+    """Load the scenario -> test-name map, optionally filtered.
 
     The manifest carries a `lane` per scenario because its tests do not all run in
     the same job: the unit scenarios live in pkg/, the contracts ones in
     test/contracts and test/acceptance. Filtering lets each job enforce its own
     slice against the JSONL it actually produced, instead of the manifest being a
     document nothing reads.
+
+    `scenarios` narrows the same map to named scenario ids. It is applied on top
+    of the lane filter, so requesting an id the lane filter removed yields nothing
+    rather than an exception; callers are expected to treat that as a failure
+    (see resolve_required_cases) instead of quietly checking less.
     """
     data = json.loads(path.read_text(encoding="utf-8"))
     out: dict[str, list[str]] = {}
     for scenario in data.get("scenarios", []):
         if lanes and scenario.get("lane") not in lanes:
             continue
+        if scenarios is not None and scenario.get("id") not in scenarios:
+            continue
         names = out.setdefault(scenario["id"], [])
         for name in scenario.get("tests", []):
             if name not in names:
                 names.append(name)
     return out
+
+
+def scenario_ids(path: Path) -> set[str]:
+    """Every scenario id the manifest declares, ignoring lane and test content."""
+    data = json.loads(path.read_text(encoding="utf-8"))
+    return {scenario["id"] for scenario in data.get("scenarios", [])}
+
+
+def resolve_required_cases(
+    path: Path,
+    lanes: set[str] | None,
+    scenarios: set[str] | None,
+) -> tuple[dict[str, list[str]], list[str], list[str]]:
+    """Resolve the enforced scenarios, failing closed on a bad selection.
+
+    Returns (required, unknown_ids, failures). `unknown_ids` is a usage error the
+    caller turns into exit 2; `failures` are verification failures. Both exist so
+    "I named a scenario that does not exist" and "my selection checked nothing"
+    can never be mistaken for a pass.
+    """
+    requested = set(scenarios or [])
+    unknown = sorted(requested - scenario_ids(path))
+    if unknown:
+        return {}, unknown, []
+
+    required = load_required_cases(path, lanes, requested or None)
+    if not requested:
+        return required, [], []
+
+    if not required:
+        return {}, [], [
+            "--require-scenario resolved to zero scenarios: refusing to pass vacuously"
+        ]
+    dropped = sorted(requested - set(required))
+    failures = []
+    if dropped:
+        failures.append(
+            f"--require-scenario {dropped!r} matched no scenario in the selected lanes"
+        )
+    return required, [], failures
 
 
 def load_skip_allowlist(path: Path) -> set[str]:
@@ -547,6 +608,45 @@ def self_test() -> int:
         ok = False
         print(f"[FAIL] self-test: unfiltered returned {sorted(unfiltered)}")
 
+    # Scenario selection. A lane can honestly contain scenarios that are not yet
+    # executable, so enforcing the lane would fail on recorded-pending work while
+    # enforcing nothing would pass without running anything. Naming the scenarios
+    # has to work, and both ways of getting it wrong have to fail loudly.
+    selected, unknown, failures = resolve_required_cases(manifest_path, None, {"C1"})
+    if selected == {"C1": ["TestContract"]} and not unknown and not failures:
+        print("[PASS] self-test: --require-scenario keeps only the requested scenario")
+    else:
+        ok = False
+        print(f"[FAIL] self-test: scenario selection returned {selected} unknown={unknown} failures={failures}")
+
+    selected, unknown, failures = resolve_required_cases(manifest_path, None, {"C1", "U1"})
+    if sorted(selected) == ["C1", "U1"] and not unknown and not failures:
+        print("[PASS] self-test: --require-scenario is repeatable")
+    else:
+        ok = False
+        print(f"[FAIL] self-test: repeated scenario selection returned {sorted(selected)}")
+
+    _, unknown, _ = resolve_required_cases(manifest_path, None, {"E99"})
+    if unknown == ["E99"]:
+        print("[PASS] self-test: --require-scenario reports an unknown scenario as a usage error")
+    else:
+        ok = False
+        print(f"[FAIL] self-test: unknown scenario was not reported: {unknown}")
+
+    selected, unknown, failures = resolve_required_cases(manifest_path, {"unit"}, {"C1"})
+    if not selected and not unknown and any("zero scenarios" in f for f in failures):
+        print("[PASS] self-test: a scenario the lane filter removed is a failure, not a silent pass")
+    else:
+        ok = False
+        print(f"[FAIL] self-test: lane-filtered scenario selection passed silently: {selected} {failures}")
+
+    selected, unknown, failures = resolve_required_cases(manifest_path, {"unit", "contracts"}, {"C1", "E1"})
+    if selected == {"C1": ["TestContract"]} and not unknown and any("matched no scenario" in f for f in failures):
+        print("[PASS] self-test: a partially dropped selection names the dropped scenario")
+    else:
+        ok = False
+        print(f"[FAIL] self-test: partial scenario selection not reported: {selected} {failures}")
+
     # Skip allow-list: a declared skip passes, an undeclared one fails. Without
     # this distinction the flag's own message ("not allow-listed") is a promise
     # the tool does not keep.
@@ -589,6 +689,14 @@ def main(argv: list[str] | None = None) -> int:
         default=[],
         help='only enforce manifest scenarios whose "lane" matches; repeatable',
     )
+    parser.add_argument(
+        "--require-scenario",
+        action="append",
+        default=[],
+        help="only enforce the named scenario ids; repeatable. An unknown id is a "
+        "usage error (exit 2); a selection that resolves to nothing fails rather "
+        "than passing vacuously",
+    )
     parser.add_argument("--min-tests", type=int)
     parser.add_argument("--require-package", action="append", default=[])
     parser.add_argument("--fail-on-unknown-skip", action="store_true")
@@ -607,16 +715,28 @@ def main(argv: list[str] | None = None) -> int:
     if not args.jsonl:
         parser.error("at least one --jsonl is required (or use --self-test)")
 
+    if args.require_scenario and not args.required_cases:
+        parser.error("--require-scenario requires --required-cases")
+
     report = Report()
     parse_jsonl(args.jsonl, report)
 
-    required = (
-        load_required_cases(args.required_cases, set(args.required_lane) or None)
-        if args.required_cases
-        else {}
-    )
+    required: dict[str, list[str]] = {}
+    selection_failures: list[str] = []
+    if args.required_cases:
+        required, unknown, selection_failures = resolve_required_cases(
+            args.required_cases,
+            set(args.required_lane) or None,
+            set(args.require_scenario) or None,
+        )
+        if unknown:
+            print(
+                f"✗ --require-scenario names unknown scenario(s): {unknown}",
+                file=sys.stderr,
+            )
+            return 2
     allowlist = load_skip_allowlist(args.skip_allowlist) if args.skip_allowlist else set()
-    failures = verify(
+    failures = selection_failures + verify(
         report,
         required,
         args.min_tests,

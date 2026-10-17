@@ -78,7 +78,7 @@ jobs:
         run: |
           go mod download
           go mod verify
-          go install github.com/wadey/gocovmerge@latest || true
+          go install github.com/wadey/gocovmerge@b5bfa59ec0adc420475f97f89b58045c721d761c || true
       
       - name: Run tests with coverage
         env:

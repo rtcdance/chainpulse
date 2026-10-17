@@ -145,6 +145,38 @@ REQUIRED_CASES_MISSING = json.dumps(
     {"scenarios": [{"id": "E01", "tests": ["TestNeverRuns"]}]}
 )
 
+# A lane can honestly contain scenarios that are not yet executable, so a job
+# enforces its own slice with --require-scenario. Both ways of getting that
+# selection wrong have to be red: naming an id that does not exist, and naming a
+# scenario whose test skipped.
+SCENARIO_CASES = json.dumps(
+    {
+        "scenarios": [
+            {
+                "id": "E15",
+                "lane": "release-candidate",
+                "tests": ["TestDeployedReleaseRollback"],
+            }
+        ]
+    }
+)
+
+SCENARIO_PASS_JSONL = "\n".join(
+    [
+        '{"Action":"run","Package":"p/acceptance","Test":"TestDeployedReleaseRollback"}',
+        '{"Action":"pass","Package":"p/acceptance","Test":"TestDeployedReleaseRollback","Elapsed":0.01}',
+        '{"Action":"pass","Package":"p/acceptance","Elapsed":0.02}',
+    ]
+)
+
+SCENARIO_SKIP_JSONL = "\n".join(
+    [
+        '{"Action":"run","Package":"p/acceptance","Test":"TestDeployedReleaseRollback"}',
+        '{"Action":"skip","Package":"p/acceptance","Test":"TestDeployedReleaseRollback"}',
+        '{"Action":"pass","Package":"p/acceptance","Elapsed":0.02}',
+    ]
+)
+
 BENCH_CLEAN = """goos: linux
 goarch: amd64
 BenchmarkDecodeEventDataTransfer-8   	  100000	      1550 ns/op	     904 B/op	       5 allocs/op
@@ -191,6 +223,9 @@ def build_cases(work: Path) -> list[Case]:
         {"id": "E04", "lane": "evm-e2e", "tests": ["TestNativeMissing"]},
         {"id": "E04", "lane": "contracts", "tests": ["TestA"]},
     ]}))
+    rc_scenario = w("required_scenario.json", SCENARIO_CASES)
+    scenario_pass = w("scenario_pass.jsonl", SCENARIO_PASS_JSONL)
+    scenario_skip = w("scenario_skip.jsonl", SCENARIO_SKIP_JSONL)
 
 
     bench_clean = w("bench_clean.txt", BENCH_CLEAN)
@@ -335,6 +370,20 @@ def build_cases(work: Path) -> list[Case]:
         Case("duplicate-scenario-lanes-overwritten", "combined lane requirements overwritten by repeated scenario id",
              V, ["--jsonl", clean, "--required-cases", rc_duplicate_lanes,
                  "--required-lane", "contracts", "--required-lane", "evm-e2e"], "fail"),
+        Case("scenario-selection-unknown-id",
+             "scenario gate names a scenario the manifest does not declare",
+             V, ["--jsonl", scenario_pass, "--required-cases", rc_scenario,
+                 "--require-scenario", "E99"], "fail",
+             note="a usage error, never a silent pass"),
+        Case("scenario-selection-required-skip",
+             "a scenario the job named skipped instead of running",
+             V, ["--jsonl", scenario_skip, "--required-cases", rc_scenario,
+                 "--require-scenario", "E15"], "fail",
+             note="the release-candidate lane must go red, not green"),
+        Case("scenario-selection-empty-after-lane-filter",
+             "a scenario dropped by the lane filter would check nothing",
+             V, ["--jsonl", scenario_pass, "--required-cases", rc_scenario,
+                 "--require-scenario", "E15", "--required-lane", "contracts"], "fail"),
         Case("required-skip", "Foundry missing / DB not ready / required skip",
              V, ["--jsonl", req_skip, "--fail-on-unknown-skip"], "fail"),
         # controls
@@ -342,6 +391,9 @@ def build_cases(work: Path) -> list[Case]:
              ["--jsonl", clean, "--min-tests", "1"], "pass"),
         Case("control-required-case-present", "(control)", V,
              ["--jsonl", clean, "--required-cases", rc_ok], "pass"),
+        Case("control-scenario-selection", "(control)", V,
+             ["--jsonl", scenario_pass, "--required-cases", rc_scenario,
+                 "--require-scenario", "E15"], "pass"),
         Case("control-no-test-package", "(control)", V,
              ["--jsonl", no_test_pkg, "--min-tests", "1"], "pass",
              note="a package with no test files must not be a failure"),
