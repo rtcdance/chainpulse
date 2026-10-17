@@ -5,6 +5,8 @@ package contracts
 import (
 	"context"
 	"database/sql"
+	"fmt"
+	"sort"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -14,6 +16,58 @@ import (
 	"github.com/rtcdance/chainpulse/pkg/core"
 	domainquery "github.com/rtcdance/chainpulse/pkg/domain/query"
 )
+
+func TestPostgresOffsetIDsPreserveFilterOrderAndTies(t *testing.T) {
+	t.Parallel()
+	dsn := postgresDSN()
+	if dsn == "" {
+		t.Skip("set PostgreSQL integration gate with isolated endpoint")
+	}
+	ctx := context.Background()
+	const chain = "t14-offset-ids"
+	db := openContractDBForReturn(t, dsn)
+	_, err := db.ExecContext(ctx, `DELETE FROM blockchain_events WHERE chain_id=$1`, chain)
+	require.NoError(t, err)
+	store := newAdapter(t, dsn).WithChainScope(chain)
+	var expected []*blockchain.BlockchainEvent
+	for i := range 32 {
+		e := txTestEvent(chain, uint64(i/8+1))
+		e.TransactionHash = common.HexToHash(fmt.Sprintf("0x%064x", i+1))
+		e.LogIndex = uint64(i % 3)
+		if i%2 == 1 {
+			e.EventName = "Swap"
+		}
+		e.ID = core.ComputeEventHash(e)
+		e.EventHash = e.ID
+		require.NoError(t, store.StoreEvent(ctx, e))
+		if i%2 == 0 {
+			expected = append(expected, e)
+		}
+	}
+	sort.Slice(expected, func(i, j int) bool {
+		a, b := expected[i], expected[j]
+		if a.BlockNumber != b.BlockNumber {
+			return a.BlockNumber > b.BlockNumber
+		}
+		if a.LogIndex != b.LogIndex {
+			return a.LogIndex > b.LogIndex
+		}
+		return a.ID > b.ID
+	})
+	for _, offset := range []int64{1, 5, 15, 16, 100} {
+		page, err := store.QueryDomainEvents(ctx, &domainquery.Request{Filter: map[string]any{"eventName": "Transfer"}, Limit: 4, Offset: offset})
+		require.NoError(t, err)
+		require.EqualValues(t, len(expected), page.Total)
+		start := min(int(offset), len(expected))
+		end := min(start+4, len(expected))
+		require.Len(t, page.Events, end-start)
+		for i, e := range page.Events {
+			require.Equal(t, expected[start+i].ID, e.ID)
+			require.Equal(t, chain, e.ChainID)
+			require.Equal(t, "Transfer", e.EventName)
+		}
+	}
+}
 
 func TestPostgresQueryScopesChainAndExcludesOrphans(t *testing.T) {
 	dsn := postgresDSN()

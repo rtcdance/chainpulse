@@ -3,7 +3,6 @@ package database
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
@@ -66,23 +65,12 @@ func (a *PostgreSQLPluginAdapter) CanonicalEventStats(ctx context.Context) (int6
 	if err != nil {
 		return 0, nil, nil, 0, err
 	}
-	stats, hit := a.cachedStats(ctx, cache, cacheKey, scope)
-	if !hit {
-		stats, err = readCanonicalGroupedStats(ctx, tx, scope)
-		if err != nil {
-			return 0, nil, nil, 0, err
-		}
+	stats, err := a.canonicalStatsFromCache(ctx, tx, cache, cacheKey, scope)
+	if err != nil {
+		return 0, nil, nil, 0, err
 	}
 	if err := tx.Commit(); err != nil {
 		return 0, nil, nil, 0, fmt.Errorf("finish canonical stats snapshot: %w", err)
-	}
-	if !hit && cache != nil {
-		encoded, err := json.Marshal(stats)
-		if err != nil {
-			a.recordAggregateCache("write_error")
-		} else {
-			a.storeAggregate(ctx, cache, cacheKey, encoded)
-		}
 	}
 	return stats.Total, stats.ByChain, stats.ByName, stats.Reorged, nil
 }

@@ -122,6 +122,79 @@ func (a *PostgreSQLPluginAdapter) cachedCount(ctx context.Context, cache Canonic
 	return count, result == "hit"
 }
 
+func (a *PostgreSQLPluginAdapter) canonicalCount(ctx context.Context, tx *sql.Tx, cache CanonicalAggregateCache, key, where string, args []any) (int64, error) {
+	if total, hit := a.cachedCount(ctx, cache, key); hit {
+		return total, nil
+	}
+	payload, err := a.aggregateFlights.read(ctx, key, func() ([]byte, error) {
+		// Another owner may have populated Redis after our initial lookup.
+		if cache != nil {
+			if total, hit := a.cachedCount(ctx, cache, key); hit {
+				return []byte(strconv.FormatInt(total, 10)), nil
+			}
+		}
+		a.recordAggregateOrigin("count")
+		var total int64
+		if err := tx.QueryRowContext(ctx, "SELECT count(*) FROM blockchain_events WHERE "+where, args...).Scan(&total); err != nil {
+			return nil, fmt.Errorf("count canonical events: %w", err)
+		}
+		// This transaction is read-only and the key binds the exact revision.
+		// Later page/proof failure cannot change the validity of this count.
+		a.storeCount(ctx, cache, key, total)
+		return []byte(strconv.FormatInt(total, 10)), nil
+	})
+	if err != nil {
+		return 0, err
+	}
+	total, err := strconv.ParseInt(string(payload), 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("decode shared canonical count: %w", err)
+	}
+	return total, nil
+}
+
+func (a *PostgreSQLPluginAdapter) canonicalStatsFromCache(ctx context.Context, tx *sql.Tx, cache CanonicalAggregateCache, key string, scope []string) (canonicalStats, error) {
+	if stats, hit := a.cachedStats(ctx, cache, key, scope); hit {
+		return stats, nil
+	}
+	payload, err := a.aggregateFlights.read(ctx, key, func() ([]byte, error) {
+		stats, hit := a.cachedStats(ctx, cache, key, scope)
+		if !hit {
+			a.recordAggregateOrigin("dashboard")
+			var err error
+			stats, err = readCanonicalGroupedStats(ctx, tx, scope)
+			if err != nil {
+				return nil, err
+			}
+		}
+		payload, err := json.Marshal(stats)
+		if err != nil {
+			return nil, fmt.Errorf("encode canonical aggregate: %w", err)
+		}
+		if !hit {
+			a.storeAggregate(ctx, cache, key, payload)
+		}
+		return payload, nil
+	})
+	if err != nil {
+		return canonicalStats{}, err
+	}
+	var stats canonicalStats
+	if err := json.Unmarshal(payload, &stats); err != nil {
+		return stats, fmt.Errorf("decode shared canonical aggregate: %w", err)
+	}
+	if !stats.valid(scope) {
+		return stats, fmt.Errorf("shared canonical aggregate is inconsistent")
+	}
+	return stats, nil
+}
+
+func (a *PostgreSQLPluginAdapter) recordAggregateOrigin(operation string) {
+	if a.metricsCollector != nil {
+		a.metricsCollector.RecordCounter("canonical_aggregate_origin_read", 1, map[string]string{"operation": operation})
+	}
+}
+
 func (a *PostgreSQLPluginAdapter) storeCount(ctx context.Context, cache CanonicalAggregateCache, key string, count int64) {
 	a.storeAggregate(ctx, cache, key, []byte(strconv.FormatInt(count, 10)))
 }

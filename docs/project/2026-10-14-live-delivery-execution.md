@@ -317,3 +317,50 @@ SQL诊断保留：offset宽行67.7ms，先ID再回表28.5ms；contract宽行本�
 当前缓存候选的标准DoD与18项工具控制均exit0；lint0issues。完整计数/统计真实合同另经100轮race：300pass/0fail/0skip。真实API schema19启动负控另经100轮race：100pass/0fail/0skip，100个独立数据库均正常清理，100份唯一进程工件保留。该结果没有把30秒负载FAIL改成PASS。后续需带对照验证冷启动重复聚合、按完整600秒/soak合同复测。
 
 CI接线核对另补：evm-e2e选择正则由4个顶层进程case扩大到5个，明确包含schema19启动拒绝，min-tests同步5。contracts lane没有部署二进制时该新增case实测1个dependency-gated skip，逐项分类并给出到期日；单独manifest反控确认即使该skip已分类，required evm-e2e仍明确拒绝“was SKIPPED (required skips must be 0)”，不是放宽必需case。原始skip流与反控报告已保留。
+
+## 2026-10-16：T14 六次 attempt 的查询/积压验收全过程
+
+T14 固定语料与 250eps/600s 摄取在 attempt 2 已 PASS（ingest_result.json 保留）。查询与积压 phase 之后经历六次 attempt，全部原始证据按 attempt1…attempt6 目录保留，失败工件一律未删除：
+
+- **attempt 1**（查询失败）：t14_stack.sh 的 Kafka topic 只开 3 分区，fnv1a("31337")%3 == fnv1a("31338")%3 == 2，两条 fixture 链全部落到同一分区，单 worker 串行消费。改为 4 分区（31337->0、31338->1）并在 t14_stack.sh 注释里记录该分区契约（partition_contract.go F28）。
+- **attempt 3**（诊断）：串行慢查询（log_min_duration_statement=100）暴露 page 查询在 lib/pq 预处理语句下走 147MB external merge 排序，而 psql 字面量 EXPLAIN 为 6.6ms 无 Sort——通用计划（custom→generic）切换放大了链别名展开的缺陷。
+- **attempt 4**（查询+积压 FAIL，三层根因）：① harness 5s 客户端超时在 handler 30s 预算内砍断在途请求（1267 次 context canceled），连续 5 次失败打开网关熔断（5/30s），后续 50804 个请求瞬时 502；② `sem.acquire()` 阻塞在派发循环内，60000 个请求用了 4105s 而非 600s，rate 门被“通过”；③ 产品侧 `chain_id IN ('31337','31337','31337')`（event_query_handler.go 链别名展开三值全相同）使 PG 拒绝 idx_events_canonical_chain_page 有序索引扫描，全量 Index Only Scan 123675 行 + Disk=147424kB 排序 = 762ms，而单值等式 6.6ms。积压 FAIL 判据也根因明确：resume 过渡样本（16150）仍在增长，旧判据拿它对 paused peak（15100）+550 比较必然失败。
+- **attempt 5**（积压 4/4 PASS，查询延迟 FAIL）：修复后 rate/error/correctness 全 PASS（dispatch 599.99s、错误 0.025%、正确性 0），但 100req/s 冷路径稳态完成能力只有约 50rps：service p50 411ms（contract 1385ms、stats 911ms），queue_wait p50 311s，p95=585992ms。RSS 峰值 617MB<1GiB。这轮诚实判定为 FAIL，未移动任何门槛。
+- **attempt 6**（查询 4/4 PASS + 积压 4/4 PASS）：数据库侧 revision 绑定的聚合缓存（schema 000020 canonical_query_revisions + Redis canonical-aggregate）接线后，60000/60000 请求全部 200：P95=33.73ms（门槛100）、P99=97.39ms（门槛250）、错误率 0%、correctness 0；queue_wait p50=0.04ms 说明队列不积压。积压 4/4：峰值 14500、恢复后 64s 内清零（门槛120s）、输入全程未停、转移样本之后单调收缩。RSS 四进程峰值 112MB。attempt6/rpc_cost_result.json 记录 RPC 成本：两链 71,530 次调用、291MB、429=0、5xx=0，每 10,000 块 57,741 次调用、每 1,000 事件 230.9 次调用；anvil 无定价，USD 标 unknown（§8 禁止杜撰统一单价）。
+
+冷热缓存分别报告（cache_cold_hot.json）：stats 冷 446.3ms → 热 3.4–4.9ms（Redis revision 缓存）；list 无响应缓存冷热同源（38.5 → 8–16ms，属 buffer 热度差异）；contract 首次 1040ms、随后 8–12ms。产品 HTTP CacheMiddleware 仍未接线（health 仍报 cache-plugin-not-wired），本项按"冷热缓存分别报告"以实测冷/热数值交付，不虚报接线状态。
+
+伴随修复：postgres_domain_query.go `$in` 分支对绑定值去重（重复 IN 值不再摧毁有序索引扫描，注释里记录 762ms→6.6ms 实测）；迁移 000019（canonical contract 部分索引，contract count 400ms→118ms）与 000020；t14_query.py 超时 5s→10s + 队列化派发（dispatch_seconds 门）；t14_backlog.py 峰值取 resume 瞬间、转移样本之后才要求单调收缩。
+
+30min soak：soak-check.sh 断言生产安全姿态，栈原先关闭 auth/rate-limit 导致 sample 1 即失败；已为栈启用 auth+rate-limit（上限 600 万/分钟，不整形 §8 负载）并让 harness 带 X-API-Key。期间发现 event-processor 的 durable 路径 /runtime/summary 返回 "microservices"/"durable-block-v1"，与 rollout_report_parity.go 及其余服务的 canonical 值（core.DeploymentModeMicroservice="microservice"/"runtime-wired"）不一致、也与 soak 契约不符，已修正为 canonical 值（gofmt/build/vet 通过）。
+
+## 2026-10-16：metrics 导出修复与 30min soak 两次 attempt
+
+**metrics 修复**：soak 期间发现四服务 /metrics 缺 histogram/go_goroutines/go_memstats（soak 资源证据依赖 go_memstats_alloc_bytes）。根因是 MetricLabelGuard 未实现 core.PrometheusMetricsExporter 接口，core.ExportMetricsPrometheus 走 fallback 分支。修复：pkg/observability/metric_labels.go 增加 ExportPrometheus() 委托 core.ExportMetricsPrometheus(g.inner)。修复前后对照证据存 metrics-before/*.txt 与 metrics-after/*.txt：gateway 由 1835B（go_goroutines=0 go_memstats=0 buckets=0）变为 4414B（go_goroutines=1 go_memstats=2 buckets=22，go_memstats_alloc_bytes=2383240）。注意 /metrics 需带 X-API-Key（栈开 auth，401 属预期）。修复后四部署二进制于 21:42 重建（不带 -race）、21:43 重启 T14 栈（RUN_ID=1792158178）。采样器 t14_resource.py 同步增加 goroutines/heap_alloc/heap_sys 采样（含 scrape 容错，单点失败不中断 RSS 序列）。
+
+**attempt7（FAIL，完整归档 soak30-attempt7-fail/）**：soak-check 30/30 通过、correctness 0，但查询门 P99=876.61ms > 250ms，诚实判 FAIL，门槛未移动。诊断：两个整机 stall 窗口（offset 511–541s、971–1081s），842 条 >1s 请求中 793 条集中在 1 分钟；排除窗口后 p95=29.8ms p99=74.4ms；gateway 无 ERROR；PG 日志在 13:59:55→14:00:05 有 10s 断口；资源采样器自身在同窗口卡 12.3s/14.6s（名义 5s）；`log show` 证实两窗口均有 jetsam memorystatus killing（第二窗 174 条），swap 8.3/9.2GB。结论为 host 级内存压力 stall（macOS 本机非 §8 参考环境），非产品缺陷，按 FAIL 归档后轮转压缩 54MB 日志重跑。
+
+**attempt8（PASS，归档 soak30/）**：supervisor 用 Python double-fork + setsid 脱离 job teardown（macOS 无 setsid），同窗执行 30min soak-check（DURATION_SECONDS=1800）+ t14_query.py --rate 50 --duration 1800（90000 请求）。窗口 2026-10-16T14:54:45Z→15:24:55Z，soak_rc=0 query_rc=0，Soak check passed 30/30。查询 4/4：90000/90000 全 200，P95=30.1ms（门槛100）、P99=62.17ms（门槛250）、错误率 0%（门槛0.1%）、correctness 0。资源（234 个 5s 采样）：四进程总 RSS 峰值 126.9MB ≤ 1GiB；heap_alloc 斜率 -0.013MiB/min、末段/首段比 1.005 < 1.25 → 30min 结束 GC 后 heap 不持续增长；goroutines 67–102 稳定。verdict 全绿见 soak_verdict.json（all_ok=true）。attempt7 的失败证据（含 jetsam 日志）保留在 soak30-attempt7-fail/ 未删除；修复前旧 soak 产物保留在 soak30-pre-metrics-fix/。
+
+本轮 metric_labels.go 变更后 DoD 五门禁重跑全部通过：go build ./... exit 0；make check（vet+gofumpt）exit 0 "All checks passed"；make lint exit 0 "0 issues"；make test-short exit 0（66 ok / 0 FAIL）；git diff --stat 仅含工作区既有 dirty 文件（201 files，无计划外新增）。
+
+
+## 2026-10-17：验收范围复核与冷启动配对诊断（进行中）
+
+远端候选9cd933e1897d76217b25fc6b184046adfd1d0d85的11个required checks及acceptance-gate已重新读取为success；active ruleset25154687可读取。PR实际merge SHA为29e91762fe095fcbdb2ea67556c64d1d3753cc92，这些结果不替代最终tag SHA验收。
+
+复核上一节的证据范围：attempt6确为600s/100rps的延迟/状态码样本，但mix没有range、correctness只检查响应形状。soak30确有1800s/50rps和30次soak-check，尚未证明末尾显式GC，也没有独立RPC canonical oracle。因此上一节“PASS”和“GC后”只保留作当轮harness结论，不能据此将完整E14标Verified。required-cases中PerformanceManager的10项测试只证明测量/判定工具；已明确另列pending release-candidate E14，禁止将工具单测视为实际负载验收。全部失败工件保留。
+
+查询聚合增加最多16个同修订in-flight键、inline owner、取消/异常清理和一次共享取消重试，测试使用synctest/barrier。aggregate-flight-unit-all-race100：800pass/0fail/0skip；aggregate-flight-concurrent-contract-race100-v2：300pass/0fail/0skip；aggregate-flight-contracts-race100：300pass/0fail/0skip。它们是dirty工作树证明，尚未提交候选。真实分页排序/过滤/尾部合同offset-ids-contract-race100-v2：100pass/0fail/0skip；首次测试uint/uint64编译失败原始JSONL保留。
+
+独立端口24084/24085、RedisDB14配对诊断，不重启或修改既有T14四服务。race构建v3两组都失败；普通构建v4 baseline：510error、P95 2958.69ms/P99 4735.51ms；coalesced：317error、P95 2198.52ms/P99 3985.98ms，全部FAIL。每组30s/100rps/3000条终态，全部成功响应精确PG snapshot校验无错误，前后revision一致；PG oracle不等于独立RPC truth。这些失败不能裁掉冷启动窗口；也不冒充600秒正式验收。正在以offset IDs后回表方案继续配对；不放宽门槛、不新增索引。
+
+
+冷启动v5普通构建配对仍FAIL：baseline645错误、P95 3215.49ms/P99 6060.79ms；offset+coalescing414错误、P95 2528.67ms/P99 4587.18ms。全部成功响应精确PG oracle错误0，原始3000条请求及快照/metrics/GC/退出码完整保留。数据库EXPLAIN证明contract count旧索引为heap Index Scan，154825行/31306 buffers约617.93ms；事务内count-only覆盖索引约61.99ms，但会引入页面排序风险，未采用；带完整block/log/id顺序的覆盖索引count为Index Only Scan约132.24ms，page约0.11ms，实测65MiB。两次实验均ROLLBACK，无诊断索引残留。
+
+新增migration21仅增加该覆盖索引，保留18/19/20，事务内lock_timeout3s/statement_timeout5min；上/下迁移需维护窗口，写阻塞与空间要求已写入批准spec。先写测试RED（没有migration21真实失败），再实现；contract-cover-migration-race100：100pass/0fail/0skip，20→21→20两轮且全部event/revision/epoch摘要一致。fast candidate gate通过。18项查询工具控制首次因沙箱禁止本地HTTP监听失败，使用允许本地socket的环境重跑18/18通过，失败日志保留。
+
+
+隔离候选工作树本轮完整micro-loop（full-cold-query-v1）exit0：真实PG/Redis/Kafka/故障/双部署/双链/raw RPC摘要/finality/cache共149pass actions、67顶层、0fail/0skip；migration12pass actions、7顶层、0fail/0skip；指标合同14/14、查询工具18/18、门禁反控31/31。full unit历史skip实际71项，未将其记为0，也不将非-v test-short不显示SKIP当作没有跳过。顺序DoD build/check/lint/test-short/diff-stat均exit0，lint0issues；原始日志在candidate-cold-query-local-gates。候选变更仅显式copy清单，包含新文件的范围另由git status/staged stat核对，未使用只含tracked文件的diff-stat隐瞒新文件。既有四服务T14栈和4个stash均保留。
+
+独占chainpulse_t14性能库已通过真实migrate up到clean21（version21/dirty=false），新索引indisvalid/indisready=true，65MiB。当前继续同seed/rate/冷Redis范围诊断，不将新索引SQL实验或数据库升级本身视为§8性能通过；完整E14、原生订阅桥、CD/真实digest回滚及最终封版仍待完成。

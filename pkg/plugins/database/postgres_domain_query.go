@@ -64,11 +64,9 @@ func (a *PostgreSQLPluginAdapter) QueryDomainEvents(ctx context.Context, req *do
 	if err != nil {
 		return nil, err
 	}
-	total, countHit := a.cachedCount(ctx, cache, cacheKey)
-	if !countHit {
-		if err := tx.QueryRowContext(ctx, "SELECT count(*) FROM blockchain_events WHERE "+where, args...).Scan(&total); err != nil {
-			return nil, fmt.Errorf("count canonical events: %w", err)
-		}
+	total, err := a.canonicalCount(ctx, tx, cache, cacheKey, where, args)
+	if err != nil {
+		return nil, err
 	}
 	pageWhere := where
 	pageArgs := append([]any(nil), args...)
@@ -88,6 +86,12 @@ func (a *PostgreSQLPluginAdapter) QueryDomainEvents(ctx context.Context, req *do
 		pageArgs = append(pageArgs, cursor.Block, cursor.Log, cursor.ID)
 	}
 	query := "SELECT " + selectEventColumns + " FROM blockchain_events WHERE " + pageWhere + fmt.Sprintf(" ORDER BY block_number DESC,log_index DESC,id DESC LIMIT $%d OFFSET $%d", len(pageArgs)+1, len(pageArgs)+2)
+	if req.Offset > 0 {
+		// Skip narrow index entries, fetching payloads only for the selected page.
+		ids := "SELECT id,block_number,log_index FROM blockchain_events WHERE " + pageWhere + fmt.Sprintf(" ORDER BY block_number DESC,log_index DESC,id DESC LIMIT $%d OFFSET $%d", len(pageArgs)+1, len(pageArgs)+2)
+		columns := "event." + strings.ReplaceAll(selectEventColumns, ", ", ", event.")
+		query = "SELECT " + columns + " FROM (" + ids + ") page JOIN blockchain_events event ON event.id=page.id ORDER BY page.block_number DESC,page.log_index DESC,page.id DESC"
+	}
 	pageArgs = append(pageArgs, req.Limit+1, req.Offset)
 	rows, err := tx.QueryContext(ctx, query, pageArgs...)
 	if err != nil {
@@ -130,9 +134,6 @@ func (a *PostgreSQLPluginAdapter) QueryDomainEvents(ctx context.Context, req *do
 	}
 	if err := tx.Commit(); err != nil {
 		return nil, fmt.Errorf("finish query snapshot: %w", err)
-	}
-	if !countHit {
-		a.storeCount(ctx, cache, cacheKey, total)
 	}
 	return result, nil
 }

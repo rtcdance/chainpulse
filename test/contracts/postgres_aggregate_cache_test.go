@@ -8,10 +8,13 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
+	"github.com/rtcdance/chainpulse/pkg/core"
 	domainquery "github.com/rtcdance/chainpulse/pkg/domain/query"
 	plugincache "github.com/rtcdance/chainpulse/pkg/plugins/cache"
 	"github.com/rtcdance/chainpulse/pkg/plugins/database"
+	"github.com/rtcdance/chainpulse/pkg/testhelpers"
 	"github.com/stretchr/testify/require"
 )
 
@@ -43,6 +46,73 @@ func (c *aggregateCacheFixture) Set(_ context.Context, key string, value []byte,
 }
 
 func (c *aggregateCacheFixture) Close() error { return nil }
+
+type coldMissBarrier struct {
+	*aggregateCacheFixture
+	lookups atomic.Int64
+	ready   chan struct{}
+}
+
+func (c *coldMissBarrier) Get(ctx context.Context, key string) ([]byte, error) {
+	if index := c.lookups.Add(1); index <= 4 {
+		if index == 4 {
+			close(c.ready)
+		}
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-c.ready:
+			return nil, nil
+		}
+	}
+	return c.aggregateCacheFixture.Get(ctx, key)
+}
+
+func TestPostgresConcurrentColdAggregatesReadOriginOnce(t *testing.T) {
+	t.Parallel()
+	dsn := postgresDSN()
+	if dsn == "" {
+		t.Skip("set PostgreSQL integration gate with isolated endpoint")
+	}
+	for _, operation := range []string{"count", "dashboard"} {
+		t.Run(operation, func(t *testing.T) {
+			t.Parallel()
+			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			defer cancel()
+			chain := "t11-cold-concurrent-" + operation
+			db := openContractDBForReturn(t, dsn)
+			_, err := db.ExecContext(ctx, `DELETE FROM blockchain_events WHERE chain_id=$1`, chain)
+			require.NoError(t, err)
+			metrics := core.NewDefaultMetricsCollector()
+			store := database.NewPostgreSQLPluginAdapter(testhelpers.NewTestLogger(), metrics).WithChainScope(chain)
+			require.NoError(t, store.Initialize(ctx, core.Config{DatabaseURL: dsn}))
+			require.NoError(t, store.Start(ctx))
+			t.Cleanup(func() { require.NoError(t, store.Stop(context.Background())) })
+			require.NoError(t, store.StoreEvent(ctx, txTestEvent(chain, 1)))
+			cache := &coldMissBarrier{aggregateCacheFixture: &aggregateCacheFixture{values: make(map[string][]byte)}, ready: make(chan struct{})}
+			store.WithCanonicalAggregateCache(cache)
+			var wg sync.WaitGroup
+			for range 4 {
+				wg.Go(func() {
+					if operation == "count" {
+						result, err := store.QueryDomainEvents(ctx, &domainquery.Request{Limit: 10})
+						require.NoError(t, err)
+						if err == nil {
+							require.EqualValues(t, 1, result.Total)
+						}
+					} else {
+						total, _, _, _, err := store.CanonicalEventStats(ctx)
+						require.NoError(t, err)
+						require.EqualValues(t, 1, total)
+					}
+				})
+			}
+			wg.Wait()
+			require.NoError(t, ctx.Err())
+			require.EqualValues(t, 1, metrics.GetCounter("canonical_aggregate_origin_read", map[string]string{"operation": operation}), "four forced misses must execute one aggregate source read")
+		})
+	}
+}
 
 func TestPostgresAggregateStatsCacheUsesMutationRevision(t *testing.T) {
 	t.Parallel()
