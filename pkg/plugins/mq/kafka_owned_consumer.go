@@ -179,7 +179,7 @@ func ownedQueueMessage(topic string, message kafka.Message) (core.MessageQueueMe
 			id = string(header.Value)
 		}
 	}
-	return core.MessageQueueMessage{ID: id, Topic: topic, Payload: message.Value, Timestamp: message.Time, Offset: message.Offset, PartitionKey: key}, nil
+	return core.MessageQueueMessage{ID: id, Topic: topic, Payload: message.Value, Timestamp: message.Time, Offset: message.Offset, Partition: message.Partition, PartitionKey: key}, nil
 }
 
 // Err observes revocation synchronously, including before the cancellation

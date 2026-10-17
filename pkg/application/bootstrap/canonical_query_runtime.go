@@ -26,6 +26,10 @@ type canonicalQueryRuntime struct {
 	aggregateCache *plugincache.CanonicalAggregateRedisCache
 }
 
+func (s *canonicalQueryRuntime) SubscriptionStore() ports.SubscriptionDeliveryStore { return s.store }
+
+func (s *canonicalQueryRuntime) SubscriptionChains() []string { return s.store.ChainScope() }
+
 func newCanonicalQueryRuntime(dsn string, logger ports.Logger, metrics core.MetricsCollector) (*canonicalQueryRuntime, error) {
 	configured := env.GetCSV("CHAINS", env.GetCSV("CHAINPULSE_CHAINS", []string{env.Get("CHAIN_ID", "ethereum")}))
 	chains := make([]string, 0, len(configured))
