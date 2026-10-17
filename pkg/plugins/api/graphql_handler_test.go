@@ -14,8 +14,8 @@ import (
 	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
-func makeTestEvent(id string, blockNum uint64, eventName string) *core.BlockchainEvent {
-	return &core.BlockchainEvent{
+func makeTestEvent(id string, blockNum uint64, eventName string) *blockchain.BlockchainEvent {
+	return &blockchain.BlockchainEvent{
 		ID:               id,
 		EventHash:        "0xhash" + id,
 		EventSignature:   common.HexToHash("0xabc"),
@@ -137,7 +137,7 @@ func TestNewGraphQLHandler(t *testing.T) {
 
 	qs := &mockDomainQueryService{}
 	es := &mockEventStore{
-		getEvent: func(ctx context.Context, eventID string) (*core.BlockchainEvent, error) {
+		getEvent: func(ctx context.Context, eventID string) (*blockchain.BlockchainEvent, error) {
 			return makeTestEvent(eventID, 42, "Transfer"), nil
 		},
 	}
@@ -475,7 +475,7 @@ func TestBuildSchema(t *testing.T) {
 	handler := &GraphQLHandler{
 		queryService: &mockDomainQueryService{},
 		eventStore: &mockEventStore{
-			getEvent: func(ctx context.Context, eventID string) (*core.BlockchainEvent, error) {
+			getEvent: func(ctx context.Context, eventID string) (*blockchain.BlockchainEvent, error) {
 				return makeTestEvent(eventID, 42, "Transfer"), nil
 			},
 		},
@@ -498,7 +498,7 @@ func TestBuildSchema_QueryEvent(t *testing.T) {
 	handler := &GraphQLHandler{
 		queryService: &mockDomainQueryService{},
 		eventStore: &mockEventStore{
-			getEvent: func(ctx context.Context, eventID string) (*core.BlockchainEvent, error) {
+			getEvent: func(ctx context.Context, eventID string) (*blockchain.BlockchainEvent, error) {
 				return makeTestEvent(eventID, 42, "Transfer"), nil
 			},
 		},
@@ -565,11 +565,11 @@ func TestBuildSchema_QueryEvents(t *testing.T) {
 	handler := &GraphQLHandler{
 		queryService: &mockDomainQueryService{},
 		eventStore: &mockEventStore{
-			getEvent: func(ctx context.Context, eventID string) (*core.BlockchainEvent, error) {
+			getEvent: func(ctx context.Context, eventID string) (*blockchain.BlockchainEvent, error) {
 				return makeTestEvent(eventID, 42, "Transfer"), nil
 			},
-			getEventsByChain: func(ctx context.Context, chainID int, limit int, offset int) ([]*core.BlockchainEvent, error) {
-				return []*core.BlockchainEvent{
+			getEventsByChain: func(ctx context.Context, chainID int, limit int, offset int) ([]*blockchain.BlockchainEvent, error) {
+				return []*blockchain.BlockchainEvent{
 					makeTestEvent("evt-1", 100, "Transfer"),
 					makeTestEvent("evt-2", 101, "Swap"),
 				}, nil
@@ -617,7 +617,7 @@ func TestBuildSchema_QueryBlockUnsupported(t *testing.T) {
 	handler := &GraphQLHandler{
 		queryService: &mockDomainQueryService{},
 		eventStore: &mockEventStore{
-			getEvent: func(ctx context.Context, eventID string) (*core.BlockchainEvent, error) {
+			getEvent: func(ctx context.Context, eventID string) (*blockchain.BlockchainEvent, error) {
 				return makeTestEvent(eventID, 42, "Transfer"), nil
 			},
 		},

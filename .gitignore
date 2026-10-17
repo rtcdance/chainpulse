@@ -6,6 +6,13 @@ log/
 *.so
 *.dylib
 
+# Binary build artifacts
+/chainpulse
+/api-gateway
+/api-service
+/event-processor
+/puller
+
 # Test coverage
 *.out
 coverage/
@@ -46,12 +53,20 @@ Thumbs.db
 .ai-archive/
 .kiro/
 .trae/
+.omo/
+.omx/
+.opencode/
+.comate/
+.crush/
 
 # MCP config (contains local tokens, do not commit)
 .mcp.json
 
 # Local reports
 docs/ARCHITECTURE_REVIEW_REPORT.md
+
+# Project optimization plan (contains candid project criticism — keep local)
+optimization-plan/
 
 # Sisyphus orchestrator
 .sisyphus/
@@ -66,11 +81,38 @@ node_modules/
 frontend/node_modules/
 frontend/.vite/
 
-# Package locks
-package-lock.json
+# Package locks are NOT ignored. `npm ci` installs strictly from the lockfile and
+# refuses to run without one ("EUSAGE: The `npm ci` command can only install with
+# an existing package-lock.json"), so ignoring them made the frontend-api lane
+# impossible: a fresh checkout had no lockfile and the first npm ci step failed.
+# They were previously listed here, which is why frontend/package.json could
+# declare `test: vitest run` while jsdom and the testing-library packages were
+# absent from both the manifest and the lockfile.
+
+# Go workspace
+go.work.sum
 
 # Test results
 test-results/
 
 # Scripts generated
 scripts/mock-server/
+/loadtest
+
+# Foundry build artifacts (contracts/lib/ IS vendored and committed)
+contracts/out/
+contracts/cache/
+
+# D20: this machine's global core.excludesFile has a blanket `scripts` pattern,
+# which hides every NEW file under scripts/ from git (tracked ones are exempt).
+# A repo .gitignore pattern outranks core.excludesFile, so re-include the dir;
+# without this, scripts/bench/loadtest and any future script cannot be added.
+!scripts/
+
+# Python bytecode emitted by scripts/acceptance/*.py self-tests
+__pycache__/
+*.pyc
+
+# Measured benchmark artifacts (source lives under scripts/bench).
+/metrics/
+/benchmark-results.txt

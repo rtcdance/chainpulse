@@ -6,6 +6,9 @@ import (
 	"fmt"
 	"sync"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"github.com/rtcdance/chainpulse/pkg/core"
 	"golang.org/x/sync/errgroup"
 )
@@ -21,7 +24,7 @@ type ReorgConfirmationChecker interface {
 type MultiChainIndexer struct {
 	indexers map[string]ChainIndexer
 	mu       sync.RWMutex
-	logger   core.Logger
+	logger   portcontract.Logger
 	config   core.ConfigManager
 
 	reorgHandler ReorgConfirmationChecker
@@ -54,14 +57,14 @@ func (mci *MultiChainIndexer) UpdateChainHead(chainID string, head uint64) {
 
 // ChainIndexer defines the interface for chain-specific indexing
 type ChainIndexer interface {
-	IndexEvents(ctx context.Context, events []*core.BlockchainEvent) error
+	IndexEvents(ctx context.Context, events []*blockchain.BlockchainEvent) error
 	GetChainID() string
 	GetStatus() map[string]any
 	Close() error
 }
 
 // NewMultiChainIndexer creates a new multi-chain indexer
-func NewMultiChainIndexer(logger core.Logger, config core.ConfigManager) *MultiChainIndexer {
+func NewMultiChainIndexer(logger portcontract.Logger, config core.ConfigManager) *MultiChainIndexer {
 	return &MultiChainIndexer{
 		indexers: make(map[string]ChainIndexer),
 		logger:   logger,
@@ -99,7 +102,7 @@ func (mci *MultiChainIndexer) RegisterChainIndexer(chainID string, indexer Chain
 func (mci *MultiChainIndexer) IndexEventsFromChain(
 	ctx context.Context,
 	chainID string,
-	events []*core.BlockchainEvent,
+	events []*blockchain.BlockchainEvent,
 ) error {
 	if chainID == "" {
 		return fmt.Errorf("chain ID cannot be empty")
@@ -120,7 +123,7 @@ func (mci *MultiChainIndexer) IndexEventsFromChain(
 
 	// Filter events by confirmation depth if reorg handler is configured
 	if rh != nil {
-		confirmed := make([]*core.BlockchainEvent, 0, len(events))
+		confirmed := make([]*blockchain.BlockchainEvent, 0, len(events))
 		skipped := 0
 		for _, evt := range events {
 			if rh.IsConfirmed(evt.BlockNumber) {
@@ -153,7 +156,7 @@ func (mci *MultiChainIndexer) IndexEventsFromChain(
 // IndexEventsFromAllChains indexes events from all registered blockchains in parallel
 func (mci *MultiChainIndexer) IndexEventsFromAllChains(
 	ctx context.Context,
-	eventsByChain map[string][]*core.BlockchainEvent,
+	eventsByChain map[string][]*blockchain.BlockchainEvent,
 ) error {
 	if len(eventsByChain) == 0 {
 		return nil
@@ -180,8 +183,9 @@ func (mci *MultiChainIndexer) IndexEventsFromAllChains(
 		}
 	}
 
-	// Index from all chains in parallel using errgroup
+	// Index from all chains in parallel, bounded by the configured worker pool.
 	g, gCtx := errgroup.WithContext(ctx)
+	g.SetLimit(mci.maxConcurrency())
 
 	for chainID, events := range eventsByChain {
 		cID, evts := chainID, events
@@ -195,6 +199,19 @@ func (mci *MultiChainIndexer) IndexEventsFromAllChains(
 	}
 
 	return nil
+}
+
+// maxConcurrency reads "worker_pool_size" through ConfigManager, falling back
+// to the core default when the config is unavailable or not an int.
+func (mci *MultiChainIndexer) maxConcurrency() int {
+	if mci.config != nil {
+		if raw, err := mci.config.Get("worker_pool_size"); err == nil {
+			if n, ok := raw.(int); ok && n > 0 {
+				return n
+			}
+		}
+	}
+	return core.DefaultWorkerPoolSize
 }
 
 // GetChainIndexer retrieves an indexer for a specific chain

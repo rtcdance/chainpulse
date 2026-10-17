@@ -2,12 +2,10 @@
 package qindex
 
 import (
-	"sync"
 	"time"
 )
 
 type Optimizer struct {
-	mu                   sync.RWMutex
 	queryStats           map[string]*QueryStats
 	indexRecommendations map[string][]IndexRecommendation
 	cache                map[string]*OptimizedQuery

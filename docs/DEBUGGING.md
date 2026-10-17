@@ -408,11 +408,11 @@ dlv exec ./playground-debug
    └─ 观察: BlockchainEvent 的每个字段如何对应 Solidity event
 
 2. 数据存储
-   └─ 断点: pkg/adapters/indexing/monolithic_memory_storage.go:93  (StoreEvent)
+   └─ 断点: pkg/application/bootstrap/monolithic_memory_storage.go:62  (StoreEvent)
    └─ 观察: 事件如何持久化到内存 map
 
 3. 数据读取
-   └─ 断点: pkg/adapters/indexing/monolithic_memory_storage.go:130  (GetAllEvents)
+   └─ 断点: pkg/application/bootstrap/monolithic_memory_storage.go:108  (GetAllEvents)
    └─ 观察: 查询链路
 
 4. API 响应
@@ -499,7 +499,7 @@ dlv exec ./playground-debug
 cat > /tmp/dlv-learn.txt << 'EOF'
 # 路径 1：事件生命周期
 break cmd/playground/main.go:42
-break pkg/adapters/indexing/monolithic_memory_storage.go:93
+break pkg/application/bootstrap/monolithic_memory_storage.go:62
 break cmd/playground/main.go:127
 
 # 路径 2：ABI 解码

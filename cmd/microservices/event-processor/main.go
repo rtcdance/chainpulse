@@ -14,11 +14,12 @@ import (
 	"time"
 
 	"github.com/rtcdance/chainpulse/pkg/application/bootstrap"
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"github.com/rtcdance/chainpulse/pkg/core"
 	"github.com/rtcdance/chainpulse/pkg/env"
 	"github.com/rtcdance/chainpulse/pkg/infrastructure/database"
+	"github.com/rtcdance/chainpulse/pkg/observability"
 	"github.com/rtcdance/chainpulse/pkg/plugins/mq"
-	"github.com/rtcdance/chainpulse/pkg/services/eventproc"
 	"github.com/rtcdance/chainpulse/pkg/services/query"
 	"github.com/rtcdance/chainpulse/pkg/services/reorg"
 )
@@ -65,7 +66,14 @@ func main() {
 		logLevel = core.LogLevelDebug
 	}
 	logger := core.NewDefaultLogger(logLevel)
-	metrics := core.NewDefaultMetricsCollector()
+	metrics := observability.Guarded(core.NewDefaultMetricsCollector())
+	if env.Get("DATABASE_TYPE", "") == "postgres" {
+		if err := runDurableEventProcessor(config, logger, metrics); err != nil {
+			logger.Error("Durable event processor failed", "error", err.Error())
+			os.Exit(1)
+		}
+		return
+	}
 
 	fmt.Println("  [1/3] Logger initialized")
 	fmt.Println("  [2/3] Metrics collector initialized")
@@ -297,7 +305,7 @@ func main() {
 	}
 	fmt.Println("  [1/3] Kafka Message Queue started")
 
-	consumeCtx, consumeCancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	consumeCtx, consumeCancel := context.WithCancel(context.Background())
 	consumeRuntime.Start(consumeCtx, &wg)
 	fmt.Println("  [2/3] Consume/process seam started")
 
@@ -305,7 +313,7 @@ func main() {
 	fmt.Println("  [2.2/3] DLQ retry service started")
 
 	reorgHandler := reorg.NewReorgHandler(
-		eventproc.NewReorgDBAdapter(eventStore, pgMetadataStore, getDB(dbManager)),
+		newReorgDBAdapter(eventStore, pgMetadataStore, getDB(dbManager)),
 		logger,
 		12,  // reorg threshold
 		120, // max rollback
@@ -314,7 +322,7 @@ func main() {
 	go func() {
 		defer wg.Done()
 		reorgErr := kafkaMQ.ConsumeMessages(consumeCtx, "reorg-events", func(msg core.MessageQueueMessage) error {
-			var reorgMsg core.ReorgDetectedMessage
+			var reorgMsg blockchain.ReorgDetectedMessage
 			if err := json.Unmarshal(msg.Payload, &reorgMsg); err != nil {
 				logger.Error("Failed to unmarshal reorg message", "error", err.Error())
 				return fmt.Errorf("failed to unmarshal reorg message: %w", err)

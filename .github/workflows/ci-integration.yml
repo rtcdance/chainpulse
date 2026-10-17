@@ -1,32 +1,48 @@
 name: Integration & E2E Tests
 
+# AUTHORITATIVE integration/contracts/evm-e2e lanes (plan §7.3 lane table).
+# This workflow is kept, not retired: F13 required eliminating the fake-green
+# duplicates that used to live in ci.yml (steps that ran `-tags=integration` /
+# `-tags=e2e` with no services and no Foundry toolchain, so every infra-gated
+# test skipped and the step could only ever pass). Those steps were removed
+# from ci.yml; the jobs below - which provision Postgres/Redis/Kafka services,
+# a real database, and Anvil - are the only full integration/contracts/e2e
+# lanes. test.yml keeps the -short variants (with coverage upload) for the
+# fast PR path; they are not duplicates of these jobs.
+#
 # Runs separately from the main CI:
 # - on demand (workflow_dispatch)
 # - nightly on main/master
-# - on PRs that touch test/ or pkg/services/
+# - on every PR and protected-branch push (required lanes cannot be path-filtered)
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 on:
   workflow_dispatch:
     inputs:
       run_e2e:
         description: 'Also run E2E tests'
         required: false
-        default: 'true'
+        default: true
         type: boolean
 
   schedule:
     # Nightly at 02:00 UTC
     - cron: '0 2 * * *'
 
+  push:
+    branches: [main, master]
+
   pull_request:
     branches: [ main, master, develop ]
-    paths:
-      - 'test/**'
-      - 'pkg/services/**'
-      - 'pkg/infrastructure/**'
+
+env:
+  GOPROXY: https://proxy.golang.org|https://goproxy.cn|direct
 
 jobs:
   integration:
-    name: Integration Tests
+    name: integration
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -67,6 +83,7 @@ jobs:
           KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
           KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
           KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+          KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
           CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
         options: >-
           --health-cmd "kafka-broker-api-versions --bootstrap-server localhost:9092"
@@ -77,10 +94,9 @@ jobs:
           - 9092:9092
 
     steps:
-    - uses: actions/checkout@v4
-
+    - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
     - name: Set up Go
-      uses: actions/setup-go@v5
+      uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
       with:
         go-version-file: go.mod
         cache: true
@@ -95,24 +111,43 @@ jobs:
         TEST_KAFKA_BROKERS: localhost:9092
         DEPLOYMENT_MODE: monolithic
       run: |
-        go test -v -race -timeout=10m \
-          -tags=integration \
-          ./test/integration/...
+        set -euo pipefail
+        go test -json -race -timeout=10m -tags=integration \
+          ./test/integration/... | tee integration-output.jsonl
+        python3 scripts/acceptance/verify-tests.py \
+          --jsonl integration-output.jsonl --min-tests 1 \
+          --report integration-report.json
 
     - name: Upload integration test results
       if: always()
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
       with:
         name: integration-results-${{ github.sha }}
         path: |
           test-results/
           *.log
+          *-output.jsonl
+          *-report.json
+          build/deployed-reorg/
         retention-days: 14
 
   contract:
-    name: Contract Tests
+    name: contracts
     runs-on: ubuntu-latest
     services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: chainpulse
+          POSTGRES_PASSWORD: chainpulse_test
+          POSTGRES_DB: chainpulse_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
       redis:
         image: redis:7-alpine
         options: >-
@@ -122,30 +157,139 @@ jobs:
           --health-retries 5
         ports:
           - 6379:6379
+      # The README lists MongoDB as a supported persistence backend and
+      # pkg/services/query/mongodb_event_store.go is a substantial production
+      # path, but until 2026-10-14 no test had ever inserted a document into a
+      # real MongoDB: the thirteen tests in that package run against a nil mock
+      # and assert only guard conditions. Provisioning it here is what makes
+      # TestMongoDBEventStoreAgainstRealServer execute rather than skip - and a
+      # skip would fail this job, which runs --fail-on-unknown-skip.
+      mongo:
+        image: mongo:7
+        options: >-
+          --health-cmd "mongosh --quiet --eval 'db.runCommand({ ping: 1 })'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 27017:27017
+      kafka:
+        image: confluentinc/cp-kafka:7.5.0
+        env:
+          KAFKA_BROKER_ID: 1
+          KAFKA_ZOOKEEPER_CONNECT: ''
+          KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+          KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+          KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
+          KAFKA_PROCESS_ROLES: broker,controller
+          KAFKA_NODE_ID: 1
+          KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9093
+          KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
+          KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+          KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+          KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+          CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
+        options: >-
+          --health-cmd "kafka-broker-api-versions --bootstrap-server localhost:9092"
+          --health-interval 15s
+          --health-timeout 10s
+          --health-retries 10
+        ports:
+          - 9092:9092
+    # F13: these are the names the contract tests actually read. This job used to
+    # set TEST_REDIS_URL, which no test reads, and provisioned no database at all,
+    # so every Postgres and Redis contract test skipped while the job still
+    # reported success. See docs/project/2026-10-14-f13-contract-lane.md.
+    env:
+      CHAINPULSE_RUN_POSTGRES_INTEGRATION: '1'
+      CHAINPULSE_TEST_DATABASE_URL: postgres://chainpulse:chainpulse_test@localhost:5432/chainpulse_test?sslmode=disable
+      CHAINPULSE_RUN_REDIS_INTEGRATION: '1'
+      CHAINPULSE_TEST_REDIS_URL: redis://localhost:6379/0
+      CHAINPULSE_RUN_KAFKA_INTEGRATION: '1'
+      CHAINPULSE_TEST_KAFKA_BROKERS: localhost:9092
+      CHAINPULSE_RUN_MONGODB_INTEGRATION: '1'
+      CHAINPULSE_TEST_MONGODB_URI: mongodb://localhost:27017
     steps:
-    - uses: actions/checkout@v4
-
+    - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
     - name: Set up Go
-      uses: actions/setup-go@v5
+      uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
       with:
         go-version-file: go.mod
         cache: true
 
+    - name: Apply migrations
+      run: |
+        set -euo pipefail
+        # The Postgres contract tests read an existing schema rather than
+        # creating one, so the database must be migrated before they run.
+        go run ./cmd/migrate/ -db "$CHAINPULSE_TEST_DATABASE_URL" -path migrations up
+
     - name: Run contract tests
       env:
-        TEST_REDIS_URL: localhost:6379
+        CHAINPULSE_PG_FORWARDER: ${{ job.services.postgres.id }}
+        CHAINPULSE_REDIS_CONTAINER: ${{ job.services.redis.id }}
       run: |
-        go test -v -race -timeout=5m \
-          -tags=integration \
-          ./test/contracts/...
+        set -euo pipefail
+        # F13: --fail-on-unknown-skip is the guard that was missing. --min-tests 1
+        # only catches an EMPTY suite; it passes happily when every Postgres and
+        # Redis test skips, which is how this job reported green while the real
+        # adapters were never exercised.
+        #
+        # test/acceptance is included because two section 9 scenarios are mapped
+        # to tests that live there (E05 SIGTERM/crash, E09 DB/Redis failure) and
+        # nothing else ran that directory. Both need the same Postgres and Redis
+        # this job already provisions.
+        #
+        # -p 1 is not an optimisation: these two packages share one database and
+        # are NOT concurrency-safe against each other. Running them in parallel
+        # fails TestPostgresAtomicCommit, TestCanonicalDigestsAcrossRollbackAndRedelivery
+        # and TestBackgroundWorkersReturnToBaseline; serially they pass. See
+        # docs/project/2026-10-14-required-cases-lane.md.
+        go test -json -race -timeout=10m -p 1 -tags=integration \
+          ./test/contracts/... ./test/acceptance/... | tee contracts-output.jsonl
+        # --required-lane makes the section 7.2 manifest an actual gate: the
+        # listed tests must have RUN and PASSED. Without it the manifest was a
+        # document no workflow read.
+        #
+        # The deployed branch/restart scenario runs in the evm job below.
+        python3 scripts/acceptance/verify-tests.py \
+          --jsonl contracts-output.jsonl --min-tests 1 \
+          --fail-on-unknown-skip \
+          --skip-allowlist test/acceptance/skip-allowlist.json \
+          --required-cases test/acceptance/required-cases.json \
+          --required-lane contracts --required-lane e2e \
+          --report contracts-report.json
+
+    # Section 7.3 puts "migration fresh/upgrade" in the contracts lane, and
+    # section 10 asks for schema fresh/upgrade/rollback compatibility. The test
+    # existed and passed but ran in no lane: -tags=migration appeared in no
+    # workflow. It needs CREATE DATABASE, which the postgres service's own user
+    # has, and it creates a scratch database per run rather than touching this
+    # job's database.
+    - name: Migration fresh / upgrade / rollback
+      env:
+        MIGRATION_TEST_DSN: postgres://chainpulse:chainpulse_test@localhost:5432/chainpulse_test?sslmode=disable
+      run: |
+        set -euo pipefail
+        # No -race: the test drives `go run ./cmd/migrate` subprocesses, so the
+        # detector would only cover the harness, not the code under test.
+        go test -json -timeout=10m -tags=migration \
+          ./test/migration/... | tee migration-output.jsonl
+        python3 scripts/acceptance/verify-tests.py \
+          --jsonl migration-output.jsonl --min-tests 1 \
+          --fail-on-unknown-skip \
+          --required-cases test/acceptance/required-cases.json --required-lane migration \
+          --report migration-tests-report.json
 
   e2e:
-    name: E2E Tests
+    name: evm-e2e
     runs-on: ubuntu-latest
     # Only run E2E if explicitly requested or nightly
     if: >
+      github.event_name == 'push' ||
+      github.event_name == 'pull_request' ||
       github.event_name == 'schedule' ||
-      (github.event_name == 'workflow_dispatch' && inputs.run_e2e == 'true')
+      (github.event_name == 'workflow_dispatch' && inputs.run_e2e)
     needs: [ integration ]
     services:
       postgres:
@@ -172,11 +316,43 @@ jobs:
         ports:
           - 6379:6379
 
-    steps:
-    - uses: actions/checkout@v4
+      mongo:
+        image: mongo:7
+        options: >-
+          --health-cmd "mongosh --quiet --eval 'db.runCommand({ ping: 1 })'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 27017:27017
+      kafka:
+        image: confluentinc/cp-kafka:7.5.0
+        env:
+          KAFKA_BROKER_ID: 1
+          KAFKA_ZOOKEEPER_CONNECT: ''
+          KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+          KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+          KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
+          KAFKA_PROCESS_ROLES: broker,controller
+          KAFKA_NODE_ID: 1
+          KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9093
+          KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
+          KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+          KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+          KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+          CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
+        options: >-
+          --health-cmd "kafka-broker-api-versions --bootstrap-server localhost:9092"
+          --health-interval 15s
+          --health-timeout 10s
+          --health-retries 10
+        ports:
+          - 9092:9092
 
+    steps:
+    - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
     - name: Set up Go
-      uses: actions/setup-go@v5
+      uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
       with:
         go-version-file: go.mod
         cache: true
@@ -184,24 +360,143 @@ jobs:
     - name: Download dependencies
       run: go mod download
 
+    # Section 7.3 lists the evm-e2e lane as "本地双 Anvil"; section 7.4 requires a
+    # missing Foundry to fail the lane rather than skip. This job passed
+    # -tags=e2e without ever installing the toolchain, while test.yml installed
+    # the toolchain without ever passing the flag - so the six tagged tests in
+    # anvil_test.go ran in no lane at all between them.
+    - name: Install Foundry (for Anvil)
+      uses: foundry-rs/foundry-toolchain@908c540300062bd5a7e473851cdb4282204cee09 # v1
+      with:
+        version: v1.8.5
+
+    - name: Require Anvil
+      run: |
+        set -euo pipefail
+        # startAnvil() calls t.Skip when the binary is absent, so installing it is
+        # not enough: without this guard the job stays green while every Anvil
+        # test skips, which is the failure mode section 7.4 names.
+        command -v anvil >/dev/null || {
+          echo "::error::anvil is not on PATH; the Anvil tests would skip and this lane would pass while testing nothing"
+          exit 1
+        }
+        anvil --version
+
+    - name: Deployed canonical reorg and restart
+      env:
+        CHAINPULSE_RUN_DEPLOYED_REORG: '1'
+        CHAINPULSE_RUN_DEPLOYED_BLOCKS: '1'
+        CHAINPULSE_RUN_DEPLOYED_DUAL: '1'
+        CHAINPULSE_RUN_DEPLOYED_DUAL_FAULT: '1'
+        CHAINPULSE_DUAL_PG_CONTAINER: ${{ job.services.postgres.id }}
+        CHAINPULSE_DEPLOYED_RPC_B_URL: http://127.0.0.1:18566
+        CHAINPULSE_DUAL_MONO_DATABASE_URL: postgres://test:test@localhost:5432/chainpulse_dual_mono?sslmode=disable
+        CHAINPULSE_DUAL_MICRO_DATABASE_URL: postgres://test:test@localhost:5432/chainpulse_dual_micro?sslmode=disable
+        CHAINPULSE_TEST_KAFKA_BROKERS: localhost:9092
+        CHAINPULSE_DEPLOYED_MICRO_DATABASE_URL: postgres://test:test@localhost:5432/chainpulse_test?sslmode=disable
+        CHAINPULSE_DEPLOYED_PROCESSOR_PORT: '19182'
+        CHAINPULSE_DEPLOYED_PULLER_PORT: '19183'
+        CHAINPULSE_DEPLOYED_API_SERVICE_PORT: '19184'
+        CHAINPULSE_DEPLOYED_GATEWAY_PORT: '19185'
+        CHAINPULSE_DEPLOYED_RPC_URL: http://127.0.0.1:18565
+        CHAINPULSE_DEPLOYED_DATABASE_URL: postgres://test:test@localhost:5432/chainpulse_test?sslmode=disable
+        CHAINPULSE_DEPLOYED_API_PORT: '19080'
+        CHAINPULSE_DEPLOYED_MONGODB_URI: mongodb://localhost:27017
+        CHAINPULSE_DEPLOYED_REDIS_ADDR: localhost:6379
+        CHAINPULSE_DEPLOYED_KAFKA_ADDR: localhost:9092
+      run: |
+        set -euo pipefail
+        go run ./cmd/migrate -db "$CHAINPULSE_DEPLOYED_DATABASE_URL" -path migrations up
+        docker exec "$CHAINPULSE_DUAL_PG_CONTAINER" createdb -U test chainpulse_dual_mono
+        docker exec "$CHAINPULSE_DUAL_PG_CONTAINER" createdb -U test chainpulse_dual_micro
+        go run ./cmd/migrate -db "$CHAINPULSE_DUAL_MONO_DATABASE_URL" -path migrations up
+        go run ./cmd/migrate -db "$CHAINPULSE_DUAL_MICRO_DATABASE_URL" -path migrations up
+        forge test --root contracts
+        anvil --host 127.0.0.1 --port 18565 --chain-id 31337 --timestamp 1700000000 > anvil.log 2>&1 &
+        for attempt in $(seq 1 30); do
+          if cast chain-id --rpc-url "$CHAINPULSE_DEPLOYED_RPC_URL" >/dev/null 2>&1; then break; fi
+          sleep 1
+        done
+        cast chain-id --rpc-url "$CHAINPULSE_DEPLOYED_RPC_URL"
+        anvil --host 127.0.0.1 --port 18566 --chain-id 31338 --timestamp 1700000000 > anvil-b.log 2>&1 &
+        for attempt in $(seq 1 30); do
+          if cast chain-id --rpc-url "$CHAINPULSE_DEPLOYED_RPC_B_URL" >/dev/null 2>&1; then break; fi
+          sleep 1
+        done
+        cast chain-id --rpc-url "$CHAINPULSE_DEPLOYED_RPC_B_URL"
+        forge create --root contracts EventEmitter --unlocked \
+          --from 0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266 \
+          --rpc-url "$CHAINPULSE_DEPLOYED_RPC_B_URL" --broadcast --json > emitter-b-deploy.json
+        forge create --root contracts SwapEmitter --unlocked \
+          --from 0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266 \
+          --rpc-url "$CHAINPULSE_DEPLOYED_RPC_B_URL" --broadcast --json > swap-b-deploy.json
+        export CHAINPULSE_DEPLOYED_EMITTER_B=$(python3 -c 'import json; print(json.load(open("emitter-b-deploy.json"))["deployedTo"])')
+        export CHAINPULSE_DEPLOYED_SWAP_B=$(python3 -c 'import json; print(json.load(open("swap-b-deploy.json"))["deployedTo"])')
+        forge create --root contracts EventEmitter --unlocked \
+          --from 0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266 \
+          --rpc-url "$CHAINPULSE_DEPLOYED_RPC_URL" --broadcast --json > emitter-deploy.json
+        export CHAINPULSE_DEPLOYED_EMITTER=$(python3 -c 'import json; print(json.load(open("emitter-deploy.json"))["deployedTo"])')
+        export CHAINPULSE_DEPLOYED_BINARY="$PWD/build/deployed-monolith"
+        export CHAINPULSE_ACCEPTANCE_OUTPUT="$PWD/build/deployed-reorg"
+        mkdir -p build
+        go build -race -o "$CHAINPULSE_DEPLOYED_BINARY" ./cmd/monolithic/chainpulse
+        export CHAINPULSE_DEPLOYED_PROCESSOR_BINARY="$PWD/build/deployed-processor"
+        export CHAINPULSE_DEPLOYED_PULLER_BINARY="$PWD/build/deployed-puller"
+        go build -race -o "$CHAINPULSE_DEPLOYED_PROCESSOR_BINARY" ./cmd/microservices/event-processor
+        go build -race -o "$CHAINPULSE_DEPLOYED_PULLER_BINARY" ./cmd/microservices/puller
+        export CHAINPULSE_DEPLOYED_API_SERVICE_BINARY="$PWD/build/deployed-api-service"
+        export CHAINPULSE_DEPLOYED_GATEWAY_BINARY="$PWD/build/deployed-gateway"
+        go build -race -o "$CHAINPULSE_DEPLOYED_API_SERVICE_BINARY" ./cmd/microservices/api-service
+        go build -race -o "$CHAINPULSE_DEPLOYED_GATEWAY_BINARY" ./cmd/microservices/api-gateway
+        go test -json -race -tags=integration ./test/acceptance \
+          -run '^(TestDeployedReorgCanonicalDigestAndRestart|TestDeployedPullerKafkaAndAtomicProcessor|TestDeployedDualChainModesMatchRPCOracle|TestDeployedDualChainFaultIsolation|TestDeployedAPIRejectsMissingCacheAuthority)$' -count=1 -timeout=10m \
+          | tee deployed-reorg-output.jsonl
+        python3 scripts/acceptance/verify-tests.py \
+          --jsonl deployed-reorg-output.jsonl --min-tests 5 --fail-on-unknown-skip \
+          --required-cases test/acceptance/required-cases.json --required-lane evm-e2e \
+          --report deployed-reorg-report.json
+
     - name: Run E2E tests
       env:
         TEST_DATABASE_URL: postgres://test:test@localhost:5432/chainpulse_test?sslmode=disable
         TEST_REDIS_URL: localhost:6379
         DEPLOYMENT_MODE: monolithic
       run: |
-        go test -v -race -timeout=20m \
-          -tags=e2e \
-          ./test/e2e/...
+        set -euo pipefail
+        # These legacy concurrency fixtures connect to localhost:8545; an
+        # installed binary alone does not provision their required RPC node.
+        anvil --host 127.0.0.1 --port 8545 --chain-id 31337 --timestamp 1700000000 > anvil-short.log 2>&1 &
+        fixture_pid=$!
+        cleanup_fixture() {
+          kill "$fixture_pid" 2>/dev/null || :
+          wait "$fixture_pid" 2>/dev/null || :
+        }
+        trap cleanup_fixture EXIT
+        for attempt in $(seq 1 30); do
+          if cast chain-id --rpc-url http://127.0.0.1:8545 > anvil-short-chain-id.txt 2>/dev/null; then
+            break
+          fi
+          kill -0 "$fixture_pid"
+          sleep 1
+        done
+        test "$(cat anvil-short-chain-id.txt)" = "31337"
+        go test -json -race -timeout=20m -tags=e2e \
+          ./test/e2e/... | tee e2e-output.jsonl
+        python3 scripts/acceptance/verify-tests.py \
+          --jsonl e2e-output.jsonl --min-tests 1 \
+          --report e2e-report.json
 
     - name: Upload E2E test results
       if: always()
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
       with:
         name: e2e-results-${{ github.sha }}
         path: |
           test-results/
           *.log
+          *-output.jsonl
+          *-report.json
+          build/deployed-reorg/
         retention-days: 14
 
   notify:
@@ -211,7 +506,7 @@ jobs:
     if: failure() && github.event_name == 'schedule'
     steps:
     - name: Create GitHub Issue on nightly failure
-      uses: actions/github-script@v7
+      uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
       with:
         script: |
           const date = new Date().toISOString().split('T')[0];

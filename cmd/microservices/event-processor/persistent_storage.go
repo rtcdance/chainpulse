@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"github.com/rtcdance/chainpulse/pkg/chainid"
-	"github.com/rtcdance/chainpulse/pkg/core"
 	"github.com/rtcdance/chainpulse/pkg/services/query"
 )
 
@@ -24,11 +24,11 @@ func newPersistentEventProcessorStorage(
 	return &persistentEventProcessorStorage{
 		eventStore:    eventStore,
 		metadataStore: metadataStore,
-		timeout:       10 * time.Second,
+		timeout:       30 * time.Second,
 	}
 }
 
-func (s *persistentEventProcessorStorage) WriteEvent(ctx context.Context, event *core.BlockchainEvent) error {
+func (s *persistentEventProcessorStorage) WriteEvent(ctx context.Context, event *blockchain.BlockchainEvent) error {
 	if s == nil {
 		return fmt.Errorf("persistent storage is required")
 	}
@@ -67,7 +67,7 @@ func (s *persistentEventProcessorStorage) WriteEvent(ctx context.Context, event 
 			ContractAddress:  event.ContractAddress.Hex(),
 			EventName:        event.EventName,
 			ProcessedAt:      event.ProcessedAt,
-			ProcessingStatus: string(core.EventStatusConfirmed),
+			ProcessingStatus: string(blockchain.EventStatusConfirmed),
 		}
 		if err := s.metadataStore.InsertMetadata(ctx, metadata); err != nil && !isPersistentDuplicate(err) {
 			return err
@@ -78,7 +78,7 @@ func (s *persistentEventProcessorStorage) WriteEvent(ctx context.Context, event 
 }
 
 // WriteBatch writes multiple events using InsertEventBatch for atomic storage.
-func (s *persistentEventProcessorStorage) WriteBatch(ctx context.Context, events []*core.BlockchainEvent) error {
+func (s *persistentEventProcessorStorage) WriteBatch(ctx context.Context, events []*blockchain.BlockchainEvent) error {
 	if s == nil {
 		return fmt.Errorf("persistent storage is required")
 	}
@@ -113,9 +113,6 @@ func (s *persistentEventProcessorStorage) WriteBatch(ctx context.Context, events
 	}
 
 	if s.metadataStore != nil {
-		// Metadata is written individually since the batch API doesn't guarantee
-		// metadata atomicity across both stores. Duplicates are handled by the
-		// unique constraint and on-conflict logic.
 		for _, event := range events {
 			if event == nil {
 				continue
@@ -129,7 +126,7 @@ func (s *persistentEventProcessorStorage) WriteBatch(ctx context.Context, events
 				ContractAddress:  event.ContractAddress.Hex(),
 				EventName:        event.EventName,
 				ProcessedAt:      event.ProcessedAt,
-				ProcessingStatus: string(core.EventStatusConfirmed),
+				ProcessingStatus: string(blockchain.EventStatusConfirmed),
 			}
 			if err := s.metadataStore.InsertMetadata(ctx, metadata); err != nil && !isPersistentDuplicate(err) {
 				return err

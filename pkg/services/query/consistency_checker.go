@@ -6,6 +6,8 @@ import (
 	"sync"
 	"time"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
@@ -37,14 +39,14 @@ type ConsistencyCheckResult struct {
 type ConsistencyChecker struct {
 	eventStore    EventStore
 	metadataStore EventMetadataStore
-	logger        core.Logger
+	logger        portcontract.Logger
 	metrics       core.MetricsCollector
 	mu            sync.RWMutex
 	initialized   bool
 }
 
 // NewConsistencyChecker creates a new consistency checker
-func NewConsistencyChecker(eventStore EventStore, metadataStore EventMetadataStore, logger core.Logger, metrics core.MetricsCollector) *ConsistencyChecker {
+func NewConsistencyChecker(eventStore EventStore, metadataStore EventMetadataStore, logger portcontract.Logger, metrics core.MetricsCollector) *ConsistencyChecker {
 	return &ConsistencyChecker{
 		eventStore:    eventStore,
 		metadataStore: metadataStore,
@@ -176,9 +178,10 @@ func (cc *ConsistencyChecker) checkOrphanedMetadata(ctx context.Context) (int64,
 
 	var orphanedCount int64
 	for _, m := range metadata {
-		// Check if event exists
-		_, err := cc.eventStore.GetEvent(ctx, m.EventID)
-		if err != nil {
+		// Check if event exists. GetEvent returns (nil, nil) for a missing
+		// entity, so a nil event is just as much an orphan as an error.
+		event, err := cc.eventStore.GetEvent(ctx, m.EventID)
+		if err != nil || event == nil {
 			orphanedCount++
 		}
 	}

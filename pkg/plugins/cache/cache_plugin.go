@@ -6,6 +6,8 @@ import (
 	"sync"
 	"time"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
 	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
@@ -18,7 +20,7 @@ type BaseCachePlugin struct {
 	initialized      bool
 	running          bool
 	config           *core.Config
-	logger           core.Logger
+	logger           portcontract.Logger
 	metricsCollector core.MetricsCollector
 	lastHealthCheck  *core.HealthStatus
 	hitCount         int64
@@ -26,7 +28,7 @@ type BaseCachePlugin struct {
 	evictionCount    int64
 }
 
-func NewBaseCachePlugin(name, version string, logger core.Logger, metricsCollector core.MetricsCollector) *BaseCachePlugin {
+func NewBaseCachePlugin(name, version string, logger portcontract.Logger, metricsCollector core.MetricsCollector) *BaseCachePlugin {
 	return &BaseCachePlugin{
 		name:             name,
 		version:          version,
@@ -162,18 +164,21 @@ func (p *BaseCachePlugin) RecordEviction() {
 	}
 }
 
+//nolint:unused // exercised by tests only
 func (p *BaseCachePlugin) recordHitCount() int64 {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 	return p.hitCount
 }
 
+//nolint:unused // exercised by tests only
 func (p *BaseCachePlugin) recordMissCount() int64 {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 	return p.missCount
 }
 
+//nolint:unused // exercised by tests only
 func (p *BaseCachePlugin) recordEvictionCount() int64 {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
@@ -186,7 +191,7 @@ type DefaultInMemoryCachePlugin struct {
 	ttls map[string]time.Time
 }
 
-func NewDefaultInMemoryCachePlugin(name, version string, logger core.Logger, metricsCollector core.MetricsCollector) *DefaultInMemoryCachePlugin {
+func NewDefaultInMemoryCachePlugin(name, version string, logger portcontract.Logger, metricsCollector core.MetricsCollector) *DefaultInMemoryCachePlugin {
 	return &DefaultInMemoryCachePlugin{
 		BaseCachePlugin: NewBaseCachePlugin(name, version, logger, metricsCollector),
 		data:            make(map[string][]byte),
@@ -300,7 +305,7 @@ func (p *DefaultInMemoryCachePlugin) Clear() error {
 }
 
 // GetStats satisfies core.CachePlugin.GetStats
-func (p *DefaultInMemoryCachePlugin) GetStats() core.CacheStats {
+func (p *DefaultInMemoryCachePlugin) GetStats() portcontract.CacheStats {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
@@ -309,7 +314,7 @@ func (p *DefaultInMemoryCachePlugin) GetStats() core.CacheStats {
 		totalSize += int64(len(value))
 	}
 
-	return core.CacheStats{
+	return portcontract.CacheStats{
 		HitCount:      p.hitCount,
 		MissCount:     p.missCount,
 		EvictionCount: p.evictionCount,

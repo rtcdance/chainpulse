@@ -6,6 +6,11 @@ import (
 	"sort"
 	"sync"
 
+	"github.com/ethereum/go-ethereum/core/types"
+
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"github.com/rtcdance/chainpulse/pkg/core"
 	"golang.org/x/sync/errgroup"
 )
@@ -14,27 +19,96 @@ type dataPullerLastProcessedBlockProvider interface {
 	GetLastBlockNumber() uint64
 }
 
+// FinalityTargetFromChain preserves protocol-specific explicit policies while
+// keeping legacy targets for adapters without that optional capability.
+func (m *MultiChainDataPuller) FinalityTargetFromChain(ctx context.Context, chain string, latest, fallback uint64) (uint64, error) {
+	m.mu.RLock()
+	puller, ok := m.pullers[chain]
+	m.mu.RUnlock()
+	if !ok {
+		return 0, fmt.Errorf("no puller registered for finality chain %s", chain)
+	}
+	if resolver, ok := puller.(interface {
+		ResolveFinalityTarget(context.Context, uint64, uint64) uint64
+	}); ok {
+		target := resolver.ResolveFinalityTarget(ctx, latest, fallback)
+		if target > latest {
+			return 0, fmt.Errorf("finality target exceeds observed head")
+		}
+		return target, nil
+	}
+	return fallback, nil
+}
+
+// BlockHeaderFromChain exposes the verified header capability without leaking
+// a mutable registered puller. Unsupported protocols fail explicitly.
+func (m *MultiChainDataPuller) BlockHeaderFromChain(ctx context.Context, chainID string, height uint64) (*types.Header, error) {
+	m.mu.RLock()
+	source := m.pullers[chainID]
+	m.mu.RUnlock()
+	reader, ok := source.(interface {
+		BlockHeader(context.Context, uint64) (*types.Header, error)
+	})
+	if !ok {
+		return nil, fmt.Errorf("chain %s does not support complete EVM block headers", chainID)
+	}
+	header, err := reader.BlockHeader(ctx, height)
+	if err != nil {
+		return nil, fmt.Errorf("read block header for chain %s: %w", chainID, err)
+	}
+	return header, nil
+}
+
 type dataPullerLastProcessedBlockSetter interface {
 	SetLastBlockNumber(uint64)
 }
 
+// defaultMaxConcurrency bounds the per-chain fan-out: the errgroup would
+// otherwise spawn one goroutine per registered chain, most of which share the
+// same rate-limited provider.
+const defaultMaxConcurrency = 8
+
 // MultiChainDataPuller manages data pulling from multiple blockchains
 type MultiChainDataPuller struct {
-	pullers map[string]core.DataPullerPlugin
+	pullers map[string]portcontract.DataPullerPlugin
 	mu      sync.RWMutex
-	logger  core.Logger
+	logger  portcontract.Logger
+	// maxConcurrency bounds the errgroup fan-out; 0 means defaultMaxConcurrency.
+	maxConcurrency int
 }
 
 // NewMultiChainDataPuller creates a new multi-chain data puller
-func NewMultiChainDataPuller(logger core.Logger) *MultiChainDataPuller {
+func NewMultiChainDataPuller(logger portcontract.Logger) *MultiChainDataPuller {
 	return &MultiChainDataPuller{
-		pullers: make(map[string]core.DataPullerPlugin),
-		logger:  logger,
+		pullers:        make(map[string]portcontract.DataPullerPlugin),
+		logger:         logger,
+		maxConcurrency: defaultMaxConcurrency,
 	}
 }
 
+// SetMaxConcurrency sets the fixed-size worker-pool bound for the parallel
+// per-chain fan-out. Values <= 0 are ignored, so callers can pass a config
+// value without pre-validating it.
+func (m *MultiChainDataPuller) SetMaxConcurrency(n int) {
+	if n <= 0 {
+		return
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.maxConcurrency = n
+}
+
+func (m *MultiChainDataPuller) maxConcurrencyLimit() int {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	if m.maxConcurrency <= 0 {
+		return defaultMaxConcurrency
+	}
+	return m.maxConcurrency
+}
+
 // RegisterPuller registers a data puller for a specific blockchain
-func (m *MultiChainDataPuller) RegisterPuller(chainID string, puller core.DataPullerPlugin) error {
+func (m *MultiChainDataPuller) RegisterPuller(chainID string, puller portcontract.DataPullerPlugin) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -102,7 +176,7 @@ func (m *MultiChainDataPuller) PullEventsFromChain(
 	ctx context.Context,
 	chainID string,
 	fromBlock, toBlock uint64,
-) ([]core.BlockchainEvent, error) {
+) ([]blockchain.BlockchainEvent, error) {
 	m.mu.RLock()
 	puller, exists := m.pullers[chainID]
 	m.mu.RUnlock()
@@ -143,7 +217,7 @@ func (m *MultiChainDataPuller) PullEventsFromChain(
 func (m *MultiChainDataPuller) PullEventsFromAllChains(
 	ctx context.Context,
 	fromBlock, toBlock uint64,
-) (map[string][]core.BlockchainEvent, error) {
+) (map[string][]blockchain.BlockchainEvent, error) {
 	m.mu.RLock()
 	chains := make([]string, 0, len(m.pullers))
 	for chainID := range m.pullers {
@@ -151,10 +225,11 @@ func (m *MultiChainDataPuller) PullEventsFromAllChains(
 	}
 	m.mu.RUnlock()
 
-	results := make(map[string][]core.BlockchainEvent)
+	results := make(map[string][]blockchain.BlockchainEvent)
 	resultsMu := sync.Mutex{}
 
 	g, gCtx := errgroup.WithContext(ctx)
+	g.SetLimit(m.maxConcurrencyLimit())
 
 	for _, chainID := range chains {
 		cid := chainID
@@ -220,6 +295,7 @@ func (m *MultiChainDataPuller) GetLatestBlocksFromAllChains(
 	resultsMu := sync.Mutex{}
 
 	g, gCtx := errgroup.WithContext(ctx)
+	g.SetLimit(m.maxConcurrencyLimit())
 
 	for _, chainID := range chains {
 		cid := chainID

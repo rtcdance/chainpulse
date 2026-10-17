@@ -1,21 +1,21 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
-	"strconv"
 
-	"github.com/rtcdance/chainpulse/pkg/chainid"
-	"github.com/rtcdance/chainpulse/pkg/core"
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
 	domainquery "github.com/rtcdance/chainpulse/pkg/domain/query"
 )
 
 type StatsHandler struct {
-	logger     core.Logger
+	logger     portcontract.Logger
 	eventStore domainquery.EventReader
 }
 
-func NewStatsHandler(logger core.Logger, eventStore domainquery.EventReader) *StatsHandler {
+func NewStatsHandler(logger portcontract.Logger, eventStore domainquery.EventReader) *StatsHandler {
 	return &StatsHandler{
 		logger:     logger,
 		eventStore: eventStore,
@@ -31,6 +31,22 @@ type eventStatsResponse struct {
 
 func (h *StatsHandler) HandleGetStats(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	if source, ok := h.eventStore.(interface {
+		CanonicalStatsEnabled() bool
+		CanonicalEventStats(context.Context) (int64, map[string]int64, map[string]int64, int64, error)
+	}); ok && source.CanonicalStatsEnabled() {
+		total, byChain, byName, reorged, err := source.CanonicalEventStats(ctx)
+		if err != nil {
+			h.logger.Error("Canonical statistics unavailable", "error", err.Error())
+			(&APIError{Code: "STATS_FAILED", Message: "Failed to retrieve event statistics", Status: http.StatusServiceUnavailable}).WriteHTTP(w)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(eventStatsResponse{Total: total, ByChain: byChain, ByEventName: byName, Reorged: reorged}); err != nil {
+			h.logger.Error("Encode canonical statistics", "error", err.Error())
+		}
+		return
+	}
 
 	total, err := h.eventStore.CountEvents(ctx)
 	if err != nil {
@@ -39,82 +55,12 @@ func (h *StatsHandler) HandleGetStats(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	byChain := make(map[string]int64)
-	byEventName := make(map[string]int64)
-	var reorged int64
-
-	cursor := ""
-	batchLimit := 500
-	statsChainIDs := []struct {
-		name string
-		id   int
-	}{
-		{"ethereum", 1},
-		{"polygon", 137},
-		{"bsc", 56},
-		{"arbitrum", 42161},
-		{"optimism", 10},
-		{"base", 8453},
-		{"avalanche", 43114},
-		{"solana", 101},
-	}
-
-	for _, chain := range statsChainIDs {
-		chainEvents, chainErr := h.eventStore.GetEventsByChain(ctx, chain.id, 1, 0)
-		if chainErr != nil || len(chainEvents) == 0 {
-			continue
-		}
-
-		var count int64
-		innerCursor := ""
-		for {
-			batch, hasMore, batchErr := h.eventStore.GetEventsPaginated(ctx, innerCursor, batchLimit)
-			if batchErr != nil {
-				break
-			}
-			for _, event := range batch {
-				if event == nil {
-					continue
-				}
-				resolved := chainid.ResolveChainID(event.ChainID)
-				if resolved == chain.id || strconv.Itoa(resolved) == event.ChainID {
-					count++
-					if event.Status == "reorged" {
-						reorged++
-					}
-				}
-			}
-			if !hasMore || len(batch) == 0 {
-				break
-			}
-			innerCursor = batch[len(batch)-1].ID
-		}
-		if count > 0 {
-			byChain[chain.name] = count
-		}
-	}
-
-	batchCount := 0
-	for {
-		batch, hasMore, batchErr := h.eventStore.GetEventsPaginated(ctx, cursor, batchLimit)
-		if batchErr != nil {
-			break
-		}
-		for _, event := range batch {
-			if event == nil {
-				continue
-			}
-			if _, exists := byEventName[event.EventName]; !exists {
-				byEventName[event.EventName] = 1
-			} else {
-				byEventName[event.EventName]++
-			}
-		}
-		batchCount += len(batch)
-		if !hasMore || batchCount >= 5000 {
-			break
-		}
-		cursor = batch[len(batch)-1].ID
+	byChain, byEventName, reorged, err := h.eventStore.GetEventStats(ctx)
+	if err != nil {
+		h.logger.Error("Failed to aggregate event stats", "error", err.Error())
+		// Fall back to empty stats rather than failing entirely
+		byChain = make(map[string]int64)
+		byEventName = make(map[string]int64)
 	}
 
 	resp := eventStatsResponse{

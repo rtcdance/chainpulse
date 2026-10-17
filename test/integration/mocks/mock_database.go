@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 )
 
 // MockDatabase is a mock implementation of a database for testing
@@ -223,7 +223,7 @@ func (md *MockDatabase) GetData() map[string]any {
 // MockEventStore is a mock implementation of an event store for testing
 type MockEventStore struct {
 	mu       sync.RWMutex
-	events   map[string]*core.BlockchainEvent
+	events   map[string]*blockchain.BlockchainEvent
 	calls    map[string]int
 	errors   map[string]error
 	failNext map[string]bool
@@ -232,7 +232,7 @@ type MockEventStore struct {
 // NewMockEventStore creates a new mock event store
 func NewMockEventStore() *MockEventStore {
 	return &MockEventStore{
-		events:   make(map[string]*core.BlockchainEvent),
+		events:   make(map[string]*blockchain.BlockchainEvent),
 		calls:    make(map[string]int),
 		errors:   make(map[string]error),
 		failNext: make(map[string]bool),
@@ -240,7 +240,7 @@ func NewMockEventStore() *MockEventStore {
 }
 
 // StoreEvent stores an event
-func (mes *MockEventStore) StoreEvent(ctx context.Context, event *core.BlockchainEvent) error {
+func (mes *MockEventStore) StoreEvent(ctx context.Context, event *blockchain.BlockchainEvent) error {
 	mes.mu.Lock()
 	defer mes.mu.Unlock()
 
@@ -260,7 +260,7 @@ func (mes *MockEventStore) StoreEvent(ctx context.Context, event *core.Blockchai
 }
 
 // GetEvent retrieves an event
-func (mes *MockEventStore) GetEvent(ctx context.Context, eventID string) (*core.BlockchainEvent, error) {
+func (mes *MockEventStore) GetEvent(ctx context.Context, eventID string) (*blockchain.BlockchainEvent, error) {
 	mes.mu.RLock()
 	defer mes.mu.RUnlock()
 
@@ -284,7 +284,7 @@ func (mes *MockEventStore) GetEvent(ctx context.Context, eventID string) (*core.
 }
 
 // GetEventsByChain retrieves events by chain
-func (mes *MockEventStore) GetEventsByChain(ctx context.Context, chainID string) ([]*core.BlockchainEvent, error) {
+func (mes *MockEventStore) GetEventsByChain(ctx context.Context, chainID string) ([]*blockchain.BlockchainEvent, error) {
 	mes.mu.RLock()
 	defer mes.mu.RUnlock()
 
@@ -299,7 +299,7 @@ func (mes *MockEventStore) GetEventsByChain(ctx context.Context, chainID string)
 		return nil, err
 	}
 
-	var events []*core.BlockchainEvent
+	var events []*blockchain.BlockchainEvent
 	for _, event := range mes.events {
 		if event.ChainID == chainID {
 			events = append(events, event)
@@ -354,16 +354,16 @@ func (mes *MockEventStore) FailNext(method string) {
 func (mes *MockEventStore) Clear() {
 	mes.mu.Lock()
 	defer mes.mu.Unlock()
-	mes.events = make(map[string]*core.BlockchainEvent)
+	mes.events = make(map[string]*blockchain.BlockchainEvent)
 	mes.calls = make(map[string]int)
 }
 
 // GetAllEvents returns all events in the store
-func (mes *MockEventStore) GetAllEvents() []*core.BlockchainEvent {
+func (mes *MockEventStore) GetAllEvents() []*blockchain.BlockchainEvent {
 	mes.mu.RLock()
 	defer mes.mu.RUnlock()
 
-	var events []*core.BlockchainEvent
+	var events []*blockchain.BlockchainEvent
 	for _, event := range mes.events {
 		events = append(events, event)
 	}

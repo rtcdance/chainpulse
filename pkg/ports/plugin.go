@@ -161,8 +161,15 @@ type Transactioner interface {
 }
 
 // Tx represents an active database transaction.
+//
+// A transaction groups an event batch with the checkpoint advance it belongs
+// to, so the two either both land or neither does. Committing the events and
+// then advancing the checkpoint as a separate statement is the split that
+// finding F05 calls out: a crash in between leaves a checkpoint that is ahead
+// of the data (lost events) or behind it (duplicates on restart).
 type Tx interface {
 	StoreEvent(ctx context.Context, event any) error
+	SaveCheckpoint(ctx context.Context, chainID string, blockNumber uint64, blockHash string) error
 	Commit(ctx context.Context) error
 	Rollback(ctx context.Context) error
 }

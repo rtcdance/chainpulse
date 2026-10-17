@@ -1,18 +1,26 @@
 name: Code Coverage
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 on:
+  # D12: `master` is the remote default branch; without it in the list this
+  # gate never fires on the branch that actually protects. main/develop are
+  # kept for the existing branch layout.
   push:
-    branches: [ main, develop ]
+    branches: [ main, master, develop ]
   pull_request:
-    branches: [ main, develop ]
+    branches: [ main, master, develop ]
   workflow_dispatch:
 
 env:
+  GOPROXY: https://proxy.golang.org|https://goproxy.cn|direct
   MIN_COVERAGE: 40
 
 jobs:
   coverage:
-    name: Generate Coverage Report
+    name: coverage
     runs-on: ubuntu-latest
     timeout-minutes: 20
     
@@ -43,16 +51,15 @@ jobs:
     
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
-      
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
           go-version-file: go.mod
           cache: true
       
       - name: Install Foundry (for Anvil)
-        uses: foundry-rs/foundry-toolchain@v1
+        uses: foundry-rs/foundry-toolchain@908c540300062bd5a7e473851cdb4282204cee09 # v1
         with:
           version: nightly
         continue-on-error: true
@@ -71,7 +78,7 @@ jobs:
         run: |
           go mod download
           go mod verify
-          go install github.com/wadey/gocovmerge@latest || true
+          go install github.com/wadey/gocovmerge@b5bfa59ec0adc420475f97f89b58045c721d761c || true
       
       - name: Run tests with coverage
         env:
@@ -83,85 +90,32 @@ jobs:
           REDIS_HOST: localhost
           REDIS_PORT: 6379
         run: |
-          # Clear Go cache to ensure fresh test runs
+          set -euo pipefail
           go clean -testcache
-          
-          # Run ALL unit tests with coverage for pkg/ directory
-          echo "Running ALL UNIT TESTS for pkg/ packages..."
-          echo "Using -short flag to skip long-running integration tests"
-          echo "Timeout: 60s per package, Parallelism: 2 concurrent packages"
-          
-          # Run tests with comprehensive coverage:
-          # -short: skip long-running tests
-          # -v: verbose output
-          # -coverprofile: generate coverage profile
-          # -covermode=atomic: atomic coverage mode for accurate results
-          # -timeout 120s: 120 second timeout per package (some packages need more time)
-          # -p 2: reduced parallelism (2 concurrent packages) for stability
-          
-          # Run ALL pkg packages
-          go test -short -v -coverprofile=coverage.out -covermode=atomic -timeout 120s -p 2 \
-            ./pkg/... \
-            2>&1 | tee test-output.log
-          TEST_EXIT_CODE=${PIPESTATUS[0]}
-          
-          # Verify coverage file was created
-          if [ -f coverage.out ] && [ -s coverage.out ]; then
-            echo ""
-            echo "✓ Coverage file created successfully"
-            echo "Coverage file size: $(wc -c < coverage.out) bytes"
-            echo "Number of coverage entries: $(wc -l < coverage.out)"
-            
-            # Show which packages are in the coverage file
-            echo ""
-            echo "Packages in coverage file:"
-            go tool cover -func=coverage.out 2>/dev/null | grep "github.com/rtcdance/chainpulse/pkg" | cut -d'/' -f1-3 | sort -u
-            
-            # Show summary by package
-            echo ""
-            echo "Coverage summary by package:"
-            go tool cover -func=coverage.out 2>/dev/null | grep "total" || echo "No total found"
-            
-            # Show test results summary
-            echo ""
-            echo "Test Results Summary:"
-            echo "PASS tests: $(grep -c "^--- PASS:" test-output.log || echo "0")"
-            echo "FAIL tests: $(grep -c "^--- FAIL:" test-output.log || echo "0")"
-            echo "SKIP tests: $(grep -c "^--- SKIP:" test-output.log || echo "0")"
-            
-            # Show which packages had failures
-            if grep -q "^--- FAIL:" test-output.log; then
-              echo ""
-              echo "Failed packages:"
-              grep "^--- FAIL:" test-output.log | awk '{print $3}' | cut -d'/' -f1-3 | sort -u
-            fi
-          else
+
+          echo "Running unit tests with coverage for pkg/ packages (JSONL + coverage)..."
+          # `pipefail` fails the step on a go-test failure; the verifier then
+          # catches the "exit 0 but nothing ran" cases.
+          go test -json -short -coverprofile=coverage.out -covermode=atomic \
+            -timeout 120s -p 2 ./pkg/... | tee test-output.jsonl
+
+          # D11(a): same strict skip policy as the test.yml unit lane. This step
+          # runs the identical `./pkg/... -short` suite, so its skip set is the
+          # one declared in the shared allowlist; an undeclared skip fails
+          # instead of hiding behind an otherwise-green coverage run.
+          python3 scripts/acceptance/verify-tests.py \
+            --jsonl test-output.jsonl \
+            --min-tests 1 \
+            --fail-on-unknown-skip \
+            --skip-allowlist test/acceptance/skip-allowlist.json \
+            --report coverage-tests-report.json
+
+          if [ ! -s coverage.out ]; then
             echo "✗ Coverage file not created or is empty"
             exit 1
           fi
-          
-          # Check if there are actual test failures (not just timeouts)
-          ACTUAL_FAILURES=$(grep -c "^--- FAIL:" test-output.log || echo "0")
-          if [ "$ACTUAL_FAILURES" -gt 0 ]; then
-            echo ""
-            echo "⚠ WARNING: $ACTUAL_FAILURES test(s) failed"
-            echo "Continuing with coverage analysis to generate reports..."
-          fi
-          
-          # Check if tests timed out
-          if grep -q "panic: test timed out" test-output.log; then
-            echo ""
-            echo "⚠ WARNING: Some tests timed out"
-            echo "Timed out tests:"
-            grep -A 2 "panic: test timed out" test-output.log | grep "running tests:" -A 1 || true
-            echo "Continuing with coverage analysis to generate reports..."
-          fi
-          
-          # Always exit with success to allow coverage reports to be generated
-          # This ensures we get coverage data even if some tests timeout or fail
-          echo ""
-          echo "Exiting with success code to generate coverage reports..."
-          exit 0
+          echo "✓ Coverage profile written ($(wc -c < coverage.out) bytes)"
+          go tool cover -func=coverage.out | grep total || true
       
       - name: Analyze coverage gaps
         if: always()
@@ -609,27 +563,25 @@ jobs:
       - name: Check coverage threshold
         id: coverage-check
         run: |
-          if [ -f coverage.out ] && [ -s coverage.out ]; then
-            COVERAGE=$(go tool cover -func=coverage.out 2>/dev/null | grep total | awk '{print $3}' | sed 's/%//' || echo "0")
-            echo "coverage=$COVERAGE" >> $GITHUB_OUTPUT
-            echo "Total coverage: ${COVERAGE}%"
-            
-            if [ -z "$COVERAGE" ] || [ "$COVERAGE" = "0" ]; then
-              echo "⚠ Could not calculate coverage, skipping threshold check"
-              echo "status=no-data" >> $GITHUB_OUTPUT
-            elif (( $(echo "$COVERAGE < $MIN_COVERAGE" | bc -l) )); then
-              echo "⚠ Coverage ${COVERAGE}% is below minimum ${MIN_COVERAGE}%"
-              echo "Note: This is a warning, not a failure. Coverage data may be incomplete."
-              echo "status=warning" >> $GITHUB_OUTPUT
-            else
-              echo "✓ Coverage ${COVERAGE}% meets minimum ${MIN_COVERAGE}%"
-              echo "status=passed" >> $GITHUB_OUTPUT
-            fi
-          else
-            echo "coverage=0" >> $GITHUB_OUTPUT
-            echo "status=no-data" >> $GITHUB_OUTPUT
-            echo "⚠ No coverage data available, skipping threshold check"
+          set -euo pipefail
+          if [ ! -s coverage.out ]; then
+            echo "✗ No coverage profile — failing instead of skipping"
+            exit 1
           fi
+          COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//')
+          if [ -z "$COVERAGE" ]; then
+            echo "✗ Could not parse coverage total — failing instead of skipping"
+            exit 1
+          fi
+          echo "coverage=$COVERAGE" >> "$GITHUB_OUTPUT"
+          echo "Total coverage: ${COVERAGE}%"
+          if (( $(echo "$COVERAGE < $MIN_COVERAGE" | bc -l) )); then
+            echo "✗ Coverage ${COVERAGE}% is below minimum ${MIN_COVERAGE}%"
+            echo "status=failed" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+          echo "✓ Coverage ${COVERAGE}% meets minimum ${MIN_COVERAGE}%"
+          echo "status=passed" >> "$GITHUB_OUTPUT"
       
       - name: Generate coverage badge
         run: |
@@ -703,7 +655,7 @@ jobs:
           echo "✓ Coverage summary generated successfully"
       
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v6
         with:
           files: ./coverage.out
           flags: pkg
@@ -712,7 +664,7 @@ jobs:
         continue-on-error: true
       
       - name: Upload coverage reports
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: coverage-reports
           path: |
@@ -724,28 +676,14 @@ jobs:
             coverage-by-component.txt
             coverage-summary.md
             coverage-badge.json
+            test-output.jsonl
+            coverage-tests-report.json
           retention-days: 90
-          if-no-files-found: ignore
+          if-no-files-found: error
       
-      - name: Comment PR with coverage
-        if: github.event_name == 'pull_request'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const fs = require('fs');
-            try {
-              const summary = fs.readFileSync('coverage-summary.md', 'utf8');
-              github.rest.issues.createComment({
-                issue_number: context.issue.number,
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                body: summary
-              });
-            } catch (error) {
-              console.log('⚠ Could not post coverage comment:', error.message);
-            }
-        continue-on-error: true
-      
+      - name: Add measured coverage to job summary
+        run: cat coverage-summary.md >> "$GITHUB_STEP_SUMMARY"
+
       - name: Update coverage badge in README
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         run: |
@@ -754,79 +692,78 @@ jobs:
           echo "Coverage badge: https://img.shields.io/badge/coverage-${{ steps.coverage-check.outputs.coverage }}%25-green"
 
   coverage-diff:
-    name: Coverage Diff
+    name: Coverage comparison report
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
     needs: coverage
     
     steps:
       - name: Checkout PR branch
-        uses: actions/checkout@v4
-      
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - name: Checkout base branch
-        uses: actions/checkout@v4
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
-          ref: ${{ github.base_ref }}
+          ref: ${{ github.event.pull_request.base.sha }}
           path: base
       
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
           go-version-file: go.mod
       
       - name: Download PR coverage
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           name: coverage-reports
           path: pr-coverage/
-        continue-on-error: true
       
-      - name: Generate base coverage
-        working-directory: base
+      - name: Measure base availability for informational comparison
         run: |
-          go test -coverprofile=../base-coverage.out -covermode=atomic -timeout 30m ./pkg/... || true
-      
+          python3 - <<'PYBASE'
+          import json, subprocess
+          from pathlib import Path
+          with open('base-test-output.jsonl','w') as output, open('base-test-stderr.log','w') as errors:
+              result = subprocess.run(['go','test','-json','-short','-coverprofile=../base-coverage.out',
+                                       '-covermode=atomic','-timeout=120s','-p','2','./pkg/...'],
+                                      cwd='base',stdout=output,stderr=errors)
+          verified = subprocess.run(['python3','scripts/acceptance/verify-tests.py',
+                                     '--jsonl','base-test-output.jsonl','--min-tests','1',
+                                     '--report','base-tests-report.json'])
+          Path('base-coverage-status.json').write_text(json.dumps({
+              'comparison_status':'available' if result.returncode == 0 and verified.returncode == 0 else 'unavailable_base_tests_failed',
+              'test_exit':result.returncode,'verifier_exit':verified.returncode},indent=2)+'\n')
+          PYBASE
+
       - name: Compare coverage
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          CANDIDATE_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
-          if [ -f pr-coverage/coverage.out ] && [ -s pr-coverage/coverage.out ] && [ -f base-coverage.out ] && [ -s base-coverage.out ]; then
-            PR_COVERAGE=$(go tool cover -func=pr-coverage/coverage.out 2>/dev/null | grep total | awk '{print $3}' | sed 's/%//' || echo "0")
-            BASE_COVERAGE=$(go tool cover -func=base-coverage.out 2>/dev/null | grep total | awk '{print $3}' | sed 's/%//' || echo "0")
-            
-            DIFF=$(echo "$PR_COVERAGE - $BASE_COVERAGE" | bc 2>/dev/null || echo "0")
-            
-            cat > coverage-diff.md << EOF || true
-            # Coverage Comparison (pkg/ only)
-            
-            **Base Branch**: ${BASE_COVERAGE}%
-            **PR Branch**: ${PR_COVERAGE}%
-            **Difference**: ${DIFF}%
-            
-            $([ $(echo "$DIFF >= 0" | bc -l 2>/dev/null || echo "0") -eq 1 ] && echo "✓ Coverage improved!" || echo "⚠ Coverage decreased")
-            EOF
-          else
-            cat > coverage-diff.md << EOF || true
-            # Coverage Comparison
-            
-            ⚠ Could not generate coverage comparison. Coverage data may be incomplete.
-            EOF
+          set -euo pipefail
+          python3 scripts/acceptance/coverage-diff.py --self-test
+          go tool cover -func=pr-coverage/coverage.out > candidate-coverage-functions.txt
+          if python3 -c 'import json,sys; sys.exit(json.load(open("base-coverage-status.json"))["comparison_status"] != "available")'; then
+            (cd base && go tool cover -func=../base-coverage.out) > base-coverage-functions.txt
           fi
-          
-          cat coverage-diff.md
-      
-      - name: Comment PR with diff
-        uses: actions/github-script@v7
+          python3 scripts/acceptance/coverage-diff.py \
+            --base base-coverage.out --candidate pr-coverage/coverage.out \
+            --base-summary base-coverage-functions.txt --candidate-summary candidate-coverage-functions.txt \
+            --base-status base-coverage-status.json \
+            --base-sha "$BASE_SHA" --candidate-sha "$CANDIDATE_SHA" --out coverage-diff.md
+          cat coverage-diff.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload comparison evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
-          script: |
-            const fs = require('fs');
-            try {
-              const diff = fs.readFileSync('coverage-diff.md', 'utf8');
-              github.rest.issues.createComment({
-                issue_number: context.issue.number,
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                body: diff
-              });
-            } catch (error) {
-              console.log('⚠ Could not post coverage diff comment:', error.message);
-            }
-        continue-on-error: true
+          name: coverage-comparison
+          path: |
+            coverage-diff.md
+            coverage-diff.json
+            base-coverage-functions.txt
+            candidate-coverage-functions.txt
+            base-test-output.jsonl
+            base-tests-report.json
+            base-test-stderr.log
+            base-coverage-status.json
+          if-no-files-found: error

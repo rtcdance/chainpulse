@@ -13,6 +13,8 @@ import (
 	"sync"
 	"time"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
 	"github.com/rtcdance/chainpulse/pkg/core"
 	"github.com/rtcdance/chainpulse/pkg/observability"
 )
@@ -20,7 +22,7 @@ import (
 // GatewayRouterIntegration integrates the RequestRouter with the API Gateway
 type GatewayRouterIntegration struct {
 	router                        *RequestRouter
-	logger                        core.Logger
+	logger                        portcontract.Logger
 	metrics                       core.MetricsCollector
 	redRecorder                   *observability.REDRecorder
 	eventQueryHandler             *EventQueryHandler
@@ -62,7 +64,7 @@ const gatewayAPIV1Prefix = "/api/v1"
 
 // NewGatewayRouterIntegration creates a new gateway router integration
 func NewGatewayRouterIntegration(
-	logger core.Logger,
+	logger portcontract.Logger,
 	metrics core.MetricsCollector,
 	eventQueryHandler *EventQueryHandler,
 	subscriptionHandler *EventSubscriptionHandler,
@@ -468,7 +470,7 @@ func (gri *GatewayRouterIntegration) registerStatsRoutes() error {
 	if gri.statsHandler == nil {
 		return nil
 	}
-	return gri.registerRoute("stats", "/events/stats", "GET", 0)
+	return gri.registerRoute("stats", "/events/stats", "GET", 60)
 }
 
 func (gri *GatewayRouterIntegration) registerAdminKeyRoutes() error {
@@ -537,6 +539,16 @@ func (gri *GatewayRouterIntegration) attachUpstreamQueryHandlers() error {
 		"event-by-name",
 		"graphql",
 	}
+	// Subscription routes are intentionally withheld from the monolithic
+	// microservice-intent surface, so they are attached only when registered
+	// (api-gateway and full-surface postures).
+	subscriptionRouteIDs := []string{
+		"websocket-subscribe",
+		"subscribe",
+		"subscribe-chain",
+		"subscribe-contract",
+		"subscribe-name",
+	}
 
 	for idx, endpoint := range gri.upstreamQueryEndpoints {
 		handler := NewHandler(
@@ -551,6 +563,14 @@ func (gri *GatewayRouterIntegration) attachUpstreamQueryHandlers() error {
 			handler.SetHealthHeaders(gri.upstreamQueryHealthHeaders)
 		}
 		for _, routeID := range routeIDs {
+			if err := gri.router.AttachHandler(routeID, handler); err != nil {
+				return fmt.Errorf("failed to attach upstream handler to route %s: %w", routeID, err)
+			}
+		}
+		for _, routeID := range subscriptionRouteIDs {
+			if _, err := gri.router.GetRoute(routeID); err != nil {
+				continue
+			}
 			if err := gri.router.AttachHandler(routeID, handler); err != nil {
 				return fmt.Errorf("failed to attach upstream handler to route %s: %w", routeID, err)
 			}
@@ -700,7 +720,10 @@ func gatewayHandleEventByName(gri *GatewayRouterIntegration, w http.ResponseWrit
 	gri.handleQueryRoute(w, r, route, "event-by-name", func() { gri.eventQueryHandler.HandleGetEventsByName(w, r, eventName) })
 }
 
-func gatewayHandleSubscribeAll(gri *GatewayRouterIntegration, w http.ResponseWriter, wrapped http.ResponseWriter, r *http.Request, _ *Route, _ map[string]string) {
+func gatewayHandleSubscribeAll(gri *GatewayRouterIntegration, w http.ResponseWriter, wrapped http.ResponseWriter, r *http.Request, route *Route, _ map[string]string) {
+	if gri.tryForwardSubscriptionUpgrade(w, wrapped, r, route) {
+		return
+	}
 	gri.logger.Info("Handling WebSocket subscribe", "path", r.URL.Path, "handler_nil", gri.subscriptionHandler == nil)
 	if gri.subscriptionHandler == nil {
 		gri.logger.Error("subscriptionHandler is nil!")
@@ -710,7 +733,10 @@ func gatewayHandleSubscribeAll(gri *GatewayRouterIntegration, w http.ResponseWri
 	gri.subscriptionHandler.HandleSubscribeAll(wrapped, r)
 }
 
-func gatewayHandleSubscribeChain(gri *GatewayRouterIntegration, w http.ResponseWriter, _ http.ResponseWriter, r *http.Request, _ *Route, params map[string]string) {
+func gatewayHandleSubscribeChain(gri *GatewayRouterIntegration, w http.ResponseWriter, wrapped http.ResponseWriter, r *http.Request, route *Route, params map[string]string) {
+	if gri.tryForwardSubscriptionUpgrade(w, wrapped, r, route) {
+		return
+	}
 	chainID := ""
 	if params != nil {
 		chainID = params["chainId"]
@@ -723,7 +749,10 @@ func gatewayHandleSubscribeChain(gri *GatewayRouterIntegration, w http.ResponseW
 	gri.subscriptionHandler.HandleSubscribeChain(w, r, chainID)
 }
 
-func gatewayHandleSubscribeContract(gri *GatewayRouterIntegration, w http.ResponseWriter, _ http.ResponseWriter, r *http.Request, _ *Route, params map[string]string) {
+func gatewayHandleSubscribeContract(gri *GatewayRouterIntegration, w http.ResponseWriter, wrapped http.ResponseWriter, r *http.Request, route *Route, params map[string]string) {
+	if gri.tryForwardSubscriptionUpgrade(w, wrapped, r, route) {
+		return
+	}
 	address := ""
 	if params != nil {
 		address = params["address"]
@@ -735,7 +764,10 @@ func gatewayHandleSubscribeContract(gri *GatewayRouterIntegration, w http.Respon
 	gri.subscriptionHandler.HandleSubscribeContract(w, r, address)
 }
 
-func gatewayHandleSubscribeName(gri *GatewayRouterIntegration, w http.ResponseWriter, _ http.ResponseWriter, r *http.Request, _ *Route, params map[string]string) {
+func gatewayHandleSubscribeName(gri *GatewayRouterIntegration, w http.ResponseWriter, wrapped http.ResponseWriter, r *http.Request, route *Route, params map[string]string) {
+	if gri.tryForwardSubscriptionUpgrade(w, wrapped, r, route) {
+		return
+	}
 	eventName := ""
 	if params != nil {
 		eventName = params["eventName"]
@@ -1204,11 +1236,11 @@ func (gri *GatewayRouterIntegration) Close(ctx context.Context) error {
 // RequestRouterMiddleware is middleware for request routing
 type RequestRouterMiddleware struct {
 	router *RequestRouter
-	logger core.Logger
+	logger portcontract.Logger
 }
 
 // NewRequestRouterMiddleware creates a new request router middleware
-func NewRequestRouterMiddleware(router *RequestRouter, logger core.Logger) *RequestRouterMiddleware {
+func NewRequestRouterMiddleware(router *RequestRouter, logger portcontract.Logger) *RequestRouterMiddleware {
 	return &RequestRouterMiddleware{
 		router: router,
 		logger: logger,
@@ -1310,11 +1342,11 @@ func NewResponseWriter(w http.ResponseWriter) *ResponseWriter {
 
 // RequestLogger logs request details
 type RequestLogger struct {
-	logger core.Logger
+	logger portcontract.Logger
 }
 
 // NewRequestLogger creates a new request logger
-func NewRequestLogger(logger core.Logger) *RequestLogger {
+func NewRequestLogger(logger portcontract.Logger) *RequestLogger {
 	return &RequestLogger{
 		logger: logger,
 	}

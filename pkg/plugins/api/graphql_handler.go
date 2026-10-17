@@ -7,11 +7,15 @@ import (
 	"strings"
 	"sync"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
 	"github.com/graphql-go/graphql"
 	"github.com/graphql-go/graphql/language/ast"
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"github.com/rtcdance/chainpulse/pkg/chainid"
 	"github.com/rtcdance/chainpulse/pkg/core"
 	domainquery "github.com/rtcdance/chainpulse/pkg/domain/query"
+	"github.com/rtcdance/chainpulse/pkg/logkeys"
 )
 
 // jsonScalar is a custom GraphQL scalar that passes through arbitrary JSON values
@@ -50,7 +54,7 @@ type Location struct {
 type GraphQLHandler struct {
 	queryService domainquery.Service
 	eventStore   domainquery.EventStore
-	logger       core.Logger
+	logger       portcontract.Logger
 	metrics      core.MetricsCollector
 	schema       *graphql.Schema
 	mu           sync.RWMutex
@@ -58,7 +62,7 @@ type GraphQLHandler struct {
 }
 
 // NewGraphQLHandler creates a new GraphQL handler
-func NewGraphQLHandler(queryService domainquery.Service, eventStore domainquery.EventStore, logger core.Logger, metrics core.MetricsCollector) *GraphQLHandler {
+func NewGraphQLHandler(queryService domainquery.Service, eventStore domainquery.EventStore, logger portcontract.Logger, metrics core.MetricsCollector) *GraphQLHandler {
 	h := &GraphQLHandler{
 		queryService: queryService,
 		eventStore:   eventStore,
@@ -171,6 +175,10 @@ func (h *GraphQLHandler) buildSchema() (*graphql.Schema, error) {
 					if cid, ok := p.Args["chainId"].(string); ok && cid != "" {
 						chainID = chainid.ResolveChainID(cid)
 					}
+					if source, ok := h.queryService.(interface{ AuthoritativeQuery() bool }); ok && source.AuthoritativeQuery() {
+						after, _ := p.Args["after"].(string)
+						return h.canonicalPage(p.Context, chainID, first, after)
+					}
 
 					if h.eventStore == nil {
 						return map[string]any{
@@ -246,7 +254,7 @@ func eventToMap(evt any) map[string]any {
 		return nil
 	}
 
-	if e, ok := evt.(*core.BlockchainEvent); ok {
+	if e, ok := evt.(*blockchain.BlockchainEvent); ok {
 		return map[string]any{
 			"id":               e.ID,
 			"eventHash":        e.EventHash,
@@ -266,7 +274,7 @@ func eventToMap(evt any) map[string]any {
 		}
 	}
 
-	if e, ok := evt.(core.BlockchainEvent); ok {
+	if e, ok := evt.(blockchain.BlockchainEvent); ok {
 		return map[string]any{
 			"id":               e.ID,
 			"eventHash":        e.EventHash,
@@ -307,7 +315,7 @@ func (h *GraphQLHandler) Initialize(config *core.Config) error {
 
 	h.initialized = true
 
-	h.logger.Info("GraphQL handler initialized", core.LogKeyComponent, "graphql_handler")
+	h.logger.Info("GraphQL handler initialized", logkeys.LogKeyComponent, "graphql_handler")
 
 	return nil
 }
@@ -460,7 +468,7 @@ func (h *GraphQLHandler) Stop() error {
 
 	h.initialized = false
 
-	h.logger.Info("GraphQL handler stopped", core.LogKeyComponent, "graphql_handler")
+	h.logger.Info("GraphQL handler stopped", logkeys.LogKeyComponent, "graphql_handler")
 
 	return nil
 }

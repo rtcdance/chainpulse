@@ -66,15 +66,34 @@ func (b *topicReplayBuffer) Since(afterSeq uint64) []replayEntry {
 type SubscriptionHub struct {
 	replayBuffers map[string]*topicReplayBuffer
 	seqCounters   map[string]*uint64
-	mu            sync.RWMutex
+	// epoch is process-unique and immutable after construction: it lets a
+	// reconnecting client detect that its cursor belongs to a previous hub
+	// lifetime (restart) instead of silently missing data. It is written
+	// before the hub is published and never changes, so Epoch() needs no lock.
+	epoch string
+	mu    sync.RWMutex
 }
+
+// Resume statuses adjudicating a reconnect cursor against the retained window.
+const (
+	resumeStatusFresh      = "fresh"       // no cursor supplied
+	resumeStatusOK         = "ok"          // cursor inside the retained window
+	resumeStatusStaleEpoch = "stale_epoch" // epoch mismatch or cursor beyond current sequence
+	resumeStatusGap        = "gap"         // cursor older than the retained window
+)
 
 // NewSubscriptionHub creates a new subscription hub
 func NewSubscriptionHub() *SubscriptionHub {
 	return &SubscriptionHub{
 		replayBuffers: make(map[string]*topicReplayBuffer),
 		seqCounters:   make(map[string]*uint64),
+		epoch:         uuid.New().String(),
 	}
+}
+
+// Epoch returns the process-unique replay epoch of this hub.
+func (h *SubscriptionHub) Epoch() string {
+	return h.epoch
 }
 
 // BufferEvent stores an event in the replay buffer and returns its sequence number
@@ -109,6 +128,49 @@ func (h *SubscriptionHub) GetReplayEvents(topic string, afterSeq uint64) []repla
 	result := buf.Since(afterSeq)
 	h.mu.RUnlock()
 	return result
+}
+
+// Resume adjudicates a reconnect cursor against this hub's epoch and retained
+// window. epoch is the (possibly empty) epoch supplied by the client; an empty
+// epoch means a legacy bare-seq cursor that cannot be epoch-verified. It
+// returns the resume status plus the entries to replay — only ever non-nil for
+// resumeStatusOK, so a stale or gapped cursor is never papered over with a
+// partial replay that would let the client believe continuity.
+func (h *SubscriptionHub) Resume(topic, epoch string, cursor uint64, hasCursor bool) (string, []replayEntry) {
+	if !hasCursor {
+		return resumeStatusFresh, nil
+	}
+	if epoch != "" && epoch != h.epoch {
+		return resumeStatusStaleEpoch, nil
+	}
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	var lastSeq uint64
+	if counter, ok := h.seqCounters[topic]; ok {
+		lastSeq = atomic.LoadUint64(counter)
+	}
+	if cursor > lastSeq {
+		// A sequence never moves backwards inside one epoch, so a cursor beyond
+		// the current sequence means the hub restarted (or the client invented
+		// it) and continuity cannot be assumed.
+		return resumeStatusStaleEpoch, nil
+	}
+	buf, ok := h.replayBuffers[topic]
+	if !ok {
+		if cursor == 0 && lastSeq == 0 {
+			return resumeStatusOK, nil
+		}
+		return resumeStatusStaleEpoch, nil
+	}
+	if buf.count > 0 {
+		oldest := buf.entries[(buf.head-buf.count+replayBufferCapacity)%replayBufferCapacity].Seq
+		if cursor+1 < oldest {
+			// The ring dropped events the client never saw: replaying only the
+			// retained tail would hide the hole.
+			return resumeStatusGap, nil
+		}
+	}
+	return resumeStatusOK, buf.Since(cursor)
 }
 
 // WebSocketHandler handles WebSocket connections and upgrades

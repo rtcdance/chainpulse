@@ -3,13 +3,13 @@ package indexing
 import (
 	"testing"
 
-	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 )
 
 func TestShadowWriteTracker_MarkAndConsume(t *testing.T) {
 	tracker := NewShadowWriteTracker()
 
-	event := &core.BlockchainEvent{ID: "evt-1", ChainID: "1", BlockNumber: 100}
+	event := &blockchain.BlockchainEvent{ID: "evt-1", ChainID: "1", BlockNumber: 100}
 	tracker.Mark(event)
 
 	if !tracker.Consume(event) {
@@ -24,9 +24,9 @@ func TestShadowWriteTracker_MarkAndConsume(t *testing.T) {
 func TestShadowWriteTracker_MultipleEvents(t *testing.T) {
 	tracker := NewShadowWriteTracker()
 
-	e1 := &core.BlockchainEvent{ID: "evt-1", ChainID: "1", BlockNumber: 100}
-	e2 := &core.BlockchainEvent{ID: "evt-2", ChainID: "1", BlockNumber: 101}
-	e3 := &core.BlockchainEvent{ID: "evt-3", ChainID: "1", BlockNumber: 102}
+	e1 := &blockchain.BlockchainEvent{ID: "evt-1", ChainID: "1", BlockNumber: 100}
+	e2 := &blockchain.BlockchainEvent{ID: "evt-2", ChainID: "1", BlockNumber: 101}
+	e3 := &blockchain.BlockchainEvent{ID: "evt-3", ChainID: "1", BlockNumber: 102}
 
 	tracker.Mark(e1)
 	tracker.Mark(e2)
@@ -59,7 +59,7 @@ func TestShadowWriteTracker_NilSafety(t *testing.T) {
 func TestShadowWriteTracker_UnmarkedEvent(t *testing.T) {
 	tracker := NewShadowWriteTracker()
 
-	event := &core.BlockchainEvent{ID: "evt-1", ChainID: "1", BlockNumber: 100}
+	event := &blockchain.BlockchainEvent{ID: "evt-1", ChainID: "1", BlockNumber: 100}
 
 	if tracker.Consume(event) {
 		t.Fatal("Consume should return false for unmarked event")
@@ -69,7 +69,7 @@ func TestShadowWriteTracker_UnmarkedEvent(t *testing.T) {
 func TestShadowWriteTracker_PointerBased(t *testing.T) {
 	tracker := NewShadowWriteTracker()
 
-	event := &core.BlockchainEvent{ID: "evt-1", ChainID: "1", BlockNumber: 100}
+	event := &blockchain.BlockchainEvent{ID: "evt-1", ChainID: "1", BlockNumber: 100}
 
 	// Pointer-based map: marking via one variable, consuming via another
 	// But they point to the same event, so it should match
@@ -85,9 +85,9 @@ func TestShadowWriteTracker_TrackThenConsumeAll(t *testing.T) {
 	tracker := NewShadowWriteTracker()
 
 	n := 50
-	events := make([]*core.BlockchainEvent, n)
+	events := make([]*blockchain.BlockchainEvent, n)
 	for i := range n {
-		events[i] = &core.BlockchainEvent{ID: "evt", ChainID: "1", BlockNumber: uint64(i)}
+		events[i] = &blockchain.BlockchainEvent{ID: "evt", ChainID: "1", BlockNumber: uint64(i)}
 		tracker.Mark(events[i])
 	}
 
@@ -105,7 +105,7 @@ func TestShadowWriteTracker_TrackThenConsumeAll(t *testing.T) {
 }
 
 func TestDefaultTracker(t *testing.T) {
-	event := &core.BlockchainEvent{ID: "evt-def", ChainID: "1", BlockNumber: 200}
+	event := &blockchain.BlockchainEvent{ID: "evt-def", ChainID: "1", BlockNumber: 200}
 	defaultTracker.Mark(event)
 
 	if !defaultTracker.Consume(event) {

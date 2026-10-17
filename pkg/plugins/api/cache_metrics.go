@@ -4,6 +4,8 @@ import (
 	"sync"
 	"time"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
 	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
@@ -15,14 +17,14 @@ type CacheMetrics struct {
 	invalidationCount  int64
 	operationDurations []time.Duration
 
-	logger  core.Logger
+	logger  portcontract.Logger
 	metrics core.MetricsCollector
 
 	mu sync.RWMutex
 }
 
 // NewCacheMetrics creates a new cache metrics collector
-func NewCacheMetrics(logger core.Logger, metrics core.MetricsCollector) *CacheMetrics {
+func NewCacheMetrics(logger portcontract.Logger, metrics core.MetricsCollector) *CacheMetrics {
 	return &CacheMetrics{
 		hitCount:           0,
 		missCount:          0,

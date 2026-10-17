@@ -1,13 +1,28 @@
-linters-settings:
-  govet:
-    disable:
-      - fieldalignment
-      - unusedwrite
+version: "2"
+
 linters:
-  disable-all: true
+  default: none
   enable:
     - govet
+    - errcheck
+    - ineffassign
+    - unused
+  settings:
+    govet:
+      disable:
+        - fieldalignment
+        - unusedwrite
+  exclusions:
+    presets:
+      - std-error-handling
+      - common-false-positives
+    rules:
+      # Tests routinely ignore errors from cleanup helpers (os.Setenv/Unsetenv,
+      # Close/Stop, response writers). Not actionable — exclude errcheck there.
+      - path: _test\.go
+        linters:
+          - errcheck
+
 issues:
-  exclude-use-default: false
-  max-per-linter: 0
-  max-same: 0
+  max-issues-per-linter: 0
+  max-same-issues: 0

@@ -4,7 +4,11 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
@@ -13,16 +17,16 @@ import (
 type MonolithicMemoryDatabase struct {
 	mu      sync.RWMutex
 	started bool
-	events  map[string]*core.BlockchainEvent
-	blocks  map[uint64]*core.Block
-	logger  core.Logger
+	events  map[string]*blockchain.BlockchainEvent
+	blocks  map[uint64]*blockchain.Block
+	logger  portcontract.Logger
 }
 
 // NewMonolithicMemoryDatabase creates a new in-memory database adapter.
-func NewMonolithicMemoryDatabase(logger core.Logger) *MonolithicMemoryDatabase {
+func NewMonolithicMemoryDatabase(logger portcontract.Logger) *MonolithicMemoryDatabase {
 	return &MonolithicMemoryDatabase{
-		events: make(map[string]*core.BlockchainEvent),
-		blocks: make(map[uint64]*core.Block),
+		events: make(map[string]*blockchain.BlockchainEvent),
+		blocks: make(map[uint64]*blockchain.Block),
 		logger: logger,
 	}
 }
@@ -44,8 +48,8 @@ func (db *MonolithicMemoryDatabase) Stop(_ context.Context) error {
 	db.mu.Lock()
 	defer db.mu.Unlock()
 	db.started = false
-	db.events = make(map[string]*core.BlockchainEvent)
-	db.blocks = make(map[uint64]*core.Block)
+	db.events = make(map[string]*blockchain.BlockchainEvent)
+	db.blocks = make(map[uint64]*blockchain.Block)
 	return nil
 }
 
@@ -66,9 +70,9 @@ func (db *MonolithicMemoryDatabase) StoreEvent(ctx context.Context, event any) e
 		return fmt.Errorf("database not started")
 	}
 
-	blockchainEvent, ok := event.(*core.BlockchainEvent)
+	blockchainEvent, ok := event.(*blockchain.BlockchainEvent)
 	if !ok || blockchainEvent == nil {
-		return fmt.Errorf("event must be *core.BlockchainEvent")
+		return fmt.Errorf("event must be *blockchain.BlockchainEvent")
 	}
 
 	db.events[blockchainEvent.ID] = blockchainEvent
@@ -78,9 +82,17 @@ func (db *MonolithicMemoryDatabase) StoreEvent(ctx context.Context, event any) e
 	return nil
 }
 
-func (db *MonolithicMemoryDatabase) GetEvent(ctx context.Context, id string) (*core.BlockchainEvent, error) {
+// GetEvent returns the stored event, or (nil, nil) when it does not exist.
+// The (nil, nil) convention for a missing entity is what the query path
+// expects (see event_retrieval_service.GetEventWithMetadata and the GraphQL
+// resolver, which both branch on `event == nil`). An error is reserved for
+// real failures (e.g. the store is not started).
+func (db *MonolithicMemoryDatabase) GetEvent(ctx context.Context, id string) (*blockchain.BlockchainEvent, error) {
 	db.mu.RLock()
 	defer db.mu.RUnlock()
+	if !db.started {
+		return nil, fmt.Errorf("database not started")
+	}
 	return db.events[id], nil
 }
 
@@ -104,11 +116,11 @@ func (db *MonolithicMemoryDatabase) BatchStoreEvents(ctx context.Context, events
 	return nil
 }
 
-func (db *MonolithicMemoryDatabase) GetAllEvents(ctx context.Context) ([]*core.BlockchainEvent, error) {
+func (db *MonolithicMemoryDatabase) GetAllEvents(ctx context.Context) ([]*blockchain.BlockchainEvent, error) {
 	db.mu.RLock()
 	defer db.mu.RUnlock()
 
-	results := make([]*core.BlockchainEvent, 0, len(db.events))
+	results := make([]*blockchain.BlockchainEvent, 0, len(db.events))
 	for _, event := range db.events {
 		results = append(results, event)
 	}
@@ -118,11 +130,11 @@ func (db *MonolithicMemoryDatabase) GetAllEvents(ctx context.Context) ([]*core.B
 	return results, nil
 }
 
-func (db *MonolithicMemoryDatabase) GetAllBlocks(ctx context.Context) ([]*core.Block, error) {
+func (db *MonolithicMemoryDatabase) GetAllBlocks(ctx context.Context) ([]*blockchain.Block, error) {
 	db.mu.RLock()
 	defer db.mu.RUnlock()
 
-	results := make([]*core.Block, 0, len(db.blocks))
+	results := make([]*blockchain.Block, 0, len(db.blocks))
 	for _, block := range db.blocks {
 		results = append(results, block)
 	}
@@ -136,11 +148,11 @@ func (db *MonolithicMemoryDatabase) DeleteEvent(ctx context.Context, eventID str
 	return nil
 }
 
-func (db *MonolithicMemoryDatabase) GetEventsByBlockRange(ctx context.Context, fromBlock, toBlock uint64) ([]*core.BlockchainEvent, error) {
+func (db *MonolithicMemoryDatabase) GetEventsByBlockRange(ctx context.Context, fromBlock, toBlock uint64) ([]*blockchain.BlockchainEvent, error) {
 	db.mu.RLock()
 	defer db.mu.RUnlock()
 
-	results := make([]*core.BlockchainEvent, 0)
+	results := make([]*blockchain.BlockchainEvent, 0)
 	for _, event := range db.events {
 		if event.BlockNumber >= fromBlock && event.BlockNumber <= toBlock {
 			results = append(results, event)
@@ -149,7 +161,7 @@ func (db *MonolithicMemoryDatabase) GetEventsByBlockRange(ctx context.Context, f
 	return results, nil
 }
 
-func (db *MonolithicMemoryDatabase) GetBlock(ctx context.Context, blockNumber uint64) (*core.Block, error) {
+func (db *MonolithicMemoryDatabase) GetBlock(ctx context.Context, blockNumber uint64) (*blockchain.Block, error) {
 	db.mu.RLock()
 	defer db.mu.RUnlock()
 	return db.blocks[blockNumber], nil
@@ -194,7 +206,7 @@ func (db *MonolithicMemoryDatabase) MarkEventsAsReorged(ctx context.Context, fro
 	var count int64
 	for id, event := range db.events {
 		if event.BlockNumber >= fromBlock && event.BlockNumber <= toBlock {
-			event.Status = core.EventStatusReorged
+			event.Status = blockchain.EventStatusReorged
 			db.events[id] = event
 			count++
 		}
@@ -202,13 +214,13 @@ func (db *MonolithicMemoryDatabase) MarkEventsAsReorged(ctx context.Context, fro
 	return count, nil
 }
 
-func (db *MonolithicMemoryDatabase) GetReorgStats(ctx context.Context) (*core.ReorgStats, error) {
-	return &core.ReorgStats{}, nil
+func (db *MonolithicMemoryDatabase) GetReorgStats(ctx context.Context) (*portcontract.ReorgStats, error) {
+	return &portcontract.ReorgStats{}, nil
 }
 
 // StoreBlockSnapshot records a minimal canonical block snapshot for monolithic
 // runtime reorg detection.
-func (db *MonolithicMemoryDatabase) StoreBlockSnapshot(ctx context.Context, block *core.Block) error {
+func (db *MonolithicMemoryDatabase) StoreBlockSnapshot(ctx context.Context, block *blockchain.Block) error {
 	db.mu.Lock()
 	defer db.mu.Unlock()
 
@@ -226,16 +238,23 @@ func (db *MonolithicMemoryDatabase) StoreBlockSnapshot(ctx context.Context, bloc
 
 // MonolithicMemoryCache provides a debug-friendly in-memory cache for the
 // indexing contract used by monolithic mode.
+//
+// It honours the ttl argument of Set (the CachePlugin port requires it) and
+// tracks hit/miss statistics so GetStats is meaningful.
 type MonolithicMemoryCache struct {
 	mu      sync.RWMutex
 	started bool
 	data    map[string][]byte
+	expires map[string]time.Time
+	hits    int64
+	misses  int64
 }
 
 // NewMonolithicMemoryCache creates a new in-memory cache adapter.
 func NewMonolithicMemoryCache() *MonolithicMemoryCache {
 	return &MonolithicMemoryCache{
-		data: make(map[string][]byte),
+		data:    make(map[string][]byte),
+		expires: make(map[string]time.Time),
 	}
 }
 
@@ -273,9 +292,21 @@ func (c *MonolithicMemoryCache) HealthCheck(ctx context.Context) error {
 }
 
 func (c *MonolithicMemoryCache) Get(ctx context.Context, key string) ([]byte, error) {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	return c.data[key], nil
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if exp, ok := c.expires[key]; ok && !exp.IsZero() && time.Now().After(exp) {
+		delete(c.data, key)
+		delete(c.expires, key)
+	}
+
+	value, ok := c.data[key]
+	if !ok {
+		c.misses++
+		return nil, nil
+	}
+	c.hits++
+	return value, nil
 }
 
 func (c *MonolithicMemoryCache) Set(ctx context.Context, key string, value []byte, ttl int) error {
@@ -285,6 +316,11 @@ func (c *MonolithicMemoryCache) Set(ctx context.Context, key string, value []byt
 		return fmt.Errorf("cache not started")
 	}
 	c.data[key] = append([]byte(nil), value...)
+	if ttl > 0 {
+		c.expires[key] = time.Now().Add(time.Duration(ttl) * time.Second)
+	} else {
+		delete(c.expires, key)
+	}
 	return nil
 }
 
@@ -292,9 +328,23 @@ func (c *MonolithicMemoryCache) Delete(ctx context.Context, key string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	delete(c.data, key)
+	delete(c.expires, key)
 	return nil
 }
 
-func (c *MonolithicMemoryCache) GetStats() core.CacheStats {
-	return core.CacheStats{}
+func (c *MonolithicMemoryCache) GetStats() portcontract.CacheStats {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	total := c.hits + c.misses
+	var hitRate float64
+	if total > 0 {
+		hitRate = float64(c.hits) / float64(total)
+	}
+	return portcontract.CacheStats{
+		HitCount:   c.hits,
+		MissCount:  c.misses,
+		HitRate:    hitRate,
+		EntryCount: int64(len(c.data)),
+	}
 }

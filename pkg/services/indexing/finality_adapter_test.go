@@ -14,6 +14,15 @@ func (m *mockFinalityChecker) GetFinalizedBlockNumber(_ context.Context, _ strin
 	return 100, nil
 }
 
+func (m *mockFinalityChecker) GetFinalizedBlockNumberWithStatus(_ context.Context, _ string) (*finality.FinalityResult, error) {
+	return &finality.FinalityResult{
+		IsFinalized:          true,
+		Confidence:           finality.ConfidenceFinalized,
+		Source:               finality.SourceFinalizedTag,
+		FinalizedBlockNumber: 100,
+	}, nil
+}
+
 func (m *mockFinalityChecker) IsBlockFinalized(_ context.Context, _ string, blockNumber uint64) (bool, error) {
 	return blockNumber <= 100, nil
 }

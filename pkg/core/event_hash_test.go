@@ -3,12 +3,14 @@ package core
 import (
 	"testing"
 
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
+
 	"github.com/ethereum/go-ethereum/common"
 )
 
 func TestComputeEventHash_Deterministic(t *testing.T) {
 	t.Parallel()
-	event := &BlockchainEvent{
+	event := &blockchain.BlockchainEvent{
 		ChainID:         "1",
 		BlockNumber:     12345,
 		TransactionHash: common.HexToHash("0xabc123"),
@@ -24,7 +26,7 @@ func TestComputeEventHash_Deterministic(t *testing.T) {
 
 func TestComputeEventHash_DifferentEventsDifferentHashes(t *testing.T) {
 	t.Parallel()
-	base := &BlockchainEvent{
+	base := &blockchain.BlockchainEvent{
 		ChainID:         "1",
 		BlockNumber:     100,
 		TransactionHash: common.HexToHash("0xabc123"),
@@ -33,12 +35,14 @@ func TestComputeEventHash_DifferentEventsDifferentHashes(t *testing.T) {
 
 	cases := []struct {
 		name   string
-		modify func(*BlockchainEvent)
+		modify func(*blockchain.BlockchainEvent)
 	}{
-		{"different chain", func(e *BlockchainEvent) { e.ChainID = "137" }},
-		{"different block", func(e *BlockchainEvent) { e.BlockNumber = 200 }},
-		{"different tx", func(e *BlockchainEvent) { e.TransactionHash = common.HexToHash("0xdef456") }},
-		{"different log", func(e *BlockchainEvent) { e.LogIndex = 5 }},
+		{"different chain", func(e *blockchain.BlockchainEvent) { e.ChainID = "137" }},
+		// block_number is deliberately NOT identity (see
+		// TestComputeEventHash_IgnoresBlockNumber); block_hash is.
+		{"different block hash", func(e *blockchain.BlockchainEvent) { e.BlockHash = common.HexToHash("0xdeadbeef") }},
+		{"different tx", func(e *blockchain.BlockchainEvent) { e.TransactionHash = common.HexToHash("0xdef456") }},
+		{"different log", func(e *blockchain.BlockchainEvent) { e.LogIndex = 5 }},
 	}
 
 	baseHash := ComputeEventHash(base)
@@ -59,7 +63,7 @@ func TestComputeEventHash_IgnoresDerivedFields(t *testing.T) {
 	t.Parallel()
 	// Two events with same natural key but different EventName/Network/ContractAddress
 	// should produce the SAME hash (they are the same on-chain event)
-	e1 := &BlockchainEvent{
+	e1 := &blockchain.BlockchainEvent{
 		ChainID:         "1",
 		BlockNumber:     100,
 		TransactionHash: common.HexToHash("0xabc123"),
@@ -69,7 +73,7 @@ func TestComputeEventHash_IgnoresDerivedFields(t *testing.T) {
 		ContractAddress: common.HexToAddress("0x1234"),
 	}
 
-	e2 := &BlockchainEvent{
+	e2 := &blockchain.BlockchainEvent{
 		ChainID:         "1",
 		BlockNumber:     100,
 		TransactionHash: common.HexToHash("0xabc123"),
@@ -93,7 +97,7 @@ func TestComputeEventHash_NilEvent(t *testing.T) {
 
 func TestComputeEventHash_ZeroValues(t *testing.T) {
 	t.Parallel()
-	event := &BlockchainEvent{
+	event := &blockchain.BlockchainEvent{
 		ChainID:         "",
 		BlockNumber:     0,
 		TransactionHash: common.Hash{},
@@ -107,7 +111,7 @@ func TestComputeEventHash_ZeroValues(t *testing.T) {
 
 func TestComputeEventHash_OutputLength(t *testing.T) {
 	t.Parallel()
-	event := &BlockchainEvent{
+	event := &blockchain.BlockchainEvent{
 		ChainID:         "1",
 		BlockNumber:     1,
 		TransactionHash: common.HexToHash("0x01"),
@@ -120,9 +124,47 @@ func TestComputeEventHash_OutputLength(t *testing.T) {
 	}
 }
 
+func TestComputeEventHash_DistinguishesBlockHash(t *testing.T) {
+	t.Parallel()
+	// F06 / I02: the same (chain, tx, log_index) on two competing branches at
+	// the same height must NOT collide — block_hash is part of the identity.
+	base := &blockchain.BlockchainEvent{
+		ChainID:         "1",
+		BlockNumber:     100,
+		BlockHash:       common.HexToHash("0xaaa1"),
+		TransactionHash: common.HexToHash("0xabc123"),
+		LogIndex:        0,
+	}
+	other := *base
+	other.BlockHash = common.HexToHash("0xbbb2")
+
+	if ComputeEventHash(base) == ComputeEventHash(&other) {
+		t.Error("different block_hash must produce a different event hash (I02/F06)")
+	}
+}
+
+func TestComputeEventHash_IgnoresBlockNumber(t *testing.T) {
+	t.Parallel()
+	// Block number is not part of the physical identity: it is implied by the
+	// block hash and is used for ordering/range scans only.
+	base := &blockchain.BlockchainEvent{
+		ChainID:         "1",
+		BlockNumber:     100,
+		BlockHash:       common.HexToHash("0xaaa1"),
+		TransactionHash: common.HexToHash("0xabc123"),
+		LogIndex:        0,
+	}
+	other := *base
+	other.BlockNumber = 999
+
+	if ComputeEventHash(base) != ComputeEventHash(&other) {
+		t.Error("block_number must not change the physical identity")
+	}
+}
+
 func TestEventNaturalKey(t *testing.T) {
 	t.Parallel()
-	event := &BlockchainEvent{
+	event := &blockchain.BlockchainEvent{
 		ChainID:         "1",
 		BlockNumber:     100,
 		TransactionHash: common.HexToHash("0xabc123"),

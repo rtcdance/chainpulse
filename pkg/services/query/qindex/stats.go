@@ -2,12 +2,10 @@
 package qindex
 
 import (
-	"sync"
 	"time"
 )
 
 type StatsCollector struct {
-	mu                sync.RWMutex
 	stats             map[string]*QueryMetrics
 	aggregatedStats   *AggregatedMetrics
 	lastAggregation   time.Time

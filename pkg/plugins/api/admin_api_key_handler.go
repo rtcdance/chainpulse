@@ -9,17 +9,17 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rtcdance/chainpulse/pkg/core"
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
 )
 
 // AdminAPIKeyHandler handles admin API key management endpoints
 type AdminAPIKeyHandler struct {
 	store  *APIKeyStore
-	logger core.Logger
+	logger portcontract.Logger
 }
 
 // NewAdminAPIKeyHandler creates a new admin API key handler
-func NewAdminAPIKeyHandler(store *APIKeyStore, logger core.Logger) *AdminAPIKeyHandler {
+func NewAdminAPIKeyHandler(store *APIKeyStore, logger portcontract.Logger) *AdminAPIKeyHandler {
 	return &AdminAPIKeyHandler{
 		store:  store,
 		logger: logger,
@@ -71,7 +71,7 @@ func (h *AdminAPIKeyHandler) HandleCreateAPIKey(w http.ResponseWriter, r *http.R
 
 	record, plainKey, err := h.store.CreateAPIKey(r.Context(), req.ClientID, req.Name, req.Permissions, expiresAt)
 	if err != nil {
-		writeJSONError(w, http.StatusInternalServerError, fmt.Sprintf("failed to create key: %v", err))
+		writeRedactedInternalError(w, h.logger, "admin_api_key.create", err)
 		return
 	}
 
@@ -107,7 +107,7 @@ func (h *AdminAPIKeyHandler) HandleListAPIKeys(w http.ResponseWriter, r *http.Re
 
 	records, total, err := h.store.ListAPIKeys(r.Context(), clientID, limit, offset)
 	if err != nil {
-		writeJSONError(w, http.StatusInternalServerError, fmt.Sprintf("failed to list keys: %v", err))
+		writeRedactedInternalError(w, h.logger, "admin_api_key.list", err)
 		return
 	}
 
@@ -146,7 +146,7 @@ func (h *AdminAPIKeyHandler) HandleDeleteAPIKey(w http.ResponseWriter, r *http.R
 			writeJSONError(w, http.StatusNotFound, err.Error())
 			return
 		}
-		writeJSONError(w, http.StatusInternalServerError, fmt.Sprintf("failed to delete key: %v", err))
+		writeRedactedInternalError(w, h.logger, "admin_api_key.delete", err)
 		return
 	}
 
@@ -193,7 +193,7 @@ func (h *AdminAPIKeyHandler) HandleToggleAPIKey(w http.ResponseWriter, r *http.R
 			writeJSONError(w, http.StatusNotFound, err.Error())
 			return
 		}
-		writeJSONError(w, http.StatusInternalServerError, fmt.Sprintf("failed to toggle key: %v", err))
+		writeRedactedInternalError(w, h.logger, "admin_api_key.toggle", err)
 		return
 	}
 

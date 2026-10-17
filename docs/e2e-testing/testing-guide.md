@@ -17,7 +17,7 @@
 
 Before running E2E tests, ensure you have:
 
-- Go 1.21 or later
+- Go 1.26 or later
 - Docker and Docker Compose
 - Anvil (Foundry)
 - PostgreSQL 14+
@@ -505,7 +505,7 @@ jobs:
       - uses: actions/checkout@v3
       - uses: actions/setup-go@v4
         with:
-          go-version: '1.21'
+          go-version: '1.26'
       
       - name: Run E2E tests
         env:

@@ -486,7 +486,10 @@ func TestForwardRequestInjectsTraceContext(t *testing.T) {
 		}),
 	})
 
-	tracer := observability.NewDefaultTracer(logger, metrics)
+	provider, err := observability.NewObservabilityProvider(observability.ObservabilityConfig{ServiceName: "router-test", SamplingRate: 1}, logger)
+	require.NoError(t, err)
+	defer func() { require.NoError(t, provider.Shutdown(context.Background())) }()
+	tracer := observability.NewDefaultTracerWithProvider(provider, logger, metrics)
 	ctx, span := tracer.StartSpan(context.Background(), "router.forward", observability.SpanKindClient)
 	defer tracer.EndSpan(&span)
 

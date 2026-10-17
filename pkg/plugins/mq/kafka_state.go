@@ -1,3 +1,4 @@
+//nolint:unused // dormant state-tracking scaffolding: fields are allocated but never read
 package mq
 
 import (

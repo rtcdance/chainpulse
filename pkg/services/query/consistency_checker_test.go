@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
@@ -20,70 +21,70 @@ func (m *mockEventStore) Initialize(ctx context.Context) error {
 	return nil
 }
 
-func (m *mockEventStore) InsertEvent(ctx context.Context, event *core.BlockchainEvent) error {
+func (m *mockEventStore) InsertEvent(ctx context.Context, event *blockchain.BlockchainEvent) error {
 	if m.shouldFail {
 		return errors.New("insert failed")
 	}
 	return nil
 }
 
-func (m *mockEventStore) InsertEventBatch(ctx context.Context, events []*core.BlockchainEvent) error {
+func (m *mockEventStore) InsertEventBatch(ctx context.Context, events []*blockchain.BlockchainEvent) error {
 	if m.shouldFail {
 		return errors.New("batch insert failed")
 	}
 	return nil
 }
 
-func (m *mockEventStore) GetEvent(ctx context.Context, eventID string) (*core.BlockchainEvent, error) {
+func (m *mockEventStore) GetEvent(ctx context.Context, eventID string) (*blockchain.BlockchainEvent, error) {
 	if m.shouldFail {
 		return nil, errors.New("get failed")
 	}
 	return nil, nil
 }
 
-func (m *mockEventStore) GetEventsByChain(ctx context.Context, chainID int, limit int, offset int) ([]*core.BlockchainEvent, error) {
+func (m *mockEventStore) GetEventsByChain(ctx context.Context, chainID int, limit int, offset int) ([]*blockchain.BlockchainEvent, error) {
 	if m.shouldFail {
 		return nil, errors.New("get by chain failed")
 	}
 	return nil, nil
 }
 
-func (m *mockEventStore) GetEventsByContract(ctx context.Context, contractAddress string, limit int, offset int) ([]*core.BlockchainEvent, error) {
+func (m *mockEventStore) GetEventsByContract(ctx context.Context, contractAddress string, limit int, offset int) ([]*blockchain.BlockchainEvent, error) {
 	if m.shouldFail {
 		return nil, errors.New("get by contract failed")
 	}
 	return nil, nil
 }
 
-func (m *mockEventStore) GetEventsByEventName(ctx context.Context, eventName string, limit int, offset int) ([]*core.BlockchainEvent, error) {
+func (m *mockEventStore) GetEventsByEventName(ctx context.Context, eventName string, limit int, offset int) ([]*blockchain.BlockchainEvent, error) {
 	if m.shouldFail {
 		return nil, errors.New("get by event name failed")
 	}
 	return nil, nil
 }
 
-func (m *mockEventStore) GetEventsByBlock(ctx context.Context, blockNumber int64) ([]*core.BlockchainEvent, error) {
+func (m *mockEventStore) GetEventsByBlock(ctx context.Context, blockNumber int64) ([]*blockchain.BlockchainEvent, error) {
 	if m.shouldFail {
 		return nil, errors.New("get by block failed")
 	}
 	return nil, nil
 }
 
-func (m *mockEventStore) GetEventsByAddress(ctx context.Context, address string, limit int) ([]*core.BlockchainEvent, error) {
+func (m *mockEventStore) GetEventsByAddress(ctx context.Context, address string, limit int) ([]*blockchain.BlockchainEvent, error) {
 	if m.shouldFail {
 		return nil, errors.New("get by address failed")
 	}
 	return nil, nil
 }
 
-func (m *mockEventStore) GetEventsByName(ctx context.Context, eventName string, limit int) ([]*core.BlockchainEvent, error) {
+func (m *mockEventStore) GetEventsByName(ctx context.Context, eventName string, limit int) ([]*blockchain.BlockchainEvent, error) {
 	if m.shouldFail {
 		return nil, errors.New("get by name failed")
 	}
 	return nil, nil
 }
 
-func (m *mockEventStore) GetEventsPaginated(ctx context.Context, cursor string, limit int) ([]*core.BlockchainEvent, bool, error) {
+func (m *mockEventStore) GetEventsPaginated(ctx context.Context, cursor string, limit int) ([]*blockchain.BlockchainEvent, bool, error) {
 	if m.shouldFail {
 		return nil, false, errors.New("get paginated failed")
 	}
@@ -114,8 +115,15 @@ func (m *mockEventStore) Close(ctx context.Context) error {
 	return nil
 }
 
-func (m *mockEventStore) GetEventsByCorrelationID(ctx context.Context, correlationID string, limit int, offset int) ([]*core.BlockchainEvent, error) {
+func (m *mockEventStore) GetEventsByCorrelationID(ctx context.Context, correlationID string, limit int, offset int) ([]*blockchain.BlockchainEvent, error) {
 	return nil, nil
+}
+
+func (m *mockEventStore) GetEventStats(ctx context.Context) (map[string]int64, map[string]int64, int64, error) {
+	if m.shouldFail {
+		return nil, nil, 0, errors.New("get event stats failed")
+	}
+	return make(map[string]int64), make(map[string]int64), 0, nil
 }
 
 // mockMetadataStore is a mock implementation of EventMetadataStore for testing

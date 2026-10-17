@@ -1,0 +1,200 @@
+name: Release Candidate
+
+# AUTHORITATIVE release-candidate lane (plan §7.3: manual RC, protected tag,
+# deliverables verified by digest). The scenario this lane owns is §9's E15 -
+# wrong image / wrong configuration / interrupted migration must fail closed, and
+# rolling back to the previous release must restore service with a byte-identical
+# data digest. It is the only lane that needs a previous release's source tree
+# (`git archive` of PREV_REF) and a Docker daemon for the corrupt-image probe, so
+# it provisions them here instead of in the shared lanes.
+#
+# It is deliberately NOT wired into acceptance-gate: required-checks.json keeps
+# the eleven lanes every push must satisfy, and this lane rebuilds a previous
+# release and starts four processes, which is release-time work rather than
+# per-push work. Trigger it by hand, or let a `v*` tag trigger it.
+#
+# Why `--require-scenario E15` and not `--required-lane release-candidate`: the
+# lane also holds E14-rc and E12-rc, which are honestly recorded as pending with
+# no executable tests. Enforcing the whole lane would fail on that recorded work,
+# and enforcing nothing would make the lane green without running anything.
+# Naming the scenario fails closed in both directions - see verify-tests.py.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+on:
+  workflow_dispatch:
+    inputs:
+      prev_ref:
+        description: 'Previous release revision the rollback must return to'
+        required: false
+        default: '7636755'
+        type: string
+  push:
+    tags: [ 'v*' ]
+
+env:
+  GOPROXY: https://proxy.golang.org|https://goproxy.cn|direct
+
+jobs:
+  release-candidate:
+    name: release-candidate
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: chainpulse_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+      mongo:
+        image: mongo:7
+        options: >-
+          --health-cmd "mongosh --quiet --eval 'db.runCommand({ ping: 1 })'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 27017:27017
+
+      kafka:
+        image: confluentinc/cp-kafka:7.5.0
+        env:
+          KAFKA_BROKER_ID: 1
+          KAFKA_ZOOKEEPER_CONNECT: ''
+          KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+          KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+          KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
+          KAFKA_PROCESS_ROLES: broker,controller
+          KAFKA_NODE_ID: 1
+          KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9093
+          KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
+          KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+          KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+          KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+          CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
+        options: >-
+          --health-cmd "kafka-broker-api-versions --bootstrap-server localhost:9092"
+          --health-interval 15s
+          --health-timeout 10s
+          --health-retries 10
+        ports:
+          - 9092:9092
+
+    steps:
+      - name: Checkout code (full history for the previous release)
+        # `git archive PREV_REF` needs that revision locally; a shallow clone
+        # would make the rollback target unavailable exactly when it matters.
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Install Foundry (for Anvil and the emitter fixture)
+        uses: foundry-rs/foundry-toolchain@908c540300062bd5a7e473851cdb4282204cee09 # v1
+        with:
+          version: v1.8.5
+
+      - name: Require Anvil
+        # startAnvil-style helpers skip when the binary is absent, so installing
+        # the toolchain is not enough: the lane must fail if it cannot run.
+        run: |
+          set -euo pipefail
+          command -v anvil >/dev/null || {
+            echo "::error::anvil is not on PATH; the rollback fixture cannot run"
+            exit 1
+          }
+          anvil --version
+
+      - name: Require Docker
+        # The corrupt-image probe is the only container-form evidence in §9's
+        # E15; a daemon-less runner must fail here, not skip the probe.
+        run: |
+          set -euo pipefail
+          command -v docker >/dev/null || {
+            echo "::error::docker is not on PATH; the corrupt-image probe cannot run"
+            exit 1
+          }
+          docker version
+
+      - name: Deployed release rollback (E15)
+        env:
+          CHAINPULSE_RUN_DEPLOYED_ROLLBACK: '1'
+          CHAINPULSE_DEPLOYED_ROLLBACK_DATABASE_URL: postgres://test:test@localhost:5432/postgres?sslmode=disable
+          CHAINPULSE_DEPLOYED_ROLLBACK_PREV_REF: ${{ inputs.prev_ref || '7636755' }}
+          CHAINPULSE_DEPLOYED_ROLLBACK_RPC_URL: http://127.0.0.1:18576
+          CHAINPULSE_DEPLOYED_MONGODB_URI: mongodb://localhost:27017
+          CHAINPULSE_DEPLOYED_REDIS_ADDR: redis://localhost:6379/0
+          CHAINPULSE_DEPLOYED_KAFKA_ADDR: localhost:9092
+          CHAINPULSE_ACCEPTANCE_OUTPUT: ${{ github.workspace }}/build/release-candidate
+        run: |
+          set -euo pipefail
+          mkdir -p "$CHAINPULSE_ACCEPTANCE_OUTPUT"
+          anvil --host 127.0.0.1 --port 18576 --chain-id 31337 --timestamp 1700000000 \
+            > anvil-rollback.log 2>&1 &
+          for attempt in $(seq 1 30); do
+            if cast chain-id --rpc-url "$CHAINPULSE_DEPLOYED_ROLLBACK_RPC_URL" >/dev/null 2>&1; then break; fi
+            sleep 1
+          done
+          test "$(cast chain-id --rpc-url "$CHAINPULSE_DEPLOYED_ROLLBACK_RPC_URL")" = "31337"
+          forge create --root contracts EventEmitter --unlocked \
+            --from 0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266 \
+            --rpc-url "$CHAINPULSE_DEPLOYED_ROLLBACK_RPC_URL" --broadcast --json \
+            > emitter-rollback-deploy.json
+          export CHAINPULSE_DEPLOYED_ROLLBACK_EMITTER=$(python3 -c 'import json; print(json.load(open("emitter-rollback-deploy.json"))["deployedTo"])')
+          echo "emitter: $CHAINPULSE_DEPLOYED_ROLLBACK_EMITTER"
+
+          # `pipefail` propagates a go-test failure; the verifier then makes the
+          # "ran nothing / skipped everything" cases fail as well.
+          go test -json -tags=integration -count=1 -timeout=25m \
+            ./test/acceptance/ -run '^TestDeployedReleaseRollback$' \
+            | tee "$CHAINPULSE_ACCEPTANCE_OUTPUT/e15-tests.jsonl"
+
+          # Scenario-level enforcement: E15 must have RUN and PASSED. A skip is a
+          # failure here (`required skips must be 0`), so a silently
+          # dependency-gated lane cannot look green.
+          python3 scripts/acceptance/verify-tests.py \
+            --jsonl "$CHAINPULSE_ACCEPTANCE_OUTPUT/e15-tests.jsonl" \
+            --min-tests 1 \
+            --fail-on-unknown-skip \
+            --skip-allowlist test/acceptance/skip-allowlist.json \
+            --required-cases test/acceptance/required-cases.json \
+            --require-scenario E15 \
+            --report "$CHAINPULSE_ACCEPTANCE_OUTPUT/e15-required-report.json"
+
+      - name: Upload release-candidate evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: release-candidate-evidence
+          path: |
+            build/release-candidate/
+            anvil-rollback.log
+            emitter-rollback-deploy.json
+          retention-days: 90
+          if-no-files-found: error

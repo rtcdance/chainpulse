@@ -3,8 +3,33 @@ package e2e
 import (
 	"context"
 	"fmt"
+	"os"
+	"strings"
 	"time"
 )
+
+const (
+	// placeholderDatabaseURL is the historical DSN baked into the test
+	// orchestrator. It never connects; its only job is to keep the
+	// "database unavailable → skip" path intact when TEST_DATABASE_URL is
+	// not set (decision D16(a)).
+	placeholderDatabaseURL = "postgres://user:password@localhost:5432/test"
+
+	// scenarioDatabaseURL is the historical DSN used by scenario
+	// orchestrators (docker-compose default credentials).
+	scenarioDatabaseURL = "postgres://postgres:postgres@localhost:5432/chainpulse_test"
+)
+
+// testDatabaseURL returns TEST_DATABASE_URL from the environment when set,
+// otherwise fallback (decision D16(a)): when a real CI/service container
+// provisions the variable its database is used, while an absent variable
+// keeps the historical placeholder so skip behavior is unchanged.
+func testDatabaseURL(fallback string) string {
+	if url := strings.TrimSpace(os.Getenv("TEST_DATABASE_URL")); url != "" {
+		return url
+	}
+	return fallback
+}
 
 // Orchestrator coordinates all E2E test managers
 type Orchestrator struct {
@@ -27,7 +52,7 @@ func NewOrchestrator(blockchainURL, databaseConnString, apiBaseURL string) *Orch
 func NewTestOrchestrator() *Orchestrator {
 	return &Orchestrator{
 		blockchain: NewBlockchainManager("http://localhost:8545"),
-		database:   NewDatabaseManager("postgres://user:password@localhost:5432/test"),
+		database:   NewDatabaseManager(testDatabaseURL(placeholderDatabaseURL)),
 		api:        NewAPIManager("http://localhost:8080"),
 	}
 }

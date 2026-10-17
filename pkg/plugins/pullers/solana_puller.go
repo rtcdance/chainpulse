@@ -6,9 +6,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"github.com/rtcdance/chainpulse/pkg/core"
 	sharedhttp "github.com/rtcdance/chainpulse/pkg/infrastructure/http"
 
@@ -25,11 +30,16 @@ var knownProgramLabels = map[string]string{
 	core.RaydiumV4ProgramID:                       "Raydium V4 AMM",
 	core.OrcaWhirlpoolProgramID:                   "Orca Whirlpool",
 	"11111111111111111111111111111111":            "System Program",
-	"Vote111111111111111111111111111111111111":    "Vote Program",
+	"Vote111111111111111111111111111111111111111": "Vote Program",
 	"Stake11111111111111111111111111111111111111": "Stake Program",
+	"Config1111111111111111111111111111111111111": "Config Program",
 	"BPFLoaderUpgradeab1e11111111111111111111111": "BPF Loader",
+	"BPFLoader2111111111111111111111111111111111": "BPF Loader 2",
 	"ComputeBudget111111111111111111111111111111": "Compute Budget",
 	"AddressLookupTab1e1111111111111111111111111": "Address Lookup Table",
+	"Ed25519SigVerify111111111111111111111111111": "Ed25519 SigVerify",
+	"KeccakSecp256k11111111111111111111111111111": "Secp256k1 SigVerify",
+	"NativeLoader1111111111111111111111111111111": "Native Loader",
 }
 
 var splTokenProgramIDs = map[string]bool{
@@ -87,14 +97,14 @@ type SolanaPuller struct {
 	currentSlot    uint64
 	pollInterval   time.Duration
 	stopChan       chan bool
-	eventHandlers  []func(core.BlockchainEvent)
+	eventHandlers  []func(blockchain.BlockchainEvent)
 	requestCounter int64
 	metrics        *solPullerMetrics
 }
 
 // NewSolanaPuller creates a new Solana puller
-func NewSolanaPuller(config core.Config, logger core.Logger, metrics core.MetricsCollector) *SolanaPuller {
-	base := NewBaseDataPullerPlugin("solana", "1.0.0", config, logger, metrics, nil)
+func NewSolanaPuller(config core.Config, logger portcontract.Logger, metrics core.MetricsCollector, eventBus portcontract.EventBus) *SolanaPuller {
+	base := NewBaseDataPullerPlugin("solana", "1.0.0", config, logger, metrics, eventBus)
 
 	return &SolanaPuller{
 		BaseDataPullerPlugin: base,
@@ -107,20 +117,51 @@ func NewSolanaPuller(config core.Config, logger core.Logger, metrics core.Metric
 }
 
 // PullEvents pulls events from Solana blocks in the given slot range
-func (p *SolanaPuller) PullEvents(ctx context.Context, fromSlot, toSlot uint64) ([]core.BlockchainEvent, error) {
-	var events []core.BlockchainEvent
+func (p *SolanaPuller) PullEvents(ctx context.Context, fromSlot, toSlot uint64) ([]blockchain.BlockchainEvent, error) {
+	var events []blockchain.BlockchainEvent
+
+	originalToSlot := toSlot
+
+	batchSize := uint64(p.GetConfig().BatchSize)
+	if batchSize == 0 {
+		batchSize = 100
+	}
+	if toSlot-fromSlot+1 > batchSize {
+		toSlot = fromSlot + batchSize - 1
+	}
+
+	consecutiveFailures := 0
+	const skipProbe = 3
 
 	for slot := fromSlot; slot <= toSlot; slot++ {
 		blockEvents, err := p.getEventsFromSlot(ctx, slot)
 		if err != nil {
-			p.RecordError(err)
-			p.LogWarn("failed to get events from slot",
-				"slot", slot, "from_slot", fromSlot, "to_slot", toSlot, "error", err)
+			consecutiveFailures++
+			if consecutiveFailures <= skipProbe || consecutiveFailures%10 == 0 {
+				p.LogWarn("failed to get events from slot",
+					"slot", slot, "from_slot", fromSlot, "to_slot", toSlot, "error", err)
+			}
 			if p.metricsCollector != nil {
 				p.metricsCollector.RecordCounter("solana_puller_slot_errors", 1, map[string]string{})
 			}
+			if firstAvailable := parseFirstAvailableBlock(err.Error()); firstAvailable > 0 && firstAvailable > slot {
+				slot = firstAvailable - 1
+				newToSlot := firstAvailable + batchSize - 1
+				if newToSlot > originalToSlot {
+					newToSlot = originalToSlot
+				}
+				if newToSlot > toSlot {
+					toSlot = newToSlot
+				}
+				consecutiveFailures = 0
+				continue
+			}
+			if consecutiveFailures >= skipProbe && len(events) == 0 {
+				return events, nil
+			}
 			continue
 		}
+		consecutiveFailures = 0
 		events = append(events, blockEvents...)
 	}
 
@@ -146,11 +187,31 @@ func (p *SolanaPuller) GetLatestBlock(ctx context.Context) (uint64, error) {
 }
 
 // SubscribeToEvents adds an event handler
-func (p *SolanaPuller) SubscribeToEvents(ctx context.Context, handler func(core.BlockchainEvent)) error {
+func (p *SolanaPuller) SubscribeToEvents(ctx context.Context, handler func(blockchain.BlockchainEvent)) error {
 	p.mu.Lock()
 	p.eventHandlers = append(p.eventHandlers, handler)
 	p.mu.Unlock()
 	return nil
+}
+
+func parseFirstAvailableBlock(errMsg string) uint64 {
+	const prefix = "First available block: "
+	idx := strings.Index(errMsg, prefix)
+	if idx < 0 {
+		return 0
+	}
+	numStr := errMsg[idx+len(prefix):]
+	end := strings.IndexFunc(numStr, func(r rune) bool {
+		return r < '0' || r > '9'
+	})
+	if end > 0 {
+		numStr = numStr[:end]
+	}
+	n, err := strconv.ParseUint(numStr, 10, 64)
+	if err != nil {
+		return 0
+	}
+	return n
 }
 
 // GetStats returns puller statistics
@@ -232,7 +293,7 @@ type solanaInstruction struct {
 
 // solanaBlock represents a simplified Solana block
 type solanaBlock struct {
-	Slot         uint64              `json:"slot"`
+	Slot         uint64              `json:"blockHeight"`
 	Blockhash    string              `json:"blockhash"`
 	BlockTime    int64               `json:"blockTime"`
 	Transactions []solanaTransaction `json:"transactions"`
@@ -255,31 +316,6 @@ type solanaTransaction struct {
 	} `json:"meta"`
 }
 
-// solanaTxResponse is used for getTransaction RPC response
-type solanaTxResponse struct {
-	Slot        uint64            `json:"slot"`
-	BlockTime   int64             `json:"blockTime"`
-	Transaction solanaTransaction `json:"transaction"`
-	Meta        *struct {
-		Err                  any      `json:"err"`
-		LogMessages          []string `json:"logMessages"`
-		Fee                  uint64   `json:"fee"`
-		ComputeUnitsConsumed uint64   `json:"computeUnitsConsumed"`
-	} `json:"meta"`
-}
-
-func (p *SolanaPuller) getTransactions(ctx context.Context, signatures []string) ([]solanaTxResponse, error) {
-	params := []any{signatures, map[string]any{
-		"encoding":                       "json",
-		"maxSupportedTransactionVersion": 0,
-	}}
-	var results []solanaTxResponse
-	if err := p.sendRPCRequest(ctx, "getTransaction", params, &results); err != nil {
-		return nil, fmt.Errorf("getTransaction: %w", err)
-	}
-	return results, nil
-}
-
 func parseInstructionType(programID string) string {
 	if label, ok := knownProgramLabels[programID]; ok {
 		return label
@@ -287,8 +323,8 @@ func parseInstructionType(programID string) string {
 	return programID
 }
 
-func parseSPLEvents(accountKeys []string, instructions []solanaInstruction, logMessages []string) []core.BlockchainEvent {
-	var splEvents []core.BlockchainEvent
+func parseSPLEvents(accountKeys []string, instructions []solanaInstruction, logMessages []string) []blockchain.BlockchainEvent {
+	var splEvents []blockchain.BlockchainEvent
 
 	logData := core.ParseSolanaLogMessages(logMessages)
 
@@ -341,12 +377,12 @@ func parseSPLEvents(accountKeys []string, instructions []solanaInstruction, logM
 			decodedData[k] = v
 		}
 
-		event := core.BlockchainEvent{
+		event := blockchain.BlockchainEvent{
 			ChainID:     "solana",
 			Network:     "solana",
 			EventName:   eventKind,
 			DecodedData: decodedData,
-			Status:      core.EventStatusConfirmed,
+			Status:      blockchain.EventStatusConfirmed,
 			CreatedAt:   time.Now(),
 			ProcessedAt: time.Now(),
 		}
@@ -356,7 +392,7 @@ func parseSPLEvents(accountKeys []string, instructions []solanaInstruction, logM
 	return splEvents
 }
 
-func (p *SolanaPuller) getEventsFromSlot(ctx context.Context, slot uint64) ([]core.BlockchainEvent, error) {
+func (p *SolanaPuller) getEventsFromSlot(ctx context.Context, slot uint64) ([]blockchain.BlockchainEvent, error) {
 	params := []any{slot, map[string]any{
 		"encoding":                       "json",
 		"maxSupportedTransactionVersion": 0,
@@ -369,7 +405,7 @@ func (p *SolanaPuller) getEventsFromSlot(ctx context.Context, slot uint64) ([]co
 		return nil, fmt.Errorf("getBlock slot %d: %w", slot, err)
 	}
 
-	var events []core.BlockchainEvent
+	var events []blockchain.BlockchainEvent
 	p.metrics.incTransactions(int64(len(block.Transactions)))
 
 	for i, tx := range block.Transactions {
@@ -433,9 +469,11 @@ func (p *SolanaPuller) getEventsFromSlot(ctx context.Context, slot uint64) ([]co
 		eventID := fmt.Sprintf("sol-%d-%d-0", slot, i)
 
 		var eventSig common.Hash
+		var txHash common.Hash
 		if sig != "" {
 			hash := crypto.Keccak256Hash([]byte(sig))
 			copy(eventSig[:], hash[:32])
+			txHash = hash
 		}
 
 		eventName := parseInstructionType(programID)
@@ -443,15 +481,15 @@ func (p *SolanaPuller) getEventsFromSlot(ctx context.Context, slot uint64) ([]co
 			eventName = "Transaction"
 		}
 
-		event := core.BlockchainEvent{
+		event := blockchain.BlockchainEvent{
 			ID:               eventID,
 			EventHash:        eventID,
 			ChainID:          "solana",
 			Network:          "solana",
 			BlockNumber:      slot,
-			BlockHash:        common.HexToHash(block.Blockhash),
+			BlockHash:        crypto.Keccak256Hash([]byte(block.Blockhash)),
 			BlockTimestamp:   block.BlockTime,
-			TransactionHash:  common.HexToHash(sig),
+			TransactionHash:  txHash,
 			TransactionIndex: uint64(i),
 			LogIndex:         uint64(i),
 			ContractAddress:  instProgramIDToAddress(programID),
@@ -459,7 +497,7 @@ func (p *SolanaPuller) getEventsFromSlot(ctx context.Context, slot uint64) ([]co
 			EventName:        eventName,
 			EventSignature:   eventSig,
 			DecodedData:      decodedData,
-			Status:           core.EventStatusConfirmed,
+			Status:           blockchain.EventStatusConfirmed,
 			CreatedAt:        time.Now(),
 			ProcessedAt:      time.Now(),
 		}
@@ -474,10 +512,10 @@ func instProgramIDToAddress(programID string) common.Address {
 	if programID == "" {
 		return common.HexToAddress("0x0")
 	}
-	if len(programID) >= 40 {
-		return common.HexToAddress(programID[:40])
-	}
-	return common.HexToAddress("0x" + programID[:])
+	// Solana program IDs are base58-encoded 32-byte keys, not valid hex.
+	// Hash the program ID and take first 20 bytes for a deterministic non-zero address.
+	hash := crypto.Keccak256Hash([]byte(programID))
+	return common.BytesToAddress(hash[:20])
 }
 
 // solanaRPCRequest represents a JSON-RPC request to Solana

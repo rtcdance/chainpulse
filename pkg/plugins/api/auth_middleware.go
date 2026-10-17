@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
 	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
@@ -17,7 +19,7 @@ type AuthMiddleware struct {
 	tokenValidator *TokenValidator
 	rbacChecker    *RBACChecker
 	auditLogger    *AuditLogger
-	logger         core.Logger
+	logger         portcontract.Logger
 	metrics        core.MetricsCollector
 
 	// Configuration
@@ -45,7 +47,7 @@ func NewAuthMiddleware(
 	tokenValidator *TokenValidator,
 	rbacChecker *RBACChecker,
 	auditLogger *AuditLogger,
-	logger core.Logger,
+	logger portcontract.Logger,
 	metrics core.MetricsCollector,
 ) *AuthMiddleware {
 	return &AuthMiddleware{
@@ -223,7 +225,7 @@ func (am *AuthMiddleware) respondForbidden(w http.ResponseWriter, message string
 type TokenRefreshHandler struct {
 	tokenValidator *TokenValidator
 	auditLogger    *AuditLogger
-	logger         core.Logger
+	logger         portcontract.Logger
 	metrics        core.MetricsCollector
 }
 
@@ -231,7 +233,7 @@ type TokenRefreshHandler struct {
 func NewTokenRefreshHandler(
 	tokenValidator *TokenValidator,
 	auditLogger *AuditLogger,
-	logger core.Logger,
+	logger portcontract.Logger,
 	metrics core.MetricsCollector,
 ) *TokenRefreshHandler {
 	return &TokenRefreshHandler{

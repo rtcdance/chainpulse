@@ -12,7 +12,7 @@ import (
 // For any database manager, calling Initialize multiple times should fail on the second call
 func TestProperty_DatabaseManager_InitializationIdempotence(t *testing.T) {
 	rapid.Check(t, func(rt *rapid.T) {
-		dm := NewDatabaseManager("postgres://user:password@localhost:5432/testdb")
+		dm := NewDatabaseManager(testDatabaseURL(placeholderDatabaseURL))
 		defer func() { _ = dm.Close() }()
 
 		// First initialization should succeed (or fail due to connection)
@@ -36,7 +36,7 @@ func TestProperty_DatabaseManager_InitializationIdempotence(t *testing.T) {
 // For any database manager, if initialized is true, pool should not be nil
 func TestProperty_DatabaseManager_StateConsistency(t *testing.T) {
 	rapid.Check(t, func(rt *rapid.T) {
-		dm := NewDatabaseManager("postgres://user:password@localhost:5432/testdb")
+		dm := NewDatabaseManager(testDatabaseURL(placeholderDatabaseURL))
 		defer func() { _ = dm.Close() }()
 
 		// Check initial state
@@ -66,7 +66,7 @@ func TestProperty_DatabaseManager_StateConsistency(t *testing.T) {
 // For any database manager, calling Close multiple times should not error
 func TestProperty_DatabaseManager_CloseIdempotence(t *testing.T) {
 	rapid.Check(t, func(rt *rapid.T) {
-		dm := NewDatabaseManager("postgres://user:password@localhost:5432/testdb")
+		dm := NewDatabaseManager(testDatabaseURL(placeholderDatabaseURL))
 
 		// Close multiple times
 		for i := 0; i < 3; i++ {
@@ -86,7 +86,7 @@ func TestProperty_DatabaseManager_CloseIdempotence(t *testing.T) {
 // For any database manager operation, if not initialized, it should error
 func TestProperty_DatabaseManager_OperationsRequireInitialization(t *testing.T) {
 	rapid.Check(t, func(rt *rapid.T) {
-		dm := NewDatabaseManager("postgres://user:password@localhost:5432/testdb")
+		dm := NewDatabaseManager(testDatabaseURL(placeholderDatabaseURL))
 		defer func() { _ = dm.Close() }()
 
 		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
@@ -144,7 +144,7 @@ func TestProperty_DatabaseManager_OperationsRequireInitialization(t *testing.T) 
 // For any database manager, GetPool should return nil when not initialized
 func TestProperty_DatabaseManager_GetPoolNilWhenNotInitialized(t *testing.T) {
 	rapid.Check(t, func(rt *rapid.T) {
-		dm := NewDatabaseManager("postgres://user:password@localhost:5432/testdb")
+		dm := NewDatabaseManager(testDatabaseURL(placeholderDatabaseURL))
 		defer func() { _ = dm.Close() }()
 
 		pool := dm.GetPool()
@@ -158,7 +158,7 @@ func TestProperty_DatabaseManager_GetPoolNilWhenNotInitialized(t *testing.T) {
 // For any database manager, IsConnected should return false when not initialized
 func TestProperty_DatabaseManager_IsConnectedConsistency(t *testing.T) {
 	rapid.Check(t, func(rt *rapid.T) {
-		dm := NewDatabaseManager("postgres://user:password@localhost:5432/testdb")
+		dm := NewDatabaseManager(testDatabaseURL(placeholderDatabaseURL))
 		defer func() { _ = dm.Close() }()
 
 		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
@@ -175,7 +175,7 @@ func TestProperty_DatabaseManager_IsConnectedConsistency(t *testing.T) {
 // For any database manager, WaitForConnection should timeout if not initialized
 func TestProperty_DatabaseManager_WaitForConnectionTimeout(t *testing.T) {
 	rapid.Check(t, func(rt *rapid.T) {
-		dm := NewDatabaseManager("postgres://user:password@localhost:5432/testdb")
+		dm := NewDatabaseManager(testDatabaseURL(placeholderDatabaseURL))
 		defer func() { _ = dm.Close() }()
 
 		ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
@@ -192,7 +192,7 @@ func TestProperty_DatabaseManager_WaitForConnectionTimeout(t *testing.T) {
 // For any database manager, ExecuteRow should return nil when not initialized
 func TestProperty_DatabaseManager_ExecuteRowNilWhenNotInitialized(t *testing.T) {
 	rapid.Check(t, func(rt *rapid.T) {
-		dm := NewDatabaseManager("postgres://user:password@localhost:5432/testdb")
+		dm := NewDatabaseManager(testDatabaseURL(placeholderDatabaseURL))
 		defer func() { _ = dm.Close() }()
 
 		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)

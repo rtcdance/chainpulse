@@ -214,7 +214,6 @@
 - `pkg/domain/query/` — Query 领域接口，被 `pkg/plugins/api` 使用
 - `pkg/application/indexing/` — Indexing 运行时，被 `pkg/services/indexing` 使用
 - `pkg/application/bootstrap/` — wiring 逻辑，被所有 cmd 入口使用
-- `pkg/adapters/` — 遗留兼容层
 
 ### 已知依赖违反（不要修复，除非任务明确要求）
 

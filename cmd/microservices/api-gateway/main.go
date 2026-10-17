@@ -12,6 +12,7 @@ import (
 	"github.com/rtcdance/chainpulse/pkg/application/bootstrap"
 	"github.com/rtcdance/chainpulse/pkg/core"
 	"github.com/rtcdance/chainpulse/pkg/env"
+	"github.com/rtcdance/chainpulse/pkg/observability"
 	"github.com/rtcdance/chainpulse/pkg/plugins/api"
 )
 
@@ -45,7 +46,7 @@ func main() {
 		logLevel = core.LogLevelDebug
 	}
 	logger := core.NewDefaultLogger(logLevel)
-	metrics := core.NewDefaultMetricsCollector()
+	metrics := observability.Guarded(core.NewDefaultMetricsCollector())
 	registry := core.NewPluginRegistry(logger)
 
 	fmt.Println("  [1/3] Logger initialized")
@@ -55,10 +56,12 @@ func main() {
 
 	// Convert configuration to core.Config
 	coreConfig := &core.Config{
-		APIType:      "gateway",
-		APIPort:      config.Port,
-		LogLevel:     config.LogLevel,
-		FeatureFlags: make(map[string]bool),
+		APIType:            "gateway",
+		APIPort:            config.Port,
+		LogLevel:           config.LogLevel,
+		FeatureFlags:       make(map[string]bool),
+		CacheType:          env.Get("CACHE_TYPE", "redis"),
+		CacheConnectionURL: env.Get("CACHE_CONNECTION_URL", "localhost:6379"),
 	}
 	runtimeProfile := bootstrap.RuntimeProfileFromEnv()
 	if err := validateGatewayProductionSecurity(config, runtimeProfile); err != nil {
@@ -96,6 +99,48 @@ func main() {
 	if rateLimitMiddleware != nil {
 		gateway.SetRateLimitMiddleware(rateLimitMiddleware)
 	}
+
+	// Build token validator early so SIWE handler can be wired with JWT support
+	// before gateway.Initialize() registers the routes.
+	var tokenValidator *api.TokenValidator
+	if config.AuthJWTSecret.Value() != "" {
+		if len(config.AuthJWTSecret.Value()) < 32 {
+			logger.Warn("JWT secret too short, minimum 32 characters recommended")
+		}
+		tokenValidator = api.NewTokenValidator(config.AuthJWTSecret.Value(), logger, metrics)
+		for _, apiKey := range config.AuthAPIKeys {
+			if err := tokenValidator.RegisterAPIKey(apiKey.Value(), "gateway", "operator"); err != nil {
+				logger.Warn("failed to register API key", "error", err.Error())
+			}
+		}
+		fmt.Println("  ✓ JWT authentication configured")
+	} else {
+		logger.Info("JWT secret not set, SIWE verify will be unavailable")
+	}
+
+	// Wire SIWE handler with tokenValidator (nil is OK — challenge works, verify returns 401).
+	siweDomain := env.Get("SIWE_DOMAIN", fmt.Sprintf("localhost:%d", config.Port))
+	siweURI := env.Get("SIWE_URI", "http://"+siweDomain+"/login")
+	siweChain, err := bootstrap.ResolveSIWEChainID(env.Get("SIWE_CHAIN_ID", env.Get("CHAIN_ID", "1")))
+	if err != nil {
+		logger.Error("Configure SIWE chain", "error", err)
+		os.Exit(1)
+	}
+	siweHandler := api.NewSIWEHandler(tokenValidator, siweDomain, siweURI, siweChain, logger, metrics)
+	nonceStore, closeNonceStore, err := bootstrap.BuildSIWENonceStore(context.Background(), *coreConfig, runtimeProfile)
+	if err != nil {
+		logger.Error("Initialize SIWE nonce store", "error", err)
+		os.Exit(1)
+	}
+	defer func() {
+		if err := closeNonceStore(); err != nil {
+			logger.Error("Close SIWE nonce store", "error", err)
+		}
+	}()
+	siweHandler.WithNonceStore(nonceStore)
+	gateway.SetSIWEHandler(siweHandler)
+	logger.Info("SIWE handler wired", "jwt_enabled", tokenValidator != nil)
+
 	if _, _, _, err := buildAPIGatewayRuntimeRolloutComponents(context.Background(), config.InstanceID, logger, metrics, gateway); err != nil {
 		logger.Error("Failed to build API Gateway rollout runtime components", "error", err.Error())
 		os.Exit(1)

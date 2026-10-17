@@ -12,12 +12,17 @@ import (
 	"syscall"
 	"time"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
 	"github.com/rtcdance/chainpulse/pkg/application/bootstrap"
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
+	"github.com/rtcdance/chainpulse/pkg/chainid"
 	"github.com/rtcdance/chainpulse/pkg/core"
 	"github.com/rtcdance/chainpulse/pkg/env"
 	sharedhttp "github.com/rtcdance/chainpulse/pkg/infrastructure/http"
 	"github.com/rtcdance/chainpulse/pkg/observability"
 	"github.com/rtcdance/chainpulse/pkg/plugins/api"
+	"github.com/rtcdance/chainpulse/pkg/services/finality"
 )
 
 func run() error {
@@ -79,13 +84,13 @@ func run() error {
 	}
 
 	logFormat := env.Get("LOG_FORMAT", "slog")
-	var logger core.Logger
+	var logger portcontract.Logger
 	if logFormat == "legacy" {
 		logger = core.NewDefaultLogger(logLevel)
 	} else {
 		logger = core.NewSlogLogger(logLevel, logFormat)
 	}
-	metrics := core.NewDefaultMetricsCollector()
+	metrics := observability.Guarded(core.NewDefaultMetricsCollector())
 	registry := core.NewPluginRegistry(logger)
 
 	// Create shared observability provider (single TracerProvider)
@@ -143,7 +148,9 @@ func run() error {
 
 	// Validate the resolved core configuration
 	configManager := core.NewConfigManager(logger)
-	configManager.Load()
+	if _, err := configManager.Load(); err != nil {
+		return fmt.Errorf("failed to load core configuration: %w", err)
+	}
 	if err := configManager.ValidateLoaded(); err != nil {
 		return fmt.Errorf("core configuration validation failed: %w", err)
 	}
@@ -211,9 +218,29 @@ func run() error {
 	// Initialize monolithic puller runtime closure
 	fmt.Println("Initializing Monolithic Puller Runtime:")
 
-	monolithicPullerRuntime, err := newMonolithicPullerRuntime(ctx, *coreConfig, config.BlockchainNodeURLs, chains, logger, metrics, indexingDatabase, multiChainIndexer)
+	monolithicPullerRuntime, err := newMonolithicPullerRuntime(ctx, *coreConfig, config.BlockchainNodeURLs, chains, logger, metrics, indexingDatabase, multiChainIndexer, starter.SharedRuntime)
 	if err != nil {
 		return fmt.Errorf("failed to initialize monolithic puller runtime: %w", err)
+	}
+
+	finalityRegistry, err := finality.NewRegistryFromConfig(coreConfig.Finality)
+	if err != nil {
+		return fmt.Errorf("build finality registry: %w", err)
+	}
+	monolithicPullerRuntime.SetFinalityRegistry(finalityRegistry)
+
+	finalityRPCs := make([]string, 0, len(chains))
+	for _, puller := range monolithicPullerRuntime.pullers {
+		cfg := puller.GetConfig()
+		finalityRPCs = append(finalityRPCs, cfg.ChainID+"="+cfg.BlockchainNodeURL)
+	}
+	stopFinality, err := bootstrap.StartFinalityObserver(ctx, indexingDatabase, bootstrap.FinalityObserverOptions{Chains: chains, RPCs: finalityRPCs, Registry: finalityRegistry}, logger, metrics)
+	if err != nil {
+		return fmt.Errorf("start finality observations: %w", err)
+	}
+	defer stopFinality()
+	if err := monolithicPullerRuntime.ConfigureProgress(starter.SharedRuntime, metrics, starter.AlertManager); err != nil {
+		return fmt.Errorf("configure indexing progress: %w", err)
 	}
 
 	fmt.Printf("  ✓ Event bus initialized (%d subscribers)\n", monolithicPullerRuntime.SubscriberCount())
@@ -227,8 +254,10 @@ func run() error {
 		_, subErr := monolithicPullerRuntime.EventBus().SubscribeNamed(
 			ctx, "event:created", "monolithic-subscription-bridge",
 			func(_ context.Context, payload any) error {
-				if event, ok := payload.(*core.BlockchainEvent); ok && event != nil {
-					runtimeWiring.EventSubscriptionHandler.BroadcastEvent(ctx, event)
+				if event, ok := payload.(*blockchain.BlockchainEvent); ok && event != nil {
+					if err := runtimeWiring.EventSubscriptionHandler.BroadcastEvent(ctx, event); err != nil {
+						logger.Warn("failed to broadcast event to subscription handlers", "error", err.Error())
+					}
 					// Deliver webhooks for this event
 					if webhookStore != nil {
 						payloadMap := map[string]any{
@@ -251,6 +280,14 @@ func run() error {
 		} else {
 			logger.Info("Push-based subscription bridge wired: EventBus → WebSocket")
 			fmt.Println("  ✓ Push-based subscription bridge: EventBus → WebSocket + Webhooks")
+		}
+
+		if _, reorgErr := runtimeWiring.EventSubscriptionHandler.SubscribeReorgRollback(
+			ctx, monolithicPullerRuntime.EventBus(), "monolithic-reorg-correction",
+		); reorgErr != nil {
+			logger.Warn("Failed to wire reorg correction bridge", "error", reorgErr.Error())
+		} else {
+			logger.Info("Reorg correction bridge wired: EventBus → WebSocket")
 		}
 	}
 
@@ -297,27 +334,84 @@ func run() error {
 		}
 	}
 	if config.RateLimitEnabled {
-		rateLimiter := api.NewRateLimiter(logger, metrics, &api.RateLimitConfig{
-			DefaultRequestsPerSecond: api.RequestsPerMinuteToPerSecond(config.RateLimitPerMinute),
-			DefaultBurstSize:         api.BurstSizeFromRequestsPerMinute(config.RateLimitPerMinute),
-			CleanupInterval:          5 * time.Minute,
-		})
+		operatorQuotas, quotaErr := api.ParseOperatorRateLimits(config.OperatorRateLimits)
+		if quotaErr != nil {
+			return fmt.Errorf("parse GATEWAY_OPERATOR_RATE_LIMITS: %w", quotaErr)
+		}
+		rateLimitConfig, cfgErr := api.NewRateLimitConfigFromPerMinute(config.RateLimitPerMinute, operatorQuotas)
+		if cfgErr != nil {
+			return fmt.Errorf("build rate limit config: %w", cfgErr)
+		}
+		rateLimiter := api.NewRateLimiter(logger, metrics, rateLimitConfig)
 		rateLimitMiddleware := api.NewRateLimitMiddleware(rateLimiter, logger)
 		gateway.SetRateLimitMiddleware(rateLimitMiddleware)
-		logger.Info("Rate limit middleware enabled", "requests_per_minute", config.RateLimitPerMinute)
+		logger.Info("Rate limit middleware enabled", "requests_per_minute", config.RateLimitPerMinute, "operator_quotas", len(operatorQuotas))
 	}
 
-	// Wire SIWE challenge handler before gateway initialize so routes are registered
-	siweDomain := fmt.Sprintf("localhost:%d", coreConfig.APIPort)
-	siweURI := "http://" + siweDomain + "/login"
-	siweHandler := api.NewSIWEHandler(nil, siweDomain, siweURI, nil, logger, metrics)
+	// Build token validator early so SIWE handler can be wired with JWT support
+	// before gateway.Initialize() registers the routes.
+	var tokenValidator *api.TokenValidator
+	if config.JWTSecret != "" {
+		if len(config.JWTSecret.Value()) < 32 {
+			logger.Warn("JWT secret too short, minimum 32 characters recommended")
+		}
+		tokenValidator = api.NewTokenValidator(config.JWTSecret.Value(), logger, metrics)
+		for _, entry := range config.AuthAPIKeys {
+			apiKey, clientID, ok := parseMonolithicKeyPair(entry.Value())
+			if !ok {
+				logger.Warn("invalid CHAINPULSE_AUTH_API_KEYS entry; expected key=clientID or key:clientID", "entry", entry)
+				continue
+			}
+			if err := tokenValidator.RegisterAPIKey(apiKey, clientID, "operator"); err != nil {
+				logger.Warn("failed to register API key", "error", err.Error())
+			}
+		}
+		fmt.Println("  ✓ JWT authentication configured")
+	} else {
+		logger.Info("JWT secret not set, SIWE verify will be unavailable")
+	}
+
+	// Wire SIWE handler with tokenValidator (nil is OK — challenge works, verify returns 401).
+	// This must happen before gateway.Initialize() so the integration captures
+	// the correct tokenValidator in the route handlers.
+	siweDomain := env.Get("SIWE_DOMAIN", fmt.Sprintf("localhost:%d", coreConfig.APIPort))
+	siweURI := env.Get("SIWE_URI", "http://"+siweDomain+"/login")
+	siweChain, err := bootstrap.ResolveSIWEChainID(env.Get("SIWE_CHAIN_ID", chains[0]))
+	if err != nil {
+		return fmt.Errorf("configure SIWE chain: %w", err)
+	}
+	siweHandler := api.NewSIWEHandler(tokenValidator, siweDomain, siweURI, siweChain, logger, metrics)
+	nonceStore, closeNonceStore, err := bootstrap.BuildSIWENonceStore(ctx, *coreConfig, bootstrap.RuntimeProfileFromEnv())
+	if err != nil {
+		return fmt.Errorf("initialize SIWE nonce store: %w", err)
+	}
+	defer func() {
+		if err := closeNonceStore(); err != nil {
+			logger.Error("close SIWE nonce store", "error", err)
+		}
+	}()
+	siweHandler.WithNonceStore(nonceStore)
 	gateway.SetSIWEHandler(siweHandler)
-	logger.Info("SIWE challenge handler wired")
+	logger.Info("SIWE handler wired", "jwt_enabled", tokenValidator != nil)
+
+	// CORS: empty origins means same-origin only — no wildcard default (D5).
+	corsMiddleware := api.NewCORSMiddleware(logger)
+	corsMiddleware.SetAllowedOrigins(coreConfig.CORSAllowedOrigins)
+	gateway.SetCORSMiddleware(corsMiddleware)
 
 	if err := gateway.Initialize(*coreConfig); err != nil {
 		return fmt.Errorf("failed to initialize API Gateway: %w", err)
 	}
 	fmt.Println("  ✓ API Gateway initialized")
+	if err := gateway.RegisterHandler("/readyz", &runtimeProbeHandler{ready: monolithicPullerRuntime.progressReady}); err != nil {
+		return fmt.Errorf("register readiness probe: %w", err)
+	}
+	if err := gateway.RegisterHandler("/livez", &runtimeProbeHandler{ready: func() bool { return ctx.Err() == nil }}); err != nil {
+		return fmt.Errorf("register liveness probe: %w", err)
+	}
+	runtimeWiring.HealthCheckHandler.SetReadinessCheck(func(context.Context) bool {
+		return monolithicPullerRuntime.progressReady()
+	})
 	fmt.Printf("  ✓ Gateway Surface Mode: %s\n", gatewaySurface.SurfaceMode)
 	if len(config.UpstreamQueryServices) > 0 && gatewaySurface.SurfaceMode == "upstream-query-bridge" {
 		fmt.Printf("  ✓ Upstream query bridge endpoints: %d\n", len(config.UpstreamQueryServices))
@@ -334,46 +428,20 @@ func run() error {
 		fmt.Println("  ✓ TLS configured")
 	}
 
-	if config.JWTSecret != "" {
-		if len(config.JWTSecret.Value()) < 32 {
-			logger.Warn("JWT secret too short, minimum 32 characters recommended")
+	// Build and inject auth middleware if authentication is enabled
+	if tokenValidator != nil && config.AuthEnabled {
+		rbacChecker := api.NewRBACChecker(logger, metrics)
+		if err := rbacChecker.RegisterDefaultRoles(); err != nil {
+			logger.Warn("failed to register default RBAC roles", "error", err.Error())
 		}
-		fmt.Println("  ✓ JWT authentication configured")
-	} else {
-		logger.Info("JWT secret not set, auth disabled")
+		auditLogger := api.NewAuditLogger(logger, metrics)
+		authMiddleware := api.NewAuthMiddleware(tokenValidator, rbacChecker, auditLogger, logger, metrics)
+		gateway.SetAuthMiddleware(authMiddleware)
+		logger.Info("Auth middleware enabled for monolithic mode")
+		fmt.Println("  ✓ Auth middleware wired to API Gateway")
 	}
 
-	// Build and inject auth middleware if authentication is enabled
-	var tokenValidator *api.TokenValidator
-	if config.JWTSecret != "" {
-		tokenValidator = api.NewTokenValidator(config.JWTSecret.Value(), logger, metrics)
-		for _, entry := range config.AuthAPIKeys {
-			apiKey, clientID, ok := parseMonolithicKeyPair(entry.Value())
-			if !ok {
-				logger.Warn("invalid CHAINPULSE_AUTH_API_KEYS entry; expected key=clientID or key:clientID", "entry", entry)
-				continue
-			}
-			if err := tokenValidator.RegisterAPIKey(apiKey, clientID, "operator"); err != nil {
-				logger.Warn("failed to register API key", "error", err.Error())
-			}
-		}
-
-		if config.AuthEnabled {
-			rbacChecker := api.NewRBACChecker(logger, metrics)
-			if err := rbacChecker.RegisterDefaultRoles(); err != nil {
-				logger.Warn("failed to register default RBAC roles", "error", err.Error())
-			}
-			auditLogger := api.NewAuditLogger(logger, metrics)
-			authMiddleware := api.NewAuthMiddleware(tokenValidator, rbacChecker, auditLogger, logger, metrics)
-			gateway.SetAuthMiddleware(authMiddleware)
-			logger.Info("Auth middleware enabled for monolithic mode")
-			fmt.Println("  ✓ Auth middleware wired to API Gateway")
-		}
-
-		// Re-wire SIWE handler with token validator for verify endpoint
-		siweHandler := api.NewSIWEHandler(tokenValidator, siweDomain, siweURI, nil, logger, metrics)
-		gateway.SetSIWEHandler(siweHandler)
-		logger.Info("SIWE auth handler wired")
+	if tokenValidator != nil {
 		fmt.Println("  ✓ SIWE authentication wired to API Gateway")
 	}
 
@@ -462,8 +530,28 @@ func run() error {
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer shutdownCancel()
 
+	fmt.Println("Draining in-flight commit work:")
+	if starter.Drain != nil {
+		if starter.Drain.Drain(15 * time.Second) {
+			fmt.Println("  ✓ All in-flight commits finished")
+		} else {
+			logger.Warn("drain deadline exceeded; in-flight commits may replay",
+				"in_flight", starter.Drain.InFlight())
+			fmt.Println("  ⚠ Drain deadline exceeded; in-flight commits may replay")
+		}
+	}
+
 	cancel()
+	stopFinality()
 	stopPullers()
+
+	if starter.BatchCommitter != nil {
+		if err := starter.BatchCommitter.ReleaseAll(shutdownCtx); err != nil {
+			logger.Warn("release chain leases failed", "error", err.Error())
+		} else {
+			fmt.Println("  ✓ Chain leases released")
+		}
+	}
 
 	// Stop API Gateway
 	if err := core.StopPlugin(shutdownCtx, gateway); err != nil {
@@ -487,12 +575,12 @@ func run() error {
 	logger.Info("Shared indexing runtime stopped", "service", "monolithic", "state", sharedIndexingRuntime.Status().State)
 	fmt.Println("  [3/7] Shared indexing runtime stopped")
 
-	if p, ok := indexingCache.(core.LifecyclePlugin); ok {
+	if p, ok := indexingCache.(portcontract.LifecyclePlugin); ok {
 		if err := p.Stop(shutdownCtx); err != nil {
 			logger.Error("Error stopping indexing cache", "error", err.Error())
 		}
 	}
-	if p, ok := indexingDatabase.(core.LifecyclePlugin); ok {
+	if p, ok := indexingDatabase.(portcontract.LifecyclePlugin); ok {
 		if err := p.Stop(shutdownCtx); err != nil {
 			logger.Error("Error stopping indexing database", "error", err.Error())
 		}
@@ -585,6 +673,7 @@ type Configuration struct {
 	DLQRetention             string
 	RateLimitEnabled         bool
 	RateLimitPerMinute       int
+	OperatorRateLimits       string
 	TLSEnabled               bool
 	TLSCertPath              string
 	TLSKeyPath               string
@@ -619,10 +708,14 @@ func loadConfiguration() Configuration {
 		MQConnectionURL:          env.Get("MQ_CONNECTION_URL", "localhost:9092"),
 		DatabaseURL:              env.Get("DATABASE_URL", "postgres://localhost/chainpulse"),
 		DatabaseType:             env.Get("DATABASE_TYPE", "postgres"),
+		CacheType:                env.Get("CACHE_TYPE", "redis"),
+		DataPullerType:           env.Get("DATA_PULLER_TYPE", "https-jsonrpc"),
+		LogLevel:                 env.Get("LOG_LEVEL", "info"),
 		DatabaseSSLMode:          env.Get("DATABASE_SSLMODE", "prefer"),
 		DLQRetention:             env.Get("MONOLITHIC_DLQ_RETENTION", "168h"),
 		RateLimitEnabled:         env.GetBool("GATEWAY_RATE_LIMIT_ENABLED", false),
 		RateLimitPerMinute:       env.GetInt("GATEWAY_RATE_LIMIT_PER_MINUTE", 60),
+		OperatorRateLimits:       env.Get("GATEWAY_OPERATOR_RATE_LIMITS", ""),
 		TLSEnabled:               env.GetBool("GATEWAY_TLS_ENABLED", false),
 		TLSCertPath:              env.Get("GATEWAY_TLS_CERT", ""),
 		TLSKeyPath:               env.Get("GATEWAY_TLS_KEY", ""),
@@ -653,11 +746,20 @@ func validateMonolithicProductionSecurity(c Configuration, runtimeProfile string
 
 func parseChains(raw string) ([]string, error) {
 	chains := make([]string, 0)
+	seen := make(map[string]bool)
 	for _, chainID := range strings.Split(raw, ",") {
 		trimmed := strings.TrimSpace(chainID)
 		if trimmed == "" {
 			continue
 		}
+		key := strings.ToLower(trimmed)
+		if id := chainid.ResolveChainID(trimmed); id > 0 {
+			key = fmt.Sprint(id)
+		}
+		if seen[key] {
+			return nil, fmt.Errorf("one network must not be indexed twice under aliases: %s", trimmed)
+		}
+		seen[key] = true
 		chains = append(chains, trimmed)
 	}
 	if len(chains) == 0 {
@@ -666,6 +768,7 @@ func parseChains(raw string) ([]string, error) {
 	return chains, nil
 }
 
+//nolint:unused // exercised by tests only
 func parseMonolithicDLQRetention(raw string) (time.Duration, error) {
 	trimmed := strings.TrimSpace(raw)
 	if trimmed == "" {

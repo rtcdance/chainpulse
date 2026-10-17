@@ -9,13 +9,15 @@ import (
 	"strconv"
 	"time"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
 	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 // DLQHandler handles dead letter queue operations
 type DLQHandler struct {
 	db      *sql.DB
-	logger  core.Logger
+	logger  portcontract.Logger
 	metrics core.MetricsCollector
 
 	// Kafka publisher for replay
@@ -39,7 +41,7 @@ type DLQEvent struct {
 }
 
 // NewDLQHandler creates a new DLQ handler
-func NewDLQHandler(db *sql.DB, publisher dlqReplayPublisher, logger core.Logger, metrics core.MetricsCollector) *DLQHandler {
+func NewDLQHandler(db *sql.DB, publisher dlqReplayPublisher, logger portcontract.Logger, metrics core.MetricsCollector) *DLQHandler {
 	return &DLQHandler{
 		db:        db,
 		publisher: publisher,
@@ -202,7 +204,12 @@ func (h *DLQHandler) HandleReplayDLQEvents(w http.ResponseWriter, r *http.Reques
 				"dlqReplay":  true,
 				"replayFrom": evt.ID,
 			}
-			data, _ := json.Marshal(payload)
+			data, err := json.Marshal(payload)
+			if err != nil {
+				h.logger.Warn("Failed to marshal DLQ replay payload", "id", evt.ID, "error", err.Error())
+				failed++
+				continue
+			}
 			if err := h.publisher.Publish(ctx, topic, data); err != nil {
 				h.logger.Warn("Failed to replay DLQ event", "id", evt.ID, "error", err.Error())
 				failed++
@@ -210,12 +217,14 @@ func (h *DLQHandler) HandleReplayDLQEvents(w http.ResponseWriter, r *http.Reques
 			}
 		}
 
-		// Mark as replayed
-		_, err := h.db.ExecContext(ctx,
+		// Mark as replayed. Only count it once the UPDATE actually applied —
+		// otherwise the reported `replayed` count overstates the work done.
+		if _, err := h.db.ExecContext(ctx,
 			"UPDATE dlq_events SET status = 'replayed', updated_at = NOW() WHERE id = $1",
-			evt.ID)
-		if err != nil {
+			evt.ID); err != nil {
 			h.logger.Warn("Failed to update DLQ event status", "id", evt.ID, "error", err.Error())
+			failed++
+			continue
 		}
 		replayed++
 	}

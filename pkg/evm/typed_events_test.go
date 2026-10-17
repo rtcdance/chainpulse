@@ -385,6 +385,9 @@ func TestDecodeTypedEvent_Swap(t *testing.T) {
 		t.Skip("ABI not available for Swap")
 	}
 	sender := common.HexToHash("0x000000000000000000000000aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+	// The real Uniswap V3 Swap indexes BOTH sender and recipient, so a valid
+	// log carries three topics (finding F16).
+	recipient := common.HexToHash("0x000000000000000000000000bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")
 	data := make([]byte, 160)
 	big.NewInt(1000).FillBytes(data[:32])
 	big.NewInt(2000).FillBytes(data[32:64])
@@ -392,7 +395,7 @@ func TestDecodeTypedEvent_Swap(t *testing.T) {
 	big.NewInt(67890).FillBytes(data[96:128])
 	big.NewInt(100).FillBytes(data[128:160])
 
-	result, ok := DecodeTypedEvent([]common.Hash{topic, sender}, data)
+	result, ok := DecodeTypedEvent([]common.Hash{topic, sender, recipient}, data)
 	if !ok {
 		t.Fatal("expected true for Swap event")
 	}
@@ -402,6 +405,64 @@ func TestDecodeTypedEvent_Swap(t *testing.T) {
 	}
 	if e.Amount0.Cmp(big.NewInt(1000)) != 0 {
 		t.Errorf("expected Amount0=1000, got %s", e.Amount0)
+	}
+}
+
+// encodeSigned256 encodes a signed integer as a 32-byte big-endian
+// two's-complement ABI word (how int256/int24 appear in event data).
+func encodeSigned256(v *big.Int) []byte {
+	mod := new(big.Int).Lsh(big.NewInt(1), 256)
+	buf := make([]byte, 32)
+	new(big.Int).Mod(v, mod).FillBytes(buf) // Mod is always non-negative
+	return buf
+}
+
+// TestDecodeTypedEvent_Swap_NegativeValues is the regression test for signed
+// ABI types being decoded as unsigned: `new(big.Int).SetBytes` turns -1 into
+// 2^256-1. Amount0/Amount1 are int256 and Tick is int24; all three can be
+// negative in Uniswap V3. sqrtPriceX96 (uint160) and liquidity (uint128) must
+// stay unsigned.
+func TestDecodeTypedEvent_Swap_NegativeValues(t *testing.T) {
+	t.Parallel()
+
+	topic := topic0ForName("Swap")
+	if topic == (common.Hash{}) {
+		t.Skip("ABI not available for Swap")
+	}
+	sender := common.HexToHash("0x000000000000000000000000aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+	// Three topics: the real V3 Swap indexes both sender and recipient (F16).
+	recipient := common.HexToHash("0x000000000000000000000000bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")
+
+	data := make([]byte, 160)
+	copy(data[0:32], encodeSigned256(big.NewInt(-1)))
+	copy(data[32:64], encodeSigned256(big.NewInt(-2000)))
+	big.NewInt(12345).FillBytes(data[64:96])               // sqrtPriceX96: uint160
+	big.NewInt(67890).FillBytes(data[96:128])              // liquidity: uint128
+	copy(data[128:160], encodeSigned256(big.NewInt(-100))) // tick: int24
+
+	result, ok := DecodeTypedEvent([]common.Hash{topic, sender, recipient}, data)
+	if !ok {
+		t.Fatal("expected true for Swap event")
+	}
+	e, ok := result.(*UniswapV3Swap)
+	if !ok {
+		t.Fatalf("expected *UniswapV3Swap, got %T", result)
+	}
+
+	if e.Amount0.Cmp(big.NewInt(-1)) != 0 {
+		t.Errorf("Amount0 (int256): expected -1, got %s", e.Amount0)
+	}
+	if e.Amount1.Cmp(big.NewInt(-2000)) != 0 {
+		t.Errorf("Amount1 (int256): expected -2000, got %s", e.Amount1)
+	}
+	if e.Tick.Cmp(big.NewInt(-100)) != 0 {
+		t.Errorf("Tick (int24): expected -100, got %s", e.Tick)
+	}
+	if e.SqrtPriceX96.Cmp(big.NewInt(12345)) != 0 {
+		t.Errorf("SqrtPriceX96 (uint160): expected 12345, got %s", e.SqrtPriceX96)
+	}
+	if e.Liquidity.Cmp(big.NewInt(67890)) != 0 {
+		t.Errorf("Liquidity (uint128): expected 67890, got %s", e.Liquidity)
 	}
 }
 
@@ -461,7 +522,10 @@ func TestDecodeTypedEvent_TransferBatch(t *testing.T) {
 	}
 }
 
-func TestDecodeTypedEvent_TransferBatch_NoData(t *testing.T) {
+// TestDecodeTypedEvent_TransferBatch_RejectsEmptyData: TransferBatch carries two
+// dynamic arrays, so an empty payload is not decodable. Claiming a typed event
+// with empty slices would be indistinguishable from a real empty batch.
+func TestDecodeTypedEvent_TransferBatch_RejectsEmptyData(t *testing.T) {
 	t.Parallel()
 	topic := topic0ForName("TransferBatch")
 	if topic == (common.Hash{}) {
@@ -473,23 +537,11 @@ func TestDecodeTypedEvent_TransferBatch_NoData(t *testing.T) {
 	to := common.HexToHash("0x000000000000000000000000cccccccccccccccccccccccccccccccccccccccc")
 
 	result, ok := DecodeTypedEvent([]common.Hash{topic, op, from, to}, nil)
-	if !ok {
-		t.Fatal("expected true for TransferBatch event with no data")
+	if ok {
+		t.Fatalf("a TransferBatch with no data must not decode, got %T", result)
 	}
-
-	e, ok := result.(*ERC1155TransferBatch)
-	if !ok {
-		t.Fatalf("expected *ERC1155TransferBatch, got %T", result)
-	}
-
-	if e.Operator != common.HexToAddress("0xaAaAaAaaAaAaAaaAaAAAAAAAAaaaAaAaAaaAaaAa") {
-		t.Errorf("unexpected operator")
-	}
-	if len(e.IDs) != 0 {
-		t.Errorf("expected empty IDs, got %v", e.IDs)
-	}
-	if len(e.Values) != 0 {
-		t.Errorf("expected empty Values, got %v", e.Values)
+	if result != nil {
+		t.Fatalf("expected a nil event, got %T", result)
 	}
 }
 
@@ -528,7 +580,10 @@ func TestDecodeTypedEvent_URI(t *testing.T) {
 	}
 }
 
-func TestDecodeTypedEvent_URI_NoData(t *testing.T) {
+// TestDecodeTypedEvent_URI_RejectsEmptyData: the URI payload is a dynamic
+// string; an empty payload must fall through to raw-only rather than produce a
+// typed event with an empty value.
+func TestDecodeTypedEvent_URI_RejectsEmptyData(t *testing.T) {
 	t.Parallel()
 	topic := topic0ForName("URI")
 	if topic == (common.Hash{}) {
@@ -538,18 +593,10 @@ func TestDecodeTypedEvent_URI_NoData(t *testing.T) {
 	id := common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000001")
 
 	result, ok := DecodeTypedEvent([]common.Hash{topic, id}, nil)
-	if !ok {
-		t.Fatal("expected true for URI event with no data")
+	if ok {
+		t.Fatalf("a URI with no data must not decode, got %T", result)
 	}
-
-	e, ok := result.(*ERC1155URI)
-	if !ok {
-		t.Fatalf("expected *ERC1155URI, got %T", result)
-	}
-	if e.Value != "" {
-		t.Errorf("expected empty URI, got %s", e.Value)
-	}
-	if e.ID.Cmp(big.NewInt(1)) != 0 {
-		t.Errorf("expected ID=1, got %s", e.ID)
+	if result != nil {
+		t.Fatalf("expected a nil event, got %T", result)
 	}
 }

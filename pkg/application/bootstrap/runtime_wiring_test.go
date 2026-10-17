@@ -6,6 +6,9 @@ import (
 	"testing"
 	"time"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"github.com/rtcdance/chainpulse/pkg/core"
 	domainquery "github.com/rtcdance/chainpulse/pkg/domain/query"
 	"github.com/rtcdance/chainpulse/pkg/infrastructure/database"
@@ -34,7 +37,7 @@ func (f *fakeQueryRuntimeService) Query(ctx context.Context, req *query.QueryReq
 	return nil, nil
 }
 
-func (f *fakeQueryRuntimeService) QueryByHash(ctx context.Context, hash string) (*core.BlockchainEvent, error) {
+func (f *fakeQueryRuntimeService) QueryByHash(ctx context.Context, hash string) (*blockchain.BlockchainEvent, error) {
 	return nil, nil
 }
 
@@ -98,7 +101,7 @@ func TestBuildRuntimeWiringQueryBuildFailure(t *testing.T) {
 		ctx context.Context,
 		db database.DatabaseManager,
 		cfg *database.Config,
-		logger core.Logger,
+		logger portcontract.Logger,
 		metrics core.MetricsCollector,
 	) (QueryRuntimeService, domainquery.Service, error) {
 		return nil, nil, errors.New("build query boom")
@@ -122,7 +125,7 @@ func TestBuildRuntimeWiringEventBuildFailure(t *testing.T) {
 		ctx context.Context,
 		db database.DatabaseManager,
 		cfg *database.Config,
-		logger core.Logger,
+		logger portcontract.Logger,
 		metrics core.MetricsCollector,
 	) (QueryRuntimeService, domainquery.Service, error) {
 		return &fakeQueryRuntimeService{}, nil, nil
@@ -132,7 +135,7 @@ func TestBuildRuntimeWiringEventBuildFailure(t *testing.T) {
 		db database.DatabaseManager,
 		cfg *database.Config,
 		domainSvc domainquery.Service,
-		logger core.Logger,
+		logger portcontract.Logger,
 		metrics core.MetricsCollector,
 	) (*query.EventRetrievalService, *api.EventQueryHandler, *api.EventSubscriptionHandler, *api.HealthCheckHandler, *api.GraphQLHandler, error) {
 		return nil, nil, nil, nil, nil, errors.New("build event boom")

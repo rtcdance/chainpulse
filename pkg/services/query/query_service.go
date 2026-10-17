@@ -3,22 +3,27 @@ package query
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
+	"github.com/rtcdance/chainpulse/pkg/chainid"
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/logkeys"
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
 )
 
 // QueryService defines the interface for query execution with cache-first pattern.
-// This is a type alias for core.QueryService — both are the same type.
-type QueryService = core.QueryService
+// This is a type alias for portcontract.QueryService — both are the same type.
+type QueryService = portcontract.QueryService
 
-// QueryRequest is a type alias for core.QueryRequest.
-type QueryRequest = core.QueryRequest
+// QueryRequest is a type alias for portcontract.QueryRequest.
+type QueryRequest = portcontract.QueryRequest
 
-// QueryResult is a type alias for core.QueryResult.
-type QueryResult = core.QueryResult
+// QueryResult is a type alias for portcontract.QueryResult.
+type QueryResult = portcontract.QueryResult
 
 // RuntimeSummarizer provides a compact runtime summary for operator-facing
 // query service surfaces.
@@ -39,14 +44,15 @@ type RuntimeSummary struct {
 
 // DefaultQueryService provides default implementation of QueryService
 type DefaultQueryService struct {
-	mu               sync.RWMutex
-	mongoAdapter     MongoDBAdapter
-	postgresAdapter  PostgreSQLAdapter
-	cacheService     CacheService
-	logger           core.Logger
-	metricsCollector core.MetricsCollector
-	initialized      bool
-	running          bool
+	mu                  sync.RWMutex
+	mongoAdapter        MongoDBAdapter
+	postgresAdapter     PostgreSQLAdapter
+	cacheService        CacheService
+	logger              portcontract.Logger
+	metricsCollector    core.MetricsCollector
+	initialized         bool
+	running             bool
+	cacheScopeVersioner portcontract.CacheScopeVersioner
 }
 
 // NewQueryService creates a new query service
@@ -54,7 +60,7 @@ func NewQueryService(
 	mongoAdapter MongoDBAdapter,
 	postgresAdapter PostgreSQLAdapter,
 	cacheService CacheService,
-	logger core.Logger,
+	logger portcontract.Logger,
 	metricsCollector core.MetricsCollector,
 ) *DefaultQueryService {
 	return &DefaultQueryService{
@@ -64,6 +70,15 @@ func NewQueryService(
 		logger:           logger,
 		metricsCollector: metricsCollector,
 	}
+}
+
+// SetCacheScopeVersioner wires the T11 cache-key versioner. A nil versioner
+// keeps the legacy raw-key path, so deployments that do not wire one behave
+// exactly as before.
+func (qs *DefaultQueryService) SetCacheScopeVersioner(v portcontract.CacheScopeVersioner) {
+	qs.mu.Lock()
+	defer qs.mu.Unlock()
+	qs.cacheScopeVersioner = v
 }
 
 // Initialize initializes the query service
@@ -89,7 +104,7 @@ func (qs *DefaultQueryService) Initialize(ctx context.Context) error {
 	}
 
 	qs.initialized = true
-	qs.logger.Info("Query service initialized", core.LogKeyComponent, core.ComponentQueryService)
+	qs.logger.Info("Query service initialized", logkeys.LogKeyComponent, core.ComponentQueryService)
 
 	return nil
 }
@@ -112,7 +127,7 @@ func (qs *DefaultQueryService) Start(ctx context.Context) error {
 	}
 
 	qs.running = true
-	qs.logger.Info("Query service started", core.LogKeyComponent, core.ComponentQueryService)
+	qs.logger.Info("Query service started", logkeys.LogKeyComponent, core.ComponentQueryService)
 
 	return nil
 }
@@ -131,7 +146,7 @@ func (qs *DefaultQueryService) Stop(ctx context.Context) error {
 	}
 
 	qs.running = false
-	qs.logger.Info("Query service stopped", core.LogKeyComponent, core.ComponentQueryService)
+	qs.logger.Info("Query service stopped", logkeys.LogKeyComponent, core.ComponentQueryService)
 
 	return nil
 }
@@ -150,10 +165,22 @@ func (qs *DefaultQueryService) Query(ctx context.Context, req *QueryRequest) (*Q
 
 	start := time.Now()
 
+	cacheKey := req.CacheKey
+	if cacheKey != "" && qs.cacheScopeVersioner != nil {
+		versioned, verr := qs.cacheScopeVersioner.VersionKey(ctx, chainFromFilter(req.Filter), cacheKey)
+		if verr != nil {
+			qs.logger.Warn("bypassing query cache: versioning cache key failed", logkeys.LogKeyError, verr, logkeys.LogKeyKey, cacheKey)
+			// Fail closed: never read or write the cache under an unversioned
+			// key when a versioner is configured, or a reorg could serve stale data.
+			cacheKey = ""
+		} else {
+			cacheKey = versioned
+		}
+	}
+
 	var cacheGet func() (*QueryResult, bool)
 	var cacheSet func(*QueryResult) error
-	if req.CacheKey != "" {
-		cacheKey := req.CacheKey
+	if cacheKey != "" {
 		cacheTTL := req.CacheTTL
 		cacheGet = func() (*QueryResult, bool) {
 			events, total, err := qs.cacheService.GetQueryResult(ctx, cacheKey)
@@ -186,7 +213,7 @@ func (qs *DefaultQueryService) Query(ctx context.Context, req *QueryRequest) (*Q
 
 	if fromCache {
 		qs.metricsCollector.RecordHistogram("query_cache_hit_time_ms", float64(duration), map[string]string{})
-		qs.logger.Info("Cache hit", core.LogKeyKey, req.CacheKey, core.LogKeyDuration, duration)
+		qs.logger.Info("Cache hit", logkeys.LogKeyKey, req.CacheKey, logkeys.LogKeyDuration, duration)
 		return &QueryResult{
 			Events: result.Events, Total: result.Total,
 			CacheHit: true, ResponseTime: duration, Source: "cache",
@@ -206,11 +233,11 @@ func (qs *DefaultQueryService) Query(ctx context.Context, req *QueryRequest) (*Q
 	}
 
 	if mongoErr != nil {
-		qs.logger.Error("MongoDB query failed", core.LogKeyError, mongoErr)
+		qs.logger.Error("MongoDB query failed", logkeys.LogKeyError, mongoErr)
 	}
 
 	if postgresErr != nil {
-		qs.logger.Error("PostgreSQL query failed", core.LogKeyError, postgresErr)
+		qs.logger.Error("PostgreSQL query failed", logkeys.LogKeyError, postgresErr)
 	}
 
 	if mongoErr != nil && postgresErr != nil {
@@ -221,12 +248,12 @@ func (qs *DefaultQueryService) Query(ctx context.Context, req *QueryRequest) (*Q
 	qs.metricsCollector.RecordCounter("query_empty", 1, map[string]string{})
 
 	return &QueryResult{
-		Events: []core.BlockchainEvent{}, Total: 0,
+		Events: []blockchain.BlockchainEvent{}, Total: 0,
 		CacheHit: false, ResponseTime: duration, Source: "none",
 	}, nil
 }
 
-func (qs *DefaultQueryService) QueryByHash(ctx context.Context, hash string) (*core.BlockchainEvent, error) {
+func (qs *DefaultQueryService) QueryByHash(ctx context.Context, hash string) (*blockchain.BlockchainEvent, error) {
 	qs.mu.RLock()
 	defer qs.mu.RUnlock()
 
@@ -241,15 +268,32 @@ func (qs *DefaultQueryService) QueryByHash(ctx context.Context, hash string) (*c
 	start := time.Now()
 
 	cacheKey := fmt.Sprintf("event:%s", hash)
-	cacheGet := func() (*core.BlockchainEvent, bool) {
-		event, err := qs.cacheService.GetSingle(ctx, cacheKey)
-		if err == nil && event != nil {
-			return event, true
+	if qs.cacheScopeVersioner != nil {
+		versioned, verr := qs.cacheScopeVersioner.VersionKey(ctx, "", cacheKey)
+		if verr != nil {
+			qs.logger.Warn("bypassing event cache: versioning cache key failed", logkeys.LogKeyError, verr, logkeys.LogKeyKey, cacheKey)
+			// Fail closed: an unversioned single-event entry could survive a
+			// reorg and be served as current (T11).
+			cacheKey = ""
+		} else {
+			cacheKey = versioned
 		}
-		return nil, false
 	}
-	cacheSet := func(event *core.BlockchainEvent) error {
-		return qs.cacheService.SetSingle(ctx, cacheKey, event, core.DefaultEventCacheTTL)
+
+	var cacheGet func() (*blockchain.BlockchainEvent, bool)
+	var cacheSet func(*blockchain.BlockchainEvent) error
+	if cacheKey != "" {
+		eventKey := cacheKey
+		cacheGet = func() (*blockchain.BlockchainEvent, bool) {
+			event, err := qs.cacheService.GetSingle(ctx, eventKey)
+			if err == nil && event != nil {
+				return event, true
+			}
+			return nil, false
+		}
+		cacheSet = func(event *blockchain.BlockchainEvent) error {
+			return qs.cacheService.SetSingle(ctx, eventKey, event, core.DefaultEventCacheTTL)
+		}
 	}
 
 	result, fromCache, source, mongoErr, postgresErr := queryWithFallback(
@@ -258,9 +302,9 @@ func (qs *DefaultQueryService) QueryByHash(ctx context.Context, hash string) (*c
 		qs.metricsCollector,
 		cacheGet,
 		cacheSet,
-		func() (*core.BlockchainEvent, error) { return qs.mongoAdapter.QueryByHash(ctx, hash) },
-		func() (*core.BlockchainEvent, error) { return qs.postgresAdapter.QueryByHash(ctx, hash) },
-		func(e *core.BlockchainEvent) bool { return e == nil },
+		func() (*blockchain.BlockchainEvent, error) { return qs.mongoAdapter.QueryByHash(ctx, hash) },
+		func() (*blockchain.BlockchainEvent, error) { return qs.postgresAdapter.QueryByHash(ctx, hash) },
+		func(e *blockchain.BlockchainEvent) bool { return e == nil },
 		"failed to cache event by hash",
 		"hash", hash,
 		map[string]string{"adapter": "mongodb", "op": "by_hash"},
@@ -286,11 +330,11 @@ func (qs *DefaultQueryService) QueryByHash(ctx context.Context, hash string) (*c
 	qs.metricsCollector.RecordCounter("query_by_hash_error", 1, map[string]string{})
 
 	if mongoErr != nil {
-		qs.logger.Error("MongoDB query by hash failed", core.LogKeyHash, hash, core.LogKeyError, mongoErr)
+		qs.logger.Error("MongoDB query by hash failed", logkeys.LogKeyHash, hash, logkeys.LogKeyError, mongoErr)
 	}
 
 	if postgresErr != nil {
-		qs.logger.Error("PostgreSQL query by hash failed", core.LogKeyHash, hash, core.LogKeyError, postgresErr)
+		qs.logger.Error("PostgreSQL query by hash failed", logkeys.LogKeyHash, hash, logkeys.LogKeyError, postgresErr)
 	}
 
 	return nil, fmt.Errorf("event not found: %s", hash)
@@ -298,7 +342,7 @@ func (qs *DefaultQueryService) QueryByHash(ctx context.Context, hash string) (*c
 
 func queryWithFallback[T any](
 	ctx context.Context,
-	logger core.Logger,
+	logger portcontract.Logger,
 	metrics core.MetricsCollector,
 	cacheGet func() (T, bool),
 	cacheSet func(T) error,
@@ -357,11 +401,11 @@ func (qs *DefaultQueryService) InvalidateCache(ctx context.Context, key string) 
 	}
 
 	if err := qs.cacheService.Delete(ctx, key); err != nil {
-		qs.logger.Error("Failed to invalidate cache", core.LogKeyKey, key, core.LogKeyError, err)
+		qs.logger.Error("Failed to invalidate cache", logkeys.LogKeyKey, key, logkeys.LogKeyError, err)
 		return fmt.Errorf("invalidate cache key %s: %w", key, err)
 	}
 
-	qs.logger.Info("Cache invalidated", core.LogKeyKey, key)
+	qs.logger.Info("Cache invalidated", logkeys.LogKeyKey, key)
 
 	return nil
 }
@@ -498,4 +542,56 @@ func buildQueryRuntimeReliabilityHint(status, cachePosture string) string {
 	default:
 		return "verify query runtime posture before relying on query service reads"
 	}
+}
+
+// chainFromFilter derives the chain a query filter targets for cache key
+// versioning, returning "" (global scope) unless the filter provably matches
+// exactly one known chain — wrong per-chain scope would let another chain's
+// reorg serve stale data. "network" is deliberately ignored: pullers default
+// it to "mainnet" across chains, so it cannot prove single-chain scope.
+func chainFromFilter(filter map[string]any) string {
+	if len(filter) == 0 {
+		return ""
+	}
+	raw, ok := filter["chainId"]
+	if !ok {
+		return ""
+	}
+	if m, isMap := raw.(map[string]any); isMap {
+		in, hasIn := m["$in"].([]any)
+		if !hasIn || len(in) == 0 {
+			return ""
+		}
+		canonical := resolveFilterChainElem(in[0])
+		if canonical <= 0 {
+			return ""
+		}
+		for _, elem := range in[1:] {
+			if resolveFilterChainElem(elem) != canonical {
+				return ""
+			}
+		}
+		return strconv.Itoa(canonical)
+	}
+	if id := resolveFilterChainElem(raw); id > 0 {
+		return strconv.Itoa(id)
+	}
+	return ""
+}
+
+func resolveFilterChainElem(elem any) int {
+	var s string
+	switch v := elem.(type) {
+	case string:
+		s = v
+	case int:
+		s = strconv.Itoa(v)
+	case int64:
+		s = strconv.FormatInt(v, 10)
+	case float64:
+		s = strconv.FormatFloat(v, 'f', -1, 64)
+	default:
+		return 0
+	}
+	return chainid.ResolveChainID(s)
 }

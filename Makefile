@@ -1,5 +1,5 @@
 # Development and Build Tooling
-.PHONY: all build playground build-monolithic build-microservices test lint fmt clean help k8s-verify k8s-acceptance k8s-acceptance-strict k8s-up k8s-down k8s-status k8s-oneclick deploy-event-acceptance multichain-e2e-acceptance multichain-e2e-acceptance-strict multichain-e2e-fork-acceptance multichain-e2e-fork-acceptance-strict deployed-real-event-acceptance check-policy-contract check-migration-manifest export-migration-kpi compare-migration-kpi compare-ticket-registry-health smoke-baseline-governance-scope compare-baseline-scope-smoke preflight-migration-baseline-update test-baseline-update-resolver compare-baseline-resolver-test check-migration-baseline update-migration-baseline check-migration-changelog-quality export-migration-owner-drift check test-short test-anvil learn benchmark-baseline benchmark-regression
+.PHONY: all build playground build-monolithic build-microservices test lint fmt clean help k8s-verify k8s-acceptance k8s-acceptance-strict k8s-up k8s-down k8s-status k8s-oneclick deploy-event-acceptance multichain-e2e-acceptance multichain-e2e-acceptance-strict multichain-e2e-fork-acceptance multichain-e2e-fork-acceptance-strict deployed-real-event-acceptance check-policy-contract check-migration-manifest export-migration-kpi compare-migration-kpi compare-ticket-registry-health smoke-baseline-governance-scope compare-baseline-scope-smoke preflight-migration-baseline-update test-baseline-update-resolver compare-baseline-resolver-test check-migration-baseline update-migration-baseline check-migration-changelog-quality export-migration-owner-drift check test-short test-anvil learn benchmark-baseline benchmark-regression test-migration workspace-check
 
 # Force-clear stale GOROOT (homebrew Go self-detects; stale value breaks builds)
 unexport GOROOT
@@ -105,6 +105,10 @@ test-bench:
 check: vet fmt-check
 	@echo "All checks passed."
 
+workspace-check: ## build/vet/test every module in the Go workspace (section 7.1)
+	@echo "Checking every workspace module (root ./... does not reach them)..."
+	./scripts/check-workspace-modules.sh
+
 test-short:
 	@echo "Running short tests (no integration/e2e)..."
 	$(GO) test -short -count=1 ./pkg/... ./cmd/...
@@ -118,10 +122,10 @@ lint:
 		LINTER_BIN="$$(GOROOT= $(GO) env GOPATH)/bin/golangci-lint"; \
 	fi; \
 	if [ ! -x "$$LINTER_BIN" ]; then \
-		echo "Installing golangci-lint v1.64.8..."; \
-		GOROOT= $(GO) install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.64.8; \
+		echo "Installing golangci-lint v2.12.2..."; \
+		GOROOT= $(GO) install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2; \
 		if [ ! -x "$$LINTER_BIN" ]; then \
-			echo "golangci-lint v1.64.8 installation failed at $$LINTER_BIN"; \
+			echo "golangci-lint v2.12.2 installation failed at $$LINTER_BIN"; \
 			exit 127; \
 		fi; \
 	fi; \
@@ -142,7 +146,7 @@ lint-fix:
 		LINTER_BIN="$$(GOROOT= $(GO) env GOPATH)/bin/golangci-lint"; \
 	fi; \
 	if [ ! -x "$$LINTER_BIN" ]; then \
-		echo "golangci-lint v1.64.8 is not installed at $$LINTER_BIN"; \
+		echo "golangci-lint v2.12.2 is not installed at $$LINTER_BIN"; \
 		exit 127; \
 	fi; \
 	GOCACHE=$${GOCACHE:-/tmp/chainpulse-go-build-cache} "$$LINTER_BIN" run --tests=false --fix $(LINT_DIRS)
@@ -190,7 +194,7 @@ deps-vendor:
 
 generate:
 	@echo "Running code generation..."
-	# Note: mockgen requires Go toolchain matching the project (go1.25+).
+	# Note: mockgen requires Go toolchain matching the project (go1.26+).
 	# Install: go install go.uber.org/mock/mockgen@latest
 	# Then remove manual mocks from test files before running.
 	$(GO) generate ./...
@@ -359,6 +363,11 @@ migrate-down:
 migrate-version:
 	@echo "Checking migration version..."
 	$(GO) run ./cmd/migrate -db "$${DATABASE_URL}" -path migrations version
+
+test-migration: ## Fresh/upgrade/rollback schema compatibility (needs PostgreSQL)
+	@echo "Running migration fresh/upgrade/rollback compatibility..."
+	MIGRATION_TEST_DSN="$${MIGRATION_TEST_DSN:-$${DATABASE_URL}}" \
+	  $(GO) test -v -count=1 -tags=migration ./test/migration/...
 
 repo-hygiene:
 	@echo "Checking repository file/structure hygiene..."

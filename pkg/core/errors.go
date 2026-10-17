@@ -301,6 +301,17 @@ func (e *RPCErr) Error() string {
 
 func (e *RPCErr) Unwrap() error { return e.Err }
 
+// Is enables errors.Is matching by StatusCode and Method instead of pointer identity.
+// This ensures that dynamically created RPCErr values correctly match
+// sentinel or pattern RPCErr values when they share the same status code.
+func (e *RPCErr) Is(target error) bool {
+	t, ok := target.(*RPCErr)
+	if !ok {
+		return false
+	}
+	return e.StatusCode == t.StatusCode && e.Method == t.Method
+}
+
 func (e *RPCErr) IsRateLimited() bool {
 	return e.StatusCode == 429
 }
@@ -353,7 +364,7 @@ func RetryWithBackoff(ctx context.Context, config RetryConfig, fn func() error) 
 			return err
 		}
 
-		jittered := time.Duration(rand.Int64N(int64(delay)))
+		jittered := time.Duration(rand.Int64N(int64(delay))) + time.Millisecond
 		select {
 		case <-ctx.Done():
 			return ctx.Err()

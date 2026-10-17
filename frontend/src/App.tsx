@@ -1,13 +1,13 @@
 import { lazy, Suspense, useEffect } from 'react'
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom'
 import Sidebar from './components/Sidebar'
+import Dashboard from './components/Dashboard'
 import { PageSkeleton } from './components/Skeleton'
 import { useAuth } from './lib/auth'
 import { ToastProvider } from './lib/toast'
 import type { View } from './components/Sidebar'
 
 const Landing = lazy(() => import('./components/Landing'))
-const Dashboard = lazy(() => import('./components/Dashboard'))
 const Events = lazy(() => import('./components/Events'))
 const AdminDashboard = lazy(() => import('./components/AdminDashboard'))
 const GraphQL = lazy(() => import('./components/GraphQL'))
@@ -40,25 +40,39 @@ function AppShell() {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [navigate])
 
+  function renderContent() {
+    console.log('[APP] renderContent pathname:', location.pathname)
+    switch (location.pathname) {
+      case '/dashboard':
+        return <Dashboard />
+      case '/events':
+        return <Events />
+      case '/admin':
+        return <AdminDashboard />
+      case '/admin/graphql':
+        return <GraphQL />
+      case '/admin/metrics':
+        return <Metrics />
+      case '/admin/websocket':
+        return <WebSocket />
+      case '/admin/runtime':
+        return <Runtime />
+      case '/admin/dlq':
+        return <DLQ />
+      default:
+        return <Dashboard />
+    }
+  }
+
   return (
     <div className="relative mx-auto flex min-h-screen max-w-[1600px] flex-col lg:flex-row">
       <Sidebar currentView={currentView} />
       <main className="flex-1 px-4 pb-10 pt-4 sm:px-6 lg:px-8 lg:pt-8">
-        <Suspense fallback={<PageSkeleton />}>
-          <ToastProvider>
-            <Routes>
-              <Route path="/" element={<Navigate to="/dashboard" replace />} />
-              <Route path="/dashboard" element={<Dashboard />} />
-              <Route path="/events" element={<Events />} />
-              <Route path="/admin" element={<AdminDashboard />} />
-              <Route path="/admin/graphql" element={<GraphQL />} />
-              <Route path="/admin/metrics" element={<Metrics />} />
-              <Route path="/admin/websocket" element={<WebSocket />} />
-              <Route path="/admin/runtime" element={<Runtime />} />
-              <Route path="/admin/dlq" element={<DLQ />} />
-            </Routes>
-          </ToastProvider>
-        </Suspense>
+        <ToastProvider>
+          <Suspense fallback={<PageSkeleton />}>
+            {renderContent()}
+          </Suspense>
+        </ToastProvider>
       </main>
     </div>
   )

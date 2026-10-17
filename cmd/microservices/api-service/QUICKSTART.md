@@ -4,7 +4,7 @@ Get the API Service running in 5 minutes.
 
 ## Prerequisites
 
-- Go 1.21+
+- Go 1.26+
 - PostgreSQL 14+
 - Redis 7+
 - Kafka 3+

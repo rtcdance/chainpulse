@@ -98,4 +98,22 @@ func CacheContractTest(t *testing.T, factory func(t *testing.T) core.CachePlugin
 		assert.Greater(t, stats.HitCount, int64(0))
 		assert.Greater(t, stats.MissCount, int64(0))
 	})
+
+	// A cache stores bytes, not text. Every other case here uses ASCII, for
+	// which a naive `string(value)` / `[]byte(string)` implementation looks
+	// correct — but encoding/json replaces every non-UTF-8 byte of a Go string
+	// with U+FFFD, so a value that reaches a JSON-encoded backend as a string
+	// comes back silently corrupted. This payload loses 6 of its 10 bytes that
+	// way, so the case has teeth against exactly that implementation.
+	t.Run("binary_safe_value", func(t *testing.T) {
+		cache := factory(t)
+		ctx := context.Background()
+
+		value := []byte{0x00, 0x91, 0xAB, 0xCD, 0xEF, 0x10, 0x00, 0xFF, 0xFE, 0x80}
+		require.NoError(t, cache.Set(ctx, "binary-key", value, 60))
+
+		got, err := cache.Get(ctx, "binary-key")
+		require.NoError(t, err)
+		assert.Equal(t, value, got, "binary value did not survive the round trip")
+	})
 }

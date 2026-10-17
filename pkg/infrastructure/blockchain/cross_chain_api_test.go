@@ -5,9 +5,8 @@ import (
 	"testing"
 	"time"
 
+	blockchainmodels "github.com/rtcdance/chainpulse/pkg/blockchain"
 	"github.com/stretchr/testify/assert"
-
-	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 // MockDistributedCache is a mock implementation of DistributedCache
@@ -70,8 +69,8 @@ func TestCrossChainResultStructure(t *testing.T) {
 	t.Parallel()
 	result := &CrossChainResult{
 		QueryID:       "query-1",
-		Events:        make([]core.BlockchainEvent, 0),
-		BlockchainMap: make(map[string][]core.BlockchainEvent),
+		Events:        make([]blockchainmodels.BlockchainEvent, 0),
+		BlockchainMap: make(map[string][]blockchainmodels.BlockchainEvent),
 		TotalCount:    0,
 		QueryTime:     100 * time.Millisecond,
 		CompletedAt:   time.Now(),
@@ -238,11 +237,11 @@ func TestCrossChainAPIBlockchainMap(t *testing.T) {
 	t.Parallel()
 	result := &CrossChainResult{
 		QueryID:       "query-1",
-		BlockchainMap: make(map[string][]core.BlockchainEvent),
+		BlockchainMap: make(map[string][]blockchainmodels.BlockchainEvent),
 	}
 
-	result.BlockchainMap["ethereum"] = make([]core.BlockchainEvent, 0)
-	result.BlockchainMap["polygon"] = make([]core.BlockchainEvent, 0)
+	result.BlockchainMap["ethereum"] = make([]blockchainmodels.BlockchainEvent, 0)
+	result.BlockchainMap["polygon"] = make([]blockchainmodels.BlockchainEvent, 0)
 
 	assert.Equal(t, 2, len(result.BlockchainMap))
 }
@@ -357,13 +356,13 @@ func TestCrossChainAPIResultAggregation(t *testing.T) {
 	t.Parallel()
 	result := &CrossChainResult{
 		QueryID:       "query-1",
-		Events:        make([]core.BlockchainEvent, 0),
-		BlockchainMap: make(map[string][]core.BlockchainEvent),
+		Events:        make([]blockchainmodels.BlockchainEvent, 0),
+		BlockchainMap: make(map[string][]blockchainmodels.BlockchainEvent),
 		TotalCount:    0,
 	}
 
-	result.BlockchainMap["ethereum"] = make([]core.BlockchainEvent, 5)
-	result.BlockchainMap["polygon"] = make([]core.BlockchainEvent, 3)
+	result.BlockchainMap["ethereum"] = make([]blockchainmodels.BlockchainEvent, 5)
+	result.BlockchainMap["polygon"] = make([]blockchainmodels.BlockchainEvent, 3)
 
 	totalEvents := len(result.BlockchainMap["ethereum"]) + len(result.BlockchainMap["polygon"])
 	assert.Equal(t, 8, totalEvents)
@@ -374,7 +373,7 @@ func TestCrossChainAPI_AggregateResults(t *testing.T) {
 	cache := &MockDistributedCache{data: make(map[string]any)}
 	api := NewCrossChainAPI(nil, cache)
 
-	results := map[string][]core.BlockchainEvent{
+	results := map[string][]blockchainmodels.BlockchainEvent{
 		"ethereum": {{ID: "evm-1"}, {ID: "evm-2"}},
 		"polygon":  {{ID: "poly-1"}},
 	}
@@ -389,7 +388,7 @@ func TestCrossChainAPI_AggregateResults_Empty(t *testing.T) {
 	cache := &MockDistributedCache{data: make(map[string]any)}
 	api := NewCrossChainAPI(nil, cache)
 
-	aggregated := api.AggregateResults(map[string][]core.BlockchainEvent{})
+	aggregated := api.AggregateResults(map[string][]blockchainmodels.BlockchainEvent{})
 
 	assert.Equal(t, 0, len(aggregated))
 }
@@ -399,7 +398,7 @@ func TestCrossChainAPI_MergeResults(t *testing.T) {
 	cache := &MockDistributedCache{data: make(map[string]any)}
 	api := NewCrossChainAPI(nil, cache)
 
-	results := map[string][]core.BlockchainEvent{
+	results := map[string][]blockchainmodels.BlockchainEvent{
 		"ethereum": {{ID: "evm-1"}, {ID: "evm-2"}},
 	}
 
@@ -416,9 +415,9 @@ func TestCrossChainAPI_PaginateResults(t *testing.T) {
 	cache := &MockDistributedCache{data: make(map[string]any)}
 	api := NewCrossChainAPI(nil, cache)
 
-	events := make([]core.BlockchainEvent, 10)
+	events := make([]blockchainmodels.BlockchainEvent, 10)
 	for i := range events {
-		events[i] = core.BlockchainEvent{ID: "evt"}
+		events[i] = blockchainmodels.BlockchainEvent{ID: "evt"}
 	}
 
 	page := api.PaginateResults(events, 3, 0)

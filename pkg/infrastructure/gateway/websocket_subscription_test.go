@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -178,7 +178,7 @@ func TestRegisterDeliveryChannel(t *testing.T) {
 	ctx := context.Background()
 
 	sub, _ := subMgr.Subscribe(ctx, "client-1", "ethereum", "Transfer")
-	ch := make(chan *core.BlockchainEvent, 10)
+	ch := make(chan *blockchain.BlockchainEvent, 10)
 
 	err := deliveryMgr.RegisterDeliveryChannel(sub.ID, ch)
 
@@ -193,8 +193,8 @@ func TestRegisterDeliveryChannelDuplicate(t *testing.T) {
 	ctx := context.Background()
 
 	sub, _ := subMgr.Subscribe(ctx, "client-1", "ethereum", "Transfer")
-	ch1 := make(chan *core.BlockchainEvent, 10)
-	ch2 := make(chan *core.BlockchainEvent, 10)
+	ch1 := make(chan *blockchain.BlockchainEvent, 10)
+	ch2 := make(chan *blockchain.BlockchainEvent, 10)
 
 	_ = deliveryMgr.RegisterDeliveryChannel(sub.ID, ch1)
 	err := deliveryMgr.RegisterDeliveryChannel(sub.ID, ch2)
@@ -211,7 +211,7 @@ func TestUnregisterDeliveryChannel(t *testing.T) {
 	ctx := context.Background()
 
 	sub, _ := subMgr.Subscribe(ctx, "client-1", "ethereum", "Transfer")
-	ch := make(chan *core.BlockchainEvent, 10)
+	ch := make(chan *blockchain.BlockchainEvent, 10)
 
 	_ = deliveryMgr.RegisterDeliveryChannel(sub.ID, ch)
 	err := deliveryMgr.UnregisterDeliveryChannel(sub.ID)
@@ -227,10 +227,10 @@ func TestDeliverEvent(t *testing.T) {
 	ctx := context.Background()
 
 	sub, _ := subMgr.Subscribe(ctx, "client-1", "ethereum", "Transfer")
-	ch := make(chan *core.BlockchainEvent, 10)
+	ch := make(chan *blockchain.BlockchainEvent, 10)
 	_ = deliveryMgr.RegisterDeliveryChannel(sub.ID, ch)
 
-	event := &core.BlockchainEvent{
+	event := &blockchain.BlockchainEvent{
 		ChainID: "ethereum",
 	}
 
@@ -249,13 +249,13 @@ func TestDeliverEventMultipleSubscribers(t *testing.T) {
 	sub1, _ := subMgr.Subscribe(ctx, "client-1", "ethereum", "Transfer")
 	sub2, _ := subMgr.Subscribe(ctx, "client-2", "ethereum", "Transfer")
 
-	ch1 := make(chan *core.BlockchainEvent, 10)
-	ch2 := make(chan *core.BlockchainEvent, 10)
+	ch1 := make(chan *blockchain.BlockchainEvent, 10)
+	ch2 := make(chan *blockchain.BlockchainEvent, 10)
 
 	_ = deliveryMgr.RegisterDeliveryChannel(sub1.ID, ch1)
 	_ = deliveryMgr.RegisterDeliveryChannel(sub2.ID, ch2)
 
-	event := &core.BlockchainEvent{
+	event := &blockchain.BlockchainEvent{
 		ChainID: "ethereum",
 	}
 
@@ -526,14 +526,14 @@ func TestEventDeliveryChannelFull(t *testing.T) {
 	ctx := context.Background()
 
 	sub, _ := subMgr.Subscribe(ctx, "client-1", "ethereum", "Transfer")
-	ch := make(chan *core.BlockchainEvent, 1)
+	ch := make(chan *blockchain.BlockchainEvent, 1)
 	_ = deliveryMgr.RegisterDeliveryChannel(sub.ID, ch)
 
 	// Fill channel
-	ch <- &core.BlockchainEvent{ChainID: "ethereum"}
+	ch <- &blockchain.BlockchainEvent{ChainID: "ethereum"}
 
 	// Try to deliver — channel is full, will wait briefly then count as dropped
-	event := &core.BlockchainEvent{ChainID: "ethereum"}
+	event := &blockchain.BlockchainEvent{ChainID: "ethereum"}
 	err := deliveryMgr.DeliverEvent(ctx, event)
 
 	assert.NoError(t, err)
@@ -623,7 +623,7 @@ func TestConcurrentUnregisterAndDeliverNoPanic(t *testing.T) {
 	// Register many subscriptions
 	for i := 0; i < numSubs; i++ {
 		sub, _ := subMgr.Subscribe(ctx, "client-1", "ethereum", "Transfer")
-		ch := make(chan *core.BlockchainEvent, 10)
+		ch := make(chan *blockchain.BlockchainEvent, 10)
 		_ = deliveryMgr.RegisterDeliveryChannel(sub.ID, ch)
 
 		// Concurrently unregister and deliver
@@ -636,7 +636,7 @@ func TestConcurrentUnregisterAndDeliverNoPanic(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			time.Sleep(time.Duration(i%10) * time.Millisecond)
-			_ = deliveryMgr.DeliverEvent(ctx, &core.BlockchainEvent{ChainID: "ethereum"})
+			_ = deliveryMgr.DeliverEvent(ctx, &blockchain.BlockchainEvent{ChainID: "ethereum"})
 		}()
 	}
 

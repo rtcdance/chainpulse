@@ -1,0 +1,34 @@
+{
+  "provenance": {
+    "task": "D20 partial (\u00a78 performance data path) \u2014 bench-gate baseline inventory",
+    "recorded_on": "2026-10-14",
+    "host": "Darwin (darwin), arm64 \u2014 NOT the \u00a78 reference environment (Linux, 8 vCPU, 16GiB, SSD)",
+    "note": "Absolute numbers are only comparable on the same host and toolchain; this baseline catches regressions on the SAME machine. Recorded alongside micro_baseline.json (which covers BenchmarkDecodeEventDataTransfer only, because .github/workflows/metrics.yml runs that benchmark alone \u2014 a superset baseline there would fail the gate's no-match rule). bytes_per_op is omitted for benchmarks whose measured mean was exactly 0 B/op (no allocation): bench-gate treats a non-positive baseline value as a failure, and an omitted metric is skipped by design. Affected: BenchmarkInMemoryCache_Get, BenchmarkInMemoryCache_GetStats, BenchmarkInMemoryCache_ParallelReads.",
+    "command": "go test -run '^$' -bench . -benchmem -count=5 ./pkg/plugins/cache/",
+    "samples_per_benchmark": 5,
+    "threshold": "0.15 (ns/op and B/op, per \u00a78)"
+  },
+  "benchmarks": {
+    "BenchmarkInMemoryCache_Delete": {
+      "bytes_per_op": 80.0,
+      "ns_per_op": 175.82
+    },
+    "BenchmarkInMemoryCache_Get": {
+      "ns_per_op": 89.326
+    },
+    "BenchmarkInMemoryCache_GetStats": {
+      "ns_per_op": 14.13
+    },
+    "BenchmarkInMemoryCache_ParallelReads": {
+      "ns_per_op": 199.02
+    },
+    "BenchmarkInMemoryCache_ParallelWrites": {
+      "bytes_per_op": 80.0,
+      "ns_per_op": 530.6800000000001
+    },
+    "BenchmarkInMemoryCache_Set": {
+      "bytes_per_op": 148.8,
+      "ns_per_op": 388.43999999999994
+    }
+  }
+}

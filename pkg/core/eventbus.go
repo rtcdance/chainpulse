@@ -83,7 +83,7 @@ func SubscribeTypedNamed[T any](bus EventBus, ctx context.Context, topic, name s
 // Workers are started immediately and consume jobs from a bounded channel,
 // providing natural backpressure without unbounded goroutine growth.
 func NewEventBus(logger Logger) *DefaultEventBus {
-	jobCh := make(chan eventBusJob, defaultEventBusWorkers)
+	jobCh := make(chan eventBusJob, defaultEventBusWorkers*2)
 	eb := &DefaultEventBus{
 		subscribers:     make(map[string]map[uint64]EventHandler),
 		subIndex:        make(map[uint64]string),
@@ -475,9 +475,7 @@ func (eb *DefaultEventBus) PublishSync(ctx context.Context, topic string, event 
 		return nil
 	}
 
-	// Execute handlers synchronously
 	for _, handler := range snapshot {
-		// Check context before executing handler
 		select {
 		case <-ctx.Done():
 			if eb.logger != nil {
@@ -485,19 +483,24 @@ func (eb *DefaultEventBus) PublishSync(ctx context.Context, topic string, event 
 			}
 			return ctx.Err()
 		default:
-			// Execute handler with per-invocation panic recovery.
-			// Must use a separate function — defer in a loop stacks until
-			// function exit and a panic from handler N would skip handlers N+1..K.
+			var handlerErr error
 			func(h EventHandler) {
 				defer func() {
 					if r := recover(); r != nil {
 						if eb.logger != nil {
 							eb.logger.Error("handler panic", "topic", topic, "panic", r)
 						}
+						handlerErr = fmt.Errorf("handler panic: %v", r)
 					}
 				}()
-				h(ctx, event)
+				handlerErr = h(ctx, event)
 			}(handler)
+			if handlerErr != nil {
+				if eb.logger != nil {
+					eb.logger.Warn("handler returned error", "topic", topic, "error", handlerErr)
+				}
+				return handlerErr
+			}
 		}
 	}
 

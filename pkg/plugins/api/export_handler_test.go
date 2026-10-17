@@ -11,7 +11,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/rtcdance/chainpulse/pkg/blockchain"
-	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 func TestParseIntParam(t *testing.T) {
@@ -188,12 +187,12 @@ func TestEventsToExportRecords(t *testing.T) {
 
 	tests := []struct {
 		name   string
-		events []*core.BlockchainEvent
+		events []*blockchain.BlockchainEvent
 		want   int
 	}{
 		{
 			name:   "empty_slice",
-			events: []*core.BlockchainEvent{},
+			events: []*blockchain.BlockchainEvent{},
 			want:   0,
 		},
 		{
@@ -203,7 +202,7 @@ func TestEventsToExportRecords(t *testing.T) {
 		},
 		{
 			name: "single_event",
-			events: []*core.BlockchainEvent{
+			events: []*blockchain.BlockchainEvent{
 				{
 					ID:              "evt_001",
 					EventName:       "Transfer",
@@ -219,7 +218,7 @@ func TestEventsToExportRecords(t *testing.T) {
 		},
 		{
 			name: "multiple_events",
-			events: []*core.BlockchainEvent{
+			events: []*blockchain.BlockchainEvent{
 				{
 					ID:              "evt_001",
 					EventName:       "Transfer",
@@ -245,7 +244,7 @@ func TestEventsToExportRecords(t *testing.T) {
 		},
 		{
 			name: "skips_nil_event",
-			events: []*core.BlockchainEvent{
+			events: []*blockchain.BlockchainEvent{
 				nil,
 				{
 					ID:              "evt_001",
@@ -297,7 +296,7 @@ func TestMatchesExportFilter(t *testing.T) {
 	addr := common.HexToAddress("0x1234567890abcdef1234567890abcdef12345678")
 	otherAddr := common.HexToAddress("0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
 
-	baseEvent := &core.BlockchainEvent{
+	baseEvent := &blockchain.BlockchainEvent{
 		ChainID:         "1",
 		EventName:       "Transfer",
 		ContractAddress: addr,
@@ -306,7 +305,7 @@ func TestMatchesExportFilter(t *testing.T) {
 
 	tests := []struct {
 		name   string
-		event  *core.BlockchainEvent
+		event  *blockchain.BlockchainEvent
 		filter exportFilter
 		want   bool
 	}{
@@ -323,11 +322,11 @@ func TestMatchesExportFilter(t *testing.T) {
 		{"event_after_end_time", baseEvent, exportFilter{EndTime: 1600000000}, false},
 		{"event_at_start_boundary", baseEvent, exportFilter{StartTime: 1700000000}, true},
 		{"event_at_end_boundary", baseEvent, exportFilter{EndTime: 1700000000}, true},
-		{"chain_id_by_name_matches", &core.BlockchainEvent{ChainID: "1", EventName: "Transfer", ContractAddress: addr, BlockTimestamp: 1000}, exportFilter{ChainID: "ethereum"}, true},
+		{"chain_id_by_name_matches", &blockchain.BlockchainEvent{ChainID: "1", EventName: "Transfer", ContractAddress: addr, BlockTimestamp: 1000}, exportFilter{ChainID: "ethereum"}, true},
 		{"multiple_conditions_all_match", baseEvent, exportFilter{ChainID: "1", EventName: "Transfer", Contract: addr.Hex()}, true},
 		{"multiple_conditions_one_fails", baseEvent, exportFilter{ChainID: "1", EventName: "Swap"}, false},
-		{"non_matching_chain_with_other_matching", &core.BlockchainEvent{ChainID: "56", EventName: "Transfer", ContractAddress: addr, BlockTimestamp: 1000}, exportFilter{ChainID: "1"}, false},
-		{"contract_filter_non_matching_address", &core.BlockchainEvent{ContractAddress: otherAddr, ChainID: "1", EventName: "Transfer", BlockTimestamp: 1000}, exportFilter{Contract: addr.Hex()}, false},
+		{"non_matching_chain_with_other_matching", &blockchain.BlockchainEvent{ChainID: "56", EventName: "Transfer", ContractAddress: addr, BlockTimestamp: 1000}, exportFilter{ChainID: "1"}, false},
+		{"contract_filter_non_matching_address", &blockchain.BlockchainEvent{ContractAddress: otherAddr, ChainID: "1", EventName: "Transfer", BlockTimestamp: 1000}, exportFilter{Contract: addr.Hex()}, false},
 	}
 
 	for _, tt := range tests {

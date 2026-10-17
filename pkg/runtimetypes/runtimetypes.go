@@ -17,6 +17,7 @@ type Checkpoint struct {
 	ChainID     string
 	Cursor      string
 	BlockNumber uint64
+	BlockHash   string
 	UpdatedAt   time.Time
 }
 

@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
 	"github.com/rtcdance/chainpulse/pkg/core"
 	"github.com/stretchr/testify/assert"
 )
@@ -14,7 +16,7 @@ import (
 // MockTokenValidator for testing
 type MockTokenValidator struct {
 	validTokens map[string]*TokenValidationResult
-	logger      core.Logger
+	logger      portcontract.Logger
 	metrics     core.MetricsCollector
 }
 

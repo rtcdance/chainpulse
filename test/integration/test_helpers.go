@@ -9,6 +9,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"github.com/rtcdance/chainpulse/pkg/core"
 	"github.com/rtcdance/chainpulse/pkg/ports"
 )
@@ -111,15 +112,15 @@ func (m *MockDataPuller) Stop() error {
 	return nil
 }
 
-func (m *MockDataPuller) PullEvents(ctx context.Context, fromBlock, toBlock uint64) ([]core.BlockchainEvent, error) {
+func (m *MockDataPuller) PullEvents(ctx context.Context, fromBlock, toBlock uint64) ([]blockchain.BlockchainEvent, error) {
 	m.mu.Lock()
 	m.calls++
 	m.mu.Unlock()
 
-	result := make([]core.BlockchainEvent, 0)
+	result := make([]blockchain.BlockchainEvent, 0)
 	for _, event := range m.events {
 		if event.BlockNum >= fromBlock && event.BlockNum <= toBlock {
-			result = append(result, core.BlockchainEvent{
+			result = append(result, blockchain.BlockchainEvent{
 				ID:              event.ID,
 				ChainID:         event.ChainID,
 				BlockNumber:     event.BlockNum,
@@ -159,7 +160,7 @@ func (m *MockDataPuller) ChainID() string {
 	return m.chainID
 }
 
-func (m *MockDataPuller) SubscribeToEvents(ctx context.Context, handler func(core.BlockchainEvent)) error {
+func (m *MockDataPuller) SubscribeToEvents(ctx context.Context, handler func(blockchain.BlockchainEvent)) error {
 	return nil
 }
 
@@ -193,9 +194,9 @@ func (m *SlowMockDataPuller) Stop() error {
 	return nil
 }
 
-func (m *SlowMockDataPuller) PullEvents(ctx context.Context, fromBlock, toBlock uint64) ([]core.BlockchainEvent, error) {
+func (m *SlowMockDataPuller) PullEvents(ctx context.Context, fromBlock, toBlock uint64) ([]blockchain.BlockchainEvent, error) {
 	time.Sleep(m.delay)
-	return []core.BlockchainEvent{}, nil
+	return []blockchain.BlockchainEvent{}, nil
 }
 
 func (m *SlowMockDataPuller) GetLatestBlock(ctx context.Context) (uint64, error) {
@@ -213,18 +214,18 @@ func (m *SlowMockDataPuller) ChainID() string {
 	return m.chainID
 }
 
-func (m *SlowMockDataPuller) SubscribeToEvents(ctx context.Context, handler func(core.BlockchainEvent)) error {
+func (m *SlowMockDataPuller) SubscribeToEvents(ctx context.Context, handler func(blockchain.BlockchainEvent)) error {
 	return nil
 }
 
 // MockDatabasePlugin is a mock implementation of core.DatabasePlugin for testing
 type MockDatabasePlugin struct {
-	events map[string]*core.BlockchainEvent
+	events map[string]*blockchain.BlockchainEvent
 }
 
 func NewMockDatabasePlugin() *MockDatabasePlugin {
 	return &MockDatabasePlugin{
-		events: make(map[string]*core.BlockchainEvent),
+		events: make(map[string]*blockchain.BlockchainEvent),
 	}
 }
 
@@ -261,13 +262,13 @@ func (m *MockDatabasePlugin) QueryEvents(ctx context.Context, filter any) ([]any
 }
 
 func (m *MockDatabasePlugin) StoreEvent(ctx context.Context, event any) error {
-	if blockchainEvent, ok := event.(*core.BlockchainEvent); ok {
+	if blockchainEvent, ok := event.(*blockchain.BlockchainEvent); ok {
 		m.events[blockchainEvent.ID] = blockchainEvent
 	}
 	return nil
 }
 
-func (m *MockDatabasePlugin) GetEvent(ctx context.Context, id string) (*core.BlockchainEvent, error) {
+func (m *MockDatabasePlugin) GetEvent(ctx context.Context, id string) (*blockchain.BlockchainEvent, error) {
 	return m.events[id], nil
 }
 
@@ -278,27 +279,27 @@ func (m *MockDatabasePlugin) DeleteEvent(ctx context.Context, eventID string) er
 
 func (m *MockDatabasePlugin) BatchStoreEvents(ctx context.Context, events []any) error {
 	for _, event := range events {
-		if blockchainEvent, ok := event.(*core.BlockchainEvent); ok {
+		if blockchainEvent, ok := event.(*blockchain.BlockchainEvent); ok {
 			m.events[blockchainEvent.ID] = blockchainEvent
 		}
 	}
 	return nil
 }
 
-func (m *MockDatabasePlugin) GetAllEvents(ctx context.Context) ([]*core.BlockchainEvent, error) {
-	result := make([]*core.BlockchainEvent, 0)
+func (m *MockDatabasePlugin) GetAllEvents(ctx context.Context) ([]*blockchain.BlockchainEvent, error) {
+	result := make([]*blockchain.BlockchainEvent, 0)
 	for _, event := range m.events {
 		result = append(result, event)
 	}
 	return result, nil
 }
 
-func (m *MockDatabasePlugin) GetAllBlocks(ctx context.Context) ([]*core.Block, error) {
-	return []*core.Block{}, nil
+func (m *MockDatabasePlugin) GetAllBlocks(ctx context.Context) ([]*blockchain.Block, error) {
+	return []*blockchain.Block{}, nil
 }
 
-func (m *MockDatabasePlugin) GetEventsByBlockRange(ctx context.Context, fromBlock, toBlock uint64) ([]*core.BlockchainEvent, error) {
-	result := make([]*core.BlockchainEvent, 0)
+func (m *MockDatabasePlugin) GetEventsByBlockRange(ctx context.Context, fromBlock, toBlock uint64) ([]*blockchain.BlockchainEvent, error) {
+	result := make([]*blockchain.BlockchainEvent, 0)
 	for _, event := range m.events {
 		if event.BlockNumber >= fromBlock && event.BlockNumber <= toBlock {
 			result = append(result, event)
@@ -307,7 +308,7 @@ func (m *MockDatabasePlugin) GetEventsByBlockRange(ctx context.Context, fromBloc
 	return result, nil
 }
 
-func (m *MockDatabasePlugin) GetBlock(ctx context.Context, blockNumber uint64) (*core.Block, error) {
+func (m *MockDatabasePlugin) GetBlock(ctx context.Context, blockNumber uint64) (*blockchain.Block, error) {
 	return nil, nil
 }
 
@@ -444,10 +445,6 @@ func (m *MockPlugin) Health() error {
 type MockMQPlugin struct {
 	name    string
 	version string
-	//nolint:unused
-	logger core.Logger
-	//nolint:unused
-	metrics core.MetricsCollector
 }
 
 func (m *MockMQPlugin) Name() string {
@@ -490,17 +487,6 @@ func (m *MockMQPlugin) Subscribe(ctx context.Context, topic string, handler func
 
 func (m *MockMQPlugin) GetQueueDepth(ctx context.Context, topic string) (int64, error) {
 	return 0, nil
-}
-
-//nolint:unused
-func createTestBlockchainEvent(chainID string, blockNum uint64, eventID string) *core.BlockchainEvent {
-	return &core.BlockchainEvent{
-		ID:              eventID,
-		ChainID:         chainID,
-		BlockNumber:     blockNum,
-		TransactionHash: common.HexToHash("0x" + eventID),
-		EventName:       "TestEvent",
-	}
 }
 
 // NewDefaultPluginRegistry creates a default plugin registry for testing

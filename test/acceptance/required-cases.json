@@ -1,0 +1,299 @@
+{
+  "$comment": "Required scenario manifest. Listed tests must execute and pass; empty pending arrays remain unresolved delivery work. E03 and the Kafka portion of E09 were verified locally on 2026-10-14. Final same-SHA remote CI/CD and all remaining scenarios are still required.",
+  "schema": "chainpulse.required-cases.v1",
+  "scenarios": [
+    {
+      "id": "E01",
+      "lane": "evm-e2e",
+      "summary": "normal path: two Anvil chains emit ERC20 logs; one verified Swap fixture",
+      "tests": [
+        "TestDeployedDualChainModesMatchRPCOracle"
+      ],
+      "note": "Real native monolithic and four-service entry points, independent chain IDs 31337/31338, ERC20 max-uint and actual Swap log, full raw RPC/SQL digest and per-height header/parent comparison. Local dirty-tree evidence is not final same-SHA remote CI."
+    },
+    {
+      "id": "E02",
+      "lane": "contracts",
+      "summary": "zero-log block / 100x duplicate / out-of-order arrival",
+      "tests": [
+        "TestPostgresBatchCommitter",
+        "TestFencedCheckpointRejectsGapsAndUnscheduledBranchChanges",
+        "TestPostgresCompleteHeaderAndLogsShareCommit",
+        "TestOriginalBranchCanBecomeCanonicalAgain",
+        "TestPostgresEventStateSeparatesCanonicalProcessingAndFinality"
+      ],
+      "note": "Real PostgreSQL: zero-log/duplicate blocks plus rejection of checkpoint gaps and unscheduled branch replacement; canonical late redelivery does not rewind. Full 100x duplicate fixture remains part of final acceptance."
+    },
+    {
+      "id": "E03",
+      "lane": "evm-e2e",
+      "summary": "fork depth 1/2/12; same-height new hash; tx re-included",
+      "tests": [
+        "TestDeployedReorgCanonicalDigestAndRestart",
+        "TestDeployedPullerKafkaAndAtomicProcessor"
+      ],
+      "note": "Real monolithic process + Anvil + PostgreSQL, depths 1/2/12, same-height branch replacement, same transaction re-included, canonical SQL/RPC digests equal; depth 2 also occurs while the process is stopped. Locally executed 2026-10-14; remote same-SHA CI still required. Native puller/Kafka/PG processor complete-block transmission, consumer restart and empty-header commit are additionally mandatory; this does not prove the pending two-chain full four-service mode parity in E13."
+    },
+    {
+      "id": "E04",
+      "lane": "evm-e2e",
+      "summary": "dual-chain fault isolation: A same-height rollback leaves B unchanged",
+      "tests": [
+        "TestDeployedDualChainFaultIsolation"
+      ],
+      "note": "Real four-service deployment on two isolated Anvil chains equalized to one shared height; chain A evm_snapshot/evm_revert same-height replacement while chain B must stay bit-identical (checkpoint, blocks digest, events digest, reorg jobs, gateway page) and chain A must equal its own RPC oracle. Local dirty-tree evidence is not final same-SHA remote CI."
+    },
+    {
+      "id": "E04",
+      "lane": "contracts",
+      "summary": "two-chain isolation: A rollback leaves B unchanged",
+      "tests": [
+        "TestPostgresChainIsolation",
+        "TestCanonicalReaderDetailsAndStatsExcludeOrphans",
+        "TestCanonicalCursorContinuesBelowAnchorAndRejectsOrphan",
+        "TestVersionedCursorBindsChainFilterAndCanonicalGeneration"
+      ]
+    },
+    {
+      "id": "E05",
+      "lane": "e2e",
+      "summary": "commit-crash kill at boundaries + SIGTERM graceful shutdown",
+      "tests": [
+        "TestSigtermGracefulShutdown",
+        "TestCrashInsideCommitLeavesNothingBehind",
+        "TestCrashAfterCommitKeepsTheBlock",
+        "TestKafkaHandlerFailureIsRedeliveredBeforeLaterOffsets",
+        "TestKafkaGenerationRevokesDatabaseWriterBeforeReassignment"
+      ],
+      "note": "Commit-window crash/SIGTERM cases plus actual Kafka same-group failure redelivery and a two-member broker rebalance against PostgreSQL: cancellation rolls back the old writer, rejects its token and preserves the unacknowledged offset; the next generation commits one effect. Native entry wiring is separately exercised by the required evm-e2e pipeline."
+    },
+    {
+      "id": "E06",
+      "lane": "evm-e2e",
+      "summary": "repair-job crash: DB rollback done, notify fails, restart resumes",
+      "tests": [
+        "TestDeployedPullerKafkaAndAtomicProcessor/repair-crash"
+      ],
+      "note": "Actual native puller/processor: an unprovisioned isolated reorg topic causes a recorded publication failure after atomic rollback. The processor is held down with old-branch backlog queued. SIGKILL the puller, restore the topic, restart both processes, verify terminal orphan audit, canonical replay, persistent job completion and actual owed Kafka notices. Reuses the evm-e2e fixture; no synthetic resume substitute."
+    },
+    {
+      "id": "E07",
+      "lane": "unit",
+      "summary": "finality failure: finalized/safe unavailable, stale, wrong chain",
+      "tests": [
+        "TestGetFinalizedBlockNumber_AllFallbacksFail",
+        "TestIsBlockFinalizedRefusesDegraded",
+        "TestSafeIsNotFinalized",
+        "TestFinalityRPCObservationVerifiesIdentityAndCanonicalHeader",
+        "TestFinalityPollDegradesWithoutInventingProof",
+        "TestFinalityObserverLifecycleIsBoundedAndCancellable",
+        "TestFinalityProjectionRequiresFreshCanonicalProof",
+        "TestStrategyAliasesShareOneFinalityPolicy"
+      ]
+    },
+    {
+      "id": "E08",
+      "lane": "unit",
+      "summary": "RPC/WS failure: 429 Retry-After, timeout, 5xx, disconnect",
+      "tests": [
+        "TestFailoverRPCClient429Handling",
+        "TestParseRetryAfter_Seconds",
+        "TestParseRetryAfter_HTTPDate",
+        "TestFailoverRPCClientFailover",
+        "TestRateLimitExceededResponse"
+      ],
+      "note": "client-side 429 + Retry-After (pkg/infrastructure/rpc/failover_client.go), server-side 429 with Retry-After (pkg/plugins/api/rate_limiter.go), and 5xx/disconnect failover"
+    },
+    {
+      "id": "E09",
+      "lane": "contracts",
+      "summary": "DB/MQ/Redis failure: backpressure, redelivery, no early ack",
+      "tests": [
+        "TestDatabaseDisconnectIsBackpressure",
+        "TestRedisOutageFailsClosed",
+        "TestRedisOutageDegradesQueries",
+        "TestKafkaRedeliveryKeepsEffectSingle",
+        "TestKafkaHandlerFailureIsRedeliveredBeforeLaterOffsets",
+        "TestProductionKafkaKeepsEachChainOnOnePartition"
+      ],
+      "note": "PostgreSQL/Redis outages and recovery plus Kafka same-group handler-failure redelivery, with explicitly isolated fault containers. All executed locally; no required skip. Production Kafka writer is also verified against a real three-partition topic: two chain keys, 24 records, one partition per chain and preserved publication order."
+    },
+    {
+      "id": "E10",
+      "lane": "unit",
+      "summary": "auth: nonce concurrency/expiry/address swap, bad origin/format",
+      "tests": [
+        "TestMemoryNonceStoreConcurrentConsumeHasOneWinner",
+        "TestMemoryNonceStoreBindsNonceToAddress"
+      ],
+      "note": "the Redis-backed nonce tests (TestRedisNonceStoreTwoInstancesOneWinner) skip in -short mode and are not listed here"
+    },
+    {
+      "id": "E11",
+      "lane": "unit",
+      "summary": "precision/decoding: signed/unsigned bounds, bad topics, unknown ABI",
+      "tests": [
+        "TestDecodeTypedEvent_UnknownTopic0",
+        "TestDecodeTypedEvent_NoTopics",
+        "TestTypedEvent_ERC20Transfer"
+      ]
+    },
+    {
+      "id": "E12",
+      "lane": "frontend-api",
+      "summary": "API compat + paging across cold/hot cache and reorg",
+      "tests": [],
+      "pending": "needs the frontend build + a running API"
+    },
+    {
+      "id": "E13",
+      "lane": "evm-e2e",
+      "summary": "mode equivalence: monolithic vs four-service canonical digest equal",
+      "tests": [
+        "TestDeployedDualChainModesMatchRPCOracle"
+      ],
+      "note": "Real native monolithic and four-service entry points, independent chain IDs 31337/31338, ERC20 max-uint and actual Swap log, full raw RPC/SQL digest and per-height header/parent comparison. Local dirty-tree evidence is not final same-SHA remote CI."
+    },
+    {
+      "id": "E14",
+      "lane": "chaos-soak-perf",
+      "summary": "performance / 30min soak",
+      "tests": [
+        "TestPerformanceManagerRecordOperation",
+        "TestPerformanceManagerMinMaxLatency",
+        "TestPerformanceManagerCalculateMetrics",
+        "TestPerformanceManagerMeasureOperation",
+        "TestPerformanceManagerBenchmarkEventProcessing",
+        "TestPerformanceManagerBenchmarkDatabaseOperations",
+        "TestPerformanceManagerBenchmarkAPIQueries",
+        "TestPerformanceManagerBenchmarkEndToEndLatency",
+        "TestPerformanceManagerMultipleOperations",
+        "TestPerformanceManagerConcurrentRecording"
+      ],
+      "note": "These performance-manager cases validate measurement instrumentation only. They do not prove live ingestion/query throughput, independent canonical correctness, backlog recovery or soak. Local attempt6/soak30 artifacts are separate evidence and require raw-data, oracle and provenance audit before final acceptance."
+    },
+    {
+      "id": "E15",
+      "lane": "release-candidate",
+      "summary": "deploy/rollback: bad image/config, prior digest restore",
+      "tests": [
+        "TestDeployedReleaseRollback"
+      ],
+      "note": "The previous release is rebuilt from CHAINPULSE_DEPLOYED_ROLLBACK_PREV_REF and the current tree from HEAD, and both run as native processes against isolated PostgreSQL: the previous release indexes an emitted block on its own schema, five fail-closed probes (invalid API_PORT, RPC chain id mismatch on schema 20+, a schema below 20, a dirty migration ledger, a corrupt image) each exit non-zero with the exact message and never print Status: Running, the 16->21 expand lands the main database on 21, the current release indexes further, and rolling back to the previous release on the expanded schema serves /health and the events API with a byte-identical canonical digest. Local dirty-tree evidence is not final same-SHA remote CI."
+    },
+    {
+      "id": "E07",
+      "lane": "contracts",
+      "summary": "durable finality evidence and projection",
+      "tests": [
+        "TestPostgresFinalityProofIsFreshScopedAndReorgProtected"
+      ]
+    },
+    {
+      "id": "E07",
+      "lane": "migration",
+      "summary": "additive finality observation upgrade/down preserves raw identity",
+      "tests": [
+        "TestFinalityObservationUpgradeRollbackPreservesEventIdentity",
+        "TestFinalitySchemaRemovalRefusesVerifiedBoundaryLoss"
+      ]
+    },
+    {
+      "id": "E07",
+      "lane": "evm-e2e",
+      "summary": "real mono/native APIs show safe, finalized, degraded, expiry and recovery",
+      "tests": [
+        "TestDeployedReorgCanonicalDigestAndRestart/E07_finality_observation",
+        "TestDeployedPullerKafkaAndAtomicProcessor/E07_finality_observation"
+      ],
+      "note": "Runs after each fixture completes canonical reorg. Real Anvil header proofs; controlled tags/errors/chain mismatch and aged proof timestamps. Both actual entry points own and stop their observers; safe never masquerades as finalized."
+    },
+    {
+      "id": "E07",
+      "lane": "command",
+      "summary": "native manual intake uses shared explicit policy rather than silently retaining legacy confirmation cap",
+      "tests": [
+        "TestNativeIntakeUsesExplicitFinalityInsteadOfLegacyCap"
+      ]
+    },
+    {
+      "id": "E12",
+      "lane": "contracts",
+      "summary": "canonical aggregate count cache: real PG/Redis hit, legacy writes and dependency failure",
+      "tests": [
+        "TestPostgresAggregateCacheUsesMutationRevision",
+        "TestPostgresAggregateCacheRealRedis",
+        "TestPostgresAggregateStatsCacheUsesMutationRevision",
+        "TestPostgresConcurrentColdAggregatesReadOriginOnce",
+        "TestPostgresOffsetIDsPreserveFilterOrderAndTies"
+      ]
+    },
+    {
+      "id": "E12",
+      "lane": "migration",
+      "summary": "mutation revision atomicity, legacy writes, truncate and schema epoch rollback safety",
+      "tests": [
+        "TestQueryRevisionsTrackCommittedMutationsAndRollback",
+        "TestContractCoverIndexUpgradeRollbackPreservesAuthority"
+      ]
+    },
+    {
+      "id": "E12",
+      "lane": "unit",
+      "summary": "canonical aggregate Redis cancellation and bounded configuration",
+      "tests": [
+        "TestCanonicalRedisCacheRejectsUnsafeConfiguration",
+        "TestCanonicalRedisCacheHonorsCancellationAndBounds",
+        "TestSnapshotStorageClosesCanonicalCacheEvenOnCloseFailure",
+        "TestAggregateFlightSharesOnlyConcurrentRevision",
+        "TestAggregateFlightWaiterCancellationDoesNotCancelOwner",
+        "TestAggregateFlightRetriesSharedOwnerCancellationOnce",
+        "TestAggregateFlightStateIsBounded",
+        "TestAggregateFlightPanicReleasesWaiters",
+        "TestAggregateFlightDoesNotHideSQLFailureOrCacheDisabled"
+      ]
+    },
+    {
+      "id": "E12",
+      "lane": "evm-e2e",
+      "summary": "actual monolithic and native page/stats use Redis and match PG canonical counts",
+      "tests": [
+        "TestDeployedReorgCanonicalDigestAndRestart/E12_canonical_aggregate_cache",
+        "TestDeployedPullerKafkaAndAtomicProcessor/E12_canonical_aggregate_cache",
+        "TestDeployedAPIRejectsMissingCacheAuthority"
+      ]
+    },
+    {
+      "id": "E14",
+      "lane": "release-candidate",
+      "summary": "strict live load, independent 100k oracle, cold/hot 600s and resource/soak evidence",
+      "tests": [],
+      "pending": "Requires complete strict runtime workload and independent oracle evidence; performance-manager unit tests and shape-only queries are insufficient."
+    },
+    {
+      "id": "E13",
+      "lane": "unit",
+      "summary": "guarded runtime metrics survive export and canonical stats failures stay diagnosable",
+      "tests": [
+        "TestGuardIsPrometheusExporter",
+        "TestExportMetricsPrometheusUsesGuardPathEndToEnd",
+        "TestCanonicalStatsFailureLogsCauseWithoutExposingIt"
+      ]
+    },
+    {
+      "id": "E13",
+      "lane": "command",
+      "summary": "actual durable processor summary preserves the canonical runtime contract and state details",
+      "tests": [
+        "TestDurableProcessorSummaryUsesCanonicalRuntimeContract"
+      ]
+    },
+    {
+      "id": "E12",
+      "lane": "release-candidate",
+      "summary": "native committed/reorg subscription and bounded reconnect recovery through gateway",
+      "tests": [],
+      "pending": "Real emit->committed frame->API->gateway WebSocket delivery, reorg correction, duplicate effects, cursor loss/restart rejection and malformed-message handling remain unverified; successful upgrade alone is insufficient."
+    }
+  ]
+}

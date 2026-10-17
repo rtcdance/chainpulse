@@ -9,8 +9,11 @@ import (
 	"sync"
 	"time"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
 	corelib "github.com/rtcdance/chainpulse/pkg/core"
 	domainquery "github.com/rtcdance/chainpulse/pkg/domain/query"
+	"github.com/rtcdance/chainpulse/pkg/logkeys"
 	"github.com/rtcdance/chainpulse/pkg/observability"
 	apicore "github.com/rtcdance/chainpulse/pkg/plugins/api/core"
 	httpapi "github.com/rtcdance/chainpulse/pkg/plugins/api/http"
@@ -18,7 +21,7 @@ import (
 
 // APIGatewayPlugin is the main API gateway that routes requests to appropriate handlers
 type APIGatewayPlugin struct {
-	logger                        corelib.Logger
+	logger                        portcontract.Logger
 	metrics                       corelib.MetricsCollector
 	httpPlugin                    *httpapi.HTTPPlugin
 	port                          int
@@ -63,7 +66,7 @@ type Handler interface {
 }
 
 // NewAPIGatewayPlugin creates a new API gateway plugin
-func NewAPIGatewayPlugin(logger corelib.Logger, metrics corelib.MetricsCollector) *APIGatewayPlugin {
+func NewAPIGatewayPlugin(logger portcontract.Logger, metrics corelib.MetricsCollector) *APIGatewayPlugin {
 	return &APIGatewayPlugin{
 		logger:   logger,
 		metrics:  metrics,
@@ -479,13 +482,13 @@ func (g *APIGatewayPlugin) Initialize(config corelib.Config) error {
 		}
 
 		g.routerIntegration = integration
-		g.httpPlugin.SetNativeHandler(g.wrapGatewayHandler(integration.HandleRequest, authMiddleware, rateLimitMiddleware, g.corsMiddleware))
+		g.httpPlugin.SetNativeHandler(g.wrapGatewayHandler(g.withRegisteredHandlers(integration.HandleRequest), authMiddleware, rateLimitMiddleware, g.corsMiddleware))
 		g.runtimeRoutesEnabled = true
 	}
 
 	g.initialized = true
 
-	g.logger.Info("API gateway initialized", corelib.LogKeyComponent, "api_gateway", "domain_bridge_enabled", g.domainBridgeEnabled, "event_query_handler_set", g.eventQueryEnabled, "runtime_routes_enabled", g.runtimeRoutesEnabled)
+	g.logger.Info("API gateway initialized", logkeys.LogKeyComponent, "api_gateway", "domain_bridge_enabled", g.domainBridgeEnabled, "event_query_handler_set", g.eventQueryEnabled, "runtime_routes_enabled", g.runtimeRoutesEnabled)
 
 	return nil
 }
@@ -497,6 +500,7 @@ func (g *APIGatewayPlugin) shouldInitializeRuntimeIntegration() bool {
 		g.runtimeSummaryProvider != nil ||
 		g.runtimeMetricsProvider != nil ||
 		g.runtimeControlProvider != nil ||
+		g.siweHandler != nil ||
 		len(g.upstreamQueryEndpoints) > 0
 }
 
@@ -536,7 +540,7 @@ func pprofGuardMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-func recoveryMiddleware(next http.Handler, logger corelib.Logger) http.Handler {
+func recoveryMiddleware(next http.Handler, logger portcontract.Logger) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		defer func() {
 			if rec := recover(); rec != nil {
@@ -567,7 +571,7 @@ func (g *APIGatewayPlugin) Start() error {
 
 	g.running = true
 
-	g.logger.Info("API gateway started", corelib.LogKeyComponent, "api_gateway", corelib.LogKeyPort, g.port, "domain_bridge_enabled", g.domainBridgeEnabled, "event_query_handler_set", g.eventQueryEnabled, "runtime_routes_enabled", g.runtimeRoutesEnabled)
+	g.logger.Info("API gateway started", logkeys.LogKeyComponent, "api_gateway", logkeys.LogKeyPort, g.port, "domain_bridge_enabled", g.domainBridgeEnabled, "event_query_handler_set", g.eventQueryEnabled, "runtime_routes_enabled", g.runtimeRoutesEnabled)
 
 	return nil
 }
@@ -595,7 +599,7 @@ func (g *APIGatewayPlugin) ShutdownWithContext(ctx context.Context) error {
 
 	g.running = false
 
-	g.logger.Info("API gateway stopped", corelib.LogKeyComponent, "api_gateway")
+	g.logger.Info("API gateway stopped", logkeys.LogKeyComponent, "api_gateway")
 
 	return nil
 }
@@ -608,7 +612,23 @@ func (g *APIGatewayPlugin) RegisterHandler(path string, handler Handler) error {
 	if !g.initialized {
 		return fmt.Errorf("API gateway not initialized")
 	}
+	if handler == nil || !strings.HasPrefix(path, "/") {
+		return fmt.Errorf("absolute route path and handler are required")
+	}
 
 	g.handlers[path] = handler
 	return nil
+}
+
+func (g *APIGatewayPlugin) withRegisteredHandlers(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		g.mu.RLock()
+		handler := g.handlers[r.URL.Path]
+		g.mu.RUnlock()
+		if handler != nil {
+			handler.Handle(w, r)
+			return
+		}
+		next(w, r)
+	}
 }

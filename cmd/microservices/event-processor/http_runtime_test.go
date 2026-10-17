@@ -8,10 +8,36 @@ import (
 	"strings"
 	"testing"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
 	"github.com/rtcdance/chainpulse/pkg/application/bootstrap"
 	"github.com/rtcdance/chainpulse/pkg/core"
 	"github.com/rtcdance/chainpulse/pkg/plugins/api"
 )
+
+func TestDurableProcessorSummaryUsesCanonicalRuntimeContract(t *testing.T) {
+	t.Parallel()
+	metrics := core.NewDefaultMetricsCollector()
+	provider := func(*http.Request) *eventProcessorRuntimeSummaryResponse {
+		return newDurableRuntimeSummary(map[string]any{"indexing": "retained-indexing-state", "consumer": "retained-consumer-state"})
+	}
+	handler := buildEventProcessorRuntimeHTTPHandler(nil, metrics, provider, nil)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/runtime/summary", nil))
+	if w.Code != http.StatusOK {
+		t.Fatalf("summary status=%d body=%s", w.Code, w.Body.String())
+	}
+	var response eventProcessorRuntimeSummaryResponse
+	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+		t.Fatal(err)
+	}
+	if response.DeploymentMode != core.DeploymentModeMicroservice || response.RuntimeMode != "runtime-wired" || response.RuntimePosture != "runtime-wired" || response.ComponentState != "runtime-wired" {
+		t.Fatalf("durable summary violates canonical runtime contract: %+v", response)
+	}
+	if response.Processor["indexing"] != "retained-indexing-state" || response.Processor["consumer"] != "retained-consumer-state" {
+		t.Fatalf("summary lost actual runtime details: %+v", response.Processor)
+	}
+}
 
 func TestBuildEventProcessorRuntimeHTTPHandlerExposesRolloutRoute(t *testing.T) {
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
@@ -378,7 +404,7 @@ func TestBuildEventProcessorRuntimeHTTPHandlerSecuritySurfaceProtectsControlRout
 	}
 }
 
-func buildEventProcessorSecurityControls(cfg EventProcessorConfig, logger core.Logger, metrics core.MetricsCollector) (*api.AuthMiddleware, *api.RateLimitMiddleware, error) {
+func buildEventProcessorSecurityControls(cfg EventProcessorConfig, logger portcontract.Logger, metrics core.MetricsCollector) (*api.AuthMiddleware, *api.RateLimitMiddleware, error) {
 	return bootstrap.BuildSecurityControls(bootstrap.SecurityControlsConfig{
 		AuthEnabled:        cfg.AuthEnabled,
 		AuthJWTSecret:      cfg.AuthJWTSecret,

@@ -10,10 +10,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rtcdance/chainpulse/pkg/core"
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
 )
 
-// mockLogger implements core.Logger for testing
+// mockLogger implements portcontract.Logger for testing
 type mockLogger struct {
 	warns  []string
 	errors []string
@@ -28,8 +28,8 @@ func (m *mockLogger) Warn(msg string, fields ...any) {
 func (m *mockLogger) Error(msg string, fields ...any) {
 	m.errors = append(m.errors, msg)
 }
-func (m *mockLogger) Fatal(msg string, fields ...any)         {}
-func (m *mockLogger) WithCorrelationID(id string) core.Logger { return m }
+func (m *mockLogger) Fatal(msg string, fields ...any)                 {}
+func (m *mockLogger) WithCorrelationID(id string) portcontract.Logger { return m }
 
 // rpcResponse builds a JSON-RPC response for eth_getBlockByNumber
 func rpcResponse(blockNumber string, errMsg string) string {
@@ -478,8 +478,8 @@ func TestIsBlockFinalizedWithStatus_Degraded(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if !result.IsFinalized {
-		t.Error("block 500 should be finalized when finalized block is 1000")
+	if result.IsFinalized {
+		t.Error("latest fallback must not report block 500 finalized")
 	}
 	if !result.Degraded {
 		t.Error("result should be marked as degraded when finality came from 'latest' fallback")

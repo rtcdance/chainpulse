@@ -1,0 +1,21 @@
+{
+  "provenance": {
+    "task": "D20 partial (\u00a78 performance data path) \u2014 bench-gate baseline inventory",
+    "recorded_on": "2026-10-14",
+    "host": "Darwin (darwin), arm64 \u2014 NOT the \u00a78 reference environment (Linux, 8 vCPU, 16GiB, SSD)",
+    "note": "Absolute numbers are only comparable on the same host and toolchain; this baseline catches regressions on the SAME machine. Recorded alongside micro_baseline.json (which covers BenchmarkDecodeEventDataTransfer only, because .github/workflows/metrics.yml runs that benchmark alone \u2014 a superset baseline there would fail the gate's no-match rule).",
+    "command": "go test -run '^$' -bench . -benchmem -count=5 ./pkg/plugins/pullers/",
+    "samples_per_benchmark": 5,
+    "threshold": "0.15 (ns/op and B/op, per \u00a78)"
+  },
+  "benchmarks": {
+    "BenchmarkEthLogToEvent": {
+      "bytes_per_op": 2329.0,
+      "ns_per_op": 3225.4
+    },
+    "BenchmarkEthLogToEvent_NoTopics": {
+      "bytes_per_op": 1408.8,
+      "ns_per_op": 1327.9
+    }
+  }
+}

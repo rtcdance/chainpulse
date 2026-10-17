@@ -1,6 +1,10 @@
 package core
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
+)
 
 const (
 	TokenProgramID                 = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
@@ -23,7 +27,7 @@ const (
 )
 
 type SolanaEvent struct {
-	BlockchainEvent
+	blockchain.BlockchainEvent
 	Slot                     uint64   `json:"slot"`
 	ProgramID                string   `json:"program_id"`
 	AccountKeys              []string `json:"account_keys"`
@@ -33,7 +37,7 @@ type SolanaEvent struct {
 
 func NewSolanaEvent() *SolanaEvent {
 	return &SolanaEvent{
-		BlockchainEvent: BlockchainEvent{
+		BlockchainEvent: blockchain.BlockchainEvent{
 			ChainID: "solana",
 			Network: "solana",
 		},

@@ -146,6 +146,7 @@ func parseFeatureFlags(flagsStr string) map[string]bool {
 	return flags
 }
 
+//nolint:unused // helper exercised by tests only
 func contains(slice []string, item string) bool {
 	for _, s := range slice {
 		if s == item {

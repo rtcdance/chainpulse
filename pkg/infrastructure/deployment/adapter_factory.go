@@ -6,7 +6,7 @@ import (
 	"os"
 	"sync"
 
-	"github.com/rtcdance/chainpulse/pkg/core"
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
 )
 
 // PluginFactory is a function that creates a plugin instance.
@@ -38,7 +38,7 @@ func (f *AdapterFactory) RegisterFactory(key string, factory PluginFactory) {
 }
 
 // CreateMQPlugin creates an MQ plugin based on deployment mode and configuration.
-func (f *AdapterFactory) CreateMQPlugin(ctx context.Context) (core.MQPlugin, error) {
+func (f *AdapterFactory) CreateMQPlugin(ctx context.Context) (portcontract.MQPlugin, error) {
 	mqType := os.Getenv("CHAINPULSE_MQ_TYPE")
 	if mqType == "" {
 		mqType = "memory"
@@ -47,15 +47,15 @@ func (f *AdapterFactory) CreateMQPlugin(ctx context.Context) (core.MQPlugin, err
 	if err != nil {
 		return nil, err
 	}
-	mq, ok := plugin.(core.MQPlugin)
+	mq, ok := plugin.(portcontract.MQPlugin)
 	if !ok {
-		return nil, fmt.Errorf("plugin for mq:%s does not implement core.MQPlugin", mqType)
+		return nil, fmt.Errorf("plugin for mq:%s does not implement portcontract.MQPlugin", mqType)
 	}
 	return mq, nil
 }
 
 // CreateCachePlugin creates a cache plugin based on deployment mode and configuration.
-func (f *AdapterFactory) CreateCachePlugin(ctx context.Context) (core.CachePlugin, error) {
+func (f *AdapterFactory) CreateCachePlugin(ctx context.Context) (portcontract.CachePlugin, error) {
 	cacheType := os.Getenv("CHAINPULSE_CACHE_TYPE")
 	if cacheType == "" {
 		cacheType = "inmemory"
@@ -64,15 +64,15 @@ func (f *AdapterFactory) CreateCachePlugin(ctx context.Context) (core.CachePlugi
 	if err != nil {
 		return nil, err
 	}
-	cache, ok := plugin.(core.CachePlugin)
+	cache, ok := plugin.(portcontract.CachePlugin)
 	if !ok {
-		return nil, fmt.Errorf("plugin for cache:%s does not implement core.CachePlugin", cacheType)
+		return nil, fmt.Errorf("plugin for cache:%s does not implement portcontract.CachePlugin", cacheType)
 	}
 	return cache, nil
 }
 
 // CreateDatabasePlugin creates a database plugin based on deployment mode and configuration.
-func (f *AdapterFactory) CreateDatabasePlugin(ctx context.Context) (core.DatabasePlugin, error) {
+func (f *AdapterFactory) CreateDatabasePlugin(ctx context.Context) (portcontract.DatabasePlugin, error) {
 	dbType := os.Getenv("CHAINPULSE_DATABASE_TYPE")
 	if dbType == "" {
 		dbType = "postgres"
@@ -81,9 +81,9 @@ func (f *AdapterFactory) CreateDatabasePlugin(ctx context.Context) (core.Databas
 	if err != nil {
 		return nil, err
 	}
-	db, ok := plugin.(core.DatabasePlugin)
+	db, ok := plugin.(portcontract.DatabasePlugin)
 	if !ok {
-		return nil, fmt.Errorf("plugin for database:%s does not implement core.DatabasePlugin", dbType)
+		return nil, fmt.Errorf("plugin for database:%s does not implement portcontract.DatabasePlugin", dbType)
 	}
 	return db, nil
 }

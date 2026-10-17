@@ -33,8 +33,8 @@ var RuntimeProviderSet = wire.NewSet(
 
 	// Query pipeline
 	query.NewEventRetrievalService,
-	query.NewEventQueryHandler,
-	query.NewEventSubscriptionHandler,
+	api.NewEventQueryHandler,
+	api.NewEventSubscriptionHandler,
 
 	// Indexing
 	indexing.NewDefaultChainIndexer,

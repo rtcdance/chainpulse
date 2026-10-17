@@ -9,17 +9,20 @@ import (
 	"strings"
 	"time"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"github.com/rtcdance/chainpulse/pkg/chainid"
-	"github.com/rtcdance/chainpulse/pkg/core"
+
 	domainquery "github.com/rtcdance/chainpulse/pkg/domain/query"
 )
 
 type ExportHandler struct {
-	logger     core.Logger
+	logger     portcontract.Logger
 	eventStore domainquery.EventReader
 }
 
-func NewExportHandler(logger core.Logger, eventStore domainquery.EventReader) *ExportHandler {
+func NewExportHandler(logger portcontract.Logger, eventStore domainquery.EventReader) *ExportHandler {
 	return &ExportHandler{
 		logger:     logger,
 		eventStore: eventStore,
@@ -57,7 +60,7 @@ func (h *ExportHandler) HandleExport(w http.ResponseWriter, r *http.Request) {
 
 	ctx := r.Context()
 
-	allEvents := make([]*core.BlockchainEvent, 0)
+	allEvents := make([]*blockchain.BlockchainEvent, 0)
 	cursor := ""
 	batchLimit := 500
 	collected := 0
@@ -138,7 +141,7 @@ func (h *ExportHandler) ExportEventsJSON(w http.ResponseWriter, records []export
 	_ = encoder.Encode(records)
 }
 
-func (h *ExportHandler) eventsToExportRecords(events []*core.BlockchainEvent) []exportRecord {
+func (h *ExportHandler) eventsToExportRecords(events []*blockchain.BlockchainEvent) []exportRecord {
 	records := make([]exportRecord, 0, len(events))
 	for _, event := range events {
 		if event == nil {
@@ -158,7 +161,7 @@ func (h *ExportHandler) eventsToExportRecords(events []*core.BlockchainEvent) []
 	return records
 }
 
-func (h *ExportHandler) matchesExportFilter(event *core.BlockchainEvent, f exportFilter) bool {
+func (h *ExportHandler) matchesExportFilter(event *blockchain.BlockchainEvent, f exportFilter) bool {
 	if f.ChainID != "" {
 		resolvedID := chainid.ResolveChainID(f.ChainID)
 		resolvedName := chainid.ResolveChainName(resolvedID)

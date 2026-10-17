@@ -29,6 +29,9 @@ func (c *Config) Validate() error {
 	if c.ReorgThreshold == 0 && c.ConfirmationDepth == 0 && len(c.Blockchains) > 0 {
 		errs = append(errs, "reorg_threshold or confirmation_depth required when indexing blockchains")
 	}
+	if c.ExpectedGenesisHash != "" && (len(c.ExpectedGenesisHash) != 66 || c.ExpectedGenesisHash[:2] != "0x") {
+		errs = append(errs, "expected_genesis_hash must be 0x-prefixed 32-byte hex (66 chars)")
+	}
 
 	if len(errs) > 0 {
 		return fmt.Errorf("config validation failed: %v", errs)
@@ -119,6 +122,11 @@ type Config struct {
 	APIType string `json:"api_type"`
 	APIPort int    `json:"api_port"`
 
+	// CORS configuration (D5). AllowedOrigins empty means same-origin only:
+	// no Access-Control-Allow-Origin header is emitted, so browsers refuse
+	// cross-origin reads. There is deliberately no wildcard default.
+	CORSAllowedOrigins []string `json:"cors_allowed_origins"`
+
 	// Processing Configuration
 	WorkerPoolSize  int `json:"worker_pool_size"`
 	BatchSize       int `json:"batch_size"`
@@ -130,8 +138,12 @@ type Config struct {
 	DeploymentMode string `json:"deployment_mode"`
 	ServiceName    string `json:"service_name"`
 	ChainID        string `json:"chain_id"`
-	Network        string `json:"network"`
-	Version        string `json:"version"`
+	// ExpectedGenesisHash, when non-empty, pins an EVM RPC provider to one
+	// specific chain: Start fetches eth_getBlockByNumber(0) and refuses the
+	// provider when the hash disagrees. Expected format: 0x + 64 hex chars.
+	ExpectedGenesisHash string `json:"expected_genesis_hash"`
+	Network             string `json:"network"`
+	Version             string `json:"version"`
 
 	// Idempotency Configuration
 	IdempotencyRecordTTL       int `json:"idempotency_record_ttl"`
@@ -152,4 +164,36 @@ type Config struct {
 	Blockchains     map[string]BlockchainConfig `json:"blockchains"`
 	ActiveChains    []string                    `json:"active_chains"`
 	SkipRemovedLogs bool                        `json:"skip_removed_logs"`
+
+	// Alerting Configuration (D6). Rules is the config-driven input to the
+	// log-based AlertManager; empty means no rules are armed.
+	Alerts AlertsConfig `json:"alerts"`
+
+	// Finality Configuration (D7). DefaultConfirmations is the confirmation
+	// depth applied to EVM chains with no explicit per-chain entry;
+	// Strategies maps chain ID to "N", "latest", "tag:safe" or "tag:finalized".
+	Finality FinalityConfig `json:"finality"`
+}
+
+// AlertsConfig drives the monolithic AlertManager with a log sink.
+type AlertsConfig struct {
+	Enabled bool              `json:"enabled"`
+	Rules   []AlertRuleConfig `json:"rules"`
+}
+
+// AlertRuleConfig is one config-driven alert rule (no full DSL).
+type AlertRuleConfig struct {
+	Name            string  `json:"name"`
+	Metric          string  `json:"metric"`
+	Operator        string  `json:"operator"`
+	Threshold       float64 `json:"threshold"`
+	DurationSeconds int     `json:"duration_seconds"`
+	Severity        string  `json:"severity"`
+	Message         string  `json:"message"`
+}
+
+// FinalityConfig selects the per-chain finality strategy.
+type FinalityConfig struct {
+	DefaultConfirmations uint64            `json:"default_confirmations"`
+	Strategies           map[string]string `json:"strategies"`
 }

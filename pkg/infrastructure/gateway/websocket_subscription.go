@@ -8,7 +8,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 )
 
 // Subscription represents a WebSocket subscription
@@ -138,7 +138,7 @@ func (sm *SubscriptionManager) GetChainSubscriptions(ctx context.Context, chainI
 // EventDeliveryManager manages event delivery to subscribers
 type EventDeliveryManager struct {
 	subscriptionMgr *SubscriptionManager
-	deliveryChans   map[string]chan *core.BlockchainEvent
+	deliveryChans   map[string]chan *blockchain.BlockchainEvent
 	mutex           sync.RWMutex
 	eventsDropped   atomic.Int64
 }
@@ -147,12 +147,12 @@ type EventDeliveryManager struct {
 func NewEventDeliveryManager(subscriptionMgr *SubscriptionManager) *EventDeliveryManager {
 	return &EventDeliveryManager{
 		subscriptionMgr: subscriptionMgr,
-		deliveryChans:   make(map[string]chan *core.BlockchainEvent),
+		deliveryChans:   make(map[string]chan *blockchain.BlockchainEvent),
 	}
 }
 
 // RegisterDeliveryChannel registers a delivery channel for a subscription
-func (edm *EventDeliveryManager) RegisterDeliveryChannel(subscriptionID string, ch chan *core.BlockchainEvent) error {
+func (edm *EventDeliveryManager) RegisterDeliveryChannel(subscriptionID string, ch chan *blockchain.BlockchainEvent) error {
 	edm.mutex.Lock()
 	defer edm.mutex.Unlock()
 
@@ -178,7 +178,7 @@ func (edm *EventDeliveryManager) UnregisterDeliveryChannel(subscriptionID string
 }
 
 // DeliverEvent delivers an event to all subscribers
-func (edm *EventDeliveryManager) DeliverEvent(ctx context.Context, event *core.BlockchainEvent) error {
+func (edm *EventDeliveryManager) DeliverEvent(ctx context.Context, event *blockchain.BlockchainEvent) error {
 	edm.mutex.RLock()
 	defer edm.mutex.RUnlock()
 
@@ -203,7 +203,7 @@ func (edm *EventDeliveryManager) DeliverEvent(ctx context.Context, event *core.B
 // safeSend attempts to send an event on a channel, recovering from send-to-closed-channel.
 // This guards against the race where UnregisterDeliveryChannel removes the channel
 // from the map but DeliverEvent already holds a stale reference.
-func safeSend(ch chan *core.BlockchainEvent, event *core.BlockchainEvent, ctx context.Context) (sent bool) { //nolint:revive // ctx cannot be first; chan and event are primary params
+func safeSend(ch chan *blockchain.BlockchainEvent, event *blockchain.BlockchainEvent, ctx context.Context) (sent bool) { //nolint:revive // ctx cannot be first; chan and event are primary params
 	defer func() {
 		if r := recover(); r != nil {
 			// Expected: send on closed channel (channel removed from map while DeliverEvent held stale ref).

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Activity, ArrowRight, BarChart3, Bell, Globe, Layers, Loader2, RefreshCw, Search } from 'lucide-react'
 import { useAuth } from '../lib/auth'
@@ -15,6 +15,7 @@ function formatAddress(address: string): string {
 }
 
 export default function Dashboard() {
+  console.log('[DASH] Dashboard render start')
   const { address } = useAuth()
   const navigate = useNavigate()
 
@@ -23,21 +24,29 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
+  async function tryFetchEvents() {
+    try {
+      const res = await fetchEvents({ limit: 10, offset: 0 })
+      setEvents(res)
+      setError(null)
+    } catch (err) {
+      // single failure is OK if stats succeeds
+    }
+  }
+
+  async function tryFetchStats() {
+    try {
+      const res = await fetchEventStats()
+      setStats(res)
+      setError(null)
+    } catch (err) {
+      // single failure is OK if events succeeds
+    }
+  }
+
   async function load(): Promise<void> {
     try {
-      const [eventsRes, statsRes] = await Promise.allSettled([
-        fetchEvents({ limit: 10, offset: 0 }),
-        fetchEventStats(),
-      ])
-
-      if (eventsRes.status === 'fulfilled') setEvents(eventsRes.value)
-      if (statsRes.status === 'fulfilled') setStats(statsRes.value)
-
-      if (eventsRes.status === 'rejected' && statsRes.status === 'rejected') {
-        setError('Failed to load dashboard data')
-      } else {
-        setError(null)
-      }
+      await Promise.all([tryFetchEvents(), tryFetchStats()])
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load')
     } finally {
@@ -45,9 +54,9 @@ export default function Dashboard() {
     }
   }
 
-  useEffect(() => {
-    void load()
-  }, [])
+  if (loading && !events && !error) {
+    load().catch(() => {/* handled in load */})
+  }
 
   const chainCount = stats ? Object.keys(stats.byChain).length : 0
   const eventTypeCount = stats ? Object.keys(stats.byEventName).length : 0
@@ -79,7 +88,7 @@ export default function Dashboard() {
         </div>
       ) : error ? (
         <div className="rounded-2xl border border-rose-400/25 bg-rose-400/10 p-6 text-rose-100">
-          <p className="font-medium">{error}</p>
+          <p className="font-medium">Error: {error}</p>
           <button onClick={() => { setLoading(true); void load() }} className="mt-3 flex items-center gap-2 rounded-lg border border-current/20 px-4 py-2 text-sm hover:bg-current/10">
             <RefreshCw className="h-4 w-4" /> Retry
           </button>

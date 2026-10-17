@@ -1,0 +1,866 @@
+{
+  "$comment": "Declared-expected skips, shared by every lane that runs scripts/acceptance/verify-tests.py with --fail-on-unknown-skip (test.yml unit/integration/E2E steps, coverage.yml pkg lane, ci-integration.yml). An entry here is an EXCEPTION, not a default: the verifier fails any lane whose skip is not listed. Plan §7.2 permits explicit exceptions with a reason for skips outside the repository's promised surface, but forbids using them to cover chain correctness, security, or a required adapter. Every new entry names the lane that produces it, a category, and the measured skip message. An entry whose lane no longer produces the skip is inert, not a failure.",
+  "schema": "chainpulse.skip-allowlist.v1",
+  "allowed": [
+    "github.com/rtcdance/chainpulse/pkg/infrastructure/blockchain::TestConcurrentProcessing",
+    "github.com/rtcdance/chainpulse/pkg/infrastructure/config::TestNotifyWatchersMultiple",
+    "github.com/rtcdance/chainpulse/pkg/infrastructure/config::TestNotifyWatchersPanicRecovery",
+    "github.com/rtcdance/chainpulse/pkg/infrastructure/config::TestWatchConfig",
+    "github.com/rtcdance/chainpulse/pkg/infrastructure/config::TestWatchConfigDecryptFailure",
+    "github.com/rtcdance/chainpulse/pkg/infrastructure/config::TestWatchConfigWithSensitiveKey",
+    "github.com/rtcdance/chainpulse/pkg/infrastructure/database::TestDatabaseManagerInitializeAlreadyInitialized",
+    "github.com/rtcdance/chainpulse/pkg/infrastructure/database::TestDatabaseManagerInitializeEmptyMongoURI",
+    "github.com/rtcdance/chainpulse/pkg/infrastructure/database::TestDatabaseManagerInitializeEmptyPostgresURL",
+    "github.com/rtcdance/chainpulse/pkg/infrastructure/deployment::TestConfigurationValidation",
+    "github.com/rtcdance/chainpulse/pkg/infrastructure/discovery::TestSessionConcurrentUpdate",
+    "github.com/rtcdance/chainpulse/pkg/plugins/api/graphql::TestGraphQLPluginLifecycleManagement",
+    "github.com/rtcdance/chainpulse/pkg/plugins/api/http::TestHTTPAndHTTPSConcurrent",
+    "github.com/rtcdance/chainpulse/pkg/plugins/api/http::TestHTTPPluginWithoutTLS",
+    "github.com/rtcdance/chainpulse/pkg/plugins/api/http::TestHTTPSConnection",
+    "github.com/rtcdance/chainpulse/pkg/plugins/api/http::TestHTTPSPortConfiguration",
+    "github.com/rtcdance/chainpulse/pkg/plugins/api/http::TestTLSMetricsCollection",
+    "github.com/rtcdance/chainpulse/pkg/plugins/api/shared::TestRequestBatcherContextCancellation",
+    "github.com/rtcdance/chainpulse/pkg/plugins/api/websocket::TestWSAndWSSConcurrent",
+    "github.com/rtcdance/chainpulse/pkg/plugins/api/websocket::TestWSSClientCount",
+    "github.com/rtcdance/chainpulse/pkg/plugins/api/websocket::TestWSSConnection",
+    "github.com/rtcdance/chainpulse/pkg/plugins/api/websocket::TestWSSMetricsCollection",
+    "github.com/rtcdance/chainpulse/pkg/plugins/api/websocket::TestWSSPortConfiguration",
+    "github.com/rtcdance/chainpulse/pkg/plugins/api/websocket::TestWebSocketPluginConcurrentOperations",
+    "github.com/rtcdance/chainpulse/pkg/plugins/api/websocket::TestWebSocketPluginIsRunning",
+    "github.com/rtcdance/chainpulse/pkg/plugins/api/websocket::TestWebSocketPluginStart",
+    "github.com/rtcdance/chainpulse/pkg/plugins/api/websocket::TestWebSocketPluginStartAlreadyRunning",
+    "github.com/rtcdance/chainpulse/pkg/plugins/api/websocket::TestWebSocketPluginStop",
+    "github.com/rtcdance/chainpulse/pkg/plugins/api/websocket::TestWebSocketPluginWithoutTLS",
+    "github.com/rtcdance/chainpulse/pkg/plugins/api::TestCacheWarmerGetStats",
+    "github.com/rtcdance/chainpulse/pkg/plugins/api::TestConcurrentWarmingOperations",
+    "github.com/rtcdance/chainpulse/pkg/plugins/api::TestContextCancellation",
+    "github.com/rtcdance/chainpulse/pkg/plugins/api::TestGatewayRouterIntegrationConcurrentRequests",
+    "github.com/rtcdance/chainpulse/pkg/plugins/api::TestHandlerForbidden",
+    "github.com/rtcdance/chainpulse/pkg/plugins/api::TestIsRunning",
+    "github.com/rtcdance/chainpulse/pkg/plugins/api::TestLastWarmingTime",
+    "github.com/rtcdance/chainpulse/pkg/plugins/api::TestMultipleWarmingCycles",
+    "github.com/rtcdance/chainpulse/pkg/plugins/api::TestStartAlreadyRunning",
+    "github.com/rtcdance/chainpulse/pkg/plugins/api::TestStartSuccess",
+    "github.com/rtcdance/chainpulse/pkg/plugins/api::TestStopSuccess",
+    "github.com/rtcdance/chainpulse/pkg/plugins/api::TestTokenBucketConcurrency",
+    "github.com/rtcdance/chainpulse/pkg/plugins/api::TestWarmingData",
+    "github.com/rtcdance/chainpulse/pkg/plugins/api::TestWarmingDataWithDifferentStatusCodes",
+    "github.com/rtcdance/chainpulse/pkg/plugins/api::TestWarmingDataWithDifferentTTLs",
+    "github.com/rtcdance/chainpulse/pkg/plugins/api::TestWarmingFailureMetrics",
+    "github.com/rtcdance/chainpulse/pkg/plugins/api::TestWarmingMetricsRecording",
+    "github.com/rtcdance/chainpulse/pkg/plugins/api::TestWarmingWithBatchSize",
+    "github.com/rtcdance/chainpulse/pkg/plugins/api::TestWarmingWithError",
+    "github.com/rtcdance/chainpulse/pkg/plugins/cache::TestRedisCacheDelete",
+    "github.com/rtcdance/chainpulse/pkg/plugins/database::TestBatchInsertPerformance",
+    "github.com/rtcdance/chainpulse/pkg/plugins/database::TestBatchInsertVariousSizes",
+    "github.com/rtcdance/chainpulse/pkg/plugins/database::TestConcurrentTransactions",
+    "github.com/rtcdance/chainpulse/pkg/plugins/database::TestDatabaseIntegrationConcurrency",
+    "github.com/rtcdance/chainpulse/pkg/plugins/database::TestDatabaseIntegrationSuite",
+    "github.com/rtcdance/chainpulse/pkg/plugins/database::TestDatabaseIntegrationWithErrors",
+    "github.com/rtcdance/chainpulse/pkg/plugins/database::TestPostgreSQLRealConnection",
+    "github.com/rtcdance/chainpulse/pkg/plugins/database::TestQueryPerformance",
+    "github.com/rtcdance/chainpulse/pkg/plugins/database::TestRollbackOnError",
+    "github.com/rtcdance/chainpulse/pkg/plugins/database::TestSingleEventPerformance",
+    "github.com/rtcdance/chainpulse/pkg/plugins/database::TestTransactionConsistency",
+    "github.com/rtcdance/chainpulse/pkg/plugins/database::TestTransactionIsolation",
+    "github.com/rtcdance/chainpulse/pkg/plugins/mq::TestKafkaIntegrationBatchPublish",
+    "github.com/rtcdance/chainpulse/pkg/plugins/mq::TestKafkaIntegrationDeadLetterQueue",
+    "github.com/rtcdance/chainpulse/pkg/plugins/mq::TestKafkaIntegrationErrorHandling",
+    "github.com/rtcdance/chainpulse/pkg/plugins/mq::TestKafkaIntegrationHealthCheck",
+    "github.com/rtcdance/chainpulse/pkg/plugins/mq::TestKafkaIntegrationMultipleConsumers",
+    "github.com/rtcdance/chainpulse/pkg/plugins/mq::TestKafkaIntegrationOffsetTracking",
+    "github.com/rtcdance/chainpulse/pkg/plugins/mq::TestKafkaIntegrationPerformance",
+    "github.com/rtcdance/chainpulse/pkg/plugins/mq::TestKafkaIntegrationPublishAndConsume",
+    "github.com/rtcdance/chainpulse/pkg/siwe::TestRedisNonceStoreBindsNonceToAddress",
+    "github.com/rtcdance/chainpulse/pkg/siwe::TestRedisNonceStoreTwoInstancesOneWinner",
+    "github.com/rtcdance/chainpulse/test/acceptance::TestDeployedAPIRejectsMissingCacheAuthority",
+    "github.com/rtcdance/chainpulse/test/acceptance::TestDeployedDualChainFaultIsolation",
+    "github.com/rtcdance/chainpulse/test/acceptance::TestDeployedDualChainModesMatchRPCOracle",
+    "github.com/rtcdance/chainpulse/test/acceptance::TestDeployedPullerKafkaAndAtomicProcessor",
+    "github.com/rtcdance/chainpulse/test/acceptance::TestDeployedReleaseRollback",
+    "github.com/rtcdance/chainpulse/test/acceptance::TestDeployedReorgCanonicalDigestAndRestart",
+    "github.com/rtcdance/chainpulse/test/acceptance::TestKafkaRedeliveryKeepsEffectSingle",
+    "github.com/rtcdance/chainpulse/test/e2e::TestBlockchainManager_Initialize",
+    "github.com/rtcdance/chainpulse/test/e2e::TestDataPullerEventCollection",
+    "github.com/rtcdance/chainpulse/test/e2e::TestDataPullerReorgHandling",
+    "github.com/rtcdance/chainpulse/test/e2e::TestDatabaseManager_Initialize",
+    "github.com/rtcdance/chainpulse/test/e2e::TestErrorScenario_APIEndpointNotFound",
+    "github.com/rtcdance/chainpulse/test/e2e::TestErrorScenario_AllScenarios",
+    "github.com/rtcdance/chainpulse/test/e2e::TestErrorScenario_ContextCancellation",
+    "github.com/rtcdance/chainpulse/test/e2e::TestErrorScenario_DatabaseConnectionFailure",
+    "github.com/rtcdance/chainpulse/test/e2e::TestErrorScenario_InvalidBlockchainAddress",
+    "github.com/rtcdance/chainpulse/test/e2e::TestErrorScenario_InvalidDatabaseQuery",
+    "github.com/rtcdance/chainpulse/test/e2e::TestHappyPath_APIEndpointCall",
+    "github.com/rtcdance/chainpulse/test/e2e::TestHappyPath_AllScenarios",
+    "github.com/rtcdance/chainpulse/test/e2e::TestHappyPath_BlockchainTransaction",
+    "github.com/rtcdance/chainpulse/test/e2e::TestHappyPath_CompleteWorkflow",
+    "github.com/rtcdance/chainpulse/test/e2e::TestHappyPath_DataConsistency",
+    "github.com/rtcdance/chainpulse/test/e2e::TestHappyPath_DatabaseInsertAndQuery",
+    "github.com/rtcdance/chainpulse/test/e2e::TestMultiChainProtocolAcceptance/evm_arbitrum",
+    "github.com/rtcdance/chainpulse/test/e2e::TestMultiChainProtocolAcceptance/evm_avalanche",
+    "github.com/rtcdance/chainpulse/test/e2e::TestMultiChainProtocolAcceptance/evm_base",
+    "github.com/rtcdance/chainpulse/test/e2e::TestMultiChainProtocolAcceptance/evm_bsc",
+    "github.com/rtcdance/chainpulse/test/e2e::TestMultiChainProtocolAcceptance/evm_optimism",
+    "github.com/rtcdance/chainpulse/test/e2e::TestMultiChainProtocolAcceptance/evm_polygon",
+    "github.com/rtcdance/chainpulse/test/e2e::TestMultiChainProtocolAcceptance/solana",
+    "github.com/rtcdance/chainpulse/test/e2e::TestMultiChainScenario_AllScenarios",
+    "github.com/rtcdance/chainpulse/test/e2e::TestMultiChainScenario_CrossChainDataConsistency",
+    "github.com/rtcdance/chainpulse/test/e2e::TestMultiChainScenario_MultiChainConcurrentOperations",
+    "github.com/rtcdance/chainpulse/test/e2e::TestMultiChainScenario_MultiChainDataAggregation",
+    "github.com/rtcdance/chainpulse/test/e2e::TestMultiChainScenario_MultiChainFailover",
+    "github.com/rtcdance/chainpulse/test/e2e::TestMultiChainScenario_MultiChainStateSync",
+    "github.com/rtcdance/chainpulse/test/e2e::TestOrchestrator_Initialize",
+    "github.com/rtcdance/chainpulse/test/e2e::TestPerformanceScenario_AllScenarios",
+    "github.com/rtcdance/chainpulse/test/e2e::TestPerformanceScenario_BlockchainReadThroughput",
+    "github.com/rtcdance/chainpulse/test/e2e::TestPerformanceScenario_ConcurrentBlockchainReads",
+    "github.com/rtcdance/chainpulse/test/e2e::TestPerformanceScenario_ConcurrentDatabaseWrites",
+    "github.com/rtcdance/chainpulse/test/e2e::TestPerformanceScenario_DatabaseWriteThroughput",
+    "github.com/rtcdance/chainpulse/test/e2e::TestPerformanceScenario_EndToEndLatency",
+    "github.com/rtcdance/chainpulse/test/integration::TestActiveChainsList",
+    "github.com/rtcdance/chainpulse/test/integration::TestMultiChainConfigurationLoading",
+    "github.com/rtcdance/chainpulse/test/integration::TestMultiChainConfigurationRetrieval",
+    "github.com/rtcdance/chainpulse/test/integration::TestMultiChainDetection",
+    "github.com/rtcdance/chainpulse/test/performance::TestStress_MemoryMQ_HighThroughput",
+    "github.com/rtcdance/chainpulse/test/performance::TestStress_MultiChain_Concurrent"
+  ],
+  "reasons": {
+    "github.com/rtcdance/chainpulse/pkg/infrastructure/blockchain::TestConcurrentProcessing": {
+      "category": "short_mode_excluded",
+      "lane": "unit",
+      "why": "Gated on testing.Short(); the -short lane deliberately excludes it. Exercised only by non-short runs (e.g. local `make test-unit` variants); declared here so the -short lane is honest about what it does not run.",
+      "measured_skip_message": "skipping blockchain cluster concurrency test in short mode"
+    },
+    "github.com/rtcdance/chainpulse/pkg/infrastructure/config::TestNotifyWatchersMultiple": {
+      "category": "short_mode_excluded",
+      "lane": "unit",
+      "why": "Gated on testing.Short(); the -short lane deliberately excludes it. Exercised only by non-short runs (e.g. local `make test-unit` variants); declared here so the -short lane is honest about what it does not run.",
+      "measured_skip_message": "skipping config watch concurrency test in short mode"
+    },
+    "github.com/rtcdance/chainpulse/pkg/infrastructure/config::TestNotifyWatchersPanicRecovery": {
+      "category": "short_mode_excluded",
+      "lane": "unit",
+      "why": "Gated on testing.Short(); the -short lane deliberately excludes it. Exercised only by non-short runs (e.g. local `make test-unit` variants); declared here so the -short lane is honest about what it does not run.",
+      "measured_skip_message": "skipping config watch concurrency test in short mode"
+    },
+    "github.com/rtcdance/chainpulse/pkg/infrastructure/config::TestWatchConfig": {
+      "category": "short_mode_excluded",
+      "lane": "unit",
+      "why": "Gated on testing.Short(); the -short lane deliberately excludes it. Exercised only by non-short runs (e.g. local `make test-unit` variants); declared here so the -short lane is honest about what it does not run.",
+      "measured_skip_message": "skipping config watch concurrency test in short mode"
+    },
+    "github.com/rtcdance/chainpulse/pkg/infrastructure/config::TestWatchConfigDecryptFailure": {
+      "category": "short_mode_excluded",
+      "lane": "unit",
+      "why": "Gated on testing.Short(); the -short lane deliberately excludes it. Exercised only by non-short runs (e.g. local `make test-unit` variants); declared here so the -short lane is honest about what it does not run.",
+      "measured_skip_message": "skipping config watch concurrency test in short mode"
+    },
+    "github.com/rtcdance/chainpulse/pkg/infrastructure/config::TestWatchConfigWithSensitiveKey": {
+      "category": "short_mode_excluded",
+      "lane": "unit",
+      "why": "Gated on testing.Short(); the -short lane deliberately excludes it. Exercised only by non-short runs (e.g. local `make test-unit` variants); declared here so the -short lane is honest about what it does not run.",
+      "measured_skip_message": "skipping config watch concurrency test in short mode"
+    },
+    "github.com/rtcdance/chainpulse/pkg/infrastructure/database::TestDatabaseManagerInitializeAlreadyInitialized": {
+      "category": "dependency_gated",
+      "lane": "unit",
+      "why": "Gated on an opt-in env var (CHAINPULSE_RUN_*_INTEGRATION) that no CI lane sets; enabling it would require a provisioned server this lane does not have.",
+      "measured_skip_message": "Skipping DB integration test; set CHAINPULSE_RUN_DB_INTEGRATION=1 to enable"
+    },
+    "github.com/rtcdance/chainpulse/pkg/infrastructure/database::TestDatabaseManagerInitializeEmptyMongoURI": {
+      "category": "historical_residue",
+      "lane": "unit",
+      "why": "Unconditional historical t.Skip; the code path is not exercised in this lane. Owner must either restore the assertion or delete the dead test - listed so the lane is honest about the hole, not to hide it.",
+      "measured_skip_message": "regression"
+    },
+    "github.com/rtcdance/chainpulse/pkg/infrastructure/database::TestDatabaseManagerInitializeEmptyPostgresURL": {
+      "category": "historical_residue",
+      "lane": "unit",
+      "why": "Unconditional historical t.Skip; the code path is not exercised in this lane. Owner must either restore the assertion or delete the dead test - listed so the lane is honest about the hole, not to hide it.",
+      "measured_skip_message": "regression"
+    },
+    "github.com/rtcdance/chainpulse/pkg/infrastructure/deployment::TestConfigurationValidation": {
+      "category": "historical_residue",
+      "lane": "unit",
+      "why": "Unconditional historical t.Skip; the code path is not exercised in this lane. Owner must either restore the assertion or delete the dead test - listed so the lane is honest about the hole, not to hide it.",
+      "measured_skip_message": "regression"
+    },
+    "github.com/rtcdance/chainpulse/pkg/infrastructure/discovery::TestSessionConcurrentUpdate": {
+      "category": "short_mode_excluded",
+      "lane": "unit",
+      "why": "Gated on testing.Short(); the -short lane deliberately excludes it. Exercised only by non-short runs (e.g. local `make test-unit` variants); declared here so the -short lane is honest about what it does not run.",
+      "measured_skip_message": "skipping session manager concurrency test in short mode"
+    },
+    "github.com/rtcdance/chainpulse/pkg/plugins/api/graphql::TestGraphQLPluginLifecycleManagement": {
+      "category": "short_mode_excluded",
+      "lane": "unit",
+      "why": "Gated on testing.Short(); the -short lane deliberately excludes it. Exercised only by non-short runs (e.g. local `make test-unit` variants); declared here so the -short lane is honest about what it does not run.",
+      "measured_skip_message": "skipping GraphQL lifecycle test in short mode"
+    },
+    "github.com/rtcdance/chainpulse/pkg/plugins/api/http::TestHTTPAndHTTPSConcurrent": {
+      "category": "short_mode_excluded",
+      "lane": "unit",
+      "why": "Gated on testing.Short(); the -short lane deliberately excludes it. Exercised only by non-short runs (e.g. local `make test-unit` variants); declared here so the -short lane is honest about what it does not run.",
+      "measured_skip_message": "skipping integration test in short mode"
+    },
+    "github.com/rtcdance/chainpulse/pkg/plugins/api/http::TestHTTPPluginWithoutTLS": {
+      "category": "short_mode_excluded",
+      "lane": "unit",
+      "why": "Gated on testing.Short(); the -short lane deliberately excludes it. Exercised only by non-short runs (e.g. local `make test-unit` variants); declared here so the -short lane is honest about what it does not run.",
+      "measured_skip_message": "skipping integration test in short mode"
+    },
+    "github.com/rtcdance/chainpulse/pkg/plugins/api/http::TestHTTPSConnection": {
+      "category": "short_mode_excluded",
+      "lane": "unit",
+      "why": "Gated on testing.Short(); the -short lane deliberately excludes it. Exercised only by non-short runs (e.g. local `make test-unit` variants); declared here so the -short lane is honest about what it does not run.",
+      "measured_skip_message": "skipping integration test in short mode"
+    },
+    "github.com/rtcdance/chainpulse/pkg/plugins/api/http::TestHTTPSPortConfiguration": {
+      "category": "short_mode_excluded",
+      "lane": "unit",
+      "why": "Gated on testing.Short(); the -short lane deliberately excludes it. Exercised only by non-short runs (e.g. local `make test-unit` variants); declared here so the -short lane is honest about what it does not run.",
+      "measured_skip_message": "skipping integration test in short mode"
+    },
+    "github.com/rtcdance/chainpulse/pkg/plugins/api/http::TestTLSMetricsCollection": {
+      "category": "short_mode_excluded",
+      "lane": "unit",
+      "why": "Gated on testing.Short(); the -short lane deliberately excludes it. Exercised only by non-short runs (e.g. local `make test-unit` variants); declared here so the -short lane is honest about what it does not run.",
+      "measured_skip_message": "skipping integration test in short mode"
+    },
+    "github.com/rtcdance/chainpulse/pkg/plugins/api/shared::TestRequestBatcherContextCancellation": {
+      "category": "short_mode_excluded",
+      "lane": "unit",
+      "why": "Gated on testing.Short(); the -short lane deliberately excludes it. Exercised only by non-short runs (e.g. local `make test-unit` variants); declared here so the -short lane is honest about what it does not run.",
+      "measured_skip_message": "skipping in short mode"
+    },
+    "github.com/rtcdance/chainpulse/pkg/plugins/api/websocket::TestWSAndWSSConcurrent": {
+      "category": "short_mode_excluded",
+      "lane": "unit",
+      "why": "Gated on testing.Short(); the -short lane deliberately excludes it. Exercised only by non-short runs (e.g. local `make test-unit` variants); declared here so the -short lane is honest about what it does not run.",
+      "measured_skip_message": "skipping integration test in short mode"
+    },
+    "github.com/rtcdance/chainpulse/pkg/plugins/api/websocket::TestWSSClientCount": {
+      "category": "short_mode_excluded",
+      "lane": "unit",
+      "why": "Gated on testing.Short(); the -short lane deliberately excludes it. Exercised only by non-short runs (e.g. local `make test-unit` variants); declared here so the -short lane is honest about what it does not run.",
+      "measured_skip_message": "skipping integration test in short mode"
+    },
+    "github.com/rtcdance/chainpulse/pkg/plugins/api/websocket::TestWSSConnection": {
+      "category": "short_mode_excluded",
+      "lane": "unit",
+      "why": "Gated on testing.Short(); the -short lane deliberately excludes it. Exercised only by non-short runs (e.g. local `make test-unit` variants); declared here so the -short lane is honest about what it does not run.",
+      "measured_skip_message": "skipping integration test in short mode"
+    },
+    "github.com/rtcdance/chainpulse/pkg/plugins/api/websocket::TestWSSMetricsCollection": {
+      "category": "short_mode_excluded",
+      "lane": "unit",
+      "why": "Gated on testing.Short(); the -short lane deliberately excludes it. Exercised only by non-short runs (e.g. local `make test-unit` variants); declared here so the -short lane is honest about what it does not run.",
+      "measured_skip_message": "skipping integration test in short mode"
+    },
+    "github.com/rtcdance/chainpulse/pkg/plugins/api/websocket::TestWSSPortConfiguration": {
+      "category": "short_mode_excluded",
+      "lane": "unit",
+      "why": "Gated on testing.Short(); the -short lane deliberately excludes it. Exercised only by non-short runs (e.g. local `make test-unit` variants); declared here so the -short lane is honest about what it does not run.",
+      "measured_skip_message": "skipping integration test in short mode"
+    },
+    "github.com/rtcdance/chainpulse/pkg/plugins/api/websocket::TestWebSocketPluginConcurrentOperations": {
+      "category": "short_mode_excluded",
+      "lane": "unit",
+      "why": "Gated on testing.Short(); the -short lane deliberately excludes it. Exercised only by non-short runs (e.g. local `make test-unit` variants); declared here so the -short lane is honest about what it does not run.",
+      "measured_skip_message": "skipping integration test in short mode"
+    },
+    "github.com/rtcdance/chainpulse/pkg/plugins/api/websocket::TestWebSocketPluginIsRunning": {
+      "category": "short_mode_excluded",
+      "lane": "unit",
+      "why": "Gated on testing.Short(); the -short lane deliberately excludes it. Exercised only by non-short runs (e.g. local `make test-unit` variants); declared here so the -short lane is honest about what it does not run.",
+      "measured_skip_message": "skipping integration test in short mode"
+    },
+    "github.com/rtcdance/chainpulse/pkg/plugins/api/websocket::TestWebSocketPluginStart": {
+      "category": "short_mode_excluded",
+      "lane": "unit",
+      "why": "Gated on testing.Short(); the -short lane deliberately excludes it. Exercised only by non-short runs (e.g. local `make test-unit` variants); declared here so the -short lane is honest about what it does not run.",
+      "measured_skip_message": "skipping integration test in short mode"
+    },
+    "github.com/rtcdance/chainpulse/pkg/plugins/api/websocket::TestWebSocketPluginStartAlreadyRunning": {
+      "category": "short_mode_excluded",
+      "lane": "unit",
+      "why": "Gated on testing.Short(); the -short lane deliberately excludes it. Exercised only by non-short runs (e.g. local `make test-unit` variants); declared here so the -short lane is honest about what it does not run.",
+      "measured_skip_message": "skipping integration test in short mode"
+    },
+    "github.com/rtcdance/chainpulse/pkg/plugins/api/websocket::TestWebSocketPluginStop": {
+      "category": "short_mode_excluded",
+      "lane": "unit",
+      "why": "Gated on testing.Short(); the -short lane deliberately excludes it. Exercised only by non-short runs (e.g. local `make test-unit` variants); declared here so the -short lane is honest about what it does not run.",
+      "measured_skip_message": "skipping integration test in short mode"
+    },
+    "github.com/rtcdance/chainpulse/pkg/plugins/api/websocket::TestWebSocketPluginWithoutTLS": {
+      "category": "short_mode_excluded",
+      "lane": "unit",
+      "why": "Gated on testing.Short(); the -short lane deliberately excludes it. Exercised only by non-short runs (e.g. local `make test-unit` variants); declared here so the -short lane is honest about what it does not run.",
+      "measured_skip_message": "skipping integration test in short mode"
+    },
+    "github.com/rtcdance/chainpulse/pkg/plugins/api::TestCacheWarmerGetStats": {
+      "category": "short_mode_excluded",
+      "lane": "unit",
+      "why": "Gated on testing.Short(); the -short lane deliberately excludes it. Exercised only by non-short runs (e.g. local `make test-unit` variants); declared here so the -short lane is honest about what it does not run.",
+      "measured_skip_message": "skipping cache warmer background/stress test in short mode"
+    },
+    "github.com/rtcdance/chainpulse/pkg/plugins/api::TestConcurrentWarmingOperations": {
+      "category": "short_mode_excluded",
+      "lane": "unit",
+      "why": "Gated on testing.Short(); the -short lane deliberately excludes it. Exercised only by non-short runs (e.g. local `make test-unit` variants); declared here so the -short lane is honest about what it does not run.",
+      "measured_skip_message": "skipping cache warmer background/stress test in short mode"
+    },
+    "github.com/rtcdance/chainpulse/pkg/plugins/api::TestContextCancellation": {
+      "category": "short_mode_excluded",
+      "lane": "unit",
+      "why": "Gated on testing.Short(); the -short lane deliberately excludes it. Exercised only by non-short runs (e.g. local `make test-unit` variants); declared here so the -short lane is honest about what it does not run.",
+      "measured_skip_message": "skipping cache warmer background/stress test in short mode"
+    },
+    "github.com/rtcdance/chainpulse/pkg/plugins/api::TestGatewayRouterIntegrationConcurrentRequests": {
+      "category": "short_mode_excluded",
+      "lane": "unit",
+      "why": "Gated on testing.Short(); the -short lane deliberately excludes it. Exercised only by non-short runs (e.g. local `make test-unit` variants); declared here so the -short lane is honest about what it does not run.",
+      "measured_skip_message": "skipping concurrent integration test in short mode"
+    },
+    "github.com/rtcdance/chainpulse/pkg/plugins/api::TestHandlerForbidden": {
+      "category": "covered_elsewhere",
+      "lane": "unit",
+      "why": "Unconditional skip; the author notes the behaviour is covered by a different test in the same package (rbac_test.go). Listed for honesty about the duplicate skip.",
+      "measured_skip_message": "RBAC checking tested separately in rbac_test.go"
+    },
+    "github.com/rtcdance/chainpulse/pkg/plugins/api::TestIsRunning": {
+      "category": "short_mode_excluded",
+      "lane": "unit",
+      "why": "Gated on testing.Short(); the -short lane deliberately excludes it. Exercised only by non-short runs (e.g. local `make test-unit` variants); declared here so the -short lane is honest about what it does not run.",
+      "measured_skip_message": "skipping cache warmer background/stress test in short mode"
+    },
+    "github.com/rtcdance/chainpulse/pkg/plugins/api::TestLastWarmingTime": {
+      "category": "short_mode_excluded",
+      "lane": "unit",
+      "why": "Gated on testing.Short(); the -short lane deliberately excludes it. Exercised only by non-short runs (e.g. local `make test-unit` variants); declared here so the -short lane is honest about what it does not run.",
+      "measured_skip_message": "skipping cache warmer background/stress test in short mode"
+    },
+    "github.com/rtcdance/chainpulse/pkg/plugins/api::TestMultipleWarmingCycles": {
+      "category": "short_mode_excluded",
+      "lane": "unit",
+      "why": "Gated on testing.Short(); the -short lane deliberately excludes it. Exercised only by non-short runs (e.g. local `make test-unit` variants); declared here so the -short lane is honest about what it does not run.",
+      "measured_skip_message": "skipping cache warmer background/stress test in short mode"
+    },
+    "github.com/rtcdance/chainpulse/pkg/plugins/api::TestStartAlreadyRunning": {
+      "category": "short_mode_excluded",
+      "lane": "unit",
+      "why": "Gated on testing.Short(); the -short lane deliberately excludes it. Exercised only by non-short runs (e.g. local `make test-unit` variants); declared here so the -short lane is honest about what it does not run.",
+      "measured_skip_message": "skipping cache warmer background/stress test in short mode"
+    },
+    "github.com/rtcdance/chainpulse/pkg/plugins/api::TestStartSuccess": {
+      "category": "short_mode_excluded",
+      "lane": "unit",
+      "why": "Gated on testing.Short(); the -short lane deliberately excludes it. Exercised only by non-short runs (e.g. local `make test-unit` variants); declared here so the -short lane is honest about what it does not run.",
+      "measured_skip_message": "skipping cache warmer background/stress test in short mode"
+    },
+    "github.com/rtcdance/chainpulse/pkg/plugins/api::TestStopSuccess": {
+      "category": "short_mode_excluded",
+      "lane": "unit",
+      "why": "Gated on testing.Short(); the -short lane deliberately excludes it. Exercised only by non-short runs (e.g. local `make test-unit` variants); declared here so the -short lane is honest about what it does not run.",
+      "measured_skip_message": "skipping cache warmer background/stress test in short mode"
+    },
+    "github.com/rtcdance/chainpulse/pkg/plugins/api::TestTokenBucketConcurrency": {
+      "category": "short_mode_excluded",
+      "lane": "unit",
+      "why": "Gated on testing.Short(); the -short lane deliberately excludes it. Exercised only by non-short runs (e.g. local `make test-unit` variants); declared here so the -short lane is honest about what it does not run.",
+      "measured_skip_message": "skipping concurrency stress test in short mode"
+    },
+    "github.com/rtcdance/chainpulse/pkg/plugins/api::TestWarmingData": {
+      "category": "short_mode_excluded",
+      "lane": "unit",
+      "why": "Gated on testing.Short(); the -short lane deliberately excludes it. Exercised only by non-short runs (e.g. local `make test-unit` variants); declared here so the -short lane is honest about what it does not run.",
+      "measured_skip_message": "skipping cache warmer background/stress test in short mode"
+    },
+    "github.com/rtcdance/chainpulse/pkg/plugins/api::TestWarmingDataWithDifferentStatusCodes": {
+      "category": "short_mode_excluded",
+      "lane": "unit",
+      "why": "Gated on testing.Short(); the -short lane deliberately excludes it. Exercised only by non-short runs (e.g. local `make test-unit` variants); declared here so the -short lane is honest about what it does not run.",
+      "measured_skip_message": "skipping cache warmer background/stress test in short mode"
+    },
+    "github.com/rtcdance/chainpulse/pkg/plugins/api::TestWarmingDataWithDifferentTTLs": {
+      "category": "short_mode_excluded",
+      "lane": "unit",
+      "why": "Gated on testing.Short(); the -short lane deliberately excludes it. Exercised only by non-short runs (e.g. local `make test-unit` variants); declared here so the -short lane is honest about what it does not run.",
+      "measured_skip_message": "skipping cache warmer background/stress test in short mode"
+    },
+    "github.com/rtcdance/chainpulse/pkg/plugins/api::TestWarmingFailureMetrics": {
+      "category": "short_mode_excluded",
+      "lane": "unit",
+      "why": "Gated on testing.Short(); the -short lane deliberately excludes it. Exercised only by non-short runs (e.g. local `make test-unit` variants); declared here so the -short lane is honest about what it does not run.",
+      "measured_skip_message": "skipping cache warmer background/stress test in short mode"
+    },
+    "github.com/rtcdance/chainpulse/pkg/plugins/api::TestWarmingMetricsRecording": {
+      "category": "short_mode_excluded",
+      "lane": "unit",
+      "why": "Gated on testing.Short(); the -short lane deliberately excludes it. Exercised only by non-short runs (e.g. local `make test-unit` variants); declared here so the -short lane is honest about what it does not run.",
+      "measured_skip_message": "skipping cache warmer background/stress test in short mode"
+    },
+    "github.com/rtcdance/chainpulse/pkg/plugins/api::TestWarmingWithBatchSize": {
+      "category": "short_mode_excluded",
+      "lane": "unit",
+      "why": "Gated on testing.Short(); the -short lane deliberately excludes it. Exercised only by non-short runs (e.g. local `make test-unit` variants); declared here so the -short lane is honest about what it does not run.",
+      "measured_skip_message": "skipping cache warmer background/stress test in short mode"
+    },
+    "github.com/rtcdance/chainpulse/pkg/plugins/api::TestWarmingWithError": {
+      "category": "short_mode_excluded",
+      "lane": "unit",
+      "why": "Gated on testing.Short(); the -short lane deliberately excludes it. Exercised only by non-short runs (e.g. local `make test-unit` variants); declared here so the -short lane is honest about what it does not run.",
+      "measured_skip_message": "skipping cache warmer background/stress test in short mode"
+    },
+    "github.com/rtcdance/chainpulse/pkg/plugins/cache::TestRedisCacheDelete": {
+      "category": "historical_residue",
+      "lane": "unit",
+      "why": "Unconditional historical t.Skip; the code path is not exercised in this lane. Owner must either restore the assertion or delete the dead test - listed so the lane is honest about the hole, not to hide it.",
+      "measured_skip_message": "regression: requires Redis server running at localhost:6379"
+    },
+    "github.com/rtcdance/chainpulse/pkg/plugins/database::TestBatchInsertPerformance": {
+      "category": "short_mode_excluded",
+      "lane": "unit",
+      "why": "Gated on testing.Short(); the -short lane deliberately excludes it. Exercised only by non-short runs (e.g. local `make test-unit` variants); declared here so the -short lane is honest about what it does not run.",
+      "measured_skip_message": "Skipping PostgreSQL integration test in short mode"
+    },
+    "github.com/rtcdance/chainpulse/pkg/plugins/database::TestBatchInsertVariousSizes": {
+      "category": "short_mode_excluded",
+      "lane": "unit",
+      "why": "Gated on testing.Short(); the -short lane deliberately excludes it. Exercised only by non-short runs (e.g. local `make test-unit` variants); declared here so the -short lane is honest about what it does not run.",
+      "measured_skip_message": "Skipping PostgreSQL integration test in short mode"
+    },
+    "github.com/rtcdance/chainpulse/pkg/plugins/database::TestConcurrentTransactions": {
+      "category": "short_mode_excluded",
+      "lane": "unit",
+      "why": "Gated on testing.Short(); the -short lane deliberately excludes it. Exercised only by non-short runs (e.g. local `make test-unit` variants); declared here so the -short lane is honest about what it does not run.",
+      "measured_skip_message": "Skipping PostgreSQL integration test in short mode"
+    },
+    "github.com/rtcdance/chainpulse/pkg/plugins/database::TestDatabaseIntegrationConcurrency": {
+      "category": "short_mode_excluded",
+      "lane": "unit",
+      "why": "Gated on testing.Short(); the -short lane deliberately excludes it. Exercised only by non-short runs (e.g. local `make test-unit` variants); declared here so the -short lane is honest about what it does not run.",
+      "measured_skip_message": "Skipping PostgreSQL integration test in short mode"
+    },
+    "github.com/rtcdance/chainpulse/pkg/plugins/database::TestDatabaseIntegrationSuite": {
+      "category": "short_mode_excluded",
+      "lane": "unit",
+      "why": "Gated on testing.Short(); the -short lane deliberately excludes it. Exercised only by non-short runs (e.g. local `make test-unit` variants); declared here so the -short lane is honest about what it does not run.",
+      "measured_skip_message": "Skipping PostgreSQL integration test in short mode"
+    },
+    "github.com/rtcdance/chainpulse/pkg/plugins/database::TestDatabaseIntegrationWithErrors": {
+      "category": "short_mode_excluded",
+      "lane": "unit",
+      "why": "Gated on testing.Short(); the -short lane deliberately excludes it. Exercised only by non-short runs (e.g. local `make test-unit` variants); declared here so the -short lane is honest about what it does not run.",
+      "measured_skip_message": "Skipping PostgreSQL integration test in short mode"
+    },
+    "github.com/rtcdance/chainpulse/pkg/plugins/database::TestPostgreSQLRealConnection": {
+      "category": "short_mode_excluded",
+      "lane": "unit",
+      "why": "Gated on testing.Short(); the -short lane deliberately excludes it. Exercised only by non-short runs (e.g. local `make test-unit` variants); declared here so the -short lane is honest about what it does not run.",
+      "measured_skip_message": "Skipping PostgreSQL integration test in short mode"
+    },
+    "github.com/rtcdance/chainpulse/pkg/plugins/database::TestQueryPerformance": {
+      "category": "short_mode_excluded",
+      "lane": "unit",
+      "why": "Gated on testing.Short(); the -short lane deliberately excludes it. Exercised only by non-short runs (e.g. local `make test-unit` variants); declared here so the -short lane is honest about what it does not run.",
+      "measured_skip_message": "Skipping PostgreSQL integration test in short mode"
+    },
+    "github.com/rtcdance/chainpulse/pkg/plugins/database::TestRollbackOnError": {
+      "category": "short_mode_excluded",
+      "lane": "unit",
+      "why": "Gated on testing.Short(); the -short lane deliberately excludes it. Exercised only by non-short runs (e.g. local `make test-unit` variants); declared here so the -short lane is honest about what it does not run.",
+      "measured_skip_message": "Skipping PostgreSQL integration test in short mode"
+    },
+    "github.com/rtcdance/chainpulse/pkg/plugins/database::TestSingleEventPerformance": {
+      "category": "short_mode_excluded",
+      "lane": "unit",
+      "why": "Gated on testing.Short(); the -short lane deliberately excludes it. Exercised only by non-short runs (e.g. local `make test-unit` variants); declared here so the -short lane is honest about what it does not run.",
+      "measured_skip_message": "Skipping PostgreSQL integration test in short mode"
+    },
+    "github.com/rtcdance/chainpulse/pkg/plugins/database::TestTransactionConsistency": {
+      "category": "short_mode_excluded",
+      "lane": "unit",
+      "why": "Gated on testing.Short(); the -short lane deliberately excludes it. Exercised only by non-short runs (e.g. local `make test-unit` variants); declared here so the -short lane is honest about what it does not run.",
+      "measured_skip_message": "Skipping PostgreSQL integration test in short mode"
+    },
+    "github.com/rtcdance/chainpulse/pkg/plugins/database::TestTransactionIsolation": {
+      "category": "short_mode_excluded",
+      "lane": "unit",
+      "why": "Gated on testing.Short(); the -short lane deliberately excludes it. Exercised only by non-short runs (e.g. local `make test-unit` variants); declared here so the -short lane is honest about what it does not run.",
+      "measured_skip_message": "Skipping PostgreSQL integration test in short mode"
+    },
+    "github.com/rtcdance/chainpulse/pkg/plugins/mq::TestKafkaIntegrationBatchPublish": {
+      "category": "short_mode_excluded",
+      "lane": "unit",
+      "why": "Gated on testing.Short(); the -short lane deliberately excludes it. Exercised only by non-short runs (e.g. local `make test-unit` variants); declared here so the -short lane is honest about what it does not run.",
+      "measured_skip_message": "Skipping MQ integration test in short mode"
+    },
+    "github.com/rtcdance/chainpulse/pkg/plugins/mq::TestKafkaIntegrationDeadLetterQueue": {
+      "category": "short_mode_excluded",
+      "lane": "unit",
+      "why": "Gated on testing.Short(); the -short lane deliberately excludes it. Exercised only by non-short runs (e.g. local `make test-unit` variants); declared here so the -short lane is honest about what it does not run.",
+      "measured_skip_message": "Skipping MQ integration test in short mode"
+    },
+    "github.com/rtcdance/chainpulse/pkg/plugins/mq::TestKafkaIntegrationErrorHandling": {
+      "category": "short_mode_excluded",
+      "lane": "unit",
+      "why": "Gated on testing.Short(); the -short lane deliberately excludes it. Exercised only by non-short runs (e.g. local `make test-unit` variants); declared here so the -short lane is honest about what it does not run.",
+      "measured_skip_message": "Skipping MQ integration test in short mode"
+    },
+    "github.com/rtcdance/chainpulse/pkg/plugins/mq::TestKafkaIntegrationHealthCheck": {
+      "category": "short_mode_excluded",
+      "lane": "unit",
+      "why": "Gated on testing.Short(); the -short lane deliberately excludes it. Exercised only by non-short runs (e.g. local `make test-unit` variants); declared here so the -short lane is honest about what it does not run.",
+      "measured_skip_message": "Skipping MQ integration test in short mode"
+    },
+    "github.com/rtcdance/chainpulse/pkg/plugins/mq::TestKafkaIntegrationMultipleConsumers": {
+      "category": "short_mode_excluded",
+      "lane": "unit",
+      "why": "Gated on testing.Short(); the -short lane deliberately excludes it. Exercised only by non-short runs (e.g. local `make test-unit` variants); declared here so the -short lane is honest about what it does not run.",
+      "measured_skip_message": "Skipping MQ integration test in short mode"
+    },
+    "github.com/rtcdance/chainpulse/pkg/plugins/mq::TestKafkaIntegrationOffsetTracking": {
+      "category": "short_mode_excluded",
+      "lane": "unit",
+      "why": "Gated on testing.Short(); the -short lane deliberately excludes it. Exercised only by non-short runs (e.g. local `make test-unit` variants); declared here so the -short lane is honest about what it does not run.",
+      "measured_skip_message": "Skipping MQ integration test in short mode"
+    },
+    "github.com/rtcdance/chainpulse/pkg/plugins/mq::TestKafkaIntegrationPerformance": {
+      "category": "short_mode_excluded",
+      "lane": "unit",
+      "why": "Gated on testing.Short(); the -short lane deliberately excludes it. Exercised only by non-short runs (e.g. local `make test-unit` variants); declared here so the -short lane is honest about what it does not run.",
+      "measured_skip_message": "Skipping MQ integration test in short mode"
+    },
+    "github.com/rtcdance/chainpulse/pkg/plugins/mq::TestKafkaIntegrationPublishAndConsume": {
+      "category": "short_mode_excluded",
+      "lane": "unit",
+      "why": "Gated on testing.Short(); the -short lane deliberately excludes it. Exercised only by non-short runs (e.g. local `make test-unit` variants); declared here so the -short lane is honest about what it does not run.",
+      "measured_skip_message": "Skipping MQ integration test in short mode"
+    },
+    "github.com/rtcdance/chainpulse/pkg/siwe::TestRedisNonceStoreBindsNonceToAddress": {
+      "category": "dependency_gated",
+      "lane": "unit",
+      "why": "Gated on an opt-in env var (CHAINPULSE_RUN_*_INTEGRATION) that no CI lane sets; enabling it would require a provisioned server this lane does not have.",
+      "measured_skip_message": "set CHAINPULSE_RUN_REDIS_INTEGRATION=1 and CHAINPULSE_TEST_REDIS_URL"
+    },
+    "github.com/rtcdance/chainpulse/pkg/siwe::TestRedisNonceStoreTwoInstancesOneWinner": {
+      "category": "dependency_gated",
+      "lane": "unit",
+      "why": "Gated on an opt-in env var (CHAINPULSE_RUN_*_INTEGRATION) that no CI lane sets; enabling it would require a provisioned server this lane does not have.",
+      "measured_skip_message": "set CHAINPULSE_RUN_REDIS_INTEGRATION=1 and CHAINPULSE_TEST_REDIS_URL"
+    },
+    "github.com/rtcdance/chainpulse/test/e2e::TestBlockchainManager_Initialize": {
+      "category": "historical_residue",
+      "lane": "e2e",
+      "why": "Unconditional t.Skip placed before any availability check; the test body never runs regardless of infrastructure. Declared so the lane can be green about what it does run; the test must be fixed or removed by its owner - this entry does not claim the behaviour is verified.",
+      "measured_skip_message": "Requires Anvil to be running"
+    },
+    "github.com/rtcdance/chainpulse/test/e2e::TestDataPullerEventCollection": {
+      "category": "dependency_gated",
+      "lane": "e2e",
+      "why": "Requires PostgreSQL via TEST_DATABASE_URL (D16(a)); the lane exports POSTGRES_* vars but the tests read TEST_DATABASE_URL, so the dependency is absent and the test skips.",
+      "measured_skip_message": "PostgreSQL database not available"
+    },
+    "github.com/rtcdance/chainpulse/test/e2e::TestDataPullerReorgHandling": {
+      "category": "dependency_gated",
+      "lane": "e2e",
+      "why": "Requires PostgreSQL via TEST_DATABASE_URL (D16(a)); the lane exports POSTGRES_* vars but the tests read TEST_DATABASE_URL, so the dependency is absent and the test skips.",
+      "measured_skip_message": "PostgreSQL database not available"
+    },
+    "github.com/rtcdance/chainpulse/test/e2e::TestDatabaseManager_Initialize": {
+      "category": "dependency_gated",
+      "lane": "e2e",
+      "why": "Requires PostgreSQL via TEST_DATABASE_URL (D16(a)); the lane exports POSTGRES_* vars but the tests read TEST_DATABASE_URL, so the dependency is absent and the test skips.",
+      "measured_skip_message": "Requires PostgreSQL to be running (set TEST_DATABASE_URL)"
+    },
+    "github.com/rtcdance/chainpulse/test/e2e::TestErrorScenario_APIEndpointNotFound": {
+      "category": "placeholder_dsn_gap",
+      "lane": "e2e",
+      "why": "test/e2e orchestrator-based scenarios build the DSN from a placeholder when TEST_DATABASE_URL is unset (D16(a)); the orchestrator ping fails and the test skips. This lane starts no PostgreSQL for them, so they skip in CI exactly as measured locally.",
+      "measured_skip_message": "Failed to initialize orchestrator: failed to initialize database manager: failed to ping database: failed to connect to `user=postgres database=chainpulse_test`:"
+    },
+    "github.com/rtcdance/chainpulse/test/e2e::TestErrorScenario_AllScenarios": {
+      "category": "placeholder_dsn_gap",
+      "lane": "e2e",
+      "why": "test/e2e orchestrator-based scenarios build the DSN from a placeholder when TEST_DATABASE_URL is unset (D16(a)); the orchestrator ping fails and the test skips. This lane starts no PostgreSQL for them, so they skip in CI exactly as measured locally.",
+      "measured_skip_message": "Failed to initialize orchestrator: failed to initialize database manager: failed to ping database: failed to connect to `user=postgres database=chainpulse_test`:"
+    },
+    "github.com/rtcdance/chainpulse/test/e2e::TestErrorScenario_ContextCancellation": {
+      "category": "placeholder_dsn_gap",
+      "lane": "e2e",
+      "why": "test/e2e orchestrator-based scenarios build the DSN from a placeholder when TEST_DATABASE_URL is unset (D16(a)); the orchestrator ping fails and the test skips. This lane starts no PostgreSQL for them, so they skip in CI exactly as measured locally.",
+      "measured_skip_message": "Failed to initialize orchestrator: failed to initialize database manager: failed to ping database: failed to connect to `user=postgres database=chainpulse_test`:"
+    },
+    "github.com/rtcdance/chainpulse/test/e2e::TestErrorScenario_DatabaseConnectionFailure": {
+      "category": "placeholder_dsn_gap",
+      "lane": "e2e",
+      "why": "test/e2e orchestrator-based scenarios build the DSN from a placeholder when TEST_DATABASE_URL is unset (D16(a)); the orchestrator ping fails and the test skips. This lane starts no PostgreSQL for them, so they skip in CI exactly as measured locally.",
+      "measured_skip_message": "Failed to initialize orchestrator: failed to initialize database manager: failed to ping database: failed to connect to `user=postgres database=chainpulse_test`:"
+    },
+    "github.com/rtcdance/chainpulse/test/e2e::TestErrorScenario_InvalidBlockchainAddress": {
+      "category": "placeholder_dsn_gap",
+      "lane": "e2e",
+      "why": "test/e2e orchestrator-based scenarios build the DSN from a placeholder when TEST_DATABASE_URL is unset (D16(a)); the orchestrator ping fails and the test skips. This lane starts no PostgreSQL for them, so they skip in CI exactly as measured locally.",
+      "measured_skip_message": "Failed to initialize orchestrator: failed to initialize database manager: failed to ping database: failed to connect to `user=postgres database=chainpulse_test`:"
+    },
+    "github.com/rtcdance/chainpulse/test/e2e::TestErrorScenario_InvalidDatabaseQuery": {
+      "category": "placeholder_dsn_gap",
+      "lane": "e2e",
+      "why": "test/e2e orchestrator-based scenarios build the DSN from a placeholder when TEST_DATABASE_URL is unset (D16(a)); the orchestrator ping fails and the test skips. This lane starts no PostgreSQL for them, so they skip in CI exactly as measured locally.",
+      "measured_skip_message": "Failed to initialize orchestrator: failed to initialize database manager: failed to ping database: failed to connect to `user=postgres database=chainpulse_test`:"
+    },
+    "github.com/rtcdance/chainpulse/test/e2e::TestHappyPath_APIEndpointCall": {
+      "category": "placeholder_dsn_gap",
+      "lane": "e2e",
+      "why": "test/e2e orchestrator-based scenarios build the DSN from a placeholder when TEST_DATABASE_URL is unset (D16(a)); the orchestrator ping fails and the test skips. This lane starts no PostgreSQL for them, so they skip in CI exactly as measured locally.",
+      "measured_skip_message": "Failed to initialize orchestrator: failed to initialize database manager: failed to ping database: failed to connect to `user=postgres database=chainpulse_test`:"
+    },
+    "github.com/rtcdance/chainpulse/test/e2e::TestHappyPath_AllScenarios": {
+      "category": "placeholder_dsn_gap",
+      "lane": "e2e",
+      "why": "test/e2e orchestrator-based scenarios build the DSN from a placeholder when TEST_DATABASE_URL is unset (D16(a)); the orchestrator ping fails and the test skips. This lane starts no PostgreSQL for them, so they skip in CI exactly as measured locally.",
+      "measured_skip_message": "Failed to initialize orchestrator: failed to initialize database manager: failed to ping database: failed to connect to `user=postgres database=chainpulse_test`:"
+    },
+    "github.com/rtcdance/chainpulse/test/e2e::TestHappyPath_BlockchainTransaction": {
+      "category": "placeholder_dsn_gap",
+      "lane": "e2e",
+      "why": "test/e2e orchestrator-based scenarios build the DSN from a placeholder when TEST_DATABASE_URL is unset (D16(a)); the orchestrator ping fails and the test skips. This lane starts no PostgreSQL for them, so they skip in CI exactly as measured locally.",
+      "measured_skip_message": "Failed to initialize orchestrator: failed to initialize database manager: failed to ping database: failed to connect to `user=postgres database=chainpulse_test`:"
+    },
+    "github.com/rtcdance/chainpulse/test/e2e::TestHappyPath_CompleteWorkflow": {
+      "category": "placeholder_dsn_gap",
+      "lane": "e2e",
+      "why": "test/e2e orchestrator-based scenarios build the DSN from a placeholder when TEST_DATABASE_URL is unset (D16(a)); the orchestrator ping fails and the test skips. This lane starts no PostgreSQL for them, so they skip in CI exactly as measured locally.",
+      "measured_skip_message": "Failed to initialize orchestrator: failed to initialize database manager: failed to ping database: failed to connect to `user=postgres database=chainpulse_test`:"
+    },
+    "github.com/rtcdance/chainpulse/test/e2e::TestHappyPath_DataConsistency": {
+      "category": "placeholder_dsn_gap",
+      "lane": "e2e",
+      "why": "test/e2e orchestrator-based scenarios build the DSN from a placeholder when TEST_DATABASE_URL is unset (D16(a)); the orchestrator ping fails and the test skips. This lane starts no PostgreSQL for them, so they skip in CI exactly as measured locally.",
+      "measured_skip_message": "Failed to initialize orchestrator: failed to initialize database manager: failed to ping database: failed to connect to `user=postgres database=chainpulse_test`:"
+    },
+    "github.com/rtcdance/chainpulse/test/e2e::TestHappyPath_DatabaseInsertAndQuery": {
+      "category": "placeholder_dsn_gap",
+      "lane": "e2e",
+      "why": "test/e2e orchestrator-based scenarios build the DSN from a placeholder when TEST_DATABASE_URL is unset (D16(a)); the orchestrator ping fails and the test skips. This lane starts no PostgreSQL for them, so they skip in CI exactly as measured locally.",
+      "measured_skip_message": "Failed to initialize orchestrator: failed to initialize database manager: failed to ping database: failed to connect to `user=postgres database=chainpulse_test`:"
+    },
+    "github.com/rtcdance/chainpulse/test/e2e::TestMultiChainProtocolAcceptance/evm_arbitrum": {
+      "category": "endpoint_unavailable",
+      "lane": "e2e",
+      "why": "Multi-chain protocol-acceptance subtests probe per-chain endpoints (ports 8546-8551, 8899) that this lane never starts - it provisions a single Anvil on 8545 only. They skip in CI for the same reason they skip locally.",
+      "measured_skip_message": "evm endpoint unavailable in auto mode: Post \"http://localhost:8548\": dial tcp [::1]:8548: connect: connection refused"
+    },
+    "github.com/rtcdance/chainpulse/test/e2e::TestMultiChainProtocolAcceptance/evm_avalanche": {
+      "category": "endpoint_unavailable",
+      "lane": "e2e",
+      "why": "Multi-chain protocol-acceptance subtests probe per-chain endpoints (ports 8546-8551, 8899) that this lane never starts - it provisions a single Anvil on 8545 only. They skip in CI for the same reason they skip locally.",
+      "measured_skip_message": "evm endpoint unavailable in auto mode: Post \"http://localhost:8551\": dial tcp [::1]:8551: connect: connection refused"
+    },
+    "github.com/rtcdance/chainpulse/test/e2e::TestMultiChainProtocolAcceptance/evm_base": {
+      "category": "endpoint_unavailable",
+      "lane": "e2e",
+      "why": "Multi-chain protocol-acceptance subtests probe per-chain endpoints (ports 8546-8551, 8899) that this lane never starts - it provisions a single Anvil on 8545 only. They skip in CI for the same reason they skip locally.",
+      "measured_skip_message": "evm endpoint unavailable in auto mode: Post \"http://localhost:8550\": dial tcp [::1]:8550: connect: connection refused"
+    },
+    "github.com/rtcdance/chainpulse/test/e2e::TestMultiChainProtocolAcceptance/evm_bsc": {
+      "category": "endpoint_unavailable",
+      "lane": "e2e",
+      "why": "Multi-chain protocol-acceptance subtests probe per-chain endpoints (ports 8546-8551, 8899) that this lane never starts - it provisions a single Anvil on 8545 only. They skip in CI for the same reason they skip locally.",
+      "measured_skip_message": "evm endpoint unavailable in auto mode: Post \"http://localhost:8547\": dial tcp [::1]:8547: connect: connection refused"
+    },
+    "github.com/rtcdance/chainpulse/test/e2e::TestMultiChainProtocolAcceptance/evm_optimism": {
+      "category": "endpoint_unavailable",
+      "lane": "e2e",
+      "why": "Multi-chain protocol-acceptance subtests probe per-chain endpoints (ports 8546-8551, 8899) that this lane never starts - it provisions a single Anvil on 8545 only. They skip in CI for the same reason they skip locally.",
+      "measured_skip_message": "evm endpoint unavailable in auto mode: Post \"http://localhost:8549\": dial tcp [::1]:8549: connect: connection refused"
+    },
+    "github.com/rtcdance/chainpulse/test/e2e::TestMultiChainProtocolAcceptance/evm_polygon": {
+      "category": "endpoint_unavailable",
+      "lane": "e2e",
+      "why": "Multi-chain protocol-acceptance subtests probe per-chain endpoints (ports 8546-8551, 8899) that this lane never starts - it provisions a single Anvil on 8545 only. They skip in CI for the same reason they skip locally.",
+      "measured_skip_message": "evm endpoint unavailable in auto mode: Post \"http://localhost:8546\": dial tcp [::1]:8546: connect: connection refused"
+    },
+    "github.com/rtcdance/chainpulse/test/e2e::TestMultiChainProtocolAcceptance/solana": {
+      "category": "endpoint_unavailable",
+      "lane": "e2e",
+      "why": "Multi-chain protocol-acceptance subtests probe per-chain endpoints (ports 8546-8551, 8899) that this lane never starts - it provisions a single Anvil on 8545 only. They skip in CI for the same reason they skip locally.",
+      "measured_skip_message": "solana endpoint unavailable in auto mode: Post \"http://localhost:8899\": dial tcp [::1]:8899: connect: connection refused"
+    },
+    "github.com/rtcdance/chainpulse/test/e2e::TestMultiChainScenario_AllScenarios": {
+      "category": "placeholder_dsn_gap",
+      "lane": "e2e",
+      "why": "test/e2e orchestrator-based scenarios build the DSN from a placeholder when TEST_DATABASE_URL is unset (D16(a)); the orchestrator ping fails and the test skips. This lane starts no PostgreSQL for them, so they skip in CI exactly as measured locally.",
+      "measured_skip_message": "Failed to initialize orchestrator: failed to initialize database manager: failed to ping database: failed to connect to `user=postgres database=chainpulse_test`:"
+    },
+    "github.com/rtcdance/chainpulse/test/e2e::TestMultiChainScenario_CrossChainDataConsistency": {
+      "category": "placeholder_dsn_gap",
+      "lane": "e2e",
+      "why": "test/e2e orchestrator-based scenarios build the DSN from a placeholder when TEST_DATABASE_URL is unset (D16(a)); the orchestrator ping fails and the test skips. This lane starts no PostgreSQL for them, so they skip in CI exactly as measured locally.",
+      "measured_skip_message": "Failed to initialize orchestrator: failed to initialize database manager: failed to ping database: failed to connect to `user=postgres database=chainpulse_test`:"
+    },
+    "github.com/rtcdance/chainpulse/test/e2e::TestMultiChainScenario_MultiChainConcurrentOperations": {
+      "category": "placeholder_dsn_gap",
+      "lane": "e2e",
+      "why": "test/e2e orchestrator-based scenarios build the DSN from a placeholder when TEST_DATABASE_URL is unset (D16(a)); the orchestrator ping fails and the test skips. This lane starts no PostgreSQL for them, so they skip in CI exactly as measured locally.",
+      "measured_skip_message": "Failed to initialize orchestrator: failed to initialize database manager: failed to ping database: failed to connect to `user=postgres database=chainpulse_test`:"
+    },
+    "github.com/rtcdance/chainpulse/test/e2e::TestMultiChainScenario_MultiChainDataAggregation": {
+      "category": "placeholder_dsn_gap",
+      "lane": "e2e",
+      "why": "test/e2e orchestrator-based scenarios build the DSN from a placeholder when TEST_DATABASE_URL is unset (D16(a)); the orchestrator ping fails and the test skips. This lane starts no PostgreSQL for them, so they skip in CI exactly as measured locally.",
+      "measured_skip_message": "Failed to initialize orchestrator: failed to initialize database manager: failed to ping database: failed to connect to `user=postgres database=chainpulse_test`:"
+    },
+    "github.com/rtcdance/chainpulse/test/e2e::TestMultiChainScenario_MultiChainFailover": {
+      "category": "placeholder_dsn_gap",
+      "lane": "e2e",
+      "why": "test/e2e orchestrator-based scenarios build the DSN from a placeholder when TEST_DATABASE_URL is unset (D16(a)); the orchestrator ping fails and the test skips. This lane starts no PostgreSQL for them, so they skip in CI exactly as measured locally.",
+      "measured_skip_message": "Failed to initialize orchestrator: failed to initialize database manager: failed to ping database: failed to connect to `user=postgres database=chainpulse_test`:"
+    },
+    "github.com/rtcdance/chainpulse/test/e2e::TestMultiChainScenario_MultiChainStateSync": {
+      "category": "placeholder_dsn_gap",
+      "lane": "e2e",
+      "why": "test/e2e orchestrator-based scenarios build the DSN from a placeholder when TEST_DATABASE_URL is unset (D16(a)); the orchestrator ping fails and the test skips. This lane starts no PostgreSQL for them, so they skip in CI exactly as measured locally.",
+      "measured_skip_message": "Failed to initialize orchestrator: failed to initialize database manager: failed to ping database: failed to connect to `user=postgres database=chainpulse_test`:"
+    },
+    "github.com/rtcdance/chainpulse/test/e2e::TestOrchestrator_Initialize": {
+      "category": "historical_residue",
+      "lane": "e2e",
+      "why": "Unconditional t.Skip placed before any availability check; the test body never runs regardless of infrastructure. Declared so the lane can be green about what it does run; the test must be fixed or removed by its owner - this entry does not claim the behaviour is verified.",
+      "measured_skip_message": "Requires Anvil, PostgreSQL, and API to be running"
+    },
+    "github.com/rtcdance/chainpulse/test/e2e::TestPerformanceScenario_AllScenarios": {
+      "category": "placeholder_dsn_gap",
+      "lane": "e2e",
+      "why": "test/e2e orchestrator-based scenarios build the DSN from a placeholder when TEST_DATABASE_URL is unset (D16(a)); the orchestrator ping fails and the test skips. This lane starts no PostgreSQL for them, so they skip in CI exactly as measured locally.",
+      "measured_skip_message": "Failed to initialize orchestrator: failed to initialize database manager: failed to ping database: failed to connect to `user=postgres database=chainpulse_test`:"
+    },
+    "github.com/rtcdance/chainpulse/test/e2e::TestPerformanceScenario_BlockchainReadThroughput": {
+      "category": "placeholder_dsn_gap",
+      "lane": "e2e",
+      "why": "test/e2e orchestrator-based scenarios build the DSN from a placeholder when TEST_DATABASE_URL is unset (D16(a)); the orchestrator ping fails and the test skips. This lane starts no PostgreSQL for them, so they skip in CI exactly as measured locally.",
+      "measured_skip_message": "Failed to initialize orchestrator: failed to initialize database manager: failed to ping database: failed to connect to `user=postgres database=chainpulse_test`:"
+    },
+    "github.com/rtcdance/chainpulse/test/e2e::TestPerformanceScenario_ConcurrentBlockchainReads": {
+      "category": "placeholder_dsn_gap",
+      "lane": "e2e",
+      "why": "test/e2e orchestrator-based scenarios build the DSN from a placeholder when TEST_DATABASE_URL is unset (D16(a)); the orchestrator ping fails and the test skips. This lane starts no PostgreSQL for them, so they skip in CI exactly as measured locally.",
+      "measured_skip_message": "Failed to initialize orchestrator: failed to initialize database manager: failed to ping database: failed to connect to `user=postgres database=chainpulse_test`:"
+    },
+    "github.com/rtcdance/chainpulse/test/e2e::TestPerformanceScenario_ConcurrentDatabaseWrites": {
+      "category": "placeholder_dsn_gap",
+      "lane": "e2e",
+      "why": "test/e2e orchestrator-based scenarios build the DSN from a placeholder when TEST_DATABASE_URL is unset (D16(a)); the orchestrator ping fails and the test skips. This lane starts no PostgreSQL for them, so they skip in CI exactly as measured locally.",
+      "measured_skip_message": "Failed to initialize orchestrator: failed to initialize database manager: failed to ping database: failed to connect to `user=postgres database=chainpulse_test`:"
+    },
+    "github.com/rtcdance/chainpulse/test/e2e::TestPerformanceScenario_DatabaseWriteThroughput": {
+      "category": "placeholder_dsn_gap",
+      "lane": "e2e",
+      "why": "test/e2e orchestrator-based scenarios build the DSN from a placeholder when TEST_DATABASE_URL is unset (D16(a)); the orchestrator ping fails and the test skips. This lane starts no PostgreSQL for them, so they skip in CI exactly as measured locally.",
+      "measured_skip_message": "Failed to initialize orchestrator: failed to initialize database manager: failed to ping database: failed to connect to `user=postgres database=chainpulse_test`:"
+    },
+    "github.com/rtcdance/chainpulse/test/e2e::TestPerformanceScenario_EndToEndLatency": {
+      "category": "placeholder_dsn_gap",
+      "lane": "e2e",
+      "why": "test/e2e orchestrator-based scenarios build the DSN from a placeholder when TEST_DATABASE_URL is unset (D16(a)); the orchestrator ping fails and the test skips. This lane starts no PostgreSQL for them, so they skip in CI exactly as measured locally.",
+      "measured_skip_message": "Failed to initialize orchestrator: failed to initialize database manager: failed to ping database: failed to connect to `user=postgres database=chainpulse_test`:"
+    },
+    "github.com/rtcdance/chainpulse/test/integration::TestActiveChainsList": {
+      "category": "historical_residue",
+      "lane": "integration",
+      "why": "Unconditional t.Skip('Requires fixtures package') in test/integration/multi_chain_integration_test.go; the fixtures package exists but these four tests were never rewired to it. Listed so the integration lane is green about what it does run; the tests themselves must be rewired or removed.",
+      "measured_skip_message": "Requires fixtures package"
+    },
+    "github.com/rtcdance/chainpulse/test/integration::TestMultiChainConfigurationLoading": {
+      "category": "historical_residue",
+      "lane": "integration",
+      "why": "Unconditional t.Skip('Requires fixtures package') in test/integration/multi_chain_integration_test.go; the fixtures package exists but these four tests were never rewired to it. Listed so the integration lane is green about what it does run; the tests themselves must be rewired or removed.",
+      "measured_skip_message": "Requires fixtures package"
+    },
+    "github.com/rtcdance/chainpulse/test/integration::TestMultiChainConfigurationRetrieval": {
+      "category": "historical_residue",
+      "lane": "integration",
+      "why": "Unconditional t.Skip('Requires fixtures package') in test/integration/multi_chain_integration_test.go; the fixtures package exists but these four tests were never rewired to it. Listed so the integration lane is green about what it does run; the tests themselves must be rewired or removed.",
+      "measured_skip_message": "Requires fixtures package"
+    },
+    "github.com/rtcdance/chainpulse/test/integration::TestMultiChainDetection": {
+      "category": "historical_residue",
+      "lane": "integration",
+      "why": "Unconditional t.Skip('Requires fixtures package') in test/integration/multi_chain_integration_test.go; the fixtures package exists but these four tests were never rewired to it. Listed so the integration lane is green about what it does run; the tests themselves must be rewired or removed.",
+      "measured_skip_message": "Requires fixtures package"
+    },
+    "github.com/rtcdance/chainpulse/test/acceptance::TestDeployedReorgCanonicalDigestAndRestart": {
+      "category": "dependency_gated",
+      "lane": "contracts",
+      "scenario": "E03",
+      "why": "The contracts job has no Anvil or native binaries; this mandatory scenario executes without skips in the separately provisioned evm-e2e job.",
+      "owner": "delivery-plan T12",
+      "measured_skip_message": "set CHAINPULSE_RUN_DEPLOYED_REORG=1 with isolated deployed targets",
+      "expires": "2026-11-14"
+    },
+    "github.com/rtcdance/chainpulse/test/acceptance::TestDeployedPullerKafkaAndAtomicProcessor": {
+      "category": "dependency_gated",
+      "lane": "contracts",
+      "scenario": "E03",
+      "why": "The contracts job has no deployed native puller/processor fixture. The evm-e2e job explicitly builds and executes both processes and verifies this case without skips.",
+      "owner": "delivery-plan T12",
+      "measured_skip_message": "set CHAINPULSE_RUN_DEPLOYED_BLOCKS=1 with isolated native targets",
+      "expires": "2026-11-14"
+    },
+    "github.com/rtcdance/chainpulse/test/acceptance::TestDeployedDualChainModesMatchRPCOracle": {
+      "category": "dependency_gated",
+      "lane": "contracts",
+      "scenario": "E01/E13",
+      "why": "The contracts job does not own two Anvil nodes or native service binaries. This required scenario executes without skips in the evm-e2e job.",
+      "owner": "delivery-plan T12",
+      "measured_skip_message": "set CHAINPULSE_RUN_DEPLOYED_DUAL=1 with two isolated chains and databases",
+      "expires": "2026-11-14"
+    },
+    "github.com/rtcdance/chainpulse/test/acceptance::TestDeployedDualChainFaultIsolation": {
+      "category": "dependency_gated",
+      "lane": "contracts",
+      "scenario": "E04",
+      "why": "The contracts job does not own two Anvil nodes, native service binaries, or isolated dual databases. This required scenario executes without skips in the evm-e2e job.",
+      "owner": "delivery-plan T12",
+      "measured_skip_message": "set CHAINPULSE_RUN_DEPLOYED_DUAL_FAULT=1 with two isolated chains and databases",
+      "expires": "2026-11-14"
+    },
+    "github.com/rtcdance/chainpulse/test/performance::TestStress_MemoryMQ_HighThroughput": {
+      "category": "short_mode",
+      "lane": "unit-race",
+      "status": "GAP",
+      "why": "Existing test/performance/stress_test.go explicitly skips in short mode. Classified when moving the former quality root package inventory into the strict unit-race verifier; source existed before this change. These synthetic MemoryMQ exercises are not the mandatory PostgreSQL/Kafka two-chain E14 load or soak evidence. Full T14 remains unaccepted.",
+      "owner": "delivery-plan T14",
+      "measured_skip_message": "Skipping stress test in short mode",
+      "expires": "2026-11-14"
+    },
+    "github.com/rtcdance/chainpulse/test/performance::TestStress_MultiChain_Concurrent": {
+      "category": "short_mode",
+      "lane": "unit-race",
+      "status": "GAP",
+      "why": "Existing test/performance/stress_test.go explicitly skips in short mode. Classified when moving the former quality root package inventory into the strict unit-race verifier; source existed before this change. These synthetic MemoryMQ exercises are not the mandatory PostgreSQL/Kafka two-chain E14 load or soak evidence. Full T14 remains unaccepted.",
+      "owner": "delivery-plan T14",
+      "measured_skip_message": "Skipping stress test in short mode",
+      "expires": "2026-11-14"
+    },
+    "github.com/rtcdance/chainpulse/test/acceptance::TestDeployedAPIRejectsMissingCacheAuthority": {
+      "category": "dependency_gated",
+      "lane": "contracts",
+      "scenario": "E12",
+      "why": "The contracts job has no deployed API binary. evm-e2e explicitly builds and runs this schema19 startup rejection case; its required manifest rejects any skip even if classified here.",
+      "owner": "delivery-plan T11/T12",
+      "measured_skip_message": "set CHAINPULSE_RUN_DEPLOYED_BLOCKS=1 with isolated native targets",
+      "expires": "2026-11-16"
+    },
+    "github.com/rtcdance/chainpulse/test/acceptance::TestDeployedReleaseRollback": {
+      "category": "dependency_gated",
+      "lane": "contracts",
+      "scenario": "E15",
+      "why": "The contracts job provisions no isolated deployment target, no previous release source and no Docker daemon, so this scenario cannot run there. The release-candidate workflow rebuilds the previous release from CHAINPULSE_DEPLOYED_ROLLBACK_PREV_REF and executes the case without skips; its required manifest rejects a skip even when classified here.",
+      "owner": "delivery-plan T15",
+      "measured_skip_message": "set CHAINPULSE_RUN_DEPLOYED_ROLLBACK=1 with isolated deployed targets",
+      "expires": "2026-11-18"
+    }
+  }
+}

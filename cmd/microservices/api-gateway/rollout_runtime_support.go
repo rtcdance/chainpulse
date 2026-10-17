@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
 	"github.com/rtcdance/chainpulse/pkg/core"
 	"github.com/rtcdance/chainpulse/pkg/infrastructure/database"
 	"github.com/rtcdance/chainpulse/pkg/plugins/api"
@@ -48,7 +50,7 @@ func (m *apiGatewayNoopDatabaseManager) Close(ctx context.Context) error {
 func buildAPIGatewayRuntimeRolloutComponents(
 	ctx context.Context,
 	instanceID string,
-	logger core.Logger,
+	logger portcontract.Logger,
 	metrics core.MetricsCollector,
 	gateway *api.APIGatewayPlugin,
 ) (*api.EventQueryHandler, *api.EventSubscriptionHandler, *api.HealthCheckHandler, error) {
@@ -76,43 +78,6 @@ func buildAPIGatewayRuntimeRolloutComponents(
 			RuntimeRoutesEnabled:     gateway.IsRuntimeRoutesEnabled(),
 		}
 	}))
-
-	return eventQueryHandler, eventSubscriptionHandler, healthHandler, nil
-}
-
-//nolint:unused
-func buildAPIGatewayRuntimeRolloutComponentsWithReadinessDetails(
-	ctx context.Context,
-	instanceID string,
-	logger core.Logger,
-	metrics core.MetricsCollector,
-	gateway *api.APIGatewayPlugin,
-	readinessDetailsProvider func() map[string]any,
-) (*api.EventQueryHandler, *api.EventSubscriptionHandler, *api.HealthCheckHandler, error) {
-	healthHandler := api.NewHealthCheckHandler(&apiGatewayNoopDatabaseManager{}, nil, logger, metrics)
-	if err := healthHandler.Initialize(ctx); err != nil {
-		return nil, nil, nil, err
-	}
-
-	eventQueryHandler := api.NewEventQueryHandler(nil, logger, metrics)
-	eventSubscriptionHandler := api.NewEventSubscriptionHandler(nil, logger, metrics)
-	if err := eventSubscriptionHandler.Initialize(ctx); err != nil {
-		return nil, nil, nil, err
-	}
-
-	gateway.SetEventQueryHandler(eventQueryHandler)
-	gateway.SetEventSubscriptionHandler(eventSubscriptionHandler)
-	gateway.SetHealthCheckHandler(healthHandler)
-
-	healthHandler.SetRolloutReportProducer(newAPIGatewayRolloutReportProducerWithReadinessDetails(instanceID, func() apiGatewayRolloutRuntimeState {
-		return apiGatewayRolloutRuntimeState{
-			DomainBridgeEnabled:      gateway.IsDomainBridgeEnabled(),
-			EventQueryEnabled:        gateway.IsEventQueryHandlerEnabled(),
-			EventSubscriptionEnabled: gateway.IsEventSubscriptionHandlerEnabled(),
-			HealthCheckEnabled:       gateway.IsHealthCheckHandlerEnabled(),
-			RuntimeRoutesEnabled:     gateway.IsRuntimeRoutesEnabled(),
-		}
-	}, readinessDetailsProvider))
 
 	return eventQueryHandler, eventSubscriptionHandler, healthHandler, nil
 }

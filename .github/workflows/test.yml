@@ -1,23 +1,31 @@
 name: E2E Tests
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 on:
+  # D12: `master` is the remote default branch; without it in the list this
+  # gate never fires on the branch that actually protects. main/develop are
+  # kept for the existing branch layout.
   push:
-    branches: [ main, develop ]
+    branches: [ main, master, develop ]
   pull_request:
-    branches: [ main, develop ]
+    branches: [ main, master, develop ]
   workflow_dispatch:
 
 env:
-  GO_VERSION: '1.25'
+  GOPROXY: https://proxy.golang.org|https://goproxy.cn|direct
+  GO_VERSION: '1.26'
   MIN_COVERAGE: 40
   POSTGRES_VERSION: '15'
   REDIS_VERSION: '7'
 
 jobs:
   test:
-    name: Run E2E Tests
+    name: unit-race
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 10
     
     services:
       postgres:
@@ -46,123 +54,92 @@ jobs:
     
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
-      
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
-          go-version: ${{ env.GO_VERSION }}
+          go-version-file: go.mod
           cache: true
       
-      - name: Install Foundry (for Anvil)
-        uses: foundry-rs/foundry-toolchain@v1
+      - name: Install pinned Anvil for legacy E2E short fixtures
+        uses: foundry-rs/foundry-toolchain@908c540300062bd5a7e473851cdb4282204cee09 # v1
         with:
-          version: nightly
-        continue-on-error: true
-      
-      - name: Start Anvil
-        run: |
-          if command -v anvil &> /dev/null; then
-            # Start Anvil in the background with proper configuration
-            anvil \
-              --host 0.0.0.0 \
-              --port 8545 \
-              --chain-id 31337 \
-              --accounts 10 \
-              --balance 10000 \
-              > /tmp/anvil.log 2>&1 &
-            
-            ANVIL_PID=$!
-            echo "Anvil started with PID: $ANVIL_PID"
-            echo "ANVIL_PID=$ANVIL_PID" >> $GITHUB_ENV
-            
-            # Wait for Anvil to be ready
-            echo "Waiting for Anvil to be ready..."
-            for i in {1..30}; do
-              if curl -s http://localhost:8545 -X POST -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","method":"eth_chainId","params":[],"id":1}' > /dev/null 2>&1; then
-                echo "✓ Anvil is ready"
-                break
-              fi
-              if [ $i -eq 30 ]; then
-                echo "✗ Anvil failed to start"
-                cat /tmp/anvil.log
-                exit 1
-              fi
-              echo "Attempt $i/30: Waiting for Anvil..."
-              sleep 1
-            done
-          else
-            echo "⚠ Anvil not available, tests will run without it"
-          fi
-        continue-on-error: true
-      
+          version: v1.8.5
+
+      - name: Verify required Anvil binary
+        run: anvil --version
+
       - name: Install dependencies
         run: |
           go mod download
           go mod verify
-          go install github.com/wadey/gocovmerge@latest || true
+          go install github.com/wadey/gocovmerge@b5bfa59ec0adc420475f97f89b58045c721d761c
       
       - name: Run unit tests
         run: |
+          set -euo pipefail
           # Clear Go cache to ensure fresh test runs
           go clean -testcache
-          
-          echo "Running unit tests for all pkg/ packages..."
-          echo "Using -short flag to skip long-running tests"
-          echo "Timeout: 120s per package, Parallelism: 4 concurrent packages"
-          go test -short -v -coverprofile=coverage-unit.out -covermode=atomic -timeout 120s -p 4 \
-            ./pkg/... 2>&1 | tee unit-test-output.log
-          UNIT_TEST_EXIT_CODE=${PIPESTATUS[0]}
-          
-          # Verify coverage file was created
-          if [ -f coverage-unit.out ] && [ -s coverage-unit.out ]; then
-            echo "✓ Unit test coverage file created successfully"
-            echo "Packages in coverage file:"
-            go tool cover -func=coverage-unit.out 2>/dev/null | grep "pkg/" | cut -d'/' -f1-2 | sort -u
-            
-            # Show test results summary
-            echo ""
-            echo "Unit Test Results Summary:"
-            echo "PASS tests: $(grep -c "^--- PASS:" unit-test-output.log || echo "0")"
-            echo "FAIL tests: $(grep -c "^--- FAIL:" unit-test-output.log || echo "0")"
-            echo "SKIP tests: $(grep -c "^--- SKIP:" unit-test-output.log || echo "0")"
-            
-            # Show which packages had failures
-            if grep -q "^--- FAIL:" unit-test-output.log; then
-              echo ""
-              echo "Failed packages:"
-              grep "^--- FAIL:" unit-test-output.log | awk '{print $3}' | cut -d'/' -f1-2 | sort -u
-            fi
-          else
-            echo "✗ Coverage file not created or is empty"
+
+          echo "Running unit tests for all pkg/ packages (JSONL + coverage)..."
+          # `pipefail` propagates a go-test failure; the verifier then catches
+          # the "exit 0 but nothing actually ran" cases (empty run, no tests).
+          go test -json -race -short -coverprofile=coverage-unit.out -covermode=atomic \
+            -timeout 120s -p 4 ./pkg/... | tee unit-test-output.jsonl
+
+          # D11(a): a skip that is not declared in the allowlist fails the lane.
+          # --min-tests 1 only catches an EMPTY suite; without this flag a test
+          # that quietly starts skipping is invisible behind a green run. The
+          # allowlist is a classified snapshot (reason per entry), not a
+          # blanket: adding a NEW t.Skip without classifying it goes red here.
+          python3 scripts/acceptance/verify-tests.py \
+            --jsonl unit-test-output.jsonl \
+            --min-tests 1 \
+            --fail-on-unknown-skip \
+            --skip-allowlist test/acceptance/skip-allowlist.json \
+            --required-cases test/acceptance/required-cases.json \
+            --required-lane unit \
+            --report unit-tests-report.json
+
+          if [ ! -s coverage-unit.out ]; then
+            echo "✗ unit test coverage profile missing or empty"
             exit 1
           fi
-          
-          # Check if there are actual test failures (not just timeouts)
-          ACTUAL_FAILURES=$(grep -c "^--- FAIL:" unit-test-output.log || echo "0")
-          if [ "$ACTUAL_FAILURES" -gt 0 ]; then
-            echo ""
-            echo "✗ ERROR: $ACTUAL_FAILURES test(s) failed"
-            echo "Failed tests:"
-            grep "^--- FAIL:" unit-test-output.log || true
-            exit 1
-          fi
-          
-          # Check if tests timed out
-          if grep -q "panic: test timed out" unit-test-output.log; then
-            echo ""
-            echo "⚠ WARNING: Some tests timed out (but no test failures)"
-            echo "Timed out tests:"
-            grep -A 2 "panic: test timed out" unit-test-output.log | grep "running tests:" -A 1 || true
-            echo "These tests should be fixed or marked with testing.Short() check"
-            echo "Continuing since all assertions passed..."
-          fi
-          
-          # Exit with success if no actual test failures
-          echo ""
-          echo "✓ All unit tests passed (no assertion failures)"
-          exit 0
+          echo "✓ unit tests passed; coverage profile written"
       
+      - name: Command and nested workspace module race tests
+        run: |
+          set -euo pipefail
+          go test -json -race -short -timeout 120s ./cmd/... | tee command-test-output.jsonl
+          python3 scripts/acceptance/verify-tests.py \
+            --jsonl command-test-output.jsonl --min-tests 1 --fail-on-unknown-skip \
+            --required-cases test/acceptance/required-cases.json --required-lane command \
+            --skip-allowlist test/acceptance/skip-allowlist.json --report command-tests-report.json
+          python3 - <<'PYMODULES'
+          import json, subprocess
+          workspace = json.loads(subprocess.check_output(["go", "work", "edit", "-json"]))
+          for item in workspace["Use"]:
+              directory = item["DiskPath"]
+              if directory == ".":
+                  continue
+              subprocess.run(["go", "test", "-race", "-short", "-count=1", "-timeout=120s", "./..."],
+                             cwd=directory, check=True)
+          # Preserve every package previously covered by quality's root ./...
+          # test; pkg, cmd, integration and e2e already have explicit JSON lanes.
+          packages = subprocess.check_output(["go", "list", "./..."], text=True).splitlines()
+          root = json.loads(subprocess.check_output(["go", "mod", "edit", "-json"]))["Module"]["Path"]
+          prefixes = tuple(root + "/" + part for part in ("pkg/", "cmd/", "test/integration", "test/e2e"))
+          remaining = [package for package in packages if not package.startswith(prefixes)]
+          if not remaining:
+              raise SystemExit("remaining root package inventory unexpectedly empty")
+          with open("remaining-test-output.jsonl", "w") as stream:
+              subprocess.run(["go", "test", "-json", "-race", "-short", "-timeout=120s", *remaining],
+                             stdout=stream, check=True)
+          PYMODULES
+          python3 scripts/acceptance/verify-tests.py \
+            --jsonl remaining-test-output.jsonl --min-tests 1 --fail-on-unknown-skip \
+            --skip-allowlist test/acceptance/skip-allowlist.json --report remaining-tests-report.json
+
       - name: Run integration tests
         env:
           POSTGRES_HOST: localhost
@@ -173,37 +150,19 @@ jobs:
           REDIS_HOST: localhost
           REDIS_PORT: 6379
         run: |
-          go test -short -v -coverprofile=coverage-integration.out -covermode=atomic -timeout 15m ./test/integration/... 2>&1 | tee integration-test-output.log
-          INTEGRATION_TEST_EXIT_CODE=${PIPESTATUS[0]}
-          
-          # Show test results summary
-          echo ""
-          echo "Integration Test Results Summary:"
-          echo "PASS tests: $(grep -c "^--- PASS:" integration-test-output.log || echo "0")"
-          echo "FAIL tests: $(grep -c "^--- FAIL:" integration-test-output.log || echo "0")"
-          echo "SKIP tests: $(grep -c "^--- SKIP:" integration-test-output.log || echo "0")"
-          
-          # Check if there are actual test failures (not just timeouts)
-          ACTUAL_FAILURES=$(grep -c "^--- FAIL:" integration-test-output.log || echo "0")
-          if [ "$ACTUAL_FAILURES" -gt 0 ]; then
-            echo ""
-            echo "✗ ERROR: $ACTUAL_FAILURES integration test(s) failed"
-            echo "Failed tests:"
-            grep "^--- FAIL:" integration-test-output.log || true
-            exit 1
-          fi
-          
-          # Check if tests timed out
-          if grep -q "panic: test timed out" integration-test-output.log; then
-            echo ""
-            echo "⚠ WARNING: Some integration tests timed out (but no test failures)"
-            echo "Continuing since all assertions passed..."
-          fi
-          
-          # Exit with success if no actual test failures
-          echo ""
-          echo "✓ All integration tests passed"
-          exit 0
+          set -euo pipefail
+          go test -json -race -short -coverprofile=coverage-integration.out -covermode=atomic \
+            -timeout 15m ./test/integration/... | tee integration-test-output.jsonl
+
+          # D11(a), extended to this lane: declare the skips this step produces
+          # (unconditional fixture/DSN-availability skips) so a NEW skip is
+          # noticed instead of hiding behind "verify passed".
+          python3 scripts/acceptance/verify-tests.py \
+            --jsonl integration-test-output.jsonl \
+            --fail-on-unknown-skip \
+            --skip-allowlist test/acceptance/skip-allowlist.json \
+            --report integration-tests-report.json
+          echo "✓ integration tests passed"
       
       - name: Analyze unit test coverage gaps
         if: always()
@@ -242,110 +201,93 @@ jobs:
           REDIS_PORT: 6379
           ANVIL_URL: http://localhost:8545
         run: |
-          echo "Starting E2E tests..."
-          go test -short -v -coverprofile=coverage-e2e.out -covermode=atomic -timeout 20m ./test/e2e/... 2>&1 | tee e2e-test-output.log
-          TEST_EXIT_CODE=${PIPESTATUS[0]}
-          
-          echo ""
-          echo "E2E Test Results Summary:"
-          echo "PASS tests: $(grep -c "^--- PASS:" e2e-test-output.log || echo "0")"
-          echo "FAIL tests: $(grep -c "^--- FAIL:" e2e-test-output.log || echo "0")"
-          echo "SKIP tests: $(grep -c "^--- SKIP:" e2e-test-output.log || echo "0")"
-          
-          # Check if there are actual test failures (not just timeouts)
-          ACTUAL_FAILURES=$(grep -c "^--- FAIL:" e2e-test-output.log || echo "0")
-          if [ "$ACTUAL_FAILURES" -gt 0 ]; then
-            echo ""
-            echo "✗ ERROR: $ACTUAL_FAILURES E2E test(s) failed"
-            echo "Failed tests:"
-            grep "^--- FAIL:" e2e-test-output.log || true
-            exit 1
-          fi
-          
-          # Check if tests timed out
-          if grep -q "panic: test timed out" e2e-test-output.log; then
-            echo ""
-            echo "⚠ WARNING: Some E2E tests timed out (but no test failures)"
-            echo "Continuing since all assertions passed..."
-          fi
-          
-          # Exit with success if no actual test failures
-          echo ""
-          echo "✓ All E2E tests passed"
-          exit 0
+          set -euo pipefail
+          # These legacy concurrency fixtures connect to localhost:8545; an
+          # installed binary alone does not provision their required RPC node.
+          anvil --host 127.0.0.1 --port 8545 --chain-id 31337 --timestamp 1700000000 > anvil-short.log 2>&1 &
+          fixture_pid=$!
+          cleanup_fixture() {
+            kill "$fixture_pid" 2>/dev/null || :
+            wait "$fixture_pid" 2>/dev/null || :
+          }
+          trap cleanup_fixture EXIT
+          for attempt in $(seq 1 30); do
+            if cast chain-id --rpc-url http://127.0.0.1:8545 > anvil-short-chain-id.txt 2>/dev/null; then
+              break
+            fi
+            kill -0 "$fixture_pid"
+            sleep 1
+          done
+          test "$(cat anvil-short-chain-id.txt)" = "31337"
+          go test -json -race -short -coverprofile=coverage-e2e.out -covermode=atomic \
+            -timeout 20m ./test/e2e/... | tee e2e-test-output.jsonl
+
+          # D11(a), extended to this lane. D16(d) blocked this flag on the DSN
+          # decision; the allowlist carries those skips as explicit, classified
+          # entries (with GAP status where the lane cannot reach its fixture),
+          # which is the same mechanism the contracts lane already uses for its
+          # Kafka skip. Anvil-availability skips are deliberately NOT declared:
+          # if Foundry/anvil breaks, they show up undeclared and fail here.
+          python3 scripts/acceptance/verify-tests.py \
+            --jsonl e2e-test-output.jsonl \
+            --fail-on-unknown-skip \
+            --skip-allowlist test/acceptance/skip-allowlist.json \
+            --report e2e-tests-report.json
+          echo "✓ E2E tests passed"
       
       - name: Merge coverage reports
         run: |
-          # Only use unit test coverage (pkg/ directory)
-          if [ -f coverage-unit.out ] && [ -s coverage-unit.out ]; then
-            cp coverage-unit.out coverage.out
-            echo "✓ Using unit test coverage (pkg/ only)"
-          else
-            echo "⚠ No unit test coverage found"
-            touch coverage.out
+          set -euo pipefail
+          if [ ! -s coverage-unit.out ]; then
+            echo "✗ No unit test coverage profile — refusing to fabricate an empty report"
+            exit 1
           fi
+          cp coverage-unit.out coverage.out
+          echo "✓ Using unit test coverage (pkg/ only)"
       
       - name: Generate coverage report
         run: |
-          if [ -f coverage.out ] && [ -s coverage.out ]; then
-            go tool cover -html=coverage.out -o coverage.html || true
-            go tool cover -func=coverage.out -o coverage.txt || true
-            echo "✓ Coverage reports generated successfully"
-          else
-            echo "⚠ Coverage file is empty or missing, creating placeholder reports"
-            touch coverage.html coverage.txt
-          fi
+          set -euo pipefail
+          go tool cover -html=coverage.out -o coverage.html
+          go tool cover -func=coverage.out -o coverage.txt
+          echo "✓ Coverage reports generated successfully"
       
       - name: Check coverage threshold
         run: |
-          if [ -f coverage.out ] && [ -s coverage.out ]; then
-            COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//' || echo "0")
-            echo "Total coverage: ${COVERAGE}%"
-            if [ -z "$COVERAGE" ] || [ "$COVERAGE" = "0" ]; then
-              echo "⚠ Could not calculate coverage, skipping threshold check"
-            elif (( $(echo "$COVERAGE < $MIN_COVERAGE" | bc -l) )); then
-              echo "✗ Coverage ${COVERAGE}% is below minimum ${MIN_COVERAGE}%"
-              exit 1
-            else
-              echo "✓ Coverage ${COVERAGE}% meets minimum ${MIN_COVERAGE}%"
-            fi
-          else
-            echo "⚠ No coverage data available, skipping threshold check"
+          set -euo pipefail
+          COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//')
+          if [ -z "$COVERAGE" ]; then
+            echo "✗ Could not parse coverage total — failing instead of skipping"
+            exit 1
           fi
+          echo "Total coverage: ${COVERAGE}%"
+          if (( $(echo "$COVERAGE < $MIN_COVERAGE" | bc -l) )); then
+            echo "✗ Coverage ${COVERAGE}% is below minimum ${MIN_COVERAGE}%"
+            exit 1
+          fi
+          echo "✓ Coverage ${COVERAGE}% meets minimum ${MIN_COVERAGE}%"
       
       - name: Generate test summary
         if: always()
         run: |
-          echo "## Test Execution Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          
-          # Count test results
-          if [ -f e2e-test-output.log ]; then
-            PASSED=$(grep -c "^--- PASS:" e2e-test-output.log || echo "0")
-            FAILED=$(grep -c "^--- FAIL:" e2e-test-output.log || echo "0")
-            SKIPPED=$(grep -c "^--- SKIP:" e2e-test-output.log || echo "0")
-            
-            echo "### E2E Tests" >> $GITHUB_STEP_SUMMARY
-            echo "- ✓ Passed: $PASSED" >> $GITHUB_STEP_SUMMARY
-            echo "- ✗ Failed: $FAILED" >> $GITHUB_STEP_SUMMARY
-            echo "- ⊘ Skipped: $SKIPPED" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Test Execution Summary" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          for suite in unit integration e2e; do
+            report="${suite}-tests-report.json"
+            if [ -f "$report" ]; then
+              echo "### ${suite} tests" >> "$GITHUB_STEP_SUMMARY"
+              echo '```json' >> "$GITHUB_STEP_SUMMARY"
+              cat "$report" >> "$GITHUB_STEP_SUMMARY"
+              echo '```' >> "$GITHUB_STEP_SUMMARY"
+            fi
+          done
+          if [ -s coverage.out ]; then
+            echo "### Coverage" >> "$GITHUB_STEP_SUMMARY"
+            echo "- Total: $(go tool cover -func=coverage.out | grep total | awk '{print $3}')" >> "$GITHUB_STEP_SUMMARY"
           fi
-          
-          # Coverage summary
-          if [ -f coverage.out ] && [ -s coverage.out ]; then
-            COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' || echo "N/A")
-            echo "### Coverage" >> $GITHUB_STEP_SUMMARY
-            echo "- Total: $COVERAGE" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-          fi
-          
-          echo "### Artifacts" >> $GITHUB_STEP_SUMMARY
-          echo "- Coverage reports available in artifacts" >> $GITHUB_STEP_SUMMARY
-          echo "- Test logs available in artifacts" >> $GITHUB_STEP_SUMMARY
       
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v6
         with:
           files: ./coverage.out
           flags: unittests,integration
@@ -354,7 +296,7 @@ jobs:
         continue-on-error: true
       
       - name: Upload coverage reports
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: coverage-reports
           path: |
@@ -362,57 +304,48 @@ jobs:
             coverage.html
             coverage.txt
           retention-days: 30
-          if-no-files-found: ignore
+          if-no-files-found: error
       
-      - name: Upload test logs
+      - name: Upload test evidence (required)
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
-          name: test-logs
+          name: test-evidence
           path: |
+            *-test-output.jsonl
+            *-tests-report.json
             *.log
             test/integration/*.log
-            e2e-test-output.log
-          retention-days: 7
-          if-no-files-found: ignore
+          retention-days: 30
+          if-no-files-found: error
       
-      - name: Cleanup Anvil
-        if: always()
-        run: |
-          if [ ! -z "$ANVIL_PID" ]; then
-            echo "Stopping Anvil (PID: $ANVIL_PID)..."
-            kill $ANVIL_PID 2>/dev/null || true
-            sleep 1
-            kill -9 $ANVIL_PID 2>/dev/null || true
-            echo "✓ Anvil stopped"
-          fi
-        continue-on-error: true
 
   lint:
-    name: Lint Code
+    name: lint
     runs-on: ubuntu-latest
     
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
-      
-      - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
-          go-version: ${{ env.GO_VERSION }}
+          fetch-depth: 0
+      - name: Set up Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version-file: go.mod
           cache: true
       
       - name: Install golangci-lint via go install
         run: |
-          echo "Installing golangci-lint latest..."
-          go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+          echo "Installing golangci-lint v2.12.2..."
+          go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2
           "$(go env GOPATH)/bin/golangci-lint" --version
           echo "✓ golangci-lint installed successfully"
       
       - name: Run golangci-lint
         run: |
           echo "Running golangci-lint checks..."
-          GODEBUG=gotypesalias=1 "$(go env GOPATH)/bin/golangci-lint" run --timeout=5m --out-format=colored-line-number ./...
+          make lint
           echo "✓ golangci-lint completed successfully"
       
       - name: Report Lint Status
@@ -420,26 +353,25 @@ jobs:
         run: |
           echo "## Lint Job Status" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "✓ golangci-lint: **PASSED**" >> $GITHUB_STEP_SUMMARY
-          echo "- Method: go install (latest)" >> $GITHUB_STEP_SUMMARY
+          echo "golangci-lint job status: **${{ job.status }}**" >> $GITHUB_STEP_SUMMARY
+          echo "- Method: go install v2.12.2" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Configuration" >> $GITHUB_STEP_SUMMARY
           echo "- Go Version: ${{ env.GO_VERSION }}" >> $GITHUB_STEP_SUMMARY
-          echo "- golangci-lint Version: latest (compatible with Go 1.24.0)" >> $GITHUB_STEP_SUMMARY
+          echo "- golangci-lint Version: v2.12.2 (Go 1.26)" >> $GITHUB_STEP_SUMMARY
           echo "- Timeout: 5m" >> $GITHUB_STEP_SUMMARY
 
   build:
-    name: Build Binaries
+    name: build-binaries
     runs-on: ubuntu-latest
     
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
-      
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
-          go-version: ${{ env.GO_VERSION }}
+          go-version-file: go.mod
           cache: true
       
       - name: Build monolithic service
@@ -454,8 +386,87 @@ jobs:
           go build -v -o bin/api-gateway ./cmd/microservices/api-gateway
       
       - name: Upload binaries
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: binaries
           path: bin/
           retention-days: 7
+
+  # D22 (docs/project/2026-10-13-decision-requests.md) / delivery plan §10
+  # DoD + §9 acceptance: every test run must produce the release evidence
+  # pack. The pack is assembled by scripts/acceptance/collect-evidence.py
+  # (the §10 collector; never hand-build the pack). This job runs even when
+  # the test lane fails — a failing run is exactly when the pack matters —
+  # and re-uses the `test-evidence` artifact the test job already uploads
+  # (the unit/integration/e2e `go test -json` streams) as the collector's
+  # input, so no test output is re-run or re-generated here.
+  evidence:
+    name: Evidence Pack (D22)
+    runs-on: ubuntu-latest
+    if: always()
+    needs: [test]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - name: Download test evidence (collector input)
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: test-evidence
+          path: build/raw
+
+      # The collector's `tests.jsonl` spec matches input-relative
+      # `tests/*.jsonl` (min_count=1); move the three lane streams there.
+      # Reports/logs in the artifact match no §10 spec and are left alone.
+      - name: Stage collector input layout
+        run: |
+          set -euo pipefail
+          mkdir -p build/raw/tests
+          shopt -s nullglob
+          streams=(build/raw/*-test-output.jsonl)
+          if [ "${#streams[@]}" -eq 0 ]; then
+            echo "✗ no *-test-output.jsonl in the test-evidence artifact"
+            exit 1
+          fi
+          mv "${streams[@]}" build/raw/tests/
+          ls -la build/raw/tests
+
+      # WHY: this is the plan §10 / D22 evidence-pack requirement. The
+      # collector exits 1 when the pack is incomplete, which is the EXPECTED
+      # state for this lane: 13 of the 15 §10 artifacts (run-urls.json, SBOM,
+      # security scan, profiles, chaos/deployment/migration reports, ...) are
+      # produced only by the release/acceptance lanes, and D22 records that a
+      # `complete: true` pack has never existed yet. The manifest is still
+      # written either way — with complete:false, the missing list, and the
+      # provenance block (commit_sha, tree_dirty, tool versions, environment)
+      # plus the per-suite test_actions bound to each tests/*.jsonl — and that
+      # is what gets uploaded. Only a wiring failure (exit 2: input dir
+      # missing / collector crashed, or no manifest written) fails this job:
+      # an incomplete pack must not become a new red lane on day one.
+      - name: Assemble evidence pack with collect-evidence.py (D22 / §10)
+        run: |
+          set -euo pipefail
+          set +e
+          python3 scripts/acceptance/collect-evidence.py \
+            --input build/raw \
+            --out build/evidence
+          rc=$?
+          set -e
+          echo "collect-evidence.py exit code: ${rc}"
+          if [ "${rc}" -eq 1 ]; then
+            echo "exit 1 = incomplete pack (expected in the test lane; see build/evidence/manifest.json missing[])"
+          elif [ "${rc}" -ne 0 ]; then
+            echo "✗ collector wiring failure (exit ${rc}) — input directory missing or collector crashed"
+            exit "${rc}"
+          fi
+          test -f build/evidence/manifest.json
+          echo "✓ evidence pack written to build/evidence"
+
+      - name: Upload evidence pack
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: evidence-pack
+          path: build/evidence
+          retention-days: 90
+          if-no-files-found: warn

@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 )
 
 // DatabaseFixture provides database setup and teardown for integration tests
@@ -113,7 +113,7 @@ func (f *DatabaseFixture) truncateTestTables(ctx context.Context) error {
 }
 
 // InsertEvent inserts a test event into the database
-func (f *DatabaseFixture) InsertEvent(ctx context.Context, event *core.BlockchainEvent) error {
+func (f *DatabaseFixture) InsertEvent(ctx context.Context, event *blockchain.BlockchainEvent) error {
 	if event == nil {
 		return fmt.Errorf("event is nil")
 	}
@@ -140,7 +140,7 @@ func (f *DatabaseFixture) InsertEvent(ctx context.Context, event *core.Blockchai
 }
 
 // InsertEvents inserts multiple test events into the database
-func (f *DatabaseFixture) InsertEvents(ctx context.Context, events []*core.BlockchainEvent) error {
+func (f *DatabaseFixture) InsertEvents(ctx context.Context, events []*blockchain.BlockchainEvent) error {
 	for _, event := range events {
 		if err := f.InsertEvent(ctx, event); err != nil {
 			return err
@@ -150,14 +150,14 @@ func (f *DatabaseFixture) InsertEvents(ctx context.Context, events []*core.Block
 }
 
 // GetEvent retrieves an event from the database
-func (f *DatabaseFixture) GetEvent(ctx context.Context, eventID string) (*core.BlockchainEvent, error) {
+func (f *DatabaseFixture) GetEvent(ctx context.Context, eventID string) (*blockchain.BlockchainEvent, error) {
 	query := `
 	SELECT id, chain_id, block_number, transaction_hash, event_name
 	FROM blockchain_events
 	WHERE id = $1;
 	`
 
-	var event core.BlockchainEvent
+	var event blockchain.BlockchainEvent
 	err := f.db.QueryRowContext(ctx, query, eventID).Scan(
 		&event.ID,
 		&event.ChainID,
@@ -176,7 +176,7 @@ func (f *DatabaseFixture) GetEvent(ctx context.Context, eventID string) (*core.B
 }
 
 // GetEventsByChain retrieves all events for a specific chain
-func (f *DatabaseFixture) GetEventsByChain(ctx context.Context, chainID string) ([]*core.BlockchainEvent, error) {
+func (f *DatabaseFixture) GetEventsByChain(ctx context.Context, chainID string) ([]*blockchain.BlockchainEvent, error) {
 	query := `
 	SELECT id, chain_id, block_number, transaction_hash, event_name
 	FROM blockchain_events
@@ -190,9 +190,9 @@ func (f *DatabaseFixture) GetEventsByChain(ctx context.Context, chainID string) 
 	}
 	defer func() { _ = rows.Close() }()
 
-	var events []*core.BlockchainEvent
+	var events []*blockchain.BlockchainEvent
 	for rows.Next() {
-		var event core.BlockchainEvent
+		var event blockchain.BlockchainEvent
 		if err := rows.Scan(
 			&event.ID,
 			&event.ChainID,
@@ -213,7 +213,7 @@ func (f *DatabaseFixture) GetEventsByChain(ctx context.Context, chainID string) 
 }
 
 // GetEventsByBlockRange retrieves events within a block range
-func (f *DatabaseFixture) GetEventsByBlockRange(ctx context.Context, chainID string, fromBlock, toBlock uint64) ([]*core.BlockchainEvent, error) {
+func (f *DatabaseFixture) GetEventsByBlockRange(ctx context.Context, chainID string, fromBlock, toBlock uint64) ([]*blockchain.BlockchainEvent, error) {
 	query := `
 	SELECT id, chain_id, block_number, transaction_hash, event_name
 	FROM blockchain_events
@@ -227,9 +227,9 @@ func (f *DatabaseFixture) GetEventsByBlockRange(ctx context.Context, chainID str
 	}
 	defer func() { _ = rows.Close() }()
 
-	var events []*core.BlockchainEvent
+	var events []*blockchain.BlockchainEvent
 	for rows.Next() {
-		var event core.BlockchainEvent
+		var event blockchain.BlockchainEvent
 		if err := rows.Scan(
 			&event.ID,
 			&event.ChainID,

@@ -6,6 +6,8 @@ import (
 	"sync"
 	"time"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
 	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
@@ -13,7 +15,7 @@ import (
 type CacheWarmer struct {
 	cache              *CacheMiddleware
 	config             *CacheConfig
-	logger             core.Logger
+	logger             portcontract.Logger
 	metrics            core.MetricsCollector
 	dataProvider       DataProvider
 	ticker             *time.Ticker
@@ -39,7 +41,7 @@ type WarmingData struct {
 }
 
 // NewCacheWarmer creates a new cache warmer
-func NewCacheWarmer(cache *CacheMiddleware, config *CacheConfig, logger core.Logger, metrics core.MetricsCollector) *CacheWarmer {
+func NewCacheWarmer(cache *CacheMiddleware, config *CacheConfig, logger portcontract.Logger, metrics core.MetricsCollector) *CacheWarmer {
 	return &CacheWarmer{
 		cache:              cache,
 		config:             config,

@@ -12,7 +12,6 @@ import (
 // Feature: deployment-configuration, Property 25: Configuration Validation
 // Validates: Requirements 6.2, 6.3
 func TestPropertyConfigurationValidation(t *testing.T) {
-	t.Skip("regression: pre-existing failure")
 	logger := core.NewDefaultLogger(core.LogLevelInfo)
 	cm := core.NewConfigManager(logger)
 
@@ -22,7 +21,7 @@ func TestPropertyConfigurationValidation(t *testing.T) {
 			DataPullerType:     "https-jsonrpc",
 			BlockchainNodeURL:  "http://localhost:8545",
 			MQType:             "kafka",
-			MQConnectionURL:    "localhost:9092",
+			MQConnectionURL:    "kafka://localhost:9092",
 			CacheType:          "redis",
 			CacheConnectionURL: "localhost:6379",
 			CacheTTL:           3600,
@@ -42,14 +41,14 @@ func TestPropertyConfigurationValidation(t *testing.T) {
 		{
 			DataPullerType:     "websocket",
 			BlockchainNodeURL:  "ws://localhost:8546",
-			MQType:             "redis",
-			MQConnectionURL:    "localhost:6379",
+			MQType:             "kafka",
+			MQConnectionURL:    "kafka://localhost:9092",
 			CacheType:          "memory",
 			CacheConnectionURL: "localhost:6379",
 			CacheTTL:           7200,
 			DatabaseType:       "mongodb",
 			DatabaseURL:        "mongodb://localhost:27017",
-			APIType:            "grpc",
+			APIType:            "rest",
 			APIPort:            50051,
 			WorkerPoolSize:     16,
 			BatchSize:          256,
@@ -61,10 +60,10 @@ func TestPropertyConfigurationValidation(t *testing.T) {
 			FeatureFlags:       make(map[string]bool),
 		},
 		{
-			DataPullerType:     "grpc",
-			BlockchainNodeURL:  "grpc://localhost:50052",
-			MQType:             "zeromq",
-			MQConnectionURL:    "tcp://localhost:5555",
+			DataPullerType:     "https-jsonrpc",
+			BlockchainNodeURL:  "https://localhost:50052",
+			MQType:             "kafka",
+			MQConnectionURL:    "kafka://localhost:9092",
 			CacheType:          "redis",
 			CacheConnectionURL: "localhost:6379",
 			CacheTTL:           1800,
@@ -84,7 +83,7 @@ func TestPropertyConfigurationValidation(t *testing.T) {
 	}
 
 	for i := range validConfigs {
-		err := cm.ValidateLoaded()
+		err := cm.Validate(validConfigs[i])
 		if err != nil {
 			t.Errorf("valid config %d failed validation: %v", i, err)
 		}

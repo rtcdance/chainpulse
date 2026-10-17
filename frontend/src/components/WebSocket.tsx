@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type JSX } from 'react'
 import { Loader2, Plug, Radio, Send, Trash2, ChevronDown, ChevronUp } from 'lucide-react'
 import { buildWebSocketUrl, buildFilteredSubscribeUrl } from '../lib/chainpulse'
 

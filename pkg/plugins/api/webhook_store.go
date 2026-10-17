@@ -17,6 +17,8 @@ import (
 	"sync"
 	"time"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
 	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
@@ -48,7 +50,7 @@ type WebhookDelivery struct {
 // WebhookStore manages persistent webhook storage and delivery
 type WebhookStore struct {
 	db         *sql.DB
-	logger     core.Logger
+	logger     portcontract.Logger
 	metrics    core.MetricsCollector
 	httpClient *http.Client
 	maxRetries int
@@ -59,7 +61,7 @@ type WebhookStore struct {
 }
 
 // NewWebhookStore creates a new webhook store
-func NewWebhookStore(db *sql.DB, logger core.Logger, metrics core.MetricsCollector) *WebhookStore {
+func NewWebhookStore(db *sql.DB, logger portcontract.Logger, metrics core.MetricsCollector) *WebhookStore {
 	const maxConcurrentDeliveries = 16
 	return &WebhookStore{
 		db:         db,
@@ -329,11 +331,11 @@ func EnsureWebhookTables(db *sql.DB) error {
 // AdminWebhookHandler handles admin webhook management endpoints
 type AdminWebhookHandler struct {
 	store  *WebhookStore
-	logger core.Logger
+	logger portcontract.Logger
 }
 
 // NewAdminWebhookHandler creates a new admin webhook handler
-func NewAdminWebhookHandler(store *WebhookStore, logger core.Logger) *AdminWebhookHandler {
+func NewAdminWebhookHandler(store *WebhookStore, logger portcontract.Logger) *AdminWebhookHandler {
 	return &AdminWebhookHandler{store: store, logger: logger}
 }
 
@@ -376,7 +378,7 @@ func (h *AdminWebhookHandler) HandleCreateWebhook(w http.ResponseWriter, r *http
 
 	record, err := h.store.CreateWebhook(r.Context(), req.ClientID, req.Name, req.URL, req.Secret, req.Events)
 	if err != nil {
-		writeJSONError(w, http.StatusInternalServerError, fmt.Sprintf("failed to create webhook: %v", err))
+		writeRedactedInternalError(w, h.logger, "webhook.create", err)
 		return
 	}
 
@@ -412,7 +414,7 @@ func (h *AdminWebhookHandler) HandleListWebhooks(w http.ResponseWriter, r *http.
 
 	records, total, err := h.store.ListWebhooks(r.Context(), clientID, limit, offset)
 	if err != nil {
-		writeJSONError(w, http.StatusInternalServerError, fmt.Sprintf("failed to list webhooks: %v", err))
+		writeRedactedInternalError(w, h.logger, "webhook.list", err)
 		return
 	}
 
@@ -453,7 +455,7 @@ func (h *AdminWebhookHandler) HandleDeleteWebhook(w http.ResponseWriter, r *http
 			writeJSONError(w, http.StatusNotFound, err.Error())
 			return
 		}
-		writeJSONError(w, http.StatusInternalServerError, fmt.Sprintf("failed to delete webhook: %v", err))
+		writeRedactedInternalError(w, h.logger, "webhook.delete", err)
 		return
 	}
 

@@ -16,6 +16,7 @@ on:
           - production
 
 env:
+  GOPROXY: https://proxy.golang.org|https://goproxy.cn|direct
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
 
@@ -52,24 +53,20 @@ jobs:
     
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
-      
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
           go-version-file: go.mod
           cache: true
-      
-      - name: Install Foundry (for Anvil)
-        uses: foundry-rs/foundry-toolchain@v1
-        with:
-          version: nightly
-        continue-on-error: true
       
       - name: Install dependencies
         run: go mod download
       
       - name: Run verification script
+        id: readiness
         env:
           POSTGRES_HOST: localhost
           POSTGRES_PORT: 5432
@@ -79,16 +76,17 @@ jobs:
           REDIS_HOST: localhost
           REDIS_PORT: 6379
         run: |
-          if [ -f ./scripts/verify-production-readiness.sh ]; then
-            chmod +x ./scripts/verify-production-readiness.sh
-            ./scripts/verify-production-readiness.sh || true
-            echo "✓ Verification script completed"
-          else
-            echo "⚠ Verification script not found, skipping"
+          set -euo pipefail
+          script=./scripts/verify-production-readiness.sh
+          if [ ! -f "$script" ]; then
+            echo "::error::$script does not exist. A readiness gate that cannot find its script must fail, not skip: the previous version printed a warning and exited 0, so this step never verified anything."
+            exit 1
           fi
-        continue-on-error: true
+          chmod +x "$script"
+          "$script"
       
       - name: Run all tests
+        id: tests
         env:
           POSTGRES_HOST: localhost
           POSTGRES_PORT: 5432
@@ -98,17 +96,20 @@ jobs:
           REDIS_HOST: localhost
           REDIS_PORT: 6379
         run: |
-          go test -v -race -timeout 20m ./... || true
-        continue-on-error: true
+          set -euo pipefail
+          go test -race -timeout 20m ./...
       
       - name: Check code quality
+        id: lint
         run: |
-          go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.63.0 || true
-          golangci-lint run --timeout=5m || true
-        continue-on-error: true
+          set -euo pipefail
+          go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2
+          make lint
       
       - name: Verify documentation
+        id: docs
         run: |
+          set -euo pipefail
           # Check required documentation files
           required_docs=(
             "docs/e2e-testing/README.md"
@@ -117,59 +118,63 @@ jobs:
             "docs/e2e-testing/api-reference.md"
             "docs/e2e-testing/faq.md"
           )
-          
+
           missing_docs=0
           for doc in "${required_docs[@]}"; do
             if [ ! -f "$doc" ]; then
-              echo "⚠ Missing documentation: $doc"
+              echo "::error::missing documentation: $doc"
               missing_docs=$((missing_docs + 1))
             else
-              echo "✓ Found: $doc"
+              echo "✓ found: $doc"
             fi
           done
-          
-          if [ $missing_docs -eq 0 ]; then
-            echo "✓ All required documentation exists"
-          else
-            echo "⚠ $missing_docs documentation files missing (continuing with warning)"
+
+          if [ "$missing_docs" -ne 0 ]; then
+            echo "::error::$missing_docs required documentation files missing"
+            exit 1
           fi
-        continue-on-error: true
+          echo "✓ all required documentation exists"
       
       - name: Generate deployment readiness report
+        # `if: always()` so a failed check still produces a report, and the report
+        # states what actually happened. The previous version was a quoted heredoc
+        # with four hard-coded checkmarks, so it asserted "Production readiness
+        # verification completed" while the script it names did not exist - and
+        # because the delimiter was quoted, `$(date ...)` was never expanded and
+        # appeared literally in the published artifact.
+        if: always()
         run: |
+          set -euo pipefail
           mkdir -p reports
-          
-          cat > reports/deployment-readiness.md << 'EOF'
-          # Deployment Readiness Report
-          
-          **Date**: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
-          **Commit**: ${{ github.sha }}
-          **Tag**: ${{ github.ref_name }}
-          
-          ## Verification Status
-          
-          - ✓ Tests executed
-          - ✓ Code quality checks executed
-          - ✓ Documentation verification completed
-          - ✓ Production readiness verification completed
-          
-          ## Status Summary
-          
-          This build has completed all verification steps.
-          Review the logs above for any warnings or issues.
-          
-          EOF
-          
+          {
+            echo "# Deployment Readiness Report"
+            echo
+            echo "**Date**: $(date -u +'%Y-%m-%d %H:%M:%S UTC')"
+            echo "**Commit**: ${{ github.sha }}"
+            echo "**Tag**: ${{ github.ref_name }}"
+            echo
+            echo "## Verification Status"
+            echo
+            echo "| check | outcome |"
+            echo "| --- | --- |"
+            echo "| production readiness script | ${{ steps.readiness.outcome }} |"
+            echo "| tests | ${{ steps.tests.outcome }} |"
+            echo "| code quality | ${{ steps.lint.outcome }} |"
+            echo "| documentation | ${{ steps.docs.outcome }} |"
+            echo
+            echo "Each outcome is the one GitHub recorded for the step named beside it."
+            echo "This report does not assert success independently of those outcomes."
+          } > reports/deployment-readiness.md
           cat reports/deployment-readiness.md
-        continue-on-error: true
-      
+
       - name: Upload readiness report
-        uses: actions/upload-artifact@v4
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: deployment-readiness
           path: reports/deployment-readiness.md
           retention-days: 90
-          if-no-files-found: ignore
+          if-no-files-found: error
 
   build:
     name: Build and Push Docker Images
@@ -183,13 +188,11 @@ jobs:
     
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
-      
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-      
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
       - name: Log in to Container Registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
@@ -197,7 +200,7 @@ jobs:
       
       - name: Extract metadata
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
@@ -207,7 +210,7 @@ jobs:
             type=sha
       
       - name: Build and push monolithic image
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
         with:
           context: .
           file: ./docker/Dockerfile
@@ -216,7 +219,6 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-        continue-on-error: true
       
       - name: Build and push microservices images
         run: |
@@ -229,31 +231,30 @@ jobs:
           docker build -f ./docker/Dockerfile.microservices \
             --build-arg SERVICE=puller \
             -t "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.ref_name }}-puller" \
-            . && docker push "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.ref_name }}-puller" || echo "⚠ Puller service build/push failed"
+            . && docker push "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.ref_name }}-puller"
           
           # Build event-processor service
           echo "Building event-processor service..."
           docker build -f ./docker/Dockerfile.microservices \
             --build-arg SERVICE=event-processor \
             -t "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.ref_name }}-event-processor" \
-            . && docker push "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.ref_name }}-event-processor" || echo "⚠ Event-processor service build/push failed"
+            . && docker push "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.ref_name }}-event-processor"
           
           # Build api-service
           echo "Building api-service..."
           docker build -f ./docker/Dockerfile.microservices \
             --build-arg SERVICE=api-service \
             -t "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.ref_name }}-api-service" \
-            . && docker push "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.ref_name }}-api-service" || echo "⚠ API service build/push failed"
+            . && docker push "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.ref_name }}-api-service"
           
           # Build api-gateway
           echo "Building api-gateway..."
           docker build -f ./docker/Dockerfile.microservices \
             --build-arg SERVICE=api-gateway \
             -t "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.ref_name }}-api-gateway" \
-            . && docker push "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.ref_name }}-api-gateway" || echo "⚠ API gateway build/push failed"
+            . && docker push "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.ref_name }}-api-gateway"
           
           echo "✓ Microservices image build/push completed"
-        continue-on-error: true
 
   deploy-staging:
     name: Deploy to Staging
@@ -263,16 +264,26 @@ jobs:
     timeout-minutes: 15
     
     steps:
+      - name: Check kubeconfig availability
+        id: check-kube
+        env:
+          KUBECONFIG_B64: ${{ secrets.KUBECONFIG_STAGING }}
+        run: |
+          if [ -z "$KUBECONFIG_B64" ]; then
+            echo "::error::KUBECONFIG_STAGING is not configured. Staging had no such check, so a missing secret produced an empty kubeconfig, every later step was masked, and the job reported success."
+            exit 1
+          fi
+          echo "available=true" >> "$GITHUB_OUTPUT"
+
       - name: Checkout code
-        uses: actions/checkout@v4
-      
+        if: steps.check-kube.outputs.available == 'true'
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - name: Setup kubectl
-        uses: azure/setup-kubectl@v4
+        uses: azure/setup-kubectl@776406bce94f63e41d621b960d78ee25c8b76ede # v4
         with:
           version: 'latest'
 
       - name: Configure kubeconfig
-        continue-on-error: true
         run: |
           mkdir -p "${HOME}/.kube"
           echo "${{ secrets.KUBECONFIG_STAGING }}" | base64 -d > "${HOME}/.kube/config"
@@ -280,23 +291,19 @@ jobs:
         run: |
           echo "Deploying to staging environment..."
           bash scripts/deploy-staging.sh --monolithic
-        continue-on-error: true
 
       - name: Run smoke tests
         run: |
+          set -euo pipefail
           echo "Running smoke tests on staging..."
-          if [[ -x scripts/verify-staging.sh ]]; then
-            bash scripts/verify-staging.sh
-          else
-            echo "scripts/verify-staging.sh not found, verifying health endpoints..."
-            NAMESPACE="chainpulse"
-            kubectl get pods -n "${NAMESPACE}" -o wide
-            kubectl get svc -n "${NAMESPACE}"
+          if [ ! -x scripts/verify-staging.sh ]; then
+            echo "::error::scripts/verify-staging.sh is missing or not executable. The fallback used to print kubectl output, which asserts nothing and always exits 0."
+            exit 1
           fi
-        continue-on-error: true
+          bash scripts/verify-staging.sh
 
       - name: Notify deployment
-        uses: actions/github-script@v7
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
         with:
           script: |
             try {
@@ -314,7 +321,6 @@ jobs:
             } catch (error) {
               console.log('⚠ Failed to post deployment notification:', error.message);
             }
-        continue-on-error: true
 
   deploy-production:
     name: Deploy to Production
@@ -334,38 +340,38 @@ jobs:
           KUBECONFIG_B64: ${{ secrets.KUBECONFIG_PRODUCTION }}
         run: |
           if [ -z "$KUBECONFIG_B64" ]; then
-            echo "KUBECONFIG_PRODUCTION secret is not configured. Skipping production deployment."
-            echo "available=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "available=true" >> "$GITHUB_OUTPUT"
+            echo "::error::KUBECONFIG_PRODUCTION is not configured. Every deployment step below would be skipped and this job would still conclude success - section 7.5 item 8 forbids reporting a Kubernetes deployment as successful when nothing was deployed."
+            exit 1
           fi
+          echo "available=true" >> "$GITHUB_OUTPUT"
 
       - name: Checkout code
         if: steps.check-kube.outputs.available == 'true'
-        uses: actions/checkout@v4
-
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - name: Setup kubectl
         if: steps.check-kube.outputs.available == 'true'
-        uses: azure/setup-kubectl@v4
+        uses: azure/setup-kubectl@776406bce94f63e41d621b960d78ee25c8b76ede # v4
         with:
           version: 'latest'
 
       - name: Configure kubeconfig
-        continue-on-error: true
         if: steps.check-kube.outputs.available == 'true'
         run: |
           mkdir -p "${HOME}/.kube"
           echo "${{ secrets.KUBECONFIG_PRODUCTION }}" | base64 -d > "${HOME}/.kube/config"
 
       - name: Pre-deployment checks
-        continue-on-error: true
         if: steps.check-kube.outputs.available == 'true'
         run: |
-          echo "Running pre-deployment checks..."
-          bash scripts/verify-production-readiness.sh 2>/dev/null || echo "Pre-checks completed with warnings"
+          set -euo pipefail
+          script=scripts/verify-production-readiness.sh
+          if [ ! -f "$script" ]; then
+            echo "::error::$script does not exist. Reporting success without running it is how the readiness gate became decorative."
+            exit 1
+          fi
+          bash "$script"
 
       - name: Deploy to production
-        continue-on-error: true
         if: steps.check-kube.outputs.available == 'true'
         run: |
           echo "Deploying to production environment..."
@@ -378,11 +384,13 @@ jobs:
           NAMESPACE="chainpulse"
           kubectl get pods -n "${NAMESPACE}" -o wide
           kubectl rollout status deployment/chainpulse-monolithic -n "${NAMESPACE}" --timeout=300s
-          bash scripts/verify-production.sh 2>/dev/null || true
+          # scripts/verify-production.sh does not exist; the rollout status
+          # assertion above is the real check, so the masked call is removed
+          # rather than left to imply a verification that never ran.
 
       - name: Create release notes
         if: steps.check-kube.outputs.available == 'true'
-        uses: actions/github-script@v7
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
         with:
           script: |
             const tag = context.ref.replace('refs/tags/', '');
@@ -410,7 +418,7 @@ jobs:
 
       - name: Notify deployment
         if: steps.check-kube.outputs.available == 'true'
-        uses: actions/github-script@v7
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
         with:
           script: |
             github.rest.repos.createCommitComment({
@@ -454,23 +462,20 @@ jobs:
 
       - name: Checkout code
         if: steps.check-kube.outputs.available == 'true'
-        uses: actions/checkout@v4
-
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - name: Setup kubectl
         if: steps.check-kube.outputs.available == 'true'
-        uses: azure/setup-kubectl@v4
+        uses: azure/setup-kubectl@776406bce94f63e41d621b960d78ee25c8b76ede # v4
         with:
           version: 'latest'
 
       - name: Configure kubeconfig
-        continue-on-error: true
         if: steps.check-kube.outputs.available == 'true'
         run: |
           mkdir -p "${HOME}/.kube"
           echo "${{ secrets.KUBECONFIG_PRODUCTION }}" | base64 -d > "${HOME}/.kube/config"
 
       - name: Initiate rollback
-        continue-on-error: true
         if: steps.check-kube.outputs.available == 'true'
         run: |
           echo "Initiating rollback..."
@@ -496,7 +501,7 @@ jobs:
 
       - name: Notify rollback
         if: steps.check-kube.outputs.available == 'true'
-        uses: actions/github-script@v7
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
         with:
           script: |
             github.rest.repos.createCommitComment({

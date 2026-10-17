@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
 	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
@@ -71,7 +73,7 @@ func (m *MockLogger) Fatal(message string, fields ...any) {
 	m.logs = append(m.logs, fmt.Sprintf("FATAL: %s", message))
 }
 
-func (m *MockLogger) WithCorrelationID(id string) core.Logger {
+func (m *MockLogger) WithCorrelationID(id string) portcontract.Logger {
 	return m
 }
 

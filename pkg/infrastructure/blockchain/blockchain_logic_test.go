@@ -8,12 +8,12 @@ import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/rtcdance/chainpulse/pkg/core"
-	"github.com/rtcdance/chainpulse/pkg/services/query"
+	blockchainmodels "github.com/rtcdance/chainpulse/pkg/blockchain"
+	"github.com/rtcdance/chainpulse/pkg/services/query/circuitbreaker"
 	"github.com/stretchr/testify/assert"
 )
 
-// MockTxTypeResolver implements core.TxTypeResolver for testing
+// MockTxTypeResolver implements blockchainmodels.TxTypeResolver for testing
 type MockTxTypeResolver struct{}
 
 func (m *MockTxTypeResolver) ResolveTxType(_ context.Context, _ string) (uint8, uint8, error) {
@@ -26,7 +26,7 @@ type MockEventValidator struct {
 	shouldFail     bool
 }
 
-func (m *MockEventValidator) Validate(ctx context.Context, event *core.BlockchainEvent) error {
+func (m *MockEventValidator) Validate(ctx context.Context, event *blockchainmodels.BlockchainEvent) error {
 	if m.shouldFail {
 		return fmt.Errorf("validation failed")
 	}
@@ -43,7 +43,7 @@ type MockEventTransformer struct {
 	shouldFail     bool
 }
 
-func (m *MockEventTransformer) Transform(ctx context.Context, event *core.BlockchainEvent) (*core.BlockchainEvent, error) {
+func (m *MockEventTransformer) Transform(ctx context.Context, event *blockchainmodels.BlockchainEvent) (*blockchainmodels.BlockchainEvent, error) {
 	if m.shouldFail {
 		return nil, fmt.Errorf("transformation failed")
 	}
@@ -61,7 +61,7 @@ type MockEventFilter struct {
 	shouldFilter   bool
 }
 
-func (m *MockEventFilter) Filter(ctx context.Context, event *core.BlockchainEvent) bool {
+func (m *MockEventFilter) Filter(ctx context.Context, event *blockchainmodels.BlockchainEvent) bool {
 	return !m.shouldFilter
 }
 
@@ -161,7 +161,7 @@ func TestValidateEvent(t *testing.T) {
 	validator := &MockEventValidator{blockchainType: "ethereum"}
 	_ = bl.AddValidator(validator)
 
-	event := &core.BlockchainEvent{
+	event := &blockchainmodels.BlockchainEvent{
 		ChainID: "ethereum",
 	}
 
@@ -178,7 +178,7 @@ func TestValidateEventFailure(t *testing.T) {
 	validator := &MockEventValidator{blockchainType: "ethereum", shouldFail: true}
 	_ = bl.AddValidator(validator)
 
-	event := &core.BlockchainEvent{
+	event := &blockchainmodels.BlockchainEvent{
 		ChainID: "ethereum",
 	}
 
@@ -195,7 +195,7 @@ func TestTransformEvent(t *testing.T) {
 	transformer := &MockEventTransformer{blockchainType: "ethereum"}
 	_ = bl.AddTransformer(transformer)
 
-	event := &core.BlockchainEvent{
+	event := &blockchainmodels.BlockchainEvent{
 		ChainID:   "ethereum",
 		EventName: "Transfer",
 	}
@@ -214,7 +214,7 @@ func TestTransformEventFailure(t *testing.T) {
 	transformer := &MockEventTransformer{blockchainType: "ethereum", shouldFail: true}
 	_ = bl.AddTransformer(transformer)
 
-	event := &core.BlockchainEvent{
+	event := &blockchainmodels.BlockchainEvent{
 		ChainID: "ethereum",
 	}
 
@@ -231,7 +231,7 @@ func TestFilterEvent(t *testing.T) {
 	filter := &MockEventFilter{blockchainType: "ethereum", shouldFilter: false}
 	_ = bl.AddFilter(filter)
 
-	event := &core.BlockchainEvent{
+	event := &blockchainmodels.BlockchainEvent{
 		ChainID: "ethereum",
 	}
 
@@ -247,7 +247,7 @@ func TestFilterEventFiltered(t *testing.T) {
 	filter := &MockEventFilter{blockchainType: "ethereum", shouldFilter: true}
 	_ = bl.AddFilter(filter)
 
-	event := &core.BlockchainEvent{
+	event := &blockchainmodels.BlockchainEvent{
 		ChainID: "ethereum",
 	}
 
@@ -269,7 +269,7 @@ func TestProcessEvent(t *testing.T) {
 	_ = bl.AddTransformer(transformer)
 	_ = bl.AddFilter(filter)
 
-	event := &core.BlockchainEvent{
+	event := &blockchainmodels.BlockchainEvent{
 		ChainID:   "ethereum",
 		EventName: "Transfer",
 	}
@@ -287,7 +287,7 @@ func TestProcessEventValidationFailure(t *testing.T) {
 	validator := &MockEventValidator{blockchainType: "ethereum", shouldFail: true}
 	_ = bl.AddValidator(validator)
 
-	event := &core.BlockchainEvent{
+	event := &blockchainmodels.BlockchainEvent{
 		ChainID: "ethereum",
 	}
 
@@ -304,7 +304,7 @@ func TestProcessEventFiltered(t *testing.T) {
 	filter := &MockEventFilter{blockchainType: "ethereum", shouldFilter: true}
 	_ = bl.AddFilter(filter)
 
-	event := &core.BlockchainEvent{
+	event := &blockchainmodels.BlockchainEvent{
 		ChainID: "ethereum",
 	}
 
@@ -321,7 +321,7 @@ func TestGetMetrics(t *testing.T) {
 	validator := &MockEventValidator{blockchainType: "ethereum"}
 	_ = bl.AddValidator(validator)
 
-	event := &core.BlockchainEvent{
+	event := &blockchainmodels.BlockchainEvent{
 		ChainID: "ethereum",
 	}
 
@@ -336,7 +336,7 @@ func TestGetMetrics(t *testing.T) {
 func TestSetCircuitBreaker(t *testing.T) {
 	t.Parallel()
 	bl := NewBlockchainLogic("ethereum")
-	cb := query.NewCircuitBreaker(nil)
+	cb := circuitbreaker.New(nil)
 	bl.SetCircuitBreaker(cb)
 	assert.NotNil(t, bl.circuitBreaker)
 }
@@ -417,7 +417,7 @@ func TestManagerProcessEvent(t *testing.T) {
 	_ = logic.AddValidator(validator)
 	_ = manager.RegisterLogic(logic)
 
-	event := &core.BlockchainEvent{
+	event := &blockchainmodels.BlockchainEvent{
 		ChainID: "ethereum",
 	}
 
@@ -454,7 +454,7 @@ func TestNewEVMValidator(t *testing.T) {
 func TestEVMValidatorValidate(t *testing.T) {
 	t.Parallel()
 	validator := NewEVMValidator()
-	event := &core.BlockchainEvent{
+	event := &blockchainmodels.BlockchainEvent{
 		ChainID:         "1", // Ethereum mainnet — a valid EVM chain ID
 		ContractAddress: common.Address{0x1},
 		EventName:       "Transfer",
@@ -469,7 +469,7 @@ func TestEVMValidatorValidate(t *testing.T) {
 func TestEVMValidatorInvalidChainID(t *testing.T) {
 	t.Parallel()
 	validator := NewEVMValidator()
-	event := &core.BlockchainEvent{
+	event := &blockchainmodels.BlockchainEvent{
 		ChainID: "Solana",
 	}
 
@@ -483,7 +483,7 @@ func TestEVMValidatorMissingContractAddress(t *testing.T) {
 	t.Parallel()
 	validator := NewEVMValidator()
 	// Create event with zero address
-	event := &core.BlockchainEvent{
+	event := &blockchainmodels.BlockchainEvent{
 		ChainID:         "1",              // Ethereum mainnet — a valid EVM chain ID
 		ContractAddress: common.Address{}, // Zero address - String() returns "0x0000000000000000000000000000000000000000"
 		EventName:       "Transfer",
@@ -501,7 +501,7 @@ func TestEVMValidatorMissingContractAddress(t *testing.T) {
 func TestEVMValidatorMissingEventName(t *testing.T) {
 	t.Parallel()
 	validator := NewEVMValidator()
-	event := &core.BlockchainEvent{
+	event := &blockchainmodels.BlockchainEvent{
 		ChainID:         "EVM",
 		ContractAddress: common.Address{0x1},
 	}
@@ -524,7 +524,7 @@ func TestNewCosmosValidator(t *testing.T) {
 func TestCosmosValidatorValidate(t *testing.T) {
 	t.Parallel()
 	validator := NewCosmosValidator()
-	event := &core.BlockchainEvent{
+	event := &blockchainmodels.BlockchainEvent{
 		ChainID:   "cosmos", // Cosmos Hub — a valid Cosmos chain ID
 		EventName: "Transfer",
 	}
@@ -538,7 +538,7 @@ func TestCosmosValidatorValidate(t *testing.T) {
 func TestCosmosValidatorInvalidChainID(t *testing.T) {
 	t.Parallel()
 	validator := NewCosmosValidator()
-	event := &core.BlockchainEvent{
+	event := &blockchainmodels.BlockchainEvent{
 		ChainID: "Ethereum",
 	}
 
@@ -560,7 +560,7 @@ func TestNewSolanaValidator(t *testing.T) {
 func TestSolanaValidatorValidate(t *testing.T) {
 	t.Parallel()
 	validator := NewSolanaValidator()
-	event := &core.BlockchainEvent{
+	event := &blockchainmodels.BlockchainEvent{
 		ChainID:   "Solana",
 		EventName: "Transfer",
 	}
@@ -574,7 +574,7 @@ func TestSolanaValidatorValidate(t *testing.T) {
 func TestSolanaValidatorInvalidChainID(t *testing.T) {
 	t.Parallel()
 	validator := NewSolanaValidator()
-	event := &core.BlockchainEvent{
+	event := &blockchainmodels.BlockchainEvent{
 		ChainID: "Ethereum",
 	}
 
@@ -597,7 +597,7 @@ func TestConcurrentValidation(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			event := &core.BlockchainEvent{
+			event := &blockchainmodels.BlockchainEvent{
 				ChainID: "ethereum",
 			}
 			if err := bl.ValidateEvent(context.Background(), event); err == nil {
@@ -625,7 +625,7 @@ func TestConcurrentTransformation(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			event := &core.BlockchainEvent{
+			event := &blockchainmodels.BlockchainEvent{
 				ChainID:   "ethereum",
 				EventName: "Transfer",
 			}
@@ -650,7 +650,7 @@ func TestMultipleValidators(t *testing.T) {
 	_ = bl.AddValidator(validator1)
 	_ = bl.AddValidator(validator2)
 
-	event := &core.BlockchainEvent{
+	event := &blockchainmodels.BlockchainEvent{
 		ChainID: "ethereum",
 	}
 
@@ -670,7 +670,7 @@ func TestMultipleTransformers(t *testing.T) {
 	_ = bl.AddTransformer(transformer1)
 	_ = bl.AddTransformer(transformer2)
 
-	event := &core.BlockchainEvent{
+	event := &blockchainmodels.BlockchainEvent{
 		ChainID:   "ethereum",
 		EventName: "Transfer",
 	}
@@ -688,7 +688,7 @@ func TestMetricsAccuracy(t *testing.T) {
 	validator := &MockEventValidator{blockchainType: "ethereum"}
 	_ = bl.AddValidator(validator)
 
-	event := &core.BlockchainEvent{
+	event := &blockchainmodels.BlockchainEvent{
 		ChainID: "ethereum",
 	}
 

@@ -4,8 +4,9 @@ import (
 	"context"
 	"fmt"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 // RPCBlockHashProvider fetches canonical chain block hashes via eth_getBlockByNumber.
@@ -34,4 +35,4 @@ func (p *RPCBlockHashProvider) GetBlockHash(ctx context.Context, blockNumber uin
 }
 
 // Compile-time check
-var _ core.BlockHashProvider = (*RPCBlockHashProvider)(nil)
+var _ portcontract.BlockHashProvider = (*RPCBlockHashProvider)(nil)

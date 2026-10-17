@@ -1,39 +1,70 @@
 name: CI
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}-${{ inputs.negative_control || 'normal' }}
+  cancel-in-progress: true
+
 on:
+  # D12: `master` is the remote default branch; without it in the list this
+  # gate never fires on the branch that actually protects. main and the
+  # codex/acceptance-wrapup-2026-04-09 branch are kept as-is.
   push:
-    branches: [main, codex/acceptance-wrapup-2026-04-09]
+    branches: [main, master, codex/acceptance-wrapup-2026-04-09]
   pull_request:
-    branches: [main]
+    branches: [main, master]
   workflow_dispatch:
+    inputs:
+      negative_control:
+        description: 'Isolated acceptance fault; none runs normal CI'
+        type: choice
+        default: none
+        options: [none, compile, assertion, timeout, empty, required-skip, coverage]
+
+env:
+  GOPROXY: https://proxy.golang.org|https://goproxy.cn|direct
 
 jobs:
   build:
-    name: Build & Test
+    name: quality
     runs-on: ubuntu-latest
+    timeout-minutes: 5
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
-
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - name: Setup Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
-          go-version: '1.25'
+          go-version-file: go.mod
           cache: true
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Inject isolated acceptance fault
+        if: inputs.negative_control && inputs.negative_control != 'none'
+        env:
+          CONTROL: ${{ inputs.negative_control }}
+        run: python3 scripts/acceptance/ci-negative-control.py --control "$CONTROL" --out build/negative-control
+
+      - name: Upload controlled fault evidence
+        if: always() && inputs.negative_control && inputs.negative_control != 'none'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
-          node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: frontend/package-lock.json
+          name: negative-control-${{ inputs.negative_control }}
+          path: build/negative-control
+          if-no-files-found: error
 
       - name: Format check
+        # gofumpt, not gofmt: `make fmt` / `make fmt-check` are the
+        # repository's formatting gate and they run gofumpt (a stricter
+        # superset of gofmt), so a gofmt-only CI passes files the Makefile
+        # would rewrite. The version is pinned because Makefile installs
+        # @latest; CI pins so the gate does not move under us when a new
+        # gofumpt release changes a rule.
         run: |
-          output=$(gofmt -l .)
+          set -euo pipefail
+          go install mvdan.cc/gofumpt@v0.12.0
+          output=$("$(go env GOPATH)/bin/gofumpt" -l .)
           if [ -n "$output" ]; then
-            echo "Files not formatted:"
+            echo "Files not formatted (gofumpt):"
             echo "$output"
             exit 1
           fi
@@ -41,37 +72,143 @@ jobs:
       - name: Vet
         run: go vet ./...
 
-      - name: Build monolithic
-        run: go build ./cmd/monolithic/chainpulse/
-
-      - name: Build microservices
+      # T15 / §10 DoD: AGENTS.md makes updating docs/project/DEPENDENCY_APPROVAL.md
+      # mandatory when a dependency manifest changes. Until this step existed the
+      # gate ran only inside scripts/dev-micro-loop.sh's self-test loop, which
+      # meant CI never consumed it and the obligation was unenforced.
+      - name: Dependency approval gate (T15)
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: |
-          go build ./cmd/microservices/api-service/
-          go build ./cmd/microservices/api-gateway/
-          go build ./cmd/microservices/event-processor/
-          go build ./cmd/microservices/puller/
+          set -euo pipefail
+          python3 scripts/acceptance/dep-approval-gate.py --self-test
+          base="${BASE_SHA}"
+          if [ -z "$base" ] || [[ "$base" =~ ^0+$ ]]; then
+            # workflow_dispatch and a first push have no usable "before"; the
+            # meaningful comparison is against the default branch.
+            git fetch --depth=1 origin master
+            base="FETCH_HEAD"
+          else
+            # The repository is large (packed history is ~221 MiB), so fetch just
+            # the base commit rather than the whole history.
+            git fetch --depth=1 origin "$base"
+          fi
+          python3 scripts/acceptance/dep-approval-gate.py --base "$base" --head HEAD
 
-      - name: Test (short, with race detector)
-        run: go test -race -short -timeout 120s ./...
+      - name: Query load measurement regression controls
+        run: python3 -m unittest discover -s scripts/bench -p 'query*_test.py' -v
 
-      - name: Integration tests
-        if: github.event_name == 'push'
-        run: go test -timeout 300s -tags=integration ./test/integration/...
+      # Section 7.1: "root ./... is not the whole Go workspace". The commands
+      # above all stop at the current module, so the six nested modules under
+      # pkg/ were never built, vetted or tested - while looking fully covered,
+      # because the root commands are the ones a reader checks. The script
+      # enumerates modules from `go work edit -json` rather than a hard-coded
+      # list, so a new module cannot silently fall outside it.
+      - name: Workspace modules (build, vet, test each)
+        run: bash scripts/check-workspace-modules.sh --no-test
 
-      - name: E2E tests
-        if: github.event_name == 'push'
-        run: go test -timeout 300s -tags=e2e ./test/e2e/...
-
-      - name: Security scan
-        continue-on-error: true
+      # 39 Kubernetes manifests live under k8s/ and nothing in the repository
+      # referenced them - not a workflow, not the Makefile, not a script - so a
+      # manifest that stopped building would only surface at deploy time.
+      # `kubectl kustomize` builds each overlay client-side and needs no cluster.
+      - name: Kubernetes manifests build
         run: |
-          go install golang.org/x/vuln/cmd/govulncheck@latest
-          govulncheck ./...
+          set -euo pipefail
+          command -v kubectl >/dev/null || {
+            echo "::error::kubectl is not available, so the manifests cannot be validated"
+            exit 1
+          }
+          for overlay in k8s/base k8s/overlays/monolithic k8s/overlays/microservice; do
+            out=$(kubectl kustomize "$overlay")
+            count=$(printf '%s\n' "$out" | grep -c '^kind:' || true)
+            echo "  $overlay: ${count} resources"
+            if [ "${count:-0}" -lt 1 ]; then
+              echo "::error::$overlay built no resources"
+              exit 1
+            fi
+          done
 
+  image-build:
+    if: ${{ !inputs.negative_control || inputs.negative_control == 'none' }}
+    name: image-build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - name: Docker build (all targets)
         run: |
-          docker build --target=monolithic -f docker/Dockerfile -t chainpulse-monolithic:ci .
-          docker build --target=puller -f docker/Dockerfile -t chainpulse-puller:ci .
-          docker build --target=event-processor -f docker/Dockerfile -t chainpulse-event-processor:ci .
-          docker build --target=api-service -f docker/Dockerfile -t chainpulse-api-service:ci .
-          docker build --target=api-gateway -f docker/Dockerfile -t chainpulse-api-gateway:ci .
+          set -euo pipefail
+          for target in monolithic puller event-processor api-service api-gateway; do
+            docker build --target="$target" -f docker/Dockerfile -t "chainpulse-$target:ci" .
+          done
+
+  # D12/plan §7.3: one place that says "this commit is releasable". It does
+  # not re-run tests; it reads the conclusions the lanes above and in
+  # test.yml already produced for this SHA and fails unless every required
+  # check concluded successfully. Missing or in-progress is a failure -
+  # a gate that cannot fail is decorative. `if: always()` so a red build
+  # (needs) still runs the gate and turns it red, rather than leaving the
+  # required check absent from the checks list.
+  acceptance-gate:
+    name: acceptance-gate
+    runs-on: ubuntu-latest
+    needs: [build]
+    if: always()
+    permissions:
+      checks: read
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      # check runs may not be concluded when this job starts. Poll (bounded)
+      # until every required name has a conclusion, then evaluate. A lane
+      # that never concludes is reported by the gate as missing/in_progress;
+      # it is neither waited on forever nor silently ignored.
+      - name: Wait for required lanes to conclude
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CANDIDATE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os, subprocess, sys, time
+
+          required = json.load(open("test/acceptance/required-checks.json"))["required"]
+          if not required or len(required) != len(set(required)):
+              sys.exit("required-check policy is empty or duplicated")
+          api = (f"repos/{os.environ['GITHUB_REPOSITORY']}"
+                 f"/commits/{os.environ['CANDIDATE_SHA']}/check-runs"
+                 "?per_page=100&filter=latest")
+
+          for attempt in range(1, 61):  # bounded 30-minute wait for all mandatory workflows
+              raw = subprocess.check_output(["gh", "api", api], env=os.environ)
+              # Persist every poll so the evaluate step always has the latest
+              # snapshot, including when this loop times out on a still-running
+              # lane: the gate then reports it as missing/in_progress.
+              with open("checks.json", "wb") as fh:
+                  fh.write(raw)
+
+              checks = {r["name"]: (r.get("conclusion") or "in_progress")
+                        for r in json.loads(raw).get("check_runs", [])}
+              pending = [n for n in required
+                         if checks.get(n, "missing") in ("in_progress", "missing")]
+              failed = [n for n in required if checks.get(n) not in (None, "missing", "in_progress", "success")]
+              if failed:
+                  print(f"required lane already failed: {failed}; evaluate immediately", flush=True)
+                  sys.exit(0)
+              if not pending:
+                  sys.exit(0)
+              print(f"poll {attempt}/60: waiting on {pending}", flush=True)
+              time.sleep(30)
+
+          print("::warning::timed out waiting for required checks; "
+                "the gate will report them as missing/in_progress", flush=True)
+          PY
+
+      - name: Evaluate the gate
+        run: |
+          set -euo pipefail
+          python3 scripts/acceptance/acceptance-gate.py \
+            --checks checks.json \
+            --policy test/acceptance/required-checks.json

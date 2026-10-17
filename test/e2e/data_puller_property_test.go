@@ -80,6 +80,9 @@ func TestDataPullerEventCollectionCompleteness(t *testing.T) {
 					ChainID:         "31337",
 					RetryCount:      0,
 				}
+				if err := dataPullerMgr.AddCollectedEvent(ctx, collectedEvents[i]); err != nil {
+					t.Fatalf("failed to add collected event: %v", err)
+				}
 			}
 
 			// Validate collection
@@ -216,7 +219,9 @@ func TestDataPullerEventFilteringAccuracy(t *testing.T) {
 
 	// Add events to manager
 	for _, event := range testEvents {
-		dataPullerMgr.(*DefaultDataPullerManager).addCollectedEvent(event)
+		if err := dataPullerMgr.AddCollectedEvent(ctx, event); err != nil {
+			t.Fatalf("failed to add collected event: %v", err)
+		}
 	}
 
 	// Property test: Filtered results must match filter criteria
@@ -331,7 +336,9 @@ func TestDataPullerPaginationCorrectness(t *testing.T) {
 			LogIndex:        logIndex,
 			ChainID:         "31337",
 		}
-		dataPullerMgr.(*DefaultDataPullerManager).addCollectedEvent(event)
+		if err := dataPullerMgr.AddCollectedEvent(ctx, event); err != nil {
+			t.Fatalf("failed to add collected event: %v", err)
+		}
 	}
 
 	// Property test: Pagination must be consistent
@@ -431,7 +438,9 @@ func TestDataPullerMetricsAccuracy(t *testing.T) {
 					LogIndex:        logIndex,
 					ChainID:         "31337",
 				}
-				dpm.addCollectedEvent(event)
+				if err := dataPullerMgr.AddCollectedEvent(ctx, event); err != nil {
+					t.Fatalf("failed to add collected event: %v", err)
+				}
 			}
 
 			// Get metrics
@@ -508,7 +517,9 @@ func TestDataPullerReorgHandlingCorrectness(t *testing.T) {
 			LogIndex:        uint32(i),
 			ChainID:         "31337",
 		}
-		dataPullerMgr.(*DefaultDataPullerManager).addCollectedEvent(event)
+		if err := dataPullerMgr.AddCollectedEvent(ctx, event); err != nil {
+			t.Fatalf("failed to add collected event: %v", err)
+		}
 	}
 
 	// Property test: Reorg must correctly identify affected transactions

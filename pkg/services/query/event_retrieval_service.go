@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"time"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"github.com/rtcdance/chainpulse/pkg/core"
 	domainquery "github.com/rtcdance/chainpulse/pkg/domain/query"
 )
@@ -13,7 +16,7 @@ import (
 type EventRetrievalService struct {
 	eventStore    EventStore
 	metadataStore EventMetadataStore
-	logger        core.Logger
+	logger        portcontract.Logger
 	metrics       core.MetricsCollector
 	initialized   bool
 }
@@ -22,7 +25,7 @@ type EventRetrievalService struct {
 func NewEventRetrievalService(
 	eventStore EventStore,
 	metadataStore EventMetadataStore,
-	logger core.Logger,
+	logger portcontract.Logger,
 	metrics core.MetricsCollector,
 ) *EventRetrievalService {
 	return &EventRetrievalService{
@@ -60,7 +63,7 @@ func (s *EventRetrievalService) Initialize(ctx context.Context) error {
 
 // EventWithMetadata represents an event with its metadata
 type EventWithMetadata struct {
-	Event    *core.BlockchainEvent
+	Event    *blockchain.BlockchainEvent
 	Metadata *EventMetadata
 }
 
@@ -312,7 +315,7 @@ func (s *EventRetrievalService) Close(ctx context.Context) error {
 
 // attachMetadata fetches metadata for all events in a single batch query and
 // joins them into EventWithMetadata results.
-func (s *EventRetrievalService) attachMetadata(ctx context.Context, events []*core.BlockchainEvent) ([]*EventWithMetadata, error) {
+func (s *EventRetrievalService) attachMetadata(ctx context.Context, events []*blockchain.BlockchainEvent) ([]*EventWithMetadata, error) {
 	if len(events) == 0 {
 		return []*EventWithMetadata{}, nil
 	}

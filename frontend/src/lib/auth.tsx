@@ -34,6 +34,10 @@ export function getStoredAddress(): string | null {
   return localStorage.getItem(AUTH_ADDRESS_KEY)
 }
 
+function extractErrorMessage(err: Record<string, unknown>): string {
+  return (err.error as Record<string, unknown> | undefined)?.message as string || err.message as string || ''
+}
+
 async function fetchSIWEChallenge(address: string): Promise<{ message: string; nonce: string }> {
   const baseUrl = getHttpBaseUrl()
   const resp = await fetch(`${baseUrl}/auth/siwe/challenge`, {
@@ -43,7 +47,7 @@ async function fetchSIWEChallenge(address: string): Promise<{ message: string; n
   })
   if (!resp.ok) {
     const err = await resp.json().catch(() => ({ message: 'Challenge request failed' }))
-    throw new Error((err as Record<string, unknown>).message as string || 'Challenge request failed')
+    throw new Error(extractErrorMessage(err) || 'Challenge request failed')
   }
   const data = await resp.json()
   return { message: data.data.message, nonce: data.data.nonce }
@@ -58,7 +62,7 @@ async function verifySIWE(message: string, signature: string): Promise<{ token: 
   })
   if (!resp.ok) {
     const err = await resp.json().catch(() => ({ message: 'Verification failed' }))
-    throw new Error((err as Record<string, unknown>).message as string || 'Verification failed')
+    throw new Error(extractErrorMessage(err) || 'Verification failed')
   }
   const data = await resp.json()
   return { token: data.data.token, address: data.data.address }

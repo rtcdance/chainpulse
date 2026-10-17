@@ -41,6 +41,7 @@ func IsPprofPath(path string) bool {
 	return strings.HasPrefix(path, "/debug/pprof")
 }
 
+//nolint:unused // exercised by tests only
 func registerPprof(mux *http.ServeMux) {
 	RegisterPprofEndpoints(mux)
 }

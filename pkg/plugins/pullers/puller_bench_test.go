@@ -3,13 +3,15 @@ package pullers
 import (
 	"testing"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 // BenchmarkEthLogToEvent measures the performance of converting a types.Log
-// to a core.BlockchainEvent. This is called for every event log from the chain.
+// to a blockchain.BlockchainEvent. This is called for every event log from the chain.
 func BenchmarkEthLogToEvent(b *testing.B) {
 	puller := newBenchPuller()
 
@@ -83,9 +85,9 @@ func newBenchPuller() *HTTPSJSONRPCPuller {
 
 type benchPullerLogger struct{}
 
-func (l *benchPullerLogger) Debug(_ string, _ ...any)               {}
-func (l *benchPullerLogger) Info(_ string, _ ...any)                {}
-func (l *benchPullerLogger) Warn(_ string, _ ...any)                {}
-func (l *benchPullerLogger) Error(_ string, _ ...any)               {}
-func (l *benchPullerLogger) Fatal(_ string, _ ...any)               {}
-func (l *benchPullerLogger) WithCorrelationID(_ string) core.Logger { return l }
+func (l *benchPullerLogger) Debug(_ string, _ ...any)                       {}
+func (l *benchPullerLogger) Info(_ string, _ ...any)                        {}
+func (l *benchPullerLogger) Warn(_ string, _ ...any)                        {}
+func (l *benchPullerLogger) Error(_ string, _ ...any)                       {}
+func (l *benchPullerLogger) Fatal(_ string, _ ...any)                       {}
+func (l *benchPullerLogger) WithCorrelationID(_ string) portcontract.Logger { return l }

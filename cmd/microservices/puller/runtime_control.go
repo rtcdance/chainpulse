@@ -6,6 +6,8 @@ import (
 	"sync"
 	"time"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
 	"github.com/rtcdance/chainpulse/pkg/core"
 	pluginapi "github.com/rtcdance/chainpulse/pkg/plugins/api"
 	"github.com/rtcdance/chainpulse/pkg/plugins/pullers"
@@ -134,7 +136,7 @@ func executePullerPollTick(
 	ctx context.Context,
 	puller *pullers.MultiChainDataPuller,
 	config PullerConfig,
-	logger core.Logger,
+	logger portcontract.Logger,
 	metrics core.MetricsCollector,
 	checkpointSource pullerCheckpointSource,
 	progress *pullerLoopRuntimeProgress,

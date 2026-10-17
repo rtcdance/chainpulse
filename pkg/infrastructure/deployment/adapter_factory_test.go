@@ -6,21 +6,31 @@ import (
 	"os"
 	"testing"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 type testMQPlugin struct{}
 
-func (t *testMQPlugin) Name() string                                                    { return "test-mq" }
+func (t *testMQPlugin) Name() string { return "test-mq" }
+
 func (t *testMQPlugin) Publish(ctx context.Context, topic string, message []byte) error { return nil }
+
 func (t *testMQPlugin) Subscribe(ctx context.Context, topic string, handler func([]byte)) error {
 	return nil
 }
+
 func (t *testMQPlugin) GetQueueDepth(ctx context.Context, topic string) (int64, error) { return 0, nil }
-func (t *testMQPlugin) Initialize(ctx context.Context, config core.Config) error       { return nil }
-func (t *testMQPlugin) Start(ctx context.Context) error                                { return nil }
-func (t *testMQPlugin) Stop(ctx context.Context) error                                 { return nil }
-func (t *testMQPlugin) Health(ctx context.Context) error                               { return nil }
+
+func (t *testMQPlugin) Initialize(ctx context.Context, config core.Config) error { return nil }
+
+func (t *testMQPlugin) Start(ctx context.Context) error { return nil }
+
+func (t *testMQPlugin) Stop(ctx context.Context) error { return nil }
+
+func (t *testMQPlugin) Health(ctx context.Context) error { return nil }
 
 type testCachePlugin struct{}
 
@@ -30,7 +40,7 @@ func (t *testCachePlugin) Set(ctx context.Context, key string, value []byte, ttl
 	return nil
 }
 func (t *testCachePlugin) Delete(ctx context.Context, key string) error             { return nil }
-func (t *testCachePlugin) GetStats() core.CacheStats                                { return core.CacheStats{} }
+func (t *testCachePlugin) GetStats() portcontract.CacheStats                        { return portcontract.CacheStats{} }
 func (t *testCachePlugin) HealthCheck(ctx context.Context) error                    { return nil }
 func (t *testCachePlugin) Initialize(ctx context.Context, config core.Config) error { return nil }
 func (t *testCachePlugin) Start(ctx context.Context) error                          { return nil }
@@ -40,41 +50,55 @@ func (t *testCachePlugin) Health(ctx context.Context) error                     
 type testDatabasePlugin struct{}
 
 func (t *testDatabasePlugin) Name() string { return "test-db" }
-func (t *testDatabasePlugin) GetEvent(ctx context.Context, id string) (*core.BlockchainEvent, error) {
+func (t *testDatabasePlugin) GetEvent(ctx context.Context, id string) (*blockchain.BlockchainEvent, error) {
 	return nil, nil
 }
+
 func (t *testDatabasePlugin) QueryEvents(ctx context.Context, filter any) ([]any, error) {
 	return nil, nil
 }
-func (t *testDatabasePlugin) GetAllEvents(ctx context.Context) ([]*core.BlockchainEvent, error) {
+
+func (t *testDatabasePlugin) GetAllEvents(ctx context.Context) ([]*blockchain.BlockchainEvent, error) {
 	return nil, nil
 }
-func (t *testDatabasePlugin) GetEventsByBlockRange(ctx context.Context, fromBlock, toBlock uint64) ([]*core.BlockchainEvent, error) {
+
+func (t *testDatabasePlugin) GetEventsByBlockRange(ctx context.Context, fromBlock, toBlock uint64) ([]*blockchain.BlockchainEvent, error) {
 	return nil, nil
 }
-func (t *testDatabasePlugin) StoreEvent(ctx context.Context, event any) error          { return nil }
+
+func (t *testDatabasePlugin) StoreEvent(ctx context.Context, event any) error { return nil }
+
 func (t *testDatabasePlugin) BatchStoreEvents(ctx context.Context, events []any) error { return nil }
-func (t *testDatabasePlugin) DeleteEvent(ctx context.Context, eventID string) error    { return nil }
+
+func (t *testDatabasePlugin) DeleteEvent(ctx context.Context, eventID string) error { return nil }
+
 func (t *testDatabasePlugin) DeleteEventsByBlockRange(ctx context.Context, fromBlock, toBlock uint64) (int64, error) {
 	return 0, nil
 }
+
 func (t *testDatabasePlugin) MarkEventsAsReorged(ctx context.Context, fromBlock, toBlock uint64) (int64, error) {
 	return 0, nil
 }
-func (t *testDatabasePlugin) GetBlock(ctx context.Context, blockNumber uint64) (*core.Block, error) {
+
+func (t *testDatabasePlugin) GetBlock(ctx context.Context, blockNumber uint64) (*blockchain.Block, error) {
 	return nil, nil
 }
 func (t *testDatabasePlugin) GetLatestBlock(ctx context.Context) (uint64, error) { return 0, nil }
-func (t *testDatabasePlugin) GetAllBlocks(ctx context.Context) ([]*core.Block, error) {
+func (t *testDatabasePlugin) GetAllBlocks(ctx context.Context) ([]*blockchain.Block, error) {
 	return nil, nil
 }
-func (t *testDatabasePlugin) GetReorgStats(ctx context.Context) (*core.ReorgStats, error) {
+
+func (t *testDatabasePlugin) GetReorgStats(ctx context.Context) (*portcontract.ReorgStats, error) {
 	return nil, nil
 }
+
 func (t *testDatabasePlugin) Initialize(ctx context.Context, config core.Config) error { return nil }
-func (t *testDatabasePlugin) Start(ctx context.Context) error                          { return nil }
-func (t *testDatabasePlugin) Stop(ctx context.Context) error                           { return nil }
-func (t *testDatabasePlugin) Health(ctx context.Context) error                         { return nil }
+
+func (t *testDatabasePlugin) Start(ctx context.Context) error { return nil }
+
+func (t *testDatabasePlugin) Stop(ctx context.Context) error { return nil }
+
+func (t *testDatabasePlugin) Health(ctx context.Context) error { return nil }
 
 func TestNewAdapterFactory(t *testing.T) {
 	t.Parallel()

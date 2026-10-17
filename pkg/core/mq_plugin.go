@@ -48,6 +48,7 @@ type MessageQueueMessage struct {
 	Payload          []byte
 	Timestamp        time.Time
 	Offset           int64
+	Partition        int
 	PartitionKey     string
 	RetryCount       int
 	DeadLetterReason string

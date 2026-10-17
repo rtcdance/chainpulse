@@ -5,6 +5,9 @@ import (
 	"testing"
 	"time"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
@@ -17,43 +20,43 @@ func (m *mockEventStoreDegradation) Initialize(ctx context.Context) error {
 	return nil
 }
 
-func (m *mockEventStoreDegradation) InsertEvent(ctx context.Context, event *core.BlockchainEvent) error {
+func (m *mockEventStoreDegradation) InsertEvent(ctx context.Context, event *blockchain.BlockchainEvent) error {
 	return nil
 }
 
-func (m *mockEventStoreDegradation) InsertEventBatch(ctx context.Context, events []*core.BlockchainEvent) error {
+func (m *mockEventStoreDegradation) InsertEventBatch(ctx context.Context, events []*blockchain.BlockchainEvent) error {
 	return nil
 }
 
-func (m *mockEventStoreDegradation) GetEvent(ctx context.Context, eventID string) (*core.BlockchainEvent, error) {
+func (m *mockEventStoreDegradation) GetEvent(ctx context.Context, eventID string) (*blockchain.BlockchainEvent, error) {
 	return nil, nil
 }
 
-func (m *mockEventStoreDegradation) GetEventsByChain(ctx context.Context, chainID int, limit int, offset int) ([]*core.BlockchainEvent, error) {
+func (m *mockEventStoreDegradation) GetEventsByChain(ctx context.Context, chainID int, limit int, offset int) ([]*blockchain.BlockchainEvent, error) {
 	return nil, nil
 }
 
-func (m *mockEventStoreDegradation) GetEventsByContract(ctx context.Context, contractAddress string, limit int, offset int) ([]*core.BlockchainEvent, error) {
+func (m *mockEventStoreDegradation) GetEventsByContract(ctx context.Context, contractAddress string, limit int, offset int) ([]*blockchain.BlockchainEvent, error) {
 	return nil, nil
 }
 
-func (m *mockEventStoreDegradation) GetEventsByEventName(ctx context.Context, eventName string, limit int, offset int) ([]*core.BlockchainEvent, error) {
+func (m *mockEventStoreDegradation) GetEventsByEventName(ctx context.Context, eventName string, limit int, offset int) ([]*blockchain.BlockchainEvent, error) {
 	return nil, nil
 }
 
-func (m *mockEventStoreDegradation) GetEventsByBlock(ctx context.Context, blockNumber int64) ([]*core.BlockchainEvent, error) {
+func (m *mockEventStoreDegradation) GetEventsByBlock(ctx context.Context, blockNumber int64) ([]*blockchain.BlockchainEvent, error) {
 	return nil, nil
 }
 
-func (m *mockEventStoreDegradation) GetEventsByAddress(ctx context.Context, address string, limit int) ([]*core.BlockchainEvent, error) {
+func (m *mockEventStoreDegradation) GetEventsByAddress(ctx context.Context, address string, limit int) ([]*blockchain.BlockchainEvent, error) {
 	return nil, nil
 }
 
-func (m *mockEventStoreDegradation) GetEventsByName(ctx context.Context, eventName string, limit int) ([]*core.BlockchainEvent, error) {
+func (m *mockEventStoreDegradation) GetEventsByName(ctx context.Context, eventName string, limit int) ([]*blockchain.BlockchainEvent, error) {
 	return nil, nil
 }
 
-func (m *mockEventStoreDegradation) GetEventsPaginated(ctx context.Context, cursor string, limit int) ([]*core.BlockchainEvent, bool, error) {
+func (m *mockEventStoreDegradation) GetEventsPaginated(ctx context.Context, cursor string, limit int) ([]*blockchain.BlockchainEvent, bool, error) {
 	return nil, false, nil
 }
 
@@ -76,8 +79,12 @@ func (m *mockEventStoreDegradation) Close(ctx context.Context) error {
 	return nil
 }
 
-func (m *mockEventStoreDegradation) GetEventsByCorrelationID(ctx context.Context, correlationID string, limit int, offset int) ([]*core.BlockchainEvent, error) {
+func (m *mockEventStoreDegradation) GetEventsByCorrelationID(ctx context.Context, correlationID string, limit int, offset int) ([]*blockchain.BlockchainEvent, error) {
 	return nil, nil
+}
+
+func (m *mockEventStoreDegradation) GetEventStats(ctx context.Context) (map[string]int64, map[string]int64, int64, error) {
+	return make(map[string]int64), make(map[string]int64), 0, nil
 }
 
 // MockEventMetadataStore for testing
@@ -141,27 +148,27 @@ func (m *MockCacheService) Stop(ctx context.Context) error {
 	return nil
 }
 
-func (m *MockCacheService) Get(ctx context.Context, key string) ([]core.BlockchainEvent, error) {
+func (m *MockCacheService) Get(ctx context.Context, key string) ([]blockchain.BlockchainEvent, error) {
 	return nil, nil
 }
 
-func (m *MockCacheService) GetSingle(ctx context.Context, key string) (*core.BlockchainEvent, error) {
+func (m *MockCacheService) GetSingle(ctx context.Context, key string) (*blockchain.BlockchainEvent, error) {
 	return nil, nil
 }
 
-func (m *MockCacheService) Set(ctx context.Context, key string, value []core.BlockchainEvent, ttl time.Duration) error {
+func (m *MockCacheService) Set(ctx context.Context, key string, value []blockchain.BlockchainEvent, ttl time.Duration) error {
 	return nil
 }
 
-func (m *MockCacheService) SetSingle(ctx context.Context, key string, value *core.BlockchainEvent, ttl time.Duration) error {
+func (m *MockCacheService) SetSingle(ctx context.Context, key string, value *blockchain.BlockchainEvent, ttl time.Duration) error {
 	return nil
 }
 
-func (m *MockCacheService) SetQueryResult(ctx context.Context, key string, events []core.BlockchainEvent, total int64, ttl time.Duration) error {
+func (m *MockCacheService) SetQueryResult(ctx context.Context, key string, events []blockchain.BlockchainEvent, total int64, ttl time.Duration) error {
 	return nil
 }
 
-func (m *MockCacheService) GetQueryResult(ctx context.Context, key string) ([]core.BlockchainEvent, int64, error) {
+func (m *MockCacheService) GetQueryResult(ctx context.Context, key string) ([]blockchain.BlockchainEvent, int64, error) {
 	return nil, 0, nil
 }
 
@@ -184,7 +191,7 @@ func (m *MockLogger) Info(msg string, fields ...any)  {}
 func (m *MockLogger) Warn(msg string, fields ...any)  {}
 func (m *MockLogger) Error(msg string, fields ...any) {}
 func (m *MockLogger) Fatal(msg string, fields ...any) {}
-func (m *MockLogger) WithCorrelationID(id string) core.Logger {
+func (m *MockLogger) WithCorrelationID(id string) portcontract.Logger {
 	return m
 }
 

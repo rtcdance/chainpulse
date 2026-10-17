@@ -5,6 +5,8 @@ import (
 	"strings"
 	"time"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
 	"github.com/rtcdance/chainpulse/pkg/core"
 	"github.com/rtcdance/chainpulse/pkg/env"
 	"github.com/rtcdance/chainpulse/pkg/plugins/api"
@@ -24,7 +26,7 @@ type SecurityControlsConfig struct {
 
 // BuildSecurityControls creates AuthMiddleware and RateLimitMiddleware from a shared config.
 // Returns (nil, nil, nil) when both auth and rate limit are disabled.
-func BuildSecurityControls(cfg SecurityControlsConfig, logger core.Logger, metrics core.MetricsCollector) (*api.AuthMiddleware, *api.RateLimitMiddleware, error) {
+func BuildSecurityControls(cfg SecurityControlsConfig, logger portcontract.Logger, metrics core.MetricsCollector) (*api.AuthMiddleware, *api.RateLimitMiddleware, error) {
 	if !cfg.AuthEnabled && !cfg.RateLimitEnabled {
 		return nil, nil, nil
 	}

@@ -2,6 +2,7 @@ package pullers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"math/big"
@@ -11,16 +12,22 @@ import (
 	"sync/atomic"
 	"time"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
+	"github.com/rtcdance/chainpulse/pkg/chainid"
 	"github.com/rtcdance/chainpulse/pkg/core"
 	"github.com/rtcdance/chainpulse/pkg/core/eventsig"
 	"github.com/rtcdance/chainpulse/pkg/core/topics"
 	"github.com/rtcdance/chainpulse/pkg/evm"
 	"github.com/rtcdance/chainpulse/pkg/observability"
+	"github.com/rtcdance/chainpulse/pkg/services/finality"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/ethereum/go-ethereum/rpc"
 )
 
 // HTTPSJSONRPCPuller implements HTTPS-JSONRPC protocol for pulling blockchain events
@@ -38,18 +45,19 @@ type endpointStats struct {
 
 type HTTPSJSONRPCPuller struct {
 	*BaseDataPullerPlugin
-	mu                sync.RWMutex
-	ethClient         *ethclient.Client
-	nodeURL           string
-	currentBlock      uint64
-	pollInterval      time.Duration
-	stopChan          chan bool
-	eventHandlers     []func(core.BlockchainEvent)
-	requestCounter    int64
-	tracer            *observability.DefaultTracer
-	redRecorder       *observability.REDRecorder
-	nextRequestID     uint64 // atomic counter for correlation ids
-	lastVerifiedBlock uint64 // last block where parent hash chain was verified
+	mu                 sync.RWMutex
+	ethClient          *ethclient.Client
+	nodeURL            string
+	currentBlock       uint64
+	pollInterval       time.Duration
+	stopChan           chan bool
+	eventHandlers      []func(blockchain.BlockchainEvent)
+	completedRange     func(context.Context, uint64, uint64, []blockchain.BlockchainEvent) error
+	validateCheckpoint func(context.Context) error
+	requestCounter     int64
+	tracer             *observability.DefaultTracer
+	redRecorder        *observability.REDRecorder
+	lastVerifiedBlock  uint64 // last block where parent hash chain was verified
 	// Parent hash chain verification tuning
 	reorgVerifyInterval uint64 // blocks between full chain verification checks (default: 100)
 	reorgSamplingStep   uint64 // sampling step within verification (default: 10)
@@ -62,6 +70,9 @@ type HTTPSJSONRPCPuller struct {
 	nodeURLs          []string // mirrors failoverClients for logging
 	endpointStats     []*endpointStats
 	rankedPool        sync.Pool
+	// finalityRegistry caps the pull target below the head per chain strategy.
+	// Nil means no cap (process latest head), which preserves pre-D7 behavior.
+	finalityRegistry *finality.Registry
 }
 
 type rankedEndpoint struct {
@@ -75,9 +86,9 @@ type rankedEndpoint struct {
 // construction never blocks and errors are handled at startup time.
 func NewHTTPSJSONRPCPuller(
 	config core.Config,
-	logger core.Logger,
+	logger portcontract.Logger,
 	metricsCollector core.MetricsCollector,
-	eventBus core.EventBus,
+	eventBus portcontract.EventBus,
 ) *HTTPSJSONRPCPuller {
 	base := NewBaseDataPullerPlugin("https-jsonrpc", "1.0.0", config, logger, metricsCollector, eventBus)
 
@@ -87,8 +98,8 @@ func NewHTTPSJSONRPCPuller(
 		currentBlock:         config.StartBlock,
 		pollInterval:         5 * time.Second,
 		stopChan:             make(chan bool),
-		eventHandlers:        make([]func(core.BlockchainEvent), 0),
-		tracer:               observability.NewDefaultTracer(logger, metricsCollector),
+		eventHandlers:        make([]func(blockchain.BlockchainEvent), 0),
+		tracer:               observability.NewSharedTracer(logger, metricsCollector),
 		redRecorder:          observability.NewREDRecorder(metricsCollector),
 		reorgVerifyInterval:  100, // default: check every 100 blocks
 		reorgSamplingStep:    10,  // default: sample every 10th block
@@ -109,16 +120,130 @@ func (p *HTTPSJSONRPCPuller) SetEthClient(client *ethclient.Client) {
 	p.ethClient = client
 }
 
+// SetFinalityRegistry installs the per-chain finality strategy used to cap the
+// pull target below the chain head. Passing nil disables the cap.
+func (p *HTTPSJSONRPCPuller) SetFinalityRegistry(registry *finality.Registry) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.finalityRegistry = registry
+}
+
+func (p *HTTPSJSONRPCPuller) getFinalityRegistry() *finality.Registry {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	return p.finalityRegistry
+}
+
+// ResolveFinalityTarget exposes the same policy to the native manual-poll
+// coordinator. fallback is its legacy target height when no policy was set.
+func (p *HTTPSJSONRPCPuller) ResolveFinalityTarget(ctx context.Context, latest, fallback uint64) uint64 {
+	if p.getFinalityRegistry() == nil {
+		return fallback
+	}
+	return p.finalityTarget(ctx, latest)
+}
+
+// finalityTarget returns the highest block this puller should process for the
+// configured chain, given the node's latest head. A nil registry returns the
+// head unchanged (no cap). Tag strategies resolve via RPC and fall back to the
+// head when the tag lookup fails, so a finality-node hiccup degrades to
+// latest-head processing instead of stalling the pipeline.
+func (p *HTTPSJSONRPCPuller) finalityTarget(ctx context.Context, latest uint64) uint64 {
+	registry := p.getFinalityRegistry()
+	if registry == nil {
+		return latest
+	}
+	strategy := registry.StrategyFor(p.ChainID())
+	switch strategy.Mode {
+	case finality.StrategyConfirmations:
+		return strategy.CapHeight(latest)
+	case finality.StrategyLatest:
+		return latest
+	case finality.StrategyTag:
+		probeCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		defer cancel()
+		tagged, err := p.blockNumberByTag(probeCtx, strategy.Tag)
+		if err != nil {
+			p.LogWarn("finality tag lookup failed; falling back to latest head",
+				"tag", strategy.Tag, "error", err.Error())
+			return latest
+		}
+		if tagged > latest {
+			return latest
+		}
+		return tagged
+	default:
+		return latest
+	}
+}
+
+func (p *HTTPSJSONRPCPuller) blockNumberByTag(ctx context.Context, tag string) (uint64, error) {
+	p.mu.RLock()
+	client := p.ethClient
+	p.mu.RUnlock()
+	if client == nil {
+		return 0, fmt.Errorf("ethereum client not initialized")
+	}
+	var number *big.Int
+	switch tag {
+	case "latest":
+		number = big.NewInt(int64(rpc.LatestBlockNumber))
+	case "safe":
+		number = big.NewInt(int64(rpc.SafeBlockNumber))
+	case "finalized":
+		number = big.NewInt(int64(rpc.FinalizedBlockNumber))
+	default:
+		return 0, fmt.Errorf("unsupported finality tag %q", tag)
+	}
+	header, err := client.HeaderByNumber(ctx, number)
+	if err != nil {
+		return 0, fmt.Errorf("header by tag %q: %w", tag, err)
+	}
+	if header == nil || header.Number == nil || !header.Number.IsUint64() {
+		return 0, fmt.Errorf("header by tag %q: invalid numeric header", tag)
+	}
+	return header.Number.Uint64(), nil
+}
+
+// ChainIDMismatchError reports that the RPC node demonstrably serves a
+// different chain than the puller is configured for. Start refuses to run on
+// it: indexing the wrong chain silently produces wrong data, which is worse
+// than a startup failure.
+type ChainIDMismatchError struct {
+	NodeChainID string
+	Expected    uint64
+	Configured  string
+}
+
+func (e *ChainIDMismatchError) Error() string {
+	return fmt.Sprintf("RPC chain ID mismatch: node returned %s, expected %d (configured as %q)",
+		e.NodeChainID, e.Expected, e.Configured)
+}
+
 // VerifyChainID calls eth_chainId on the RPC node and compares it with the
 // configured chain ID. Returns an error if the node serves a different chain.
+//
+// The configured identifier may be a name ("ethereum") or a number ("1"), while
+// eth_chainId always answers with a number, so both sides are resolved to a
+// numeric ID before comparing. Comparing the raw strings made every named chain
+// report a mismatch — a warning that was always on, and therefore useless.
 func (p *HTTPSJSONRPCPuller) VerifyChainID(ctx context.Context) error {
 	if p.ethClient == nil {
 		return fmt.Errorf("ethereum client not initialized")
 	}
 
-	expectedChainID := p.ChainID()
-	if expectedChainID == "" {
+	configured := p.ChainID()
+	if configured == "" {
 		p.LogWarn("no chain ID configured — skipping RPC chain ID verification")
+		return nil
+	}
+
+	expectedID := chainid.ResolveChainID(configured)
+	if expectedID == 0 {
+		// An identifier we cannot resolve numerically cannot be verified. Say so
+		// rather than reporting a mismatch that was never actually detected.
+		p.LogWarn("chain ID is not resolvable to a numeric ID — skipping RPC chain ID verification",
+			"chain_id", configured)
 		return nil
 	}
 
@@ -126,13 +251,40 @@ func (p *HTTPSJSONRPCPuller) VerifyChainID(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("eth_chainId RPC call failed: %w", err)
 	}
-
-	rpcChainIDStr := rpcChainID.String()
-	if rpcChainIDStr != expectedChainID {
-		return fmt.Errorf("RPC chain ID mismatch: node returned %s, expected %s", rpcChainIDStr, expectedChainID)
+	if !rpcChainID.IsUint64() {
+		return fmt.Errorf("eth_chainId returned a value that does not fit in uint64: %s", rpcChainID.String())
 	}
 
-	p.LogInfo("RPC chain ID verified", "chain_id", rpcChainIDStr)
+	if rpcChainID.Uint64() != uint64(expectedID) {
+		return &ChainIDMismatchError{
+			NodeChainID: rpcChainID.String(),
+			Expected:    uint64(expectedID),
+			Configured:  configured,
+		}
+	}
+
+	p.LogInfo("RPC chain ID verified", "chain_id", rpcChainID.String(), "configured_as", configured)
+	return nil
+}
+
+// VerifyGenesisHash compares the provider's block-0 hash against the pinned
+// ExpectedGenesisHash (0x-prefixed, case-insensitive). A mismatch means the
+// endpoint serves a different chain than the operator pinned, regardless of
+// what eth_chainId claims.
+func (p *HTTPSJSONRPCPuller) VerifyGenesisHash(ctx context.Context, expected string) error {
+	if p.ethClient == nil {
+		return fmt.Errorf("ethereum client not initialized")
+	}
+	header, err := p.ethClient.HeaderByNumber(ctx, big.NewInt(0))
+	if err != nil {
+		return fmt.Errorf("fetch genesis block: %w", err)
+	}
+	got := strings.ToLower(header.Hash().Hex())
+	want := strings.ToLower(expected)
+	if got != want {
+		return fmt.Errorf("genesis hash mismatch: node returned %s, expected %s", got, want)
+	}
+	p.LogInfo("genesis hash verified", "genesis_hash", got)
 	return nil
 }
 
@@ -177,7 +329,20 @@ func (p *HTTPSJSONRPCPuller) Start(ctx context.Context) error {
 	ctx, cancel := context.WithTimeout(p.lifecycleCtx, 10*time.Second)
 	defer cancel()
 	if err := p.VerifyChainID(ctx); err != nil {
+		var mismatch *ChainIDMismatchError
+		if errors.As(err, &mismatch) {
+			p.lifecycleCancel()
+			p.ethClient.Close()
+			return fmt.Errorf("refusing to start puller %q: %w", p.name, err)
+		}
 		p.LogWarn("chain ID verification failed — proceeding with caution", "error", err.Error())
+	}
+	if want := p.GetConfig().ExpectedGenesisHash; want != "" {
+		if err := p.VerifyGenesisHash(ctx, want); err != nil {
+			p.lifecycleCancel()
+			p.ethClient.Close()
+			return fmt.Errorf("refusing to start puller %q: genesis check failed: %w", p.name, err)
+		}
 	}
 
 	// Load checkpoint from persistent store if available
@@ -192,7 +357,7 @@ func (p *HTTPSJSONRPCPuller) Start(ctx context.Context) error {
 
 	// Subscribe to reorg rollback events for automatic re-indexing
 	if p.eventBus != nil {
-		if _, err := core.SubscribeTypedNamed[*core.ReorgRollbackEvent](p.eventBus, p.lifecycleCtx, topics.TopicReorgRollback, "https-puller-reorg", func(reorgEvt *core.ReorgRollbackEvent) {
+		if _, err := core.SubscribeTypedNamed[*portcontract.ReorgRollbackEvent](p.eventBus, p.lifecycleCtx, topics.TopicReorgRollback, "https-puller-reorg", func(reorgEvt *portcontract.ReorgRollbackEvent) {
 			// Only handle events for our chain
 			if reorgEvt.ChainID != p.ChainID() {
 				return
@@ -240,7 +405,7 @@ func (p *HTTPSJSONRPCPuller) Stop(ctx context.Context) error {
 
 // PullEvents pulls events from the blockchain.
 // go-ethereum's ethclient.Client is concurrency-safe, so no mutex is needed here.
-func (p *HTTPSJSONRPCPuller) PullEvents(ctx context.Context, fromBlock, toBlock uint64) ([]core.BlockchainEvent, error) {
+func (p *HTTPSJSONRPCPuller) PullEvents(ctx context.Context, fromBlock, toBlock uint64) ([]blockchain.BlockchainEvent, error) {
 	ctx, span := p.tracer.StartSpan(ctx, "puller.fetch_events", observability.SpanKindClient)
 	defer p.tracer.EndSpan(&span)
 	p.tracer.SetAttribute(&span, "from_block", fromBlock)
@@ -254,7 +419,7 @@ func (p *HTTPSJSONRPCPuller) PullEvents(ctx context.Context, fromBlock, toBlock 
 		}
 	}
 
-	events := make([]core.BlockchainEvent, 0, int(toBlock-fromBlock+1)*4)
+	events := make([]blockchain.BlockchainEvent, 0, int(toBlock-fromBlock+1)*4)
 
 	chunkSize := p.GetConfig().BlockChunkSize
 	if chunkSize <= 0 {
@@ -263,21 +428,22 @@ func (p *HTTPSJSONRPCPuller) PullEvents(ctx context.Context, fromBlock, toBlock 
 
 	minChunkSize := 10 // absolute minimum block range per chunk
 
-	// Process block range in chunks to avoid RPC timeouts and provider limits
+	// Process block range in chunks to avoid RPC timeouts and provider limits.
+	//
+	// Each chunk goes through a RangeSplitter, so a provider that refuses the
+	// range or truncates the result set costs extra round trips instead of lost
+	// blocks. The loop this replaced advanced to `lastBlock + 1` of the
+	// truncated result, which silently skipped every block between that tail and
+	// the end of the chunk (F25: "失败范围不跳过").
 	for chunkFrom := fromBlock; chunkFrom <= toBlock; {
 		chunkTo := chunkFrom + uint64(chunkSize) - 1
 		if chunkTo > toBlock {
 			chunkTo = toBlock
 		}
 
-		// Clamp chunk to not exceed toBlock
-		if chunkTo > toBlock {
-			chunkTo = toBlock
-		}
-
 		p.LogInfo("fetching chunk", "from", chunkFrom, "to", chunkTo, "chunk_size", chunkTo-chunkFrom+1)
 
-		logs, err := p.getLogs(ctx, chunkFrom, chunkTo)
+		logs, splitStats, err := p.fetchLogsWithoutGaps(ctx, chunkFrom, chunkTo, minChunkSize)
 		if err != nil {
 			p.RecordError(err)
 			p.RecordMetric("pull_errors", int64(1), nil)
@@ -289,61 +455,17 @@ func (p *HTTPSJSONRPCPuller) PullEvents(ctx context.Context, fromBlock, toBlock 
 			return nil, err
 		}
 
-		// Detect provider-side truncation: if result count hits the limit,
-		// the provider likely truncated the response. Process what we have
-		// (valid for the blocks covered) and continue from the last block
-		// in the returned set with a smaller chunk size.
-		if len(logs) >= maxEventsPerChunk {
-			p.LogWarn(
-				"eth_getLogs result hit provider truncation limit, processing partial results",
-				"result_count", len(logs),
-				"from_block", chunkFrom,
-				"to_block", chunkTo,
-			)
-
-			// Halve the chunk size for subsequent requests
-			halfSize := max(chunkSize/2, minChunkSize)
-			if halfSize < chunkSize {
-				chunkSize = halfSize
-				p.LogInfo("reducing chunk size to avoid future truncation", "new_chunk_size", chunkSize)
+		// Learn the provider's real capacity rather than assuming the configured
+		// chunk size. LargestRange is the widest range it actually served, so
+		// shrinking to it makes the next chunk more likely to need one call.
+		if splitStats.Splits > 0 && splitStats.LargestRange > 0 {
+			if learned := int(splitStats.LargestRange); learned < chunkSize {
+				chunkSize = max(learned, minChunkSize)
+				p.LogInfo("adapting chunk size to what the provider accepted",
+					"new_chunk_size", chunkSize,
+					"observed_largest_range", splitStats.LargestRange,
+					"splits", splitStats.Splits)
 			}
-
-			// Process the logs we received (they are valid for covered blocks)
-			// then advance chunkFrom based on the last block in the results.
-			blockTimestamps := p.fetchBlockTimestamps(ctx, logs)
-			var lastBlockInResults uint64
-			for _, log := range logs {
-				if log.BlockNumber > lastBlockInResults {
-					lastBlockInResults = log.BlockNumber
-				}
-
-				if log.Removed && p.GetConfig().SkipRemovedLogs {
-					p.LogInfo("skipping removed log (reorg)", "tx_hash", log.TxHash.Hex(), "log_index", log.Index)
-					continue
-				}
-
-				event, err := p.ethLogToEvent(log, blockTimestamps)
-				if err != nil {
-					p.LogWarn("failed to convert log to event", "error", err.Error())
-					continue
-				}
-
-				if err := p.ValidateEvent(event); err != nil {
-					p.LogWarn("invalid event", "error", err.Error())
-					continue
-				}
-
-				events = append(events, event)
-			}
-
-			// Advance past the blocks we successfully processed.
-			// If lastBlockInResults is 0 (empty logs), advance by original chunk size.
-			if lastBlockInResults > 0 {
-				chunkFrom = lastBlockInResults + 1
-			} else {
-				chunkFrom = chunkTo + 1
-			}
-			continue
 		}
 
 		// Collect unique block numbers and fetch their timestamps
@@ -385,6 +507,79 @@ func (p *HTTPSJSONRPCPuller) PullEvents(ctx context.Context, fromBlock, toBlock 
 	return events, nil
 }
 
+// providerRangeLimitHints are phrasings providers use to refuse a block range or
+// a result set that is too large. geth, erigon and reth word it differently, and
+// some do not refuse at all — they truncate — which is why truncation is
+// signalled by the result count (TruncationError) rather than by matching text.
+//
+// A message that matches none of these stays a fatal error: splitting an
+// invalid request would multiply the failure instead of narrowing it.
+var providerRangeLimitHints = []string{
+	"block range is too wide",
+	"block range too large",
+	"range is too large",
+	"exceed maximum block range",
+	"exceeds max block range",
+	"query returned more than",
+	"more than 10000 results",
+	"result set too large",
+	"too many results",
+	"response size exceeded",
+	"limit exceeded",
+}
+
+// classifyGetLogsError converts a provider refusal into ErrRangeTooWide when the
+// message says the range or the result set was too large, so the splitter
+// narrows the request instead of giving up.
+func classifyGetLogsError(from, to uint64, err error) error {
+	message := strings.ToLower(err.Error())
+	for _, hint := range providerRangeLimitHints {
+		if strings.Contains(message, hint) {
+			return &ErrRangeTooWide{From: from, To: to, Reason: err.Error()}
+		}
+	}
+	return err
+}
+
+// fetchLogsWithoutGaps returns every log in [from, to].
+//
+// A provider that refuses the range, or that returns a full page (its way of
+// saying it stopped early), causes the range to be split and retried — never
+// skipped. SplitStats is returned alongside so the caller can learn the widest
+// range the provider actually accepted.
+func (p *HTTPSJSONRPCPuller) fetchLogsWithoutGaps(ctx context.Context, from, to uint64, minRange int) ([]types.Log, SplitStats, error) {
+	fetch := func(ctx context.Context, chunkFrom, chunkTo uint64) ([]types.Log, error) {
+		var logs []types.Log
+		err := p.RetryWithBackoff(ctx, func() error {
+			got, err := p.getLogs(ctx, chunkFrom, chunkTo)
+			if err != nil {
+				return classifyGetLogsError(chunkFrom, chunkTo, err)
+			}
+			logs = got
+			return nil
+		})
+		if err != nil {
+			// ErrRangeTooWide is non-retryable, so RetryWithBackoff returned it
+			// unwrapped on the first attempt — the splitter reacts by splitting.
+			return nil, err
+		}
+		// A full page means the provider stopped early. Returning it with a nil
+		// error would make the splitter treat the range as covered.
+		if len(logs) >= maxEventsPerChunk {
+			return nil, TruncationError(chunkFrom, chunkTo, maxEventsPerChunk)
+		}
+		return logs, nil
+	}
+
+	splitter, err := NewRangeSplitter(fetch, SplitConfig{MinRange: uint64(minRange)})
+	if err != nil {
+		return nil, SplitStats{}, err
+	}
+
+	logs, err := splitter.Fetch(ctx, from, to)
+	return logs, splitter.Stats(), err
+}
+
 // GetLatestBlock gets the latest block number
 func (p *HTTPSJSONRPCPuller) GetLatestBlock(ctx context.Context) (uint64, error) {
 	if cb := p.CircuitBreaker(); cb != nil {
@@ -406,6 +601,14 @@ func (p *HTTPSJSONRPCPuller) GetLatestBlock(ctx context.Context) (uint64, error)
 		return 0, err
 	}
 
+	// Report the successful probe to the circuit breaker. Without this, a
+	// half-open breaker latches forever: Allow() set probeInFlight=true for
+	// this call and only Success()/Failure() clear it, and the failure path
+	// alone cannot recover a breaker whose RPC endpoint is healthy again.
+	if cb := p.CircuitBreaker(); cb != nil {
+		cb.Success()
+	}
+
 	p.mu.Lock()
 	p.currentBlock = blockNumber
 	current := p.currentBlock
@@ -418,7 +621,7 @@ func (p *HTTPSJSONRPCPuller) GetLatestBlock(ctx context.Context) (uint64, error)
 }
 
 // SubscribeToEvents subscribes to blockchain events
-func (p *HTTPSJSONRPCPuller) SubscribeToEvents(ctx context.Context, handler func(core.BlockchainEvent)) error {
+func (p *HTTPSJSONRPCPuller) SubscribeToEvents(ctx context.Context, handler func(blockchain.BlockchainEvent)) error {
 	p.mu.Lock()
 	p.eventHandlers = append(p.eventHandlers, handler)
 	p.mu.Unlock()
@@ -464,6 +667,9 @@ func (p *HTTPSJSONRPCPuller) pollWithTicker(ctx context.Context) error {
 			p.LogInfo("Poll: stop signal received")
 			return nil
 		case <-ticker.C:
+			if err := p.validateDurableCheckpoint(ctx); err != nil {
+				return fmt.Errorf("validate durable checkpoint: %w", err)
+			}
 			p.LogInfo("Poll: fetching latest block...")
 			latestBlock, err := p.GetLatestBlock(ctx)
 			if err != nil {
@@ -471,13 +677,19 @@ func (p *HTTPSJSONRPCPuller) pollWithTicker(ctx context.Context) error {
 				continue
 			}
 
-			if latestBlock > p.GetLastBlockNumber() {
-				events, err := p.PullEvents(ctx, p.GetLastBlockNumber()+1, latestBlock)
+			targetBlock := p.finalityTarget(ctx, latestBlock)
+			targetBlock = p.boundedPollTarget(targetBlock)
+			if targetBlock > p.GetLastBlockNumber() {
+				fromBlock := p.GetLastBlockNumber() + 1
+				events, err := p.PullEvents(ctx, fromBlock, targetBlock)
 				if err != nil {
 					p.LogError("failed to pull events", "error", err.Error())
 					continue
 				}
 
+				if err := p.commitPulledRange(ctx, fromBlock, targetBlock, events); err != nil {
+					return fmt.Errorf("commit pulled range: %w", err)
+				}
 				for _, event := range events {
 					if err := p.PublishEvent(ctx, event); err != nil {
 						p.LogError("failed to publish event", "error", err.Error())
@@ -494,22 +706,22 @@ func (p *HTTPSJSONRPCPuller) pollWithTicker(ctx context.Context) error {
 					}
 				}
 
-				p.SetLastBlockNumber(latestBlock)
+				p.SetLastBlockNumber(targetBlock)
 
 				// Periodically verify parent hash chain integrity
-				if latestBlock-p.lastVerifiedBlock >= p.reorgVerifyInterval {
+				if targetBlock-p.lastVerifiedBlock >= p.reorgVerifyInterval {
 					p.mu.RLock()
 					prevBlock := p.lastVerifiedBlock
 					p.mu.RUnlock()
 					if prevBlock > 0 {
-						if err := p.verifyParentHashChain(ctx, prevBlock, latestBlock); err != nil {
+						if err := p.verifyParentHashChain(ctx, prevBlock, targetBlock); err != nil {
 							p.LogError("parent hash chain verification failed — possible reorg", "error", err.Error())
 							// Reset to before the gap for re-indexing
 							p.SetLastBlockNumber(prevBlock - 1)
 						}
 					}
 					p.mu.Lock()
-					p.lastVerifiedBlock = latestBlock
+					p.lastVerifiedBlock = targetBlock
 					p.mu.Unlock()
 				}
 			}
@@ -540,16 +752,25 @@ func (p *HTTPSJSONRPCPuller) pollWithSubscription(ctx context.Context) error {
 			if header == nil {
 				continue
 			}
+			if err := p.validateDurableCheckpoint(ctx); err != nil {
+				return fmt.Errorf("validate durable checkpoint: %w", err)
+			}
 			latestBlock := header.Number.Uint64()
 			p.RecordMetric("latest_block_number", saturatingPullerBlockMetric(latestBlock), nil)
 
-			if latestBlock > p.GetLastBlockNumber() {
-				events, pullErr := p.PullEvents(ctx, p.GetLastBlockNumber()+1, latestBlock)
+			targetBlock := p.finalityTarget(ctx, latestBlock)
+			targetBlock = p.boundedPollTarget(targetBlock)
+			if targetBlock > p.GetLastBlockNumber() {
+				fromBlock := p.GetLastBlockNumber() + 1
+				events, pullErr := p.PullEvents(ctx, fromBlock, targetBlock)
 				if pullErr != nil {
 					p.LogError("failed to pull events", "error", pullErr.Error())
 					continue
 				}
 
+				if err := p.commitPulledRange(ctx, fromBlock, targetBlock, events); err != nil {
+					return fmt.Errorf("commit pulled range: %w", err)
+				}
 				for _, event := range events {
 					if pubErr := p.PublishEvent(ctx, event); pubErr != nil {
 						p.LogError("failed to publish event", "error", pubErr.Error())
@@ -565,21 +786,21 @@ func (p *HTTPSJSONRPCPuller) pollWithSubscription(ctx context.Context) error {
 					}
 				}
 
-				p.SetLastBlockNumber(latestBlock)
+				p.SetLastBlockNumber(targetBlock)
 
 				// Periodic parent hash chain verification
-				if latestBlock-p.lastVerifiedBlock >= p.reorgVerifyInterval {
+				if targetBlock-p.lastVerifiedBlock >= p.reorgVerifyInterval {
 					p.mu.RLock()
 					prevBlock := p.lastVerifiedBlock
 					p.mu.RUnlock()
 					if prevBlock > 0 {
-						if verifyErr := p.verifyParentHashChain(ctx, prevBlock, latestBlock); verifyErr != nil {
+						if verifyErr := p.verifyParentHashChain(ctx, prevBlock, targetBlock); verifyErr != nil {
 							p.LogError("parent hash chain verification failed — possible reorg", "error", verifyErr.Error())
 							p.SetLastBlockNumber(prevBlock - 1)
 						}
 					}
 					p.mu.Lock()
-					p.lastVerifiedBlock = latestBlock
+					p.lastVerifiedBlock = targetBlock
 					p.mu.Unlock()
 				}
 			}
@@ -662,6 +883,9 @@ func (p *HTTPSJSONRPCPuller) executeWithFailover(ctx context.Context, fn func(cl
 	p.mu.RUnlock()
 
 	if len(clients) <= 1 {
+		if ethClient == nil {
+			return nil, fmt.Errorf("RPC client is not initialized")
+		}
 		return fn(ethClient)
 	}
 
@@ -846,8 +1070,6 @@ func (p *HTTPSJSONRPCPuller) getLogs(ctx context.Context, fromBlock, toBlock uin
 	return logs.([]types.Log), nil
 }
 
-const rpcResultTruncationThreshold = 9000
-
 // fetchBlockTimestamps collects unique block numbers from logs and fetches their timestamps
 // using ethclient.HeaderByNumber with failover support.
 func (p *HTTPSJSONRPCPuller) fetchBlockTimestamps(ctx context.Context, logs []types.Log) map[uint64]int64 {
@@ -874,7 +1096,7 @@ func (p *HTTPSJSONRPCPuller) fetchBlockTimestamps(ctx context.Context, logs []ty
 }
 
 // ethLogToEvent converts a go-ethereum types.Log to a BlockchainEvent
-func (p *HTTPSJSONRPCPuller) ethLogToEvent(log types.Log, blockTimestamps map[uint64]int64) (core.BlockchainEvent, error) {
+func (p *HTTPSJSONRPCPuller) ethLogToEvent(log types.Log, blockTimestamps map[uint64]int64) (blockchain.BlockchainEvent, error) {
 	blockNumber := log.BlockNumber
 	logIndex := uint64(log.Index)
 
@@ -898,26 +1120,29 @@ func (p *HTTPSJSONRPCPuller) ethLogToEvent(log types.Log, blockTimestamps map[ui
 	// Decode with both map-style (backward compatible) and typed event
 	decodedData, typedData := evm.DecodeEventWithTyped(eventName, eventTopics, eventDataBytes)
 
-	event := core.BlockchainEvent{
-		ID:              chainID + "-" + txHash.Hex() + "-" + strconv.FormatUint(uint64(logIndex), 10),
-		BlockNumber:     blockNumber,
-		BlockHash:       blockHash,
-		TransactionHash: txHash,
-		LogIndex:        logIndex,
-		ContractAddress: contractAddr,
-		EventName:       eventName,
-		EventSignature:  eventSig,
-		EventData:       eventDataBytes,
-		DecodedData:     decodedData,
-		TypedData:       typedData,
-		ChainID:         chainID,
-		Network:         p.Network(),
-		BlockTimestamp:  blockTimestamps[blockNumber],
-		Status:          core.EventStatusPending,
-		Removed:         log.Removed,
+	event := blockchain.BlockchainEvent{
+		ID:               chainID + "-" + txHash.Hex() + "-" + strconv.FormatUint(uint64(logIndex), 10),
+		BlockNumber:      blockNumber,
+		BlockHash:        blockHash,
+		TransactionHash:  txHash,
+		LogIndex:         logIndex,
+		ContractAddress:  contractAddr,
+		EventName:        eventName,
+		EventSignature:   eventSig,
+		EventTopic:       eventTopics,
+		TransactionIndex: uint64(log.TxIndex),
+		EventData:        eventDataBytes,
+		DecodedData:      decodedData,
+		TypedData:        typedData,
+		ChainID:          chainID,
+		Network:          p.Network(),
+		BlockTimestamp:   blockTimestamps[blockNumber],
+		Status:           blockchain.EventStatusPending,
+		Removed:          log.Removed,
 	}
 
 	event.EventHash = p.GenerateEventHash(event)
+	event.ID = event.EventHash
 
 	return event, nil
 }
@@ -1001,11 +1226,6 @@ func (p *HTTPSJSONRPCPuller) SetReorgDetectionConfig(verifyInterval, samplingSte
 	if samplingStep > 0 {
 		p.reorgSamplingStep = samplingStep
 	}
-}
-
-// nextID returns a unique correlation ID using an atomic counter.
-func (p *HTTPSJSONRPCPuller) nextID() int64 {
-	return int64(atomic.AddUint64(&p.nextRequestID, 1))
 }
 
 // saturatingPullerBlockMetric converts uint64 block to int64 with saturation

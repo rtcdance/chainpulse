@@ -452,7 +452,7 @@ func TestAPIGatewayPlugin_GetUpstreamQueryBridgeStatus_NoIntegration(t *testing.
 	}
 
 	plugin.SetUpstreamQueryEndpoints([]string{"http://api:8081"})
-	configured, attached, available = plugin.GetUpstreamQueryBridgeStatus()
+	configured, attached, _ = plugin.GetUpstreamQueryBridgeStatus()
 	if configured != 1 {
 		t.Fatalf("expected 1 configured, got %d", configured)
 	}

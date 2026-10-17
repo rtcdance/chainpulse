@@ -5,6 +5,8 @@ import (
 	"strings"
 	"testing"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
 	"github.com/rtcdance/chainpulse/pkg/application/bootstrap"
 	"github.com/rtcdance/chainpulse/pkg/core"
 	"github.com/rtcdance/chainpulse/pkg/plugins/api"
@@ -24,7 +26,7 @@ func TestLoadGatewayConfigDefaultsToLocalhostUpstream(t *testing.T) {
 	}
 }
 
-func buildAPIGatewaySecurityControls(cfg GatewayConfig, logger core.Logger, metrics core.MetricsCollector) (*api.AuthMiddleware, *api.RateLimitMiddleware, error) {
+func buildAPIGatewaySecurityControls(cfg GatewayConfig, logger portcontract.Logger, metrics core.MetricsCollector) (*api.AuthMiddleware, *api.RateLimitMiddleware, error) {
 	return bootstrap.BuildSecurityControls(bootstrap.SecurityControlsConfig{
 		AuthEnabled:        cfg.AuthEnabled,
 		AuthJWTSecret:      cfg.AuthJWTSecret,

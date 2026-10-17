@@ -7,10 +7,13 @@ import (
 	"testing"
 	"time"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"github.com/rtcdance/chainpulse/pkg/consensus"
 	"github.com/rtcdance/chainpulse/pkg/core"
 	"github.com/rtcdance/chainpulse/pkg/integrations/generic"
@@ -19,7 +22,7 @@ import (
 // MockDatabasePlugin implements core.DatabasePlugin for testing
 type MockDatabasePlugin struct {
 	data       map[string]any
-	events     map[string]*core.BlockchainEvent
+	events     map[string]*blockchain.BlockchainEvent
 	mu         sync.RWMutex
 	storeCount int
 }
@@ -27,7 +30,7 @@ type MockDatabasePlugin struct {
 func NewMockDatabasePlugin() *MockDatabasePlugin {
 	return &MockDatabasePlugin{
 		data:   make(map[string]any),
-		events: make(map[string]*core.BlockchainEvent),
+		events: make(map[string]*blockchain.BlockchainEvent),
 	}
 }
 
@@ -35,7 +38,7 @@ func (m *MockDatabasePlugin) StoreEvent(ctx context.Context, event any) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.storeCount++
-	if e, ok := event.(*core.BlockchainEvent); ok {
+	if e, ok := event.(*blockchain.BlockchainEvent); ok {
 		m.events[e.ID] = e
 	}
 	return nil
@@ -47,7 +50,7 @@ func (m *MockDatabasePlugin) GetStoreCount() int {
 	return m.storeCount
 }
 
-func (m *MockDatabasePlugin) GetEvent(ctx context.Context, id string) (*core.BlockchainEvent, error) {
+func (m *MockDatabasePlugin) GetEvent(ctx context.Context, id string) (*blockchain.BlockchainEvent, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	if e, ok := m.events[id]; ok {
@@ -70,27 +73,27 @@ func (m *MockDatabasePlugin) BatchStoreEvents(ctx context.Context, events []any)
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	for _, event := range events {
-		if e, ok := event.(*core.BlockchainEvent); ok {
+		if e, ok := event.(*blockchain.BlockchainEvent); ok {
 			m.events[e.ID] = e
 		}
 	}
 	return nil
 }
 
-func (m *MockDatabasePlugin) GetAllEvents(ctx context.Context) ([]*core.BlockchainEvent, error) {
+func (m *MockDatabasePlugin) GetAllEvents(ctx context.Context) ([]*blockchain.BlockchainEvent, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	result := make([]*core.BlockchainEvent, 0)
+	result := make([]*blockchain.BlockchainEvent, 0)
 	for _, e := range m.events {
 		result = append(result, e)
 	}
 	return result, nil
 }
 
-func (m *MockDatabasePlugin) GetAllBlocks(ctx context.Context) ([]*core.Block, error) {
+func (m *MockDatabasePlugin) GetAllBlocks(ctx context.Context) ([]*blockchain.Block, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	return make([]*core.Block, 0), nil
+	return make([]*blockchain.Block, 0), nil
 }
 
 func (m *MockDatabasePlugin) DeleteEvent(ctx context.Context, eventID string) error {
@@ -100,10 +103,10 @@ func (m *MockDatabasePlugin) DeleteEvent(ctx context.Context, eventID string) er
 	return nil
 }
 
-func (m *MockDatabasePlugin) GetEventsByBlockRange(ctx context.Context, fromBlock, toBlock uint64) ([]*core.BlockchainEvent, error) {
+func (m *MockDatabasePlugin) GetEventsByBlockRange(ctx context.Context, fromBlock, toBlock uint64) ([]*blockchain.BlockchainEvent, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	result := make([]*core.BlockchainEvent, 0)
+	result := make([]*blockchain.BlockchainEvent, 0)
 	for _, e := range m.events {
 		if e.BlockNumber >= fromBlock && e.BlockNumber <= toBlock {
 			result = append(result, e)
@@ -112,7 +115,7 @@ func (m *MockDatabasePlugin) GetEventsByBlockRange(ctx context.Context, fromBloc
 	return result, nil
 }
 
-func (m *MockDatabasePlugin) GetBlock(ctx context.Context, blockNumber uint64) (*core.Block, error) {
+func (m *MockDatabasePlugin) GetBlock(ctx context.Context, blockNumber uint64) (*blockchain.Block, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return nil, nil
@@ -147,10 +150,10 @@ func (m *MockDatabasePlugin) MarkEventsAsReorged(ctx context.Context, fromBlock,
 	return 0, nil
 }
 
-func (m *MockDatabasePlugin) GetReorgStats(ctx context.Context) (*core.ReorgStats, error) {
+func (m *MockDatabasePlugin) GetReorgStats(ctx context.Context) (*portcontract.ReorgStats, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	return &core.ReorgStats{}, nil
+	return &portcontract.ReorgStats{}, nil
 }
 
 func (m *MockDatabasePlugin) Health(ctx context.Context) error {
@@ -181,7 +184,7 @@ func (m *MockDatabasePlugin) Close() error {
 	return nil
 }
 
-// MockLogger implements core.Logger for testing
+// MockLogger implements portcontract.Logger for testing
 type MockLogger struct {
 	logs []string
 	mu   sync.RWMutex
@@ -223,7 +226,7 @@ func (m *MockLogger) Fatal(msg string, _ ...any) {
 	m.logs = append(m.logs, msg)
 }
 
-func (m *MockLogger) WithCorrelationID(id string) core.Logger {
+func (m *MockLogger) WithCorrelationID(id string) portcontract.Logger {
 	return m
 }
 
@@ -284,10 +287,10 @@ func (mcp *MockCachePlugin) Close() error {
 	return nil
 }
 
-func (mcp *MockCachePlugin) GetStats() core.CacheStats {
+func (mcp *MockCachePlugin) GetStats() portcontract.CacheStats {
 	mcp.mu.RLock()
 	defer mcp.mu.RUnlock()
-	return core.CacheStats{
+	return portcontract.CacheStats{
 		HitCount:      0,
 		MissCount:     0,
 		EvictionCount: 0,
@@ -370,7 +373,7 @@ func TestIndexEvents(t *testing.T) {
 
 	indexer := NewDefaultChainIndexer("ethereum", db, cache, logger, genericIndexer)
 
-	events := []*core.BlockchainEvent{
+	events := []*blockchain.BlockchainEvent{
 		{
 			ID:              "event1",
 			ChainID:         "ethereum",
@@ -403,7 +406,7 @@ func TestIndexEventsEmptyList(t *testing.T) {
 
 	indexer := NewDefaultChainIndexer("ethereum", db, cache, logger, genericIndexer)
 
-	err := indexer.IndexEvents(context.Background(), []*core.BlockchainEvent{})
+	err := indexer.IndexEvents(context.Background(), []*blockchain.BlockchainEvent{})
 	require.NoError(t, err)
 
 	assert.Equal(t, int64(0), indexer.GetTotalEventsIndexed())
@@ -418,7 +421,7 @@ func TestIndexEventsChainIDMismatch(t *testing.T) {
 
 	indexer := NewDefaultChainIndexer("ethereum", db, cache, logger, genericIndexer)
 
-	events := []*core.BlockchainEvent{
+	events := []*blockchain.BlockchainEvent{
 		{
 			ID:      "event1",
 			ChainID: "polygon", // Wrong chain
@@ -452,7 +455,7 @@ func TestGetStatus(t *testing.T) {
 
 	indexer := NewDefaultChainIndexer("ethereum", db, cache, logger, genericIndexer)
 
-	events := []*core.BlockchainEvent{
+	events := []*blockchain.BlockchainEvent{
 		{
 			ID:              "event1",
 			ChainID:         "ethereum",
@@ -512,7 +515,7 @@ func TestGetLastIndexedBlock(t *testing.T) {
 
 	assert.Equal(t, uint64(0), indexer.GetLastIndexedBlock())
 
-	events := []*core.BlockchainEvent{
+	events := []*blockchain.BlockchainEvent{
 		{
 			ID:              "event1",
 			ChainID:         "ethereum",
@@ -538,7 +541,7 @@ func TestGetTotalEventsIndexed(t *testing.T) {
 
 	assert.Equal(t, int64(0), indexer.GetTotalEventsIndexed())
 
-	events := []*core.BlockchainEvent{
+	events := []*blockchain.BlockchainEvent{
 		{
 			ID:              "event1",
 			ChainID:         "ethereum",
@@ -571,7 +574,7 @@ func TestGetTotalErrors(t *testing.T) {
 
 	assert.Equal(t, int64(0), indexer.GetTotalErrors())
 
-	events := []*core.BlockchainEvent{
+	events := []*blockchain.BlockchainEvent{
 		{
 			ID:      "event1",
 			ChainID: "polygon", // Wrong chain
@@ -592,7 +595,7 @@ func TestResetStats(t *testing.T) {
 
 	indexer := NewDefaultChainIndexer("ethereum", db, cache, logger, genericIndexer)
 
-	events := []*core.BlockchainEvent{
+	events := []*blockchain.BlockchainEvent{
 		{
 			ID:              "event1",
 			ChainID:         "ethereum",
@@ -623,7 +626,7 @@ func TestMultipleIndexing(t *testing.T) {
 	indexer := NewDefaultChainIndexer("ethereum", db, cache, logger, genericIndexer)
 
 	// First batch
-	events1 := []*core.BlockchainEvent{
+	events1 := []*blockchain.BlockchainEvent{
 		{
 			ID:              "event1",
 			ChainID:         "ethereum",
@@ -636,7 +639,7 @@ func TestMultipleIndexing(t *testing.T) {
 	_ = indexer.IndexEvents(context.Background(), events1)
 
 	// Second batch
-	events2 := []*core.BlockchainEvent{
+	events2 := []*blockchain.BlockchainEvent{
 		{
 			ID:              "event2",
 			ChainID:         "ethereum",
@@ -661,7 +664,7 @@ func TestStatusMetrics(t *testing.T) {
 
 	indexer := NewDefaultChainIndexer("ethereum", db, cache, logger, genericIndexer)
 
-	events := []*core.BlockchainEvent{
+	events := []*blockchain.BlockchainEvent{
 		{
 			ID:              "event1",
 			ChainID:         "ethereum",
@@ -699,7 +702,7 @@ func TestIndexEventsForwardsShadowBatchToSharedRuntime(t *testing.T) {
 	indexer.SetSharedRuntime(sharedRuntime, metrics)
 
 	createdAt := time.Unix(1710000000, 0)
-	events := []*core.BlockchainEvent{
+	events := []*blockchain.BlockchainEvent{
 		{
 			ID:              "event1",
 			ChainID:         "ethereum",
@@ -734,7 +737,7 @@ func TestIndexEventsSharedRuntimeFailureDoesNotBlockLegacyIndexing(t *testing.T)
 	indexer := NewDefaultChainIndexer("ethereum", db, cache, logger, genericIndexer)
 	indexer.SetSharedRuntime(sharedRuntime, metrics)
 
-	events := []*core.BlockchainEvent{
+	events := []*blockchain.BlockchainEvent{
 		{
 			ID:              "event1",
 			ChainID:         "ethereum",
@@ -771,7 +774,7 @@ func TestIndexEventsSkipsDuplicateLegacyWriteAfterShadowPersistence(t *testing.T
 	indexer := NewDefaultChainIndexer("ethereum", db, cache, logger, genericIndexer)
 	indexer.SetSharedRuntime(sharedRuntime, metrics)
 
-	event := &core.BlockchainEvent{
+	event := &blockchain.BlockchainEvent{
 		ID:              "event1",
 		ChainID:         "ethereum",
 		BlockNumber:     100,
@@ -782,7 +785,7 @@ func TestIndexEventsSkipsDuplicateLegacyWriteAfterShadowPersistence(t *testing.T
 
 	markShadowWrite(event)
 
-	err := indexer.IndexEvents(context.Background(), []*core.BlockchainEvent{event})
+	err := indexer.IndexEvents(context.Background(), []*blockchain.BlockchainEvent{event})
 	require.NoError(t, err)
 
 	assert.Equal(t, 0, db.GetStoreCount())
@@ -809,7 +812,7 @@ func TestIndexEventsDoesNotEmitShadowOwnedMetricOnLegacyFallback(t *testing.T) {
 	indexer := NewDefaultChainIndexer("ethereum", db, cache, logger, genericIndexer)
 	indexer.SetSharedRuntime(sharedRuntime, metrics)
 
-	event := &core.BlockchainEvent{
+	event := &blockchain.BlockchainEvent{
 		ID:              "event1",
 		ChainID:         "ethereum",
 		BlockNumber:     100,
@@ -818,7 +821,7 @@ func TestIndexEventsDoesNotEmitShadowOwnedMetricOnLegacyFallback(t *testing.T) {
 		EventSignature:  common.HexToHash("0x5678"),
 	}
 
-	err := indexer.IndexEvents(context.Background(), []*core.BlockchainEvent{event})
+	err := indexer.IndexEvents(context.Background(), []*blockchain.BlockchainEvent{event})
 	require.NoError(t, err)
 
 	assert.Equal(t, 1, db.GetStoreCount())

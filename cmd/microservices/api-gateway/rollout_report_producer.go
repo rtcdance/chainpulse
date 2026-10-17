@@ -47,19 +47,6 @@ func newAPIGatewayRolloutReportProducer(instanceID string, stateProvider func() 
 	return newAPIGatewayRolloutReportProducerWithOwnershipSource(instanceID, stateProvider, nil)
 }
 
-//nolint:unused
-func newAPIGatewayRolloutReportProducerWithReadinessDetails(
-	instanceID string,
-	stateProvider func() apiGatewayRolloutRuntimeState,
-	readinessDetailsProvider func() map[string]any,
-) api.RolloutReportProducer {
-	return newAPIGatewayRolloutReportProducerWithOwnershipSource(
-		instanceID,
-		stateProvider,
-		buildAPIGatewayOwnershipParitySourceFromReadinessDetails(readinessDetailsProvider),
-	)
-}
-
 func newAPIGatewayRolloutReportProducerWithOwnershipSource(
 	instanceID string,
 	stateProvider func() apiGatewayRolloutRuntimeState,
@@ -347,26 +334,11 @@ func classifyAPIGatewayRolloutWiringCompleteness(runtimeState apiGatewayRolloutR
 	}
 }
 
-//nolint:unused
-func classifyAPIGatewayOwnershipParityHint(runtimeSignalsPresent bool) string {
-	return api.BuildRouteOwnershipParityStateFromSource("api-gateway", buildAPIGatewayOwnershipParitySource(runtimeSignalsPresent)).Hint
-}
-
 func buildAPIGatewayOwnershipParitySource(runtimeSignalsPresent bool) api.RouteOwnershipParitySource {
 	return api.RouteOwnershipParitySourceFunc(func() api.RouteOwnershipParitySourceSnapshot {
 		return api.RouteOwnershipParitySourceSnapshot{
 			RuntimeSignalsPresent: runtimeSignalsPresent,
 		}
-	})
-}
-
-//nolint:unused
-func buildAPIGatewayOwnershipParitySourceFromReadinessDetails(readinessDetailsProvider func() map[string]any) api.RouteOwnershipParitySource {
-	return api.RouteOwnershipParitySourceFunc(func() api.RouteOwnershipParitySourceSnapshot {
-		if readinessDetailsProvider == nil {
-			return api.RouteOwnershipParitySourceSnapshot{}
-		}
-		return api.BuildRouteOwnershipParitySourceSnapshotFromReadinessDetails(readinessDetailsProvider())
 	})
 }
 

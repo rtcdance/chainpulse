@@ -41,6 +41,12 @@ function formatAddress(address: string): string {
 export default function Landing() {
   const { address, step, error, connect, signIn, isAuthenticated } = useAuth()
 
+  // Bypass SES-blocked React scheduler — use hard navigation
+  if (isAuthenticated) {
+    window.location.href = '/dashboard'
+    return null
+  }
+
   return (
     <div className="min-h-screen bg-ink text-sand">
       <div className="absolute inset-0 bg-grid opacity-60" />

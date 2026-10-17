@@ -1,9 +1,8 @@
-import { http } from '../http'
 import type { RuntimePayload, ControlResult } from './types'
 import { getField, toRecord, requestFirstMatch, getHttpBaseUrl, trimTrailingSlash } from './internal'
 
 export async function fetchRuntimeSummary(): Promise<RuntimePayload> {
-  return requestFirstMatch<Record<string, unknown>, RuntimePayload>(
+  return requestFirstMatch<RuntimePayload>(
     ['/runtime/summary'],
     { method: 'GET' },
     (response, candidate) => {
@@ -29,18 +28,16 @@ export async function postRuntimeControl(
   const baseUrl = service?.baseUrl || getHttpBaseUrl()
 
   try {
-    const response = await http.request<Record<string, unknown>>({
-      method: 'POST',
-      url: `${trimTrailingSlash(baseUrl)}/runtime/control/${action}`,
-      timeout: 8000,
-      validateStatus: () => true,
-    })
+    const url = `${trimTrailingSlash(baseUrl)}/runtime/control/${action}`
+    const token = localStorage.getItem('chainpulse_auth_token')
+    const headers: Record<string, string> = {}
+    if (token) headers['Authorization'] = `Bearer ${token}`
 
-    const ok = response.status >= 200 && response.status < 300
-    const body = toRecord(response.data)
+    const response = await fetch(url, { method: 'POST', headers })
+    const body = toRecord(await response.json())
     return {
-      success: ok,
-      message: String(getField(body, ['message', 'status'], ok ? `${action} succeeded` : `${action} failed (${response.status})`)),
+      success: response.ok,
+      message: String(getField(body, ['message', 'status'], response.ok ? `${action} succeeded` : `${action} failed (${response.status})`)),
       evidence: { label: 'Runtime Control', path: `/runtime/control/${action}` },
     }
   } catch (error) {

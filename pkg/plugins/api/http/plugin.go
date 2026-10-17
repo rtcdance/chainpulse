@@ -14,8 +14,6 @@ import (
 	"github.com/rtcdance/chainpulse/pkg/plugins/api/shared"
 )
 
-const defaultWriteTimeout = 30 * time.Second
-
 // HTTPPlugin implements the HTTP protocol handler
 type HTTPPlugin struct {
 	name          string

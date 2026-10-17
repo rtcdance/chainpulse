@@ -7,8 +7,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"github.com/rtcdance/chainpulse/pkg/services/query"
+	"github.com/rtcdance/chainpulse/pkg/services/query/circuitbreaker"
+	"github.com/rtcdance/chainpulse/pkg/services/query/qerrors"
 )
 
 // TestResilienceUnderMongoDBFailure tests system resilience when MongoDB fails
@@ -32,14 +34,14 @@ func TestResilienceUnderMongoDBFailure(t *testing.T) {
 		operationCount++
 
 		// Try MongoDB first
-		err := mongoStore.StoreEvent(ctx, &core.BlockchainEvent{})
+		err := mongoStore.StoreEvent(ctx, &blockchain.BlockchainEvent{})
 		if err == nil {
 			successCount++
 			continue
 		}
 
 		// Fall back to PostgreSQL
-		err = postgresStore.StoreEvent(ctx, &core.BlockchainEvent{})
+		err = postgresStore.StoreEvent(ctx, &blockchain.BlockchainEvent{})
 		if err == nil {
 			successCount++
 		}
@@ -74,14 +76,14 @@ func TestResilienceUnderPostgreSQLFailure(t *testing.T) {
 		operationCount++
 
 		// Try PostgreSQL first
-		err := postgresStore.StoreEvent(ctx, &core.BlockchainEvent{})
+		err := postgresStore.StoreEvent(ctx, &blockchain.BlockchainEvent{})
 		if err == nil {
 			successCount++
 			continue
 		}
 
 		// Fall back to MongoDB
-		err = mongoStore.StoreEvent(ctx, &core.BlockchainEvent{})
+		err = mongoStore.StoreEvent(ctx, &blockchain.BlockchainEvent{})
 		if err == nil {
 			successCount++
 		}
@@ -120,7 +122,7 @@ func TestResilienceUnderConcurrentFailures(t *testing.T) {
 			defer wg.Done()
 
 			// Try MongoDB
-			err := mongoStore.StoreEvent(ctx, &core.BlockchainEvent{})
+			err := mongoStore.StoreEvent(ctx, &blockchain.BlockchainEvent{})
 			if err == nil {
 				mu.Lock()
 				successCount++
@@ -129,7 +131,7 @@ func TestResilienceUnderConcurrentFailures(t *testing.T) {
 			}
 
 			// Fall back to PostgreSQL
-			err = postgresStore.StoreEvent(ctx, &core.BlockchainEvent{})
+			err = postgresStore.StoreEvent(ctx, &blockchain.BlockchainEvent{})
 			if err == nil {
 				mu.Lock()
 				successCount++
@@ -148,7 +150,7 @@ func TestResilienceUnderConcurrentFailures(t *testing.T) {
 
 // TestResilienceWithCircuitBreakerRecovery tests circuit breaker recovery
 func TestResilienceWithCircuitBreakerRecovery(t *testing.T) {
-	config := query.CircuitBreakerConfig{
+	config := circuitbreaker.Config{
 		FailureThreshold: 3,
 		SuccessThreshold: 2,
 		Timeout:          100 * time.Millisecond,
@@ -288,21 +290,21 @@ func TestResilienceMultiComponentFailure(t *testing.T) {
 		operationCount++
 
 		// Try MongoDB
-		err := mongoStore.StoreEvent(ctx, &core.BlockchainEvent{})
+		err := mongoStore.StoreEvent(ctx, &blockchain.BlockchainEvent{})
 		if err == nil {
 			successCount++
 			continue
 		}
 
 		// Try PostgreSQL
-		err = postgresStore.StoreEvent(ctx, &core.BlockchainEvent{})
+		err = postgresStore.StoreEvent(ctx, &blockchain.BlockchainEvent{})
 		if err == nil {
 			successCount++
 			continue
 		}
 
 		// Fall back to cache
-		err = cacheStore.StoreEvent(ctx, &core.BlockchainEvent{})
+		err = cacheStore.StoreEvent(ctx, &blockchain.BlockchainEvent{})
 		if err == nil {
 			successCount++
 		}
@@ -320,7 +322,7 @@ func TestResilienceMultiComponentFailure(t *testing.T) {
 
 // TestResilienceErrorRecoverySequence tests error recovery sequence
 func TestResilienceErrorRecoverySequence(t *testing.T) {
-	classifier := query.NewErrorClassifier()
+	classifier := qerrors.NewClassifier()
 
 	// Simulate error sequence
 	errors := []error{
@@ -436,10 +438,10 @@ func TestResiliencePartialFailureRecovery(t *testing.T) {
 	backupStore := &MockEventStore{healthy: true}
 
 	// Simulate operation with partial failure
-	err := partialStore.StoreEvent(ctx, &core.BlockchainEvent{})
+	err := partialStore.StoreEvent(ctx, &blockchain.BlockchainEvent{})
 	if err != nil {
 		// Retry with backup
-		err = backupStore.StoreEvent(ctx, &core.BlockchainEvent{})
+		err = backupStore.StoreEvent(ctx, &blockchain.BlockchainEvent{})
 		if err != nil {
 			t.Errorf("Backup store should succeed")
 		}
@@ -448,7 +450,7 @@ func TestResiliencePartialFailureRecovery(t *testing.T) {
 
 // TestResilienceCascadingFailureDetection tests detection of cascading failures
 func TestResilienceCascadingFailureDetection(t *testing.T) {
-	classifier := query.NewErrorClassifier()
+	classifier := qerrors.NewClassifier()
 
 	// Simulate cascading failures
 	errors := []error{

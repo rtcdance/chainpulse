@@ -6,8 +6,6 @@ import (
 	"time"
 )
 
-const recoveryTimeout = 30 * time.Second
-
 // HealthChecker manages database health checks
 type HealthChecker struct {
 	db                      *PostgreSQLDatabase

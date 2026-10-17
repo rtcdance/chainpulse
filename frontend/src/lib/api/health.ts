@@ -2,7 +2,7 @@ import type { HealthPayload } from './types'
 import { getField, toRecord, toRecordMap, requestFirstMatch } from './internal'
 
 export async function fetchHealth(): Promise<HealthPayload> {
-  return requestFirstMatch<Record<string, unknown>, HealthPayload>(
+  return requestFirstMatch<HealthPayload>(
     ['/health'],
     { method: 'GET' },
     (response, candidate) => {

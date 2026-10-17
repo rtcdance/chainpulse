@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"time"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
@@ -13,17 +16,17 @@ const eventCacheTTLSeconds = 24 * 3600
 // LegacyRuntimeSink bridges shared runtime envelopes to the current indexing
 // database/cache storage semantics.
 type LegacyRuntimeSink struct {
-	database core.DatabasePlugin
-	cache    core.CachePlugin
-	logger   core.Logger
+	database portcontract.DatabasePlugin
+	cache    portcontract.CachePlugin
+	logger   portcontract.Logger
 }
 
 // NewLegacyRuntimeSink builds a shared runtime sink backed by legacy storage
 // plugins already used by the indexing layer.
 func NewLegacyRuntimeSink(
-	database core.DatabasePlugin,
-	cache core.CachePlugin,
-	logger core.Logger,
+	database portcontract.DatabasePlugin,
+	cache portcontract.CachePlugin,
+	logger portcontract.Logger,
 ) (*LegacyRuntimeSink, error) {
 	if database == nil {
 		return nil, fmt.Errorf("database plugin is required")
@@ -72,10 +75,10 @@ func (s *LegacyRuntimeSink) Persist(ctx context.Context, events []core.EventEnve
 	return nil
 }
 
-func eventFromEnvelope(envelope core.EventEnvelope) (*core.BlockchainEvent, error) {
-	event, ok := envelope.Payload.(*core.BlockchainEvent)
+func eventFromEnvelope(envelope core.EventEnvelope) (*blockchain.BlockchainEvent, error) {
+	event, ok := envelope.Payload.(*blockchain.BlockchainEvent)
 	if !ok || event == nil {
-		return nil, fmt.Errorf("event payload must be *core.BlockchainEvent")
+		return nil, fmt.Errorf("event payload must be *blockchain.BlockchainEvent")
 	}
 	return event, nil
 }

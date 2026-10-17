@@ -78,7 +78,7 @@ func TestGenerateABIFromFile(t *testing.T) {
 	outPath := filepath.Join(dir, "events.go")
 
 	abiContent := `{"abi":[{"type":"event","name":"Transfer","inputs":[{"name":"from","type":"address","indexed":true},{"name":"to","type":"address","indexed":true},{"name":"value","type":"uint256","indexed":false}]}]}`
-	if err := os.WriteFile(abiPath, []byte(abiContent), 0644); err != nil {
+	if err := os.WriteFile(abiPath, []byte(abiContent), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -112,7 +112,7 @@ func TestGenerateABIFromFile_InvalidJSON(t *testing.T) {
 	abiPath := filepath.Join(dir, "bad.abi.json")
 	outPath := filepath.Join(dir, "events.go")
 
-	if err := os.WriteFile(abiPath, []byte("not json"), 0644); err != nil {
+	if err := os.WriteFile(abiPath, []byte("not json"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -128,7 +128,7 @@ func TestGenerateABIFromFile_NoEvents(t *testing.T) {
 	outPath := filepath.Join(dir, "events.go")
 
 	abiContent := `{"abi":[{"type":"function","name":"transfer","inputs":[]}]}`
-	if err := os.WriteFile(abiPath, []byte(abiContent), 0644); err != nil {
+	if err := os.WriteFile(abiPath, []byte(abiContent), 0o644); err != nil {
 		t.Fatal(err)
 	}
 

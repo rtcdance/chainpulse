@@ -8,7 +8,11 @@ import (
 	"sync/atomic"
 	"time"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/logkeys"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -24,14 +28,14 @@ type DefaultMongoDBAdapter struct {
 	initialized      atomic.Bool
 	dbManager        mongoClientProvider
 	mongoClient      *mongo.Client
-	logger           core.Logger
+	logger           portcontract.Logger
 	metricsCollector core.MetricsCollector
 }
 
 // NewMongoDBAdapter creates a new MongoDB adapter
 func NewMongoDBAdapter(
 	dbManager mongoClientProvider,
-	logger core.Logger,
+	logger portcontract.Logger,
 	metricsCollector core.MetricsCollector,
 ) MongoDBAdapter {
 	return &DefaultMongoDBAdapter{
@@ -65,7 +69,7 @@ func (ma *DefaultMongoDBAdapter) Initialize(ctx context.Context) error {
 	ma.mongoClient = client
 	ma.initialized.Store(true)
 
-	ma.logger.Info("MongoDB adapter initialized", core.LogKeyComponent, "mongodb-adapter")
+	ma.logger.Info("MongoDB adapter initialized", logkeys.LogKeyComponent, "mongodb-adapter")
 
 	return nil
 }
@@ -131,24 +135,33 @@ func (ma *DefaultMongoDBAdapter) Query(ctx context.Context, req *QueryRequest) (
 	if err != nil {
 		duration := time.Since(start).Milliseconds()
 		ma.metricsCollector.RecordCounter("mongodb_query_error", 1, map[string]string{})
-		ma.logger.Error("MongoDB query failed", "collection", req.Collection, core.LogKeyError, err, core.LogKeyDuration, duration)
+		ma.logger.Error("MongoDB query failed", "collection", req.Collection, logkeys.LogKeyError, err, logkeys.LogKeyDuration, duration)
 		return nil, fmt.Errorf("MongoDB query failed: %w", err)
 	}
 	defer func() { _ = cursor.Close(ctx) }()
 
-	// Decode results
-	var events []core.BlockchainEvent
-	if err := cursor.All(ctx, &events); err != nil {
+	// Decode results using manual bson.M decoding (same approach as MongoDBEventStore)
+	// This is required because BlockchainEvent has no bson tags and contains types like
+	// common.Hash ([32]byte) that can't directly decode from BSON hex strings.
+	decodedEvents, err := decodeMongoEventCursor(ctx, cursor)
+	if err != nil {
 		duration := time.Since(start).Milliseconds()
 		ma.metricsCollector.RecordCounter("mongodb_decode_error", 1, map[string]string{})
-		ma.logger.Error("Failed to decode MongoDB results", "collection", req.Collection, core.LogKeyError, err, core.LogKeyDuration, duration)
+		ma.logger.Error("Failed to decode MongoDB results", "collection", req.Collection, logkeys.LogKeyError, err, logkeys.LogKeyDuration, duration)
 		return nil, fmt.Errorf("failed to decode results: %w", err)
+	}
+
+	events := make([]blockchain.BlockchainEvent, len(decodedEvents))
+	for i, e := range decodedEvents {
+		if e != nil {
+			events[i] = *e
+		}
 	}
 
 	// Get total count
 	total, err := collection.CountDocuments(ctx, filter)
 	if err != nil {
-		ma.logger.Error("Failed to count MongoDB documents", "collection", req.Collection, core.LogKeyError, err)
+		ma.logger.Error("Failed to count MongoDB documents", "collection", req.Collection, logkeys.LogKeyError, err)
 		total = int64(len(events))
 	}
 
@@ -156,7 +169,7 @@ func (ma *DefaultMongoDBAdapter) Query(ctx context.Context, req *QueryRequest) (
 	ma.metricsCollector.RecordHistogram("mongodb_query_time_ms", float64(duration), map[string]string{})
 	ma.metricsCollector.RecordCounter("mongodb_query_success", 1, map[string]string{})
 
-	ma.logger.Info("MongoDB query successful", "collection", req.Collection, core.LogKeyCount, len(events), "total", total, core.LogKeyDuration, duration)
+	ma.logger.Info("MongoDB query successful", "collection", req.Collection, logkeys.LogKeyCount, len(events), "total", total, logkeys.LogKeyDuration, duration)
 
 	return &QueryResult{
 		Events:       events,
@@ -167,7 +180,7 @@ func (ma *DefaultMongoDBAdapter) Query(ctx context.Context, req *QueryRequest) (
 }
 
 // QueryByHash retrieves a single item by hash
-func (ma *DefaultMongoDBAdapter) QueryByHash(ctx context.Context, hash string) (*core.BlockchainEvent, error) {
+func (ma *DefaultMongoDBAdapter) QueryByHash(ctx context.Context, hash string) (*blockchain.BlockchainEvent, error) {
 	if !ma.initialized.Load() {
 		return nil, fmt.Errorf("MongoDB adapter not initialized")
 	}
@@ -184,29 +197,31 @@ func (ma *DefaultMongoDBAdapter) QueryByHash(ctx context.Context, hash string) (
 	// Build filter
 	filter := bson.M{"hash": hash}
 
-	// Execute query
-	var event core.BlockchainEvent
-	err := collection.FindOne(ctx, filter).Decode(&event)
+	// Execute query — decode to bson.M first, then convert manually (same reason as Query)
+	var result bson.M
+	err := collection.FindOne(ctx, filter).Decode(&result)
 	if err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
 			duration := time.Since(start).Milliseconds()
-			ma.logger.Debug("Event not found in MongoDB", core.LogKeyHash, hash, core.LogKeyDuration, duration)
+			ma.logger.Debug("Event not found in MongoDB", logkeys.LogKeyHash, hash, logkeys.LogKeyDuration, duration)
 			return nil, nil
 		}
 
 		duration := time.Since(start).Milliseconds()
 		ma.metricsCollector.RecordCounter("mongodb_query_by_hash_error", 1, map[string]string{})
-		ma.logger.Error("MongoDB query by hash failed", core.LogKeyHash, hash, core.LogKeyError, err, core.LogKeyDuration, duration)
+		ma.logger.Error("MongoDB query by hash failed", logkeys.LogKeyHash, hash, logkeys.LogKeyError, err, logkeys.LogKeyDuration, duration)
 		return nil, fmt.Errorf("MongoDB query failed: %w", err)
 	}
+
+	event := decodeMongoEventDocument(result)
 
 	duration := time.Since(start).Milliseconds()
 	ma.metricsCollector.RecordHistogram("mongodb_query_by_hash_time_ms", float64(duration), map[string]string{})
 	ma.metricsCollector.RecordCounter("mongodb_query_by_hash_success", 1, map[string]string{})
 
-	ma.logger.Info("MongoDB query by hash successful", core.LogKeyHash, hash, core.LogKeyDuration, duration)
+	ma.logger.Info("MongoDB query by hash successful", logkeys.LogKeyHash, hash, logkeys.LogKeyDuration, duration)
 
-	return &event, nil
+	return event, nil
 }
 
 // Health returns the health status

@@ -6,7 +6,11 @@ import (
 	"sync"
 	"time"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/logkeys"
 )
 
 // DatabaseStats tracks database performance metrics.
@@ -31,7 +35,7 @@ type BaseDatabasePlugin struct {
 	initialized      bool
 	running          bool
 	config           *core.Config
-	logger           core.Logger
+	logger           portcontract.Logger
 	metricsCollector core.MetricsCollector
 	lastHealthCheck  *core.HealthStatus
 	writeCount       int64
@@ -47,7 +51,7 @@ type BaseDatabasePlugin struct {
 }
 
 // NewBaseDatabasePlugin creates a new base database plugin
-func NewBaseDatabasePlugin(logger core.Logger, metricsCollector core.MetricsCollector) *BaseDatabasePlugin {
+func NewBaseDatabasePlugin(logger portcontract.Logger, metricsCollector core.MetricsCollector) *BaseDatabasePlugin {
 	return &BaseDatabasePlugin{
 		logger:           logger,
 		metricsCollector: metricsCollector,
@@ -76,7 +80,7 @@ func (p *BaseDatabasePlugin) Initialize(_ context.Context, config core.Config) e
 	p.config = &config
 	p.initialized = true
 
-	p.logger.Info("Database plugin initialized", core.LogKeyComponent, "database")
+	p.logger.Info("Database plugin initialized", logkeys.LogKeyComponent, "database")
 
 	return nil
 }
@@ -100,7 +104,7 @@ func (p *BaseDatabasePlugin) Start(_ context.Context) error {
 		Message: "Database plugin started",
 	}
 
-	p.logger.Info("Database plugin started", core.LogKeyComponent, "database")
+	p.logger.Info("Database plugin started", logkeys.LogKeyComponent, "database")
 
 	return nil
 }
@@ -120,7 +124,7 @@ func (p *BaseDatabasePlugin) Stop(_ context.Context) error {
 		Message: "Database plugin stopped",
 	}
 
-	p.logger.Info("Database plugin stopped", core.LogKeyComponent, "database")
+	p.logger.Info("Database plugin stopped", logkeys.LogKeyComponent, "database")
 
 	return nil
 }
@@ -277,19 +281,19 @@ func (p *BaseDatabasePlugin) GetTotalSize() int64 {
 // DefaultInMemoryDatabasePlugin provides in-memory database implementation
 type DefaultInMemoryDatabasePlugin struct {
 	*BaseDatabasePlugin
-	events map[string]*core.BlockchainEvent
+	events map[string]*blockchain.BlockchainEvent
 }
 
 // NewDefaultInMemoryDatabasePlugin creates a new in-memory database plugin
-func NewDefaultInMemoryDatabasePlugin(logger core.Logger, metricsCollector core.MetricsCollector) *DefaultInMemoryDatabasePlugin {
+func NewDefaultInMemoryDatabasePlugin(logger portcontract.Logger, metricsCollector core.MetricsCollector) *DefaultInMemoryDatabasePlugin {
 	return &DefaultInMemoryDatabasePlugin{
 		BaseDatabasePlugin: NewBaseDatabasePlugin(logger, metricsCollector),
-		events:             make(map[string]*core.BlockchainEvent),
+		events:             make(map[string]*blockchain.BlockchainEvent),
 	}
 }
 
 // WriteEvent writes a blockchain event to the database
-func (p *DefaultInMemoryDatabasePlugin) WriteEvent(ctx context.Context, event *core.BlockchainEvent) error {
+func (p *DefaultInMemoryDatabasePlugin) WriteEvent(ctx context.Context, event *blockchain.BlockchainEvent) error {
 	if event == nil {
 		return fmt.Errorf("event is required")
 	}
@@ -316,7 +320,7 @@ func (p *DefaultInMemoryDatabasePlugin) WriteEvent(ctx context.Context, event *c
 }
 
 // WriteEvents writes multiple blockchain events to the database (batch)
-func (p *DefaultInMemoryDatabasePlugin) WriteEvents(ctx context.Context, events []core.BlockchainEvent) error {
+func (p *DefaultInMemoryDatabasePlugin) WriteEvents(ctx context.Context, events []blockchain.BlockchainEvent) error {
 	if len(events) == 0 {
 		return fmt.Errorf("events list is required")
 	}
@@ -349,7 +353,7 @@ func (p *DefaultInMemoryDatabasePlugin) WriteEvents(ctx context.Context, events 
 }
 
 // WriteBatch writes multiple blockchain events atomically (in-memory batch).
-func (p *DefaultInMemoryDatabasePlugin) WriteBatch(ctx context.Context, events []*core.BlockchainEvent) error {
+func (p *DefaultInMemoryDatabasePlugin) WriteBatch(ctx context.Context, events []*blockchain.BlockchainEvent) error {
 	if len(events) == 0 {
 		return nil
 	}
@@ -382,7 +386,7 @@ func (p *DefaultInMemoryDatabasePlugin) WriteBatch(ctx context.Context, events [
 }
 
 // QueryEvents queries events from the database
-func (p *DefaultInMemoryDatabasePlugin) QueryEvents(filter *core.EventFilter) (*core.QueryResult, error) {
+func (p *DefaultInMemoryDatabasePlugin) QueryEvents(filter *core.EventFilter) (*portcontract.QueryResult, error) {
 	if filter == nil {
 		return nil, fmt.Errorf("filter is required")
 	}
@@ -397,7 +401,7 @@ func (p *DefaultInMemoryDatabasePlugin) QueryEvents(filter *core.EventFilter) (*
 	start := time.Now()
 
 	// Filter events
-	results := make([]core.BlockchainEvent, 0, len(p.events))
+	results := make([]blockchain.BlockchainEvent, 0, len(p.events))
 	for _, event := range p.events {
 		// Check contract address filter
 		if len(filter.ContractAddress) > 0 {
@@ -435,7 +439,7 @@ func (p *DefaultInMemoryDatabasePlugin) QueryEvents(filter *core.EventFilter) (*
 	p.mu.RUnlock()
 	p.RecordRead(duration)
 
-	return &core.QueryResult{
+	return &portcontract.QueryResult{
 		Events:       results,
 		Total:        total,
 		CacheHit:     false,
@@ -444,7 +448,7 @@ func (p *DefaultInMemoryDatabasePlugin) QueryEvents(filter *core.EventFilter) (*
 }
 
 // GetEventByHash retrieves an event by its hash
-func (p *DefaultInMemoryDatabasePlugin) GetEventByHash(hash string) (*core.BlockchainEvent, error) {
+func (p *DefaultInMemoryDatabasePlugin) GetEventByHash(hash string) (*blockchain.BlockchainEvent, error) {
 	if hash == "" {
 		return nil, fmt.Errorf("hash is required")
 	}
@@ -528,7 +532,7 @@ func (p *DefaultInMemoryDatabasePlugin) GetStats() *DatabaseStats {
 }
 
 // GetAllEvents retrieves all events from the database
-func (p *DefaultInMemoryDatabasePlugin) GetAllEvents(ctx context.Context) ([]*core.BlockchainEvent, error) {
+func (p *DefaultInMemoryDatabasePlugin) GetAllEvents(ctx context.Context) ([]*blockchain.BlockchainEvent, error) {
 	p.mu.RLock()
 
 	if !p.running {
@@ -536,7 +540,7 @@ func (p *DefaultInMemoryDatabasePlugin) GetAllEvents(ctx context.Context) ([]*co
 		return nil, fmt.Errorf("database plugin not running")
 	}
 
-	events := make([]*core.BlockchainEvent, 0, len(p.events))
+	events := make([]*blockchain.BlockchainEvent, 0, len(p.events))
 	for _, event := range p.events {
 		events = append(events, event)
 	}
@@ -547,7 +551,7 @@ func (p *DefaultInMemoryDatabasePlugin) GetAllEvents(ctx context.Context) ([]*co
 }
 
 // GetAllBlocks retrieves all blocks from the database
-func (p *DefaultInMemoryDatabasePlugin) GetAllBlocks(ctx context.Context) ([]*core.Block, error) {
+func (p *DefaultInMemoryDatabasePlugin) GetAllBlocks(ctx context.Context) ([]*blockchain.Block, error) {
 	p.mu.RLock()
 
 	if !p.running {
@@ -558,11 +562,11 @@ func (p *DefaultInMemoryDatabasePlugin) GetAllBlocks(ctx context.Context) ([]*co
 	// In-memory implementation doesn't store blocks
 	p.mu.RUnlock()
 	p.RecordRead(0)
-	return []*core.Block{}, nil
+	return []*blockchain.Block{}, nil
 }
 
 // GetEventsByBlockRange retrieves events within a block range
-func (p *DefaultInMemoryDatabasePlugin) GetEventsByBlockRange(ctx context.Context, fromBlock, toBlock uint64) ([]*core.BlockchainEvent, error) {
+func (p *DefaultInMemoryDatabasePlugin) GetEventsByBlockRange(ctx context.Context, fromBlock, toBlock uint64) ([]*blockchain.BlockchainEvent, error) {
 	p.mu.RLock()
 
 	if !p.running {
@@ -570,7 +574,7 @@ func (p *DefaultInMemoryDatabasePlugin) GetEventsByBlockRange(ctx context.Contex
 		return nil, fmt.Errorf("database plugin not running")
 	}
 
-	var events []*core.BlockchainEvent
+	var events []*blockchain.BlockchainEvent
 	for _, event := range p.events {
 		if event.BlockNumber >= fromBlock && event.BlockNumber <= toBlock {
 			events = append(events, event)
@@ -583,7 +587,7 @@ func (p *DefaultInMemoryDatabasePlugin) GetEventsByBlockRange(ctx context.Contex
 }
 
 // GetBlock retrieves a specific block by number
-func (p *DefaultInMemoryDatabasePlugin) GetBlock(ctx context.Context, blockNumber uint64) (*core.Block, error) {
+func (p *DefaultInMemoryDatabasePlugin) GetBlock(ctx context.Context, blockNumber uint64) (*blockchain.Block, error) {
 	p.mu.RLock()
 
 	if !p.running {
@@ -652,7 +656,7 @@ func (p *DefaultInMemoryDatabasePlugin) MarkEventsAsReorged(ctx context.Context,
 	count := int64(0)
 	for key, event := range p.events {
 		if event.BlockNumber >= fromBlock && event.BlockNumber <= toBlock {
-			event.Status = core.EventStatusReorged
+			event.Status = blockchain.EventStatusReorged
 			p.events[key] = event
 			count++
 		}
@@ -662,7 +666,7 @@ func (p *DefaultInMemoryDatabasePlugin) MarkEventsAsReorged(ctx context.Context,
 }
 
 // GetReorgStats retrieves reorg statistics
-func (p *DefaultInMemoryDatabasePlugin) GetReorgStats(ctx context.Context) (*core.ReorgStats, error) {
+func (p *DefaultInMemoryDatabasePlugin) GetReorgStats(ctx context.Context) (*portcontract.ReorgStats, error) {
 	p.mu.RLock()
 
 	if !p.running {
@@ -673,5 +677,5 @@ func (p *DefaultInMemoryDatabasePlugin) GetReorgStats(ctx context.Context) (*cor
 	// In-memory implementation returns empty stats
 	p.mu.RUnlock()
 	p.RecordRead(0)
-	return &core.ReorgStats{}, nil
+	return &portcontract.ReorgStats{}, nil
 }

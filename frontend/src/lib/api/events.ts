@@ -1,4 +1,3 @@
-import { http } from '../http'
 import type { NormalizedEventsResponse, NormalizedEvent, EventStats, EndpointEvidence } from './types'
 import { getField, toRecord, toNumber, normalizeEvent, requestFirstMatch, getHttpBaseUrl } from './internal'
 
@@ -38,7 +37,7 @@ export async function fetchEvents(filters: {
     search.set('sort', filters.sort)
   }
 
-  return requestFirstMatch<Record<string, unknown>, NormalizedEventsResponse>(
+  return requestFirstMatch<NormalizedEventsResponse>(
     [`/events?${search.toString()}`, `/api/v1/events?${search.toString()}`],
     { method: 'GET' },
     (response, candidate) => {
@@ -67,7 +66,7 @@ export async function fetchEvents(filters: {
 }
 
 export async function fetchEventDetail(eventId: string): Promise<{ event: NormalizedEvent; evidence: EndpointEvidence }> {
-  return requestFirstMatch<Record<string, unknown>, { event: NormalizedEvent; evidence: EndpointEvidence }>(
+  return requestFirstMatch<{ event: NormalizedEvent; evidence: EndpointEvidence }>(
     [`/events/${eventId}`, `/api/v1/events/${eventId}`],
     { method: 'GET' },
     (response, candidate) => {
@@ -82,7 +81,7 @@ export async function fetchEventDetail(eventId: string): Promise<{ event: Normal
 }
 
 export async function fetchEventStats(): Promise<EventStats> {
-  return requestFirstMatch<Record<string, unknown>, EventStats>(
+  return requestFirstMatch<EventStats>(
     ['/events/stats', '/api/v1/events/stats'],
     { method: 'GET' },
     (response, candidate) => {
@@ -117,17 +116,17 @@ export async function exportEvents(format: 'csv' | 'json', filters: {
 
   const base = getHttpBaseUrl()
   const url = `${base}/events/export?${search.toString()}`
+  const token = localStorage.getItem('chainpulse_auth_token')
+  const headers: Record<string, string> = {}
+  if (token) headers['Authorization'] = `Bearer ${token}`
 
-  const response = await http.get(url, {
-    responseType: 'blob',
-    validateStatus: () => true,
-  })
+  const response = await fetch(url, { headers })
 
-  if (response.status < 200 || response.status >= 300) {
+  if (!response.ok) {
     throw new Error(`Export failed with status ${response.status}`)
   }
 
-  const blob = response.data as Blob
+  const blob = await response.blob()
   const downloadUrl = window.URL.createObjectURL(blob)
   const link = document.createElement('a')
   link.href = downloadUrl

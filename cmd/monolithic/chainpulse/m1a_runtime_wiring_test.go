@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"github.com/rtcdance/chainpulse/pkg/core"
 	"github.com/rtcdance/chainpulse/pkg/services/indexing"
 	"github.com/rtcdance/chainpulse/pkg/testhelpers"
@@ -94,7 +95,7 @@ func TestSubscribeMonolithicIndexerRoutesBlockchainEvents(t *testing.T) {
 		t.Fatalf("subscribe monolithic indexer: %v", err)
 	}
 
-	event := core.BlockchainEvent{
+	event := blockchain.BlockchainEvent{
 		ID:              "evt-1",
 		ChainID:         "ethereum",
 		BlockNumber:     12,
@@ -156,7 +157,17 @@ func TestMonolithicPullerRuntimeObserveEventDetectsAndHandlesReorg(t *testing.T)
 		t.Fatalf("new runtime: %v", err)
 	}
 
-	oldEvent := core.BlockchainEvent{
+	// Reorg detection compares locally-indexed hashes against the canonical
+	// chain through the block-hash provider. No node runs in this test, so
+	// point the handler at a stub that reports the post-reorg canonical hash
+	// for the block. Without this the lookup fails, and DetectReorg used to
+	// swallow that failure and report it as a reorg — so this test asserted
+	// "reorg handled" while the provider was actually erroring.
+	runtime.reorgChains["ethereum"].handler.SetBlockHashProvider(
+		stubReorgBlockHashProvider{hash: common.HexToHash("0x1234")},
+	)
+
+	oldEvent := blockchain.BlockchainEvent{
 		ID:              "evt-old",
 		ChainID:         "ethereum",
 		BlockNumber:     12,
@@ -194,8 +205,8 @@ func TestMonolithicPullerRuntimeObserveEventDetectsAndHandlesReorg(t *testing.T)
 	if removed == nil {
 		t.Fatalf("expected old event to be marked as reorged, got nil")
 	}
-	if removed.Status != core.EventStatusReorged {
-		t.Fatalf("expected old event status %q, got %q", core.EventStatusReorged, removed.Status)
+	if removed.Status != blockchain.EventStatusReorged {
+		t.Fatalf("expected old event status %q, got %q", blockchain.EventStatusReorged, removed.Status)
 	}
 
 	block, err = db.GetBlock(context.Background(), 12)
@@ -224,11 +235,17 @@ func TestMonolithicPullerRuntimeObserveEventDetectsAndHandlesReorg(t *testing.T)
 	}
 }
 
+type stubReorgBlockHashProvider struct{ hash common.Hash }
+
+func (s stubReorgBlockHashProvider) GetBlockHash(context.Context, uint64) (common.Hash, error) {
+	return s.hash, nil
+}
+
 type recordingChainIndexer struct {
 	chainID   string
 	count     int
 	lastChain string
-	lastEvent *core.BlockchainEvent
+	lastEvent *blockchain.BlockchainEvent
 }
 
 type stubMonolithicPollingPuller struct {
@@ -256,7 +273,7 @@ func newRecordingChainIndexer(chainID string) *recordingChainIndexer {
 	return &recordingChainIndexer{chainID: chainID}
 }
 
-func (r *recordingChainIndexer) IndexEvents(_ context.Context, events []*core.BlockchainEvent) error {
+func (r *recordingChainIndexer) IndexEvents(_ context.Context, events []*blockchain.BlockchainEvent) error {
 	r.count += len(events)
 	if len(events) > 0 {
 		r.lastChain = events[0].ChainID

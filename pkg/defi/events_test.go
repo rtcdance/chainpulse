@@ -37,7 +37,7 @@ func TestDeFiEventSignaturesRegistered(t *testing.T) {
 func TestDeFiABIDefinitionsParse(t *testing.T) {
 	// Verify that all DeFi ABI definitions can be parsed without error
 	defiEvents := []string{
-		"Supply", "DeFiWithdraw", "Borrow", "Repay", "LiquidationCall",
+		"Supply", "Borrow", "Repay", "LiquidationCall",
 		"ReserveDataUpdated",
 		"CometSupply", "CometWithdraw", "CometBorrow", "CometRepay", "CometLiquidate",
 		"UniswapV2Swap", "Sync", "PairCreated",

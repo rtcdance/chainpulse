@@ -7,14 +7,17 @@ import (
 )
 
 func TestDatabaseManager_Initialize(t *testing.T) {
-	// This test requires PostgreSQL to be running
-	// Skip if PostgreSQL is not available
-	t.Skip("Requires PostgreSQL to be running")
+	// This test requires PostgreSQL to be running: it only executes when a
+	// database is provisioned via TEST_DATABASE_URL (decision D16(a)); with
+	// the variable unset it keeps the historical skip.
+	if !databaseProvisioned() {
+		t.Skip("Requires PostgreSQL to be running (set TEST_DATABASE_URL)")
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	connString := "postgres://user:password@localhost:5432/testdb"
+	connString := testDatabaseURL(placeholderDatabaseURL)
 	dm := NewDatabaseManager(connString)
 	defer func() { _ = dm.Close() }()
 
@@ -33,7 +36,7 @@ func TestDatabaseManager_Initialize(t *testing.T) {
 }
 
 func TestDatabaseManager_Initialize_AlreadyInitialized(t *testing.T) {
-	dm := NewDatabaseManager("postgres://user:password@localhost:5432/testdb")
+	dm := NewDatabaseManager(testDatabaseURL(placeholderDatabaseURL))
 	dm.initialized = true
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -46,7 +49,7 @@ func TestDatabaseManager_Initialize_AlreadyInitialized(t *testing.T) {
 }
 
 func TestDatabaseManager_Close(t *testing.T) {
-	dm := NewDatabaseManager("postgres://user:password@localhost:5432/testdb")
+	dm := NewDatabaseManager(testDatabaseURL(placeholderDatabaseURL))
 	dm.initialized = true
 
 	err := dm.Close()
@@ -60,7 +63,7 @@ func TestDatabaseManager_Close(t *testing.T) {
 }
 
 func TestDatabaseManager_GetPool_NotInitialized(t *testing.T) {
-	dm := NewDatabaseManager("postgres://user:password@localhost:5432/testdb")
+	dm := NewDatabaseManager(testDatabaseURL(placeholderDatabaseURL))
 
 	pool := dm.GetPool()
 	if pool != nil {
@@ -69,7 +72,7 @@ func TestDatabaseManager_GetPool_NotInitialized(t *testing.T) {
 }
 
 func TestDatabaseManager_GetConnection_NotInitialized(t *testing.T) {
-	dm := NewDatabaseManager("postgres://user:password@localhost:5432/testdb")
+	dm := NewDatabaseManager(testDatabaseURL(placeholderDatabaseURL))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -81,7 +84,7 @@ func TestDatabaseManager_GetConnection_NotInitialized(t *testing.T) {
 }
 
 func TestDatabaseManager_ExecuteQuery_NotInitialized(t *testing.T) {
-	dm := NewDatabaseManager("postgres://user:password@localhost:5432/testdb")
+	dm := NewDatabaseManager(testDatabaseURL(placeholderDatabaseURL))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -93,7 +96,7 @@ func TestDatabaseManager_ExecuteQuery_NotInitialized(t *testing.T) {
 }
 
 func TestDatabaseManager_ExecuteCommand_NotInitialized(t *testing.T) {
-	dm := NewDatabaseManager("postgres://user:password@localhost:5432/testdb")
+	dm := NewDatabaseManager(testDatabaseURL(placeholderDatabaseURL))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -105,7 +108,7 @@ func TestDatabaseManager_ExecuteCommand_NotInitialized(t *testing.T) {
 }
 
 func TestDatabaseManager_ExecuteRow_NotInitialized(t *testing.T) {
-	dm := NewDatabaseManager("postgres://user:password@localhost:5432/testdb")
+	dm := NewDatabaseManager(testDatabaseURL(placeholderDatabaseURL))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -117,7 +120,7 @@ func TestDatabaseManager_ExecuteRow_NotInitialized(t *testing.T) {
 }
 
 func TestDatabaseManager_BeginTransaction_NotInitialized(t *testing.T) {
-	dm := NewDatabaseManager("postgres://user:password@localhost:5432/testdb")
+	dm := NewDatabaseManager(testDatabaseURL(placeholderDatabaseURL))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -129,7 +132,7 @@ func TestDatabaseManager_BeginTransaction_NotInitialized(t *testing.T) {
 }
 
 func TestDatabaseManager_ClearTable_NotInitialized(t *testing.T) {
-	dm := NewDatabaseManager("postgres://user:password@localhost:5432/testdb")
+	dm := NewDatabaseManager(testDatabaseURL(placeholderDatabaseURL))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -141,7 +144,7 @@ func TestDatabaseManager_ClearTable_NotInitialized(t *testing.T) {
 }
 
 func TestDatabaseManager_ClearAllTables_NotInitialized(t *testing.T) {
-	dm := NewDatabaseManager("postgres://user:password@localhost:5432/testdb")
+	dm := NewDatabaseManager(testDatabaseURL(placeholderDatabaseURL))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -153,7 +156,7 @@ func TestDatabaseManager_ClearAllTables_NotInitialized(t *testing.T) {
 }
 
 func TestDatabaseManager_GetTableRowCount_NotInitialized(t *testing.T) {
-	dm := NewDatabaseManager("postgres://user:password@localhost:5432/testdb")
+	dm := NewDatabaseManager(testDatabaseURL(placeholderDatabaseURL))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -165,7 +168,7 @@ func TestDatabaseManager_GetTableRowCount_NotInitialized(t *testing.T) {
 }
 
 func TestDatabaseManager_IsConnected_NotInitialized(t *testing.T) {
-	dm := NewDatabaseManager("postgres://user:password@localhost:5432/testdb")
+	dm := NewDatabaseManager(testDatabaseURL(placeholderDatabaseURL))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -176,7 +179,7 @@ func TestDatabaseManager_IsConnected_NotInitialized(t *testing.T) {
 }
 
 func TestDatabaseManager_WaitForConnection_NotInitialized(t *testing.T) {
-	dm := NewDatabaseManager("postgres://user:password@localhost:5432/testdb")
+	dm := NewDatabaseManager(testDatabaseURL(placeholderDatabaseURL))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
@@ -188,7 +191,7 @@ func TestDatabaseManager_WaitForConnection_NotInitialized(t *testing.T) {
 }
 
 func TestDatabaseManager_CreateTable_NotInitialized(t *testing.T) {
-	dm := NewDatabaseManager("postgres://user:password@localhost:5432/testdb")
+	dm := NewDatabaseManager(testDatabaseURL(placeholderDatabaseURL))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -200,7 +203,7 @@ func TestDatabaseManager_CreateTable_NotInitialized(t *testing.T) {
 }
 
 func TestDatabaseManager_DropTable_NotInitialized(t *testing.T) {
-	dm := NewDatabaseManager("postgres://user:password@localhost:5432/testdb")
+	dm := NewDatabaseManager(testDatabaseURL(placeholderDatabaseURL))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()

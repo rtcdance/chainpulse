@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Loader2, Pause, Play, RefreshCw, ServerCog } from 'lucide-react'
 import { fetchCurrentSliceReport, fetchRuntimeSummary, postRuntimeControl, type RuntimePayload, type ServiceAcceptanceReport } from '../lib/chainpulse'
 import { useToast } from '../lib/toast'
@@ -27,8 +27,7 @@ export default function Runtime() {
   const [actionLoading, setActionLoading] = useState(false)
   const { addToast } = useToast()
 
-  async function loadRuntime(): Promise<void> {
-    setLoading(true)
+  async function doFetch(): Promise<void> {
     try {
       const [summary, nextReports] = await Promise.all([
         fetchRuntimeSummary(),
@@ -42,6 +41,11 @@ export default function Runtime() {
     } finally {
       setLoading(false)
     }
+  }
+
+  async function loadRuntime(): Promise<void> {
+    setLoading(true)
+    await doFetch()
   }
 
   async function executeAction(action: ActionDef): Promise<void> {
@@ -62,9 +66,9 @@ export default function Runtime() {
     }
   }
 
-  useEffect(() => {
-    void loadRuntime()
-  }, [])
+  if (loading && !gatewaySummary && reports.length === 0 && !error) {
+    doFetch().catch(() => {/* handled */})
+  }
 
   return (
     <div className="space-y-6">

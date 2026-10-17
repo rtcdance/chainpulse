@@ -1,9 +1,50 @@
 # ChainPulse
 
+![CI](https://github.com/rtcdance/chainpulse/actions/workflows/ci.yml/badge.svg)
+
+![Tests](https://github.com/rtcdance/chainpulse/actions/workflows/test.yml/badge.svg)
+
+![Coverage](https://github.com/rtcdance/chainpulse/actions/workflows/coverage.yml/badge.svg)
+
+
+
+![Release](https://github.com/rtcdance/chainpulse/actions/workflows/release.yml/badge.svg)
+
+![Deploy](https://github.com/rtcdance/chainpulse/actions/workflows/deploy.yml/badge.svg)
+
+![Go Version](https://img.shields.io/badge/Go-1.26-00ADD8?logo=go)
+
+![License](https://img.shields.io/badge/license-MIT-blue.svg)
+
 ChainPulse monitors and indexes blockchain events in real time. Track
 transactions, detect chain reorganizations, inspect dead-letter queues,
 and debug event processing across Ethereum and other chains — from a
 single dashboard.
+
+**What it is:** a Web3 Go backend that indexes EVM events — PostgreSQL
+persistence, Kafka redelivery, a Redis cache and a query API — built around the
+correctness problems that make indexing hard: reorgs that rewrite history,
+at-least-once delivery, and finality that differs by chain.
+
+**What it is not:** a bridge, an MEV or account-abstraction implementation, or a
+multi-chain production deployment. Local verification runs two independent EVM chains through both the monolith
+and four native services, and exercises reorg depths 1/2/12. Production-scale
+load, complete fault recovery and release acceptance remain pending. It also has **no gRPC API**: there
+is a `.proto` with message definitions and a protocol detector that can
+*recognise* gRPC traffic, but no generated code, service definition, server or
+client, so gRPC is neither served nor consumed.
+
+Current implementation evidence is recorded in the
+[local execution record](docs/project/2026-10-14-live-delivery-execution.md).
+It comes from a dirty working tree. The badges above describe their workflow
+runs; they do not establish acceptance for these uncommitted changes.
+
+See the [English project summary](docs/project/2026-10-13-english-summary.md) for
+the evidenced results, the support boundary, and the design decisions
+([ADRs](docs/adr/README.md)). The per-capability detail — what is verified, what
+exists but is unverified, and what is absent — is in
+[SUPPORT\_MATRIX.md](docs/project/SUPPORT_MATRIX.md); it names the test or lane
+behind every verified row.
 
 ## 5-Minute Happy Path
 
@@ -54,7 +95,7 @@ cp docker/.env.example docker/.env
 # 2a. Quickstart (1 chain + essential infra, recommended for development)
 docker compose -f docker/docker-compose.quickstart.yml up -d
 
-# 2b. Full stack (7 blockchains + full observability)
+# 2b. Full stack (7 EVM chains (config) + Solana/Cosmos adapters + full observability)
 docker compose -f docker/docker-compose.yml up -d
 
 # 3. Verify it's running
@@ -70,7 +111,7 @@ docker compose -f docker/docker-compose.yml -f docker/docker-compose.with-ui.yml
 
 ### Prerequisites
 
-- Go 1.24+
+- Go 1.26+
 - Docker & Docker Compose (for full stack)
 - PostgreSQL, Redis, Kafka (optional — playground mode needs none)
 
@@ -108,7 +149,7 @@ See [docs/README.md](docs/README.md) for complete documentation index.
 - **[Project Docs](docs/project/README.md)** - Project-level guardrails and operational guidance
 - **[Developer Guide](docs/guides/DEVELOPER_GUIDE.md)** - Development setup and guidelines
 - **[Deployment Guide](docs/guides/DEPLOYMENT_GUIDE.md)** - Deployment procedures
-- **[API Documentation](docs/guides/API_DOCUMENTATION.md)** - REST, gRPC, and WebSocket APIs
+- **[API Documentation](docs/guides/API_DOCUMENTATION.md)** - REST and WebSocket APIs
 - **[Operations Guide](docs/guides/OPERATIONS_GUIDE.md)** - Monitoring and maintenance
 
 ## 🏗️ Project Structure
@@ -117,46 +158,119 @@ See [docs/README.md](docs/README.md) for complete documentation index.
 chainpulse/
 ├── cmd/                   # Application entrypoints
 │   ├── monolithic/        # Monolithic mode
-│   └── microservices/     # Microservice mode
-│       ├── api-gateway/
-│       ├── api-service/
-│       ├── event-processor/
-│       └── puller/
+│   ├── microservices/     # Microservice mode
+│   │   ├── api-gateway/
+│   │   ├── api-service/
+│   │   ├── event-processor/
+│   │   └── puller/
+│   └── playground/        # In-memory playground
+├── contracts/             # Foundry: EventEmitter/SwapEmitter + vendored forge-std
+├── docker/                # Compose stacks (dev, microservices, e2e, acceptance)
 ├── docs/                  # Documentation
+│   ├── adr/               # Architecture decision records
+│   ├── architecture/      # Architecture notes and diagrams
 │   ├── deployment/        # Go-live and operations runbooks
 │   ├── guides/            # Developer and operator guides
 │   ├── operations/        # Governance and policy docs
-│   ├── project/           # Project-level guardrails
-│   ├── specs/             # Design records
-│   └── archive/           # Historical baseline docs
-├── docker/                # Docker configuration
+│   ├── project/           # Project guardrails and per-task records
+│   └── specs/             # Design records (the delivery plan lives here)
+├── examples/              # Runnable examples
 ├── frontend/              # Dashboard/UI
 ├── k8s/                   # Kubernetes manifests
-├── monitoring/            # Prometheus and Grafana assets
-├── pkg/                    # Go packages
+├── migrations/            # PostgreSQL migrations, applied in filename order
+├── monitoring/            # Prometheus, Grafana, Loki, Alertmanager assets
+├── pkg/                   # Go packages
 │   ├── core/              # Foundation interfaces and types (DDD)
-│   ├── domain/            # Domain models and interfaces
-│   ├── application/        # Use cases and orchestration
-│   ├── adapters/          # External adapters
+│   ├── ports/             # Hexagonal ports (core aliases these)
+│   ├── domain/            # Domain models
+│   ├── application/       # Use cases and orchestration
 │   ├── plugins/           # Plugin implementations
-│   │   ├── api/           # API plugins (REST, gRPC, GraphQL, WebSocket)
+│   │   ├── api/           # API plugins (REST, GraphQL, WebSocket)
 │   │   ├── cache/         # Caching implementations
-│   │   ├── database/      # Database drivers
-│   │   ├── mq/            # Message queue implementations
-│   │   └── pullers/       # Data collection (HTTPS, WebSocket, gRPC)
-│   ├── services/          # Business logic
+│   │   ├── database/      # Database drivers (PostgreSQL, in-memory)
+│   │   ├── mq/            # Message queue implementations (Kafka)
+│   │   └── pullers/       # Data collection (HTTPS, WebSocket)
+│   ├── services/          # Business logic (indexing, processor, reorg, finality, query)
+│   ├── evm/               # EVM typed event decoding
+│   ├── siwe/              # Sign-In With Ethereum and the nonce store
 │   ├── infrastructure/    # Infrastructure utilities
 │   ├── integrations/      # External integrations (ERC20, Uniswap)
-│   └── observability/     # Monitoring, tracing, metrics
-├── scripts/               # Verification and automation scripts
-├── test/                  # Test suites
-│   ├── acceptance/        # Playwright UI acceptance tests
-│   ├── integration/      # Integration tests
-│   └── e2e/              # End-to-end tests
-└── package.json           # Node.js for Playwright tests
+│   └── observability/     # Metrics, tracing, health
+├── scripts/               # Automation and verification (see scripts/README.md)
+│   └── acceptance/        # verify-tests, collect-evidence, bench-gate, dep-approval-gate
+└── test/                  # Test suites
+    ├── acceptance/        # Cross-cutting acceptance tests + tools/
+    ├── benchmarks/        # Micro-benchmark baselines
+    ├── contracts/         # Adapter contract suites
+    ├── e2e/               # End-to-end tests
+    ├── fixtures/          # Committed corpora (e.g. the Uniswap V3 Swap fixture)
+    ├── integration/       # Integration tests
+    ├── migration/         # Migration tests
+    └── performance/       # Performance tests
 ```
 
 ## 📊 Architecture
+
+### System Overview
+
+The diagram below is the indexing path as the code actually implements it
+(PostgreSQL + Kafka + Redis + EVM). The widest things exercised today are a
+two-chain isolation test and a single-chain load path — not a multi-chain
+production deployment. Component names are the real packages under `pkg/`.
+
+```mermaid
+flowchart LR
+  subgraph CH["EVM chains"]
+    RPC["RPC providers<br/>eth_getLogs / WS"]
+  end
+
+  subgraph ING["Ingest — one writer per chain"]
+    PULL["plugins/pullers<br/>RangeSplitter"]
+    DEC["services/decoder<br/>typed events"]
+    PROC["services/processor<br/>event_processor"]
+    CMIT["services/processor<br/>batch_committer"]
+    LEASE["plugins/database<br/>lease + generation"]
+  end
+
+  subgraph INF["Shared infrastructure"]
+    PG[("PostgreSQL<br/>events · checkpoint<br/>lease · outbox")]
+    MQ[("Kafka<br/>partition key = chain")]
+    RD[("Redis<br/>versioned cache")]
+  end
+
+  subgraph SRV["Serve"]
+    QRY["services/query<br/>DegradingReader"]
+    API["plugins/api<br/>REST · WS"]
+    SIWE["siwe<br/>nonce store"]
+  end
+
+  subgraph REP["Repair and safety"]
+    REORG["services/reorg<br/>repair + outbox drainer"]
+    FIN["services/finality<br/>safe · finalized"]
+    OBS["observability<br/>metrics · lag phases"]
+  end
+
+  RPC --> PULL --> DEC --> PROC --> CMIT
+  CMIT -->|"atomic TX: events + checkpoint"| PG
+  CMIT -.->|outbox| MQ
+  MQ -->|redelivery| PROC
+  LEASE --- CMIT
+  API --> QRY
+  QRY --> RD
+  QRY -->|"cache miss"| PG
+  API --> SIWE --> RD
+  REORG --> PG
+  REORG -.-> MQ
+  FIN --> PG
+  OBS -.-> CMIT
+```
+
+The deployment model and the correctness contracts behind this path are
+recorded under [`docs/adr/`](docs/adr/): the monolith-vs-microservice split
+([ADR-001](docs/adr/ADR-001-plugin-architecture.md)), the event bus pub/sub
+contract ([ADR-002](docs/adr/ADR-002-event-bus-pubsub.md)), and the reorg
+rollback/reindex strategy ([ADR-003](docs/adr/ADR-003-reorg-rollback-reindex.md)).
+
 
 ### Dual-Mode Deployment
 
@@ -171,16 +285,16 @@ Set via: `export DEPLOYMENT_MODE=monolithic` or `export DEPLOYMENT_MODE=microser
 
 ### Key Capabilities
 
-| Feature              | Details                                                     |
-| -------------------- | ----------------------------------------------------------- |
-| **Data Collection**  | Multiple protocols (HTTPS-JSONRPC, WebSocket-JSONRPC, gRPC) |
-| **Event Processing** | Idempotency, batch processing, error recovery               |
-| **Caching**          | Redis and in-memory backends with TTL support               |
-| **Persistence**      | PostgreSQL and MongoDB support                              |
-| **APIs**             | REST, gRPC, and WebSocket protocols                         |
-| **Deployment**       | Monolithic and microservice modes                           |
-| **Observability**    | Metrics, logging, tracing, health checks                    |
-| **Resilience**       | Error handling, retry logic, graceful shutdown              |
+| Feature              | Details                                               |
+| -------------------- | ----------------------------------------------------- |
+| **Data Collection**  | Multiple protocols (HTTPS-JSONRPC, WebSocket-JSONRPC) |
+| **Event Processing** | Idempotency, batch processing, error recovery         |
+| **Caching**          | Redis and in-memory backends with TTL support         |
+| **Persistence**      | PostgreSQL and MongoDB support                        |
+| **APIs**             | REST and WebSocket protocols                          |
+| **Deployment**       | Monolithic and microservice modes                     |
+| **Observability**    | Metrics, logging, tracing, health checks              |
+| **Resilience**       | Error handling, retry logic, graceful shutdown        |
 
 ## 🧪 Testing
 
@@ -359,7 +473,6 @@ See [Developer Guide](docs/guides/DEVELOPER_GUIDE.md) for detailed guidelines.
 - `pkg/core` - Foundation interfaces and types
 - `pkg/domain` - Domain models and interfaces
 - `pkg/application` - Use cases and orchestration
-- `pkg/adapters` - External adapters
 - `pkg/plugins` - Plugin implementations
 - `pkg/services` - Business logic
 - `pkg/observability` - Monitoring and tracing
@@ -409,10 +522,13 @@ For questions or issues:
 
 ## 📈 Code Statistics
 
-| Metric        | Value                   |
-| ------------- | ----------------------- |
-| Total Go Code | \~195,559 lines         |
-| Project Code  | \~85,748 lines (43.8%)  |
-| Test Code     | \~109,811 lines (56.2%) |
-| Go Version    | 1.24                    |
-| Milestones    | 7/7 Completed           |
+| Metric                           | Value                                                      |
+| -------------------------------- | ---------------------------------------------------------- |
+| Total Go Code                    | 245,138 lines (all `.go`, excl. `node_modules`/`frontend`) |
+| Production (pkg+cmd, non-test)   | 92,635 lines                                               |
+| Test (pkg+cmd)                   | 124,326 lines                                              |
+| Test (`test/`)                   | 17,398 lines                                               |
+| Test harness (`test/`, non-test) | 10,256 lines                                               |
+| Examples (`examples/`)           | 523 lines                                                  |
+| Go Version                       | 1.26                                                       |
+| Milestones                       | 7/7 Completed                                              |

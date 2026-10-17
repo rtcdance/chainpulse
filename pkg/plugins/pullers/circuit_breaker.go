@@ -74,6 +74,14 @@ func NewCircuitBreaker(config CircuitBreakerConfig) *CircuitBreaker {
 	}
 }
 
+// SetCooldown overrides the cooldown window between an open circuit and the
+// first half-open probe. Testing affordance; safe for concurrent use.
+func (cb *CircuitBreaker) SetCooldown(d time.Duration) {
+	cb.mu.Lock()
+	defer cb.mu.Unlock()
+	cb.cooldown = d
+}
+
 func (cb *CircuitBreaker) Allow() error {
 	cb.mu.Lock()
 	defer cb.mu.Unlock()

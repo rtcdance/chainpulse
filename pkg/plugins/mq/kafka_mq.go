@@ -8,6 +8,8 @@ import (
 	"sync"
 	"time"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
 	"github.com/rtcdance/chainpulse/pkg/core"
 	"github.com/rtcdance/chainpulse/pkg/observability"
 	"github.com/segmentio/kafka-go"
@@ -19,7 +21,6 @@ const (
 	defaultKafkaMaxRetries         = 3
 	defaultKafkaRetryDelay         = 1 * time.Second
 	defaultKafkaMaxBytes           = 10e6
-	defaultKafkaCommitInterval     = time.Second
 	defaultKafkaStopTimeout        = 10 * time.Second
 	defaultKafkaCommitTimeout      = 5 * time.Second
 	defaultKafkaDLQReadTimeout     = 2 * time.Second
@@ -32,14 +33,14 @@ const (
 type KafkaProducer struct {
 	writer *kafka.Writer
 	config *core.Config
-	logger core.Logger
+	logger portcontract.Logger
 }
 
 // KafkaConsumer represents a Kafka message consumer
 type KafkaConsumer struct {
 	reader *kafka.Reader
 	config *core.Config
-	logger core.Logger
+	logger portcontract.Logger
 }
 
 // KafkaMQPlugin represents the Kafka message queue plugin
@@ -47,20 +48,20 @@ type KafkaMQPlugin struct {
 	name             string
 	version          string
 	config           *core.Config
-	logger           core.Logger
+	logger           portcontract.Logger
 	metricsCollector core.MetricsCollector
-	eventBus         core.EventBus
+	eventBus         portcontract.EventBus
 	isInitialized    bool
 	isRunning        bool
 	mu               sync.RWMutex
 	producer         *KafkaProducer
 	consumers        map[string]*KafkaConsumer
+	ownedConsumers   map[string]context.CancelFunc
 	batchSize        int
 	maxRetries       int
 	retryDelay       time.Duration
 	brokers          []string
 	consumerGroup    string
-	commitInterval   time.Duration
 	consumerMaxBytes int64
 
 	stats       *kafkaMessageStats
@@ -79,9 +80,9 @@ type KafkaMQPlugin struct {
 func NewKafkaMQPlugin(
 	name, version string,
 	config *core.Config,
-	logger core.Logger,
+	logger portcontract.Logger,
 	metricsCollector core.MetricsCollector,
-	eventBus core.EventBus,
+	eventBus portcontract.EventBus,
 	brokers []string,
 	consumerGroup string,
 ) *KafkaMQPlugin {
@@ -100,6 +101,7 @@ func NewKafkaMQPlugin(
 		brokers:          brokers,
 		consumerGroup:    consumerGroup,
 		consumers:        make(map[string]*KafkaConsumer),
+		ownedConsumers:   make(map[string]context.CancelFunc),
 
 		stats:       &kafkaMessageStats{},
 		offsets:     newKafkaOffsetState(),
@@ -107,7 +109,7 @@ func NewKafkaMQPlugin(
 		cgState:     newKafkaConsumerGroupState(),
 		dlqState:    newKafkaDLQState(),
 
-		tracer:     observability.NewDefaultTracer(logger, metricsCollector),
+		tracer:     observability.NewSharedTracer(logger, metricsCollector),
 		shutdownCh: make(chan struct{}),
 	}
 }
@@ -126,8 +128,11 @@ func (p *KafkaMQPlugin) Initialize(ctx context.Context, config core.Config) erro
 	// Create Kafka writer (producer)
 	writer := &kafka.Writer{
 		Addr:                   kafka.TCP(p.brokers...),
-		Balancer:               &kafka.LeastBytes{},
+		Balancer:               &kafka.Hash{},
+		RequiredAcks:           kafka.RequireAll,
 		AllowAutoTopicCreation: false,
+		BatchTimeout:           10 * time.Millisecond,
+		BatchSize:              100,
 	}
 
 	p.producer = &KafkaProducer{
@@ -169,6 +174,9 @@ func (p *KafkaMQPlugin) Stop(ctx context.Context) error {
 		return nil
 	}
 	p.isRunning = false
+	for _, cancel := range p.ownedConsumers {
+		cancel()
+	}
 	p.mu.Unlock()
 
 	p.shutdownOnce.Do(func() {
@@ -256,7 +264,7 @@ func (p *KafkaMQPlugin) DetailedHealth(ctx context.Context) core.HealthStatus {
 			"dead_letter_queue_size": p.stats.deadLetterQueueSize,
 			"brokers":                p.brokers,
 			"consumer_group":         p.consumerGroup,
-			"active_consumers":       len(p.consumers),
+			"active_consumers":       len(p.consumers) + len(p.ownedConsumers),
 			"consumer_group_lag":     consumerGroupLag,
 			"max_tracked_offset":     maxTrackedOffset,
 			"consumer_group_metrics": consumerGroupMetrics,
@@ -264,21 +272,15 @@ func (p *KafkaMQPlugin) DetailedHealth(ctx context.Context) core.HealthStatus {
 	}
 }
 
-// SetConsumerConfig overrides default consumer commit interval and max bytes.
-func (p *KafkaMQPlugin) SetConsumerConfig(commitInterval time.Duration, maxBytes int64) {
+// SetConsumerConfig overrides the maximum bytes fetched per consumer request.
+//
+// There is deliberately no commit-interval knob: offsets are committed
+// explicitly after a successful handler (see ConsumeMessages), because a timer
+// commits the last-read offset whether or not the handler succeeded.
+func (p *KafkaMQPlugin) SetConsumerConfig(maxBytes int64) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	p.commitInterval = commitInterval
 	p.consumerMaxBytes = maxBytes
-}
-
-func (p *KafkaMQPlugin) getCommitInterval() time.Duration {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-	if p.commitInterval > 0 {
-		return p.commitInterval
-	}
-	return defaultKafkaCommitInterval
 }
 
 func (p *KafkaMQPlugin) getMaxBytes() int64 {
@@ -290,6 +292,24 @@ func (p *KafkaMQPlugin) getMaxBytes() int64 {
 	return defaultKafkaMaxBytes
 }
 
+// consumerReaderConfig builds the reader configuration for the ingest consume
+// loop (initial reader and the post-reconnect one).
+//
+// CommitInterval is deliberately left at its zero value. kafka-go documents
+// "If 0, commits will be handled synchronously", and 0 is also its default; a
+// non-zero value starts a ticker that commits the offset stash on a timer, so a
+// message whose handler failed is marked consumed and lost. Offsets are
+// committed explicitly after a successful handler in ConsumeMessages instead.
+func (p *KafkaMQPlugin) consumerReaderConfig(topic string) kafka.ReaderConfig {
+	return kafka.ReaderConfig{
+		Brokers:     p.brokers,
+		Topic:       topic,
+		GroupID:     p.consumerGroup,
+		StartOffset: kafka.FirstOffset,
+		MaxBytes:    int(p.getMaxBytes()),
+	}
+}
+
 // Subscribe subscribes to a Kafka topic and calls handler for each message
 func (p *KafkaMQPlugin) Subscribe(ctx context.Context, topic string, handler func([]byte)) error {
 	p.mu.Lock()
@@ -298,12 +318,10 @@ func (p *KafkaMQPlugin) Subscribe(ctx context.Context, topic string, handler fun
 		return fmt.Errorf("already subscribed to topic: %s", topic)
 	}
 
-	reader := kafka.NewReader(kafka.ReaderConfig{
-		Brokers: p.brokers,
-		Topic:   topic,
-		GroupID: p.consumerGroup,
-	})
-	consumer := &KafkaConsumer{reader: reader, config: p.config, logger: p.logger}
+	// Reserve the topic before starting the worker. ConsumeMessages creates the
+	// actual reader; creating another here leaks it and nests configuration
+	// reads under this write lock.
+	consumer := &KafkaConsumer{config: p.config, logger: p.logger}
 	p.consumers[topic] = consumer
 	p.mu.Unlock()
 
@@ -311,7 +329,11 @@ func (p *KafkaMQPlugin) Subscribe(ctx context.Context, topic string, handler fun
 		handler(msg.Payload)
 		return nil
 	}
-	go p.ConsumeMessages(ctx, topic, mqHandler)
+	go func() {
+		if err := p.ConsumeMessages(ctx, topic, mqHandler); err != nil {
+			p.logger.Error("failed to consume messages", "topic", topic, "error", err.Error())
+		}
+	}()
 	return nil
 }
 
@@ -442,7 +464,7 @@ func (p *KafkaMQPlugin) PublishMessage(ctx context.Context, message core.Message
 	return nil
 }
 
-// ConsumeMessages consumes messages from a Kafka topic with exactly-once semantics
+// ConsumeMessages delivers at least once and acknowledges only successful effects.
 // Implements context support for cancellation, handler invocation, error handling,
 // graceful consumer shutdown, and offset tracking per topic
 func (p *KafkaMQPlugin) ConsumeMessages(ctx context.Context, topic string, handler func(core.MessageQueueMessage) error) error {
@@ -466,14 +488,8 @@ func (p *KafkaMQPlugin) ConsumeMessages(ctx context.Context, topic string, handl
 	p.mu.Unlock()
 
 	// Create Kafka reader (consumer) with consumer group for offset tracking
-	reader := kafka.NewReader(kafka.ReaderConfig{
-		Brokers:        p.brokers,
-		Topic:          topic,
-		GroupID:        p.consumerGroup,
-		StartOffset:    kafka.LastOffset,
-		CommitInterval: p.getCommitInterval(),
-		MaxBytes:       int(p.getMaxBytes()),
-	})
+	// Auto-commit stays off; see consumerReaderConfig for why.
+	reader := kafka.NewReader(p.consumerReaderConfig(topic))
 
 	// Register consumer for graceful shutdown
 	p.mu.Lock()
@@ -489,6 +505,13 @@ func (p *KafkaMQPlugin) ConsumeMessages(ctx context.Context, topic string, handl
 
 	// Track in-flight operations for graceful shutdown
 	var inFlightOps sync.WaitGroup
+	defer func() {
+		inFlightOps.Wait()
+		p.closeKafkaReader(ctx, reader, topic)
+		p.mu.Lock()
+		delete(p.consumers, topic)
+		p.mu.Unlock()
+	}()
 
 	// Track consecutive read errors for backoff and reader recreation
 	consecutiveErrors := 0
@@ -503,13 +526,6 @@ func (p *KafkaMQPlugin) ConsumeMessages(ctx context.Context, topic string, handl
 			// Wait for in-flight operations to complete
 			inFlightOps.Wait()
 
-			p.closeKafkaReader(ctx, reader, topic)
-
-			// Unregister consumer
-			p.mu.Lock()
-			delete(p.consumers, topic)
-			p.mu.Unlock()
-
 			p.logger.Info("consumer stopped gracefully", "topic", topic)
 			p.metricsCollector.RecordCounter("mq_consume_stop", 1, map[string]string{"topic": topic})
 			return ctx.Err()
@@ -517,7 +533,7 @@ func (p *KafkaMQPlugin) ConsumeMessages(ctx context.Context, topic string, handl
 		default:
 			// Read message with timeout
 			readCtx, cancel := context.WithTimeout(ctx, defaultKafkaCommitTimeout)
-			msg, err := reader.ReadMessage(readCtx)
+			msg, err := reader.FetchMessage(readCtx)
 			cancel()
 
 			if err != nil {
@@ -582,14 +598,7 @@ func (p *KafkaMQPlugin) ConsumeMessages(ctx context.Context, topic string, handl
 						return fmt.Errorf("plugin stopped")
 					}
 
-					reader = kafka.NewReader(kafka.ReaderConfig{
-						Brokers:        p.brokers,
-						Topic:          topic,
-						GroupID:        p.consumerGroup,
-						StartOffset:    kafka.LastOffset,
-						CommitInterval: p.getCommitInterval(),
-						MaxBytes:       int(p.getMaxBytes()),
-					})
+					reader = kafka.NewReader(p.consumerReaderConfig(topic))
 					p.mu.Lock()
 					p.consumers[topic] = &KafkaConsumer{
 						reader: reader,
@@ -617,6 +626,10 @@ func (p *KafkaMQPlugin) ConsumeMessages(ctx context.Context, topic string, handl
 					partitionKey = string(header.Value)
 				}
 			}
+			if partitionKey != "" && partitionKey != string(msg.Key) {
+				return fmt.Errorf("kafka partition header does not match the actual record key")
+			}
+			partitionKey = string(msg.Key)
 
 			// Create core.MessageQueueMessage
 			queueMsg := core.MessageQueueMessage{
@@ -631,7 +644,7 @@ func (p *KafkaMQPlugin) ConsumeMessages(ctx context.Context, topic string, handl
 			// Track in-flight operation
 			inFlightOps.Add(1)
 
-			// Call handler with exactly-once semantics
+			// Invoke the handler before committing the fetched offset.
 			// Handler is responsible for idempotent processing
 			consumeStartTime := time.Now()
 			_, consumeSpan := p.tracer.StartSpan(ctx, "mq.process_message", observability.SpanKindConsumer)
@@ -643,7 +656,8 @@ func (p *KafkaMQPlugin) ConsumeMessages(ctx context.Context, topic string, handl
 			consumeLatency := time.Since(consumeStartTime).Milliseconds()
 
 			if handlerErr != nil {
-				// Handler error - record and continue
+				// Stop before reading a later offset: committing a higher offset
+				// would also acknowledge this failed message in the same partition.
 				p.mu.Lock()
 				p.stats.errorCount++
 				p.stats.lastError = handlerErr
@@ -655,10 +669,25 @@ func (p *KafkaMQPlugin) ConsumeMessages(ctx context.Context, topic string, handl
 				p.logger.Error("handler error", "topic", topic, "message_id", messageID, "offset", msg.Offset, "error", handlerErr, "latency_ms", consumeLatency)
 
 				inFlightOps.Done()
-				continue
+				return fmt.Errorf("handle Kafka topic %s partition %d offset %d: %w", topic, msg.Partition, msg.Offset, handlerErr)
 			}
 
-			// Track offset for exactly-once semantics
+			// Commit the offset only now that the handler has succeeded. With
+			// auto-commit disabled this is what makes delivery at-least-once:
+			// the failure path above returns without committing, so the message
+			// is redelivered instead of being silently dropped.
+			commitCtx, commitCancel := context.WithTimeout(ctx, defaultKafkaCommitTimeout)
+			commitErr := reader.CommitMessages(commitCtx, msg)
+			commitCancel()
+			if commitErr != nil {
+				p.logger.Warn("failed to commit offset after handler success",
+					"topic", topic, "offset", msg.Offset, "error", commitErr)
+				p.metricsCollector.RecordCounter("mq_offset_commit_errors", 1, map[string]string{"topic": topic})
+				inFlightOps.Done()
+				return fmt.Errorf("commit Kafka topic %s partition %d offset %d: %w", topic, msg.Partition, msg.Offset, commitErr)
+			}
+
+			// Track offset for progress reporting
 			p.offsets.mu.Lock()
 			p.offsets.tracking[topic] = msg.Offset
 			p.offsets.mu.Unlock()
@@ -678,13 +707,12 @@ func (p *KafkaMQPlugin) ConsumeMessages(ctx context.Context, topic string, handl
 	}
 }
 
-// closeKafkaReader commits pending offsets and closes the Kafka reader.
-func (p *KafkaMQPlugin) closeKafkaReader(ctx context.Context, reader *kafka.Reader, topic string) {
-	commitCtx, commitCancel := context.WithTimeout(ctx, defaultKafkaCommitTimeout)
-	defer commitCancel()
-	if err := reader.CommitMessages(commitCtx); err != nil {
-		p.logger.Warn("failed to commit offset before close", "topic", topic, "error", err)
-	}
+// closeKafkaReader closes the Kafka reader.
+//
+// It deliberately does NOT commit. Offsets are committed per message after a
+// successful handler, and CommitMessages with no messages would commit the last
+// READ offset — including a message whose handler failed.
+func (p *KafkaMQPlugin) closeKafkaReader(_ context.Context, reader *kafka.Reader, topic string) {
 	if err := reader.Close(); err != nil {
 		p.logger.Error("failed to close Kafka reader", "topic", topic, "error", err)
 	}
@@ -1271,7 +1299,7 @@ func (p *KafkaMQPlugin) GetKafkaSpecificMetrics() map[string]any {
 		"offset_tracking":        offsetTrackingCopy,
 		"dlq_reasons":            dlqReasonsCopy,
 		"consumer_group_metrics": consumerGroupMetrics,
-		"active_consumers":       len(p.consumers),
+		"active_consumers":       len(p.consumers) + len(p.ownedConsumers),
 	}
 }
 

@@ -8,6 +8,8 @@ import (
 	"sync"
 	"time"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/rtcdance/chainpulse/pkg/core"
@@ -21,7 +23,7 @@ import (
 // depth-based confirmation counting for superior accuracy.
 type BlockConfirmationTracker struct {
 	db              *sql.DB
-	logger          core.Logger
+	logger          portcontract.Logger
 	metrics         core.MetricsCollector
 	subscriptionHub *SubscriptionHub               // for buffering replay events
 	reorgHandlers   map[string]*reorg.ReorgHandler // chainID -> reorg handler
@@ -36,7 +38,7 @@ type BlockConfirmationTracker struct {
 // NewBlockConfirmationTracker creates a new confirmation tracker
 func NewBlockConfirmationTracker(
 	db *sql.DB,
-	logger core.Logger,
+	logger portcontract.Logger,
 	metrics core.MetricsCollector,
 	hub *SubscriptionHub,
 	confirmationMap map[uint64]int,
@@ -199,10 +201,30 @@ func (t *BlockConfirmationTracker) getConfirmationBlocks(chainID string) int {
 	return 12 // default
 }
 
+// confirmationCutoff computes the block height at or below which pending events
+// may be promoted to confirmed.
+//
+// depthCutoff is the depth-based answer and is always safe, because it is
+// derived from a head we observed ourselves. A finality verdict may raise it —
+// but only when that verdict actually carries a finality guarantee. An L2
+// "safe" tag, a "latest" fallback, and an unset confidence all describe a height
+// that can still be reorged; using one as the cutoff would promote events the
+// chain has not committed to (finding F08).
+func confirmationCutoff(depthCutoff int64, status *finality.FinalityResult) int64 {
+	if status == nil || status.Degraded || status.Confidence != finality.ConfidenceFinalized {
+		return depthCutoff
+	}
+	if finalized := int64(status.FinalizedBlockNumber); finalized > depthCutoff {
+		return finalized
+	}
+	return depthCutoff
+}
+
 // transitionPendingEvents moves events from pending to confirmed when their block
 // is deep enough relative to the current chain head. When a FinalityChecker is
-// available and returns a finalized block number, events at or below that block
-// are confirmed immediately (true PoS finality), bypassing depth-based counting.
+// available and returns a genuinely finalized height, events at or below that
+// height are confirmed immediately (true PoS finality), bypassing depth-based
+// counting. A degraded verdict is ignored rather than trusted.
 func (t *BlockConfirmationTracker) transitionPendingEvents(ctx context.Context, chainID string, headBlock, confirmations int64) {
 	cutoffBlock := headBlock - confirmations
 
@@ -212,14 +234,20 @@ func (t *BlockConfirmationTracker) transitionPendingEvents(ctx context.Context, 
 	t.mu.RUnlock()
 
 	if fc != nil {
-		finalizedBlock, err := fc.GetFinalizedBlockNumber(ctx, chainID)
-		if err == nil && int64(finalizedBlock) > cutoffBlock {
-			// Finalized block is further ahead than depth-based cutoff; use it
-			cutoffBlock = int64(finalizedBlock)
-		} else if err != nil {
+		status, err := fc.GetFinalizedBlockNumberWithStatus(ctx, chainID)
+		switch {
+		case err != nil:
 			// Log but don't block — fall back to depth-based confirmation
 			t.logger.Warn("finality check failed, using depth-based confirmation",
 				"chainId", chainID, "error", err.Error())
+		default:
+			if status.Degraded || status.Confidence != finality.ConfidenceFinalized {
+				t.logger.Warn("finality verdict carries no guarantee, using depth-based confirmation",
+					"chainId", chainID,
+					"confidence", string(status.Confidence),
+					"source", string(status.Source))
+			}
+			cutoffBlock = confirmationCutoff(cutoffBlock, status)
 		}
 	}
 

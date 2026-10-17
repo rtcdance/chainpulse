@@ -8,58 +8,60 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"github.com/rtcdance/chainpulse/pkg/core"
 	"github.com/rtcdance/chainpulse/pkg/services/query"
 )
 
 type persistentStorageEventStoreStub struct {
-	inserted []*core.BlockchainEvent
+	inserted []*blockchain.BlockchainEvent
 	err      error
 }
 
 func (s *persistentStorageEventStoreStub) Initialize(ctx context.Context) error { return nil }
-func (s *persistentStorageEventStoreStub) InsertEvent(ctx context.Context, event *core.BlockchainEvent) error {
+func (s *persistentStorageEventStoreStub) InsertEvent(ctx context.Context, event *blockchain.BlockchainEvent) error {
 	s.inserted = append(s.inserted, event)
 	return s.err
 }
 
-func (s *persistentStorageEventStoreStub) InsertEventBatch(ctx context.Context, events []*core.BlockchainEvent) error {
-	return nil
+func (s *persistentStorageEventStoreStub) InsertEventBatch(ctx context.Context, events []*blockchain.BlockchainEvent) error {
+	s.inserted = append(s.inserted, events...)
+	return s.err
 }
 
-func (s *persistentStorageEventStoreStub) GetEventsByCorrelationID(_ context.Context, _ string, _, _ int) ([]*core.BlockchainEvent, error) {
+func (s *persistentStorageEventStoreStub) GetEventsByCorrelationID(_ context.Context, _ string, _, _ int) ([]*blockchain.BlockchainEvent, error) {
 	return nil, nil
 }
 
-func (s *persistentStorageEventStoreStub) GetEvent(ctx context.Context, eventID string) (*core.BlockchainEvent, error) {
+func (s *persistentStorageEventStoreStub) GetEvent(ctx context.Context, eventID string) (*blockchain.BlockchainEvent, error) {
 	return nil, nil
 }
 
-func (s *persistentStorageEventStoreStub) GetEventsByChain(ctx context.Context, chainID int, limit int, offset int) ([]*core.BlockchainEvent, error) {
+func (s *persistentStorageEventStoreStub) GetEventsByChain(ctx context.Context, chainID int, limit int, offset int) ([]*blockchain.BlockchainEvent, error) {
 	return nil, nil
 }
 
-func (s *persistentStorageEventStoreStub) GetEventsByContract(ctx context.Context, contractAddress string, limit int, offset int) ([]*core.BlockchainEvent, error) {
+func (s *persistentStorageEventStoreStub) GetEventsByContract(ctx context.Context, contractAddress string, limit int, offset int) ([]*blockchain.BlockchainEvent, error) {
 	return nil, nil
 }
 
-func (s *persistentStorageEventStoreStub) GetEventsByEventName(ctx context.Context, eventName string, limit int, offset int) ([]*core.BlockchainEvent, error) {
+func (s *persistentStorageEventStoreStub) GetEventsByEventName(ctx context.Context, eventName string, limit int, offset int) ([]*blockchain.BlockchainEvent, error) {
 	return nil, nil
 }
 
-func (s *persistentStorageEventStoreStub) GetEventsByBlock(ctx context.Context, blockNumber int64) ([]*core.BlockchainEvent, error) {
+func (s *persistentStorageEventStoreStub) GetEventsByBlock(ctx context.Context, blockNumber int64) ([]*blockchain.BlockchainEvent, error) {
 	return nil, nil
 }
 
-func (s *persistentStorageEventStoreStub) GetEventsByAddress(ctx context.Context, address string, limit int) ([]*core.BlockchainEvent, error) {
+func (s *persistentStorageEventStoreStub) GetEventsByAddress(ctx context.Context, address string, limit int) ([]*blockchain.BlockchainEvent, error) {
 	return nil, nil
 }
 
-func (s *persistentStorageEventStoreStub) GetEventsByName(ctx context.Context, eventName string, limit int) ([]*core.BlockchainEvent, error) {
+func (s *persistentStorageEventStoreStub) GetEventsByName(ctx context.Context, eventName string, limit int) ([]*blockchain.BlockchainEvent, error) {
 	return nil, nil
 }
 
-func (s *persistentStorageEventStoreStub) GetEventsPaginated(ctx context.Context, cursor string, limit int) ([]*core.BlockchainEvent, bool, error) {
+func (s *persistentStorageEventStoreStub) GetEventsPaginated(ctx context.Context, cursor string, limit int) ([]*blockchain.BlockchainEvent, bool, error) {
 	return nil, false, nil
 }
 
@@ -69,6 +71,10 @@ func (s *persistentStorageEventStoreStub) CountEvents(ctx context.Context) (int6
 
 func (s *persistentStorageEventStoreStub) DeleteExpiredEvents(ctx context.Context) (int64, error) {
 	return 0, nil
+}
+
+func (s *persistentStorageEventStoreStub) GetEventStats(ctx context.Context) (map[string]int64, map[string]int64, int64, error) {
+	return nil, nil, 0, nil
 }
 
 func (s *persistentStorageEventStoreStub) Health(ctx context.Context) *core.HealthStatus {
@@ -117,7 +123,7 @@ func TestPersistentEventProcessorStorageWritesEventAndMetadata(t *testing.T) {
 	metadataStore := &persistentStorageMetadataStoreStub{}
 	storage := newPersistentEventProcessorStorage(eventStore, metadataStore)
 
-	event := &core.BlockchainEvent{
+	event := &blockchain.BlockchainEvent{
 		ID:              "evt-1",
 		ChainID:         "31337",
 		BlockNumber:     7,
@@ -149,7 +155,7 @@ func TestPersistentEventProcessorStorageResolvesNamedChainID(t *testing.T) {
 	metadataStore := &persistentStorageMetadataStoreStub{}
 	storage := newPersistentEventProcessorStorage(eventStore, metadataStore)
 
-	event := &core.BlockchainEvent{
+	event := &blockchain.BlockchainEvent{
 		ID:              "evt-eth",
 		ChainID:         "ethereum",
 		BlockNumber:     8,
@@ -171,7 +177,7 @@ func TestPersistentEventProcessorStorageIgnoresDuplicateInsert(t *testing.T) {
 	metadataStore := &persistentStorageMetadataStoreStub{err: errors.New("duplicate key value violates unique constraint")}
 	storage := newPersistentEventProcessorStorage(eventStore, metadataStore)
 
-	event := &core.BlockchainEvent{
+	event := &blockchain.BlockchainEvent{
 		ID:              "evt-dup",
 		ChainID:         "1",
 		BlockNumber:     9,

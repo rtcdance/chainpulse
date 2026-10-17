@@ -1,222 +1,360 @@
-# Docker Configuration
+# ChainPulse 一键部署指南
 
-This directory contains Docker-related configuration files for ChainPulse.
+> 从零开始，5 分钟内看到 7 条 EVM 链 + Solana 的实时区块链事件。
 
-## Files
+---
 
-- **Dockerfile** - Multi-stage Docker image build configuration
-- **Dockerfile.microservices** - Multi-stage Docker image build configuration for microservice commands
-- **docker-compose.yml** - Complete local development environment with all services
-- **docker-compose.microservices.yml** - Four-foreground-service microservice profile with shared infra and observability
-- **README.md** - This file
+## 第一步：安装前提
 
-## Quick Start
+你只需要装两样东西：
 
-### Using Docker Compose (Recommended for Development)
+| 工具 | 最低版本 | 检查命令 | 安装方式 |
+|------|---------|---------|---------|
+| **Go** | 1.24+ | `go version` | [go.dev/dl](https://go.dev/dl/) |
+| **Docker Desktop** | 最新 | `docker version` | [docker.com/products/docker-desktop](https://www.docker.com/products/docker-desktop) |
 
-```bash
-# Start all services
-docker-compose up -d
+> macOS 用户：Docker Desktop 安装后，菜单栏出现鲸鱼图标即表示运行中。
+> 首次启动 Docker Desktop 需等待约 30 秒。
 
-# View logs
-docker-compose logs -f
-
-# Stop services
-docker-compose down
-
-# Clean up volumes
-docker-compose down -v
-```
-
-Before running compose readiness scripts, make sure the Docker daemon is
-actually reachable from the current Docker context. On local macOS setups this
-usually means Docker Desktop must already be running.
-
-If Docker CLI is present but the daemon cannot be reached, see:
-
-- [`DOCKER_RUNTIME_RECOVERY.md`](/Users/mingo/Applications/workspace/web3/project/chainpulse/docs/DOCKER_RUNTIME_RECOVERY.md)
-
-### Building Docker Image Manually
+确认就绪：
 
 ```bash
-# Build image
-docker build -t chainpulse:latest -f docker/Dockerfile .
-
-# Run container
-docker run -p 8080:8080 -p 50051:50051 -p 8081:8081 chainpulse:latest
+go version      # 应输出 go1.26.x 或更高
+docker version  # 应输出 Client + Server 信息
 ```
 
-## Services Included
+**硬件要求**：至少 8GB 可用内存（推荐 16GB，因为会启动 20+ 容器）。
 
-The `docker-compose.yml` includes:
+---
 
-1. **PostgreSQL** (port 5432)
-   - Database for event storage
-   - Credentials: `chainpulse` / `chainpulse_password`
-   - Database: `chainpulse`
+## 第二步：选模式，一条命令启动
 
-2. **Redis** (port 6379)
-   - Cache backend
-   - Used for event caching and session storage
+在项目根目录执行：
 
-3. **Kafka** (port 9092)
-   - Message queue for event processing
-   - Includes Zookeeper (port 2181)
+| 场景 | 命令 | 说明 |
+|------|------|------|
+| **第一次体验** | `bash docker/deploy-monolith.sh` | 单体模式，1 个应用容器，简单直接 |
+| **体验微服务架构** | `bash docker/deploy-microservices.sh` | 4 个服务容器 + Solana，展示完整架构 |
+| **统一入口** | `bash docker/deploy-and-simulate.sh monolith` | 自动调度到上面两个脚本 |
 
-4. **ChainPulse Application** (ports 8080, 50051, 8081)
-   - REST API: http://localhost:8080
-   - gRPC API: localhost:50051
-   - Metrics: http://localhost:8081/metrics
+> 两种模式都支持 7 条 EVM 链 + Solana + H5 前端 + 事件模拟。区别在于应用容器数量。
 
-### Microservice Profile
+脚本会自动完成：**编译 Go → 构建 Docker 镜像 → 启动 20+ 容器 → 部署智能合约 → 开始模拟事件 → 验证功能**。
 
-The `docker-compose.microservices.yml` profile includes:
+整个过程约 3-5 分钟（取决于网速和机器性能），请耐心等待。
 
-1. **Infrastructure**
-   - PostgreSQL
-   - Redis
-   - Kafka + Zookeeper
-   - Anvil
-2. **Observability**
-   - Prometheus
-   - Grafana
-   - Jaeger
-3. **Foreground Microservices**
-   - `api-gateway`
-   - `api-service`
-   - `event-processor`
-   - `puller`
+---
 
-### Grafana Provisioning
+## 第三步：打开 H5 前端
 
-Both `docker-compose.yml` variants that include observability support mount the same
-local Grafana provisioning directories:
+| 模式 | 前端地址 |
+|------|---------|
+| 单体 | http://localhost:13000 |
+| 微服务 | http://localhost:13000 |
 
-- `monitoring/grafana/datasources`
-- `monitoring/grafana/dashboards`
+打开后你会看到：
 
-That means the dev and microservices compose stacks load the same Prometheus
-datasource and the same blueprint `8.1` local debug monitor dashboard.
+| 页面 | 能做什么 |
+|------|---------|
+| **Dashboard** | 实时事件统计、7+1 条链的状态、最近事件列表 |
+| **Events** | 按链/事件名过滤，查看 Transfer、Swap、Borrow 等事件详情 |
+| **Admin** | 服务健康探测矩阵、运行时摘要、事件名称分布图 |
+| **WebSocket** | 连接实时事件推送，设置过滤器 |
 
-## Environment Variables
+> 首次打开时如果看到 "API Error"，请等待 30 秒后刷新（后端正在索引事件）。
 
-The docker-compose configuration sets these environment variables:
+---
+
+## 你会看到什么
+
+部署完成后，控制台输出类似：
 
 ```
-CHAINPULSE_LOG_LEVEL=INFO
-CHAINPULSE_DEPLOYMENT_MODE=monolithic
-CHAINPULSE_BLOCKCHAIN_NODE_URL=http://localhost:8545
-CHAINPULSE_API_PORT=8080
-CHAINPULSE_GRPC_PORT=50051
-CHAINPULSE_METRICS_PORT=8081
-CHAINPULSE_DATA_PULLER_TYPE=https_jsonrpc
-CHAINPULSE_PULLER_POLL_INTERVAL_MS=1000
-CHAINPULSE_CACHE_TYPE=redis
-CHAINPULSE_CACHE_TTL_SECONDS=3600
-CHAINPULSE_DATABASE_TYPE=postgres
-CHAINPULSE_DATABASE_URL=postgres://chainpulse:chainpulse_password@postgres:5432/chainpulse
-CHAINPULSE_MQ_TYPE=kafka
-CHAINPULSE_MQ_BROKERS=kafka:29092
+╔══════════════════════════════════════════════════════════════╗
+║    ChainPulse Monolith  —  One-Click Deploy & Simulate      ║
+╠══════════════════════════════════════════════════════════════╣
+║  Mode:       MONOLITHIC (single binary)                     ║
+║  Chains:     7 EVM + Solana                                 ║
+║  Burst: ON (15-50 TPS)   Reorg: depth 2-12                 ║
+║                                                              ║
+║  API:            http://localhost:8080                       ║
+║  Frontend UI:    http://localhost:13000                      ║
+║  Grafana:        http://localhost:3001                       ║
+╚══════════════════════════════════════════════════════════════╝
 ```
 
-## Health Checks
+模拟器持续产生的事件类型：
 
-All services include health checks:
+| 事件 | 来源 | 说明 |
+|------|------|------|
+| Transfer / Approval | ERC-20 Token | 代币转账和授权 |
+| Swap | Uniswap V2/V3 | DEX 交易 |
+| Supply / Borrow / Withdraw / Repay | Aave V3 | 借贷协议 |
+| LiquidationCall | Aave V3 | 清算事件 |
+| Supply / Withdraw / Borrow | Compound V3 | 借贷协议 |
+| VoteCast / ProposalCreated | Governance | 治理投票 |
+| Bridge | 跨链桥 | L1↔L2 跨链 |
+| Transfer (ERC-721) | NFT | NFT 转移 |
+| TransferSingle (ERC-1155) | ERC-1155 | 多代币标准 |
+| SPL Transfer / Mint / Burn | Solana | Solana 代币操作 |
 
-- **PostgreSQL**: Checks if database is ready
-- **Redis**: Checks if Redis responds to PING
-- **Kafka**: Checks broker API versions
-- **ChainPulse**: Checks `/health` endpoint
+还有特殊场景模拟：
+- **Burst**: 15-50 TPS 突发流量
+- **Reorg**: 2-12 区块深度的链重组
+- **Causal Chain**: Supply → Borrow → Liquidation 因果链
+- **Timestamp Anomaly**: 时间戳异常
+- **Duplicate**: 重复事件检测
 
-## Volumes
+还有线上异常场景模拟：
+- **Gas Spike** (8%): Gas 价格突然飙升到 500 gwei
+- **Dropped Transaction** (5%): Gas 不足导致交易失败/丢失
+- **Stale Block** (5%): 查询历史旧区块数据
+- **MEV Sandwich** (7%): 前置交易 + 受害者交易 + 后置交易的夹击模式
+- **Contract Revert** (8%): 合约 require() 失败（如未授权的 transferFrom）
+- **Nonce Gap** (4%): 跳跃 nonce 导致交易顺序错乱
+- **Large Block** (5%): 单区块打包 10-30 笔交易
 
-Persistent data is stored in Docker volumes:
+还有高优先级线上场景模拟：
+- **Cross-chain Bridge** (6%): 链 A 锁定 → 链 B 铸造，模拟跨链桥联动
+- **Flash Loan** (5%): 借款 → Swap → 还款，模拟闪电贷套利
+- **Liquidation Cascade** (4%): 价格下跌 → 连环清算 2-5 个账户
+- **DEX Aggregator** (6%): 3 跳路由 TokenA→WETH→USDC→TokenB
+- **Solana Vote/Stake** (10%): 验证者投票和质押委托
 
-- `postgres_data` - PostgreSQL database files
-- `redis_data` - Redis data files
+还有中优先级线上场景模拟：
+- **Cross-chain Arbitrage** (3%): 同一交易对在两条链上价差套利
+- **Solana Slot Skip** (4%): 验证者跳过 slot，产生区块间隔
+- **Solana Compute Limit** (3%): 计算预算超限导致交易失败
+- **Causal Block** (7%): 同区块内 Transfer→Swap→Transfer 因果序
 
-## Networking
+---
 
-All services are connected via the `chainpulse-network` bridge network, allowing service-to-service communication using service names.
+## API 快速体验
 
-## Development Workflow
-
-1. **Start services**:
-   ```bash
-   docker-compose up -d
-   ```
-
-2. **Check service status**:
-   ```bash
-   docker-compose ps
-   ```
-
-3. **View logs**:
-   ```bash
-   docker-compose logs -f chainpulse
-   ```
-
-4. **Access services**:
-   - REST API: `curl http://localhost:8080/health`
-   - PostgreSQL: `psql -h localhost -U chainpulse -d chainpulse`
-   - Redis: `redis-cli -h localhost`
-
-5. **Stop services**:
-   ```bash
-   docker-compose down
-   ```
-
-## Production Deployment
-
-For production deployment, see the [Deployment Guide](../docs/guides/DEPLOYMENT_GUIDE.md).
-
-Key considerations:
-- Use environment-specific configuration
-- Set strong passwords for databases
-- Use external database services (RDS, Cloud SQL)
-- Configure proper resource limits
-- Set up monitoring and logging
-- Use container orchestration (Kubernetes)
-
-## Troubleshooting
-
-### Services won't start
 ```bash
-# Check logs
-docker-compose logs
+# 健康检查
+curl http://localhost:8080/health
 
-# Verify Docker daemon is running
-docker ps
+# 查看事件统计
+curl http://localhost:8080/events/stats
+
+# 查询最近 10 条事件
+curl http://localhost:8080/events?limit=10
+
+# 只看 Solana 事件
+curl http://localhost:8080/events?network=solana&limit=5
+
+# 只看以太坊 Transfer 事件
+curl http://localhost:8080/events?chainId=1&eventName=Transfer&limit=5
+
+# WebSocket 实时监听
+wscat -c ws://localhost:8080/ws
+
+# 运行时摘要
+curl http://localhost:8080/runtime/summary
+
+# Prometheus 指标
+curl http://localhost:8080/metrics
 ```
 
-### Port conflicts
+---
+
+## 可观测性
+
+| 工具 | 地址 | 用途 |
+|------|------|------|
+| **Grafana** | http://localhost:3001 | 仪表盘（admin / 你设置的密码） |
+| **Prometheus** | http://localhost:9090 | 指标查询 |
+| **Jaeger** | http://localhost:16686 | 分布式追踪 |
+
+---
+
+## 停止和清理
+
 ```bash
-# Change ports in docker-compose.yml
-# Or stop conflicting services
-docker ps
-docker stop <container_id>
+# 停止所有容器（保留数据）
+bash docker/deploy-and-simulate.sh stop
+
+# 或者直接用 docker compose
+cd docker
+docker compose -f docker-compose.monolith.yml down       # 单体
+docker compose -f docker-compose.microservices.yml down   # 微服务
+
+# 彻底清理（删除数据卷）
+docker compose -f docker-compose.monolith.yml down -v
 ```
 
-### Database connection issues
+---
+
+## 两种模式对比
+
+### 架构图
+
+```
+单体模式                              微服务模式
+┌──────────────────┐                 ┌──────────────────┐
+│  chainpulse-app  │ 8080            │  api-gateway     │ 8080
+│  ┌────────────┐  │                 │  (路由/鉴权)      │
+│  │ Puller     │  │                 └────────┬─────────┘
+│  │ Processor  │  │──────▶ H5               │
+│  │ API        │  │ 13000          ┌─────────┴─────────┐
+│  │ Admin/WH   │  │                │  api-service      │ 8081
+│  │ Reorg/DLQ  │  │                │  (事件查询/统计)   │
+│  └────────────┘  │                └─────────┬─────────┘
+└──────────────────┘                         │
+                                   ┌─────────┴─────────┐
+                                   │  event-processor  │ 8082
+                                   │  (Kafka 消费)      │
+                                   └─────────┬─────────┘
+                                             │
+                                   ┌─────────┴─────────┐
+                                   │  puller           │ 8083
+                                   │  (链事件拉取)      │
+                                   └───────────────────┘
+```
+
+### 功能对比
+
+| 特性 | 单体 | 微服务 |
+|------|:----:|:------:|
+| REST API | ✅ | ✅ |
+| WebSocket 实时监听 | ✅ | ✅ |
+| 事件名解析（人类可读） | ✅ | ✅ |
+| 7 条 EVM 链模拟 | ✅ | ✅ |
+| Solana 模拟 | ✅ | ✅ |
+| H5 前端 | ✅ | ✅ |
+| Prometheus + Grafana | ✅ | ✅ |
+| Jaeger 追踪 | ✅ | ✅ |
+| Admin API Key CRUD | ✅ | ❌ |
+| Webhook 注册 | ✅ | ❌ |
+| Export 导出 | ✅ | ❌ |
+| DLQ 回放 | ✅ | ❌ |
+| 水平扩展 | ❌ | ✅ |
+| 独立扩缩容 | ❌ | ✅ |
+
+### 容器数量
+
+| | 单体 | 微服务 |
+|---|:----:|:------:|
+| 应用容器 | 1 | 4 |
+| 基础设施 | 5 (PG + Redis + MongoDB + Kafka + ZK) | 5 |
+| 区块链节点 | 8 (7 Anvil + Solana) | 8 (7 Anvil + Solana) |
+| 前端 | 1 | 1 |
+| 可观测性 | 3 (Prometheus + Grafana + Jaeger) | 3 |
+| **总计** | **18** | **21** |
+
+---
+
+## 常见问题
+
+### 部署相关
+
+**Q: `port is already allocated` 错误**
 ```bash
-# Verify PostgreSQL is running
-docker-compose exec postgres pg_isready
-
-# Check connection string
-echo $CHAINPULSE_DATABASE_URL
+# 查看哪个进程占用了端口
+lsof -i :8080
+lsof -i :13000
+# 关闭冲突进程，或修改 docker-compose 端口映射
 ```
 
-### Kafka issues
+**Q: Docker Desktop 不在运行**
+确保菜单栏有 Docker 鲸鱼图标。首次启动需等 30 秒。
+
+**Q: Kafka 容器一直 restarting**
+Kafka 启动较慢，等待 60-90 秒。如果持续失败，尝试完全重启：
 ```bash
-# Check Kafka broker
-docker-compose exec kafka kafka-broker-api-versions.sh --bootstrap-server localhost:9092
-
-# List topics
-docker-compose exec kafka kafka-topics.sh --list --bootstrap-server localhost:9092
+bash docker/deploy-and-simulate.sh stop
+bash docker/deploy-monolith.sh   # 或 deploy-microservices.sh
 ```
 
-## See Also
+**Q: 编译报错 `go: command not found`**
+安装 Go 1.26+：https://go.dev/dl/
 
-- [Deployment Guide](../docs/guides/DEPLOYMENT_GUIDE.md)
-- [Operations Guide](../docs/guides/OPERATIONS_GUIDE.md)
-- [Developer Guide](../docs/guides/DEVELOPER_GUIDE.md)
+**Q: 前端页面显示 API Error**
+后端可能还在启动中，等待 30 秒后 Cmd+Shift+R 硬刷新浏览器。
+
+### 事件相关
+
+**Q: 需要跑多久才能看到事件？**
+一键部署后约 30 秒事件开始产生。控制台会显示 `Events indexed by ChainPulse: N`。
+
+**Q: 为什么有些事件名是 `0x133f...` 这样的哈希？**
+事件签名解析需要匹配 ABI 注册表。如果看到未解析的哈希，说明该事件签名尚未注册。
+
+**Q: Solana 事件名显示 `Vote1111111...` 这样的 Program ID？**
+这是 Solana 原生程序的地址格式，系统会自动映射为 "Vote Program" 等可读名称。
+
+### 清理相关
+
+**Q: 跑完怎么关？**
+```bash
+bash docker/deploy-and-simulate.sh stop
+```
+
+**Q: 如何彻底清理包括数据？**
+```bash
+cd docker
+docker compose -f docker-compose.monolith.yml down -v      # 单体
+docker compose -f docker-compose.microservices.yml down -v  # 微服务
+```
+
+**Q: 如何查看模拟器状态？**
+```bash
+bash docker/deploy-and-simulate.sh status
+```
+
+---
+
+## 完整服务列表
+
+### 单体模式
+
+| 服务 | 端口 | 说明 |
+|------|------|------|
+| chainpulse-app | 8080 | 单体应用（REST + WebSocket + gRPC + Admin） |
+| chainpulse-mono-frontend | 12000 | H5 前端 |
+| chainpulse-anvil-ethereum | 8545 | Ethereum 本地链 |
+| chainpulse-anvil-polygon | 8546 | Polygon 本地链 |
+| chainpulse-anvil-bsc | 8547 | BSC 本地链 |
+| chainpulse-anvil-arbitrum | 8548 | Arbitrum 本地链 |
+| chainpulse-anvil-optimism | 8549 | Optimism 本地链 |
+| chainpulse-anvil-base | 8550 | Base 本地链 |
+| chainpulse-anvil-avalanche | 8551 | Avalanche 本地链 |
+| chainpulse-solana | 8899 | Solana 测试验证器 |
+| chainpulse-postgres | 5432 | PostgreSQL |
+| chainpulse-redis | 6379 | Redis |
+| chainpulse-mongodb | 27017 | MongoDB |
+| chainpulse-kafka | 9092 | Kafka |
+| chainpulse-zookeeper | 2181 | Zookeeper |
+| chainpulse-prometheus | 9090 | Prometheus |
+| chainpulse-grafana | 3001 | Grafana |
+| chainpulse-jaeger | 16686 | Jaeger |
+
+### 微服务模式
+
+| 服务 | 端口 | 说明 |
+|------|------|------|
+| chainpulse-api-gateway | 8080 | API 网关（统一入口） |
+| chainpulse-api-service | 8081 | 事件查询/统计 |
+| chainpulse-event-processor | 8082 | Kafka 消费 + 写入 |
+| chainpulse-puller | 8083 | 链事件拉取 + 发布 |
+| chainpulse-ms-frontend | 13000 | H5 前端 |
+| 其余同上 | — | 区块链节点 + 基础设施 + 可观测性 |
+
+---
+
+## 部署脚本一览
+
+| 脚本 | 用途 |
+|------|------|
+| `deploy-monolith.sh` | 单体：编译 → 镜像 → 部署 → 合约 → 模拟 → 验证 |
+| `deploy-microservices.sh` | 微服务：编译 → 镜像 → 部署 → 合约 → 模拟 → 验证 |
+| `deploy-and-simulate.sh` | 统一调度入口，支持 `monolith` / `microservices` / `stop` / `status` |
+
+---
+
+## 下一步
+
+- 阅读 [API 文档](../docs/guides/API_DOCUMENTATION.md) 了解完整 API
+- 阅读 [部署指南](../docs/guides/DEPLOYMENT_GUIDE.md) 了解生产环境部署
+- 运行 `make playground` 体验零依赖内存模式

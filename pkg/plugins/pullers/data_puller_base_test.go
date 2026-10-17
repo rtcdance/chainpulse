@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"github.com/rtcdance/chainpulse/pkg/core"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -152,10 +153,10 @@ func TestBaseDataPullerPlugin_ValidateEvent(t *testing.T) {
 
 	tests := []struct {
 		name  string
-		event core.BlockchainEvent
+		event blockchain.BlockchainEvent
 		fails bool
 	}{
-		{"valid", core.BlockchainEvent{
+		{"valid", blockchain.BlockchainEvent{
 			ID:              "1",
 			ChainID:         "1",
 			BlockNumber:     100,
@@ -164,9 +165,9 @@ func TestBaseDataPullerPlugin_ValidateEvent(t *testing.T) {
 			EventName:       "Transfer",
 			Status:          "pending",
 		}, false},
-		{"empty id", core.BlockchainEvent{ChainID: "1", BlockNumber: 100}, true},
-		{"empty chain", core.BlockchainEvent{ID: "1", BlockNumber: 100}, true},
-		{"zero block", core.BlockchainEvent{ID: "1", ChainID: "1"}, true},
+		{"empty id", blockchain.BlockchainEvent{ChainID: "1", BlockNumber: 100}, true},
+		{"empty chain", blockchain.BlockchainEvent{ID: "1", BlockNumber: 100}, true},
+		{"zero block", blockchain.BlockchainEvent{ID: "1", ChainID: "1"}, true},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -184,7 +185,7 @@ func TestBaseDataPullerPlugin_ValidateEvent(t *testing.T) {
 func TestBaseDataPullerPlugin_GenerateEventHash(t *testing.T) {
 	t.Parallel()
 	p := newBasePuller()
-	event := core.BlockchainEvent{
+	event := blockchain.BlockchainEvent{
 		ID:              "evt1",
 		ChainID:         "1",
 		BlockNumber:     100,
@@ -263,6 +264,134 @@ func TestBaseDataPullerPlugin_RetryWithBackoff_AllFail(t *testing.T) {
 	}
 }
 
+func TestBaseDataPullerPlugin_RetryWithBackoff_HonorsRetryAfter(t *testing.T) {
+	t.Parallel()
+	p := NewBaseDataPullerPlugin("test", "1.0", core.Config{
+		StartBlock:   0,
+		MaxRetries:   2,
+		RetryBackoff: 1,
+	}, &noopLogger{}, &noopMetrics{}, nil)
+
+	ra := 300 * time.Millisecond
+	attempts := 0
+	start := time.Now()
+	err := p.RetryWithBackoff(context.Background(), func() error {
+		attempts++
+		if attempts == 1 {
+			return &core.RPCErr{StatusCode: 429, RetryAfter: ra}
+		}
+		return nil
+	})
+	elapsed := time.Since(start)
+	if err != nil {
+		t.Fatalf("RetryWithBackoff() error: %v", err)
+	}
+	if attempts != 2 {
+		t.Fatalf("expected 2 attempts, got %d", attempts)
+	}
+	if elapsed < ra {
+		t.Errorf("Retry-After not honored: elapsed %v < %v", elapsed, ra)
+	}
+	if elapsed > 5*time.Second {
+		t.Errorf("Retry-After ignored in favor of 5s rate-limit floor: elapsed %v", elapsed)
+	}
+}
+
+func TestBaseDataPullerPlugin_RetryWithBackoff_NonRetryableSingleCall(t *testing.T) {
+	t.Parallel()
+	p := NewBaseDataPullerPlugin("test", "1.0", core.Config{
+		StartBlock:   0,
+		MaxRetries:   3,
+		RetryBackoff: 1,
+	}, &noopLogger{}, &noopMetrics{}, nil)
+
+	attempts := 0
+	err := p.RetryWithBackoff(context.Background(), func() error {
+		attempts++
+		return &stubRPCCodedError{code: -32602, msg: "invalid params"}
+	})
+	if err == nil {
+		t.Fatal("expected non-retryable error to propagate")
+	}
+	if attempts != 1 {
+		t.Errorf("expected exactly 1 attempt for non-retryable error, got %d", attempts)
+	}
+}
+
+func TestBaseDataPullerPlugin_RetryWithBackoff_RangeTooWideNoRetry(t *testing.T) {
+	t.Parallel()
+	p := NewBaseDataPullerPlugin("test", "1.0", core.Config{
+		StartBlock:   0,
+		MaxRetries:   3,
+		RetryBackoff: 1,
+	}, &noopLogger{}, &noopMetrics{}, nil)
+
+	attempts := 0
+	err := p.RetryWithBackoff(context.Background(), func() error {
+		attempts++
+		return &ErrRangeTooWide{From: 0, To: 10000, Reason: "result count reached the provider limit"}
+	})
+	if err == nil {
+		t.Fatal("expected ErrRangeTooWide to propagate")
+	}
+	if attempts != 1 {
+		t.Errorf("expected exactly 1 attempt for ErrRangeTooWide, got %d", attempts)
+	}
+}
+
+func TestBaseDataPullerPlugin_RetryWithBackoff_ServerErrorRetries(t *testing.T) {
+	t.Parallel()
+	p := NewBaseDataPullerPlugin("test", "1.0", core.Config{
+		StartBlock:   0,
+		MaxRetries:   3,
+		RetryBackoff: 1,
+	}, &noopLogger{}, &noopMetrics{}, nil)
+
+	attempts := 0
+	err := p.RetryWithBackoff(context.Background(), func() error {
+		attempts++
+		if attempts < 3 {
+			return &core.RPCErr{StatusCode: 503}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("RetryWithBackoff() error: %v", err)
+	}
+	if attempts != 3 {
+		t.Errorf("expected 3 attempts for retryable server error, got %d", attempts)
+	}
+}
+
+func TestRetryAfterFrom(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		err  error
+		want time.Duration
+	}{
+		{"structured", &core.RPCErr{StatusCode: 429, RetryAfter: 7 * time.Second}, 7 * time.Second},
+		{"structured_capped", &core.RPCErr{StatusCode: 429, RetryAfter: time.Hour}, maxRetryAfterCap},
+		{"text_colon", errors.New("HTTP 429, retry-after: 3"), 3 * time.Second},
+		{"text_after_seconds", errors.New("rate limited, retry after 5s"), 5 * time.Second},
+		{"text_upper", errors.New("Retry-After: 2"), 2 * time.Second},
+		{"none", errors.New("connection refused"), 0},
+		{"unparseable", errors.New("retry-after: soon"), 0},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got := retryAfterFrom(tc.err)
+			if got != tc.want {
+				t.Errorf("retryAfterFrom(%v) = %v, want %v", tc.err, got, tc.want)
+			}
+		})
+	}
+}
+
 func TestBaseDataPullerPlugin_LogMethods(t *testing.T) {
 	t.Parallel()
 	p := newBasePuller()
@@ -297,12 +426,12 @@ func TestBaseDataPullerPlugin_PublishEvents(t *testing.T) {
 	p := newBasePuller()
 	ctx := context.Background()
 
-	err := p.PublishEvent(ctx, core.BlockchainEvent{ID: "evt1"})
+	err := p.PublishEvent(ctx, blockchain.BlockchainEvent{ID: "evt1"})
 	if err != nil {
 		t.Logf("PublishEvent error (expected without EventBus): %v", err)
 	}
 
-	err = p.PublishEvents(ctx, []core.BlockchainEvent{{ID: "evt1"}, {ID: "evt2"}})
+	err = p.PublishEvents(ctx, []blockchain.BlockchainEvent{{ID: "evt1"}, {ID: "evt2"}})
 	if err != nil {
 		t.Logf("PublishEvents error (expected without EventBus): %v", err)
 	}

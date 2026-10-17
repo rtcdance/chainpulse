@@ -2,7 +2,7 @@ import type { MetricsPayload, MetricSample } from './types'
 import { requestFirstMatch } from './internal'
 
 export async function fetchMetrics(): Promise<MetricsPayload> {
-  return requestFirstMatch<string, MetricsPayload>(
+  return requestFirstMatch<MetricsPayload>(
     ['/metrics'],
     { method: 'GET', responseType: 'text' },
     (response, candidate) => {

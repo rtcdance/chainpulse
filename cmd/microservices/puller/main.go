@@ -11,10 +11,14 @@ import (
 	"sync"
 	"time"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
 	"github.com/rtcdance/chainpulse/pkg/application/bootstrap"
 	"github.com/rtcdance/chainpulse/pkg/core"
 	"github.com/rtcdance/chainpulse/pkg/env"
 	"github.com/rtcdance/chainpulse/pkg/infrastructure/database"
+	"github.com/rtcdance/chainpulse/pkg/observability"
+	plugindatabase "github.com/rtcdance/chainpulse/pkg/plugins/database"
 	"github.com/rtcdance/chainpulse/pkg/plugins/mq"
 	"github.com/rtcdance/chainpulse/pkg/plugins/pullers"
 )
@@ -63,7 +67,7 @@ func main() {
 		logLevel = core.LogLevelDebug
 	}
 	logger := core.NewDefaultLogger(logLevel)
-	metrics := core.NewDefaultMetricsCollector()
+	metrics := observability.Guarded(core.NewDefaultMetricsCollector())
 
 	fmt.Println("  [1/2] Logger initialized")
 	fmt.Println("  [2/2] Metrics collector initialized")
@@ -195,12 +199,28 @@ func main() {
 	// Initialize Multi-Chain Data Puller
 	fmt.Println("Initializing Multi-Chain Data Puller:")
 	multiChainPuller := pullers.NewMultiChainDataPuller(logger)
-	registeredPullers, err := registerConfiguredPullers(multiChainPuller, config, logger, metrics)
+	multiChainPuller.SetMaxConcurrency(config.WorkerThreads)
+	solanaEventBus := newKafkaEventBus(kafkaMQ)
+	registeredPullers, err := registerConfiguredPullers(multiChainPuller, config, logger, metrics, solanaEventBus)
 	if err != nil {
 		logger.Error("Failed to register configured pullers", "error", err.Error())
 		os.Exit(1)
 	}
 	executionRuntime.SetConfiguredPullers(registeredPullers)
+	if config.DurableBlocks {
+		chains := multiChainPuller.RegisteredChains()
+		store := plugindatabase.NewPostgreSQLPluginAdapter(logger, metrics).WithChainScope(chains...)
+		if err := store.Initialize(context.Background(), core.Config{DatabaseURL: dbConfig.PostgresURL}); err != nil {
+			logger.Error("Initialize canonical supervision", "error", err)
+			os.Exit(1)
+		}
+		if err := store.Start(context.Background()); err != nil {
+			logger.Error("Start canonical supervision", "error", err.Error())
+			os.Exit(1)
+		}
+		executionRuntime.durableStore = store
+	}
+
 	fmt.Println("  ✓ Multi-Chain Data Puller initialized")
 	fmt.Printf("  ✓ Configured Pullers Attached: %d\n", registeredPullers)
 	fmt.Println()
@@ -291,6 +311,11 @@ func main() {
 	fmt.Println("  [3/3] Database manager closed")
 
 	bootstrap.ShutdownWithTimeout(&wg, 30*time.Second)
+	if executionRuntime.durableStore != nil {
+		if err := executionRuntime.durableStore.Stop(shutdownCtx); err != nil {
+			logger.Error("Close canonical supervision", "error", err)
+		}
+	}
 
 	fmt.Println()
 	fmt.Println("Status: Shutdown complete")
@@ -304,6 +329,7 @@ type PullerConfig struct {
 	KafkaBrokers        []string
 	ProducerGroup       string
 	OutputTopics        []string
+	ReorgOutputTopic    string
 	BlockchainRPCs      []string
 	PollInterval        int
 	BlockConfirmation   int
@@ -311,6 +337,7 @@ type PullerConfig struct {
 	CheckpointInterval  int
 	ReorgDetectionDepth int
 	BatchSize           int
+	DurableBlocks       bool
 	MaxRetries          int
 	WorkerThreads       int
 	LogLevel            string
@@ -333,7 +360,8 @@ func loadPullerConfig() PullerConfig {
 		InstanceID:          instanceID,
 		KafkaBrokers:        env.GetCSV("KAFKA_BROKERS", []string{"kafka-1:9092", "kafka-2:9092", "kafka-3:9092"}),
 		ProducerGroup:       env.Get("KAFKA_PRODUCER_GROUP", "data-puller-producers"),
-		OutputTopics:        env.GetCSV("KAFKA_OUTPUT_TOPICS", []string{"raw-events", "blockchain-events"}),
+		OutputTopics:        env.GetCSV("KAFKA_OUTPUT_TOPICS", pullerDefaultOutputTopics()),
+		ReorgOutputTopic:    env.Get("KAFKA_REORG_TOPIC", "chainpulse.reorg.v1"),
 		BlockchainRPCs:      env.GetCSV("BLOCKCHAIN_RPCS", []string{"http://ethereum-rpc:8545", "http://polygon-rpc:8545"}),
 		PollInterval:        env.GetInt("POLL_INTERVAL", 12),
 		BlockConfirmation:   env.GetInt("BLOCK_CONFIRMATION", 12),
@@ -341,6 +369,7 @@ func loadPullerConfig() PullerConfig {
 		CheckpointInterval:  env.GetInt("STATE_CHECKPOINT_INTERVAL", 100),
 		ReorgDetectionDepth: env.GetInt("REORG_DETECTION_DEPTH", 256),
 		BatchSize:           env.GetInt("BATCH_SIZE", 100),
+		DurableBlocks:       env.Get("DATABASE_TYPE", "") == "postgres",
 		MaxRetries:          env.GetInt("MAX_RETRIES", 3),
 		WorkerThreads:       env.GetInt("WORKER_THREADS", 4),
 		LogLevel:            env.Get("LOG_LEVEL", "info"),
@@ -350,6 +379,13 @@ func loadPullerConfig() PullerConfig {
 		RateLimitEnabled:    env.GetBool("PULLER_RATE_LIMIT_ENABLED", true),
 		RateLimitPerMinute:  env.GetInt("PULLER_RATE_LIMIT", 100),
 	}
+}
+
+func pullerDefaultOutputTopics() []string {
+	if env.Get("DATABASE_TYPE", "") == "postgres" {
+		return []string{"chainpulse.blocks.v1"}
+	}
+	return []string{"raw-events", "blockchain-events"}
 }
 
 func validatePullerConfig(c PullerConfig) error {
@@ -407,7 +443,7 @@ func runPullerLoop(
 	ctx context.Context,
 	puller *pullers.MultiChainDataPuller,
 	config PullerConfig,
-	logger core.Logger,
+	logger portcontract.Logger,
 	metrics core.MetricsCollector,
 	checkpointSource pullerCheckpointSource,
 	progress *pullerLoopRuntimeProgress,

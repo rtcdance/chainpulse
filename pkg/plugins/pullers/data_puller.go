@@ -2,6 +2,7 @@ package pullers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/rand"
 	"strconv"
@@ -9,7 +10,10 @@ import (
 	"sync"
 	"time"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"github.com/rtcdance/chainpulse/pkg/core"
 	"github.com/rtcdance/chainpulse/pkg/core/topics"
 	"github.com/rtcdance/chainpulse/pkg/evm"
@@ -23,10 +27,10 @@ type BaseDataPullerPlugin struct {
 	name               string
 	version            string
 	config             core.Config
-	logger             core.Logger
+	logger             portcontract.Logger
 	metricsCollector   core.MetricsCollector
-	eventBus           core.EventBus
-	checkpointStore    core.CheckpointStore
+	eventBus           portcontract.EventBus
+	checkpointStore    portcontract.CheckpointStore
 	isRunning          bool
 	lastBlockNumber    uint64
 	maxRetries         int
@@ -71,9 +75,9 @@ func NewBaseDataPullerPlugin(
 	name string,
 	version string,
 	config core.Config,
-	logger core.Logger,
+	logger portcontract.Logger,
 	metricsCollector core.MetricsCollector,
-	eventBus core.EventBus,
+	eventBus portcontract.EventBus,
 ) *BaseDataPullerPlugin {
 	shutdownTimeout := 10 * time.Second
 	if config.ShutdownTimeout > 0 {
@@ -317,7 +321,7 @@ func (p *BaseDataPullerPlugin) GetLastBlockNumber() uint64 {
 
 // handlePullerPanic recovers from panics in puller goroutines to prevent
 // process-wide crashes. All puller goroutines should defer this.
-func handlePullerPanic(logger core.Logger, source string) {
+func handlePullerPanic(logger portcontract.Logger, source string) {
 	if r := recover(); r != nil {
 		if logger != nil {
 			logger.Error(
@@ -382,7 +386,7 @@ func (p *BaseDataPullerPlugin) SetLastBlockNumberWithHash(blockNumber uint64, bl
 }
 
 // SetCheckpointStore sets the checkpoint store for persisting indexing progress
-func (p *BaseDataPullerPlugin) SetCheckpointStore(store core.CheckpointStore) {
+func (p *BaseDataPullerPlugin) SetCheckpointStore(store portcontract.CheckpointStore) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.checkpointStore = store
@@ -436,7 +440,7 @@ func (p *BaseDataPullerPlugin) LoadCheckpointWithHash(ctx context.Context) (uint
 }
 
 // PublishEvent publishes an event to the event bus
-func (p *BaseDataPullerPlugin) PublishEvent(ctx context.Context, event core.BlockchainEvent) error {
+func (p *BaseDataPullerPlugin) PublishEvent(ctx context.Context, event blockchain.BlockchainEvent) error {
 	if p.eventBus == nil {
 		return fmt.Errorf("event bus not available")
 	}
@@ -459,7 +463,7 @@ func (p *BaseDataPullerPlugin) PublishEvent(ctx context.Context, event core.Bloc
 }
 
 // PublishEvents publishes multiple events to the event bus
-func (p *BaseDataPullerPlugin) PublishEvents(ctx context.Context, events []core.BlockchainEvent) error {
+func (p *BaseDataPullerPlugin) PublishEvents(ctx context.Context, events []blockchain.BlockchainEvent) error {
 	for _, event := range events {
 		if err := p.PublishEvent(ctx, event); err != nil {
 			return err
@@ -510,50 +514,55 @@ func (p *BaseDataPullerPlugin) LogWarn(msg string, fields ...any) {
 
 // RetryWithBackoff retries an operation with exponential backoff and error classification.
 // Different error types receive different retry strategies:
-//   - Rate limit (429): longer backoff, more retries
+//   - Rate limit (429): longer backoff, more retries; a Retry-After hint (from
+//     core.RPCErr or response text) overrides the computed backoff, capped at 30s
+//   - Server error (5xx, JSON-RPC -320xx): exponential backoff, standard retries
 //   - Timeout: moderate backoff, standard retries
-//   - Network/Connection: standard backoff, standard retries
-//   - Non-retryable (auth, invalid params): no retry, immediate return
+//   - Non-retryable (auth, invalid params, ErrRangeTooWide): no retry, immediate return
 func (p *BaseDataPullerPlugin) RetryWithBackoff(ctx context.Context, operation func() error) error {
+	maxRetries := p.maxRetries
 	backoff := p.retryBackoff
-	var lastErr error
-
-	if p.maxRetries <= 0 {
-		p.maxRetries = 3
-		p.retryBackoff = 1 * time.Second
-		backoff = p.retryBackoff
+	if maxRetries <= 0 {
+		maxRetries = 3
+		backoff = 1 * time.Second
 	}
 
-	p.logger.Debug("retry config", "maxRetries", p.maxRetries, "retryBackoff", backoff)
+	var lastErr error
 
-	for attempt := 0; attempt < p.maxRetries; attempt++ {
+	p.logger.Debug("retry config", "maxRetries", maxRetries, "retryBackoff", backoff)
+
+	for attempt := 0; attempt < maxRetries; attempt++ {
 		err := operation()
 		if err == nil {
 			return nil
 		}
 		lastErr = err
 
-		// Classify error to determine retry strategy
 		errType := classifyError(err)
 		if !errType.retryable {
 			p.logger.Error("non-retryable error, aborting", "error", err.Error(), "type", errType.category)
 			return err
 		}
 
-		// Adjust backoff based on error type
-		effectiveBackoff := backoff
+		wait := backoff
 		if errType.category == "rate_limit" {
-			// Rate limits: use longer backoff (at least 5s)
-			effectiveBackoff = max(backoff, 5*time.Second)
+			wait = max(backoff, 5*time.Second)
+		}
+		ra := retryAfterFrom(err)
+		if ra > 0 {
+			wait = ra
 		}
 
-		p.logger.Warn("retry attempt failed", "attempt", attempt+1, "maxRetries", p.maxRetries, "error", err, "error_type", errType.category)
+		p.logger.Warn("retry attempt failed", "attempt", attempt+1, "maxRetries", maxRetries, "error", err, "error_type", errType.category)
 
-		if attempt < p.maxRetries-1 {
-			// Add jitter: randomize between 50%-100% of backoff to avoid thundering herd
-			jitteredBackoff := time.Duration(float64(effectiveBackoff) * (0.5 + rand.Float64()*0.5))
+		if attempt < maxRetries-1 {
+			sleep := wait
+			if ra == 0 {
+				// Add jitter: randomize between 50%-100% of backoff to avoid thundering herd
+				sleep = time.Duration(float64(wait) * (0.5 + rand.Float64()*0.5))
+			}
 			select {
-			case <-time.After(jitteredBackoff):
+			case <-time.After(sleep):
 				backoff *= 2
 			case <-ctx.Done():
 				return ctx.Err()
@@ -561,23 +570,86 @@ func (p *BaseDataPullerPlugin) RetryWithBackoff(ctx context.Context, operation f
 		}
 	}
 
-	p.logger.Error("all retries exhausted", "maxRetries", p.maxRetries, "lastError", lastErr)
+	p.logger.Error("all retries exhausted", "maxRetries", maxRetries, "lastError", lastErr)
 	if lastErr != nil {
 		return fmt.Errorf("max retries exceeded: last error: %w", lastErr)
 	}
 	return fmt.Errorf("max retries exceeded: unknown error")
 }
 
+// maxRetryAfterCap bounds server-provided Retry-After hints so a hostile or
+// misconfigured provider cannot stall the puller indefinitely.
+const maxRetryAfterCap = 30 * time.Second
+
+// retryAfterFrom extracts a Retry-After hint from a structured core.RPCErr or
+// from error text ("retry-after: 7" / "retry after 7s"). Returns 0 when absent.
+func retryAfterFrom(err error) time.Duration {
+	var rpcErr *core.RPCErr
+	if errors.As(err, &rpcErr) && rpcErr.RetryAfter > 0 {
+		return min(rpcErr.RetryAfter, maxRetryAfterCap)
+	}
+	lower := strings.ToLower(err.Error())
+	for _, key := range []string{"retry-after:", "retry after "} {
+		idx := strings.Index(lower, key)
+		if idx < 0 {
+			continue
+		}
+		fields := strings.Fields(lower[idx+len(key):])
+		if len(fields) == 0 {
+			continue
+		}
+		secs, convErr := strconv.Atoi(strings.TrimSuffix(fields[0], "s"))
+		if convErr == nil && secs > 0 {
+			return min(time.Duration(secs)*time.Second, maxRetryAfterCap)
+		}
+	}
+	return 0
+}
+
 // errorClassification describes retry characteristics of an error.
 type errorClassification struct {
 	retryable bool
-	category  string // "rate_limit", "timeout", "network", "non_retryable"
+	category  string // "rate_limit", "timeout", "network", "server_error", "non_retryable"
 }
 
 // classifyError examines an error and determines its retry strategy.
 func classifyError(err error) errorClassification {
 	if err == nil {
 		return errorClassification{retryable: true, category: "none"}
+	}
+
+	if TooWideError(err) {
+		return errorClassification{retryable: false, category: "non_retryable"}
+	}
+
+	var rpcErr *core.RPCErr
+	if errors.As(err, &rpcErr) {
+		switch {
+		case rpcErr.StatusCode == 429:
+			return errorClassification{retryable: true, category: "rate_limit"}
+		case rpcErr.StatusCode == 408:
+			return errorClassification{retryable: true, category: "timeout"}
+		case rpcErr.StatusCode >= 500 && rpcErr.StatusCode < 600:
+			return errorClassification{retryable: true, category: "server_error"}
+		case rpcErr.StatusCode >= 400:
+			return errorClassification{retryable: false, category: "non_retryable"}
+		}
+	}
+
+	var codeErr interface{ ErrorCode() int }
+	if errors.As(err, &codeErr) {
+		switch code := codeErr.ErrorCode(); {
+		case code == -32600 || code == -32601 || code == -32602:
+			return errorClassification{retryable: false, category: "non_retryable"}
+		case code == -32005:
+			return errorClassification{retryable: true, category: "rate_limit"}
+		case code >= -32099 && code <= -32000:
+			return errorClassification{retryable: true, category: "server_error"}
+		}
+	}
+
+	if errors.Is(err, context.DeadlineExceeded) {
+		return errorClassification{retryable: true, category: "timeout"}
 	}
 
 	errStr := err.Error()
@@ -681,7 +753,7 @@ func (p *BaseDataPullerPlugin) GetConnectionTimeout() time.Duration {
 }
 
 // ValidateEvent validates a blockchain event
-func (p *BaseDataPullerPlugin) ValidateEvent(event core.BlockchainEvent) error {
+func (p *BaseDataPullerPlugin) ValidateEvent(event blockchain.BlockchainEvent) error {
 	if event.BlockNumber == 0 {
 		return fmt.Errorf("invalid block number")
 	}
@@ -717,11 +789,11 @@ func (p *BaseDataPullerPlugin) ValidateEvent(event core.BlockchainEvent) error {
 
 // GenerateEventHash generates a deterministic hash for an event using the
 // canonical ComputeEventHash function from pkg/core.
-func (p *BaseDataPullerPlugin) GenerateEventHash(event core.BlockchainEvent) string {
+func (p *BaseDataPullerPlugin) GenerateEventHash(event blockchain.BlockchainEvent) string {
 	return core.ComputeEventHash(&event)
 }
 
-// BuildBlockchainEvent constructs a core.BlockchainEvent from parsed log fields.
+// BuildBlockchainEvent constructs a blockchain.BlockchainEvent from parsed log fields.
 // Both grpc and websocket pullers use this after converting their hex-encoded
 // Log struct fields into native Go types.
 func (p *BaseDataPullerPlugin) BuildBlockchainEvent(
@@ -736,8 +808,8 @@ func (p *BaseDataPullerPlugin) BuildBlockchainEvent(
 	eventSig common.Hash,
 	blockTimestamp int64,
 	removed bool,
-) core.BlockchainEvent {
-	event := core.BlockchainEvent{
+) blockchain.BlockchainEvent {
+	event := blockchain.BlockchainEvent{
 		ID:              chainID + "-" + txHash.Hex() + "-" + strconv.FormatUint(logIndex, 10),
 		BlockNumber:     blockNumber,
 		TransactionHash: txHash,
@@ -750,7 +822,7 @@ func (p *BaseDataPullerPlugin) BuildBlockchainEvent(
 		ChainID:         chainID,
 		Network:         network,
 		BlockTimestamp:  blockTimestamp,
-		Status:          core.EventStatusPending,
+		Status:          blockchain.EventStatusPending,
 		Removed:         removed,
 	}
 	event.EventHash = p.GenerateEventHash(event)

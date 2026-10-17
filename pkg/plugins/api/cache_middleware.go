@@ -9,6 +9,8 @@ import (
 	"sync"
 	"time"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
 	"github.com/rtcdance/chainpulse/pkg/core"
 	"github.com/rtcdance/chainpulse/pkg/plugins/api/shared"
 )
@@ -35,7 +37,7 @@ type CacheMiddleware struct {
 	cache            map[string]*CacheEntry
 	config           *CacheConfig
 	metrics          *CacheMetrics
-	logger           core.Logger
+	logger           portcontract.Logger
 	invalidator      *CacheInvalidator
 	evictionStrategy EvictionStrategy
 	lastCleanup      time.Time
@@ -102,7 +104,7 @@ func (s *FIFOEvictionStrategy) SelectForEviction(entries map[string]*CacheEntry)
 }
 
 // NewCacheMiddleware creates a new cache middleware
-func NewCacheMiddleware(config *CacheConfig, logger core.Logger, metrics core.MetricsCollector) *CacheMiddleware {
+func NewCacheMiddleware(config *CacheConfig, logger portcontract.Logger, metrics core.MetricsCollector) *CacheMiddleware {
 	var strategy EvictionStrategy
 	switch config.EvictionStrategy {
 	case "LFU":

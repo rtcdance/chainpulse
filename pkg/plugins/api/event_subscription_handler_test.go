@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
@@ -154,13 +155,13 @@ func TestEventSubscriptionHandler_matchesSubscription(t *testing.T) {
 
 	tests := []struct {
 		name      string
-		event     *core.BlockchainEvent
+		event     *blockchain.BlockchainEvent
 		sub       *Subscription
 		wantMatch bool
 	}{
 		{
 			name: "all matches anything",
-			event: &core.BlockchainEvent{
+			event: &blockchain.BlockchainEvent{
 				ChainID:         "1",
 				ContractAddress: contractAddr,
 				EventName:       "Transfer",
@@ -170,7 +171,7 @@ func TestEventSubscriptionHandler_matchesSubscription(t *testing.T) {
 		},
 		{
 			name: "chain matches",
-			event: &core.BlockchainEvent{
+			event: &blockchain.BlockchainEvent{
 				ChainID:         "1",
 				ContractAddress: contractAddr,
 				EventName:       "Transfer",
@@ -180,7 +181,7 @@ func TestEventSubscriptionHandler_matchesSubscription(t *testing.T) {
 		},
 		{
 			name: "chain does not match",
-			event: &core.BlockchainEvent{
+			event: &blockchain.BlockchainEvent{
 				ChainID:         "1",
 				ContractAddress: contractAddr,
 				EventName:       "Transfer",
@@ -190,7 +191,7 @@ func TestEventSubscriptionHandler_matchesSubscription(t *testing.T) {
 		},
 		{
 			name: "contract matches",
-			event: &core.BlockchainEvent{
+			event: &blockchain.BlockchainEvent{
 				ChainID:         "1",
 				ContractAddress: contractAddr,
 				EventName:       "Transfer",
@@ -200,7 +201,7 @@ func TestEventSubscriptionHandler_matchesSubscription(t *testing.T) {
 		},
 		{
 			name: "contract does not match",
-			event: &core.BlockchainEvent{
+			event: &blockchain.BlockchainEvent{
 				ChainID:         "1",
 				ContractAddress: contractAddr,
 				EventName:       "Transfer",
@@ -210,7 +211,7 @@ func TestEventSubscriptionHandler_matchesSubscription(t *testing.T) {
 		},
 		{
 			name: "name matches",
-			event: &core.BlockchainEvent{
+			event: &blockchain.BlockchainEvent{
 				ChainID:         "1",
 				ContractAddress: contractAddr,
 				EventName:       "Transfer",
@@ -220,7 +221,7 @@ func TestEventSubscriptionHandler_matchesSubscription(t *testing.T) {
 		},
 		{
 			name: "name does not match",
-			event: &core.BlockchainEvent{
+			event: &blockchain.BlockchainEvent{
 				ChainID:         "1",
 				ContractAddress: contractAddr,
 				EventName:       "Transfer",
@@ -230,7 +231,7 @@ func TestEventSubscriptionHandler_matchesSubscription(t *testing.T) {
 		},
 		{
 			name: "unknown subscription type",
-			event: &core.BlockchainEvent{
+			event: &blockchain.BlockchainEvent{
 				ChainID:         "1",
 				ContractAddress: contractAddr,
 				EventName:       "Transfer",

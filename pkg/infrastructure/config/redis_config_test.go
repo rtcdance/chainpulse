@@ -169,15 +169,20 @@ func TestRedisConfigWithDifferentHosts(t *testing.T) {
 }
 
 // TestRedisConfigDefaultValues tests Redis config default values
+//
+// NOTE: Password is a configmodel.SecretString, so it must be compared by
+// value — `assert.Equal(t, "", ...)` compares a string against a SecretString
+// and always fails once NewRedisCluster actually succeeds (i.e. when Redis is
+// reachable). The assertions below only run when the cluster is reachable, so
+// this test used to pass vacuously on machines without Redis.
 func TestRedisConfigDefaultValues(t *testing.T) {
-	t.Skip("regression: pre-existing failure")
 	t.Parallel()
 	cluster, err := NewRedisCluster(nil)
 
 	if err == nil {
 		assert.Equal(t, "localhost", cluster.config.Host)
 		assert.Equal(t, 6379, cluster.config.Port)
-		assert.Equal(t, "", cluster.config.Password)
+		assert.Equal(t, "", cluster.config.Password.Value())
 		assert.Equal(t, 0, cluster.config.DB)
 		_ = cluster.Close()
 	}

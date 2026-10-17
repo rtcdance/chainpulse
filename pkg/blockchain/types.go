@@ -74,6 +74,7 @@ type BlockchainEvent struct {
 	ChainID         string      `json:"chain_id"`
 	Network         string      `json:"network"`
 	Status          EventStatus `json:"status"`
+	State           *EventState `json:"state,omitempty"`
 	TransactionType uint8       `json:"transaction_type"` // TxLegacy(0), TxAccessList(1), TxEIP1559(2), TxBlob(3)
 
 	// Cross-chain correlation: events on different chains that represent the

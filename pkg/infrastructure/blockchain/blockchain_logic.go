@@ -6,9 +6,9 @@ import (
 	"sync"
 	"time"
 
+	blockchainmodels "github.com/rtcdance/chainpulse/pkg/blockchain"
 	"github.com/rtcdance/chainpulse/pkg/chainid"
-	"github.com/rtcdance/chainpulse/pkg/core"
-	"github.com/rtcdance/chainpulse/pkg/services/query"
+	"github.com/rtcdance/chainpulse/pkg/services/query/circuitbreaker"
 )
 
 // BlockchainLogic represents blockchain-specific logic and transformations
@@ -19,25 +19,25 @@ type BlockchainLogic struct {
 	transformers   []EventTransformer
 	filters        []EventFilter
 	metrics        *BlockchainLogicMetrics
-	circuitBreaker *query.CircuitBreaker
-	txTypeResolver core.TxTypeResolver
+	circuitBreaker *circuitbreaker.CircuitBreaker
+	txTypeResolver blockchainmodels.TxTypeResolver
 }
 
 // EventValidator validates events for a specific blockchain
 type EventValidator interface {
-	Validate(ctx context.Context, event *core.BlockchainEvent) error
+	Validate(ctx context.Context, event *blockchainmodels.BlockchainEvent) error
 	GetBlockchainType() string
 }
 
 // EventTransformer transforms events for a specific blockchain
 type EventTransformer interface {
-	Transform(ctx context.Context, event *core.BlockchainEvent) (*core.BlockchainEvent, error)
+	Transform(ctx context.Context, event *blockchainmodels.BlockchainEvent) (*blockchainmodels.BlockchainEvent, error)
 	GetBlockchainType() string
 }
 
 // EventFilter filters events for a specific blockchain
 type EventFilter interface {
-	Filter(ctx context.Context, event *core.BlockchainEvent) bool
+	Filter(ctx context.Context, event *blockchainmodels.BlockchainEvent) bool
 	GetBlockchainType() string
 }
 
@@ -64,19 +64,19 @@ func NewBlockchainLogic(blockchainType string) *BlockchainLogic {
 		metrics: &BlockchainLogicMetrics{
 			LastProcessedTime: time.Now(),
 		},
-		circuitBreaker: query.NewCircuitBreaker(nil),
+		circuitBreaker: circuitbreaker.New(nil),
 	}
 }
 
 // SetCircuitBreaker sets a custom circuit breaker for the blockchain logic
-func (bl *BlockchainLogic) SetCircuitBreaker(cb *query.CircuitBreaker) {
+func (bl *BlockchainLogic) SetCircuitBreaker(cb *circuitbreaker.CircuitBreaker) {
 	bl.mu.Lock()
 	defer bl.mu.Unlock()
 	bl.circuitBreaker = cb
 }
 
 // SetTxTypeResolver sets the transaction type resolver for enriching events
-func (bl *BlockchainLogic) SetTxTypeResolver(resolver core.TxTypeResolver) {
+func (bl *BlockchainLogic) SetTxTypeResolver(resolver blockchainmodels.TxTypeResolver) {
 	bl.mu.Lock()
 	defer bl.mu.Unlock()
 	bl.txTypeResolver = resolver
@@ -122,7 +122,7 @@ func (bl *BlockchainLogic) AddFilter(filter EventFilter) error {
 }
 
 // ValidateEvent validates an event using all validators
-func (bl *BlockchainLogic) ValidateEvent(ctx context.Context, event *core.BlockchainEvent) error {
+func (bl *BlockchainLogic) ValidateEvent(ctx context.Context, event *blockchainmodels.BlockchainEvent) error {
 	bl.mu.RLock()
 	validators := bl.validators
 	bl.mu.RUnlock()
@@ -149,7 +149,7 @@ func (bl *BlockchainLogic) ValidateEvent(ctx context.Context, event *core.Blockc
 }
 
 // TransformEvent transforms an event using all transformers
-func (bl *BlockchainLogic) TransformEvent(ctx context.Context, event *core.BlockchainEvent) (*core.BlockchainEvent, error) {
+func (bl *BlockchainLogic) TransformEvent(ctx context.Context, event *blockchainmodels.BlockchainEvent) (*blockchainmodels.BlockchainEvent, error) {
 	bl.mu.RLock()
 	transformers := bl.transformers
 	bl.mu.RUnlock()
@@ -179,7 +179,7 @@ func (bl *BlockchainLogic) TransformEvent(ctx context.Context, event *core.Block
 }
 
 // FilterEvent filters an event using all filters
-func (bl *BlockchainLogic) FilterEvent(ctx context.Context, event *core.BlockchainEvent) bool {
+func (bl *BlockchainLogic) FilterEvent(ctx context.Context, event *blockchainmodels.BlockchainEvent) bool {
 	bl.mu.RLock()
 	filters := bl.filters
 	bl.mu.RUnlock()
@@ -199,8 +199,8 @@ func (bl *BlockchainLogic) FilterEvent(ctx context.Context, event *core.Blockcha
 // ProcessEvent processes an event through validation, transformation, and filtering.
 // The circuit breaker protects against cascading failures — if processing
 // consistently fails, the circuit opens and fast-fails until recovery.
-func (bl *BlockchainLogic) ProcessEvent(ctx context.Context, event *core.BlockchainEvent) (*core.BlockchainEvent, error) {
-	var result *core.BlockchainEvent
+func (bl *BlockchainLogic) ProcessEvent(ctx context.Context, event *blockchainmodels.BlockchainEvent) (*blockchainmodels.BlockchainEvent, error) {
+	var result *blockchainmodels.BlockchainEvent
 	var processErr error
 
 	err := bl.circuitBreaker.CallWithContext(ctx, func() error {
@@ -220,7 +220,7 @@ func (bl *BlockchainLogic) ProcessEvent(ctx context.Context, event *core.Blockch
 		// Skip events from failed (reverted) transactions.
 		// A failed tx means all its log emissions were reverted by the EVM,
 		// but a buggy/malicious RPC might still return them.
-		if event.TxStatus == core.TxStatusFailed {
+		if event.TxStatus == blockchainmodels.TxStatusFailed {
 			return fmt.Errorf("event from failed transaction %s", event.TransactionHash.Hex())
 		}
 
@@ -306,7 +306,7 @@ func (blm *BlockchainLogicManager) GetLogic(blockchainType string) (*BlockchainL
 }
 
 // ProcessEvent processes an event through blockchain-specific logic
-func (blm *BlockchainLogicManager) ProcessEvent(ctx context.Context, event *core.BlockchainEvent) (*core.BlockchainEvent, error) {
+func (blm *BlockchainLogicManager) ProcessEvent(ctx context.Context, event *blockchainmodels.BlockchainEvent) (*blockchainmodels.BlockchainEvent, error) {
 	logic, err := blm.GetLogic(event.ChainID)
 	if err != nil {
 		return nil, err
@@ -337,7 +337,7 @@ func NewEVMValidator() *EVMValidator {
 }
 
 // Validate validates an EVM event
-func (ev *EVMValidator) Validate(ctx context.Context, event *core.BlockchainEvent) error {
+func (ev *EVMValidator) Validate(ctx context.Context, event *blockchainmodels.BlockchainEvent) error {
 	if chainid.GetChainType(event.ChainID) != "EVM" {
 		return fmt.Errorf("invalid chain ID %q for EVM validator (expected EVM chain)", event.ChainID)
 	}
@@ -367,7 +367,7 @@ func NewCosmosValidator() *CosmosValidator {
 }
 
 // Validate validates a Cosmos event
-func (cv *CosmosValidator) Validate(ctx context.Context, event *core.BlockchainEvent) error {
+func (cv *CosmosValidator) Validate(ctx context.Context, event *blockchainmodels.BlockchainEvent) error {
 	if chainid.GetChainType(event.ChainID) != "Cosmos" {
 		return fmt.Errorf("invalid chain ID %q for Cosmos validator", event.ChainID)
 	}
@@ -393,7 +393,7 @@ func NewSolanaValidator() *SolanaValidator {
 }
 
 // Validate validates a Solana event
-func (sv *SolanaValidator) Validate(ctx context.Context, event *core.BlockchainEvent) error {
+func (sv *SolanaValidator) Validate(ctx context.Context, event *blockchainmodels.BlockchainEvent) error {
 	if chainid.GetChainType(event.ChainID) != "Solana" {
 		return fmt.Errorf("invalid chain ID %q for Solana validator (expected Solana chain)", event.ChainID)
 	}

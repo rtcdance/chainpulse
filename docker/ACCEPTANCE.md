@@ -231,7 +231,7 @@ Key environment variables for the ChainPulse container:
 
 **Kafka NodeExists error**: Stale Zookeeper data from previous runs. Remove volumes: `docker compose -f docker/docker-compose.acceptance-microservices.yml down -v`
 
-**Anvil not reachable cross-container**: Anvil nightly builds require `ANVIL_IP_ADDR=0.0.0.0` environment variable in addition to `--host 0.0.0.0`. Both are set in the compose files.
+**Anvil not reachable cross-container**: The `foundry` image entrypoint is `["/bin/sh", "-c"]`. A compose string `command: anvil --host 0.0.0.0 ...` is split into words and appended after `-c`, so the shell takes only `anvil` as the script and silently drops every flag (`--host`, `--chain-id`, `--block-time` become unused positional parameters). Anvil then runs with defaults: binds `127.0.0.1` only, chain ID 31337, no block time. The compose files override the entrypoint in exec form (`entrypoint: ["/bin/sh", "-c", "anvil --host 0.0.0.0 ..."]`) to avoid this. `ANVIL_IP_ADDR` is not read by Anvil and has no effect.
 
 **Puller "already registered for chain"**: When using `BLOCKCHAIN_RPCS`, use the explicit `chain=url` format (e.g., `ethereum=http://anvil-ethereum:8545`) instead of plain URLs. Plain URLs infer chain ID from hostname, which can cause collisions (e.g., `anvil-ethereum` and `anvil-polygon` both infer as "anvil").
 

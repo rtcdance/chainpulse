@@ -6,6 +6,9 @@ import (
 	"sync"
 	"time"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"github.com/rtcdance/chainpulse/pkg/consensus"
 	"github.com/rtcdance/chainpulse/pkg/core"
 	"github.com/rtcdance/chainpulse/pkg/domain"
@@ -15,9 +18,9 @@ import (
 // DefaultChainIndexer implements ChainIndexer for a specific blockchain
 type DefaultChainIndexer struct {
 	chainID                string
-	database               core.DatabasePlugin
-	cache                  core.CachePlugin
-	logger                 core.Logger
+	database               portcontract.DatabasePlugin
+	cache                  portcontract.CachePlugin
+	logger                 portcontract.Logger
 	genericIndexer         *generic.GenericContractIndexer
 	sharedRuntime          domain.SharedBatchRuntime
 	metrics                core.MetricsCollector
@@ -34,9 +37,9 @@ type DefaultChainIndexer struct {
 // NewDefaultChainIndexer creates a new chain-specific indexer
 func NewDefaultChainIndexer(
 	chainID string,
-	database core.DatabasePlugin,
-	cache core.CachePlugin,
-	logger core.Logger,
+	database portcontract.DatabasePlugin,
+	cache portcontract.CachePlugin,
+	logger portcontract.Logger,
 	genericIndexer *generic.GenericContractIndexer,
 ) *DefaultChainIndexer {
 	return &DefaultChainIndexer{
@@ -68,7 +71,7 @@ func (dci *DefaultChainIndexer) SetConfirmationTracker(tracker *consensus.Confir
 // IndexEvents indexes events for this chain
 func (dci *DefaultChainIndexer) IndexEvents(
 	ctx context.Context,
-	events []*core.BlockchainEvent,
+	events []*blockchain.BlockchainEvent,
 ) error {
 	if len(events) == 0 {
 		return nil
@@ -76,10 +79,13 @@ func (dci *DefaultChainIndexer) IndexEvents(
 
 	dci.logger.Debug("indexing events for chain", "chain_id", dci.chainID, "count", len(events))
 
-	validEvents := make([]*core.BlockchainEvent, 0, len(events))
+	validEvents := make([]*blockchain.BlockchainEvent, 0, len(events))
 
 	// Validate all events belong to this chain
 	for _, event := range events {
+		if event == nil {
+			return fmt.Errorf("index event: event is nil")
+		}
 		if event.ChainID != dci.chainID {
 			dci.mu.Lock()
 			dci.totalErrorsEncountered++
@@ -92,10 +98,16 @@ func (dci *DefaultChainIndexer) IndexEvents(
 		validEvents = append(validEvents, event)
 	}
 
-	dci.forwardShadowBatch(ctx, validEvents)
+	if err := dci.forwardShadowBatch(ctx, validEvents); err != nil {
+		return fmt.Errorf("index chain %s: %w", dci.chainID, err)
+	}
+	atomic := false
+	if runtime, ok := dci.sharedRuntime.(interface{ AtomicCommitsEnabled() bool }); ok {
+		atomic = runtime.AtomicCommitsEnabled()
+	}
 
 	for _, event := range validEvents {
-		if consumeShadowWrite(event) {
+		if atomic || consumeShadowWrite(event) {
 			if dci.metrics != nil {
 				dci.metrics.RecordCounter("indexing_runtime_shadow_owned_events_total", 1, map[string]string{
 					"chain_id":  dci.chainID,
@@ -154,9 +166,9 @@ func (dci *DefaultChainIndexer) IndexEvents(
 	return nil
 }
 
-func (dci *DefaultChainIndexer) forwardShadowBatch(ctx context.Context, events []*core.BlockchainEvent) {
+func (dci *DefaultChainIndexer) forwardShadowBatch(ctx context.Context, events []*blockchain.BlockchainEvent) error {
 	if dci.sharedRuntime == nil || len(events) == 0 {
-		return
+		return nil
 	}
 
 	envelopes := make([]core.EventEnvelope, 0, len(events))
@@ -165,6 +177,9 @@ func (dci *DefaultChainIndexer) forwardShadowBatch(ctx context.Context, events [
 	}
 
 	if err := dci.sharedRuntime.ProcessBatch(ctx, dci.chainID, envelopes); err != nil {
+		if runtime, ok := dci.sharedRuntime.(interface{ AtomicCommitsEnabled() bool }); ok && runtime.AtomicCommitsEnabled() {
+			return fmt.Errorf("atomic persistence failed: %w", err)
+		}
 		dci.logger.Warn(
 			"shared runtime shadow batch failed",
 			"chain_id", dci.chainID,
@@ -179,9 +194,10 @@ func (dci *DefaultChainIndexer) forwardShadowBatch(ctx context.Context, events [
 			})
 		}
 	}
+	return nil
 }
 
-func toEventEnvelope(event *core.BlockchainEvent) core.EventEnvelope {
+func toEventEnvelope(event *blockchain.BlockchainEvent) core.EventEnvelope {
 	return core.EventEnvelope{
 		EventKey:         event.ID,
 		ChainID:          event.ChainID,
@@ -194,7 +210,7 @@ func toEventEnvelope(event *core.BlockchainEvent) core.EventEnvelope {
 	}
 }
 
-func cacheKeyForEvent(chainID string, event *core.BlockchainEvent) string {
+func cacheKeyForEvent(chainID string, event *blockchain.BlockchainEvent) string {
 	return fmt.Sprintf(
 		"event:%s:%s:%d:%d",
 		chainID,
@@ -205,7 +221,7 @@ func cacheKeyForEvent(chainID string, event *core.BlockchainEvent) string {
 }
 
 // indexEvent indexes a single event
-func (dci *DefaultChainIndexer) indexEvent(ctx context.Context, event *core.BlockchainEvent) error {
+func (dci *DefaultChainIndexer) indexEvent(ctx context.Context, event *blockchain.BlockchainEvent) error {
 	if event == nil {
 		return fmt.Errorf("event is nil")
 	}

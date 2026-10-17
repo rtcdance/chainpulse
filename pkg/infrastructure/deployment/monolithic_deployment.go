@@ -13,10 +13,10 @@ import (
 // MonolithicDeployment represents a monolithic deployment mode where all services run in a single binary
 type MonolithicDeployment struct {
 	config              core.Config
-	registry            core.PluginRegistry
+	registry            ports.PluginRegistry
 	configManager       core.ConfigManager
-	eventBus            core.EventBus
-	logger              core.Logger
+	eventBus            ports.EventBus
+	logger              ports.Logger
 	metricsCollector    core.MetricsCollector
 	healthChecker       core.HealthChecker
 	mu                  sync.RWMutex
@@ -31,10 +31,10 @@ type MonolithicDeployment struct {
 // NewMonolithicDeployment creates a new monolithic deployment
 func NewMonolithicDeployment(
 	config core.Config,
-	registry core.PluginRegistry,
+	registry ports.PluginRegistry,
 	configManager core.ConfigManager,
-	eventBus core.EventBus,
-	logger core.Logger,
+	eventBus ports.EventBus,
+	logger ports.Logger,
 	metricsCollector core.MetricsCollector,
 	healthChecker core.HealthChecker,
 ) *MonolithicDeployment {

@@ -1,0 +1,82 @@
+name: Frontend API
+
+# Section 7.3 lists a `frontend-api` lane: "根与 frontend npm ci; npm --prefix
+# frontend run build, npm --prefix frontend run test; 主流程 Playwright + OpenAPI
+# diff", passing when "UI调用真实 API; 关键场景实际执行; 构建错误不忽略".
+#
+# None of it existed. No workflow touched the frontend at all, so the build, the
+# unit tests and the OpenAPI drift check had never run - and because nothing ran
+# them, nobody learned that the unit tests could not run in the first place:
+# jsdom, @testing-library/react and @testing-library/jest-dom were declared in
+# neither package.json nor the lockfile, so `npm ci` installed none of them and
+# vitest collected zero tests behind three "Cannot find dependency" errors.
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+on:
+  # D12: `master` is the remote default branch; without it in the list this
+  # gate never fires on the branch that actually protects. main/develop are
+  # kept for the existing branch layout.
+  push:
+    branches: [ main, master, develop ]
+  pull_request:
+    branches: [ main, master, develop ]
+
+permissions:
+  contents: read
+
+jobs:
+  frontend-api:
+    name: frontend-api
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - name: Set up Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            frontend/package-lock.json
+
+      - name: Install root dependencies
+        # The root manifest carries Playwright, which the acceptance specs use.
+        run: npm ci --no-audit --no-fund
+
+      - name: Install frontend dependencies
+        run: npm ci --prefix frontend --no-audit --no-fund
+
+      - name: Build the frontend
+        # `tsc && vite build`. A build error must fail the lane: section 7.3 says
+        # "构建错误不忽略".
+        run: npm --prefix frontend run build
+
+      - name: Frontend unit tests
+        run: npm --prefix frontend run test
+
+      - name: OpenAPI drift
+        # Compares the documented schemas against the Go response structs. The
+        # tool existed and was self-tested but was invoked by nothing, and its own
+        # docstring records that the spec had already drifted once.
+        run: |
+          set -euo pipefail
+          mkdir -p build/acceptance/openapi
+          python3 scripts/acceptance/openapi-drift.py \
+            --report build/acceptance/openapi/drift.json
+
+      - name: Upload frontend evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: frontend-api-${{ github.sha }}
+          path: |
+            frontend/dist/
+            build/acceptance/openapi/
+          retention-days: 14
+          if-no-files-found: error

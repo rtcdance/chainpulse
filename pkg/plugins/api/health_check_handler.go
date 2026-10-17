@@ -8,6 +8,8 @@ import (
 	"sync"
 	"time"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
 	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
@@ -22,9 +24,9 @@ type DatabaseHealthChecker interface {
 // HealthCheckHandler handles health check requests
 type HealthCheckHandler struct {
 	dbManager   DatabaseHealthChecker
-	cachePlugin core.CachePlugin
-	mqPlugin    core.MQPlugin
-	logger      core.Logger
+	cachePlugin portcontract.CachePlugin
+	mqPlugin    portcontract.MQPlugin
+	logger      portcontract.Logger
 	metrics     core.MetricsCollector
 	initialized bool
 
@@ -35,6 +37,7 @@ type HealthCheckHandler struct {
 	healthCheckInterval      time.Duration
 	runtimeComponentProvider func(context.Context) *ComponentStatus
 	readinessDetailsProvider func(context.Context) map[string]any
+	readinessCheck           func(context.Context) bool
 	rolloutReportProducer    RolloutReportProducer
 }
 
@@ -79,8 +82,8 @@ func NewHealthCheckHandler(
 	args ...any,
 ) *HealthCheckHandler {
 	var (
-		cachePlugin core.CachePlugin
-		logger      core.Logger
+		cachePlugin portcontract.CachePlugin
+		logger      portcontract.Logger
 		metrics     core.MetricsCollector
 	)
 
@@ -90,13 +93,13 @@ func NewHealthCheckHandler(
 	//   NewHealthCheckHandler(db, logger, metrics)
 	switch len(args) {
 	case 3:
-		if cache, ok := args[0].(core.CachePlugin); ok {
+		if cache, ok := args[0].(portcontract.CachePlugin); ok {
 			cachePlugin = cache
 		}
-		logger, _ = args[1].(core.Logger)
+		logger, _ = args[1].(portcontract.Logger)
 		metrics, _ = args[2].(core.MetricsCollector)
 	case 2:
-		logger, _ = args[0].(core.Logger)
+		logger, _ = args[0].(portcontract.Logger)
 		metrics, _ = args[1].(core.MetricsCollector)
 	}
 
@@ -117,7 +120,7 @@ func (h *HealthCheckHandler) InitializedForTests() {
 }
 
 // WithMQPlugin sets the MQ plugin for Kafka health checking.
-func (h *HealthCheckHandler) WithMQPlugin(mq core.MQPlugin) *HealthCheckHandler {
+func (h *HealthCheckHandler) WithMQPlugin(mq portcontract.MQPlugin) *HealthCheckHandler {
 	h.mqPlugin = mq
 	return h
 }
@@ -155,6 +158,14 @@ func (h *HealthCheckHandler) SetReadinessDetailsProvider(provider func(context.C
 	defer h.mu.Unlock()
 
 	h.readinessDetailsProvider = provider
+}
+
+// SetReadinessCheck adds the runtime's progress and dependency check without
+// changing the existing readiness response contract.
+func (h *HealthCheckHandler) SetReadinessCheck(check func(context.Context) bool) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.readinessCheck = check
 }
 
 // SetRolloutReportProvider registers an optional provider that exposes a
@@ -403,6 +414,12 @@ func (h *HealthCheckHandler) performHealthCheck(ctx context.Context) *HealthChec
 
 // checkReadiness checks if the system is ready to accept traffic
 func (h *HealthCheckHandler) checkReadiness(ctx context.Context) bool {
+	h.mu.RLock()
+	check := h.readinessCheck
+	h.mu.RUnlock()
+	if check != nil && !check(ctx) {
+		return false
+	}
 	// Check critical dependencies
 	mongoStatus := h.checkMongoDBHealth(ctx)
 	postgresStatus := h.checkPostgresHealth(ctx)

@@ -611,3 +611,57 @@ func TestErrTypeError(t *testing.T) {
 		t.Error("expected non-empty error code")
 	}
 }
+
+// TestValidateConfigurationRejectsGrpcWithoutImplementation pins the removal of
+// "grpc" from both accepted sets.
+//
+// gRPC has no generated code, no service definition and no server or client
+// anywhere in the repository, so a validator that accepted it told an operator the
+// option existed. Section 10 requires no capability claim without evidence, and
+// this test is what stops the value coming back.
+func TestValidateConfigurationRejectsGrpcWithoutImplementation(t *testing.T) {
+	base := func() Config {
+		return Config{
+			DataPullerType:     "https-jsonrpc",
+			BlockchainNodeURL:  "http://localhost:8545",
+			MQType:             "kafka",
+			MQConnectionURL:    "kafka://localhost:9092",
+			CacheType:          "redis",
+			CacheConnectionURL: "localhost:6379",
+			CacheTTL:           3600,
+			DatabaseType:       "postgres",
+			DatabaseURL:        "postgres://localhost/chainpulse",
+			APIType:            "rest",
+			APIPort:            8080,
+			WorkerPoolSize:     10,
+			BatchSize:          100,
+			MaxRetries:         3,
+			RetryBackoff:       100,
+			DeploymentMode:     "monolithic",
+			ServiceName:        "chainpulse",
+			LogLevel:           "info",
+			FeatureFlags:       make(map[string]bool),
+		}
+	}
+
+	// The baseline has to be valid, or the negative cases below prove nothing.
+	if err := NewConfigManager(nil).Validate(base()); err != nil {
+		t.Fatalf("baseline config should be valid, got %v", err)
+	}
+
+	for _, tc := range []struct {
+		field  string
+		mutate func(*Config)
+	}{
+		{"DataPullerType", func(c *Config) { c.DataPullerType = "grpc" }},
+		{"APIType", func(c *Config) { c.APIType = "grpc" }},
+	} {
+		t.Run(tc.field, func(t *testing.T) {
+			cfg := base()
+			tc.mutate(&cfg)
+			if err := NewConfigManager(nil).Validate(cfg); err == nil {
+				t.Fatalf("%s=grpc was accepted, but no gRPC implementation exists in this repository", tc.field)
+			}
+		})
+	}
+}

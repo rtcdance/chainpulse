@@ -11,7 +11,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 
-	core "github.com/rtcdance/chainpulse/pkg/core"
+	blockchainmodels "github.com/rtcdance/chainpulse/pkg/blockchain"
 )
 
 // txTypeCacheEntry stores both the transaction type and receipt status.
@@ -59,7 +59,7 @@ func (r *RPCTxTypeResolver) ResolveTxType(ctx context.Context, txHash string) (u
 	txType, txStatus, err := r.resolveViaRPC(ctx, txHash)
 	if err != nil {
 		// Non-fatal: return legacy as default, assume success
-		return core.TxLegacy, core.TxStatusSuccess, fmt.Errorf("failed to resolve tx type via RPC for %s: %w", txHash, err)
+		return blockchainmodels.TxLegacy, blockchainmodels.TxStatusSuccess, fmt.Errorf("failed to resolve tx type via RPC for %s: %w", txHash, err)
 	}
 
 	// Cache the result
@@ -165,11 +165,11 @@ func (r *RPCTxTypeResolver) resolveViaRPC(ctx context.Context, txHash string) (u
 
 	// Parse the status hex string (e.g., "0x0" = failed, "0x1" = success per EIP-658)
 	// Pre-EIP-658 receipts don't have status — treat missing as success.
-	txStatus := core.TxStatusSuccess
+	txStatus := blockchainmodels.TxStatusSuccess
 	if result.Result.Status != "" {
 		if s, err := parseHexUint8(result.Result.Status); err == nil {
 			if s == 0 {
-				txStatus = core.TxStatusFailed
+				txStatus = blockchainmodels.TxStatusFailed
 			}
 		}
 	}
@@ -210,4 +210,4 @@ func (r *RPCTxTypeResolver) ClearCache() {
 }
 
 // Ensure RPCTxTypeResolver implements TxTypeResolver at compile time.
-var _ core.TxTypeResolver = (*RPCTxTypeResolver)(nil)
+var _ blockchainmodels.TxTypeResolver = (*RPCTxTypeResolver)(nil)

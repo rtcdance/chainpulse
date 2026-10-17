@@ -6,7 +6,11 @@ import (
 	"sync"
 	"time"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"github.com/rtcdance/chainpulse/pkg/core"
+	"github.com/rtcdance/chainpulse/pkg/logkeys"
 )
 
 // defaultMaxIdempotencySize is the safety limit for in-memory dedup entries.
@@ -28,10 +32,15 @@ type IdempotencyService interface {
 	Health() *core.HealthStatus
 
 	// GenerateHash generates a deterministic hash for an event
-	GenerateHash(event *core.BlockchainEvent) (string, error)
+	GenerateHash(event *blockchain.BlockchainEvent) (string, error)
 
 	// IsDuplicate checks if an event has been processed before
 	IsDuplicate(ctx context.Context, hash string) (bool, error)
+
+	// CheckAndMark atomically reports whether hash was already processed and,
+	// if not, records it as processed. Prefer this over IsDuplicate followed by
+	// MarkProcessed, which is racy between concurrent callers.
+	CheckAndMark(ctx context.Context, hash string) (bool, error)
 
 	// MarkProcessed marks an event as processed
 	MarkProcessed(ctx context.Context, hash string) error
@@ -67,14 +76,14 @@ type DefaultIdempotencyService struct {
 	running          bool
 	lastHealthCheck  *core.HealthStatus
 	config           *core.Config
-	logger           core.Logger
+	logger           portcontract.Logger
 	metricsCollector core.MetricsCollector
 	stopCh           chan struct{}
 	maxSize          int
 }
 
 // NewDefaultIdempotencyService creates a new idempotency service
-func NewDefaultIdempotencyService(logger core.Logger, metricsCollector core.MetricsCollector) *DefaultIdempotencyService {
+func NewDefaultIdempotencyService(logger portcontract.Logger, metricsCollector core.MetricsCollector) *DefaultIdempotencyService {
 	return &DefaultIdempotencyService{
 		processedHashes:  make(map[string]time.Time),
 		logger:           logger,
@@ -115,7 +124,7 @@ func (s *DefaultIdempotencyService) Initialize(config *core.Config) error {
 	s.initialized = true
 	s.logger.Info(
 		"Idempotency service initialized",
-		core.LogKeyComponent, "idempotency",
+		logkeys.LogKeyComponent, "idempotency",
 		"record_ttl_seconds", s.config.IdempotencyRecordTTL,
 		"cleanup_interval_seconds", s.config.IdempotencyCleanupInterval,
 		"max_size", s.maxSize,
@@ -156,7 +165,7 @@ func (s *DefaultIdempotencyService) Start() error {
 		)
 	}
 
-	s.logger.Info("Idempotency service started", core.LogKeyComponent, "idempotency")
+	s.logger.Info("Idempotency service started", logkeys.LogKeyComponent, "idempotency")
 
 	return nil
 }
@@ -179,7 +188,7 @@ func (s *DefaultIdempotencyService) Stop() error {
 
 	s.logger.Info(
 		"Idempotency service stopped",
-		core.LogKeyComponent, "idempotency",
+		logkeys.LogKeyComponent, "idempotency",
 		"total_stored", totalStored,
 	)
 	return nil
@@ -256,7 +265,7 @@ func (s *DefaultIdempotencyService) Health() *core.HealthStatus {
 
 // GenerateHash generates a deterministic hash for an event using the
 // canonical ComputeEventHash function from pkg/core.
-func (s *DefaultIdempotencyService) GenerateHash(event *core.BlockchainEvent) (string, error) {
+func (s *DefaultIdempotencyService) GenerateHash(event *blockchain.BlockchainEvent) (string, error) {
 	if event == nil {
 		return "", fmt.Errorf("event is required")
 	}
@@ -315,20 +324,7 @@ func (s *DefaultIdempotencyService) MarkProcessed(ctx context.Context, hash stri
 	}
 
 	// Evict oldest entry if at capacity (safety limit)
-	if len(s.processedHashes) >= s.maxSize {
-		var oldestHash string
-		var oldestTime time.Time
-		first := true
-		for h, t := range s.processedHashes {
-			if first || t.Before(oldestTime) {
-				oldestHash = h
-				oldestTime = t
-				first = false
-			}
-		}
-		delete(s.processedHashes, oldestHash)
-		s.metricsCollector.RecordCounter("idempotency_max_size_eviction", 1, map[string]string{})
-	}
+	s.evictOldestLocked()
 
 	s.processedHashes[hash] = time.Now()
 	s.processedCount++
@@ -338,6 +334,64 @@ func (s *DefaultIdempotencyService) MarkProcessed(ctx context.Context, hash stri
 	s.metricsCollector.RecordGauge("idempotency_stored_count", float64(len(s.processedHashes)), map[string]string{})
 
 	return nil
+}
+
+// CheckAndMark atomically reports whether hash was already processed and, if
+// not, records it as processed. It replaces the IsDuplicate-then-MarkProcessed
+// pair, which races between concurrent callers (both can observe "not a
+// duplicate" and both proceed to process the same event).
+//
+// Returns true when the hash had already been seen (duplicate).
+func (s *DefaultIdempotencyService) CheckAndMark(_ context.Context, hash string) (bool, error) {
+	if hash == "" {
+		return false, fmt.Errorf("hash is required")
+	}
+
+	// Single critical section: the existence check and the insert must not be
+	// separable, otherwise the check is stale by the time the insert happens.
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if !s.running {
+		return false, fmt.Errorf("idempotency service not running")
+	}
+
+	if _, exists := s.processedHashes[hash]; exists {
+		s.duplicateCount++
+		s.metricsCollector.RecordCounter("idempotency_duplicate_detected", 1, map[string]string{})
+		return true, nil
+	}
+
+	s.evictOldestLocked()
+
+	s.processedHashes[hash] = time.Now()
+	s.processedCount++
+
+	s.metricsCollector.RecordCounter("idempotency_event_marked", 1, map[string]string{})
+	s.metricsCollector.RecordGauge("idempotency_processed_count", float64(s.processedCount), map[string]string{})
+	s.metricsCollector.RecordGauge("idempotency_stored_count", float64(len(s.processedHashes)), map[string]string{})
+
+	return false, nil
+}
+
+// evictOldestLocked removes the oldest entry when the store is at capacity
+// (approximate LRU). The caller must hold s.mu.
+func (s *DefaultIdempotencyService) evictOldestLocked() {
+	if len(s.processedHashes) < s.maxSize {
+		return
+	}
+	var oldestHash string
+	var oldestTime time.Time
+	first := true
+	for h, t := range s.processedHashes {
+		if first || t.Before(oldestTime) {
+			oldestHash = h
+			oldestTime = t
+			first = false
+		}
+	}
+	delete(s.processedHashes, oldestHash)
+	s.metricsCollector.RecordCounter("idempotency_max_size_eviction", 1, map[string]string{})
 }
 
 // WarmUp pre-populates the in-memory dedup store to minimize duplicate-key

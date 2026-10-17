@@ -1,0 +1,12 @@
+-- I04: give the shared indexing runtime's checkpoint a persistent home that
+-- can carry an ordering cursor, not just a block number and a hash.
+--
+-- Before this, `indexing_state` stored (last_indexed_block, last_indexed_hash)
+-- but nothing in the deployed path wrote it: the shared runtime's checkpoint
+-- port was wired to an in-memory store, so every restart lost the position and
+-- the API read a table that never changed (finding I04).
+--
+-- The runtime checkpoint cursor has the form "<chain>:<block>:<log-index>"
+-- (see toEventEnvelope). It is NOT a block hash, so it gets its own column
+-- instead of overloading last_indexed_hash.
+ALTER TABLE indexing_state ADD COLUMN IF NOT EXISTS last_cursor VARCHAR(255);

@@ -6,14 +6,17 @@ import (
 	"testing"
 	"time"
 
+	portcontract "github.com/rtcdance/chainpulse/pkg/ports"
+
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/rtcdance/chainpulse/pkg/blockchain"
 	"github.com/rtcdance/chainpulse/pkg/core"
 )
 
 // mockReorgDatabase implements core.DatabasePlugin for testing.
 type mockReorgDatabase struct {
-	blocks      map[uint64]*core.Block
-	events      []*core.BlockchainEvent
+	blocks      map[uint64]*blockchain.Block
+	events      []*blockchain.BlockchainEvent
 	latestBlock uint64
 
 	deleteCalled bool
@@ -23,12 +26,12 @@ type mockReorgDatabase struct {
 
 func newMockReorgDatabase() *mockReorgDatabase {
 	return &mockReorgDatabase{
-		blocks: make(map[uint64]*core.Block),
+		blocks: make(map[uint64]*blockchain.Block),
 	}
 }
 
 func (m *mockReorgDatabase) addBlock(number uint64, hash, parentHash common.Hash) {
-	m.blocks[number] = &core.Block{
+	m.blocks[number] = &blockchain.Block{
 		Number:     number,
 		Hash:       hash,
 		ParentHash: parentHash,
@@ -39,13 +42,13 @@ func (m *mockReorgDatabase) addBlock(number uint64, hash, parentHash common.Hash
 }
 
 func (m *mockReorgDatabase) addEvent(blockNumber uint64) {
-	m.events = append(m.events, &core.BlockchainEvent{
+	m.events = append(m.events, &blockchain.BlockchainEvent{
 		BlockNumber: blockNumber,
 	})
 }
 
 // EventReader
-func (m *mockReorgDatabase) GetEvent(_ context.Context, _ string) (*core.BlockchainEvent, error) {
+func (m *mockReorgDatabase) GetEvent(_ context.Context, _ string) (*blockchain.BlockchainEvent, error) {
 	return nil, nil
 }
 
@@ -53,12 +56,12 @@ func (m *mockReorgDatabase) QueryEvents(_ context.Context, _ any) ([]any, error)
 	return nil, nil
 }
 
-func (m *mockReorgDatabase) GetAllEvents(_ context.Context) ([]*core.BlockchainEvent, error) {
+func (m *mockReorgDatabase) GetAllEvents(_ context.Context) ([]*blockchain.BlockchainEvent, error) {
 	return nil, nil
 }
 
-func (m *mockReorgDatabase) GetEventsByBlockRange(_ context.Context, fromBlock, _ uint64) ([]*core.BlockchainEvent, error) {
-	var result []*core.BlockchainEvent
+func (m *mockReorgDatabase) GetEventsByBlockRange(_ context.Context, fromBlock, _ uint64) ([]*blockchain.BlockchainEvent, error) {
+	var result []*blockchain.BlockchainEvent
 	for _, e := range m.events {
 		if uint64(e.BlockNumber) >= fromBlock {
 			result = append(result, e)
@@ -87,7 +90,7 @@ func (m *mockReorgDatabase) MarkEventsAsReorged(_ context.Context, fromBlock, to
 }
 
 // BlockReader
-func (m *mockReorgDatabase) GetBlock(_ context.Context, number uint64) (*core.Block, error) {
+func (m *mockReorgDatabase) GetBlock(_ context.Context, number uint64) (*blockchain.Block, error) {
 	b, ok := m.blocks[number]
 	if !ok {
 		return nil, fmt.Errorf("block %d not found", number)
@@ -99,13 +102,13 @@ func (m *mockReorgDatabase) GetLatestBlock(_ context.Context) (uint64, error) {
 	return m.latestBlock, nil
 }
 
-func (m *mockReorgDatabase) GetAllBlocks(_ context.Context) ([]*core.Block, error) {
+func (m *mockReorgDatabase) GetAllBlocks(_ context.Context) ([]*blockchain.Block, error) {
 	return nil, nil
 }
 
 // ReorgStatsProvider
-func (m *mockReorgDatabase) GetReorgStats(_ context.Context) (*core.ReorgStats, error) {
-	return &core.ReorgStats{}, nil
+func (m *mockReorgDatabase) GetReorgStats(_ context.Context) (*portcontract.ReorgStats, error) {
+	return &portcontract.ReorgStats{}, nil
 }
 
 // Plugin interface
