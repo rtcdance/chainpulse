@@ -415,3 +415,17 @@ full-telemetry-closure-v2现已exit0，编译改为/dev/null后的真实部署/a
 左侧执行自10:49落RED测试后停滞约11小时（执行文档停在10:30），本轮直接接管推进T00分批落地的第一批：把订阅链路从原始dirty工作树同步进隔离候选工作树（~/.codex/worktrees/web3-go-delivery/chainpulse）。同步前逐一diff核实每个既存文件的差异仅为订阅相关（main.go仅消费接线替换、mq_plugin.go仅+Partition、kafka_owned_consumer.go仅Partition回填、canonical_query_runtime.go仅+SubscriptionStore/SubscriptionChains两方法），新文件依赖闭包全部核对为候选已有（dlq_events表、migration清单两侧42文件IDENTICAL、ChainScope/requireDB/SetReadinessCheck/Health/ReorgRollbackEvent/core topics均在候选中存在），共13个文件（4 modified + 9 new，untracked新文件经git status独立核对，未用tracked-only diff-stat隐瞒）。
 
 候选内顺序门禁：go build exit0；make check（vet+gofumpt）exit0；make lint --new-from-rev=HEAD~1 0 issues（提交前后各一次）；make test-short exit0全绿；订阅三包-race -count=1全ok（api-service/indexing/mq）。业务提交909169e（13 files, +1176/-76）经pre-commit build+vet后推送，远端实读909169e0159f449680c8d60e00aa87aa63893fd1与本地一致。该批包含：API-service就绪状态机消费者替换processed-events旧路径、共享reorg wire解析、PG权威delivery（block/reorg/durability校验+quarantine）、Partition broker权威身份、就绪探针接入健康检查。远端CI对该SHA运行中，结论未出前不记通过；dirty工作树原状保留未提交部分不动。
+
+
+## 2026-10-17 22:55：909169e contracts 失败与 2071ca1 修复推送
+
+909169e的远端CI实读结论：CI=failure、Integration & E2E=cancelled（被后续push取消）、Security/Frontend API/Performance Metrics/E2E Tests/Code Coverage=success。CI失败根因在acceptance-gate的4条issue，其中硬失败为contracts：TestPostgresSubscriptionDeliveryUsesCommittedAuthority在64行断言max-uint256（78位精确值）回读失败——该测试（属第一批）依赖postgres_event_payload.go的UseNumber解码修复（属第二批），我将本应原子的单元拆成两批导致。诊断未猜测：拉取job 117421263994原始日志定位断言与expected json.Number值。
+
+修复与本地复现：第二批（postgres_event_payload.go UseNumber+尾随JSON拒绝、puller durable_outbox改用共享appindexing.ReorgNotice编码器+新增durable_outbox_test、计划spec与执行文档增量）在候选内已过build/check/lint（0 issues）/test-short/两包-race门禁；另建独立库chainpulse_sub于cp-pg-fwd:15433（migrate up至head），CHAINPULSE_RUN_POSTGRES_INTEGRATION=1实跑该contracts用例PASS（0.36s），确认修复对症。提交2071ca1（5 files, +83/-10）经pre-commit build+vet、提交后make lint 0 issues后推送，远端实读2071ca1502bd487096359f2d095c8487b2a9c4ba一致，其CI运行中，结论未出不记通过。
+
+提交后做了双向全树审计（不只git status）：候选tracked全量对主树cmp 0差异0缺失；主树tracked全量对候选0差异0缺失；主树全部untracked（含被全局gitignore隐藏的docs/project执行文档本身、migrations、workflows、frontend、bench脚本）逐一cmp均为内容一致或候选已tracked；例外仅pkg/plugins/database/zz_nul_repro_test.go（前缀zz的临时NUL复现，实测PASS，payload raw为base64无NUL，判定为草稿不入候选）。即除该草稿外，dirty工作树与候选已完全同步，T00分批落地的同步面清零，待2071ca1 CI结论。
+
+
+## 2026-10-17 23:05：2071ca1 CI 七项全绿收口
+
+2071ca1502bd487096359f2d095c8487b2a9c4ba 的远端CI实读结论（轮询至全部completed）：CI、Integration & E2E Tests（含contracts）、Code Coverage、E2E Tests、Security、Frontend API、Performance Metrics 共7个workflow全部success——909169e失败的contracts用例（TestPostgresSubscriptionDeliveryUsesCommittedAuthority的max-uint256精确回读）经UseNumber修复后闭环。至此T00分批同步面（909169e+2071ca1）远端全绿，dirty工作树与候选完全同步。下一步推进T11遗留：gateway订阅路由（现仅本地无MQ输入的handler升级）、numeric replay ring的epoch/gap恢复裁决，以及emit→committed/reorg→gateway的真实进程链路负控。
