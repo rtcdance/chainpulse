@@ -449,4 +449,21 @@ CI/CD 接线：新增 `.github/workflows/release-candidate.yml`（`workflow_disp
 
 SBOM 证据（真实 run/artifact，非仅 workflow 文本）：security run `39075941287`（`headSha=ddf94f9…`，与本批候选 HEAD **同 SHA**，success）的 artifact `security-report`（121474B）下载实测含 `sbom/govulncheck-sbom.json`（`"schema":"chainpulse.sbom.v1"`、`produced_by: govulncheck v1.8.0`、`go_version: go1.26.9`）、`govulncheck-root.json`、`trivy-fs.json`、`security/summary.json`；`release.yml` 存在五次 `anchore/sbom-action` + `upload-artifact … name: sbom-images, path: sbom/`（含 `sbom/**/*.spdx.json`）接线，最近一次 success 的 release run `26755463489`（2026-06-01，push）其工件已过保留期不可下载，如实记为"接线存在、工件已过期"，不记为可引用工件。
 
-仍未完成、本节不记为通过（属 T00/T18 封版项）：推送后手动触发 release-candidate 远端运行并保存 run URL；本批新 SHA 的同 SHA 11 项 required checks 与 acceptance-gate 远端结论；`v*` tag 触发的 release SBOM 工件引用；T15 CD 半边 `deploy-rehearsal.sh` 的两 digest 回滚扩展（另项推进）。
+远端同 SHA 收口：e081c20c03015c34810bd85b12f619ed2e4c4efd 推送后，PR #1 的同一 SHA check-runs 轮询至全部 completed —— quality/unit-race/lint/build-binaries/image-build/integration/contracts/evm-e2e/frontend-api/security/coverage 共 11 项与 acceptance-gate **全部 success**（另有 Coverage comparison report、Collect Performance Metrics、Check Performance Regression、Evidence Pack D22 均 success；Notify on failure 为 skipped）。其中 **contracts success 是本批关键远端证据**：新增 E15 用例在 contracts lane 必然 skip，只有 skip-allowlist 的 `dependency_gated` 登记正确时该 lane 才会绿，故该项直接验证了登记的有效性；evm-e2e success 说明既有部署 lane 未受新增 integration 文件影响。本地与远端结论一致，无确定性失败。
+
+CD 半边（T15）本轮完成扩展并本地实跑，见下一节。
+
+仍未完成、本节不记为通过（属 T00/T18 封版项）：release-candidate workflow 的**远端**运行 —— `gh workflow run release-candidate.yml --ref codex/web3-go-backend-delivery` 返回 `HTTP 404: workflow not found on the default branch`（GitHub 只允许 dispatch 已进入默认分支的 workflow，PR 未合并前该文件只在特性分支上），而改以 `push` tag `v*` 触发会同时拉起 release.yml 的完整发布流水线（含镜像与 SBOM 工件，非本批该做的副作用）；故该 lane 的远端 run URL 需在 PR 合并（workflow 进入 master）或正式发布 tag 时取得。`v*` tag 触发的 release SBOM 工件引用同理（最近一次 success release run `26755463489` 的工件已过保留期）。
+
+
+## 2026-10-18 07:20：T15 CD 半边 deploy-rehearsal 两 digest 回滚（本地实跑）
+
+`scripts/acceptance/deploy-rehearsal.sh` 从"同 digest 重建、无前版可回"改为真实两 digest 回滚：新增 prev 镜像（`CHAINPULSE_DEPLOY_REHEARSAL_PREV_REF`，默认 `7636755`，由 `git archive` 取该修订源码交叉编译 linux/arm64）并**先验证其 `/health` 200** 再作为回滚目标；新增 **migrate→部署** 步骤（部署的首个真实动作）；当前镜像部署后 smoke 三面，再回滚到 prev 镜像 digest 并复测三面、比对行数。
+
+本轮实跑暴露并修复三个真实缺口（均先取证后改，非猜测）：
+
+1. **rehearsal 缺 migrate 步骤**：本机 `chainpulse_dev` 停在 schema **13**，当前发行版按 E15 的 fail-closed 语义拒绝启动（`canonical aggregate cache requires clean schema20`），而 prev 容忍该低版本 —— 首跑 verdict 报 `current=no after_rollback=yes`（prev 健康、当前未健康）。这是"rehearsal 少了 deploy 的第一步"而非脚本随机故障，补上 migrate 后 `schema 13 -> 21`（其后复跑为 21→21）。
+2. **宿主端口歧义**：宿主 Homebrew postgres 绑在 `127.0.0.1:5432`，压过 Docker 发布的 5432，使 `go run ./cmd/migrate` 从宿主连过去报 `role "chainpulse" does not exist`（实测 `cp-pg-fwd:15433 -> chainpulse-postgres:5432` 才是可用通路）。改为把交叉编译出的 migrate 二进制与 `migrations/` 挂进 Alpine 容器、在部署网络内以服务名 `chainpulse-postgres` 解析执行，彻底消除宿主侧端口歧义。
+3. **smoke 预期修正**：旧脚本裸探 `/api/v1/events` 并断言 200，但当前发行版按 I01 要求显式 chain filter（实测裸请求为 503 `query_unavailable / "an explicit chain filter is required"`，带 `?chain_id=ethereum` 则 200）。smoke 改为从库内取 chain_id 组成 `${events_path}`，并把实际探测路径写进报告，避免把"按设计拒绝的请求"当成回归。
+
+通过证据（`build/acceptance/deploy-rehearsal/deployment-report.json`，commit `1d838c588fbf`，tree_dirty=true）：prev `7636755` digest `sha256:aa7ab884b37d…`（16 迁移、health 200）、当前 digest `sha256:bf7683b37420…`（head 21 迁移）、`migration 21->21`、`health{status:yes, after_rollback_health:yes}`、两侧三面 smoke 均 200（探测路径 `/api/v1/events?chain_id=ethereum&limit=5`）、`distinct_digests=true`、`rows 3→3` 不变；verdict 实测 `deployment rehearsal PASSED (current=sha256:bf7683b37420..., rolled back to=sha256:aa7ab884b37d..., rows=3)`。`not_covered` 如实保留：registry push 与按 digest 拉取、multi-arch、真实链流量、§7.5 的 15 分钟观察窗、以及并发写下的 data digest 比对（后者归 E15 的 Go 测试）。

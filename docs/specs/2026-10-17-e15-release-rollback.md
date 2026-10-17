@@ -347,7 +347,17 @@ Mongo@27017、Kafka@9092，emitter `0xe7f1725E…0512`，prev ref `7636755`）�
      `sbom/**/*.spdx.json`）；最近一次 success 的 release run 为
      `26755463489`（2026-06-01，push），其 artifact 已过 90 天保留期而不可下载 ——
      如实记录为"接线存在、工件已过期"，不记为可引用工件。
-9. **仍待完成（属 T00/T18 封版项，本节不记为通过）**：release-candidate workflow 需推送后
-   手动触发一次远端运行并保存 run URL；同 SHA 的 11 项 required checks 与 acceptance-gate
-   对本批新 SHA 的远端结论；`v*` tag 触发的 release SBOM 工件引用。
+9. **远端同 SHA 收口（已完成）**：`e081c20c0301…` 推送后，PR #1 同一 SHA 的 check-runs 轮询至
+   全部 completed —— 11 项 required checks（quality/unit-race/lint/build-binaries/
+   image-build/integration/contracts/evm-e2e/frontend-api/security/coverage）与
+   acceptance-gate 全部 success。其中 **contracts success 直接验证了本批的 allowlist 登记**：
+   新增的 E15 用例在 contracts lane 必然 skip，登记不正确时该 lane 会红。本地与远端结论一致。
+10. **仍待完成（属 T00/T18 封版项，本节不记为通过）**：release-candidate workflow 的**远端**
+    运行 —— `gh workflow run release-candidate.yml --ref codex/web3-go-backend-delivery` 返回
+    `HTTP 404: workflow not found on the default branch`（GitHub 只允许 dispatch 已进入默认
+    分支的 workflow，PR 未合并时该文件只在特性分支），而改用 `push` tag `v*` 触发会同时拉起
+    `release.yml` 的完整发布流水线（镜像 + SBOM 工件），超出本批范围；故该 lane 的远端 run URL
+    需在 PR 合并或正式发布 tag 时取得。`v*` tag 触发的 release SBOM 工件引用同理。
+11. **T15 CD 半边（另项，已完成并实跑）**：`deploy-rehearsal.sh` 已扩展为两 digest 回滚并本地
+    实跑通过；细节与三个被暴露的缺口见执行记录 2026-10-18 07:20 小节，不在本 spec 范围内。
 
