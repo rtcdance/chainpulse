@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 
+	appindexing "github.com/rtcdance/chainpulse/pkg/application/indexing"
+	"github.com/rtcdance/chainpulse/pkg/plugins/database"
 	"github.com/rtcdance/chainpulse/pkg/plugins/mq"
 )
 
@@ -27,15 +29,7 @@ func (r *pullerExecutionRuntime) drainDurableNotifications(ctx context.Context, 
 		return err
 	}
 	for _, notice := range pending {
-		payload, err := json.Marshal(struct {
-			Schema     string          `json:"schema"`
-			ID         int64           `json:"id"`
-			JobID      string          `json:"job_id"`
-			ChainID    string          `json:"chain_id"`
-			Generation int64           `json:"generation"`
-			Kind       string          `json:"kind"`
-			Payload    json.RawMessage `json:"payload"`
-		}{"chainpulse.reorg.v1", notice.ID, notice.JobID, notice.ChainID, notice.Generation, notice.Topic, notice.Payload})
+		payload, err := encodeDurableReorgNotice(notice)
 		if err != nil {
 			return fmt.Errorf("encode durable reorg notice: %w", err)
 		}
@@ -47,4 +41,15 @@ func (r *pullerExecutionRuntime) drainDurableNotifications(ctx context.Context, 
 		}
 	}
 	return nil
+}
+
+func encodeDurableReorgNotice(notice database.ReorgNotification) ([]byte, error) {
+	payload, err := json.Marshal(appindexing.ReorgNotice{
+		Schema: appindexing.ReorgNoticeSchema, ID: notice.ID, JobID: notice.JobID,
+		ChainID: notice.ChainID, Generation: notice.Generation, Kind: notice.Topic, Payload: notice.Payload,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("encode durable reorg envelope: %w", err)
+	}
+	return payload, nil
 }

@@ -1,6 +1,7 @@
 package database
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 
@@ -38,8 +39,13 @@ func eventPayloadJSON(event *blockchain.BlockchainEvent) (string, error) {
 func restoreEventPayload(stored []byte, event *blockchain.BlockchainEvent) error {
 	var payload persistedEventPayload
 	if len(stored) > 0 && stored[0] == '{' {
-		if err := json.Unmarshal(stored, &payload); err != nil {
+		decoder := json.NewDecoder(bytes.NewReader(stored))
+		decoder.UseNumber()
+		if err := decoder.Decode(&payload); err != nil {
 			return fmt.Errorf("decode persisted event payload: %w", err)
+		}
+		if len(bytes.TrimSpace(stored[decoder.InputOffset():])) != 0 {
+			return fmt.Errorf("persisted event payload has trailing JSON")
 		}
 		if payload.Schema == "chainpulse.event-payload.v1" {
 			event.EventData = payload.Raw

@@ -396,3 +396,22 @@ scripts/dev-micro-loop.sh编译输出改为/dev/null，单main与./pkg/...多包
 full-telemetry-closure-v2现已exit0，编译改为/dev/null后的真实部署/adapter回归仍149pass/67顶层/0fail/0skip；迁移与31反控均通过，结束后明确test ! -e event-processor通过。v1原始证据/生成二进制归档均保留，v2使用独立二进制命名没有覆盖其哈希绑定。该结果闭环本次构建产物缺陷。
 
 原始dirty源码中另已开始T11共享reorg wire增量，先RED再实现；subscription-wire-race100：1500pass actions/4顶层/0fail/0skip，覆盖生产puller编码器与共享解析、识别detected通知、不合法schema/id/job/chain/generation/kind/range/time/超大及尾随JSON。该增量尚未同步候选，更未接入API消费者，不能将此单元合同记为整个订阅链路已完成。
+
+
+可观测性业务c796290与独立配置/工具批次edd7006现均已推送。候选工作树clean；实际make build按edd7006元信息构建全部二进制exit0，新CI正在运行，旧89af157全绿仅绑定旧候选。T11共享wire代码仍只在原始dirty工作树，尚未进入候选或实际API消费路径；不可把源码race100当作远端/端到端证明。
+
+
+## 2026-10-17：订阅消费者状态机 RED→GREEN 与 edd7006 CI 收口
+
+并行执行于10:49落下订阅消费者就绪状态机的RED测试（cmd/microservices/api-service/subscription_consumer_test.go）后停滞，实现缺失使make check与make test-short因vet: undefined: newSubscriptionConsumerState连续失败——这是"左侧任务卡住"的直接证据。当日19:53接管补完实现：subscriptionConsumerState按分区记录effect成败、单分区成功不得掩盖另一分区失败、revocation清空旧generation失败、ready观察ctx取消；新增validSubscriptionTopic在启动worker前拒绝非法topic（含长度249、字符集、"."/".."边界）；core.MessageQueueMessage新增Partition字段并由kafka owned consumer以broker权威值填充，MQ hook签名对照ConsumerOwnershipHooks实际定义（Revoked为单ctx）修正。同轮gofumpt修复并行在途的canonical_query_runtime.go格式。
+
+验证：go test -race -count=3 ./cmd/microservices/api-service/ -run 'TestSubscription|TestAPIServiceUsesConfigured'全PASS；顺序DoD dod-20261017-195656-*五步exit code均0（build空输出、check 78B、lint 0 issues、test-short 66 ok/0 FAIL），api-service整包-race -count=1复核ok。全部原始日志在build/acceptance/20261014-working/。该状态机与Partition字段仍只在原始dirty工作树，与T11共享wire同状态，未同步候选、未接端到端链路，不记为T11完成。
+
+候选edd7006的远端CI已实读收口：PR head与远端分支一致（edd70060d7cec23cd1c2f2360eb771d443640828），statusCheckRollup中16项全部SUCCESS（quality、coverage、unit-race、frontend-api、integration、security、image-build、lint、contracts、acceptance-gate、build-binaries、evm-e2e、Collect Performance Metrics、Check Performance Regression、Coverage comparison report、Evidence Pack D22），1项Notify on failure为SKIPPED，PR state为OPEN。上一节"新CI正在运行"至此闭环；仍不替代最终tag SHA验收与release/CD门禁。
+
+
+## 2026-10-17 22:34：T11 订阅链路同步候选 909169e
+
+左侧执行自10:49落RED测试后停滞约11小时（执行文档停在10:30），本轮直接接管推进T00分批落地的第一批：把订阅链路从原始dirty工作树同步进隔离候选工作树（~/.codex/worktrees/web3-go-delivery/chainpulse）。同步前逐一diff核实每个既存文件的差异仅为订阅相关（main.go仅消费接线替换、mq_plugin.go仅+Partition、kafka_owned_consumer.go仅Partition回填、canonical_query_runtime.go仅+SubscriptionStore/SubscriptionChains两方法），新文件依赖闭包全部核对为候选已有（dlq_events表、migration清单两侧42文件IDENTICAL、ChainScope/requireDB/SetReadinessCheck/Health/ReorgRollbackEvent/core topics均在候选中存在），共13个文件（4 modified + 9 new，untracked新文件经git status独立核对，未用tracked-only diff-stat隐瞒）。
+
+候选内顺序门禁：go build exit0；make check（vet+gofumpt）exit0；make lint --new-from-rev=HEAD~1 0 issues（提交前后各一次）；make test-short exit0全绿；订阅三包-race -count=1全ok（api-service/indexing/mq）。业务提交909169e（13 files, +1176/-76）经pre-commit build+vet后推送，远端实读909169e0159f449680c8d60e00aa87aa63893fd1与本地一致。该批包含：API-service就绪状态机消费者替换processed-events旧路径、共享reorg wire解析、PG权威delivery（block/reorg/durability校验+quarantine）、Partition broker权威身份、就绪探针接入健康检查。远端CI对该SHA运行中，结论未出前不记通过；dirty工作树原状保留未提交部分不动。
