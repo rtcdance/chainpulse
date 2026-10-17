@@ -77,7 +77,7 @@ echo "[micro-loop] changed packages:"
 echo "$changed_pkgs"
 
 echo "[micro-loop] step 0: compile"
-for pkg in $changed_pkgs; do go build "$pkg"; done
+for pkg in $changed_pkgs; do go build -o /dev/null "$pkg"; done
 
 echo "[micro-loop] step 1: format check"
 if [[ -z "$changed_go_files" ]]; then

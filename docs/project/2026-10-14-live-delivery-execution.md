@@ -384,3 +384,15 @@ T11接线复核仍有实质缺口：API-service硬编码processed-events并按�
 
 
 T13本轮完整门禁已exit0（full-telemetry-closure-v1）：67顶层/149pass/0fail/0skip真实adapter/deployed；migration7顶层/12pass/0fail/0skip；14指标合同、18查询工具控制、31门禁反例均通过。历史unit跳过动作71仍如实披露。telemetry-runtime-v1只读采样实际processor/puller/API/gateway/monolithic五入口，逐个绑定lsof监听PID、ps命令行及二进制SHA256，全部含go_goroutines/go_memstats_alloc_bytes；sampler正常退出，不是30min资源验收。新增四个回归用例均列入unit/command必需清单，原生订阅完整链路另列release-candidate pending。该增量补齐指标可见性、摘要一致性与错误诊断，不宣称T13跨MQ trace/告警故障矩阵已全量闭环。
+
+
+本轮首次业务提交被目录检查拒绝：micro-loop对单main包执行go build，在候选根目录生成36MiB的event-processor（已核对Mach-O/arm64、mtime与.gitignore规则，非tracked文件）。未绕过hook，已将该自有产物移入候选build/acceptance/20261014-working/telemetry-compile-artifact归档；正常hook随后通过，业务提交为c796290，真实提交后lint0issues。此前失败调用后的同名lint日志不能视作提交成功证明，v2日志才对应实际提交后检查。
+
+scripts/dev-micro-loop.sh编译输出改为/dev/null，单main与./pkg/...多包实测均exit0且根目录无event-processor；fast --base HEAD~1也通过。独立二进制命名的full-telemetry-closure-v2正在真实重跑，不能提前认定通过；尚待该轮退出、迁移/反控结果与根目录无产物检查，再提交独立配置批次。
+
+候选89af157远端11required checks与acceptance-gate已全部success，集成/EVM原始工件及真实PR head/merge SHA已归档。4stash逐一show统计与分类已补齐并保持原SHA，不apply/pop/drop；历史diff-audit文档前置说明其2026-10-14结论不代表当前完整封版。
+
+
+full-telemetry-closure-v2现已exit0，编译改为/dev/null后的真实部署/adapter回归仍149pass/67顶层/0fail/0skip；迁移与31反控均通过，结束后明确test ! -e event-processor通过。v1原始证据/生成二进制归档均保留，v2使用独立二进制命名没有覆盖其哈希绑定。该结果闭环本次构建产物缺陷。
+
+原始dirty源码中另已开始T11共享reorg wire增量，先RED再实现；subscription-wire-race100：1500pass actions/4顶层/0fail/0skip，覆盖生产puller编码器与共享解析、识别detected通知、不合法schema/id/job/chain/generation/kind/range/time/超大及尾随JSON。该增量尚未同步候选，更未接入API消费者，不能将此单元合同记为整个订阅链路已完成。

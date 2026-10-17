@@ -1,5 +1,23 @@
 # 交付差异核查（计划 §10 清单项，2026-10-14）
 
+## 2026-10-17 当前交付范围复核
+
+本文后续“15个提交/27个文件/工作树干净”只描述2026-10-14指定历史范围，不能当作本次完整T00–T18通过证明。当前原始checkout仍在30c45b05485b4ecfb47ae5accd3b723c09fad4e1并保留继承dirty；交付采用独立managed worktree及显式文件copy清单，每批提交单独验收。已推候选89af157的11个required checks和acceptance-gate已读回success；本地可观测性业务c796290已提交，后续配置/证据仍在验收中。这是当日快照，最终状态以git命令和run URL为准。
+
+4个stash已逐一执行`git stash show --include-untracked --stat/--name-status <sha>`并留存原始清单，本轮均选择保留，不apply/pop/drop：
+
+| stash SHA | 文件数 | 分类与保留理由 |
+| --- | ---: | --- |
+| 173c72e24f46fe2e8fe40f1252face9e3cff6427 | 15 | 历史cleanup含模块/源码删除、go.work、compose、目录检查脚本等；不得将旧删除批次盲目覆到当前候选 |
+| 61da74dd9df2ea79dfed1f1323312c9609545dde | 1 | 仅machine-local active-skills元数据，不是运行时代码 |
+| 496e521a40319aa78c8b88e87a0ef53a6ffcb80e | 1 | 仅machine-local active-skills元数据，不是运行时代码 |
+| 23231fb3f5d9fd64df56a109c8e2a0a4adda9cac | 4 | local provider/compose工具及根可执行文件；保留共享工具，不导入二进制或覆盖当前验收工具 |
+
+原始工件：`build/acceptance/20261014-working/stash-audit-20261017/`含逐stash stat/name-status、分类inventory及两checkout的HEAD/branch/status快照。保留stash满足T00的“保留/落地/丢弃”分类要求，不代表其中所有历史补丁已合并。最终候选完整差异、继承改动归属和全部交付要求仍需T18最终SHA审计；不得把下面的历史“通过”扩大为全项目封版。
+
+## 以下为 2026-10-14 历史记录
+
+
 > 对应计划 §10："**实际文件差异只包含各任务允许的变更；无吞并其他人的dirty changes。**"
 >
 > **结论：通过。** 工作树干净、无未跟踪文件、本会话 15 个提交共 27 个文件全部为预期变更、**无删除**、与他人在途工作**无交叉吞并**。

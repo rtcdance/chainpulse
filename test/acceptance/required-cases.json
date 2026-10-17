@@ -267,6 +267,31 @@
       "summary": "strict live load, independent 100k oracle, cold/hot 600s and resource/soak evidence",
       "tests": [],
       "pending": "Requires complete strict runtime workload and independent oracle evidence; performance-manager unit tests and shape-only queries are insufficient."
+    },
+    {
+      "id": "E13",
+      "lane": "unit",
+      "summary": "guarded runtime metrics survive export and canonical stats failures stay diagnosable",
+      "tests": [
+        "TestGuardIsPrometheusExporter",
+        "TestExportMetricsPrometheusUsesGuardPathEndToEnd",
+        "TestCanonicalStatsFailureLogsCauseWithoutExposingIt"
+      ]
+    },
+    {
+      "id": "E13",
+      "lane": "command",
+      "summary": "actual durable processor summary preserves the canonical runtime contract and state details",
+      "tests": [
+        "TestDurableProcessorSummaryUsesCanonicalRuntimeContract"
+      ]
+    },
+    {
+      "id": "E12",
+      "lane": "release-candidate",
+      "summary": "native committed/reorg subscription and bounded reconnect recovery through gateway",
+      "tests": [],
+      "pending": "Real emit->committed frame->API->gateway WebSocket delivery, reorg correction, duplicate effects, cursor loss/restart rejection and malformed-message handling remain unverified; successful upgrade alone is insufficient."
     }
   ]
 }
